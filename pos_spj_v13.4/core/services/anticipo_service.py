@@ -10,6 +10,7 @@ Reglas evaluadas en orden:
 """
 from __future__ import annotations
 import logging
+from backend.shared.ids import new_uuid
 from typing import Optional
 
 logger = logging.getLogger("spj.anticipo")
@@ -186,11 +187,12 @@ class AnticipoCotizacionService:
     def save_regla(self, tipo: str, categoria: str = None,
                    monto_desde: float = 0, monto_hasta: float = None,
                    pct: float = 30, notas: str = "") -> int:
-        rid = self.db.execute("""
+        rid = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+        self.db.execute("""
             INSERT INTO anticipo_reglas
-                (tipo, categoria, monto_desde, monto_hasta, pct_anticipo, notas)
-            VALUES (?,?,?,?,?,?)
-        """, (tipo, categoria, monto_desde, monto_hasta, pct, notas)).lastrowid
+                (id, tipo, categoria, monto_desde, monto_hasta, pct_anticipo, notas)
+            VALUES (?,?,?,?,?,?,?)
+        """, (rid, tipo, categoria, monto_desde, monto_hasta, pct, notas))
         try: self.db.commit()
         except Exception: pass
         self.invalidar_cache()

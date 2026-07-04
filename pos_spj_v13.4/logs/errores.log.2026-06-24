@@ -1,0 +1,1 @@
+{"ts": "2026-06-24T23:42:33.243165", "level": "ERROR", "logger": "spj.main_window", "msg": "Error cargando ModuloVentas: from __future__ imports must occur at the beginning of the file (stock_reservation_service.py, line 2)", "module": "main_window", "line": 27}

@@ -28,7 +28,7 @@ class ModuloGrowthEngine(QWidget):
         super().__init__(parent)
         self.container   = container
         self.db          = container.db
-        self.sucursal_id = 1
+        self.sucursal_id = getattr(container, "sucursal_id", "") or ""
         self._engine     = None
         self._build_ui()
         self._cargar_todo()

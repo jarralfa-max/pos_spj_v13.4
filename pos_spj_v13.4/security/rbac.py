@@ -87,31 +87,7 @@ _ROLE_PERMISSIONS: dict[str, Set[str]] = {
 def inicializar_rbac(conn=None) -> None:
     """Crea tablas RBAC y siembra roles/permisos si no existen."""
     c = conn or get_connection()
-    c.executescript("""
-        CREATE TABLE IF NOT EXISTS roles (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre      TEXT UNIQUE NOT NULL,
-            descripcion TEXT,
-            activo      INTEGER DEFAULT 1
-        );
-        CREATE TABLE IF NOT EXISTS permisos (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            codigo      TEXT UNIQUE NOT NULL,
-            modulo      TEXT NOT NULL,
-            descripcion TEXT
-        );
-        CREATE TABLE IF NOT EXISTS roles_permisos (
-            rol_id     INTEGER REFERENCES roles(id) ON DELETE CASCADE,
-            permiso_id INTEGER REFERENCES permisos(id) ON DELETE CASCADE,
-            PRIMARY KEY (rol_id, permiso_id)
-        );
-        CREATE TABLE IF NOT EXISTS usuarios_roles (
-            usuario_id  INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
-            rol_id      INTEGER REFERENCES roles(id) ON DELETE CASCADE,
-            sucursal_id INTEGER DEFAULT 1,
-            PRIMARY KEY (usuario_id, rol_id, sucursal_id)
-        );
-    """)
+    pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
     # Seed roles
     for nombre, desc in ROLES.items():
         c.execute("INSERT OR IGNORE INTO roles (nombre, descripcion) VALUES (?,?)", (nombre, desc))

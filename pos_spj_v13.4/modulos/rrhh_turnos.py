@@ -27,7 +27,7 @@ class ModuloRRHHTurnos(QWidget):
         super().__init__(parent)
         self.container   = container
         self.db          = container.db
-        self.sucursal_id = 1
+        self.sucursal_id = getattr(container, "sucursal_id", "") or ""
         self.usuario     = ""
         self._ensure_tables()
         self._build_ui()
@@ -39,38 +39,7 @@ class ModuloRRHHTurnos(QWidget):
 
     def _ensure_tables(self):
         try:
-            self.db.executescript("""
-                CREATE TABLE IF NOT EXISTS turno_roles(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    nombre TEXT NOT NULL UNIQUE,
-                    hora_inicio TEXT DEFAULT '08:00',
-                    hora_fin    TEXT DEFAULT '16:00',
-                    descripcion TEXT,
-                    color       TEXT DEFAULT '#3498db',
-                    activo      INTEGER DEFAULT 1
-                );
-                CREATE TABLE IF NOT EXISTS turno_asignaciones(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    personal_id INTEGER NOT NULL,
-                    turno_rol_id INTEGER NOT NULL,
-                    fecha_inicio DATE NOT NULL,
-                    fecha_fin    DATE,
-                    dia_descanso TEXT DEFAULT 'Domingo',
-                    rotacion_dias INTEGER DEFAULT 7,
-                    notif_semana INTEGER DEFAULT 1,
-                    notif_dia    INTEGER DEFAULT 1,
-                    activo       INTEGER DEFAULT 1,
-                    notas        TEXT
-                );
-                CREATE TABLE IF NOT EXISTS turno_notificaciones_log(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    personal_id INTEGER,
-                    tipo TEXT,
-                    fecha_envio DATETIME DEFAULT (datetime('now')),
-                    mensaje TEXT,
-                    estado TEXT DEFAULT 'enviado'
-                );
-            """)
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try: self.db.commit()
             except Exception: pass
         except Exception as e:
@@ -209,7 +178,7 @@ class ModuloRRHHTurnos(QWidget):
     def _editar_rol(self):
         row = self.tbl_roles.currentRow()
         if row < 0: return
-        rid = int(self.tbl_roles.item(row,0).text())
+        rid = self.tbl_roles.item(row,0).text()
         self._dialogo_rol(rid)
 
     def _dialogo_rol(self, rol_id=None):
@@ -247,7 +216,7 @@ class ModuloRRHHTurnos(QWidget):
     def _eliminar_rol(self):
         row = self.tbl_roles.currentRow()
         if row < 0: return
-        rid = int(self.tbl_roles.item(row,0).text())
+        rid = self.tbl_roles.item(row,0).text()
         if QMessageBox.question(self,"Confirmar","¿Eliminar este rol de turno?",
            QMessageBox.Yes|QMessageBox.No) != QMessageBox.Yes: return
         self.db.execute("UPDATE turno_roles SET activo=0 WHERE id=?", (rid,))
@@ -261,7 +230,7 @@ class ModuloRRHHTurnos(QWidget):
     def _editar_asignacion(self):
         row = self.tbl_asig.currentRow()
         if row < 0: return
-        aid = int(self.tbl_asig.item(row,0).text())
+        aid = self.tbl_asig.item(row,0).text()
         self._dialogo_asignacion(aid)
 
     def _dialogo_asignacion(self, asig_id=None):
@@ -315,7 +284,7 @@ class ModuloRRHHTurnos(QWidget):
     def _quitar_asignacion(self):
         row = self.tbl_asig.currentRow()
         if row < 0: return
-        aid = int(self.tbl_asig.item(row,0).text())
+        aid = self.tbl_asig.item(row,0).text()
         if QMessageBox.question(self,"Confirmar","¿Quitar esta asignación de turno?",
            QMessageBox.Yes|QMessageBox.No) != QMessageBox.Yes: return
         self.db.execute("UPDATE turno_asignaciones SET activo=0 WHERE id=?", (aid,))
@@ -403,9 +372,10 @@ class ModuloRRHHTurnos(QWidget):
                     wa = getattr(self.container, "whatsapp_service", None)
                     if wa:
                         wa.send_message(telefono, msg)
+                    from backend.shared.ids import new_uuid
                     self.db.execute(
-                        "INSERT INTO turno_notificaciones_log(personal_id,tipo,mensaje) VALUES(?,?,?)",
-                        (asig_id, tipo, msg))
+                        "INSERT INTO turno_notificaciones_log(id,personal_id,tipo,mensaje) VALUES(?,?,?,?)",
+                        (new_uuid(), asig_id, tipo, msg))
                     enviados += 1
                 except Exception as e:
                     logger.warning("Notif WA turno: %s", e)

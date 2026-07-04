@@ -120,7 +120,7 @@ class ProveedorRepository:
         """Return all active branches ordered by name."""
         try:
             rows = self.db.execute(
-                "SELECT id, nombre FROM sucursales WHERE activo=1 ORDER BY nombre"
+                "SELECT id, nombre FROM sucursales WHERE activa=1 AND id IS NOT NULL AND TRIM(id) != '' AND LOWER(TRIM(id)) NOT IN ('none','null') ORDER BY nombre"
             ).fetchall()
             return [self._safe_row(r, ["id", "nombre"]) for r in rows]
         except Exception as e:

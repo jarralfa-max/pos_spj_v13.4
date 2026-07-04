@@ -50,12 +50,12 @@ class ItemCarrito:
 class DatosPago:
     forma_pago:       str   = "Efectivo"
     monto_pagado:     float = 0.0
-    cliente_id:       Optional[int] = None
+    cliente_id:       Optional[str] = None
     descuento_global: float = 0.0
     puntos_canjeados: int   = 0
     descuento_puntos: float = 0.0
     notas:            str   = ""
-    sucursal_id:      Optional[int] = None
+    sucursal_id:      Optional[str] = None
     usuario:          str = ""
     operation_id:     str = ""
     descuento_lineas: float = 0.0
@@ -63,7 +63,7 @@ class DatosPago:
     pago_mixto:       Dict[str, float] = field(default_factory=dict)
     payment_breakdown: Dict[str, float] = field(default_factory=dict)
     total_pagado:     float = 0.0
-    reserva_id:       Optional[int] = None
+    reserva_id:       Optional[str] = None
 
     def __post_init__(self) -> None:
         self.forma_pago = _normalize_payment_label(self.forma_pago)
@@ -79,7 +79,7 @@ class DatosPago:
 
 @dataclass
 class ClienteVentaDTO:
-    cliente_id: Optional[int] = None
+    cliente_id: Optional[str] = None
     nombre: str = ""
     telefono: str = ""
     email: str = ""
@@ -102,7 +102,7 @@ class PaymentBreakdown:
 
 @dataclass
 class LoyaltyRedemptionRequest:
-    cliente_id: Optional[int] = None
+    cliente_id: Optional[str] = None
     puntos: int = 0
     subtotal: float = 0.0
     operation_id: str = ""
@@ -110,7 +110,7 @@ class LoyaltyRedemptionRequest:
 
 @dataclass
 class LoyaltyRedemptionPreview:
-    cliente_id: Optional[int] = None
+    cliente_id: Optional[str] = None
     puntos_solicitados: int = 0
     puntos_aplicables: int = 0
     descuento_aplicable: float = 0.0
@@ -126,7 +126,7 @@ class SaleContext:
     cliente: ClienteVentaDTO = field(default_factory=ClienteVentaDTO)
     payment_breakdown: PaymentBreakdown = field(default_factory=PaymentBreakdown)
     loyalty_redemption: LoyaltyRedemptionRequest = field(default_factory=LoyaltyRedemptionRequest)
-    sucursal_id: int = 0
+    sucursal_id: str = ""
     usuario: str = ""
     notas: str = ""
     operation_id: str = ""
@@ -135,7 +135,7 @@ class SaleContext:
 @dataclass
 class ResultadoVenta:
     ok:            bool
-    venta_id:      int        = 0
+    venta_id:      str        = ""
     folio:         str        = ""
     total:         float      = 0.0
     cambio:        float      = 0.0
@@ -271,7 +271,7 @@ class ProcesarVentaUC:
                 )
                 folio = rich.folio
                 ticket_html = rich.ticket_html
-                venta_id = int(rich.venta_id or 0)
+                venta_id = str(rich.venta_id or "")
                 total = float(rich.total or total)
                 operation_id = str(getattr(rich, "operation_id", "") or "")
                 ticket_payload = dict(getattr(rich, "ticket_payload", {}) or {})
@@ -315,7 +315,8 @@ class ProcesarVentaUC:
             if datos_pago.cliente_id and self._loyalty and getattr(self._loyalty, "enabled", True):
                 if puntos_totales in (None, "") or not (loyalty_result or {}).get("available", False):
                     try:
-                        puntos_totales = int(self._loyalty.saldo(datos_pago.cliente_id))
+                        saldo_pts = self._loyalty.saldo(datos_pago.cliente_id)
+                        puntos_totales = int(saldo_pts or 0)  # conteo de puntos
                         loyalty_result = dict(loyalty_result or {})
                         loyalty_result["puntos_totales"] = puntos_totales
                         loyalty_result["available"] = True
@@ -377,12 +378,12 @@ class ProcesarVentaUC:
         if stock_reader is None:
             return "No se pudo validar stock: servicio de consulta de inventario no disponible."
 
-        required_by_product: Dict[int, float] = {}
-        names_by_product: Dict[int, str] = {}
+        required_by_product: Dict[str, float] = {}
+        names_by_product: Dict[str, str] = {}
         for item in items:
             if item.es_compuesto:
                 continue  # componentes se validan al resolver BOM dentro del handler
-            product_id = int(item.producto_id)
+            product_id = item.producto_id  # UUIDv7 TEXT identity (no int cast)
             required_by_product[product_id] = required_by_product.get(product_id, 0.0) + float(item.cantidad or 0.0)
             names_by_product[product_id] = item.nombre
 

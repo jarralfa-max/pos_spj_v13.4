@@ -4,6 +4,8 @@ from typing import Any, Dict, List, Optional
 import hashlib
 import random
 
+from backend.shared.ids import new_uuid
+
 
 class LoyaltyRepository:
     """Repositorio SQL de fidelización (FASE 2)."""
@@ -47,10 +49,11 @@ class LoyaltyRepository:
         self.db.execute(
             """
             INSERT INTO loyalty_ledger
-            (cliente_id, tipo, puntos, monto_equiv, saldo_post, referencia, descripcion, sucursal_id, usuario)
-            VALUES (?,?,?,?,?,?,?,?,?)
+            (id, cliente_id, tipo, puntos, monto_equiv, saldo_post, referencia, descripcion, sucursal_id, usuario)
+            VALUES (?,?,?,?,?,?,?,?,?,?)
             """,
             (
+                new_uuid(),
                 cliente_id,
                 tipo,
                 int(puntos),
@@ -58,7 +61,7 @@ class LoyaltyRepository:
                 saldo_post,
                 str(referencia or ""),
                 str(descripcion or ""),
-                int(sucursal_id),
+                str(sucursal_id) if sucursal_id is not None else None,
                 str(usuario or ""),
             ),
         )
@@ -145,18 +148,7 @@ class LoyaltyRepository:
     def ensure_referrals_table(self) -> None:
         # TODO: mover este DDL a migración formal cuando el bootstrap de migraciones
         # de fidelidad quede consolidado en todos los entornos.
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS referidos(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                referidor_id INTEGER,
-                referido_id INTEGER,
-                bono_dado INTEGER DEFAULT 0,
-                estado TEXT DEFAULT 'pendiente',
-                fecha DATETIME DEFAULT (datetime('now'))
-            )
-            """
-        )
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
 
     # ──────────────────────────────────────────────────────────────────
     # Cumpleaños / retención
@@ -210,183 +202,14 @@ class LoyaltyRepository:
         return dict(row)
 
     def ensure_raffle_tables(self) -> None:
-        """Bootstrap temporal de esquema de rifas/sorteos con guardas financieras.
-
-        TODO: migrar este DDL a migraciones formales versionadas.
-        """
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS raffles(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre TEXT NOT NULL,
-                descripcion TEXT DEFAULT '',
-                premio TEXT DEFAULT '',
-                premio_costo_estimado REAL DEFAULT 0,
-                presupuesto_maximo REAL DEFAULT 0,
-                ventas_objetivo REAL DEFAULT 0,
-                roi_objetivo REAL DEFAULT 0,
-                monto_por_boleto REAL DEFAULT 0,
-                max_boletos_por_cliente INTEGER DEFAULT 1,
-                estado TEXT DEFAULT 'borrador',
-                financial_status TEXT DEFAULT 'presupuestada',
-                fecha_inicio TEXT,
-                fecha_fin TEXT,
-                sucursal_id INTEGER DEFAULT 1,
-                created_by TEXT DEFAULT '',
-                approved_by TEXT DEFAULT '',
-                created_at TEXT DEFAULT (datetime('now')),
-                updated_at TEXT DEFAULT (datetime('now'))
-            )
-            """
-        )
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS raffle_tickets(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                raffle_id INTEGER NOT NULL,
-                cliente_id INTEGER,
-                venta_id INTEGER,
-                folio_venta TEXT,
-                numero_boleto TEXT NOT NULL,
-                monto_base REAL DEFAULT 0,
-                estado TEXT DEFAULT 'vigente',
-                cancel_reason TEXT DEFAULT '',
-                sucursal_id INTEGER DEFAULT 1,
-                created_at TEXT DEFAULT (datetime('now')),
-                cancelled_at TEXT,
-                UNIQUE(raffle_id, numero_boleto),
-                UNIQUE(raffle_id, venta_id, numero_boleto)
-            )
-            """
-        )
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS raffle_financial_ledger(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                raffle_id INTEGER NOT NULL,
-                tipo TEXT NOT NULL,
-                monto REAL DEFAULT 0,
-                referencia TEXT NOT NULL,
-                descripcion TEXT DEFAULT '',
-                usuario TEXT DEFAULT '',
-                sucursal_id INTEGER DEFAULT 1,
-                created_at TEXT DEFAULT (datetime('now')),
-                UNIQUE(raffle_id, tipo, referencia)
-            )
-            """
-        )
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS raffle_winners(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                raffle_id INTEGER NOT NULL,
-                ticket_id INTEGER NOT NULL,
-                prize_id INTEGER,
-                cliente_id INTEGER,
-                premio TEXT DEFAULT '',
-                premio_costo_real REAL DEFAULT 0,
-                estado_entrega TEXT DEFAULT 'pendiente',
-                seleccionado_por TEXT DEFAULT '',
-                random_seed TEXT DEFAULT '',
-                pool_hash TEXT DEFAULT '',
-                fecha_seleccion TEXT DEFAULT (datetime('now')),
-                fecha_entrega TEXT,
-                notificado INTEGER DEFAULT 0,
-                UNIQUE(raffle_id, ticket_id)
-            )
-            """
-        )
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS raffle_rules(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                raffle_id INTEGER NOT NULL UNIQUE,
-                requires_registered_customer INTEGER DEFAULT 0,
-                min_sale_amount REAL DEFAULT 0,
-                ticket_strategy TEXT DEFAULT 'per_amount',
-                amount_per_ticket REAL DEFAULT 0,
-                tickets_per_sale INTEGER DEFAULT 1,
-                max_tickets_per_sale INTEGER DEFAULT 0,
-                max_tickets_per_customer INTEGER DEFAULT 0,
-                include_discounted_sales INTEGER DEFAULT 1,
-                allowed_payment_methods TEXT DEFAULT '',
-                allowed_weekdays TEXT DEFAULT '',
-                start_time TEXT DEFAULT '',
-                end_time TEXT DEFAULT '',
-                created_at TEXT DEFAULT (datetime('now'))
-            )
-            """
-        )
-        self.db.execute("CREATE TABLE IF NOT EXISTS raffle_prizes(id INTEGER PRIMARY KEY AUTOINCREMENT, raffle_id INTEGER NOT NULL, nombre TEXT NOT NULL, descripcion TEXT DEFAULT '', cantidad INTEGER DEFAULT 1, costo_estimado REAL DEFAULT 0, costo_real REAL DEFAULT 0, orden INTEGER DEFAULT 1, estado TEXT DEFAULT 'pendiente', created_at TEXT DEFAULT (datetime('now')))")
-        self.db.execute("CREATE TABLE IF NOT EXISTS raffle_eligible_products(id INTEGER PRIMARY KEY AUTOINCREMENT, raffle_id INTEGER NOT NULL, product_id INTEGER NOT NULL)")
-        self.db.execute("CREATE TABLE IF NOT EXISTS raffle_eligible_categories(id INTEGER PRIMARY KEY AUTOINCREMENT, raffle_id INTEGER NOT NULL, category_id INTEGER NOT NULL)")
-        self.db.execute("CREATE TABLE IF NOT EXISTS raffle_eligible_branches(id INTEGER PRIMARY KEY AUTOINCREMENT, raffle_id INTEGER NOT NULL, sucursal_id INTEGER NOT NULL)")
-
-        def _ensure_columns(table: str, columns_sql: list[tuple[str, str]]) -> None:
-            try:
-                existing = {
-                    row[1] if isinstance(row, tuple) else row["name"]
-                    for row in self.db.execute(f"PRAGMA table_info({table})").fetchall()
-                }
-            except Exception:
-                existing = set()
-            for col_name, col_sql in columns_sql:
-                if col_name in existing:
-                    continue
-                try:
-                    self.db.execute(f"ALTER TABLE {table} ADD COLUMN {col_sql}")
-                except Exception:
-                    pass
-
-        _ensure_columns("raffles", [
-            ("descripcion", "descripcion TEXT DEFAULT ''"),
-            ("premio", "premio TEXT DEFAULT ''"),
-            ("premio_costo_estimado", "premio_costo_estimado REAL DEFAULT 0"),
-            ("presupuesto_maximo", "presupuesto_maximo REAL DEFAULT 0"),
-            ("ventas_objetivo", "ventas_objetivo REAL DEFAULT 0"),
-            ("roi_objetivo", "roi_objetivo REAL DEFAULT 0"),
-            ("monto_por_boleto", "monto_por_boleto REAL DEFAULT 0"),
-            ("max_boletos_por_cliente", "max_boletos_por_cliente INTEGER DEFAULT 1"),
-            ("estado", "estado TEXT DEFAULT 'borrador'"),
-            ("financial_status", "financial_status TEXT DEFAULT 'presupuestada'"),
-            ("fecha_inicio", "fecha_inicio TEXT"),
-            ("fecha_fin", "fecha_fin TEXT"),
-            ("sucursal_id", "sucursal_id INTEGER DEFAULT 1"),
-            ("created_by", "created_by TEXT DEFAULT ''"),
-            ("approved_by", "approved_by TEXT DEFAULT ''"),
-            ("created_at", "created_at TEXT DEFAULT (datetime('now'))"),
-            ("updated_at", "updated_at TEXT DEFAULT (datetime('now'))"),
-        ])
-        _ensure_columns("raffle_tickets", [
-            ("folio_venta", "folio_venta TEXT"),
-            ("numero_boleto", "numero_boleto TEXT"),
-            ("monto_base", "monto_base REAL DEFAULT 0"),
-            ("estado", "estado TEXT DEFAULT 'vigente'"),
-            ("cancel_reason", "cancel_reason TEXT DEFAULT ''"),
-            ("sucursal_id", "sucursal_id INTEGER DEFAULT 1"),
-            ("created_at", "created_at TEXT DEFAULT (datetime('now'))"),
-            ("cancelled_at", "cancelled_at TEXT"),
-        ])
-        _ensure_columns("raffle_winners", [
-            ("prize_id", "prize_id INTEGER"),
-            ("premio_costo_real", "premio_costo_real REAL DEFAULT 0"),
-            ("estado_entrega", "estado_entrega TEXT DEFAULT 'pendiente'"),
-            ("seleccionado_por", "seleccionado_por TEXT DEFAULT ''"),
-            ("random_seed", "random_seed TEXT DEFAULT ''"),
-            ("pool_hash", "pool_hash TEXT DEFAULT ''"),
-            ("fecha_entrega", "fecha_entrega TEXT"),
-            ("notificado", "notificado INTEGER DEFAULT 0"),
-        ])
-
-        self.db.execute(
-            "CREATE INDEX IF NOT EXISTS idx_raffles_estado_fecha ON raffles(estado, created_at)"
-        )
-        self.db.execute(
-            "CREATE INDEX IF NOT EXISTS idx_raffle_tickets_raffle ON raffle_tickets(raffle_id, estado)"
-        )
-        self.db.execute(
-            "CREATE INDEX IF NOT EXISTS idx_raffle_winners_raffle ON raffle_winners(raffle_id, estado_entrega)"
-        )
+        """El esquema de rifas se define en la migración 113 (REGLA 11): el repo
+        ya no contiene DDL. Para bases sin bootstrap (p.ej. tests) se delega la
+        creación idempotente a la migración; en producción es un no-op."""
+        try:
+            import importlib
+            importlib.import_module("migrations.standalone.113_raffle_subsystem").run(self.db)
+        except Exception:
+            pass
     def create_raffle_with_rules(
         self,
         data: Dict[str, Any],
@@ -399,25 +222,26 @@ class LoyaltyRepository:
         self.save_raffle_rules(raffle_id, rules or {})
         for prize in (prizes or []):
             self.add_raffle_prize(raffle_id, prize)
-        self.db.execute("DELETE FROM raffle_eligible_products WHERE raffle_id=?", (int(raffle_id),))
-        self.db.execute("DELETE FROM raffle_eligible_categories WHERE raffle_id=?", (int(raffle_id),))
-        self.db.execute("DELETE FROM raffle_eligible_branches WHERE raffle_id=?", (int(raffle_id),))
+        self.db.execute("DELETE FROM raffle_eligible_products WHERE raffle_id=?", (raffle_id,))
+        self.db.execute("DELETE FROM raffle_eligible_categories WHERE raffle_id=?", (raffle_id,))
+        self.db.execute("DELETE FROM raffle_eligible_branches WHERE raffle_id=?", (raffle_id,))
         for pid in (eligibility or {}).get("products", []) or []:
-            self.db.execute("INSERT INTO raffle_eligible_products(raffle_id, product_id) VALUES(?,?)", (int(raffle_id), int(pid)))
+            self.db.execute("INSERT INTO raffle_eligible_products(id, raffle_id, product_id) VALUES(?,?,?)", (new_uuid(), raffle_id, pid))
         for cid in (eligibility or {}).get("categories", []) or []:
-            self.db.execute("INSERT INTO raffle_eligible_categories(raffle_id, category_id) VALUES(?,?)", (int(raffle_id), int(cid)))
+            self.db.execute("INSERT INTO raffle_eligible_categories(id, raffle_id, category_id) VALUES(?,?,?)", (new_uuid(), raffle_id, cid))
         for bid in (eligibility or {}).get("branches", []) or []:
-            self.db.execute("INSERT INTO raffle_eligible_branches(raffle_id, sucursal_id) VALUES(?,?)", (int(raffle_id), int(bid)))
-        return int(raffle_id)
+            self.db.execute("INSERT INTO raffle_eligible_branches(id, raffle_id, sucursal_id) VALUES(?,?,?)", (new_uuid(), raffle_id, bid))
+        return raffle_id
     def get_raffle_rules(self, raffle_id: int) -> Dict[str, Any]:
         self.ensure_raffle_tables()
-        row = self.db.execute("SELECT * FROM raffle_rules WHERE raffle_id=?", (int(raffle_id),)).fetchone()
+        row = self.db.execute("SELECT * FROM raffle_rules WHERE raffle_id=?", (raffle_id,)).fetchone()
         return self._row_to_dict(row)
     def save_raffle_rules(self, raffle_id: int, rules: Dict[str, Any]) -> None:
         self.ensure_raffle_tables()
         self.db.execute(
             """
             INSERT INTO raffle_rules(
+                id,
                 raffle_id,
                 requires_registered_customer,
                 min_sale_amount,
@@ -432,7 +256,7 @@ class LoyaltyRepository:
                 start_time,
                 end_time
             )
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(raffle_id) DO UPDATE SET
                 requires_registered_customer=excluded.requires_registered_customer,
                 min_sale_amount=excluded.min_sale_amount,
@@ -448,7 +272,8 @@ class LoyaltyRepository:
                 end_time=excluded.end_time
             """,
             (
-                int(raffle_id),
+                new_uuid(),
+                raffle_id,
                 int(rules.get("requires_registered_customer") or 0),
                 float(rules.get("min_sale_amount") or 0),
                 str(rules.get("ticket_strategy") or "per_amount"),
@@ -465,18 +290,20 @@ class LoyaltyRepository:
         )
     def list_raffle_prizes(self, raffle_id: int) -> List[Dict[str, Any]]:
         self.ensure_raffle_tables()
-        rows = self.db.execute("SELECT * FROM raffle_prizes WHERE raffle_id=? ORDER BY orden,id", (int(raffle_id),)).fetchall()
+        rows = self.db.execute("SELECT * FROM raffle_prizes WHERE raffle_id=? ORDER BY orden,id", (raffle_id,)).fetchall()
         return [self._row_to_dict(r) for r in rows]
-    def add_raffle_prize(self, raffle_id: int, prize: Dict[str, Any]) -> int:
+    def add_raffle_prize(self, raffle_id: str, prize: Dict[str, Any]) -> str:
         self.ensure_raffle_tables()
+        prize_id = new_uuid()
         self.db.execute(
             """
             INSERT INTO raffle_prizes(
-                raffle_id,nombre,descripcion,cantidad,costo_estimado,costo_real,orden,estado
-            ) VALUES(?,?,?,?,?,?,?,?)
+                id,raffle_id,nombre,descripcion,cantidad,costo_estimado,costo_real,orden,estado
+            ) VALUES(?,?,?,?,?,?,?,?,?)
             """,
             (
-                int(raffle_id),
+                prize_id,
+                raffle_id,
                 str(prize.get("nombre") or ""),
                 str(prize.get("descripcion") or ""),
                 int(prize.get("cantidad") or 1),
@@ -486,11 +313,11 @@ class LoyaltyRepository:
                 str(prize.get("estado") or "pendiente"),
             ),
         )
-        row = self.db.execute("SELECT last_insert_rowid()").fetchone()
-        return int((row[0] if row else 0) or 0)
-    def create_raffle(self, data: Dict[str, Any]) -> int:
+        return prize_id
+    def create_raffle(self, data: Dict[str, Any]) -> str:
         self.ensure_raffle_tables()
         payload = {
+            "id": new_uuid(),  # identidad UUIDv7 explícita (REGLA CERO)
             "nombre": str(data.get("nombre") or "").strip(),
             "descripcion": str(data.get("descripcion") or ""),
             "premio": str(data.get("premio") or ""),
@@ -504,7 +331,7 @@ class LoyaltyRepository:
             "financial_status": str(data.get("financial_status") or "presupuestada"),
             "fecha_inicio": data.get("fecha_inicio"),
             "fecha_fin": data.get("fecha_fin"),
-            "sucursal_id": int(data.get("sucursal_id") or 1),
+            "sucursal_id": data.get("sucursal_id"),
             "created_by": str(data.get("created_by") or ""),
             "approved_by": str(data.get("approved_by") or ""),
         }
@@ -516,12 +343,11 @@ class LoyaltyRepository:
             f"INSERT INTO raffles ({','.join(cols)}) VALUES ({','.join(['?'] * len(cols))})",
             vals,
         )
-        row = self.db.execute("SELECT last_insert_rowid()").fetchone()
-        return int((row[0] if row else 0) or 0)
+        return payload["id"]
 
     def get_raffle_by_id(self, raffle_id: int) -> Dict[str, Any]:
         self.ensure_raffle_tables()
-        row = self.db.execute("SELECT * FROM raffles WHERE id=?", (int(raffle_id),)).fetchone()
+        row = self.db.execute("SELECT * FROM raffles WHERE id=?", (raffle_id,)).fetchone()
         return self._row_to_dict(row)
 
     def reserve_raffle_budget(
@@ -544,24 +370,25 @@ class LoyaltyRepository:
             self.db.execute(
                 """
                 INSERT INTO raffle_financial_ledger
-                (raffle_id, tipo, monto, referencia, descripcion, usuario, sucursal_id)
-                VALUES(?,?,?,?,?,?,?)
+                (id, raffle_id, tipo, monto, referencia, descripcion, usuario, sucursal_id)
+                VALUES(?,?,?,?,?,?,?,?)
                 """,
                 (
-                    int(raffle_id),
+                    new_uuid(),
+                    raffle_id,
                     "budget_reserved",
                     monto_value,
                     str(referencia),
                     "Reserva presupuesto rifa",
                     str(usuario or ""),
-                    int(raffle.get("sucursal_id") or 1),
+                    raffle.get("sucursal_id"),
                 ),
             )
         except Exception:
             return False
         self.db.execute(
             "UPDATE raffles SET financial_status='reservada',updated_at=datetime('now') WHERE id=?",
-            (int(raffle_id),),
+            (raffle_id,),
         )
         return True
 
@@ -574,10 +401,10 @@ class LoyaltyRepository:
             self.db.execute(
                 """
                 INSERT INTO raffle_financial_ledger
-                (raffle_id, tipo, monto, referencia, descripcion, usuario, sucursal_id)
-                VALUES(?,?,?,?,?,?,?)
+                (id, raffle_id, tipo, monto, referencia, descripcion, usuario, sucursal_id)
+                VALUES(?,?,?,?,?,?,?,?)
                 """,
-                (int(raffle_id), "budget_released", abs(float(monto or 0)), str(referencia), "Liberación presupuesto rifa", str(usuario or ""), int(raffle.get("sucursal_id") or 1)),
+                (new_uuid(), raffle_id, "budget_released", abs(float(monto or 0)), str(referencia), "Liberación presupuesto rifa", str(usuario or ""), raffle.get("sucursal_id")),
             )
             return True
         except Exception:
@@ -590,7 +417,7 @@ class LoyaltyRepository:
                SET estado='activa', approved_by=?, updated_at=datetime('now')
              WHERE id=?
             """,
-            (str(usuario or ""), int(raffle_id)),
+            (str(usuario or ""), raffle_id),
         )
         return int(getattr(cur, "rowcount", 0) or 0) > 0
 
@@ -601,7 +428,7 @@ class LoyaltyRepository:
                SET estado='cerrada', approved_by=COALESCE(NULLIF(approved_by,''), ?), updated_at=datetime('now')
              WHERE id=?
             """,
-            (str(usuario or ""), int(raffle_id)),
+            (str(usuario or ""), raffle_id),
         )
         return int(getattr(cur, "rowcount", 0) or 0) > 0
 
@@ -630,23 +457,24 @@ class LoyaltyRepository:
 
         created: List[str] = []
         for i in range(tickets_count):
-            ticket_number = f"{int(raffle_id)}-{int(venta_id)}-{i + 1}"
+            ticket_number = f"{raffle_id}-{venta_id}-{i + 1}"
             try:
                 self.db.execute(
                     """
                     INSERT INTO raffle_tickets
-                    (raffle_id, cliente_id, venta_id, folio_venta, numero_boleto, monto_base, estado, sucursal_id)
-                    VALUES(?,?,?,?,?,?,?,?)
+                    (id, raffle_id, cliente_id, venta_id, folio_venta, numero_boleto, monto_base, estado, sucursal_id)
+                    VALUES(?,?,?,?,?,?,?,?,?)
                     """,
                     (
-                        int(raffle_id),
-                        int(cliente_id),
-                        int(venta_id),
+                        new_uuid(),
+                        raffle_id,
+                        cliente_id,
+                        venta_id,
                         str(folio_venta or ""),
                         ticket_number,
                         float(monto_base or 0),
                         "vigente",
-                        int(sucursal_id or 1),
+                        sucursal_id,
                     ),
                 )
                 created.append(ticket_number)
@@ -665,7 +493,7 @@ class LoyaltyRepository:
                AND (estado IS NULL OR estado<>'cancelado')
              ORDER BY id ASC
             """,
-            (int(raffle_id), int(venta_id)),
+            (raffle_id, venta_id),
         ).fetchall()
         return [self._row_to_dict(r) for r in rows]
 
@@ -678,7 +506,7 @@ class LoyaltyRepository:
                    cancelled_at=datetime('now')
              WHERE venta_id=? AND (estado IS NULL OR estado<>'cancelado')
             """,
-            (str(reason or "cancelación de venta"), int(venta_id)),
+            (str(reason or "cancelación de venta"), venta_id),
         )
         return int(getattr(cur, "rowcount", 0) or 0)
 
@@ -691,7 +519,8 @@ class LoyaltyRepository:
              WHERE estado='activa'
                AND COALESCE(financial_status,'')='reservada'
                AND (
-                    sucursal_id=?
+                    raffles.sucursal_id IS NULL
+                    OR raffles.sucursal_id=?
                     OR EXISTS (
                         SELECT 1
                           FROM raffle_eligible_branches reb
@@ -703,7 +532,7 @@ class LoyaltyRepository:
                AND (fecha_fin IS NULL OR fecha_fin>=?)
              ORDER BY created_at DESC
             """,
-            (int(sucursal_id), int(sucursal_id), str(sale_datetime), str(sale_datetime)),
+            (sucursal_id, sucursal_id, str(sale_datetime), str(sale_datetime)),
         ).fetchall()
         return [self._row_to_dict(r) for r in rows]
 
@@ -712,7 +541,7 @@ class LoyaltyRepository:
 
     def count_customer_tickets(self, raffle_id: int, cliente_id: int) -> int:
         self.ensure_raffle_tables()
-        row = self.db.execute("SELECT COUNT(*) FROM raffle_tickets WHERE raffle_id=? AND cliente_id=? AND estado='vigente'", (int(raffle_id), int(cliente_id))).fetchone()
+        row = self.db.execute("SELECT COUNT(*) FROM raffle_tickets WHERE raffle_id=? AND cliente_id=? AND estado='vigente'", (raffle_id, cliente_id)).fetchone()
         return int((row[0] if row else 0) or 0)
 
     def select_winner(
@@ -730,7 +559,7 @@ class LoyaltyRepository:
              WHERE raffle_id=? AND estado='vigente'
              ORDER BY id
             """,
-            (int(raffle_id),),
+            (raffle_id,),
         ).fetchall()
         if not tickets:
             return {}
@@ -743,45 +572,45 @@ class LoyaltyRepository:
         pool_hash = hashlib.sha256(pool.encode()).hexdigest()
 
         if not prize_id:
-            p = self.db.execute("SELECT id FROM raffle_prizes WHERE raffle_id=? AND estado='pendiente' ORDER BY orden,id LIMIT 1", (int(raffle_id),)).fetchone()
-            prize_id = int((p[0] if isinstance(p, tuple) else p["id"]) or 0) if p else 0
+            p = self.db.execute("SELECT id FROM raffle_prizes WHERE raffle_id=? AND estado='pendiente' ORDER BY orden,id LIMIT 1", (raffle_id,)).fetchone()
+            prize_id = (p[0] if isinstance(p, tuple) else p["id"]) if p else None
         if prize_id:
-            q = self.db.execute("SELECT cantidad FROM raffle_prizes WHERE id=? AND raffle_id=?", (int(prize_id), int(raffle_id))).fetchone()
+            q = self.db.execute("SELECT cantidad FROM raffle_prizes WHERE id=? AND raffle_id=?", (prize_id, raffle_id)).fetchone()
             qty = int((q[0] if q else 0) or 0)
-            used = self.db.execute("SELECT COUNT(*) FROM raffle_winners WHERE raffle_id=? AND prize_id=?", (int(raffle_id), int(prize_id))).fetchone()
+            used = self.db.execute("SELECT COUNT(*) FROM raffle_winners WHERE raffle_id=? AND prize_id=?", (raffle_id, prize_id)).fetchone()
             if int((used[0] if used else 0) or 0) >= qty:
                 return {}
         self.db.execute(
             """
             INSERT OR IGNORE INTO raffle_winners
-            (raffle_id, ticket_id, cliente_id, prize_id, premio, seleccionado_por, random_seed, pool_hash)
-            SELECT id, ?, ?, ?, premio, ?, ?, ? FROM raffles WHERE id=?
+            (id, raffle_id, ticket_id, cliente_id, prize_id, premio, seleccionado_por, random_seed, pool_hash)
+            SELECT ?, id, ?, ?, ?, premio, ?, ?, ? FROM raffles WHERE id=?
             """,
-            (ticket_id, cliente_id, int(prize_id or 0) or None, str(usuario or ""), seed, pool_hash, int(raffle_id)),
+            (new_uuid(), ticket_id, cliente_id, prize_id or None, str(usuario or ""), seed, pool_hash, raffle_id),
         )
         winner_row = self.db.execute(
             "SELECT id FROM raffle_winners WHERE raffle_id=? AND ticket_id=? LIMIT 1",
-            (int(raffle_id), int(ticket_id)),
+            (raffle_id, ticket_id),
         ).fetchone()
-        winner_id = int((winner_row[0] if isinstance(winner_row, tuple) else winner_row["id"]) or 0) if winner_row else 0
+        winner_id = (winner_row[0] if isinstance(winner_row, tuple) else winner_row["id"]) if winner_row else None
         return {
             "id": winner_id,
-            "raffle_id": int(raffle_id),
-            "ticket_id": int(ticket_id),
-            "cliente_id": int(cliente_id or 0),
+            "raffle_id": raffle_id,
+            "ticket_id": ticket_id,
+            "cliente_id": cliente_id,
             "random_seed": seed,
             "pool_hash": pool_hash,
         }
 
 
     def get_winner_by_id(self, winner_id: int) -> Dict[str, Any]:
-        row = self.db.execute("SELECT * FROM raffle_winners WHERE id=?", (int(winner_id),)).fetchone()
+        row = self.db.execute("SELECT * FROM raffle_winners WHERE id=?", (winner_id,)).fetchone()
         return self._row_to_dict(row)
 
     def has_raffle_budget_reserve(self, raffle_id: int) -> bool:
         row = self.db.execute(
             "SELECT 1 FROM raffle_financial_ledger WHERE raffle_id=? AND tipo='budget_reserved' LIMIT 1",
-            (int(raffle_id),),
+            (raffle_id,),
         ).fetchone()
         return bool(row)
 
@@ -790,8 +619,8 @@ class LoyaltyRepository:
         winner = self.get_winner_by_id(winner_id)
         if not winner:
             return False
-        raffle_id = int(winner.get("raffle_id") or 0)
-        prize_id = int(winner.get("prize_id") or 0)
+        raffle_id = winner.get("raffle_id")
+        prize_id = winner.get("prize_id")
         ref = str(referencia or f"winner:{winner_id}:deliver")
         cur = self.db.execute(
             """
@@ -801,7 +630,7 @@ class LoyaltyRepository:
                    fecha_entrega=datetime('now')
              WHERE id=? AND estado_entrega<>'entregado'
             """,
-            (float(costo_real or 0), int(winner_id)),
+            (float(costo_real or 0), winner_id),
         )
         if int(getattr(cur, "rowcount", 0) or 0) <= 0:
             return False
@@ -809,22 +638,23 @@ class LoyaltyRepository:
             self.db.execute(
                 """
                 INSERT INTO raffle_financial_ledger
-                (raffle_id, tipo, monto, referencia, descripcion, usuario, sucursal_id)
-                VALUES(?,?,?,?,?,?,?)
+                (id, raffle_id, tipo, monto, referencia, descripcion, usuario, sucursal_id)
+                VALUES(?,?,?,?,?,?,?,?)
                 """,
                 (
+                    new_uuid(),
                     raffle_id,
                     "prize_delivered",
                     abs(float(costo_real or 0)),
                     ref,
                     "Entrega de premio rifa",
                     str(usuario or ""),
-                    int((self.get_raffle_by_id(raffle_id).get("sucursal_id") or 1)),
+                    self.get_raffle_by_id(raffle_id).get("sucursal_id"),
                 ),
             )
         except Exception:
             pass
-        if prize_id > 0:
+        if prize_id:
             self.db.execute(
                 "UPDATE raffle_prizes SET costo_real=COALESCE(costo_real,0)+? WHERE id=?",
                 (abs(float(costo_real or 0)), prize_id),
@@ -849,7 +679,7 @@ class LoyaltyRepository:
              ORDER BY id DESC
              LIMIT ?
             """,
-            (int(raffle_id), int(limit)),
+            (raffle_id, int(limit)),
         ).fetchall()
         out: List[Dict[str, Any]] = []
         for row in rows:
@@ -923,7 +753,7 @@ class LoyaltyRepository:
                    estado = 'asignada'
              WHERE codigo = ?
             """,
-            (int(cliente_id), int(cliente_id), str(codigo)),
+            (cliente_id, cliente_id, str(codigo)),
         )
 
     def block_card(self, codigo: str) -> None:

@@ -41,10 +41,10 @@ def run(conn) -> None:
     # ── wa_event_log ──────────────────────────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS wa_event_log (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT    PRIMARY KEY,
             event_type  TEXT    NOT NULL,
             data_json   TEXT,
-            sucursal_id INTEGER DEFAULT 1,
+            sucursal_id TEXT,
             prioridad   INTEGER DEFAULT 5,
             timestamp   TEXT    DEFAULT (datetime('now'))
         )
@@ -57,14 +57,14 @@ def run(conn) -> None:
     # ── wa_reminder_queue ─────────────────────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS wa_reminder_queue (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT PRIMARY KEY,
             tipo        TEXT    NOT NULL,
             event_type  TEXT    NOT NULL,
             data_json   TEXT    DEFAULT '{}',
             phone       TEXT    NOT NULL DEFAULT '',
             execute_at  TEXT    NOT NULL,
             prioridad   INTEGER DEFAULT 5,
-            sucursal_id INTEGER DEFAULT 1,
+            sucursal_id TEXT,
             estado      TEXT    DEFAULT 'pendiente',
             created_at  TEXT    DEFAULT (datetime('now'))
         )
@@ -77,12 +77,12 @@ def run(conn) -> None:
     # ── ordenes_compra (si no existe) ─────────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ordenes_compra (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            producto_id     INTEGER NOT NULL,
-            proveedor_id    INTEGER DEFAULT NULL,
+            id              TEXT PRIMARY KEY,
+            producto_id     TEXT NOT NULL,
+            proveedor_id    TEXT DEFAULT NULL,
             cantidad        REAL    NOT NULL DEFAULT 0.0,
             estado          TEXT    NOT NULL DEFAULT 'pendiente',
-            sucursal_id     INTEGER DEFAULT 1,
+            sucursal_id     TEXT,
             notas           TEXT    DEFAULT '',
             fecha_creacion  TEXT    DEFAULT (datetime('now')),
             fecha_cierre    TEXT    DEFAULT NULL
@@ -98,7 +98,7 @@ def run(conn) -> None:
         if not _column_exists(conn, "cotizaciones", "venta_ref_id"):
             try:
                 conn.execute(
-                    "ALTER TABLE cotizaciones ADD COLUMN venta_ref_id INTEGER DEFAULT NULL"
+                    "ALTER TABLE cotizaciones ADD COLUMN venta_ref_id TEXT DEFAULT NULL"
                 )
             except Exception as e:
                 logger.debug("cotizaciones.venta_ref_id: %s", e)

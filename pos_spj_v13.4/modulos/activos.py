@@ -112,11 +112,12 @@ class DialogoActivo(QDialog):
                 WHERE id=?
             """, datos + (self.activo_id,))
         else:
+            from backend.shared.ids import new_uuid
             cursor.execute("""
-                INSERT INTO activos (nombre, categoria, numero_serie, valor_adquisicion,
+                INSERT INTO activos (id, nombre, categoria, numero_serie, valor_adquisicion,
                 vida_util_anios, depreciacion_anual, ubicacion, estado, notas, fecha_adquisicion)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, date('now'))
-            """, datos)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now'))
+            """, (new_uuid(),) + datos)
             
         self.conexion.commit()
         self.accept()
@@ -230,11 +231,12 @@ class DialogoMantenimiento(QDialog):
                 "fecha_prog=?, realizado_por=? WHERE id=?",
                 datos + (self.mant_id,))
         else:
+            from backend.shared.ids import new_uuid
             cursor.execute(
                 "INSERT INTO mantenimientos "
-                "(activo_id, tipo, descripcion, fecha_prog, realizado_por, estado)"
-                " VALUES (?, ?, ?, ?, ?, 'pendiente')",
-                datos)
+                "(id, activo_id, tipo, descripcion, fecha_prog, realizado_por, estado)"
+                " VALUES (?, ?, ?, ?, ?, ?, 'pendiente')",
+                (new_uuid(),) + datos)
         self.conexion.commit()
         self.accept()
 
@@ -309,7 +311,7 @@ def calcular_depreciacion_mensual(db, sucursal_id: int = 1) -> list:
     try:
         # Asegurar que la columna valor_residual existe (puede faltar en DBs antiguas)
         try:
-            db.execute("ALTER TABLE activos ADD COLUMN valor_residual REAL DEFAULT 0")
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try: db.commit()
             except Exception: pass
         except Exception:
@@ -373,17 +375,13 @@ class ModuloActivos(ModuloBase):
     def __init__(self, container, parent=None):
         # Ensure depreciation table exists
         try:
-            container.db.execute("""CREATE TABLE IF NOT EXISTS activos_depreciacion (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                activo_id INTEGER, monto REAL, valor_antes REAL, valor_despues REAL,
-                fecha DATETIME DEFAULT (datetime('now')), sucursal_id INTEGER DEFAULT 1
-            )""")
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try: container.db.commit()
             except Exception: pass
         except Exception: pass
         super().__init__(container.db, parent)
         self.container = container
-        self.sucursal_id = 1
+        self.sucursal_id = getattr(container, "sucursal_id", "") or ""
         self.usuario_actual = "Sistema"
         self.init_ui()
 

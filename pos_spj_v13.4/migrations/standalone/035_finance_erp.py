@@ -26,8 +26,8 @@ def _create_suppliers(conn: sqlite3.Connection) -> None:
     """Crea la tabla de proveedores con todas sus columnas financieras."""
     conn.execute("""
         CREATE TABLE IF NOT EXISTS suppliers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            proveedor_id INTEGER,
+            id TEXT PRIMARY KEY,
+            proveedor_id TEXT,
             nombre TEXT NOT NULL,
             rfc TEXT,
             telefono TEXT,
@@ -53,8 +53,8 @@ def _create_ap_ar(conn: sqlite3.Connection) -> None:
     """Crea las tablas de Cuentas por Pagar (AP) y Cuentas por Cobrar (AR)."""
     conn.execute("""
         CREATE TABLE IF NOT EXISTS accounts_payable (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            supplier_id INTEGER NOT NULL,
+            id TEXT PRIMARY KEY,
+            supplier_id TEXT NOT NULL,
             invoice_number TEXT,
             amount REAL NOT NULL,
             balance REAL NOT NULL,
@@ -66,8 +66,8 @@ def _create_ap_ar(conn: sqlite3.Connection) -> None:
     
     conn.execute("""
         CREATE TABLE IF NOT EXISTS accounts_receivable (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            client_id INTEGER NOT NULL,
+            id TEXT PRIMARY KEY,
+            client_id TEXT NOT NULL,
             invoice_number TEXT,
             amount REAL NOT NULL,
             balance REAL NOT NULL,

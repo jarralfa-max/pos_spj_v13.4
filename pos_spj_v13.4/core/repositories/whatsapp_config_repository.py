@@ -18,24 +18,7 @@ class WhatsAppConfigRepository:
 
     def _ensure_table(self):
         try:
-            self.conn.execute("""
-                CREATE TABLE IF NOT EXISTS whatsapp_numeros (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    sucursal_id     INTEGER,
-                    canal           TEXT DEFAULT 'todos',
-                    proveedor       TEXT DEFAULT 'meta',
-                    numero_negocio  TEXT,
-                    meta_token      TEXT,
-                    meta_phone_id   TEXT,
-                    twilio_sid      TEXT,
-                    twilio_token    TEXT,
-                    verify_token    TEXT DEFAULT 'spj_verify',
-                    rasa_url        TEXT DEFAULT 'http://localhost:5005',
-                    rasa_activo     INTEGER DEFAULT 0,
-                    activo          INTEGER DEFAULT 1,
-                    nombre_sucursal TEXT,
-                    UNIQUE(sucursal_id, canal)
-                )""")
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try:
                 self.conn.commit()
             except Exception:
@@ -94,10 +77,12 @@ class WhatsAppConfigRepository:
                     f"UPDATE whatsapp_numeros SET {sets} WHERE id=?",
                     vals + (row_id,))
             else:
-                placeholders = ", ".join("?" * len(fields))
+                from backend.shared.ids import new_uuid
+                cols = ("id",) + fields
+                placeholders = ", ".join("?" * len(cols))
                 self.conn.execute(
-                    f"INSERT INTO whatsapp_numeros ({', '.join(fields)}) "
-                    f"VALUES ({placeholders})", vals)
+                    f"INSERT INTO whatsapp_numeros ({', '.join(cols)}) "
+                    f"VALUES ({placeholders})", (new_uuid(),) + vals)
             try:
                 self.conn.commit()
             except Exception:

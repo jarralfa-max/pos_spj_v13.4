@@ -1,0 +1,2 @@
+{"ts": "2026-06-20T05:19:25.056354", "level": "ERROR", "logger": "core.services.inventory_service", "msg": "Error descontando stock al producto 8: Stock insuficiente. Hay 0.0, se requieren 5.0.", "module": "inventory_service", "line": 120}
+{"ts": "2026-06-20T05:19:25.058435", "level": "ERROR", "logger": "spj.services.reservation", "msg": "commit_reservation: inventory deduct failed op=delivery:47: Fallo al descontar inventario: Stock insuficiente. Hay 0.0, se requieren 5.0.", "module": "reservation_service", "line": 166}

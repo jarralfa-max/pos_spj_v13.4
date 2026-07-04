@@ -20,7 +20,7 @@ def run(conn):
     existing = {row[1] for row in conn.execute("PRAGMA table_info(compras)")}
     if "purchase_order_id" not in existing:
         conn.execute(
-            "ALTER TABLE compras ADD COLUMN purchase_order_id INTEGER"
+            "ALTER TABLE compras ADD COLUMN purchase_order_id TEXT"
         )
 
     conn.executescript("""

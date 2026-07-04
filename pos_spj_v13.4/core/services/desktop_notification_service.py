@@ -16,25 +16,8 @@ class DesktopNotificationService:
         self._ensure_schema()
 
     def _ensure_schema(self) -> None:
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS notification_inbox (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                empleado_id INTEGER,
-                tipo TEXT NOT NULL,
-                titulo TEXT NOT NULL,
-                cuerpo TEXT DEFAULT '',
-                datos TEXT DEFAULT '{}',
-                leido INTEGER DEFAULT 0,
-                sucursal_id INTEGER DEFAULT 1,
-                created_at TEXT DEFAULT (datetime('now')),
-                leido_at TEXT,
-                dedupe_key TEXT,
-                severity TEXT DEFAULT 'info'
-            )
-            """
-        )
-        self.db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_inbox_dedupe_key ON notification_inbox(dedupe_key) WHERE dedupe_key IS NOT NULL")
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         self.db.commit()
 
     def create_notification(
@@ -54,13 +37,15 @@ class DesktopNotificationService:
             if row:
                 return False
 
+        from backend.shared.ids import new_uuid
         self.db.execute(
             """
             INSERT INTO notification_inbox
-            (empleado_id, tipo, titulo, cuerpo, datos, sucursal_id, dedupe_key, severity, leido, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
+            (id, empleado_id, tipo, titulo, cuerpo, datos, sucursal_id, dedupe_key, severity, leido, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
             """,
             (
+                new_uuid(),
                 empleado_id,
                 tipo,
                 title,
@@ -110,10 +95,10 @@ class DesktopNotificationService:
         ).fetchall()
         return [dict(r) for r in rows]
 
-    def mark_as_read(self, *, notification_id: int) -> None:
+    def mark_as_read(self, *, notification_id: str) -> None:
         self.db.execute(
             "UPDATE notification_inbox SET leido=1, leido_at=datetime('now') WHERE id=?",
-            (int(notification_id),),
+            (str(notification_id),),
         )
         self.db.commit()
 

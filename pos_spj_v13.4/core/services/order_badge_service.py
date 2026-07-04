@@ -32,7 +32,7 @@ class OrderBadgeService:
         except Exception:
             return set()
 
-    def get_badge_counts(self, branch_id: int) -> Dict[str, int]:
+    def get_badge_counts(self, branch_id: str) -> Dict[str, int]:
         return {
             "orders_active": self._safe_count(self._count_active_orders, branch_id),
             "orders_scheduled": self._safe_count(self._count_scheduled_orders, branch_id),
@@ -40,9 +40,10 @@ class OrderBadgeService:
             "notifications_unread": self._safe_count(self._count_unread_notifications, branch_id),
         }
 
-    def _safe_count(self, fn, branch_id: int) -> int:
+    def _safe_count(self, fn, branch_id: str) -> int:
         try:
-            return int(fn(branch_id) or 0)
+            total = fn(branch_id)  # conteo (el branch es sólo filtro)
+            return int(total or 0)
         except Exception:
             return 0
 
@@ -64,7 +65,7 @@ class OrderBadgeService:
         except Exception:
             return set()
 
-    def _count_active_orders(self, branch_id: int) -> int:
+    def _count_active_orders(self, branch_id: str) -> int:
         if not self._table_exists("delivery_orders"):
             return 0
         cols = self._columns("delivery_orders")
@@ -81,7 +82,7 @@ class OrderBadgeService:
         ).fetchone()
         return int(row[0] or 0)
 
-    def _count_scheduled_orders(self, branch_id: int) -> int:
+    def _count_scheduled_orders(self, branch_id: str) -> int:
         total = 0
         if self._table_exists("delivery_orders"):
             cols = self._columns("delivery_orders")
@@ -119,7 +120,7 @@ class OrderBadgeService:
                 total += int(row[0] or 0)
         return total
 
-    def _count_pending_adjustments(self, branch_id: int) -> int:
+    def _count_pending_adjustments(self, branch_id: str) -> int:
         if not self._table_exists("delivery_orders"):
             return 0
         cols = self._columns("delivery_orders")
@@ -146,7 +147,7 @@ class OrderBadgeService:
                 return int(row[0] or 0)
         return 0
 
-    def _count_unread_notifications(self, branch_id: int) -> int:
+    def _count_unread_notifications(self, branch_id: str) -> int:
         if not self._table_exists("notification_inbox"):
             return 0
         cols = self._columns("notification_inbox")

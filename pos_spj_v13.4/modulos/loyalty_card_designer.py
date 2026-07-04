@@ -26,6 +26,8 @@ import os
 import uuid
 from datetime import date
 
+from backend.shared.ids import new_uuid
+
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QColor, QFont, QLinearGradient, QBrush, QPainter, QPen, QPixmap
 from PyQt5.QtWidgets import (
@@ -388,20 +390,7 @@ class ModuloLoyaltyCardDesigner(QWidget):
         """Ensure tarjetas_fidelidad has all needed columns regardless of original schema."""
         try:
             # Create table only if doesn't exist at all
-            self.conexion.execute("""
-                CREATE TABLE IF NOT EXISTS tarjetas_fidelidad(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    id_cliente INTEGER REFERENCES clientes(id),
-                    codigo_qr TEXT UNIQUE,
-                    nivel TEXT DEFAULT 'Bronce',
-                    estado TEXT DEFAULT 'disponible',
-                    puntos_actuales INTEGER DEFAULT 0,
-                    es_pregenerada INTEGER DEFAULT 0,
-                    fecha_creacion DATETIME DEFAULT (datetime('now')),
-                    fecha_asignacion DATETIME,
-                    observaciones TEXT
-                )
-            """)
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             # Add columns that might be missing from either schema variant
             for col in [
                 "codigo_qr TEXT", "codigo TEXT", "estado TEXT DEFAULT 'disponible'",
@@ -413,22 +402,13 @@ class ModuloLoyaltyCardDesigner(QWidget):
                 "numero TEXT",
             ]:
                 try:
-                    self.conexion.execute(f"ALTER TABLE tarjetas_fidelidad ADD COLUMN {col}")
+                    pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
                 except Exception:
                     pass  # Column already exists
             # Ensure lotes PDF table exists
-            self.conexion.execute("""
-                CREATE TABLE IF NOT EXISTS lotes_tarjetas_pdf(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    cantidad INTEGER, nivel TEXT, ruta_pdf TEXT,
-                    plantilla TEXT, usuario TEXT,
-                    fecha DATETIME DEFAULT (datetime('now'))
-                )
-            """)
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try:
-                self.conexion.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_tarjetas_cliente "
-                    "ON tarjetas_fidelidad(id_cliente)")
+                pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             except Exception:
                 pass
             try:
@@ -761,27 +741,28 @@ class ModuloLoyaltyCardDesigner(QWidget):
         try:
             for _ in range(n):
                 codigo = f"SPJ{uuid.uuid4().hex[:8].upper()}"
-                # Insert with both column names for compatibility
+                # Identidad UUIDv7 explícita (REGLA CERO): el id no se delega a
+                # autoincrement. Insert con ambos nombres de columna por compat.
                 try:
                     self.conexion.execute(
                         "INSERT OR IGNORE INTO tarjetas_fidelidad"
-                        "(codigo_qr, codigo, nivel, estado, activa, es_pregenerada) "
-                        "VALUES(?,?,?,?,1,1)",
-                        (codigo, codigo, nivel_real, 'disponible'))
+                        "(id, codigo_qr, codigo, nivel, estado, activa, es_pregenerada) "
+                        "VALUES(?,?,?,?,?,1,1)",
+                        (new_uuid(), codigo, codigo, nivel_real, 'disponible'))
                 except Exception:
                     # Fallback: try with just one column variant
                     try:
                         self.conexion.execute(
                             "INSERT OR IGNORE INTO tarjetas_fidelidad"
-                            "(codigo_qr, nivel, estado, es_pregenerada) "
-                            "VALUES(?,?,?,1)",
-                            (codigo, nivel_real, 'disponible'))
+                            "(id, codigo_qr, nivel, estado, es_pregenerada) "
+                            "VALUES(?,?,?,?,1)",
+                            (new_uuid(), codigo, nivel_real, 'disponible'))
                     except Exception:
                         self.conexion.execute(
                             "INSERT OR IGNORE INTO tarjetas_fidelidad"
-                            "(codigo, nivel, activa, es_pregenerada) "
-                            "VALUES(?,?,1,1)",
-                            (codigo, nivel_real))
+                            "(id, codigo, nivel, activa, es_pregenerada) "
+                            "VALUES(?,?,?,1,1)",
+                            (new_uuid(), codigo, nivel_real))
                 cards.append({"codigo": codigo, "nivel": nivel_real})
             try:
                 self.conexion.commit()
@@ -964,8 +945,8 @@ class ModuloLoyaltyCardDesigner(QWidget):
         codigo = f"SPJ{uuid.uuid4().hex[:8].upper()}"
         try:
             self.conexion.execute(
-                "INSERT OR IGNORE INTO tarjetas_fidelidad(id_cliente,codigo,nivel,activa) "
-                "VALUES(?,?,?,1)", (cid, codigo, cmb_nivel.currentText()))
+                "INSERT OR IGNORE INTO tarjetas_fidelidad(id,id_cliente,codigo,nivel,activa) "
+                "VALUES(?,?,?,?,1)", (new_uuid(), cid, codigo, cmb_nivel.currentText()))
             try: self.conexion.commit()
             except Exception: pass
             self._cargar_tarjetas()

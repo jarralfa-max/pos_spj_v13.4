@@ -28,44 +28,7 @@ class CierreCajaService:
         self._init_tables()
 
     def _init_tables(self):
-        self.conn.executescript("""
-            CREATE TABLE IF NOT EXISTS cierres_caja (
-                id               INTEGER PRIMARY KEY AUTOINCREMENT,
-                uuid             TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
-                tipo             TEXT DEFAULT 'Z',        -- Z o X
-                sucursal_id      INTEGER DEFAULT 1,
-                usuario          TEXT,
-                turno            TEXT,
-                fecha_apertura   DATETIME,
-                fecha_cierre     DATETIME DEFAULT (datetime('now')),
-                -- Calculado por sistema
-                total_ventas     DECIMAL(12,2) DEFAULT 0,
-                num_ventas       INTEGER DEFAULT 0,
-                total_efectivo   DECIMAL(12,2) DEFAULT 0,
-                total_tarjeta    DECIMAL(12,2) DEFAULT 0,
-                total_transferencia DECIMAL(12,2) DEFAULT 0,
-                total_otros      DECIMAL(12,2) DEFAULT 0,
-                total_anulaciones DECIMAL(12,2) DEFAULT 0,
-                num_anulaciones  INTEGER DEFAULT 0,
-                -- Conteo físico
-                efectivo_contado DECIMAL(12,2) DEFAULT 0,
-                fondo_inicial    DECIMAL(12,2) DEFAULT 0,
-                -- Discrepancia
-                diferencia       DECIMAL(12,2) DEFAULT 0,
-                comentarios      TEXT,
-                estado           TEXT DEFAULT 'cerrado'
-            );
-            CREATE TABLE IF NOT EXISTS turno_actual (
-                sucursal_id    INTEGER PRIMARY KEY,
-                usuario        TEXT,
-                turno          TEXT,
-                fondo_inicial  DECIMAL(12,2) DEFAULT 0,
-                fecha_apertura DATETIME,
-                abierto        INTEGER DEFAULT 0
-            );
-            CREATE INDEX IF NOT EXISTS idx_cierres_fecha
-                ON cierres_caja(fecha_cierre, sucursal_id);
-        """)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         try: self.conn.commit()
         except Exception: pass
 
@@ -218,20 +181,21 @@ class CierreCajaService:
             sp_263cda = f"sp_{_u_sp_263cda.uuid4().hex[:6]}"
             self.conn.execute(f"SAVEPOINT {sp_263cda}")
             try:
-                cid = self.conn.execute("""INSERT INTO cierres_caja
-                    (uuid,tipo,sucursal_id,usuario,turno,fecha_apertura,
+                cid = new_uuid()  # identidad UUIDv7 del cierre (id canónico)
+                self.conn.execute("""INSERT INTO cierres_caja
+                    (id,tipo,sucursal_id,usuario,turno,fecha_apertura,
                      total_ventas,num_ventas,total_efectivo,total_tarjeta,
                      total_transferencia,total_otros,total_anulaciones,
                      num_anulaciones,efectivo_contado,fondo_inicial,
                      diferencia,comentarios)
                     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (new_uuid(), tipo, self.sucursal_id, self.usuario,
+                    (cid, tipo, self.sucursal_id, self.usuario,
                      turno["turno"] if turno else "N/A", fecha_desde,
                      resumen["total_ventas"], resumen["num_ventas"],
                      resumen["total_efectivo"], resumen["total_tarjeta"],
                      resumen["total_transferencia"], resumen["total_otros"],
                      resumen["total_anulaciones"], resumen["num_anulaciones"],
-                     efectivo_contado, fondo, diferencia, comentarios)).lastrowid
+                     efectivo_contado, fondo, diferencia, comentarios))
                 self.conn.execute("UPDATE turno_actual SET abierto=0 WHERE sucursal_id=?",
                           (self.sucursal_id,))
                 self.conn.commit()

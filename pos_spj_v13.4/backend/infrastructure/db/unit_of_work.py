@@ -52,3 +52,42 @@ class DbApiUnitOfWork(UnitOfWork):
         if self._transaction is None:
             raise RuntimeError("UnitOfWork is not active")
         self._transaction.rollback()
+
+
+class ConnectionUnitOfWork(UnitOfWork):
+    """UnitOfWork over an existing shared connection (desktop application services).
+
+    Owns the transaction boundary without recreating or closing the long-lived
+    desktop connection. Commits on success, rolls back on error. Safe under
+    SQLite autocommit (``isolation_level=None``), where ``commit()`` is a
+    harmless no-op. Repositories must not commit/rollback; the owning
+    application service / use case drives this boundary instead.
+    """
+
+    def __init__(self, connection: Any) -> None:
+        self.connection = connection
+        self._completed = False
+
+    def __enter__(self) -> "ConnectionUnitOfWork":
+        self._completed = False
+        return self
+
+    def __exit__(self, exc_type: type[BaseException] | None, exc: BaseException | None, traceback: object) -> bool:
+        if exc_type is not None:
+            self.rollback()
+        elif not self._completed:
+            self.commit()
+        return False
+
+    def commit(self) -> None:
+        self.connection.commit()
+        self._completed = True
+
+    def rollback(self) -> None:
+        rollback = getattr(self.connection, "rollback", None)
+        if rollback is not None:
+            try:
+                rollback()
+            except Exception:
+                pass
+        self._completed = True

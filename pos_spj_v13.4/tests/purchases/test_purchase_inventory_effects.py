@@ -28,7 +28,7 @@ import sqlite3
 
 SCHEMA = """
 CREATE TABLE compras (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT PRIMARY KEY,
     folio TEXT UNIQUE,
     proveedor_id INTEGER, usuario TEXT,
     subtotal REAL DEFAULT 0, iva REAL DEFAULT 0, total REAL DEFAULT 0,
@@ -38,7 +38,7 @@ CREATE TABLE compras (
     moneda TEXT DEFAULT 'MXN'
 );
 CREATE TABLE detalles_compra (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT PRIMARY KEY,
     compra_id INTEGER, producto_id INTEGER,
     cantidad REAL, precio_unitario REAL, subtotal REAL
 );

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from backend.shared.ids import new_uuid
 from typing import Any
 
 from core.delivery.infrastructure.delivery_schema_migrator import DeliverySchemaMigrator
@@ -19,12 +20,12 @@ class DeliveryOutboxRepository:
         self,
         *,
         event_type: str,
-        aggregate_id: int,
+        aggregate_id: str,
         payload: dict[str, Any],
         aggregate_type: str = "delivery_order",
         operation_id: str | None = None,
         commit: bool = False,
-    ) -> int:
+    ) -> str:
         clean_payload = self._without_db(payload)
         effective_operation_id = operation_id or clean_payload.get("operation_id")
         if effective_operation_id:
@@ -34,28 +35,30 @@ class DeliveryOutboxRepository:
                 WHERE event_type=? AND aggregate_id=? AND operation_id=?
                 LIMIT 1
                 """,
-                (event_type, int(aggregate_id), str(effective_operation_id)),
+                (event_type, str(aggregate_id), str(effective_operation_id)),
             ).fetchone()
             if existing:
-                return int(existing[0])
-        cur = self.db.execute(
+                return str(existing[0])
+        event_id = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+        self.db.execute(
             """
             INSERT INTO delivery_outbox_events(
-                event_type, aggregate_type, aggregate_id, payload_json,
+                id, event_type, aggregate_type, aggregate_id, payload_json,
                 status, retries, operation_id
-            ) VALUES(?,?,?,?, 'pending', 0, ?)
+            ) VALUES(?,?,?,?,?, 'pending', 0, ?)
             """,
             (
+                event_id,
                 event_type,
                 aggregate_type,
-                int(aggregate_id),
+                str(aggregate_id),
                 json.dumps(clean_payload, ensure_ascii=False, sort_keys=True),
                 str(effective_operation_id) if effective_operation_id else None,
             ),
         )
         if commit:
             self.db.commit()
-        return int(cur.lastrowid)
+        return event_id
 
     def fetch_pending(self, *, limit: int = 50) -> list[dict[str, Any]]:
         rows = self.db.execute(
@@ -76,7 +79,7 @@ class DeliveryOutboxRepository:
             SET status='done', processed_at=datetime('now'), last_error=NULL
             WHERE id=?
             """,
-            (int(event_id),),
+            (str(event_id),),
         )
         if commit:
             self.db.commit()
@@ -88,7 +91,7 @@ class DeliveryOutboxRepository:
             SET retries=COALESCE(retries, 0) + 1, last_error=?, status='pending'
             WHERE id=?
             """,
-            (str(error)[:1000], int(event_id)),
+            (str(error)[:1000], str(event_id)),
         )
         if commit:
             self.db.commit()
@@ -96,7 +99,7 @@ class DeliveryOutboxRepository:
     def payload_for(self, event_id: int) -> dict[str, Any] | None:
         row = self.db.execute(
             "SELECT payload_json FROM delivery_outbox_events WHERE id=?",
-            (int(event_id),),
+            (str(event_id),),
         ).fetchone()
         if not row:
             return None

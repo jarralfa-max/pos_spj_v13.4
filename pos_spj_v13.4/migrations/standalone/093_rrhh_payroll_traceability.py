@@ -33,7 +33,7 @@ def run(conn: sqlite3.Connection) -> None:
 
     _ensure_column(conn, "nomina_pagos", "operation_id TEXT")
     _ensure_column(conn, "nomina_pagos", "source_module TEXT DEFAULT 'rrhh'")
-    _ensure_column(conn, "nomina_pagos", "source_id INTEGER")
+    _ensure_column(conn, "nomina_pagos", "source_id TEXT")
 
     conn.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS ux_nomina_pagos_operation_id "

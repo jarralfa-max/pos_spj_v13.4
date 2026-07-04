@@ -33,11 +33,11 @@ def up(conn: sqlite3.Connection) -> None:
     ensure_column(conn, "promotion_rules", "aplica_a TEXT DEFAULT 'todo'") # 'categoria', 'producto_id', 'todo'
     # 2. Ajustes para el LoyaltyService (Tarjetas)
     # Tu tabla tarjetas_fidelidad es excelente, solo aseguramos los campos del lote
-    ensure_column(conn, "tarjetas_fidelidad", "lote_origen_id INTEGER")
+    ensure_column(conn, "tarjetas_fidelidad", "lote_origen_id TEXT")
     
     # 3. Ajustes para el PromotionEngine
     # Tu tabla promotion_rules ya casi lo tiene todo. Añadimos campo para target específico si no existe.
-    ensure_column(conn, "promotion_rules", "target_id INTEGER")
+    ensure_column(conn, "promotion_rules", "target_id TEXT")
     ensure_column(conn, "promotion_rules", "aplica_a TEXT DEFAULT 'todo'")  # 'categoria', 'producto_id', 'todo'
     
     # 4. Ajustes para el ConfigService

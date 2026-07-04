@@ -125,30 +125,12 @@ class MessageQueue:
         self._init_table()
 
     def _init_table(self):
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS whatsapp_queue (
-                id                INTEGER PRIMARY KEY AUTOINCREMENT,
-                to_number         TEXT NOT NULL,
-                message           TEXT NOT NULL,
-                template          TEXT,
-                payload           TEXT,
-                estado            TEXT DEFAULT 'pendiente',
-                intentos          INTEGER DEFAULT 0,
-                error             TEXT,
-                fecha             TEXT DEFAULT (datetime('now')),
-                enviado_en        TEXT,
-                proxima_revision  TEXT DEFAULT (datetime('now'))
-            )""")
-        self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_wa_queue_estado "
-            "ON whatsapp_queue(estado, fecha)")
-        self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_wa_queue_revision "
-            "ON whatsapp_queue(estado, proxima_revision)")
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         # Columna de backoff para tablas creadas antes de migración 081
         try:
-            self.conn.execute(
-                "ALTER TABLE whatsapp_queue ADD COLUMN proxima_revision TEXT")
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             self.conn.execute(
                 "UPDATE whatsapp_queue SET proxima_revision=fecha "
                 "WHERE proxima_revision IS NULL")
@@ -160,16 +142,18 @@ class MessageQueue:
     # ── Escritura ─────────────────────────────────────────────────────────────
 
     def enqueue(self, to_number: str, message: str,
-                template: str = None, payload: dict = None) -> int:
-        cur = self.conn.execute(
+                template: str = None, payload: dict = None) -> str:
+        from backend.shared.ids import new_uuid
+        msg_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.conn.execute(
             "INSERT INTO whatsapp_queue"
-            "(to_number, message, template, payload, proxima_revision) "
-            "VALUES(?, ?, ?, ?, datetime('now'))",
-            (to_number, message, template,
+            "(id, to_number, message, template, payload, proxima_revision) "
+            "VALUES(?, ?, ?, ?, ?, datetime('now'))",
+            (msg_id, to_number, message, template,
              json.dumps(payload) if payload else None))
         try: self.conn.commit()
         except Exception: pass
-        return cur.lastrowid
+        return msg_id
 
     def mark_sent(self, msg_id: int) -> None:
         self.conn.execute(

@@ -78,6 +78,11 @@ def db():
             cost_total  REAL,
             cost_per_kg REAL
         );
+        CREATE TABLE inventory_stock (
+            id TEXT PRIMARY KEY, product_id TEXT, branch_id TEXT,
+            quantity REAL DEFAULT 0, costo_promedio REAL DEFAULT 0,
+            UNIQUE(product_id, branch_id)
+        );
     """)
     # Seed: 1 raw source, 3 output products (2 finished + 1 waste)
     conn.executescript("""
@@ -157,12 +162,12 @@ class TestComputeBatchCosts:
     def test_branch_id_from_batch(self, db):
         _seed_batch(db, branch_id=3)
         s = ProductionCostService(db).compute_batch_costs("B001")
-        assert s.branch_id == 3
+        assert s.branch_id == '3'
 
     def test_source_product_id_from_batch(self, db):
         _seed_batch(db)
         s = ProductionCostService(db).compute_batch_costs("B001")
-        assert s.source_product_id == 1  # Pollo Entero
+        assert s.source_product_id == '1'  # Pollo Entero
 
     def test_empty_cost_ledger_returns_zero_costs(self, db):
         db.execute(
@@ -199,11 +204,16 @@ class TestUpdateAverageCosts:
         assert abs(pechuga - 50.0) < 0.001
         assert abs(pierna - 50.0) < 0.001
 
-    def test_updates_inventario_actual_costo_promedio(self, db):
+    def test_updates_inventory_stock_costo_promedio(self, db):
         _seed_batch(db)
+        # per-branch cost cache lives in inventory_stock (post-cut)
+        db.execute(
+            "INSERT INTO inventory_stock(id,product_id,branch_id,quantity,costo_promedio) "
+            "VALUES ('s2','2','1',0,0)"
+        )
         ProductionCostService(db).update_average_costs("B001")
         p = db.execute(
-            "SELECT costo_promedio FROM inventario_actual WHERE producto_id=2"
+            "SELECT costo_promedio FROM inventory_stock WHERE product_id='2'"
         ).fetchone()[0]
         assert abs(p - 50.0) < 0.001
 

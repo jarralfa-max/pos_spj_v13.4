@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SolicitudCierreCaja:
     sucursal_id: int
-    turno_id: int
+    turno_id: str  # identidad UUIDv7-ready (turnos_caja.id); nunca int
     efectivo_contado: float
     usuario: str = "admin"
     comentarios: str = ""
@@ -20,7 +20,7 @@ class SolicitudCierreCaja:
 @dataclass
 class ResultadoCierreCaja:
     ok: bool
-    turno_id: int = 0
+    turno_id: str = ""  # identidad UUIDv7-ready (turnos_caja.id); nunca int
     total_ventas: float = 0.0
     diferencia: float = 0.0
     error: str = ""
@@ -78,7 +78,8 @@ class GestionarFinanzasUC:
 
             return ResultadoCierreCaja(
                 ok=True,
-                turno_id=int(res.get("turno_id", solicitud.turno_id)),
+                # REGLA CERO: la identidad del turno es str (UUIDv7-ready); sin int().
+                turno_id=str(res.get("turno_id", solicitud.turno_id) or ""),
                 total_ventas=total_ventas,
                 diferencia=diferencia,
             )

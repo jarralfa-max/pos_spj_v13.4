@@ -73,7 +73,7 @@ def normalize_recipe_type(tipo: object) -> str:
 
 @dataclass
 class ComponenteResultado:
-    producto_id: int
+    producto_id: str
     nombre: str
     cantidad: float
     unidad: str
@@ -83,8 +83,8 @@ class ComponenteResultado:
 
 @dataclass
 class ProduccionResultDTO:
-    produccion_id: int
-    receta_id: int
+    produccion_id: str
+    receta_id: str
     receta_nombre: str
     tipo_receta: str
     operation_id: str
@@ -98,17 +98,17 @@ class ProduccionResultDTO:
 
 class RecipeEngine:
 
-    def __init__(self, db, branch_id: int):
+    def __init__(self, db, branch_id: str):
         from core.db.connection import wrap
         self.db = wrap(db)
         self.branch_id = branch_id
 
     def ejecutar_produccion(
         self,
-        receta_id: int,
+        receta_id: str,
         cantidad_base: float,
         usuario: str,
-        sucursal_id: Optional[int] = None,
+        sucursal_id: Optional[str] = None,
         notas: str = "",
         operation_id: Optional[str] = None,
         mediciones_reales: Optional[dict] = None,
@@ -221,18 +221,19 @@ class RecipeEngine:
                             f"disponible={actual:.4f} necesario={necesario:.4f}"
                         )
 
-            # 5. INSERT producciones
+            # 5. INSERT producciones — identidad UUIDv7 (REGLA CERO): id acuñado
+            # con new_uuid(), nunca AUTOINCREMENT + last_insert_rowid().
+            produccion_id = new_uuid()
             conn.execute("""
                 INSERT INTO producciones (
-                    receta_id, producto_base_id, cantidad_base, unidad_base,
+                    id, receta_id, producto_base_id, cantidad_base, unidad_base,
                     usuario, sucursal_id, notas, estado, fecha, operation_id
-                ) VALUES (?,?,?,?,?,?,?,'completada',datetime('now'),?)
+                ) VALUES (?,?,?,?,?,?,?,?,'completada',datetime('now'),?)
             """, (
-                receta_id, prod_base_id, cantidad_base,
+                produccion_id, receta_id, prod_base_id, cantidad_base,
                 receta.get("unidad_base", "kg"),
                 usuario, suc_id, notas or "", op_id,
             ))
-            produccion_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
             # 6. Apply inventory movements (event bus or direct fallback)
             from core.events.event_bus import get_bus
@@ -288,11 +289,11 @@ class RecipeEngine:
                 )
                 conn.execute("""
                     INSERT INTO produccion_detalle (
-                        produccion_id, producto_resultante_id,
+                        id, produccion_id, producto_resultante_id,
                         cantidad_generada, unidad, rendimiento_aplicado, tipo
-                    ) VALUES (?,?,?,?,?,?)
+                    ) VALUES (?,?,?,?,?,?,?)
                 """, (
-                    produccion_id, mov["product_id"],
+                    new_uuid(), produccion_id, mov["product_id"],
                     abs(mov["delta"]), mov.get("unidad", "kg"),
                     mov.get("rendimiento", 0.0), tipo_det,
                 ))
@@ -525,7 +526,7 @@ class RecipeEngine:
         except Exception as e:
             logger.warning("movimiento_legacy_audit falló (no crítico): %s", e)
 
-    def preview_produccion(self, receta_id: int, cantidad_base: float) -> list:
+    def preview_produccion(self, receta_id: str, cantidad_base: float) -> list:
         receta = self.db.fetchone(
             "SELECT * FROM product_recipes WHERE id = ? AND is_active = 1",
             (receta_id,))
@@ -584,7 +585,7 @@ class RecipeEngine:
         """, params)
         return [dict(r) for r in rows]
 
-    def get_detalle_produccion(self, produccion_id: int) -> list:
+    def get_detalle_produccion(self, produccion_id: str) -> list:
         rows = self.db.fetchall("""
         SELECT pd.*, p.nombre AS producto_nombre, p.unidad
             FROM produccion_detalle pd

@@ -299,14 +299,16 @@ class PrintQueue:
             return
         try:
             rd = job.raw_data or {}
+            from backend.shared.ids import new_uuid
             self._db.execute(
                 """
                 INSERT INTO print_job_log
-                    (job_id, job_type, plantilla, impresora, folio, estado,
+                    (id, job_id, job_type, plantilla, impresora, folio, estado,
                      reintentos, total, error_msg, finished_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
+                    new_uuid(),
                     job.id,
                     job.job_type.value,
                     rd.get("plantilla", rd.get("ticket_type", "")),
@@ -364,10 +366,8 @@ class PrinterService:
             repo = HardwareConfigRepository(self.db)
             repo.ensure_schema()
             repo.seed_defaults()
-            try:
-                repo.migrate_legacy_configuraciones_hardware()
-            except Exception as exc:
-                logger.warning("Migración legacy de configuración hardware omitida: %s", exc)
+            # Legacy configuraciones_hardware bridge lives in migrations only,
+            # never at runtime (FASE 5 — single hardware source: hardware_config).
             self._ticket_cfg = self._normalize_ticket_cfg(repo.get_config("ticket"))
             self._label_cfg = self._normalize_label_cfg(repo.get_config("etiquetas"))
             logger.info(
@@ -661,7 +661,7 @@ class PrinterService:
             data.setdefault("cliente_nombre", data["cliente"])
             return
         try:
-            row = self.db.execute("SELECT * FROM clientes WHERE id=? LIMIT 1", (int(client_id),)).fetchone()
+            row = self.db.execute("SELECT * FROM clientes WHERE id=? LIMIT 1", (str(client_id),)).fetchone()
             nombre = self._row_value(row, "nombre", "name", "razon_social", "cliente", default="")
             if not nombre:
                 nombre = f"Cliente {client_id}"

@@ -15,10 +15,10 @@ class DeliverySchemaMigrator:
     """
 
     DELIVERY_ORDER_COLUMNS: tuple[str, ...] = (
-        "venta_id INTEGER",
+        "venta_id TEXT",
         "folio TEXT",
         "whatsapp_order_id TEXT",
-        "cliente_id INTEGER",
+        "cliente_id TEXT",
         "cliente_nombre TEXT",
         "cliente_tel TEXT",
         "direccion TEXT NOT NULL DEFAULT 'Sin dirección'",
@@ -32,8 +32,8 @@ class DeliverySchemaMigrator:
         "fecha DATETIME",
         "fecha_actualizacion DATETIME",
         "historial_cambios TEXT",
-        "driver_id INTEGER",
-        "sucursal_id INTEGER DEFAULT 1",
+        "driver_id TEXT",
+        "sucursal_id TEXT",
         "workflow_type TEXT",
         "delivery_type TEXT",
         "scheduled_at DATETIME",
@@ -46,8 +46,8 @@ class DeliverySchemaMigrator:
         "adjustment_blocked_state TEXT DEFAULT ''",
     )
     DELIVERY_ITEM_COLUMNS: tuple[str, ...] = (
-        "delivery_id INTEGER NOT NULL DEFAULT 0",
-        "producto_id INTEGER",
+        "delivery_id TEXT NOT NULL DEFAULT 0",
+        "producto_id TEXT",
         "nombre TEXT NOT NULL DEFAULT 'Producto'",
         "cantidad REAL NOT NULL DEFAULT 0",
         "precio_unitario REAL NOT NULL DEFAULT 0",
@@ -70,7 +70,7 @@ class DeliverySchemaMigrator:
         "tolerance_units REAL DEFAULT 0.2",
     )
     DELIVERY_HISTORY_COLUMNS: tuple[str, ...] = (
-        "order_id INTEGER NOT NULL DEFAULT 0",
+        "order_id TEXT NOT NULL DEFAULT 0",
         "estado_anterior TEXT",
         "estado_nuevo TEXT",
         "usuario TEXT",
@@ -78,7 +78,7 @@ class DeliverySchemaMigrator:
         "observacion TEXT",
         "reason TEXT",
         "metadata_json TEXT",
-        "event_id INTEGER",
+        "event_id TEXT",
         "created_at DATETIME",
     )
     DRIVER_COLUMNS: tuple[str, ...] = (
@@ -87,14 +87,14 @@ class DeliverySchemaMigrator:
         "vehiculo TEXT",
         "activo INTEGER DEFAULT 1",
         "en_ruta INTEGER DEFAULT 0",
-        "sucursal_id INTEGER DEFAULT 1",
-        "usuario_id INTEGER",
+        "sucursal_id TEXT",
+        "usuario_id TEXT",
     )
 
     DELIVERY_OUTBOX_COLUMNS: tuple[str, ...] = (
         "event_type TEXT NOT NULL DEFAULT ''",
         "aggregate_type TEXT DEFAULT 'delivery_order'",
-        "aggregate_id INTEGER NOT NULL DEFAULT 0",
+        "aggregate_id TEXT NOT NULL DEFAULT '0'",
         "payload_json TEXT NOT NULL DEFAULT '{}'",
         "status TEXT DEFAULT 'pending'",
         "retries INTEGER DEFAULT 0",
@@ -123,11 +123,11 @@ class DeliverySchemaMigrator:
         self.db.execute(
             """
             CREATE TABLE IF NOT EXISTS delivery_orders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                venta_id INTEGER,
+                id TEXT PRIMARY KEY,
+                venta_id TEXT,
                 folio TEXT,
                 whatsapp_order_id TEXT,
-                cliente_id INTEGER,
+                cliente_id TEXT,
                 cliente_nombre TEXT,
                 cliente_tel TEXT,
                 direccion TEXT NOT NULL,
@@ -141,8 +141,8 @@ class DeliverySchemaMigrator:
                 fecha DATETIME DEFAULT (datetime('now')),
                 fecha_actualizacion DATETIME,
                 historial_cambios TEXT,
-                driver_id INTEGER,
-                sucursal_id INTEGER DEFAULT 1,
+                driver_id TEXT,
+                sucursal_id TEXT,
                 workflow_type TEXT,
                 delivery_type TEXT,
                 scheduled_at DATETIME,
@@ -153,9 +153,9 @@ class DeliverySchemaMigrator:
         self.db.execute(
             """
             CREATE TABLE IF NOT EXISTS delivery_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                delivery_id INTEGER NOT NULL,
-                producto_id INTEGER,
+                id TEXT PRIMARY KEY,
+                delivery_id TEXT NOT NULL,
+                producto_id TEXT,
                 nombre TEXT NOT NULL,
                 cantidad REAL NOT NULL DEFAULT 0,
                 precio_unitario REAL NOT NULL DEFAULT 0,
@@ -174,8 +174,8 @@ class DeliverySchemaMigrator:
         self.db.execute(
             """
             CREATE TABLE IF NOT EXISTS delivery_order_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                order_id INTEGER NOT NULL,
+                id TEXT PRIMARY KEY,
+                order_id TEXT NOT NULL,
                 estado_anterior TEXT,
                 estado_nuevo TEXT,
                 usuario TEXT,
@@ -183,7 +183,7 @@ class DeliverySchemaMigrator:
                 observacion TEXT,
                 reason TEXT,
                 metadata_json TEXT,
-                event_id INTEGER,
+                event_id TEXT,
                 created_at DATETIME DEFAULT (datetime('now'))
             )
             """
@@ -191,14 +191,14 @@ class DeliverySchemaMigrator:
         self.db.execute(
             """
             CREATE TABLE IF NOT EXISTS drivers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id TEXT PRIMARY KEY,
                 nombre TEXT NOT NULL,
                 telefono TEXT,
                 vehiculo TEXT,
                 activo INTEGER DEFAULT 1,
                 en_ruta INTEGER DEFAULT 0,
-                sucursal_id INTEGER DEFAULT 1,
-                usuario_id INTEGER
+                sucursal_id TEXT,
+                usuario_id TEXT
             )
             """
         )
@@ -206,10 +206,10 @@ class DeliverySchemaMigrator:
         self.db.execute(
             """
             CREATE TABLE IF NOT EXISTS delivery_outbox_events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id TEXT PRIMARY KEY,
                 event_type TEXT NOT NULL,
                 aggregate_type TEXT DEFAULT 'delivery_order',
-                aggregate_id INTEGER NOT NULL,
+                aggregate_id TEXT NOT NULL,
                 payload_json TEXT NOT NULL,
                 status TEXT DEFAULT 'pending',
                 retries INTEGER DEFAULT 0,
@@ -226,8 +226,8 @@ class DeliverySchemaMigrator:
         self.db.execute(
             """
             CREATE TABLE IF NOT EXISTS delivery_print_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                delivery_id INTEGER NOT NULL,
+                id TEXT PRIMARY KEY,
+                delivery_id TEXT NOT NULL,
                 document_type TEXT NOT NULL,
                 operation_id TEXT,
                 printer_id TEXT,

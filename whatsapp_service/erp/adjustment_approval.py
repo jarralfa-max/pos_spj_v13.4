@@ -71,8 +71,8 @@ class AdjustmentApprovalService:
             return {"ok": False, "error": "no hay ajustes pendientes"}
 
         data = _row_to_dict(row)
-        order_id = int(data["order_id"])
-        item_id = int(data["id"])
+        order_id = str(data["order_id"])  # REGLA CERO: identidad UUIDv7, sin int()
+        item_id = str(data["id"])
         venta_id = data.get("venta_id")
         folio = data.get("folio") or f"DEL-{order_id}"
 

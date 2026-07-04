@@ -62,11 +62,6 @@ class RRHHEventPayload(Protocol):
     def to_dict(self) -> Dict[str, Any]: ...
 
 
-def _ensure_positive_int(value: int, field_name: str) -> None:
-    if not isinstance(value, int) or value <= 0:
-        raise ValueError(f"{field_name} debe ser un entero positivo")
-
-
 def _ensure_text(value: str, field_name: str) -> None:
     if not str(value or "").strip():
         raise ValueError(f"{field_name} es obligatorio")
@@ -99,7 +94,7 @@ class EmployeeEventPayload(_PayloadBase):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        _ensure_positive_int(self.employee_id, "employee_id")
+        _ensure_text(self.employee_id, "employee_id")
 
 
 @dataclass(frozen=True)
@@ -122,8 +117,8 @@ class DriverAssignedPayload(_PayloadBase):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        _ensure_positive_int(self.driver_id, "driver_id")
-        _ensure_positive_int(self.employee_id, "employee_id")
+        _ensure_text(self.driver_id, "driver_id")
+        _ensure_text(self.employee_id, "employee_id")
         _ensure_text(self.source_module, "source_module")
 
 
@@ -139,8 +134,8 @@ class AttendanceEventPayload(_PayloadBase):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        _ensure_positive_int(self.attendance_id, "attendance_id")
-        _ensure_positive_int(self.employee_id, "employee_id")
+        _ensure_text(self.attendance_id, "attendance_id")
+        _ensure_text(self.employee_id, "employee_id")
         _ensure_text(self.fecha, "fecha")
         _ensure_text(self.tipo, "tipo")
         _ensure_text(self.hora, "hora")
@@ -161,8 +156,8 @@ class LeaveEventPayload(_PayloadBase):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        _ensure_positive_int(self.request_id, "request_id")
-        _ensure_positive_int(self.employee_id, "employee_id")
+        _ensure_text(self.request_id, "request_id")
+        _ensure_text(self.employee_id, "employee_id")
         _ensure_text(self.tipo, "tipo")
         _ensure_text(self.date_start, "date_start")
         _ensure_text(self.date_end, "date_end")
@@ -205,12 +200,12 @@ class PayrollGeneratedPayload(_PayloadBase):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        _ensure_positive_int(self.employee_id, "employee_id")
+        _ensure_text(self.employee_id, "employee_id")
         _ensure_text(self.period_start, "period_start")
         _ensure_text(self.period_end, "period_end")
-        _ensure_positive_int(self.sucursal_id, "sucursal_id")
+        _ensure_text(self.sucursal_id, "sucursal_id")
         if self.payroll_payment_id is not None:
-            _ensure_positive_int(self.payroll_payment_id, "payroll_payment_id")
+            _ensure_text(self.payroll_payment_id, "payroll_payment_id")
         if self.total < 0 or self.neto < 0:
             raise ValueError("total/neto no pueden ser negativos")
 
@@ -232,14 +227,14 @@ class PayrollPaidPayload(_PayloadBase):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        _ensure_positive_int(self.payroll_payment_id, "payroll_payment_id")
-        _ensure_positive_int(self.employee_id, "employee_id")
+        _ensure_text(self.payroll_payment_id, "payroll_payment_id")
+        _ensure_text(self.employee_id, "employee_id")
         _ensure_text(self.period_start, "period_start")
         _ensure_text(self.period_end, "period_end")
         _ensure_text(self.metodo_pago, "metodo_pago")
-        _ensure_positive_int(self.sucursal_id, "sucursal_id")
+        _ensure_text(self.sucursal_id, "sucursal_id")
         if self.source_id is not None:
-            _ensure_positive_int(self.source_id, "source_id")
+            _ensure_text(self.source_id, "source_id")
         if self.total < 0 or self.neto < 0:
             raise ValueError("total/neto no pueden ser negativos")
 

@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def _db_basic():
     db = sqlite3.connect(':memory:')
-    db.execute("CREATE TABLE loyalty_ledger (id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER, tipo TEXT, puntos INTEGER, monto_equiv REAL DEFAULT 0, saldo_post INTEGER DEFAULT 0, referencia TEXT DEFAULT '', descripcion TEXT DEFAULT '', sucursal_id INTEGER DEFAULT 1, usuario TEXT DEFAULT '', created_at TEXT DEFAULT (datetime('now')), UNIQUE(cliente_id,tipo,referencia))")
+    db.execute("CREATE TABLE loyalty_ledger (id TEXT PRIMARY KEY, cliente_id TEXT, tipo TEXT, puntos INTEGER, monto_equiv REAL DEFAULT 0, saldo_post INTEGER DEFAULT 0, referencia TEXT DEFAULT '', descripcion TEXT DEFAULT '', sucursal_id TEXT, usuario TEXT DEFAULT '', created_at TEXT DEFAULT (datetime('now')), UNIQUE(cliente_id,tipo,referencia))")
     db.execute("CREATE TABLE clientes (id INTEGER PRIMARY KEY, nombre TEXT, puntos INTEGER DEFAULT 0)")
     db.execute("CREATE TABLE configuraciones (clave TEXT PRIMARY KEY, valor TEXT)")
     db.execute("CREATE TABLE loyalty_pasivo_log (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, tipo TEXT, estrellas INTEGER, valor_unitario REAL, monto_total REAL, referencia TEXT, sucursal_id INTEGER)")
@@ -66,7 +66,7 @@ def test_canje_idempotente_loyalty_service():
 def test_sales_redemption_inside_transaction():
     db = sqlite3.connect(':memory:')
     db.execute("CREATE TABLE ventas (id INTEGER PRIMARY KEY AUTOINCREMENT, folio TEXT, operation_id TEXT)")
-    db.execute("CREATE TABLE loyalty_ledger (id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER, tipo TEXT, puntos INTEGER, referencia TEXT, UNIQUE(cliente_id,tipo,referencia))")
+    db.execute("CREATE TABLE loyalty_ledger (id TEXT PRIMARY KEY, cliente_id TEXT, tipo TEXT, puntos INTEGER, referencia TEXT, UNIQUE(cliente_id,tipo,referencia))")
     sales_repo = MagicMock()
     sales_repo.create_sale.return_value = (10, 'F-10')
     sales_repo.save_sale_item.return_value = None

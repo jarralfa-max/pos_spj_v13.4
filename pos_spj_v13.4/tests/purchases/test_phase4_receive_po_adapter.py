@@ -34,7 +34,7 @@ from unittest.mock import MagicMock, patch, call
 
 BASE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS ordenes_compra (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT PRIMARY KEY,
     uuid TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
     folio TEXT UNIQUE, proveedor_id INTEGER,
     estado TEXT DEFAULT 'borrador', total REAL DEFAULT 0,
@@ -44,13 +44,13 @@ CREATE TABLE IF NOT EXISTS ordenes_compra (
     usuario TEXT
 );
 CREATE TABLE IF NOT EXISTS ordenes_compra_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT PRIMARY KEY,
     orden_id INTEGER, producto_id INTEGER,
     nombre TEXT, cantidad REAL, recibido REAL DEFAULT 0,
     precio_unitario REAL, subtotal REAL
 );
 CREATE TABLE IF NOT EXISTS compras (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT PRIMARY KEY,
     folio TEXT UNIQUE, proveedor_id INTEGER, usuario TEXT,
     subtotal REAL DEFAULT 0, iva REAL DEFAULT 0,
     total REAL DEFAULT 0, estado TEXT DEFAULT 'completada',

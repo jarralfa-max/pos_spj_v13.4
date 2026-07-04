@@ -1,0 +1,183 @@
+{"ts": "2026-06-17T14:41:23.292435", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-17T14:41:23.321503", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-17T14:41:23.321960", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T14:41:37.264220", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T14:42:17.918581", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T14:42:17.921758", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T14:42:19.413965", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T14:42:19.414250", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T14:42:21.801761", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T14:42:21.802020", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T14:42:25.689736", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T14:42:25.689993", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T14:42:27.339651", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T14:42:27.339949", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T14:47:22.064616", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-17T14:47:22.098277", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-17T14:47:22.098604", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T14:47:36.151035", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T14:47:38.337160", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T14:47:38.337415", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T14:47:41.031021", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T14:47:41.031306", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:04:42.251482", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-17T15:04:42.283338", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-17T15:04:42.283603", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:04:58.806262", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:05:00.224809", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:05:00.225084", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:05:02.790464", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:05:02.790763", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:05:21.201891", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-17T15:05:21.983615", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-17T15:05:21.985533", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 1334}
+{"ts": "2026-06-17T15:12:29.115982", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-17T15:12:29.150703", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-17T15:12:29.151242", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:12:45.127672", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:12:46.533752", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:12:46.534020", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:12:47.115115", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:12:47.115354", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:13:03.558597", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-17T15:13:03.743468", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-17T15:13:03.745038", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 1334}
+{"ts": "2026-06-17T15:16:31.059679", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-17T15:16:31.083639", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-17T15:16:31.083936", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:16:46.354899", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:16:48.428772", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:16:48.433689", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:16:51.107867", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:16:51.108113", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:17:12.900751", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-17T15:17:12.981819", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-17T15:17:12.982449", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 1334}
+{"ts": "2026-06-17T15:29:03.514623", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-17T15:29:03.679384", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-17T15:29:03.679861", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:29:24.508779", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:29:28.033389", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:29:28.033627", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:29:28.568554", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:29:28.568824", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-17T15:29:44.793725", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-17T15:29:44.938083", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-17T15:29:44.939118", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 1334}
+{"ts": "2026-06-17T15:30:14.910462", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-17T15:30:14.968578", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T01:05:46.395598", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T01:05:46.429752", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T01:05:46.430946", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T01:06:02.150474", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T01:06:09.419865", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T01:06:09.420175", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T01:06:10.666962", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T01:06:10.667248", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T01:06:39.390976", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T01:06:39.978298", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T01:06:39.987811", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 1334}
+{"ts": "2026-06-18T01:08:36.646478", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T01:08:36.813624", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T01:08:36.814956", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 1334}
+{"ts": "2026-06-18T01:26:04.599965", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T01:26:04.639865", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T01:26:04.641121", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T01:26:24.591765", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T01:26:30.447385", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T01:26:30.447696", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T01:26:31.099402", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T01:26:31.099688", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T01:26:50.690090", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T01:26:50.789718", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T01:26:50.791438", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 1334}
+{"ts": "2026-06-18T01:27:19.681653", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T01:27:19.753864", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=2", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T01:44:13.677030", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T01:44:13.733413", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T01:44:13.738409", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T01:44:32.828730", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T01:44:37.061214", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T01:44:37.061526", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T01:44:40.320276", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T01:44:40.320590", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T01:45:27.830499", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T01:45:28.566263", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T01:45:28.570173", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 1334}
+{"ts": "2026-06-18T02:09:52.708842", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T02:09:52.767599", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T02:09:52.768408", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:10:25.978218", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:10:29.184236", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:10:29.184531", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:10:35.879050", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:10:35.879371", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:10:55.217688", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T02:10:55.299896", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T02:10:55.300690", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 1334}
+{"ts": "2026-06-18T02:13:35.052580", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T02:13:35.142842", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=2", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T02:14:54.529073", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T02:14:54.571114", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T02:14:54.574127", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:15:13.091795", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:15:16.909173", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:15:16.909475", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:15:21.092740", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:15:21.093040", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:15:42.542498", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T02:15:42.684981", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T02:15:42.685857", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 1334}
+{"ts": "2026-06-18T02:15:58.353096", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T02:15:58.438585", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=2", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T02:44:33.102559", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T02:44:33.149556", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T02:44:33.156371", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:44:50.278274", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:44:57.472552", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:44:57.472846", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:44:59.293380", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:44:59.293669", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:45:57.768466", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T02:45:57.791366", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T02:45:57.791724", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:46:20.510771", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:46:22.908387", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:46:22.908701", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:46:23.758489", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:46:23.758863", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T02:47:56.810916", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T02:47:56.891730", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T02:47:56.892628", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Combis (id=2)", "module": "ventas", "line": 1334}
+{"ts": "2026-06-18T02:49:12.178253", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T02:49:12.257603", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=2", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T02:57:53.220557", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T02:57:53.343942", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T04:49:30.392260", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T04:49:30.434627", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T04:49:30.435112", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T04:49:59.828240", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T04:50:03.762067", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T04:50:03.762361", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T04:50:06.279107", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T04:50:06.279418", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T04:50:27.607331", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T04:50:27.743668", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T04:50:27.745502", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Combis (id=2)", "module": "ventas", "line": 1334}
+{"ts": "2026-06-18T04:50:53.977823", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T04:50:54.072034", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T05:14:10.615893", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T05:14:10.712652", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T05:14:10.713170", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T05:14:52.261926", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T05:14:59.621182", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T05:14:59.621523", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T05:15:02.875642", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T05:15:02.875958", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-18T05:15:22.486506", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T05:15:22.603808", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T05:15:22.608633", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Combis (id=2)", "module": "ventas", "line": 1334}
+{"ts": "2026-06-18T05:15:54.308558", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T05:15:54.399907", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=2", "module": "ventas", "line": 2257}
+{"ts": "2026-06-18T05:15:55.278738", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-18T05:15:55.366695", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}

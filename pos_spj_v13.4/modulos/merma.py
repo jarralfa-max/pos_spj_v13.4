@@ -83,7 +83,8 @@ class ModuloMerma(QWidget):
     def __init__(self, container, parent=None):
         super().__init__(parent)
         self.container = container
-        self.sucursal_id = getattr(container, "sucursal_id", 1)
+        # Sucursal proviene del contexto de sesión; sin default arbitrario (regla 23).
+        self.sucursal_id = getattr(container, "sucursal_id", "") or ""
         self.usuario = ""
         self._selected_product: dict | None = None
         self._product_search_cache: dict[str, dict] = {}

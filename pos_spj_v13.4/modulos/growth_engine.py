@@ -15,9 +15,8 @@ Protecciones:
   - OTP para canje mayor (configurable umbral)
 """
 from __future__ import annotations
-from core.services.auto_audit import audit_write
-from modulos.spj_styles import spj_btn, apply_btn_styles
 import logging
+from backend.shared.ids import new_uuid
 import hashlib
 import random
 import string
@@ -55,59 +54,25 @@ class GrowthEngine:
     def procesar_venta(
         self,
         cliente_id: int,
-        ticket_id:  int,
+        sale_id:    str,
         cajero_id:  int,
         subtotal:   float,
         telefono:   str = "",
         nombre:     str = "",
     ) -> Dict:
+        """DEPRECADO (FASE 4 / REGLA CERO).
+
+        La acreditación de puntos por venta es responsabilidad de la ruta
+        canónica ``LoyaltyService.acreditar_venta()``, que persiste la
+        referencia de venta como UUID en ``loyalty_ledger.referencia``. Esta
+        ruta duplicada escribía ``growth_ledger.ticket_id`` y queda retirada
+        para que ninguna referencia de venta nueva entre a ``growth_ledger``.
         """
-        Punto de entrada principal. Retorna dict con:
-          estrellas_ganadas, saldo_actual, misiones_completadas,
-          metas_avanzadas, mensaje_gamificacion
-        """
-        resultado = {
-            "estrellas_ganadas":   0,
-            "saldo_actual":        0,
-            "misiones_completadas":[],
-            "metas_avanzadas":     [],
-            "mensaje_gamificacion": "",
-            "bloqueado":           False,
-        }
-
-        # 1. Velocity check (antifraude)
-        if self._velocity_check(cliente_id):
-            logger.warning("GrowthEngine: velocity limit hit cliente=%s", cliente_id)
-            resultado["bloqueado"] = True
-            resultado["mensaje_gamificacion"] = "⏳ Acumulación temporalmente pausada."
-            return resultado
-
-        # 2. Calcular estrellas (1 estrella por peso MXN gastado, redondeado)
-        estrellas = max(1, int(subtotal))
-        self._creditar(cliente_id, estrellas, ticket_id, cajero_id,
-                       operacion="VENTA", moneda="estrellas")
-
-        # 3. Renovar fecha de expiración (inactividad reset)
-        self._renovar_expiracion(cliente_id)
-
-        # 4. Avanzar misiones activas del cliente
-        completadas = self._avanzar_misiones(cliente_id, ticket_id)
-        resultado["misiones_completadas"] = completadas
-
-        # 5. Avanzar metas comunitarias de la sucursal
-        metas_av = self._avanzar_metas(subtotal)
-        resultado["metas_avanzadas"] = metas_av
-
-        # 6. Saldo actual
-        saldo = self.saldo_cliente(cliente_id)
-        resultado["estrellas_ganadas"] = estrellas
-        resultado["saldo_actual"]      = saldo
-
-        # 7. Mensaje de gamificación
-        resultado["mensaje_gamificacion"] = self._generar_mensaje(
-            nombre, estrellas, saldo, completadas)
-
-        return resultado
+        raise RuntimeError(
+            "GrowthEngine.procesar_venta está deprecado: usa "
+            "LoyaltyService.acreditar_venta() (loyalty_ledger.referencia es la "
+            f"referencia de venta UUID canónica). sale_id={sale_id!r}"
+        )
 
     def saldo_cliente(self, cliente_id: int) -> int:
         """Saldo de estrellas vigentes (suma del ledger, sin expirados/revertidos)."""
@@ -128,41 +93,20 @@ class GrowthEngine:
         cajero_id:   int,
         subtotal:    float,
         estrellas_a_canjear: int,
-        ticket_id:   int = 0,
+        sale_id:     str = "",
         otp_codigo:  str = "",
     ) -> Dict:
+        """DEPRECADO (FASE 4 / REGLA CERO).
+
+        El canje canónico lo realiza ``LoyaltyService.canjear()`` con
+        ``referencia=str(venta_id)`` (UUID) en ``loyalty_ledger``. Esta ruta
+        duplicada escribía ``growth_ledger.ticket_id`` y queda retirada.
         """
-        Canjea estrellas como descuento.
-        Aplica cap del 50% del subtotal.
-        Exige OTP si el monto supera el umbral.
-        """
-        saldo = self.saldo_cliente(cliente_id)
-        if estrellas_a_canjear > saldo:
-            return {"ok": False, "error": f"Saldo insuficiente ({saldo} estrellas)"}
-
-        # Cap: máximo 50% del subtotal
-        max_canje = int(subtotal * CAP_REDENCION_PCT)
-        if estrellas_a_canjear > max_canje:
-            estrellas_a_canjear = max_canje
-
-        # OTP si supera el umbral
-        umbral_otp = int(self._cfg("growth_otp_umbral", str(OTP_UMBRAL_DEFAULT)))
-        if estrellas_a_canjear >= umbral_otp:
-            if not otp_codigo:
-                return {"ok": False, "requiere_otp": True,
-                        "error": "Se requiere PIN enviado al WhatsApp del cliente"}
-            if not self._validar_otp(cliente_id, otp_codigo, estrellas_a_canjear):
-                return {"ok": False, "error": "PIN incorrecto o expirado"}
-
-        # Debitar
-        self._creditar(cliente_id, -estrellas_a_canjear, ticket_id, cajero_id,
-                       operacion="CANJE", moneda="estrellas")
-        return {
-            "ok": True,
-            "estrellas_canjeadas": estrellas_a_canjear,
-            "descuento_aplicado":  estrellas_a_canjear,
-            "saldo_restante":      self.saldo_cliente(cliente_id),
-        }
+        raise RuntimeError(
+            "GrowthEngine.canjear_estrellas está deprecado: usa "
+            "LoyaltyService.canjear() (loyalty_ledger es el ledger canónico). "
+            f"sale_id={sale_id!r}"
+        )
 
     def generar_otp(self, cliente_id: int, monto_canje: int, telefono: str) -> str:
         """Genera PIN de 4 dígitos, lo guarda y lo envía por WA."""
@@ -215,15 +159,16 @@ class GrowthEngine:
         descripcion: str = "",
         fecha_fin: str = "",
     ) -> int:
-        cur = self.db.execute("""
+        meta_id = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+        self.db.execute("""
             INSERT INTO growth_metas
-            (sucursal_id,nombre,descripcion,umbral,premio,costo_premio,fecha_fin)
-            VALUES(?,?,?,?,?,?,?)""",
-            (self.sucursal_id, nombre, descripcion, umbral, premio,
+            (id,sucursal_id,nombre,descripcion,umbral,premio,costo_premio,fecha_fin)
+            VALUES(?,?,?,?,?,?,?,?)""",
+            (meta_id, self.sucursal_id, nombre, descripcion, umbral, premio,
              costo_premio, fecha_fin or None))
         try: self.db.commit()
         except Exception: pass
-        return cur.lastrowid
+        return meta_id
 
     # ══════════════════════════════════════════════════════════════════════
     # MISIONES
@@ -249,15 +194,16 @@ class GrowthEngine:
         premio_estrellas: int,
         descripcion: str = "",
     ) -> int:
-        cur = self.db.execute("""
+        mision_id = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+        self.db.execute("""
             INSERT INTO growth_misiones
-            (nombre,descripcion,condicion_tipo,condicion_n,ventana_dias,premio_estrellas)
-            VALUES(?,?,?,?,?,?)""",
-            (nombre, descripcion, condicion_tipo, condicion_n,
+            (id,nombre,descripcion,condicion_tipo,condicion_n,ventana_dias,premio_estrellas)
+            VALUES(?,?,?,?,?,?,?)""",
+            (mision_id, nombre, descripcion, condicion_tipo, condicion_n,
              ventana_dias, premio_estrellas))
         try: self.db.commit()
         except Exception: pass
-        return cur.lastrowid
+        return mision_id
 
     def progreso_misiones_cliente(self, cliente_id: int) -> List[Dict]:
         try:
@@ -301,7 +247,8 @@ class GrowthEngine:
             for (cid,) in rows:
                 saldo = self.saldo_cliente(cid)
                 if saldo > 0:
-                    self._creditar(cid, -saldo, 0, 0,
+                    # Entrada interna: sin referencia de venta (sale_id=None).
+                    self._creditar(cid, -saldo, None, 0,
                                    operacion="EXPIRACION",
                                    moneda="estrellas")
                     count += 1
@@ -354,12 +301,12 @@ class GrowthEngine:
 
     # ── UI helpers (FASE 6: UI sin SQL directo) ─────────────────────────
     def desactivar_meta(self, meta_id: int) -> None:
-        self.db.execute("UPDATE growth_metas SET activa=0 WHERE id=?", (int(meta_id),))
+        self.db.execute("UPDATE growth_metas SET activa=0 WHERE id=?", (str(meta_id),))
         try: self.db.commit()
         except Exception: pass
 
     def desactivar_mision(self, mision_id: int) -> None:
-        self.db.execute("UPDATE growth_misiones SET activa=0 WHERE id=?", (int(mision_id),))
+        self.db.execute("UPDATE growth_misiones SET activa=0 WHERE id=?", (str(mision_id),))
         try: self.db.commit()
         except Exception: pass
 
@@ -412,8 +359,15 @@ class GrowthEngine:
     # PRIVADOS
     # ══════════════════════════════════════════════════════════════════════
 
-    def _creditar(self, cliente_id, monto, ticket_id, cajero_id,
+    def _creditar(self, cliente_id, monto, sale_id, cajero_id,
                   operacion, moneda="estrellas"):
+        # REGLA CERO: una referencia de venta debe ser UUID (str). Las entradas
+        # internas del motor (p.ej. EXPIRACION) no llevan referencia de venta y
+        # pasan sale_id=None. Nunca se acepta un id entero como referencia.
+        if sale_id is not None and not isinstance(sale_id, str):
+            raise ValueError(
+                f"sale_id debe ser str (UUID) o None, no {type(sale_id).__name__}"
+            )
         dias_exp = int(self._cfg("growth_expiry_dias", str(EXPIRY_INACTIVIDAD_DIAS)))
         expira = (datetime.now() + timedelta(days=dias_exp)).isoformat() \
                  if monto > 0 else None
@@ -423,7 +377,7 @@ class GrowthEngine:
             VALUES(?,?,?,?,?,?,?,?,?)""",
             (cliente_id, self.sucursal_id,
              "credito" if monto > 0 else "debito",
-             monto, moneda, ticket_id, cajero_id, operacion, expira))
+             monto, moneda, sale_id, cajero_id, operacion, expira))
         try: self.db.commit()
         except Exception: pass
 
@@ -453,7 +407,7 @@ class GrowthEngine:
             """, (nueva, cliente_id))
         except Exception: pass
 
-    def _avanzar_misiones(self, cliente_id: int, ticket_id: int) -> List[str]:
+    def _avanzar_misiones(self, cliente_id: int, sale_id: str) -> List[str]:
         """Avanza progreso de todas las misiones activas. Retorna nombres completadas."""
         completadas = []
         try:
@@ -485,7 +439,7 @@ class GrowthEngine:
                         self.db.execute(
                             "UPDATE growth_misiones_progreso SET progreso=?,completada=1 WHERE id=?",
                             (nuevo_prog, pid))
-                        self._creditar(cliente_id, mpremio, ticket_id, 0,
+                        self._creditar(cliente_id, mpremio, sale_id, 0,
                                        operacion="MISION", moneda="estrellas")
                         completadas.append(mnombre)
                     else:
@@ -575,67 +529,7 @@ class GrowthEngine:
     def _ensure_tables(self):
         """Crea tablas si no existen (no depender solo de migración)."""
         try:
-            self.db.executescript("""
-                CREATE TABLE IF NOT EXISTS growth_ledger (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    cliente_id INTEGER NOT NULL,
-                    sucursal_id INTEGER NOT NULL,
-                    tipo TEXT NOT NULL,
-                    monto REAL NOT NULL,
-                    moneda TEXT DEFAULT 'estrellas',
-                    ticket_id INTEGER,
-                    cajero_id INTEGER,
-                    operacion TEXT,
-                    expira_en DATETIME,
-                    revertido INTEGER DEFAULT 0,
-                    created_at DATETIME DEFAULT (datetime('now'))
-                );
-                CREATE TABLE IF NOT EXISTS growth_metas (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    sucursal_id INTEGER DEFAULT 1,
-                    nombre TEXT NOT NULL,
-                    descripcion TEXT,
-                    tipo TEXT DEFAULT 'comunitaria',
-                    umbral REAL NOT NULL,
-                    progreso REAL DEFAULT 0,
-                    premio TEXT,
-                    costo_premio REAL DEFAULT 0,
-                    fecha_inicio DATE,
-                    fecha_fin DATE,
-                    activa INTEGER DEFAULT 1,
-                    completada INTEGER DEFAULT 0,
-                    created_at DATETIME DEFAULT (datetime('now'))
-                );
-                CREATE TABLE IF NOT EXISTS growth_misiones (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    nombre TEXT NOT NULL,
-                    descripcion TEXT,
-                    condicion_tipo TEXT DEFAULT 'compras_consecutivas',
-                    condicion_n INTEGER DEFAULT 3,
-                    ventana_dias INTEGER DEFAULT 7,
-                    premio_estrellas INTEGER DEFAULT 100,
-                    activa INTEGER DEFAULT 1
-                );
-                CREATE TABLE IF NOT EXISTS growth_misiones_progreso (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    cliente_id INTEGER NOT NULL,
-                    mision_id INTEGER NOT NULL,
-                    progreso INTEGER DEFAULT 0,
-                    iniciada_en DATETIME DEFAULT (datetime('now')),
-                    expira_en DATETIME,
-                    completada INTEGER DEFAULT 0,
-                    UNIQUE(cliente_id, mision_id)
-                );
-                CREATE TABLE IF NOT EXISTS growth_otp (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    cliente_id INTEGER NOT NULL,
-                    codigo TEXT NOT NULL,
-                    monto_canje REAL NOT NULL,
-                    usado INTEGER DEFAULT 0,
-                    expira_en DATETIME NOT NULL,
-                    created_at DATETIME DEFAULT (datetime('now'))
-                );
-            """)
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try: self.db.commit()
             except Exception: pass
         except Exception: pass

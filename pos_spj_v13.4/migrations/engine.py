@@ -108,14 +108,19 @@ MIGRATIONS = [
     _Migration("108",  "migrations.standalone.108_sync_inventory_stock"),
     _Migration("109",  "migrations.standalone.109_delivery_driver_cuts_schema"),
     _Migration("110",  "migrations.standalone.110_delivery_status_english"),
+    _Migration("111",  "migrations.standalone.111_qr_containers_schema"),
+    _Migration("112",  "migrations.standalone.112_card_schema_reconciliation"),
+    _Migration("113",  "migrations.standalone.113_raffle_subsystem"),
 ]
 
 def _ensure_tracking_table(conn):
+    # Ledger de migraciones: la identidad natural es `version` (única, inmutable).
+    # Sin surrogate entero AUTOINCREMENT (REGLA CERO/REGLA 3: el id nunca se lee;
+    # alineado con la definición born-clean de la migración 026).
     conn.execute("""
         CREATE TABLE IF NOT EXISTS schema_migrations (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            version     TEXT    NOT NULL UNIQUE,
-            executed_at TEXT    DEFAULT (datetime('now'))
+            version     TEXT PRIMARY KEY,
+            executed_at TEXT DEFAULT (datetime('now'))
         )""")
     try: conn.commit()
     except Exception: pass

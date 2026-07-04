@@ -17,7 +17,8 @@ from PyQt5.QtWidgets import (
     QMessageBox,
 )
 
-from core.repositories.hardware_config_repository import HardwareConfigRepository
+from backend.application.services.hardware_settings_service import HardwareSettingsService
+from backend.application.services.hardware_diagnostics_service import HardwareDiagnosticsService
 from modulos.design_tokens import Spacing
 
 logger = logging.getLogger("spj.config_hardware")
@@ -33,25 +34,18 @@ class ModuloConfigHardware(QWidget):
     def __init__(self, container, parent=None):
         super().__init__(parent)
         self.container = container
-        self.db = container.db
-        self.repo = HardwareConfigRepository(self.db)
-        self.sucursal_id = 1
-        try:
-            self.repo.ensure_schema()
-            self.repo.seed_defaults()
-            try:
-                self.db.commit()
-            except Exception:
-                pass
-        except Exception:
-            logger.exception("No se pudo asegurar hardware_config")
+        # Ruta canónica: la UI delega lecturas/escrituras al application service.
+        # El schema de hardware_config lo crean las migraciones (m000/m050), no la UI.
+        self.hardware_settings_service = HardwareSettingsService(container.db)
+        self.hardware_diagnostics_service = HardwareDiagnosticsService()
+        self.sucursal_id = None
         self._init_ui()
         QTimer.singleShot(200, self._cargar_todo)
 
     def set_usuario_actual(self, usuario: str, rol: str = "cajero") -> None:
         return None
 
-    def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
+    def set_sucursal(self, sucursal_id, nombre: str = "") -> None:
         self.sucursal_id = sucursal_id
 
     def _init_ui(self):
@@ -229,9 +223,7 @@ class ModuloConfigHardware(QWidget):
 
     def _cargar_todo(self):
         try:
-            self.repo.ensure_schema()
-            self.repo.seed_defaults()
-            cfg_map = {tipo: self.repo.get_config(tipo) for tipo in ("bascula", "ticket", "etiquetas", "cajon", "scanner", "red")}
+            cfg_map = self.hardware_settings_service.load_all()
         except Exception as exc:
             logger.exception("No se pudo cargar hardware_config: %s", exc)
             QMessageBox.critical(self, "Error", f"No se pudo cargar configuración de hardware:\n{exc}")
@@ -319,9 +311,7 @@ class ModuloConfigHardware(QWidget):
             },
         }
         try:
-            for tipo, cfg in configs.items():
-                self.repo.save_config(tipo, HardwareConfigRepository.DEFAULT_TYPES.get(tipo, tipo.capitalize()), cfg, activo=1)
-            self.db.commit()
+            self.hardware_settings_service.save_all(configs)
             self._reload_runtime_services()
             QMessageBox.information(self, "✅ Guardado", "Configuración de hardware guardada y aplicada.")
         except Exception as exc:
@@ -343,19 +333,11 @@ class ModuloConfigHardware(QWidget):
                 logger.exception("No se pudo recargar PrinterService")
 
     def _test_bascula(self):
-        port = self.cmb_bascula_puerto.currentText(); baud = int(self.cmb_bascula_baud.currentText())
-        try:
-            import serial
-            with serial.Serial(port, baud, timeout=2) as s:
-                data = s.read(10)
-            self.lbl_bascula_status.setText(f"✅ Puerto {port} OK — {len(data)} bytes recibidos")
-            self.lbl_bascula_status.setObjectName("textSuccess")
-        except ImportError:
-            self.lbl_bascula_status.setText("⚠️  pyserial no instalado — pip install pyserial")
-            self.lbl_bascula_status.setObjectName("textWarning")
-        except Exception as exc:
-            self.lbl_bascula_status.setText(f"❌ {str(exc)[:60]}")
-            self.lbl_bascula_status.setObjectName("textDanger")
+        result = self.hardware_diagnostics_service.test_scale(
+            self.cmb_bascula_puerto.currentText(), int(self.cmb_bascula_baud.currentText())
+        )
+        self.lbl_bascula_status.setText(("✅ " if result.ok else "❌ ") + result.message)
+        self.lbl_bascula_status.setObjectName("textSuccess" if result.ok else "textDanger")
 
     def _test_ticket_printer(self):
         self._test_ticket()
@@ -410,56 +392,27 @@ class ModuloConfigHardware(QWidget):
             "corte": self.chk_ticket_corte.isChecked(),
             "abrir_cajon": self.chk_ticket_cajon.isChecked(),
         }
-        self.repo.save_config("ticket", HardwareConfigRepository.DEFAULT_TYPES["ticket"], cfg, activo=1)
-        self.db.commit()
+        self.hardware_settings_service.save_one("ticket", cfg)
 
     def _test_etiqueta(self):
         QMessageBox.information(self, "Prueba etiquetas", "Guarda la configuración y prueba desde el módulo de Etiquetas.")
 
     def _test_cajon(self):
-        metodo = self.cmb_cajon_metodo.currentText(); cmd_hex = self.txt_cajon_cmd.text().strip()
-        try:
-            cmd_bytes = bytes(int(x, 16) for x in cmd_hex.split())
-        except Exception:
-            QMessageBox.warning(self, "Error", "Formato de comando inválido.\nEjemplo: 1B 70 00 19 FA")
-            return
-        try:
-            ubicacion = self.txt_ticket_ubicacion.text().strip()
-            if "impresora" in metodo.lower() and ":" in ubicacion:
-                import socket
-                ip, port = ubicacion.split(":", 1)
-                with socket.socket() as s:
-                    s.settimeout(3); s.connect((ip, int(port))); s.sendall(cmd_bytes)
-            else:
-                import serial
-                port = ubicacion if "impresora" in metodo.lower() else self.cmb_bascula_puerto.currentText()
-                with serial.Serial(port, 9600, timeout=2) as s:
-                    s.write(cmd_bytes)
-            self.lbl_cajon_status.setText("✅ Comando enviado")
-            self.lbl_cajon_status.setObjectName("textSuccess")
-        except Exception as exc:
-            self.lbl_cajon_status.setText(f"❌ {str(exc)[:60]}")
-            self.lbl_cajon_status.setObjectName("textDanger")
+        result = self.hardware_diagnostics_service.open_drawer(
+            method=self.cmb_cajon_metodo.currentText(),
+            command_hex=self.txt_cajon_cmd.text().strip(),
+            location=self.txt_ticket_ubicacion.text().strip(),
+            fallback_port=self.cmb_bascula_puerto.currentText(),
+        )
+        self.lbl_cajon_status.setText(("✅ " if result.ok else "❌ ") + result.message)
+        self.lbl_cajon_status.setObjectName("textSuccess" if result.ok else "textDanger")
 
     def _test_ping(self):
-        gateway = self.txt_red_gateway.text().strip()
-        if not gateway:
-            QMessageBox.warning(self, "Aviso", "Ingresa el gateway primero.")
-            return
-        import subprocess, platform
-        param = "-n" if platform.system().lower() == "windows" else "-c"
-        try:
-            result = subprocess.run(["ping", param, "1", gateway], capture_output=True, text=True, timeout=5)
-            self.lbl_red_status.setText(f"✅ {gateway} responde" if result.returncode == 0 else f"❌ {gateway} sin respuesta")
-            self.lbl_red_status.setObjectName("textSuccess" if result.returncode == 0 else "textDanger")
-        except Exception as exc:
-            self.lbl_red_status.setText(f"❌ {str(exc)[:50]}")
-            self.lbl_red_status.setObjectName("textDanger")
+        result = self.hardware_diagnostics_service.ping_gateway(self.txt_red_gateway.text().strip())
+        self.lbl_red_status.setText(("✅ " if result.ok else "❌ ") + result.message)
+        self.lbl_red_status.setObjectName("textSuccess" if result.ok else "textDanger")
 
     def _ver_ip_actual(self):
-        try:
-            import socket
-            self.lbl_red_status.setText(f"IP actual: {socket.gethostbyname(socket.gethostname())}  ({socket.gethostname()})")
-            self.lbl_red_status.setObjectName("textPrimary")
-        except Exception as exc:
-            self.lbl_red_status.setText(f"Error: {exc}")
+        result = self.hardware_diagnostics_service.current_ip()
+        self.lbl_red_status.setText(result.message)
+        self.lbl_red_status.setObjectName("textPrimary" if result.ok else "textDanger")

@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from backend.shared.ids import new_uuid
+
 
 @dataclass(frozen=True)
 class InventoryStockRecord:
@@ -161,12 +163,13 @@ class InventoryRepository:
         self._connection.execute(
             """
             INSERT INTO inventory_movements
-            (operation_id, product_id, branch_id, movement_type, quantity,
+            (id, operation_id, product_id, branch_id, movement_type, quantity,
              stock_before, stock_after, unit, source_module, reference_type,
              reference_id, reason, user_name)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
+                new_uuid(),
                 movement.operation_id,
                 movement.product_id,
                 movement.branch_id,

@@ -8,6 +8,7 @@
 from __future__ import annotations
 import sqlite3
 import logging
+from backend.shared.ids import new_uuid
 import time
 import threading
 from dataclasses import dataclass, field
@@ -128,7 +129,7 @@ def autenticar(
     _check_rate_limit(usuario)
 
     row = conn.execute(
-        "SELECT id, usuario, contrasena, nombre, rol, activo "
+        "SELECT id, usuario, password_hash, nombre, rol, activo, sucursal_id "
         "FROM usuarios WHERE usuario = ?",
         (usuario,)
     ).fetchone()
@@ -140,7 +141,7 @@ def autenticar(
     if not row["activo"]:
         raise UsuarioInactivoError("Cuenta desactivada. Contacte al administrador.")
 
-    if not verify_password(password, row["contrasena"]):
+    if not verify_password(password, row["password_hash"]):
         _record_failure(usuario)
         raise AuthError("Usuario o contraseña incorrectos.")
 
@@ -158,7 +159,7 @@ def autenticar(
         logger.warning("No se pudo actualizar ultimo_acceso: %s", e)
 
     # Migrar password legacy → bcrypt
-    if not row["contrasena"].startswith(("$2b$", "$2a$", "$2y$")):
+    if not str(row["password_hash"] or "").startswith(("$2b$", "$2a$", "$2y$")):
         _migrar_password_a_bcrypt(conn, row["id"], password)
 
     # Obtener módulos permitidos
@@ -167,11 +168,12 @@ def autenticar(
     logger.info("Login exitoso: usuario=%s rol=%s", usuario, row["rol"])
 
     return {
-        "id":      row["id"],
-        "usuario": row["usuario"],
-        "nombre":  row["nombre"],
-        "rol":     row["rol"],
-        "modulos": modulos,
+        "id":          row["id"],
+        "usuario":     row["usuario"],
+        "nombre":      row["nombre"],
+        "rol":         row["rol"],
+        "sucursal_id": str(row["sucursal_id"] or ""),
+        "modulos":     modulos,
     }
 
 
@@ -190,11 +192,11 @@ def crear_usuario(
     password_hash = hash_password(password)
 
     try:
-        cur = conn.execute(
-            "INSERT INTO usuarios (usuario, contrasena, nombre, rol) VALUES (?,?,?,?)",
-            (usuario, password_hash, nombre, rol)
+        uid = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+        conn.execute(
+            "INSERT INTO usuarios (id, usuario, password_hash, nombre, rol) VALUES (?,?,?,?,?)",
+            (uid, usuario, password_hash, nombre, rol)
         )
-        uid = cur.lastrowid
         for mod in modulos:
             conn.execute(
                 "INSERT OR IGNORE INTO usuario_modulos (usuario_id, modulo) VALUES (?,?)",
@@ -221,13 +223,13 @@ def cambiar_password(
 ) -> None:
     """Cambia password verificando el actual."""
     row = conn.execute(
-        "SELECT contrasena FROM usuarios WHERE id=?", (usuario_id,)
+        "SELECT password_hash FROM usuarios WHERE id=?", (usuario_id,)
     ).fetchone()
-    if not row or not verify_password(password_actual, row["contrasena"]):
+    if not row or not verify_password(password_actual, row["password_hash"]):
         raise AuthError("Contraseña actual incorrecta.")
     nuevo_hash = hash_password(password_nuevo)
     conn.execute(
-        "UPDATE usuarios SET contrasena=? WHERE id=?",
+        "UPDATE usuarios SET password_hash=? WHERE id=?",
         (nuevo_hash, usuario_id)
     )
     conn.commit()
@@ -248,7 +250,7 @@ def _migrar_password_a_bcrypt(conn: sqlite3.Connection, uid: int, pwd_plano: str
         return
     try:
         hashed = hash_password(pwd_plano)
-        conn.execute("UPDATE usuarios SET contrasena=? WHERE id=?", (hashed, uid))
+        conn.execute("UPDATE usuarios SET password_hash=? WHERE id=?", (hashed, uid))
         conn.commit()
         logger.info("Password usuario#%d migrado a bcrypt", uid)
     except Exception as e:

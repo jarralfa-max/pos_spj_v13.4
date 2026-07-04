@@ -46,8 +46,8 @@ class ClienteService:
     # ── Mutaciones ────────────────────────────────────────────────────────
 
     def crear(self, nombre: str, telefono: str = "", email: str = "",
-              direccion: str = "", notas: str = "") -> int:
-        """Create a new client."""
+              direccion: str = "", notas: str = "") -> str:
+        """Create a new client (returns UUIDv7 id)."""
         return self._repo.crear(nombre, telefono, email, direccion, notas)
 
     def actualizar(self, cliente_id: int, **campos) -> bool:

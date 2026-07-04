@@ -40,40 +40,10 @@ class SyncEngine:
         self._init_tables()
 
     def _init_tables(self):
-        self.conn.executescript("""
-            CREATE TABLE IF NOT EXISTS sync_outbox (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                uuid        TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
-                tabla       TEXT NOT NULL,
-                operacion   TEXT NOT NULL,   -- INSERT / UPDATE / DELETE
-                registro_id INTEGER,
-                payload     TEXT,            -- JSON del registro
-                sucursal_id INTEGER,
-                lamport_ts  INTEGER DEFAULT 0,
-                enviado     INTEGER DEFAULT 0,
-                intentos    INTEGER DEFAULT 0,
-                error_msg   TEXT,
-                fecha       REAL DEFAULT (unixepoch())
-            );
-            CREATE TABLE IF NOT EXISTS sync_inbox (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                uuid        TEXT UNIQUE,
-                tabla       TEXT NOT NULL,
-                operacion   TEXT NOT NULL,
-                registro_id INTEGER,
-                payload     TEXT,
-                sucursal_origen INTEGER,
-                lamport_ts  INTEGER DEFAULT 0,
-                integrado   INTEGER DEFAULT 0,
-                fecha_recibido REAL DEFAULT (unixepoch())
-            );
-            CREATE TABLE IF NOT EXISTS sync_state (
-                key   TEXT PRIMARY KEY,
-                value TEXT
-            );
-            CREATE INDEX IF NOT EXISTS idx_outbox_pendiente
-                ON sync_outbox(enviado, fecha) WHERE enviado=0;
-        """)
+        # Identidad UUIDv7 TEXT (REGLA CERO): id es la identidad de sincronización
+        # (sin columna uuid dual). El esquema canónico vive en m000_base_schema;
+        # esta creación defensiva lo replica born-clean para conexiones aisladas.
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         try: self.conn.commit()
         except Exception: pass
 
@@ -111,11 +81,12 @@ class SyncEngine:
         if tabla not in TABLAS_SINCRONIZABLES:
             return
         ts = self._tick_lamport()
+        from backend.shared.ids import new_uuid
         self.conn.execute(
             """INSERT INTO sync_outbox
-               (tabla, operacion, registro_id, payload, sucursal_id, lamport_ts)
-               VALUES(?,?,?,?,?,?)""",
-            (tabla, operacion, registro_id,
+               (id, tabla, operacion, registro_id, payload, sucursal_id, lamport_ts)
+               VALUES(?,?,?,?,?,?,?)""",
+            (new_uuid(), tabla, operacion, registro_id,
              json.dumps(payload, default=str),
              self.sucursal_id, ts))
         try: self.conn.commit()
@@ -123,8 +94,10 @@ class SyncEngine:
 
     # ── Obtener pendientes para enviar ────────────────────────────────────
     def get_pending(self, limit: int = 100) -> list:
+        # id ES la identidad de sincronización (UUIDv7): se propaga como uuid del
+        # evento hacia el receptor para la deduplicación idempotente.
         rows = self.conn.execute(
-            """SELECT id, uuid, tabla, operacion, registro_id, payload, lamport_ts
+            """SELECT id, id AS uuid, tabla, operacion, registro_id, payload, lamport_ts
                FROM sync_outbox WHERE enviado=0
                ORDER BY lamport_ts ASC LIMIT ?""",
             (limit,)).fetchall()
@@ -151,10 +124,11 @@ class SyncEngine:
         v13.2: Idempotencia por uuid — skip si ya fue aplicado.
         Resolución de conflictos: last-write-wins por lamport_ts.
         """
-        uuid_val = item.get("uuid", "")
+        # Identidad del evento remoto (UUIDv7): es el id del outbox emisor.
+        uuid_val = item.get("id") or item.get("uuid", "")
         if uuid_val:
             already = self.conn.execute(
-                "SELECT 1 FROM sync_inbox WHERE uuid=? AND integrado=1",
+                "SELECT 1 FROM sync_inbox WHERE id=? AND integrado=1",
                 (uuid_val,)
             ).fetchone()
             if already:
@@ -216,7 +190,7 @@ class SyncEngine:
                 try:
                     self.conn.execute(
                         "INSERT OR IGNORE INTO sync_inbox"
-                        "(uuid,tabla,operacion,registro_id,integrado,fecha_recibido)"
+                        "(id,tabla,operacion,registro_id,integrado,fecha_recibido)"
                         " VALUES(?,?,?,?,1,unixepoch())",
                         (uuid_val, tabla, operacion, reg_id))
                 except Exception:

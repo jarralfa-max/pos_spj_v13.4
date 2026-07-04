@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 @dataclass
 class _FakeYieldResult:
     usable_pct: float = 85.0
+    waste_pct: float = 0.0
 
 
 @dataclass

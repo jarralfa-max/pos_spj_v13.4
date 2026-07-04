@@ -289,16 +289,18 @@ class TestDeliveryHandlers:
     def test_weight_adjustment_handler_updates_totals(self, db):
         from core.events.handlers.delivery_handler import DeliveryWeightAdjustmentHandler
         # Setup order + item (direccion is NOT NULL in real schema)
-        cur = db.execute(
-            "INSERT INTO delivery_orders (total, direccion) VALUES (420.0,'Calle Test 1')"
+        from backend.shared.ids import new_uuid
+        order_id = new_uuid()  # post-cut: TEXT PK requires explicit UUID id
+        db.execute(
+            "INSERT INTO delivery_orders (id, total, direccion) VALUES (?,420.0,'Calle Test 1')",
+            (order_id,),
         )
-        order_id = cur.lastrowid
-        cur2 = db.execute(
-            "INSERT INTO delivery_items (delivery_id, nombre, cantidad, precio_unitario, subtotal, unidad)"
-            " VALUES (?,?,?,?,?,?)",
-            (order_id, "Lomo", 1.2, 350.0, 420.0, "kg"),
+        item_id = new_uuid()
+        db.execute(
+            "INSERT INTO delivery_items (id, delivery_id, nombre, cantidad, precio_unitario, subtotal, unidad)"
+            " VALUES (?,?,?,?,?,?,?)",
+            (item_id, order_id, "Lomo", 1.2, 350.0, 420.0, "kg"),
         )
-        item_id = cur2.lastrowid
         db.commit()
 
         handler = DeliveryWeightAdjustmentHandler(db)
@@ -358,7 +360,7 @@ class TestDeliveryRegressions:
         )
         with patch.object(svc, "_publish", return_value=None):
             oid = svc.create_order({"direccion": "Av. Insurgentes 100"}, usuario="test")
-        assert isinstance(oid, int)
+        assert isinstance(oid, str)
 
     def test_delivery_service_tests_still_pass(self):
         """Smoke-check that the 2 existing delivery service tests still work."""

@@ -12,7 +12,7 @@ SQL_IN_UI_ALLOWLIST = {
     'pos_spj_v13.4/modulos/clientes.py': 16,
     'pos_spj_v13.4/modulos/compras/actions_bar.py': 1,
     'pos_spj_v13.4/modulos/compras_pro.py': 58,
-    'pos_spj_v13.4/modulos/configuracion.py': 60,
+    # CONFIGURACION FASE 1: config_modules.py and configuracion.py have 0 SQL in UI.
     'pos_spj_v13.4/modulos/cotizaciones.py': 10,
     'pos_spj_v13.4/modulos/delivery.py': 37,
     'pos_spj_v13.4/modulos/etiquetas.py': 4,
@@ -41,8 +41,8 @@ COMMIT_ROLLBACK_IN_UI_ALLOWLIST = {
     'pos_spj_v13.4/modulos/base.py': 4,
     'pos_spj_v13.4/modulos/clientes.py': 5,
     'pos_spj_v13.4/modulos/compras_pro.py': 5,
-    'pos_spj_v13.4/modulos/config_hardware.py': 3,
-    'pos_spj_v13.4/modulos/configuracion.py': 24,
+    # CONFIGURACION FASE 1: config_hardware.py, config_modules.py and
+    # configuracion.py no longer call commit()/rollback() in the UI.
     'pos_spj_v13.4/modulos/cotizaciones.py': 2,
     'pos_spj_v13.4/modulos/delivery.py': 3,
     'pos_spj_v13.4/modulos/growth_engine.py': 12,
@@ -60,7 +60,12 @@ SCHEMA_CHANGES_OUTSIDE_MIGRATIONS_ALLOWLIST = {
     'pos_spj_v13.4/api/routers/anticipos.py': 1,
     'pos_spj_v13.4/application/services/customer_credit_service.py': 1,
     'pos_spj_v13.4/core/auth/login_guard.py': 2,
-    'pos_spj_v13.4/core/delivery/infrastructure/delivery_schema_migrator.py': 6,
+    # Plan B: uuid_cutover es la herramienta excepcional de conservación de
+    # datos (reescribe tablas por diseño); el migrador delivery añadió
+    # delivery_outbox_events; born_clean_audit menciona CREATE TABLE en docstring.
+    'pos_spj_v13.4/backend/infrastructure/db/uuid_cutover.py': 2,
+    'pos_spj_v13.4/core/delivery/infrastructure/delivery_schema_migrator.py': 7,
+    'pos_spj_v13.4/tools/born_clean_audit.py': 1,
     'pos_spj_v13.4/core/delivery/infrastructure/inventory_reservation_adapter.py': 1,
     'pos_spj_v13.4/core/events/outbox.py': 1,
     'pos_spj_v13.4/core/module_config.py': 1,

@@ -242,51 +242,35 @@ class DialogoLogin(QDialog):
         super().mouseMoveEvent(event)
 
     def _leer_sucursal_instalacion(self) -> dict:
-        """Lee la sucursal configurada para ESTA instalación.
+        """Resuelve la sucursal de ESTA terminal desde configuraciones.
 
-        Returns {'id': str|None, 'nombre': str}.
-        sucursales.id is now TEXT PRIMARY KEY (UUID).  The stored value in
-        configuraciones.sucursal_instalacion_id is the UUID string directly.
-        Never falls back to a hard-coded id — returns empty dict keys so
-        callers can detect an un-configured installation.
+        Estados (sin fallback silencioso a Principal):
+        - configurada y válida → {'id', 'nombre', 'configured': True};
+        - clave presente pero INVÁLIDA ("None"/""/null o sucursal inexistente/
+          inactiva) → configured False + error (el badge muestra advertencia);
+        - clave AUSENTE (bootstrap inicial) → se usa la primera sucursal activa
+          y se registra como instalación pendiente de configurar.
         """
         import logging as _log
         _logger = _log.getLogger(__name__)
+        invalido = {'id': None, 'nombre': '', 'configured': False, 'pending': False,
+                    'error': 'Sucursal de instalación no configurada o inválida'}
         try:
             db = getattr(getattr(self.auth_service, 'repo', None), 'db', None)
             if not db:
                 _logger.warning("_leer_sucursal_instalacion: no db connection available")
-                return {'id': None, 'nombre': ''}
-            row = db.execute(
-                "SELECT valor FROM configuraciones WHERE clave='sucursal_instalacion_id'"
-            ).fetchone()
-            if not row or not row[0]:
-                _logger.info("_leer_sucursal_instalacion: key not configured")
-                return {'id': None, 'nombre': ''}
-            stored = str(row[0]).strip()
-            if not stored:
-                return {'id': None, 'nombre': ''}
-
-            suc_row = db.execute(
-                "SELECT id, nombre FROM sucursales WHERE id=? AND COALESCE(activa,1)=1",
-                (stored,)
-            ).fetchone()
-            if suc_row:
-                _logger.info(
-                    "_leer_sucursal_instalacion: resolved '%s' → '%s'",
-                    stored, suc_row[1],
-                )
-                return {'id': suc_row[0], 'nombre': suc_row[1]}
-
-            _logger.warning(
-                "_leer_sucursal_instalacion: id '%s' not found in sucursales (active)", stored
-            )
-            return {'id': None, 'nombre': ''}
-
+                return dict(invalido)
+            from core.services.branch_resolution import resolve_installation_branch
+            resultado = resolve_installation_branch(db)
+            if resultado.get('pending') and resultado.get('id'):
+                # Bootstrap inicial: sucursal provisional utilizable en el
+                # login, aunque la instalación siga pendiente de configurar.
+                resultado = dict(resultado)
+                resultado['configured'] = True
+            return resultado
         except Exception as exc:
-            import logging as _log2
-            _log2.getLogger(__name__).error("_leer_sucursal_instalacion error: %s", exc)
-            return {'id': None, 'nombre': ''}
+            _logger.error("_leer_sucursal_instalacion error: %s", exc)
+            return dict(invalido)
 
     def _configurar_ui(self):
         layout = QVBoxLayout(self)
@@ -381,15 +365,25 @@ class DialogoLogin(QDialog):
         layout.addWidget(lbl_sub)
         layout.addSpacing(12)
 
-        # ── Badge sucursal ───────────────────────────────────────────────
-        suc_nombre = self._sucursal_instalacion.get('nombre', 'Principal')
-        lbl_suc = QLabel(f"📍  {suc_nombre}")
+        # ── Badge sucursal (la efectiva de esta terminal) ────────────────
+        _configurada = bool(self._sucursal_instalacion.get('configured')
+                            and self._sucursal_instalacion.get('id'))
+        if _configurada:
+            suc_nombre = self._sucursal_instalacion.get('nombre') or ""
+            lbl_suc = QLabel(f"📍  {suc_nombre}")
+            _badge_css = (
+                "color: #0891b2; background: rgba(8,145,178,0.12);"
+                " border: 1px solid rgba(8,145,178,0.35);")
+        else:
+            lbl_suc = QLabel("⚠️  Sucursal no configurada")
+            _badge_css = (
+                "color: #d97706; background: rgba(217,119,6,0.12);"
+                " border: 1px solid rgba(217,119,6,0.4);")
         lbl_suc.setAlignment(Qt.AlignCenter)
         lbl_suc.setObjectName("loginSucursal")
         lbl_suc.setWordWrap(True)
         lbl_suc.setStyleSheet(
-            "color: #0891b2; background: rgba(8,145,178,0.12);"
-            " border: 1px solid rgba(8,145,178,0.35);"
+            _badge_css +
             " border-radius: 10px; font-size: 11px; font-weight: 600;"
             " padding: 4px 14px;")
         suc_row = QHBoxLayout()
@@ -547,6 +541,7 @@ class MainWindow(QMainWindow):
         self._configurar_busqueda_global()
         self._cargar_tema_inicial()
         self._cargar_logo_empresa()
+        self._suscribir_eventos_catalogo()
 
     # ── Menú superior ────────────────────────────────────────────────────────
     def _configurar_menu_superior(self):
@@ -765,16 +760,51 @@ class MainWindow(QMainWindow):
         usuario          = self.usuario_actual.get("username", "")
         nombre           = self.usuario_actual.get("nombre", usuario)
         rol              = self.usuario_actual.get("rol", "cajero")
-        sucursal_id      = self.usuario_actual.get("sucursal_id") or 0
-        nombre_suc       = self.usuario_actual.get("sucursal_nombre") or ""
-        active_branch_id = self.usuario_actual.get("active_branch_id") or (str(sucursal_id) if sucursal_id else "")
+        # Identidad UUIDv7: la sucursal circula como UUID string. La fuente de
+        # verdad de la terminal es la sucursal de instalación (inyectada por el
+        # login) y, en su defecto, la resuelta por AppContainer bajo la
+        # semántica de 3 estados. NO se resuelve aquí una "primera activa":
+        # una configuración inválida debe quedar visible, no ocultarse.
+        def _inv(v) -> bool:
+            return v is None or str(v).strip().lower() in ("", "none", "null")
+
+        sucursal_id = self.usuario_actual.get("sucursal_id")
+        nombre_suc  = self.usuario_actual.get("sucursal_nombre") or ""
+        if _inv(sucursal_id):
+            sucursal_id = getattr(self.container, "sucursal_id", "") or ""
+            nombre_suc  = getattr(self.container, "sucursal_nombre", "") or ""
+            if _inv(sucursal_id):
+                sucursal_id = ""
+                nombre_suc = ""
+                import logging
+                logging.getLogger(__name__).warning(
+                    "_propagar_usuario: sucursal de instalación no configurada "
+                    "o inválida; la sesión queda SIN sucursal activa. Configura "
+                    "la terminal en Configuración → Empresa.")
+        sucursal_id = str(sucursal_id or "")
+        if sucursal_id and not nombre_suc:
+            try:
+                _row_n = self.container.db.execute(
+                    "SELECT nombre FROM sucursales WHERE id=?", (sucursal_id,)
+                ).fetchone()
+                if _row_n:
+                    nombre_suc = str(_row_n[0] or "")
+            except Exception:
+                pass
+        self.usuario_actual["sucursal_id"] = sucursal_id
+        self.usuario_actual["sucursal_nombre"] = nombre_suc
+        active_branch_id = self.usuario_actual.get("active_branch_id") or sucursal_id
+        self.usuario_actual["active_branch_id"] = active_branch_id
 
         # v13.4: Actualizar barra de sesión
         if hasattr(self, '_session_bar'):
             rol_display = rol.capitalize().replace("_", " ")
+            if sucursal_id:
+                _suc_display = f"📍 {nombre_suc}  —  Sucursal ID: {sucursal_id}"
+            else:
+                _suc_display = "⚠️ Sucursal no configurada"
             self._session_bar.setText(
-                f"  📍 {nombre_suc}  —  👤 {nombre} ({rol_display})  —  "
-                f"Sucursal ID: {sucursal_id}")
+                f"  {_suc_display}  —  👤 {nombre} ({rol_display})")
             # Color según rol
             if rol in ('admin', 'superadmin'):
                 self._session_bar.setStyleSheet(
@@ -851,6 +881,55 @@ class MainWindow(QMainWindow):
         # ── Session timeout: cierra sesión por inactividad ────────────────────
         self._arrancar_session_timeout()
 
+    def aplicar_sucursal_activa(self, sucursal_id: str, nombre: str = "") -> None:
+        """Propaga EN VIVO un cambio de sucursal activa a toda la sesión.
+
+        Lo invoca Configuración al re-anclar la sucursal de la instalación:
+        actualiza usuario_actual, la barra de sesión, los módulos cargados,
+        el AppContainer y publica ACTIVE_BRANCH_CHANGED. El login la leerá de
+        la clave persistida en el próximo arranque.
+        """
+        sucursal_id = str(sucursal_id or "")
+        if not sucursal_id:
+            return
+        previous = ""
+        if self.usuario_actual:
+            previous = str(self.usuario_actual.get("active_branch_id") or "")
+            self.usuario_actual["sucursal_id"] = sucursal_id
+            self.usuario_actual["sucursal_nombre"] = nombre
+            self.usuario_actual["active_branch_id"] = sucursal_id
+        if hasattr(self, "_session_bar") and self.usuario_actual:
+            nombre_u = self.usuario_actual.get("nombre", self.usuario_actual.get("username", ""))
+            rol = str(self.usuario_actual.get("rol", "")).capitalize().replace("_", " ")
+            self._session_bar.setText(
+                f"  📍 {nombre}  —  👤 {nombre_u} ({rol})  —  Sucursal ID: {sucursal_id}")
+        for idx in range(self.stack.count()):
+            widget = self.stack.widget(idx)
+            if hasattr(widget, "set_sucursal"):
+                try: widget.set_sucursal(sucursal_id, nombre)
+                except Exception: continue
+        try:
+            self.container.set_sucursal_activa(sucursal_id, nombre)
+        except Exception as _e:
+            import logging; logging.getLogger(__name__).debug("set_sucursal_activa: %s", _e)
+        try:
+            from core.events.domain_events import ACTIVE_BRANCH_CHANGED
+            from core.events.event_bus import EventBus
+            from backend.shared.ids import new_uuid
+            from datetime import datetime, timezone
+            EventBus().publish(ACTIVE_BRANCH_CHANGED, {
+                "event_id":           new_uuid(),
+                "operation_id":       new_uuid(),
+                "user_id":            str((self.usuario_actual or {}).get("id") or ""),
+                "previous_branch_id": previous,
+                "active_branch_id":   sucursal_id,
+                "active_branch_name": nombre,
+                "timestamp":          datetime.now(timezone.utc).isoformat(),
+                "source_module":      "main_window.aplicar_sucursal_activa",
+            })
+        except Exception as _e:
+            import logging; logging.getLogger(__name__).debug("ACTIVE_BRANCH_CHANGED publish: %s", _e)
+
         # ── Inbox POS: mostrar mensajes no leídos tras login ──────────────────
         QTimer.singleShot(800, self._mostrar_inbox_login)
         QTimer.singleShot(500, self._start_badge_refresh)
@@ -858,6 +937,76 @@ class MainWindow(QMainWindow):
     def refresh_module_access(self) -> None:
         """Reaplica permisos del usuario activo sobre el menú lateral."""
         self._propagar_usuario()
+
+    # ── Propagación en caliente de catálogos (sucursales / productos) ────────
+    def _suscribir_eventos_catalogo(self) -> None:
+        """Suscribe la ventana a los eventos de catálogo del EventBus.
+
+        BRANCHES_CHANGED / PRODUCTS_CHANGED (y sus granulares + canales legacy
+        de producto) refrescan los módulos cargados SIN reiniciar la app.
+        Los handlers saltan al hilo Qt con QTimer.singleShot(0, ...) porque el
+        bus puede despachar desde hilos de background.
+        """
+        try:
+            from core.events.event_bus import get_bus
+            from core.events.domain_events import (
+                BRANCH_CREATED, BRANCH_UPDATED, BRANCH_DEACTIVATED,
+                BRANCHES_CHANGED, PRODUCT_CREATED, PRODUCT_UPDATED,
+                PRODUCT_DEACTIVATED, PRODUCTS_CHANGED,
+            )
+            bus = get_bus()
+            # El evento agregado siempre acompaña a los granulares (misma ruta
+            # canónica), así que el fan-out se engancha SOLO al agregado para
+            # no refrescar 2-3 veces por operación.
+            bus.subscribe(BRANCHES_CHANGED, self._on_branches_changed_bus,
+                          label="main_window_catalogo_sucursales")
+            bus.subscribe(PRODUCTS_CHANGED, self._on_products_changed_bus,
+                          label="main_window_catalogo_productos")
+            # Compatibilidad: emisores legacy que aún no pasan por la ruta
+            # canónica (publican solo PRODUCTO_* sin products_changed).
+            for legacy in ("PRODUCTO_CREADO", "PRODUCTO_ACTUALIZADO",
+                           "PRODUCTO_ELIMINADO"):
+                bus.subscribe(legacy, self._on_products_changed_bus,
+                              label=f"main_window_catalogo_{legacy.lower()}")
+            # Los granulares BRANCH_*/PRODUCT_* quedan disponibles para módulos
+            # que quieran reaccionar fino; MainWindow no los duplica.
+            _ = (BRANCH_CREATED, BRANCH_UPDATED, BRANCH_DEACTIVATED,
+                 PRODUCT_CREATED, PRODUCT_UPDATED, PRODUCT_DEACTIVATED)
+        except Exception as _e:
+            import logging
+            logging.getLogger(__name__).warning(
+                "No se pudieron suscribir los eventos de catálogo: %s", _e)
+
+    def _on_branches_changed_bus(self, payload: dict) -> None:
+        """Handler del bus (posible hilo background) → hilo Qt."""
+        data = dict(payload or {})
+        QTimer.singleShot(0, lambda: self._on_branches_changed(data))
+
+    def _on_products_changed_bus(self, payload: dict) -> None:
+        data = dict(payload or {})
+        # Debounce corto: una ráfaga (granular+agregado+legacy) = 1 refresh.
+        if getattr(self, "_products_refresh_pending", False):
+            return
+        self._products_refresh_pending = True
+
+        def _run():
+            self._products_refresh_pending = False
+            self._on_products_changed(data)
+
+        QTimer.singleShot(150, _run)
+
+    def _stack_widgets(self) -> list:
+        return [self.stack.widget(idx) for idx in range(self.stack.count())]
+
+    def _on_branches_changed(self, payload: dict) -> None:
+        """Refresca en caliente los selectores de sucursal de TODOS los módulos."""
+        from core.events.catalog_events import fan_out_branches_changed
+        fan_out_branches_changed(self._stack_widgets(), payload)
+
+    def _on_products_changed(self, payload: dict) -> None:
+        """Refresca en caliente el catálogo de productos en TODOS los módulos."""
+        from core.events.catalog_events import fan_out_products_changed
+        fan_out_products_changed(self._stack_widgets(), payload)
 
     def _arrancar_session_timeout(self) -> None:
         """Activa el monitor de inactividad (se resetea con mouse/teclado)."""
@@ -1003,8 +1152,17 @@ class MainWindow(QMainWindow):
     def _refresh_order_badges(self) -> None:
         if not self.usuario_actual:
             return
-        branch_id = str(self.usuario_actual.get("sucursal_id") or "")
-        counts = OrderBadgeService(self.container.db).get_badge_counts(branch_id=branch_id)
+        # Identidad UUIDv7 (REGLA CERO): la sucursal es un UUID string. Sin cast a
+        # int y sin default arbitrario; si la sesión no fijó sucursal, no refresca.
+        branch_id = (
+            self.usuario_actual.get("active_branch_id")
+            or self.usuario_actual.get("sucursal_id")
+            or self.usuario_actual.get("branch_id")
+            or self.usuario_actual.get("sucursal_uuid")
+        )
+        if not branch_id:
+            return
+        counts = OrderBadgeService(self.container.db).get_badge_counts(branch_id=str(branch_id))
 
         active = int(counts.get("orders_active", 0))
         scheduled = int(counts.get("orders_scheduled", 0))

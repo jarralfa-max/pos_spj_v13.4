@@ -24,38 +24,7 @@ class LoteService:
         self._init_tables()
 
     def _init_tables(self):
-        self.conn.executescript("""
-            CREATE TABLE IF NOT EXISTS lotes (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                uuid            TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
-                producto_id     INTEGER REFERENCES productos(id),
-                numero_lote     TEXT,
-                proveedor_id    INTEGER,
-                fecha_recepcion DATE DEFAULT (date('now')),
-                fecha_caducidad DATE,
-                peso_inicial_kg DECIMAL(10,3) DEFAULT 0,
-                peso_actual_kg  DECIMAL(10,3) DEFAULT 0,
-                costo_kg        DECIMAL(10,4) DEFAULT 0,
-                sucursal_id     INTEGER DEFAULT 1,
-                estado          TEXT DEFAULT 'activo',  -- activo|agotado|caducado|cuarentena
-                temperatura_c   DECIMAL(4,1),
-                observaciones   TEXT,
-                fecha_registro  DATETIME DEFAULT (datetime('now'))
-            );
-            CREATE TABLE IF NOT EXISTS movimientos_lote (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                lote_id     INTEGER REFERENCES lotes(id),
-                tipo        TEXT,   -- recepcion|venta|merma|transferencia|ajuste
-                cantidad_kg DECIMAL(10,3),
-                referencia  TEXT,   -- folio de venta, OC, etc.
-                usuario     TEXT,
-                fecha       DATETIME DEFAULT (datetime('now'))
-            );
-            CREATE INDEX IF NOT EXISTS idx_lotes_prod_estado
-                ON lotes(producto_id, estado, fecha_caducidad);
-            CREATE INDEX IF NOT EXISTS idx_lotes_caducidad
-                ON lotes(fecha_caducidad) WHERE estado='activo';
-        """)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         try: self.conn.commit()
         except Exception: pass
 

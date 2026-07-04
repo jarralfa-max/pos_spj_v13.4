@@ -258,7 +258,7 @@ class AsignarDriverDialog(QDialog):
 
     def _cargar_drivers(self):
         try:
-            branch_id = int(getattr(self.parent(), "sucursal_id", 1) or 1)
+            branch_id = str(getattr(self.parent(), "sucursal_id", "") or "")
             rows = self.parent().driver_service.list_active_drivers(branch_id) if hasattr(self.parent(), "driver_service") else []
             for r in rows:
                 label = f"{r.get('nombre', '')} · {r.get('telefono', '')} · {r.get('vehiculo', '')}"
@@ -466,12 +466,12 @@ class NuevoPedidoDialog(QDialog):
         self.txt_notas = QLineEdit()
         self.txt_notas.setPlaceholderText("Notas para el repartidor: referencias, instrucciones especiales…")
         self.combo_sucursal = QComboBox()
+        # SQL vive en el QueryService (regla 8); sin default arbitrario id=1 (regla 23).
         try:
-            rows = conexion.execute("SELECT id, nombre FROM sucursales ORDER BY nombre").fetchall()
-            for _sid, _snombre in rows:
+            for _sid, _snombre in _DeliveryQueryService(conexion).list_active_branches():
                 self.combo_sucursal.addItem(_snombre, _sid)
         except Exception:
-            self.combo_sucursal.addItem("Sucursal Principal", 1)
+            pass
         extra.addWidget(QLabel("Notas:"))
         extra.addWidget(self.txt_notas, 3)
         extra.addWidget(QLabel("Sucursal:"))
@@ -1628,9 +1628,9 @@ if(drivers.length===0){{
             tab_label = mapping.get(key, "Todos")
             card.mousePressEvent = (lambda _event, lbl=tab_label: self._on_filter_tab(lbl))
 
-    def _get_branch_id_for_counts(self) -> int:
+    def _get_branch_id_for_counts(self) -> str:
         try:
-            return int(getattr(self, "sucursal_id", 1) or 1)
+            return str(getattr(self, "sucursal_id", "") or "")
         except Exception:
             return 1
 
@@ -2228,7 +2228,7 @@ if(drivers.length===0){{
                 # Stock gate: must have valid reservation OR sufficient available stock
                 _res_svc = ReservationService()
                 _inv_svc = InventoryBalanceService(self.conexion)
-                _sucursal = getattr(self, 'sucursal_id', 1)
+                _sucursal = getattr(self, 'sucursal_id', '') or ''
                 _reservas = _res_svc.get_reservations_for_operation(self.conexion, str(pedido_id))
                 _bloqueados = []
                 for _it in items:
@@ -2484,7 +2484,7 @@ if(drivers.length===0){{
                             modulo="DELIVERY", accion="ENTREGA_COMPLETADA",
                             entidad="delivery_orders", entidad_id=str(pedido_id),
                             usuario=getattr(self,'usuario_actual','Sistema'),
-                            sucursal_id=getattr(self,'sucursal_id',1),
+                            sucursal_id=getattr(self,'sucursal_id','') or '',
                             detalles=f"Cobrado: ${pago_monto:.2f} via {pago_metodo}"
                         )
                     except Exception:
@@ -2495,7 +2495,7 @@ if(drivers.length===0){{
                 from core.events.event_bus import get_bus
                 get_bus().publish("PEDIDO_ACTUALIZADO", {
                     "pedido_id": pedido_id, "accion": accion,
-                    "sucursal_id": getattr(self, 'sucursal_id', 1)
+                    "sucursal_id": getattr(self, 'sucursal_id', '') or ''
                 })
             except Exception:
                 pass
@@ -2537,7 +2537,7 @@ if(drivers.length===0){{
                 "notas":         data.get("notas", ""),
                 "total":         data.get("total", 0),
                 "pago_metodo":   data.get("pago_metodo", ""),
-                "sucursal_id":   data.get("sucursal_id", 1),
+                "sucursal_id":   data.get("sucursal_id", "") or "",
                 "items":         data.get("items") or [],
             }, usuario=self.usuario)
 
@@ -2711,17 +2711,18 @@ if(drivers.length===0){{
                     SettleDeliveryDriverCommand, SettleDeliveryDriverUseCase,
                 )
                 from core.events.event_bus import get_bus
+                # Identidad UUIDv7 (REGLA CERO): los ids viajan como str.
                 cmd = SettleDeliveryDriverCommand(
-                    driver_id=driver_id,
+                    driver_id=str(driver_id),
                     driver_nombre=cmb_driver.currentText(),
-                    order_ids=list(_data["order_ids"]),
+                    order_ids=[str(o) for o in _data["order_ids"]],
                     efectivo_entregado=entregado,
                     efectivo_cobrado=_data["efectivo"],
                     tarjeta_cobrado=_data["tarjeta"],
                     transfer_cobrado=_data["transfer"],
                     notas=txt_notas_corte.text().strip(),
                     usuario=getattr(self, 'usuario', 'Sistema'),
-                    sucursal_id=getattr(self, 'sucursal_id', 0),
+                    sucursal_id=str(getattr(self, 'sucursal_id', '') or ''),
                     turno_inicio=_data["turno_inicio"],
                 )
                 result = SettleDeliveryDriverUseCase(
@@ -2880,7 +2881,7 @@ class GestorDriversDialog(QDialog):
             rows = [
                 (
                     r.get("id"), r.get("nombre", ""), r.get("telefono", ""),
-                    r.get("sucursal_id", 1), r.get("activo", 1),
+                    r.get("sucursal_id", "") or "", r.get("activo", 1),
                 )
                 for r in self.driver_service.list_drivers()
             ]

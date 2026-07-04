@@ -245,29 +245,8 @@ class SalesService:
         raise ValueError(f"Método de pago desconocido: {method}")
 
     def _ensure_pending_sales_intents_table(self) -> None:
-        self.db.execute(
-            """CREATE TABLE IF NOT EXISTS pending_sales_intents (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                folio TEXT UNIQUE NOT NULL,
-                payload_json TEXT NOT NULL,
-                estado TEXT NOT NULL DEFAULT 'pendiente_pago',
-                reservation_id INTEGER,
-                payment_id TEXT DEFAULT '',
-                payment_url TEXT DEFAULT '',
-                created_at TEXT DEFAULT (datetime('now')),
-                expires_at TEXT DEFAULT (datetime('now', '+30 minutes')),
-                confirmed_at TEXT
-            )"""
-        )
-        for stmt in (
-            "ALTER TABLE pending_sales_intents ADD COLUMN reservation_id INTEGER",
-            "ALTER TABLE pending_sales_intents ADD COLUMN payment_url TEXT DEFAULT ''",
-            "ALTER TABLE pending_sales_intents ADD COLUMN expires_at TEXT",
-        ):
-            try:
-                self.db.execute(stmt)
-            except Exception as exc:
-                logger.debug("pending_sales_intents migration skipped: %s", exc)
+        # Plan B born-clean: la tabla y sus columnas viven en migrations/m000.
+        # Aquí sólo queda el backfill de datos (no DDL).
         try:
             self.db.execute(
                 "UPDATE pending_sales_intents "
@@ -304,7 +283,7 @@ class SalesService:
             "items": normalized_items,
             "total": round(float(total or 0.0), 2),
             "notes": str(notes or ""),
-            "reservation_id": int(reservation_id),
+            "reservation_id": reservation_id,  # UUIDv7 TEXT identity
             "payment_method": "Mercado Pago",
         }
         try:
@@ -312,7 +291,7 @@ class SalesService:
                 """INSERT INTO pending_sales_intents
                    (folio, payload_json, estado, reservation_id, expires_at)
                    VALUES (?, ?, 'pendiente_pago', ?, datetime('now', '+30 minutes'))""",
-                (folio, json.dumps(payload, ensure_ascii=False), int(reservation_id)),
+                (folio, json.dumps(payload, ensure_ascii=False), reservation_id),
             )
         except Exception as exc:
             logger.warning("No se pudo persistir intención MP; liberando reserva_id=%s: %s", reservation_id, exc)
@@ -335,7 +314,7 @@ class SalesService:
         return {
             "folio": folio,
             "estado": "pendiente_pago",
-            "reservation_id": int(reservation_id),
+            "reservation_id": reservation_id,  # UUIDv7 TEXT identity
             "items": normalized_items,
             "total": payload["total"],
         }
@@ -362,11 +341,11 @@ class SalesService:
         payload_json = row[0] if isinstance(row, tuple) else row["payload_json"]
         reservation_id = row[1] if isinstance(row, tuple) else row["reservation_id"]
         data = json.loads(payload_json or "{}")
-        reservation_id = int(reservation_id or data.get("reservation_id") or 0)
+        reservation_id = reservation_id or data.get("reservation_id") or None
         estado = "expirada" if str(motivo).strip().lower() == "expirada" else "cancelada"
         if reservation_id:
             from core.services.stock_reservation_service import StockReservationService
-            StockReservationService(self.db, branch_id=int(data.get("branch_id", 1))).liberar(
+            StockReservationService(self.db, branch_id=data.get("branch_id") or "").liberar(
                 reservation_id,
                 motivo=estado,
             )
@@ -412,11 +391,11 @@ class SalesService:
         data = json.loads(payload_json or "{}")
         total = float(data.get("total", 0.0))
         items = data.get("items") or []
-        branch_id = int(data.get("branch_id", 1))
+        branch_id = data.get("branch_id") or ""
         user = str(data.get("user", "sistema"))
         client_id = data.get("client_id")
         notes = str(data.get("notes", "")) + f" [MP payment_id={payment_id}]"
-        reservation_id = int(data.get("reservation_id") or 0)
+        reservation_id = data.get("reservation_id") or None
         rich = self.execute_sale_result(
             branch_id=branch_id,
             user=user,
@@ -551,7 +530,7 @@ class SalesService:
         :param items: Lista de diccionarios [{'product_id': 1, 'qty': 1.12, 'unit_price': 100, 'es_compuesto': 0, 'name': 'Pollo'}, ...]
         """
         operation_id = (operation_id or new_uuid())
-        reservation_id = int(reservation_id or 0)
+        reservation_id = reservation_id or None  # UUIDv7 reservation identity (or None)
         reservation_confirmed = False
 
         payment_method = self._normalize_payment_method(payment_method)
@@ -830,7 +809,7 @@ class SalesService:
                 try:
                     raffle_tickets_snapshot = self.loyalty_service.process_raffles_for_sale(
                         venta_id=str(sale_id),
-                        cliente_id=int(client_id or 0),
+                        cliente_id=client_id or None,
                         folio=str(folio),
                         total=float(total_a_pagar),
                         sucursal_id=str(branch_id),
@@ -1093,7 +1072,7 @@ class SalesService:
             warnings.append("operation_id no disponible en el resultado interno de venta")
         execution_items = [
             SaleExecutionItem(
-                product_id=int(d.get("product_id", 0)),
+                product_id=str(d.get("product_id", "") or ""),
                 nombre=str(d.get("nombre", d.get("name", "")) or ""),
                 cantidad=float(d.get("qty", d.get("cantidad", 0.0)) or 0.0),
                 precio_unitario=float(d.get("unit_price", d.get("precio_unitario", 0.0)) or 0.0),
@@ -1130,7 +1109,7 @@ class SalesService:
         )
         return SaleExecutionResult(
             ok=bool(details.get("ok", True)),
-            venta_id=int(details.get("venta_id", 0) or 0),
+            venta_id=str(details.get("venta_id", "") or ""),
             folio=str(details.get("folio", "")),
             operation_id=str(details.get("operation_id", "") or ""),
             subtotal=float(details.get("subtotal", 0.0) or 0.0),
@@ -1219,7 +1198,7 @@ class SalesService:
         for it in items:
             qty = float(getattr(it, "cantidad", 0.0) or 0.0)
             pu = float(getattr(it, "precio_unitario", getattr(it, "precio_unit", 0.0)) or 0.0)
-            pid = int(getattr(it, "producto_id", 0) or 0)
+            pid = str(getattr(it, "producto_id", 0) or "")
             nm = getattr(it, "nombre", "")
             total_estimado += qty * pu
             items_payload.append({
@@ -1323,7 +1302,7 @@ class SalesService:
 
             with _txn(self.db):
                 for d in detalles:
-                    pid = int(d["producto_id"])
+                    pid = str(d["producto_id"])
                     qty = float(d["cantidad"] or 0)
                     if qty <= 0:
                         continue

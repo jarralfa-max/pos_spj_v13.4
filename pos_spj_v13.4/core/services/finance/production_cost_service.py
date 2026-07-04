@@ -118,7 +118,7 @@ class ProductionCostService:
         for r in rows:
             r = dict(r)
             output_costs.append(OutputCostLine(
-                product_id  = int(r["product_id"]),
+                product_id  = str(r["product_id"]),
                 cost_total  = float(r["cost_total"]),
                 cost_per_kg = float(r["cost_per_kg"]),
                 weight      = float(r["weight"]),
@@ -168,7 +168,7 @@ class ProductionCostService:
             if r["is_waste"]:
                 continue
 
-            product_id  = int(r["product_id"])
+            product_id  = str(r["product_id"])
             cost_per_kg = round(float(r["cost_per_kg"]), 4)
 
             self._db.execute(
@@ -203,13 +203,7 @@ class ProductionCostService:
         Creates/uses production_cost_ledger rows and updates product/inventory costs once.
         """
         try:
-            conn.execute(
-                "CREATE TABLE IF NOT EXISTS production_cost_ledger ("
-                "id INTEGER PRIMARY KEY AUTOINCREMENT, batch_id TEXT, output_id TEXT, "
-                "product_id INTEGER, weight REAL, pct_utilizable REAL DEFAULT 0, "
-                "cost_total REAL, cost_per_kg REAL, operation_id TEXT, "
-                "sucursal_id INTEGER, usuario TEXT, base_product_id INTEGER, is_waste INTEGER DEFAULT 0)"
-            )
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         except Exception:
             pass
 
@@ -240,7 +234,7 @@ class ProductionCostService:
         factor_map = {str(c.get("product_id") or c.get("component_product_id") or ""): float(c.get("factor_costo") or 1.0) for c in componentes_db}
         basis = []
         for o in outputs:
-            pid = int(o["product_id"]); q = float(o["delta"]); factor = factor_map.get(pid, 1.0)
+            pid = str(o["product_id"]); q = float(o["delta"]); factor = factor_map.get(pid, 1.0)
             basis.append((pid, q, max(0.0001, q * factor)))
         basis_total = sum(b for _, _, b in basis) or 1.0
         finished_cost = 0.0

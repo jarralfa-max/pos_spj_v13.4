@@ -195,7 +195,7 @@ def test_order_ready_counter_and_delivery_notifications_use_expected_dedupe_keys
     assert svc.notify_order_ready_delivery(branch_id=8, sale_id=302, folio="VTA-302") is True
     assert svc.notify_order_ready_delivery(branch_id=8, sale_id=302, folio="VTA-302") is False
 
-    rows = db.execute("SELECT dedupe_key, titulo FROM notification_inbox ORDER BY id").fetchall()
+    rows = db.execute("SELECT dedupe_key, titulo FROM notification_inbox ORDER BY rowid").fetchall()
     assert rows[0]["dedupe_key"] == "ready_counter:301"
     assert rows[0]["titulo"] == "Pedido listo para mostrador"
     assert rows[1]["dedupe_key"] == "ready_delivery:302"

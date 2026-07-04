@@ -29,7 +29,7 @@ class ModuloReportesBIv2(QWidget):
     def __init__(self, container, parent=None):
         super().__init__(parent)
         self.container = container
-        self.sucursal_id = 1
+        self.sucursal_id = getattr(container, "sucursal_id", "") or ""
         self._last_data = {}
         self.init_ui()
         self._wire_business_events()

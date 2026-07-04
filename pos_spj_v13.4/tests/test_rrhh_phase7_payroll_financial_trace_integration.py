@@ -28,7 +28,7 @@ def _db():
     conn.executescript(
         """
         CREATE TABLE personal (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             nombre TEXT NOT NULL,
             apellidos TEXT,
             puesto TEXT,
@@ -37,15 +37,15 @@ def _db():
             activo INTEGER DEFAULT 1
         );
         CREATE TABLE asistencias (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            personal_id INTEGER NOT NULL,
+            id TEXT PRIMARY KEY,
+            personal_id TEXT NOT NULL,
             fecha DATE NOT NULL,
             horas_trabajadas REAL,
             estado TEXT DEFAULT 'PRESENTE'
         );
         CREATE TABLE nomina_pagos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            empleado_id INTEGER,
+            id TEXT PRIMARY KEY,
+            empleado_id TEXT,
             periodo_inicio TEXT,
             periodo_fin TEXT,
             salario_base REAL,
@@ -55,7 +55,7 @@ def _db():
             usuario TEXT
         );
         CREATE TABLE journal_entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             operation_id TEXT UNIQUE NOT NULL,
             event_type TEXT,
             source_module TEXT,
@@ -74,8 +74,8 @@ def _db():
     migration = importlib.import_module("migrations.standalone.093_rrhh_payroll_traceability")
     migration.run(conn)
     conn.execute(
-        "INSERT INTO personal (nombre, apellidos, salario, telefono) VALUES (?,?,?,?)",
-        ("Ana", "García", 400.0, "555"),
+        "INSERT INTO personal (id, nombre, apellidos, salario, telefono) VALUES (?,?,?,?,?)",
+        ("1", "Ana", "García", 400.0, "555"),
     )
     for day in range(1, 6):
         conn.execute(
@@ -121,7 +121,7 @@ def test_phase7_payroll_payment_flows_to_financial_trace_sqlite():
     )
 
     assert result.ok is True
-    assert result.payroll_payment_id == 1
+    assert result.payroll_payment_id  # UUIDv7
     assert [event[0] for event in bus.events] == [NOMINA_GENERADA, NOMINA_PAGADA]
 
     payment = conn.execute(
@@ -134,7 +134,7 @@ def test_phase7_payroll_payment_flows_to_financial_trace_sqlite():
 
     entries = conn.execute(
         "SELECT operation_id, event_type, debit_account, credit_account, amount, source_id "
-        "FROM journal_entries ORDER BY id"
+        "FROM journal_entries ORDER BY rowid"  # orden de inserción (id es UUIDv7)
     ).fetchall()
     assert [row["operation_id"] for row in entries] == [
         "op-payroll-sqlite-001-GEN",
@@ -166,7 +166,7 @@ def test_phase7_payroll_payment_is_idempotent_and_does_not_double_pay():
 
     assert first.ok is True
     assert second.ok is True
-    assert first.payroll_payment_id == second.payroll_payment_id == 1
+    assert first.payroll_payment_id == second.payroll_payment_id  # idempotente (mismo UUIDv7)
     assert conn.execute("SELECT COUNT(*) FROM nomina_pagos").fetchone()[0] == 1
     assert conn.execute("SELECT COUNT(*) FROM journal_entries").fetchone()[0] == 2
     assert conn.execute(

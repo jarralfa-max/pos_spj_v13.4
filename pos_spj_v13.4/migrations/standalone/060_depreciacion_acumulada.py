@@ -7,12 +7,12 @@
 def run(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS depreciacion_acumulada (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            activo_id   INTEGER NOT NULL,
+            id          TEXT    PRIMARY KEY,        -- UUIDv7 acuñado por AssetService
+            activo_id   TEXT    NOT NULL,           -- FK activos.id (UUIDv7)
             periodo     TEXT    NOT NULL,          -- 'YYYY-MM'
             monto_mes   REAL    NOT NULL DEFAULT 0, -- cargo mensual
             acumulado   REAL    NOT NULL DEFAULT 0, -- suma histórica hasta este periodo
-            cuenta_id   INTEGER,                   -- FK opcional a plan_cuentas
+            cuenta_id   TEXT,                       -- FK opcional a plan_cuentas
             created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
             UNIQUE(activo_id, periodo)
         )

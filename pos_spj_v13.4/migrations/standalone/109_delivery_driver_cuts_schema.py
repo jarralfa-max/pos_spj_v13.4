@@ -6,7 +6,7 @@ def run(conn) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS delivery_driver_cuts (
             id                TEXT PRIMARY KEY,
-            driver_id         INTEGER NOT NULL,
+            driver_id         TEXT NOT NULL,
             driver_nombre     TEXT NOT NULL,
             turno_inicio      DATETIME,
             turno_fin         DATETIME DEFAULT (datetime('now')),
@@ -18,7 +18,7 @@ def run(conn) -> None:
             efectivo_entregado REAL DEFAULT 0,
             diferencia        REAL DEFAULT 0,
             usuario_corte     TEXT,
-            sucursal_id       INTEGER DEFAULT 0,
+            sucursal_id       TEXT DEFAULT 0,
             notas             TEXT,
             created_at        DATETIME DEFAULT (datetime('now'))
         )
@@ -27,7 +27,7 @@ def run(conn) -> None:
         CREATE TABLE IF NOT EXISTS delivery_cut_items (
             id            TEXT PRIMARY KEY,
             cut_id        TEXT NOT NULL REFERENCES delivery_driver_cuts(id),
-            order_id      INTEGER NOT NULL,
+            order_id      TEXT NOT NULL,
             cliente_nombre TEXT,
             total         REAL DEFAULT 0,
             pago_metodo   TEXT,

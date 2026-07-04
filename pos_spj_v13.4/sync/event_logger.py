@@ -68,40 +68,11 @@ class EventLogger:
         self._ensure_table()
 
     def _ensure_table(self) -> None:
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS event_log (
-                id               INTEGER PRIMARY KEY AUTOINCREMENT,
-                uuid             TEXT    NOT NULL UNIQUE,
-                tipo             TEXT    NOT NULL,
-                entidad          TEXT    NOT NULL,
-                entidad_id       INTEGER,
-                payload          TEXT    NOT NULL,
-                payload_hash     TEXT,
-                sucursal_id      INTEGER NOT NULL DEFAULT 1,
-                usuario          TEXT    NOT NULL,
-                origin_device_id TEXT    DEFAULT '',
-                device_version   INTEGER DEFAULT 0,
-                event_version    INTEGER NOT NULL DEFAULT 1,
-                operation_id     TEXT    DEFAULT '',
-                synced           INTEGER DEFAULT 0,
-                sync_intentos    INTEGER DEFAULT 0,
-                sync_error       TEXT,
-                fecha            DATETIME DEFAULT CURRENT_TIMESTAMP,
-                fecha_sync       DATETIME
-            )
-        """)
-        for idx_sql in [
-            "CREATE INDEX IF NOT EXISTS idx_el_synced      ON event_log(synced)",
-            "CREATE INDEX IF NOT EXISTS idx_el_tipo        ON event_log(tipo)",
-            "CREATE INDEX IF NOT EXISTS idx_el_synced_tipo ON event_log(synced, tipo)",
-            "CREATE INDEX IF NOT EXISTS idx_el_hash        ON event_log(payload_hash)",
-            "CREATE INDEX IF NOT EXISTS idx_el_device_ver  ON event_log(origin_device_id, device_version)",
-        ]:
-            try:
-                self.conn.execute(idx_sql)
-            except Exception:
-                pass
-
+        # Identidad UUIDv7 TEXT (REGLA CERO): id es la identidad del evento (sin
+        # columna uuid dual). Esquema canónico en m000_base_schema; creación
+        # defensiva born-clean para conexiones aisladas.
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
+        # Plan B born-clean: índices de event_log viven en migrations/m000.
     def _next_device_version(self, tipo: str) -> int:
         row = self.conn.execute(
             "SELECT COALESCE(MAX(device_version), 0) + 1 FROM event_log "
@@ -122,7 +93,8 @@ class EventLogger:
         operation_id:  str   = None,
     ) -> int:
         try:
-            event_uuid   = str(uuid.uuid4())
+            from backend.shared.ids import new_uuid
+            event_uuid   = new_uuid()  # identidad UUIDv7 (REGLA CERO)
             payload_str  = json.dumps(payload or {}, ensure_ascii=False)
             payload_hash = _sha256_payload(payload_str)
 
@@ -141,10 +113,11 @@ class EventLogger:
             device_ver   = self._next_device_version(tipo)
             from utils.operation_context import get_operation_id
             op_id = operation_id or get_operation_id() or ""
-            cur = self.conn.execute(
+            # id es la identidad UUIDv7 del evento (antes columna uuid dual).
+            self.conn.execute(
                 """
                 INSERT INTO event_log
-                    (uuid, tipo, entidad, entidad_id, payload, payload_hash,
+                    (id, tipo, entidad, entidad_id, payload, payload_hash,
                      sucursal_id, usuario, origin_device_id, device_version,
                      event_version, operation_id)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
@@ -170,22 +143,24 @@ class EventLogger:
                 lamport_ts = int(lp_row[0]) + 1 if lp_row else 1
                 self.conn.execute(
                     "INSERT OR IGNORE INTO sync_outbox"
-                    "(uuid,tabla,operacion,registro_id,payload,sucursal_id,lamport_ts)"
+                    "(id,tabla,operacion,registro_id,payload,sucursal_id,lamport_ts)"
                     " VALUES(?,?,?,?,?,?,?)",
                     (event_uuid, f"event:{entidad}", "EVENT",
                      entidad_id, payload_str, sucursal_id, lamport_ts)
                 )
             except Exception as _be:
                 logger.debug("EventLogger→outbox bridge: %s", _be)
-            return cur.lastrowid
+            return event_uuid
         except Exception as exc:
             logger.warning("EventLogger.registrar falló silenciosamente: %s", exc)
             return -1
 
     def pendientes(self, limit: int = 100) -> list:
+        # id es la identidad UUIDv7; se expone también como uuid para los
+        # consumidores del protocolo de sincronización.
         return self.conn.execute(
             """
-            SELECT id, uuid, tipo, entidad, entidad_id, payload,
+            SELECT id, id AS uuid, tipo, entidad, entidad_id, payload,
                    payload_hash, sucursal_id, usuario,
                    origin_device_id, device_version, event_version, fecha
             FROM event_log

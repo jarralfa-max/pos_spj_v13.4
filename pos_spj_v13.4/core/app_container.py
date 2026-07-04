@@ -9,7 +9,7 @@ from repositories.security_repository import SecurityRepository
 from repositories.auth_repository import AuthRepository
 from repositories.recetas import RecetaRepository as RecipeRepository
 from repositories.finance_repository import FinanceRepository
-from repositories.sales_repository import SalesRepository
+from infrastructure.persistence.sqlite_sales_repository import SQLiteSalesRepository
 from repositories.purchase_repository import PurchaseRepository
 from repositories.caja import CajaRepository
 from repositories.productos import ProductoRepository
@@ -68,6 +68,35 @@ class AppContainer:
         set_db_path(db_path)          # registra la ruta en el módulo canónico
         self.db = get_connection()    # WAL + NORMAL sync + FK + busy_timeout
 
+        # Sucursal activa inicial — resolución canónica en 3 estados:
+        #   1) clave 'sucursal_instalacion_id' válida → sucursal configurada.
+        #   2) clave presente pero inválida ("None"/""/"null" o sucursal
+        #      inexistente/inactiva) → warning fuerte y sucursal_id="".
+        #      Una configuración inválida NUNCA se convierte silenciosamente
+        #      en 'Principal' ni en la primera sucursal activa.
+        #   3) clave ausente (bootstrap inicial) → primera sucursal activa
+        #      válida, registrada como instalación PENDIENTE de configurar.
+        self.installation_branch_configured: bool = False
+        try:
+            from core.services.branch_resolution import resolve_installation_branch
+            _res = resolve_installation_branch(self.db)
+            if _res.get('id'):
+                self.sucursal_id = str(_res['id'])
+                self.sucursal_nombre = str(_res.get('nombre') or "")
+                self.installation_branch_configured = bool(_res.get('configured'))
+                if hasattr(self, "session"):
+                    try:
+                        self.session.set_sucursal(self.sucursal_id, self.sucursal_nombre)
+                    except Exception:
+                        pass
+            else:
+                # Configuración inválida: queda visible (sucursal_id vacío);
+                # el helper ya registró el warning fuerte.
+                self.sucursal_id = ""
+                self.sucursal_nombre = ""
+        except Exception as _e:
+            logger.warning("No se pudo resolver la sucursal inicial: %s", _e)
+
         # =========================================================
         # CAPA 1: REPOSITORIOS (Acceso crudo a las tablas)
         # =========================================================
@@ -78,7 +107,7 @@ class AppContainer:
         self.inventory_query_service = InventoryQueryService(repository=self.inventory_repository)
         self.recipe_repo = RecipeRepository(self.db)
         self.finance_repo = FinanceRepository(self.db)
-        self.sales_repo = SalesRepository(self.db)
+        self.sales_repo = SQLiteSalesRepository(self.db)
         self.purchase_repo = PurchaseRepository(self.db)
         self.caja_repo = CajaRepository(self.db)
 
@@ -156,6 +185,34 @@ class AppContainer:
         except Exception as _caja_svc_err:
             self.caja_service = None
             logger.warning("CajaApplicationService no cargado: %s", _caja_svc_err)
+
+        # FASE 7.7 — capa canónica de caja (use cases + eventos CASH_*)
+        try:
+            from backend.application.services.cash_register_application_service import (
+                CashRegisterApplicationService,
+            )
+            from backend.application.use_cases.open_cash_shift_use_case import OpenCashShiftUseCase
+            from backend.application.use_cases.register_cash_movement_use_case import (
+                RegisterCashMovementUseCase,
+            )
+            from backend.application.use_cases.generate_z_cut_use_case import GenerateZCutUseCase
+            from core.events.event_bus import get_bus as _cash_get_bus
+
+            self.cash_register_service = CashRegisterApplicationService(
+                self.finance_service,
+                publisher=lambda evt, payload: _cash_get_bus().publish(evt, payload),
+            )
+            self.open_cash_shift_uc = OpenCashShiftUseCase(handler=self.cash_register_service.open_shift)
+            self.register_cash_movement_uc = RegisterCashMovementUseCase(
+                handler=self.cash_register_service.register_movement
+            )
+            self.generate_z_cut_uc = GenerateZCutUseCase(handler=self.cash_register_service.generate_z_cut)
+        except Exception as _cash_err:
+            self.cash_register_service = None
+            self.open_cash_shift_uc = None
+            self.register_cash_movement_uc = None
+            self.generate_z_cut_uc = None
+            logger.warning("CashRegister use cases no cargados: %s", _cash_err)
 
         # CajaTicketService — impresión y PDF de cortes Z
         try:
@@ -680,6 +737,13 @@ class AppContainer:
         from modulos.sistema.backup_engine import crear_backup
         import logging as _log
 
+        # AlertasService exige una sucursal UUIDv7 (sin default arbitrario). Si la
+        # sesión aún no fijó sucursal activa, el scheduler de alertas se omite.
+        if not self.sucursal_id:
+            _log.getLogger("spj.scheduler").info(
+                "Scheduler de alertas omitido: sin sucursal activa (UUIDv7)."
+            )
+            return
         alertas_svc = AlertasService(self.db, sucursal_id=self.sucursal_id)
         alertas_svc.notification_service = self.notification_service
 
@@ -1004,16 +1068,19 @@ class AppContainer:
         if hasattr(self, 'session'):
             self.session.set_sucursal(sucursal_id, nombre)
 
-        # Actualizar servicios que usan sucursal_id
-        for svc_name in ['inventory_service', 'sales_service', 'treasury_service',
-                          'happy_hour_service', 'comisiones_service',
-                          'loyalty_service', 'anticipo_service']:
-            svc = getattr(self, svc_name, None)
-            if svc and hasattr(svc, 'sucursal_id'):
-                svc.sucursal_id = sucursal_id
-            if svc and hasattr(svc, 'set_sucursal'):
-                try: svc.set_sucursal(sucursal_id)
-                except Exception: pass
+        # Actualizar TODOS los servicios del container que llevan sucursal_id
+        # copiada en su construcción (genérico: antes era una lista fija de 7 y
+        # el resto conservaba la sucursal vieja hasta reiniciar).
+        for attr_name, svc in list(self.__dict__.items()):
+            if svc is None or svc is self or isinstance(svc, (str, int, float, bool, list, dict, set, tuple)):
+                continue
+            try:
+                if hasattr(svc, 'sucursal_id'):
+                    svc.sucursal_id = sucursal_id
+                if hasattr(svc, 'set_sucursal'):
+                    svc.set_sucursal(sucursal_id)
+            except Exception as _svc_exc:
+                logger.debug("set_sucursal_activa → %s: %s", attr_name, _svc_exc)
 
         logger.info("Sucursal activa: %s (%s)", sucursal_id, nombre)
 
@@ -1023,10 +1090,25 @@ class AppContainer:
         Se llama desde MainWindow._propagar_usuario() después del login.
         """
         if hasattr(self, 'session'):
+            _terminal_id = self.sucursal_id
+            _terminal_nombre = self.sucursal_nombre
             self.session.set_user(user_data)
-            # Sincronizar compat attrs
-            self.sucursal_id = self.session.sucursal_id
-            self.sucursal_nombre = self.session.sucursal_nombre
+            _session_suc = str(self.session.sucursal_id or "").strip()
+            if _session_suc and _session_suc.lower() not in ("none", "null"):
+                # Sincronizar compat attrs con la sucursal resuelta en sesión
+                self.sucursal_id = self.session.sucursal_id
+                self.sucursal_nombre = self.session.sucursal_nombre
+            elif _terminal_id:
+                # La sucursal del usuario no viene resuelta: NO sobreescribir
+                # la sucursal de terminal válida ya configurada.
+                logger.warning(
+                    "set_session_user: usuario sin sucursal válida (%r); se "
+                    "conserva la sucursal de terminal %s (%s).",
+                    self.session.sucursal_id, _terminal_id, _terminal_nombre,
+                )
+                self.session.set_sucursal(_terminal_id, _terminal_nombre)
+                self.sucursal_id = _terminal_id
+                self.sucursal_nombre = _terminal_nombre
 
     def clear_session(self) -> None:
         """v13.4: Limpia la sesión (logout)."""

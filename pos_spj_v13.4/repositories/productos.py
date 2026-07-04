@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from core.events.event_bus import get_bus as _get_bus
+from backend.shared.ids import new_uuid
 
 logger = logging.getLogger("spj.repositories.productos")
 
@@ -63,7 +64,7 @@ class ProductoRepository:
         columnas = [col[0] for col in cursor.description]
         return [dict(zip(columnas, row)) for row in cursor.fetchall()]
 
-    def get_by_id(self, producto_id: int) -> Optional[Dict]:
+    def get_by_id(self, producto_id: str) -> Optional[Dict]:
         # CORRECCIÓN: Uso de cursor para fetchone
         cursor = self.db.cursor()
         cursor.execute("SELECT * FROM productos WHERE id = ?", (producto_id,))
@@ -125,7 +126,7 @@ class ProductoRepository:
         return [dict(zip(columnas, row)) for row in cursor.fetchall()]
 
     def check_name_available(self, nombre: str,
-                              exclude_id: Optional[int] = None) -> bool:
+                              exclude_id: Optional[str] = None) -> bool:
         normalised = nombre.strip().lower()
         cursor = self.db.cursor()
         if exclude_id:
@@ -140,19 +141,19 @@ class ProductoRepository:
             """, (normalised,))
         return cursor.fetchone() is None
 
-    def has_sales(self, producto_id: int) -> bool:
+    def has_sales(self, producto_id: str) -> bool:
         cursor = self.db.cursor()
         cursor.execute("SELECT COUNT(*) FROM detalles_venta WHERE producto_id = ?", (producto_id,))
         row = cursor.fetchone()
         return (row[0] if row else 0) > 0
 
-    def has_movements(self, producto_id: int) -> bool:
+    def has_movements(self, producto_id: str) -> bool:
         cursor = self.db.cursor()
         cursor.execute("SELECT COUNT(*) FROM movimientos_inventario WHERE producto_id = ?", (producto_id,))
         row = cursor.fetchone()
         return (row[0] if row else 0) > 0
 
-    def has_recipes(self, producto_id: int) -> bool:
+    def has_recipes(self, producto_id: str) -> bool:
         cursor = self.db.cursor()
         cursor.execute("SELECT COUNT(*) FROM componentes_producto WHERE producto_componente_id = ?", (producto_id,))
         row = cursor.fetchone()
@@ -164,22 +165,28 @@ class ProductoRepository:
 
     # ── Write ────────────────────────────────────────────────────────────────
 
-    def create(self, data: Dict, usuario: str) -> int:
+    def create(self, data: Dict, usuario: str) -> str:
         nombre = data.get("nombre", "").strip()
         normalised = nombre.lower()
-        
+
+        # REGLA CERO: identidad UUIDv7 acuñada con new_uuid(), nunca rowid implícito.
+        producto_id = data.get("id") or new_uuid()
         cursor = self.db.cursor()
-        cursor.execute("INSERT INTO productos (nombre, nombre_normalizado, precio, existencia, stock_minimo, unidad, categoria, oculto, es_compuesto, es_subproducto, producto_padre_id, imagen_path, is_active) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1)", 
-        (nombre, normalised, data.get("precio", 0), data.get("existencia", 0), data.get("stock_minimo", 0), data.get("unidad", "kg"), data.get("categoria", ""), 1 if data.get("oculto") else 0, 1 if data.get("es_compuesto") else 0, 1 if data.get("es_subproducto") else 0, data.get("producto_padre_id"), data.get("imagen_path")))
-        
+        cursor.execute("INSERT INTO productos (id, nombre, nombre_normalizado, precio, existencia, stock_minimo, unidad, categoria, oculto, es_compuesto, es_subproducto, producto_padre_id, imagen_path, is_active) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)",
+        (producto_id, nombre, normalised, data.get("precio", 0), data.get("existencia", 0), data.get("stock_minimo", 0), data.get("unidad", "kg"), data.get("categoria", ""), 1 if data.get("oculto") else 0, 1 if data.get("es_compuesto") else 0, 1 if data.get("es_subproducto") else 0, data.get("producto_padre_id"), data.get("imagen_path")))
+
         self.db.commit()
-        producto_id = cursor.lastrowid
-        
+
         self._write_audit("CREATE", str(producto_id), data, usuario)
-        _get_bus().publish(PRODUCTO_CREADO, {"producto_id": producto_id, "nombre": nombre})
+        # POST-COMMIT: ruta canónica única (granular + products_changed + legacy).
+        from core.events.catalog_events import publish_product_event
+        publish_product_event(
+            "created", product_id=str(producto_id), product_name=nombre,
+            active=True, source_module="repositories.productos",
+        )
         return producto_id
 
-    def update(self, producto_id: int, data: Dict, usuario: str) -> None:
+    def update(self, producto_id: str, data: Dict, usuario: str) -> None:
         nombre = data.get("nombre", "").strip()
         normalised = nombre.lower()
         
@@ -195,13 +202,21 @@ class ProductoRepository:
         
         self.db.commit()
         self._write_audit("UPDATE", str(producto_id), data, usuario)
-        _get_bus().publish(PRODUCTO_ACTUALIZADO, {"producto_id": producto_id, "nombre": nombre})
+        from core.events.catalog_events import publish_product_event
+        publish_product_event(
+            "updated", product_id=str(producto_id), product_name=nombre,
+            active=True, source_module="repositories.productos",
+        )
 
-    def soft_delete(self, producto_id: int, usuario: str) -> None:
+    def soft_delete(self, producto_id: str, usuario: str) -> None:
         cursor = self.db.cursor()
         cursor.execute("UPDATE productos SET is_active = 0, deleted_at = ?, oculto = 1 WHERE id = ?", (self._now(), producto_id))
         self.db.commit()
-        _get_bus().publish(PRODUCTO_ELIMINADO, {"producto_id": producto_id, "usuario": usuario})
+        from core.events.catalog_events import publish_product_event
+        publish_product_event(
+            "deactivated", product_id=str(producto_id), product_name="",
+            active=False, source_module="repositories.productos",
+        )
 
     # ── Internals ─────────────────────────────────────────────────────────────
 
@@ -209,9 +224,9 @@ class ProductoRepository:
         try:
             cursor = self.db.cursor()
             cursor.execute("""
-                INSERT INTO logs (modulo, accion, detalles, usuario)
-                VALUES (?,?,?,?)
-            """, ("productos", f"PRODUCTO_{action}", json.dumps(data, default=str), usuario))
+                INSERT INTO logs (id, modulo, accion, detalles, usuario)
+                VALUES (?,?,?,?,?)
+            """, (new_uuid(), "productos", f"PRODUCTO_{action}", json.dumps(data, default=str), usuario))
             self.db.commit()
         except Exception as exc:
             logger.warning("audit_log write failed: %s", exc)

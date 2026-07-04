@@ -41,14 +41,15 @@ class AssetService:
             self.db.rollback()
             raise RuntimeError(f"Error al registrar el activo: {e}")
 
-    def programar_mantenimiento(self, activo_id: int, tipo: str, descripcion: str, fecha_prog: str):
+    def programar_mantenimiento(self, activo_id: str, tipo: str, descripcion: str, fecha_prog: str):
         """Agenda un mantenimiento preventivo o correctivo."""
         try:
+            from backend.shared.ids import new_uuid as _new_uuid
             cursor = self.db.cursor()
             cursor.execute("""
-                INSERT INTO mantenimientos (activo_id, tipo, descripcion, fecha_prog, estado)
-                VALUES (?, ?, ?, ?, 'pendiente')
-            """, (activo_id, tipo, descripcion, fecha_prog))
+                INSERT INTO mantenimientos (id, activo_id, tipo, descripcion, fecha_prog, estado)
+                VALUES (?, ?, ?, ?, ?, 'pendiente')
+            """, (_new_uuid(), activo_id, tipo, descripcion, fecha_prog))
             self.db.commit()
         except Exception as e:
             self.db.rollback()
@@ -131,14 +132,15 @@ class AssetService:
                 ).fetchone()[0] or 0.0
                 acumulado = round(float(prev) + monto_mes, 2)
 
+                from backend.shared.ids import new_uuid as _new_uuid
                 self.db.execute(
                     """INSERT INTO depreciacion_acumulada
-                           (activo_id, periodo, monto_mes, acumulado)
-                       VALUES (?, ?, ?, ?)
+                           (id, activo_id, periodo, monto_mes, acumulado)
+                       VALUES (?, ?, ?, ?, ?)
                        ON CONFLICT(activo_id, periodo) DO UPDATE SET
                            monto_mes = excluded.monto_mes,
                            acumulado = excluded.acumulado""",
-                    (aid, periodo, monto_mes, acumulado),
+                    (_new_uuid(), aid, periodo, monto_mes, acumulado),
                 )
 
                 if self.finance_service and monto_mes > 0:

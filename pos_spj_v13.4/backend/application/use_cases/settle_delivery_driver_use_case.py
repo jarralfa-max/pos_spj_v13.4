@@ -14,15 +14,23 @@ DRIVER_SETTLEMENT_CREATED = "DRIVER_SETTLEMENT_CREATED"
 
 @dataclass(frozen=True)
 class SettleDeliveryDriverCommand:
-    """Input for a driver settlement cut."""
+    """Input for a driver settlement cut.
 
-    driver_id: int
+    Identity fields (driver_id, order_ids, sucursal_id) are UUIDv7 strings per
+    REGLA CERO. Integer identities are rejected at the command boundary; no
+    ``int(...)`` cast and no UUID→int fallback is permitted. The cut still works
+    against the current INTEGER ``delivery_orders.id`` via SQLite type affinity
+    (a str '5' matches the integer 5 in WHERE/JOIN) until migration 200 rewrites
+    those PKs to TEXT.
+    """
+
+    driver_id: str
     driver_nombre: str
-    order_ids: list[int] = field(default_factory=list)
+    order_ids: list[str] = field(default_factory=list)
     efectivo_entregado: float = 0.0
     notas: str = ""
     usuario: str = "sistema"
-    sucursal_id: int = 0
+    sucursal_id: str = ""
     turno_inicio: str = ""
     # Pre-computed totals (supplied by UI after loading orders)
     efectivo_cobrado: float = 0.0
@@ -32,8 +40,21 @@ class SettleDeliveryDriverCommand:
     def __post_init__(self) -> None:
         if not self.driver_id:
             raise ValueError("driver_id es requerido")
+        if not isinstance(self.driver_id, str):
+            raise ValueError(
+                f"driver_id debe ser str (UUID), no {type(self.driver_id).__name__}"
+            )
         if not self.order_ids:
             raise ValueError("order_ids no puede estar vacío")
+        for oid in self.order_ids:
+            if not isinstance(oid, str):
+                raise ValueError(
+                    f"order_ids debe contener str (UUID), no {type(oid).__name__}: {oid!r}"
+                )
+        if self.sucursal_id and not isinstance(self.sucursal_id, str):
+            raise ValueError(
+                f"sucursal_id debe ser str (UUID), no {type(self.sucursal_id).__name__}"
+            )
 
 
 class SettleDeliveryDriverUseCase:

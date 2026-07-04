@@ -23,6 +23,8 @@ import re
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from uuid import uuid4
+from backend.shared.ids import new_uuid
+from backend.infrastructure.db.repositories.sales_read_repository import SalesReadRepository
 
 from modulos.spj_phone_widget import PhoneWidget
 from core.services.auto_audit import audit_write
@@ -1206,11 +1208,13 @@ class ModuloVentas(ModuloBase):
         self.peso_inicial = 0.0
         self.monitoreo_inicio = 0
         
-        self.sucursal_id     = 1
-        self.sucursal_nombre = "Principal"
+        # Sucursal desde el contexto de sesión; sin default arbitrario (regla 23).
+        self.sucursal_id     = getattr(container, "sucursal_id", "") or ""
+        self.sucursal_nombre = getattr(container, "sucursal_nombre", "") or "Principal"
         self._stock_reservas = StockReservationService(self.conexion, branch_id=self.sucursal_id)
         self._inventory_availability = InventoryAvailabilityService(self._stock_reservas)
         self._hardware_settings_qs = HardwareSettingsQueryService(self.conexion)
+        self._sales_read_repo = SalesReadRepository(self.conexion)
         self._ticket_settings_qs = TicketSettingsQueryService(self.conexion, getattr(self.container, 'config_service', None))
         self._create_customer_uc = CreateCustomerUseCase(self.conexion, getattr(self.container, 'cliente_repo', None))
         self._reserva_activa_id: Optional[int] = None
@@ -1318,6 +1322,7 @@ class ModuloVentas(ModuloBase):
         self._stock_reservas = StockReservationService(self.conexion, branch_id=self.sucursal_id)
         self._inventory_availability = InventoryAvailabilityService(self._stock_reservas)
         self._hardware_settings_qs = HardwareSettingsQueryService(self.conexion)
+        self._sales_read_repo = SalesReadRepository(self.conexion)
         self._ticket_settings_qs = TicketSettingsQueryService(self.conexion, getattr(self.container, 'config_service', None))
         self._create_customer_uc = CreateCustomerUseCase(self.conexion, getattr(self.container, 'cliente_repo', None))
         if hasattr(self, "lbl_estado_terminal"):
@@ -1343,7 +1348,7 @@ class ModuloVentas(ModuloBase):
             catalog_qs = self._product_catalog_qs
             prod_repo = self._prod_repo
             if catalog_qs:
-                rows = catalog_qs.list_visible_products(branch_id=getattr(self, "sucursal_id", 1))
+                rows = catalog_qs.list_visible_products(branch_id=getattr(self, "sucursal_id", "") or "")
                 productos = [(p['nombre'], p.get('codigo_barras', '')) for p in rows]
             elif prod_repo:
                 productos = [(p['nombre'], p.get('codigo_barras', '')) for p in prod_repo.get_all()]
@@ -2455,7 +2460,7 @@ class ModuloVentas(ModuloBase):
             try:
                 from core.services.qr_parser_service import QRParserService
                 usuario = getattr(self, 'usuario_actual', '')
-                suc_id  = getattr(self, 'sucursal_id', 1)
+                suc_id  = getattr(self, 'sucursal_id', '') or ''
                 QRParserService.log_scan_raw(
                     self.conexion, codigo, tipo, accion,
                     cliente_id=cliente_id, producto_id=producto_id,
@@ -2612,9 +2617,7 @@ class ModuloVentas(ModuloBase):
                 r'-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$', codigo
             ):
                 try:
-                    row_c = self.conexion.execute(
-                        "SELECT uuid_qr, descripcion FROM trazabilidad_qr WHERE uuid_qr=? LIMIT 1",
-                        (codigo,)).fetchone()
+                    row_c = self._sales_read_repo.get_qr_container(codigo)
                     if row_c:
                         self._mostrar_notif_scanner(
                             f"📦 Contenedor: {row_c['descripcion'] or codigo[:8]}...",
@@ -3781,7 +3784,7 @@ class ModuloVentas(ModuloBase):
                     email=cliente_data.get('email', ''),
                     address=cliente_data.get('direccion', ''),
                     loyalty_code=codigo_qr,
-                    operation_id=f"sales-customer-{uuid4()}",
+                    operation_id=f"sales-customer-{new_uuid()}",
                 )
             )
             if result.get("existing"):
@@ -3920,7 +3923,7 @@ class ModuloVentas(ModuloBase):
                 datos_pago.get('total_pagado') or datos_pago.get('efectivo_recibido') or 0.0
             )
 
-        operation_id = f"sale-ui-{uuid4()}"
+        operation_id = f"sale-ui-{new_uuid()}"
         _dp = _DP(
             forma_pago=datos_pago['forma_pago'],
             monto_pagado=_monto_pagado_real,
@@ -4242,7 +4245,8 @@ class ModuloVentas(ModuloBase):
             ls = getattr(self.container, 'loyalty_service', None) if hasattr(self, 'container') else None
             if ls:
                 try:
-                    puntos_totales = int(ls.saldo(cliente_id))
+                    saldo_pts = ls.saldo(cliente_id)
+                    puntos_totales = int(saldo_pts or 0)  # conteo de puntos
                     saldo_confiable = True
                 except Exception as exc:
                     logger.warning("Loyalty saldo post-venta no disponible: %s", exc)
@@ -4278,11 +4282,8 @@ class ModuloVentas(ModuloBase):
                 self._reserva_activa_id = None
                 Toast.warning(self, "Reserva", "Venta completada, pero la reserva quedó pendiente de revisión.")
 
-        try:
-            payload_venta_id = int(datos_ticket.get("venta_id") or datos_ticket.get("sale_id") or 0)
-        except (TypeError, ValueError):
-            payload_venta_id = 0
-        result_venta_id = int(getattr(result, "venta_id", 0) or 0)
+        payload_venta_id = str(datos_ticket.get("venta_id") or datos_ticket.get("sale_id") or "")
+        result_venta_id = str(getattr(result, "venta_id", "") or "")
         payload_total = None
         if datos_ticket:
             payload_total = (datos_ticket.get("totales") or {}).get(
@@ -4639,30 +4640,21 @@ class ModuloVentas(ModuloBase):
             QMessageBox.warning(self, "Sin venta", "No hay venta reciente para reimprimir.")
             return
         try:
-            db = self.container.db
-            venta = db.execute(
-                "SELECT folio, fecha, usuario, forma_pago, efectivo_recibido, cambio, total "
-                "FROM ventas WHERE id=?", (vid,)).fetchone()
+            venta = self._sales_read_repo.get_sale_ticket_header(vid)
             if not venta:
                 QMessageBox.warning(self, "No encontrada", f"Venta ID {vid} no encontrada."); return
-            items_raw = db.execute(
-                "SELECT p.nombre, dv.cantidad, dv.precio_unitario, dv.subtotal, "
-                "COALESCE(p.unidad,'pz') as unidad "
-                "FROM detalles_venta dv JOIN productos p ON p.id=dv.producto_id "
-                "WHERE dv.venta_id=?", (vid,)).fetchall()
-            items = [{'nombre':r[0],'cantidad':float(r[1]),'precio_unitario':float(r[2]),
-                      'total':float(r[3]),'unidad':r[4]} for r in items_raw]
-            total = float(venta[6] or 0)
+            items = self._sales_read_repo.get_sale_items_with_product(vid)
+            total = float(venta['total'] or 0)
             datos_ticket = {
-                'folio':    venta[0], 'venta_id': int(vid),
-                'fecha':    str(venta[1] or '')[:16],
-                'cajero':   venta[2] or self.obtener_usuario_actual(),
+                'folio':    venta['folio'], 'venta_id': str(vid),
+                'fecha':    str(venta['fecha'] or '')[:16],
+                'cajero':   venta['usuario'] or self.obtener_usuario_actual(),
                 'cliente':  'Público General',
                 'items':    items,
                 'totales':  {'subtotal': total, 'impuestos': 0, 'total_final': total},
-                'pago':     {'forma_pago': venta[3] or 'Efectivo',
-                             'efectivo_recibido': float(venta[4] or total),
-                             'cambio': float(venta[5] or 0)},
+                'pago':     {'forma_pago': venta['forma_pago'] or 'Efectivo',
+                             'efectivo_recibido': float(venta['efectivo_recibido'] or total),
+                             'cambio': float(venta['cambio'] or 0)},
                 'empresa':  getattr(self.container, '_nombre_empresa', 'SPJ POS'),
                 'logo_path': LOGO_TICKET_PATH,
             }
@@ -4696,18 +4688,15 @@ class ModuloVentas(ModuloBase):
             QMessageBox.warning(self, "Sin venta", "No hay venta reciente para PDF.")
             return
         try:
-            db = self.container.db
-            venta = db.execute(
-                "SELECT folio, fecha, usuario, forma_pago, efectivo_recibido, cambio, total "
-                "FROM ventas WHERE id=?", (vid,)).fetchone()
+            venta = self._sales_read_repo.get_sale_ticket_header(vid)
             if not venta:
                 QMessageBox.warning(self, "No encontrada", f"Venta ID {vid} no encontrada.")
                 return
             ticket_data = {
-                'folio': venta[0], 'venta_id': venta[0], 'fecha': str(venta[1] or '')[:16],
-                'cajero': venta[2] or self.obtener_usuario_actual(), 'cliente': 'Público General',
-                'items': [], 'totales': {'subtotal': float(venta[6] or 0), 'total_final': float(venta[6] or 0)},
-                'pago': {'forma_pago': venta[3] or 'Efectivo', 'efectivo_recibido': float(venta[4] or 0), 'cambio': float(venta[5] or 0)},
+                'folio': venta['folio'], 'venta_id': venta['folio'], 'fecha': str(venta['fecha'] or '')[:16],
+                'cajero': venta['usuario'] or self.obtener_usuario_actual(), 'cliente': 'Público General',
+                'items': [], 'totales': {'subtotal': float(venta['total'] or 0), 'total_final': float(venta['total'] or 0)},
+                'pago': {'forma_pago': venta['forma_pago'] or 'Efectivo', 'efectivo_recibido': float(venta['efectivo_recibido'] or 0), 'cambio': float(venta['cambio'] or 0)},
             }
             self.guardar_ticket_pdf(ticket_data)
             QMessageBox.information(self, "PDF auditoría", "PDF de auditoría generado correctamente.")
@@ -4770,19 +4759,12 @@ class ModuloVentas(ModuloBase):
         def _buscar():
             folio = txt_folio.text().strip()
             if not folio: return
-            db = self.container.db
-            row = db.execute(
-                "SELECT id,folio,total,estado FROM ventas WHERE folio=? OR CAST(id AS TEXT)=?",
-                (folio, folio)
-            ).fetchone()
+            row = self._sales_read_repo.find_sale_by_folio_or_id(folio)
             if not row:
                 lbl_info.setText("❌ Venta no encontrada"); btn_cancel.setEnabled(False); return
             _vid[0] = row['id']
             lbl_info.setText(f"✅ {row['folio']} — Total ${float(row['total']):.2f} — {row['estado']}")
-            items = db.execute(
-                "SELECT nombre,cantidad,precio_unitario,(cantidad*precio_unitario) "
-                "FROM detalles_venta WHERE venta_id=?", (row['id'],)
-            ).fetchall()
+            items = self._sales_read_repo.get_sale_items_basic(row['id'])
             tbl.setRowCount(0)
             for i, it in enumerate(items):
                 tbl.insertRow(i)
@@ -4806,7 +4788,7 @@ class ModuloVentas(ModuloBase):
                 return
             try:
                 from core.services.sales_reversal_service import SalesReversalService
-                branch_id = int(getattr(self, "sucursal_id", 1) or 1)
+                branch_id = str(getattr(self, "sucursal_id", "") or "")
                 usuario = (getattr(self, "usuario_actual", "") or getattr(self, "usuario", "") or "").strip()
                 if not usuario:
                     raise ValueError("Usuario no identificado para cancelar venta.")

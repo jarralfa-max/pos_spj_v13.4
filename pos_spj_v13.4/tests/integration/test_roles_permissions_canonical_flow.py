@@ -18,6 +18,7 @@ from repositories.config_repository import ConfigRepository  # noqa: E402
 def _connection() -> sqlite3.Connection:
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
+    # Canonical post-migration-102/104 schema: roles/rol_permisos carry uuid identity.
     conn.executescript(
         """
         CREATE TABLE roles(id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT, nombre TEXT UNIQUE, descripcion TEXT);

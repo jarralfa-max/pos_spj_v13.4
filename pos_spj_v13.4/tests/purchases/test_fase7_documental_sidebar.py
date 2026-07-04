@@ -93,7 +93,7 @@ def _make_pr_db() -> sqlite3.Connection:
             notas TEXT DEFAULT ''
         );
         CREATE TABLE IF NOT EXISTS ordenes_compra (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             folio TEXT,
             pr_id INTEGER,
             proveedor_id INTEGER,
@@ -114,7 +114,7 @@ def _make_pr_db() -> sqlite3.Connection:
             fecha_creacion TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS ordenes_compra_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             orden_id INTEGER,
             producto_id INTEGER,
             nombre TEXT DEFAULT '',

@@ -79,18 +79,7 @@ class DecisionEngine:
 
     def _ensure_table(self):
         try:
-            self.db.execute("""
-                CREATE TABLE IF NOT EXISTS decision_log (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    tipo TEXT NOT NULL,
-                    prioridad TEXT NOT NULL,
-                    titulo TEXT NOT NULL,
-                    detalle TEXT DEFAULT '',
-                    impacto_estimado TEXT DEFAULT '',
-                    accion_json TEXT DEFAULT '{}',
-                    fecha TEXT DEFAULT (datetime('now'))
-                )
-            """)
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try:
                 self.db.commit()
             except Exception:

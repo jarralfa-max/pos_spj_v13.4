@@ -82,31 +82,36 @@ class GestorNotificaciones(QObject):
                         float(pedido.get("total", 0)))
 
     def _check_pagos(self):
+        # links_pago se identifica por pedido_id (clave natural); el watermark de
+        # sondeo es fecha_pago (no un id entero monotónico).
         rows = self.conn.execute("""
-            SELECT p.id, p.cliente_nombre, p.total, l.payment_id
+            SELECT p.id, p.cliente_nombre, p.total, l.payment_id, l.fecha_pago
             FROM pedidos_whatsapp p
             JOIN links_pago l ON l.pedido_id=p.id
-            WHERE l.id > ? AND l.estado='pagado'
-            ORDER BY l.id""",
+            WHERE l.estado='pagado' AND l.fecha_pago > ?
+            ORDER BY l.fecha_pago""",
             (self._last_pago,)).fetchall()
         for row in rows:
             pago = dict(row)
-            self._last_pago = pago["id"]
+            self._last_pago = pago["fecha_pago"]
             SonidoAlerta.play_pago()
             self.pago_confirmado.emit(pago)
 
-    def _get_last_pedido_id(self) -> int:
+    def _get_last_pedido_id(self) -> str:
+        # Watermark de sondeo: id es UUIDv7 TEXT (ordenado en el tiempo
+        # lexicográficamente), así que el máximo lexicográfico es el más reciente.
         try:
             row = self.conn.execute(
-                "SELECT COALESCE(MAX(id),0) FROM pedidos_whatsapp").fetchone()
-            return row[0] or 0
+                "SELECT COALESCE(MAX(id),'') FROM pedidos_whatsapp").fetchone()
+            return str(row[0] or "")
         except Exception:
-            return 0
+            return ""
 
-    def _get_last_pago_id(self) -> int:
+    def _get_last_pago_id(self) -> str:
+        # Watermark de sondeo basado en fecha_pago (links_pago no tiene id entero).
         try:
             row = self.conn.execute(
-                "SELECT COALESCE(MAX(id),0) FROM links_pago WHERE estado='pagado'").fetchone()
-            return row[0] or 0
+                "SELECT COALESCE(MAX(fecha_pago),'') FROM links_pago WHERE estado='pagado'").fetchone()
+            return row[0] or ''
         except Exception:
-            return 0
+            return ''

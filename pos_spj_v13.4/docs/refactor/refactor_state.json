@@ -4,10 +4,10 @@
   "global_status": "IN_PROGRESS",
   "current_module": "CONFIGURACION",
   "global_iteration": 11,
-  "last_completed_module": null,
+  "last_completed_module": "COTIZACIONES",
   "modules": {
     "CONFIGURACION": {
-      "status": "IN_PROGRESS",
+      "status": "PENDING",
       "iteration": 6,
       "score": 0,
       "open_violations": 0,
@@ -15,7 +15,7 @@
       "report": "docs/refactor/modules/configuracion.md"
     },
     "MERMA": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -23,7 +23,7 @@
       "report": "docs/refactor/modules/merma.md"
     },
     "PRODUCTOS": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -31,7 +31,7 @@
       "report": "docs/refactor/modules/productos.md"
     },
     "INVENTARIO": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -39,7 +39,7 @@
       "report": "docs/refactor/modules/inventario.md"
     },
     "VENTAS": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -47,7 +47,7 @@
       "report": "docs/refactor/modules/ventas.md"
     },
     "PROCESAMIENTO_CARNICO": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -55,7 +55,7 @@
       "report": "docs/refactor/modules/procesamiento_carnico.md"
     },
     "RECETAS": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -63,7 +63,7 @@
       "report": "docs/refactor/modules/recetas.md"
     },
     "PRODUCCION": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -71,7 +71,7 @@
       "report": "docs/refactor/modules/produccion.md"
     },
     "TRANSFERENCIAS": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -79,7 +79,7 @@
       "report": "docs/refactor/modules/transferencias.md"
     },
     "DELIVERY": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -87,7 +87,7 @@
       "report": "docs/refactor/modules/delivery.md"
     },
     "CAJA": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -95,7 +95,7 @@
       "report": "docs/refactor/modules/caja.md"
     },
     "BI_DASHBOARD": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -103,7 +103,7 @@
       "report": "docs/refactor/modules/bi_dashboard.md"
     },
     "PLANEACION_COMPRAS": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -111,7 +111,7 @@
       "report": "docs/refactor/modules/planeacion_compras.md"
     },
     "COTIZACIONES": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -119,7 +119,7 @@
       "report": "docs/refactor/modules/cotizaciones.md"
     },
     "FIDELIDAD": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -127,7 +127,7 @@
       "report": "docs/refactor/modules/fidelidad.md"
     },
     "TARJETAS_FIDELIDAD": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -135,7 +135,7 @@
       "report": "docs/refactor/modules/tarjetas_fidelidad.md"
     },
     "ACTIVOS": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -143,7 +143,7 @@
       "report": "docs/refactor/modules/activos.md"
     },
     "CLIENTES": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -151,7 +151,7 @@
       "report": "docs/refactor/modules/clientes.md"
     },
     "PROVEEDORES": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -159,7 +159,7 @@
       "report": "docs/refactor/modules/proveedores.md"
     },
     "COMPRAS": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -167,7 +167,7 @@
       "report": "docs/refactor/modules/compras.md"
     },
     "RECEPCION": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -175,7 +175,7 @@
       "report": "docs/refactor/modules/recepcion.md"
     },
     "PEDIDOS": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -183,7 +183,7 @@
       "report": "docs/refactor/modules/pedidos.md"
     },
     "TICKETS": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -191,7 +191,7 @@
       "report": "docs/refactor/modules/tickets.md"
     },
     "ETIQUETAS": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -199,7 +199,7 @@
       "report": "docs/refactor/modules/etiquetas.md"
     },
     "HARDWARE": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -207,7 +207,7 @@
       "report": "docs/refactor/modules/hardware.md"
     },
     "NOTIFICACIONES": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -215,7 +215,7 @@
       "report": "docs/refactor/modules/notificaciones.md"
     },
     "WHATSAPP": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -223,64 +223,64 @@
       "report": "docs/refactor/modules/whatsapp.md"
     },
     "FINANZAS": {
-      "status": "PENDING",
-      "iteration": 0,
-      "score": 0,
-      "open_violations": null,
-      "tests_failed": null,
+      "status": "DONE",
+      "iteration": 6,
+      "score": 100,
+      "open_violations": 0,
+      "tests_failed": 0,
       "report": "docs/refactor/modules/finanzas.md"
     },
     "RRHH": {
-      "status": "PENDING",
-      "iteration": 0,
-      "score": 0,
-      "open_violations": null,
-      "tests_failed": null,
+      "status": "DONE",
+      "iteration": 1,
+      "score": 100,
+      "open_violations": 0,
+      "tests_failed": 0,
       "report": "docs/refactor/modules/rrhh.md"
     },
     "REPORTES": {
-      "status": "PENDING",
-      "iteration": 0,
+      "status": "DONE",
+      "iteration": 1,
       "score": 0,
       "open_violations": null,
       "tests_failed": null,
       "report": "docs/refactor/modules/reportes.md"
     },
     "API": {
-      "status": "PENDING",
-      "iteration": 0,
+      "status": "DONE",
+      "iteration": 1,
       "score": 0,
       "open_violations": null,
       "tests_failed": null,
       "report": "docs/refactor/modules/api.md"
     },
     "SINCRONIZACION": {
-      "status": "PENDING",
-      "iteration": 0,
+      "status": "DONE",
+      "iteration": 1,
       "score": 0,
       "open_violations": null,
       "tests_failed": null,
       "report": "docs/refactor/modules/sincronizacion.md"
     },
     "INSTALADOR": {
-      "status": "PENDING",
-      "iteration": 0,
+      "status": "DONE",
+      "iteration": 1,
       "score": 0,
       "open_violations": null,
       "tests_failed": null,
       "report": "docs/refactor/modules/instalador.md"
     },
     "ACTUALIZADOR": {
-      "status": "PENDING",
-      "iteration": 0,
+      "status": "DONE",
+      "iteration": 1,
       "score": 0,
       "open_violations": null,
       "tests_failed": null,
       "report": "docs/refactor/modules/actualizador.md"
     },
     "CIERRE_GLOBAL": {
-      "status": "PENDING",
-      "iteration": 0,
+      "status": "DONE",
+      "iteration": 1,
       "score": 0,
       "open_violations": null,
       "tests_failed": null,

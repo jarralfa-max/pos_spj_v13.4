@@ -18,7 +18,7 @@ def _db_with_scan_log():
     conn = _mem_db()
     conn.execute("""
         CREATE TABLE scan_event_log (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT PRIMARY KEY,
             raw_code    TEXT,
             tipo        TEXT,
             accion      TEXT,

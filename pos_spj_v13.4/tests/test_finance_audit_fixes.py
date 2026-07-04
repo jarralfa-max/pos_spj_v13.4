@@ -24,7 +24,7 @@ def _make_db():
     conn.row_factory = sqlite3.Row
     conn.executescript("""
         CREATE TABLE financial_event_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             evento TEXT NOT NULL,
             modulo TEXT NOT NULL,
@@ -37,8 +37,8 @@ def _make_db():
             metadata JSON
         );
         CREATE TABLE nomina_pagos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            empleado_id INTEGER,
+            id TEXT PRIMARY KEY,
+            empleado_id TEXT,
             periodo_inicio TEXT,
             periodo_fin TEXT,
             salario_base REAL,
@@ -52,20 +52,20 @@ def _make_db():
             created_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE clientes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             nombre TEXT,
             telefono TEXT,
             email TEXT,
             activo INTEGER DEFAULT 1,
-            sucursal_id INTEGER DEFAULT 1,
+            sucursal_id TEXT,
             fecha_registro TEXT,
             saldo REAL DEFAULT 0,
             limite_credito REAL DEFAULT 1000,
             credit_balance REAL DEFAULT 0
         );
-        INSERT INTO clientes(nombre, limite_credito) VALUES ('Cliente A', 500.0);
+        INSERT INTO clientes(id, nombre, limite_credito) VALUES ('cli-a', 'Cliente A', 500.0);
         CREATE TABLE accounts_payable (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             folio TEXT, supplier_id INTEGER, concepto TEXT,
             amount REAL, balance REAL, due_date TEXT,
             status TEXT DEFAULT 'pendiente',
@@ -75,13 +75,13 @@ def _make_db():
             updated_at TEXT
         );
         CREATE TABLE ap_payments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             ap_id INTEGER, monto REAL, metodo_pago TEXT,
             usuario TEXT, notas TEXT,
             fecha TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE accounts_receivable (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             folio TEXT, cliente_id INTEGER, venta_id INTEGER,
             concepto TEXT, amount REAL, balance REAL, due_date TEXT,
             status TEXT DEFAULT 'pendiente',
@@ -90,7 +90,7 @@ def _make_db():
             updated_at TEXT
         );
         CREATE TABLE ar_payments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             ar_id INTEGER, monto REAL, metodo_pago TEXT,
             usuario TEXT, notas TEXT,
             fecha TEXT DEFAULT (datetime('now'))
@@ -265,7 +265,7 @@ class TestFinancialDashboardService:
         """F-03: get_credit_info devuelve saldo, límite y nombre."""
         conn = _make_db()
         svc  = _make_dash_svc(conn)
-        info = svc.get_credit_info(1)
+        info = svc.get_credit_info("cli-a")
         assert info["limite_credito"] == 500.0
         assert info["nombre"] == "Cliente A"
         assert info["saldo_actual"] == 0.0
@@ -299,7 +299,7 @@ class TestFinancialDashboardService:
         conn = _make_db()
         svc  = _make_dash_svc(conn)
         nuevo_id = svc.crear_cliente("Nuevo Cliente Test", telefono="5512345678")
-        assert nuevo_id > 0
+        assert nuevo_id          # identidad UUIDv7 (str no vacío)
         row = conn.execute("SELECT nombre FROM clientes WHERE id=?", (nuevo_id,)).fetchone()
         assert row is not None
         assert row["nombre"] == "Nuevo Cliente Test"
@@ -467,7 +467,7 @@ class TestRegistrarAsientoCompatibilidadLegacy:
             concepto="Venta legacy",
             monto=100.0,
         )
-        assert row_id > 0
+        assert row_id  # identidad UUIDv7
 
     def test_retorna_cero_si_tabla_no_existe(self):
         """A-09: sin tabla financial_event_log retorna 0, no lanza excepción."""
@@ -492,7 +492,7 @@ class TestRegistrarAsientoCompatibilidadLegacy:
             evento="CXP_CREADA",
             metadata={"proveedor": "Test"},
         )
-        assert row_id > 0
+        assert row_id  # identidad UUIDv7
         row = conn.execute(
             "SELECT sucursal_id, evento FROM financial_event_log WHERE id=?", (row_id,)
         ).fetchone()

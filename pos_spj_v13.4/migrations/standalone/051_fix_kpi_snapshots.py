@@ -34,10 +34,11 @@ def run(conn: sqlite3.Connection) -> None:
         except Exception:
             pass
 
+    # Born-clean UUIDv7 (REGLA CERO): no integer surrogate id; the natural key is
+    # (branch_id, snapshot_date) — which is exactly what report_engine upserts on.
     conn.execute("""
         CREATE TABLE IF NOT EXISTS kpi_snapshots (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
-            branch_id        INTEGER NOT NULL,
+            branch_id        TEXT    NOT NULL,
             snapshot_date    DATE    NOT NULL,
             total_revenue    REAL    NOT NULL DEFAULT 0,
             total_cost       REAL    NOT NULL DEFAULT 0,
@@ -50,7 +51,7 @@ def run(conn: sqlite3.Connection) -> None:
             points_issued    INTEGER NOT NULL DEFAULT 0,
             inventory_value  REAL    NOT NULL DEFAULT 0,
             computed_at      DATETIME NOT NULL DEFAULT (datetime('now')),
-            UNIQUE (branch_id, snapshot_date)
+            PRIMARY KEY (branch_id, snapshot_date)
         )
     """)
 

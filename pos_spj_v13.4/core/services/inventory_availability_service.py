@@ -13,7 +13,7 @@ class InventoryAvailabilityService:
         self._reservations = stock_reservation_service
 
     def disponible_para_venta(self, producto_id: int) -> float:
-        return float(self._reservations.stock_disponible(int(producto_id)))
+        return float(self._reservations.stock_disponible(str(producto_id)))
 
     def disponible_por_producto(self, producto_ids: Iterable[int]) -> Dict[int, float]:
         out: Dict[int, float] = {}

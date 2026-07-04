@@ -611,15 +611,22 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
     def __init__(self, container, parent=None):
         super().__init__(parent)
         try:
+            from core.events.domain_events import (
+                PRODUCT_CREATED, PRODUCT_UPDATED, PRODUCT_DEACTIVATED,
+                PRODUCTS_CHANGED,
+            )
             self._init_refresh(container, [
                 "VENTA_COMPLETADA", "PRODUCTO_ACTUALIZADO", "PRODUCTO_CREADO",
-                "AJUSTE_INVENTARIO", "COMPRA_REGISTRADA",
+                "PRODUCTO_ELIMINADO", "AJUSTE_INVENTARIO", "COMPRA_REGISTRADA",
+                PRODUCT_CREATED, PRODUCT_UPDATED, PRODUCT_DEACTIVATED,
+                PRODUCTS_CHANGED,
             ])
         except Exception:
             logger.exception("No se pudo inicializar refresh de inventario")
 
         self.container      = container
-        self.sucursal_id    = 1
+        # Sucursal desde la sesión; sin default arbitrario (regla 23).
+        self.sucursal_id    = getattr(container, "sucursal_id", "") or ""
         self.usuario_actual = ""
         self._inventory_repository = InventoryRepository(container.db)
         self._inventory_query = InventoryQueryService(repository=self._inventory_repository)
@@ -631,8 +638,8 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
 
     # ── Session ───────────────────────────────────────────────────────────────
 
-    def set_sucursal(self, sucursal_id: int, nombre_sucursal: str = "") -> None:
-        self.sucursal_id = sucursal_id
+    def set_sucursal(self, sucursal_id: str, nombre_sucursal: str = "") -> None:
+        self.sucursal_id = str(sucursal_id or "")
         if nombre_sucursal:
             self._page_header.set_subtitle(
                 f"Control de inventario · {nombre_sucursal}"
@@ -641,6 +648,14 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
 
     def set_usuario_actual(self, usuario: str, rol: str = "") -> None:
         self.usuario_actual = usuario
+
+    # ── Contrato de refresh en caliente (PRODUCTS_CHANGED) ────────────────────
+    def refresh_products(self) -> None:
+        """Recarga el catálogo/tabla de productos sin reiniciar la app."""
+        self.cargar_datos()
+
+    def on_products_changed(self, payload: dict) -> None:
+        self.refresh_products()
 
     def _on_refresh(self, event_type: str, data: dict) -> None:
         try:
@@ -977,7 +992,7 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         self.tabla.setRowCount(0)
 
         for i, r in enumerate(rows):
-            prod_id  = int(r[0])
+            prod_id  = str(r[0])
             nombre   = str(r[1] or "")
             cat      = str(r[2] or "")
             stock    = float(r[3] or 0)
@@ -1030,7 +1045,7 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
             self.tabla.setItem(i, 6, QTableWidgetItem(last_mov))
 
         availability_by_id = {
-            int(row["product_id"]): row
+            str(row["product_id"]): row
             for row in self._inventory_query.list_availability_rows(self.sucursal_id)
         }
         self.tabla_disponibilidad.setRowCount(0)

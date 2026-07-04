@@ -16,6 +16,9 @@ from PyQt5.QtWidgets import (
     QComboBox, QMessageBox, QCheckBox
 )
 
+from core.services.configuration_settings_service import CompanyProfileService
+from repositories.config_repository import ConfigRepository
+
 logger = logging.getLogger("spj.config_modules")
 
 MODULOS_SISTEMA = [
@@ -60,7 +63,7 @@ class ModuloConfigModulos(QWidget):
     def set_usuario_actual(self, usuario: str, rol: str = "cajero") -> None:
         pass
 
-    def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
+    def set_sucursal(self, sucursal_id, nombre: str = "") -> None:
         self.sucursal_id = sucursal_id
         self._cargar()
 
@@ -110,6 +113,8 @@ class ModuloConfigModulos(QWidget):
         lay.addLayout(btn_row)
 
     def _cargar_sucursales(self):
+        self.cmb_sucursal.blockSignals(True)
+        self.cmb_sucursal.clear()
         try:
             rows = self.module_settings_query_service.list_active_branch_options()
             self.cmb_sucursal.blockSignals(True)
@@ -118,7 +123,7 @@ class ModuloConfigModulos(QWidget):
                 self.cmb_sucursal.addItem(r[1], r[0])
             self.cmb_sucursal.blockSignals(False)
         except Exception:
-            self.cmb_sucursal.addItem("Principal", 1)
+            logger.warning("No se pudieron cargar las sucursales activas")
 
     def _cargar(self):
         suc_id = self.cmb_sucursal.currentData() or self.sucursal_id
@@ -155,6 +160,9 @@ class ModuloConfigModulos(QWidget):
 
     def _toggle(self, codigo: str, activo: bool):
         suc_id = self.cmb_sucursal.currentData() or self.sucursal_id
+        if self.feature_flag_service is None or suc_id is None:
+            logger.warning("_toggle %s: feature_flag_service/sucursal no disponible", codigo)
+            return
         try:
             self.feature_flag_service.set_flag(codigo, suc_id, activo)
         except Exception as e:

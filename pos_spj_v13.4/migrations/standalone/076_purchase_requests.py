@@ -19,11 +19,11 @@ def run(conn):
     conn.executescript("""
         -- ── Solicitudes de Compra (PR) ────────────────────────────────────────
         CREATE TABLE IF NOT EXISTS purchase_requests (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT PRIMARY KEY,
             folio           TEXT UNIQUE,
-            proveedor_id    INTEGER,
+            proveedor_id    TEXT,
             proveedor_nombre TEXT,
-            sucursal_id     INTEGER NOT NULL DEFAULT 1,
+            sucursal_id     TEXT NOT NULL,
             usuario         TEXT NOT NULL,
             subtotal        REAL NOT NULL DEFAULT 0,
             iva_monto       REAL NOT NULL DEFAULT 0,
@@ -60,9 +60,9 @@ def run(conn):
 
         -- ── Partidas de PR ────────────────────────────────────────────────────
         CREATE TABLE IF NOT EXISTS purchase_request_items (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            pr_id           INTEGER NOT NULL REFERENCES purchase_requests(id),
-            producto_id     INTEGER NOT NULL,
+            id              TEXT PRIMARY KEY,
+            pr_id           TEXT NOT NULL REFERENCES purchase_requests(id),
+            producto_id     TEXT NOT NULL,
             nombre          TEXT NOT NULL,
             cantidad        REAL NOT NULL DEFAULT 0,
             unidad          TEXT DEFAULT 'kg',

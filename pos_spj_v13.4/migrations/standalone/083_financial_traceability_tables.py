@@ -31,19 +31,19 @@ def run(conn):
         -- Capa unificada: CxC, CxP, nómina por pagar, activo pendiente, etc.
         -- Coexiste con accounts_payable / accounts_receivable (legacy).
         CREATE TABLE IF NOT EXISTS financial_documents (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                  TEXT    PRIMARY KEY,
             document_type       TEXT    NOT NULL,       -- receivable|payable|payroll|maintenance|asset
             status              TEXT    NOT NULL DEFAULT 'pending',
             source_module       TEXT    NOT NULL,       -- ventas|compras|nomina|mantenimiento|activos
-            source_id           INTEGER,
+            source_id           TEXT,
             source_folio        TEXT    DEFAULT '',
             party_type          TEXT    DEFAULT '',     -- customer|supplier|employee
-            party_id            INTEGER,
+            party_id            TEXT,
             original_amount     REAL    NOT NULL,
             balance             REAL    NOT NULL,
             currency            TEXT    DEFAULT 'MXN',
             due_date            TEXT,
-            branch_id           INTEGER DEFAULT 1,
+            branch_id           TEXT,
             user                TEXT    DEFAULT 'sistema',
             operation_id        TEXT    UNIQUE NOT NULL,
             metadata_json       TEXT    DEFAULT '{}',
@@ -60,7 +60,7 @@ def run(conn):
         -- ── MOVIMIENTOS DE TESORERÍA ──────────────────────────────────────────
         -- Dinero real confirmado. Coexiste con treasury_ledger (legacy).
         CREATE TABLE IF NOT EXISTS treasury_movements (
-            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                      TEXT    PRIMARY KEY,
             movement_type           TEXT    NOT NULL,   -- inflow|outflow
             direction               TEXT    NOT NULL,   -- in|out
             amount                  REAL    NOT NULL,
@@ -68,10 +68,10 @@ def run(conn):
             account                 TEXT    DEFAULT 'caja',
             status                  TEXT    DEFAULT 'confirmed',
             source_module           TEXT    NOT NULL,
-            source_id               INTEGER,
+            source_id               TEXT,
             source_folio            TEXT    DEFAULT '',
-            financial_document_id   INTEGER,
-            branch_id               INTEGER DEFAULT 1,
+            financial_document_id   TEXT,
+            branch_id               TEXT,
             user                    TEXT    DEFAULT 'sistema',
             operation_id            TEXT    UNIQUE NOT NULL,
             metadata_json           TEXT    DEFAULT '{}',
@@ -87,15 +87,15 @@ def run(conn):
         -- ── ASIENTOS CONTABLES ────────────────────────────────────────────────
         -- Idempotentes por operation_id. Coexiste con financial_event_log (legacy).
         CREATE TABLE IF NOT EXISTS journal_entries (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT    PRIMARY KEY,
             event_type      TEXT    NOT NULL,
             source_module   TEXT    NOT NULL,
-            source_id       INTEGER,
+            source_id       TEXT,
             source_folio    TEXT    DEFAULT '',
             debit_account   TEXT    NOT NULL,
             credit_account  TEXT    NOT NULL,
             amount          REAL    NOT NULL,
-            branch_id       INTEGER DEFAULT 1,
+            branch_id       TEXT,
             user            TEXT    DEFAULT 'sistema',
             operation_id    TEXT    UNIQUE NOT NULL,
             metadata_json   TEXT    DEFAULT '{}',
@@ -111,7 +111,7 @@ def run(conn):
         -- ── ACTIVOS FIJOS ─────────────────────────────────────────────────────
         -- Canónico para trazabilidad. Coexiste con tabla 'activos' (legacy).
         CREATE TABLE IF NOT EXISTS fixed_assets (
-            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                      TEXT    PRIMARY KEY,
             asset_name              TEXT    NOT NULL,
             asset_type              TEXT    NOT NULL,   -- equipment|vehicle|furniture|computer|other
             acquisition_date        TEXT    NOT NULL,
@@ -121,14 +121,14 @@ def run(conn):
             depreciation_method     TEXT    DEFAULT 'straight_line',
             useful_life_months      INTEGER DEFAULT 60,
             status                  TEXT    DEFAULT 'active',  -- active|disposed|sold
-            supplier_id             INTEGER,
-            branch_id               INTEGER DEFAULT 1,
+            supplier_id             TEXT,
+            branch_id               TEXT,
             source_module           TEXT    DEFAULT 'activos',
-            source_id               INTEGER,
+            source_id               TEXT,
             source_folio            TEXT    DEFAULT '',
-            financial_document_id   INTEGER,
-            treasury_movement_id    INTEGER,
-            journal_entry_id        INTEGER,
+            financial_document_id   TEXT,
+            treasury_movement_id    TEXT,
+            journal_entry_id        TEXT,
             operation_id            TEXT    UNIQUE NOT NULL,
             metadata_json           TEXT    DEFAULT '{}',
             created_at              TEXT    DEFAULT (datetime('now')),
@@ -139,11 +139,11 @@ def run(conn):
 
         -- ── DEPRECIACIONES ────────────────────────────────────────────────────
         CREATE TABLE IF NOT EXISTS asset_depreciation_entries (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            asset_id        INTEGER NOT NULL,
+            id              TEXT    PRIMARY KEY,
+            asset_id        TEXT    NOT NULL,
             period          TEXT    NOT NULL,   -- 'YYYY-MM'
             amount          REAL    NOT NULL,
-            journal_entry_id INTEGER,
+            journal_entry_id TEXT,
             operation_id    TEXT    UNIQUE NOT NULL,  -- asset_id-YYYY-MM
             created_at      TEXT    DEFAULT (datetime('now')),
             FOREIGN KEY (asset_id) REFERENCES fixed_assets(id)
@@ -153,20 +153,20 @@ def run(conn):
 
         -- ── MANTENIMIENTOS ────────────────────────────────────────────────────
         CREATE TABLE IF NOT EXISTS maintenance_records (
-            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
-            asset_id                INTEGER,
+            id                      TEXT    PRIMARY KEY,
+            asset_id                TEXT,
             maintenance_type        TEXT    NOT NULL,  -- preventive|corrective|repair|parts|labor
             description             TEXT    DEFAULT '',
             amount                  REAL    NOT NULL,
             status                  TEXT    DEFAULT 'pending',  -- pending|paid|cancelled|capitalized
-            supplier_id             INTEGER,
-            branch_id               INTEGER DEFAULT 1,
+            supplier_id             TEXT,
+            branch_id               TEXT,
             source_module           TEXT    DEFAULT 'mantenimiento',
-            source_id               INTEGER,
+            source_id               TEXT,
             source_folio            TEXT    DEFAULT '',
-            financial_document_id   INTEGER,
-            treasury_movement_id    INTEGER,
-            journal_entry_id        INTEGER,
+            financial_document_id   TEXT,
+            treasury_movement_id    TEXT,
+            journal_entry_id        TEXT,
             capitalizable           INTEGER DEFAULT 0,
             operation_id            TEXT    UNIQUE NOT NULL,
             metadata_json           TEXT    DEFAULT '{}',
@@ -179,21 +179,21 @@ def run(conn):
         -- ── INSUMOS OPERATIVOS ────────────────────────────────────────────────
         -- Rollos térmicos, etiquetas, limpieza, papelería, bolsas, empaques.
         CREATE TABLE IF NOT EXISTS operating_supplies (
-            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                      TEXT    PRIMARY KEY,
             supply_type             TEXT    NOT NULL,  -- thermal_rolls|labels|cleaning|stationery|bags|packaging|other
             description             TEXT    DEFAULT '',
             quantity                REAL    DEFAULT 1,
             unit_cost               REAL    NOT NULL,
             total_amount            REAL    NOT NULL,
             status                  TEXT    DEFAULT 'pending',  -- pending|paid|cancelled
-            supplier_id             INTEGER,
-            branch_id               INTEGER DEFAULT 1,
+            supplier_id             TEXT,
+            branch_id               TEXT,
             source_module           TEXT    DEFAULT 'compras',
-            source_id               INTEGER,
+            source_id               TEXT,
             source_folio            TEXT    DEFAULT '',
-            financial_document_id   INTEGER,
-            treasury_movement_id    INTEGER,
-            journal_entry_id        INTEGER,
+            financial_document_id   TEXT,
+            treasury_movement_id    TEXT,
+            journal_entry_id        TEXT,
             operation_id            TEXT    UNIQUE NOT NULL,
             metadata_json           TEXT    DEFAULT '{}',
             created_at              TEXT    DEFAULT (datetime('now'))
@@ -203,10 +203,10 @@ def run(conn):
 
         -- ── BITÁCORA DE TRAZABILIDAD ──────────────────────────────────────────
         CREATE TABLE IF NOT EXISTS financial_trace_log (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT    PRIMARY KEY,
             event_type      TEXT    NOT NULL,
             source_module   TEXT    NOT NULL,
-            source_id       INTEGER,
+            source_id       TEXT,
             source_folio    TEXT    DEFAULT '',
             operation_id    TEXT    NOT NULL,
             trace_status    TEXT    NOT NULL DEFAULT 'started',  -- started|completed|failed|skipped
@@ -221,15 +221,15 @@ def run(conn):
 
         -- ── REGISTROS DE CONCILIACIÓN ─────────────────────────────────────────
         CREATE TABLE IF NOT EXISTS reconciliation_records (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT    PRIMARY KEY,
             check_type      TEXT    NOT NULL,  -- sale_vs_treasury|cxc_journal|cxp_journal|etc.
             source_module   TEXT    NOT NULL,
-            source_id       INTEGER,
+            source_id       TEXT,
             expected_amount REAL    DEFAULT 0,
             actual_amount   REAL    DEFAULT 0,
             difference      REAL    DEFAULT 0,
             status          TEXT    DEFAULT 'pending',  -- ok|discrepancy|resolved|ignored
-            branch_id       INTEGER DEFAULT 1,
+            branch_id       TEXT,
             user            TEXT    DEFAULT 'sistema',
             operation_id    TEXT,
             metadata_json   TEXT    DEFAULT '{}',

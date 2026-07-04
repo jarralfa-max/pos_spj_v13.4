@@ -276,12 +276,13 @@ class QRParserService:
                 "nombre": result.nombre,
                 "codigo": result.codigo,
             }, ensure_ascii=False)
+            from backend.shared.ids import new_uuid
             self.db.execute(
                 """INSERT INTO scan_event_log
-                       (raw_code, tipo, accion, payload, cliente_id,
+                       (id, raw_code, tipo, accion, payload, cliente_id,
                         sucursal_id, usuario)
-                   VALUES (?,?,?,?,?,?,?)""",
-                (result.raw, result.tipo, accion, payload_json,
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (new_uuid(), result.raw, result.tipo, accion, payload_json,
                  result.client_id, sucursal_id, usuario))
             try:
                 self.db.commit()
@@ -298,12 +299,13 @@ class QRParserService:
         if not db:
             return
         try:
+            from backend.shared.ids import new_uuid
             db.execute(
                 """INSERT INTO scan_event_log
-                       (raw_code, tipo, accion, cliente_id, producto_id,
+                       (id, raw_code, tipo, accion, cliente_id, producto_id,
                         sucursal_id, usuario)
-                   VALUES (?,?,?,?,?,?,?)""",
-                (raw_code, tipo, accion, cliente_id, producto_id,
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (new_uuid(), raw_code, tipo, accion, cliente_id, producto_id,
                  sucursal_id, usuario))
             try:
                 db.commit()

@@ -141,13 +141,15 @@ class FinancialDashboardService:
             raise ValueError("El nombre del cliente es obligatorio.")
         if self._db is None:
             raise RuntimeError("DB no disponible.")
-        cur = self._db.execute(
-            "INSERT INTO clientes(nombre, telefono, email, activo, sucursal_id, fecha_registro) "
-            "VALUES (?,?,?,1,?,datetime('now'))",
-            (nombre, (telefono or "").strip(), (email or "").strip(), sucursal_id),
+        from backend.shared.ids import new_uuid
+        cliente_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self._db.execute(
+            "INSERT INTO clientes(id, nombre, telefono, email, activo, sucursal_id, fecha_registro) "
+            "VALUES (?,?,?,?,1,?,datetime('now'))",
+            (cliente_id, nombre, (telefono or "").strip(), (email or "").strip(), sucursal_id),
         )
         try:
             self._db.commit()
         except Exception:
             pass
-        return cur.lastrowid
+        return cliente_id

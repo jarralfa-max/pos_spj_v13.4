@@ -237,7 +237,7 @@ class CapitalService:
                 "SELECT id FROM capital_movements WHERE operation_id=?", (operation_id,)
             )
             if existing:
-                result["capital_id"] = int(existing["id"])
+                result["capital_id"] = existing["id"]  # UUIDv7 (sin cast)
                 return result
         except Exception as exc:
             logger.debug("capital_movements no disponible: %s", exc)
@@ -286,13 +286,16 @@ class CapitalService:
 
         # Insertar capital_movement
         try:
-            cur = self._db.execute(
+            from backend.shared.ids import new_uuid
+            capital_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+            self._db.execute(
                 """INSERT INTO capital_movements
-                       (movement_type, amount, concept, partner_name, partner_id,
+                       (id, movement_type, amount, concept, partner_name, partner_id,
                         payment_method, reference, branch_id, user, status,
                         operation_id, journal_entry_id, treasury_movement_id, metadata_json)
-                   VALUES (?,?,?,?,?,?,?,?,?,'registered',?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?,?,'registered',?,?,?,?)""",
                 (
+                    capital_id,
                     movement_type, float(amount), concept,
                     partner_name, partner_id,
                     payment_method, reference,
@@ -301,7 +304,7 @@ class CapitalService:
                     json.dumps(metadata or {}, ensure_ascii=False, default=str),
                 ),
             )
-            result["capital_id"] = cur.lastrowid or 0
+            result["capital_id"] = capital_id
         except Exception as exc:
             logger.warning("capital_movements INSERT op=%s: %s", operation_id, exc)
 

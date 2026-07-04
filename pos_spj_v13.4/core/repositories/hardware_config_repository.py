@@ -34,21 +34,10 @@ class HardwareConfigRepository:
         """Create the canonical table when running on an older local DB."""
         if self.db is None:
             return
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS hardware_config (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                tipo TEXT UNIQUE NOT NULL,
-                nombre TEXT NOT NULL,
-                driver TEXT,
-                puerto TEXT,
-                configuraciones TEXT,
-                activo INTEGER DEFAULT 1,
-                sucursal_id INTEGER DEFAULT 1,
-                fecha_actualizacion DATETIME DEFAULT (datetime('now'))
-            )
-            """
-        )
+        # Identidad natural: tipo es la clave única real (REGLA CERO — sin surrogate
+        # entero). CREATE IF NOT EXISTS idempotente que refleja el esquema de
+        # migrations (m000/m050) para DBs locales antiguas.
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
 
     def seed_defaults(self) -> None:
         """Ensure stable rows exist for every supported hardware domain."""

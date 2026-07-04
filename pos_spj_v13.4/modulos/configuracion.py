@@ -15,6 +15,8 @@ from .base import ModuloBase
 from modulos.ui_components import PageHeader, create_danger_button, apply_tooltip
 
 from core.services.configuration_settings_service import SettingsModuleServices
+from backend.application.services.smtp_diagnostics_service import SMTPSettingsApplicationService
+from backend.application.services.payment_provider_verification_service import PaymentProviderVerificationService
 from modulos.components.address_autocomplete_input import AddressAutocompleteInput
 from frontend.desktop.components.integer_input import IntegerInput
 from frontend.desktop.components.percent_input import PercentInput
@@ -45,6 +47,8 @@ class ModuloConfiguracion(ModuloBase):
         self.permission_query_service = services.permission_query_service
         self.module_access_service = services.module_access_service
         self.permission_event_publisher = services.permission_event_publisher
+        self.smtp_diagnostics_service = SMTPSettingsApplicationService()
+        self.payment_provider_verification_service = PaymentProviderVerificationService()
         try:
             self.settings_application_service.assert_ready()
         except RuntimeError as exc:
@@ -311,7 +315,7 @@ class ModuloConfiguracion(ModuloBase):
                 period=periodo,
                 closed_by=usuario,
                 totals=totals,
-                branch_id=getattr(self, 'sucursal_id', 1),
+                branch_id=getattr(self, 'sucursal_id', '') or '',
             )
 
             self._lbl_cierre_status.setText(
@@ -338,14 +342,14 @@ class ModuloConfiguracion(ModuloBase):
         except Exception as exc:
             QMessageBox.critical(self, "Error", f"No se pudo cargar el historial de cierres: {exc}")
             return
-        for ri, r in enumerate(rows):
+        for ri, cierre in enumerate(rows):
             self._tbl_cierres.insertRow(ri)
             vals = [
-                str(r[0] or ""), str(r[1] or ""),
-                str(r[2] or "")[:16],
-                f"${float(r[3] or 0):,.2f}",
-                f"${float(r[4] or 0):,.2f}",
-                f"${float(r[5] or 0):,.2f}",
+                cierre.period, cierre.closed_by,
+                cierre.closing_date[:16],
+                f"${cierre.total_sales:,.2f}",
+                f"${cierre.total_purchases:,.2f}",
+                f"${cierre.total_waste:,.2f}",
             ]
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(v)
@@ -471,10 +475,18 @@ class ModuloConfiguracion(ModuloBase):
         self.cmb_sucursal_inst.clear()
         self.cmb_sucursal_inst.addItem("-- Selecciona sucursal --", None)
         sucs = self.company_profile_service.branches_for_company_settings()
-        if not sucs:
-            QMessageBox.warning(self, "Sucursales", "No hay sucursales activas configuradas.")
+        validas = 0
         for sid, nombre in sucs:
-            self.cmb_sucursal_inst.addItem(nombre, sid)
+            # Nunca cargar sucursales sin UUID (id NULL/""/None/null corruptos).
+            if sid is None or str(sid).strip().lower() in ("", "none", "null"):
+                continue
+            self.cmb_sucursal_inst.addItem(nombre, str(sid))
+            validas += 1
+        if not validas:
+            QMessageBox.warning(
+                self, "Sucursales",
+                "No hay sucursales válidas con UUID. Corrige o crea una sucursal "
+                "antes de seleccionar la terminal.")
         configured_branch = settings.get('sucursal_instalacion_id')
         if configured_branch:
             stored = str(configured_branch).strip()
@@ -488,14 +500,61 @@ class ModuloConfiguracion(ModuloBase):
             finally:
                 self.cmb_sucursal_inst.blockSignals(False)
 
+    # ── Contrato de refresh en caliente (BRANCHES_CHANGED) ────────────────────
+    def _recargar_combo_sucursal_inst(self) -> None:
+        """Recarga SOLO el combo de sucursal de la terminal, preservando la
+        selección (no toca los campos de empresa capturados)."""
+        if not hasattr(self, 'cmb_sucursal_inst'):
+            return
+        prev = str(self.cmb_sucursal_inst.currentData() or "")
+        self.cmb_sucursal_inst.blockSignals(True)
+        try:
+            self.cmb_sucursal_inst.clear()
+            self.cmb_sucursal_inst.addItem("-- Selecciona sucursal --", None)
+            sucs = self.company_profile_service.branches_for_company_settings()
+            for sid, nombre in sucs:
+                if sid is None or str(sid).strip().lower() in ("", "none", "null"):
+                    continue
+                self.cmb_sucursal_inst.addItem(nombre, str(sid))
+            objetivo = prev
+            if not objetivo or objetivo.lower() in ("none", "null"):
+                anclada = self.company_profile_service.get_installation_branch()
+                objetivo = str(anclada[0]) if anclada else ""
+            for index in range(self.cmb_sucursal_inst.count()):
+                d = self.cmb_sucursal_inst.itemData(index)
+                if d is not None and str(d) == objetivo:
+                    self.cmb_sucursal_inst.setCurrentIndex(index)
+                    break
+        finally:
+            self.cmb_sucursal_inst.blockSignals(False)
+
+    def refresh_branches(self) -> None:
+        """Refresca tabla de sucursales + combo de terminal sin reiniciar."""
+        try:
+            self._cargar_sucursales_v13()
+        except Exception:
+            import logging
+            logging.getLogger(__name__).debug("refresh_branches: tabla", exc_info=True)
+        try:
+            self._recargar_combo_sucursal_inst()
+        except Exception:
+            import logging
+            logging.getLogger(__name__).debug("refresh_branches: combo", exc_info=True)
+
+    def on_branches_changed(self, payload: dict) -> None:
+        self.refresh_branches()
+
     def _guardar_empresa(self):
         nombre = self.emp_nombre.text().strip()
         if not nombre:
             QMessageBox.warning(self, "Aviso", "El nombre del negocio es obligatorio.")
             return
         suc_id = self.cmb_sucursal_inst.currentData() if hasattr(self, 'cmb_sucursal_inst') else None
-        if suc_id is None:
-            QMessageBox.warning(self, "Aviso", "Selecciona la sucursal de esta terminal.")
+        suc_id_str = str(suc_id or "").strip()
+        if suc_id_str.lower() in ("", "none", "null"):
+            QMessageBox.warning(
+                self, "Sucursal inválida",
+                "Selecciona una sucursal válida. La sucursal seleccionada no tiene UUID.")
             return
         datos = {
             'nombre_empresa': nombre,
@@ -508,15 +567,31 @@ class ModuloConfiguracion(ModuloBase):
             'regimen_fiscal': self.emp_regimen.text().strip(),
             'logo_path': self.emp_logo_path.text().strip(),
             'tasa_iva': str(float(self.emp_tasa_iva.value()) / 100),
-            'sucursal_instalacion_id': str(suc_id),
         }
         try:
+            # La clave de la terminal se fija por la ruta canónica, que valida
+            # UUIDv7 + existencia + activa (jamás persiste "None").
+            branch_id, branch_name = self.company_profile_service.set_installation_branch(suc_id_str)
             self.system_settings_service.save_many(datos)
-            QMessageBox.information(self, "✅ Guardado",
-                "Datos de empresa guardados.\n"
-                "La sucursal de esta terminal se aplicará en el próximo inicio de sesión.")
+        except ValueError as exc:
+            QMessageBox.warning(self, "Sucursal inválida", f"No se pudo asignar la sucursal: {exc}")
+            return
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
+            return
+        # Propagar EN VIVO (barra, módulos, container, ACTIVE_BRANCH_CHANGED).
+        try:
+            main_win = self.window()
+            if main_win is not None and hasattr(main_win, "aplicar_sucursal_activa"):
+                main_win.aplicar_sucursal_activa(branch_id, branch_name)
+            elif self.container is not None and hasattr(self.container, "set_sucursal_activa"):
+                self.container.set_sucursal_activa(branch_id, branch_name)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning("No se pudo propagar la sucursal a la sesión: %s", exc)
+        QMessageBox.information(self, "✅ Guardado",
+            f"Datos de empresa guardados.\n"
+            f"Esta terminal ahora opera sobre «{branch_name}».")
 
     def _seleccionar_logo(self):
         ruta, _ = QFileDialog.getOpenFileName(
@@ -594,31 +669,18 @@ class ModuloConfiguracion(ModuloBase):
             QMessageBox.critical(self, "Error", str(e))
 
     def _test_smtp(self):
-        host  = self.smtp_host.text().strip()
-        port  = self.smtp_port.value()
-        user  = self.smtp_user.text().strip()
-        pwd   = self.smtp_pass.text()
-        dest  = self.smtp_gerente.text().strip() or user
-        if not host or not user:
-            QMessageBox.warning(self, "Aviso", "Completa host y usuario primero."); return
-        try:
-            import smtplib, ssl
-            from email.mime.text import MIMEText
-            msg = MIMEText("Correo de prueba desde SPJ POS v13. Todo funciona correctamente.")
-            msg['Subject'] = "SPJ POS — Prueba de correo"
-            msg['From']    = user
-            msg['To']      = dest
-            ctx = ssl.create_default_context()
-            with smtplib.SMTP(host, port, timeout=10) as s:
-                s.ehlo()
-                if self.smtp_tls.isChecked():
-                    s.starttls(context=ctx)
-                s.login(user, pwd)
-                s.sendmail(user, [dest], msg.as_string())
-            QMessageBox.information(self, "✅ Enviado",
-                f"Correo de prueba enviado a {dest}.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error SMTP", str(e))
+        result = self.smtp_diagnostics_service.send_test_email(
+            host=self.smtp_host.text().strip(),
+            port=self.smtp_port.value(),
+            username=self.smtp_user.text().strip(),
+            password=self.smtp_pass.text(),
+            use_tls=self.smtp_tls.isChecked(),
+            recipient=self.smtp_gerente.text().strip(),
+        )
+        if result.ok:
+            QMessageBox.information(self, "✅ Enviado", result.message)
+        else:
+            QMessageBox.critical(self, "Error SMTP", result.message)
 
     # ══════════════════════════════════════════════════════════════════════
     # TAB: 💳 Mercado Pago
@@ -702,29 +764,12 @@ class ModuloConfiguracion(ModuloBase):
             QMessageBox.critical(self, "Error", str(e))
 
     def _verificar_mp_token(self):
-        token = self.mp_token.text().strip()
-        if not token:
-            self.mp_status_lbl.setText("❌ Ingresa el Access Token primero.")
-            self.mp_status_lbl.setObjectName("textDanger")
-            return
         self.mp_status_lbl.setText("⏳ Verificando...")
-        try:
-            import urllib.request, json
-            req = urllib.request.Request(
-                "https://api.mercadopago.com/v1/payment_methods",
-                headers={"Authorization": f"Bearer {token}"}
-            )
-            resp = urllib.request.urlopen(req, timeout=8)
-            data = json.loads(resp.read())
-            if isinstance(data, list) and len(data) > 0:
-                self.mp_status_lbl.setText(f"✅ Token válido — {len(data)} métodos de pago disponibles.")
-                self.mp_status_lbl.setObjectName("textSuccess")
-            else:
-                self.mp_status_lbl.setText("⚠️ Respuesta inesperada del servidor.")
-                self.mp_status_lbl.setObjectName("textWarning")
-        except Exception as e:
-            self.mp_status_lbl.setText(f"❌ Error: {str(e)[:80]}")
-            self.mp_status_lbl.setObjectName("textDanger")
+        result = self.payment_provider_verification_service.verify_mercado_pago_token(
+            self.mp_token.text().strip()
+        )
+        self.mp_status_lbl.setText(("✅ " if result.ok else "❌ ") + result.message)
+        self.mp_status_lbl.setObjectName("textSuccess" if result.ok else "textDanger")
 
     # ══════════════════════════════════════════════════════════════════════
     # TAB: ⏰ Happy Hour
@@ -765,15 +810,14 @@ class ModuloConfiguracion(ModuloBase):
             rules = []
         self._tbl_happy_hour.setRowCount(len(rules))
         for row_index, rule in enumerate(rules):
-            days = str(rule.get("dias_semana") or "")
-            day_count = len([day for day in days.split(",") if day])
+            day_count = len([day for day in rule.days_of_week.split(",") if day])
             values = [
-                rule.get("nombre") or "",
-                f"{rule.get('hora_inicio') or ''}–{rule.get('hora_fin') or ''}",
+                rule.name,
+                f"{rule.start_time}–{rule.end_time}",
                 f"{day_count} días/sem",
-                f"{float(rule.get('valor') or 0):.2f} %" if rule.get("tipo_descuento") == "porcentaje" else f"${float(rule.get('valor') or 0):.2f}",
-                rule.get("aplica_a") or "",
-                "✅ Activa" if rule.get("activo") else "❌ Inactiva",
+                f"{rule.value:.2f} %" if rule.discount_type == "porcentaje" else f"${rule.value:.2f}",
+                rule.applies_to,
+                "✅ Activa" if rule.active else "❌ Inactiva",
             ]
             for column, value in enumerate(values):
                 item = QTableWidgetItem(str(value))
@@ -782,8 +826,8 @@ class ModuloConfiguracion(ModuloBase):
             actions_widget = QWidget()
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(2, 2, 2, 2)
-            rule_id = rule["id"]
-            active = bool(rule.get("activo"))
+            rule_id = rule.id
+            active = rule.active
             btn_edit = self._create_action_button("✏️", "Editar regla Happy Hour", "edit")
             btn_edit.clicked.connect(lambda _, rid=rule_id: self._editar_happy_hour_rule(rid))
             btn_toggle = self._create_action_button(
@@ -858,23 +902,23 @@ class ModuloConfiguracion(ModuloBase):
             if not rule:
                 QMessageBox.warning(self, "Aviso", "La regla seleccionada no existe.")
                 return
-            txt_name.setText(rule.get("nombre") or "")
-            txt_start.setText(rule.get("hora_inicio") or "")
-            txt_end.setText(rule.get("hora_fin") or "")
-            spin_discount.setValue(float(rule.get("valor") or 0))
-            type_index = combo_type.findData(rule.get("tipo_descuento"))
+            txt_name.setText(rule.name)
+            txt_start.setText(rule.start_time)
+            txt_end.setText(rule.end_time)
+            spin_discount.setValue(rule.value)
+            type_index = combo_type.findData(rule.discount_type)
             if type_index >= 0:
                 combo_type.setCurrentIndex(type_index)
-            scope_index = combo_scope.findData(rule.get("aplica_a"))
+            scope_index = combo_scope.findData(rule.applies_to)
             if scope_index >= 0:
                 combo_scope.setCurrentIndex(scope_index)
-            txt_scope_value.setText(rule.get("aplica_valor") or "")
-            for day in str(rule.get("dias_semana") or "").split(","):
+            txt_scope_value.setText(rule.applies_value)
+            for day in rule.days_of_week.split(","):
                 if day.isdigit() and int(day) in days:
                     days[int(day)].setChecked(True)
-            txt_message.setPlainText(rule.get("message") or "")
-            chk_active.setChecked(bool(rule.get("activo")))
-            branch_index = combo_branch.findData(rule.get("sucursal_id"))
+            txt_message.setPlainText(rule.message)
+            chk_active.setChecked(rule.active)
+            branch_index = combo_branch.findData(rule.branch_id)
             if branch_index >= 0:
                 combo_branch.setCurrentIndex(branch_index)
 
@@ -937,6 +981,9 @@ class ModuloConfiguracion(ModuloBase):
         suc_hdr = QHBoxLayout()
         suc_hdr.addWidget(QLabel("Sucursales del sistema con horarios de atención"))
         suc_hdr.addStretch()
+        self._lbl_inst_branch = QLabel("")
+        self._lbl_inst_branch.setStyleSheet("color:#2563eb; font-weight:600;")
+        suc_hdr.addWidget(self._lbl_inst_branch)
         btn_new_suc = QPushButton("➕ Nueva sucursal")
         btn_new_suc.setObjectName("successBtn")
         apply_tooltip(btn_new_suc, "Crear nueva sucursal")
@@ -1020,25 +1067,75 @@ class ModuloConfiguracion(ModuloBase):
         except Exception as exc:
             QMessageBox.critical(self, "Error", f"No se pudieron cargar sucursales: {exc}")
             rows = []
+        inst = None
+        try:
+            inst = self.company_profile_service.get_installation_branch()
+        except Exception:
+            inst = None
+        inst_id = inst[0] if inst else ""
+        if hasattr(self, "_lbl_inst_branch"):
+            self._lbl_inst_branch.setText(
+                f"📍 Esta instalación: {inst[1]}" if inst
+                else "📍 Instalación sin sucursal asignada")
         self._tbl_suc_v13.setRowCount(len(rows))
-        for ri, r in enumerate(rows):
-            dias_n = str(r[5]).count(',') + 1 if r[5] else 0
-            vals = [r[1], r[2], f"{r[3]}–{r[4]}", f"{dias_n} días/sem",
-                    "✅ Activa" if r[6] else "❌ Inactiva"]
+        for ri, branch in enumerate(rows):
+            dias_n = branch.operation_days.count(',') + 1 if branch.operation_days else 0
+            es_instalacion = str(branch.id) == str(inst_id)
+            estado = "✅ Activa" if branch.active else "❌ Inactiva"
+            if es_instalacion:
+                estado += " · 📍 instalación"
+            vals = [branch.name, branch.address, f"{branch.opening_time}–{branch.closing_time}",
+                    f"{dias_n} días/sem", estado]
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(v)
                 it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                 if ci == 0:
-                    it.setData(Qt.UserRole, r[0])
+                    it.setData(Qt.UserRole, branch.id)
                 self._tbl_suc_v13.setItem(ri, ci, it)
-            suc_id = r[0]
+            suc_id = branch.id
             btn_w = QWidget()
             bl = QHBoxLayout(btn_w)
             bl.setContentsMargins(2, 2, 2, 2)
             btn_ed = self._create_action_button("✏️", "Editar sucursal", "edit")
             btn_ed.clicked.connect(lambda _, sid=suc_id: self._editar_sucursal_v13(sid))
             bl.addWidget(btn_ed)
+            if not es_instalacion and branch.active:
+                btn_inst = self._create_action_button(
+                    "📍", "Usar como sucursal de esta instalación", "edit")
+                btn_inst.clicked.connect(
+                    lambda _, sid=suc_id, nom=branch.name: self._set_sucursal_instalacion(sid, nom))
+                bl.addWidget(btn_inst)
             self._tbl_suc_v13.setCellWidget(ri, 5, btn_w)
+
+    def _set_sucursal_instalacion(self, sucursal_id, nombre: str) -> None:
+        """Ancla ESTA instalación a la sucursal elegida (login y sesión la usan)."""
+        confirm = QMessageBox.question(
+            self, "Sucursal de la instalación",
+            f"¿Usar «{nombre}» como la sucursal de esta instalación?\n\n"
+            "El login y los módulos operarán sobre esa sucursal.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if confirm != QMessageBox.Yes:
+            return
+        try:
+            branch_id, branch_name = self.company_profile_service.set_installation_branch(str(sucursal_id))
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"No se pudo asignar la sucursal: {exc}")
+            return
+        # Propagar EN VIVO a toda la sesión (barra, módulos abiertos, container,
+        # evento ACTIVE_BRANCH_CHANGED). El login la leerá al arrancar.
+        try:
+            main_win = self.window()
+            if main_win is not None and hasattr(main_win, "aplicar_sucursal_activa"):
+                main_win.aplicar_sucursal_activa(branch_id, branch_name)
+            elif self.container is not None and hasattr(self.container, "set_sucursal_activa"):
+                self.container.set_sucursal_activa(branch_id, branch_name)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning("No se pudo propagar la sucursal a la sesión: %s", exc)
+        self._cargar_sucursales_v13()
+        QMessageBox.information(
+            self, "Sucursal de la instalación",
+            f"Esta instalación ahora opera sobre «{branch_name}».")
 
     def _nueva_sucursal_v13(self):
         self._editar_sucursal_v13(None)
@@ -1134,25 +1231,25 @@ class ModuloConfiguracion(ModuloBase):
             QMessageBox.critical(self, "Error", f"No se pudieron cargar usuarios: {exc}")
             rows = []
         self._tbl_usr_v13.setRowCount(len(rows))
-        for ri, r in enumerate(rows):
-            vals = [r[1], r[2] or "", r[3], r[4],
-                    "✅ Activo" if r[5] else "❌ Inactivo"]
+        for ri, user in enumerate(rows):
+            vals = [user.username, user.name, user.role, user.branch_name,
+                    "✅ Activo" if user.active else "❌ Inactivo"]
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(str(v))
                 it.setFlags(Qt.ItemIsSelectable|Qt.ItemIsEnabled)
-                if ci == 0: it.setData(Qt.UserRole, r[0])
+                if ci == 0: it.setData(Qt.UserRole, user.id)
                 self._tbl_usr_v13.setItem(ri, ci, it)
-            uid = r[0]
+            uid = user.id
             btn_w = QWidget(); bl = QHBoxLayout(btn_w); bl.setContentsMargins(2,2,2,2)
             btn_ed = self._create_action_button("✏️", "Editar usuario", "edit")
             btn_ed.clicked.connect(lambda _, uid=uid: self._editar_usuario_v13(uid))
             btn_tog = self._create_action_button(
-                "✅" if r[5] else "❌",
-                "Desactivar usuario" if r[5] else "Activar usuario",
-                "deactivate" if r[5] else "activate",
+                "✅" if user.active else "❌",
+                "Desactivar usuario" if user.active else "Activar usuario",
+                "deactivate" if user.active else "activate",
             )
             btn_tog.clicked.connect(
-                lambda _, uid=uid, a=r[5]: self._toggle_usuario(uid, not a))
+                lambda _, uid=uid, a=user.active: self._toggle_usuario(uid, not a))
             bl.addWidget(btn_ed); bl.addWidget(btn_tog)
             self._tbl_usr_v13.setCellWidget(ri, 5, btn_w)
 
@@ -1205,19 +1302,19 @@ class ModuloConfiguracion(ModuloBase):
 
         if usuario_id:
             try:
-                row = self.user_management_service.get_user_form_data(usuario_id)
-                if row:
-                    txt_usuario.setText(row[0] or ""); txt_nombre.setText(row[1] or "")
-                    txt_email.setText(row[2] or "")
-                    idx = cmb_rol.findText(row[3] or "cajero")
+                user = self.user_management_service.get_user_form_data(usuario_id)
+                if user:
+                    txt_usuario.setText(user.username); txt_nombre.setText(user.name)
+                    txt_email.setText(user.email)
+                    idx = cmb_rol.findText(user.role or "cajero")
                     if idx >= 0: cmb_rol.setCurrentIndex(idx)
                     for i in range(cmb_sucursal.count()):
-                        if cmb_sucursal.itemData(i) == row[4]:
+                        if str(cmb_sucursal.itemData(i)) == user.branch_id:
                             cmb_sucursal.setCurrentIndex(i); break
-                    chk_activo.setChecked(bool(row[5]))
-                    if row[6]:
+                    chk_activo.setChecked(user.active)
+                    if user.employee_id:
                         for i in range(cmb_empleado.count()):
-                            if cmb_empleado.itemData(i) == row[6]:
+                            if cmb_empleado.itemData(i) == user.employee_id:
                                 cmb_empleado.setCurrentIndex(i); break
             except Exception as exc:
                 QMessageBox.critical(self, "Error", f"No se pudo cargar el usuario: {exc}")
@@ -1237,7 +1334,9 @@ class ModuloConfiguracion(ModuloBase):
             _bcrypt = None
         try:
             pwd_raw = txt_pass.text()
-            suc_id  = cmb_sucursal.currentData() or 1
+            suc_id  = cmb_sucursal.currentData()
+            if not suc_id:
+                QMessageBox.warning(self, "Aviso", "Selecciona la sucursal del usuario."); return
             emp_id  = cmb_empleado.currentData()
             pwd_hash = None
             if pwd_raw:
@@ -1277,16 +1376,16 @@ class ModuloConfiguracion(ModuloBase):
             QMessageBox.critical(self, "Error", f"No se pudieron cargar roles: {exc}")
             rows = []
         self._tbl_roles_v13.setRowCount(len(rows))
-        for ri, r in enumerate(rows):
-            vals = [r[1], r[2] or "", str(r[3])]
+        for ri, role in enumerate(rows):
+            vals = [role.name, role.description, str(role.user_count)]
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(v)
                 it.setFlags(Qt.ItemIsSelectable|Qt.ItemIsEnabled)
                 self._tbl_roles_v13.setItem(ri, ci, it)
             btn_w = QWidget(); bl = QHBoxLayout(btn_w); bl.setContentsMargins(2,2,2,2)
-            btn_perm = self._create_action_button("🔑 Permisos", f"Editar permisos del rol {r[1]}", "primary")
+            btn_perm = self._create_action_button("🔑 Permisos", f"Editar permisos del rol {role.name}", "primary")
             btn_perm.clicked.connect(
-                lambda _, rid=r[0], rnom=r[1]: self._editar_permisos_rol(rid, rnom))
+                lambda _, rid=role.id, rnom=role.name: self._editar_permisos_rol(rid, rnom))
             bl.addWidget(btn_perm)
             self._tbl_roles_v13.setCellWidget(ri, 3, btn_w)
 

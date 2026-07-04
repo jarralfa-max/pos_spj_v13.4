@@ -8,21 +8,16 @@
 # Métodos públicos:
 #   balance_general()         — Activos / Pasivos / Patrimonio
 #   flujo_caja()              — Entradas y salidas por período
-#   gastos_mes()              — Gastos agrupados por categoría
 #   cuentas_por_pagar()       — CXP con vencimiento y aging
 #   cuentas_por_cobrar()      — CXC con días vencidos
 #   dashboard_kpis()          — KPIs financieros ejecutivos
 #   get_suppliers()           — Catálogo de proveedores
-#   get_assets()              — Activos fijos con depreciación
-#   get_maintenance()         — Historial de mantenimientos
 #   get_personal()            — Plantilla laboral
 #   get_nomina_pagos()        — Historial de nómina
 #   crear_cxp()               — Crear cuenta por pagar manual
 #   abonar_cxp()              — Registrar pago parcial o total CXP
 #   crear_cxc()               — Crear cuenta por cobrar manual
 #   cobrar_cxc()              — Registrar cobro CXC
-#   registrar_asset()         — Alta de activo fijo
-#   registrar_mantenimiento() — Alta de mantenimiento
 #   pagar_nomina()            — Registrar pago de nómina
 #   sync_cxp_from_compras()   — Sincronizar CXP desde compras_inventariables
 #   sync_cxc_from_ventas()    — Sincronizar CXC desde ventas a crédito
@@ -35,6 +30,8 @@ import csv
 from io import StringIO
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Tuple
+
+from backend.shared.ids import new_uuid
 
 logger = logging.getLogger("spj.finance_service")
 
@@ -479,50 +476,6 @@ class FinanceService:
         }
 
     # ═════════════════════════════════════════════════════════════════════════
-    # GASTOS POR MES
-    # ═════════════════════════════════════════════════════════════════════════
-
-    def gastos_mes(
-        self, date_from: str, date_to: str
-    ) -> Dict:
-        """Gastos agrupados por categoría y estado para el período."""
-        gastos_pagado_expr = "COALESCE(monto_pagado,0)" if self._has_column("gastos", "monto_pagado") else "0"
-        gasto_activo = "AND activo=1" if self._has_column("gastos", "activo") else ""
-        by_cat = self.db.fetchall(f"""
-            SELECT categoria,
-                   COUNT(*)            AS num_registros,
-                   SUM(monto)          AS total,
-                   SUM({gastos_pagado_expr}) AS pagado,
-                   SUM(monto - {gastos_pagado_expr}) AS pendiente
-            FROM gastos
-            WHERE DATE(fecha) BETWEEN DATE(?) AND DATE(?)
-              {gasto_activo}
-            GROUP BY categoria
-            ORDER BY total DESC
-        """, (date_from, date_to))
-
-        detalle = self.db.fetchall(f"""
-        SELECT g.id, g.fecha, g.categoria, g.concepto, g.descripcion,
-                   g.monto, {gastos_pagado_expr} AS monto_pagado, g.estado, g.metodo_pago,
-                   g.recurrente, g.usuario,
-                   COALESCE(p.nombre, g.referencia, '') AS proveedor
-            FROM gastos g
-            LEFT JOIN proveedores p ON p.id = g.proveedor_id
-            WHERE DATE(g.fecha) BETWEEN DATE(?) AND DATE(?)
-              {gasto_activo}
-            ORDER BY g.fecha DESC
-        """, (date_from, date_to))
-
-        total_general = sum(float(r["total"] or 0) for r in by_cat)
-        return {
-            "date_from":    date_from,
-            "date_to":      date_to,
-            "total":        round(total_general, 2),
-            "by_categoria": [dict(r) for r in by_cat],
-            "detalle":      [dict(r) for r in detalle],
-        }
-
-    # ═════════════════════════════════════════════════════════════════════════
     # CUENTAS POR PAGAR (CXP)
     # ═════════════════════════════════════════════════════════════════════════
 
@@ -683,115 +636,20 @@ class FinanceService:
                   data.get("banco"), data.get("cuenta_bancaria"), data.get("contacto"),
                   data.get("notas"), int(data.get("activo",1)), sid))
         else:
-            cur = self.db.execute("""
+            sid = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+            self.db.execute("""
                 INSERT INTO suppliers
-                    (nombre, rfc, telefono, email, direccion, tipo,
+                    (id, nombre, rfc, telefono, email, direccion, tipo,
                      condiciones_pago, limite_credito, banco, cuenta_bancaria,
                      contacto, notas, activo)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """, (data.get("nombre",""), data.get("rfc"), data.get("telefono"),
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """, (sid, data.get("nombre",""), data.get("rfc"), data.get("telefono"),
                   data.get("email"), data.get("direccion"), data.get("tipo","general"),
                   data.get("condiciones_pago",30), data.get("limite_credito",0),
                   data.get("banco"), data.get("cuenta_bancaria"), data.get("contacto"),
                   data.get("notas"), 1))
-            sid = cur.lastrowid
         self.db.commit()
         return sid
-
-    # ═════════════════════════════════════════════════════════════════════════
-    # ACTIVOS FIJOS
-    # ═════════════════════════════════════════════════════════════════════════
-
-    def get_assets(
-        self, estado: Optional[str] = None, tipo: Optional[str] = None
-    ) -> List[Dict]:
-        conds = ["1=1"]
-        params = []
-        if self._has_column("assets", "activo"):
-            conds.append("activo=1")
-        if estado:
-            conds.append("estado=?"); params.append(estado)
-        if tipo:
-            conds.append("tipo=?"); params.append(tipo)
-        rows = self.db.fetchall(f"""
-            SELECT a.*,
-                   (SELECT COUNT(*) FROM asset_maintenance m WHERE m.asset_id=a.id) AS num_mant,
-                   (SELECT COALESCE(SUM(costo),0) FROM asset_maintenance m WHERE m.asset_id=a.id) AS costo_mant
-            FROM assets a
-            WHERE {' AND '.join(conds)}
-            ORDER BY a.tipo, a.nombre
-        """, params)
-        return [dict(r) for r in rows]
-
-    def upsert_asset(self, data: Dict) -> int:
-        aid = data.get("id")
-        if aid:
-            self.db.execute("""
-                UPDATE assets SET nombre=?, tipo=?, marca=?, modelo=?,
-                    numero_serie=?, fecha_compra=?, valor_compra=?,
-                    valor_actual=?, depreciacion_anual=?, estado=?,
-                    ubicacion=?, sucursal_id=?, responsable=?,
-                    proveedor=?, notas=?
-                WHERE id=?
-            """, (data["nombre"], data.get("tipo","equipo"), data.get("marca"),
-                  data.get("modelo"), data.get("numero_serie"), data.get("fecha_compra"),
-                  data.get("valor_compra",0), data.get("valor_actual",0),
-                  data.get("depreciacion_anual",0), data.get("estado","activo"),
-                  data.get("ubicacion"), data.get("sucursal_id",1),
-                  data.get("responsable"), data.get("proveedor"), data.get("notas"),
-                  aid))
-        else:
-            codigo = f"ACT-{datetime.now().strftime('%y%m%d%H%M%S')}"
-            cur = self.db.execute("""
-                INSERT INTO assets (codigo, nombre, tipo, marca, modelo,
-                    numero_serie, fecha_compra, valor_compra, valor_actual,
-                    depreciacion_anual, estado, ubicacion, sucursal_id,
-                    responsable, proveedor, notas)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """, (codigo, data["nombre"], data.get("tipo","equipo"), data.get("marca"),
-                  data.get("modelo"), data.get("numero_serie"), data.get("fecha_compra"),
-                  data.get("valor_compra",0), data.get("valor_actual", data.get("valor_compra",0)),
-                  data.get("depreciacion_anual",0), data.get("estado","activo"),
-                  data.get("ubicacion"), data.get("sucursal_id",1),
-                  data.get("responsable"), data.get("proveedor"), data.get("notas")))
-            aid = cur.lastrowid
-        self.db.commit()
-        return aid
-
-    def get_maintenance(
-        self, asset_id: Optional[int] = None, limit: int = 100
-    ) -> List[Dict]:
-        if asset_id:
-            rows = self.db.fetchall("""
-                SELECT m.*, a.nombre AS activo_nombre, a.tipo AS activo_tipo
-                FROM asset_maintenance m
-                JOIN assets a ON a.id = m.asset_id
-                WHERE m.asset_id=?
-                ORDER BY m.fecha DESC LIMIT ?
-            """, (asset_id, limit))
-        else:
-            rows = self.db.fetchall("""
-        SELECT m.*, a.nombre AS activo_nombre, a.tipo AS activo_tipo
-                FROM asset_maintenance m
-                JOIN assets a ON a.id = m.asset_id
-                ORDER BY m.fecha DESC LIMIT ?
-            """, (limit,))
-        return [dict(r) for r in rows]
-
-    def registrar_mantenimiento(self, data: Dict) -> int:
-        cur = self.db.execute("""
-        INSERT INTO asset_maintenance
-                (asset_id, tipo, fecha, descripcion, costo,
-                 responsable, proveedor, estado, proxima_revision, notas)
-            VALUES (?,?,?,?,?,?,?,?,?,?)
-        """, (data["asset_id"], data.get("tipo","preventivo"),
-              data.get("fecha", date.today().isoformat()),
-              data.get("descripcion"), data.get("costo",0),
-              data.get("responsable"), data.get("proveedor"),
-              data.get("estado","completado"),
-              data.get("proxima_revision"), data.get("notas")))
-        self.db.commit()
-        return cur.lastrowid
 
     # ═════════════════════════════════════════════════════════════════════════
     # RECURSOS HUMANOS
@@ -856,13 +714,15 @@ class FinanceService:
         usuario: str = "Sistema",
         notas: Optional[str] = None,
     ) -> int:
+        from backend.shared.ids import new_uuid
         total = round(salario_base + bonos - deducciones, 2)
-        cur = self.db.execute("""
+        np_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute("""
             INSERT INTO nomina_pagos
-                (empleado_id, periodo_inicio, periodo_fin, salario_base,
+                (id, empleado_id, periodo_inicio, periodo_fin, salario_base,
                  bonos, deducciones, total, metodo_pago, estado, usuario, notas)
-            VALUES (?,?,?,?,?,?,?,?,'pagado',?,?)
-        """, (empleado_id, periodo_inicio, periodo_fin, salario_base,
+            VALUES (?,?,?,?,?,?,?,?,?,'pagado',?,?)
+        """, (np_id, empleado_id, periodo_inicio, periodo_fin, salario_base,
               bonos, deducciones, total, metodo_pago, usuario, notas))
         self.registrar_asiento(
             debe="gasto_nomina",
@@ -870,7 +730,7 @@ class FinanceService:
             concepto=f"Pago nómina empleado #{empleado_id}",
             monto=float(total or 0),
             modulo="rrhh",
-            referencia_id=cur.lastrowid,
+            referencia_id=np_id,
             evento="NOMINA_PAGADA",
             metadata={
                 "empleado_id": empleado_id,
@@ -884,7 +744,7 @@ class FinanceService:
             self.db.commit()
         except Exception:
             pass
-        return cur.lastrowid
+        return np_id
 
     def costo_nomina_mes(self, date_from: str, date_to: str) -> float:
         nomina_date_col = self._resolve_column("nomina_pagos", "created_at", "fecha", "fecha_registro")
@@ -1003,7 +863,10 @@ class FinanceService:
     # ── Módulo Caja ───────────────────────────────────────────────────────────
 
     def get_estado_turno(self, sucursal_id: int, usuario: str):
-        """Retorna el turno abierto actual o None si la caja está cerrada."""
+        """Retorna el turno abierto actual o None si la caja está cerrada.
+
+        El ``id`` se devuelve como str (identidad UUIDv7-ready): el corte 200
+        lo convertirá a TEXT y los callers no cambian (afinidad SQLite)."""
         try:
             row = self.db.execute(
                 """SELECT id, fondo_inicial, fecha_apertura
@@ -1012,44 +875,57 @@ class FinanceService:
                    ORDER BY fecha_apertura DESC LIMIT 1""",
                 (sucursal_id, usuario)
             ).fetchone()
-            return dict(row) if row else None
+            if not row:
+                return None
+            d = dict(row)
+            if d.get("id") is not None:
+                d["id"] = str(d["id"])
+            return d
         except Exception:
             return None
 
-    def abrir_turno(self, sucursal_id: int, usuario: str, fondo_inicial: float) -> int:
-        """Abre un nuevo turno de caja. Lanza si ya hay uno abierto."""
+    def abrir_turno(self, sucursal_id: int, usuario: str, fondo_inicial: float) -> str:
+        """Abre un nuevo turno de caja. Lanza si ya hay uno abierto.
+
+        UUID-native (REGLA CERO): el turno_id es un UUIDv7 acuñado con
+        ``new_uuid()`` e insertado explícitamente en ``turnos_caja.id`` (identidad
+        acuñada, nunca el rowid implícito). El esquema born-clean define
+        ``turnos_caja.id`` como TEXT.
+        """
         existing = self.get_estado_turno(sucursal_id, usuario)
         if existing:
             raise ValueError("Ya hay un turno abierto para este cajero.")
-        cur = self.db.execute(
+        turno_id = new_uuid()
+        self.db.execute(
             """INSERT INTO turnos_caja
-               (sucursal_id, cajero, fondo_inicial, estado, fecha_apertura)
-               VALUES (?,?,?,'abierto', datetime('now'))""",
-            (sucursal_id, usuario, fondo_inicial)
+               (id, sucursal_id, cajero, fondo_inicial, estado, fecha_apertura)
+               VALUES (?,?,?,?,'abierto', datetime('now'))""",
+            (turno_id, sucursal_id, usuario, fondo_inicial)
         )
         try: self.db.commit()
         except Exception: pass
-        return cur.lastrowid
+        return turno_id
 
     def registrar_movimiento_manual(
-        self, turno_id: int, sucursal_id: int,
+        self, turno_id: str, sucursal_id: int,
         usuario: str, tipo: str, monto: float, concepto: str
     ) -> None:
         """Registra entrada o retiro manual en caja."""
         self.db.execute(
             """INSERT INTO movimientos_caja
-               (turno_id, sucursal_id, tipo, monto, concepto, usuario, fecha)
-               VALUES (?,?,?,?,?,?, datetime('now'))""",
-            (turno_id, sucursal_id, tipo, monto, concepto, usuario)
+               (id, turno_id, sucursal_id, tipo, monto, concepto, usuario, fecha)
+               VALUES (?,?,?,?,?,?,?, datetime('now'))""",
+            (new_uuid(), str(turno_id), sucursal_id, tipo, monto, concepto, usuario)
         )
         # FASE 9: no commit aquí — PurchaseService llama este método dentro
         # de un SAVEPOINT; el commit lo hace PurchaseService al hacer RELEASE.
 
     def generar_corte_z(
-        self, turno_id: int, sucursal_id: int,
+        self, turno_id: str, sucursal_id: int,
         usuario: str, efectivo_fisico: float
     ) -> dict:
         """Cierra el turno y calcula diferencias."""
+        turno_id = str(turno_id)
         # Sumar ventas del turno
         row_v = self.db.execute(
             """SELECT COALESCE(SUM(total),0) FROM ventas
@@ -1121,13 +997,13 @@ class FinanceService:
             "ventas_por_pago": ventas_por_pago,
         }
 
-    def get_movimientos_turno(self, turno_id: int) -> list:
+    def get_movimientos_turno(self, turno_id: str) -> list:
         """Retorna los movimientos manuales del turno."""
         try:
             rows = self.db.execute(
                 """SELECT tipo, monto, concepto, usuario, fecha
                    FROM movimientos_caja WHERE turno_id=? ORDER BY fecha""",
-                (turno_id,)
+                (str(turno_id),)
             ).fetchall()
             return [dict(r) for r in rows]
         except Exception:
@@ -1143,12 +1019,12 @@ class FinanceService:
                 "SELECT id FROM turnos_caja WHERE sucursal_id=? AND cajero=? AND estado='abierto' LIMIT 1",
                 (branch_id, user)
             ).fetchone()
-            turno_id = row['id'] if row else None
+            turno_id = str(row['id']) if row else None
             self.db.execute(
                 """INSERT INTO movimientos_caja
-                   (turno_id, sucursal_id, tipo, monto, concepto, usuario, fecha)
-                   VALUES (?,?,?,?,?,?,datetime('now'))""",
-                (turno_id, branch_id, 'VENTA', amount,
+                   (id, turno_id, sucursal_id, tipo, monto, concepto, usuario, fecha)
+                   VALUES (?,?,?,?,?,?,?,datetime('now'))""",
+                (new_uuid(), turno_id, branch_id, 'VENTA', amount,
                  f"{category}: {description}", user)
             )
             # No commit here — caller (SalesService SAVEPOINT) owns the transaction
@@ -1181,20 +1057,21 @@ class FinanceService:
         # Fallback si GeneralLedgerService no está disponible (o __init__ bypass)
         import json as _json
         try:
-            cur = self.db.execute(
+            event_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+            self.db.execute(
                 """INSERT INTO financial_event_log
-                   (evento, modulo, referencia_id, monto, cuenta_debe, cuenta_haber,
+                   (id, evento, modulo, referencia_id, monto, cuenta_debe, cuenta_haber,
                     usuario_id, sucursal_id, metadata)
-                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
                 (
-                    evento, modulo or concepto, referencia_id,
+                    event_id, evento, modulo or concepto, referencia_id,
                     monto, debe, haber,
                     usuario_id, sucursal_id,
                     _json.dumps({"concepto": concepto, **(metadata or {})},
                                 ensure_ascii=False),
                 )
             )
-            return cur.lastrowid or 0
+            return event_id
         except Exception as _e:
             import logging as _lg
             _lg.getLogger(__name__).warning("registrar_asiento non-fatal: %s", _e)
@@ -1342,12 +1219,12 @@ class FinanceService:
         Returns: {"registrado": bool, "anticipo_id": int}
         """
         try:
-            cur = self.db.execute(
-                """INSERT INTO anticipos (venta_id, monto, estado, usuario_id, sucursal_id)
-                   VALUES (?, ?, 'aplicado', ?, ?)""",
-                (venta_id, monto_anticipo, usuario_id, sucursal_id)
+            anticipo_id = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+            self.db.execute(
+                """INSERT INTO anticipos (id, venta_id, monto, estado, usuario_id, sucursal_id)
+                   VALUES (?, ?, ?, 'aplicado', ?, ?)""",
+                (anticipo_id, venta_id, monto_anticipo, usuario_id, sucursal_id)
             )
-            anticipo_id = cur.lastrowid
 
             self.registrar_asiento(
                 debe="caja",
@@ -1466,120 +1343,6 @@ class FinanceService:
         )
 
     # ═════════════════════════════════════════════════════════════════════════
-    # GESTIÓN DE GASTOS - CRUD COMPLETO
-    # ═════════════════════════════════════════════════════════════════════════
-
-    def get_expense(self, expense_id: int) -> Optional[Dict]:
-        """Obtiene un gasto por ID."""
-        row = self.db.fetchone("SELECT * FROM gastos WHERE id=?", (expense_id,))
-        return dict(row) if row else None
-
-    def get_all_expenses(
-        self,
-        date_from: Optional[str] = None,
-        date_to: Optional[str] = None,
-        categoria: Optional[str] = None,
-        estado: Optional[str] = None,
-        activo: bool = True
-    ) -> List[Dict]:
-        """Obtiene lista de gastos con filtros."""
-        conds = ["1=1"]
-        params = []
-        
-        if activo:
-            conds.append("activo=1")
-        
-        if date_from:
-            conds.append("DATE(fecha) >= DATE(?)"); params.append(date_from)
-        if date_to:
-            conds.append("DATE(fecha) <= DATE(?)"); params.append(date_to)
-        if categoria:
-            conds.append("categoria=?"); params.append(categoria)
-        if estado:
-            conds.append("estado=?"); params.append(estado)
-        
-        rows = self.db.fetchall(f"""
-            SELECT g.*, COALESCE(p.nombre, '') AS proveedor_nombre
-            FROM gastos g
-            LEFT JOIN proveedores p ON p.id = g.proveedor_id
-            WHERE {' AND '.join(conds)}
-            ORDER BY g.fecha DESC
-        """, params)
-        return [dict(r) for r in rows]
-
-    def upsert_expense(self, data: Dict) -> int:
-        """Crea o actualiza un gasto."""
-        required = ['fecha', 'categoria', 'monto', 'estado']
-        for field in required:
-            if field not in data:
-                raise ValueError(f"Campo requerido: {field}")
-        
-        expense_id = data.get('id')
-        if expense_id:
-            # Actualizar
-            cur = self.db.execute("""
-                UPDATE gastos SET
-                    fecha=?, categoria=?, proveedor_id=?, monto=?, monto_pagado=?,
-                    estado=?, descripcion=?, metodo_pago=?, usuario=?
-                WHERE id=?
-            """, (
-                data['fecha'], data['categoria'], data.get('proveedor_id'),
-                data['monto'], data.get('monto_pagado', 0), data['estado'],
-                data.get('descripcion'), data.get('metodo_pago', 'Efectivo'),
-                data.get('usuario', 'Sistema'), expense_id
-            ))
-            self.db.commit()
-            return expense_id
-        else:
-            # Crear
-            cur = self.db.execute("""
-                INSERT INTO gastos (fecha, categoria, proveedor_id, monto, 
-                                    monto_pagado, estado, descripcion, metodo_pago, usuario, activo)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-            """, (
-                data['fecha'], data['categoria'], data.get('proveedor_id'),
-                data['monto'], data.get('monto_pagado', 0), data['estado'],
-                data.get('descripcion'), data.get('metodo_pago', 'Efectivo'),
-                data.get('usuario', 'Sistema')
-            ))
-            self.db.commit()
-            return cur.lastrowid
-
-    def delete_expense(self, expense_id: int) -> bool:
-        """Marca un gasto como inactivo (soft delete)."""
-        self.db.execute("UPDATE gastos SET activo=0 WHERE id=?", (expense_id,))
-        self.db.commit()
-        return True
-
-    def apply_expense_payment(self, expense_id: int, amount: float) -> Dict:
-        """Aplica un pago parcial o total a un gasto."""
-        expense = self.get_expense(expense_id)
-        if not expense:
-            raise ValueError(f"Gasto #{expense_id} no encontrado")
-        
-        monto = float(expense['monto'])
-        monto_pagado = float(expense.get('monto_pagado', 0) or 0)
-        nuevo_pagado = round(monto_pagado + amount, 2)
-        
-        if nuevo_pagado > monto:
-            raise ValueError(f"El pago excede el monto pendiente. Pendiente: ${monto - monto_pagado:.2f}")
-        
-        nuevo_estado = "pagado" if nuevo_pagado >= monto else "parcial"
-        
-        self.db.execute("""
-            UPDATE gastos SET monto_pagado=?, estado=? WHERE id=?
-        """, (nuevo_pagado, nuevo_estado, expense_id))
-        self.db.commit()
-        
-        return {
-            'expense_id': expense_id,
-            'amount_applied': amount,
-            'new_paid': nuevo_pagado,
-            'new_balance': round(monto - nuevo_pagado, 2),
-            'new_status': nuevo_estado
-        }
-
-    # ═════════════════════════════════════════════════════════════════════════
     # GESTIÓN DE EMPLEADOS - CRUD COMPLETO
     # ═════════════════════════════════════════════════════════════════════════
 
@@ -1612,15 +1375,18 @@ class FinanceService:
             return employee_id
         else:
             # Crear
-            cur = self.db.execute("""
-                INSERT INTO personal (nombre, apellidos, puesto, salario, fecha_ingreso, activo)
-                VALUES (?, ?, ?, ?, ?, 1)
+            from backend.shared.ids import new_uuid
+            employee_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+            self.db.execute("""
+                INSERT INTO personal (id, nombre, apellidos, puesto, salario, fecha_ingreso, activo)
+                VALUES (?, ?, ?, ?, ?, ?, 1)
             """, (
+                employee_id,
                 data['nombre'], data.get('apellidos'), data.get('puesto'),
                 data['salario'], data.get('fecha_ingreso')
             ))
             self.db.commit()
-            return cur.lastrowid
+            return employee_id
 
     def deactivate_employee(self, employee_id: int) -> bool:
         """Marca un empleado como inactivo."""
@@ -1641,94 +1407,19 @@ class FinanceService:
         row = self.db.fetchone("SELECT id, nombre FROM proveedores WHERE nombre=?", (name,))
         return dict(row) if row else None
 
-    def create_supplier_if_not_exists(self, name: str) -> int:
-        """Crea un proveedor si no existe, retorna su ID."""
+    def create_supplier_if_not_exists(self, name: str) -> str:
+        """Crea un proveedor si no existe, retorna su ID UUIDv7."""
         existing = self.get_supplier_by_name(name)
         if existing:
             return existing['id']
-        
-        cur = self.db.execute("INSERT INTO proveedores (nombre) VALUES (?)", (name,))
-        self.db.commit()
-        return cur.lastrowid
 
-    def create_compra_inventariable(
-        self,
-        producto_id: int,
-        proveedor: str,
-        volumen: float,
-        unidad: str,
-        costo_unitario: float,
-        costo_total: float,
-        forma_pago: str,
-        es_credito: int,
-        monto_pagado: float,
-        saldo_pendiente: float,
-        fecha_vencimiento: Optional[str],
-        estado: str,
-        notas: str,
-        usuario: str,
-        categoria: str = "Compra Inventario",
-        concepto: str = "",
-        sucursal_id: int = 1
-    ) -> int:
-        """
-        Registra una compra inventariable creando el gasto y el registro en compras_inventariables.
-        Retorna el ID del registro en compras_inventariables.
-        """
-        import uuid as _uuid
-        from datetime import datetime as _dt
-        
-        hoy = _dt.now().strftime("%Y-%m-%d")
-        
-        # Obtener nombre del producto
-        prod_nombre = "Producto"
-        try:
-            prods = self.get_products_list()
-            for p in prods:
-                if p['id'] == producto_id:
-                    prod_nombre = p['nombre']
-                    break
-        except Exception:
-            pass
-        
-        # Crear registro en gastos
-        if not concepto:
-            concepto = f"Compra {prod_nombre} — {volumen}{unidad} @ ${costo_unitario}/{unidad}"
-        
-        cur_g = self.db.execute("""
-            INSERT INTO gastos
-                (fecha, categoria, concepto, monto, monto_pagado,
-                 metodo_pago, estado, proveedor_id, usuario, activo)
-            VALUES (?,?,?,?,?,?,?,?,?,1)
-        """, (
-            hoy, categoria, concepto,
-            costo_total, monto_pagado,
-            forma_pago, estado,
-            None,  # proveedor_id se maneja aparte si es necesario
-            usuario,
-        ))
-        gasto_id = cur_g.lastrowid
-        
-        # Registrar en compras_inventariables
-        ci_uuid = _uuid.uuid4().hex
-        cur_ci = self.db.execute("""
-            INSERT INTO compras_inventariables
-                (uuid, gasto_id, producto_id, proveedor,
-                 volumen, unidad, costo_unitario, costo_total,
-                 forma_pago, es_credito, monto_pagado, saldo_pendiente,
-                 fecha_vencimiento, estado, notas,
-                 sucursal_id, usuario, fecha)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
-        """, (
-            ci_uuid, gasto_id, producto_id, proveedor,
-            volumen, unidad, costo_unitario, costo_total,
-            forma_pago, es_credito, monto_pagado, saldo_pendiente,
-            fecha_vencimiento, estado, notas,
-            sucursal_id, usuario,
-        ))
-        
+        from backend.shared.ids import new_uuid
+        proveedor_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute(
+            "INSERT INTO proveedores (id, nombre) VALUES (?, ?)", (proveedor_id, name)
+        )
         self.db.commit()
-        return cur_ci.lastrowid
+        return proveedor_id
 
     def get_expense_categories(self) -> List[str]:
         """Obtiene lista de categorías únicas de gastos."""

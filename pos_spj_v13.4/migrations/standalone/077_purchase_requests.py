@@ -11,12 +11,12 @@ Absence of these tables produced:
 def run(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS purchase_requests (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            id           TEXT PRIMARY KEY,
             folio        TEXT,
             estado       TEXT    NOT NULL DEFAULT 'borrador',
             solicitante  TEXT,
-            sucursal_id  INTEGER DEFAULT 1,
-            proveedor_id INTEGER,
+            sucursal_id  TEXT,
+            proveedor_id TEXT,
             notas        TEXT,
             total_est    REAL    DEFAULT 0,
             creado_en    TEXT    DEFAULT (datetime('now')),
@@ -26,10 +26,10 @@ def run(conn):
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS purchase_request_items (
-            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-            pr_id              INTEGER NOT NULL
+            id                 TEXT PRIMARY KEY,
+            pr_id              TEXT NOT NULL
                                    REFERENCES purchase_requests(id) ON DELETE CASCADE,
-            producto_id        INTEGER NOT NULL,
+            producto_id        TEXT NOT NULL,
             cantidad_solicitada REAL   NOT NULL DEFAULT 1,
             costo_estimado     REAL    DEFAULT 0,
             unidad             TEXT    DEFAULT 'pz',
@@ -39,8 +39,8 @@ def run(conn):
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS purchase_request_events (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            pr_id      INTEGER NOT NULL
+            id         TEXT PRIMARY KEY,
+            pr_id      TEXT NOT NULL
                            REFERENCES purchase_requests(id) ON DELETE CASCADE,
             evento     TEXT    NOT NULL,
             usuario    TEXT,

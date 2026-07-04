@@ -1,6 +1,6 @@
-# MÃ³dulo actual
+# Módulo actual
 
-## CÃ³digo
+## Código
 
 ```text
 CONFIGURACION
@@ -8,15 +8,15 @@ CONFIGURACION
 
 ## Nombre
 
-ConfiguraciÃ³n.
+Configuración.
 
 ## Estado
 
 ```text
-IN_PROGRESS
+PENDING
 ```
 
-## IteraciÃ³n
+## Iteración
 
 ```text
 6
@@ -24,20 +24,20 @@ IN_PROGRESS
 
 ## Objetivo
 
-Auditar y refactorizar el mÃ³dulo de ConfiguraciÃ³n contra todo el checklist de `SPJ_REFACTOR_SKILL.md`, no solo identidad UUIDv7.
+Pendiente de definición detallada en el reporte acumulativo del módulo.
 
 ## Hallazgos abiertos
 
-- `CONFIGURACION-06-DOMAIN_RULES`: pendiente auditar las reglas de dominio del catÃ¡logo de toggles por sucursal, su normalizaciÃ³n y sus defaults canÃ³nicos tras cerrar la mutaciÃ³n legacy de PyQt.
+Pendientes de auditoría del módulo.
 
 ## Tests requeridos
 
-- Proteger que el siguiente lote no reintroduzca claves de mÃ³dulo no canÃ³nicas ni defaults implÃ­citos fuera del servicio de configuraciÃ³n.
+Pendientes de auditoría del módulo.
 
 ## Bloqueos
 
 Ninguno registrado.
 
-## PrÃ³xima acciÃ³n
+## Próxima acción
 
-`CONFIGURACION-05-MUTATIONS` cerrado sin infracciones pendientes. Continuar `CONFIGURACION-06-DOMAIN_RULES` para auditar reglas de dominio del catÃ¡logo de toggles y consolidar validaciones canÃ³nicas fuera de PyQt.
+Ejecutar auditoría del módulo actual según el flujo maestro.

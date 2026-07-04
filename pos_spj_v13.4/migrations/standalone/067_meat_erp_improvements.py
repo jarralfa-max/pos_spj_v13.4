@@ -38,7 +38,7 @@ def run(conn: sqlite3.Connection) -> None:
 
     # ── 1. production_batches — columnas de trazabilidad ─────────────────────
     _add_col(conn, "production_batches", "lote_origen_id",
-             "INTEGER REFERENCES lotes(id)")
+             "TEXT REFERENCES lotes(id)")
     _add_col(conn, "production_batches", "auto_produccion",
              "INTEGER NOT NULL DEFAULT 1")
     _add_col(conn, "production_batches", "kg_merma_real",
@@ -50,7 +50,7 @@ def run(conn: sqlite3.Connection) -> None:
 
     # ── 2. production_outputs — trazabilidad por subproducto ─────────────────
     _add_col(conn, "production_outputs", "lote_hijo_id",
-             "INTEGER REFERENCES lotes(id)")
+             "TEXT REFERENCES lotes(id)")
     _add_col(conn, "production_outputs", "merma_kg_real",
              "REAL DEFAULT 0")
     _add_col(conn, "production_outputs", "variacion_kg",
@@ -60,13 +60,13 @@ def run(conn: sqlite3.Connection) -> None:
     # SQLite no tiene ALTER COLUMN — el CHECK ya existente es laxo, agregar 'merma'
     # es compatible sin cambio de constraint dado que SQLite no enforcea CHECK en ALTER
     _add_col(conn, "produccion_detalle", "lote_id",
-             "INTEGER REFERENCES lotes(id)")
+             "TEXT REFERENCES lotes(id)")
     _add_col(conn, "produccion_detalle", "merma_kg",
              "REAL DEFAULT 0")
 
     # ── 4. lotes — genealogía padre-hijo ─────────────────────────────────────
     _add_col(conn, "lotes", "lote_padre_id",
-             "INTEGER REFERENCES lotes(id)")
+             "TEXT REFERENCES lotes(id)")
     _add_col(conn, "lotes", "batch_id",
              "TEXT REFERENCES production_batches(id)")
     _add_col(conn, "lotes", "tipo_origen",
@@ -74,7 +74,7 @@ def run(conn: sqlite3.Connection) -> None:
 
     # ── 5. movimientos_inventario — vínculo con lote ─────────────────────────
     _add_col(conn, "movimientos_inventario", "lote_id",
-             "INTEGER REFERENCES lotes(id)")
+             "TEXT REFERENCES lotes(id)")
     _add_col(conn, "movimientos_inventario", "merma_motivo",
              "TEXT")  # descripción de merma si aplica
 
@@ -89,11 +89,10 @@ def run(conn: sqlite3.Connection) -> None:
     # ── 7. Tabla merma_log — registro granular de merma ──────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS merma_log (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            uuid            TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
-            producto_id     INTEGER NOT NULL REFERENCES productos(id),
-            lote_id         INTEGER REFERENCES lotes(id),
-            produccion_id   INTEGER REFERENCES producciones(id),
+            id              TEXT PRIMARY KEY,
+            producto_id     TEXT NOT NULL REFERENCES productos(id),
+            lote_id         TEXT REFERENCES lotes(id),
+            produccion_id   TEXT REFERENCES producciones(id),
             batch_id        TEXT REFERENCES production_batches(id),
             merma_kg        REAL NOT NULL DEFAULT 0,
             merma_pct_real  REAL DEFAULT 0,
@@ -101,7 +100,7 @@ def run(conn: sqlite3.Connection) -> None:
             desviacion_pct  REAL GENERATED ALWAYS AS (merma_pct_real - merma_pct_esperada) VIRTUAL,
             motivo          TEXT DEFAULT 'PRODUCCION',  -- PRODUCCION|CADUCIDAD|AJUSTE|TRANSPORTE
             costo_perdida   REAL DEFAULT 0,
-            sucursal_id     INTEGER DEFAULT 1,
+            sucursal_id     TEXT,
             usuario         TEXT,
             fecha           DATETIME DEFAULT (datetime('now'))
         )

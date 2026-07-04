@@ -77,7 +77,24 @@
         "publishing Configuracion permission event payloads with integer user_id or role_id values",
         "reintroducing numeric legacy id acceptance in ConfigRepository canonical UUID routes",
         "reintroducing Configuracion runtime fallbacks to id, rol_id or sucursal_id once UUID columns are present"
-      ]
+      ],
+      "module_audit_progress": {
+        "branch": "claude/sleepy-goodall-33uld6",
+        "pr": 302,
+        "note": "F1-F8 of SPJ_REFACTOR_SKILL executed against CONFIGURACION (see modules/configuracion.md). Batch stays IN_PROGRESS until the global atomic UUID cutover (migration 200) replaces integer PK/FK, lastrowid and CAST-as-text fallbacks.",
+        "fases_done": [
+          "F1-no-sql-ui",
+          "F2-uuid-labels",
+          "F3-uow",
+          "F4-dtos",
+          "F5-single-source",
+          "F6-use-cases",
+          "F7-events-idempotency",
+          "F8-external-integrations"
+        ],
+        "module_tests_passed": 83,
+        "regressions": 0
+      }
     },
     {
       "id": "CONFIGURACION-03-UI",

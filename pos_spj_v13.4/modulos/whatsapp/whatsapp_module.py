@@ -48,7 +48,7 @@ class ModuloWhatsApp(QWidget):
     def __init__(self, container, parent=None) -> None:
         super().__init__(parent)
         self.container   = container
-        self.sucursal_id = 1
+        self.sucursal_id = getattr(container, "sucursal_id", "") or ""
         self.usuario     = ""
 
         self._svc  = WhatsAppAdminService(container.db)

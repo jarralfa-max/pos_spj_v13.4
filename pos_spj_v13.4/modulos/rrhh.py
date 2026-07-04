@@ -166,7 +166,7 @@ class ModuloRRHH(QWidget):
                 self._init_refresh(container, ["EMPLEADO_ACTUALIZADO"])
         except Exception: pass
         self.container = container
-        self.sucursal_id = 1
+        self.sucursal_id = getattr(container, "sucursal_id", "") or ""
         self.usuario_actual = ""
         self.employee_service = EmployeeApplicationService(
             SQLiteEmployeeRepository(container.db)
@@ -472,7 +472,7 @@ class ModuloRRHH(QWidget):
         # [spj-dedup removed local QMessageBox import]
         row = self._tbl_roles_turno.currentRow()
         if row < 0: return
-        rid = int(self._tbl_roles_turno.item(row,0).text())
+        rid = self._tbl_roles_turno.item(row,0).text()
         if QMessageBox.question(self,"Confirmar","¿Eliminar este rol?",
            QMessageBox.Yes|QMessageBox.No) != QMessageBox.Yes: return
         conn = self.container.db if hasattr(self,'container') else self.conexion
@@ -741,7 +741,7 @@ class ModuloRRHH(QWidget):
                         fecha_fin=self._nomina_fin,
                         metodo_pago=metodo,
                     )
-                    result = _uc.ejecutar(sol, getattr(self, 'sucursal_id', 1), self.usuario_actual)
+                    result = _uc.ejecutar(sol, getattr(self, 'sucursal_id', '') or '', self.usuario_actual)
                     if result.ok:
                         Toast.success(
                             self, "Nómina procesada",
@@ -1022,8 +1022,9 @@ class ModuloRRHH(QWidget):
                         "UPDATE puestos SET nombre=?,descripcion=? WHERE id=?",
                         (nombre, desc, puesto_id))
                 else:
+                    from backend.shared.ids import new_uuid
                     self.container.db.execute(
-                        "INSERT INTO puestos(nombre,descripcion) VALUES(?,?)", (nombre, desc))
+                        "INSERT INTO puestos(id,nombre,descripcion) VALUES(?,?,?)", (new_uuid(), nombre, desc))
                 try: self.container.db.commit()
                 except Exception: pass
                 _cargar()
@@ -1035,7 +1036,7 @@ class ModuloRRHH(QWidget):
         # [spj-dedup removed local QMessageBox import]
             row = self.tbl_puestos.currentRow()
             if row < 0: return
-            pid  = int(self.tbl_puestos.item(row,0).text())
+            pid  = self.tbl_puestos.item(row,0).text()
             if QMessageBox.question(self,"Confirmar","¿Eliminar puesto?",
                QMessageBox.Yes|QMessageBox.No) != QMessageBox.Yes: return
             self.container.db.execute("UPDATE puestos SET activo=0 WHERE id=?", (pid,))
@@ -1045,7 +1046,7 @@ class ModuloRRHH(QWidget):
 
         btn_nuevo.clicked.connect(lambda: _dialogo())
         btn_editar.clicked.connect(lambda: _dialogo(
-            int(self.tbl_puestos.item(self.tbl_puestos.currentRow(),0).text())
+            self.tbl_puestos.item(self.tbl_puestos.currentRow(),0).text()
             if self.tbl_puestos.currentRow() >= 0 else None))
         btn_borrar.clicked.connect(_borrar)
         _cargar()
@@ -1057,7 +1058,7 @@ class ModuloRRHH(QWidget):
             QMessageBox.warning(self,"Aviso","Selecciona un registro de vacaciones."); return
         vac_id_item = self.tbl_vac.item(row, 0)
         if not vac_id_item: return
-        vac_id = int(vac_id_item.text())
+        vac_id = vac_id_item.text().strip()
         try:
             self.container.db.execute(
                 "UPDATE vacaciones_personal SET estado=? WHERE id=?", (nuevo_estado, vac_id))
@@ -1192,10 +1193,11 @@ class ModuloRRHH(QWidget):
         emp_id = cmb_emp.currentData()
         if not emp_id: return
         try:
+            from backend.shared.ids import new_uuid
             self.container.db.execute(
-                "INSERT INTO evaluaciones_personal(personal_id,periodo,calificacion,evaluador,fecha) "
-                "VALUES(?,?,?,?,date('now'))",
-                (emp_id, txt_per.text().strip(), spin_cal.value(), txt_eva.text().strip()))
+                "INSERT INTO evaluaciones_personal(id,personal_id,periodo,calificacion,evaluador,fecha) "
+                "VALUES(?,?,?,?,?,date('now'))",
+                (new_uuid(), emp_id, txt_per.text().strip(), spin_cal.value(), txt_eva.text().strip()))
             try: self.container.db.commit()
             except Exception: pass
             self._cargar_evaluaciones_rrhh()

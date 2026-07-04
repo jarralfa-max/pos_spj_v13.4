@@ -183,13 +183,26 @@ def inicializar_sistema():
     try:
         import sqlite3
         from core.db.connection import migrate_db, verificar_tablas
+        from backend.infrastructure.db.uuid_cutover import (
+            assert_uuid_identity, IntegerIdentityError,
+        )
         _mig_conn = sqlite3.connect(DB_PATH)
         migrator.up(_mig_conn)
         migrate_db(_mig_conn)
         verificar_tablas(_mig_conn)
+        # REGLA CERO paso 13: rechazar el arranque si la DB sigue sin cortar
+        # (PK enteras). El runtime asume identidad UUIDv7 post-corte.
+        assert_uuid_identity(_mig_conn)
         _mig_conn.close()
         _mig_conn = None
         logger.info("✅ Migraciones OK")
+    except IntegerIdentityError as e:
+        if _mig_conn:
+            try: _mig_conn.close()
+            except Exception: pass
+        logger.critical("DB sin identidad UUIDv7 born-clean — en desarrollo resetea la BD (docs/runbooks/dev_db_reset.md); NO uses la migración 200 como solución normal: %s", e)
+        QMessageBox.critical(None, "Error Fatal — Identidad UUIDv7 requerida", str(e))
+        sys.exit(1)
     except RuntimeError as e:
         if _mig_conn:
             try: _mig_conn.close()

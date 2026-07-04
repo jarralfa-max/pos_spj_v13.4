@@ -156,7 +156,7 @@ class ChangeDeliveryStatusUseCase:
             self.sale_projection.project_status_for_order(order, target)
 
         folio = order.get("folio") or f"DEL-{order_id}"
-        sucursal_id = int(order.get("sucursal_id") or 1)
+        sucursal_id = order.get("sucursal_id") or None
         cliente_tel = order.get("cliente_tel") or ""
         base = {
             "_event_type": f"DELIVERY_ORDER_{target.upper()}",

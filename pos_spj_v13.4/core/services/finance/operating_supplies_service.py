@@ -103,7 +103,7 @@ class OperatingSuppliesService:
                 "SELECT id FROM operating_supplies WHERE operation_id=?", (operation_id,)
             )
             if existing:
-                result["supply_id"] = int(existing["id"])
+                result["supply_id"] = existing["id"]  # UUIDv7 (sin cast)
                 return result
         except Exception as exc:
             logger.debug("operating_supplies no disponible: %s", exc)
@@ -166,14 +166,17 @@ class OperatingSuppliesService:
 
         # Insertar operating_supply
         try:
-            cur = self._db.execute(
+            from backend.shared.ids import new_uuid
+            supply_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+            self._db.execute(
                 """INSERT INTO operating_supplies
-                       (supply_type, description, quantity, unit_cost, total_amount,
+                       (id, supply_type, description, quantity, unit_cost, total_amount,
                         status, supplier_id, branch_id, source_module, source_id,
                         source_folio, financial_document_id, treasury_movement_id,
                         journal_entry_id, operation_id, metadata_json)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
+                    supply_id,
                     supply_type, description, float(quantity), float(uc), float(total_amount),
                     "paid" if paid_now else "pending",
                     supplier_id, branch_id, source_module, source_id, source_folio,
@@ -182,7 +185,7 @@ class OperatingSuppliesService:
                     json.dumps(metadata or {}, ensure_ascii=False, default=str),
                 ),
             )
-            result["supply_id"] = cur.lastrowid or 0
+            result["supply_id"] = supply_id
         except Exception as exc:
             logger.warning("operating_supplies INSERT op=%s: %s", operation_id, exc)
 
