@@ -1338,6 +1338,44 @@ class ModuloVentas(ModuloBase):
             logger.warning("No se pudieron recargar productos al cambiar sucursal: %s", exc)
         logger.info(f"✅ Ventas → sucursal activa: {sucursal_nombre} (id={sucursal_id})")
 
+    # ── Contrato de refresh en caliente (Remediación B) ───────────────────────
+    # MainWindow hace fan-out de PRODUCTS_CHANGED / BRANCHES_CHANGED a estos
+    # métodos (core/events/catalog_events.py). Antes el POS solo recargaba el
+    # catálogo al cambiar de sucursal o tras su propia venta: un producto/precio
+    # creado en otro módulo no aparecía hasta reabrir Ventas.
+    def refresh_products(self) -> None:
+        """Recarga el grid de productos y el modelo de autocompletado en caliente."""
+        try:
+            self.cargar_productos_interactivos()
+        except Exception as exc:
+            logger.warning("refresh_products (grid): %s", exc)
+        try:
+            self.actualizar_completer_model()
+        except Exception as exc:
+            logger.debug("refresh_products (completer): %s", exc)
+
+    def on_products_changed(self, payload: dict) -> None:
+        self.refresh_products()
+
+    def on_branches_changed(self, payload: dict) -> None:
+        """Refresca el rótulo de terminal si la sucursal activa fue renombrada.
+
+        Usa el payload del evento (branch_id/branch_name) — sin SQL en UI. Solo
+        actúa si el evento corresponde a la sucursal activa de esta terminal.
+        """
+        try:
+            data = payload or {}
+            changed_id = str(data.get("branch_id") or "")
+            nombre = str(data.get("branch_name") or "")
+            if not changed_id or changed_id != str(getattr(self, "sucursal_id", "") or ""):
+                return
+            if nombre and nombre != getattr(self, "sucursal_nombre", ""):
+                self.sucursal_nombre = nombre
+                if hasattr(self, "_btn_terminal_hw"):
+                    self._btn_terminal_hw.setText(f"💳 {nombre}")
+        except Exception as exc:
+            logger.debug("on_branches_changed: %s", exc)
+
     def inicializar_completer(self):
         """Completer removed — real-time search handles this without popup."""
         logger.debug("Completer legacy deshabilitado; búsqueda en tiempo real activa.")

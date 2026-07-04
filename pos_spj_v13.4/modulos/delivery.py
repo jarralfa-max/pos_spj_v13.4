@@ -1261,6 +1261,24 @@ class ModuloDelivery(QWidget, RefreshMixin):
         self.sucursal_id = sucursal_id
         self.sucursal_nombre = sucursal_nombre
 
+    # ── Contrato de refresh en caliente (Remediación B) ───────────────────────
+    # MainWindow hace fan-out de PRODUCTS_CHANGED / BRANCHES_CHANGED aquí. Los
+    # diálogos de pedido re-consultan productos/repartidores al abrir; basta con
+    # recargar la lista de pedidos para participar del refresh global.
+    def refresh_products(self) -> None:
+        from PyQt5.QtCore import QTimer as _QT
+        _QT.singleShot(0, lambda: self.cargar_pedidos(silent=True) if self.isVisible() else None)
+
+    def on_products_changed(self, payload: dict) -> None:
+        self.refresh_products()
+
+    def refresh_branches(self) -> None:
+        from PyQt5.QtCore import QTimer as _QT
+        _QT.singleShot(0, lambda: self.cargar_pedidos(silent=True) if self.isVisible() else None)
+
+    def on_branches_changed(self, payload: dict) -> None:
+        self.refresh_branches()
+
     def cerrar_sesion(self) -> None:
         self.usuario = ""
 
