@@ -98,8 +98,11 @@ def _wire_raffle_finance_handlers(bus, container) -> None:
 
     def _post_if_new(data: dict, tipo: str, debe: str, haber: str, concepto: str) -> None:
         try:
-            raffle_id = str(data.get("raffle_id") or "")
-            if raffle_id <= 0:
+            # REGLA CERO: raffle_id es UUID string — se valida como no-vacío.
+            # (El código anterior comparaba str <= 0 → TypeError silencioso que
+            # impedía registrar TODOS los asientos financieros de rifas.)
+            raffle_id = str(data.get("raffle_id") or "").strip()
+            if not raffle_id:
                 return
             referencia = str(data.get("referencia") or "").strip()
             if not referencia:

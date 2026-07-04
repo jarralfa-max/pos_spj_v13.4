@@ -99,11 +99,14 @@ class ModuloProduccion(ModuloBase):
         from core.db.connection import wrap
         self.conexion        = wrap(db_conn)
         self.main_window     = parent
-        self.sucursal_id     = 1
-        self.sucursal_nombre = "Principal"
+        # Sucursal desde el contexto de sesión (UUID str); sin fallback a
+        # 1/'Principal' (REGLA CERO). Si aún no hay sucursal activa, queda
+        # vacía y set_sucursal() la fijará al propagarse el login.
+        self.sucursal_id     = str(getattr(self.container, "sucursal_id", "") or "") if self.container else ""
+        self.sucursal_nombre = str(getattr(self.container, "sucursal_nombre", "") or "") if self.container else ""
         self.usuario_actual  = "Sistema"
         self._db_wrapped     = self.conexion
-        self._engine         = RecipeEngine(self._db_wrapped, branch_id=1)
+        self._engine         = RecipeEngine(self._db_wrapped, branch_id=self.sucursal_id)
         self._svc            = self._build_svc()
         self._recetas_cache: List[Dict] = []
         self._init_ui()
@@ -124,11 +127,11 @@ class ModuloProduccion(ModuloBase):
         except Exception:
             return None
 
-    def set_sucursal(self, sucursal_id: int, sucursal_nombre: str) -> None:
-        self.sucursal_id     = sucursal_id
+    def set_sucursal(self, sucursal_id: str, sucursal_nombre: str) -> None:
+        self.sucursal_id     = str(sucursal_id or "")
         self.sucursal_nombre = sucursal_nombre
         self._db_wrapped = self.conexion
-        self._engine = RecipeEngine(self._db_wrapped, branch_id=sucursal_id)
+        self._engine = RecipeEngine(self._db_wrapped, branch_id=self.sucursal_id)
         self._svc    = self._build_svc()
 
     def set_usuario_actual(self, usuario: str, rol: str = "") -> None:

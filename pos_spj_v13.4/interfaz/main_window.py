@@ -7,7 +7,7 @@ import logging
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QStackedWidget,
                              QLabel, QDialog, QVBoxLayout, QLineEdit, QPushButton,
                              QMessageBox, QFrame, QSizePolicy)
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, pyqtSlot
 
 logger = logging.getLogger("spj.main_window")
 
@@ -881,6 +881,13 @@ class MainWindow(QMainWindow):
         # ── Session timeout: cierra sesión por inactividad ────────────────────
         self._arrancar_session_timeout()
 
+        # ── Inbox POS + badges de pedidos: arrancan tras CADA login ──────────
+        # (Antes vivían al final de aplicar_sucursal_activa(), que solo corre
+        # al re-anclar la sucursal desde Configuración — tras un login normal
+        # el inbox y el timer de badges nunca arrancaban.)
+        QTimer.singleShot(800, self._mostrar_inbox_login)
+        QTimer.singleShot(500, self._start_badge_refresh)
+
     def aplicar_sucursal_activa(self, sucursal_id: str, nombre: str = "") -> None:
         """Propaga EN VIVO un cambio de sucursal activa a toda la sesión.
 
@@ -929,10 +936,6 @@ class MainWindow(QMainWindow):
             })
         except Exception as _e:
             import logging; logging.getLogger(__name__).debug("ACTIVE_BRANCH_CHANGED publish: %s", _e)
-
-        # ── Inbox POS: mostrar mensajes no leídos tras login ──────────────────
-        QTimer.singleShot(800, self._mostrar_inbox_login)
-        QTimer.singleShot(500, self._start_badge_refresh)
 
     def refresh_module_access(self) -> None:
         """Reaplica permisos del usuario activo sobre el menú lateral."""
@@ -1048,11 +1051,15 @@ class MainWindow(QMainWindow):
             usuario_id = self.usuario_actual.get('id') if self.usuario_actual else None
             if not usuario_id:
                 return
-            # Buscar empleado_id asociado al usuario
+            # Buscar el empleado vinculado AL USUARIO LOGUEADO. (El código
+            # anterior tomaba el primer empleado activo de la tabla, mostrando
+            # y marcando como leído el inbox de OTRO empleado.)
             row = self.container.db.execute(
-                "SELECT id FROM personal WHERE activo=1 LIMIT 1"
+                "SELECT id FROM personal WHERE usuario_id=? AND activo=1 LIMIT 1",
+                (str(usuario_id),),
             ).fetchone()
             if not row:
+                # Usuario sin empleado vinculado: no hay inbox que mostrar.
                 return
             notifs = self.container.notification_service.get_inbox_empleado(
                 row[0], solo_no_leidos=True
@@ -1134,8 +1141,16 @@ class MainWindow(QMainWindow):
             )
         except Exception:
             pass  # fallback silencioso si la ventana ya cerró
-    def _on_pedido_nuevo(self, pedido: dict) -> None:
-        """Actualiza el badge y muestra notificación cuando llega pedido WA."""
+    @pyqtSlot()
+    @pyqtSlot(dict)
+    def _on_pedido_nuevo(self, pedido: dict = None) -> None:
+        """Actualiza el badge y muestra notificación cuando llega pedido WA.
+
+        Decorado con @pyqtSlot para que QMetaObject.invokeMethod (usado por
+        _on_pedido_nuevo_bus desde el hilo del EventBus) lo encuentre: sin el
+        decorador la invocación fallaba en silencio y el badge solo se
+        actualizaba por el polling de 7s/30s.
+        """
         try:
             self._refresh_order_badges()
         except Exception:

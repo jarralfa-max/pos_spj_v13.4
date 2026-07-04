@@ -828,14 +828,46 @@ class ModuloReportesBIv2(QWidget):
         )
 
     def _wire_business_events(self) -> None:
-        """Refresco reactivo ante eventos de negocio del ERP."""
+        """Refresco reactivo ante eventos de negocio del ERP.
+
+        Se suscribe a los canales REALES del bus. (Los canales anteriores —
+        'venta_confirmada', 'stock_actualizado', 'pago_registrado' — no los
+        emite nadie en el repo, por lo que el dashboard nunca se refrescaba
+        en caliente.) Debounce de 800 ms para no recargar por cada evento de
+        una ráfaga.
+        """
+        self._bi_refresh_pending = False
         try:
-            from core.events.event_bus import get_bus
-            from PyQt5.QtCore import QTimer as _QT
+            from core.events.event_bus import (
+                get_bus,
+                VENTA_COMPLETADA,
+                COMPRA_REGISTRADA,
+                MOVIMIENTO_FINANCIERO,
+                AJUSTE_INVENTARIO,
+            )
             bus = get_bus()
-            for evt in ("venta_confirmada", "stock_actualizado", "pago_registrado"):
-                bus.subscribe(evt, lambda _p, _self=self: _QT.singleShot(0, _self.cargar_dashboard),
-                              label=f"bi_v2.refresh.{evt}")
+            for evt in (VENTA_COMPLETADA, COMPRA_REGISTRADA,
+                        MOVIMIENTO_FINANCIERO, AJUSTE_INVENTARIO):
+                bus.subscribe(evt, self._on_business_event,
+                              label=f"bi_v2.refresh.{evt.lower()}")
+        except Exception:
+            pass
+
+    def _on_business_event(self, _payload: dict) -> None:
+        """Handler del bus (posible hilo background) → hilo Qt con debounce."""
+        if getattr(self, "_bi_refresh_pending", False):
+            return
+        self._bi_refresh_pending = True
+        try:
+            from PyQt5.QtCore import QTimer as _QT
+            _QT.singleShot(800, self._do_business_refresh)
+        except Exception:
+            self._bi_refresh_pending = False
+
+    def _do_business_refresh(self) -> None:
+        self._bi_refresh_pending = False
+        try:
+            self.cargar_dashboard()
         except Exception:
             pass
 

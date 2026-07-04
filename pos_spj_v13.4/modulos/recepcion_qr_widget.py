@@ -2234,7 +2234,10 @@ class RecepcionQRWidget(QWidget):
             for r in rows:
                 self._cmb_sucursal_destino.addItem(f"🏪 {r[1]}", r[0])
         except Exception:
-            self._cmb_sucursal_destino.addItem("Principal", 1)
+            # Sin fallback a 'Principal'/id entero (REGLA CERO): el combo queda
+            # vacío y el problema es visible, en vez de recibir mercancía en
+            # una sucursal '1' inexistente.
+            logger.exception("No se pudieron cargar sucursales para recepción QR")
 
     def _reimprimir_qr(self, uuid_qr: str) -> None:
         """Regenera e imprime el QR de un contenedor existente."""
