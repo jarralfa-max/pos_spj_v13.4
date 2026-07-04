@@ -53,9 +53,17 @@ def test_wiring_no_compara_raffle_id_str_con_int():
 
 def test_inbox_login_filtra_por_usuario():
     body = _method_source("interfaz/main_window.py", "MainWindow", "_mostrar_inbox_login")
-    assert "usuario_id" in body and "WHERE usuario_id=?" in body.replace("  ", " "), (
+    flat = " ".join(body.split())
+    assert "usuario_id=?" in flat, (
         "B7: _mostrar_inbox_login debe buscar el empleado vinculado al usuario "
         "logueado (personal.usuario_id), no el primer empleado activo."
+    )
+    # Review Codex P2: también debe resolver por el vínculo canónico
+    # usuarios.personal_id (lo escribe link_user_to_employee del RRHH
+    # identity service; personal.usuario_id puede no estar poblado).
+    assert "personal_id" in flat, (
+        "B7: la búsqueda del empleado debe cubrir usuarios.personal_id "
+        "(vínculo canónico del RRHH identity service)."
     )
     assert "WHERE activo=1 LIMIT 1" not in body, (
         "B7: query sin filtro de usuario — muestra/marca leído el inbox de "

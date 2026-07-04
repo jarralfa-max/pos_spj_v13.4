@@ -1054,9 +1054,20 @@ class MainWindow(QMainWindow):
             # Buscar el empleado vinculado AL USUARIO LOGUEADO. (El código
             # anterior tomaba el primer empleado activo de la tabla, mostrando
             # y marcando como leído el inbox de OTRO empleado.)
+            # Dos rutas de vínculo: personal.usuario_id (legacy) y
+            # usuarios.personal_id (canónica — la escribe
+            # SQLiteEmployeeIdentityRepository.link_user_to_employee).
             row = self.container.db.execute(
-                "SELECT id FROM personal WHERE usuario_id=? AND activo=1 LIMIT 1",
-                (str(usuario_id),),
+                """
+                SELECT p.id FROM personal p
+                 WHERE p.usuario_id=? AND p.activo=1
+                UNION
+                SELECT p.id FROM personal p
+                  JOIN usuarios u ON u.personal_id = p.id
+                 WHERE u.id=? AND p.activo=1
+                LIMIT 1
+                """,
+                (str(usuario_id), str(usuario_id)),
             ).fetchone()
             if not row:
                 # Usuario sin empleado vinculado: no hay inbox que mostrar.

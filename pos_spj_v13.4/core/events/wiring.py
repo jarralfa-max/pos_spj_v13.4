@@ -113,17 +113,28 @@ def _wire_raffle_finance_handlers(bus, container) -> None:
             usuario = str(data.get("usuario") or "sistema")
             sucursal_id = str(data.get("sucursal_id") or "")
 
-            # Guardia idempotente: UNIQUE(raffle_id, tipo, referencia)
+            # Guardia idempotente PROPIA del handler: UNIQUE(raffle_id, tipo,
+            # referencia) con namespace 'gl:'. Los flujos reales (LoyaltyRepository
+            # reserve/release/mark_prize_delivered) ya insertan el triple
+            # (raffle_id, tipo, referencia) ANTES de publicar el evento, así que
+            # insertar el mismo tipo aquí chocaba SIEMPRE con el UNIQUE y el
+            # asiento se saltaba. El namespace 'gl:' es exclusivo de este handler
+            # (los reportes filtran por los tipos base, no les afecta) y se acuña
+            # id con new_uuid() — antes se insertaba con PK NULL silencioso.
+            from backend.shared.ids import new_uuid as _new_uuid
             try:
                 repo.db.execute(
                     """
                     INSERT INTO raffle_financial_ledger
-                    (raffle_id, tipo, monto, referencia, descripcion, usuario, sucursal_id)
-                    VALUES(?,?,?,?,?,?,?)
+                    (id, raffle_id, tipo, monto, referencia, descripcion, usuario, sucursal_id)
+                    VALUES(?,?,?,?,?,?,?,?)
                     """,
-                    (raffle_id, tipo, monto, referencia, concepto, usuario, sucursal_id),
+                    (_new_uuid(), raffle_id, f"gl:{tipo}", monto, referencia,
+                     f"Asiento GL: {concepto}", usuario, sucursal_id),
                 )
             except Exception:
+                # Ya existe el registro gl: → el asiento de ESTE evento ya se
+                # registró antes (redelivery). No duplicar.
                 return
 
             fs.registrar_asiento(

@@ -18,7 +18,7 @@ from PyQt5.QtWidgets import (
     QCompleter, QDateEdit, QSpinBox, QDoubleSpinBox,
     QFileDialog
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QMetaObject, pyqtSlot
 from PyQt5.QtGui import QFont
 
 class ModuloReportesBIv2(QWidget):
@@ -854,7 +854,24 @@ class ModuloReportesBIv2(QWidget):
             pass
 
     def _on_business_event(self, _payload: dict) -> None:
-        """Handler del bus (posible hilo background) → hilo Qt con debounce."""
+        """Handler del bus → hilo Qt vía invokeMethod.
+
+        VENTA_COMPLETADA y MOVIMIENTO_FINANCIERO se publican con async_=True,
+        así que este handler corre en el ThreadPoolExecutor del bus. Un
+        QTimer.singleShot desde ese hilo (sin event loop Qt) no dispararía y
+        dejaría el debounce atascado; invokeMethod con QueuedConnection
+        despacha el slot en el hilo del widget.
+        """
+        try:
+            QMetaObject.invokeMethod(
+                self, "_schedule_business_refresh", Qt.QueuedConnection
+            )
+        except Exception:
+            pass  # widget destruido o Qt no disponible — sin refresh
+
+    @pyqtSlot()
+    def _schedule_business_refresh(self) -> None:
+        """Corre en el hilo Qt: aplica el debounce de 800 ms."""
         if getattr(self, "_bi_refresh_pending", False):
             return
         self._bi_refresh_pending = True
