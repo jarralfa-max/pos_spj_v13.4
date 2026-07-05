@@ -317,18 +317,17 @@ class DialogoLogin(QDialog):
             from PyQt5.QtGui import QPixmap as _QP
             import os
             _db = getattr(getattr(self.auth_service, 'repo', None), 'db', None)
+            _logo = ""
             if _db:
-                _r = _db.execute(
-                    "SELECT valor FROM configuraciones WHERE clave='logo_path'"
-                ).fetchone()
-                if _r and _r[0] and os.path.exists(_r[0]):
-                    _pix = _QP(_r[0])
-                    if not _pix.isNull():
-                        _scaled = _pix.scaled(
-                            64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                        self.lbl_logo.setPixmap(_scaled)
-                    else:
-                        raise Exception()
+                # Lectura vía repositorio (sin SQL en el diálogo — Remediación D).
+                from repositories.config_repository import ConfigRepository
+                _logo = ConfigRepository(_db).get_setting('logo_path', '')
+            if _logo and os.path.exists(_logo):
+                _pix = _QP(_logo)
+                if not _pix.isNull():
+                    _scaled = _pix.scaled(
+                        64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    self.lbl_logo.setPixmap(_scaled)
                 else:
                     raise Exception()
             else:

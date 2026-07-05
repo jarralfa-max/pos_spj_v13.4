@@ -356,8 +356,6 @@ DEPRECATED_SERVICES_WITH_BUSINESS_LOGIC_ALLOWLIST = {
 # un diálogo se limpia, su entrada DEBE retirarse (el test falla si queda obsoleta).
 # Referencia: DEEP_AUDIT_ALL_MODULES §8 y §17 (Remediación D), test T8.
 DIALOG_BUSINESS_LOGIC_ALLOWLIST = {
-    'pos_spj_v13.4/interfaz/main_window.py::DialogoLogin': ['execute'],
-    'pos_spj_v13.4/modulos/caja.py::DialogoCorteZCiego': ['execute'],
-    'pos_spj_v13.4/modulos/cotizaciones.py::DialogoNuevaCotizacion': ['execute'],
-    'pos_spj_v13.4/modulos/productos.py::DialogoProducto': ['execute'],
+    # Vacío: ningún QDialog en modulos/, ui/ o interfaz/ ejecuta SQL/commit/
+    # publish/asiento. El contrato queda enforced sin deuda tolerada.
 }

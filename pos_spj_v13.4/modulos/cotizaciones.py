@@ -532,7 +532,9 @@ class DialogoNuevaCotizacion(QDialog):
 
     def __init__(self, db, usuario: str, modulo, parent=None):
         super().__init__(parent)
+        from core.services.cotizacion_service import CotizacionService
         self._db     = db
+        self._cot_svc = CotizacionService(db)
         self._usuario = usuario
         self._modulo  = modulo
         self._items: List[Dict] = []
@@ -606,9 +608,7 @@ class DialogoNuevaCotizacion(QDialog):
         self._cmb_prod.clear()
         self._cmb_prod.addItem("— Seleccionar producto —", None)
         try:
-            rows = self._db.execute(
-                "SELECT id, nombre, precio, unidad FROM productos WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
+            rows = self._cot_svc.productos_activos()
             for r in rows:
                 self._cmb_prod.addItem(f"{r[1]} (${float(r[2]):.2f}/{r[3] or 'kg'})", r[0])
                 self._cmb_prod.setItemData(self._cmb_prod.count()-1, {

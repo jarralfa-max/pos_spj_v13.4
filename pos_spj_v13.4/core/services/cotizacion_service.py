@@ -16,6 +16,13 @@ class CotizacionService:
         self.container = container  # AppContainer for full service chain
         # Schema lo crean las migraciones (m000 / 044): el servicio no crea schema (REGLA 11).
 
+    def productos_activos(self) -> list:
+        """Catálogo de productos activos para armar cotizaciones (id, nombre, precio, unidad).
+        Ruta canónica: el diálogo delega esta lectura aquí (Remediación D)."""
+        return self.conn.execute(
+            "SELECT id, nombre, precio, unidad FROM productos WHERE activo=1 ORDER BY nombre"
+        ).fetchall()
+
     def crear(self, items: list, cliente_id: str = None, cliente_nombre: str = "",
               notas: str = "", vigencia_dias: int = 7, descuento_global: float = 0) -> dict:
         subtotal = sum(float(i["cantidad"]) * float(i["precio_unitario"]) for i in items)

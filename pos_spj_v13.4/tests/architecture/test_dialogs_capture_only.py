@@ -26,11 +26,14 @@ from tests.architecture.allowlists import DIALOG_BUSINESS_LOGIC_ALLOWLIST
 REPO = Path(__file__).resolve().parents[2]
 PRESENTATION_DIRS = ("modulos", "ui", "interfaz")
 
-# Llamadas que un diálogo NUNCA debe realizar: acceso directo a DB, transacción,
-# publicación de eventos o asiento contable.
-FORBIDDEN_CALLS = frozenset(
-    {"execute", "executescript", "executemany", "commit", "publish", "registrar_asiento"}
-)
+# Llamadas que un diálogo NUNCA debe realizar: transacción, publicación de
+# eventos o asiento contable. Estas se prohíben incondicionalmente.
+FORBIDDEN_CALLS = frozenset({"commit", "publish", "registrar_asiento"})
+
+# Acceso directo a la DB. Sólo cuenta como violación cuando el PRIMER argumento
+# es una cadena SQL (literal o f-string); así NO se marca el patrón legítimo de
+# caso de uso `use_case.execute(command)`, que pasa un objeto/comando, no SQL.
+SQL_EXEC_CALLS = frozenset({"execute", "executescript", "executemany"})
 
 
 def _is_qdialog(cls: ast.ClassDef) -> bool:
@@ -41,6 +44,25 @@ def _is_qdialog(cls: ast.ClassDef) -> bool:
     return False
 
 
+def _first_arg_is_sql(node: ast.Call) -> bool:
+    """True si el primer argumento parece SQL (literal str o f-string)."""
+    if not node.args:
+        return False
+    arg = node.args[0]
+    if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+        return True
+    if isinstance(arg, ast.JoinedStr):  # f-string
+        return True
+    # SQL construido con "...".format(...) o "..." % (...)
+    if isinstance(arg, ast.Call) and isinstance(arg.func, ast.Attribute) \
+            and arg.func.attr == "format" and isinstance(arg.func.value, ast.Constant):
+        return True
+    if isinstance(arg, ast.BinOp) and isinstance(arg.op, ast.Mod) \
+            and isinstance(arg.left, ast.Constant) and isinstance(arg.left.value, str):
+        return True
+    return False
+
+
 def _forbidden_hits(cls: ast.ClassDef) -> list[str]:
     hits: set[str] = set()
     for node in ast.walk(cls):
@@ -48,6 +70,8 @@ def _forbidden_hits(cls: ast.ClassDef) -> list[str]:
             fn = node.func
             name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", "")
             if name in FORBIDDEN_CALLS:
+                hits.add(name)
+            elif name in SQL_EXEC_CALLS and _first_arg_is_sql(node):
                 hits.add(name)
     return sorted(hits)
 
