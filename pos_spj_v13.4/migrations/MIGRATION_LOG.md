@@ -441,3 +441,39 @@ de `tests/test_core_services.py`, `test_financial_core_enforcement.py`,
 **D1 cerrado en lo esencial**: la caja tiene una única ruta de turno/corte Z
 canónica (turnos_caja + finance_service.generar_corte_z, superset), el scheduler la
 usa, y los trackers/servicios legacy están deprecados y bloqueados por guardrails.
+
+---
+
+## Remediación E — KPIs y dashboards event-driven
+
+Contrato: los KPIs se refrescan por EVENTOS, no por timers. El guardrail lo
+enforcea y se corrigieron los canales huérfanos que encontró.
+
+Guardrail (T9)
+- `tests/architecture/test_kpis_subscribe_real_events.py`: AST sobre modulos/,
+  ui/, interfaz/ — cada evento `subscribe(...)` debe tener un emisor `publish`/
+  `_publish`/`_publish_safe`/`emit` en el código. Resuelve literales, constantes
+  de event_bus/domain_events, `EventName.X.value`, y el patrón `for evt in (…)`.
+  Allowlist para emisión dinámica (PRODUCTO_* vía dict-dispatch en catalog_events).
+
+Canales huérfanos corregidos (B6/B10)
+- RECETA_CREADA / RECETA_ACTUALIZADA: la UI de producción los escuchaba pero
+  nadie los emitía. `RecipeService.create_recipe/update_recipe/deactivate_recipe`
+  ahora los publican (best-effort) desde el punto canónico de escritura.
+  Cubierto por `tests/test_recipe_events.py`.
+- DELIVERY_UPDATE: canal muerto (sin emisor). Retirada la suscripción en
+  `modulos/delivery.py`; la recarga ya ocurre por PEDIDO_NUEVO/PEDIDO_ACTUALIZADO/
+  VENTA_COMPLETADA. Migrar a DeliveryEvents canónicos es follow-up de delivery.
+
+Timers → fallback
+- `finanzas_unificadas._wire_kpi_auto_refresh`: el timer de KPIs baja de 15 s a
+  60 s (red de seguridad); el refresh en caliente lo dan los eventos. Test de
+  wiring actualizado (estaba rojo por drift de nombres de método).
+
+Nota: reportes_bi_v2 (B6 original) ya se corrigió en Remediación B; el guardrail
+lo bloquea. B10 (CXP/CXC): las constantes ACCOUNT_PAYABLE/RECEIVABLE_CREATED son
+aliases con el mismo valor string ("CXP_CREADA"/"CXC_CREADA") que la UI escucha —
+suscripciones vivas, no huérfanas.
+
+Sin regresión: architecture 35F/223P (+1 guardrail); unit 26F/252P; test de
+finanzas KPI wiring 2F→verde.

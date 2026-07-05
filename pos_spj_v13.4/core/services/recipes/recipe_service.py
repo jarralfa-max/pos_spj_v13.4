@@ -37,6 +37,16 @@ class RecipeService:
         from repositories.recetas import RecetaRepository
         self._repo = RecetaRepository(db)
 
+    @staticmethod
+    def _publish(evento: str, payload: dict) -> None:
+        """Emite un evento de receta (best-effort). Remediación E: la UI de
+        producción se refresca en caliente con RECETA_CREADA/RECETA_ACTUALIZADA."""
+        try:
+            from core.events.event_bus import get_bus
+            get_bus().publish(evento, payload)
+        except Exception:
+            pass
+
     # ── Queries ───────────────────────────────────────────────────────────────
 
     def get_all_recipes(self, include_inactive: bool = False) -> List[Dict]:
@@ -89,13 +99,18 @@ class RecipeService:
             "create_recipe product=%s tipo=%s components=%d user=%s",
             base_product_id, tipo_receta, len(components), usuario,
         )
-        return self._repo.create(
+        receta_id = self._repo.create(
             nombre=nombre,
             base_product_id=base_product_id,
             components=components,
             usuario=usuario,
             tipo_receta=tipo_receta,
         )
+        self._publish("RECETA_CREADA", {
+            "receta_id": receta_id, "base_product_id": base_product_id,
+            "tipo_receta": tipo_receta, "usuario": usuario,
+        })
+        return receta_id
 
     def update_recipe(
         self,
@@ -107,8 +122,11 @@ class RecipeService:
         """Update recipe name and components. Raises RecetaError on failure."""
         logger.info("update_recipe id=%s user=%s", receta_id, usuario)
         self._repo.update(receta_id, nombre, components, usuario)
+        self._publish("RECETA_ACTUALIZADA", {"receta_id": receta_id, "usuario": usuario})
 
     def deactivate_recipe(self, receta_id: int, usuario: str) -> None:
         """Soft-delete a recipe. Clears dependency graph entries."""
         logger.info("deactivate_recipe id=%s user=%s", receta_id, usuario)
         self._repo.deactivate(receta_id, usuario)
+        self._publish("RECETA_ACTUALIZADA", {"receta_id": receta_id, "usuario": usuario,
+                                             "estado": "inactiva"})

@@ -1175,8 +1175,11 @@ class ModuloDelivery(QWidget, RefreshMixin):
         try:
             from core.events.event_bus import get_bus
             _bus = get_bus()
-            for event in ("PEDIDO_NUEVO", "PEDIDO_ACTUALIZADO",
-                          "VENTA_COMPLETADA", "DELIVERY_UPDATE"):
+            # Remediación E: DELIVERY_UPDATE no tiene emisor (canal muerto); la
+            # recarga en caliente ocurre por PEDIDO_NUEVO/PEDIDO_ACTUALIZADO/
+            # VENTA_COMPLETADA (emitidos). Migrar a eventos canónicos DeliveryEvents
+            # (DRIVER_ASSIGNED, etc.) queda como follow-up de delivery.
+            for event in ("PEDIDO_NUEVO", "PEDIDO_ACTUALIZADO", "VENTA_COMPLETADA"):
                 try:
                     _bus.subscribe(
                         event,

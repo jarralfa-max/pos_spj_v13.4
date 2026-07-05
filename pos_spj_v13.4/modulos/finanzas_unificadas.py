@@ -3313,8 +3313,11 @@ class ModuloFinanzasUnificadas(QWidget):
 
     def _wire_kpi_auto_refresh(self):
         try:
+            # Remediación E: los KPIs se refrescan por eventos (abajo). El timer
+            # queda SOLO como red de seguridad de baja frecuencia (≥60 s), no como
+            # mecanismo primario — antes 15 s disimulaba la falta de eventos.
             self._kpi_timer = QTimer(self)
-            self._kpi_timer.setInterval(15000)
+            self._kpi_timer.setInterval(60000)
             self._kpi_timer.timeout.connect(self._refresh_kpis_if_visible)
             self._kpi_timer.start()
             from core.events.event_bus import get_bus
