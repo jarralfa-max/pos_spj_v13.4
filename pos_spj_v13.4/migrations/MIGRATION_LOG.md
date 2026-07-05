@@ -391,3 +391,27 @@ asiento de diferencia. Cubierto por `tests/test_caja_corte_z_characterization.py
 
 Habilita **2c** (re-rutear el auto-cierre del scheduler a la ruta canónica y
 deprecar `CierreCajaService`) y **2d** (unificar `turno_actual`/`turnos_caja`).
+
+### D1 paso 2c — ✅ Auto-cierre del scheduler por la ruta canónica (+ bugfix)
+
+Hallazgo: el auto-cierre de medianoche consultaba `turno_actual` (tracker legacy
+cuyo único escritor —`CierreCajaService.abrir_turno`— no se llama en producción),
+así que en la práctica NO cerraba turnos reales (viven en `turnos_caja`, abiertos
+por la UI vía OpenCashShiftUseCase). Era un no-op: un bug latente.
+
+- Nuevo helper `core/services/caja_auto_close.py::auto_close_open_shifts(db, uc)`:
+  cierra cada turno abierto de `turnos_caja` vía la ruta canónica
+  (GenerateZCutUseCase → finance_service.generar_corte_z), cierre a ciegas
+  (efectivo=0). Devuelve los turno_id cerrados; no lanza. Testeable (extrae la
+  lógica del god-object AppContainer, D5).
+- `AppContainer._auto_cierre_turno` ahora delega en el helper; ya no usa
+  `CierreCajaService` ni `turno_actual`.
+- `CierreCajaService` marcado DEPRECADO (se retira en 2d al unificar trackers).
+
+Tests: `tests/test_caja_corte_z_characterization.py` (+3, total 11) — el auto-cierre
+cierra el turno canónico y registra `cierres_caja`; no-op sin turnos abiertos; seguro
+con uc None. Sin regresión (architecture 35F/221P, unit 26F/252P).
+
+Queda **2d**: unificar los trackers `turno_actual` / `turnos_caja` (migración de
+datos) y retirar `CierreCajaService` + los lectores de `turno_actual`
+(finanzas_unificadas, caja.py, health_server).

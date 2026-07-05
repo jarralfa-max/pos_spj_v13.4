@@ -196,3 +196,49 @@ class TestCanonicalCorteZ:
             "SELECT COUNT(*) FROM financial_event_log WHERE evento='CORTE_Z'"
         ).fetchone()[0]
         assert n == 1
+
+
+# ── D1 paso 2c — auto-cierre por la ruta canónica (turnos_caja) ─────────────────
+
+class TestAutoCloseCanonical:
+
+    def _uc(self, db):
+        """Cablea el GenerateZCutUseCase canónico como el container (publisher no-op)."""
+        from core.services.enterprise.finance_service import FinanceService
+        from backend.application.services.cash_register_application_service import (
+            CashRegisterApplicationService,
+        )
+        from backend.application.use_cases.generate_z_cut_use_case import GenerateZCutUseCase
+        fin = FinanceService(db)
+        svc = CashRegisterApplicationService(fin, publisher=lambda *_: None)
+        return fin, GenerateZCutUseCase(handler=svc.generate_z_cut)
+
+    def test_cierra_turno_abierto_de_turnos_caja(self, db):
+        from core.services.caja_auto_close import auto_close_open_shifts
+        from backend.shared.ids import new_uuid
+        fin, uc = self._uc(db)
+        turno_id = fin.abrir_turno(sucursal_id="1", usuario="ana", fondo_inicial=100.0)
+        db.execute(
+            "INSERT INTO ventas (id, sucursal_id, total, forma_pago, estado, usuario, fecha) "
+            "VALUES (?,?,?,?,?,?, datetime('now'))",
+            (new_uuid(), "1", 300.0, "Efectivo", "completada", "ana"),
+        )
+        db.commit()
+
+        cerrados = auto_close_open_shifts(db, uc)
+        assert str(turno_id) in cerrados
+        # Turno cerrado en turnos_caja (modelo canónico)
+        estado = db.execute("SELECT estado FROM turnos_caja WHERE id=?", (turno_id,)).fetchone()["estado"]
+        assert estado == "cerrado"
+        # Registró el corte en cierres_caja (superset de 2b)
+        n = db.execute("SELECT COUNT(*) FROM cierres_caja WHERE turno_id=?", (turno_id,)).fetchone()[0]
+        assert n == 1
+
+    def test_sin_turnos_abiertos_es_noop(self, db):
+        from core.services.caja_auto_close import auto_close_open_shifts
+        _, uc = self._uc(db)
+        assert auto_close_open_shifts(db, uc) == []
+
+    def test_uc_none_es_noop_seguro(self, db):
+        from core.services.caja_auto_close import auto_close_open_shifts
+        assert auto_close_open_shifts(db, None) == []

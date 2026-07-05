@@ -1011,6 +1011,10 @@ class AppContainer:
             "mantenimiento_semanal", _mantenimiento_semanal, intervalo_seg=86400)
 
         # ── Auto-cierre de turno a medianoche ─────────────────────────────
+        # D1 paso 2c: cierra los turnos abiertos canónicos (turnos_caja) por la
+        # ruta canónica de corte Z (GenerateZCutUseCase → finance_service), que
+        # registra cierres_caja y postea el asiento de diferencia. Antes usaba
+        # CierreCajaService sobre turno_actual (tracker legacy vacío en prod → no-op).
         def _auto_cierre_turno():
             from datetime import datetime
             ahora = datetime.now()
@@ -1018,19 +1022,8 @@ class AppContainer:
             if not (ahora.hour == 23 and ahora.minute >= 50) and not (ahora.hour == 0 and ahora.minute <= 10):
                 return
             try:
-                from core.services.cierre_caja_service import CierreCajaService
-                # Verificar sucursales con turno abierto
-                sucursales = self.db.execute(
-                    "SELECT DISTINCT sucursal_id FROM turno_actual WHERE abierto=1"
-                ).fetchall()
-                for row in sucursales:
-                    suc_id = row[0]
-                    svc = CierreCajaService(conn=self.db, sucursal_id=suc_id, usuario="SISTEMA")
-                    if svc.turno_activo():
-                        svc.corte_z(efectivo_contado=0.0,
-                                    comentarios="Cierre automático por sistema — medianoche")
-                        _log.getLogger("spj.scheduler").warning(
-                            "Turno sucursal %d cerrado automáticamente a medianoche", suc_id)
+                from core.services.caja_auto_close import auto_close_open_shifts
+                auto_close_open_shifts(self.db, getattr(self, "generate_z_cut_uc", None))
             except Exception as e:
                 _log.getLogger("spj.scheduler").debug("auto_cierre_turno: %s", e)
 
