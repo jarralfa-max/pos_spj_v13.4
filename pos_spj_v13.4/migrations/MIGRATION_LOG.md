@@ -342,3 +342,34 @@ UI (modulos/caja.py)
    `test_caja.py` a la ruta canónica) dejándolo como servicio de sólo-lectura.
 3. Retirar la publicación de `CAJA_MOVIMIENTO` desde `repositories/caja.py` (los
    repos no publican eventos; lo hace la capa de aplicación).
+
+### D1 paso 2 — Hallazgo: el corte Z canónico está INCOMPLETO (bloquea el re-ruteo)
+
+Al preparar el re-ruteo del auto-cierre del scheduler se descubrió que las dos
+rutas de corte Z operan sobre **modelos de datos distintos** y la canónica tiene
+un **gap funcional**:
+
+| | Scheduler (`CierreCajaService.corte_z`) | Canónica UI (`finance_service.generar_corte_z`) |
+|---|---|---|
+| Turno | `turno_actual` (flag `abierto`) | `turnos_caja` (`estado`) |
+| Registro de corte | escribe `cierres_caja` | **NO** escribe `cierres_caja` |
+| Asiento de diferencia | sí (si recibe finance_service) | **NO** postea asiento |
+| Eventos | ninguno | `CASH_Z_CUT_GENERATED` + `CASH_DIFFERENCE` |
+
+- El historial de la UI (`CajaApplicationService.get_historial_cortes`) lee
+  `cierres_caja`; los cortes hechos por la ruta canónica NO aparecen ahí.
+- Ningún handler de `CASH_Z_CUT_GENERATED`/`CASH_DIFFERENCE_DETECTED` postea el
+  asiento de diferencia (el `CashEventAuditHandler` sólo escribe `audit_logs`).
+
+⇒ **Re-rutear el scheduler a la ruta canónica hoy PERDERÍA** el registro en
+`cierres_caja` y el asiento de diferencia (violación de Prioridad 0). El paso 2
+se reordena:
+
+- **2a (este commit):** red de seguridad — `tests/test_caja_corte_z_characterization.py`
+  fija el comportamiento actual de ambas rutas (6 tests). Sin cambios de runtime.
+- **2b (siguiente):** completar la ruta canónica para que sea superset — escribir
+  el registro `cierres_caja` y postear el asiento de diferencia (idempotente),
+  con tests. Sólo entonces:
+- **2c:** re-rutear el auto-cierre del scheduler y deprecar `CierreCajaService`.
+- **2d:** unificar los dos trackers de turno (`turno_actual` vs `turnos_caja`)
+  vía migración de datos.
