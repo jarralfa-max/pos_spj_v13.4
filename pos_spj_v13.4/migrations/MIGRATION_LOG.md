@@ -415,3 +415,29 @@ con uc None. Sin regresión (architecture 35F/221P, unit 26F/252P).
 Queda **2d**: unificar los trackers `turno_actual` / `turnos_caja` (migración de
 datos) y retirar `CierreCajaService` + los lectores de `turno_actual`
 (finanzas_unificadas, caja.py, health_server).
+
+### D1 paso 2d — ✅ Retiro del tracker legacy `turno_actual` de producción
+
+Aclaración del mapa: los presuntos lectores de `turno_actual` (finanzas_unificadas,
+finance_read_repository, caja_application_service) en realidad referencian
+`cierres_caja`, no `turno_actual`; y `modulos/caja.py::self.turno_actual` es un
+atributo de instancia (el turno_id activo), no la tabla. El ÚNICO lector real de la
+tabla en producción era el health-check.
+
+- No hay datos que migrar: en producción nadie escribe `turno_actual` (su único
+  escritor, `CierreCajaService.abrir_turno`, no se llama).
+- `core/health/health_server.py::_health_ready` ahora consulta `turnos_caja`
+  (estado='abierto') en vez de `turno_actual`. Corrige un bug latente: el readiness
+  reportaba 503 permanentemente (leía una tabla siempre vacía).
+- Guardrail `tests/architecture/test_caja_canonical_route.py`: ningún código de
+  producción hace SQL contra `turno_actual` salvo `CierreCajaService` (deprecado,
+  allowlisted). Bloquea el regreso del tracker legacy.
+
+`turno_actual` queda huérfana y `CierreCajaService` deprecado (sin callers de
+producción). Su remoción física (DROP de la tabla + borrado de la clase + migración
+de `tests/test_core_services.py`, `test_financial_core_enforcement.py`,
+`test_caja.py` a la ruta canónica) queda como limpieza posterior de bajo riesgo.
+
+**D1 cerrado en lo esencial**: la caja tiene una única ruta de turno/corte Z
+canónica (turnos_caja + finance_service.generar_corte_z, superset), el scheduler la
+usa, y los trackers/servicios legacy están deprecados y bloqueados por guardrails.

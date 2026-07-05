@@ -61,6 +61,39 @@ def test_caja_ui_uses_canonical_use_cases():
     )
 
 
+def test_no_production_code_reads_turno_actual_table():
+    """D1 2d: el tracker legacy `turno_actual` está retirado de producción.
+
+    Sólo `CierreCajaService` (deprecado, sin callers en producción) puede tocar la
+    tabla; el resto del código usa el modelo canónico `turnos_caja`.
+    """
+    prod_dirs = ("core", "modulos", "application", "backend", "interfaz", "ui")
+    # Acceso SQL a la tabla (no el atributo self.turno_actual de la UI).
+    sql_access = re.compile(r"(?i)\b(from|into|update|join)\s+turno_actual\b")
+    allow = {"core/services/cierre_caja_service.py"}  # deprecado — retirar en cleanup
+
+    offenders = []
+    for rel_dir in prod_dirs:
+        base = REPO / rel_dir
+        if not base.exists():
+            continue
+        for path in base.rglob("*.py"):
+            rel = path.relative_to(REPO).as_posix()
+            if rel in allow:
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except Exception:
+                continue
+            if sql_access.search(text):
+                offenders.append(rel)
+
+    assert not offenders, (
+        "Código de producción accede a la tabla legacy `turno_actual` "
+        f"(usar `turnos_caja`): {sorted(set(offenders))}"
+    )
+
+
 def test_cash_register_service_is_sole_cash_event_emitter():
     """CashRegisterApplicationService emite CASH_* y delega la lógica de turno."""
     svc = (REPO / "backend" / "application" / "services"
