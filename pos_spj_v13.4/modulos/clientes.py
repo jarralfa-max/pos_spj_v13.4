@@ -1159,7 +1159,8 @@ class _DialogoRFM(QDialog):
 
     def __init__(self, conn, parent=None):
         super().__init__(parent)
-        self.conn = conn
+        from core.services.cliente_query_service import ClienteQueryService
+        self._svc = ClienteQueryService(conn)
         self.setWindowTitle("📊 Segmentación RFM de Clientes")
         self.setMinimumSize(900, 600)
         self._build_ui()
@@ -1244,19 +1245,7 @@ class _DialogoRFM(QDialog):
 
         dias = self._dias_periodo()
         try:
-            rows = self.conn.execute(f"""
-                SELECT c.id, c.nombre, c.telefono,
-                       MAX(v.fecha) as ultima_compra,
-                       COUNT(v.id)  as num_compras,
-                       SUM(v.total) as total_gastado
-                FROM clientes c
-                JOIN ventas v ON v.cliente_id = c.id
-                WHERE v.estado = 'completada'
-                  AND v.fecha >= date('now', '-{dias} days')
-                GROUP BY c.id
-                ORDER BY total_gastado DESC
-                LIMIT 500
-            """).fetchall()
+            rows = self._svc.rfm_ventas(dias)
         except Exception as e:
             self.lbl_status.setText(f"Error: {e}")
             return

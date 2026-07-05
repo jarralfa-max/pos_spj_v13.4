@@ -79,3 +79,20 @@ class ClienteQueryService:
             "FROM loyalty_scores WHERE cliente_id = ?",
             (cliente_id,)
         ).fetchone()
+
+    # ── Segmentación RFM (_DialogoRFM) ──────────────────────────────────────────
+    def rfm_ventas(self, dias: int, limit: int = 500) -> list:
+        """Agregado de ventas por cliente en la ventana `dias` para el análisis RFM.
+        Parametriza el modificador de fecha (antes interpolado en un f-string)."""
+        return self.db.execute(
+            "SELECT c.id, c.nombre, c.telefono, "
+            "       MAX(v.fecha) AS ultima_compra, "
+            "       COUNT(v.id)  AS num_compras, "
+            "       SUM(v.total) AS total_gastado "
+            "FROM clientes c "
+            "JOIN ventas v ON v.cliente_id = c.id "
+            "WHERE v.estado = 'completada' AND v.fecha >= date('now', ?) "
+            "GROUP BY c.id "
+            "ORDER BY total_gastado DESC LIMIT ?",
+            (f"-{int(dias)} days", limit)
+        ).fetchall()
