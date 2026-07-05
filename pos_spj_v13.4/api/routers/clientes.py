@@ -44,7 +44,7 @@ async def buscar_clientes(
 
 @router.get("/{cliente_id}")
 async def get_cliente(
-    cliente_id: int,
+    cliente_id: str,
     _key: str = Depends(verify_api_key),
     db=Depends(get_db),
 ):
@@ -109,7 +109,7 @@ async def crear_cliente(
 
 @router.get("/{cliente_id}/puntos")
 async def get_puntos(
-    cliente_id: int,
+    cliente_id: str,
     _key: str = Depends(verify_api_key),
     db=Depends(get_db),
 ):

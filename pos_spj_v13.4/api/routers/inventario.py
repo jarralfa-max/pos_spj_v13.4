@@ -11,26 +11,26 @@ router = APIRouter(prefix="/inventario", tags=["inventario"])
 
 
 class AjusteIn(BaseModel):
-    producto_id:   int
+    producto_id: str
     cantidad:      float = Field(ge=0)
     motivo:        str   = ""
     usuario:       str   = "api"
-    sucursal_id:   int   = 1
+    sucursal_id: str = ""
 
 
 class EntradaIn(BaseModel):
-    producto_id:    int
+    producto_id: str
     cantidad:       float = Field(gt=0)
     costo_unitario: float = Field(ge=0)
     referencia:     str   = ""
     usuario:        str   = "api"
-    sucursal_id:    int   = 1
+    sucursal_id: str = ""
 
 
 @router.get("/stock/{producto_id}")
 async def get_stock(
-    producto_id: int,
-    sucursal_id: int = 0,
+    producto_id: str,
+    sucursal_id: str = "",
     _key: str = Depends(verify_api_key),
     db=Depends(get_db),
 ):
@@ -54,7 +54,7 @@ async def get_stock(
 
 @router.get("")
 async def listar_stock(
-    sucursal_id: int = 1,
+    sucursal_id: str = "",
     bajo_minimo: bool = False,
     limit:       int = 100,
     _key: str = Depends(verify_api_key),
@@ -127,7 +127,7 @@ async def registrar_entrada(
 
 @router.get("/movimientos/{producto_id}")
 async def movimientos_producto(
-    producto_id: int,
+    producto_id: str,
     limit:       int = 50,
     _key: str = Depends(verify_api_key),
     db=Depends(get_db),

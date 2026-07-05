@@ -12,7 +12,7 @@ router = APIRouter(prefix="/anticipos", tags=["anticipos"])
 # ── Models ────────────────────────────────────────────────────────────────────
 
 class AnticipoIn(BaseModel):
-    venta_id: int
+    venta_id: str
     monto:    float = Field(gt=0)
     metodo:   str   = "mercadopago"   # mercadopago | efectivo | transferencia
 
@@ -33,22 +33,9 @@ async def registrar_anticipo(
 ):
     """
     Registra un anticipo pendiente para una venta.
-    Crea la tabla si no existe (compatible con despliegues sin migración 050).
+    El esquema de `anticipos` es propiedad de la migración 114 (born-clean
+    UUIDv7); la API NO define DDL (REGLA 11/13).
     """
-    # Garantizar que la tabla existe
-    db.execute("""
-        CREATE TABLE IF NOT EXISTS anticipos (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            venta_id    INTEGER NOT NULL,
-            monto       REAL    NOT NULL,
-            metodo      TEXT    DEFAULT 'mercadopago',
-            estado      TEXT    DEFAULT 'pendiente',
-            referencia  TEXT    DEFAULT '',
-            fecha       TEXT    DEFAULT (datetime('now')),
-            fecha_pago  TEXT
-        )
-    """)
-
     venta = db.execute(
         "SELECT id, estado FROM ventas WHERE id=?", (body.venta_id,)
     ).fetchone()
@@ -56,11 +43,13 @@ async def registrar_anticipo(
         raise HTTPException(404, f"Venta {body.venta_id} no encontrada")
 
     try:
-        cur = db.execute("""
-            INSERT INTO anticipos (venta_id, monto, metodo, estado, fecha)
-            VALUES (?, ?, ?, 'pendiente', datetime('now'))
-        """, (body.venta_id, body.monto, body.metodo))
-        anticipo_id = cur.lastrowid
+        # REGLA CERO: identidad UUIDv7 explícita, no lastrowid.
+        from backend.shared.ids import new_uuid
+        anticipo_id = new_uuid()
+        db.execute("""
+            INSERT INTO anticipos (id, venta_id, monto, metodo, estado, fecha)
+            VALUES (?, ?, ?, ?, 'pendiente', datetime('now'))
+        """, (anticipo_id, body.venta_id, body.monto, body.metodo))
         db.commit()
         return {
             "ok": True,
@@ -75,7 +64,7 @@ async def registrar_anticipo(
 
 @router.patch("/{anticipo_id}/confirmar")
 async def confirmar_pago(
-    anticipo_id: int,
+    anticipo_id: str,
     body: ConfirmarPagoIn,
     _key: str = Depends(verify_api_key),
     db=Depends(get_db),
@@ -121,7 +110,7 @@ async def confirmar_pago(
 
 @router.get("/venta/{venta_id}")
 async def anticipos_de_venta(
-    venta_id: int,
+    venta_id: str,
     _key: str = Depends(verify_api_key),
     db=Depends(get_db),
 ):

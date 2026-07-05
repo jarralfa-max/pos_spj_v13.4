@@ -13,7 +13,7 @@ router = APIRouter(prefix="/ventas", tags=["ventas"])
 # ── DTOs ──────────────────────────────────────────────────────────────────────
 
 class ItemVentaIn(BaseModel):
-    producto_id: int
+    producto_id: str
     cantidad:    float = Field(gt=0)
     precio_unit: float = Field(gt=0)
     nombre:      str   = ""
@@ -22,15 +22,15 @@ class VentaIn(BaseModel):
     items:            List[ItemVentaIn]
     forma_pago:       str   = "Efectivo"
     monto_pagado:     float = 0.0
-    cliente_id:       Optional[int] = None
+    cliente_id: Optional[str] = None
     descuento_global: float = 0.0
-    sucursal_id:      int   = 1
+    sucursal_id: str = ""
     usuario:          str   = "api"
     notas:            str   = ""
 
 class VentaOut(BaseModel):
     ok:            bool
-    venta_id:      int   = 0
+    venta_id: str = ""
     folio:         str   = ""
     total:         float = 0.0
     cambio:        float = 0.0
@@ -79,7 +79,7 @@ async def crear_venta(
 
 @router.get("/{venta_id}")
 async def get_venta(
-    venta_id: int,
+    venta_id: str,
     _key: str = Depends(verify_api_key),
     db=Depends(get_db),
 ):
@@ -102,7 +102,7 @@ async def get_venta(
 
 @router.get("")
 async def listar_ventas(
-    sucursal_id: int = 1,
+    sucursal_id: str = "",
     limit:       int = 50,
     offset:      int = 0,
     _key: str = Depends(verify_api_key),
@@ -119,7 +119,7 @@ async def listar_ventas(
 
 @router.post("/{venta_id}/anular")
 async def anular_venta(
-    venta_id: int,
+    venta_id: str,
     motivo:   str = "",
     _key: str = Depends(verify_api_key),
     db=Depends(get_db),

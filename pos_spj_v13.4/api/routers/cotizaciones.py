@@ -14,7 +14,7 @@ router = APIRouter(prefix="/cotizaciones", tags=["cotizaciones"])
 # ── Request / Response models ─────────────────────────────────────────────────
 
 class ItemCotizacionIn(BaseModel):
-    producto_id:     int
+    producto_id: str
     nombre:          str   = ""
     cantidad:        float = Field(gt=0)
     precio_unitario: float = Field(ge=0)
@@ -22,9 +22,9 @@ class ItemCotizacionIn(BaseModel):
 
 
 class CotizacionIn(BaseModel):
-    cliente_id:   int
+    cliente_id: str
     items:        List[ItemCotizacionIn]
-    sucursal_id:  int   = 1
+    sucursal_id: str = ""
     usuario:      str   = "whatsapp"
     notas:        str   = ""
     vigencia_dias: int  = 7
@@ -55,27 +55,29 @@ async def crear_cotizacion(
         ).fetchone()
         cliente_nombre = cliente_row[0] if cliente_row else ""
 
-        cur = db.execute("""
+        # REGLA CERO: identidad UUIDv7 explícita, no lastrowid.
+        from backend.shared.ids import new_uuid
+        cot_id = new_uuid()
+        db.execute("""
             INSERT INTO cotizaciones (
-                folio, cliente_id, cliente_nombre, subtotal, total,
+                id, folio, cliente_id, cliente_nombre, subtotal, total,
                 estado, usuario, sucursal_id, notas, vigencia_dias,
                 fecha_vencimiento, fecha
-            ) VALUES (?, ?, ?, ?, ?, 'pendiente', ?, ?, ?, ?,
+            ) VALUES (?, ?, ?, ?, ?, ?, 'pendiente', ?, ?, ?, ?,
                       date('now', '+' || ? || ' days'), datetime('now'))
-        """, (folio, body.cliente_id, cliente_nombre, total, total,
+        """, (cot_id, folio, body.cliente_id, cliente_nombre, total, total,
               body.usuario, body.sucursal_id, body.notas,
               body.vigencia_dias, body.vigencia_dias))
-        cot_id = cur.lastrowid
 
         for it in body.items:
             subtotal = round(
                 it.cantidad * it.precio_unitario * (1 - it.descuento / 100), 2)
             db.execute("""
                 INSERT INTO cotizaciones_detalle (
-                    cotizacion_id, producto_id, nombre,
+                    id, cotizacion_id, producto_id, nombre,
                     cantidad, precio_unitario, subtotal, descuento
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (cot_id, it.producto_id, it.nombre,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (new_uuid(), cot_id, it.producto_id, it.nombre,
                   it.cantidad, it.precio_unitario, subtotal, it.descuento))
 
         db.commit()
@@ -92,7 +94,7 @@ async def crear_cotizacion(
 
 @router.get("/{cotizacion_id}")
 async def get_cotizacion(
-    cotizacion_id: int,
+    cotizacion_id: str,
     _key: str = Depends(verify_api_key),
     db=Depends(get_db),
 ):
@@ -112,7 +114,7 @@ async def get_cotizacion(
 
 @router.patch("/{cotizacion_id}/convertir", status_code=200)
 async def convertir_a_venta(
-    cotizacion_id: int,
+    cotizacion_id: str,
     usuario: str = "whatsapp",
     _key: str = Depends(verify_api_key),
     db=Depends(get_db),
@@ -140,22 +142,24 @@ async def convertir_a_venta(
     total = cot["total"]
 
     try:
-        cur = db.execute("""
+        # REGLA CERO: identidad UUIDv7 explícita, no lastrowid; sin default 1.
+        from backend.shared.ids import new_uuid
+        venta_id = new_uuid()
+        db.execute("""
             INSERT INTO ventas (
-                folio, cliente_id, total, subtotal, estado,
+                id, folio, cliente_id, total, subtotal, estado,
                 sucursal_id, tipo_entrega, canal, fecha
-            ) VALUES (?, ?, ?, ?, 'pendiente_wa', ?, 'sucursal', 'whatsapp', datetime('now'))
-        """, (folio, cot["cliente_id"], total, total, cot.get("sucursal_id", 1)))
-        venta_id = cur.lastrowid
+            ) VALUES (?, ?, ?, ?, ?, 'pendiente_wa', ?, 'sucursal', 'whatsapp', datetime('now'))
+        """, (venta_id, folio, cot["cliente_id"], total, total, cot.get("sucursal_id", "")))
 
         for it in items:
             it = dict(it)
             db.execute("""
                 INSERT INTO detalles_venta (
-                    venta_id, producto_id, nombre,
+                    id, venta_id, producto_id, nombre,
                     cantidad, precio_unitario, subtotal
-                ) VALUES (?, ?, ?, ?, ?, ?)
-            """, (venta_id, it["producto_id"], it["nombre"],
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (new_uuid(), venta_id, it["producto_id"], it["nombre"],
                   it["cantidad"], it["precio_unitario"], it["subtotal"]))
 
         db.execute(
