@@ -26,15 +26,15 @@ from .base import ModuloBase
 # =
 
 class DialogoActivo(QDialog):
-    def __init__(self, conexion, parent=None, activo_id=None):
+    """Captura-only: no ejecuta SQL ni commits. La persistencia vive en AssetService."""
+    def __init__(self, parent=None, activo_id=None, activo_data=None):
         super().__init__(parent)
-        self.conexion = conexion
         self.activo_id = activo_id
         self.setWindowTitle("Nuevo Activo" if not activo_id else "Editar Activo")
         self.setFixedSize(500, 450)
         self.init_ui()
-        if activo_id:
-            self.cargar_datos()
+        if activo_data:
+            self._prefill(dict(activo_data))
 
     def init_ui(self):
         layout = QFormLayout(self)
@@ -78,63 +78,53 @@ class DialogoActivo(QDialog):
         btn_box.rejected.connect(self.reject)
         layout.addRow(btn_box)
 
-    def cargar_datos(self):
-        cursor = self.conexion.cursor()
-        cursor.execute("SELECT * FROM activos WHERE id=?", (self.activo_id,))
-        activo = cursor.fetchone()
-        if activo:
-            self.txt_nombre.setText(activo['nombre'])
-            self.cmb_categoria.setCurrentText(activo['categoria'])
-            self.txt_serie.setText(activo['numero_serie'])
-            self.spin_valor.setValue(activo['valor_adquisicion'] or 0)
-            self.spin_vida.setValue(activo['vida_util_anios'] or 1)
-            self.spin_depreciacion.setValue(activo['depreciacion_anual'] or 0)
-            self.txt_ubicacion.setText(activo['ubicacion'])
-            self.cmb_estado.setCurrentText(activo['estado'])
-            self.txt_notas.setText(activo['notas'])
+    def _prefill(self, activo: dict):
+        self.txt_nombre.setText(activo.get('nombre') or "")
+        self.cmb_categoria.setCurrentText(activo.get('categoria') or "")
+        self.txt_serie.setText(activo.get('numero_serie') or "")
+        self.spin_valor.setValue(activo.get('valor_adquisicion') or 0)
+        self.spin_vida.setValue(activo.get('vida_util_anios') or 1)
+        self.spin_depreciacion.setValue(activo.get('depreciacion_anual') or 0)
+        self.txt_ubicacion.setText(activo.get('ubicacion') or "")
+        self.cmb_estado.setCurrentText(activo.get('estado') or "activo")
+        self.txt_notas.setText(activo.get('notas') or "")
+
+    def get_dto(self) -> dict:
+        """DTO capturado; la persistencia la ejecuta el módulo vía AssetService."""
+        return {
+            "nombre": self.txt_nombre.text(),
+            "categoria": self.cmb_categoria.currentText(),
+            "numero_serie": self.txt_serie.text(),
+            "valor_adquisicion": self.spin_valor.value(),
+            "vida_util_anios": self.spin_vida.value(),
+            "depreciacion_anual": self.spin_depreciacion.value(),
+            "ubicacion": self.txt_ubicacion.text(),
+            "estado": self.cmb_estado.currentText(),
+            "notas": self.txt_notas.text(),
+        }
 
     def guardar(self):
         if not self.txt_nombre.text().strip():
             QMessageBox.warning(self, "Error", "El nombre es obligatorio")
             return
-            
-        cursor = self.conexion.cursor()
-        datos = (
-            self.txt_nombre.text(), self.cmb_categoria.currentText(), self.txt_serie.text(),
-            self.spin_valor.value(), self.spin_vida.value(), self.spin_depreciacion.value(),
-            self.txt_ubicacion.text(), self.cmb_estado.currentText(), self.txt_notas.text()
-        )
-        
-        if self.activo_id:
-            cursor.execute("""
-                UPDATE activos SET nombre=?, categoria=?, numero_serie=?, valor_adquisicion=?,
-                vida_util_anios=?, depreciacion_anual=?, ubicacion=?, estado=?, notas=?
-                WHERE id=?
-            """, datos + (self.activo_id,))
-        else:
-            from backend.shared.ids import new_uuid
-            cursor.execute("""
-                INSERT INTO activos (id, nombre, categoria, numero_serie, valor_adquisicion,
-                vida_util_anios, depreciacion_anual, ubicacion, estado, notas, fecha_adquisicion)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now'))
-            """, (new_uuid(),) + datos)
-            
-        self.conexion.commit()
         self.accept()
 
 
 class DialogoMantenimiento(QDialog):
-    """Diálogo para Agendar un mantenimiento (Sin pagarlo todavía)"""
-    def __init__(self, conexion, parent=None, mant_id=None):
+    """Captura-only: agenda un mantenimiento. Sin SQL; delega en AssetService.
+
+    `activos` es la lista [{'id','nombre'}, ...] provista por el módulo.
+    `mant_data` es el dict de prefill en edición.
+    """
+    def __init__(self, activos=None, parent=None, mant_id=None, mant_data=None):
         super().__init__(parent)
-        self.conexion = conexion
         self.mant_id = mant_id
         self.setWindowTitle("Agendar Mantenimiento" if not mant_id else "Editar Agenda")
         self.setFixedSize(400, 350)
         self.init_ui()
-        self.cargar_activos()
-        if mant_id:
-            self.cargar_datos()
+        self._cargar_activos(activos or [])
+        if mant_data:
+            self._prefill(dict(mant_data))
 
     def init_ui(self):
         layout = QFormLayout(self)
@@ -172,24 +162,20 @@ class DialogoMantenimiento(QDialog):
         btn_box.rejected.connect(self.reject)
         layout.addRow(btn_box)
 
-    def cargar_activos(self):
-        cursor = self.conexion.cursor()
-        # Solo cargar los que no están dados de baja
-        cursor.execute("SELECT id, nombre FROM activos WHERE estado != 'baja'")
-        for row in cursor.fetchall():
-            self.cmb_activo.addItem(row['nombre'], row['id'])
+    def _cargar_activos(self, activos):
+        for row in activos:
+            row = dict(row)
+            self.cmb_activo.addItem(row.get('nombre'), row.get('id'))
 
-    def cargar_datos(self):
-        cursor = self.conexion.cursor()
-        cursor.execute("SELECT * FROM mantenimientos WHERE id=?", (self.mant_id,))
-        mant = cursor.fetchone()
-        if mant:
-            index = self.cmb_activo.findData(mant['activo_id'])
-            if index >= 0: self.cmb_activo.setCurrentIndex(index)
-            self.cmb_tipo.setCurrentText(mant['tipo'])
-            self.txt_desc.setText(mant['descripcion'])
+    def _prefill(self, mant: dict):
+        index = self.cmb_activo.findData(mant.get('activo_id'))
+        if index >= 0:
+            self.cmb_activo.setCurrentIndex(index)
+        self.cmb_tipo.setCurrentText(mant.get('tipo') or "preventivo")
+        self.txt_desc.setText(mant.get('descripcion') or "")
+        if mant.get('fecha_prog'):
             self.date_prog.setDate(QDate.fromString(mant['fecha_prog'], "yyyy-MM-dd"))
-            self.txt_tecnico.setText(mant['realizado_por'] or "")
+        self.txt_tecnico.setText(mant.get('realizado_por') or "")
 
     def _toggle_proveedor(self, idx):
         externo = (idx == 1)
@@ -197,47 +183,25 @@ class DialogoMantenimiento(QDialog):
         self.lbl_proveedor.setVisible(externo)
         self.cmb_proveedor.setVisible(externo)
 
-    def _cargar_proveedores(self):
-        try:
-            rows = self.conexion.execute(
-                "SELECT id, nombre FROM proveedores WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
-            self.cmb_proveedor.addItem("-- Seleccionar --", None)
-            for r in rows:
-                n = r["nombre"] if hasattr(r,"keys") else r[1]
-                i = r["id"]    if hasattr(r,"keys") else r[0]
-                self.cmb_proveedor.addItem(n, i)
-        except Exception:
-            pass
-
-    def guardar(self):
-        activo_id = self.cmb_activo.currentData()
-        if not activo_id:
-            QMessageBox.warning(self, "Error", "Debe seleccionar un activo")
-            return
+    def get_dto(self) -> dict:
+        """DTO capturado; la persistencia la ejecuta el módulo vía AssetService."""
         externo = self.cmb_origen.currentIndex() == 1
         if externo:
             realizado_por = "Proveedor: " + self.cmb_proveedor.currentText()
         else:
             realizado_por = self.txt_tecnico.text()
-        cursor = self.conexion.cursor()
-        datos = (
-            activo_id, self.cmb_tipo.currentText(), self.txt_desc.text(),
-            self.date_prog.date().toString("yyyy-MM-dd"), realizado_por
-        )
-        if self.mant_id:
-            cursor.execute(
-                "UPDATE mantenimientos SET activo_id=?, tipo=?, descripcion=?,"
-                "fecha_prog=?, realizado_por=? WHERE id=?",
-                datos + (self.mant_id,))
-        else:
-            from backend.shared.ids import new_uuid
-            cursor.execute(
-                "INSERT INTO mantenimientos "
-                "(id, activo_id, tipo, descripcion, fecha_prog, realizado_por, estado)"
-                " VALUES (?, ?, ?, ?, ?, ?, 'pendiente')",
-                (new_uuid(),) + datos)
-        self.conexion.commit()
+        return {
+            "activo_id": self.cmb_activo.currentData(),
+            "tipo": self.cmb_tipo.currentText(),
+            "descripcion": self.txt_desc.text(),
+            "fecha_prog": self.date_prog.date().toString("yyyy-MM-dd"),
+            "realizado_por": realizado_por,
+        }
+
+    def guardar(self):
+        if not self.cmb_activo.currentData():
+            QMessageBox.warning(self, "Error", "Debe seleccionar un activo")
+            return
         self.accept()
 
 # =
@@ -510,14 +474,25 @@ class ModuloActivos(ModuloBase):
         Toast.info(self, "Etiqueta enviada", f"{codigo} · {nombre}")
 
     def agregar_activo(self):
-        dialogo = DialogoActivo(self.conexion, self)
+        dialogo = DialogoActivo(self)
         if dialogo.exec_() == QDialog.Accepted:
+            try:
+                self.container.asset_service.crear_activo(dialogo.get_dto())
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"No se pudo crear el activo: {e}")
+                return
             self.cargar_activos()
             self.cargar_mantenimientos() # Actualizar listas dependientes
 
     def editar_activo(self, activo_id):
-        dialogo = DialogoActivo(self.conexion, self, activo_id)
+        datos = self.container.asset_service.get_activo(activo_id)
+        dialogo = DialogoActivo(self, activo_id=activo_id, activo_data=datos)
         if dialogo.exec_() == QDialog.Accepted:
+            try:
+                self.container.asset_service.actualizar_activo(activo_id, dialogo.get_dto())
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"No se pudo actualizar el activo: {e}")
+                return
             self.cargar_activos()
 
     def eliminar_activo(self, activo_id, nombre):
@@ -694,8 +669,14 @@ class ModuloActivos(ModuloBase):
             QMessageBox.critical(self, "Error", f"Error al cargar mantenimientos: {e}")
 
     def agregar_mantenimiento(self):
-        dialogo = DialogoMantenimiento(self.conexion, self)
+        activos = self.container.asset_service.listar_activos_seleccionables()
+        dialogo = DialogoMantenimiento(activos, self)
         if dialogo.exec_() == QDialog.Accepted:
+            try:
+                self.container.asset_service.agendar_mantenimiento(dialogo.get_dto())
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"No se pudo agendar: {e}")
+                return
             self.cargar_mantenimientos()
 
     def eliminar_mantenimiento(self, mant_id):

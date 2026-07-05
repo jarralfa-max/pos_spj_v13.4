@@ -340,6 +340,15 @@ class AppContainer:
             finance_service=self.finance_service,
         )
 
+        # v13.4 Fase D: AssetService (EAM) — ruta canónica UI → servicio → DB.
+        # Los diálogos de activos delegan aquí (captura-only, sin SQL en UI).
+        from core.services.asset_service import AssetService
+        self.asset_service = AssetService(
+            self.db,
+            treasury_service=self.treasury_service,
+            finance_service=self.finance_service,
+        )
+
         from core.services.hr_rule_engine import HRRuleEngine
         self.hr_rule_engine = HRRuleEngine(
             db_conn=self.db,

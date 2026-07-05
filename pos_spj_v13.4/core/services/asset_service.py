@@ -41,6 +41,110 @@ class AssetService:
             self.db.rollback()
             raise RuntimeError(f"Error al registrar el activo: {e}")
 
+    # ── CRUD capture-only (UI delega DTO; la persistencia vive aquí) ──────────
+    #  Reglas: identidad UUIDv7 explícita; ningún commit/SQL en la capa de diálogo.
+
+    _ACTIVO_CAMPOS = (
+        "nombre", "categoria", "numero_serie", "valor_adquisicion",
+        "vida_util_anios", "depreciacion_anual", "ubicacion", "estado", "notas",
+    )
+
+    def get_activo(self, activo_id: str) -> dict:
+        """Lee un activo para prefill de edición. Devuelve {} si no existe."""
+        row = self.db.execute(
+            "SELECT * FROM activos WHERE id=?", (activo_id,)
+        ).fetchone()
+        return dict(row) if row else {}
+
+    def listar_activos_seleccionables(self) -> list:
+        """Activos no dados de baja, para poblar el combo de mantenimiento."""
+        rows = self.db.execute(
+            "SELECT id, nombre FROM activos WHERE estado != 'baja' ORDER BY nombre"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def crear_activo(self, dto: dict) -> str:
+        """Crea un activo desde un DTO capturado por la UI. Devuelve el id UUIDv7."""
+        from backend.shared.ids import new_uuid as _new_uuid
+        activo_id = _new_uuid()
+        valores = tuple(dto.get(c) for c in self._ACTIVO_CAMPOS)
+        try:
+            self.db.execute(
+                """INSERT INTO activos
+                       (id, nombre, categoria, numero_serie, valor_adquisicion,
+                        vida_util_anios, depreciacion_anual, ubicacion, estado,
+                        notas, fecha_adquisicion)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now'))""",
+                (activo_id,) + valores,
+            )
+            self.db.commit()
+            return activo_id
+        except Exception as e:
+            try: self.db.rollback()
+            except Exception: pass
+            raise RuntimeError(f"Error al crear el activo: {e}")
+
+    def actualizar_activo(self, activo_id: str, dto: dict) -> None:
+        """Actualiza un activo existente desde un DTO capturado por la UI."""
+        valores = tuple(dto.get(c) for c in self._ACTIVO_CAMPOS)
+        try:
+            self.db.execute(
+                """UPDATE activos SET
+                       nombre=?, categoria=?, numero_serie=?, valor_adquisicion=?,
+                       vida_util_anios=?, depreciacion_anual=?, ubicacion=?,
+                       estado=?, notas=?
+                   WHERE id=?""",
+                valores + (activo_id,),
+            )
+            self.db.commit()
+        except Exception as e:
+            try: self.db.rollback()
+            except Exception: pass
+            raise RuntimeError(f"Error al actualizar el activo: {e}")
+
+    def get_mantenimiento(self, mant_id: str) -> dict:
+        """Lee un mantenimiento para prefill de edición. Devuelve {} si no existe."""
+        row = self.db.execute(
+            "SELECT * FROM mantenimientos WHERE id=?", (mant_id,)
+        ).fetchone()
+        return dict(row) if row else {}
+
+    def agendar_mantenimiento(self, dto: dict) -> str:
+        """Agenda un mantenimiento (estado 'pendiente') desde un DTO. Devuelve id."""
+        from backend.shared.ids import new_uuid as _new_uuid
+        mant_id = _new_uuid()
+        try:
+            self.db.execute(
+                """INSERT INTO mantenimientos
+                       (id, activo_id, tipo, descripcion, fecha_prog, realizado_por, estado)
+                   VALUES (?, ?, ?, ?, ?, ?, 'pendiente')""",
+                (mant_id, dto.get("activo_id"), dto.get("tipo"),
+                 dto.get("descripcion"), dto.get("fecha_prog"),
+                 dto.get("realizado_por")),
+            )
+            self.db.commit()
+            return mant_id
+        except Exception as e:
+            try: self.db.rollback()
+            except Exception: pass
+            raise RuntimeError(f"Error agendando mantenimiento: {e}")
+
+    def editar_mantenimiento(self, mant_id: str, dto: dict) -> None:
+        """Edita la agenda de un mantenimiento pendiente desde un DTO."""
+        try:
+            self.db.execute(
+                """UPDATE mantenimientos SET
+                       activo_id=?, tipo=?, descripcion=?, fecha_prog=?, realizado_por=?
+                   WHERE id=?""",
+                (dto.get("activo_id"), dto.get("tipo"), dto.get("descripcion"),
+                 dto.get("fecha_prog"), dto.get("realizado_por"), mant_id),
+            )
+            self.db.commit()
+        except Exception as e:
+            try: self.db.rollback()
+            except Exception: pass
+            raise RuntimeError(f"Error editando mantenimiento: {e}")
+
     def programar_mantenimiento(self, activo_id: str, tipo: str, descripcion: str, fecha_prog: str):
         """Agenda un mantenimiento preventivo o correctivo."""
         try:

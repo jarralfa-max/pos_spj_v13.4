@@ -348,3 +348,24 @@ APPCONTAINER_PASSED_TO_SERVICES_ALLOWLIST = {
 DEPRECATED_SERVICES_WITH_BUSINESS_LOGIC_ALLOWLIST = {
     'pos_spj_v13.4/core/delivery/application/legacy_event_bridge.py': 1,
 }
+
+# Remediación D — Diálogos que aún ejecutan lógica de persistencia/publicación.
+# Contrato objetivo: un QDialog SOLO captura → DTO/Command; el módulo delega en
+# un servicio. Cada entrada es "path::Clase" con las llamadas prohibidas que aún
+# contiene. Este allowlist es un RATCHET: no se admiten entradas nuevas y, cuando
+# un diálogo se limpia, su entrada DEBE retirarse (el test falla si queda obsoleta).
+# Referencia: DEEP_AUDIT_ALL_MODULES §8 y §17 (Remediación D), test T8.
+DIALOG_BUSINESS_LOGIC_ALLOWLIST = {
+    'pos_spj_v13.4/interfaz/main_window.py::DialogoLogin': ['execute'],
+    'pos_spj_v13.4/modulos/caja.py::DialogoCorteZCiego': ['execute'],
+    'pos_spj_v13.4/modulos/clientes.py::DialogoCliente': ['commit', 'execute', 'publish'],
+    'pos_spj_v13.4/modulos/clientes.py::DialogoHistorialCliente': ['execute'],
+    'pos_spj_v13.4/modulos/clientes.py::_DialogoAsignarTarjetaCliente': ['execute'],
+    'pos_spj_v13.4/modulos/clientes.py::_DialogoRFM': ['execute'],
+    'pos_spj_v13.4/modulos/clientes.py::_DialogoTarjetasCliente': ['execute'],
+    'pos_spj_v13.4/modulos/cotizaciones.py::DialogoNuevaCotizacion': ['execute'],
+    'pos_spj_v13.4/modulos/productos.py::DialogoProducto': ['execute'],
+    'pos_spj_v13.4/ui/ventana_pedidos.py::DialogAjustePeso': ['commit', 'execute'],
+    'pos_spj_v13.4/ui/ventana_pedidos.py::DialogAsignarRepartidor': ['commit', 'execute'],
+    'pos_spj_v13.4/ui/ventana_pedidos.py::DialogDetallePedido': ['execute'],
+}
