@@ -358,7 +358,6 @@ DEPRECATED_SERVICES_WITH_BUSINESS_LOGIC_ALLOWLIST = {
 DIALOG_BUSINESS_LOGIC_ALLOWLIST = {
     'pos_spj_v13.4/interfaz/main_window.py::DialogoLogin': ['execute'],
     'pos_spj_v13.4/modulos/caja.py::DialogoCorteZCiego': ['execute'],
-    'pos_spj_v13.4/modulos/clientes.py::DialogoCliente': ['commit', 'execute', 'publish'],
     'pos_spj_v13.4/modulos/clientes.py::_DialogoRFM': ['execute'],
     'pos_spj_v13.4/modulos/cotizaciones.py::DialogoNuevaCotizacion': ['execute'],
     'pos_spj_v13.4/modulos/productos.py::DialogoProducto': ['execute'],
