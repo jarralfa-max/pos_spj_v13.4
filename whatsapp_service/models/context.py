@@ -40,7 +40,7 @@ class FlowState(str, Enum):
 @dataclass
 class PedidoItem:
     """Un item dentro del pedido en curso."""
-    producto_id: int
+    producto_id: str
     nombre: str
     cantidad: float
     unidad: str = "kg"

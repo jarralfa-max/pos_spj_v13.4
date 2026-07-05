@@ -47,9 +47,12 @@ class CatalogEntityExtractor:
             except Exception:
                 catalog = []
         entities: List[Dict[str, Any]] = []
-        seen: set[int] = set()
+        # REGLA CERO: el id de producto es UUIDv7 (str). Antes se convertía el id
+        # a entero, lo que lanzaba ValueError con IDs UUID → el except dejaba el
+        # catálogo vacío y ningún producto era reconocido.
+        seen: set[str] = set()
         for product in sorted(catalog, key=lambda p: len(str(p.get("nombre", ""))), reverse=True):
-            pid = int(product.get("id", 0) or 0)
+            pid = str(product.get("id") or "").strip()
             if not pid or pid in seen:
                 continue
             name = str(product.get("nombre", "")).strip()

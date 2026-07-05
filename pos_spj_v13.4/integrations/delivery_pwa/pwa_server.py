@@ -102,7 +102,7 @@ class DeliveryAPIHandler(BaseHTTPRequestHandler):
                 return False
             responsable = str(body.get("responsable") or body.get("chofer_id") or "pwa")
             DeliveryService(conn).update_status(
-                int(pedido_id),
+                str(pedido_id),
                 str(estado),
                 usuario="pwa_delivery",
                 responsable=responsable if str(estado).strip().lower() in {"entregado", "entregada"} else "",

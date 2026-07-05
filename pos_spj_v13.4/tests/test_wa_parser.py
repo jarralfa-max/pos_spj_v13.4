@@ -64,7 +64,8 @@ def matcher_db():
 @pytest.fixture
 def matcher(matcher_db):
     from parser.product_matcher import ProductMatcher
-    return ProductMatcher(matcher_db, sucursal_id=1)
+    # REGLA CERO: sucursal_id es UUIDv7 (str). El matcher lo normaliza a str.
+    return ProductMatcher(matcher_db, sucursal_id="1")
 
 
 # ── ProductMatcher Tests ──────────────────────────────────────────────────────
@@ -100,9 +101,10 @@ class TestProductMatcher:
         assert len(matcher._cache) == before
 
     def test_set_sucursal_triggers_reload(self, matcher):
-        matcher.set_sucursal(2)
-        assert matcher.sucursal_id == 2
-        matcher.set_sucursal(1)
+        # Identidad UUIDv7 (str), no int (REGLA CERO).
+        matcher.set_sucursal("2")
+        assert matcher.sucursal_id == "2"
+        matcher.set_sucursal("1")
 
     def test_get_categories_returns_distinct(self, matcher):
         cats = matcher.get_categories()

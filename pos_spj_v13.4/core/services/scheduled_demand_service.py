@@ -15,9 +15,9 @@ class ScheduledDemandService:
     def register_scheduled_sale(
         self,
         *,
-        sale_id: int,
-        branch_id: int,
-        customer_id: int | None,
+        sale_id: str,
+        branch_id: str,
+        customer_id: str | None,
         folio: str,
         scheduled_at: str,
         items: Iterable[Dict[str, Any]],
