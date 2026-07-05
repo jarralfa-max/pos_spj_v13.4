@@ -300,3 +300,45 @@ métodos públicos como wrappers de compatibilidad hacia atrás (facade pattern)
 - TestMigracion082TreasuryTables (7 tests) — verifica creación e idempotencia de tablas
 
 **Total suite finanzas**: 117 tests pasando.
+
+---
+
+## Remediación D1 — Unificación de caja (paso 1: bloqueo de la ruta canónica)
+
+**Hallazgo (corrige el marco del audit).** La caja NO es "3 servicios en paralelo"
+sino una arquitectura EN CAPAS cuya ruta de producción ya es canónica:
+
+```
+UI (modulos/caja.py)
+  → open_cash_shift_uc / register_cash_movement_uc / generate_z_cut_uc  (use cases)
+  → CashRegisterApplicationService   (única emisora de eventos CASH_*)
+  → finance_service.{abrir_turno, registrar_movimiento_manual, generar_corte_z}
+```
+
+- La UI usa `caja_service` (`CajaApplicationService`) SÓLO para lecturas (KPIs,
+  historial, arqueo, estado de turno, movimientos). Sus métodos de **mutación**
+  (`abrir_turno`/`registrar_movimiento_manual`/`generar_corte_z`) son un duplicado
+  histórico que hoy no está en la ruta de producción (los ejercita `test_caja.py`).
+- `finance_service` (ruta canónica) NO emite eventos de caja; `CashRegister` es la
+  única emisora `CASH_*`. El bridge `CAJA_* → CASH_*` (Remediación A) sólo republica
+  eventos legacy `CAJA_*`, que en la ruta canónica no se emiten → sin doble emisión.
+
+**Duplicación real pendiente:** tres implementaciones de corte Z —
+`finance_service.generar_corte_z` (canónica/UI), `CajaApplicationService.generar_corte_z`
+(duplicado, muerto en prod) y `CierreCajaService.corte_z` (auto-cierre del scheduler,
+`app_container.py:1030`, con impresión + notificaciones propias).
+
+**Paso 1 (este commit) — bloqueo anti-regresión, sin tocar cálculo financiero:**
+- `tests/architecture/test_caja_canonical_route.py`: (1) la UI no invoca mutaciones
+  de caja directamente sobre el servicio; (2) enruta por los use cases canónicos;
+  (3) `CashRegisterApplicationService` emite `CASH_*` y delega la lógica de turno en
+  `finance_service`. Fija la ruta correcta para que no regrese a la legacy.
+
+**Pasos siguientes de D1 (con cobertura financiera dedicada, aún no hechos):**
+1. Enrutar el auto-cierre del scheduler (`CierreCajaService.corte_z`) por
+   `GenerateZCutUseCase`/`finance_service.generar_corte_z`, preservando impresión y
+   notificaciones — una sola implementación financiera de corte Z.
+2. Deprecar las mutaciones duplicadas de `CajaApplicationService` (migrar
+   `test_caja.py` a la ruta canónica) dejándolo como servicio de sólo-lectura.
+3. Retirar la publicación de `CAJA_MOVIMIENTO` desde `repositories/caja.py` (los
+   repos no publican eventos; lo hace la capa de aplicación).
