@@ -21,14 +21,15 @@ import sqlite3
 
 import pytest
 
-from migrations import m000_base_schema as base
-
 
 @pytest.fixture
 def db():
+    # Schema completo (todas las migraciones): necesario para financial_event_log
+    # (asiento de diferencia) y cierres_caja.turno_id (idempotencia).
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
-    base.up(conn)
+    from migrations import engine
+    engine.up(conn)
     conn.commit()
     return conn
 
@@ -134,33 +135,64 @@ class TestSchedulerCorteZ:
 # ── Ruta canónica UI: finance_service.generar_corte_z ───────────────────────────
 
 class TestCanonicalCorteZ:
+    """Tras D1 paso 2b la ruta canónica es un SUPERSET: cierra turnos_caja Y
+    registra cierres_caja Y postea el asiento de diferencia."""
 
-    def test_actualiza_turnos_caja_y_no_escribe_cierres_caja(self, db):
+    def _fin_venta(self, db):
         from core.services.enterprise.finance_service import FinanceService
         from backend.shared.ids import new_uuid
         fin = FinanceService(db)
-        # abrir turno canónico
         turno_id = fin.abrir_turno(sucursal_id="1", usuario="ana", fondo_inicial=100.0)
-        # ventas del turno
         db.execute(
             "INSERT INTO ventas (id, sucursal_id, total, forma_pago, estado, usuario, fecha) "
             "VALUES (?,?,?,?,?,?, datetime('now'))",
             (new_uuid(), "1", 500.0, "Efectivo", "completada", "ana"),
         )
         db.commit()
+        return fin, turno_id
+
+    def test_cierra_turno_y_registra_cierres_caja(self, db):
+        fin, turno_id = self._fin_venta(db)
         before = db.execute("SELECT COUNT(*) FROM cierres_caja").fetchone()[0]
         res = fin.generar_corte_z(turno_id=turno_id, sucursal_id="1",
                                   usuario="ana", efectivo_fisico=600.0)
-        # Cierra el turno en turnos_caja
+        # Cierra el turno canónico.
         estado = db.execute(
             "SELECT estado FROM turnos_caja WHERE id=?", (turno_id,)
         ).fetchone()["estado"]
         assert estado == "cerrado"
-        # Devuelve dict con diferencia
-        assert "diferencia" in res
-        # GAP documentado: NO escribe cierres_caja (el historial de la UI lo lee).
+        # D1 2b: ahora SÍ registra el corte en cierres_caja (historial de la UI).
         after = db.execute("SELECT COUNT(*) FROM cierres_caja").fetchone()[0]
-        assert after == before, (
-            "hoy la ruta canónica NO escribe cierres_caja; completar esto es "
-            "prerequisito para re-rutear el scheduler (D1 paso 2b)"
-        )
+        assert after == before + 1
+        assert "cierre_id" in res and res["cierre_id"]
+        row = db.execute(
+            "SELECT tipo, total_ventas, total_efectivo, diferencia FROM cierres_caja WHERE id=?",
+            (res["cierre_id"],)
+        ).fetchone()
+        assert row["tipo"] == "Z"
+        assert row["total_ventas"] == 500.0
+        assert row["total_efectivo"] == 500.0
+        # esperado = fondo(100) + efectivo(500) = 600; contado 600 → diferencia 0
+        assert row["diferencia"] == 0.0
+
+    def test_idempotente_no_duplica_cierre(self, db):
+        # Segunda llamada sobre el mismo turno (ya cerrado) no debe duplicar historial.
+        fin, turno_id = self._fin_venta(db)
+        r1 = fin.generar_corte_z(turno_id=turno_id, sucursal_id="1",
+                                 usuario="ana", efectivo_fisico=600.0)
+        n1 = db.execute("SELECT COUNT(*) FROM cierres_caja WHERE turno_id=?", (turno_id,)).fetchone()[0]
+        r2 = fin.generar_corte_z(turno_id=turno_id, sucursal_id="1",
+                                 usuario="ana", efectivo_fisico=600.0)
+        n2 = db.execute("SELECT COUNT(*) FROM cierres_caja WHERE turno_id=?", (turno_id,)).fetchone()[0]
+        assert n1 == 1 and n2 == 1, "el corte Z canónico debe ser idempotente por turno"
+        assert r1["cierre_id"] == r2["cierre_id"]
+
+    def test_postea_asiento_de_diferencia(self, db):
+        # Con diferencia != 0, la ruta canónica postea el asiento (financial_event_log).
+        fin, turno_id = self._fin_venta(db)
+        fin.generar_corte_z(turno_id=turno_id, sucursal_id="1",
+                            usuario="ana", efectivo_fisico=550.0)  # esperado 600 → -50
+        n = db.execute(
+            "SELECT COUNT(*) FROM financial_event_log WHERE evento='CORTE_Z'"
+        ).fetchone()[0]
+        assert n == 1

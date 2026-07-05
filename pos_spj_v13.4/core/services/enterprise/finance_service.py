@@ -920,6 +920,106 @@ class FinanceService:
         # FASE 9: no commit aquí — PurchaseService llama este método dentro
         # de un SAVEPOINT; el commit lo hace PurchaseService al hacer RELEASE.
 
+    # Formas de pago consideradas efectivo (para el desglose del corte Z).
+    _EFECTIVO_FORMAS = frozenset({"Efectivo", "efectivo", "EFECTIVO", "cash", "Cash"})
+
+    def _cierres_caja_tiene_columna(self, columna: str) -> bool:
+        try:
+            return any(r[1] == columna
+                       for r in self.db.execute("PRAGMA table_info(cierres_caja)"))
+        except Exception:
+            return False
+
+    def _persist_corte_z_historial(
+        self, turno_id: str, sucursal_id, usuario: str, fondo: float,
+        total_ventas: float, ventas_por_pago: dict, efectivo_fisico: float,
+        esperado: float, diferencia: float, comentarios: str = "",
+    ) -> str:
+        """D1 paso 2b — Completa la ruta canónica: registra el corte Z en
+        `cierres_caja` (que lee el historial de la UI) y postea el asiento de
+        diferencia. Idempotente por turno_id (donde la columna existe)."""
+        tiene_turno_id = self._cierres_caja_tiene_columna("turno_id")
+        if tiene_turno_id:
+            ya = self.db.execute(
+                "SELECT id FROM cierres_caja WHERE turno_id=?", (str(turno_id),)
+            ).fetchone()
+            if ya:
+                return str(ya[0])  # ya registrado — no duplicar
+
+        # Desglose por forma de pago desde el agregado ya calculado.
+        total_efectivo = sum(v["total"] for fp, v in ventas_por_pago.items()
+                             if fp in self._EFECTIVO_FORMAS)
+        total_tarjeta = sum(v["total"] for fp, v in ventas_por_pago.items()
+                            if "tarjeta" in fp.lower() or "card" in fp.lower())
+        total_transferencia = sum(v["total"] for fp, v in ventas_por_pago.items()
+                                  if "transfer" in fp.lower())
+        total_otros = max(0.0, total_ventas - total_efectivo - total_tarjeta - total_transferencia)
+        num_ventas = sum(v.get("count", 0) for v in ventas_por_pago.values())
+
+        row_fa = self.db.execute(
+            "SELECT fecha_apertura FROM turnos_caja WHERE id=?", (str(turno_id),)
+        ).fetchone()
+        fecha_apertura = row_fa[0] if row_fa else None
+
+        row_a = self.db.execute(
+            """SELECT COUNT(*), COALESCE(SUM(total),0) FROM ventas
+               WHERE sucursal_id=? AND estado='cancelada'
+                 AND fecha >= (SELECT fecha_apertura FROM turnos_caja WHERE id=?)""",
+            (sucursal_id, str(turno_id)),
+        ).fetchone()
+        num_anulaciones = int(row_a[0]) if row_a else 0
+        total_anulaciones = float(row_a[1]) if row_a else 0.0
+
+        cierre_id = new_uuid()
+        cols = ["id", "tipo", "sucursal_id", "usuario", "turno", "fecha_apertura",
+                "total_ventas", "num_ventas", "total_efectivo", "total_tarjeta",
+                "total_transferencia", "total_otros", "total_anulaciones",
+                "num_anulaciones", "efectivo_contado", "fondo_inicial", "diferencia",
+                "comentarios", "estado"]
+        vals = [cierre_id, "Z", sucursal_id, usuario, usuario, fecha_apertura,
+                round(total_ventas, 2), num_ventas, round(total_efectivo, 2),
+                round(total_tarjeta, 2), round(total_transferencia, 2),
+                round(total_otros, 2), round(total_anulaciones, 2), num_anulaciones,
+                round(efectivo_fisico, 2), round(fondo, 2), diferencia,
+                comentarios or "", "cerrado"]
+        if tiene_turno_id:
+            cols.append("turno_id"); vals.append(str(turno_id))
+        placeholders = ",".join("?" * len(cols))
+        # 1) Registro de historial (debe persistir aunque el ledger falle).
+        try:
+            self.db.execute(
+                f"INSERT INTO cierres_caja ({','.join(cols)}) VALUES ({placeholders})",
+                vals,
+            )
+            self.db.commit()
+        except Exception as e:
+            try: self.db.rollback()
+            except Exception: pass
+            logger.warning("Corte Z historial (cierres_caja): %s", e)
+            return cierre_id
+
+        # 2) Asiento de diferencia (best-effort; mismas cuentas que la ruta legacy).
+        if abs(diferencia) >= 0.01 and hasattr(self, "registrar_asiento"):
+            try:
+                if diferencia > 0:
+                    debe, haber = "110-caja", "999-diferencias-caja"   # sobrante
+                else:
+                    debe, haber = "999-diferencias-caja", "110-caja"   # faltante
+                self.registrar_asiento(
+                    debe=debe, haber=haber,
+                    concepto=f"Diferencia Corte Z #{cierre_id} — cajero: {usuario}",
+                    monto=abs(diferencia), modulo="caja", referencia_id=cierre_id,
+                    sucursal_id=sucursal_id, evento="CORTE_Z",
+                    metadata={"efectivo_contado": efectivo_fisico,
+                              "efectivo_esperado": esperado, "cajero": usuario},
+                )
+                self.db.commit()
+            except Exception as e:
+                try: self.db.rollback()
+                except Exception: pass
+                logger.warning("Corte Z asiento diferencia: %s", e)
+        return cierre_id
+
     def generar_corte_z(
         self, turno_id: str, sucursal_id: int,
         usuario: str, efectivo_fisico: float
@@ -985,7 +1085,16 @@ class FinanceService:
         except Exception:
             pass
 
+        # D1 paso 2b — Completar la ruta canónica: registrar el corte en
+        # cierres_caja (historial de la UI) y postear el asiento de diferencia.
+        cierre_id = self._persist_corte_z_historial(
+            turno_id=turno_id, sucursal_id=sucursal_id, usuario=usuario,
+            fondo=fondo, total_ventas=total_ventas, ventas_por_pago=ventas_por_pago,
+            efectivo_fisico=efectivo_fisico, esperado=esperado, diferencia=diferencia,
+        )
+
         return {
+            "cierre_id":     cierre_id,
             "turno_id":      turno_id,
             "fondo_inicial": fondo,
             "total_ventas":  total_ventas,

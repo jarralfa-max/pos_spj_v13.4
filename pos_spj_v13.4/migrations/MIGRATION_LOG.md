@@ -373,3 +373,21 @@ se reordena:
 - **2c:** re-rutear el auto-cierre del scheduler y deprecar `CierreCajaService`.
 - **2d:** unificar los dos trackers de turno (`turno_actual` vs `turnos_caja`)
   vía migración de datos.
+
+### D1 paso 2b — ✅ Ruta canónica de corte Z completada (superset)
+
+`finance_service.generar_corte_z` (ruta canónica, usada por la UI vía CashRegister)
+ahora, además de cerrar `turnos_caja`:
+- Registra el corte en `cierres_caja` (el historial de la UI lo lee) con el desglose
+  por forma de pago, anulaciones y diferencia. Idempotente por `turno_id`.
+- Postea el asiento de diferencia (`110-caja` / `999-diferencias-caja`, evento
+  `CORTE_Z`) best-effort — mismas cuentas que la ruta legacy; el registro de
+  historial persiste aunque el ledger falle.
+- Devuelve `cierre_id` en el dict de resultado.
+
+Cierra el gap financiero: los cortes Z de la UI ya dejan registro en historial y
+asiento de diferencia. Cubierto por `tests/test_caja_corte_z_characterization.py`
+(8 tests, schema completo). Sin regresión (unit 26F/252P, integration 107F/128P).
+
+Habilita **2c** (re-rutear el auto-cierre del scheduler a la ruta canónica y
+deprecar `CierreCajaService`) y **2d** (unificar `turno_actual`/`turnos_caja`).
