@@ -189,9 +189,12 @@ def test_22_session_context_never_defaults_sucursal_nombre_to_principal():
     assert ctx.sucursal_nombre == ""
 
 
-def test_23_session_context_sucursal_id_defaults_to_zero_not_one():
+def test_23_session_context_sucursal_id_defaults_to_empty_uuid_not_one():
+    # D6/REGLA CERO: sucursal_id es UUIDv7 str (alias de active_branch_id) y su
+    # default es "" (vacío), NUNCA 0 ni 1 enteros.
     ctx = SessionContext()
-    assert ctx.sucursal_id == 0
+    assert ctx.sucursal_id == ""
+    assert ctx.sucursal_id == ctx.active_branch_id
 
 
 # ── Test 24: ACTIVE_BRANCH_CHANGED event ─────────────────────────────────────
