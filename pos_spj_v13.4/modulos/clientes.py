@@ -2,6 +2,7 @@
 # modulos/clientes.py
 import os
 import re
+import sqlite3  # requerido por los bloques `except sqlite3.Error` (antes sin importar)
 from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.spj_refresh_mixin import RefreshMixin
@@ -784,7 +785,8 @@ class DialogoCliente(QDialog):
 class DialogoHistorialCliente(QDialog):
     def __init__(self, conexion, id_cliente, nombre_cliente, parent=None):
         super().__init__(parent)
-        self.conexion = conexion
+        from core.services.cliente_query_service import ClienteQueryService
+        self._svc = ClienteQueryService(conexion)
         self.id_cliente = id_cliente
         self.nombre_cliente = nombre_cliente
         self.setWindowTitle(f"Historial de {nombre_cliente}")
@@ -873,15 +875,8 @@ class DialogoHistorialCliente(QDialog):
     def cargar_historial_compras(self):
         """Carga el historial de compras del cliente."""
         try:
-            cursor = self.conexion.cursor()
-            cursor.execute("""
-                SELECT fecha, total, metodo_pago, puntos_ganados 
-                FROM ventas 
-                WHERE cliente_id = ? 
-                ORDER BY fecha DESC
-            """, (self.id_cliente,))
-            ventas = cursor.fetchall()
-            
+            ventas = self._svc.historial_compras(self.id_cliente)
+
             self.tabla_compras.setRowCount(len(ventas))
             for row, venta in enumerate(ventas):
                 for col, valor in enumerate(venta):
@@ -898,15 +893,8 @@ class DialogoHistorialCliente(QDialog):
     def cargar_historial_puntos(self):
         """Carga el historial de puntos del cliente."""
         try:
-            cursor = self.conexion.cursor()
-            cursor.execute("""
-                SELECT fecha, tipo, puntos, saldo_actual, descripcion 
-                FROM historico_puntos 
-                WHERE id_cliente = ? 
-                ORDER BY fecha DESC
-            """, (self.id_cliente,))
-            puntos = cursor.fetchall()
-            
+            puntos = self._svc.historial_puntos(self.id_cliente)
+
             self.tabla_puntos.setRowCount(len(puntos))
             for row, punto in enumerate(puntos):
                 for col, valor in enumerate(punto):
@@ -918,15 +906,8 @@ class DialogoHistorialCliente(QDialog):
     def cargar_historial_creditos(self):
         """Carga el historial de movimientos de crédito del cliente."""
         try:
-            cursor = self.conexion.cursor()
-            cursor.execute("""
-                SELECT fecha, tipo, monto, descripcion, usuario 
-                FROM movimientos_credito 
-                WHERE cliente_id = ? 
-                ORDER BY fecha DESC
-            """, (self.id_cliente,))
-            creditos = cursor.fetchall()
-            
+            creditos = self._svc.historial_creditos(self.id_cliente)
+
             self.tabla_creditos.setRowCount(len(creditos))
             for row, credito in enumerate(creditos):
                 for col, valor in enumerate(credito):
@@ -945,9 +926,10 @@ class _DialogoAsignarTarjetaCliente(QDialog):
 
     def __init__(self, cliente_id, cliente_nombre, conexion, parent=None):
         super().__init__(parent)
+        from core.services.cliente_query_service import ClienteQueryService
         self.cliente_id   = cliente_id
         self.cliente_nombre = cliente_nombre
-        self.conexion     = conexion
+        self._svc         = ClienteQueryService(conexion)
         self.tarjeta_id   = None
         self.setWindowTitle(f"Asignar Tarjeta — {cliente_nombre}")
         self.setMinimumWidth(440)
@@ -1004,10 +986,7 @@ class _DialogoAsignarTarjetaCliente(QDialog):
 
     def _cargar_tarjetas_libres(self):
         try:
-            rows = self.conexion.execute(
-                "SELECT id, numero, COALESCE(nivel,'Bronce') FROM tarjetas_fidelidad "
-                "WHERE estado IN ('libre','impresa','generada') ORDER BY id LIMIT 100"
-            ).fetchall()
+            rows = self._svc.tarjetas_libres()
             self.combo_tarjeta.clear()
             for tid, num, nivel in rows:
                 self.combo_tarjeta.addItem(f"{num} [{nivel}]", tid)
@@ -1018,10 +997,7 @@ class _DialogoAsignarTarjetaCliente(QDialog):
         numero = self.txt_numero.text().strip()
         if not numero:
             return
-        row = self.conexion.execute(
-            "SELECT id, numero, estado FROM tarjetas_fidelidad WHERE numero=? OR codigo_qr=?",
-            (numero, numero)
-        ).fetchone()
+        row = self._svc.buscar_tarjeta(numero)
         if not row:
             self.lbl_estado_busqueda.setText("❌ No encontrada")
         elif row[2] == "asignada":
@@ -1055,9 +1031,11 @@ class _DialogoTarjetasCliente(QDialog):
 
     def __init__(self, cliente_id, cliente_nombre, conexion, parent=None):
         super().__init__(parent)
+        from core.services.cliente_query_service import ClienteQueryService
         self.cliente_id     = cliente_id
         self.cliente_nombre = cliente_nombre
-        self.conexion       = conexion
+        self.conexion       = conexion  # requerido por CardBatchEngine (servicio)
+        self._svc           = ClienteQueryService(conexion)
         self.setWindowTitle(f"Tarjetas — {cliente_nombre}")
         self.setMinimumWidth(600)
         self.setMinimumHeight(480)
@@ -1133,11 +1111,7 @@ class _DialogoTarjetasCliente(QDialog):
         from PyQt5.QtWidgets import QTableWidgetItem
         # Tarjetas asignadas
         try:
-            rows = self.conexion.execute(
-                "SELECT id, numero, estado, COALESCE(nivel,'Bronce'), puntos_actuales, fecha_asignacion "
-                "FROM tarjetas_fidelidad WHERE id_cliente = ? ORDER BY fecha_asignacion DESC",
-                (self.cliente_id,)
-            ).fetchall()
+            rows = self._svc.tarjetas_de_cliente(self.cliente_id)
             self.tabla_tarjetas.setRowCount(len(rows))
             for i, r in enumerate(rows):
                 for j, v in enumerate(r):
@@ -1147,16 +1121,7 @@ class _DialogoTarjetasCliente(QDialog):
 
         # Historial
         try:
-            rows_h = self.conexion.execute(
-                """
-                SELECT h.accion, h.fecha, tf.numero, h.motivo, h.usuario
-                FROM card_assignment_history h
-                LEFT JOIN tarjetas_fidelidad tf ON tf.id = h.tarjeta_id
-                WHERE h.cliente_id_nuevo = ? OR h.cliente_id_prev = ?
-                ORDER BY h.fecha DESC LIMIT 100
-                """,
-                (self.cliente_id, self.cliente_id)
-            ).fetchall()
+            rows_h = self._svc.historial_asignaciones(self.cliente_id)
             self.tabla_historial.setRowCount(len(rows_h))
             for i, r in enumerate(rows_h):
                 for j, v in enumerate(r):
@@ -1166,12 +1131,7 @@ class _DialogoTarjetasCliente(QDialog):
 
         # Score fidelidad
         try:
-            score_row = self.conexion.execute(
-                "SELECT score_total, nivel, visitas_periodo, importe_total, "
-                "margen_generado, referidos, fecha_calculo "
-                "FROM loyalty_scores WHERE cliente_id = ?",
-                (self.cliente_id,)
-            ).fetchone()
+            score_row = self._svc.loyalty_score(self.cliente_id)
             if score_row:
                 txt = (
                     f"<b>Score Total:</b> {score_row[0]:.1f}/100  |  "
