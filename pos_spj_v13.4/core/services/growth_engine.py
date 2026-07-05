@@ -1,4 +1,4 @@
-# modulos/growth_engine.py — SPJ POS v13.2
+# core/services/growth_engine.py — SPJ POS v13.2 (movido desde modulos/ — D7/F)
 """
 Growth Engine (Motor de Crecimiento y Fidelidad).
 Diseño ROI-primero: no entrega recompensa hasta que el ingreso ya entró.
@@ -38,7 +38,8 @@ EXPIRY_INACTIVIDAD_DIAS = 90  # días sin compra → estrellas expiran
 class GrowthEngine:
     """
     Motor principal. Se instancia por sesión/sucursal.
-    Entrada: AppContainer (para db + whatsapp_service).
+    Entradas: conexión db, sucursal_id y (opcional) whatsapp_service — NO el
+    contenedor de DI (es un servicio de dominio, no recibe el container).
     """
 
     def __init__(self, db, sucursal_id: int = 1, whatsapp_service=None):

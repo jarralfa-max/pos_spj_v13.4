@@ -715,7 +715,7 @@ class AppContainer:
 
         # ── Growth Engine ──────────────────────────────────────────────
         try:
-            from modulos.growth_engine import GrowthEngine
+            from core.services.growth_engine import GrowthEngine
             self.growth_engine = GrowthEngine(
                 db=self.db,
                 sucursal_id="",

@@ -501,3 +501,19 @@ Pendiente F (reducciones por módulo, orden de riesgo): growth_engine (33 — es
 servicio de dominio mal ubicado en modulos/, D7 → mover a capa de servicios),
 recepcion_qr_widget (29), rrhh (20) / rrhh_turnos (18), loyalty_card_designer
 (12), activos (11), resto.
+
+## Remediación F (paso 2) — growth_engine fuera de la capa UI (D7)
+
+`GrowthEngine` era un servicio de dominio puro (sin Qt) mal ubicado en `modulos/`
+(D7). Movido a `core/services/growth_engine.py`:
+
+- Sale de la capa UI: −33 SQL y −12 commits del scope UI (SQL-in-UI **187 → 154**).
+  Retirado de SQL_IN_UI_ALLOWLIST y COMMIT_ROLLBACK_IN_UI_ALLOWLIST.
+- Su DDL runtime (5 CREATE/ALTER) sigue trazado en SCHEMA_CHANGES_OUTSIDE_MIGRATIONS
+  con la ruta actualizada (deuda G, aparte).
+- Imports actualizados: `modulos/modulo_growth_engine.py` (el wrapper QWidget
+  permanece en UI), `core/app_container.py`, test de integración.
+- Docstring corregido (decía "Entrada: AppContainer" — no recibe el container).
+
+Sin regresión: architecture 35F/224P; unit 26F/252P; el test de integración de
+growth (2F preexistentes por `no such table: growth_ledger`) sin cambios.
