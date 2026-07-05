@@ -5,23 +5,25 @@ the existing count and fail when a file introduces additional violations or a
 new file starts violating a rule. Counts may be reduced as debt is removed.
 """
 
+# Ratchet (Remediación F): contadores APRETADOS a la realidad actual. El total
+# bajó de 371 a 187 tras las extracciones de fases previas + Remediación D
+# (diálogos captura-only). test_sql_in_ui_ratchet exige igualdad exacta: agregar
+# SQL en UI falla, y remover SQL obliga a bajar el contador aquí (sólo decrece).
+# Módulos ya en 0 (retirados): finanzas_unificadas, productos, inventario_local,
+# transferencias.
 SQL_IN_UI_ALLOWLIST = {
-    'pos_spj_v13.4/interfaz/main_window.py': 10,
-    'pos_spj_v13.4/modulos/activos.py': 19,
+    'pos_spj_v13.4/interfaz/main_window.py': 9,
+    'pos_spj_v13.4/modulos/activos.py': 11,
     'pos_spj_v13.4/modulos/base.py': 3,
-    'pos_spj_v13.4/modulos/clientes.py': 16,
+    'pos_spj_v13.4/modulos/clientes.py': 1,
     'pos_spj_v13.4/modulos/compras/actions_bar.py': 1,
-    'pos_spj_v13.4/modulos/compras_pro.py': 58,
-    # CONFIGURACION FASE 1: config_modules.py and configuracion.py have 0 SQL in UI.
-    'pos_spj_v13.4/modulos/cotizaciones.py': 10,
-    'pos_spj_v13.4/modulos/delivery.py': 37,
+    'pos_spj_v13.4/modulos/compras_pro.py': 7,
+    'pos_spj_v13.4/modulos/cotizaciones.py': 9,
+    'pos_spj_v13.4/modulos/delivery.py': 2,
     'pos_spj_v13.4/modulos/etiquetas.py': 4,
-    'pos_spj_v13.4/modulos/finanzas_unificadas.py': 20,
     'pos_spj_v13.4/modulos/growth_engine.py': 33,
-    'pos_spj_v13.4/modulos/inventario_local.py': 7,
     'pos_spj_v13.4/modulos/loyalty_card_designer.py': 12,
     'pos_spj_v13.4/modulos/planeacion_compras.py': 2,
-    'pos_spj_v13.4/modulos/productos.py': 29,
     'pos_spj_v13.4/modulos/recepcion_qr_widget.py': 29,
     'pos_spj_v13.4/modulos/reportes_bi_v2.py': 3,
     'pos_spj_v13.4/modulos/rrhh.py': 20,
@@ -31,8 +33,7 @@ SQL_IN_UI_ALLOWLIST = {
     'pos_spj_v13.4/modulos/spj_product_search.py': 2,
     'pos_spj_v13.4/modulos/spj_styles.py': 2,
     'pos_spj_v13.4/modulos/ticket_designer.py': 6,
-    'pos_spj_v13.4/modulos/transferencias.py': 5,
-    'pos_spj_v13.4/modulos/ventas.py': 17,
+    'pos_spj_v13.4/modulos/ventas.py': 5,
     'pos_spj_v13.4/presentation/sales/dialogs/payment_dialog.py': 2,
 }
 

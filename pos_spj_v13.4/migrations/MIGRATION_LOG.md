@@ -477,3 +477,27 @@ suscripciones vivas, no huérfanas.
 
 Sin regresión: architecture 35F/223P (+1 guardrail); unit 26F/252P; test de
 finanzas KPI wiring 2F→verde.
+
+---
+
+## Remediación F — SQL en UI: ratchet decreciente (paso 1)
+
+`test_no_sql_in_frontend` sólo impedía aumentos. Se cierra el ratchet:
+
+- `SQL_IN_UI_ALLOWLIST` APRETADO a la realidad: **371 → 187** SQL en UI. Las
+  extracciones de fases previas + Remediación D (diálogos captura-only) ya habían
+  removido ~184 sentencias que el allowlist nunca reflejó. Módulos que llegaron a
+  0 y se retiraron del allowlist: finanzas_unificadas (20→0), productos (29→0),
+  inventario_local (7→0), transferencias (5→0); grandes bajas: compras_pro
+  (58→7), delivery (37→2), clientes (16→1), activos (19→11), ventas (17→5).
+- `tests/architecture/test_sql_in_ui_ratchet.py` (T13): exige IGUALDAD exacta
+  actual==allowed. Agregar SQL en UI falla; remover SQL obliga a bajar el
+  contador; un archivo de UI con SQL fuera del allowlist falla. El objetivo
+  terminal de cada contador es 0.
+
+Sin regresión: architecture 35F/224P (+1 ratchet).
+
+Pendiente F (reducciones por módulo, orden de riesgo): growth_engine (33 — es un
+servicio de dominio mal ubicado en modulos/, D7 → mover a capa de servicios),
+recepcion_qr_widget (29), rrhh (20) / rrhh_turnos (18), loyalty_card_designer
+(12), activos (11), resto.
