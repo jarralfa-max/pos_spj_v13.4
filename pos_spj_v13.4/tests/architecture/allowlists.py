@@ -365,7 +365,4 @@ DIALOG_BUSINESS_LOGIC_ALLOWLIST = {
     'pos_spj_v13.4/modulos/clientes.py::_DialogoTarjetasCliente': ['execute'],
     'pos_spj_v13.4/modulos/cotizaciones.py::DialogoNuevaCotizacion': ['execute'],
     'pos_spj_v13.4/modulos/productos.py::DialogoProducto': ['execute'],
-    'pos_spj_v13.4/ui/ventana_pedidos.py::DialogAjustePeso': ['commit', 'execute'],
-    'pos_spj_v13.4/ui/ventana_pedidos.py::DialogAsignarRepartidor': ['commit', 'execute'],
-    'pos_spj_v13.4/ui/ventana_pedidos.py::DialogDetallePedido': ['execute'],
 }
