@@ -125,6 +125,55 @@ class ProductoRepository:
         columnas = [col[0] for col in cursor.description]
         return [dict(zip(columnas, row)) for row in cursor.fetchall()]
 
+    # ── Búsqueda para el widget de escáner (Remediación F: SQL fuera de la UI) ──
+    #  Preservan EXACTAMENTE las consultas y columnas que usaba ProductSearchWidget.
+
+    def buscar_exacto_para_scanner(self, codigo: str) -> Optional[Dict]:
+        """Coincidencia exacta por código de barras, código interno o ID."""
+        row = self.db.execute(
+            """SELECT id, nombre, COALESCE(codigo,'') as codigo,
+                      COALESCE(codigo_barras,'') as codigo_barras,
+                      precio, COALESCE(precio_compra,0) as precio_compra,
+                      COALESCE(existencia,0) as existencia,
+                      COALESCE(unidad,'pz') as unidad
+               FROM productos
+               WHERE (COALESCE(codigo_barras,'')=? OR codigo=? OR CAST(id AS TEXT)=?)
+                 AND COALESCE(oculto,0)=0 AND COALESCE(activo,1)=1
+               LIMIT 1""",
+            (codigo, codigo, codigo),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def buscar_para_scanner(self, text: str) -> List[Dict]:
+        """Búsqueda difusa por nombre/código/barcode/ID para el popup del escáner."""
+        rows = self.db.execute(
+            """SELECT id, nombre,
+                      COALESCE(codigo,'') as codigo,
+                      COALESCE(codigo_barras,'') as codigo_barras,
+                      precio,
+                      COALESCE(precio_compra,0) as precio_compra,
+                      COALESCE(existencia,0) as existencia,
+                      COALESCE(unidad,'pz') as unidad
+               FROM productos
+               WHERE (
+                   nombre          LIKE ?
+                OR COALESCE(codigo,'')      LIKE ?
+                OR COALESCE(codigo_barras,'') LIKE ?
+                OR CAST(id AS TEXT)          = ?
+               )
+               AND COALESCE(oculto,0)=0
+               AND COALESCE(activo,1)=1
+               ORDER BY
+                 CASE WHEN COALESCE(codigo_barras,'')=? THEN 0
+                      WHEN COALESCE(codigo,'')=?        THEN 1
+                      WHEN CAST(id AS TEXT)=?           THEN 2
+                      ELSE 3 END,
+                 nombre
+               LIMIT 20""",
+            (f"%{text}%", f"%{text}%", f"%{text}%", text, text, text, text),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
     def check_name_available(self, nombre: str,
                               exclude_id: Optional[str] = None) -> bool:
         normalised = nombre.strip().lower()

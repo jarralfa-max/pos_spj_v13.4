@@ -517,3 +517,14 @@ recepcion_qr_widget (29), rrhh (20) / rrhh_turnos (18), loyalty_card_designer
 
 Sin regresión: architecture 35F/224P; unit 26F/252P; el test de integración de
 growth (2F preexistentes por `no such table: growth_ledger`) sin cambios.
+
+## Remediación F (paso 3) — spj_product_search: SQL → ProductoRepository (2→0)
+
+ProductSearchWidget (escáner) ejecutaba 2 consultas de productos directas. Movidas
+a ProductoRepository.buscar_exacto_para_scanner / buscar_para_scanner (mismas
+consultas y columnas exactas — id, nombre, codigo, codigo_barras, precio,
+precio_compra, existencia, unidad). El widget delega; SQL en UI del archivo: 2→0
+(retirado del allowlist). SQL-in-UI total 154→152.
+
+Sin regresión: architecture 35F/224P; búsqueda por barcode/código/fuzzy verificada
+end-to-end contra el schema base.

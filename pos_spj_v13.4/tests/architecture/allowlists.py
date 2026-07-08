@@ -29,7 +29,6 @@ SQL_IN_UI_ALLOWLIST = {
     'pos_spj_v13.4/modulos/rrhh_turnos.py': 18,
     'pos_spj_v13.4/modulos/sistema/backup_engine.py': 2,
     'pos_spj_v13.4/modulos/sistema/health_monitor.py': 4,
-    'pos_spj_v13.4/modulos/spj_product_search.py': 2,
     'pos_spj_v13.4/modulos/spj_styles.py': 2,
     'pos_spj_v13.4/modulos/ticket_designer.py': 6,
     'pos_spj_v13.4/modulos/ventas.py': 5,
