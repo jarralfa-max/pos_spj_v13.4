@@ -1478,11 +1478,8 @@ class RecepcionQRWidget(QWidget):
             return
         try:
             uuid_qr = self._contenedor_activo.get("uuid_qr", "")
-            self.conexion.execute(
-                "UPDATE trazabilidad_qr SET estado='recepcion_parcial' WHERE uuid_qr=?",
-                (uuid_qr,)
-            )
-            self.conexion.commit()
+            from core.services.recepcion_qr_service import RecepcionQRService
+            RecepcionQRService(self.conexion).marcar_recepcion_parcial(uuid_qr)
             Toast.success(self, "⚠ Recepción parcial registrada", f"QR: {uuid_qr}")
             self._cargar_pendientes_recepcion()
         except Exception as e:
@@ -1500,11 +1497,8 @@ class RecepcionQRWidget(QWidget):
             uuid_qr = self._contenedor_activo.get("uuid_qr", "")
             import json as _json
             nota = _json.dumps({"tipo": tipo, "descripcion": desc, "accion": accion}, ensure_ascii=False)
-            self.conexion.execute(
-                "UPDATE trazabilidad_qr SET estado='incidencia', datos_extra=json_patch(COALESCE(datos_extra,'{}'), ?) WHERE uuid_qr=?",
-                (f'{{"incidencia":{nota}}}', uuid_qr)
-            )
-            self.conexion.commit()
+            from core.services.recepcion_qr_service import RecepcionQRService
+            RecepcionQRService(self.conexion).marcar_incidencia(uuid_qr, nota)
             Toast.success(self, "🚨 Incidencia registrada", f"{tipo}: {desc[:40]}")
             self._cargar_pendientes_recepcion()
         except Exception as e:
@@ -1912,108 +1906,10 @@ class RecepcionQRWidget(QWidget):
             QMessageBox.critical(self, "Error", str(e))
 
     def _procesar_recepcion_en_bd(self, uuid_qr: str, items: List[Dict], notas: str) -> None:
-        """Transacción atómica: recepciones + recepcion_items + inventario + lotes + trazabilidad."""
-        op_id = str(uuid.uuid4())
-        folio = f"REC-{op_id[:8].upper()}"
-        _tqr_row = self.conexion.execute(
-            "SELECT COALESCE(datos_extra,'{}') FROM trazabilidad_qr WHERE uuid_qr=?",
-            (uuid_qr,)
-        ).fetchone()
-        datos_extra = json.loads(_tqr_row[0] if _tqr_row else "{}")
-        proveedor_id = datos_extra.get("proveedor_id")
-        condicion    = datos_extra.get("condicion_pago", "liquidado")
-        metodo       = datos_extra.get("metodo_pago", "efectivo")
-        monto_pagado = float(datos_extra.get("monto_pagado", 0))
-        monto_total  = float(datos_extra.get("monto_total", 0))
-
-        from core.db.connection import transaction as _tx_qr
-        with _tx_qr(self.conexion):
-            # 1. Recepción cabecera — identidad UUIDv7 explícita (REGLA CERO)
-            from backend.shared.ids import new_uuid
-            recepcion_id = new_uuid()
-            self.conexion.execute("""
-                INSERT INTO recepciones
-                    (id, folio, tipo, proveedor_id, sucursal_id, usuario,
-                     notas, operation_id, estado,
-                     uuid_qr, condicion_pago, metodo_pago,
-                     monto_pagado, monto_total,
-                     saldo_pendiente)
-                VALUES(?,?,?,?,?,?,?,?,'completada',?,?,?,?,?,?)
-            """, (recepcion_id, folio, "COMPRA", proveedor_id, self.sucursal_id, self.usuario,
-                  notas, op_id, uuid_qr, condicion, metodo,
-                  monto_pagado, monto_total,
-                  max(0, monto_total - monto_pagado)))
-
-            for item in items:
-                prod_id  = item["product_id"]
-                qty      = float(item["cantidad"])
-                costo    = float(item.get("costo_unitario", 0))
-                caducidad = item.get("fecha_caducidad")
-
-                # 2. Detalle de recepción
-                self.conexion.execute("""
-                    INSERT INTO recepcion_items
-                        (id, recepcion_id, producto_id, cantidad, costo_unitario,
-                         uuid_qr_contenedor, fecha_caducidad)
-                    VALUES(?,?,?,?,?,?,?)
-                """, (new_uuid(), recepcion_id, prod_id, qty, costo, uuid_qr, caducidad))
-
-                # 3. Actualizar inventario_actual (UPSERT con costo promedio ponderado)
-                # CASE guard prevents division-by-zero if existing quantity is somehow 0.
-                self.conexion.execute("""
-                    INSERT INTO inventario_actual(producto_id, sucursal_id, cantidad, costo_promedio)
-                    VALUES(?,?,?,?)
-                    ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET
-                        cantidad = cantidad + excluded.cantidad,
-                        costo_promedio = CASE
-                            WHEN (cantidad + excluded.cantidad) > 0
-                            THEN (cantidad * costo_promedio + excluded.cantidad * excluded.costo_promedio)
-                                 / (cantidad + excluded.cantidad)
-                            ELSE excluded.costo_promedio
-                        END,
-                        ultima_actualizacion = datetime('now')
-                """, (prod_id, self.sucursal_id, qty, costo))
-
-                # 3b. Sync productos.existencia (sum across all branches)
-                # This is what the POS and all modules read for stock levels
-                self.conexion.execute("""
-                    UPDATE productos
-                    SET existencia   = (SELECT COALESCE(SUM(cantidad),0)
-                                        FROM inventario_actual
-                                        WHERE producto_id = ?),
-                        precio_compra = ?
-                    WHERE id = ?
-                """, (prod_id, costo, prod_id))
-
-                # 4. Movimiento de inventario (auditoría)
-                self.conexion.execute("""
-                    INSERT INTO movimientos_inventario
-                        (uuid, producto_id, tipo, tipo_movimiento, cantidad,
-                         descripcion, referencia, usuario, sucursal_id)
-                    VALUES(?,?,'entrada','COMPRA',?,?,?,?,?)
-                """, (str(uuid.uuid4()), prod_id, qty,
-                      f"Recepción QR {uuid_qr}", folio, self.usuario, self.sucursal_id))
-
-            # 5. Marcar QR como recibido
-            self.conexion.execute("""
-                UPDATE trazabilidad_qr
-                SET estado='recibido', fecha_recepcion=datetime('now'), recepcion_id=?
-                WHERE uuid_qr=?
-            """, (recepcion_id, uuid_qr))
-
-            # 6. Actualizar contenedor a disponible
-            try:
-                self.conexion.execute("""
-                    UPDATE contenedores_qr
-                    SET estado='disponible', sucursal_destino=?,
-                        viaje_actual=viaje_actual+1, updated_at=datetime('now')
-                    WHERE uuid_qr=?
-                """, (self.sucursal_id, uuid_qr))
-            except Exception as _e_cont:
-                logger.warning("contenedores_qr update failed (non-fatal): %s", _e_cont)
-
-        # Stock already updated inside the transaction above (inventario_actual UPSERT
-        # + productos.existencia sync via SUM). No post-commit update needed.
+        """Delega la transacción de recepción en RecepcionQRService (Remediación F)."""
+        from core.services.recepcion_qr_service import RecepcionQRService
+        RecepcionQRService(self.conexion).procesar_recepcion(
+            uuid_qr, items, notas, self.sucursal_id, self.usuario)
 
     def _guardar_asignacion(self) -> None:
         """Guarda la asignación de productos + pago al contenedor."""
@@ -2051,21 +1947,9 @@ class RecepcionQRWidget(QWidget):
         }
 
         try:
-            self.conexion.execute("""
-                INSERT INTO trazabilidad_qr
-                    (uuid_qr, tipo, proveedor_id, sucursal_id, sucursal_destino,
-                     estado, datos_extra)
-                VALUES(?,?,?,?,?,'asignado',?)
-                ON CONFLICT(uuid_qr) DO UPDATE SET
-                    estado='asignado',
-                    proveedor_id=excluded.proveedor_id,
-                    sucursal_destino=excluded.sucursal_destino,
-                    datos_extra=excluded.datos_extra,
-                    fecha_generacion=datetime('now')
-            """, (uuid_qr, "contenedor", proveedor_id,
-                  self.sucursal_id, dest_id,
-                  json.dumps(datos_extra, ensure_ascii=False)))
-            self.conexion.commit()
+            from core.services.recepcion_qr_service import RecepcionQRService
+            RecepcionQRService(self.conexion).guardar_asignacion(
+                uuid_qr, proveedor_id, self.sucursal_id, dest_id, datos_extra)
             Toast.success(self, "✅ Asignación guardada",
                           f"Total: ${monto_total:.2f} · Pagado: ${monto_pagado:.2f}")
             self._poblar_contenedores_sidebar()

@@ -528,3 +528,24 @@ precio_compra, existencia, unidad). El widget delega; SQL en UI del archivo: 2�
 
 Sin regresión: architecture 35F/224P; búsqueda por barcode/código/fuzzy verificada
 end-to-end contra el schema base.
+
+## Remediación F (paso 4) — recepcion_qr_widget: escrituras → RecepcionQRService (+2 bugfixes)
+
+Extraída la transacción de recepción y las escrituras de trazabilidad del widget a
+`core/services/recepcion_qr_service.py` (SQL en UI 29→14; commits 4→1). La red de
+seguridad `tests/test_recepcion_qr_service.py` caracteriza los efectos en BD y
+destapó DOS bugs que rompían la recepción por QR:
+
+1. `movimientos_inventario` no tiene columna `uuid` en el esquema born-clean (usa
+   `id`) → el INSERT reventaba y la transacción entera hacía rollback: la recepción
+   NUNCA se completaba. Corregido a `id` con UUIDv7.
+2. Doble conteo de stock: el widget hacía un UPSERT manual de `inventario_actual`
+   ADEMÁS del INSERT de movimiento, que dispara el trigger canónico
+   `trg_recalc_inventario_actual` (migración 031) → +cantidad dos veces. Ahora el
+   stock lo lleva SOLO el trigger; el servicio calcula el costo promedio ponderado
+   (con el estado previo) y sincroniza `productos.existencia`.
+
+Verificado end-to-end: 5@40 + 10@50 → 15 uds, costo 46.67, existencia sincronizada,
+movimiento de auditoría, trazabilidad 'recibido'. Sin regresión (architecture 35F;
+unit 26F/252P; integration 107F/128P). Las 14 lecturas restantes del widget quedan
+para un paso siguiente (query service).
