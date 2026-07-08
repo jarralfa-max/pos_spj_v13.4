@@ -26,7 +26,7 @@ SQL_IN_UI_ALLOWLIST = {
     # recepcion_qr_widget.py: SQL 100% extraído a RecepcionQRService (Remediación F).
     'pos_spj_v13.4/modulos/reportes_bi_v2.py': 3,
     # rrhh.py: SQL 100% extraído a RRHHCatalogService (Remediación F).
-    'pos_spj_v13.4/modulos/rrhh_turnos.py': 18,
+    # rrhh_turnos.py: SQL 100% extraído a RRHHTurnosService (Remediación F).
     'pos_spj_v13.4/modulos/sistema/backup_engine.py': 2,
     'pos_spj_v13.4/modulos/sistema/health_monitor.py': 4,
     'pos_spj_v13.4/modulos/spj_styles.py': 2,
@@ -48,7 +48,7 @@ COMMIT_ROLLBACK_IN_UI_ALLOWLIST = {
     'pos_spj_v13.4/modulos/productos.py': 9,
     # recepcion_qr_widget.py: commit() movido a RecepcionQRService (Remediación F).
     # rrhh.py: commit()/rollback() movidos a RRHHCatalogService/repositorios (Remediación F).
-    'pos_spj_v13.4/modulos/rrhh_turnos.py': 7,
+    # rrhh_turnos.py: commit() movido a RRHHTurnosService (Remediación F).
     'pos_spj_v13.4/modulos/ticket_designer.py': 1,
     'pos_spj_v13.4/modulos/transferencias.py': 2,
     'pos_spj_v13.4/modulos/ventas.py': 2,

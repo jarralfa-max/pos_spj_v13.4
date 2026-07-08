@@ -38,12 +38,8 @@ class ModuloRRHHTurnos(QWidget):
         self.sucursal_id = sid; self._cargar()
 
     def _ensure_tables(self):
-        try:
-            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
-            try: self.db.commit()
-            except Exception: pass
-        except Exception as e:
-            logger.debug("ensure_tables turnos: %s", e)
+        # Plan B born-clean: schema canónico en migrations/ (DDL y commit removidos).
+        pass
 
     def _build_ui(self):
         lay = QVBoxLayout(self)
@@ -139,10 +135,8 @@ class ModuloRRHHTurnos(QWidget):
 
     def _cargar_roles(self):
         try:
-            rows = self.db.execute(
-                "SELECT id,nombre,hora_inicio||'-'||hora_fin,COALESCE(descripcion,'') "
-                "FROM turno_roles WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
+            from core.services.rrhh_turnos_service import RRHHTurnosService
+            rows = RRHHTurnosService(self.db).listar_roles_activos()
         except Exception: rows = []
         self.tbl_roles.setRowCount(0)
         for i, r in enumerate(rows):
@@ -152,19 +146,8 @@ class ModuloRRHHTurnos(QWidget):
 
     def _cargar_asignaciones(self):
         try:
-            rows = self.db.execute("""
-                SELECT ta.id,
-                       p.nombre||' '||COALESCE(p.apellidos,''),
-                       tr.nombre,
-                       ta.dia_descanso,
-                       ta.fecha_inicio,
-                       COALESCE(ta.fecha_fin,'Sin fin')
-                FROM turno_asignaciones ta
-                JOIN personal p ON p.id=ta.personal_id
-                JOIN turno_roles tr ON tr.id=ta.turno_rol_id
-                WHERE ta.activo=1
-                ORDER BY p.nombre
-            """).fetchall()
+            from core.services.rrhh_turnos_service import RRHHTurnosService
+            rows = RRHHTurnosService(self.db).listar_asignaciones()
         except Exception: rows = []
         self.tbl_asig.setRowCount(0)
         for i, r in enumerate(rows):
@@ -186,8 +169,10 @@ class ModuloRRHHTurnos(QWidget):
         lay = QVBoxLayout(dlg); form = QFormLayout()
         txt_nombre = QLineEdit(); txt_hi = QLineEdit("08:00"); txt_hf = QLineEdit("16:00")
         txt_desc   = QLineEdit()
+        from core.services.rrhh_turnos_service import RRHHTurnosService
+        _svc = RRHHTurnosService(self.db)
         if rol_id:
-            row = self.db.execute("SELECT nombre,hora_inicio,hora_fin,descripcion FROM turno_roles WHERE id=?", (rol_id,)).fetchone()
+            row = _svc.obtener_rol(rol_id)
             if row: txt_nombre.setText(row[0]); txt_hi.setText(row[1] or ""); txt_hf.setText(row[2] or ""); txt_desc.setText(row[3] or "")
         form.addRow("Nombre *:",      txt_nombre)
         form.addRow("Hora inicio:",   txt_hi)
@@ -202,13 +187,9 @@ class ModuloRRHHTurnos(QWidget):
         if not nombre: return
         try:
             if rol_id:
-                self.db.execute("UPDATE turno_roles SET nombre=?,hora_inicio=?,hora_fin=?,descripcion=? WHERE id=?",
-                    (nombre, txt_hi.text(), txt_hf.text(), txt_desc.text(), rol_id))
+                _svc.actualizar_rol(rol_id, nombre, txt_hi.text(), txt_hf.text(), txt_desc.text())
             else:
-                self.db.execute("INSERT INTO turno_roles(nombre,hora_inicio,hora_fin,descripcion) VALUES(?,?,?,?)",
-                    (nombre, txt_hi.text(), txt_hf.text(), txt_desc.text()))
-            try: self.db.commit()
-            except Exception: pass
+                _svc.crear_rol(nombre, txt_hi.text(), txt_hf.text(), txt_desc.text())
             self._cargar_roles()
         except Exception as e:
             QMessageBox.critical(self,"Error",str(e))
@@ -219,9 +200,8 @@ class ModuloRRHHTurnos(QWidget):
         rid = self.tbl_roles.item(row,0).text()
         if QMessageBox.question(self,"Confirmar","¿Eliminar este rol de turno?",
            QMessageBox.Yes|QMessageBox.No) != QMessageBox.Yes: return
-        self.db.execute("UPDATE turno_roles SET activo=0 WHERE id=?", (rid,))
-        try: self.db.commit()
-        except Exception: pass
+        from core.services.rrhh_turnos_service import RRHHTurnosService
+        RRHHTurnosService(self.db).desactivar_rol(rid)
         self._cargar_roles()
 
     # ── Asignaciones ──────────────────────────────────────────────────────────
@@ -244,10 +224,12 @@ class ModuloRRHHTurnos(QWidget):
         spin_rot = QSpinBox(); spin_rot.setRange(1,30); spin_rot.setValue(7); spin_rot.setSuffix(" días")
         chk_sem  = QCheckBox("Notificar 1 semana antes"); chk_sem.setChecked(True)
         chk_dia  = QCheckBox("Notificar 1 día antes"); chk_dia.setChecked(True)
+        from core.services.rrhh_turnos_service import RRHHTurnosService
+        _svc = RRHHTurnosService(self.db)
         try:
-            emps = self.db.execute("SELECT id, nombre||' '||COALESCE(apellidos,'') FROM personal WHERE activo=1 ORDER BY nombre").fetchall()
+            emps = _svc.listar_empleados_lookup()
             for r in emps: cmb_emp.addItem(r[1].strip(), r[0])
-            roles = self.db.execute("SELECT id, nombre FROM turno_roles WHERE activo=1 ORDER BY nombre").fetchall()
+            roles = _svc.listar_roles_lookup()
             for r in roles: cmb_rol.addItem(r[1], r[0])
         except Exception: pass
         form.addRow("Empleado:",    cmb_emp); form.addRow("Turno:",       cmb_rol)
@@ -268,15 +250,9 @@ class ModuloRRHHTurnos(QWidget):
                      1 if chk_sem.isChecked() else 0,
                      1 if chk_dia.isChecked() else 0)
             if asig_id:
-                self.db.execute("""UPDATE turno_asignaciones SET personal_id=?,turno_rol_id=?,
-                    fecha_inicio=?,fecha_fin=?,dia_descanso=?,rotacion_dias=?,
-                    notif_semana=?,notif_dia=? WHERE id=?""", datos+(asig_id,))
+                _svc.actualizar_asignacion(asig_id, *datos)
             else:
-                self.db.execute("""INSERT INTO turno_asignaciones
-                    (personal_id,turno_rol_id,fecha_inicio,fecha_fin,dia_descanso,rotacion_dias,notif_semana,notif_dia)
-                    VALUES(?,?,?,?,?,?,?,?)""", datos)
-            try: self.db.commit()
-            except Exception: pass
+                _svc.crear_asignacion(*datos)
             self._cargar_asignaciones()
         except Exception as e:
             QMessageBox.critical(self,"Error",str(e))
@@ -287,25 +263,20 @@ class ModuloRRHHTurnos(QWidget):
         aid = self.tbl_asig.item(row,0).text()
         if QMessageBox.question(self,"Confirmar","¿Quitar esta asignación de turno?",
            QMessageBox.Yes|QMessageBox.No) != QMessageBox.Yes: return
-        self.db.execute("UPDATE turno_asignaciones SET activo=0 WHERE id=?", (aid,))
-        try: self.db.commit()
-        except Exception: pass
+        from core.services.rrhh_turnos_service import RRHHTurnosService
+        RRHHTurnosService(self.db).desactivar_asignacion(aid)
         self._cargar_asignaciones()
 
     # ── Notificaciones ────────────────────────────────────────────────────────
 
     def _cargar_config_notif(self):
         try:
-            activas = self.db.execute(
-                "SELECT valor FROM configuraciones WHERE clave='turnos_notif_activas'"
-            ).fetchone()
+            from core.services.rrhh_turnos_service import RRHHTurnosService
+            _svc = RRHHTurnosService(self.db)
+            activas = _svc.obtener_config("turnos_notif_activas")
             self.chk_notif_activas.setChecked(bool(activas and activas[0]=="1"))
-            msg_s = self.db.execute(
-                "SELECT valor FROM configuraciones WHERE clave='turnos_msg_semana'"
-            ).fetchone()
-            msg_d = self.db.execute(
-                "SELECT valor FROM configuraciones WHERE clave='turnos_msg_dia'"
-            ).fetchone()
+            msg_s = _svc.obtener_config("turnos_msg_semana")
+            msg_d = _svc.obtener_config("turnos_msg_dia")
             if msg_s: self.txt_msg_semana.setPlainText(msg_s[0])
             else:     self.txt_msg_semana.setPlainText("Hola {{nombre}}, recuerda que tu día de descanso esta semana es el {{dia_descanso}}. 🌟")
             if msg_d: self.txt_msg_dia.setPlainText(msg_d[0])
@@ -314,17 +285,14 @@ class ModuloRRHHTurnos(QWidget):
 
     def _guardar_config_notif(self):
         try:
+            from core.services.rrhh_turnos_service import RRHHTurnosService
+            _svc = RRHHTurnosService(self.db)
             for clave, valor in [
                 ("turnos_notif_activas", "1" if self.chk_notif_activas.isChecked() else "0"),
                 ("turnos_msg_semana", self.txt_msg_semana.toPlainText().strip()),
                 ("turnos_msg_dia",    self.txt_msg_dia.toPlainText().strip()),
             ]:
-                self.db.execute(
-                    "INSERT INTO configuraciones(clave,valor) VALUES(?,?) "
-                    "ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor",
-                    (clave, valor))
-            try: self.db.commit()
-            except Exception: pass
+                _svc.guardar_config(clave, valor)
             QMessageBox.information(self,"✅ Guardado","Configuración guardada.")
         except Exception as e:
             QMessageBox.critical(self,"Error",str(e))
@@ -333,15 +301,10 @@ class ModuloRRHHTurnos(QWidget):
         """Revisa asignaciones y envía WA si toca notificar."""
         hoy = date.today()
         enviados = 0
+        from core.services.rrhh_turnos_service import RRHHTurnosService
+        _svc = RRHHTurnosService(self.db)
         try:
-            rows = self.db.execute("""
-                SELECT ta.id, p.nombre, p.telefono, ta.dia_descanso,
-                       ta.notif_semana, ta.notif_dia
-                FROM turno_asignaciones ta
-                JOIN personal p ON p.id=ta.personal_id
-                WHERE ta.activo=1
-                  AND (ta.fecha_fin IS NULL OR ta.fecha_fin >= ?)
-            """, (str(hoy),)).fetchall()
+            rows = _svc.listar_asignaciones_para_notificar(str(hoy))
         except Exception as e:
             QMessageBox.warning(self,"Error",str(e)); return
 
@@ -372,15 +335,10 @@ class ModuloRRHHTurnos(QWidget):
                     wa = getattr(self.container, "whatsapp_service", None)
                     if wa:
                         wa.send_message(telefono, msg)
-                    from backend.shared.ids import new_uuid
-                    self.db.execute(
-                        "INSERT INTO turno_notificaciones_log(id,personal_id,tipo,mensaje) VALUES(?,?,?,?)",
-                        (new_uuid(), asig_id, tipo, msg))
+                    _svc.registrar_notificacion(asig_id, tipo, msg)
                     enviados += 1
                 except Exception as e:
                     logger.warning("Notif WA turno: %s", e)
-        try: self.db.commit()
-        except Exception: pass
         QMessageBox.information(self,"📲 Notificaciones",
             f"Se enviaron {enviados} notificaciones." if enviados
             else "No hay notificaciones pendientes para hoy.")
