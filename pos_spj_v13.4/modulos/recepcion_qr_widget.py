@@ -939,11 +939,8 @@ class RecepcionQRWidget(QWidget):
             if repo and hasattr(repo, 'list_open'):
                 pos = repo.list_open()
             else:
-                rows = self.conexion.execute(
-                    "SELECT id, folio, proveedor_nombre, estado FROM ordenes_compra "
-                    "WHERE estado IN ('ABIERTA','PARCIAL','borrador','pendiente') "
-                    "ORDER BY id DESC LIMIT 100"
-                ).fetchall()
+                from core.services.recepcion_qr_service import RecepcionQRService
+                rows = RecepcionQRService(self.conexion).listar_pos_abiertas()
                 pos = [
                     dict(r) if hasattr(r, 'keys') else
                     {"id": r[0], "folio": r[1], "proveedor_nombre": r[2], "estado": r[3]}
@@ -1270,16 +1267,8 @@ class RecepcionQRWidget(QWidget):
         """Load containers with estado='disponible' or 'generado' from trazabilidad_qr or contenedores_qr."""
         self._lst_cont_sidebar.clear()
         try:
-            rows = self.conexion.execute("""
-                SELECT c.uuid_qr,
-                       COALESCE(c.codigo_interno, '') as codigo,
-                       COALESCE(c.descripcion, '') as desc,
-                       COALESCE(t.estado, 'disponible') as estado
-                FROM contenedores_qr c
-                LEFT JOIN trazabilidad_qr t ON t.uuid_qr = c.uuid_qr
-                WHERE COALESCE(t.estado, 'disponible') IN ('disponible','generado')
-                ORDER BY c.created_at DESC LIMIT 100
-            """).fetchall()
+            from core.services.recepcion_qr_service import RecepcionQRService
+            rows = RecepcionQRService(self.conexion).listar_contenedores_disponibles()
             if not rows:
                 it = QListWidgetItem("Sin contenedores disponibles")
                 it.setFlags(Qt.NoItemFlags)
@@ -1410,20 +1399,8 @@ class RecepcionQRWidget(QWidget):
             return
         self._lst_pending_recv.clear()
         try:
-            rows = self.conexion.execute("""
-                SELECT t.uuid_qr,
-                       COALESCE(c.codigo_interno, t.uuid_qr) AS codigo,
-                       t.estado,
-                       COALESCE(p.nombre, '—') AS proveedor
-                FROM trazabilidad_qr t
-                LEFT JOIN contenedores_qr c ON c.uuid_qr = t.uuid_qr
-                LEFT JOIN proveedores p ON p.id = (
-                    SELECT json_extract(t2.datos_extra,'$.proveedor_id')
-                    FROM trazabilidad_qr t2 WHERE t2.uuid_qr = t.uuid_qr LIMIT 1
-                )
-                WHERE t.estado IN ('asignado','en_transito','enviado')
-                ORDER BY t.fecha_generacion DESC LIMIT 50
-            """).fetchall()
+            from core.services.recepcion_qr_service import RecepcionQRService
+            rows = RecepcionQRService(self.conexion).listar_pendientes_recepcion()
         except Exception:
             rows = []
         count = len(rows)
@@ -1510,9 +1487,8 @@ class RecepcionQRWidget(QWidget):
     def _cargar_proveedores_qr_hist(self) -> None:
         if not hasattr(self, '_cmb_qr_prov'): return
         try:
-            rows = self.conexion.execute(
-                "SELECT id, nombre FROM proveedores WHERE activo=1 ORDER BY nombre LIMIT 200"
-            ).fetchall()
+            from core.services.recepcion_qr_service import RecepcionQRService
+            rows = RecepcionQRService(self.conexion).listar_proveedores_activos()
             for r in rows:
                 self._cmb_qr_prov.addItem(r[1], r[0])
         except Exception:
@@ -1525,26 +1501,8 @@ class RecepcionQRWidget(QWidget):
             desde = self._qr_hist_desde.date().toString("yyyy-MM-dd") if hasattr(self, '_qr_hist_desde') else "2000-01-01"
             hasta = self._qr_hist_hasta.date().toString("yyyy-MM-dd") if hasattr(self, '_qr_hist_hasta') else "2099-12-31"
             buscar = self._txt_qr_buscar.text().strip() if hasattr(self, '_txt_qr_buscar') else ""
-            rows = self.conexion.execute("""
-                SELECT COALESCE(c.codigo_interno, t.uuid_qr) AS contenedor,
-                       COALESCE(json_extract(t.datos_extra,'$.tipo_contenedor'), 'Caja') AS tipo,
-                       COALESCE(p.nombre,'—') AS proveedor,
-                       COALESCE(json_extract(t.datos_extra,'$.factura'),'—') AS factura,
-                       COALESCE(s.nombre,'—') AS sucursal_destino,
-                       COALESCE(t.estado,'—') AS estado,
-                       COALESCE(CAST(json_extract(t.datos_extra,'$.peso_estimado') AS REAL),0) AS peso_est,
-                       COALESCE(r.peso_total_kg,0) AS peso_rec,
-                       COALESCE(CAST(json_extract(t.datos_extra,'$.monto_total') AS REAL),0) AS total,
-                       COALESCE(r.created_at,'—') AS fecha_recepcion,
-                       t.uuid_qr
-                FROM trazabilidad_qr t
-                LEFT JOIN contenedores_qr c ON c.uuid_qr = t.uuid_qr
-                LEFT JOIN proveedores p ON p.id = CAST(json_extract(t.datos_extra,'$.proveedor_id') AS INTEGER)
-                LEFT JOIN sucursales s ON s.id = t.sucursal_destino
-                LEFT JOIN recepciones r ON r.uuid_qr = t.uuid_qr AND r.estado='completada'
-                WHERE DATE(COALESCE(r.created_at, t.fecha_generacion)) BETWEEN ? AND ?
-                ORDER BY COALESCE(r.created_at, t.fecha_generacion) DESC LIMIT 300
-            """, (desde, hasta)).fetchall()
+            from core.services.recepcion_qr_service import RecepcionQRService
+            rows = RecepcionQRService(self.conexion).historial_qr(desde, hasta)
             if buscar:
                 b = buscar.lower()
                 rows = [r for r in rows if b in str(r[0]).lower() or b in str(r[2]).lower()]
@@ -1592,11 +1550,10 @@ class RecepcionQRWidget(QWidget):
         uuid_qr = id_item.data(Qt.UserRole)
         if not uuid_qr: return
         try:
+            from core.services.recepcion_qr_service import RecepcionQRService
+            _svc_qr = RecepcionQRService(self.conexion)
             # Container info
-            c_row = self.conexion.execute(
-                "SELECT uuid_qr, COALESCE(codigo_interno,'—'), COALESCE(descripcion,'—') FROM contenedores_qr WHERE uuid_qr=?",
-                (uuid_qr,)
-            ).fetchone()
+            c_row = _svc_qr.detalle_contenedor(uuid_qr)
             info_txt = (
                 f"<b>QR:</b> {uuid_qr[:16]}…<br>"
                 f"<b>Código:</b> {c_row[1] if c_row else '—'}<br>"
@@ -1606,11 +1563,7 @@ class RecepcionQRWidget(QWidget):
                 self._lbl_qr_detail_info.setText(info_txt)
                 self._lbl_qr_detail_info.setTextFormat(Qt.RichText)
             # Timeline
-            tl_rows = self.conexion.execute("""
-                SELECT fecha, tipo_movimiento, usuario FROM movimientos_inventario
-                WHERE referencia LIKE ? OR descripcion LIKE ?
-                ORDER BY fecha DESC LIMIT 10
-            """, (f"%{uuid_qr[:8]}%", f"%{uuid_qr[:8]}%")).fetchall()
+            tl_rows = _svc_qr.timeline_movimientos(uuid_qr)
             if hasattr(self, '_tbl_timeline'):
                 self._tbl_timeline.setRowCount(len(tl_rows))
                 for ri, tl in enumerate(tl_rows):
@@ -1683,15 +1636,12 @@ class RecepcionQRWidget(QWidget):
             uuid_qr = svc.generar_uuid_qr("contenedor", datos)
             # Registrar en contenedores_qr
             try:
-                self.conexion.execute("""
-                    INSERT OR IGNORE INTO contenedores_qr
-                        (uuid_qr, codigo_interno, descripcion, sucursal_origen)
-                    VALUES(?,?,?,?)
-                """, (uuid_qr,
-                      self._txt_codigo_interno.text().strip() or None,
-                      self._txt_descripcion.text().strip() or None,
-                      self.sucursal_id))
-                self.conexion.commit()
+                from core.services.recepcion_qr_service import RecepcionQRService
+                RecepcionQRService(self.conexion).registrar_contenedor(
+                    uuid_qr,
+                    self._txt_codigo_interno.text().strip() or None,
+                    self._txt_descripcion.text().strip() or None,
+                    self.sucursal_id)
             except Exception as _e_db:
                 logger.warning("contenedores_qr insert failed (non-fatal): %s", _e_db)
 
@@ -1737,9 +1687,8 @@ class RecepcionQRWidget(QWidget):
         if uuid_qr.startswith("SPJ:CONT:"):
             uuid_qr = uuid_qr[9:]
         try:
-            row = self.conexion.execute(
-                "SELECT * FROM trazabilidad_qr WHERE uuid_qr=? LIMIT 1", (uuid_qr,)
-            ).fetchone()
+            from core.services.recepcion_qr_service import RecepcionQRService
+            row = RecepcionQRService(self.conexion).obtener_trazabilidad(uuid_qr)
             if row:
                 row = dict(row)
                 self._contenedor_activo = row
@@ -1764,12 +1713,8 @@ class RecepcionQRWidget(QWidget):
         if uuid_qr.startswith("SPJ:CONT:"): uuid_qr = uuid_qr[9:]
         if not uuid_qr: return
         try:
-            row = self.conexion.execute("""
-                SELECT t.*, p.nombre as proveedor_nombre
-                FROM trazabilidad_qr t
-                LEFT JOIN proveedores p ON p.id = t.proveedor_id
-                WHERE t.uuid_qr=? LIMIT 1""", (uuid_qr,)
-            ).fetchone()
+            from core.services.recepcion_qr_service import RecepcionQRService
+            row = RecepcionQRService(self.conexion).obtener_trazabilidad_con_proveedor(uuid_qr)
             if not row:
                 QMessageBox.warning(self, "No encontrado",
                     f"QR {uuid_qr} no tiene datos asignados.\n"
@@ -2032,11 +1977,8 @@ class RecepcionQRWidget(QWidget):
             self._lst_proveedores.setVisible(False)
             return
         try:
-            rows = self.conexion.execute(
-                "SELECT id, nombre, rfc FROM proveedores WHERE activo=1 "
-                "AND (nombre LIKE ? OR rfc LIKE ?) ORDER BY nombre LIMIT 8",
-                (f"%{texto}%", f"%{texto}%")
-            ).fetchall()
+            from core.services.recepcion_qr_service import RecepcionQRService
+            rows = RecepcionQRService(self.conexion).buscar_proveedores(texto)
             if rows:
                 for r in rows:
                     pid  = r['id']    if hasattr(r,'keys') else r[0]
@@ -2066,18 +2008,8 @@ class RecepcionQRWidget(QWidget):
             self._lst_prod_asign.setVisible(False)
             return
         try:
-            rows = self.conexion.execute(
-                """SELECT id, nombre, COALESCE(codigo,'') as codigo,
-                          COALESCE(precio_compra,0) as costo,
-                          COALESCE(unidad,'pz') as unidad
-                   FROM productos
-                   WHERE (nombre LIKE ? OR COALESCE(codigo,'') LIKE ?
-                          OR COALESCE(codigo_barras,'') LIKE ?
-                          OR CAST(id AS TEXT) = ?)
-                     AND COALESCE(oculto,0)=0 AND COALESCE(activo,1)=1
-                   ORDER BY nombre LIMIT 10""",
-                (f"%{texto}%", f"%{texto}%", f"%{texto}%", texto)
-            ).fetchall()
+            from core.services.recepcion_qr_service import RecepcionQRService
+            rows = RecepcionQRService(self.conexion).buscar_productos(texto)
             if rows:
                 for r in rows:
                     pid  = r['id']    if hasattr(r,'keys') else r[0]
@@ -2112,9 +2044,8 @@ class RecepcionQRWidget(QWidget):
     def _cargar_sucursales_combo_recepcion(self) -> None:
         self._cmb_sucursal_destino.clear()
         try:
-            rows = self.conexion.execute(
-                "SELECT id, nombre FROM sucursales WHERE activa=1 AND id IS NOT NULL AND TRIM(id) != '' AND LOWER(TRIM(id)) NOT IN ('none','null') ORDER BY nombre"
-            ).fetchall()
+            from core.services.recepcion_qr_service import RecepcionQRService
+            rows = RecepcionQRService(self.conexion).listar_sucursales_activas()
             for r in rows:
                 self._cmb_sucursal_destino.addItem(f"🏪 {r[1]}", r[0])
         except Exception:
@@ -2165,15 +2096,8 @@ class RecepcionQRWidget(QWidget):
 
     def _cargar_historial(self) -> None:
         try:
-            rows = self.conexion.execute("""
-                SELECT r.folio, r.created_at, p.nombre as proveedor,
-                       r.condicion_pago, r.monto_total, r.monto_pagado,
-                       r.estado
-                FROM recepciones r
-                LEFT JOIN proveedores p ON p.id = r.proveedor_id
-                WHERE r.sucursal_id = ? AND r.tipo='COMPRA'
-                ORDER BY r.created_at DESC LIMIT 100
-            """, (self.sucursal_id,)).fetchall()
+            from core.services.recepcion_qr_service import RecepcionQRService
+            rows = RecepcionQRService(self.conexion).historial_recepciones(self.sucursal_id)
             self._tbl_hist.setRowCount(len(rows))
             for ri, r in enumerate(rows):
                 vals = [
