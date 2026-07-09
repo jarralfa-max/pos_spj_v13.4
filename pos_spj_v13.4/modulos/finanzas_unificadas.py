@@ -1623,7 +1623,8 @@ class _SeccionCuentasPorCobrar(QWidget):
         if not ok:
             return
         tercero_id = int(str(seleccionado).split(" - ", 1)[0])
-        monto, ok2 = QInputDialog.getDouble(self, "Cobro global CxC", "Monto total:", 0.0, 0.0, 999999999.0, 2)
+        from frontend.desktop.components.numeric_keypad_dialog import NumericKeypadDialog
+        monto, ok2 = NumericKeypadDialog.get_value(self, "Cobro global CxC", "Monto total:", decimals=2, unidad="$")
         if not ok2 or monto <= 0:
             return
         metodo, ok3 = QInputDialog.getItem(self, "Método", "Forma de cobro:", ["Efectivo", "Transferencia", "Tarjeta"], 0, False)
@@ -1804,7 +1805,8 @@ class _SeccionCuentasPorPagar(QWidget):
         if not ok:
             return
         tercero_id = int(str(sel).split(" - ", 1)[0])
-        monto, ok2 = QInputDialog.getDouble(self, "Pago global CxP", "Monto total:", 0.0, 0.0, 999999999.0, 2)
+        from frontend.desktop.components.numeric_keypad_dialog import NumericKeypadDialog
+        monto, ok2 = NumericKeypadDialog.get_value(self, "Pago global CxP", "Monto total:", decimals=2, unidad="$")
         if not ok2 or monto <= 0:
             return
         metodo, ok3 = QInputDialog.getItem(self, "Método", "Forma de pago:", ["Transferencia", "Efectivo", "Cheque"], 0, False)

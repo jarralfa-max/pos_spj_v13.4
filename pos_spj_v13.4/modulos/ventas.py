@@ -3000,10 +3000,11 @@ class ModuloVentas(ModuloBase):
         if row < 0:
             Toast.info(self, "Aviso", "Selecciona un ítem primero.")
             return
-        pct, ok = QInputDialog.getDouble(
+        from frontend.desktop.components.numeric_keypad_dialog import NumericKeypadDialog
+        pct, ok = NumericKeypadDialog.get_value(
             self, "Descuento personalizado",
             "Ingresa el porcentaje de descuento (0–100):",
-            0, 0, 100, 1)
+            decimals=1, maximo=100.0, unidad="%")
         if ok and pct > 0:
             self._descuento_rapido(pct)
 

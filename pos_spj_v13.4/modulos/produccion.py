@@ -555,8 +555,11 @@ class ModuloProduccion(ModuloBase):
             if float(m.get("delta", 0)) <= 0:
                 continue
             ptxt = f"Peso real de salida para {m['nombre']} (kg):"
-            val, ok = QInputDialog.getDouble(
-                self, "Captura real", ptxt, abs(float(m["delta"])), 0.0, 99999.0, 3)
+            from frontend.desktop.components.numeric_keypad_dialog import NumericKeypadDialog
+            val, ok = NumericKeypadDialog.get_value(
+                self, "Captura real", ptxt,
+                decimals=3, maximo=99999.0, unidad="kg",
+                inicial=abs(float(m["delta"])), permitir_cero=True)
             if not ok:
                 return
             reales[str(m["product_id"])] = float(val)
