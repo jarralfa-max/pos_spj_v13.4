@@ -17,7 +17,8 @@ SQL_IN_UI_ALLOWLIST = {
     'pos_spj_v13.4/modulos/base.py': 3,
     'pos_spj_v13.4/modulos/clientes.py': 1,
     'pos_spj_v13.4/modulos/compras/actions_bar.py': 1,
-    'pos_spj_v13.4/modulos/compras_pro.py': 7,
+    # compras_pro.py: sin SQL real (delega 100% a use cases); los 7 antiguos eran
+    # falsos positivos de SQL_RE sobre docstrings ("Update"/"select") — reescritos.
     # cotizaciones.py: SQL 100% extraído a CotizacionService (Remediación F).
     'pos_spj_v13.4/modulos/delivery.py': 2,
     'pos_spj_v13.4/modulos/etiquetas.py': 4,
