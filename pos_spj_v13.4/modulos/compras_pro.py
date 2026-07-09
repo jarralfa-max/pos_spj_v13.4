@@ -622,6 +622,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._usuario_rol    = ""
         self.carrito_compra: list[dict] = []
 
+        # Repositorio de proveedores/sucursales (lecturas de catálogo). Se referencia
+        # como self._prov_repo en varios subtabs (asignar QR, alta directa) — antes
+        # nunca se inicializaba → AttributeError al cargar sucursales/proveedores.
+        from repositories.proveedor_repository import ProveedorRepository
+        self._prov_repo = ProveedorRepository(container.db)
+
         # EventBus: auto-refresh when products, purchases or branches change
         try:
             from core.events.domain_events import (
