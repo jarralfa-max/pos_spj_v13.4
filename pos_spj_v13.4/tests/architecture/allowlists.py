@@ -34,7 +34,7 @@ SQL_IN_UI_ALLOWLIST = {
     'pos_spj_v13.4/modulos/sistema/backup_engine.py': 2,
     'pos_spj_v13.4/modulos/sistema/health_monitor.py': 4,
     'pos_spj_v13.4/modulos/spj_styles.py': 2,
-    'pos_spj_v13.4/modulos/ticket_designer.py': 6,
+    # ticket_designer.py: SQL de configuraciones extraído a ConfigService (Remediación F).
     # ventas.py: sin SQL real (delega a use cases). Reescritas 4 docstrings que
     # activaban SQL_RE ("Update"/"select"); el 1 restante es `payload.update(` (dict).
     'pos_spj_v13.4/modulos/ventas.py': 1,
@@ -55,7 +55,7 @@ COMMIT_ROLLBACK_IN_UI_ALLOWLIST = {
     # recepcion_qr_widget.py: commit() movido a RecepcionQRService (Remediación F).
     # rrhh.py: commit()/rollback() movidos a RRHHCatalogService/repositorios (Remediación F).
     # rrhh_turnos.py: commit() movido a RRHHTurnosService (Remediación F).
-    'pos_spj_v13.4/modulos/ticket_designer.py': 1,
+    # ticket_designer.py: commit() eliminado (ConfigService persiste; Remediación F).
     'pos_spj_v13.4/modulos/transferencias.py': 2,
     'pos_spj_v13.4/modulos/ventas.py': 2,
 }

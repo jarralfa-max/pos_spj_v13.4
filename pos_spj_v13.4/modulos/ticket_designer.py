@@ -441,25 +441,24 @@ class ModuloTicketDesigner(QWidget):
 
     def _cargar_logo_guardado(self):
         try:
-            db = self.container.db
-            row = db.execute("SELECT valor FROM configuraciones WHERE clave='ticket_logo_b64'").fetchone()
-            if row and row[0]:
-                self._logo_b64 = row[0]
+            cfg = self.container.config_service
+            b64 = cfg.get('ticket_logo_b64')
+            if b64:
+                self._logo_b64 = b64
                 self._mostrar_logo_thumbnail()
-                w = db.execute("SELECT valor FROM configuraciones WHERE clave='ticket_logo_width'").fetchone()
-                if w and w[0]: self.spin_logo_w.setValue(int(w[0]))
-                p = db.execute("SELECT valor FROM configuraciones WHERE clave='ticket_logo_pos'").fetchone()
-                if p and p[0]:
-                    idx = self.cmb_logo_pos.findText(p[0])
+                w = cfg.get('ticket_logo_width')
+                if w: self.spin_logo_w.setValue(int(w))
+                p = cfg.get('ticket_logo_pos')
+                if p:
+                    idx = self.cmb_logo_pos.findText(p)
                     if idx >= 0: self.cmb_logo_pos.setCurrentIndex(idx)
         except Exception: pass
 
     def _cargar_config_qr_guardada(self):
         try:
-            db = self.container.db
+            cfg = self.container.config_service
             def _g(k, d=""):
-                r = db.execute("SELECT valor FROM configuraciones WHERE clave=?", (k,)).fetchone()
-                return r[0] if r and r[0] else d
+                return cfg.get(k) or d
             self.chk_qr.setChecked(_g('ticket_qr_enabled','0') == '1')
             d = _g('ticket_qr_dato','')
             if d:
@@ -478,10 +477,9 @@ class ModuloTicketDesigner(QWidget):
 
     def _cargar_config_papel(self):
         try:
-            db = self.container.db
+            cfg = self.container.config_service
             def _g(k, d=""):
-                r = db.execute("SELECT valor FROM configuraciones WHERE clave=?", (k,)).fetchone()
-                return r[0] if r and r[0] else d
+                return cfg.get(k) or d
             try: self.spin_paper_w.setValue(int(_g('ticket_paper_width','80')))
             except: pass
             try: self.spin_paper_h.setValue(int(_g('ticket_paper_height','0')))
@@ -667,10 +665,9 @@ class ModuloTicketDesigner(QWidget):
 
     def _guardar_todo(self):
         try:
-            db = self.container.db
-            self.container.config_service.set(self._template_config_key(), self.txt_editor.toPlainText())
-            u = lambda k, v: db.execute(
-                "INSERT INTO configuraciones(clave,valor) VALUES(?,?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor", (k, v))
+            cfg = self.container.config_service
+            cfg.set(self._template_config_key(), self.txt_editor.toPlainText())
+            u = lambda k, v: cfg.set(k, v)
             u('ticket_logo_b64', self._logo_b64)
             if self.current_layout_type == "sale_ticket":
                 u('ticket_logo_width', str(self.spin_logo_w.value()))
@@ -688,8 +685,6 @@ class ModuloTicketDesigner(QWidget):
                 u('ticket_margin_top', str(self.spin_margin_top.value()))
                 u('ticket_margin_side', str(self.spin_margin_side.value()))
             self._guardar_layout_activo()
-            try: db.commit()
-            except: pass
             QMessageBox.information(self, "✅ Guardado", "Plantilla, medios y papel guardados.")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
