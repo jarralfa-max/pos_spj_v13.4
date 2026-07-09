@@ -18,7 +18,7 @@ SQL_IN_UI_ALLOWLIST = {
     'pos_spj_v13.4/modulos/clientes.py': 1,
     'pos_spj_v13.4/modulos/compras/actions_bar.py': 1,
     'pos_spj_v13.4/modulos/compras_pro.py': 7,
-    'pos_spj_v13.4/modulos/cotizaciones.py': 9,
+    # cotizaciones.py: SQL 100% extraído a CotizacionService (Remediación F).
     'pos_spj_v13.4/modulos/delivery.py': 2,
     'pos_spj_v13.4/modulos/etiquetas.py': 4,
     # loyalty_card_designer.py: SQL extraído a LoyaltyCardDesignerService (Remediación F).
@@ -45,7 +45,7 @@ COMMIT_ROLLBACK_IN_UI_ALLOWLIST = {
     'pos_spj_v13.4/modulos/compras_pro.py': 5,
     # CONFIGURACION FASE 1: config_hardware.py, config_modules.py and
     # configuracion.py no longer call commit()/rollback() in the UI.
-    'pos_spj_v13.4/modulos/cotizaciones.py': 2,
+    # cotizaciones.py: commit() movido a CotizacionService (Remediación F).
     'pos_spj_v13.4/modulos/delivery.py': 3,
     # loyalty_card_designer.py: commit() movido a LoyaltyCardDesignerService (Remediación F).
     'pos_spj_v13.4/modulos/productos.py': 9,
