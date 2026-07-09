@@ -2343,14 +2343,12 @@ class ModuloVentas(ModuloBase):
         """Direct manual weight entry — used when scale is disabled or not connected."""
         nombre = producto.get('nombre', '')
         unidad = producto.get('unidad', 'kg')
-        cantidad, ok = QInputDialog.getDouble(
+        from frontend.desktop.components.quantity_input_dialog import QuantityInputDialog
+        cantidad, ok = QuantityInputDialog.get_quantity(
             self,
             f"Peso manual — {nombre}",
             f"Báscula no activa. Ingresa el peso ({unidad}):",
-            value=0.0,
-            min=0.001,
-            max=9999.0,
-            decimals=3,
+            decimals=3, maximo=9999.0, unidad=unidad,
         )
         if ok and cantidad > 0:
             self.agregar_producto_directo(producto, cantidad)
@@ -3267,20 +3265,22 @@ class ModuloVentas(ModuloBase):
             )
             
             if respuesta == QMessageBox.Yes:
-                cantidad, ok = QInputDialog.getDouble(
-                    self, "Peso Manual", 
+                from frontend.desktop.components.quantity_input_dialog import QuantityInputDialog
+                cantidad, ok = QuantityInputDialog.get_quantity(
+                    self, "Peso Manual",
                     f"Ingrese el peso para {self.producto_pendiente['nombre']} (kg):",
-                    value=0.0, min=0.001, max=9999.0, decimals=3
+                    decimals=3, maximo=9999.0, unidad="kg"
                 )
                 if ok and cantidad > 0:
                     self.agregar_producto_directo(self.producto_pendiente, cantidad)
             self.finalizar_monitoreo_peso()
             
     def agregar_producto_por_unidad(self, producto: Dict[str, Any]):
-        cantidad, ok = QInputDialog.getDouble(
-            self, "Cantidad", 
+        from frontend.desktop.components.quantity_input_dialog import QuantityInputDialog
+        cantidad, ok = QuantityInputDialog.get_quantity(
+            self, "Cantidad",
             f"Ingrese la cantidad para {producto['nombre']}:",
-            value=0.0, min=0.001, max=9999.0, decimals=3
+            decimals=3, maximo=9999.0, unidad=producto.get('unidad', ''),
         )
         if ok and cantidad > 0:
             self.agregar_producto_directo(producto, cantidad)
@@ -3573,10 +3573,12 @@ class ModuloVentas(ModuloBase):
             producto = self.compra_actual[row]
             cantidad_actual = producto['cantidad']
             
-            cantidad, ok = QInputDialog.getDouble(
-                self, "Modificar Cantidad", 
+            from frontend.desktop.components.quantity_input_dialog import QuantityInputDialog
+            cantidad, ok = QuantityInputDialog.get_quantity(
+                self, "Modificar Cantidad",
                 f"Ingrese la nueva cantidad para {producto['nombre']}:",
-                value=cantidad_actual, min=0.001, max=9999.0, decimals=3
+                decimals=3, maximo=9999.0, unidad=producto.get('unidad', ''),
+                inicial=cantidad_actual,
             )
             
             if ok and cantidad > 0:
