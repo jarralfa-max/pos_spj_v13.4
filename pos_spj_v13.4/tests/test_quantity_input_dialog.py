@@ -87,6 +87,35 @@ def test_valor_inicial_solo_en_edicion(_app):
     assert dlg2.display.text() == ""
 
 
+def test_teclado_desplegable_toggle(_app):
+    dlg = _dlg()
+    # Por defecto el teclado está desplegado (uso táctil). isHidden() refleja el
+    # estado explícito del toggle aunque el diálogo aún no se haya mostrado.
+    assert dlg._btn_toggle.isChecked()
+    assert not dlg._keypad_panel.isHidden()
+    # Ocultar
+    dlg._btn_toggle.setChecked(False)
+    assert dlg._keypad_panel.isHidden()
+    assert "Mostrar" in dlg._btn_toggle.text()
+    # Mostrar de nuevo
+    dlg._btn_toggle.setChecked(True)
+    assert not dlg._keypad_panel.isHidden()
+    assert "Ocultar" in dlg._btn_toggle.text()
+
+
+def test_botones_grandes_para_tactil(_app):
+    dlg = _dlg()
+    # Los botones del teclado deben ser objetivos táctiles grandes (>=72px) y
+    # con fuente grande (>=22pt).
+    from PyQt5.QtWidgets import QPushButton
+    keypad_btns = [b for b in dlg._keypad_panel.findChildren(QPushButton)
+                   if b.text() in {"7","8","9","4","5","6","1","2","3","0",".","⌫"}]
+    assert len(keypad_btns) == 12
+    for b in keypad_btns:
+        assert b.minimumHeight() >= 72
+        assert b.font().pointSize() >= 22
+
+
 def test_get_quantity_cancelado_devuelve_cero_false(_app):
     from frontend.desktop.components.quantity_input_dialog import QuantityInputDialog
     dlg = QuantityInputDialog()

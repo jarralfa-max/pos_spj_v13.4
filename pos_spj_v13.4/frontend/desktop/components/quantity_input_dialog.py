@@ -24,7 +24,7 @@ from PyQt5.QtCore import Qt, QLocale
 from PyQt5.QtGui import QDoubleValidator
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QLineEdit,
-    QPushButton,
+    QPushButton, QWidget, QSizePolicy,
 )
 
 
@@ -50,7 +50,7 @@ class QuantityInputDialog(QDialog):
         self.setWindowTitle(titulo)
         self.setModal(True)
         self.setObjectName("quantityInputDialog")
-        self.setMinimumWidth(300)
+        self.setMinimumWidth(340)
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(16, 16, 16, 16)
@@ -94,9 +94,24 @@ class QuantityInputDialog(QDialog):
             self.display.setText(self._format(inicial))
             self.display.selectAll()
 
-        # ── Teclado numérico (calculadora) ──────────────────────────────────────
+        # ── Toggle: mostrar/ocultar el teclado (desplegable) ────────────────────
+        self._btn_toggle = QPushButton("⌨  Ocultar teclado")
+        self._btn_toggle.setObjectName("secondaryBtn")
+        self._btn_toggle.setCheckable(True)
+        self._btn_toggle.setChecked(True)
+        self._btn_toggle.setFocusPolicy(Qt.NoFocus)
+        self._btn_toggle.setMinimumHeight(36)
+        self._btn_toggle.toggled.connect(self._toggle_teclado)
+        lay.addWidget(self._btn_toggle)
+
+        # ── Panel del teclado numérico (calculadora, botones grandes touch) ─────
+        self._keypad_panel = QWidget()
+        self._keypad_panel.setObjectName("quantityKeypadPanel")
+        panel_lay = QVBoxLayout(self._keypad_panel)
+        panel_lay.setContentsMargins(0, 0, 0, 0)
+        panel_lay.setSpacing(8)
         grid = QGridLayout()
-        grid.setSpacing(6)
+        grid.setSpacing(8)
         botones = [
             ("7", 0, 0), ("8", 0, 1), ("9", 0, 2),
             ("4", 1, 0), ("5", 1, 1), ("6", 1, 2),
@@ -107,8 +122,9 @@ class QuantityInputDialog(QDialog):
             b = QPushButton(texto)
             b.setObjectName("quantityKeypadBtn")
             b.setFocusPolicy(Qt.NoFocus)
-            b.setMinimumHeight(48)
-            bf = b.font(); bf.setPointSize(max(12, bf.pointSize() + 3)); b.setFont(bf)
+            b.setMinimumSize(76, 76)   # objetivo táctil grande
+            b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            bf = b.font(); bf.setPointSize(26); bf.setBold(True); b.setFont(bf)
             if texto == "⌫":
                 b.clicked.connect(self._retroceso)
             elif texto == ".":
@@ -116,15 +132,17 @@ class QuantityInputDialog(QDialog):
             else:
                 b.clicked.connect(lambda _=False, d=texto: self._agregar_digito(d))
             grid.addWidget(b, r, c)
-        lay.addLayout(grid)
+        panel_lay.addLayout(grid)
 
         # Botón limpiar (C) a todo lo ancho
         btn_clear = QPushButton("C  (Limpiar)")
         btn_clear.setObjectName("secondaryBtn")
         btn_clear.setFocusPolicy(Qt.NoFocus)
-        btn_clear.setMinimumHeight(38)
+        btn_clear.setMinimumHeight(48)
+        cf = btn_clear.font(); cf.setPointSize(15); cf.setBold(True); btn_clear.setFont(cf)
         btn_clear.clicked.connect(self._limpiar)
-        lay.addWidget(btn_clear)
+        panel_lay.addWidget(btn_clear)
+        lay.addWidget(self._keypad_panel)
 
         # ── Aceptar / Cancelar ──────────────────────────────────────────────────
         acc = QHBoxLayout()
@@ -198,6 +216,14 @@ class QuantityInputDialog(QDialog):
 
     def _limpiar(self) -> None:
         self.display.clear()
+
+    def _toggle_teclado(self, visible: bool) -> None:
+        """Muestra/oculta el teclado en pantalla (desplegable). Útil cuando se
+        captura con teclado físico o báscula y no se necesita el teclado táctil."""
+        self._keypad_panel.setVisible(visible)
+        self._btn_toggle.setText("⌨  Ocultar teclado" if visible else "⌨  Mostrar teclado")
+        # Reajusta el diálogo al colapsar/expandir el panel.
+        self.adjustSize()
 
     def _sync_ok_enabled(self) -> None:
         v = self.valor()
