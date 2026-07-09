@@ -256,8 +256,14 @@ class ModuloTicketDesigner(QWidget):
         btn_clear = QPushButton("🗑️ Quitar")
         btn_clear = create_secondary_button(self, btn_clear, "Quitar logo actual")
         btn_clear.clicked.connect(self._quitar_logo)
-        btn_lr.addWidget(btn_logo); btn_lr.addWidget(btn_clear)
+        btn_nobg = QPushButton("✨ Quitar fondo")
+        btn_nobg = create_secondary_button(self, btn_nobg, "Hacer transparente el fondo del logo actual")
+        btn_nobg.clicked.connect(self._aplicar_quitar_fondo)
+        btn_lr.addWidget(btn_logo); btn_lr.addWidget(btn_clear); btn_lr.addWidget(btn_nobg)
         fl.addRow("", btn_lr)
+        self.chk_logo_nobg = QCheckBox("Quitar fondo automáticamente al cargar")
+        self.chk_logo_nobg.setChecked(True)
+        fl.addRow("", self.chk_logo_nobg)
         self.spin_logo_w = QSpinBox()
         self.spin_logo_w.setRange(20, 400); self.spin_logo_w.setValue(150)
         self.spin_logo_w.setSuffix(" px")
@@ -416,8 +422,30 @@ class ModuloTicketDesigner(QWidget):
             with open(path, 'rb') as f: data = f.read()
             ext = os.path.splitext(path)[1].lower().strip('.')
             mime = {'jpg':'jpeg','jpeg':'jpeg','png':'png','gif':'gif','bmp':'bmp','svg':'svg+xml'}.get(ext,'png')
+            # Quitar fondo automáticamente (transparencia) si está activado. quitar_fondo
+            # devuelve un PNG; si la imagen no es rasterizable (SVG) deja los bytes igual.
+            if getattr(self, 'chk_logo_nobg', None) and self.chk_logo_nobg.isChecked():
+                from frontend.desktop.components.logo_utils import quitar_fondo
+                nueva = quitar_fondo(data)
+                if nueva is not data and nueva != data:
+                    data, mime = nueva, 'png'
             self._logo_b64 = f"data:image/{mime};base64,{base64.b64encode(data).decode()}"
             self._mostrar_logo_thumbnail(data)
+            self.actualizar_vista_previa()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def _aplicar_quitar_fondo(self):
+        """Hace transparente el fondo del logo ya cargado."""
+        if not self._logo_b64:
+            QMessageBox.information(self, "Logo", "Carga un logo primero."); return
+        try:
+            from frontend.desktop.components.logo_utils import quitar_fondo
+            b64_part = self._logo_b64.split(",", 1)[1] if "," in self._logo_b64 else self._logo_b64
+            raw = base64.b64decode(b64_part)
+            nueva = quitar_fondo(raw)
+            self._logo_b64 = f"data:image/png;base64,{base64.b64encode(nueva).decode()}"
+            self._mostrar_logo_thumbnail(nueva)
             self.actualizar_vista_previa()
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
