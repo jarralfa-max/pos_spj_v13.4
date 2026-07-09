@@ -281,7 +281,7 @@ class ProductCard(QFrame):
         self._install_selection_event_filters()
 
     def _install_selection_event_filters(self):
-        """Ensure clicks on labels/child widgets select the product card."""
+        """Ensure clicks on labels/child widgets pick the product card."""
         for child in self.findChildren(QWidget):
             child.installEventFilter(self)
             child.setCursor(self.cursor())
@@ -659,7 +659,7 @@ class DialogoPago(QDialog):
         self.btn_cancelar.clicked.connect(self.reject)
 
     def showEvent(self, event):
-        """v13.4: Auto-focus y select all en campo de efectivo."""
+        """v13.4: Auto-focus y marca todo el texto en campo de efectivo."""
         super().showEvent(event)
         from PyQt5.QtCore import QTimer
         QTimer.singleShot(50, lambda: (
@@ -2133,7 +2133,7 @@ class ModuloVentas(ModuloBase):
             logger.debug("_ir_a_caja: %s", e)
 
     def _set_bascula_status(self, text: str):
-        """Update status label and mirror abbreviated text to HW button."""
+        """Refresh status label and mirror abbreviated text to HW button."""
         self.lbl_estado_bascula.setText(text)
         if hasattr(self, '_btn_bascula_hw'):
             short = text.replace("Báscula: ", "⚖ ").replace("Basic: ", "⚖ ")
@@ -2190,7 +2190,7 @@ class ModuloVentas(ModuloBase):
 
     def set_cajero_info(self, caja: str = "", cajero: str = "",
                         turno: str = "", estado: str = "Abierto") -> None:
-        """Update the cashier info bar (called from main_window after login)."""
+        """Refresh the cashier info bar (called from main_window after login)."""
         if not hasattr(self, '_lbl_cashier_meta'):
             return
         parts = [p for p in [caja, cajero, turno] if p]

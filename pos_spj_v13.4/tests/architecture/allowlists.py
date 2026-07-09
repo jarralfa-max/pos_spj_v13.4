@@ -35,7 +35,9 @@ SQL_IN_UI_ALLOWLIST = {
     'pos_spj_v13.4/modulos/sistema/health_monitor.py': 4,
     'pos_spj_v13.4/modulos/spj_styles.py': 2,
     'pos_spj_v13.4/modulos/ticket_designer.py': 6,
-    'pos_spj_v13.4/modulos/ventas.py': 5,
+    # ventas.py: sin SQL real (delega a use cases). Reescritas 4 docstrings que
+    # activaban SQL_RE ("Update"/"select"); el 1 restante es `payload.update(` (dict).
+    'pos_spj_v13.4/modulos/ventas.py': 1,
     'pos_spj_v13.4/presentation/sales/dialogs/payment_dialog.py': 2,
 }
 
