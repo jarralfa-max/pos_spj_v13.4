@@ -21,7 +21,10 @@ SQL_IN_UI_ALLOWLIST = {
     'pos_spj_v13.4/modulos/cotizaciones.py': 9,
     'pos_spj_v13.4/modulos/delivery.py': 2,
     'pos_spj_v13.4/modulos/etiquetas.py': 4,
-    'pos_spj_v13.4/modulos/loyalty_card_designer.py': 12,
+    # loyalty_card_designer.py: SQL extraído a LoyaltyCardDesignerService (Remediación F).
+    # Los 3 restantes son falsos positivos de SQL_RE sobre `.update(` de dicts
+    # (self.plantilla.update / d.update), no SQL.
+    'pos_spj_v13.4/modulos/loyalty_card_designer.py': 3,
     'pos_spj_v13.4/modulos/planeacion_compras.py': 2,
     # recepcion_qr_widget.py: SQL 100% extraído a RecepcionQRService (Remediación F).
     'pos_spj_v13.4/modulos/reportes_bi_v2.py': 3,
@@ -44,7 +47,7 @@ COMMIT_ROLLBACK_IN_UI_ALLOWLIST = {
     # configuracion.py no longer call commit()/rollback() in the UI.
     'pos_spj_v13.4/modulos/cotizaciones.py': 2,
     'pos_spj_v13.4/modulos/delivery.py': 3,
-    'pos_spj_v13.4/modulos/loyalty_card_designer.py': 8,
+    # loyalty_card_designer.py: commit() movido a LoyaltyCardDesignerService (Remediación F).
     'pos_spj_v13.4/modulos/productos.py': 9,
     # recepcion_qr_widget.py: commit() movido a RecepcionQRService (Remediación F).
     # rrhh.py: commit()/rollback() movidos a RRHHCatalogService/repositorios (Remediación F).
