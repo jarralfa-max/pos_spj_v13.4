@@ -649,7 +649,7 @@ class LoyaltyService:
         summary = self._app.repo.get_raffle_summary()
         return summary
 
-    def list_raffle_tickets(self, raffle_id: int, limit: int = 200) -> list[dict]:
+    def list_raffle_tickets(self, raffle_id: str, limit: int = 200) -> list[dict]:
         return self._app.repo.list_tickets_by_raffle(raffle_id, limit=limit)
 
     def resolve_scan(self, codigo: str) -> dict:
@@ -787,7 +787,7 @@ class LoyaltyService:
         self.validate_raffle_budget(data)
         return self._app.repo.create_raffle_with_rules(data, rules, prizes, eligibility)
 
-    def reserve_raffle_budget(self, raffle_id: int, monto: float, usuario: str, referencia: str) -> bool:
+    def reserve_raffle_budget(self, raffle_id: str, monto: float, usuario: str, referencia: str) -> bool:
         ok = self._app.repo.reserve_raffle_budget(raffle_id, monto, usuario, referencia)
         if ok and self._bus:
             self._bus.publish(
@@ -803,7 +803,7 @@ class LoyaltyService:
             )
         return bool(ok)
 
-    def activate_raffle(self, raffle_id: int, usuario: str) -> bool:
+    def activate_raffle(self, raffle_id: str, usuario: str) -> bool:
         self.validate_raffle_ready_to_activate(raffle_id)
         ok = bool(self._app.repo.activate_raffle(raffle_id, usuario))
         if ok and self._bus:
@@ -811,7 +811,7 @@ class LoyaltyService:
         return ok
 
 
-    def close_raffle(self, raffle_id: int, usuario: str) -> bool:
+    def close_raffle(self, raffle_id: str, usuario: str) -> bool:
         ok = bool(self._app.repo.close_raffle(raffle_id, usuario))
         if ok and self._bus:
             self._bus.publish(
@@ -1111,7 +1111,7 @@ class LoyaltyService:
             )
         return cancelled
 
-    def select_winner(self, raffle_id: int, usuario: str, random_seed: str | None = None, prize_id: int | None = None) -> dict:
+    def select_winner(self, raffle_id: str, usuario: str, random_seed: str | None = None, prize_id: str | None = None) -> dict:
         raffle = self._app.repo.get_raffle_by_id(raffle_id)
         self.validate_winner_selection(raffle)
         winner = self._app.repo.select_winner(raffle_id, usuario, random_seed=random_seed, prize_id=prize_id)
@@ -1121,7 +1121,7 @@ class LoyaltyService:
             self._bus.publish("RAFFLE_WINNER_SELECTED", payload, async_=True)
         return winner
 
-    def mark_prize_delivered(self, winner_id: int, usuario: str, costo_real: float, referencia: str = "") -> bool:
+    def mark_prize_delivered(self, winner_id: str, usuario: str, costo_real: float, referencia: str = "") -> bool:
         winner = self._app.repo.get_winner_by_id(winner_id)
         if not winner:
             return False

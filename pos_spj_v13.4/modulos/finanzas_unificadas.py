@@ -1622,7 +1622,7 @@ class _SeccionCuentasPorCobrar(QWidget):
         seleccionado, ok = QInputDialog.getItem(self, "Cliente", "Selecciona cliente:", nombres, 0, False)
         if not ok:
             return
-        tercero_id = int(str(seleccionado).split(" - ", 1)[0])
+        tercero_id = str(seleccionado).split(" - ", 1)[0]  # UUID (REGLA CERO): sin int()
         from frontend.desktop.components.numeric_keypad_dialog import NumericKeypadDialog
         monto, ok2 = NumericKeypadDialog.get_value(self, "Cobro global CxC", "Monto total:", decimals=2, unidad="$")
         if not ok2 or monto <= 0:
@@ -1804,7 +1804,7 @@ class _SeccionCuentasPorPagar(QWidget):
         sel, ok = QInputDialog.getItem(self, "Proveedor", "Selecciona proveedor:", nombres, 0, False)
         if not ok:
             return
-        tercero_id = int(str(sel).split(" - ", 1)[0])
+        tercero_id = str(sel).split(" - ", 1)[0]  # UUID (REGLA CERO): sin int()
         from frontend.desktop.components.numeric_keypad_dialog import NumericKeypadDialog
         monto, ok2 = NumericKeypadDialog.get_value(self, "Pago global CxP", "Monto total:", decimals=2, unidad="$")
         if not ok2 or monto <= 0:
@@ -2460,7 +2460,7 @@ class _SeccionProveedores(QWidget):
             return
         m = self._m
         try:
-            prov = m._tps.get_proveedor(int(pid)) if m._tps else None
+            prov = m._tps.get_proveedor(str(pid)) if m._tps else None  # UUID (REGLA CERO)
             if prov:
                 self._lbl_detalle.setText(
                     f"Nombre: {prov.get('nombre','-')} | RFC: {prov.get('rfc','-')} | "
