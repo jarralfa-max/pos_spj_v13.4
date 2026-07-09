@@ -67,6 +67,10 @@ class ModuloTicketDesigner(QWidget):
         "{{puntos_totales}}", "{{mensaje_psicologico}}",
         "{{qr_code}}", "{{barcode}}", "{{logo}}",
         "{{nombre_empresa}}", "{{direccion}}", "{{telefono}}",
+        # Encabezado de sucursal + datos fiscales
+        "{{sucursal_nombre}}", "{{sucursal_direccion}}", "{{sucursal_telefono}}",
+        "{{whatsapp_empresa}}", "{{rfc_emisor}}", "{{regimen_fiscal}}",
+        "{{web_empresa}}",
     ]
 
     def __init__(self, container, parent=None):
@@ -541,7 +545,10 @@ class ModuloTicketDesigner(QWidget):
             "{{forma_pago}}", "{{cambio}}", "{{puntos_ganados}}",
             "{{puntos_totales}}", "{{mensaje_psicologico}}",
             "{{qr_code}}", "{{barcode}}", "{{logo}}",
-            "{{nombre_empresa}}", "{{direccion}}", "{{telefono}}", "{{footer_message}}", "{{legal_message}}",
+            "{{nombre_empresa}}", "{{direccion}}", "{{telefono}}",
+            "{{sucursal_nombre}}", "{{sucursal_direccion}}", "{{sucursal_telefono}}",
+            "{{whatsapp_empresa}}", "{{rfc_emisor}}", "{{regimen_fiscal}}", "{{web_empresa}}",
+            "{{footer_message}}", "{{legal_message}}",
         ]
         if hasattr(self, "lista_variables"):
             self.lista_variables.clear(); self.lista_variables.addItems(self.variables_disponibles)
@@ -860,7 +867,14 @@ class ModuloTicketDesigner(QWidget):
         return """<div style="text-align:center;max-width:300px;margin:auto;">
 {{logo}}
 <h2 style="margin:4px 0;">{{nombre_empresa}}</h2>
-<p style="font-size:10px;margin:2px 0;">{{direccion}}<br>Tel: {{telefono}}</p>
+<p style="font-size:10px;margin:2px 0;">
+Sucursal: {{sucursal_nombre}}<br>
+{{sucursal_direccion}}<br>
+Tel: {{sucursal_telefono}}<br>
+WhatsApp: {{whatsapp_empresa}}<br>
+RFC: {{rfc_emisor}}<br>
+Régimen: {{regimen_fiscal}}
+</p>
 <hr style="border:none;border-top:1px dashed #000;">
 <p>Ticket: <b>{{folio}}</b><br>{{fecha}}<br>Cajero: {{cajero}}</p>
 <hr style="border:none;border-top:1px dashed #000;">
