@@ -57,3 +57,31 @@ def test_quantity_input_dialog_es_subclase(_app):
     # get_quantity delega en get_value (nunca permite cero para cantidades)
     dlg = QuantityInputDialog(decimals=3)
     assert not dlg.btn_ok.isEnabled()
+
+
+def test_subclase_acepta_permitir_cero(_app):
+    # Regresión: get_value instancia cls(..., permitir_cero=...); la subclase debe
+    # aceptar ese kwarg (antes lanzaba TypeError por un __init__ más estrecho).
+    from frontend.desktop.components.quantity_input_dialog import QuantityInputDialog
+    dlg = QuantityInputDialog(decimals=3, permitir_cero=True)
+    assert dlg.valor() == 0.0
+
+
+def test_get_quantity_flujo_completo(_app, monkeypatch):
+    """Ejercita get_quantity de punta a punta (get_value → cls(...) → exec_),
+    el camino exacto que falló en runtime."""
+    from frontend.desktop.components.numeric_keypad_dialog import NumericKeypadDialog
+    from PyQt5.QtWidgets import QDialog
+
+    def fake_exec(self):
+        self._agregar_digito("5")
+        return QDialog.Accepted
+
+    monkeypatch.setattr(NumericKeypadDialog, "exec_", fake_exec, raising=True)
+    from frontend.desktop.components.quantity_input_dialog import QuantityInputDialog
+    val, ok = QuantityInputDialog.get_quantity(None, "Cantidad", "x", decimals=3, unidad="kg")
+    assert ok is True and val == 5.0
+
+    # y get_value directo (montos) también
+    val2, ok2 = NumericKeypadDialog.get_value(None, "Monto", "x", decimals=2, unidad="$")
+    assert ok2 is True and val2 == 5.0
