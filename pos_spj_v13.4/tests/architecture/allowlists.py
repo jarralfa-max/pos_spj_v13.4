@@ -13,7 +13,8 @@ new file starts violating a rule. Counts may be reduced as debt is removed.
 # transferencias.
 SQL_IN_UI_ALLOWLIST = {
     'pos_spj_v13.4/interfaz/main_window.py': 9,
-    'pos_spj_v13.4/modulos/activos.py': 11,
+    # activos.py: SQL 100% extraído a AssetService (Remediación F) — lecturas de
+    # tabla/depreciación/mantenimientos, bajas, borrados y la depreciación mensual.
     'pos_spj_v13.4/modulos/base.py': 3,
     'pos_spj_v13.4/modulos/clientes.py': 1,
     'pos_spj_v13.4/modulos/compras/actions_bar.py': 1,
@@ -44,7 +45,7 @@ SQL_IN_UI_ALLOWLIST = {
 }
 
 COMMIT_ROLLBACK_IN_UI_ALLOWLIST = {
-    'pos_spj_v13.4/modulos/activos.py': 7,
+    # activos.py: commit()/rollback() movidos a AssetService (Remediación F).
     'pos_spj_v13.4/modulos/base.py': 4,
     'pos_spj_v13.4/modulos/clientes.py': 5,
     'pos_spj_v13.4/modulos/compras_pro.py': 5,

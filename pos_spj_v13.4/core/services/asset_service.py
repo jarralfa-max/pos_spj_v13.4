@@ -324,3 +324,147 @@ class AssetService:
             except Exception: pass
             logger.error("capitalizar_mantenimiento: %s", e)
             return {"ok": False, "error": str(e)}
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  Lecturas/escrituras que la UI (modulos/activos.py) delega aquí
+    #  (Remediación F — sin SQL ni commit en la capa de presentación).
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def listar_activos_para_tabla(self) -> list:
+        """Activos no dados de baja para la tabla del inventario de equipos."""
+        rows = self.db.execute(
+            "SELECT * FROM activos WHERE estado != 'baja' ORDER BY id DESC LIMIT 500"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def dar_de_baja(self, activo_id: str) -> None:
+        """Soft delete contable: marca el activo como 'baja' (no se borra)."""
+        try:
+            self.db.execute(
+                "UPDATE activos SET estado = 'baja' WHERE id=?", (activo_id,)
+            )
+            self.db.commit()
+        except Exception as e:
+            try: self.db.rollback()
+            except Exception: pass
+            raise RuntimeError(f"No se pudo dar de baja: {e}")
+
+    def listar_depreciacion_acumulada(self) -> list:
+        """Reporte de depreciación acumulada por activo y periodo (con JOIN)."""
+        try:
+            return self.db.execute(
+                """
+                SELECT da.activo_id,
+                       COALESCE(a.nombre, '—') AS nombre,
+                       da.periodo,
+                       da.monto_mes,
+                       da.acumulado,
+                       da.created_at
+                FROM depreciacion_acumulada da
+                LEFT JOIN activos a ON a.id = da.activo_id
+                ORDER BY da.periodo DESC, a.nombre ASC
+                LIMIT 500
+                """
+            ).fetchall()
+        except Exception:
+            return []
+
+    def listar_mantenimientos(self) -> list:
+        """Órdenes de mantenimiento con el nombre del activo (pendientes primero)."""
+        rows = self.db.execute(
+            """
+            SELECT m.*, a.nombre as activo_nombre
+            FROM mantenimientos m
+            JOIN activos a ON m.activo_id = a.id
+            ORDER BY CASE WHEN m.estado = 'pendiente' THEN 0 ELSE 1 END,
+                     m.fecha_prog DESC
+            LIMIT 500
+            """
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def eliminar_mantenimiento(self, mant_id: str) -> None:
+        """Elimina una orden de mantenimiento pendiente (aún sin pago)."""
+        try:
+            self.db.execute("DELETE FROM mantenimientos WHERE id=?", (mant_id,))
+            self.db.commit()
+        except Exception as e:
+            try: self.db.rollback()
+            except Exception: pass
+            raise RuntimeError(str(e))
+
+    def listar_activos_para_pdf(self) -> list:
+        """Filas mínimas de activos vigentes para el reporte PDF."""
+        rows = self.db.execute(
+            "SELECT id, nombre, categoria, estado, valor_adquisicion "
+            "FROM activos WHERE estado != 'baja'"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def listar_mantenimientos_para_pdf(self) -> list:
+        """Filas mínimas de mantenimientos (con nombre de activo) para el PDF."""
+        return self.db.execute(
+            """
+            SELECT m.id, a.nombre, m.tipo, m.fecha_prog, m.estado, m.costo
+            FROM mantenimientos m JOIN activos a ON m.activo_id = a.id
+            ORDER BY m.fecha_prog DESC LIMIT 500
+            """
+        ).fetchall()
+
+    def calcular_depreciacion_mensual(self, sucursal_id="") -> list:
+        """
+        Aplica depreciación mensual (línea recta) a los activos activos y la
+        registra en la tabla legacy `activos_depreciacion`. Pensada para el
+        scheduler nocturno del último día del mes. Devuelve la lista de activos
+        depreciados con sus nuevos valores; nunca propaga excepción (degrada a []).
+        """
+        from datetime import datetime
+        db = self.db
+        resultados = []
+        try:
+            activos = db.execute("""
+                SELECT id, nombre, valor_actual, depreciacion_anual, vida_util_anios,
+                       COALESCE(valor_residual, 0) as valor_residual
+                FROM activos
+                WHERE estado='activo'
+                  AND depreciacion_anual > 0
+                  AND COALESCE(valor_actual, 0) > COALESCE(valor_residual, 0)
+            """).fetchall()
+
+            mes_actual = datetime.now().strftime("%Y-%m")
+
+            for a in activos:
+                depreciacion_mensual = a['depreciacion_anual'] / 12
+                nuevo_valor = max(
+                    float(a['valor_residual']),
+                    float(a['valor_actual']) - depreciacion_mensual
+                )
+                # Check if already depreciated this month
+                ya_dep = db.execute("""
+                    SELECT id FROM activos_depreciacion
+                    WHERE activo_id=? AND strftime('%Y-%m', fecha)=?
+                """, (a['id'], mes_actual)).fetchone()
+                if ya_dep:
+                    continue
+
+                db.execute("""
+                    UPDATE activos SET valor_actual=? WHERE id=?
+                """, (nuevo_valor, a['id']))
+                db.execute("""
+                    INSERT INTO activos_depreciacion
+                    (activo_id, monto, valor_antes, valor_despues, fecha, sucursal_id)
+                    VALUES (?,?,?,?,datetime('now'),?)
+                """, (a['id'], depreciacion_mensual,
+                      float(a['valor_actual']), nuevo_valor, sucursal_id))
+                resultados.append({
+                    'id': a['id'], 'nombre': a['nombre'],
+                    'depreciacion': depreciacion_mensual,
+                    'valor_nuevo': nuevo_valor
+                })
+                logger.info("Depreciacion: %s — $%.2f → $%.2f",
+                            a['nombre'], a['valor_actual'], nuevo_valor)
+
+            db.commit()
+        except Exception as e:
+            logger.error("calcular_depreciacion_mensual: %s", e)
+        return resultados

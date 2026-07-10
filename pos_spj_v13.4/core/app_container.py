@@ -799,8 +799,7 @@ class AppContainer:
             from datetime import datetime as _dt
             if _dt.now().day != 1: return
             try:
-                from modulos.activos import calcular_depreciacion_mensual
-                results = calcular_depreciacion_mensual(self.db, self.sucursal_id)
+                results = self.asset_service.calcular_depreciacion_mensual(self.sucursal_id)
                 if results:
                     _log.getLogger("spj.scheduler").info(
                         "Depreciacion mensual: %d activos", len(results))

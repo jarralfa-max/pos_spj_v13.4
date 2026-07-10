@@ -262,74 +262,6 @@ class DialogoPagoMantenimiento(QDialog):
 # =
 
 
-def calcular_depreciacion_mensual(db, sucursal_id: int = 1) -> list:
-    """
-    Aplica depreciación mensual a todos los activos activos.
-    Llamar desde el scheduler nocturno el último día del mes.
-    Retorna lista de activos depreciados con nuevos valores.
-    """
-    import logging
-    from datetime import datetime
-    logger = logging.getLogger("spj.activos.depreciacion")
-    resultados = []
-    try:
-        # Asegurar que la columna valor_residual existe (puede faltar en DBs antiguas)
-        try:
-            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
-            try: db.commit()
-            except Exception: pass
-        except Exception:
-            pass  # La columna ya existe o la tabla no existe aún
-
-        activos = db.execute("""
-            SELECT id, nombre, valor_actual, depreciacion_anual, vida_util_anios,
-                   COALESCE(valor_residual, 0) as valor_residual
-            FROM activos
-            WHERE estado='activo'
-              AND depreciacion_anual > 0
-              AND COALESCE(valor_actual, 0) > COALESCE(valor_residual, 0)
-        """).fetchall()
-
-        mes_actual = datetime.now().strftime("%Y-%m")
-
-        for a in activos:
-            depreciacion_mensual = a['depreciacion_anual'] / 12
-            nuevo_valor = max(
-                float(a['valor_residual']),
-                float(a['valor_actual']) - depreciacion_mensual
-            )
-            # Check if already depreciated this month
-            ya_dep = db.execute("""
-                SELECT id FROM activos_depreciacion
-                WHERE activo_id=? AND strftime('%Y-%m', fecha)=?
-            """, (a['id'], mes_actual)).fetchone()
-            if ya_dep:
-                continue
-
-            db.execute("""
-                UPDATE activos SET valor_actual=? WHERE id=?
-            """, (nuevo_valor, a['id']))
-            db.execute("""
-                INSERT INTO activos_depreciacion
-                (activo_id, monto, valor_antes, valor_despues, fecha, sucursal_id)
-                VALUES (?,?,?,?,datetime('now'),?)
-            """, (a['id'], depreciacion_mensual,
-                  float(a['valor_actual']), nuevo_valor, sucursal_id))
-            resultados.append({
-                'id': a['id'], 'nombre': a['nombre'],
-                'depreciacion': depreciacion_mensual,
-                'valor_nuevo': nuevo_valor
-            })
-            logger.info("Depreciacion: %s — $%.2f → $%.2f",
-                        a['nombre'], a['valor_actual'], nuevo_valor)
-
-        try: db.commit()
-        except Exception: pass
-    except Exception as e:
-        logger.error("calcular_depreciacion_mensual: %s", e)
-    return resultados
-
-
 class ModuloActivos(ModuloBase):
     """
     Gestión de Activos y Mantenimiento Corporativo (EAM).
@@ -337,12 +269,6 @@ class ModuloActivos(ModuloBase):
     """
     # 🛠️ FIX ENTERPRISE: Recibimos el container
     def __init__(self, container, parent=None):
-        # Ensure depreciation table exists
-        try:
-            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
-            try: container.db.commit()
-            except Exception: pass
-        except Exception: pass
         super().__init__(container.db, parent)
         self.container = container
         self.sucursal_id = getattr(container, "sucursal_id", "") or ""
@@ -421,11 +347,9 @@ class ModuloActivos(ModuloBase):
     def cargar_activos(self):
         self.tabla_activos.setRowCount(0)
         try:
-            cursor = self.conexion.cursor()
-            # Ocultamos los que están dados de baja
-            cursor.execute("SELECT * FROM activos WHERE estado != 'baja' ORDER BY id DESC LIMIT 500")
-            activos = cursor.fetchall()
-            
+            # Delegación: el servicio posee el SQL (Remediación F).
+            activos = self.container.asset_service.listar_activos_para_tabla()
+
             for i, activo in enumerate(activos):
                 self.tabla_activos.insertRow(i)
                 
@@ -504,9 +428,7 @@ class ModuloActivos(ModuloBase):
         )
         if respuesta == QMessageBox.Yes:
             try:
-                cursor = self.conexion.cursor()
-                cursor.execute("UPDATE activos SET estado = 'baja' WHERE id=?", (activo_id,))
-                self.conexion.commit()
+                self.container.asset_service.dar_de_baja(activo_id)
                 self.cargar_activos()
                 Toast.success(self, "Equipo dado de baja", "El activo se marcó como baja correctamente.")
             except Exception as e:
@@ -588,18 +510,7 @@ class ModuloActivos(ModuloBase):
         """Carga datos de depreciacion_acumulada con JOIN a activos."""
         self.tabla_dep.setRowCount(0)
         try:
-            rows = self.conexion.execute("""
-                SELECT da.activo_id,
-                       COALESCE(a.nombre, '—') AS nombre,
-                       da.periodo,
-                       da.monto_mes,
-                       da.acumulado,
-                       da.created_at
-                FROM depreciacion_acumulada da
-                LEFT JOIN activos a ON a.id = da.activo_id
-                ORDER BY da.periodo DESC, a.nombre ASC
-                LIMIT 500
-            """).fetchall()
+            rows = self.container.asset_service.listar_depreciacion_acumulada()
         except Exception:
             rows = []
         for i, r in enumerate(rows):
@@ -616,15 +527,8 @@ class ModuloActivos(ModuloBase):
     def cargar_mantenimientos(self):
         self.tabla_mant.setRowCount(0)
         try:
-            cursor = self.conexion.cursor()
-            query = """
-                SELECT m.*, a.nombre as activo_nombre 
-                FROM mantenimientos m
-                JOIN activos a ON m.activo_id = a.id ORDER BY CASE WHEN m.estado = 'pendiente' THEN 0 ELSE 1 END, m.fecha_prog DESC LIMIT 500
-            """
-            cursor.execute(query)
-            mantenimientos = cursor.fetchall()
-            
+            mantenimientos = self.container.asset_service.listar_mantenimientos()
+
             for i, mant in enumerate(mantenimientos):
                 self.tabla_mant.insertRow(i)
                 
@@ -684,9 +588,7 @@ class ModuloActivos(ModuloBase):
         respuesta = QMessageBox.question(self, "Confirmar", "¿Eliminar esta orden de mantenimiento pendiente?", QMessageBox.Yes | QMessageBox.No)
         if respuesta == QMessageBox.Yes:
             try:
-                cursor = self.conexion.cursor()
-                cursor.execute("DELETE FROM mantenimientos WHERE id=?", (mant_id,))
-                self.conexion.commit()
+                self.container.asset_service.eliminar_mantenimiento(mant_id)
                 self.cargar_mantenimientos()
             except Exception as e:
                 QMessageBox.critical(self, "Error", str(e))
@@ -734,10 +636,8 @@ class ModuloActivos(ModuloBase):
             pdf.ln()
             
             pdf.set_font("Arial", '', 9)
-            cursor = self.conexion.cursor()
-            cursor.execute("SELECT id, nombre, categoria, estado, valor_adquisicion FROM activos WHERE estado != 'baja'")
-            activos = cursor.fetchall()
-            
+            activos = self.container.asset_service.listar_activos_para_pdf()
+
             for activo in activos:
                 pdf.cell(col_widths[0], 10, f"ACT-{str(activo['id']).zfill(5)}", border=1)
                 pdf.cell(col_widths[1], 10, str(activo['nombre'])[:30], border=1)
@@ -773,13 +673,8 @@ class ModuloActivos(ModuloBase):
             pdf.ln()
             
             pdf.set_font("Arial", '', 9)
-            cursor = self.conexion.cursor()
-            cursor.execute("""
-                SELECT m.id, a.nombre, m.tipo, m.fecha_prog, m.estado, m.costo 
-                FROM mantenimientos m JOIN activos a ON m.activo_id = a.id ORDER BY m.fecha_prog DESC
-             LIMIT 500""")
-            mantenimientos = cursor.fetchall()
-            
+            mantenimientos = self.container.asset_service.listar_mantenimientos_para_pdf()
+
             for mant in mantenimientos:
                 pdf.cell(col_widths[0], 10, str(mant['id']), border=1)
                 pdf.cell(col_widths[1], 10, str(mant['nombre'])[:30], border=1)
