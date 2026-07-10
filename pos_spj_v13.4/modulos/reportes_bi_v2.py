@@ -317,6 +317,9 @@ class ModuloReportesBIv2(QWidget):
         self._lbl_rent_estado.setStyleSheet("color:#6c757d; font-size:11px;")
         lay.addWidget(self._lbl_rent_estado)
 
+        self._chart_rent = self._make_chart_view()
+        lay.addWidget(self._chart_rent)
+
         parent_layout.addWidget(grp)
         self._cargar_rentabilidad()
 
@@ -356,6 +359,9 @@ class ModuloReportesBIv2(QWidget):
         self._tbl_caj.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
         self._tbl_caj.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         lay.addWidget(self._tbl_caj)
+
+        self._chart_caj = self._make_chart_view()
+        lay.addWidget(self._chart_caj)
 
         parent_layout.addWidget(grp)
 
@@ -401,6 +407,11 @@ class ModuloReportesBIv2(QWidget):
                         item.setForeground(
                             __import__('PyQt5.QtGui', fromlist=['QColor']).QColor('#27ae60'))
                     self._tbl_caj.setItem(i, j, item)
+            from modulos.bi_charts import bar_chart_html
+            self._set_chart(getattr(self, "_chart_caj", None), bar_chart_html(
+                "Ventas por cajero",
+                [str(r.get("cajero", "")) for r in rows[:8]],
+                [float(r.get("total_ventas", 0)) for r in rows[:8]]))
         except Exception as exc:
             self._lbl_caj_estado.setText(f"Error: {exc}")
 
@@ -446,6 +457,9 @@ class ModuloReportesBIv2(QWidget):
         self._tbl_fc.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         lay.addWidget(self._tbl_fc)
 
+        self._chart_fc = self._make_chart_view()
+        lay.addWidget(self._chart_fc)
+
         parent_layout.addWidget(grp)
 
     def _cargar_plan_compras(self):
@@ -480,6 +494,11 @@ class ModuloReportesBIv2(QWidget):
                         item.setForeground(
                             __import__('PyQt5.QtGui', fromlist=['QColor']).QColor('#e74c3c'))
                     self._tbl_fc.setItem(i, j, item)
+            from modulos.bi_charts import bar_chart_html
+            self._set_chart(getattr(self, "_chart_fc", None), bar_chart_html(
+                "Costo estimado del plan de compras",
+                [str(r.get("producto", "")) for r in rows[:8]],
+                [float(r.get("costo_est", r.get("costo_estimado", 0))) for r in rows[:8]]))
         except Exception as exc:
             self._lbl_fc_estado.setText(f"Error: {exc}")
 
@@ -625,6 +644,9 @@ class ModuloReportesBIv2(QWidget):
         self._tbl_fm.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         lay.addWidget(self._tbl_fm)
 
+        self._chart_fm = self._make_chart_view()
+        lay.addWidget(self._chart_fm)
+
         parent_layout.addWidget(grp)
 
     def _cargar_franchise_ranking(self):
@@ -651,6 +673,11 @@ class ModuloReportesBIv2(QWidget):
                     item = QTableWidgetItem(str(v))
                     item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                     self._tbl_fm.setItem(i, j, item)
+            from modulos.bi_charts import bar_chart_html
+            self._set_chart(getattr(self, "_chart_fm", None), bar_chart_html(
+                "Ingresos por sucursal",
+                [str(r.get("nombre", r.get("sucursal_id", ""))) for r in rows[:8]],
+                [float(r.get("ingresos", 0)) for r in rows[:8]]))
         except Exception as exc:
             self._lbl_fm_estado.setText(f"Error: {exc}")
 
@@ -724,6 +751,15 @@ class ModuloReportesBIv2(QWidget):
             self._tbl_rent.setItem(i, 6, item_pct)
             self._tbl_rent.setItem(i, 7, QTableWidgetItem(abc))
         self._lbl_rent_estado.setText(f"{len(rows)} productos analizados.")
+
+        # Gráfica: margen $ de los productos top (offline SVG)
+        from modulos.bi_charts import bar_chart_html
+        top = sorted(rows, key=lambda r: float(r[3] or 0) - float(r[4] or 0),
+                     reverse=True)[:8]
+        self._set_chart(getattr(self, "_chart_rent", None), bar_chart_html(
+            "Margen por producto (top 8)",
+            [str(r[0]) for r in top],
+            [float(r[3] or 0) - float(r[4] or 0) for r in top]))
 
     def _exportar_rentabilidad_csv(self):
         """Exporta la tabla de rentabilidad a CSV."""
@@ -994,7 +1030,7 @@ class ModuloReportesBIv2(QWidget):
             self.loading_dashboard.setVisible(False)
 
     def _render_echarts_dashboard(self, data: dict) -> None:
-        """Renderiza un mini dashboard con ECharts dentro de QWebEngineView."""
+        """Renderiza el chart del dashboard con SVG embebido (offline, sin CDN)."""
         if not getattr(self, "_chart_view", None):
             return
         top = data.get('top_productos', [])
@@ -1002,36 +1038,33 @@ class ModuloReportesBIv2(QWidget):
             self._chart_empty.show()
             self._chart_view.hide()
             return
+        from modulos.bi_charts import bar_chart_html
         labels = [str(i.get('nombre', 'N/A')) for i in top[:8]]
         values = [float(i.get('ingresos_generados', 0) or 0) for i in top[:8]]
         self._chart_empty.hide()
         self._chart_view.show()
-        html = f"""
-        <html><head><meta charset='utf-8'>
-        <script src='https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js'></script>
-        <style>html,body,#c{{height:100%;margin:0;background:#0b1220;color:#e2e8f0;font-family:Inter,Arial;}}</style>
-        </head><body><div id='c'></div>
-        <script>
-        const labels = {labels};
-        const values = {values};
-        if (window.echarts) {{
-          const chart = echarts.init(document.getElementById('c'));
-          const option = {{
-            title: {{text: 'Top productos por ingresos', left: 'center', textStyle: {{color:'#e2e8f0'}}}},
-            tooltip: {{trigger: 'axis'}},
-            xAxis: {{type: 'category', data: labels, axisLabel: {{color:'#94a3b8', rotate:20}}}},
-            yAxis: {{type: 'value', axisLabel: {{color:'#94a3b8'}}}},
-            series: [{{type: 'bar', data: values, itemStyle: {{color:'#3b82f6'}}, barMaxWidth: 38}}]
-          }};
-          chart.setOption(option);
-        }} else {{
-          const c = document.getElementById('c');
-          const rows = labels.map((name, i) => `<div style="display:flex;justify-content:space-between;border-bottom:1px solid #1f2937;padding:8px 4px;"><span>${{name}}</span><b>$${{Number(values[i]||0).toFixed(2)}}</b></div>`).join('');
-          c.innerHTML = `<div style="padding:14px;"><h3 style="margin:0 0 8px 0;">Top productos por ingresos</h3><div style="font-size:12px;color:#94a3b8;margin-bottom:8px;">Modo fallback (ECharts no disponible)</div>${{rows}}</div>`;
-        }}
-        </script></body></html>
-        """
-        self._chart_view.setHtml(html)
+        self._chart_view.setHtml(
+            bar_chart_html("Top productos por ingresos", labels, values))
+
+    # ── Chart helpers reutilizables por pestaña (offline SVG) ─────────────────
+
+    def _make_chart_view(self, min_height: int = 260):
+        """Crea una vista de gráfica (QWebEngineView) con fallback si no existe."""
+        try:
+            from PyQt5.QtWebEngineWidgets import QWebEngineView
+            view = QWebEngineView(self)
+            view.setMinimumHeight(min_height)
+            return view
+        except Exception:
+            lbl = QLabel("Gráfica no disponible (QWebEngine ausente).")
+            lbl.setStyleSheet("color:#6c757d; padding:10px;")
+            lbl.setAlignment(Qt.AlignCenter)
+            return lbl
+
+    def _set_chart(self, view, html: str) -> None:
+        """Coloca HTML en la vista si soporta setHtml (QWebEngineView)."""
+        if view is not None and hasattr(view, "setHtml"):
+            view.setHtml(html)
 
     def _llenar_tabla(self, tabla: QTableWidget, datos: list, llaves: list):
         if not datos:
