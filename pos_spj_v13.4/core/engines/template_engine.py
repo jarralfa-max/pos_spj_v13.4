@@ -62,8 +62,16 @@ class TicketTemplateEngine(TemplateEngine):
             "transferencia": "03 - Transferencia electrónica",
             "credito":  "99 - Por definir",
         }
-        fp_raw     = str(venta_data.get("forma_pago", "efectivo")).lower()
-        forma_pago = fp_map.get(fp_raw, venta_data.get("forma_pago", "Efectivo"))
+        # El pago puede venir como dict (ruta canónica ticket_payload["pago"]) o como
+        # campos sueltos en venta_data. Se normaliza para leer forma/recibido/cambio.
+        _pago = venta_data.get("pago") if isinstance(venta_data.get("pago"), dict) else {}
+        fp_raw     = str(venta_data.get("forma_pago") or _pago.get("forma_pago") or "efectivo").lower()
+        forma_pago = fp_map.get(fp_raw, venta_data.get("forma_pago") or _pago.get("forma_pago") or "Efectivo")
+        efectivo_recibido = float(
+            venta_data.get("efectivo_recibido",
+                           _pago.get("efectivo_recibido", _pago.get("amount_paid_real", 0))) or 0
+        )
+        cambio_val = float(venta_data.get("cambio", _pago.get("cambio", 0)) or 0)
 
         ctx = {
             "folio":             str(venta_data.get("venta_id", "")),
@@ -93,8 +101,9 @@ class TicketTemplateEngine(TemplateEngine):
             "iva":               f"${monto_iva:,.2f}" if monto_iva > 0 else "",
             "tasa_iva":          f"{tasa_iva*100:.0f}%" if tasa_iva > 0 else "0%",
             "total":             f"${total:,.2f}",
-            "efectivo":          f"${float(venta_data.get('efectivo_recibido', 0)):,.2f}",
-            "cambio":            f"${float(venta_data.get('cambio', 0)):,.2f}",
+            "efectivo":          f"${efectivo_recibido:,.2f}",
+            "recibido":          f"${efectivo_recibido:,.2f}",
+            "cambio":            f"${cambio_val:,.2f}",
             "forma_pago":        forma_pago,
             "puntos_ganados":    str(venta_data.get("puntos_ganados", "")),
             "puntos_totales":    str(venta_data.get("puntos_totales", "")),
@@ -104,10 +113,21 @@ class TicketTemplateEngine(TemplateEngine):
         }
         return self.render(template_db, ctx)
 
+    @staticmethod
+    def _nombre_item(item: dict) -> str:
+        return (
+            item.get("nombre")
+            or item.get("name")
+            or item.get("producto")
+            or item.get("product_name")
+            or item.get("descripcion")
+            or f"Producto {item.get('product_id', '')}"
+        )
+
     def _generar_filas_items(self, items: list) -> str:
         filas = ""
         for item in items:
-            nombre = item.get("nombre", "")
+            nombre = self._nombre_item(item)
             cant   = item.get("cantidad", "")
             precio = float(item.get("precio_unitario", item.get("precio", 0)))
             total  = float(item.get("total", item.get("subtotal", 0)))
@@ -124,7 +144,7 @@ class TicketTemplateEngine(TemplateEngine):
     def _generar_items_texto(self, items: list) -> str:
         lineas = []
         for item in items:
-            nombre = item.get("nombre", "")[:24]
+            nombre = self._nombre_item(item)[:24]
             cant   = str(item.get("cantidad", ""))
             total  = float(item.get("total", item.get("subtotal", 0)))
             lineas.append(f"{nombre:<24} {cant:>6} ${total:>8.2f}")

@@ -916,6 +916,7 @@ Régimen: {{regimen_fiscal}}
   <tr><td>Descuento:</td><td align="right">{{descuento}}</td></tr>
   <tr><td><b>TOTAL:</b></td><td align="right"><b>{{total}}</b></td></tr>
   <tr><td>Pagó:</td><td align="right">{{forma_pago}}</td></tr>
+  <tr><td>Recibido:</td><td align="right">{{recibido}}</td></tr>
   <tr><td>Cambio:</td><td align="right">{{cambio}}</td></tr>
 </table>
 <hr style="border:none;border-top:1px dashed #000;">

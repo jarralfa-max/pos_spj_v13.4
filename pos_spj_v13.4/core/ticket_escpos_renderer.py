@@ -396,6 +396,11 @@ class TicketESCPOSRenderer:
         pago = ticket_data.get("pago", {}) or {}
         if pago.get("forma_pago"):
             lines.append(f"Pago: {self._sanitize_text(pago.get('forma_pago'))}"[:width])
+            if str(pago.get("forma_pago", "")).lower() == "efectivo":
+                recibido = float(pago.get("efectivo_recibido", pago.get("amount_paid_real", 0)) or 0)
+                cambio = float(pago.get("cambio", 0) or 0)
+                lines.append(f"Recibido: ${recibido:.2f}"[:width])
+                lines.append(f"Cambio: ${cambio:.2f}"[:width])
         lines.append("-" * width)
         lines.append(self._sanitize_text(ticket_data.get("mensaje_psicologico", "¡Gracias por su compra!")).center(width)[:width])
         return "\n".join(lines)
@@ -433,7 +438,10 @@ class TicketESCPOSRenderer:
         original_mode = input_img.mode
         has_alpha = original_mode in ("RGBA", "LA") or (original_mode == "P" and "transparency" in input_img.info)
         if not has_alpha:
-            return input_img.convert("L"), None
+            # Sin canal alfa: si el logo tiene un fondo sólido de color (no blanco),
+            # el umbral térmico lo imprimiría como bloque negro. Se detecta el color
+            # de fondo por las esquinas y se pinta de blanco (no imprime).
+            return self._drop_solid_background(input_img.convert("RGB")), None
 
         rgba = input_img.convert("RGBA")
         alpha = rgba.getchannel("A")
@@ -444,6 +452,33 @@ class TicketESCPOSRenderer:
         transparent_mask = alpha.point(lambda a: 255 if a <= 32 else 0)
         composed.paste(255, mask=transparent_mask)
         return composed, alpha
+
+    def _drop_solid_background(self, rgb):
+        """Convierte a escala de grises quitando un fondo sólido de color.
+
+        Si las 4 esquinas comparten un color (fondo sólido) y ese color no es ya
+        casi-blanco, los píxeles de ese color se pintan de blanco (255) para que la
+        impresora térmica no los imprima como bloque. No toca logos con fondo blanco
+        (el umbral ya los descarta) ni con transparencia (esa ruta va aparte)."""
+        w, h = rgb.size
+        l = rgb.convert("L")
+        if w == 0 or h == 0:
+            return l
+        corners = [rgb.getpixel((0, 0)), rgb.getpixel((w - 1, 0)),
+                   rgb.getpixel((0, h - 1)), rgb.getpixel((w - 1, h - 1))]
+        br, bg, bb = corners[0]
+        uniforme = all(abs(c[0] - br) <= 24 and abs(c[1] - bg) <= 24 and abs(c[2] - bb) <= 24
+                       for c in corners)
+        if uniforme and not (br >= 230 and bg >= 230 and bb >= 230):
+            tol = 45
+            _rgb_px = getattr(rgb, "get_flattened_data", rgb.getdata)()
+            _l_px = getattr(l, "get_flattened_data", l.getdata)()
+            nuevos = [
+                255 if (abs(r - br) <= tol and abs(g - bg) <= tol and abs(b - bb) <= tol) else lum
+                for (r, g, b), lum in zip(_rgb_px, _l_px)
+            ]
+            l.putdata(nuevos)
+        return l
 
     def _resize_and_pad_logo(self, img, logo_size: str):
         from PIL import Image
