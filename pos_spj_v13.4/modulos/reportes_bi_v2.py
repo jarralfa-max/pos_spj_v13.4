@@ -122,50 +122,31 @@ class ModuloReportesBIv2(QWidget):
         ]
 
         try:
-            db = self.conexion if hasattr(self, 'conexion') else None
-            if db:
-                r = db.execute("""
-                    SELECT 
-                        COALESCE(SUM(total),0),
-                        COUNT(*),
-                        COUNT(DISTINCT cliente_id) 
-                    FROM ventas 
-                    WHERE DATE(fecha)=DATE('now') 
-                    AND estado='completada'
-                """).fetchone()
+            # Delegación: el SQL de KPIs vive en BIRepository (Remediación F).
+            from repositories.bi_repository import BIRepository
+            kpi = BIRepository(self.container.db).get_kpis_dia()
 
-                ventas = float(r[0] or 0)
-                tickets = int(r[1] or 1)
-                cli = int(r[2] or 0)
+            ventas = float(kpi["ventas"] or 0)
+            tickets = int(kpi["tickets"] or 1)
+            cli = int(kpi["clientes"] or 0)
 
-                prom = ventas / tickets if tickets > 0 else 0
+            prom = ventas / tickets if tickets > 0 else 0
 
-                kpis[0] = ("Ventas del período", f"${ventas:,.0f}", _C.SUCCESS_BASE, "↑ hoy")
-                kpis[1] = ("Ticket promedio", f"${prom:,.0f}", _C.PRIMARY_BASE, "")
-                kpis[3] = ("Clientes únicos", str(cli), _C.ACCENT_BASE, "")
+            kpis[0] = ("Ventas del período", f"${ventas:,.0f}", _C.SUCCESS_BASE, "↑ hoy")
+            kpis[1] = ("Ticket promedio", f"${prom:,.0f}", _C.PRIMARY_BASE, "")
+            kpis[3] = ("Clientes únicos", str(cli), _C.ACCENT_BASE, "")
 
-                r2 = db.execute("""
-                    SELECT 
-                        COALESCE(SUM(vd.cantidad*vd.precio_unitario),0),
-                        COALESCE(SUM(vd.cantidad*COALESCE(p.precio_compra,0)),0)
-                    FROM ventas v
-                    JOIN detalles_venta vd ON vd.venta_id = v.id
-                    JOIN productos p ON p.id = vd.producto_id
-                    WHERE DATE(v.fecha)=DATE('now') 
-                    AND v.estado='completada'
-                """).fetchone()
+            ing = float(kpi["ingresos"] or 0)
+            cos = float(kpi["costo"] or 0)
 
-                ing = float(r2[0] or 0)
-                cos = float(r2[1] or 0)
+            mg = ((ing - cos) / ing * 100) if ing > 0 else 0
 
-                mg = ((ing - cos) / ing * 100) if ing > 0 else 0
-
-                kpis[2] = (
-                    "Margen bruto",
-                    f"{mg:.1f}%",
-                    _C.SUCCESS_BASE if mg >= 25 else _C.WARNING_BASE,
-                    ""
-                )
+            kpis[2] = (
+                "Margen bruto",
+                f"{mg:.1f}%",
+                _C.SUCCESS_BASE if mg >= 25 else _C.WARNING_BASE,
+                ""
+            )
 
         except Exception:
             pass
@@ -956,12 +937,8 @@ class ModuloReportesBIv2(QWidget):
                     engine = ReportEngine(self.container.db)
                     engine.export_pdf("dashboard", data, filepath=ruta)
                 except Exception:
-                    # Simple PDF fallback
-                    svc.export(
-                        "SELECT folio, total, fecha FROM ventas "
-                        "WHERE DATE(fecha)=DATE('now') ORDER BY fecha DESC LIMIT 500",
-                        (), fmt="pdf", filepath=ruta
-                    )
+                    # Simple PDF fallback (el SQL vive en ExportService)
+                    svc.export_ventas_hoy_pdf(ruta)
             Toast.success(self, "Exportado", f"Archivo guardado en:\n{ruta}")
             os.startfile(ruta) if os.name == "nt" else None
         except Exception as e:

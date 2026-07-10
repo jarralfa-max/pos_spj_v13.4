@@ -31,7 +31,8 @@ SQL_IN_UI_ALLOWLIST = {
     'pos_spj_v13.4/modulos/loyalty_card_designer.py': 3,
     'pos_spj_v13.4/modulos/planeacion_compras.py': 2,
     # recepcion_qr_widget.py: SQL 100% extraído a RecepcionQRService (Remediación F).
-    'pos_spj_v13.4/modulos/reportes_bi_v2.py': 3,
+    # reportes_bi_v2.py: KPIs → BIRepository.get_kpis_dia; fallback PDF →
+    # ExportService.export_ventas_hoy_pdf (Remediación F).
     # rrhh.py: SQL 100% extraído a RRHHCatalogService (Remediación F).
     # rrhh_turnos.py: SQL 100% extraído a RRHHTurnosService (Remediación F).
     'pos_spj_v13.4/modulos/sistema/backup_engine.py': 2,
