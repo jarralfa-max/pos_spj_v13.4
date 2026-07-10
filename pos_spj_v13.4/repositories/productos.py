@@ -174,6 +174,15 @@ class ProductoRepository:
         ).fetchall()
         return [dict(r) for r in rows]
 
+    def listar_para_etiquetas(self, limite: int = 2000) -> list:
+        """Catálogo mínimo (id, nombre, precio, unidad) para el diseñador de etiquetas.
+        Devuelve filas crudas; el widget arma su caché por índice."""
+        return self.db.execute(
+            "SELECT id, nombre, COALESCE(precio,0), COALESCE(unidad,'pz') "
+            "FROM productos WHERE activo=1 ORDER BY nombre LIMIT ?",
+            (int(limite),),
+        ).fetchall()
+
     def check_name_available(self, nombre: str,
                               exclude_id: Optional[str] = None) -> bool:
         normalised = nombre.strip().lower()

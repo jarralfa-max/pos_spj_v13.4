@@ -21,7 +21,9 @@ SQL_IN_UI_ALLOWLIST = {
     # falsos positivos de SQL_RE sobre docstrings ("Update"/"select") — reescritos.
     # cotizaciones.py: SQL 100% extraído a CotizacionService (Remediación F).
     'pos_spj_v13.4/modulos/delivery.py': 2,
-    'pos_spj_v13.4/modulos/etiquetas.py': 4,
+    # etiquetas.py: SQL extraído a ProductoRepository/ConfigService/HardwareConfigRepository
+    # (Remediación F). El 1 restante es falso positivo de SQL_RE sobre `.update(` de dict.
+    'pos_spj_v13.4/modulos/etiquetas.py': 1,
     # loyalty_card_designer.py: SQL extraído a LoyaltyCardDesignerService (Remediación F).
     # Los 3 restantes son falsos positivos de SQL_RE sobre `.update(` de dicts
     # (self.plantilla.update / d.update), no SQL.
