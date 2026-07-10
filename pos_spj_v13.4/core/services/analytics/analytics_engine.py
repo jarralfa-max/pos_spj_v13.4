@@ -217,6 +217,55 @@ class AnalyticsEngine:
             logger.warning("product_profitability fallback failed: %s", e)
             return []
 
+    # Expresión de costo robusta reutilizable: prioriza el costo real capturado
+    # en la venta y cae a las columnas de costo del producto (born-clean).
+    _COSTO_LINE = ("COALESCE(NULLIF(dv.costo_unitario_real,0), "
+                   "NULLIF(p.costo,0), NULLIF(p.precio_compra,0), "
+                   "NULLIF(p.costo_promedio,0), 0)")
+
+    def product_profitability_detail(
+        self, fecha_ini: str, fecha_fin: str, sucursal_id, limit: int = 50
+    ) -> list:
+        """Rentabilidad por producto con nombre, categoría y unidades para la tabla UI.
+
+        Devuelve dicts {producto_id, nombre, categoria, unidades, ingresos,
+        costo, margen}. El costo es robusto (ver _COSTO_LINE): usa el costo real
+        capturado por línea de venta y, si falta, las columnas de costo del
+        producto — evita que 'Costo Total' salga siempre en cero.
+        """
+        cl = self._COSTO_LINE
+        try:
+            rows = self._db.execute(f"""
+                SELECT dv.producto_id,
+                       COALESCE(p.nombre, dv.nombre, '—') AS nombre,
+                       COALESCE(p.categoria, '')          AS categoria,
+                       SUM(dv.cantidad)                   AS unidades,
+                       SUM(dv.subtotal)                   AS ingresos,
+                       SUM(dv.cantidad * {cl})            AS costo
+                FROM detalles_venta dv
+                JOIN ventas v ON v.id = dv.venta_id
+                LEFT JOIN productos p ON p.id = dv.producto_id
+                WHERE DATE(v.fecha) BETWEEN ? AND ?
+                  AND v.sucursal_id = ?
+                  AND v.estado = 'completada'
+                GROUP BY dv.producto_id
+                ORDER BY (SUM(dv.subtotal) - SUM(dv.cantidad * {cl})) DESC
+                LIMIT ?
+            """, (fecha_ini[:10], fecha_fin[:10], sucursal_id, limit)).fetchall()
+            out = []
+            for r in rows:
+                ingresos = float(r[4] or 0)
+                costo = float(r[5] or 0)
+                out.append({
+                    "producto_id": r[0], "nombre": r[1], "categoria": r[2],
+                    "unidades": float(r[3] or 0), "ingresos": ingresos,
+                    "costo": costo, "margen": ingresos - costo,
+                })
+            return out
+        except Exception as e:
+            logger.warning("product_profitability_detail: %s", e)
+            return []
+
     def branch_ranking(self, fecha: str) -> list:
         """
         Returns branch ranking for a given date from bi_branch_ranking,

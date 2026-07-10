@@ -641,11 +641,11 @@ class ModuloReportesBIv2(QWidget):
                 self._tbl_fm.insertRow(i)
                 vals = [
                     str(r.get("nombre", r.get("sucursal_id", ""))),
-                    f"${float(r.get('total_ventas', 0)):,.2f}",
-                    str(r.get("num_transacciones", 0)),
+                    f"${float(r.get('ingresos', 0)):,.2f}",
+                    str(r.get("tickets", 0)),
                     f"${float(r.get('ticket_promedio', 0)):,.2f}",
-                    f"{float(r.get('margen_bruto_pct', 0)):.1f}%",
-                    str(r.get("rank", i + 1)),
+                    f"{float(r.get('margen_pct', 0)):.1f}%",
+                    str(r.get("posicion", i + 1)),
                 ]
                 for j, v in enumerate(vals):
                     item = QTableWidgetItem(str(v))
@@ -677,20 +677,13 @@ class ModuloReportesBIv2(QWidget):
             if not analytics:
                 raise RuntimeError("AnalyticsEngine no disponible")
             
-            # Usar método del servicio unificado
-            rows_raw = analytics.product_profitability(fecha_inicio, fecha_fin, self.sucursal_id, limit=50)
-            # Convertir al formato esperado por la UI
-            rows = []
-            for r in rows_raw:
-                # Necesitamos obtener nombre y categoría del producto
-                prod_info = self._get_producto_info(r['producto_id'])
-                rows.append((
-                    prod_info.get('nombre', f"Prod {r['producto_id']}"),
-                    prod_info.get('categoria', ''),
-                    0,  # unidades (no disponible en esta vista)
-                    r['ingresos'],
-                    r['costo']
-                ))
+            # Servicio unificado: incluye nombre, categoría, unidades y costo real.
+            rows_raw = analytics.product_profitability_detail(
+                fecha_inicio, fecha_fin, self.sucursal_id, limit=50)
+            rows = [
+                (r['nombre'], r['categoria'], r['unidades'], r['ingresos'], r['costo'])
+                for r in rows_raw
+            ]
         except Exception as e:
             self._lbl_rent_estado.setText(f"Error al cargar rentabilidad: {e}")
             return
@@ -731,17 +724,6 @@ class ModuloReportesBIv2(QWidget):
             self._tbl_rent.setItem(i, 6, item_pct)
             self._tbl_rent.setItem(i, 7, QTableWidgetItem(abc))
         self._lbl_rent_estado.setText(f"{len(rows)} productos analizados.")
-
-    def _get_producto_info(self, producto_id: int) -> dict:
-        """Obtiene información básica de un producto (nombre, categoría) via AnalyticsEngine."""
-        analytics = getattr(self.container, 'analytics_engine', None)
-        if analytics and hasattr(analytics, 'get_product_info'):
-            try:
-                return analytics.get_product_info(producto_id)
-            except Exception:
-                pass
-        # Fallback mínimo sin SQL directo: retornar datos básicos
-        return {'nombre': f'Prod {producto_id}', 'categoria': ''}
 
     def _exportar_rentabilidad_csv(self):
         """Exporta la tabla de rentabilidad a CSV."""

@@ -165,11 +165,11 @@ class DecisionEngine:
         try:
             # Productos vendidos por debajo del costo
             rows = self.db.execute("""
-                SELECT p.nombre, p.precio, COALESCE(p.precio_compra, p.costo, 0) as costo,
+                SELECT p.nombre, p.precio, COALESCE(NULLIF(p.precio_compra,0), NULLIF(p.costo,0), NULLIF(p.costo_promedio,0), 0) as costo,
                        p.id
                 FROM productos p
-                WHERE p.activo=1 AND COALESCE(p.precio_compra, p.costo, 0) > 0
-                  AND p.precio < COALESCE(p.precio_compra, p.costo, 0) * 1.10
+                WHERE p.activo=1 AND COALESCE(NULLIF(p.precio_compra,0), NULLIF(p.costo,0), NULLIF(p.costo_promedio,0), 0) > 0
+                  AND p.precio < COALESCE(NULLIF(p.precio_compra,0), NULLIF(p.costo,0), NULLIF(p.costo_promedio,0), 0) * 1.10
             """).fetchall()
             for r in rows:
                 nombre, precio, costo = r[0], float(r[1]), float(r[2])
@@ -194,13 +194,13 @@ class DecisionEngine:
         # Top 5 productos más vendidos con margen < 15%
         try:
             rows = self.db.execute("""
-                SELECT p.nombre, p.precio, COALESCE(p.precio_compra,p.costo,0) as costo,
+                SELECT p.nombre, p.precio, COALESCE(NULLIF(p.precio_compra,0), NULLIF(p.costo,0), NULLIF(p.costo_promedio,0), 0) as costo,
                        SUM(dv.cantidad) as vendido, p.id
                 FROM detalles_venta dv
                 JOIN ventas v ON v.id=dv.venta_id
                 JOIN productos p ON p.id=dv.producto_id
                 WHERE v.estado='completada' AND v.fecha > datetime('now','-30 days')
-                  AND COALESCE(p.precio_compra,p.costo,0) > 0
+                  AND COALESCE(NULLIF(p.precio_compra,0), NULLIF(p.costo,0), NULLIF(p.costo_promedio,0), 0) > 0
                 GROUP BY p.id
                 HAVING ((p.precio - costo) / costo * 100) < 15
                 ORDER BY vendido DESC LIMIT 5
@@ -229,7 +229,7 @@ class DecisionEngine:
             # Productos con stock < 3 días de venta
             rows = self.db.execute("""
                 SELECT p.nombre, p.existencia, p.unidad, p.id,
-                       COALESCE(p.precio_compra, p.costo, 0) as costo,
+                       COALESCE(NULLIF(p.precio_compra,0), NULLIF(p.costo,0), NULLIF(p.costo_promedio,0), 0) as costo,
                        COALESCE((
                            SELECT AVG(dv.cantidad) FROM detalles_venta dv
                            JOIN ventas v ON v.id=dv.venta_id
@@ -456,7 +456,7 @@ class DecisionEngine:
         sugs = []
         try:
             # Ventas por empleado
-            empleados = self._q("SELECT COUNT(*) FROM empleados WHERE activo=1")
+            empleados = self._q("SELECT COUNT(*) FROM personal WHERE activo=1")
             ingresos = self._q(
                 "SELECT COALESCE(SUM(total),0) FROM ventas "
                 "WHERE estado='completada' AND fecha > datetime('now','-30 days')")
