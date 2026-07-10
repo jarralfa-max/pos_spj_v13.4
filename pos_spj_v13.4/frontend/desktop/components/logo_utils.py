@@ -1,63 +1,73 @@
 """Utilidades de imagen para el logo del ticket.
 
-quitar_fondo(): convierte el fondo sólido de un logo (típicamente blanco) en
-transparencia y devuelve un PNG con canal alfa. Reglas:
+quitar_fondo(): hace transparente el fondo de un logo y devuelve un PNG con canal
+alfa. Usa relleno por inundación (flood-fill) desde los bordes, de modo que sólo
+se vuelve transparente el fondo CONECTADO al borde. Así se preserva cualquier
+región interior del mismo color que el fondo (p.ej. el cuerpo blanco de un logo
+sobre fondo blanco/gris claro), que un simple emparejado por color eliminaría.
+
+Reglas:
 - No falla nunca: si la imagen no se puede decodificar (p.ej. SVG) devuelve los
   bytes originales sin cambios.
-- El color de fondo se infiere de las esquinas (el más frecuente).
-- Se trabaja a tamaño acotado (los logos de ticket son pequeños).
+- Trabaja a resolución acotada (logos pequeños).
 """
 from __future__ import annotations
 
 import io
 import logging
-from collections import Counter
 
 logger = logging.getLogger("spj.logo_utils")
 
+# Color sentinela improbable en un logo (verde muy saturado atípico).
+_SENT = (1, 254, 3)
 
-def quitar_fondo(data: bytes, tolerancia: int = 30, max_lado: int = 512) -> bytes:
-    """Devuelve un PNG (bytes) con el fondo hecho transparente.
 
-    tolerancia: distancia por canal (0-255) para considerar un pixel "fondo".
-    max_lado: se reduce la imagen si su lado mayor lo excede (logos pequeños).
+def quitar_fondo(data: bytes, tolerancia: int = 32, max_lado: int = 1024) -> bytes:
+    """Devuelve un PNG (bytes) con el fondo (conectado al borde) hecho transparente.
+
+    tolerancia: diferencia máxima de color para considerar un pixel parte del fondo.
+    max_lado: se reduce la imagen si su lado mayor lo excede.
     """
     try:
-        from PIL import Image
+        from PIL import Image, ImageDraw
     except Exception as exc:  # Pillow no disponible → sin cambios
         logger.warning("Pillow no disponible; no se puede quitar fondo: %s", exc)
         return data
 
     try:
-        img = Image.open(io.BytesIO(data)).convert("RGBA")
+        base = Image.open(io.BytesIO(data)).convert("RGB")
     except Exception as exc:  # formato no rasterizable (SVG, corrupto…)
         logger.debug("quitar_fondo: imagen no decodificable (%s); se deja igual", exc)
         return data
 
-    if max(img.size) > max_lado:
-        img.thumbnail((max_lado, max_lado))
+    if max(base.size) > max_lado:
+        base.thumbnail((max_lado, max_lado))
 
-    w, h = img.size
+    w, h = base.size
     if w == 0 or h == 0:
         return data
 
-    px = img.load()
-    corners = [px[0, 0], px[w - 1, 0], px[0, h - 1], px[w - 1, h - 1]]
-    br, bg, bb = Counter((c[0], c[1], c[2]) for c in corners).most_common(1)[0][0]
-
-    tol = int(tolerancia)
-
-    def _es_fondo(r: int, g: int, b: int) -> bool:
-        return abs(r - br) <= tol and abs(g - bg) <= tol and abs(b - bb) <= tol
-
-    # get_flattened_data() en Pillow ≥14, getdata() en versiones previas.
-    _pixels = getattr(img, "get_flattened_data", img.getdata)()
-    nueva = [
-        (r, g, b, 0) if _es_fondo(r, g, b) else (r, g, b, a)
-        for (r, g, b, a) in _pixels
+    # Inundar desde varios puntos del borde: sólo el fondo tocando el borde se marca.
+    flood = base.copy()
+    seeds = [
+        (0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1),
+        (w // 2, 0), (w // 2, h - 1), (0, h // 2), (w - 1, h // 2),
     ]
-    img.putdata(nueva)
+    for seed in seeds:
+        try:
+            ImageDraw.floodfill(flood, seed, _SENT, thresh=int(tolerancia))
+        except Exception:
+            pass
+
+    rgba = base.convert("RGBA")
+    _flood_px = getattr(flood, "get_flattened_data", flood.getdata)()
+    _rgba_px = getattr(rgba, "get_flattened_data", rgba.getdata)()
+    nueva = [
+        (r, g, b, 0) if fp == _SENT else (r, g, b, a)
+        for fp, (r, g, b, a) in zip(_flood_px, _rgba_px)
+    ]
+    rgba.putdata(nueva)
 
     out = io.BytesIO()
-    img.save(out, format="PNG")
+    rgba.save(out, format="PNG")
     return out.getvalue()
