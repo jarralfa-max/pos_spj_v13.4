@@ -90,6 +90,38 @@ def test_escpos_text_muestra_recibido_y_cambio():
     assert "Cambio: $84.00" in txt
 
 
+def test_escpos_bloques_pago_mixto_desglose():
+    """El render por bloques (ruta térmica real) muestra el monto por método en
+    pago mixto, además de recibido y cambio."""
+    from core.ticket_escpos_renderer import TicketESCPOSRenderer
+    r = TicketESCPOSRenderer(paper_width_mm=80)
+    payload = {
+        "folio": "V-1", "fecha": "2026-07-10", "cajero": "Ana",
+        "items": [{"name": "Mango", "cantidad": 1, "total": 116.0}],
+        "totales": {"total_final": 116.0}, "total": 116.0,
+        "pago": {"forma_pago": "Pago Mixto", "efectivo_recibido": 100.0, "tarjeta": 50.0,
+                 "cambio": 34.0, "lineas": {"efectivo": 100.0, "tarjeta": 50.0}},
+    }
+    txt = r.render(payload).decode("cp850", "replace")
+    txt = "".join(c if (c.isprintable() or c == "\n") else "" for c in txt)
+    assert "Efectivo: $100.00" in txt
+    assert "Tarjeta: $50.00" in txt
+    assert "Recibido: $100.00" in txt
+    assert "Cambio: $34.00" in txt
+    assert "Mango" in txt
+
+
+def test_html_desglose_pago_mixto():
+    from core.engines.template_engine import TicketTemplateEngine
+    eng = TicketTemplateEngine(None)
+    out = eng.generar_ticket("D={{pago_desglose}}", {
+        "totales": {"total_final": 150},
+        "pago": {"forma_pago": "Pago Mixto", "lineas": {"efectivo": 100.0, "tarjeta": 50.0}},
+    })
+    assert "Efectivo" in out and "$100.00" in out
+    assert "Tarjeta" in out and "$50.00" in out
+
+
 def test_html_ctx_recibido_y_cambio_desde_pago_dict():
     from core.engines.template_engine import TicketTemplateEngine
     eng = TicketTemplateEngine(None)

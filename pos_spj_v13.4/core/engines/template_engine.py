@@ -72,6 +72,7 @@ class TicketTemplateEngine(TemplateEngine):
                            _pago.get("efectivo_recibido", _pago.get("amount_paid_real", 0))) or 0
         )
         cambio_val = float(venta_data.get("cambio", _pago.get("cambio", 0)) or 0)
+        pago_desglose = self._desglose_pago_html(_pago)
 
         ctx = {
             "folio":             str(venta_data.get("venta_id", "")),
@@ -104,6 +105,7 @@ class TicketTemplateEngine(TemplateEngine):
             "efectivo":          f"${efectivo_recibido:,.2f}",
             "recibido":          f"${efectivo_recibido:,.2f}",
             "cambio":            f"${cambio_val:,.2f}",
+            "pago_desglose":     pago_desglose,
             "forma_pago":        forma_pago,
             "puntos_ganados":    str(venta_data.get("puntos_ganados", "")),
             "puntos_totales":    str(venta_data.get("puntos_totales", "")),
@@ -112,6 +114,19 @@ class TicketTemplateEngine(TemplateEngine):
             "mensaje_psicologico": mensaje_psicologico,
         }
         return self.render(template_db, ctx)
+
+    @staticmethod
+    def _desglose_pago_html(pago: dict) -> str:
+        """Filas <tr> con el monto por método de pago (para Pago Mixto)."""
+        lineas = (pago.get("lineas") or pago.get("breakdown") or {}) if isinstance(pago, dict) else {}
+        etiquetas = {"efectivo": "Efectivo", "tarjeta": "Tarjeta", "transferencia": "Transferencia",
+                     "credito": "Crédito", "mercado_pago": "Mercado Pago"}
+        filas = [(etiquetas.get(k, k.title()), float(v or 0)) for k, v in lineas.items() if float(v or 0) > 0]
+        if len(filas) <= 1:
+            return ""
+        return "".join(
+            f"<tr><td>{etq}:</td><td align='right'>${monto:,.2f}</td></tr>" for etq, monto in filas
+        )
 
     @staticmethod
     def _nombre_item(item: dict) -> str:

@@ -249,15 +249,35 @@ class TicketESCPOSRenderer:
 
     def _payment_bytes(self, ticket_data: Dict[str, Any], width: int) -> bytes:
         pago = ticket_data.get("pago", {}) or {}
-        if not pago.get("forma_pago"):
+        forma = str(pago.get("forma_pago", "") or "")
+        if not forma:
             return b""
         total_final = float((ticket_data.get("totales", {}) or {}).get("total_final", ticket_data.get("total", 0)) or 0)
         buf = bytearray()
         buf += ALIGN_LEFT + self._separator(width, char="-")
-        buf += self._text(f"Forma de pago: {pago.get('forma_pago', '')}")
-        if str(pago.get("forma_pago", "")).lower() == "efectivo":
-            buf += self._text(f"Recibido: ${float(pago.get('efectivo_recibido', total_final) or 0):.2f}")
-            buf += self._text(f"Cambio: ${float(pago.get('cambio', 0) or 0):.2f}")
+        buf += self._text(f"Forma de pago: {forma}")
+
+        # Desglose por método (siempre que haya más de un método con monto, p.ej. Pago Mixto)
+        lineas = pago.get("lineas") or pago.get("breakdown") or {}
+        etiquetas = {
+            "efectivo": "Efectivo", "tarjeta": "Tarjeta",
+            "transferencia": "Transferencia", "credito": "Crédito",
+            "mercado_pago": "Mercado Pago",
+        }
+        desglose = [(etiquetas.get(k, k.title()), float(v or 0))
+                    for k, v in lineas.items() if float(v or 0) > 0]
+        if len(desglose) > 1:
+            for etiqueta, monto in desglose:
+                buf += self._text(f"  {etiqueta}: ${monto:.2f}")
+
+        # Efectivo recibido y cambio (aplica a efectivo puro y a pago mixto con efectivo)
+        efectivo_recibido = float(pago.get("efectivo_recibido", 0) or 0)
+        cambio = float(pago.get("cambio", 0) or 0)
+        if efectivo_recibido > 0 or forma.lower() == "efectivo":
+            if efectivo_recibido <= 0:
+                efectivo_recibido = float(pago.get("amount_paid_real", total_final) or total_final)
+            buf += self._text(f"Recibido: ${efectivo_recibido:.2f}")
+            buf += self._text(f"Cambio: ${cambio:.2f}")
         return bytes(buf)
 
     def _loyalty_bytes(self, ticket_data: Dict[str, Any], width: int) -> bytes:
@@ -394,13 +414,22 @@ class TicketESCPOSRenderer:
         lines.append("=" * width)
         lines.append(f"TOTAL: ${total:.2f}".rjust(width)[:width])
         pago = ticket_data.get("pago", {}) or {}
-        if pago.get("forma_pago"):
-            lines.append(f"Pago: {self._sanitize_text(pago.get('forma_pago'))}"[:width])
-            if str(pago.get("forma_pago", "")).lower() == "efectivo":
-                recibido = float(pago.get("efectivo_recibido", pago.get("amount_paid_real", 0)) or 0)
-                cambio = float(pago.get("cambio", 0) or 0)
+        forma = str(pago.get("forma_pago", "") or "")
+        if forma:
+            lines.append(f"Pago: {self._sanitize_text(forma)}"[:width])
+            _lineas = pago.get("lineas") or pago.get("breakdown") or {}
+            _et = {"efectivo": "Efectivo", "tarjeta": "Tarjeta", "transferencia": "Transferencia",
+                   "credito": "Crédito", "mercado_pago": "Mercado Pago"}
+            _desg = [(_et.get(k, k.title()), float(v or 0)) for k, v in _lineas.items() if float(v or 0) > 0]
+            if len(_desg) > 1:
+                for etq, monto in _desg:
+                    lines.append(f"  {etq}: ${monto:.2f}"[:width])
+            recibido = float(pago.get("efectivo_recibido", 0) or 0)
+            if recibido > 0 or forma.lower() == "efectivo":
+                if recibido <= 0:
+                    recibido = float(pago.get("amount_paid_real", 0) or 0)
                 lines.append(f"Recibido: ${recibido:.2f}"[:width])
-                lines.append(f"Cambio: ${cambio:.2f}"[:width])
+                lines.append(f"Cambio: ${float(pago.get('cambio', 0) or 0):.2f}"[:width])
         lines.append("-" * width)
         lines.append(self._sanitize_text(ticket_data.get("mensaje_psicologico", "¡Gracias por su compra!")).center(width)[:width])
         return "\n".join(lines)

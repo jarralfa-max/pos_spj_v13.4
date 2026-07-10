@@ -4119,6 +4119,7 @@ class ModuloVentas(ModuloBase):
                     'product_id': item['id'],
                     'qty': item['cantidad'],
                     'unit_price': item['precio_unitario'],
+                    'name': item.get('nombre', ''),   # nombre del producto para el ticket
                     'es_compuesto': item.get('es_compuesto', 0)
                 }
                 for item in self.compra_actual
