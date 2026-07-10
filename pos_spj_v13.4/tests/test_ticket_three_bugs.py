@@ -30,6 +30,43 @@ def test_logo_fondo_solido_color_se_vuelve_blanco():
         assert l.getpixel(xy) == 255
 
 
+def test_escpos_raster_polaridad_negro_imprime():
+    """ESC/POS GS v0: el contenido negro debe imprimir (bit 1) y el fondo blanco
+    NO (bit 0). Antes se enviaba invertido (fondo negro)."""
+    pytest.importorskip("PIL")
+    from PIL import Image
+    from core.ticket_escpos_renderer import TicketESCPOSRenderer
+    r = TicketESCPOSRenderer(paper_width_mm=80)
+    im = Image.new("1", (8, 1), 1)   # todo blanco
+    im.putpixel((0, 0), 0)           # un pixel negro (MSB)
+    raw = r._image_to_escpos_raster(im)
+    payload = raw[8:]                # tras la cabecera GS v0 (8 bytes)
+    assert payload == bytes([0x80])  # negro→bit1 (imprime), blancos→bit0
+
+
+def test_logo_fondo_claro_no_se_imprime_completo():
+    """Un logo con fondo claro y una figura oscura no debe imprimirse como bloque
+    negro: la mayoría de los bits deben quedar apagados (fondo = papel)."""
+    pytest.importorskip("PIL")
+    import base64, io
+    from PIL import Image
+    from core.ticket_escpos_renderer import TicketESCPOSRenderer
+    img = Image.new("RGB", (64, 64), (244, 244, 244))   # fondo claro
+    for y in range(26, 38):
+        for x in range(26, 38):
+            img.putpixel((x, y), (20, 60, 30))          # figura oscura pequeña
+    buf = io.BytesIO(); img.save(buf, "PNG")
+    b64 = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    r = TicketESCPOSRenderer(paper_width_mm=80)
+    raw = r._render_logo(b64, logo_size="sm")
+    assert raw
+    payload = raw[8:]
+    set_bits = sum(bin(b).count("1") for b in payload)
+    total_bits = len(payload) * 8
+    # el fondo (mayoría) NO debe imprimir: pocos bits encendidos
+    assert set_bits < total_bits * 0.4
+
+
 def test_logo_fondo_blanco_intacto():
     pytest.importorskip("PIL")
     from PIL import Image

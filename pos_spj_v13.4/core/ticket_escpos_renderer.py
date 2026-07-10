@@ -618,7 +618,11 @@ class TicketESCPOSRenderer:
     def _image_to_escpos_raster(self, img) -> bytes:
         width_bytes = img.width // 8
         height = img.height
-        pixels = img.tobytes()
+        # ESC/POS GS v 0: bit=1 imprime punto (negro). PIL modo "1" empaqueta
+        # blanco(255)→bit 1 y negro(0)→bit 0, lo contrario de lo que espera la
+        # impresora. Sin invertir, el FONDO claro se imprime negro y el logo
+        # oscuro queda en blanco (ticket invertido). Se invierten los bits.
+        pixels = bytes(b ^ 0xFF for b in img.tobytes())
         buf = bytearray()
         buf += GS + b"v0" + bytes([0])
         buf += struct.pack("<H", width_bytes)
