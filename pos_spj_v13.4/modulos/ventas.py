@@ -828,10 +828,8 @@ class DialogoPago(QDialog):
                 "cambio": self.cambio,
                 "saldo_credito": self.txt_saldo_credito.value() if self.forma_pago == "Crédito" else 0.0,
             }
-        payload.update({
-            "puntos_canjeados": self.puntos_a_canjear,
-            "descuento_puntos": self.descuento_puntos,
-        })
+        payload["puntos_canjeados"] = self.puntos_a_canjear
+        payload["descuento_puntos"] = self.descuento_puntos
         return payload
 
 # ==============================================================================

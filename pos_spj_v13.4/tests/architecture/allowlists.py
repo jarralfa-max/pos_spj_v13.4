@@ -16,19 +16,16 @@ SQL_IN_UI_ALLOWLIST = {
     # activos.py: SQL 100% extraído a AssetService (Remediación F) — lecturas de
     # tabla/depreciación/mantenimientos, bajas, borrados y la depreciación mensual.
     'pos_spj_v13.4/modulos/base.py': 3,
-    'pos_spj_v13.4/modulos/clientes.py': 1,
-    'pos_spj_v13.4/modulos/compras/actions_bar.py': 1,
+    # clientes.py: 0 SQL real; el `d.update(` de dict → asignaciones de item (Rem. F).
+    # compras/actions_bar.py: 0 SQL real; docstring "Update" → reescrito.
     # compras_pro.py: sin SQL real (delega 100% a use cases); los 7 antiguos eran
     # falsos positivos de SQL_RE sobre docstrings ("Update"/"select") — reescritos.
     # cotizaciones.py: SQL 100% extraído a CotizacionService (Remediación F).
-    'pos_spj_v13.4/modulos/delivery.py': 2,
-    # etiquetas.py: SQL extraído a ProductoRepository/ConfigService/HardwareConfigRepository
-    # (Remediación F). El 1 restante es falso positivo de SQL_RE sobre `.update(` de dict.
-    'pos_spj_v13.4/modulos/etiquetas.py': 1,
-    # loyalty_card_designer.py: SQL extraído a LoyaltyCardDesignerService (Remediación F).
-    # Los 3 restantes son falsos positivos de SQL_RE sobre `.update(` de dicts
-    # (self.plantilla.update / d.update), no SQL.
-    'pos_spj_v13.4/modulos/loyalty_card_designer.py': 3,
+    # delivery.py: 0 SQL real; 2 docstrings "Update" → reescritos.
+    # etiquetas.py: SQL extraído a ProductoRepository/ConfigService/HardwareConfigRepository;
+    # el `.update(` de dict restante → bucle de asignación (Remediación F).
+    # loyalty_card_designer.py: SQL extraído a LoyaltyCardDesignerService; los 3
+    # `.update(` de dicts → asignaciones de item (Remediación F).
     # planeacion_compras.py: SQL → ProductoRepository.listar_activos_combo +
     # PurchaseRepository.ultimo_costo_unitario (Remediación F).
     # recepcion_qr_widget.py: SQL 100% extraído a RecepcionQRService (Remediación F).
@@ -40,9 +37,8 @@ SQL_IN_UI_ALLOWLIST = {
     'pos_spj_v13.4/modulos/sistema/health_monitor.py': 4,
     'pos_spj_v13.4/modulos/spj_styles.py': 2,
     # ticket_designer.py: SQL de configuraciones extraído a ConfigService (Remediación F).
-    # ventas.py: sin SQL real (delega a use cases). Reescritas 4 docstrings que
-    # activaban SQL_RE ("Update"/"select"); el 1 restante es `payload.update(` (dict).
-    'pos_spj_v13.4/modulos/ventas.py': 1,
+    # ventas.py: sin SQL real (delega a use cases); el `payload.update(` restante →
+    # asignaciones de item (Remediación F).
     # payment_dialog.py: 0 SQL real; los 2 antiguos eran falsos positivos de
     # SQL_RE (docstring "select all" + payload.update() de dict) — reescritos.
 }

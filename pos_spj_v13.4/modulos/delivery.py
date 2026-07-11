@@ -1674,7 +1674,7 @@ if(drivers.length===0){{
             btn.setText(f"{tab_label} ({n})" if n else tab_label)
 
     def _update_kpi(self, pedidos: list) -> None:
-        """Update KPI stat cards with persistent + in-memory operational counts."""
+        """Refresca las tarjetas KPI con conteos operativos persistentes + en memoria."""
         from datetime import date as _date
         hoy = _date.today().isoformat()
         counts = OrderBadgeService(self.conexion).get_badge_counts(
@@ -2013,7 +2013,7 @@ if(drivers.length===0){{
         # Kept as a compatibility hook so legacy callers do not break.
         return
     def _refresh_operational_header(self) -> None:
-        """Update contextual header: branch + WhatsApp status + last refresh."""
+        """Refresca el encabezado contextual: sucursal + estado WhatsApp + último refresco."""
         from datetime import datetime as _dt
         branch_name = str(getattr(self, "sucursal_nombre", "") or "Sucursal actual")
         branch_id = self._get_branch_id_for_counts()

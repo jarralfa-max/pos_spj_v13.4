@@ -64,7 +64,8 @@ class EtiquetaPreview(QLabel):
         self._render()
 
     def set_opciones(self, opciones: dict):
-        self.opciones.update(opciones)
+        for _k, _v in (opciones or {}).items():
+            self.opciones[_k] = _v
         self._render()
 
     def actualizar(self, datos: dict):

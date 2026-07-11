@@ -369,7 +369,8 @@ class ModuloLoyaltyCardDesigner(QWidget):
             row = LoyaltyCardDesignerService(self.conexion).obtener_plantilla()
             if row and row[0]:
                 d = dict(PLANTILLA_DEFAULT)
-                d.update(json.loads(row[0]))
+                for _k, _v in json.loads(row[0]).items():
+                    d[_k] = _v
                 return d
         except Exception:
             pass
@@ -444,10 +445,7 @@ class ModuloLoyaltyCardDesigner(QWidget):
         btn_bg_clear = create_danger_button(self, "🗑️ Limpiar fondo")
         apply_tooltip(btn_bg_clear, "Quitar imagen de fondo")
         btn_bg_clear.setFixedWidth(120)
-        btn_bg_clear.clicked.connect(lambda: (
-            self.txt_bg_path.clear(),
-            self.plantilla.update({"bg_image_path": ""}),
-            self._on_plantilla_change()))
+        btn_bg_clear.clicked.connect(self._limpiar_fondo)
         bg_row = QHBoxLayout()
         bg_row.addWidget(self.txt_bg_path, 1)
         bg_row.addWidget(btn_bg)
@@ -605,15 +603,19 @@ class ModuloLoyaltyCardDesigner(QWidget):
         preview = sep.join(parts)
         self.lbl_qr_preview.setText(f"Ejemplo: {preview}")
 
+    def _limpiar_fondo(self):
+        """Quita la imagen de fondo de la plantilla."""
+        self.txt_bg_path.clear()
+        self.plantilla["bg_image_path"] = ""
+        self._on_plantilla_change()
+
     def _guardar_qr_config(self):
-        self.plantilla.update({
-            "qr_website": self.qr_website.text().strip(),
-            "qr_whatsapp": self.qr_whatsapp.text().strip(),
-            "qr_facebook": self.qr_facebook.text().strip(),
-            "qr_instagram": self.qr_instagram.text().strip(),
-            "qr_tiktok": self.qr_tiktok.text().strip(),
-            "qr_separador": self.cmb_sep.currentText(),
-        })
+        self.plantilla["qr_website"] = self.qr_website.text().strip()
+        self.plantilla["qr_whatsapp"] = self.qr_whatsapp.text().strip()
+        self.plantilla["qr_facebook"] = self.qr_facebook.text().strip()
+        self.plantilla["qr_instagram"] = self.qr_instagram.text().strip()
+        self.plantilla["qr_tiktok"] = self.qr_tiktok.text().strip()
+        self.plantilla["qr_separador"] = self.cmb_sep.currentText()
         self._save_plantilla()
         QMessageBox.information(self, "✅", "Configuración QR guardada.")
 

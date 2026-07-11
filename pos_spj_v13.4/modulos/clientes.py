@@ -1303,7 +1303,7 @@ class _DialogoRFM(QDialog):
 
             segmento = self._clasificar(r_score, f_score, m_score)
             seg_counts[segmento] = seg_counts.get(segmento, 0) + 1
-            d.update({"r": r_score, "f": f_score, "m": m_score, "segmento": segmento})
+            d["r"] = r_score; d["f"] = f_score; d["m"] = m_score; d["segmento"] = segmento
             enriched.append(d)
 
         # Update segment cards
