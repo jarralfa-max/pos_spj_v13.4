@@ -266,6 +266,83 @@ class AnalyticsEngine:
             logger.warning("product_profitability_detail: %s", e)
             return []
 
+    def dashboard_charts(self, fecha_ini: str, fecha_fin: str) -> dict:
+        """Series agregadas (todas las sucursales) para el dashboard visual.
+
+        Devuelve listas de tuplas listas para graficar: ventas por sucursal,
+        top productos, métodos de pago, horas pico, rentabilidad por categoría y
+        evolución mensual (ventas y utilidad bruta) del año en curso.
+        """
+        fi, ff = fecha_ini[:10], fecha_fin[:10]
+        cl = self._COSTO_LINE
+        out: dict = {
+            "ventas_por_sucursal": [], "top_productos": [], "metodos_pago": [],
+            "horas_pico": [], "rentabilidad_categoria": [],
+            "evolucion": {"labels": [], "ventas": [], "utilidad": []},
+        }
+
+        def _q(sql, params=()):
+            try:
+                return self._db.execute(sql, params).fetchall()
+            except Exception as e:
+                logger.warning("dashboard_charts: %s", e)
+                return []
+
+        out["ventas_por_sucursal"] = [
+            (r[0], float(r[1] or 0)) for r in _q(
+                "SELECT COALESCE(s.nombre,'(sin sucursal)') n, COALESCE(SUM(v.total),0) t "
+                "FROM ventas v LEFT JOIN sucursales s ON s.id=v.sucursal_id "
+                "WHERE v.estado='completada' AND DATE(v.fecha) BETWEEN ? AND ? "
+                "GROUP BY v.sucursal_id ORDER BY t DESC LIMIT 8", (fi, ff))
+        ]
+        out["top_productos"] = [
+            (r[0], float(r[1] or 0)) for r in _q(
+                "SELECT COALESCE(p.nombre, dv.nombre,'—') n, SUM(dv.subtotal) ing "
+                "FROM detalles_venta dv JOIN ventas v ON v.id=dv.venta_id "
+                "LEFT JOIN productos p ON p.id=dv.producto_id "
+                "WHERE v.estado='completada' AND DATE(v.fecha) BETWEEN ? AND ? "
+                "GROUP BY dv.producto_id ORDER BY ing DESC LIMIT 8", (fi, ff))
+        ]
+        out["metodos_pago"] = [
+            (r[0], float(r[1] or 0)) for r in _q(
+                "SELECT COALESCE(NULLIF(forma_pago,''),'Otro') m, COALESCE(SUM(total),0) t "
+                "FROM ventas WHERE estado='completada' AND DATE(fecha) BETWEEN ? AND ? "
+                "GROUP BY m ORDER BY t DESC", (fi, ff))
+        ]
+        out["horas_pico"] = [
+            (f"{r[0]}:00", float(r[1] or 0)) for r in _q(
+                "SELECT strftime('%H', fecha) h, COALESCE(SUM(total),0) ing "
+                "FROM ventas WHERE estado='completada' AND DATE(fecha) BETWEEN ? AND ? "
+                "GROUP BY h ORDER BY h", (fi, ff))
+        ]
+        out["rentabilidad_categoria"] = [
+            (r[0], float(r[1] or 0)) for r in _q(
+                f"SELECT COALESCE(NULLIF(p.categoria,''),'(sin categoría)') cat, "
+                f"COALESCE(SUM(dv.subtotal - dv.cantidad*{cl}),0) margen "
+                "FROM detalles_venta dv JOIN ventas v ON v.id=dv.venta_id "
+                "LEFT JOIN productos p ON p.id=dv.producto_id "
+                "WHERE v.estado='completada' AND DATE(v.fecha) BETWEEN ? AND ? "
+                "GROUP BY cat ORDER BY margen DESC LIMIT 8", (fi, ff))
+        ]
+        # Evolución mensual del año en curso (ventas + utilidad bruta)
+        ev = _q(
+            f"SELECT strftime('%m', v.fecha) mes, COALESCE(SUM(dv.subtotal),0) ing, "
+            f"COALESCE(SUM(dv.cantidad*{cl}),0) cogs "
+            "FROM ventas v JOIN detalles_venta dv ON dv.venta_id=v.id "
+            "LEFT JOIN productos p ON p.id=dv.producto_id "
+            "WHERE v.estado='completada' AND strftime('%Y', v.fecha)=strftime('%Y','now') "
+            "GROUP BY mes ORDER BY mes")
+        meses_nom = ["ene", "feb", "mar", "abr", "may", "jun",
+                     "jul", "ago", "sep", "oct", "nov", "dic"]
+        by_mes = {r[0]: (float(r[1] or 0), float(r[2] or 0)) for r in ev}
+        for i in range(1, 13):
+            key = f"{i:02d}"
+            ing, cogs = by_mes.get(key, (0.0, 0.0))
+            out["evolucion"]["labels"].append(meses_nom[i - 1])
+            out["evolucion"]["ventas"].append(round(ing, 2))
+            out["evolucion"]["utilidad"].append(round(ing - cogs, 2))
+        return out
+
     def branch_ranking(self, fecha: str) -> list:
         """
         Returns branch ranking for a given date from bi_branch_ranking,

@@ -904,21 +904,65 @@ class ModuloReportesBIv2(QWidget):
             self.loading_dashboard.setVisible(False)
 
     def _render_echarts_dashboard(self, data: dict) -> None:
-        """Renderiza el chart del dashboard con SVG embebido (offline, sin CDN)."""
+        """Dashboard visual compuesto (varios paneles SVG, offline sin CDN)."""
         if not getattr(self, "_chart_view", None):
             return
-        top = data.get('top_productos', [])
-        if not top:
+        analytics = getattr(self.container, 'analytics_engine', None)
+        if analytics is None or not hasattr(analytics, "dashboard_charts"):
             self._chart_empty.show()
             self._chart_view.hide()
             return
-        from modulos.bi_charts import bar_chart_html
-        labels = [str(i.get('nombre', 'N/A')) for i in top[:8]]
-        values = [float(i.get('ingresos_generados', 0) or 0) for i in top[:8]]
+
+        from datetime import datetime, timedelta
+        from modulos.bi_charts import dashboard_html
+        rango = self.cmb_rango.currentText().lower()
+        hoy = datetime.now()
+        if "hoy" in rango:
+            fi = ff = hoy.strftime('%Y-%m-%d')
+        elif "semana" in rango:
+            fi = (hoy - timedelta(days=hoy.weekday())).strftime('%Y-%m-%d')
+            ff = hoy.strftime('%Y-%m-%d')
+        else:
+            fi = hoy.replace(day=1).strftime('%Y-%m-%d')
+            ff = hoy.strftime('%Y-%m-%d')
+
+        d = analytics.dashboard_charts(fi, ff)
+        tiene_datos = any([
+            d["ventas_por_sucursal"], d["top_productos"], d["metodos_pago"],
+            d["horas_pico"], d["rentabilidad_categoria"],
+            any(d["evolucion"]["ventas"]),
+        ])
+        if not tiene_datos:
+            self._chart_empty.show()
+            self._chart_view.hide()
+            return
+
+        ev = d["evolucion"]
+        panels = [
+            {"kind": "line", "title": "Evolución de ventas y utilidad",
+             "labels": ev["labels"],
+             "series": [("Ventas", ev["ventas"], "#3b82f6"),
+                        ("Utilidad", ev["utilidad"], "#eab308")]},
+            {"kind": "bar", "title": "Ventas por sucursal",
+             "labels": [n for n, _ in d["ventas_por_sucursal"]],
+             "values": [v for _, v in d["ventas_por_sucursal"]]},
+            {"kind": "hbar", "title": "Top productos por ingresos",
+             "labels": [n for n, _ in d["top_productos"]],
+             "values": [v for _, v in d["top_productos"]]},
+            {"kind": "donut", "title": "Métodos de pago",
+             "labels": [n for n, _ in d["metodos_pago"]],
+             "values": [v for _, v in d["metodos_pago"]]},
+            {"kind": "line", "title": "Horas pico de venta",
+             "labels": [h for h, _ in d["horas_pico"]],
+             "series": [("Ingresos", [v for _, v in d["horas_pico"]], "#22c55e")]},
+            {"kind": "bar", "title": "Rentabilidad por categoría (margen $)",
+             "labels": [n for n, _ in d["rentabilidad_categoria"]],
+             "values": [v for _, v in d["rentabilidad_categoria"]],
+             "color": "#eab308"},
+        ]
         self._chart_empty.hide()
         self._chart_view.show()
-        self._chart_view.setHtml(
-            bar_chart_html("Top productos por ingresos", labels, values))
+        self._chart_view.setHtml(dashboard_html(panels))
 
     # ── Chart helpers reutilizables por pestaña (offline SVG) ─────────────────
 
