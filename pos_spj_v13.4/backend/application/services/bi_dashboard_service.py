@@ -112,8 +112,9 @@ class BiDashboardService:
     # ── Secciones detalladas (FASE 8) ─────────────────────────────────────────
 
     @staticmethod
-    def _mini(title, value, unit="$"):
-        return {"title": title, "value": round(float(value or 0), 2), "unit": unit}
+    def _mini(title, value, unit="$", icon=""):
+        return {"title": title, "value": round(float(value or 0), 2),
+                "unit": unit, "icon": icon}
 
     @staticmethod
     def _bars(title, pairs, color=_BLUE, unit="$"):
@@ -127,9 +128,9 @@ class BiDashboardService:
         t = s.sales_totals(f)
         return {
             "section": "ventas", "title": "Ventas",
-            "kpis": [self._mini("Ventas netas", t["ventas_netas"]),
-                     self._mini("Órdenes", t["ordenes"], ""),
-                     self._mini("Ticket promedio", t["ticket_promedio"])],
+            "kpis": [self._mini("Ventas netas", t["ventas_netas"], icon="💵"),
+                     self._mini("Órdenes", t["ordenes"], "", icon="🧮"),
+                     self._mini("Ticket promedio", t["ticket_promedio"], icon="🧾")],
             "charts": [self._bars("Ventas por sucursal", s.by_branch(f)),
                        {"kind": "donut", "title": "Métodos de pago", "unit": "$",
                         "labels": [m for m, _ in s.payment_methods(f)],
@@ -153,9 +154,9 @@ class BiDashboardService:
         val = inv.inventory_valued(f)
         return {
             "section": "inventario", "title": "Inventario",
-            "kpis": [self._mini("Inventario valorizado", val),
-                     self._mini("Rotación", (cogs / val) if val else 0, "x"),
-                     self._mini("Merma", inv.waste_value(f))],
+            "kpis": [self._mini("Inventario valorizado", val, icon="📦"),
+                     self._mini("Rotación", (cogs / val) if val else 0, "x", icon="🔄"),
+                     self._mini("Merma", inv.waste_value(f), icon="🗑️")],
             "charts": [self._bars("Merma por categoría", inv.waste_by_category(f),
                                   color=_GOLD)],
             "tables": [
@@ -169,12 +170,12 @@ class BiDashboardService:
         prof = self._q.sales.profitability_by_category(f)
         return {
             "section": "finanzas", "title": "Finanzas",
-            "kpis": [self._mini("Ventas netas", m["ventas_netas"]),
-                     self._mini("Utilidad neta", m["utilidad_neta"]),
-                     self._mini("Margen", m["margen_pct"], "%"),
-                     self._mini("Gastos", m["gastos"]),
-                     self._mini("CxC", m["cxc"]),
-                     self._mini("CxP", m["cxp"])],
+            "kpis": [self._mini("Ventas netas", m["ventas_netas"], icon="💵"),
+                     self._mini("Utilidad neta", m["utilidad_neta"], icon="🪙"),
+                     self._mini("Margen", m["margen_pct"], "%", icon="📊"),
+                     self._mini("Gastos", m["gastos"], icon="💸"),
+                     self._mini("CxC", m["cxc"], icon="👥"),
+                     self._mini("CxP", m["cxp"], icon="🚚")],
             "charts": [self._bars("Rentabilidad por categoría (margen $)",
                                   [(c, mg) for c, mg, _ in prof], color=_GOLD)],
             "tables": [],
@@ -186,8 +187,8 @@ class BiDashboardService:
         ventas = self._q.sales.sales_totals(f)["ventas_netas"]
         return {
             "section": "merma", "title": "Merma",
-            "kpis": [self._mini("Valor de merma", val),
-                     self._mini("Merma %", (val / ventas * 100) if ventas else 0, "%")],
+            "kpis": [self._mini("Valor de merma", val, icon="🗑️"),
+                     self._mini("Merma %", (val / ventas * 100) if ventas else 0, "%", icon="📊")],
             "charts": [self._bars("Merma por categoría", inv.waste_by_category(f),
                                   color=_GOLD)],
             "tables": [],
@@ -199,10 +200,10 @@ class BiDashboardService:
         daily = cash.daily_behavior(f)
         return {
             "section": "caja", "title": "Caja",
-            "kpis": [self._mini("Ingresos directos", t["ingresos"]),
-                     self._mini("Egresos directos", t["egresos"]),
-                     self._mini("Saldo", t["saldo"]),
-                     self._mini("Cortes", t["num_cortes"], "")],
+            "kpis": [self._mini("Ingresos directos", t["ingresos"], icon="💰"),
+                     self._mini("Egresos directos", t["egresos"], icon="💸"),
+                     self._mini("Saldo", t["saldo"], icon="🪙"),
+                     self._mini("Cortes", t["num_cortes"], "", icon="🧾")],
             "charts": [{"kind": "line", "title": "Comportamiento diario de caja",
                         "unit": "$", "labels": [d for d, _, _ in daily],
                         "series": [{"name": "Ingresos", "color": _GREEN,
@@ -261,37 +262,37 @@ class BiDashboardService:
     def _kpis(self, c: dict, p: dict) -> list[KpiCard]:
         return [
             make_kpi("ventas_netas", "Ventas netas", c["ventas_netas"], p["ventas_netas"],
-                     unit="$", tooltip="Total vendido (completadas) del periodo.",
+                     unit="$", icon="💵", tooltip="Total vendido (completadas) del periodo.",
                      drilldown="ventas", formula="SUM(ventas.total) estado='completada'"),
             make_kpi("utilidad_neta", "Utilidad neta", c["utilidad_neta"], p["utilidad_neta"],
-                     unit="$", tooltip="Ventas netas − costo de ventas − gastos.",
+                     unit="$", icon="🪙", tooltip="Ventas netas − costo de ventas − gastos.",
                      drilldown="finanzas", formula="ventas_netas - costo_ventas - gastos"),
             make_kpi("margen", "Margen %", c["margen_pct"], p["margen_pct"], unit="%",
-                     is_percent=True, tooltip="Utilidad neta / ventas netas × 100.",
+                     is_percent=True, icon="📊", tooltip="Utilidad neta / ventas netas × 100.",
                      drilldown="finanzas", formula="utilidad_neta / ventas_netas * 100"),
             make_kpi("ticket_promedio", "Ticket promedio", c["ticket_promedio"],
-                     p["ticket_promedio"], unit="$",
+                     p["ticket_promedio"], unit="$", icon="🧾",
                      tooltip="Ventas netas / número de órdenes.",
                      drilldown="ventas", formula="ventas_netas / ordenes"),
-            make_kpi("ordenes", "Órdenes", c["ordenes"], p["ordenes"], unit="",
+            make_kpi("ordenes", "Órdenes", c["ordenes"], p["ordenes"], unit="", icon="🧮",
                      tooltip="Número de ventas completadas.", drilldown="ventas",
                      formula="COUNT(ventas) estado='completada'"),
             make_kpi("inventario_valorizado", "Inventario valorizado",
-                     c["inventario_valorizado"], p["inventario_valorizado"], unit="$",
+                     c["inventario_valorizado"], p["inventario_valorizado"], unit="$", icon="📦",
                      tooltip="Σ existencia_sucursal × costo del producto.",
                      drilldown="inventario", formula="SUM(inventory_stock.quantity * costo)"),
-            make_kpi("cxc", "CxC (Clientes)", c["cxc"], p["cxc"], unit="$",
+            make_kpi("cxc", "CxC (Clientes)", c["cxc"], p["cxc"], unit="$", icon="👥",
                      higher_is_better=False, tooltip="Saldo pendiente de clientes.",
                      drilldown="clientes", formula="SUM(accounts_receivable.balance>0)"),
-            make_kpi("cxp", "CxP (Proveedores)", c["cxp"], p["cxp"], unit="$",
+            make_kpi("cxp", "CxP (Proveedores)", c["cxp"], p["cxp"], unit="$", icon="🚚",
                      higher_is_better=False, tooltip="Saldo pendiente a proveedores.",
                      drilldown="proveedores", formula="SUM(accounts_payable.balance>0)"),
             make_kpi("merma", "Merma %", c["merma_pct"], p["merma_pct"], unit="%",
-                     is_percent=True, higher_is_better=False,
+                     is_percent=True, higher_is_better=False, icon="🗑️",
                      tooltip="Valor de merma / ventas netas × 100.",
                      drilldown="merma", formula="merma_valor / ventas_netas * 100"),
             make_kpi("rotacion", "Rotación inventario", c["rotacion"], p["rotacion"],
-                     unit="x", tooltip="Costo de ventas / inventario valorizado.",
+                     unit="x", icon="🔄", tooltip="Costo de ventas / inventario valorizado.",
                      drilldown="inventario", formula="costo_ventas / inventario_valorizado"),
         ]
 

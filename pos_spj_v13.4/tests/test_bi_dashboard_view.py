@@ -7,7 +7,7 @@ def _payload():
         "kpis": [
             {"key": "ventas_netas", "title": "Ventas netas", "value": 1245680,
              "unit": "$", "direction": "up", "semantic": "positive",
-             "delta_pct": 12.6, "formula": "SUM(total)"},
+             "delta_pct": 12.6, "formula": "SUM(total)", "icon": "💵"},
             {"key": "margen", "title": "Margen %", "value": 12.57, "unit": "%",
              "direction": "up", "semantic": "positive", "delta_points": 1.8},
             {"key": "ordenes", "title": "Órdenes", "value": 14592, "unit": "",
@@ -75,6 +75,31 @@ def test_colores_provienen_de_tokens():
     assert bi_theme.ROLE["primary"] == Colors.PRIMARY_BASE
     html = render_dashboard_html(_payload())
     assert Colors.PRIMARY_BASE in html
+
+
+def test_dashboard_theme_aware():
+    from modulos import bi_theme
+    dark = render_dashboard_html(_payload(), theme="dark")
+    light = render_dashboard_html(_payload(), theme="light")
+    assert bi_theme.SURFACES["dark"]["bg"] in dark
+    assert bi_theme.SURFACES["light"]["bg"] in light
+    # el fondo oscuro no aparece en la versión clara
+    assert bi_theme.SURFACES["dark"]["bg"] not in light
+
+
+def test_kpi_card_incluye_icono():
+    html = render_dashboard_html(_payload())
+    assert "💵" in html   # icono de Ventas netas
+
+
+def test_section_theme_aware():
+    from modulos import bi_theme
+    from modulos.bi_dashboard_view import render_section_html
+    data = {"kpis": [{"title": "X", "value": 1, "unit": "$", "icon": "📦"}],
+            "charts": [], "tables": []}
+    light = render_section_html(data, theme="light")
+    assert bi_theme.SURFACES["light"]["bg"] in light
+    assert "📦" in light
 
 
 def test_render_incluye_kpis_charts_y_sidebar():

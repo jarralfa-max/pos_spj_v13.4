@@ -101,8 +101,8 @@ class ModuloReportesBIv2(QWidget):
 
         layout_principal.addWidget(self.page_header)
 
-        # ── KPI cards con sparklines ──────────────────────────────────────────
-        layout_principal.addWidget(self._crear_kpi_bar_bi())
+        # Los KPIs viven en el Dashboard Visual (payload de BiDashboardService);
+        # se retiró la barra superior de 4 tarjetas para no duplicar información.
 
         self.loading_dashboard = QLabel("⏳ Cargando datos…")
         self.loading_dashboard.setAlignment(Qt.AlignCenter)
@@ -128,106 +128,18 @@ class ModuloReportesBIv2(QWidget):
         self._populate_filter_options()
         self.tabs_bi.currentChanged.connect(self._on_tab_changed)
 
-    def _crear_kpi_bar_bi(self) -> 'QFrame':
-        """Barra de 4 KPI cards con valores reales del período actual."""
-        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
-        from modulos.design_tokens import Colors as _C
-
-        bar = _F()
-        bar.setObjectName("biKpiBar")
-        bar.setFixedHeight(72)
-        bar.setStyleSheet("QFrame#biKpiBar{background:transparent;}")
-
-        lay = _H(bar)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(8)
-
-        kpis = [
-            ("Ventas del período", "—", _C.SUCCESS_BASE, "↑ cargando..."),
-            ("Ticket promedio", "—", _C.PRIMARY_BASE, ""),
-            ("Margen bruto", "—", _C.WARNING_BASE, ""),
-            ("Clientes únicos", "—", _C.ACCENT_BASE, "")
-        ]
-
-        try:
-            # Delegación: el SQL de KPIs vive en BIRepository (Remediación F).
-            from repositories.bi_repository import BIRepository
-            kpi = BIRepository(self.container.db).get_kpis_dia()
-
-            ventas = float(kpi["ventas"] or 0)
-            tickets = int(kpi["tickets"] or 1)
-            cli = int(kpi["clientes"] or 0)
-
-            prom = ventas / tickets if tickets > 0 else 0
-
-            kpis[0] = ("Ventas del período", f"${ventas:,.0f}", _C.SUCCESS_BASE, "↑ hoy")
-            kpis[1] = ("Ticket promedio", f"${prom:,.0f}", _C.PRIMARY_BASE, "")
-            kpis[3] = ("Clientes únicos", str(cli), _C.ACCENT_BASE, "")
-
-            ing = float(kpi["ingresos"] or 0)
-            cos = float(kpi["costo"] or 0)
-
-            mg = ((ing - cos) / ing * 100) if ing > 0 else 0
-
-            kpis[2] = (
-                "Margen bruto",
-                f"{mg:.1f}%",
-                _C.SUCCESS_BASE if mg >= 25 else _C.WARNING_BASE,
-                ""
-            )
-
-        except Exception:
-            pass
-
-        kpi_self_attrs = [
-            'lbl_kpi_ingresos', 'lbl_kpi_ticket',
-            'lbl_kpi_ventas', 'lbl_kpi_clientes',
-        ]
-
-        for attr, (lbl, val, col, sub) in zip(kpi_self_attrs, kpis):
-            card = _F()
-            card.setObjectName("biKpiCard")
-            card.setStyleSheet(
-                f"QFrame#biKpiCard{{background:{_C.NEUTRAL.DARK_CARD};border-radius:8px;"
-                f"border:1px solid {_C.NEUTRAL.DARK_BORDER};border-top:3px solid {col};}}"
-            )
-
-            cl = _V(card)
-            cl.setContentsMargins(14, 8, 14, 8)
-            cl.setSpacing(2)
-
-            vl = _L(val)
-            vl.setStyleSheet(
-                f"color:{col};font-size:20px;font-weight:700;background:transparent;"
-            )
-
-            ll = _L(lbl.upper())
-            ll.setStyleSheet(
-                f"color:{_C.NEUTRAL.SLATE_500};font-size:9px;font-weight:700;"
-                "letter-spacing:0.5px;background:transparent;"
-            )
-
-            cl.addWidget(vl)
-            cl.addWidget(ll)
-
-            if sub:
-                sl = _L(sub)
-                sl.setStyleSheet(
-                    f"color:{col};font-size:9px;background:transparent;"
-                )
-                cl.addWidget(sl)
-
-            lay.addWidget(card, 1)
-            setattr(self, attr, vl)
-
-        return bar
-
     def _crear_tab_contenedor(self):
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(10)
         return tab, layout
+
+    def _add_tab(self, widget, icon: str, tooltip: str) -> int:
+        """Añade una pestaña compacta: sólo icono visible + tooltip con el nombre."""
+        idx = self.tabs_bi.addTab(widget, icon)
+        self.tabs_bi.setTabToolTip(idx, tooltip)
+        return idx
 
     def _build_tab_visual_dashboard(self):
         """Dashboard visual moderno con QWebEngineView + Apache ECharts."""
@@ -253,7 +165,7 @@ class ModuloReportesBIv2(QWidget):
             fallback.setStyleSheet("color:#6c757d; padding:12px;")
             fallback.setAlignment(Qt.AlignCenter)
             layout.addWidget(fallback)
-        self.tabs_bi.addTab(tab, "Dashboard Visual")
+        self._add_tab(tab, "📈", "Dashboard Visual")
 
     def _build_tab_rankings(self):
         tab, layout = self._crear_tab_contenedor()
@@ -285,27 +197,27 @@ class ModuloReportesBIv2(QWidget):
         self._tabs_rankings.addTab(self._grp_lentos, "Lentos")
         self._tabs_rankings.addTab(self._grp_vips, "Clientes VIP")
         layout.addWidget(self._tabs_rankings)
-        self.tabs_bi.addTab(tab, "Ventas / Rankings")
+        self._add_tab(tab, "🏆", "Ventas / Rankings")
 
     def _build_tab_rentabilidad(self):
         tab, layout = self._crear_tab_contenedor()
         self._build_rentabilidad_section(layout)
-        self.tabs_bi.addTab(tab, "Rentabilidad")
+        self._add_tab(tab, "💹", "Rentabilidad")
 
     def _build_tab_cajeros(self):
         tab, layout = self._crear_tab_contenedor()
         self._build_cajeros_section(layout)
-        self.tabs_bi.addTab(tab, "Cajeros")
+        self._add_tab(tab, "🧑‍💼", "Cajeros")
 
     def _build_tab_decision_engine(self):
         tab, layout = self._crear_tab_contenedor()
         self._build_decision_engine_section(layout)
-        self.tabs_bi.addTab(tab, "Sugerencias")
+        self._add_tab(tab, "💡", "Sugerencias")
 
     def _build_tab_franchise(self):
         tab, layout = self._crear_tab_contenedor()
         self._build_franchise_section(layout)
-        self.tabs_bi.addTab(tab, "Sucursales / Franquicias")
+        self._add_tab(tab, "🏪", "Sucursales / Franquicias")
 
     def _build_rentabilidad_section(self, parent_layout):
         """Tabla de rentabilidad por producto: margen, rotación, contribución."""
@@ -852,28 +764,8 @@ class ModuloReportesBIv2(QWidget):
             data = analytics.get_dashboard_data(self.sucursal_id, rango_str)
             self._last_data = data
 
-            # 1. Actualizar KPIs — fuente única BiDashboardService (con fallback).
-            bi_svc = getattr(self.container, "bi_dashboard_service", None)
-            if bi_svc is not None:
-                try:
-                    kpis = {k["key"]: k for k in
-                            bi_svc.build_dashboard(self._current_filters()).kpis}
-                    self.lbl_kpi_ingresos.setText(
-                        f"${kpis['ventas_netas']['value']:,.0f}")
-                    self.lbl_kpi_ticket.setText(
-                        f"${kpis['ticket_promedio']['value']:,.0f}")
-                    self.lbl_kpi_ventas.setText(f"{kpis['margen']['value']:.1f}%")
-                    self.lbl_kpi_clientes.setText(str(data['kpis']['clientes_unicos']))
-                except Exception:
-                    self.lbl_kpi_ingresos.setText(f"${data['kpis']['ingresos']:,.2f}")
-                    self.lbl_kpi_ticket.setText(f"${data['kpis']['ticket_promedio']:,.2f}")
-                    self.lbl_kpi_ventas.setText(str(data['kpis']['tickets']))
-                    self.lbl_kpi_clientes.setText(str(data['kpis']['clientes_unicos']))
-            else:
-                self.lbl_kpi_ingresos.setText(f"${data['kpis']['ingresos']:,.2f}")
-                self.lbl_kpi_ticket.setText(f"${data['kpis']['ticket_promedio']:,.2f}")
-                self.lbl_kpi_ventas.setText(str(data['kpis']['tickets']))
-                self.lbl_kpi_clientes.setText(str(data['kpis']['clientes_unicos']))
+            # Los KPIs se renderizan en el Dashboard Visual desde el payload
+            # (ver _render_echarts_dashboard); ya no hay barra superior que actualizar.
 
             # Comparativa vs período anterior
             comp = data.get('comparativa', {})
@@ -939,6 +831,16 @@ class ModuloReportesBIv2(QWidget):
             preset=preset, branch_id=str(branch or ""),
             category=str(cat or ""), payment_method=str(pay or ""))
 
+    def _current_theme(self) -> str:
+        """Tema activo ('dark'/'light') leído de ConfigService (theme-aware)."""
+        from modulos.bi_theme import normalize_theme
+        try:
+            cfg = getattr(self.container, "config_service", None)
+            val = cfg.get("tema") if cfg is not None else None
+            return normalize_theme(val or "dark")
+        except Exception:
+            return "dark"
+
     def _populate_filter_options(self):
         """Rellena los combos de sucursal/categoría/método desde el servicio."""
         svc = getattr(self.container, "bi_dashboard_service", None)
@@ -984,32 +886,32 @@ class ModuloReportesBIv2(QWidget):
     # ── Pestañas detalladas por sección (lazy) ────────────────────────────────
 
     _SECTIONS = [
-        ("ventas", "🧾 Ventas"), ("inventario", "📦 Inventario"),
-        ("compras", "🛒 Compras"), ("caja", "💵 Caja"),
-        ("clientes", "👥 Clientes"), ("proveedores", "🚚 Proveedores"),
-        ("finanzas", "💰 Finanzas"), ("merma", "🗑️ Merma"),
+        ("ventas", "🧾", "Ventas"), ("inventario", "📦", "Inventario"),
+        ("compras", "🛒", "Compras"), ("caja", "💵", "Caja"),
+        ("clientes", "👥", "Clientes"), ("proveedores", "🚚", "Proveedores"),
+        ("finanzas", "💰", "Finanzas"), ("merma", "🗑️", "Merma"),
     ]
 
     def _build_section_tabs(self):
         self._section_views = {}
         self._section_dirty = {}
         allowed = self._allowed_sections()
-        for key, label in self._SECTIONS:
+        for key, icon, name in self._SECTIONS:
             if key not in allowed:
                 continue
             view = self._make_chart_view(min_height=360)
             self._section_views[key] = view
             self._section_dirty[key] = True
-            self.tabs_bi.addTab(view, label)
+            self._add_tab(view, icon, name)
 
     def _allowed_sections(self):
         svc = getattr(self.container, "bi_dashboard_service", None)
         if svc is None:
-            return {k for k, _ in self._SECTIONS}
+            return {k for k, _icon, _name in self._SECTIONS}
         try:
             return set(svc.build_dashboard(self._current_filters()).allowed_sections)
         except Exception:
-            return {k for k, _ in self._SECTIONS}
+            return {k for k, _icon, _name in self._SECTIONS}
 
     def _section_for_view(self, widget):
         for key, view in getattr(self, "_section_views", {}).items():
@@ -1072,7 +974,7 @@ class ModuloReportesBIv2(QWidget):
         from modulos.bi_dashboard_view import render_section_html
         try:
             data = svc.section_data(key, self._current_filters())
-            view.setHtml(render_section_html(data))
+            view.setHtml(render_section_html(data, theme=self._current_theme()))
             self._section_dirty[key] = False
         except Exception:
             pass
@@ -1106,7 +1008,7 @@ class ModuloReportesBIv2(QWidget):
         fila.addStretch()
         layout.addLayout(fila)
         layout.addStretch()
-        self.tabs_bi.addTab(tab, "📄 Reportes")
+        self._add_tab(tab, "📄", "Reportes")
 
     # ── Configuración BI (metas, umbrales, forecast) ──────────────────────────
 
@@ -1161,7 +1063,7 @@ class ModuloReportesBIv2(QWidget):
         botones.addStretch()
         layout.addLayout(botones)
         layout.addStretch()
-        self.tabs_bi.addTab(tab, "⚙️ Configuración")
+        self._add_tab(tab, "⚙️", "Configuración")
 
     def _save_config(self):
         settings = getattr(self.container, "bi_settings_service", None)
@@ -1221,7 +1123,7 @@ class ModuloReportesBIv2(QWidget):
             return
         self._chart_empty.hide()
         self._chart_view.show()
-        self._chart_view.setHtml(render_dashboard_html(payload))
+        self._chart_view.setHtml(render_dashboard_html(payload, theme=self._current_theme()))
 
     # ── Chart helpers reutilizables por pestaña (offline SVG) ─────────────────
 
