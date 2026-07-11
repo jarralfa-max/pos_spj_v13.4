@@ -165,3 +165,23 @@ def test_render_section_tabla_vacia():
     html = render_section_html({"kpis": [], "charts": [],
                                 "tables": [{"title": "X", "columns": ["A"], "rows": []}]})
     assert "Sin datos" in html
+
+
+def test_section_include_kpis_false_omite_mini_kpis():
+    from modulos.bi_dashboard_view import render_section_html
+    data = {"kpis": [{"title": "Ventas netas", "value": 5, "unit": "$"}],
+            "charts": [], "tables": []}
+    html = render_section_html(data, include_kpis=False)
+    assert "Ventas netas" not in html
+
+
+def test_normalize_theme_mapea_es_y_en():
+    from modulos.bi_theme import normalize_theme
+    assert normalize_theme("Oscuro") == "dark"
+    assert normalize_theme("Claro") == "light"
+    assert normalize_theme("dark") == "dark"
+    assert normalize_theme("light") == "light"
+    assert normalize_theme("") == "dark"      # default
+    # superficies distintas por tema
+    from modulos.bi_theme import surface
+    assert surface("dark")["card"] != surface("light")["card"]

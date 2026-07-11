@@ -112,9 +112,9 @@ class BiDashboardService:
     # ── Secciones detalladas (FASE 8) ─────────────────────────────────────────
 
     @staticmethod
-    def _mini(title, value, unit="$", icon=""):
+    def _mini(title, value, unit="$", icon="", variant="primary"):
         return {"title": title, "value": round(float(value or 0), 2),
-                "unit": unit, "icon": icon}
+                "unit": unit, "icon": icon, "variant": variant}
 
     @staticmethod
     def _bars(title, pairs, color=_BLUE, unit="$"):
@@ -128,9 +128,9 @@ class BiDashboardService:
         t = s.sales_totals(f)
         return {
             "section": "ventas", "title": "Ventas",
-            "kpis": [self._mini("Ventas netas", t["ventas_netas"], icon="💵"),
-                     self._mini("Órdenes", t["ordenes"], "", icon="🧮"),
-                     self._mini("Ticket promedio", t["ticket_promedio"], icon="🧾")],
+            "kpis": [self._mini("Ventas netas", t["ventas_netas"], icon="💵", variant="success"),
+                     self._mini("Órdenes", t["ordenes"], "", icon="🧮", variant="primary"),
+                     self._mini("Ticket promedio", t["ticket_promedio"], icon="🧾", variant="primary")],
             "charts": [self._bars("Ventas por sucursal", s.by_branch(f)),
                        {"kind": "donut", "title": "Métodos de pago", "unit": "$",
                         "labels": [m for m, _ in s.payment_methods(f)],
@@ -154,9 +154,9 @@ class BiDashboardService:
         val = inv.inventory_valued(f)
         return {
             "section": "inventario", "title": "Inventario",
-            "kpis": [self._mini("Inventario valorizado", val, icon="📦"),
-                     self._mini("Rotación", (cogs / val) if val else 0, "x", icon="🔄"),
-                     self._mini("Merma", inv.waste_value(f), icon="🗑️")],
+            "kpis": [self._mini("Inventario valorizado", val, icon="📦", variant="info"),
+                     self._mini("Rotación", (cogs / val) if val else 0, "x", icon="🔄", variant="primary"),
+                     self._mini("Merma", inv.waste_value(f), icon="🗑️", variant="danger")],
             "charts": [self._bars("Merma por categoría", inv.waste_by_category(f),
                                   color=_GOLD)],
             "tables": [
@@ -170,12 +170,12 @@ class BiDashboardService:
         prof = self._q.sales.profitability_by_category(f)
         return {
             "section": "finanzas", "title": "Finanzas",
-            "kpis": [self._mini("Ventas netas", m["ventas_netas"], icon="💵"),
-                     self._mini("Utilidad neta", m["utilidad_neta"], icon="🪙"),
-                     self._mini("Margen", m["margen_pct"], "%", icon="📊"),
-                     self._mini("Gastos", m["gastos"], icon="💸"),
-                     self._mini("CxC", m["cxc"], icon="👥"),
-                     self._mini("CxP", m["cxp"], icon="🚚")],
+            "kpis": [self._mini("Ventas netas", m["ventas_netas"], icon="💵", variant="success"),
+                     self._mini("Utilidad neta", m["utilidad_neta"], icon="🪙", variant="success"),
+                     self._mini("Margen", m["margen_pct"], "%", icon="📊", variant="info"),
+                     self._mini("Gastos", m["gastos"], icon="💸", variant="warning"),
+                     self._mini("CxC", m["cxc"], icon="👥", variant="warning"),
+                     self._mini("CxP", m["cxp"], icon="🚚", variant="warning")],
             "charts": [self._bars("Rentabilidad por categoría (margen $)",
                                   [(c, mg) for c, mg, _ in prof], color=_GOLD)],
             "tables": [],
@@ -187,8 +187,8 @@ class BiDashboardService:
         ventas = self._q.sales.sales_totals(f)["ventas_netas"]
         return {
             "section": "merma", "title": "Merma",
-            "kpis": [self._mini("Valor de merma", val, icon="🗑️"),
-                     self._mini("Merma %", (val / ventas * 100) if ventas else 0, "%", icon="📊")],
+            "kpis": [self._mini("Valor de merma", val, icon="🗑️", variant="danger"),
+                     self._mini("Merma %", (val / ventas * 100) if ventas else 0, "%", icon="📊", variant="danger")],
             "charts": [self._bars("Merma por categoría", inv.waste_by_category(f),
                                   color=_GOLD)],
             "tables": [],
@@ -200,10 +200,10 @@ class BiDashboardService:
         daily = cash.daily_behavior(f)
         return {
             "section": "caja", "title": "Caja",
-            "kpis": [self._mini("Ingresos directos", t["ingresos"], icon="💰"),
-                     self._mini("Egresos directos", t["egresos"], icon="💸"),
-                     self._mini("Saldo", t["saldo"], icon="🪙"),
-                     self._mini("Cortes", t["num_cortes"], "", icon="🧾")],
+            "kpis": [self._mini("Ingresos directos", t["ingresos"], icon="💰", variant="success"),
+                     self._mini("Egresos directos", t["egresos"], icon="💸", variant="danger"),
+                     self._mini("Saldo", t["saldo"], icon="🪙", variant="primary"),
+                     self._mini("Cortes", t["num_cortes"], "", icon="🧾", variant="info")],
             "charts": [{"kind": "line", "title": "Comportamiento diario de caja",
                         "unit": "$", "labels": [d for d, _, _ in daily],
                         "series": [{"name": "Ingresos", "color": _GREEN,

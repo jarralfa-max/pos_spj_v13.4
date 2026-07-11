@@ -111,6 +111,11 @@ class ModuloReportesBIv2(QWidget):
 
         self.tabs_bi = QTabWidget()
         self.tabs_bi.setDocumentMode(True)
+        # Pestañas compactas (sólo icono): no expandir para que quepan todas y la
+        # pestaña de Dashboard quede siempre fija y visible sin scroll.
+        self.tabs_bi.tabBar().setExpanding(False)
+        self.tabs_bi.setUsesScrollButtons(False)
+        self.tabs_bi.setElideMode(Qt.ElideNone)
         layout_principal.addWidget(self.tabs_bi)
 
         self._build_tab_visual_dashboard()
@@ -914,16 +919,33 @@ class ModuloReportesBIv2(QWidget):
     ]
 
     def _build_section_tabs(self):
-        self._section_views = {}
+        self._section_views = {}          # web view (charts + tablas) por sección
+        self._section_tab_widget = {}     # contenedor (la pestaña real)
+        self._section_kpi_grid = {}       # grid de KPICard por sección
+        self._section_kpi_cards = {}      # {kpi_index: KPICard} por sección
         self._section_dirty = {}
         allowed = self._allowed_sections()
         for key, icon, name in self._SECTIONS:
             if key not in allowed:
                 continue
-            view = self._make_chart_view(min_height=360)
+            cont = QWidget()
+            lay = QVBoxLayout(cont)
+            lay.setContentsMargins(0, 0, 0, 0)
+            lay.setSpacing(8)
+            kpi_row = QWidget()
+            grid = QGridLayout(kpi_row)
+            grid.setContentsMargins(0, 0, 0, 0)
+            grid.setHorizontalSpacing(8)
+            grid.setVerticalSpacing(8)
+            lay.addWidget(kpi_row)
+            view = self._make_chart_view(min_height=320)
+            lay.addWidget(view, 1)
+            self._section_tab_widget[key] = cont
             self._section_views[key] = view
+            self._section_kpi_grid[key] = grid
+            self._section_kpi_cards[key] = {}
             self._section_dirty[key] = True
-            self._add_tab(view, icon, name)
+            self._add_tab(cont, icon, name)
 
     def _allowed_sections(self):
         svc = getattr(self.container, "bi_dashboard_service", None)
@@ -935,8 +957,8 @@ class ModuloReportesBIv2(QWidget):
             return {k for k, _icon, _name in self._SECTIONS}
 
     def _section_for_view(self, widget):
-        for key, view in getattr(self, "_section_views", {}).items():
-            if view is widget:
+        for key, cont in getattr(self, "_section_tab_widget", {}).items():
+            if cont is widget:
                 return key
         return None
 
@@ -966,10 +988,10 @@ class ModuloReportesBIv2(QWidget):
     def _go_to_section(self, section):
         """Cambia a la pestaña detallada de la sección (si existe y hay permiso)."""
         section = str(section or "").strip()
-        view = getattr(self, "_section_views", {}).get(section)
-        if view is not None:
+        cont = getattr(self, "_section_tab_widget", {}).get(section)
+        if cont is not None:
             self._render_section(section)
-            self.tabs_bi.setCurrentWidget(view)
+            self.tabs_bi.setCurrentWidget(cont)
 
     def _on_tab_changed(self, _index):
         widget = self.tabs_bi.currentWidget()
@@ -984,9 +1006,6 @@ class ModuloReportesBIv2(QWidget):
             self._render_section(key)
 
     def _render_section(self, key):
-        view = self._section_views.get(key)
-        if view is None or not hasattr(view, "setHtml"):
-            return
         if not self._section_dirty.get(key, True):
             return
         svc = getattr(self.container, "bi_dashboard_service", None)
@@ -995,10 +1014,46 @@ class ModuloReportesBIv2(QWidget):
         from modulos.bi_dashboard_view import render_section_html
         try:
             data = svc.section_data(key, self._current_filters())
-            view.setHtml(render_section_html(data, theme=self._current_theme()))
+            # KPIs de la sección como KPICard nativas (mismo estándar global).
+            self._update_section_kpis(key, data.get("kpis", []))
+            view = self._section_views.get(key)
+            if view is not None and hasattr(view, "setHtml"):
+                view.setHtml(render_section_html(
+                    data, theme=self._current_theme(), include_kpis=False))
             self._section_dirty[key] = False
         except Exception:
             pass
+
+    def _update_section_kpis(self, key, kpis):
+        """Crea/actualiza las KPICard nativas de una sección detallada."""
+        grid = getattr(self, "_section_kpi_grid", {}).get(key)
+        cards = getattr(self, "_section_kpi_cards", {}).get(key)
+        if grid is None or cards is None:
+            return
+        from modulos.kpi_card import KPICard
+        theme = self._current_theme()
+        if not cards:
+            for i, k in enumerate(kpis):
+                card = KPICard(k.get("title", ""), self._fmt_kpi(k),
+                               k.get("icon", "📊"), k.get("variant", "primary"),
+                               theme=theme)
+                card.setToolTip(self._kpi_tooltip(k))
+                cards[i] = card
+                grid.addWidget(card, 0, i)
+        else:
+            for i, k in enumerate(kpis):
+                card = cards.get(i)
+                if card is not None:
+                    card.set_valor(self._fmt_kpi(k))
+                    card.set_theme(theme)
+
+    def _restyle_section_kpi_cards(self, theme: str) -> None:
+        for cards in getattr(self, "_section_kpi_cards", {}).values():
+            for card in cards.values():
+                try:
+                    card.set_theme(theme)
+                except Exception:
+                    pass
 
     # ── Reportes (exportación ejecutiva) ──────────────────────────────────────
 
@@ -1173,11 +1228,13 @@ class ModuloReportesBIv2(QWidget):
         if not hasattr(self, "_kpi_grid"):
             return
         from modulos.kpi_card import KPICard
+        theme = self._current_theme()
         if not self._kpi_cards:
             cols = 5
             for i, k in enumerate(kpis):
                 card = KPICard(k.get("title", ""), self._fmt_kpi(k),
-                               k.get("icon", "📊"), k.get("variant", "primary"))
+                               k.get("icon", "📊"), k.get("variant", "primary"),
+                               theme=theme)
                 card.setToolTip(self._kpi_tooltip(k))
                 self._kpi_cards[k["key"]] = card
                 drill = k.get("drilldown", "")
@@ -1192,12 +1249,24 @@ class ModuloReportesBIv2(QWidget):
                     btn.clicked.connect(lambda _, s=drill: self._go_to_section(s))
                     widget = btn
                 self._kpi_grid.addWidget(widget, i // cols, i % cols)
+            # Altura mínima para que se vean TODAS las filas completas.
+            import math
+            filas = max(1, math.ceil(len(kpis) / cols))
+            self._kpi_row.setMinimumHeight(filas * 112 + (filas - 1) * 8 + 4)
         else:
             for k in kpis:
                 card = self._kpi_cards.get(k["key"])
                 if card is not None:
                     card.set_valor(self._fmt_kpi(k))
+                    card.set_theme(theme)
                     card.setToolTip(self._kpi_tooltip(k))
+
+    def _restyle_kpi_cards(self, theme: str) -> None:
+        for card in getattr(self, "_kpi_cards", {}).values():
+            try:
+                card.set_theme(theme)
+            except Exception:
+                pass
 
     def changeEvent(self, event):
         """Re-renderiza las gráficas al cambiar el tema (paleta) de la app."""
@@ -1205,6 +1274,9 @@ class ModuloReportesBIv2(QWidget):
             from PyQt5.QtCore import QEvent
             if event.type() in (QEvent.PaletteChange, QEvent.StyleChange,
                                 QEvent.ApplicationPaletteChange):
+                theme = self._current_theme()
+                self._restyle_kpi_cards(theme)
+                self._restyle_section_kpi_cards(theme)
                 if getattr(self, "_chart_view", None) is not None:
                     self._render_echarts_dashboard({})
                 self._section_dirty = {k: True for k in getattr(self, "_section_views", {})}

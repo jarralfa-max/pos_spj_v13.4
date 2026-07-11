@@ -255,15 +255,22 @@ def _table_card(tbl: dict, pal: dict) -> str:
             f"<tbody>{body}</tbody></table></div>")
 
 
-def render_section_html(data: dict, theme: str = "dark") -> str:
-    """Pestaña detallada (mini-KPIs + charts + tablas), según el tema activo."""
+def render_section_html(data: dict, theme: str = "dark",
+                        include_kpis: bool = True) -> str:
+    """Pestaña detallada (mini-KPIs + charts + tablas), según el tema activo.
+
+    include_kpis=False omite los mini-KPIs (la UI los muestra como KPICard nativas).
+    """
     pal = bi_theme.surface(theme)
-    kpis = "".join(_mini_kpi(k, pal) for k in data.get("kpis", []))
+    kpis = ("".join(_mini_kpi(k, pal) for k in data.get("kpis", []))
+            if include_kpis else "")
     charts = "".join(_chart_card(c, pal) for c in data.get("charts", []))
     tables = "".join(_table_card(t, pal) for t in data.get("tables", []))
+    kpi_block = (f"<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;'>{kpis}</div>"
+                 if kpis else "")
     body = (
         "<div style='padding:12px;'>"
-        f"<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;'>{kpis}</div>"
+        f"{kpi_block}"
         f"<div style='display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));"
         f"margin-bottom:12px;'>{charts}</div>"
         f"<div style='display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));'>"
