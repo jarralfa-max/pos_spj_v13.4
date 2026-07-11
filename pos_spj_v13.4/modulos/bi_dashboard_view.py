@@ -11,17 +11,20 @@ from __future__ import annotations
 from html import escape
 from typing import Any
 
+from modulos import bi_theme
 from modulos.bi_charts import _bar_svg, _donut_svg, _hbar_svg, _line_svg
 
-_BG = "#0b1220"
-_CARD = "#1E293B"
-_BORDER = "#334155"
-_FG = "#e2e8f0"
-_MUTED = "#94a3b8"
-_POS = "#22c55e"
-_NEG = "#ef4444"
-_NEU = "#64748b"
-_GOLD = "#eab308"
+# Colores derivados de los design tokens globales (sin hex hardcodeado).
+_BG = bi_theme.BG
+_CARD = bi_theme.CARD
+_BORDER = bi_theme.BORDER
+_FG = bi_theme.TEXT
+_MUTED = bi_theme.MUTED
+_POS = bi_theme.ROLE["positive"]
+_NEG = bi_theme.ROLE["negative"]
+_NEU = bi_theme.ROLE["neutral"]
+_GOLD = bi_theme.ROLE["secondary"]
+_c = bi_theme.color
 
 
 def _fmt_value(value: float, unit: str) -> str:
@@ -90,7 +93,7 @@ def _chart_svg_from_payload(chart: dict) -> str:
                        s.get("color", "#3b82f6")) for s in series]
         return _line_svg(title, labels, svg_series, prefix)
     values = series[0].get("values", []) if series else []
-    color = series[0].get("color", "#3b82f6") if series else "#3b82f6"
+    color = _c(series[0].get("color", "primary")) if series else _c("primary")
     if kind == "hbar":
         return _hbar_svg(title, labels, values, prefix, color)
     if kind == "donut":
@@ -103,18 +106,28 @@ def _chart_card(chart: dict) -> str:
             "border-radius:10px;padding:8px;'>" + _chart_svg_from_payload(chart) + "</div>")
 
 
+def _drill_wrap(html: str, drill: str) -> str:
+    """Envuelve un bloque en un enlace de drill-down si hay sección destino."""
+    drill = str(drill or "")
+    if not drill:
+        return html
+    return (f"<a href='spjdrill:{escape(drill)}' "
+            "style='text-decoration:none;display:block;cursor:pointer;'>" + html + "</a>")
+
+
 def _highlight_card(h: dict) -> str:
     title = escape(str(h.get("title", "")))
     name = escape(str(h.get("name", "")))
     value = _fmt_value(h.get("value", 0), h.get("unit", "$"))
     share = h.get("share_pct", 0)
-    return (
+    card = (
         f"<div style='background:{_CARD};border:1px solid {_BORDER};border-radius:10px;"
         "padding:10px 12px;margin-bottom:8px;'>"
         f"<div style='color:{_GOLD};font-size:10px;font-weight:700;text-transform:uppercase;'>{title}</div>"
         f"<div style='color:{_FG};font-size:15px;font-weight:700;margin-top:2px;'>{name}</div>"
         f"<div style='color:{_MUTED};font-size:12px;'>{value} · {share:.1f}% del total</div></div>"
     )
+    return _drill_wrap(card, h.get("drilldown", ""))
 
 
 def _alert_item(a: dict) -> str:
@@ -129,9 +142,10 @@ def _alert_item(a: dict) -> str:
 def _insight_item(i: dict) -> str:
     title = escape(str(i.get("title", "")))
     detail = escape(str(i.get("detail", "")))
-    return (f"<div style='padding:5px 0;border-bottom:1px solid {_BORDER};'>"
+    item = (f"<div style='padding:5px 0;border-bottom:1px solid {_BORDER};'>"
             f"<div style='color:{_FG};font-size:12px;'>• {title}</div>"
             f"<div style='color:{_MUTED};font-size:11px;margin-left:10px;'>{detail}</div></div>")
+    return _drill_wrap(item, i.get("drilldown", ""))
 
 
 def _prediction_card(pred: dict) -> str:

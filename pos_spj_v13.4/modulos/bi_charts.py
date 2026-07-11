@@ -15,17 +15,19 @@ import math
 from html import escape
 from typing import Sequence
 
-_BG = "#0b1220"
-_CARD = "#111a2e"
-_FG = "#e2e8f0"
-_MUTED = "#94a3b8"
-_GRID = "#1f2937"
-_BLUE = "#3b82f6"
-_GOLD = "#eab308"
-_GREEN = "#22c55e"
-# Paleta categórica para donas / series múltiples.
-_PALETTE = ["#3b82f6", "#eab308", "#22c55e", "#a855f7", "#ef4444",
-            "#14b8a6", "#f97316", "#64748b"]
+from modulos import bi_theme
+
+# Colores derivados de los design tokens globales (sin hex hardcodeado).
+_BG = bi_theme.BG
+_CARD = bi_theme.CARD
+_FG = bi_theme.TEXT
+_MUTED = bi_theme.MUTED
+_GRID = bi_theme.GRID
+_BLUE = bi_theme.ROLE["primary"]
+_GOLD = bi_theme.ROLE["secondary"]
+_GREEN = bi_theme.ROLE["positive"]
+_PALETTE = bi_theme.PALETTE
+_c = bi_theme.color  # resuelve rol/hex → color
 
 
 def _fmt(v: float, prefix: str) -> str:
@@ -57,6 +59,7 @@ def _empty_svg(title: str) -> str:
 # ── Fragmentos SVG (sin wrapper de página) ────────────────────────────────────
 
 def _bar_svg(title, labels, values, prefix="$", color=_BLUE) -> str:
+    color = _c(color)
     pares = [(str(l), float(v or 0)) for l, v in zip(labels, values)]
     if not pares or all(v == 0 for _, v in pares):
         return _empty_svg(title)
@@ -89,6 +92,7 @@ def _bar_svg(title, labels, values, prefix="$", color=_BLUE) -> str:
 
 
 def _hbar_svg(title, labels, values, prefix="$", color=_BLUE) -> str:
+    color = _c(color)
     pares = [(str(l), float(v or 0)) for l, v in zip(labels, values)]
     if not pares or all(v == 0 for _, v in pares):
         return _empty_svg(title)
@@ -116,8 +120,8 @@ def _hbar_svg(title, labels, values, prefix="$", color=_BLUE) -> str:
 
 
 def _line_svg(title, labels, series, prefix="$") -> str:
-    """series: lista de (nombre, valores, color)."""
-    series = [(nm, [float(v or 0) for v in vals], col) for nm, vals, col in series]
+    """series: lista de (nombre, valores, color|rol)."""
+    series = [(nm, [float(v or 0) for v in vals], _c(col)) for nm, vals, col in series]
     if not series or not any(any(vals) for _, vals, _ in series):
         return _empty_svg(title)
     W, H = 760, 380

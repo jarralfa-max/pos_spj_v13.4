@@ -159,6 +159,7 @@ class HighlightCard:
     value: float
     share_pct: float = 0.0
     unit: str = "$"
+    drilldown: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -181,6 +182,7 @@ class Insight:
     code: str
     title: str
     detail: str
+    drilldown: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

@@ -121,6 +121,7 @@ class ModuloReportesBIv2(QWidget):
         self._build_tab_decision_engine()
         self._build_tab_franchise()
         self._build_section_tabs()
+        self._build_reportes_tab()
         self._build_config_tab()
 
         # Poblar filtros + lazy loading de secciones al cambiar de pestaña.
@@ -187,8 +188,8 @@ class ModuloReportesBIv2(QWidget):
             card = _F()
             card.setObjectName("biKpiCard")
             card.setStyleSheet(
-                f"QFrame#biKpiCard{{background:#1E293B;border-radius:8px;"
-                f"border:1px solid #334155;border-top:3px solid {col};}}"
+                f"QFrame#biKpiCard{{background:{_C.NEUTRAL.DARK_CARD};border-radius:8px;"
+                f"border:1px solid {_C.NEUTRAL.DARK_BORDER};border-top:3px solid {col};}}"
             )
 
             cl = _V(card)
@@ -202,7 +203,7 @@ class ModuloReportesBIv2(QWidget):
 
             ll = _L(lbl.upper())
             ll.setStyleSheet(
-                "color:#64748B;font-size:9px;font-weight:700;"
+                f"color:{_C.NEUTRAL.SLATE_500};font-size:9px;font-weight:700;"
                 "letter-spacing:0.5px;background:transparent;"
             )
 
@@ -807,12 +808,13 @@ class ModuloReportesBIv2(QWidget):
             QMessageBox.warning(self, "No disponible", "El servicio de BI no está listo.")
             return
 
-        ext = "xlsx" if formato == "excel" else "pdf"
-        fmt = "xlsx" if formato == "excel" else "pdf"
+        _map = {"excel": ("xlsx", "Excel (*.xlsx)"), "pdf": ("pdf", "PDF (*.pdf)"),
+                "csv": ("csv", "CSV (*.csv)")}
+        fmt, filtro = _map.get(formato, ("xlsx", "Excel (*.xlsx)"))
+        ext = fmt
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M")
         ruta, _ = QFileDialog.getSaveFileName(
-            self, f"Guardar {ext.upper()}", f"dashboard_bi_{ts}.{ext}",
-            "Excel (*.xlsx)" if formato == "excel" else "PDF (*.pdf)")
+            self, f"Guardar {ext.upper()}", f"dashboard_bi_{ts}.{ext}", filtro)
         if not ruta:
             return
         if not confirm_action(
@@ -849,12 +851,29 @@ class ModuloReportesBIv2(QWidget):
                 raise RuntimeError("AnalyticsEngine no disponible en el contenedor")
             data = analytics.get_dashboard_data(self.sucursal_id, rango_str)
             self._last_data = data
-            
-            # 1. Actualizar KPIs
-            self.lbl_kpi_ingresos.setText(f"${data['kpis']['ingresos']:,.2f}")
-            self.lbl_kpi_ticket.setText(f"${data['kpis']['ticket_promedio']:,.2f}")
-            self.lbl_kpi_ventas.setText(str(data['kpis']['tickets']))
-            self.lbl_kpi_clientes.setText(str(data['kpis']['clientes_unicos']))
+
+            # 1. Actualizar KPIs — fuente única BiDashboardService (con fallback).
+            bi_svc = getattr(self.container, "bi_dashboard_service", None)
+            if bi_svc is not None:
+                try:
+                    kpis = {k["key"]: k for k in
+                            bi_svc.build_dashboard(self._current_filters()).kpis}
+                    self.lbl_kpi_ingresos.setText(
+                        f"${kpis['ventas_netas']['value']:,.0f}")
+                    self.lbl_kpi_ticket.setText(
+                        f"${kpis['ticket_promedio']['value']:,.0f}")
+                    self.lbl_kpi_ventas.setText(f"{kpis['margen']['value']:.1f}%")
+                    self.lbl_kpi_clientes.setText(str(data['kpis']['clientes_unicos']))
+                except Exception:
+                    self.lbl_kpi_ingresos.setText(f"${data['kpis']['ingresos']:,.2f}")
+                    self.lbl_kpi_ticket.setText(f"${data['kpis']['ticket_promedio']:,.2f}")
+                    self.lbl_kpi_ventas.setText(str(data['kpis']['tickets']))
+                    self.lbl_kpi_clientes.setText(str(data['kpis']['clientes_unicos']))
+            else:
+                self.lbl_kpi_ingresos.setText(f"${data['kpis']['ingresos']:,.2f}")
+                self.lbl_kpi_ticket.setText(f"${data['kpis']['ticket_promedio']:,.2f}")
+                self.lbl_kpi_ventas.setText(str(data['kpis']['tickets']))
+                self.lbl_kpi_clientes.setText(str(data['kpis']['clientes_unicos']))
 
             # Comparativa vs período anterior
             comp = data.get('comparativa', {})
@@ -1057,6 +1076,37 @@ class ModuloReportesBIv2(QWidget):
             self._section_dirty[key] = False
         except Exception:
             pass
+
+    # ── Reportes (exportación ejecutiva) ──────────────────────────────────────
+
+    def _build_reportes_tab(self):
+        if "reportes" not in self._allowed_sections():
+            return
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        titulo = QLabel("📄 Reportes — exportación del resumen ejecutivo")
+        titulo.setObjectName("heading")
+        layout.addWidget(titulo)
+        info = QLabel("Exporta el resumen ejecutivo respetando los filtros activos. "
+                      "Incluye usuario, periodo, sucursal y fecha de generación.")
+        info.setWordWrap(True)
+        info.setStyleSheet(f"color:{Colors.NEUTRAL.DARK_TEXT_SEC}; font-size:11px;")
+        layout.addWidget(info)
+
+        fila = QHBoxLayout()
+        btn_xlsx = create_success_button(self, "📊 Excel (.xlsx)", "Exportar resumen a Excel")
+        btn_xlsx.clicked.connect(lambda: self._exportar("excel"))
+        btn_pdf = create_danger_button(self, "📄 PDF", "Exportar resumen a PDF")
+        btn_pdf.clicked.connect(lambda: self._exportar("pdf"))
+        btn_csv = create_secondary_button(self, "🧾 CSV", "Exportar resumen a CSV")
+        btn_csv.clicked.connect(lambda: self._exportar("csv"))
+        fila.addWidget(btn_xlsx)
+        fila.addWidget(btn_pdf)
+        fila.addWidget(btn_csv)
+        fila.addStretch()
+        layout.addLayout(fila)
+        layout.addStretch()
+        self.tabs_bi.addTab(tab, "📄 Reportes")
 
     # ── Configuración BI (metas, umbrales, forecast) ──────────────────────────
 

@@ -19,7 +19,9 @@ from backend.application.dto.bi_dashboard_dto import (
     Insight, KpiCard, Prediction, make_kpi,
 )
 
-_BLUE, _GOLD, _GREEN = "#3b82f6", "#eab308", "#22c55e"
+# Roles semánticos de color (la capa de presentación los resuelve desde los
+# design tokens globales — el backend no conoce hex).
+_BLUE, _GOLD, _GREEN, _RED = "primary", "secondary", "positive", "negative"
 
 # Todas las secciones (pestañas) del módulo BI.
 ALL_SECTIONS = (
@@ -205,7 +207,7 @@ class BiDashboardService:
                         "unit": "$", "labels": [d for d, _, _ in daily],
                         "series": [{"name": "Ingresos", "color": _GREEN,
                                     "values": [i for _, i, _ in daily]},
-                                   {"name": "Egresos", "color": "#ef4444",
+                                   {"name": "Egresos", "color": _RED,
                                     "values": [e for _, _, e in daily]}]}],
             "tables": [
                 {"title": "Cortes recientes",
@@ -342,17 +344,17 @@ class BiDashboardService:
         if tp:
             total = sum(v for _, v in tp) or 1.0
             out.append(HighlightCard("top_product", "Producto top", tp[0][0], tp[0][1],
-                                     round(tp[0][1] / total * 100, 1)))
+                                     round(tp[0][1] / total * 100, 1), drilldown="ventas"))
         bc = r["by_category"]
         if bc:
             total = sum(v for _, v in bc) or 1.0
             out.append(HighlightCard("top_category", "Categoría top", bc[0][0], bc[0][1],
-                                     round(bc[0][1] / total * 100, 1)))
+                                     round(bc[0][1] / total * 100, 1), drilldown="ventas"))
         bb = r["by_branch"]
         if bb:
             total = sum(v for _, v in bb) or 1.0
             out.append(HighlightCard("top_branch", "Sucursal top", bb[0][0], bb[0][1],
-                                     round(bb[0][1] / total * 100, 1)))
+                                     round(bb[0][1] / total * 100, 1), drilldown="ventas"))
         return out
 
     # ── Alertas (FASE 6) ──────────────────────────────────────────────────────
@@ -403,25 +405,28 @@ class BiDashboardService:
         if r["by_branch"]:
             n, v = r["by_branch"][0]
             ins.append(Insight("sucursal_top", f"Mayor venta en sucursal {n}",
-                               f"Lidera con ${v:,.2f} en el periodo."))
+                               f"Lidera con ${v:,.2f} en el periodo.", drilldown="ventas"))
         if r["by_category"]:
             n, v = r["by_category"][0]
             ins.append(Insight("categoria_oportunidad", f"Oportunidad en categoría {n}",
-                               f"Categoría líder con ${v:,.2f}; ampliar surtido y promos."))
+                               f"Categoría líder con ${v:,.2f}; ampliar surtido y promos.",
+                               drilldown="ventas"))
         if r["top_products"]:
             n, v = r["top_products"][0]
             ins.append(Insight("producto_top", f"Producto estrella: {n}",
-                               f"Genera ${v:,.2f} en ventas del periodo."))
+                               f"Genera ${v:,.2f} en ventas del periodo.", drilldown="ventas"))
         pm = r["payment_methods"]
         if pm:
             total = sum(v for _, v in pm) or 1.0
             n, v = pm[0]
             ins.append(Insight("metodo_pago", f"Método de pago dominante: {n}",
-                               f"Representa {v/total*100:.0f}% de la facturación."))
+                               f"Representa {v/total*100:.0f}% de la facturación.",
+                               drilldown="ventas"))
         if c["margen_pct"] > 0:
             ins.append(Insight("rentabilidad",
                                f"Margen del periodo: {c['margen_pct']:.1f}%",
-                               f"Utilidad neta estimada ${c['utilidad_neta']:,.2f}."))
+                               f"Utilidad neta estimada ${c['utilidad_neta']:,.2f}.",
+                               drilldown="finanzas"))
         return ins
 
     # ── Predicciones (FASE 5/6) ───────────────────────────────────────────────

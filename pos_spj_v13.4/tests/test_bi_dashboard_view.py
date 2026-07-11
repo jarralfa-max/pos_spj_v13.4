@@ -59,6 +59,24 @@ def test_kpi_sin_drilldown_no_enlaza():
     assert "spjdrill:" not in html
 
 
+def test_highlight_e_insight_con_drilldown_enlazan():
+    p = _payload()
+    p["highlights"]["top_product"]["drilldown"] = "ventas"
+    p["insights"][0]["drilldown"] = "finanzas"
+    html = render_dashboard_html(p)
+    assert "spjdrill:ventas" in html
+    assert "spjdrill:finanzas" in html
+
+
+def test_colores_provienen_de_tokens():
+    from modulos import bi_theme
+    from modulos.design_tokens import Colors
+    # el primario del BI es el primario del sistema (no un hex suelto)
+    assert bi_theme.ROLE["primary"] == Colors.PRIMARY_BASE
+    html = render_dashboard_html(_payload())
+    assert Colors.PRIMARY_BASE in html
+
+
 def test_render_incluye_kpis_charts_y_sidebar():
     html = render_dashboard_html(_payload())
     assert "Ventas netas" in html and "$1,245,680" in html
