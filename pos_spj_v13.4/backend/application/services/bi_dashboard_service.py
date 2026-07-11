@@ -83,6 +83,145 @@ class BiDashboardService:
         self._cache.clear()
         self._cache_ts.clear()
 
+    def filter_options(self) -> dict:
+        """Catálogos para los filtros globales de la UI."""
+        return self._q.filter_options()
+
+    def section_data(self, section: str, filters: DashboardFilters | None = None) -> dict:
+        """Datos de una pestaña detallada (mini-KPIs + charts + tablas).
+
+        Estructura estable: {section, title, kpis[], charts[], tables[]}.
+        """
+        f = (filters or DashboardFilters()).resolved()
+        builder = getattr(self, f"_section_{section}", None)
+        if builder is None:
+            return {"section": section, "title": section.title(),
+                    "kpis": [], "charts": [], "tables": []}
+        return builder(f)
+
+    # ── Secciones detalladas (FASE 8) ─────────────────────────────────────────
+
+    @staticmethod
+    def _mini(title, value, unit="$"):
+        return {"title": title, "value": round(float(value or 0), 2), "unit": unit}
+
+    @staticmethod
+    def _bars(title, pairs, color=_BLUE, unit="$"):
+        return {"kind": "bar", "title": title, "unit": unit,
+                "labels": [p[0] for p in pairs],
+                "series": [{"name": title, "color": color,
+                            "values": [p[1] for p in pairs]}]}
+
+    def _section_ventas(self, f) -> dict:
+        s = self._q.sales
+        t = s.sales_totals(f)
+        return {
+            "section": "ventas", "title": "Ventas",
+            "kpis": [self._mini("Ventas netas", t["ventas_netas"]),
+                     self._mini("Órdenes", t["ordenes"], ""),
+                     self._mini("Ticket promedio", t["ticket_promedio"])],
+            "charts": [self._bars("Ventas por sucursal", s.by_branch(f)),
+                       {"kind": "donut", "title": "Métodos de pago", "unit": "$",
+                        "labels": [m for m, _ in s.payment_methods(f)],
+                        "series": [{"name": "Total", "color": _BLUE,
+                                    "values": [v for _, v in s.payment_methods(f)]}]},
+                       {"kind": "line", "title": "Horas pico", "unit": "$",
+                        "labels": [h for h, _ in s.peak_hours(f)],
+                        "series": [{"name": "Ingresos", "color": _GREEN,
+                                    "values": [v for _, v in s.peak_hours(f)]}]}],
+            "tables": [
+                {"title": "Top productos", "columns": ["Producto", "Ingresos $"],
+                 "rows": [[n, f"${v:,.2f}"] for n, v in s.top_products(f)]},
+                {"title": "Top clientes", "columns": ["Cliente", "Visitas", "Total $"],
+                 "rows": [[c["nombre"], c["visitas"], f"${c['total']:,.2f}"]
+                          for c in s.top_customers(f)]}],
+        }
+
+    def _section_inventario(self, f) -> dict:
+        inv = self._q.inventory
+        cogs = self._q.sales.cost_of_goods(f)
+        val = inv.inventory_valued(f)
+        return {
+            "section": "inventario", "title": "Inventario",
+            "kpis": [self._mini("Inventario valorizado", val),
+                     self._mini("Rotación", (cogs / val) if val else 0, "x"),
+                     self._mini("Merma", inv.waste_value(f))],
+            "charts": [self._bars("Merma por categoría", inv.waste_by_category(f),
+                                  color=_GOLD)],
+            "tables": [
+                {"title": "Stock crítico", "columns": ["Producto", "Existencia", "Mínimo", "Unidad"],
+                 "rows": [[c["nombre"], c["existencia"], c["stock_minimo"], c["unidad"]]
+                          for c in inv.critical_stock(f)]}],
+        }
+
+    def _section_finanzas(self, f) -> dict:
+        m = self._q.core_metrics(f)
+        prof = self._q.sales.profitability_by_category(f)
+        return {
+            "section": "finanzas", "title": "Finanzas",
+            "kpis": [self._mini("Ventas netas", m["ventas_netas"]),
+                     self._mini("Utilidad neta", m["utilidad_neta"]),
+                     self._mini("Margen", m["margen_pct"], "%"),
+                     self._mini("Gastos", m["gastos"]),
+                     self._mini("CxC", m["cxc"]),
+                     self._mini("CxP", m["cxp"])],
+            "charts": [self._bars("Rentabilidad por categoría (margen $)",
+                                  [(c, mg) for c, mg, _ in prof], color=_GOLD)],
+            "tables": [],
+        }
+
+    def _section_merma(self, f) -> dict:
+        inv = self._q.inventory
+        val = inv.waste_value(f)
+        ventas = self._q.sales.sales_totals(f)["ventas_netas"]
+        return {
+            "section": "merma", "title": "Merma",
+            "kpis": [self._mini("Valor de merma", val),
+                     self._mini("Merma %", (val / ventas * 100) if ventas else 0, "%")],
+            "charts": [self._bars("Merma por categoría", inv.waste_by_category(f),
+                                  color=_GOLD)],
+            "tables": [],
+        }
+
+    def _section_compras(self, f) -> dict:
+        fin = self._q.finance
+        return {
+            "section": "compras", "title": "Compras",
+            "kpis": [self._mini("Compras del periodo", fin.purchases_total(f)),
+                     self._mini("CxP", fin.accounts_payable_total(f))],
+            "charts": [self._bars("Top proveedores",
+                                  [(s["nombre"], s["total"]) for s in fin.top_suppliers(f)])],
+            "tables": [
+                {"title": "Proveedores", "columns": ["Proveedor", "Comprado $"],
+                 "rows": [[s["nombre"], f"${s['total']:,.2f}"] for s in fin.top_suppliers(f)]}],
+        }
+
+    def _section_clientes(self, f) -> dict:
+        s = self._q.sales
+        return {
+            "section": "clientes", "title": "Clientes",
+            "kpis": [self._mini("CxC", self._q.finance.accounts_receivable_total(f))],
+            "charts": [self._bars("Top clientes",
+                                  [(c["nombre"], c["total"]) for c in s.top_customers(f)])],
+            "tables": [
+                {"title": "Top clientes", "columns": ["Cliente", "Visitas", "Total $"],
+                 "rows": [[c["nombre"], c["visitas"], f"${c['total']:,.2f}"]
+                          for c in s.top_customers(f)]}],
+        }
+
+    def _section_proveedores(self, f) -> dict:
+        fin = self._q.finance
+        return {
+            "section": "proveedores", "title": "Proveedores",
+            "kpis": [self._mini("CxP", fin.accounts_payable_total(f)),
+                     self._mini("Compras del periodo", fin.purchases_total(f))],
+            "charts": [self._bars("Top proveedores",
+                                  [(s["nombre"], s["total"]) for s in fin.top_suppliers(f)])],
+            "tables": [
+                {"title": "Proveedores", "columns": ["Proveedor", "Comprado $"],
+                 "rows": [[s["nombre"], f"${s['total']:,.2f}"] for s in fin.top_suppliers(f)]}],
+        }
+
     # ── KPIs (FASE 4) ─────────────────────────────────────────────────────────
 
     def _kpis(self, c: dict, p: dict) -> list[KpiCard]:

@@ -190,3 +190,57 @@ def render_dashboard_html(payload: dict) -> str:
         f"<div>{sidebar}</div>"
         "</div></div></body></html>"
     )
+
+
+# ── Vistas de secciones detalladas (FASE 8) ───────────────────────────────────
+
+def _mini_kpi(k: dict) -> str:
+    title = escape(str(k.get("title", "")))
+    value = _fmt_value(k.get("value", 0), k.get("unit", "$"))
+    return (f"<div style='background:{_CARD};border:1px solid {_BORDER};border-radius:10px;"
+            "padding:10px 14px;min-width:130px;flex:1;'>"
+            f"<div style='color:{_MUTED};font-size:10px;font-weight:700;"
+            f"text-transform:uppercase;'>{title}</div>"
+            f"<div style='color:{_FG};font-size:20px;font-weight:700;margin-top:4px;'>{value}</div></div>")
+
+
+def _table_card(tbl: dict) -> str:
+    title = escape(str(tbl.get("title", "")))
+    cols = tbl.get("columns", [])
+    rows = tbl.get("rows", [])
+    head = "".join(f"<th style='text-align:left;padding:6px 8px;color:{_MUTED};"
+                   f"border-bottom:1px solid {_BORDER};font-size:11px;'>{escape(str(c))}</th>"
+                   for c in cols)
+    body = ""
+    if rows:
+        for r in rows:
+            tds = "".join(f"<td style='padding:5px 8px;color:{_FG};font-size:12px;"
+                          f"border-bottom:1px solid {_BORDER};'>{escape(str(v))}</td>" for v in r)
+            body += f"<tr>{tds}</tr>"
+    else:
+        body = (f"<tr><td colspan='{max(1,len(cols))}' style='padding:10px;color:{_MUTED};"
+                "font-size:12px;'>Sin datos para el periodo seleccionado.</td></tr>")
+    return (f"<div style='background:{_CARD};border:1px solid {_BORDER};border-radius:10px;"
+            "padding:10px 12px;'>"
+            f"<div style='color:{_FG};font-size:13px;font-weight:700;margin-bottom:6px;'>{title}</div>"
+            f"<table style='width:100%;border-collapse:collapse;'><thead><tr>{head}</tr></thead>"
+            f"<tbody>{body}</tbody></table></div>")
+
+
+def render_section_html(data: dict) -> str:
+    """Renderiza una pestaña detallada (mini-KPIs + charts + tablas)."""
+    kpis = "".join(_mini_kpi(k) for k in data.get("kpis", []))
+    charts = "".join(_chart_card(c) for c in data.get("charts", []))
+    tables = "".join(_table_card(t) for t in data.get("tables", []))
+    return (
+        "<html><head><meta charset='utf-8'>"
+        f"<style>html,body{{margin:0;background:{_BG};color:{_FG};"
+        "font-family:Inter,Arial,sans-serif;}svg{display:block;width:100%;height:100%;}"
+        "*{box-sizing:border-box;}</style></head><body><div style='padding:12px;'>"
+        f"<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;'>{kpis}</div>"
+        f"<div style='display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));"
+        f"margin-bottom:12px;'>{charts}</div>"
+        f"<div style='display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));'>"
+        f"{tables}</div>"
+        "</div></body></html>"
+    )

@@ -75,3 +75,28 @@ def test_fmt_value_por_unidad():
 def test_render_payload_vacio_no_rompe():
     html = render_dashboard_html({})
     assert "<html" in html and "<script" not in html
+
+
+def test_render_section_html():
+    from modulos.bi_dashboard_view import render_section_html
+    data = {
+        "section": "ventas", "title": "Ventas",
+        "kpis": [{"title": "Ventas netas", "value": 150, "unit": "$"}],
+        "charts": [{"kind": "bar", "title": "Por sucursal", "labels": ["A"],
+                    "series": [{"name": "Ventas", "color": "#3b82f6", "values": [150]}],
+                    "unit": "$"}],
+        "tables": [{"title": "Top productos", "columns": ["Producto", "Ingresos $"],
+                    "rows": [["Pollo", "$150.00"]]}],
+    }
+    html = render_section_html(data)
+    assert "Ventas netas" in html and "$150" in html
+    assert "<svg" in html
+    assert "<table" in html and "Pollo" in html
+    assert "https://" not in html and "<script" not in html
+
+
+def test_render_section_tabla_vacia():
+    from modulos.bi_dashboard_view import render_section_html
+    html = render_section_html({"kpis": [], "charts": [],
+                                "tables": [{"title": "X", "columns": ["A"], "rows": []}]})
+    assert "Sin datos" in html

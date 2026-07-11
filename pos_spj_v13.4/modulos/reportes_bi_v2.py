@@ -58,11 +58,32 @@ class ModuloReportesBIv2(QWidget):
             subtitle="Dashboard ejecutivo de BI",
         )
 
-        # Período
-        self.cmb_rango = create_combo(self, ["Hoy", "Esta Semana", "Este Mes"])
-        self.cmb_rango.currentTextChanged.connect(self.cargar_dashboard)
+        # ── Filtros globales (afectan todo el dashboard, persisten en sesión) ──
+        self.cmb_rango = create_combo(
+            self, ["Hoy", "Ayer", "Esta Semana", "Este Mes", "Mes Pasado"])
+        self.cmb_rango.setCurrentText("Este Mes")
+        self.cmb_rango.currentTextChanged.connect(self._on_filters_changed)
         self.page_header.add_action(QLabel("Período:"))
         self.page_header.add_action(self.cmb_rango)
+
+        self.cmb_sucursal = create_combo(self, ["Todas"])
+        self.cmb_sucursal.currentIndexChanged.connect(self._on_filters_changed)
+        self.page_header.add_action(QLabel("Sucursal:"))
+        self.page_header.add_action(self.cmb_sucursal)
+
+        self.cmb_categoria = create_combo(self, ["Todas"])
+        self.cmb_categoria.currentIndexChanged.connect(self._on_filters_changed)
+        self.page_header.add_action(QLabel("Categoría:"))
+        self.page_header.add_action(self.cmb_categoria)
+
+        self.cmb_metodo = create_combo(self, ["Todos"])
+        self.cmb_metodo.currentIndexChanged.connect(self._on_filters_changed)
+        self.page_header.add_action(QLabel("Pago:"))
+        self.page_header.add_action(self.cmb_metodo)
+
+        self.btn_limpiar = create_secondary_button(self, "🧹 Limpiar", "Limpiar todos los filtros")
+        self.btn_limpiar.clicked.connect(self._limpiar_filtros)
+        self.page_header.add_action(self.btn_limpiar)
 
         # Refrescar
         self.btn_actualizar = create_secondary_button(self, "🔄 Refrescar", "Actualizar datos del dashboard")
@@ -99,6 +120,11 @@ class ModuloReportesBIv2(QWidget):
         # Forecast: existe un módulo dedicado de forecast; se retira la pestaña aquí.
         self._build_tab_decision_engine()
         self._build_tab_franchise()
+        self._build_section_tabs()
+
+        # Poblar filtros + lazy loading de secciones al cambiar de pestaña.
+        self._populate_filter_options()
+        self.tabs_bi.currentChanged.connect(self._on_tab_changed)
 
     def _crear_kpi_bar_bi(self) -> 'QFrame':
         """Barra de 4 KPI cards con valores reales del período actual."""
@@ -903,13 +929,128 @@ class ModuloReportesBIv2(QWidget):
         finally:
             self.loading_dashboard.setVisible(False)
 
+    _PRESET_MAP = {
+        "hoy": "today", "ayer": "yesterday", "esta semana": "week",
+        "este mes": "month", "mes pasado": "last_month",
+    }
+
     def _current_filters(self):
-        """Construye los DashboardFilters desde el selector de rango de la UI."""
+        """Construye DashboardFilters desde la barra de filtros globales de la UI."""
         from backend.application.dto.bi_dashboard_dto import DashboardFilters
-        rango = self.cmb_rango.currentText().lower()
-        preset = "today" if "hoy" in rango else "week" if "semana" in rango else "month"
-        branch = str(getattr(self, "sucursal_id", "") or "")
-        return DashboardFilters(preset=preset, branch_id=branch)
+        preset = self._PRESET_MAP.get(self.cmb_rango.currentText().strip().lower(), "month")
+        branch = self.cmb_sucursal.currentData() if hasattr(self, "cmb_sucursal") else ""
+        cat = self.cmb_categoria.currentData() if hasattr(self, "cmb_categoria") else ""
+        pay = self.cmb_metodo.currentData() if hasattr(self, "cmb_metodo") else ""
+        return DashboardFilters(
+            preset=preset, branch_id=str(branch or ""),
+            category=str(cat or ""), payment_method=str(pay or ""))
+
+    def _populate_filter_options(self):
+        """Rellena los combos de sucursal/categoría/método desde el servicio."""
+        svc = getattr(self.container, "bi_dashboard_service", None)
+        if svc is None:
+            return
+        try:
+            opts = svc.filter_options()
+        except Exception:
+            return
+        for combo, items in (
+            (self.cmb_sucursal, [(b["nombre"], b["id"]) for b in opts.get("branches", [])]),
+            (self.cmb_categoria, [(c, c) for c in opts.get("categories", [])]),
+            (self.cmb_metodo, [(str(m).replace("_", " ").title(), m)
+                               for m in opts.get("payment_methods", [])]),
+        ):
+            combo.blockSignals(True)
+            for label, data in items:
+                combo.addItem(label, data)
+            combo.blockSignals(False)
+
+    def _on_filters_changed(self, *_):
+        """Filtros cambiaron: invalida caché, marca secciones sucias y recarga."""
+        svc = getattr(self.container, "bi_dashboard_service", None)
+        if svc is not None:
+            try:
+                svc.invalidate_cache()
+            except Exception:
+                pass
+        self._section_dirty = {k: True for k in getattr(self, "_section_views", {})}
+        self.cargar_dashboard()
+        self._render_current_section()
+
+    def _limpiar_filtros(self):
+        """Restablece los filtros a sus valores por defecto."""
+        for combo in (getattr(self, "cmb_sucursal", None), getattr(self, "cmb_categoria", None),
+                      getattr(self, "cmb_metodo", None)):
+            if combo is not None:
+                combo.blockSignals(True)
+                combo.setCurrentIndex(0)
+                combo.blockSignals(False)
+        self.cmb_rango.setCurrentText("Este Mes")  # dispara _on_filters_changed
+
+    # ── Pestañas detalladas por sección (lazy) ────────────────────────────────
+
+    _SECTIONS = [
+        ("ventas", "🧾 Ventas"), ("inventario", "📦 Inventario"),
+        ("compras", "🛒 Compras"), ("clientes", "👥 Clientes"),
+        ("proveedores", "🚚 Proveedores"), ("finanzas", "💰 Finanzas"),
+        ("merma", "🗑️ Merma"),
+    ]
+
+    def _build_section_tabs(self):
+        self._section_views = {}
+        self._section_dirty = {}
+        allowed = self._allowed_sections()
+        for key, label in self._SECTIONS:
+            if key not in allowed:
+                continue
+            view = self._make_chart_view(min_height=360)
+            self._section_views[key] = view
+            self._section_dirty[key] = True
+            self.tabs_bi.addTab(view, label)
+
+    def _allowed_sections(self):
+        svc = getattr(self.container, "bi_dashboard_service", None)
+        if svc is None:
+            return {k for k, _ in self._SECTIONS}
+        try:
+            return set(svc.build_dashboard(self._current_filters()).allowed_sections)
+        except Exception:
+            return {k for k, _ in self._SECTIONS}
+
+    def _section_for_view(self, widget):
+        for key, view in getattr(self, "_section_views", {}).items():
+            if view is widget:
+                return key
+        return None
+
+    def _on_tab_changed(self, _index):
+        widget = self.tabs_bi.currentWidget()
+        key = self._section_for_view(widget)
+        if key:
+            self._render_section(key)
+
+    def _render_current_section(self):
+        widget = self.tabs_bi.currentWidget() if hasattr(self, "tabs_bi") else None
+        key = self._section_for_view(widget)
+        if key:
+            self._render_section(key)
+
+    def _render_section(self, key):
+        view = self._section_views.get(key)
+        if view is None or not hasattr(view, "setHtml"):
+            return
+        if not self._section_dirty.get(key, True):
+            return
+        svc = getattr(self.container, "bi_dashboard_service", None)
+        if svc is None:
+            return
+        from modulos.bi_dashboard_view import render_section_html
+        try:
+            data = svc.section_data(key, self._current_filters())
+            view.setHtml(render_section_html(data))
+            self._section_dirty[key] = False
+        except Exception:
+            pass
 
     def _render_echarts_dashboard(self, data: dict) -> None:
         """Dashboard visual compuesto consumiendo BiDashboardService (payload).

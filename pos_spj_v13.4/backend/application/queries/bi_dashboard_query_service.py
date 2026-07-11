@@ -53,6 +53,24 @@ class BiDashboardQueryService:
         prev = replace(f, preset="custom", date_from=pf, date_to=pt)
         return self.core_metrics(prev)
 
+    def filter_options(self) -> dict:
+        """Catálogos para poblar los filtros globales (sin SQL en la UI)."""
+        def _q(sql):
+            try:
+                return self.sales._conn.execute(sql).fetchall()
+            except Exception:
+                return []
+        branches = [{"id": str(r[0]), "nombre": r[1]} for r in _q(
+            "SELECT id, nombre FROM sucursales WHERE COALESCE(activa,1)=1 ORDER BY nombre")]
+        categories = [r[0] for r in _q(
+            "SELECT DISTINCT categoria FROM productos "
+            "WHERE COALESCE(categoria,'')<>'' ORDER BY categoria")]
+        payments = [r[0] for r in _q(
+            "SELECT DISTINCT forma_pago FROM ventas "
+            "WHERE COALESCE(forma_pago,'')<>'' ORDER BY forma_pago")]
+        return {"branches": branches, "categories": categories,
+                "payment_methods": payments}
+
     def chart_bundle(self, f) -> dict:
         """Series para los charts del dashboard."""
         return {
