@@ -113,6 +113,39 @@ def test_pricing_detecta_costo_en_costo_promedio(db):
     assert any(s.tipo == "pricing" for s in sugs)
 
 
+def test_sugerencias_sin_costos_produce_insights_de_ventas(db):
+    """El motor debe entregar insights aunque los productos no tengan costo."""
+    from core.services.decision_engine import DecisionEngine
+    suc = new_uuid()
+    db.execute("INSERT INTO sucursales (id,nombre,activa) VALUES (?,?,1)",
+               (suc, "San Bartolo"))
+    pid = _producto(db, "Pechuga", 100.0, "costo", 0.0, categoria="Aves")  # sin costo
+    for _ in range(4):
+        vid = _venta(db, suc, 200.0)
+        _detalle(db, vid, pid, cantidad=2, precio_unit=100.0)
+    db.commit()
+    sugs = DecisionEngine(db, module_config=None).generar_sugerencias(sucursal_id=suc)
+    titulos = " | ".join(s["titulo"] for s in sugs)
+    assert sugs, "debe haber al menos un insight"
+    assert "San Bartolo" in titulos      # sucursal líder
+    assert "Aves" in titulos             # categoría líder
+
+
+def test_persist_decision_log_usa_columnas_correctas(db):
+    """_persist inserta en decision_log con id UUID y columnas reales del schema."""
+    from core.services.decision_engine import DecisionEngine, Suggestion
+    eng = DecisionEngine(db, module_config=None)
+    eng._persist(Suggestion(tipo="pricing", prioridad="alta", titulo="X",
+                            impacto_estimado="Y"), sucursal_id="suc-1")
+    row = db.execute(
+        "SELECT id, tipo, impacto_est, accion, sucursal_id FROM decision_log"
+    ).fetchone()
+    assert row is not None
+    assert row["id"] and len(str(row["id"])) >= 32   # UUID explícito
+    assert row["impacto_est"] == "Y"
+    assert row["sucursal_id"] == "suc-1"
+
+
 # ── Bug 3 ────────────────────────────────────────────────────────────────────
 
 def test_franchise_ranking_keys_y_margen_bruto(db):
