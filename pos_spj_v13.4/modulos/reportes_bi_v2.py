@@ -925,47 +925,24 @@ class ModuloReportesBIv2(QWidget):
             self._chart_view.hide()
             return
 
-        from modulos.bi_charts import dashboard_html
+        from modulos.bi_dashboard_view import render_dashboard_html
         try:
-            payload = svc.build_dashboard(self._current_filters())
+            payload = svc.build_dashboard(self._current_filters()).to_dict()
         except Exception:
             self._chart_empty.show()
             self._chart_view.hide()
             return
 
-        charts = payload.charts  # dict key → {kind,title,labels,series,unit}
-
-        def _panel(key):
-            c = charts.get(key)
-            if not c:
-                return None
-            kind = c["kind"]
-            title = c["title"]
-            series = c.get("series", [])
-            if kind in ("line",):
-                return {"kind": "line", "title": title,
-                        "series": [(s["name"], s["values"], s["color"]) for s in series],
-                        "labels": c.get("labels", [])}
-            values = series[0]["values"] if series else []
-            color = series[0].get("color", "#3b82f6") if series else "#3b82f6"
-            return {"kind": kind, "title": title, "labels": c.get("labels", []),
-                    "values": values, "color": color}
-
-        keys = ["sales_trend", "branch_sales", "top_products", "payment_methods",
-                "peak_hours", "profitability"]
-        panels = [p for p in (_panel(k) for k in keys) if p]
-        has_data = any(
-            (pp.get("values") and any(pp["values"])) or
-            any(any(v or 0 for v in vals) for _, vals, _ in pp.get("series", []))
-            for pp in panels
-        )
-        if not panels or not has_data:
+        # ¿Hay datos? (al menos una KPI de ventas > 0 o algún chart con valores)
+        kpis = {k["key"]: k for k in payload.get("kpis", [])}
+        ventas = float(kpis.get("ventas_netas", {}).get("value", 0) or 0)
+        if ventas <= 0 and not payload.get("charts"):
             self._chart_empty.show()
             self._chart_view.hide()
             return
         self._chart_empty.hide()
         self._chart_view.show()
-        self._chart_view.setHtml(dashboard_html(panels))
+        self._chart_view.setHtml(render_dashboard_html(payload))
 
     # ── Chart helpers reutilizables por pestaña (offline SVG) ─────────────────
 

@@ -10,6 +10,7 @@ from .architecture_guardrails import (
 _BI_UI_FILES = (
     APP_ROOT / "modulos" / "reportes_bi_v2.py",
     APP_ROOT / "modulos" / "bi_charts.py",
+    APP_ROOT / "modulos" / "bi_dashboard_view.py",
 )
 
 
