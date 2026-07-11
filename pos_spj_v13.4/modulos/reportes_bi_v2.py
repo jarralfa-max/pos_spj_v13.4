@@ -145,6 +145,15 @@ class ModuloReportesBIv2(QWidget):
         """Dashboard visual moderno con QWebEngineView + Apache ECharts."""
         tab, layout = self._crear_tab_contenedor()
 
+        # Fila de KPIs nativos (mismas KPICard que el módulo de Inventario).
+        self._kpi_cards = {}
+        self._kpi_row = QWidget()
+        self._kpi_grid = QGridLayout(self._kpi_row)
+        self._kpi_grid.setContentsMargins(0, 0, 0, 0)
+        self._kpi_grid.setHorizontalSpacing(8)
+        self._kpi_grid.setVerticalSpacing(8)
+        layout.addWidget(self._kpi_row)
+
         self._chart_empty = EmptyStateWidget(
             "Sin datos para graficar",
             "No hay movimientos suficientes para construir el dashboard visual.",
@@ -832,12 +841,24 @@ class ModuloReportesBIv2(QWidget):
             category=str(cat or ""), payment_method=str(pay or ""))
 
     def _current_theme(self) -> str:
-        """Tema activo ('dark'/'light') leído de ConfigService (theme-aware)."""
+        """Tema activo ('dark'/'light'). Preferencia almacenada + fallback paleta."""
         from modulos.bi_theme import normalize_theme
+        # 1) Preferencia del usuario (ThemeService — sin SQL en la UI).
         try:
-            cfg = getattr(self.container, "config_service", None)
-            val = cfg.get("tema") if cfg is not None else None
-            return normalize_theme(val or "dark")
+            db = getattr(self.container, "db", None)
+            if db is not None:
+                from core.services.theme_service import ThemeService
+                pref = ThemeService(db).get_user_preferences().get("theme")
+                if pref:
+                    return normalize_theme(pref)  # 'Oscuro'→dark, 'Claro'→light
+        except Exception:
+            pass
+        # 2) Fallback: luminancia del fondo real del widget.
+        try:
+            from PyQt5.QtGui import QPalette
+            c = self.palette().color(QPalette.Window)
+            lum = 0.299 * c.red() + 0.587 * c.green() + 0.114 * c.blue()
+            return "light" if lum > 140 else "dark"
         except Exception:
             return "dark"
 
@@ -1098,22 +1119,21 @@ class ModuloReportesBIv2(QWidget):
         Canonical route: UI → BiDashboardService → query services → DB. La UI sólo
         transforma el payload en paneles SVG (offline, sin CDN).
         """
-        if not getattr(self, "_chart_view", None):
-            return
         svc = getattr(self.container, "bi_dashboard_service", None)
         if svc is None:
-            self._chart_empty.show()
-            self._chart_view.hide()
             return
-
         from modulos.bi_dashboard_view import render_dashboard_html
         try:
             payload = svc.build_dashboard(self._current_filters()).to_dict()
         except Exception:
-            self._chart_empty.show()
-            self._chart_view.hide()
             return
 
+        # KPIs como tarjetas nativas (estilo Inventario) — siempre, aunque el
+        # web view de gráficas no esté disponible en este entorno.
+        self._update_kpi_cards(payload.get("kpis", []))
+
+        if not getattr(self, "_chart_view", None):
+            return
         # ¿Hay datos? (al menos una KPI de ventas > 0 o algún chart con valores)
         kpis = {k["key"]: k for k in payload.get("kpis", [])}
         ventas = float(kpis.get("ventas_netas", {}).get("value", 0) or 0)
@@ -1123,7 +1143,75 @@ class ModuloReportesBIv2(QWidget):
             return
         self._chart_empty.hide()
         self._chart_view.show()
-        self._chart_view.setHtml(render_dashboard_html(payload, theme=self._current_theme()))
+        self._chart_view.setHtml(render_dashboard_html(
+            payload, theme=self._current_theme(), include_kpis=False))
+
+    # ── KPI cards nativas (iguales a las del módulo Inventario) ────────────────
+
+    @staticmethod
+    def _fmt_kpi(k: dict) -> str:
+        v = float(k.get("value", 0) or 0)
+        u = k.get("unit", "")
+        if u == "%":
+            return f"{v:.1f}%"
+        if u == "x":
+            return f"{v:.2f}x"
+        if u == "":
+            return f"{int(round(v)):,}"
+        return f"${v:,.0f}"
+
+    @staticmethod
+    def _kpi_tooltip(k: dict) -> str:
+        dp, pts = k.get("delta_pct"), k.get("delta_points")
+        comp = (f"{dp:+.1f}% vs periodo anterior" if dp is not None
+                else f"{pts:+.2f} pp vs periodo anterior" if pts is not None else "")
+        base = k.get("tooltip") or k.get("formula") or ""
+        return " · ".join(x for x in (base, comp) if x)
+
+    def _update_kpi_cards(self, kpis: list) -> None:
+        """Crea (una vez) y actualiza la fila de KPICard nativas desde el payload."""
+        if not hasattr(self, "_kpi_grid"):
+            return
+        from modulos.kpi_card import KPICard
+        if not self._kpi_cards:
+            cols = 5
+            for i, k in enumerate(kpis):
+                card = KPICard(k.get("title", ""), self._fmt_kpi(k),
+                               k.get("icon", "📊"), k.get("variant", "primary"))
+                card.setToolTip(self._kpi_tooltip(k))
+                self._kpi_cards[k["key"]] = card
+                drill = k.get("drilldown", "")
+                widget = card
+                if drill:
+                    btn = QPushButton()
+                    btn.setFlat(True)
+                    btn.setCursor(Qt.PointingHandCursor)
+                    bl = QHBoxLayout(btn)
+                    bl.setContentsMargins(0, 0, 0, 0)
+                    bl.addWidget(card)
+                    btn.clicked.connect(lambda _, s=drill: self._go_to_section(s))
+                    widget = btn
+                self._kpi_grid.addWidget(widget, i // cols, i % cols)
+        else:
+            for k in kpis:
+                card = self._kpi_cards.get(k["key"])
+                if card is not None:
+                    card.set_valor(self._fmt_kpi(k))
+                    card.setToolTip(self._kpi_tooltip(k))
+
+    def changeEvent(self, event):
+        """Re-renderiza las gráficas al cambiar el tema (paleta) de la app."""
+        try:
+            from PyQt5.QtCore import QEvent
+            if event.type() in (QEvent.PaletteChange, QEvent.StyleChange,
+                                QEvent.ApplicationPaletteChange):
+                if getattr(self, "_chart_view", None) is not None:
+                    self._render_echarts_dashboard({})
+                self._section_dirty = {k: True for k in getattr(self, "_section_views", {})}
+                self._render_current_section()
+        except Exception:
+            pass
+        super().changeEvent(event)
 
     # ── Chart helpers reutilizables por pestaña (offline SVG) ─────────────────
 

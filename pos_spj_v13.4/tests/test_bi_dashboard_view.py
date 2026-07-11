@@ -92,6 +92,13 @@ def test_kpi_card_incluye_icono():
     assert "💵" in html   # icono de Ventas netas
 
 
+def test_include_kpis_false_omite_fila_kpis():
+    html = render_dashboard_html(_payload(), include_kpis=False)
+    # sin KPIs en el HTML (van como KPICard nativas), pero con charts
+    assert "Ventas netas" not in html
+    assert "<svg" in html
+
+
 def test_section_theme_aware():
     from modulos import bi_theme
     from modulos.bi_dashboard_view import render_section_html

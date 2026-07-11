@@ -99,13 +99,15 @@ class KpiCard:
     drilldown: str = ""             # target tab key
     formula: str = ""               # documented formula
     icon: str = ""                  # emoji icon for the card
+    variant: str = "primary"        # KPICard accent: primary|success|danger|warning|info
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
 def make_kpi(key, title, value, previous, *, unit="$", higher_is_better=True,
-             is_percent=False, tooltip="", drilldown="", formula="", icon="") -> KpiCard:
+             is_percent=False, tooltip="", drilldown="", formula="", icon="",
+             variant="primary") -> KpiCard:
     """Build a KpiCard computing delta + direction + semantic color."""
     value = float(value or 0)
     previous = float(previous or 0)
@@ -134,6 +136,7 @@ def make_kpi(key, title, value, previous, *, unit="$", higher_is_better=True,
         previous_value=round(previous, 2), delta_pct=delta_pct,
         delta_points=delta_points, direction=direction, semantic=semantic,
         tooltip=tooltip, drilldown=drilldown, formula=formula, icon=icon,
+        variant=variant,
     )
 
 

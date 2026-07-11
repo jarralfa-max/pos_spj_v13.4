@@ -170,8 +170,13 @@ _CHART_ORDER = ("sales_trend", "branch_sales", "top_products", "categories",
                 "payment_methods", "peak_hours", "forecast", "profitability")
 
 
-def render_dashboard_html(payload: dict, theme: str = "dark") -> str:
-    """Dashboard ejecutivo completo desde el payload, según el tema activo."""
+def render_dashboard_html(payload: dict, theme: str = "dark",
+                          include_kpis: bool = True) -> str:
+    """Dashboard ejecutivo completo desde el payload, según el tema activo.
+
+    include_kpis=False omite la fila de KPIs (la UI los muestra como KPICard
+    nativas, igual que el módulo de Inventario).
+    """
     pal = bi_theme.surface(theme)
     kpis = payload.get("kpis", [])
     charts = payload.get("charts", {})
@@ -180,7 +185,7 @@ def render_dashboard_html(payload: dict, theme: str = "dark") -> str:
     insights = payload.get("insights", [])
     predictions = payload.get("predictions", {})
 
-    kpi_row = "".join(_kpi_card(k, pal) for k in kpis)
+    kpi_row = "".join(_kpi_card(k, pal) for k in kpis) if include_kpis else ""
     chart_cards = "".join(_chart_card(charts[k], pal) for k in _CHART_ORDER if k in charts)
 
     side = []
@@ -199,9 +204,11 @@ def render_dashboard_html(payload: dict, theme: str = "dark") -> str:
         side.extend(_insight_item(i, pal) for i in insights)
     sidebar = "".join(side)
 
+    kpi_block = (f"<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;'>{kpi_row}</div>"
+                 if kpi_row else "")
     body = (
         "<div style='padding:12px;'>"
-        f"<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;'>{kpi_row}</div>"
+        f"{kpi_block}"
         "<div style='display:grid;grid-template-columns:minmax(0,3fr) minmax(220px,1fr);gap:12px;'>"
         "<div style='display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));'>"
         f"{chart_cards}</div>"
