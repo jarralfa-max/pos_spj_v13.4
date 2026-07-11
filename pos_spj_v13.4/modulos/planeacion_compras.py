@@ -146,9 +146,8 @@ class ModuloPlaneacionCompras(QWidget):
     def cargar_productos(self):
         self.cmb_producto.clear()
         try:
-            cursor = self.container.db.cursor()
-            # Cargar productos que tengan ventas previas para evitar modelos vacíos
-            rows = cursor.execute("SELECT id, nombre FROM productos WHERE activo = 1 ORDER BY nombre").fetchall()
+            from repositories.productos import ProductoRepository
+            rows = ProductoRepository(self.container.db).listar_activos_combo()
             for row in rows:
                 self.cmb_producto.addItem(row['nombre'], row['id'])
         except Exception as e:
@@ -269,19 +268,11 @@ class ModuloPlaneacionCompras(QWidget):
         producto_id   = self.cmb_producto.currentData()
         producto_nom  = self.cmb_producto.currentText()
 
-        # Look up last purchase cost for this product as a price hint
+        # Look up last purchase cost for this product as a price hint (via repo)
         unit_cost = 0.0
         try:
-            row = self.container.db.execute(
-                """SELECT dd.precio_unitario
-                   FROM detalles_compra dd
-                   JOIN compras c ON c.id = dd.compra_id
-                   WHERE dd.producto_id = ?
-                   ORDER BY c.fecha DESC, c.id DESC LIMIT 1""",
-                (producto_id,),
-            ).fetchone()
-            if row:
-                unit_cost = float(row[0] or 0)
+            from repositories.purchase_repository import PurchaseRepository
+            unit_cost = PurchaseRepository(self.container.db).ultimo_costo_unitario(producto_id)
         except Exception:
             pass
 

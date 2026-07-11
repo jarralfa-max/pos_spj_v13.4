@@ -29,7 +29,8 @@ SQL_IN_UI_ALLOWLIST = {
     # Los 3 restantes son falsos positivos de SQL_RE sobre `.update(` de dicts
     # (self.plantilla.update / d.update), no SQL.
     'pos_spj_v13.4/modulos/loyalty_card_designer.py': 3,
-    'pos_spj_v13.4/modulos/planeacion_compras.py': 2,
+    # planeacion_compras.py: SQL → ProductoRepository.listar_activos_combo +
+    # PurchaseRepository.ultimo_costo_unitario (Remediación F).
     # recepcion_qr_widget.py: SQL 100% extraído a RecepcionQRService (Remediación F).
     # reportes_bi_v2.py: KPIs → BIRepository.get_kpis_dia; fallback PDF →
     # ExportService.export_ventas_hoy_pdf (Remediación F).

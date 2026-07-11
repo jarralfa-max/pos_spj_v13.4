@@ -183,6 +183,12 @@ class ProductoRepository:
             (int(limite),),
         ).fetchall()
 
+    def listar_activos_combo(self) -> list:
+        """(id, nombre) de productos activos para poblar combos. Filas crudas."""
+        return self.db.execute(
+            "SELECT id, nombre FROM productos WHERE activo = 1 ORDER BY nombre"
+        ).fetchall()
+
     def check_name_available(self, nombre: str,
                               exclude_id: Optional[str] = None) -> bool:
         normalised = nombre.strip().lower()
