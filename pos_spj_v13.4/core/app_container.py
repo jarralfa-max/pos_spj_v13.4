@@ -651,6 +651,30 @@ class AppContainer:
             self.analytics_engine = None
             logger.debug("AnalyticsEngine: %s", _anae)
 
+        # ── BI dashboard (query layer + application service) ─────────────────
+        try:
+            from backend.application.queries.bi_dashboard_query_service import (
+                BiDashboardQueryService,
+            )
+            from backend.application.services.bi_dashboard_service import (
+                BiDashboardService,
+            )
+
+            def _bi_can(perm: str) -> bool:
+                checker = getattr(self, "has_permission", None)
+                if callable(checker):
+                    try:
+                        return bool(checker(perm))
+                    except Exception:
+                        return True
+                return True
+
+            self.bi_dashboard_service = BiDashboardService(
+                BiDashboardQueryService(self.db), permission_checker=_bi_can)
+        except Exception as _bie:
+            self.bi_dashboard_service = None
+            logger.debug("BiDashboardService: %s", _bie)
+
         # ── ERP FASE 8: FiscalEngine ─────────────────────────────────────────
         try:
             from core.services.finance.fiscal_engine import FiscalEngine

@@ -1,0 +1,260 @@
+"""BiDashboardService — orchestrates the executive BI dashboard payload.
+
+Responsibilities:
+  · resolve filters (dates, branch, etc.);
+  · compute the 10 KPI cards (with documented formulas and period comparison);
+  · assemble charts, highlights, alerts, insights and predictions;
+  · gate sections by permission;
+  · cache payloads per (filters) during the session.
+
+No SQL here — all data comes from injected query services. UI/API consume the
+returned DashboardPayload (Spanish user-facing strings, UUIDv7 identity).
+"""
+from __future__ import annotations
+
+import time
+
+from backend.application.dto.bi_dashboard_dto import (
+    Alert, ChartData, DashboardFilters, DashboardPayload, HighlightCard,
+    Insight, KpiCard, Prediction, make_kpi,
+)
+
+_BLUE, _GOLD, _GREEN = "#3b82f6", "#eab308", "#22c55e"
+
+# Todas las secciones (pestañas) del módulo BI.
+ALL_SECTIONS = (
+    "resumen", "ventas", "inventario", "compras", "caja", "clientes",
+    "proveedores", "finanzas", "merma", "reportes", "configuracion",
+)
+# Permiso requerido por sección (permission-key). "resumen" siempre visible.
+SECTION_PERMISSION = {
+    "ventas": "BI.ver_ventas",
+    "inventario": "BI.ver_inventario",
+    "compras": "BI.ver_compras",
+    "caja": "BI.ver_ventas",
+    "clientes": "BI.ver_clientes",
+    "proveedores": "BI.ver_proveedores",
+    "finanzas": "BI.ver_finanzas",
+    "merma": "BI.ver_inventario",
+    "reportes": "BI.exportar",
+    "configuracion": "BI.configurar",
+}
+
+
+class BiDashboardService:
+    def __init__(self, query_service, permission_checker=None, cache_ttl: int = 60):
+        """query_service: BiDashboardQueryService.
+        permission_checker: callable(permission_key) -> bool (optional).
+        """
+        self._q = query_service
+        self._can = permission_checker or (lambda perm: True)
+        self._ttl = cache_ttl
+        self._cache: dict = {}
+        self._cache_ts: dict = {}
+
+    # ── Público ───────────────────────────────────────────────────────────────
+
+    def build_dashboard(self, filters: DashboardFilters | None = None) -> DashboardPayload:
+        f = (filters or DashboardFilters()).resolved()
+        key = str(f.to_dict())
+        now = time.monotonic()
+        if key in self._cache and now - self._cache_ts.get(key, 0) < self._ttl:
+            return self._cache[key]
+
+        cur = self._q.core_metrics(f)
+        prev = self._q.previous_metrics(f)
+        charts_raw = self._q.chart_bundle(f)
+
+        payload = DashboardPayload(
+            filters=f.to_dict(),
+            kpis=[k.to_dict() for k in self._kpis(cur, prev)],
+            charts={c.key: c.to_dict() for c in self._charts(charts_raw)},
+            highlights={h.key: h.to_dict() for h in self._highlights(charts_raw)},
+            alerts=[a.to_dict() for a in self._alerts(cur, prev, charts_raw)],
+            predictions={p.key: p.to_dict() for p in self._predictions(f)},
+            insights=[i.to_dict() for i in self._insights(cur, charts_raw)],
+            allowed_sections=self._allowed_sections(),
+        )
+        self._cache[key] = payload
+        self._cache_ts[key] = now
+        return payload
+
+    def invalidate_cache(self) -> None:
+        self._cache.clear()
+        self._cache_ts.clear()
+
+    # ── KPIs (FASE 4) ─────────────────────────────────────────────────────────
+
+    def _kpis(self, c: dict, p: dict) -> list[KpiCard]:
+        return [
+            make_kpi("ventas_netas", "Ventas netas", c["ventas_netas"], p["ventas_netas"],
+                     unit="$", tooltip="Total vendido (completadas) del periodo.",
+                     drilldown="ventas", formula="SUM(ventas.total) estado='completada'"),
+            make_kpi("utilidad_neta", "Utilidad neta", c["utilidad_neta"], p["utilidad_neta"],
+                     unit="$", tooltip="Ventas netas − costo de ventas − gastos.",
+                     drilldown="finanzas", formula="ventas_netas - costo_ventas - gastos"),
+            make_kpi("margen", "Margen %", c["margen_pct"], p["margen_pct"], unit="%",
+                     is_percent=True, tooltip="Utilidad neta / ventas netas × 100.",
+                     drilldown="finanzas", formula="utilidad_neta / ventas_netas * 100"),
+            make_kpi("ticket_promedio", "Ticket promedio", c["ticket_promedio"],
+                     p["ticket_promedio"], unit="$",
+                     tooltip="Ventas netas / número de órdenes.",
+                     drilldown="ventas", formula="ventas_netas / ordenes"),
+            make_kpi("ordenes", "Órdenes", c["ordenes"], p["ordenes"], unit="",
+                     tooltip="Número de ventas completadas.", drilldown="ventas",
+                     formula="COUNT(ventas) estado='completada'"),
+            make_kpi("inventario_valorizado", "Inventario valorizado",
+                     c["inventario_valorizado"], p["inventario_valorizado"], unit="$",
+                     tooltip="Σ existencia_sucursal × costo del producto.",
+                     drilldown="inventario", formula="SUM(inventory_stock.quantity * costo)"),
+            make_kpi("cxc", "CxC (Clientes)", c["cxc"], p["cxc"], unit="$",
+                     higher_is_better=False, tooltip="Saldo pendiente de clientes.",
+                     drilldown="clientes", formula="SUM(accounts_receivable.balance>0)"),
+            make_kpi("cxp", "CxP (Proveedores)", c["cxp"], p["cxp"], unit="$",
+                     higher_is_better=False, tooltip="Saldo pendiente a proveedores.",
+                     drilldown="proveedores", formula="SUM(accounts_payable.balance>0)"),
+            make_kpi("merma", "Merma %", c["merma_pct"], p["merma_pct"], unit="%",
+                     is_percent=True, higher_is_better=False,
+                     tooltip="Valor de merma / ventas netas × 100.",
+                     drilldown="merma", formula="merma_valor / ventas_netas * 100"),
+            make_kpi("rotacion", "Rotación inventario", c["rotacion"], p["rotacion"],
+                     unit="x", tooltip="Costo de ventas / inventario valorizado.",
+                     drilldown="inventario", formula="costo_ventas / inventario_valorizado"),
+        ]
+
+    # ── Charts (FASE 5) ───────────────────────────────────────────────────────
+
+    def _charts(self, r: dict) -> list[ChartData]:
+        m = r["monthly"]
+        prof = r["profitability"]
+        return [
+            ChartData("sales_trend", "line", "Evolución de ventas y utilidad",
+                      labels=m["labels"], series=[
+                          {"name": "Ventas", "color": _BLUE, "values": m["ventas"]},
+                          {"name": "Utilidad", "color": _GOLD, "values": m["utilidad"]}]),
+            ChartData("branch_sales", "bar", "Ventas por sucursal",
+                      labels=[n for n, _ in r["by_branch"]],
+                      series=[{"name": "Ventas", "color": _BLUE,
+                               "values": [v for _, v in r["by_branch"]]}]),
+            ChartData("top_products", "hbar", "Top productos",
+                      labels=[n for n, _ in r["top_products"]],
+                      series=[{"name": "Ingresos", "color": _BLUE,
+                               "values": [v for _, v in r["top_products"]]}]),
+            ChartData("categories", "bar", "Categorías",
+                      labels=[n for n, _ in r["by_category"]],
+                      series=[{"name": "Ventas", "color": _BLUE,
+                               "values": [v for _, v in r["by_category"]]}]),
+            ChartData("payment_methods", "donut", "Métodos de pago",
+                      labels=[n for n, _ in r["payment_methods"]],
+                      series=[{"name": "Total", "color": _BLUE,
+                               "values": [v for _, v in r["payment_methods"]]}]),
+            ChartData("peak_hours", "line", "Horas pico de venta",
+                      labels=[h for h, _ in r["peak_hours"]],
+                      series=[{"name": "Ingresos", "color": _GREEN,
+                               "values": [v for _, v in r["peak_hours"]]}]),
+            ChartData("forecast", "line", "Forecast de demanda",
+                      labels=r["forecast"]["labels"], unit="$", series=[
+                          {"name": "Real", "color": _BLUE, "values": r["forecast"]["real"]},
+                          {"name": "Pronóstico", "color": _GOLD,
+                           "values": r["forecast"]["pronostico"]}]),
+            ChartData("profitability", "bar", "Rentabilidad por línea (margen $)",
+                      labels=[c for c, _, _ in prof],
+                      series=[{"name": "Margen", "color": _GOLD,
+                               "values": [mg for _, mg, _ in prof]}]),
+        ]
+
+    # ── Highlights (FASE 5) ───────────────────────────────────────────────────
+
+    def _highlights(self, r: dict) -> list[HighlightCard]:
+        out = []
+        tp = r["top_products"]
+        if tp:
+            total = sum(v for _, v in tp) or 1.0
+            out.append(HighlightCard("top_product", "Producto top", tp[0][0], tp[0][1],
+                                     round(tp[0][1] / total * 100, 1)))
+        bc = r["by_category"]
+        if bc:
+            total = sum(v for _, v in bc) or 1.0
+            out.append(HighlightCard("top_category", "Categoría top", bc[0][0], bc[0][1],
+                                     round(bc[0][1] / total * 100, 1)))
+        bb = r["by_branch"]
+        if bb:
+            total = sum(v for _, v in bb) or 1.0
+            out.append(HighlightCard("top_branch", "Sucursal top", bb[0][0], bb[0][1],
+                                     round(bb[0][1] / total * 100, 1)))
+        return out
+
+    # ── Alertas (FASE 6) ──────────────────────────────────────────────────────
+
+    def _alerts(self, c: dict, p: dict, r: dict) -> list[Alert]:
+        alerts: list[Alert] = []
+        if c["merma_pct"] > 3:
+            alerts.append(Alert("critical", "merma_alta", "Merma alta",
+                                 f"La merma es {c['merma_pct']:.1f}% de las ventas "
+                                 f"(${c['merma_valor']:,.2f}). Revisar cadena de frío y porciones.",
+                                 c["merma_pct"]))
+        if p["ventas_netas"] > 0 and c["ventas_netas"] < p["ventas_netas"] * 0.8:
+            caida = (1 - c["ventas_netas"] / p["ventas_netas"]) * 100
+            alerts.append(Alert("warning", "caida_ventas", "Caída de ventas",
+                                 f"Las ventas bajaron {caida:.1f}% vs el periodo anterior.", caida))
+        if p["cxc"] > 0 and c["cxc"] > p["cxc"] * 1.25:
+            alerts.append(Alert("warning", "cxc_alta", "Aumento de CxC",
+                                 f"Las cuentas por cobrar subieron a ${c['cxc']:,.2f}.", c["cxc"]))
+        if c["ventas_netas"] > 0 and c["margen_pct"] < 10:
+            alerts.append(Alert("warning", "margen_bajo", "Utilidad baja pese a ventas",
+                                 f"El margen es {c['margen_pct']:.1f}% pese a ${c['ventas_netas']:,.2f} "
+                                 "en ventas. Revisar costos y gastos.", c["margen_pct"]))
+        if p["compras"] > 0 and c["compras"] > p["compras"] * 1.3 and \
+                c["ventas_netas"] <= p["ventas_netas"] * 1.05:
+            alerts.append(Alert("warning", "compras_sin_venta", "Compras sin correlación de ventas",
+                                 "Las compras crecieron sin un aumento equivalente de ventas.",
+                                 c["compras"]))
+        return alerts
+
+    # ── Insights (FASE 6) ─────────────────────────────────────────────────────
+
+    def _insights(self, c: dict, r: dict) -> list[Insight]:
+        ins: list[Insight] = []
+        if r["by_branch"]:
+            n, v = r["by_branch"][0]
+            ins.append(Insight("sucursal_top", f"Mayor venta en sucursal {n}",
+                               f"Lidera con ${v:,.2f} en el periodo."))
+        if r["by_category"]:
+            n, v = r["by_category"][0]
+            ins.append(Insight("categoria_oportunidad", f"Oportunidad en categoría {n}",
+                               f"Categoría líder con ${v:,.2f}; ampliar surtido y promos."))
+        if r["top_products"]:
+            n, v = r["top_products"][0]
+            ins.append(Insight("producto_top", f"Producto estrella: {n}",
+                               f"Genera ${v:,.2f} en ventas del periodo."))
+        pm = r["payment_methods"]
+        if pm:
+            total = sum(v for _, v in pm) or 1.0
+            n, v = pm[0]
+            ins.append(Insight("metodo_pago", f"Método de pago dominante: {n}",
+                               f"Representa {v/total*100:.0f}% de la facturación."))
+        if c["margen_pct"] > 0:
+            ins.append(Insight("rentabilidad",
+                               f"Margen del periodo: {c['margen_pct']:.1f}%",
+                               f"Utilidad neta estimada ${c['utilidad_neta']:,.2f}."))
+        return ins
+
+    # ── Predicciones (FASE 5/6) ───────────────────────────────────────────────
+
+    def _predictions(self, f) -> list[Prediction]:
+        nw = self._q.forecast.next_week_prediction(f)
+        return [Prediction("next_week", "Predicción próxima semana", nw["value"],
+                           unit="$", detail=f"~${nw['avg_dia']:,.2f}/día "
+                                             f"({nw['muestras']} días de histórico).")]
+
+    # ── Permisos (FASE 12) ────────────────────────────────────────────────────
+
+    def _allowed_sections(self) -> list[str]:
+        out = ["resumen"]
+        for sec in ALL_SECTIONS:
+            if sec == "resumen":
+                continue
+            perm = SECTION_PERMISSION.get(sec)
+            if perm is None or self._can(perm):
+                out.append(sec)
+        return out

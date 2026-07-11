@@ -903,63 +903,66 @@ class ModuloReportesBIv2(QWidget):
         finally:
             self.loading_dashboard.setVisible(False)
 
+    def _current_filters(self):
+        """Construye los DashboardFilters desde el selector de rango de la UI."""
+        from backend.application.dto.bi_dashboard_dto import DashboardFilters
+        rango = self.cmb_rango.currentText().lower()
+        preset = "today" if "hoy" in rango else "week" if "semana" in rango else "month"
+        branch = str(getattr(self, "sucursal_id", "") or "")
+        return DashboardFilters(preset=preset, branch_id=branch)
+
     def _render_echarts_dashboard(self, data: dict) -> None:
-        """Dashboard visual compuesto (varios paneles SVG, offline sin CDN)."""
+        """Dashboard visual compuesto consumiendo BiDashboardService (payload).
+
+        Canonical route: UI → BiDashboardService → query services → DB. La UI sólo
+        transforma el payload en paneles SVG (offline, sin CDN).
+        """
         if not getattr(self, "_chart_view", None):
             return
-        analytics = getattr(self.container, 'analytics_engine', None)
-        if analytics is None or not hasattr(analytics, "dashboard_charts"):
+        svc = getattr(self.container, "bi_dashboard_service", None)
+        if svc is None:
             self._chart_empty.show()
             self._chart_view.hide()
             return
 
-        from datetime import datetime, timedelta
         from modulos.bi_charts import dashboard_html
-        rango = self.cmb_rango.currentText().lower()
-        hoy = datetime.now()
-        if "hoy" in rango:
-            fi = ff = hoy.strftime('%Y-%m-%d')
-        elif "semana" in rango:
-            fi = (hoy - timedelta(days=hoy.weekday())).strftime('%Y-%m-%d')
-            ff = hoy.strftime('%Y-%m-%d')
-        else:
-            fi = hoy.replace(day=1).strftime('%Y-%m-%d')
-            ff = hoy.strftime('%Y-%m-%d')
-
-        d = analytics.dashboard_charts(fi, ff)
-        tiene_datos = any([
-            d["ventas_por_sucursal"], d["top_productos"], d["metodos_pago"],
-            d["horas_pico"], d["rentabilidad_categoria"],
-            any(d["evolucion"]["ventas"]),
-        ])
-        if not tiene_datos:
+        try:
+            payload = svc.build_dashboard(self._current_filters())
+        except Exception:
             self._chart_empty.show()
             self._chart_view.hide()
             return
 
-        ev = d["evolucion"]
-        panels = [
-            {"kind": "line", "title": "Evolución de ventas y utilidad",
-             "labels": ev["labels"],
-             "series": [("Ventas", ev["ventas"], "#3b82f6"),
-                        ("Utilidad", ev["utilidad"], "#eab308")]},
-            {"kind": "bar", "title": "Ventas por sucursal",
-             "labels": [n for n, _ in d["ventas_por_sucursal"]],
-             "values": [v for _, v in d["ventas_por_sucursal"]]},
-            {"kind": "hbar", "title": "Top productos por ingresos",
-             "labels": [n for n, _ in d["top_productos"]],
-             "values": [v for _, v in d["top_productos"]]},
-            {"kind": "donut", "title": "Métodos de pago",
-             "labels": [n for n, _ in d["metodos_pago"]],
-             "values": [v for _, v in d["metodos_pago"]]},
-            {"kind": "line", "title": "Horas pico de venta",
-             "labels": [h for h, _ in d["horas_pico"]],
-             "series": [("Ingresos", [v for _, v in d["horas_pico"]], "#22c55e")]},
-            {"kind": "bar", "title": "Rentabilidad por categoría (margen $)",
-             "labels": [n for n, _ in d["rentabilidad_categoria"]],
-             "values": [v for _, v in d["rentabilidad_categoria"]],
-             "color": "#eab308"},
-        ]
+        charts = payload.charts  # dict key → {kind,title,labels,series,unit}
+
+        def _panel(key):
+            c = charts.get(key)
+            if not c:
+                return None
+            kind = c["kind"]
+            title = c["title"]
+            series = c.get("series", [])
+            if kind in ("line",):
+                return {"kind": "line", "title": title,
+                        "series": [(s["name"], s["values"], s["color"]) for s in series],
+                        "labels": c.get("labels", [])}
+            values = series[0]["values"] if series else []
+            color = series[0].get("color", "#3b82f6") if series else "#3b82f6"
+            return {"kind": kind, "title": title, "labels": c.get("labels", []),
+                    "values": values, "color": color}
+
+        keys = ["sales_trend", "branch_sales", "top_products", "payment_methods",
+                "peak_hours", "profitability"]
+        panels = [p for p in (_panel(k) for k in keys) if p]
+        has_data = any(
+            (pp.get("values") and any(pp["values"])) or
+            any(any(v or 0 for v in vals) for _, vals, _ in pp.get("series", []))
+            for pp in panels
+        )
+        if not panels or not has_data:
+            self._chart_empty.show()
+            self._chart_view.hide()
+            return
         self._chart_empty.hide()
         self._chart_view.show()
         self._chart_view.setHtml(dashboard_html(panels))
