@@ -43,7 +43,8 @@ SQL_IN_UI_ALLOWLIST = {
     # ventas.py: sin SQL real (delega a use cases). Reescritas 4 docstrings que
     # activaban SQL_RE ("Update"/"select"); el 1 restante es `payload.update(` (dict).
     'pos_spj_v13.4/modulos/ventas.py': 1,
-    'pos_spj_v13.4/presentation/sales/dialogs/payment_dialog.py': 2,
+    # payment_dialog.py: 0 SQL real; los 2 antiguos eran falsos positivos de
+    # SQL_RE (docstring "select all" + payload.update() de dict) — reescritos.
 }
 
 COMMIT_ROLLBACK_IN_UI_ALLOWLIST = {
