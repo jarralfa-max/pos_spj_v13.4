@@ -12,6 +12,7 @@ from backend.application.queries.bi_sales_query_service import BiSalesQueryServi
 from backend.application.queries.bi_inventory_query_service import BiInventoryQueryService
 from backend.application.queries.bi_finance_query_service import BiFinanceQueryService
 from backend.application.queries.bi_forecast_query_service import BiForecastQueryService
+from backend.application.queries.bi_cash_query_service import BiCashQueryService
 
 
 class BiDashboardQueryService:
@@ -20,6 +21,7 @@ class BiDashboardQueryService:
         self.inventory = BiInventoryQueryService(conn)
         self.finance = BiFinanceQueryService(conn)
         self.forecast = BiForecastQueryService(conn)
+        self.cash = BiCashQueryService(conn)
 
     def core_metrics(self, f) -> dict:
         """Métricas escalares base para KPIs (un solo periodo)."""

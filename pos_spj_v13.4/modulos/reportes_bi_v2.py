@@ -121,6 +121,7 @@ class ModuloReportesBIv2(QWidget):
         self._build_tab_decision_engine()
         self._build_tab_franchise()
         self._build_section_tabs()
+        self._build_config_tab()
 
         # Poblar filtros + lazy loading de secciones al cambiar de pestaña.
         self._populate_filter_options()
@@ -793,72 +794,45 @@ class ModuloReportesBIv2(QWidget):
             pass
 
     def _exportar(self, formato: str) -> None:
-        """Exporta el dashboard actual a PDF o Excel via ExportService."""
-        # [spj-dedup removed local QMessageBox import]
+        """Exporta el resumen ejecutivo a Excel/PDF vía BiExportService.
+
+        Respeta los filtros activos e incluye usuario, rango y fecha de generación.
+        """
         import os, datetime
 
-        rango = self.cmb_rango.currentText()
-        ts    = datetime.datetime.now().strftime("%Y%m%d_%H%M")
-        ext   = "xlsx" if formato == "excel" else "pdf"
-        nombre_default = f"dashboard_bi_{ts}.{ext}"
+        export_svc = getattr(self.container, "bi_export_service", None)
+        bi_svc = getattr(self.container, "bi_dashboard_service", None)
+        if export_svc is None or bi_svc is None:
+            QMessageBox.warning(self, "No disponible", "El servicio de BI no está listo.")
+            return
 
+        ext = "xlsx" if formato == "excel" else "pdf"
+        fmt = "xlsx" if formato == "excel" else "pdf"
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M")
         ruta, _ = QFileDialog.getSaveFileName(
-            self, f"Guardar {ext.upper()}", nombre_default,
-            f"{'Excel (*.xlsx)' if formato == 'excel' else 'PDF (*.pdf)'}"
-        )
+            self, f"Guardar {ext.upper()}", f"dashboard_bi_{ts}.{ext}",
+            "Excel (*.xlsx)" if formato == "excel" else "PDF (*.pdf)")
         if not ruta:
             return
         if not confirm_action(
-            self,
-            "Confirmar exportación",
-            f"¿Deseas exportar el dashboard en formato {ext.upper()}?",
-            confirm_text="Sí, exportar",
-            cancel_text="Cancelar",
-        ):
+            self, "Confirmar exportación",
+            f"¿Deseas exportar el resumen ejecutivo en {ext.upper()}?",
+            confirm_text="Sí, exportar", cancel_text="Cancelar"):
             return
 
         try:
-            from core.services.export_service import ExportService
-            svc  = ExportService(self.container.db)
-            # BI unificado: fuente única analytics_engine
-            analytics = getattr(self.container, 'analytics_engine', None)
-            if not analytics:
-                raise RuntimeError("AnalyticsEngine no disponible en el contenedor")
-            data = analytics.get_dashboard_data(
-                self.sucursal_id,
-                rango.lower().split(" ")[-1]
-            )
-            if formato == "excel":
-                sheets = {
-                    "KPIs": [data["kpis"]],
-                    "Top Productos":    data.get("top_productos", []),
-                    "Productos Lentos": data.get("productos_lentos", []),
-                    "Clientes VIP":     data.get("clientes_recurrentes", []),
-                }
-                result = svc.export_ventas(fmt="xlsx")
-                # Write our structured BI export
-                import openpyxl
-                wb = openpyxl.Workbook()
-                for sheet_name, rows in sheets.items():
-                    ws = wb.create_sheet(title=sheet_name[:31])
-                    if rows:
-                        ws.append(list(rows[0].keys()))
-                        for row in rows:
-                            ws.append([str(v) for v in row.values()])
-                if "Sheet" in wb.sheetnames:
-                    del wb["Sheet"]
-                wb.save(ruta)
-            else:
-                # PDF via ReportEngine if available
-                try:
-                    from core.services.enterprise.report_engine import ReportEngine
-                    engine = ReportEngine(self.container.db)
-                    engine.export_pdf("dashboard", data, filepath=ruta)
-                except Exception:
-                    # Simple PDF fallback (el SQL vive en ExportService)
-                    svc.export_ventas_hoy_pdf(ruta)
-            Toast.success(self, "Exportado", f"Archivo guardado en:\n{ruta}")
-            os.startfile(ruta) if os.name == "nt" else None
+            filters = self._current_filters().resolved()
+            payload = bi_svc.build_dashboard(filters).to_dict()
+            sucursal = self.cmb_sucursal.currentText() if hasattr(self, "cmb_sucursal") else "Todas"
+            meta = {
+                "usuario": str(getattr(self, "usuario_actual", "") or "—"),
+                "rango": f"{filters.date_from} a {filters.date_to} ({self.cmb_rango.currentText()})",
+                "sucursal": sucursal,
+                "generado": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+            }
+            escrito = export_svc.export_summary(payload, meta, ruta, fmt=fmt)
+            Toast.success(self, "Exportado", f"Archivo guardado en:\n{escrito}")
+            os.startfile(escrito) if os.name == "nt" else None
         except Exception as e:
             QMessageBox.critical(self, "Error al exportar", str(e))
 
@@ -991,9 +965,9 @@ class ModuloReportesBIv2(QWidget):
 
     _SECTIONS = [
         ("ventas", "🧾 Ventas"), ("inventario", "📦 Inventario"),
-        ("compras", "🛒 Compras"), ("clientes", "👥 Clientes"),
-        ("proveedores", "🚚 Proveedores"), ("finanzas", "💰 Finanzas"),
-        ("merma", "🗑️ Merma"),
+        ("compras", "🛒 Compras"), ("caja", "💵 Caja"),
+        ("clientes", "👥 Clientes"), ("proveedores", "🚚 Proveedores"),
+        ("finanzas", "💰 Finanzas"), ("merma", "🗑️ Merma"),
     ]
 
     def _build_section_tabs(self):
@@ -1051,6 +1025,88 @@ class ModuloReportesBIv2(QWidget):
             self._section_dirty[key] = False
         except Exception:
             pass
+
+    # ── Configuración BI (metas, umbrales, forecast) ──────────────────────────
+
+    _CONFIG_SPECS = [
+        ("threshold_merma_pct", "Umbral merma alta (%)", "%"),
+        ("threshold_margen_bajo_pct", "Umbral margen bajo (%)", "%"),
+        ("threshold_caida_ventas_pct", "Umbral caída de ventas (%)", "%"),
+        ("threshold_cxc_aumento_pct", "Umbral aumento CxC (%)", "%"),
+        ("threshold_compras_aumento_pct", "Umbral aumento compras (%)", "%"),
+        ("meta_ventas_periodo", "Meta de ventas del periodo ($)", "$"),
+    ]
+
+    def _build_config_tab(self):
+        if "configuracion" not in self._allowed_sections():
+            return
+        settings = getattr(self.container, "bi_settings_service", None)
+        if settings is None:
+            return
+        from PyQt5.QtWidgets import QFormLayout
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        titulo = QLabel("⚙️ Configuración BI — metas, umbrales de alertas y forecast")
+        titulo.setObjectName("heading")
+        layout.addWidget(titulo)
+
+        form = QFormLayout()
+        self._config_inputs = {}
+        for key, label, unit in self._CONFIG_SPECS:
+            spin = QDoubleSpinBox()
+            spin.setDecimals(2)
+            spin.setMaximum(1_000_000_000.0)
+            spin.setSingleStep(1.0)
+            spin.setSuffix(f" {unit}")
+            spin.setValue(float(settings.get(key)))
+            self._config_inputs[key] = spin
+            form.addRow(label, spin)
+
+        self._config_forecast = QSpinBox()
+        self._config_forecast.setMaximum(365)
+        self._config_forecast.setSuffix(" días")
+        self._config_forecast.setValue(int(settings.get("forecast_window_days")))
+        form.addRow("Ventana de forecast", self._config_forecast)
+        layout.addLayout(form)
+
+        botones = QHBoxLayout()
+        btn_guardar = create_primary_button(self, "💾 Guardar", "Guardar configuración de BI")
+        btn_guardar.clicked.connect(self._save_config)
+        btn_reset = create_secondary_button(self, "↩️ Restablecer", "Restablecer valores por defecto")
+        btn_reset.clicked.connect(self._reset_config)
+        botones.addWidget(btn_guardar)
+        botones.addWidget(btn_reset)
+        botones.addStretch()
+        layout.addLayout(botones)
+        layout.addStretch()
+        self.tabs_bi.addTab(tab, "⚙️ Configuración")
+
+    def _save_config(self):
+        settings = getattr(self.container, "bi_settings_service", None)
+        svc = getattr(self.container, "bi_dashboard_service", None)
+        if settings is None:
+            return
+        try:
+            for key, spin in self._config_inputs.items():
+                settings.set(key, spin.value())
+            settings.set("forecast_window_days", self._config_forecast.value())
+            if svc is not None:
+                svc.invalidate_cache()
+            self._section_dirty = {k: True for k in getattr(self, "_section_views", {})}
+            self.cargar_dashboard()
+            Toast.success(self, "Configuración guardada", "Los umbrales de BI se actualizaron.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def _reset_config(self):
+        settings = getattr(self.container, "bi_settings_service", None)
+        if settings is None:
+            return
+        defaults = settings.defaults
+        for key, spin in self._config_inputs.items():
+            spin.setValue(float(defaults.get(key, 0)))
+        self._config_forecast.setValue(int(defaults.get("forecast_window_days", 30)))
+        self._save_config()
 
     def _render_echarts_dashboard(self, data: dict) -> None:
         """Dashboard visual compuesto consumiendo BiDashboardService (payload).

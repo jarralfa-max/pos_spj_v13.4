@@ -29,9 +29,9 @@ class BiForecastQueryService:
             logger.warning("_daily_sales: %s", e)
             return []
 
-    def next_week_prediction(self, f) -> dict:
+    def next_week_prediction(self, f, window_days: int = 30) -> dict:
         """Proyección de ventas de la próxima semana (media móvil * 7 días)."""
-        vals = self._daily_sales(f.branch_id, days=30)
+        vals = self._daily_sales(f.branch_id, days=max(1, int(window_days or 30)))
         if not vals:
             return {"value": 0.0, "avg_dia": 0.0, "muestras": 0}
         avg = sum(vals) / len(vals)

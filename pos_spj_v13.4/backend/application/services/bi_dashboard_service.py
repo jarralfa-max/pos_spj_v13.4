@@ -42,15 +42,21 @@ SECTION_PERMISSION = {
 
 
 class BiDashboardService:
-    def __init__(self, query_service, permission_checker=None, cache_ttl: int = 60):
+    def __init__(self, query_service, permission_checker=None, cache_ttl: int = 60,
+                 settings=None):
         """query_service: BiDashboardQueryService.
         permission_checker: callable(permission_key) -> bool (optional).
+        settings: BiSettingsService (optional); defaults used if None.
         """
         self._q = query_service
         self._can = permission_checker or (lambda perm: True)
         self._ttl = cache_ttl
         self._cache: dict = {}
         self._cache_ts: dict = {}
+        if settings is None:
+            from backend.application.services.bi_settings_service import BiSettingsService
+            settings = BiSettingsService()
+        self._settings = settings
 
     # ── Público ───────────────────────────────────────────────────────────────
 
@@ -181,6 +187,30 @@ class BiDashboardService:
             "charts": [self._bars("Merma por categoría", inv.waste_by_category(f),
                                   color=_GOLD)],
             "tables": [],
+        }
+
+    def _section_caja(self, f) -> dict:
+        cash = self._q.cash
+        t = cash.cash_totals(f)
+        daily = cash.daily_behavior(f)
+        return {
+            "section": "caja", "title": "Caja",
+            "kpis": [self._mini("Ingresos directos", t["ingresos"]),
+                     self._mini("Egresos directos", t["egresos"]),
+                     self._mini("Saldo", t["saldo"]),
+                     self._mini("Cortes", t["num_cortes"], "")],
+            "charts": [{"kind": "line", "title": "Comportamiento diario de caja",
+                        "unit": "$", "labels": [d for d, _, _ in daily],
+                        "series": [{"name": "Ingresos", "color": _GREEN,
+                                    "values": [i for _, i, _ in daily]},
+                                   {"name": "Egresos", "color": "#ef4444",
+                                    "values": [e for _, _, e in daily]}]}],
+            "tables": [
+                {"title": "Cortes recientes",
+                 "columns": ["Fecha", "Ventas $", "Efectivo $", "Diferencia $"],
+                 "rows": [[c["fecha"], f"${c['total_ventas']:,.2f}",
+                           f"${c['efectivo']:,.2f}", f"${c['diferencia']:,.2f}"]
+                          for c in cash.recent_cortes(f)]}],
         }
 
     def _section_compras(self, f) -> dict:
@@ -327,27 +357,41 @@ class BiDashboardService:
 
     def _alerts(self, c: dict, p: dict, r: dict) -> list[Alert]:
         alerts: list[Alert] = []
-        if c["merma_pct"] > 3:
+        st = self._settings
+        merma_thr = st.get("threshold_merma_pct")
+        margen_thr = st.get("threshold_margen_bajo_pct")
+        caida_thr = st.get("threshold_caida_ventas_pct")
+        cxc_thr = st.get("threshold_cxc_aumento_pct")
+        compras_thr = st.get("threshold_compras_aumento_pct")
+        meta = st.get("meta_ventas_periodo")
+
+        if c["merma_pct"] > merma_thr:
             alerts.append(Alert("critical", "merma_alta", "Merma alta",
                                  f"La merma es {c['merma_pct']:.1f}% de las ventas "
-                                 f"(${c['merma_valor']:,.2f}). Revisar cadena de frío y porciones.",
-                                 c["merma_pct"]))
-        if p["ventas_netas"] > 0 and c["ventas_netas"] < p["ventas_netas"] * 0.8:
+                                 f"(${c['merma_valor']:,.2f}, umbral {merma_thr:.0f}%). "
+                                 "Revisar cadena de frío y porciones.", c["merma_pct"]))
+        if p["ventas_netas"] > 0 and \
+                c["ventas_netas"] < p["ventas_netas"] * (1 - caida_thr / 100):
             caida = (1 - c["ventas_netas"] / p["ventas_netas"]) * 100
             alerts.append(Alert("warning", "caida_ventas", "Caída de ventas",
                                  f"Las ventas bajaron {caida:.1f}% vs el periodo anterior.", caida))
-        if p["cxc"] > 0 and c["cxc"] > p["cxc"] * 1.25:
+        if p["cxc"] > 0 and c["cxc"] > p["cxc"] * (1 + cxc_thr / 100):
             alerts.append(Alert("warning", "cxc_alta", "Aumento de CxC",
                                  f"Las cuentas por cobrar subieron a ${c['cxc']:,.2f}.", c["cxc"]))
-        if c["ventas_netas"] > 0 and c["margen_pct"] < 10:
+        if c["ventas_netas"] > 0 and c["margen_pct"] < margen_thr:
             alerts.append(Alert("warning", "margen_bajo", "Utilidad baja pese a ventas",
                                  f"El margen es {c['margen_pct']:.1f}% pese a ${c['ventas_netas']:,.2f} "
                                  "en ventas. Revisar costos y gastos.", c["margen_pct"]))
-        if p["compras"] > 0 and c["compras"] > p["compras"] * 1.3 and \
+        if p["compras"] > 0 and c["compras"] > p["compras"] * (1 + compras_thr / 100) and \
                 c["ventas_netas"] <= p["ventas_netas"] * 1.05:
             alerts.append(Alert("warning", "compras_sin_venta", "Compras sin correlación de ventas",
                                  "Las compras crecieron sin un aumento equivalente de ventas.",
                                  c["compras"]))
+        if meta > 0 and c["ventas_netas"] < meta:
+            falta = meta - c["ventas_netas"]
+            alerts.append(Alert("info", "meta_ventas", "Meta de ventas no alcanzada",
+                                 f"Ventas ${c['ventas_netas']:,.2f} de la meta ${meta:,.2f} "
+                                 f"(faltan ${falta:,.2f}).", c["ventas_netas"]))
         return alerts
 
     # ── Insights (FASE 6) ─────────────────────────────────────────────────────
@@ -381,7 +425,8 @@ class BiDashboardService:
     # ── Predicciones (FASE 5/6) ───────────────────────────────────────────────
 
     def _predictions(self, f) -> list[Prediction]:
-        nw = self._q.forecast.next_week_prediction(f)
+        window = self._settings.get("forecast_window_days")
+        nw = self._q.forecast.next_week_prediction(f, window_days=window)
         return [Prediction("next_week", "Predicción próxima semana", nw["value"],
                            unit="$", detail=f"~${nw['avg_dia']:,.2f}/día "
                                              f"({nw['muestras']} días de histórico).")]

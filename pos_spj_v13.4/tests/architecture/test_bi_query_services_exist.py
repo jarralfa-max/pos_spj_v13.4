@@ -9,7 +9,10 @@ def test_bi_query_services_importables():
         "backend.application.queries.bi_inventory_query_service",
         "backend.application.queries.bi_finance_query_service",
         "backend.application.queries.bi_forecast_query_service",
+        "backend.application.queries.bi_cash_query_service",
         "backend.application.services.bi_dashboard_service",
+        "backend.application.services.bi_settings_service",
+        "backend.application.services.bi_export_service",
         "backend.application.dto.bi_dashboard_dto",
     ]
     for m in mods:

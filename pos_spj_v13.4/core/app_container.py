@@ -669,10 +669,18 @@ class AppContainer:
                         return True
                 return True
 
+            from backend.application.services.bi_settings_service import BiSettingsService
+            from backend.application.services.bi_export_service import BiExportService
+
+            self.bi_settings_service = BiSettingsService(self.config_service)
             self.bi_dashboard_service = BiDashboardService(
-                BiDashboardQueryService(self.db), permission_checker=_bi_can)
+                BiDashboardQueryService(self.db), permission_checker=_bi_can,
+                settings=self.bi_settings_service)
+            self.bi_export_service = BiExportService()
         except Exception as _bie:
             self.bi_dashboard_service = None
+            self.bi_settings_service = None
+            self.bi_export_service = None
             logger.debug("BiDashboardService: %s", _bie)
 
         # ── ERP FASE 8: FiscalEngine ─────────────────────────────────────────
