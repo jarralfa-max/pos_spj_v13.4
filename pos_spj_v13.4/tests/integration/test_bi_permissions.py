@@ -22,11 +22,21 @@ def test_dueno_ve_todas_las_secciones():
 
 
 def test_cajero_sin_finanzas_no_ve_finanzas():
-    svc = _service(lambda perm: perm != "BI.ver_finanzas")
+    svc = _service(lambda perm: perm != "INTELIGENCIA_BI.ver_finanzas")
     secs = svc.build_dashboard(DashboardFilters()).allowed_sections
     assert "finanzas" not in secs
     assert "resumen" in secs          # resumen siempre visible
     assert "ventas" in secs
+
+
+def test_permisos_usan_codigos_del_catalogo():
+    from core.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
+    from backend.application.services.bi_dashboard_service import SECTION_PERMISSION
+    acciones = set(CANONICAL_MODULE_PERMISSIONS["INTELIGENCIA_BI"])
+    for code in SECTION_PERMISSION.values():
+        modulo, accion = code.split(".", 1)
+        assert modulo == "INTELIGENCIA_BI"
+        assert accion in acciones, f"acción {accion} no está en el catálogo"
 
 
 def test_usuario_limitado_solo_resumen():

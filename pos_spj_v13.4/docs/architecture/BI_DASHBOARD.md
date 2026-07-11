@@ -86,10 +86,20 @@ Todo derivado de datos reales; sin texto genérico vacío.
 
 ## Permisos (FASE 12)
 
-`BiDashboardService` recibe un `permission_checker(perm)->bool`. `allowed_sections`
-del payload gatea las pestañas: `resumen` siempre visible; el resto según
-`BI.ver_ventas / ver_inventario / ver_compras / ver_finanzas / ver_clientes /
-ver_proveedores / exportar / configurar`.
+`BiDashboardService` recibe un `permission_checker(perm)->bool` cableado en
+`app_container` a `SessionContext.tiene_permiso` (admin ⇒ todo; sin sesión activa
+no bloquea). `allowed_sections` del payload gatea las pestañas: `resumen` siempre
+visible; el resto según los códigos canónicos del catálogo
+`INTELIGENCIA_BI.{ver_ventas, ver_inventario, ver_compras, ver_caja,
+ver_clientes, ver_proveedores, ver_finanzas, ver_merma, exportar, configurar}`
+(registrados en `core/security/permission_catalog.py`).
+
+## Drill-down
+
+Cada KpiCard lleva `drilldown` (sección destino). El renderer envuelve la tarjeta
+en un enlace `spjdrill:<section>`; el web view usa una `QWebEnginePage` que
+intercepta ese esquema (`acceptNavigationRequest`) y cambia a la pestaña
+detallada correspondiente.
 
 ## Rendimiento (FASE 10)
 

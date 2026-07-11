@@ -44,6 +44,21 @@ def _payload():
     }
 
 
+def test_kpi_con_drilldown_genera_enlace():
+    p = _payload()
+    p["kpis"][0]["drilldown"] = "ventas"
+    html = render_dashboard_html(p)
+    assert "spjdrill:ventas" in html
+
+
+def test_kpi_sin_drilldown_no_enlaza():
+    p = _payload()
+    for k in p["kpis"]:
+        k.pop("drilldown", None)
+    html = render_dashboard_html(p)
+    assert "spjdrill:" not in html
+
+
 def test_render_incluye_kpis_charts_y_sidebar():
     html = render_dashboard_html(_payload())
     assert "Ventas netas" in html and "$1,245,680" in html

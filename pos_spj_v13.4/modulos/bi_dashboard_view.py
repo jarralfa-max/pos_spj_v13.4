@@ -62,14 +62,21 @@ def _kpi_card(kpi: dict) -> str:
     title = escape(str(kpi.get("title", "")))
     tooltip = escape(str(kpi.get("formula", "") or kpi.get("tooltip", "")))
     value = _fmt_value(kpi.get("value", 0), kpi.get("unit", ""))
-    return (
-        f"<div title='{tooltip}' style='background:{_CARD};border:1px solid {_BORDER};"
-        "border-radius:10px;padding:12px 14px;min-width:150px;flex:1;'>"
+    drill = str(kpi.get("drilldown", "") or "")
+    cursor = "cursor:pointer;" if drill else ""
+    hint = " · clic para detalle" if drill else ""
+    card = (
+        f"<div title='{tooltip}{hint}' style='background:{_CARD};border:1px solid {_BORDER};"
+        f"border-radius:10px;padding:12px 14px;min-width:150px;flex:1;{cursor}'>"
         f"<div style='color:{_MUTED};font-size:10px;font-weight:700;"
         f"letter-spacing:.5px;text-transform:uppercase;'>{title}</div>"
         f"<div style='color:{_FG};font-size:22px;font-weight:700;margin-top:6px;'>{value}</div>"
         f"{_delta_html(kpi)}</div>"
     )
+    if drill:
+        return (f"<a href='spjdrill:{escape(drill)}' "
+                "style='text-decoration:none;flex:1;display:flex;'>" + card + "</a>")
+    return card
 
 
 def _chart_svg_from_payload(chart: dict) -> str:

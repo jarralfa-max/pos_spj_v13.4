@@ -26,18 +26,20 @@ ALL_SECTIONS = (
     "resumen", "ventas", "inventario", "compras", "caja", "clientes",
     "proveedores", "finanzas", "merma", "reportes", "configuracion",
 )
-# Permiso requerido por sección (permission-key). "resumen" siempre visible.
+# Permiso requerido por sección (código canónico MODULE.action del catálogo).
+# "resumen" siempre visible. El permission_checker normaliza (upper) al comparar.
+_BI = "INTELIGENCIA_BI"
 SECTION_PERMISSION = {
-    "ventas": "BI.ver_ventas",
-    "inventario": "BI.ver_inventario",
-    "compras": "BI.ver_compras",
-    "caja": "BI.ver_ventas",
-    "clientes": "BI.ver_clientes",
-    "proveedores": "BI.ver_proveedores",
-    "finanzas": "BI.ver_finanzas",
-    "merma": "BI.ver_inventario",
-    "reportes": "BI.exportar",
-    "configuracion": "BI.configurar",
+    "ventas": f"{_BI}.ver_ventas",
+    "inventario": f"{_BI}.ver_inventario",
+    "compras": f"{_BI}.ver_compras",
+    "caja": f"{_BI}.ver_caja",
+    "clientes": f"{_BI}.ver_clientes",
+    "proveedores": f"{_BI}.ver_proveedores",
+    "finanzas": f"{_BI}.ver_finanzas",
+    "merma": f"{_BI}.ver_merma",
+    "reportes": f"{_BI}.exportar",
+    "configuracion": f"{_BI}.configurar",
 }
 
 

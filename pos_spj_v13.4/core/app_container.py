@@ -661,10 +661,13 @@ class AppContainer:
             )
 
             def _bi_can(perm: str) -> bool:
-                checker = getattr(self, "has_permission", None)
-                if callable(checker):
+                # Fuente única: SessionContext.tiene_permiso (admin => todo).
+                session = getattr(self, "session", None)
+                if session is not None and hasattr(session, "tiene_permiso"):
                     try:
-                        return bool(checker(perm))
+                        if not session.is_active:
+                            return True  # sin sesión activa (arranque): no bloquear
+                        return bool(session.tiene_permiso(perm))
                     except Exception:
                         return True
                 return True

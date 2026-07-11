@@ -243,6 +243,7 @@ class ModuloReportesBIv2(QWidget):
         try:
             from PyQt5.QtWebEngineWidgets import QWebEngineView
             self._chart_view = QWebEngineView(self)
+            self._install_drilldown(self._chart_view)
             layout.addWidget(self._chart_view, 1)
             layout.addWidget(self._chart_empty)
         except Exception:
@@ -996,6 +997,37 @@ class ModuloReportesBIv2(QWidget):
             if view is widget:
                 return key
         return None
+
+    # ── Drill-down (clic en KPI → pestaña destino) ────────────────────────────
+
+    def _install_drilldown(self, view):
+        """Intercepta enlaces 'spjdrill:<section>' del web view y navega a la pestaña."""
+        try:
+            from PyQt5.QtWebEngineWidgets import QWebEnginePage
+        except Exception:
+            return
+        module = self
+
+        class _DrillPage(QWebEnginePage):
+            def acceptNavigationRequest(self, url, nav_type, is_main_frame):
+                s = url.toString()
+                if s.startswith("spjdrill:"):
+                    module._go_to_section(s.split(":", 1)[1])
+                    return False
+                return super().acceptNavigationRequest(url, nav_type, is_main_frame)
+
+        try:
+            view.setPage(_DrillPage(view))
+        except Exception:
+            pass
+
+    def _go_to_section(self, section):
+        """Cambia a la pestaña detallada de la sección (si existe y hay permiso)."""
+        section = str(section or "").strip()
+        view = getattr(self, "_section_views", {}).get(section)
+        if view is not None:
+            self._render_section(section)
+            self.tabs_bi.setCurrentWidget(view)
 
     def _on_tab_changed(self, _index):
         widget = self.tabs_bi.currentWidget()
