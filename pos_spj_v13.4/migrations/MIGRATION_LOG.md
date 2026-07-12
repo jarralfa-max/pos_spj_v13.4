@@ -303,272 +303,46 @@ métodos públicos como wrappers de compatibilidad hacia atrás (facade pattern)
 
 ---
 
-## Remediación D1 — Unificación de caja (paso 1: bloqueo de la ruta canónica)
+## 2026-07-12 — Bugfix/Refactor auditoría funcional (rama claude/pos-spj-refactor-bugfix)
 
-**Hallazgo (corrige el marco del audit).** La caja NO es "3 servicios en paralelo"
-sino una arquitectura EN CAPAS cuya ruta de producción ya es canónica:
+Cambios al schema base (`m000_base_schema.py`) — sin migraciones de rescate,
+la DB de desarrollo debe resetearse (born-clean UUIDv7):
 
-```
-UI (modulos/caja.py)
-  → open_cash_shift_uc / register_cash_movement_uc / generate_z_cut_uc  (use cases)
-  → CashRegisterApplicationService   (única emisora de eventos CASH_*)
-  → finance_service.{abrir_turno, registrar_movimiento_manual, generar_corte_z}
-```
+- **S-01 — `loyalty_snapshots` reconstruida a forma checkpoint**: columnas
+  `cliente_id UNIQUE`, `puntos_actuales`, `nivel`, `visitas`, `importe_total`,
+  `ultimo_evento_id TEXT` (UUID), `fecha_snapshot`. Corrige
+  `no such column: ls.ultimo_evento_id` del scheduler. La forma anterior
+  (visitas_dia/importe_dia…) no tenía lectores.
+- **S-02 — `historico_puntos` gana `saldo_actual REAL` y `usuario TEXT`**:
+  sus escritores (sale_loyalty_policy, sales_reversal) ya insertaban esas
+  columnas; ahora además acuñan `id` con `new_uuid()`.
+- **S-03 — `usuarios` gana `intentos_fallidos`, `bloqueado_hasta`,
+  `locked_reason`, `updated_at`** en el CREATE base (antes solo por
+  ensure_column parcial). Soporta el flujo administrativo de desbloqueo.
+- **S-04 — `usuario_permisos` y `usuario_sucursal_permisos` creadas**:
+  overrides RBAC por usuario/sucursal con `usuario_id`/`sucursal_id` UUID TEXT.
+  Antes no existían y los overrides se ignoraban en silencio.
+- **S-05 — Índice único `idx_cxc_venta_unica` en
+  `cuentas_por_cobrar(venta_id)`**: garantiza idempotencia de CxC por venta.
 
-- La UI usa `caja_service` (`CajaApplicationService`) SÓLO para lecturas (KPIs,
-  historial, arqueo, estado de turno, movimientos). Sus métodos de **mutación**
-  (`abrir_turno`/`registrar_movimiento_manual`/`generar_corte_z`) son un duplicado
-  histórico que hoy no está en la ruta de producción (los ejercita `test_caja.py`).
-- `finance_service` (ruta canónica) NO emite eventos de caja; `CashRegister` es la
-  única emisora `CASH_*`. El bridge `CAJA_* → CASH_*` (Remediación A) sólo republica
-  eventos legacy `CAJA_*`, que en la ruta canónica no se emiten → sin doble emisión.
+Cambios de servicios (fuera de schema) documentados en el PR/reporte:
+compras ya no escriben `movimientos_caja` (asiento contra
+`capital_operativo`); Corte Z compara solo efectivo esperado vs contado;
+`ConfigRepository` sin `int(UUID)`; `SessionContext` con identidad str;
+lotes/movimientos_lote con `id` UUIDv7 (sin columna `uuid` ni randomblob);
+`new_uuid()` monótono in-process (checkpoints UUIDv7).
 
-**Duplicación real pendiente:** tres implementaciones de corte Z —
-`finance_service.generar_corte_z` (canónica/UI), `CajaApplicationService.generar_corte_z`
-(duplicado, muerto en prod) y `CierreCajaService.corte_z` (auto-cierre del scheduler,
-`app_container.py:1030`, con impresión + notificaciones propias).
+### Adendum (misma rama) — saldo de deuda de identidad
 
-**Paso 1 (este commit) — bloqueo anti-regresión, sin tocar cálculo financiero:**
-- `tests/architecture/test_caja_canonical_route.py`: (1) la UI no invoca mutaciones
-  de caja directamente sobre el servicio; (2) enruta por los use cases canónicos;
-  (3) `CashRegisterApplicationService` emite `CASH_*` y delega la lógica de turno en
-  `finance_service`. Fija la ruta correcta para que no regrese a la legacy.
-
-**Pasos siguientes de D1 (con cobertura financiera dedicada, aún no hechos):**
-1. Enrutar el auto-cierre del scheduler (`CierreCajaService.corte_z`) por
-   `GenerateZCutUseCase`/`finance_service.generar_corte_z`, preservando impresión y
-   notificaciones — una sola implementación financiera de corte Z.
-2. Deprecar las mutaciones duplicadas de `CajaApplicationService` (migrar
-   `test_caja.py` a la ruta canónica) dejándolo como servicio de sólo-lectura.
-3. Retirar la publicación de `CAJA_MOVIMIENTO` desde `repositories/caja.py` (los
-   repos no publican eventos; lo hace la capa de aplicación).
-
-### D1 paso 2 — Hallazgo: el corte Z canónico está INCOMPLETO (bloquea el re-ruteo)
-
-Al preparar el re-ruteo del auto-cierre del scheduler se descubrió que las dos
-rutas de corte Z operan sobre **modelos de datos distintos** y la canónica tiene
-un **gap funcional**:
-
-| | Scheduler (`CierreCajaService.corte_z`) | Canónica UI (`finance_service.generar_corte_z`) |
-|---|---|---|
-| Turno | `turno_actual` (flag `abierto`) | `turnos_caja` (`estado`) |
-| Registro de corte | escribe `cierres_caja` | **NO** escribe `cierres_caja` |
-| Asiento de diferencia | sí (si recibe finance_service) | **NO** postea asiento |
-| Eventos | ninguno | `CASH_Z_CUT_GENERATED` + `CASH_DIFFERENCE` |
-
-- El historial de la UI (`CajaApplicationService.get_historial_cortes`) lee
-  `cierres_caja`; los cortes hechos por la ruta canónica NO aparecen ahí.
-- Ningún handler de `CASH_Z_CUT_GENERATED`/`CASH_DIFFERENCE_DETECTED` postea el
-  asiento de diferencia (el `CashEventAuditHandler` sólo escribe `audit_logs`).
-
-⇒ **Re-rutear el scheduler a la ruta canónica hoy PERDERÍA** el registro en
-`cierres_caja` y el asiento de diferencia (violación de Prioridad 0). El paso 2
-se reordena:
-
-- **2a (este commit):** red de seguridad — `tests/test_caja_corte_z_characterization.py`
-  fija el comportamiento actual de ambas rutas (6 tests). Sin cambios de runtime.
-- **2b (siguiente):** completar la ruta canónica para que sea superset — escribir
-  el registro `cierres_caja` y postear el asiento de diferencia (idempotente),
-  con tests. Sólo entonces:
-- **2c:** re-rutear el auto-cierre del scheduler y deprecar `CierreCajaService`.
-- **2d:** unificar los dos trackers de turno (`turno_actual` vs `turnos_caja`)
-  vía migración de datos.
-
-### D1 paso 2b — ✅ Ruta canónica de corte Z completada (superset)
-
-`finance_service.generar_corte_z` (ruta canónica, usada por la UI vía CashRegister)
-ahora, además de cerrar `turnos_caja`:
-- Registra el corte en `cierres_caja` (el historial de la UI lo lee) con el desglose
-  por forma de pago, anulaciones y diferencia. Idempotente por `turno_id`.
-- Postea el asiento de diferencia (`110-caja` / `999-diferencias-caja`, evento
-  `CORTE_Z`) best-effort — mismas cuentas que la ruta legacy; el registro de
-  historial persiste aunque el ledger falle.
-- Devuelve `cierre_id` en el dict de resultado.
-
-Cierra el gap financiero: los cortes Z de la UI ya dejan registro en historial y
-asiento de diferencia. Cubierto por `tests/test_caja_corte_z_characterization.py`
-(8 tests, schema completo). Sin regresión (unit 26F/252P, integration 107F/128P).
-
-Habilita **2c** (re-rutear el auto-cierre del scheduler a la ruta canónica y
-deprecar `CierreCajaService`) y **2d** (unificar `turno_actual`/`turnos_caja`).
-
-### D1 paso 2c — ✅ Auto-cierre del scheduler por la ruta canónica (+ bugfix)
-
-Hallazgo: el auto-cierre de medianoche consultaba `turno_actual` (tracker legacy
-cuyo único escritor —`CierreCajaService.abrir_turno`— no se llama en producción),
-así que en la práctica NO cerraba turnos reales (viven en `turnos_caja`, abiertos
-por la UI vía OpenCashShiftUseCase). Era un no-op: un bug latente.
-
-- Nuevo helper `core/services/caja_auto_close.py::auto_close_open_shifts(db, uc)`:
-  cierra cada turno abierto de `turnos_caja` vía la ruta canónica
-  (GenerateZCutUseCase → finance_service.generar_corte_z), cierre a ciegas
-  (efectivo=0). Devuelve los turno_id cerrados; no lanza. Testeable (extrae la
-  lógica del god-object AppContainer, D5).
-- `AppContainer._auto_cierre_turno` ahora delega en el helper; ya no usa
-  `CierreCajaService` ni `turno_actual`.
-- `CierreCajaService` marcado DEPRECADO (se retira en 2d al unificar trackers).
-
-Tests: `tests/test_caja_corte_z_characterization.py` (+3, total 11) — el auto-cierre
-cierra el turno canónico y registra `cierres_caja`; no-op sin turnos abiertos; seguro
-con uc None. Sin regresión (architecture 35F/221P, unit 26F/252P).
-
-Queda **2d**: unificar los trackers `turno_actual` / `turnos_caja` (migración de
-datos) y retirar `CierreCajaService` + los lectores de `turno_actual`
-(finanzas_unificadas, caja.py, health_server).
-
-### D1 paso 2d — ✅ Retiro del tracker legacy `turno_actual` de producción
-
-Aclaración del mapa: los presuntos lectores de `turno_actual` (finanzas_unificadas,
-finance_read_repository, caja_application_service) en realidad referencian
-`cierres_caja`, no `turno_actual`; y `modulos/caja.py::self.turno_actual` es un
-atributo de instancia (el turno_id activo), no la tabla. El ÚNICO lector real de la
-tabla en producción era el health-check.
-
-- No hay datos que migrar: en producción nadie escribe `turno_actual` (su único
-  escritor, `CierreCajaService.abrir_turno`, no se llama).
-- `core/health/health_server.py::_health_ready` ahora consulta `turnos_caja`
-  (estado='abierto') en vez de `turno_actual`. Corrige un bug latente: el readiness
-  reportaba 503 permanentemente (leía una tabla siempre vacía).
-- Guardrail `tests/architecture/test_caja_canonical_route.py`: ningún código de
-  producción hace SQL contra `turno_actual` salvo `CierreCajaService` (deprecado,
-  allowlisted). Bloquea el regreso del tracker legacy.
-
-`turno_actual` queda huérfana y `CierreCajaService` deprecado (sin callers de
-producción). Su remoción física (DROP de la tabla + borrado de la clase + migración
-de `tests/test_core_services.py`, `test_financial_core_enforcement.py`,
-`test_caja.py` a la ruta canónica) queda como limpieza posterior de bajo riesgo.
-
-**D1 cerrado en lo esencial**: la caja tiene una única ruta de turno/corte Z
-canónica (turnos_caja + finance_service.generar_corte_z, superset), el scheduler la
-usa, y los trackers/servicios legacy están deprecados y bloqueados por guardrails.
-
----
-
-## Remediación E — KPIs y dashboards event-driven
-
-Contrato: los KPIs se refrescan por EVENTOS, no por timers. El guardrail lo
-enforcea y se corrigieron los canales huérfanos que encontró.
-
-Guardrail (T9)
-- `tests/architecture/test_kpis_subscribe_real_events.py`: AST sobre modulos/,
-  ui/, interfaz/ — cada evento `subscribe(...)` debe tener un emisor `publish`/
-  `_publish`/`_publish_safe`/`emit` en el código. Resuelve literales, constantes
-  de event_bus/domain_events, `EventName.X.value`, y el patrón `for evt in (…)`.
-  Allowlist para emisión dinámica (PRODUCTO_* vía dict-dispatch en catalog_events).
-
-Canales huérfanos corregidos (B6/B10)
-- RECETA_CREADA / RECETA_ACTUALIZADA: la UI de producción los escuchaba pero
-  nadie los emitía. `RecipeService.create_recipe/update_recipe/deactivate_recipe`
-  ahora los publican (best-effort) desde el punto canónico de escritura.
-  Cubierto por `tests/test_recipe_events.py`.
-- DELIVERY_UPDATE: canal muerto (sin emisor). Retirada la suscripción en
-  `modulos/delivery.py`; la recarga ya ocurre por PEDIDO_NUEVO/PEDIDO_ACTUALIZADO/
-  VENTA_COMPLETADA. Migrar a DeliveryEvents canónicos es follow-up de delivery.
-
-Timers → fallback
-- `finanzas_unificadas._wire_kpi_auto_refresh`: el timer de KPIs baja de 15 s a
-  60 s (red de seguridad); el refresh en caliente lo dan los eventos. Test de
-  wiring actualizado (estaba rojo por drift de nombres de método).
-
-Nota: reportes_bi_v2 (B6 original) ya se corrigió en Remediación B; el guardrail
-lo bloquea. B10 (CXP/CXC): las constantes ACCOUNT_PAYABLE/RECEIVABLE_CREATED son
-aliases con el mismo valor string ("CXP_CREADA"/"CXC_CREADA") que la UI escucha —
-suscripciones vivas, no huérfanas.
-
-Sin regresión: architecture 35F/223P (+1 guardrail); unit 26F/252P; test de
-finanzas KPI wiring 2F→verde.
-
----
-
-## Remediación F — SQL en UI: ratchet decreciente (paso 1)
-
-`test_no_sql_in_frontend` sólo impedía aumentos. Se cierra el ratchet:
-
-- `SQL_IN_UI_ALLOWLIST` APRETADO a la realidad: **371 → 187** SQL en UI. Las
-  extracciones de fases previas + Remediación D (diálogos captura-only) ya habían
-  removido ~184 sentencias que el allowlist nunca reflejó. Módulos que llegaron a
-  0 y se retiraron del allowlist: finanzas_unificadas (20→0), productos (29→0),
-  inventario_local (7→0), transferencias (5→0); grandes bajas: compras_pro
-  (58→7), delivery (37→2), clientes (16→1), activos (19→11), ventas (17→5).
-- `tests/architecture/test_sql_in_ui_ratchet.py` (T13): exige IGUALDAD exacta
-  actual==allowed. Agregar SQL en UI falla; remover SQL obliga a bajar el
-  contador; un archivo de UI con SQL fuera del allowlist falla. El objetivo
-  terminal de cada contador es 0.
-
-Sin regresión: architecture 35F/224P (+1 ratchet).
-
-Pendiente F (reducciones por módulo, orden de riesgo): growth_engine (33 — es un
-servicio de dominio mal ubicado en modulos/, D7 → mover a capa de servicios),
-recepcion_qr_widget (29), rrhh (20) / rrhh_turnos (18), loyalty_card_designer
-(12), activos (11), resto.
-
-## Remediación F (paso 2) — growth_engine fuera de la capa UI (D7)
-
-`GrowthEngine` era un servicio de dominio puro (sin Qt) mal ubicado en `modulos/`
-(D7). Movido a `core/services/growth_engine.py`:
-
-- Sale de la capa UI: −33 SQL y −12 commits del scope UI (SQL-in-UI **187 → 154**).
-  Retirado de SQL_IN_UI_ALLOWLIST y COMMIT_ROLLBACK_IN_UI_ALLOWLIST.
-- Su DDL runtime (5 CREATE/ALTER) sigue trazado en SCHEMA_CHANGES_OUTSIDE_MIGRATIONS
-  con la ruta actualizada (deuda G, aparte).
-- Imports actualizados: `modulos/modulo_growth_engine.py` (el wrapper QWidget
-  permanece en UI), `core/app_container.py`, test de integración.
-- Docstring corregido (decía "Entrada: AppContainer" — no recibe el container).
-
-Sin regresión: architecture 35F/224P; unit 26F/252P; el test de integración de
-growth (2F preexistentes por `no such table: growth_ledger`) sin cambios.
-
-## Remediación F (paso 3) — spj_product_search: SQL → ProductoRepository (2→0)
-
-ProductSearchWidget (escáner) ejecutaba 2 consultas de productos directas. Movidas
-a ProductoRepository.buscar_exacto_para_scanner / buscar_para_scanner (mismas
-consultas y columnas exactas — id, nombre, codigo, codigo_barras, precio,
-precio_compra, existencia, unidad). El widget delega; SQL en UI del archivo: 2→0
-(retirado del allowlist). SQL-in-UI total 154→152.
-
-Sin regresión: architecture 35F/224P; búsqueda por barcode/código/fuzzy verificada
-end-to-end contra el schema base.
-
-## Remediación F (paso 4) — recepcion_qr_widget: escrituras → RecepcionQRService (+2 bugfixes)
-
-Extraída la transacción de recepción y las escrituras de trazabilidad del widget a
-`core/services/recepcion_qr_service.py` (SQL en UI 29→14; commits 4→1). La red de
-seguridad `tests/test_recepcion_qr_service.py` caracteriza los efectos en BD y
-destapó DOS bugs que rompían la recepción por QR:
-
-1. `movimientos_inventario` no tiene columna `uuid` en el esquema born-clean (usa
-   `id`) → el INSERT reventaba y la transacción entera hacía rollback: la recepción
-   NUNCA se completaba. Corregido a `id` con UUIDv7.
-2. Doble conteo de stock: el widget hacía un UPSERT manual de `inventario_actual`
-   ADEMÁS del INSERT de movimiento, que dispara el trigger canónico
-   `trg_recalc_inventario_actual` (migración 031) → +cantidad dos veces. Ahora el
-   stock lo lleva SOLO el trigger; el servicio calcula el costo promedio ponderado
-   (con el estado previo) y sincroniza `productos.existencia`.
-
-Verificado end-to-end: 5@40 + 10@50 → 15 uds, costo 46.67, existencia sincronizada,
-movimiento de auditoría, trazabilidad 'recibido'. Sin regresión (architecture 35F;
-unit 26F/252P; integration 107F/128P). Las 14 lecturas restantes del widget quedan
-para un paso siguiente (query service).
-
-## Fase G — Endurecimiento born-clean: PK TEXT declaradas NOT NULL
-
-Cierre del único riesgo residual del corte Plan B (cierre_global.md §6): SQLite no
-impone NOT NULL en una `PRIMARY KEY` TEXT declarada sin `NOT NULL` (a diferencia de
-`INTEGER PRIMARY KEY`, alias de ROWID), así que un INSERT que omitía la PK escribía
-un id NULL en silencio.
-
-Cambio mecánico: toda declaración `TEXT PRIMARY KEY` de la cadena de migraciones se
-endureció a `TEXT NOT NULL PRIMARY KEY` (383 sitios en 66 archivos; preservando el
-whitespace de alineación). Aplica a `id` y a las PK TEXT naturales (`codigo_sat`,
-`tipo`, `clave`, `producto_id`, etc.).
-
-Verificación:
-- `tools/born_clean_audit.py` → BORN-CLEAN OK (273 tablas, int_pk=0, fk_check OK):
-  ningún seed rompe con la nueva constraint.
-- Nuevo guardrail + humo `tests/architecture/test_text_pk_not_null.py` (6 tests):
-  toda PK TEXT de una columna reporta `notnull=1`; insertar id NULL es rechazado
-  con "NOT NULL constraint failed"; ninguna tabla admite fila con PK NULL.
-- Suites: architecture 35F/235P (baseline 35F, +6 nuevos verdes; 2 guardrails de
-  DDL literal de `test_clean_birth_guardrails` actualizados a la forma endurecida).
-  unit+integration sin una sola "NOT NULL constraint failed" nueva (los writers
-  canónicos ya acuñan `new_uuid()`).
+- **S-06 — Tabla `anticipos` creada en m000**: antes la creaba
+  `api/routers/anticipos.py` con `INTEGER PRIMARY KEY AUTOINCREMENT`
+  (doble violación: DDL fuera de migrations + autoincrement). Ahora nace
+  UUIDv7 en el schema base y el router solo inserta.
+- **Deuda lastrowid saldada**: api/routers (cotizaciones/pedidos/anticipos),
+  integrations/pos_adapter, integrations/cfdi — todos acuñan `id` con
+  `new_uuid()`. Helper muerto `_lastrowid` eliminado de
+  infrastructure/persistence/base.py. Allowlists reducidas a solo
+  menciones en docstrings.
+- **Contratos API a UUID string**: modelos Pydantic de cotizaciones y
+  pedidos transportan `cliente_id`/`producto_id`/`sucursal_id` como str
+  (sin defaults `sucursal_id=1`).

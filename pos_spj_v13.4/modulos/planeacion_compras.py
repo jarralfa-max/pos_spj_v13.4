@@ -156,10 +156,8 @@ class ModuloPlaneacionCompras(QWidget):
     def cargar_productos(self):
         self.cmb_producto.clear()
         try:
-            from repositories.productos import ProductoRepository
-            rows = ProductoRepository(self.container.db).listar_activos_combo()
-            for row in rows:
-                self.cmb_producto.addItem(row['nombre'], row['id'])
+            for prod in self._planning_reads.list_forecastable_products(str(self.sucursal_id)):
+                self.cmb_producto.addItem(prod['nombre'], prod['id'])
         except Exception as e:
             logger.error(f"Error cargando productos para pronóstico: {e}")
 
@@ -281,8 +279,7 @@ class ModuloPlaneacionCompras(QWidget):
         # Look up last purchase cost for this product as a price hint (via repo)
         unit_cost = 0.0
         try:
-            from repositories.purchase_repository import PurchaseRepository
-            unit_cost = PurchaseRepository(self.container.db).ultimo_costo_unitario(producto_id)
+            unit_cost = self._planning_reads.last_purchase_cost(str(producto_id))
         except Exception:
             pass
 

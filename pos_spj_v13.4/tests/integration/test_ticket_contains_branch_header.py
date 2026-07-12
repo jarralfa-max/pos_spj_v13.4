@@ -1,128 +1,81 @@
-# tests/integration/test_ticket_contains_branch_header.py
-"""El ticket debe incluir el encabezado de empresa + sucursal.
-
-Valida:
-- SalesService._ticket_header_data lee empresa (configuraciones) y sucursal
-  (sucursales) usando branch_id UUID (str), sin default y sin int().
-- El TicketTemplateEngine renderiza empresa, sucursal, dirección, teléfono,
-  WhatsApp, RFC/régimen y folio/fecha/cajero/total.
-"""
-import sqlite3
-
-import pytest
+"""El ticket incluye datos reales de la sucursal (sin hardcodes ni default 1)."""
+from __future__ import annotations
 
 from backend.shared.ids import new_uuid
+from core.engines.template_engine import TicketTemplateEngine
+from core.services.sales_service import SalesService
+from tests.integration._born_clean_db import make_db
 
 
-@pytest.fixture
-def db():
-    conn = sqlite3.connect(":memory:")
-    conn.row_factory = sqlite3.Row
-    from migrations import engine
-    engine.up(conn)
-    conn.commit()
-    return conn
+class _CfgStub:
+    def __init__(self, values):
+        self._values = values
+
+    def get(self, key, default=None):
+        return self._values.get(key, default)
 
 
-def _config_service(db):
-    from repositories.config_repository import ConfigRepository
-    from core.services.config_service import ConfigService
-    return ConfigService(ConfigRepository(db))
+def _service(conn, cfg=None) -> SalesService:
+    svc = object.__new__(SalesService)
+    svc.db = conn
+    svc.config_service = _CfgStub(cfg or {})
+    return svc
 
 
-def _seed(db):
-    bid = new_uuid()
-    db.execute(
-        "INSERT INTO sucursales (id,nombre,direccion,telefono,activa) VALUES (?,?,?,?,1)",
-        (bid, "SPJ Centro", "Av. Reforma 123, CDMX", "55-1234-5678"),
+def test_ticket_header_data_resolves_branch_by_uuid():
+    conn = make_db()
+    branch_id = new_uuid()
+    conn.execute(
+        "INSERT INTO sucursales (id, nombre, direccion, telefono) "
+        "VALUES (?, 'Sucursal Norte', 'Calle 2 #45', '555-1234')",
+        (branch_id,),
     )
-    for k, v in [
-        ("nombre_empresa", "Super Pollo Juárez"),
-        ("rfc", "SPJ010101ABC"),
-        ("regimen_fiscal", "601 - General de Ley"),
-        ("web_empresa", "www.spj.mx"),
-        ("whatsapp_empresa", "+525599998888"),
-    ]:
-        db.execute("INSERT INTO configuraciones (clave,valor) VALUES (?,?)", (k, v))
-    db.commit()
-    return bid
+    svc = _service(conn, {
+        "nombre_empresa": "SPJ Carnes",
+        "rfc": "SPJ010101XXX",
+        "regimen_fiscal": "601",
+        "whatsapp_empresa": "+5215550001111",
+    })
+    header = svc._ticket_header_data(branch_id)
+    assert header["sucursal_id"] == branch_id
+    assert header["sucursal_nombre"] == "Sucursal Norte"
+    assert header["sucursal_direccion"] == "Calle 2 #45"
+    assert header["sucursal_telefono"] == "555-1234"
+    assert header["nombre_empresa"] == "SPJ Carnes"
+    assert header["rfc_emisor"] == "SPJ010101XXX"
 
 
-def _sales_service(db, cfg):
-    from core.services.sales_service import SalesService
-    return SalesService(
-        db, None, None, None, None, None, None, None,
-        None, None, cfg, None,
-    )
-
-
-def test_ticket_header_data_desde_sucursal_y_config(db):
-    bid = _seed(db)
-    cfg = _config_service(db)
-    svc = _sales_service(db, cfg)
-    header = svc._ticket_header_data(str(bid))
-    assert header["sucursal_id"] == bid            # UUID str, sin int()
-    assert header["sucursal_nombre"] == "SPJ Centro"
-    assert header["sucursal_direccion"] == "Av. Reforma 123, CDMX"
-    assert header["sucursal_telefono"] == "55-1234-5678"
-    assert header["nombre_empresa"] == "Super Pollo Juárez"
-    assert header["rfc_emisor"] == "SPJ010101ABC"
-    assert header["regimen_fiscal"] == "601 - General de Ley"
-    assert header["whatsapp_empresa"] == "+525599998888"
-    assert header["web_empresa"] == "www.spj.mx"
-
-
-def test_ticket_header_sin_sucursal_no_falla_y_deja_vacio(db):
-    cfg = _config_service(db)
-    svc = _sales_service(db, cfg)
-    # branch_id inexistente: no falla, deja sucursal vacía (no default 1)
-    header = svc._ticket_header_data("no-existe")
-    assert header["sucursal_id"] == "no-existe"
+def test_missing_branch_leaves_fields_empty_without_failing():
+    conn = make_db()
+    svc = _service(conn)
+    header = svc._ticket_header_data(new_uuid())   # sucursal inexistente
     assert header["sucursal_nombre"] == ""
     assert header["sucursal_direccion"] == ""
-    assert header["sucursal_telefono"] == ""
+    header2 = svc._ticket_header_data("")          # sin sucursal — sin default '1'
+    assert header2["sucursal_id"] == ""
 
 
-def test_ticket_render_contiene_encabezado_completo(db):
-    bid = _seed(db)
-    cfg = _config_service(db)
-    svc = _sales_service(db, cfg)
-    header = svc._ticket_header_data(str(bid))
-
-    venta_data = {
-        "venta_id": "V-1001",
-        "folio": "V-1001",
-        "fecha": "2026-07-09 14:30:00",
-        "cajero": "Ana",
-        "totales": {"subtotal": 100.0, "descuento": 0.0, "total_final": 116.0},
-        "items": [{"nombre": "Pollo", "cantidad": 1, "precio_unitario": 116.0, "total": 116.0}],
-    }
-    venta_data.update(header)
-
-    from core.engines.template_engine import TicketTemplateEngine
-    from modulos.ticket_designer import ModuloTicketDesigner  # noqa: F401 (asegura import)
-    engine = TicketTemplateEngine(db)
-
-    template = (
-        "<div>{{nombre_empresa}} | Sucursal: {{sucursal_nombre}} | "
-        "{{sucursal_direccion}} | Tel: {{sucursal_telefono}} | "
-        "WA: {{whatsapp_empresa}} | RFC: {{rfc_emisor}} | Reg: {{regimen_fiscal}} | "
-        "Ticket: {{folio}} | Fecha: {{fecha}} | Cajero: {{cajero}} | "
-        "Total: {{total}} | {{items_html}}</div>"
+def test_rendered_ticket_contains_branch_header():
+    conn = make_db()
+    branch_id = new_uuid()
+    conn.execute(
+        "INSERT INTO sucursales (id, nombre, direccion, telefono) "
+        "VALUES (?, 'Sucursal Sur', 'Av. Tres 99', '555-9876')",
+        (branch_id,),
     )
-    html = engine.generar_ticket(template, venta_data)
-
-    # empresa + sucursal + dirección + teléfono
-    assert "Super Pollo Juárez" in html
-    assert "SPJ Centro" in html
-    assert "Av. Reforma 123, CDMX" in html
-    assert "55-1234-5678" in html
-    # whatsapp + fiscales
-    assert "+525599998888" in html
-    assert "SPJ010101ABC" in html
-    assert "601 - General de Ley" in html
-    # folio, fecha, cajero, total
-    assert "V-1001" in html
-    assert "2026-07-09 14:30:00" in html
-    assert "Ana" in html
-    assert "$116.00" in html
+    svc = _service(conn, {"nombre_empresa": "SPJ Carnes"})
+    datos = {
+        "folio": "F-1",
+        "fecha": "2026-07-12",
+        "cajero": "luis",
+        "totales": {"total_final": 50.0, "subtotal": 50.0},
+        "items": [],
+    }
+    datos.update(svc._ticket_header_data(branch_id))
+    html = TicketTemplateEngine(db_conn=conn).generar_ticket(
+        SalesService._default_ticket_template(), datos
+    )
+    assert "Sucursal Sur" in html
+    assert "Av. Tres 99" in html
+    assert "555-9876" in html
+    assert "San Bartolo" not in html

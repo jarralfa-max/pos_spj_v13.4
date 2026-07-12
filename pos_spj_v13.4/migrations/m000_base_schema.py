@@ -191,15 +191,19 @@ def _create_core_config(conn):
 def _create_auth(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
-            id            TEXT NOT NULL PRIMARY KEY,
-            nombre        TEXT    NOT NULL,
-            usuario       TEXT    UNIQUE NOT NULL,
-            password_hash TEXT    NOT NULL,
-            rol           TEXT    DEFAULT 'cajero',
-            sucursal_id   TEXT,
-            activo        INTEGER DEFAULT 1,
-            fecha_alta    DATETIME DEFAULT (datetime('now')),
-            ultimo_acceso DATETIME
+            id                TEXT PRIMARY KEY,
+            nombre            TEXT    NOT NULL,
+            usuario           TEXT    UNIQUE NOT NULL,
+            password_hash     TEXT    NOT NULL,
+            rol               TEXT    DEFAULT 'cajero',
+            sucursal_id       TEXT,
+            activo            INTEGER DEFAULT 1,
+            intentos_fallidos INTEGER DEFAULT 0,
+            bloqueado_hasta   DATETIME,
+            locked_reason     TEXT,
+            updated_at        DATETIME,
+            fecha_alta        DATETIME DEFAULT (datetime('now')),
+            ultimo_acceso     DATETIME
         )
     """)
     conn.execute("""
@@ -306,17 +310,31 @@ def _create_clientes(conn):
     # sale_loyalty_policy y sales_reversal_service.
     conn.execute("""
         CREATE TABLE IF NOT EXISTS historico_puntos (
-            id          TEXT NOT NULL PRIMARY KEY,
-            cliente_id  TEXT,
-            tipo        TEXT,
-            puntos      INTEGER,
-            descripcion TEXT,
-            venta_id    TEXT,
-            fecha       DATETIME DEFAULT (datetime('now'))
+            id           TEXT PRIMARY KEY,
+            cliente_id   TEXT,
+            tipo         TEXT,
+            puntos       INTEGER,
+            descripcion  TEXT,
+            saldo_actual REAL DEFAULT 0,
+            usuario      TEXT,
+            venta_id     TEXT,
+            fecha        DATETIME DEFAULT (datetime('now'))
+        )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS referidos (
             id                 TEXT NOT NULL PRIMARY KEY,
+            codigo             TEXT UNIQUE,
+            cliente_referidor  INTEGER,
+            cliente_referido   INTEGER,
+            estado             TEXT DEFAULT 'pendiente',
+            puntos_referidor   INTEGER DEFAULT 100,
+            puntos_referido    INTEGER DEFAULT 50,
+            fecha              DATETIME DEFAULT (datetime('now'))
+        )
+    """)
+
+
 def _create_productos(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS categorias (
@@ -1729,16 +1747,14 @@ def _create_loyalty(conn):
     # (0 referencias). El log canónico de puntos es loyalty_ledger.
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_snapshots (
-            id             TEXT NOT NULL PRIMARY KEY,
-            cliente_id     TEXT NOT NULL,
-            fecha          DATE    NOT NULL,
-            visitas_dia    INTEGER NOT NULL DEFAULT 0,
-            importe_dia    REAL    NOT NULL DEFAULT 0,
-            margen_dia     REAL    NOT NULL DEFAULT 0,
-            visitas_acum   INTEGER NOT NULL DEFAULT 0,
-            importe_acum   REAL    NOT NULL DEFAULT 0,
-            margen_acum    REAL    NOT NULL DEFAULT 0,
-            score_calculado REAL   DEFAULT 0
+            id              TEXT PRIMARY KEY,
+            cliente_id      TEXT NOT NULL UNIQUE,
+            puntos_actuales INTEGER NOT NULL DEFAULT 0,
+            nivel           TEXT    NOT NULL DEFAULT 'Bronce',
+            visitas         INTEGER NOT NULL DEFAULT 0,
+            importe_total   REAL    NOT NULL DEFAULT 0,
+            ultimo_evento_id TEXT,
+            fecha_snapshot  DATETIME DEFAULT (datetime('now'))
         )
     """)
     conn.execute("""
