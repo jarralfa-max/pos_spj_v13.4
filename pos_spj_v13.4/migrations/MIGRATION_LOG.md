@@ -331,3 +331,18 @@ compras ya no escriben `movimientos_caja` (asiento contra
 `ConfigRepository` sin `int(UUID)`; `SessionContext` con identidad str;
 lotes/movimientos_lote con `id` UUIDv7 (sin columna `uuid` ni randomblob);
 `new_uuid()` monótono in-process (checkpoints UUIDv7).
+
+### Adendum (misma rama) — saldo de deuda de identidad
+
+- **S-06 — Tabla `anticipos` creada en m000**: antes la creaba
+  `api/routers/anticipos.py` con `INTEGER PRIMARY KEY AUTOINCREMENT`
+  (doble violación: DDL fuera de migrations + autoincrement). Ahora nace
+  UUIDv7 en el schema base y el router solo inserta.
+- **Deuda lastrowid saldada**: api/routers (cotizaciones/pedidos/anticipos),
+  integrations/pos_adapter, integrations/cfdi — todos acuñan `id` con
+  `new_uuid()`. Helper muerto `_lastrowid` eliminado de
+  infrastructure/persistence/base.py. Allowlists reducidas a solo
+  menciones en docstrings.
+- **Contratos API a UUID string**: modelos Pydantic de cotizaciones y
+  pedidos transportan `cliente_id`/`producto_id`/`sucursal_id` como str
+  (sin defaults `sucursal_id=1`).

@@ -776,6 +776,20 @@ def _create_ventas(conn):
             regresa_inventario INTEGER DEFAULT 1
         )
     """)
+    # Anticipos de clientes sobre ventas (WhatsApp / MercadoPago).
+    # Identidad UUIDv7; antes la creaba el router de la API (prohibido).
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS anticipos (
+            id          TEXT PRIMARY KEY,
+            venta_id    TEXT NOT NULL,
+            monto       REAL NOT NULL,
+            metodo      TEXT DEFAULT 'mercadopago',
+            estado      TEXT DEFAULT 'pendiente',
+            referencia  TEXT DEFAULT '',
+            fecha       TEXT DEFAULT (datetime('now')),
+            fecha_pago  TEXT
+        )
+    """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS cotizaciones (
             id                TEXT    PRIMARY KEY,

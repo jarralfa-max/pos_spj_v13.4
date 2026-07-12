@@ -8,6 +8,7 @@ Arquitectura: SPJ -> CfdiService -> PacAdapter -> PAC (Finkok/SW Sapien/Stub)
 from __future__ import annotations
 import logging, uuid, json
 from datetime import datetime
+from backend.shared.ids import new_uuid
 from core.db.connection import get_connection, transaction
 
 logger = logging.getLogger("spj.cfdi")
@@ -228,14 +229,16 @@ class CfdiService:
         iva      = round(subtotal*0.16,2)
 
         # Guardar en BD antes de timbrar (por si el PAC falla)
+        # Identidad UUIDv7 acuñada en aplicación — nunca lastrowid.
+        fid = new_uuid()
         with transaction(self.conn) as c:
-            fid = c.execute("""INSERT INTO facturas_cfdi
-                (venta_id,folio,rfc_receptor,nombre_receptor,
+            c.execute("""INSERT INTO facturas_cfdi
+                (id,venta_id,folio,rfc_receptor,nombre_receptor,
                  subtotal,iva,total,xml_generado,estado)
-                VALUES(?,?,?,?,?,?,?,?,'pendiente')""",
-                (venta_id, folio_cfdi,
+                VALUES(?,?,?,?,?,?,?,?,?,'pendiente')""",
+                (fid, venta_id, folio_cfdi,
                  factura["rfc_receptor"], factura["nombre_receptor"],
-                 subtotal, iva, subtotal+iva, xml)).lastrowid
+                 subtotal, iva, subtotal+iva, xml))
 
         # Timbrar
         try:

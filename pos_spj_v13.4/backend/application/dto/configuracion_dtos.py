@@ -72,10 +72,18 @@ class UserSettingsDTO:
     branch_name: str = ""
     active: bool = True
     employee_id: Any = None
+    failed_attempts: int = 0
+    locked_until: str = ""
+
+    @property
+    def locked(self) -> bool:
+        """True cuando el usuario está bloqueado o acumula intentos fallidos."""
+        return bool(self.locked_until) or self.failed_attempts > 0
 
     @classmethod
     def from_list_row(cls, row) -> "UserSettingsDTO":
-        # list_users_v13: id, usuario, nombre, rol, sucursal, activo, ...
+        # list_users_v13: id, usuario, nombre, rol, sucursal, activo,
+        #                 usuario_uuid, sucursal_uuid, intentos_fallidos, bloqueado_hasta
         return cls(
             id=str(row[0] or ""),
             username=str(row[1] or ""),
@@ -83,6 +91,8 @@ class UserSettingsDTO:
             role=str(row[3] or ""),
             branch_name=str(row[4] or ""),
             active=bool(row[5]),
+            failed_attempts=int(row[8] or 0) if len(row) > 8 else 0,
+            locked_until=str(row[9] or "") if len(row) > 9 else "",
         )
 
     @classmethod

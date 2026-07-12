@@ -1,6 +1,8 @@
 
 import sqlite3
 import logging
+
+from backend.shared.ids import new_uuid
 from datetime import datetime, date
 from typing import List, Dict, Optional, Tuple
 import os
@@ -109,19 +111,19 @@ class POSAdapter:
             
             # Crear venta en el sistema existente
             fecha_actual = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            # Identidad UUIDv7 acuñada en aplicación — nunca lastrowid.
+            venta_id = new_uuid()
             cursor.execute('''
-                INSERT INTO ventas (fecha, cliente_id, total, forma_pago, usuario)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (fecha_actual, cliente_id, total, 'EFECTIVO', 'WHATSAPP_BOT'))
-            
-            venta_id = cursor.lastrowid
+                INSERT INTO ventas (id, fecha, cliente_id, total, forma_pago, usuario)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (venta_id, fecha_actual, cliente_id, total, 'EFECTIVO', 'WHATSAPP_BOT'))
             
             # Insertar items y descontar inventario
             for item in items:
                 cursor.execute('''
-                    INSERT INTO detalles_venta (venta_id, producto_id, cantidad, precio_unitario, total)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (venta_id, item['producto_id'], item['cantidad'], item['precio_unitario'], item['subtotal']))
+                    INSERT INTO detalles_venta (id, venta_id, producto_id, cantidad, precio_unitario, subtotal)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (new_uuid(), venta_id, item['producto_id'], item['cantidad'], item['precio_unitario'], item['subtotal']))
                 
                 # v13.4: Descontar inventario via app_service si disponible
                 try:
@@ -154,17 +156,16 @@ class POSAdapter:
             
             # Registrar en historico de puntos
             cursor.execute('''
-                INSERT INTO historico_puntos (id_cliente, fecha, tipo, puntos, descripcion, usuario, saldo_actual)
-                VALUES (?, ?, 'COMPRA', ?, ?, ?, ?)
-            ''', (cliente_id, fecha_actual, int(total), f'Compra WhatsApp #{venta_id}', 'WHATSAPP_BOT', int(total)))
+                INSERT INTO historico_puntos (id, cliente_id, fecha, tipo, puntos, descripcion, usuario, saldo_actual, venta_id)
+                VALUES (?, ?, ?, 'COMPRA', ?, ?, ?, ?, ?)
+            ''', (new_uuid(), cliente_id, fecha_actual, int(total), f'Compra WhatsApp {venta_id}', 'WHATSAPP_BOT', int(total), venta_id))
             
             # Crear orden de WhatsApp
+            order_id = new_uuid()
             cursor.execute('''
-                INSERT INTO whatsapp_orders (user_phone, total, estado, direccion_entrega, costo_envio, venta_id, cliente_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (user_phone, total, 'COMPLETADO', direccion, envio, venta_id, cliente_id))
-            
-            order_id = cursor.lastrowid
+                INSERT INTO whatsapp_orders (id, user_phone, total, estado, direccion_entrega, costo_envio, venta_id, cliente_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (order_id, user_phone, total, 'COMPLETADO', direccion, envio, venta_id, cliente_id))
             
             # Insertar items de la orden
             for item in items:
@@ -207,11 +208,12 @@ class POSAdapter:
         if resultado:
             return resultado[0]
         else:
+            nuevo_id = new_uuid()
             cursor.execute('''
-                INSERT INTO whatsapp_users (phone_number, nombre, created_at)
-                VALUES (?, ?, CURRENT_TIMESTAMP)
-            ''', (phone, f"Cliente WhatsApp {phone}"))
-            return cursor.lastrowid
+                INSERT INTO whatsapp_users (id, phone_number, nombre, created_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (nuevo_id, phone, f"Cliente WhatsApp {phone}"))
+            return nuevo_id
     
     def _obtener_o_crear_cliente(self, phone: str, cursor) -> int:
         """Obtener ID de cliente o crear uno nuevo"""
@@ -368,16 +370,17 @@ class POSAdapter:
             codigo_canje = f"CANJE_{user_phone}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
             
             # Registrar canje
+            redemption_id = new_uuid()
             cursor.execute('''
-                INSERT INTO redemptions (user_phone, reward_id, puntos_usados, codigo_canje, fecha_canje)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (user_phone, reward_id, puntos_requeridos, codigo_canje, date.today()))
+                INSERT INTO redemptions (id, user_phone, reward_id, puntos_usados, codigo_canje, fecha_canje)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (redemption_id, user_phone, reward_id, puntos_requeridos, codigo_canje, date.today()))
             
             # Descontar puntos
             cursor.execute('''
                 INSERT INTO loyalty_points (user_phone, puntos, tipo_movimiento, descripcion, referencia_id)
                 VALUES (?, ?, 'CANJE', 'Canje: ' || ?, ?)
-            ''', (user_phone, -puntos_requeridos, nombre, cursor.lastrowid))
+            ''', (user_phone, -puntos_requeridos, nombre, redemption_id))
             
             cursor.execute('''
                 UPDATE whatsapp_users 

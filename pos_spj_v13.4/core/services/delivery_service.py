@@ -193,7 +193,7 @@ class DeliveryService:
 
     def update_status(
         self,
-        order_id: int,
+        order_id: str,
         status: str,
         usuario: str,
         responsable: str = "",

@@ -43,11 +43,16 @@ import json, logging, os, unicodedata
 logger = logging.getLogger("spj.compras")
 
 # ── Payment method constants ────────────────────────────────────────────────
+# Fuente única de verdad de la condición financiera:
+#   Condición de compra → _cmb_condicion_pago (Liquidado / Crédito / Parcial)
+#   Método de pago      → cmb_pago (solo origen del pago; el crédito NO es un
+#                         método: se declara únicamente en la condición).
+# El pago al contado sale de capital operativo/tesorería — nunca de Caja POS.
 _PAGO_ITEMS = [
-    ("CONTADO (Efectivo)",         "CONTADO"),
-    ("CREDITO (Cuentas por Pagar)", "CREDITO"),
-    ("TRANSFERENCIA",               "TRANSFERENCIA"),
-    ("CHEQUE",                      "CHEQUE"),
+    ("CONTADO (Efectivo desde capital)", "CONTADO"),
+    ("TRANSFERENCIA",                    "TRANSFERENCIA"),
+    ("CHEQUE",                           "CHEQUE"),
+    ("TERMINAL",                         "TERMINAL"),
 ]
 
 # Price variance threshold (%) that triggers audit alert
@@ -4562,12 +4567,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._spin_plazo_dias = QSpinBox()
         self._spin_plazo_dias.setRange(0, 365)
         self._spin_plazo_dias.setSuffix(" días")
-        self._spin_plazo_dias.setValue(30)
+        # Campo numérico inicia en cero (regla 22); sin default arbitrario 30.
+        self._spin_plazo_dias.setValue(0)
+        self._spin_plazo_dias.setEnabled(False)
         self._spin_plazo_dias.setObjectName("standardInput")
         self._lbl_vence_el = QLabel("—")
         self._lbl_vence_el.setObjectName("caption")
 
-        pay_col.addWidget(_make_field_label("Método / Forma"),   0, 0, 1, 2)
+        pay_col.addWidget(_make_field_label("Método de pago"),   0, 0, 1, 2)
         pay_col.addWidget(self.cmb_pago,                         1, 0, 1, 2)
         pay_col.addWidget(_make_field_label("Condición de pago"), 2, 0, 1, 2)
         pay_col.addWidget(self._cmb_condicion_pago,              3, 0, 1, 2)
@@ -5013,11 +5020,31 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             _set_val_variant(self._val_total_v_lbl, "warning")
 
     def _on_condicion_changed(self, condicion: str) -> None:
-        """Enable/disable plazo spinbox based on payment condition."""
-        es_credito = condicion.lower() != "liquidado"
+        """Fuente única: la condición gobierna plazo y método de pago."""
+        cond = condicion.lower()
+        es_credito_total = cond == "crédito"
+        con_plazo = cond != "liquidado"
         if hasattr(self, '_spin_plazo_dias'):
-            self._spin_plazo_dias.setEnabled(es_credito)
+            self._spin_plazo_dias.setEnabled(con_plazo)
+            if not con_plazo:
+                self._spin_plazo_dias.setValue(0)
+        if hasattr(self, 'cmb_pago'):
+            # Crédito total: no hay pago ahora — el método no aplica.
+            self.cmb_pago.setEnabled(not es_credito_total)
         self._on_plazo_changed()
+
+    def _payment_method(self) -> str:
+        """Método de pago canónico derivado de la condición (fuente única).
+
+        Crédito total → "CREDITO" (CxP, sin salida de fondos).
+        Liquidado/Parcial → método seleccionado (origen capital/banco);
+        nunca Caja POS.
+        """
+        condicion = (self._cmb_condicion_pago.currentText().lower()
+                     if hasattr(self, '_cmb_condicion_pago') else "liquidado")
+        if condicion == "crédito":
+            return "CREDITO"
+        return (self.cmb_pago.currentData() or "CONTADO") if hasattr(self, 'cmb_pago') else "CONTADO"
 
     def _on_plazo_changed(self, _=None) -> None:
         """Recalculate and display due date based on plazo."""
@@ -5228,7 +5255,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             iva_activo  = hasattr(self, '_chk_iva') and self._chk_iva.isChecked()
             iva_monto   = round(subtotal * self._get_iva_rate(), 2) if iva_activo else 0.0
             total       = subtotal + iva_monto
-            pago        = self.cmb_pago.currentData() or "CONTADO"
+            pago        = self._payment_method()
             branch_dest = (self.cmb_sucursal_destino.currentData()
                            if hasattr(self, 'cmb_sucursal_destino')
                            else self.sucursal_id) or self.sucursal_id
@@ -5896,7 +5923,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         # ── DIRECT: flujo original sin cambios ────────────────────────────────
 
         doc_ref  = self.txt_factura.text().strip() or "Sin Ref"
-        pago     = self.cmb_pago.currentData() or "CONTADO"
+        pago     = self._payment_method()
         # Recompute subtotal from qty×unit_cost to match UC validation (avoids float drift)
         subtotal = round(sum(
             float(i['cantidad']) * float(i['costo_unitario'])

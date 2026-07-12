@@ -37,6 +37,5 @@ class BaseRepository(ABC):
     def _executemany(self, sql: str, params_seq) -> sqlite3.Cursor:
         return self._conn.executemany(sql, params_seq)
 
-    def _lastrowid(self, sql: str, params: Tuple = ()) -> int:
-        cur = self._conn.execute(sql, params)
-        return cur.lastrowid
+    # _lastrowid eliminado (REGLA CERO): la identidad de dominio es UUIDv7
+    # acuñada con backend.shared.ids.new_uuid(), nunca el rowid de SQLite.

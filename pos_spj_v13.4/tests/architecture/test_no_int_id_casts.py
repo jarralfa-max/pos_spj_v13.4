@@ -18,10 +18,8 @@ from .architecture_guardrails import (
 
 INT_ID_CAST_RE = re.compile(r"\bint\(\s*(?:\w+\.)?\w*_(?:id|row_id)\s*\)")
 
-# Deuda existente congelada — no debe crecer y debe reducirse a cero.
-INT_ID_CASTS_ALLOWLIST = {
-    "pos_spj_v13.4/integrations/delivery_pwa/pwa_server.py": 1,
-}
+# Deuda saldada: cero casts int(..._id) permitidos.
+INT_ID_CASTS_ALLOWLIST: dict[str, int] = {}
 
 
 def test_no_int_id_casts() -> None:

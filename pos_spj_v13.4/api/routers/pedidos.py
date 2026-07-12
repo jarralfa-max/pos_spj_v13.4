@@ -6,26 +6,28 @@ from pydantic import BaseModel, Field
 
 from api.deps import get_db, get_container
 from api.auth import verify_api_key
+from backend.shared.ids import new_uuid
 
 router = APIRouter(prefix="/pedidos", tags=["pedidos"])
 
 
 class ItemPedidoIn(BaseModel):
-    producto_id:    int
+    # Identidad UUIDv7 string (REGLA CERO): la API transporta UUIDs.
+    producto_id:    str
     nombre:         str   = ""
     cantidad:       float = Field(gt=0)
     precio_unitario: float = Field(ge=0)
 
 
 class PedidoIn(BaseModel):
-    cliente_id:      Optional[int] = None
+    cliente_id:      Optional[str] = None
     phone:           str   = ""
     items:           List[ItemPedidoIn]
     tipo_entrega:    str   = "sucursal"   # "sucursal" | "domicilio"
     direccion:       str   = ""
     fecha_entrega:   str   = ""
     notas:           str   = ""
-    sucursal_id:     int   = 1
+    sucursal_id:     str   = ""
     canal:           str   = "whatsapp"
 
 
@@ -45,23 +47,24 @@ async def crear_pedido(
     folio = f"WA-{_uuid.uuid4().hex[:8].upper()}"
 
     try:
-        cur = db.execute("""
+        # Identidad UUIDv7 acuñada en aplicación — nunca lastrowid.
+        venta_id = new_uuid()
+        db.execute("""
             INSERT INTO ventas (
-                folio, cliente_id, total, subtotal, estado,
+                id, folio, cliente_id, total, subtotal, estado,
                 sucursal_id, tipo_entrega, direccion_entrega,
                 fecha_entrega_programada, notas, canal, fecha
-            ) VALUES (?, ?, ?, ?, 'pendiente_wa', ?, ?, ?, ?, ?, ?, datetime('now'))
-        """, (folio, body.cliente_id, total, total, body.sucursal_id,
+            ) VALUES (?, ?, ?, ?, ?, 'pendiente_wa', ?, ?, ?, ?, ?, ?, datetime('now'))
+        """, (venta_id, folio, body.cliente_id, total, total, body.sucursal_id,
               body.tipo_entrega, body.direccion, body.fecha_entrega,
               body.notas, body.canal))
-        venta_id = cur.lastrowid
 
         for it in body.items:
             db.execute("""
                 INSERT INTO detalles_venta
-                    (venta_id, producto_id, nombre, cantidad, precio_unitario, subtotal)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (venta_id, it.producto_id, it.nombre, it.cantidad,
+                    (id, venta_id, producto_id, nombre, cantidad, precio_unitario, subtotal)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (new_uuid(), venta_id, it.producto_id, it.nombre, it.cantidad,
                   it.precio_unitario, round(it.cantidad * it.precio_unitario, 2)))
 
         return {

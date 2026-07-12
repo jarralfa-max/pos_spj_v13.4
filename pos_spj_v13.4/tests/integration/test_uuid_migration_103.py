@@ -189,10 +189,12 @@ def test_list_users_v13_no_ambiguous_uuid():
     conn.execute("INSERT INTO roles VALUES (1,'admin','019ed300-0000-7000-8000-000000000002')")
     conn.execute(
         "CREATE TABLE usuarios (id INTEGER PRIMARY KEY, usuario TEXT, nombre TEXT, rol TEXT, "
-        "sucursal_id INTEGER, activo INTEGER, uuid TEXT)"
+        "sucursal_id INTEGER, activo INTEGER, uuid TEXT, "
+        "intentos_fallidos INTEGER DEFAULT 0, bloqueado_hasta DATETIME)"
     )
     conn.execute(
-        "INSERT INTO usuarios VALUES (1,'admin','Admin','admin',1,1,"
+        "INSERT INTO usuarios (id,usuario,nombre,rol,sucursal_id,activo,uuid) "
+        "VALUES (1,'admin','Admin','admin',1,1,"
         "'019ed300-0000-7000-8000-000000000003')"
     )
     conn.commit()
@@ -221,9 +223,10 @@ def test_usuario_without_sucursal():
     )
     conn.execute(
         "CREATE TABLE usuarios (id INTEGER PRIMARY KEY, usuario TEXT, nombre TEXT, rol TEXT, "
-        "sucursal_id INTEGER, activo INTEGER, uuid TEXT)"
+        "sucursal_id INTEGER, activo INTEGER, uuid TEXT, "
+        "intentos_fallidos INTEGER DEFAULT 0, bloqueado_hasta DATETIME)"
     )
-    conn.execute("INSERT INTO usuarios VALUES (1,'user1','User 1','cajero',NULL,1,'019ed300-0000-7000-8000-000000000010')")
+    conn.execute("INSERT INTO usuarios (id,usuario,nombre,rol,sucursal_id,activo,uuid) VALUES (1,'user1','User 1','cajero',NULL,1,'019ed300-0000-7000-8000-000000000010')")
     conn.commit()
     import sys
     sys.path.insert(0, str(ROOT / "pos_spj_v13.4"))
