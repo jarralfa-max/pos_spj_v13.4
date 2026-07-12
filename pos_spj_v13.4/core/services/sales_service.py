@@ -85,6 +85,55 @@ class SalesService:
                 return folio
         return f"V{base}-{new_uuid().replace('-', '')[:8].upper()}"
 
+    def _ticket_header_data(self, branch_id: str) -> dict:
+        """Datos de encabezado del ticket: empresa (configuraciones) + sucursal
+        (tabla sucursales). branch_id es un UUID (str) — nunca se castea a int y
+        no se usa una sucursal por defecto. Ante cualquier error o dato faltante
+        devuelve cadenas vacías; NUNCA lanza para no afectar la venta."""
+        bid = str(branch_id or "")
+        header = {
+            "nombre_empresa": "",
+            "rfc_emisor": "",
+            "regimen_fiscal": "",
+            "web_empresa": "",
+            "whatsapp_empresa": "",
+            "sucursal_id": bid,
+            "sucursal_nombre": "",
+            "sucursal_direccion": "",
+            "sucursal_telefono": "",
+        }
+        try:
+            def _cfg(clave: str) -> str:
+                try:
+                    if self.config_service:
+                        val = self.config_service.get(clave)
+                        return str(val) if val not in (None, "") else ""
+                    row = self.db.execute(
+                        "SELECT valor FROM configuraciones WHERE clave=?", (clave,)
+                    ).fetchone()
+                    return str(row[0]) if row and row[0] else ""
+                except Exception:
+                    return ""
+
+            header["nombre_empresa"]   = _cfg("nombre_empresa")
+            header["rfc_emisor"]       = _cfg("rfc")
+            header["regimen_fiscal"]   = _cfg("regimen_fiscal")
+            header["web_empresa"]      = _cfg("web_empresa")
+            header["whatsapp_empresa"] = _cfg("whatsapp_empresa")
+
+            if bid:
+                row = self.db.execute(
+                    "SELECT nombre, direccion, telefono FROM sucursales WHERE id=?",
+                    (bid,),
+                ).fetchone()
+                if row:
+                    header["sucursal_nombre"]    = str(row[0] or "")
+                    header["sucursal_direccion"] = str(row[1] or "")
+                    header["sucursal_telefono"]  = str(row[2] or "")
+        except Exception as exc:
+            logger.warning("_ticket_header_data falló (no afecta la venta): %s", exc)
+        return header
+
     def _validate_stock_pre_sale(self, items: list, branch_id: int) -> None:
         """
         Read-only stock guard executed BEFORE opening the SAVEPOINT.
@@ -129,7 +178,7 @@ class SalesService:
                     "cantidad": ln.qty,
                     "unit_price": item.get("unit_price", 0),
                     "precio_unitario": item.get("precio_unitario", item.get("unit_price", 0)),
-                    "nombre": item.get("nombre", ln.name),
+                    "nombre": item.get("nombre") or item.get("name") or ln.name,
                     "unidad": item.get("unidad", "kg"),
                     "es_compuesto": 0,
                     "fulfillment_mode": ln.mode,
@@ -879,6 +928,7 @@ class SalesService:
 
         # Generar Ticket
         ticket_final_html = ""
+        ticket_header = {}
         try:
             datos_venta = {
                 'venta_id': sale_id,
@@ -899,6 +949,8 @@ class SalesService:
                     'total_final': round(float(total_a_pagar), 2),
                 },
                 'pago': amount_paid_real,
+                'forma_pago': self._normalize_payment_method(payment_method),
+                'efectivo_recibido': round(float(payment_breakdown.get("efectivo", 0.0) or 0.0), 2),
                 'cambio': self._calculate_change(payment_method, payment_breakdown, total_a_pagar),
                 'items': carrito_final,
                 'puntos_ganados': (loyalty_result or {}).get('puntos_ganados'),
@@ -906,6 +958,9 @@ class SalesService:
                 'raffle_tickets_snapshot': raffle_tickets_snapshot,
                 'raffle_tickets_lines': [f"🎟️ Rifas/Sorteos\nRifa: {t.get('raffle','')}\nBoletos: {t.get('numero_boleto','')}" for t in (raffle_tickets_snapshot or [])],
             }
+            # Encabezado de ticket: empresa + sucursal (branch_id UUID str, sin default)
+            ticket_header = self._ticket_header_data(str(branch_id))
+            datos_venta.update(ticket_header)
             template_html = self.config_service.get('ticket_template_html')
             if not template_html:
                 raise ValueError("ticket_template_html not configured")
@@ -917,6 +972,7 @@ class SalesService:
 
         _pm = self._normalize_payment_method(payment_method)
         ticket_payload = dict(datos_venta)
+        ticket_payload.update(ticket_header)
         ticket_payload["venta_id"] = sale_id
         ticket_payload["sale_id"] = sale_id
         ticket_payload["operation_id"] = operation_id

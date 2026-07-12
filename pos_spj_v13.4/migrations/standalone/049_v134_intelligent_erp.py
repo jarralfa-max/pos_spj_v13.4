@@ -20,7 +20,7 @@ def run(conn) -> None:
     # ── module_toggles ────────────────────────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS module_toggles (
-            clave       TEXT    PRIMARY KEY,
+            clave       TEXT NOT NULL    PRIMARY KEY,
             activo      INTEGER DEFAULT 1,
             descripcion TEXT    DEFAULT ''
         )
@@ -50,7 +50,7 @@ def run(conn) -> None:
     # ── decision_log ──────────────────────────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS decision_log (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             tipo            TEXT    NOT NULL,
             prioridad       TEXT    NOT NULL DEFAULT 'normal',
             titulo          TEXT    NOT NULL,
@@ -75,7 +75,7 @@ def run(conn) -> None:
     # ── hr_auditoria_log ──────────────────────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS hr_auditoria_log (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             empleado_id     TEXT NOT NULL,
             tipo            TEXT    NOT NULL,   -- 'dias_consecutivos' | 'horas_semanales' | 'cobertura'
             detalle         TEXT    DEFAULT '',
@@ -96,7 +96,7 @@ def run(conn) -> None:
     # ── hr_pago_log ───────────────────────────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS hr_pago_log (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             empleado_id     TEXT NOT NULL,
             periodo         TEXT    NOT NULL,   -- 'YYYY-WNN' o 'YYYY-MM'
             total           REAL    NOT NULL DEFAULT 0.0,

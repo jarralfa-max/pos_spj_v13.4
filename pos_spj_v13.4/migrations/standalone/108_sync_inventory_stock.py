@@ -44,7 +44,7 @@ def run(conn: sqlite3.Connection) -> None:
     if not _tbl(conn, "inventory_stock"):
         conn.execute("""
             CREATE TABLE inventory_stock (
-                id         TEXT PRIMARY KEY,
+                id         TEXT NOT NULL PRIMARY KEY,
                 product_id TEXT NOT NULL,
                 branch_id  TEXT NOT NULL,
                 quantity   REAL    NOT NULL DEFAULT 0,

@@ -38,7 +38,7 @@ def run(conn: sqlite3.Connection) -> None:
     if not _tbl(conn, "inventario_actual"):
         conn.execute("""
             CREATE TABLE inventario_actual (
-                id                   TEXT PRIMARY KEY,
+                id                   TEXT NOT NULL PRIMARY KEY,
                 producto_id          TEXT NOT NULL,
                 sucursal_id          TEXT NOT NULL,
                 cantidad             REAL    NOT NULL DEFAULT 0,
@@ -62,7 +62,7 @@ def run(conn: sqlite3.Connection) -> None:
     if not _tbl(conn, "inventario_diario"):
         conn.execute("""
             CREATE TABLE inventario_diario (
-                id          TEXT PRIMARY KEY,
+                id          TEXT NOT NULL PRIMARY KEY,
                 fecha       DATE    NOT NULL,
                 producto_id TEXT NOT NULL,
                 sucursal_id TEXT NOT NULL,
@@ -78,7 +78,7 @@ def run(conn: sqlite3.Connection) -> None:
     if not _tbl(conn, "branch_inventory"):
         conn.execute("""
             CREATE TABLE branch_inventory (
-                id         TEXT PRIMARY KEY,
+                id         TEXT NOT NULL PRIMARY KEY,
                 branch_id  TEXT NOT NULL,
                 product_id TEXT NOT NULL,
                 batch_id   TEXT,

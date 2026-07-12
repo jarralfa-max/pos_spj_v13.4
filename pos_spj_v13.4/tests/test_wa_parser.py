@@ -19,10 +19,19 @@ _cfg_mod = _ilu.module_from_spec(_cfg_spec); sys.modules['config'] = _cfg_mod; _
 _set_spec = _ilu.spec_from_file_location('config.settings', os.path.join(_WA_ROOT, 'config', 'settings.py'))
 _set_mod = _ilu.module_from_spec(_set_spec); sys.modules['config.settings'] = _set_mod; _set_spec.loader.exec_module(_set_mod)
 _cfg_mod.settings = _set_mod
-# Stub optional heavy deps not installed in test environment
+# Stub optional heavy deps SOLO si no están instaladas. Antes se stubeaban
+# incondicionalmente (if _dep not in sys.modules), pero httpx SÍ está instalado
+# en CI y aún no estaba importado al colectar este módulo → se reemplazaba por un
+# MagicMock que envenenaba sys.modules para toda la sesión: cuando otro test
+# importaba fastapi/starlette.testclient, `class WebSocketDenialResponse(
+# httpx.Response, WebSocketDisconnect)` fallaba con "metaclass conflict".
 from unittest.mock import MagicMock as _MM
 for _dep in ('httpx', 'ollama', 'aiohttp'):
-    if _dep not in sys.modules:
+    if _dep in sys.modules:
+        continue
+    try:
+        __import__(_dep)  # usar el real si está instalado; no contaminar sys.modules
+    except ImportError:
         sys.modules[_dep] = _MM()
 
 import sqlite3
@@ -64,7 +73,8 @@ def matcher_db():
 @pytest.fixture
 def matcher(matcher_db):
     from parser.product_matcher import ProductMatcher
-    return ProductMatcher(matcher_db, sucursal_id=1)
+    # REGLA CERO: sucursal_id es UUIDv7 (str). El matcher lo normaliza a str.
+    return ProductMatcher(matcher_db, sucursal_id="1")
 
 
 # ── ProductMatcher Tests ──────────────────────────────────────────────────────
@@ -100,9 +110,10 @@ class TestProductMatcher:
         assert len(matcher._cache) == before
 
     def test_set_sucursal_triggers_reload(self, matcher):
-        matcher.set_sucursal(2)
-        assert matcher.sucursal_id == 2
-        matcher.set_sucursal(1)
+        # Identidad UUIDv7 (str), no int (REGLA CERO).
+        matcher.set_sucursal("2")
+        assert matcher.sucursal_id == "2"
+        matcher.set_sucursal("1")
 
     def test_get_categories_returns_distinct(self, matcher):
         cats = matcher.get_categories()

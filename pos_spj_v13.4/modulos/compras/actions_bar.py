@@ -45,7 +45,7 @@ class ActionsBar(QWidget):
         self._build_ui()
 
     def set_estado(self, estado: str) -> None:
-        """Update button label/color based on current document type."""
+        """Refresca la etiqueta/color del botón según el tipo de documento actual."""
         lbl, color, tip = _ESTADO_MAP.get(estado.upper(), _ESTADO_MAP["CAPTURA"])
         self._btn_main.setText(lbl)
         self._btn_main.setToolTip(tip)

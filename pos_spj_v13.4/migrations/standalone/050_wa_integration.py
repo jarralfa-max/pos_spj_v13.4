@@ -41,7 +41,7 @@ def run(conn) -> None:
     # ── wa_event_log ──────────────────────────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS wa_event_log (
-            id          TEXT    PRIMARY KEY,
+            id          TEXT NOT NULL    PRIMARY KEY,
             event_type  TEXT    NOT NULL,
             data_json   TEXT,
             sucursal_id TEXT,
@@ -57,7 +57,7 @@ def run(conn) -> None:
     # ── wa_reminder_queue ─────────────────────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS wa_reminder_queue (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             tipo        TEXT    NOT NULL,
             event_type  TEXT    NOT NULL,
             data_json   TEXT    DEFAULT '{}',
@@ -77,7 +77,7 @@ def run(conn) -> None:
     # ── ordenes_compra (si no existe) ─────────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ordenes_compra (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             producto_id     TEXT NOT NULL,
             proveedor_id    TEXT DEFAULT NULL,
             cantidad        REAL    NOT NULL DEFAULT 0.0,

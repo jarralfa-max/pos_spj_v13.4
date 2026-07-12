@@ -16,6 +16,13 @@ class CotizacionService:
         self.container = container  # AppContainer for full service chain
         # Schema lo crean las migraciones (m000 / 044): el servicio no crea schema (REGLA 11).
 
+    def productos_activos(self) -> list:
+        """Catálogo de productos activos para armar cotizaciones (id, nombre, precio, unidad).
+        Ruta canónica: el diálogo delega esta lectura aquí (Remediación D)."""
+        return self.conn.execute(
+            "SELECT id, nombre, precio, unidad FROM productos WHERE activo=1 ORDER BY nombre"
+        ).fetchall()
+
     def crear(self, items: list, cliente_id: str = None, cliente_nombre: str = "",
               notas: str = "", vigencia_dias: int = 7, descuento_global: float = 0) -> dict:
         subtotal = sum(float(i["cantidad"]) * float(i["precio_unitario"]) for i in items)
@@ -124,3 +131,45 @@ class CotizacionService:
         if estado: sql += " AND estado=?"; params.append(estado)
         sql += " ORDER BY fecha DESC LIMIT ?"; params.append(limit)
         return [dict(r) for r in self.conn.execute(sql, params).fetchall()]
+
+    # ── Cambios de estado (aprobar/rechazar) ────────────────────────────────────
+    def aprobar(self, cotizacion_id: str) -> None:
+        self.conn.execute(
+            "UPDATE cotizaciones SET estado='aprobada' WHERE id=?", (cotizacion_id,))
+        self.conn.commit()
+
+    def rechazar(self, cotizacion_id: str) -> None:
+        self.conn.execute(
+            "UPDATE cotizaciones SET estado='rechazada' WHERE id=?", (cotizacion_id,))
+        self.conn.commit()
+
+    # ── Lecturas para detalle / PDF ─────────────────────────────────────────────
+    def obtener(self, cotizacion_id):
+        """Cabecera de cotización (fila cruda). Preserva SELECT * de la UI."""
+        return self.conn.execute(
+            "SELECT * FROM cotizaciones WHERE id=?", (cotizacion_id,)).fetchone()
+
+    def obtener_detalle(self, cotizacion_id) -> list:
+        return self.conn.execute(
+            "SELECT * FROM cotizaciones_detalle WHERE cotizacion_id=?",
+            (cotizacion_id,)).fetchall()
+
+    # ── Lecturas para envío por WhatsApp ────────────────────────────────────────
+    def obtener_para_whatsapp(self, cot_id):
+        """Cabecera + cliente/teléfono para el mensaje de WhatsApp. Acepta id o folio."""
+        return self.conn.execute(
+            "SELECT c.folio,c.total,c.fecha_vencimiento,cl.nombre,cl.telefono "
+            "FROM cotizaciones c LEFT JOIN clientes cl ON cl.id=c.cliente_id "
+            "WHERE c.id=? OR c.folio=?",
+            (cot_id, str(cot_id))).fetchone()
+
+    def obtener_detalle_whatsapp(self, cot_id) -> list:
+        return self.conn.execute(
+            "SELECT nombre,cantidad,precio_unitario,subtotal "
+            "FROM cotizaciones_detalle WHERE cotizacion_id=?",
+            (cot_id,)).fetchall()
+
+    def obtener_nombre_empresa(self):
+        return self.conn.execute(
+            "SELECT valor FROM configuraciones WHERE clave='nombre_empresa'"
+        ).fetchone()

@@ -1622,8 +1622,9 @@ class _SeccionCuentasPorCobrar(QWidget):
         seleccionado, ok = QInputDialog.getItem(self, "Cliente", "Selecciona cliente:", nombres, 0, False)
         if not ok:
             return
-        tercero_id = int(str(seleccionado).split(" - ", 1)[0])
-        monto, ok2 = QInputDialog.getDouble(self, "Cobro global CxC", "Monto total:", 0.0, 0.0, 999999999.0, 2)
+        tercero_id = str(seleccionado).split(" - ", 1)[0]  # UUID (REGLA CERO): sin int()
+        from frontend.desktop.components.numeric_keypad_dialog import NumericKeypadDialog
+        monto, ok2 = NumericKeypadDialog.get_value(self, "Cobro global CxC", "Monto total:", decimals=2, unidad="$")
         if not ok2 or monto <= 0:
             return
         metodo, ok3 = QInputDialog.getItem(self, "Método", "Forma de cobro:", ["Efectivo", "Transferencia", "Tarjeta"], 0, False)
@@ -1803,8 +1804,9 @@ class _SeccionCuentasPorPagar(QWidget):
         sel, ok = QInputDialog.getItem(self, "Proveedor", "Selecciona proveedor:", nombres, 0, False)
         if not ok:
             return
-        tercero_id = int(str(sel).split(" - ", 1)[0])
-        monto, ok2 = QInputDialog.getDouble(self, "Pago global CxP", "Monto total:", 0.0, 0.0, 999999999.0, 2)
+        tercero_id = str(sel).split(" - ", 1)[0]  # UUID (REGLA CERO): sin int()
+        from frontend.desktop.components.numeric_keypad_dialog import NumericKeypadDialog
+        monto, ok2 = NumericKeypadDialog.get_value(self, "Pago global CxP", "Monto total:", decimals=2, unidad="$")
         if not ok2 or monto <= 0:
             return
         metodo, ok3 = QInputDialog.getItem(self, "Método", "Forma de pago:", ["Transferencia", "Efectivo", "Cheque"], 0, False)
@@ -2458,7 +2460,7 @@ class _SeccionProveedores(QWidget):
             return
         m = self._m
         try:
-            prov = m._tps.get_proveedor(int(pid)) if m._tps else None
+            prov = m._tps.get_proveedor(str(pid)) if m._tps else None  # UUID (REGLA CERO)
             if prov:
                 self._lbl_detalle.setText(
                     f"Nombre: {prov.get('nombre','-')} | RFC: {prov.get('rfc','-')} | "
@@ -3313,13 +3315,21 @@ class ModuloFinanzasUnificadas(QWidget):
 
     def _wire_kpi_auto_refresh(self):
         try:
+            # Remediación E: los KPIs se refrescan por eventos (abajo). El timer
+            # queda SOLO como red de seguridad de baja frecuencia (≥60 s), no como
+            # mecanismo primario — antes 15 s disimulaba la falta de eventos.
             self._kpi_timer = QTimer(self)
-            self._kpi_timer.setInterval(15000)
+            self._kpi_timer.setInterval(60000)
             self._kpi_timer.timeout.connect(self._refresh_kpis_if_visible)
             self._kpi_timer.start()
             from core.events.event_bus import get_bus
             bus = get_bus()
-            for evt in ("VENTA_COMPLETADA", "MOVIMIENTO_FINANCIERO", "CXP_CREADA", "CXC_CREADA", "AJUSTE_INVENTARIO"):
+            # Remediación A: los eventos canónicos de caja (CASH_*) refrescan los
+            # KPIs de finanzas en caliente (antes el corte Z / movimientos de caja
+            # no llegaban a ningún dashboard).
+            for evt in ("VENTA_COMPLETADA", "MOVIMIENTO_FINANCIERO", "CXP_CREADA",
+                        "CXC_CREADA", "AJUSTE_INVENTARIO",
+                        "CASH_Z_CUT_GENERATED", "CASH_MOVEMENT_RECORDED"):
                 bus.subscribe(evt, lambda _d: QTimer.singleShot(0, lambda: self._reload_section(0)),
                               label=f"fin.ui.kpi.{evt.lower()}")
         except Exception:

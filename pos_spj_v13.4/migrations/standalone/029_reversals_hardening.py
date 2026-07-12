@@ -42,7 +42,7 @@ def _create_sale_refunds(conn: sqlite3.Connection) -> None:
     """
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sale_refunds (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             sale_id      TEXT NOT NULL,
             sale_item_id TEXT NOT NULL,
             product_id   TEXT NOT NULL,
@@ -88,7 +88,7 @@ def _create_credit_notes(conn: sqlite3.Connection) -> None:
     """
     conn.execute("""
         CREATE TABLE IF NOT EXISTS credit_notes (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             sale_id      TEXT NOT NULL,
             amount       REAL    NOT NULL CHECK(amount > 0),
             reason       TEXT    NOT NULL,

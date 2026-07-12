@@ -123,6 +123,16 @@ class AuthService:
         except Exception:
             pass
 
+    def _audit_safe(self, **kwargs) -> None:
+        """Escribe en el audit trail sin dejar que un fallo del sink enmascare
+        el resultado de la autenticación. Un error del audit NUNCA debe
+        convertir un rechazo de credenciales en una excepción no controlada
+        (que en PyQt aborta la app sin mostrar el mensaje de error)."""
+        try:
+            self.audit_service.log_change(**kwargs)
+        except Exception as e:
+            logger.warning("audit log_change falló (no bloquea el login): %s", e)
+
     def authenticate(self, username: str, plain_password: str) -> dict:
         """
         Valida las credenciales de un usuario.
@@ -138,12 +148,13 @@ class AuthService:
         
         if not user_data:
             self._register_failed_attempt(username)
-            self.audit_service.log_change(
+            self._audit_safe(
                 usuario=username, accion="LOGIN_FAILED", modulo="AUTH", entidad="USUARIO",
                 entidad_id=username, before_state={}, after_state={}, sucursal_id="",
                 detalles="Intento de acceso con usuario inexistente o inactivo."
             )
-            raise PermissionError("Usuario no encontrado o inactivo.")
+            # Mensaje genérico (no revela si falló el usuario o la contraseña).
+            raise PermissionError("Usuario o contraseña incorrectos.")
 
         db_pass = user_data['password_hash']
         is_valid = False
@@ -163,12 +174,13 @@ class AuthService:
 
         if not is_valid:
             self._register_failed_attempt(username)
-            self.audit_service.log_change(
+            self._audit_safe(
                 usuario=username, accion="LOGIN_FAILED", modulo="AUTH", entidad="USUARIO",
                 entidad_id=str(user_data['id']), before_state={}, after_state={}, sucursal_id=user_data['sucursal_id'],
                 detalles="Contraseña incorrecta."
             )
-            raise PermissionError("Contraseña incorrecta.")
+            # Mensaje genérico (no revela si falló el usuario o la contraseña).
+            raise PermissionError("Usuario o contraseña incorrectos.")
 
         # 1.1 Auto-migración transparente a hash fuerte si venía en formato legacy
         if is_plain_legacy or is_sha_legacy:
@@ -195,7 +207,7 @@ class AuthService:
             logger.warning("load_permissions tras login: %s", e)
 
         # 3. Auditoría de éxito
-        self.audit_service.log_change(
+        self._audit_safe(
             usuario=username, accion="LOGIN_SUCCESS", modulo="AUTH", entidad="USUARIO",
             entidad_id=str(user_data['id']), before_state={}, after_state={}, sucursal_id=user_data['sucursal_id'],
             detalles=f"Inicio de sesión exitoso desde la interfaz. Rol: {user_data['rol']}"

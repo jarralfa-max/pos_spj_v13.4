@@ -35,7 +35,7 @@ def run(conn) -> None:
     # delivery_driver_cuts: ensure all cut columns exist
     conn.execute("""
         CREATE TABLE IF NOT EXISTS delivery_driver_cuts (
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL PRIMARY KEY,
             driver_id TEXT NOT NULL,
             driver_nombre TEXT,
             turno_inicio DATETIME,

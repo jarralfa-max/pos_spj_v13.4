@@ -66,12 +66,28 @@ constantes documentados (`backend.shared.ids.INSTALL_BRANCH_UUID` /
 - Migración 099 (archivo legacy_*) → no-op documentado; tabla typo
   `configuracioneses` eliminada (defaults redirigidos a `configuraciones`).
 
-## 6. Riesgo residual conocido
+## 6. Riesgo residual — CERRADO (Fase G)
 
-INSERTs antiguos que omiten `id` en tablas `TEXT PRIMARY KEY` insertan NULL
-silencioso (SQLite no impone NOT NULL en PK TEXT declarada sin NOT NULL).
-Mitigación en curso: writers canónicos ya acuñan `new_uuid()`; siguiente paso
-sugerido: endurecer `id TEXT PRIMARY KEY NOT NULL` por tabla al tocar cada
-módulo, o test de humo que inserte por cada writer y verifique id no-NULL.
+Riesgo original: INSERTs antiguos que omiten `id` en tablas `TEXT PRIMARY KEY`
+insertaban NULL silencioso (SQLite no impone NOT NULL en una PK TEXT declarada
+sin `NOT NULL`, a diferencia de `INTEGER PRIMARY KEY`, alias de ROWID).
 
-*Actualizado como parte del cierre Plan B born-clean.*
+**Mitigación aplicada (Fase G — endurecimiento born-clean):**
+
+- Toda declaración `TEXT PRIMARY KEY` de la cadena de migraciones (`m000` +
+  `standalone/*` + `m0xx`) se endureció a `TEXT NOT NULL PRIMARY KEY`
+  (383 sitios en 66 archivos). El bootstrap normal sigue born-clean
+  (`tools/born_clean_audit.py` → BORN-CLEAN OK) y ningún seed rompe.
+- Guardrail de cero tolerancia + test de humo:
+  `tests/architecture/test_text_pk_not_null.py`
+  - `test_all_single_column_text_pk_are_not_null`: en el schema activo, toda PK
+    TEXT de una sola columna reporta `notnull=1`.
+  - `test_insert_null_id_is_rejected_smoke`: insertar un id NULL es rechazado
+    con "NOT NULL constraint failed" en las tablas canónicas de escritura.
+  - `test_insert_default_values_never_yields_null_pk_smoke`: ninguna tabla con
+    PK TEXT admite una fila con PK NULL.
+
+Con esto, un INSERT que omita la PK falla en voz alta en vez de escribir un id
+NULL en silencio.
+
+*Actualizado como parte del cierre Plan B born-clean · Fase G.*

@@ -58,7 +58,7 @@ def _create_branch_inventory(conn: sqlite3.Connection) -> None:
     # No existe: crear desde cero
     conn.execute("""
         CREATE TABLE branch_inventory (
-            id         TEXT PRIMARY KEY,
+            id         TEXT NOT NULL PRIMARY KEY,
             branch_id  TEXT NOT NULL,
             product_id TEXT NOT NULL,
             batch_id   TEXT,
@@ -87,7 +87,7 @@ def _migrate_branch_inventory(conn: sqlite3.Connection) -> None:
 
     conn.execute("""
         CREATE TABLE branch_inventory (
-            id         TEXT PRIMARY KEY,
+            id         TEXT NOT NULL PRIMARY KEY,
             branch_id  TEXT NOT NULL,
             product_id TEXT NOT NULL,
             batch_id   TEXT,
@@ -123,7 +123,7 @@ def _create_inventory_movements(conn: sqlite3.Connection) -> None:
     """
     conn.execute("""
         CREATE TABLE IF NOT EXISTS inventory_movements (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             operation_id   TEXT    NOT NULL,
             product_id     TEXT NOT NULL,
             branch_id      TEXT NOT NULL,

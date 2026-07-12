@@ -56,7 +56,7 @@ def up(conn) -> None:
     try:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS sync_state (
-                key   TEXT PRIMARY KEY,
+                key   TEXT NOT NULL PRIMARY KEY,
                 value TEXT
             )
         """)

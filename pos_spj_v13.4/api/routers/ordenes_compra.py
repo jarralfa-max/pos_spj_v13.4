@@ -13,10 +13,10 @@ router = APIRouter(prefix="/ordenes-compra", tags=["ordenes-compra"])
 # ── Models ────────────────────────────────────────────────────────────────────
 
 class OrdenCompraIn(BaseModel):
-    producto_id:  int
+    producto_id: str
     cantidad:     float = Field(gt=0)
-    sucursal_id:  int   = 1
-    proveedor_id: Optional[int] = None
+    sucursal_id: str = ""
+    proveedor_id: Optional[str] = None
     notas:        str   = "OC automática desde WA"
 
 
@@ -68,7 +68,7 @@ async def crear_orden_compra(
 
 @router.get("/{orden_id}")
 async def get_orden_compra(
-    orden_id: int,
+    orden_id: str,
     _key: str = Depends(verify_api_key),
     db=Depends(get_db),
 ):
@@ -83,7 +83,7 @@ async def get_orden_compra(
 
 @router.patch("/{orden_id}/estado")
 async def actualizar_estado_oc(
-    orden_id: int,
+    orden_id: str,
     estado: str,
     _key: str = Depends(verify_api_key),
     db=Depends(get_db),

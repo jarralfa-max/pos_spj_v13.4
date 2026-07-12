@@ -1300,10 +1300,11 @@ class ModuloCaja(QWidget, RefreshMixin):
         except Exception:
             pass
 
-        fondo, ok = QInputDialog.getDouble(
+        from frontend.desktop.components.numeric_keypad_dialog import NumericKeypadDialog
+        fondo, ok = NumericKeypadDialog.get_value(
             self, "Abrir Turno",
             "¿Con cuánto dinero en efectivo inicias el turno en el cajón?",
-            value=0.0, min=0.0, max=99_999.0, decimals=2,
+            decimals=2, maximo=99_999.0, unidad="$", permitir_cero=True,
         )
         if not ok:
             return

@@ -662,7 +662,7 @@ class TreasuryService:
 
     def aplicar_pago_global(self, tercero_tipo: str, monto_total: float,
                             metodo: str = "efectivo", usuario: str = "",
-                            tercero_id: int | None = None) -> Dict[str, Any]:
+                            tercero_id: str | None = None) -> Dict[str, Any]:
         """
         Aplica un pago/cobro global a N documentos pendientes, priorizando vencimiento.
         tercero_tipo: 'proveedor' (CXP) | 'cliente' (CXC)

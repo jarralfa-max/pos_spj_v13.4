@@ -101,7 +101,9 @@ async def lifespan(app: FastAPI):
     from parser.product_matcher import ProductMatcher
     from parser.llm_local import OllamaClient
     from parser.intent_parser import IntentParser
-    matcher = ProductMatcher(erp.db, sucursal_id=1)
+    # Sin sucursal por default (REGLA CERO): el flujo fija la sucursal real
+    # (UUIDv7) por mensaje vía matcher.set_sucursal(ctx.sucursal_id).
+    matcher = ProductMatcher(erp.db, sucursal_id="")
     llm = OllamaClient()
     parser = IntentParser(matcher, llm_client=llm)
 

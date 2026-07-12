@@ -90,7 +90,8 @@ def test_pwa_update_status_uses_delivery_service_boundary(monkeypatch):
     assert handler._actualizar_estado({"id": "9", "estado": "entregado", "responsable": "driver-7"}) is True
 
     assert calls == [{
-        "order_id": 9,
+        # REGLA CERO: el pedido_id circula como str (UUIDv7), no int.
+        "order_id": "9",
         "status": "entregado",
         "usuario": "pwa_delivery",
         "responsable": "driver-7",

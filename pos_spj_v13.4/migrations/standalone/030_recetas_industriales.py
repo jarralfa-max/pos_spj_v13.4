@@ -26,7 +26,7 @@ def _add_col_safe(conn: sqlite3.Connection, tabla: str, col: str, defn: str) -> 
 def _create_recetas(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS recetas (
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL PRIMARY KEY,
             producto_id TEXT NOT NULL,
             rendimiento REAL DEFAULT 1,
             activa INTEGER DEFAULT 1,
@@ -37,7 +37,7 @@ def _create_recetas(conn: sqlite3.Connection) -> None:
 def _create_producciones(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS producciones (
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL PRIMARY KEY,
             receta_id TEXT NOT NULL,
             cantidad REAL NOT NULL,
             costo_total REAL DEFAULT 0,
@@ -69,7 +69,7 @@ def _create_product_recipe_components(conn: sqlite3.Connection) -> None:
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS product_recipe_components (
-            id                   TEXT PRIMARY KEY,
+            id                   TEXT NOT NULL PRIMARY KEY,
             recipe_id            TEXT NOT NULL,
             component_product_id TEXT NOT NULL,
             rendimiento_pct      REAL    NOT NULL DEFAULT 0 CHECK(rendimiento_pct >= 0),

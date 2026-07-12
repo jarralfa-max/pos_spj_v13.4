@@ -151,7 +151,8 @@ class DialogoEmpleado(QDialog):
 
             self.accept()
         except Exception as e:
-            self.db.rollback()
+            # La transacción la gestiona el repositorio (EmployeeApplicationService);
+            # la UI ya no toca la conexión directamente.
             QMessageBox.critical(self, "Error", f"Fallo al guardar: {e}")
 
 class ModuloRRHH(QWidget):
@@ -197,16 +198,13 @@ class ModuloRRHH(QWidget):
         try:
             db=self.db if hasattr(self,'db') else getattr(self,'conexion',None)
             if db:
-                r=db.execute("SELECT COUNT(*) FROM personal WHERE activo=1").fetchone()
-                kpis[0]=("Empleados activos",str(r[0] or 0),_C.PRIMARY_BASE)
-                r2=db.execute("SELECT COUNT(*) FROM personal WHERE activo=1 AND en_turno=1").fetchone()
-                kpis[1]=("En turno ahora",str(r2[0] or 0),_C.SUCCESS_BASE)
-                r3=db.execute("SELECT COALESCE(SUM(salario),0) FROM personal WHERE activo=1").fetchone()
-                kpis[2]=("Nómina del mes",f"${float(r3[0] or 0):,.0f}",_C.WARNING_BASE)
-                r4=db.execute("SELECT COUNT(*) FROM asistencias WHERE DATE(fecha)=DATE('now') AND tipo='ausencia'").fetchone()
-                kpis[3]=("Ausencias hoy",str(r4[0] or 0),_C.DANGER_BASE)
-                r5=db.execute("SELECT COUNT(*) FROM personal WHERE activo=1 AND en_vacaciones=1").fetchone()
-                kpis[4]=("Vacaciones",str(r5[0] or 0),_C.INFO_BASE)
+                from core.services.rrhh_catalog_service import RRHHCatalogService
+                _cat=RRHHCatalogService(db)
+                kpis[0]=("Empleados activos",str(_cat.contar_empleados_activos()),_C.PRIMARY_BASE)
+                kpis[1]=("En turno ahora",str(_cat.contar_en_turno()),_C.SUCCESS_BASE)
+                kpis[2]=("Nómina del mes",f"${_cat.sumar_nomina_activos():,.0f}",_C.WARNING_BASE)
+                kpis[3]=("Ausencias hoy",str(_cat.contar_ausencias_hoy()),_C.DANGER_BASE)
+                kpis[4]=("Vacaciones",str(_cat.contar_en_vacaciones()),_C.INFO_BASE)
         except Exception: pass
         for i,(lbl,val,col) in enumerate(kpis):
             if i>0:
@@ -401,10 +399,8 @@ class ModuloRRHH(QWidget):
         from PyQt5.QtWidgets import QTableWidgetItem
         try:
             conn = self.container.db if hasattr(self,'container') else self.conexion
-            rows = conn.execute(
-                "SELECT id, nombre, hora_inicio, hora_fin, COALESCE(color,'#3498db') "
-                "FROM turno_roles ORDER BY nombre"
-            ).fetchall()
+            from core.services.rrhh_catalog_service import RRHHCatalogService
+            rows = RRHHCatalogService(conn).listar_roles_turno()
         except Exception:
             rows = []
         self._tbl_roles_turno.setRowCount(0)
@@ -458,12 +454,10 @@ class ModuloRRHH(QWidget):
         if not nombre: return
         try:
             conn = self.container.db if hasattr(self,'container') else self.conexion
-            conn.execute(
-                "INSERT INTO turno_roles(nombre,hora_inicio,hora_fin,color) VALUES(?,?,?,?)",
-                (nombre, te_inicio.time().toString("HH:mm"),
-                 te_fin.time().toString("HH:mm"), self._rol_color))
-            try: conn.commit()
-            except Exception: pass
+            from core.services.rrhh_catalog_service import RRHHCatalogService
+            RRHHCatalogService(conn).crear_rol_turno(
+                nombre, te_inicio.time().toString("HH:mm"),
+                te_fin.time().toString("HH:mm"), self._rol_color)
             self._cargar_roles_turno()
         except Exception as e:
             QMessageBox.critical(self,"Error",str(e))
@@ -476,9 +470,8 @@ class ModuloRRHH(QWidget):
         if QMessageBox.question(self,"Confirmar","¿Eliminar este rol?",
            QMessageBox.Yes|QMessageBox.No) != QMessageBox.Yes: return
         conn = self.container.db if hasattr(self,'container') else self.conexion
-        conn.execute("DELETE FROM turno_roles WHERE id=?", (rid,))
-        try: conn.commit()
-        except Exception: pass
+        from core.services.rrhh_catalog_service import RRHHCatalogService
+        RRHHCatalogService(conn).eliminar_rol_turno(rid)
         self._cargar_roles_turno()
 
     # ── v13.30: Integración completa del módulo de Turnos ─────────────────────
@@ -626,7 +619,7 @@ class ModuloRRHH(QWidget):
                 self.cargar_lista_empleados() # Actualiza el combobox de la pestaña de nómina
                 
             except Exception as e:
-                self.container.db.rollback()
+                # La transacción la gestiona el repositorio; la UI no toca la conexión.
                 QMessageBox.critical(self, "Error", f"No se pudo procesar la baja: {e}")
 
     def setup_tab_nomina(self):
@@ -986,11 +979,12 @@ class ModuloRRHH(QWidget):
         self.tbl_puestos.setObjectName("tableView")
         lay.addWidget(self.tbl_puestos)
 
+        from core.services.rrhh_catalog_service import RRHHCatalogService
+        _cat = RRHHCatalogService(self.container.db)
+
         def _cargar():
             try:
-                rows = self.container.db.execute(
-                    "SELECT id,nombre,COALESCE(descripcion,'') FROM puestos WHERE activo=1 ORDER BY nombre"
-                ).fetchall()
+                rows = _cat.listar_puestos()
             except Exception: rows = []
             self.tbl_puestos.setRowCount(0)
             for i, r in enumerate(rows):
@@ -1003,9 +997,7 @@ class ModuloRRHH(QWidget):
             lay2 = QVBoxLayout(d); form = QFormLayout()
             txt_nombre = QLineEdit(); txt_desc = QTextEdit(); txt_desc.setMaximumHeight(80)
             if puesto_id:
-                row = self.container.db.execute(
-                    "SELECT nombre,descripcion FROM puestos WHERE id=?", (puesto_id,)
-                ).fetchone()
+                row = _cat.obtener_puesto(puesto_id)
                 if row: txt_nombre.setText(row[0] or ""); txt_desc.setPlainText(row[1] or "")
             form.addRow("Nombre *:", txt_nombre); form.addRow("Descripción:", txt_desc)
             lay2.addLayout(form)
@@ -1018,15 +1010,9 @@ class ModuloRRHH(QWidget):
             desc = txt_desc.toPlainText().strip()
             try:
                 if puesto_id:
-                    self.container.db.execute(
-                        "UPDATE puestos SET nombre=?,descripcion=? WHERE id=?",
-                        (nombre, desc, puesto_id))
+                    _cat.actualizar_puesto(puesto_id, nombre, desc)
                 else:
-                    from backend.shared.ids import new_uuid
-                    self.container.db.execute(
-                        "INSERT INTO puestos(id,nombre,descripcion) VALUES(?,?,?)", (new_uuid(), nombre, desc))
-                try: self.container.db.commit()
-                except Exception: pass
+                    _cat.crear_puesto(nombre, desc)
                 _cargar()
             except Exception as e:
         # [spj-dedup removed local QMessageBox import]
@@ -1039,9 +1025,7 @@ class ModuloRRHH(QWidget):
             pid  = self.tbl_puestos.item(row,0).text()
             if QMessageBox.question(self,"Confirmar","¿Eliminar puesto?",
                QMessageBox.Yes|QMessageBox.No) != QMessageBox.Yes: return
-            self.container.db.execute("UPDATE puestos SET activo=0 WHERE id=?", (pid,))
-            try: self.container.db.commit()
-            except Exception: pass
+            _cat.desactivar_puesto(pid)
             _cargar()
 
         btn_nuevo.clicked.connect(lambda: _dialogo())
@@ -1060,10 +1044,8 @@ class ModuloRRHH(QWidget):
         if not vac_id_item: return
         vac_id = vac_id_item.text().strip()
         try:
-            self.container.db.execute(
-                "UPDATE vacaciones_personal SET estado=? WHERE id=?", (nuevo_estado, vac_id))
-            try: self.container.db.commit()
-            except Exception: pass
+            from core.services.rrhh_catalog_service import RRHHCatalogService
+            RRHHCatalogService(self.container.db).actualizar_estado_vacacion(vac_id, nuevo_estado)
             self._cargar_vacaciones()
         except Exception as e:
             QMessageBox.critical(self,"Error", str(e))
@@ -1155,13 +1137,8 @@ class ModuloRRHH(QWidget):
         from PyQt5.QtWidgets import QTableWidgetItem
         from PyQt5.QtCore import Qt
         try:
-            rows = self.container.db.execute("""
-                SELECT p.nombre||' '||COALESCE(p.apellidos,''),
-                       e.periodo, e.calificacion, e.evaluador, e.fecha
-                FROM evaluaciones_personal e
-                JOIN personal p ON p.id=e.personal_id
-                ORDER BY e.fecha DESC LIMIT 200
-            """).fetchall()
+            from core.services.rrhh_catalog_service import RRHHCatalogService
+            rows = RRHHCatalogService(self.container.db).listar_evaluaciones()
         except Exception: rows = []
         self.tbl_eval_rrhh.setRowCount(len(rows))
         for ri, r in enumerate(rows):
@@ -1193,13 +1170,9 @@ class ModuloRRHH(QWidget):
         emp_id = cmb_emp.currentData()
         if not emp_id: return
         try:
-            from backend.shared.ids import new_uuid
-            self.container.db.execute(
-                "INSERT INTO evaluaciones_personal(id,personal_id,periodo,calificacion,evaluador,fecha) "
-                "VALUES(?,?,?,?,?,date('now'))",
-                (new_uuid(), emp_id, txt_per.text().strip(), spin_cal.value(), txt_eva.text().strip()))
-            try: self.container.db.commit()
-            except Exception: pass
+            from core.services.rrhh_catalog_service import RRHHCatalogService
+            RRHHCatalogService(self.container.db).crear_evaluacion(
+                emp_id, txt_per.text().strip(), spin_cal.value(), txt_eva.text().strip())
             self._cargar_evaluaciones_rrhh()
         except Exception as e:
         # [spj-dedup removed local QMessageBox import]
@@ -1213,19 +1186,12 @@ class ModuloRRHH(QWidget):
         # [spj-dedup removed local QMessageBox import]
         try:
             # Obtener datos del pago o el último pago del empleado
+            from core.services.rrhh_catalog_service import RRHHCatalogService
+            _cat = RRHHCatalogService(self.container.db)
             if pago_id:
-                row = self.container.db.execute(
-                    "SELECT np.*, p.nombre, p.apellidos, p.puesto, p.rfc "
-                    "FROM nomina_pagos np JOIN personal p ON p.id=np.empleado_id "
-                    "WHERE np.id=?", (pago_id,)
-                ).fetchone()
+                row = _cat.obtener_pago_por_id(pago_id)
             elif empleado_id:
-                row = self.container.db.execute(
-                    "SELECT np.*, p.nombre, p.apellidos, p.puesto, p.rfc "
-                    "FROM nomina_pagos np JOIN personal p ON p.id=np.empleado_id "
-                    "WHERE np.empleado_id=? ORDER BY np.fecha DESC LIMIT 1",
-                    (empleado_id,)
-                ).fetchone()
+                row = _cat.obtener_ultimo_pago_empleado(empleado_id)
             else:
                 QMessageBox.warning(self, "Aviso", "Especifica un pago o empleado."); return
 
@@ -1246,9 +1212,7 @@ class ModuloRRHH(QWidget):
             c = rl_canvas.Canvas(ruta, pagesize=A4)
 
             # Header
-            neg_row = self.container.db.execute(
-                "SELECT valor FROM configuraciones WHERE clave='nombre_empresa'"
-            ).fetchone()
+            neg_row = _cat.obtener_nombre_empresa()
             neg = neg_row[0] if neg_row else "SPJ"
 
             c.setFont("Helvetica-Bold", 18)
@@ -1416,11 +1380,10 @@ class ModuloRRHH(QWidget):
     def _cargar_reglas_laborales(self):
         """Carga parámetros desde la BD (tabla configuraciones)."""
         try:
-            db = self.container.db
+            from core.services.rrhh_catalog_service import RRHHCatalogService
+            _cat = RRHHCatalogService(self.container.db)
             def _cfg(k, d):
-                r = db.execute(
-                    "SELECT valor FROM configuraciones WHERE clave=?", (k,)
-                ).fetchone()
+                r = _cat.obtener_config(k)
                 return r[0] if r else d
             self._spin_max_dias.setValue(int(_cfg("hr_max_dias_consecutivos", 6)))
             self._spin_horas_sem.setValue(int(_cfg("hr_max_horas_semana", 48)))
@@ -1432,7 +1395,8 @@ class ModuloRRHH(QWidget):
     def _guardar_reglas_laborales(self):
         """Persiste los parámetros en la tabla configuraciones."""
         try:
-            db = self.container.db
+            from core.services.rrhh_catalog_service import RRHHCatalogService
+            _cat = RRHHCatalogService(self.container.db)
             params = {
                 "hr_max_dias_consecutivos": self._spin_max_dias.value(),
                 "hr_max_horas_semana":      self._spin_horas_sem.value(),
@@ -1440,15 +1404,7 @@ class ModuloRRHH(QWidget):
                 "hr_periodo_pago_dias":     self._spin_periodo_pago.value(),
             }
             for clave, valor in params.items():
-                db.execute(
-                    "INSERT OR REPLACE INTO configuraciones "
-                    "(clave, valor, descripcion) VALUES (?,?,?)",
-                    (clave, str(valor), "Regla laboral LFT")
-                )
-            try:
-                db.commit()
-            except Exception:
-                pass
+                _cat.guardar_config(clave, str(valor), "Regla laboral LFT")
             QMessageBox.information(
                 self, "✅ Guardado",
                 "Parámetros de reglas laborales actualizados correctamente."

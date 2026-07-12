@@ -1175,8 +1175,11 @@ class ModuloDelivery(QWidget, RefreshMixin):
         try:
             from core.events.event_bus import get_bus
             _bus = get_bus()
-            for event in ("PEDIDO_NUEVO", "PEDIDO_ACTUALIZADO",
-                          "VENTA_COMPLETADA", "DELIVERY_UPDATE"):
+            # Remediación E: DELIVERY_UPDATE no tiene emisor (canal muerto); la
+            # recarga en caliente ocurre por PEDIDO_NUEVO/PEDIDO_ACTUALIZADO/
+            # VENTA_COMPLETADA (emitidos). Migrar a eventos canónicos DeliveryEvents
+            # (DRIVER_ASSIGNED, etc.) queda como follow-up de delivery.
+            for event in ("PEDIDO_NUEVO", "PEDIDO_ACTUALIZADO", "VENTA_COMPLETADA"):
                 try:
                     _bus.subscribe(
                         event,
@@ -1260,6 +1263,24 @@ class ModuloDelivery(QWidget, RefreshMixin):
     def set_sucursal(self, sucursal_id: int, sucursal_nombre: str = "") -> None:
         self.sucursal_id = sucursal_id
         self.sucursal_nombre = sucursal_nombre
+
+    # ── Contrato de refresh en caliente (Remediación B) ───────────────────────
+    # MainWindow hace fan-out de PRODUCTS_CHANGED / BRANCHES_CHANGED aquí. Los
+    # diálogos de pedido re-consultan productos/repartidores al abrir; basta con
+    # recargar la lista de pedidos para participar del refresh global.
+    def refresh_products(self) -> None:
+        from PyQt5.QtCore import QTimer as _QT
+        _QT.singleShot(0, lambda: self.cargar_pedidos(silent=True) if self.isVisible() else None)
+
+    def on_products_changed(self, payload: dict) -> None:
+        self.refresh_products()
+
+    def refresh_branches(self) -> None:
+        from PyQt5.QtCore import QTimer as _QT
+        _QT.singleShot(0, lambda: self.cargar_pedidos(silent=True) if self.isVisible() else None)
+
+    def on_branches_changed(self, payload: dict) -> None:
+        self.refresh_branches()
 
     def cerrar_sesion(self) -> None:
         self.usuario = ""
@@ -1653,7 +1674,7 @@ if(drivers.length===0){{
             btn.setText(f"{tab_label} ({n})" if n else tab_label)
 
     def _update_kpi(self, pedidos: list) -> None:
-        """Update KPI stat cards with persistent + in-memory operational counts."""
+        """Refresca las tarjetas KPI con conteos operativos persistentes + en memoria."""
         from datetime import date as _date
         hoy = _date.today().isoformat()
         counts = OrderBadgeService(self.conexion).get_badge_counts(
@@ -1992,7 +2013,7 @@ if(drivers.length===0){{
         # Kept as a compatibility hook so legacy callers do not break.
         return
     def _refresh_operational_header(self) -> None:
-        """Update contextual header: branch + WhatsApp status + last refresh."""
+        """Refresca el encabezado contextual: sucursal + estado WhatsApp + último refresco."""
         from datetime import datetime as _dt
         branch_name = str(getattr(self, "sucursal_nombre", "") or "Sucursal actual")
         branch_id = self._get_branch_id_for_counts()

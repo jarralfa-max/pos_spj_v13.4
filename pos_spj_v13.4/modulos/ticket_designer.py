@@ -67,6 +67,12 @@ class ModuloTicketDesigner(QWidget):
         "{{puntos_totales}}", "{{mensaje_psicologico}}",
         "{{qr_code}}", "{{barcode}}", "{{logo}}",
         "{{nombre_empresa}}", "{{direccion}}", "{{telefono}}",
+        # Pago
+        "{{recibido}}", "{{pago_desglose}}",
+        # Encabezado de sucursal + datos fiscales
+        "{{sucursal_nombre}}", "{{sucursal_direccion}}", "{{sucursal_telefono}}",
+        "{{whatsapp_empresa}}", "{{rfc_emisor}}", "{{regimen_fiscal}}",
+        "{{web_empresa}}",
     ]
 
     def __init__(self, container, parent=None):
@@ -252,8 +258,14 @@ class ModuloTicketDesigner(QWidget):
         btn_clear = QPushButton("🗑️ Quitar")
         btn_clear = create_secondary_button(self, btn_clear, "Quitar logo actual")
         btn_clear.clicked.connect(self._quitar_logo)
-        btn_lr.addWidget(btn_logo); btn_lr.addWidget(btn_clear)
+        btn_nobg = QPushButton("✨ Quitar fondo")
+        btn_nobg = create_secondary_button(self, btn_nobg, "Hacer transparente el fondo del logo actual")
+        btn_nobg.clicked.connect(self._aplicar_quitar_fondo)
+        btn_lr.addWidget(btn_logo); btn_lr.addWidget(btn_clear); btn_lr.addWidget(btn_nobg)
         fl.addRow("", btn_lr)
+        self.chk_logo_nobg = QCheckBox("Quitar fondo automáticamente al cargar")
+        self.chk_logo_nobg.setChecked(True)
+        fl.addRow("", self.chk_logo_nobg)
         self.spin_logo_w = QSpinBox()
         self.spin_logo_w.setRange(20, 400); self.spin_logo_w.setValue(150)
         self.spin_logo_w.setSuffix(" px")
@@ -412,8 +424,30 @@ class ModuloTicketDesigner(QWidget):
             with open(path, 'rb') as f: data = f.read()
             ext = os.path.splitext(path)[1].lower().strip('.')
             mime = {'jpg':'jpeg','jpeg':'jpeg','png':'png','gif':'gif','bmp':'bmp','svg':'svg+xml'}.get(ext,'png')
+            # Quitar fondo automáticamente (transparencia) si está activado. quitar_fondo
+            # devuelve un PNG; si la imagen no es rasterizable (SVG) deja los bytes igual.
+            if getattr(self, 'chk_logo_nobg', None) and self.chk_logo_nobg.isChecked():
+                from frontend.desktop.components.logo_utils import quitar_fondo
+                nueva = quitar_fondo(data)
+                if nueva is not data and nueva != data:
+                    data, mime = nueva, 'png'
             self._logo_b64 = f"data:image/{mime};base64,{base64.b64encode(data).decode()}"
             self._mostrar_logo_thumbnail(data)
+            self.actualizar_vista_previa()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def _aplicar_quitar_fondo(self):
+        """Hace transparente el fondo del logo ya cargado."""
+        if not self._logo_b64:
+            QMessageBox.information(self, "Logo", "Carga un logo primero."); return
+        try:
+            from frontend.desktop.components.logo_utils import quitar_fondo
+            b64_part = self._logo_b64.split(",", 1)[1] if "," in self._logo_b64 else self._logo_b64
+            raw = base64.b64decode(b64_part)
+            nueva = quitar_fondo(raw)
+            self._logo_b64 = f"data:image/png;base64,{base64.b64encode(nueva).decode()}"
+            self._mostrar_logo_thumbnail(nueva)
             self.actualizar_vista_previa()
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
@@ -441,25 +475,24 @@ class ModuloTicketDesigner(QWidget):
 
     def _cargar_logo_guardado(self):
         try:
-            db = self.container.db
-            row = db.execute("SELECT valor FROM configuraciones WHERE clave='ticket_logo_b64'").fetchone()
-            if row and row[0]:
-                self._logo_b64 = row[0]
+            cfg = self.container.config_service
+            b64 = cfg.get('ticket_logo_b64')
+            if b64:
+                self._logo_b64 = b64
                 self._mostrar_logo_thumbnail()
-                w = db.execute("SELECT valor FROM configuraciones WHERE clave='ticket_logo_width'").fetchone()
-                if w and w[0]: self.spin_logo_w.setValue(int(w[0]))
-                p = db.execute("SELECT valor FROM configuraciones WHERE clave='ticket_logo_pos'").fetchone()
-                if p and p[0]:
-                    idx = self.cmb_logo_pos.findText(p[0])
+                w = cfg.get('ticket_logo_width')
+                if w: self.spin_logo_w.setValue(int(w))
+                p = cfg.get('ticket_logo_pos')
+                if p:
+                    idx = self.cmb_logo_pos.findText(p)
                     if idx >= 0: self.cmb_logo_pos.setCurrentIndex(idx)
         except Exception: pass
 
     def _cargar_config_qr_guardada(self):
         try:
-            db = self.container.db
+            cfg = self.container.config_service
             def _g(k, d=""):
-                r = db.execute("SELECT valor FROM configuraciones WHERE clave=?", (k,)).fetchone()
-                return r[0] if r and r[0] else d
+                return cfg.get(k) or d
             self.chk_qr.setChecked(_g('ticket_qr_enabled','0') == '1')
             d = _g('ticket_qr_dato','')
             if d:
@@ -478,10 +511,9 @@ class ModuloTicketDesigner(QWidget):
 
     def _cargar_config_papel(self):
         try:
-            db = self.container.db
+            cfg = self.container.config_service
             def _g(k, d=""):
-                r = db.execute("SELECT valor FROM configuraciones WHERE clave=?", (k,)).fetchone()
-                return r[0] if r and r[0] else d
+                return cfg.get(k) or d
             try: self.spin_paper_w.setValue(int(_g('ticket_paper_width','80')))
             except: pass
             try: self.spin_paper_h.setValue(int(_g('ticket_paper_height','0')))
@@ -543,7 +575,10 @@ class ModuloTicketDesigner(QWidget):
             "{{forma_pago}}", "{{cambio}}", "{{puntos_ganados}}",
             "{{puntos_totales}}", "{{mensaje_psicologico}}",
             "{{qr_code}}", "{{barcode}}", "{{logo}}",
-            "{{nombre_empresa}}", "{{direccion}}", "{{telefono}}", "{{footer_message}}", "{{legal_message}}",
+            "{{nombre_empresa}}", "{{direccion}}", "{{telefono}}",
+            "{{sucursal_nombre}}", "{{sucursal_direccion}}", "{{sucursal_telefono}}",
+            "{{whatsapp_empresa}}", "{{rfc_emisor}}", "{{regimen_fiscal}}", "{{web_empresa}}",
+            "{{footer_message}}", "{{legal_message}}",
         ]
         if hasattr(self, "lista_variables"):
             self.lista_variables.clear(); self.lista_variables.addItems(self.variables_disponibles)
@@ -667,10 +702,9 @@ class ModuloTicketDesigner(QWidget):
 
     def _guardar_todo(self):
         try:
-            db = self.container.db
-            self.container.config_service.set(self._template_config_key(), self.txt_editor.toPlainText())
-            u = lambda k, v: db.execute(
-                "INSERT INTO configuraciones(clave,valor) VALUES(?,?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor", (k, v))
+            cfg = self.container.config_service
+            cfg.set(self._template_config_key(), self.txt_editor.toPlainText())
+            u = lambda k, v: cfg.set(k, v)
             u('ticket_logo_b64', self._logo_b64)
             if self.current_layout_type == "sale_ticket":
                 u('ticket_logo_width', str(self.spin_logo_w.value()))
@@ -688,8 +722,6 @@ class ModuloTicketDesigner(QWidget):
                 u('ticket_margin_top', str(self.spin_margin_top.value()))
                 u('ticket_margin_side', str(self.spin_margin_side.value()))
             self._guardar_layout_activo()
-            try: db.commit()
-            except: pass
             QMessageBox.information(self, "✅ Guardado", "Plantilla, medios y papel guardados.")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
@@ -865,7 +897,14 @@ class ModuloTicketDesigner(QWidget):
         return """<div style="text-align:center;max-width:300px;margin:auto;">
 {{logo}}
 <h2 style="margin:4px 0;">{{nombre_empresa}}</h2>
-<p style="font-size:10px;margin:2px 0;">{{direccion}}<br>Tel: {{telefono}}</p>
+<p style="font-size:10px;margin:2px 0;">
+Sucursal: {{sucursal_nombre}}<br>
+{{sucursal_direccion}}<br>
+Tel: {{sucursal_telefono}}<br>
+WhatsApp: {{whatsapp_empresa}}<br>
+RFC: {{rfc_emisor}}<br>
+Régimen: {{regimen_fiscal}}
+</p>
 <hr style="border:none;border-top:1px dashed #000;">
 <p>Ticket: <b>{{folio}}</b><br>{{fecha}}<br>Cajero: {{cajero}}</p>
 <hr style="border:none;border-top:1px dashed #000;">
@@ -879,6 +918,8 @@ class ModuloTicketDesigner(QWidget):
   <tr><td>Descuento:</td><td align="right">{{descuento}}</td></tr>
   <tr><td><b>TOTAL:</b></td><td align="right"><b>{{total}}</b></td></tr>
   <tr><td>Pagó:</td><td align="right">{{forma_pago}}</td></tr>
+  {{pago_desglose}}
+  <tr><td>Recibido:</td><td align="right">{{recibido}}</td></tr>
   <tr><td>Cambio:</td><td align="right">{{cambio}}</td></tr>
 </table>
 <hr style="border:none;border-top:1px dashed #000;">

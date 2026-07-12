@@ -75,7 +75,7 @@ def up(conn: sqlite3.Connection) -> None:
     # ══ system_constants — all magic numbers centralized ══════════════════════
     conn.execute("""
         CREATE TABLE IF NOT EXISTS system_constants (
-            key         TEXT PRIMARY KEY,
+            key         TEXT NOT NULL PRIMARY KEY,
             value       TEXT NOT NULL,
             description TEXT,
             updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
@@ -88,7 +88,7 @@ def up(conn: sqlite3.Connection) -> None:
     # ══ json_log_events — structured JSON audit log ════════════════════════════
     conn.execute("""
         CREATE TABLE IF NOT EXISTS json_log_events (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             level       TEXT NOT NULL CHECK(level IN ('DEBUG','INFO','WARNING','ERROR','CRITICAL')),
             logger_name TEXT NOT NULL,
             message     TEXT NOT NULL,
@@ -119,7 +119,7 @@ def up(conn: sqlite3.Connection) -> None:
     # ══ schema_migrations — track applied migrations ═══════════════════════════
     conn.execute("""
         CREATE TABLE IF NOT EXISTS schema_migrations (
-            version    TEXT PRIMARY KEY,
+            version    TEXT NOT NULL PRIMARY KEY,
             applied_at TEXT NOT NULL DEFAULT (datetime('now')),
             checksum   TEXT
         )

@@ -40,6 +40,43 @@ class BIRepository:
             logger.warning("get_ranking_cajeros: %s", exc)
             return []
 
+    def get_kpis_dia(self) -> dict:
+        """KPIs del día actual para la barra BI (todas las sucursales):
+        ventas, tickets, clientes únicos e ingresos/costo para el margen bruto.
+        Devuelve valores crudos; la UI compone ticket promedio y margen.
+        """
+        out = {"ventas": 0.0, "tickets": 0, "clientes": 0,
+               "ingresos": 0.0, "costo": 0.0}
+        try:
+            r = self.db.execute("""
+                SELECT
+                    COALESCE(SUM(total),0),
+                    COUNT(*),
+                    COUNT(DISTINCT cliente_id)
+                FROM ventas
+                WHERE DATE(fecha)=DATE('now')
+                AND estado='completada'
+            """).fetchone()
+            out["ventas"] = float(r[0] or 0)
+            out["tickets"] = int(r[1] or 0)
+            out["clientes"] = int(r[2] or 0)
+
+            r2 = self.db.execute("""
+                SELECT
+                    COALESCE(SUM(vd.cantidad*vd.precio_unitario),0),
+                    COALESCE(SUM(vd.cantidad*COALESCE(p.precio_compra,0)),0)
+                FROM ventas v
+                JOIN detalles_venta vd ON vd.venta_id = v.id
+                JOIN productos p ON p.id = vd.producto_id
+                WHERE DATE(v.fecha)=DATE('now')
+                AND v.estado='completada'
+            """).fetchone()
+            out["ingresos"] = float(r2[0] or 0)
+            out["costo"] = float(r2[1] or 0)
+        except Exception as exc:
+            logger.warning("get_kpis_dia: %s", exc)
+        return out
+
     def get_scan_telemetria(
         self,
         sucursal_id: int,

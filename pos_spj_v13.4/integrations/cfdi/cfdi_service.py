@@ -157,33 +157,10 @@ class CfdiService:
     def __init__(self, conn=None, pac: PacAdapter = None):
         self.conn = conn or get_connection()
         self.pac  = pac or StubPacAdapter()
-        self._init_tables()
-
-    def _init_tables(self):
-        self.conn.executescript("""
-            CREATE TABLE IF NOT EXISTS facturas_cfdi (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                uuid_cfdi     TEXT UNIQUE,
-                venta_id      INTEGER,
-                folio         TEXT,
-                rfc_receptor  TEXT,
-                nombre_receptor TEXT,
-                subtotal      DECIMAL(12,2),
-                iva           DECIMAL(12,2),
-                total         DECIMAL(12,2),
-                xml_generado  TEXT,
-                xml_timbrado  TEXT,
-                estado        TEXT DEFAULT 'pendiente',
-                error_msg     TEXT,
-                qr_url        TEXT,
-                fecha_emision DATETIME DEFAULT (datetime('now')),
-                fecha_timbrado DATETIME
-            );
-            CREATE INDEX IF NOT EXISTS idx_cfdi_venta
-                ON facturas_cfdi(venta_id);
-        """)
-        try: self.conn.commit()
-        except Exception: pass
+        # B15: NO se crea schema en runtime (REGLA 11). La tabla facturas_cfdi
+        # nace born-clean en migrations/m000_base_schema.py con `id TEXT PRIMARY
+        # KEY`. El CREATE runtime anterior reintroducía INTEGER PRIMARY KEY
+        # AUTOINCREMENT y contaminaba la BD UUIDv7.
 
     def _get_config(self, clave, default=""):
         try:
@@ -227,15 +204,20 @@ class CfdiService:
         subtotal = sum(float(i.get("cantidad",1))*float(i.get("precio_unitario",0)) for i in items)
         iva      = round(subtotal*0.16,2)
 
-        # Guardar en BD antes de timbrar (por si el PAC falla)
+        # Guardar en BD antes de timbrar (por si el PAC falla).
+        # B15/REGLA CERO: identidad UUIDv7 explícita — no lastrowid (que contra
+        # el schema TEXT PK devolvía el rowid y dejaba id NULL, rompiendo el
+        # UPDATE de timbrado posterior).
+        from backend.shared.ids import new_uuid
+        fid = new_uuid()
         with transaction(self.conn) as c:
-            fid = c.execute("""INSERT INTO facturas_cfdi
-                (venta_id,folio,rfc_receptor,nombre_receptor,
+            c.execute("""INSERT INTO facturas_cfdi
+                (id,venta_id,folio,rfc_receptor,nombre_receptor,
                  subtotal,iva,total,xml_generado,estado)
-                VALUES(?,?,?,?,?,?,?,?,'pendiente')""",
-                (venta_id, folio_cfdi,
+                VALUES(?,?,?,?,?,?,?,?,?,'pendiente')""",
+                (fid, venta_id, folio_cfdi,
                  factura["rfc_receptor"], factura["nombre_receptor"],
-                 subtotal, iva, subtotal+iva, xml)).lastrowid
+                 subtotal, iva, subtotal+iva, xml))
 
         # Timbrar
         try:

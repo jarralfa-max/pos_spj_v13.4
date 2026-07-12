@@ -148,7 +148,40 @@ class AccountsReceivableService:
             self._db.commit()
         except Exception:
             pass
+        # Post-commit: publica CXC_CREADA al bus. Antes NADIE publicaba este
+        # canal aunque la UI de Finanzas está suscrita a él (la pestaña CxC no
+        # se refrescaba). El string 'evento=' del asiento es solo metadata.
+        self._publish_created(
+            ar_id=ar_id, folio=folio, cliente_id=cliente_id,
+            venta_id=venta_id, monto=float(amount or 0), usuario=usuario,
+        )
         return ar_id
+
+    def _publish_created(self, *, ar_id, folio, cliente_id, venta_id,
+                         monto, usuario) -> None:
+        """Publica ACCOUNT_RECEIVABLE_CREATED (=CXC_CREADA) post-commit.
+
+        Best-effort: un fallo del bus nunca rompe la operación ya confirmada.
+        """
+        try:
+            from datetime import datetime, timezone
+            from backend.shared.ids import new_uuid
+            from core.events.event_bus import get_bus
+            from core.events.domain_events import ACCOUNT_RECEIVABLE_CREATED
+            get_bus().publish(ACCOUNT_RECEIVABLE_CREATED, {
+                "event_id":      new_uuid(),
+                "operation_id":  new_uuid(),
+                "entity_id":     str(ar_id),
+                "folio":         folio,
+                "cliente_id":    str(cliente_id or ""),
+                "venta_id":      str(venta_id or ""),
+                "monto":         monto,
+                "usuario":       usuario,
+                "timestamp":     datetime.now(timezone.utc).isoformat(),
+                "source_module": "accounts_receivable_service",
+            })
+        except Exception as exc:
+            logger.debug("publish CXC_CREADA: %s", exc)
 
     def cobrar_cxc(
         self,

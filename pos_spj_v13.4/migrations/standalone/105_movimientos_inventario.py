@@ -37,7 +37,7 @@ def run(conn: sqlite3.Connection) -> None:
     if not _tbl(conn, "movimientos_inventario"):
         conn.execute("""
             CREATE TABLE movimientos_inventario (
-                id                  TEXT PRIMARY KEY,
+                id                  TEXT NOT NULL PRIMARY KEY,
                 uuid                TEXT,
                 producto_id         TEXT,
                 tipo                TEXT,
