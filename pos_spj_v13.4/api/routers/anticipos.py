@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from api.deps import get_db
 from api.auth import verify_api_key
+from backend.shared.ids import new_uuid
 
 router = APIRouter(prefix="/anticipos", tags=["anticipos"])
 
@@ -12,6 +13,7 @@ router = APIRouter(prefix="/anticipos", tags=["anticipos"])
 # ── Models ────────────────────────────────────────────────────────────────────
 
 class AnticipoIn(BaseModel):
+    # Identidad UUIDv7 string (REGLA CERO)
     venta_id: str
     monto:    float = Field(gt=0)
     metodo:   str   = "mercadopago"   # mercadopago | efectivo | transferencia
@@ -33,8 +35,7 @@ async def registrar_anticipo(
 ):
     """
     Registra un anticipo pendiente para una venta.
-    El esquema de `anticipos` es propiedad de la migración 114 (born-clean
-    UUIDv7); la API NO define DDL (REGLA 11/13).
+    El schema es canónico en migrations/ (m000): este endpoint no crea tablas.
     """
     venta = db.execute(
         "SELECT id, estado FROM ventas WHERE id=?", (body.venta_id,)
@@ -43,8 +44,7 @@ async def registrar_anticipo(
         raise HTTPException(404, f"Venta {body.venta_id} no encontrada")
 
     try:
-        # REGLA CERO: identidad UUIDv7 explícita, no lastrowid.
-        from backend.shared.ids import new_uuid
+        # Identidad UUIDv7 acuñada en aplicación — nunca lastrowid.
         anticipo_id = new_uuid()
         db.execute("""
             INSERT INTO anticipos (id, venta_id, monto, metodo, estado, fecha)

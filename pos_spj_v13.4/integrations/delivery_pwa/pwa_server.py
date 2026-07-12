@@ -101,6 +101,7 @@ class DeliveryAPIHandler(BaseHTTPRequestHandler):
             if not pedido_id or not estado:
                 return False
             responsable = str(body.get("responsable") or body.get("chofer_id") or "pwa")
+            # Identidad UUID string — sin cast a entero (REGLA CERO).
             DeliveryService(conn).update_status(
                 str(pedido_id),
                 str(estado),

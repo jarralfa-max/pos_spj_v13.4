@@ -313,22 +313,10 @@ def _create_clientes(conn):
             descripcion TEXT,
             venta_id    TEXT,
             fecha       DATETIME DEFAULT (datetime('now'))
-        )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS referidos (
             id                 TEXT NOT NULL PRIMARY KEY,
-            codigo             TEXT UNIQUE,
-            cliente_referidor  INTEGER,
-            cliente_referido   INTEGER,
-            estado             TEXT DEFAULT 'pendiente',
-            puntos_referidor   INTEGER DEFAULT 100,
-            puntos_referido    INTEGER DEFAULT 50,
-            fecha              DATETIME DEFAULT (datetime('now'))
-        )
-    """)
-
-
 def _create_productos(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS categorias (
@@ -768,6 +756,20 @@ def _create_ventas(conn):
             precio_unitario    REAL,
             subtotal           REAL,
             regresa_inventario INTEGER DEFAULT 1
+        )
+    """)
+    # Anticipos de clientes sobre ventas (WhatsApp / MercadoPago).
+    # Identidad UUIDv7; antes la creaba el router de la API (prohibido).
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS anticipos (
+            id          TEXT PRIMARY KEY,
+            venta_id    TEXT NOT NULL,
+            monto       REAL NOT NULL,
+            metodo      TEXT DEFAULT 'mercadopago',
+            estado      TEXT DEFAULT 'pendiente',
+            referencia  TEXT DEFAULT '',
+            fecha       TEXT DEFAULT (datetime('now')),
+            fecha_pago  TEXT
         )
     """)
     conn.execute("""

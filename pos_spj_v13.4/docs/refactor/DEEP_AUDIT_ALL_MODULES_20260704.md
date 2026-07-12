@@ -446,7 +446,7 @@ Contrato canónico: `on_products_changed/refresh_products`, `on_branches_changed
 ### Remediación G — Schema born-clean (mantener)
 - Ya en verde; añadir: NOT NULL en PK TEXT, prohibición de `sqlite3.connect` fuera del pool, test de humo "insert por writer ⇒ id no NULL" (sugerido en cierre_global.md §6).
 - **NOT NULL en PK TEXT — HECHO:** `TEXT PRIMARY KEY` → `TEXT NOT NULL PRIMARY KEY` en toda la cadena (383 sitios/66 archivos). Guardrail + humo: `tests/architecture/test_text_pk_not_null.py`. Detalle en cierre_global.md §6. Bootstrap sigue born-clean (`born_clean_audit.py` OK).
-- Pendiente aún: prohibición de `sqlite3.connect` fuera del pool (guardrail estático).
+- **Prohibición de `sqlite3.connect` fuera del pool — HECHO:** hard-lock con allowlist AST en `tests/architecture/test_no_raw_sqlite_connect.py`. Todo código de negocio (servicios/repos/UI) debe consumir el pool `core/db/connection.py`; solo 15 archivos de infraestructura/arranque/procesos independientes quedan en la allowlist (cada uno justificado). Un `connect` crudo nuevo falla CI; la superficie solo puede bajar.
 
 **Orden recomendado:** 0 → A → B → C → D/E en paralelo → F → G. A y B destraban el valor visible (finanzas y KPIs) sin tocar reglas de negocio.
 

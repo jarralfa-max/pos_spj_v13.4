@@ -46,3 +46,30 @@ def test_admin_unlocks_locked_user():
     assert audit[2] == uid
     assert audit[3] == actor
     assert "operation_id" in (audit[4] or "")
+
+
+def test_configuracion_ui_wires_unlock_button():
+    """La UI de Configuración expone el desbloqueo delegando al servicio."""
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parents[2] / "modulos" / "configuracion.py"
+    text = src.read_text(encoding="utf-8")
+    assert "_desbloquear_usuario_v13" in text
+    assert "UserSecurityService" in text
+    assert '"Seguridad"' in text, "la tabla de usuarios debe mostrar la columna Seguridad"
+    assert "Bloqueado hasta" in text
+    assert "intentos fallidos" in text
+
+
+def test_list_users_dto_exposes_lock_state():
+    """list_users incluye intentos_fallidos/bloqueado_hasta para la UI."""
+    from backend.application.dto.configuracion_dtos import UserSettingsDTO
+    from repositories.config_repository import ConfigRepository
+
+    conn = make_db()
+    uid = _make_locked_user(conn)
+    rows = ConfigRepository(conn).list_users_v13()
+    dto = next(UserSettingsDTO.from_list_row(r) for r in rows if str(r[0]) == uid)
+    assert dto.failed_attempts == 5
+    assert dto.locked_until != ""
+    assert dto.locked is True

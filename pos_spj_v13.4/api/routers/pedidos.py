@@ -6,26 +6,28 @@ from pydantic import BaseModel, Field
 
 from api.deps import get_db, get_container
 from api.auth import verify_api_key
+from backend.shared.ids import new_uuid
 
 router = APIRouter(prefix="/pedidos", tags=["pedidos"])
 
 
 class ItemPedidoIn(BaseModel):
-    producto_id: str
+    # Identidad UUIDv7 string (REGLA CERO): la API transporta UUIDs.
+    producto_id:    str
     nombre:         str   = ""
     cantidad:       float = Field(gt=0)
     precio_unitario: float = Field(ge=0)
 
 
 class PedidoIn(BaseModel):
-    cliente_id: Optional[str] = None
+    cliente_id:      Optional[str] = None
     phone:           str   = ""
     items:           List[ItemPedidoIn]
     tipo_entrega:    str   = "sucursal"   # "sucursal" | "domicilio"
     direccion:       str   = ""
     fecha_entrega:   str   = ""
     notas:           str   = ""
-    sucursal_id: str = ""
+    sucursal_id:     str   = ""
     canal:           str   = "whatsapp"
 
 
@@ -46,7 +48,7 @@ async def crear_pedido(
     folio = f"WA-{_uuid.uuid4().hex[:8].upper()}"
 
     try:
-        # REGLA CERO: identidad UUIDv7 explícita, no lastrowid.
+        # Identidad UUIDv7 acuñada en aplicación — nunca lastrowid.
         venta_id = new_uuid()
         db.execute("""
             INSERT INTO ventas (

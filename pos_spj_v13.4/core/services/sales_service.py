@@ -968,9 +968,13 @@ class SalesService:
                 'raffle_tickets_snapshot': raffle_tickets_snapshot,
                 'raffle_tickets_lines': [f"🎟️ Rifas/Sorteos\nRifa: {t.get('raffle','')}\nBoletos: {t.get('numero_boleto','')}" for t in (raffle_tickets_snapshot or [])],
             }
+<<<<<<< HEAD
             # Encabezado de ticket: empresa + sucursal (branch_id UUID str, sin default)
             ticket_header = self._ticket_header_data(str(branch_id))
             datos_venta.update(ticket_header)
+=======
+            datos_venta.update(self._ticket_header_data(branch_id))
+>>>>>>> c5484cec9ec52abdbd55dd26f26576c0aa274845
             template_html = self.config_service.get('ticket_template_html')
             if not template_html:
                 # La falta de configuración NUNCA bloquea la venta: se usa el

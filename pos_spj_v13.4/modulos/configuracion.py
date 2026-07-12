@@ -1015,13 +1015,13 @@ class ModuloConfiguracion(ModuloBase):
         usr_lay.addLayout(usr_hdr)
 
         self._tbl_usr_v13 = QTableWidget()
-        self._tbl_usr_v13.setColumnCount(6)
+        self._tbl_usr_v13.setColumnCount(7)
         self._tbl_usr_v13.setHorizontalHeaderLabels(
-            ["Usuario","Nombre","Rol","Sucursal","Estado","Acciones"])
+            ["Usuario","Nombre","Rol","Sucursal","Estado","Seguridad","Acciones"])
         hh2 = self._tbl_usr_v13.horizontalHeader()
         hh2.setSectionResizeMode(1, QHeaderView.Stretch)
-        for i in (0,2,3,4): hh2.setSectionResizeMode(i, QHeaderView.ResizeToContents)
-        self._setup_table_defaults(self._tbl_usr_v13, actions_column=5)
+        for i in (0,2,3,4,5): hh2.setSectionResizeMode(i, QHeaderView.ResizeToContents)
+        self._setup_table_defaults(self._tbl_usr_v13, actions_column=6)
         usr_lay.addWidget(self._tbl_usr_v13)
         sub_tabs.addTab(tab_usr, "👤 Usuarios")
 
@@ -1232,8 +1232,15 @@ class ModuloConfiguracion(ModuloBase):
             rows = []
         self._tbl_usr_v13.setRowCount(len(rows))
         for ri, user in enumerate(rows):
+            bloqueado = getattr(user, "locked", False)
+            if getattr(user, "locked_until", ""):
+                seguridad = f"🔒 Bloqueado hasta {user.locked_until}"
+            elif getattr(user, "failed_attempts", 0):
+                seguridad = f"⚠️ {user.failed_attempts} intentos fallidos"
+            else:
+                seguridad = "✅ Sin bloqueos"
             vals = [user.username, user.name, user.role, user.branch_name,
-                    "✅ Activo" if user.active else "❌ Inactivo"]
+                    "✅ Activo" if user.active else "❌ Inactivo", seguridad]
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(str(v))
                 it.setFlags(Qt.ItemIsSelectable|Qt.ItemIsEnabled)
@@ -1251,7 +1258,45 @@ class ModuloConfiguracion(ModuloBase):
             btn_tog.clicked.connect(
                 lambda _, uid=uid, a=user.active: self._toggle_usuario(uid, not a))
             bl.addWidget(btn_ed); bl.addWidget(btn_tog)
-            self._tbl_usr_v13.setCellWidget(ri, 5, btn_w)
+            if bloqueado:
+                # Solo visible cuando el usuario está bloqueado o con intentos
+                btn_unlock = self._create_action_button(
+                    "🔓", "Desbloquear usuario (requiere permiso)", "edit")
+                btn_unlock.clicked.connect(
+                    lambda _, uid=uid, nom=user.username: self._desbloquear_usuario_v13(uid, nom))
+                bl.addWidget(btn_unlock)
+            self._tbl_usr_v13.setCellWidget(ri, 6, btn_w)
+
+    def _desbloquear_usuario_v13(self, usuario_id, username: str) -> None:
+        """Desbloqueo administrativo: delega en UserSecurityService (auditado)."""
+        from backend.application.services.user_security_service import UserSecurityService
+        from backend.shared.ids import new_uuid
+
+        confirm = QMessageBox.question(
+            self, "Desbloquear usuario",
+            f"¿Desbloquear al usuario «{username}»?\n\n"
+            "Se reiniciarán los intentos fallidos y el bloqueo temporal.\n"
+            "La acción quedará auditada.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if confirm != QMessageBox.Yes:
+            return
+
+        session = getattr(self.container, "session", None) if self.container else None
+        checker = session.tiene_permiso if session is not None else None
+        actor_id = str(getattr(session, "user_id", "") or self._actor_name())
+        try:
+            svc = UserSecurityService(self.conexion, permission_checker=checker)
+            svc.unlock_user(str(usuario_id), operation_id=new_uuid(), actor_id=actor_id)
+        except PermissionError as exc:
+            QMessageBox.warning(self, "Sin permiso", str(exc))
+            return
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"No se pudo desbloquear: {exc}")
+            return
+        QMessageBox.information(
+            self, "Usuario desbloqueado",
+            f"«{username}» puede iniciar sesión nuevamente.")
+        self._cargar_usuarios_v13()
 
     def _nuevo_usuario_v13(self):
         self._editar_usuario_v13(None)

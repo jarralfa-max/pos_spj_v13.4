@@ -563,12 +563,16 @@ class ConfigRepository:
 
     def list_users_v13(self) -> list[tuple]:
         # Born-clean: usuarios.id y sucursales.id son la identidad UUIDv7 única.
+        # intentos_fallidos/bloqueado_hasta alimentan el flujo administrativo
+        # de desbloqueo en Configuración/Seguridad.
         return self.db.execute(
             """
             SELECT u.id AS id, u.usuario, u.nombre,
                    COALESCE(r.nombre,'cajero') AS rol,
                    COALESCE(s.nombre,'') AS sucursal,
-                   u.activo, u.id AS usuario_uuid, s.id AS sucursal_uuid_val
+                   u.activo, u.id AS usuario_uuid, s.id AS sucursal_uuid_val,
+                   COALESCE(u.intentos_fallidos, 0) AS intentos_fallidos,
+                   u.bloqueado_hasta
             FROM usuarios u
             LEFT JOIN roles r ON r.nombre = u.rol
             LEFT JOIN sucursales s ON s.id = u.sucursal_id

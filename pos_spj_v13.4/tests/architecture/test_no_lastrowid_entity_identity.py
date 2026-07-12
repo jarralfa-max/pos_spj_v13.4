@@ -17,15 +17,10 @@ from .architecture_guardrails import (
 
 LASTROWID_RE = re.compile(r"\blastrowid\b")
 
-# Deuda existente congelada (rutas legacy/API sin refactorizar) — no debe crecer.
+# Deuda funcional saldada. Las entradas restantes son menciones en
+# docstrings/documentación embebida (no código ejecutable).
 LASTROWID_ALLOWLIST = {
-    "pos_spj_v13.4/infrastructure/persistence/base.py": 1,
-    "pos_spj_v13.4/api/routers/cotizaciones.py": 2,
-    "pos_spj_v13.4/api/routers/pedidos.py": 1,
-    "pos_spj_v13.4/api/routers/anticipos.py": 1,
     "pos_spj_v13.4/scripts/seed_demo.py": 1,
-    "pos_spj_v13.4/integrations/pos_adapter.py": 4,
-    "pos_spj_v13.4/integrations/cfdi/cfdi_service.py": 1,
     "pos_spj_v13.4/tools/refactor_control/bootstrap_refactor_state.py": 2,
 }
 
