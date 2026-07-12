@@ -286,6 +286,11 @@ class DialogoLogin(QDialog):
             " background: transparent;")
         btn_close = QPushButton("✕")
         btn_close.setFixedSize(24, 24)
+        # El ✕ NUNCA debe ser el botón por defecto: si lo fuera, pulsar Enter
+        # (p. ej. con el usuario escrito y sin contraseña) cerraría el diálogo
+        # y la app en vez de validar el login.
+        btn_close.setAutoDefault(False)
+        btn_close.setDefault(False)
         btn_close.setStyleSheet(
             "QPushButton { background: transparent; color: #475569;"
             " border: none; font-size: 13px; border-radius: 12px; }"
@@ -418,6 +423,7 @@ class DialogoLogin(QDialog):
         self.txt_usuario.setObjectName("inputField")
         self.txt_usuario.setMinimumHeight(42)
         self.txt_usuario.setStyleSheet(_input_qss)
+        self.txt_usuario.returnPressed.connect(self.intentar_login)
         layout.addWidget(self.txt_usuario)
         layout.addSpacing(12)
 
@@ -456,6 +462,10 @@ class DialogoLogin(QDialog):
             "QPushButton:pressed { background: #1e40af; }"
             "QPushButton:disabled { background: #1e293b; color: #475569; }"
         )
+        # ENTRAR es la acción por defecto: pulsar Enter siempre valida el login
+        # (mostrando el error si falta usuario o contraseña), nunca cierra la app.
+        self.btn_login.setAutoDefault(True)
+        self.btn_login.setDefault(True)
         self.btn_login.clicked.connect(self.intentar_login)
         layout.addWidget(self.btn_login)
 

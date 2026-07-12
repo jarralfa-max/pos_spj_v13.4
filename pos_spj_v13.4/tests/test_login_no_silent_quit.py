@@ -128,3 +128,49 @@ def test_login_correcto_muestra_ventana(qapp, window, monkeypatch):
 
     assert window.usuario_actual is not None
     assert window.usuario_actual.get("nombre") == "Ana"
+
+
+# ── Parte 3: la tecla Enter valida el login, no cierra la app ─────────────────
+
+@pytest.fixture
+def login_dialog(qapp, tmp_path):
+    from migrations import engine
+    db = str(tmp_path / "login.db")
+    conn = sqlite3.connect(db)
+    engine.up(conn)
+    conn.commit()
+    conn.close()
+    from core.app_container import AppContainer
+    from interfaz.main_window import DialogoLogin
+    return DialogoLogin(AppContainer(db_path=db).auth_service, None)
+
+
+def test_boton_cerrar_no_es_default(login_dialog):
+    """El ✕ no debe ser autoDefault/default; ENTRAR debe ser el default. Si el
+    ✕ fuera el default, pulsar Enter cerraría la app en vez de validar."""
+    from PyQt5.QtWidgets import QPushButton
+    botones = {b.text(): b for b in login_dialog.findChildren(QPushButton)}
+    assert botones["✕"].autoDefault() is False
+    assert botones["✕"].isDefault() is False
+    assert botones["ENTRAR AL SISTEMA"].isDefault() is True
+
+
+def test_enter_con_password_vacia_muestra_error_y_no_cierra(login_dialog):
+    """Escribir usuario, dejar la contraseña vacía y pulsar Enter debe mostrar
+    el aviso inline y mantener el diálogo abierto (sin rechazarlo → sin cerrar
+    la app)."""
+    from PyQt5.QtCore import Qt
+    from PyQt5.QtTest import QTest
+
+    login_dialog.txt_usuario.setText("admin")
+    login_dialog.txt_password.setText("")
+    login_dialog.txt_usuario.setFocus()
+
+    rechazos = {"n": 0}
+    login_dialog.rejected.connect(lambda: rechazos.__setitem__("n", rechazos["n"] + 1))
+
+    QTest.keyClick(login_dialog.txt_usuario, Qt.Key_Return)
+
+    assert login_dialog.lbl_error.text().strip() != "", "debe mostrar un aviso"
+    assert "usuario y contraseña" in login_dialog.lbl_error.text().lower()
+    assert rechazos["n"] == 0, "Enter no debe cerrar/rechazar el diálogo"
