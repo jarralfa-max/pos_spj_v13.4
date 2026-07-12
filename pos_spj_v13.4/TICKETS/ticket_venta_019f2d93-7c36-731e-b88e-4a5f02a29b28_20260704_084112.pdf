@@ -1,0 +1,31 @@
+<html><head><meta charset='utf-8'><style>
+        body{font-family:'Courier New',monospace;font-size:12px;margin:10px;max-width:240px;}
+        .center{text-align:center;} .bold{font-weight:bold;}
+        .sep{border-top:1px dashed #000;margin:6px 0;}
+        table{width:100%;border-collapse:collapse;font-size:11px;}
+        th{background:#f0f0f0;padding:3px;text-align:left;}
+        td{padding:2px 3px;vertical-align:top;}
+        .right{text-align:right;} .total-row{font-weight:bold;font-size:13px;}
+        </style></head><body>
+        <div class='center'>
+        
+        <div class='bold' style='font-size:15px;'>SPJ POS</div>
+        <div></div>
+        <div>Tel: </div>
+        <div>Folio: <b>VNT-20260704084108-02A29B28</b></div>
+        <div>2026-07-04 08:41:08</div>
+        <div>Cajero: admin | Cliente: Público General</div></div>
+        <div class='sep'></div>
+        <table><thead><tr><th>Producto</th><th>Cant</th><th class='right'>Total</th></tr></thead>
+        <tbody><tr><td></td><td>1.000 pz</td><td style='text-align:right'>$39.00</td></tr></tbody></table>
+        <div class='sep'></div>
+        <div class='right'>
+        <p>Subtotal: $39.00</p>
+        <p class='total-row'>TOTAL: $39.00</p>
+        <p>Pago: Efectivo</p>
+        <p>Recibido: $40.00 | Cambio: $1.00</p></div>
+        <div class='sep'></div>
+        
+        
+        <div class='center'><p>¡Gracias por su compra!</p></div>
+        </body></html>

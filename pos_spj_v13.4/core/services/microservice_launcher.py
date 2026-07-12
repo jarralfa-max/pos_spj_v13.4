@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import subprocess
+import sys
 import threading
 import time
 import urllib.request
@@ -19,6 +20,8 @@ class MicroserviceLauncher:
     _instance: MicroserviceLauncher | None = None
     _lock = threading.Lock()
 
+    STARTUP_TIMEOUT_SECONDS = 30
+
     def __init__(self, app_root: Path | None = None) -> None:
         self.app_root = app_root or Path(__file__).parent.parent.parent.parent
         self.microservice_root = self.app_root / "whatsapp_service"
@@ -33,6 +36,17 @@ class MicroserviceLauncher:
                 if cls._instance is None:
                     cls._instance = cls(app_root)
         return cls._instance
+
+    def launch_command(self) -> list[str]:
+        """Comando canónico: mismo intérprete del POS, sin depender del PATH."""
+        return [
+            sys.executable, "-m", "uvicorn", "main:app",
+            "--host", "0.0.0.0", "--port", "8000",
+        ]
+
+    def log_file_path(self) -> Path:
+        """Log persistente del microservicio (logs/whatsapp_service.log)."""
+        return self.app_root / "logs" / "whatsapp_service.log"
 
     def is_healthy(self, timeout: float = 2.0) -> bool:
         """Verifica si el microservicio está respondiendo."""
@@ -58,30 +72,43 @@ class MicroserviceLauncher:
             # Usar creationflags=0x08 (CREATE_NO_WINDOW) en Windows para no mostrar consola
             creationflags = 0x08 if __import__("platform").system() == "Windows" else 0
 
+            # Logs persistentes: nunca ocultar la salida del microservicio.
+            log_path = self.log_file_path()
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_handle = open(log_path, "a", encoding="utf-8", errors="replace")
+
+            # sys.executable -m uvicorn: no depende de que 'uvicorn' esté en
+            # el PATH global — usa el mismo intérprete Python del POS.
             self.process = subprocess.Popen(
-                ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"],
+                self.launch_command(),
                 cwd=self.microservice_root,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=log_handle,
+                stderr=subprocess.STDOUT,
                 creationflags=creationflags,
             )
-            logger.info(f"Microservicio lanzado (PID {self.process.pid})")
+            logger.info(
+                f"Microservicio lanzado (PID {self.process.pid}) — log: {log_path}"
+            )
 
-            # Esperar a que esté listo (hasta 10 segundos)
-            for attempt in range(10):
+            # Esperar a que esté listo (hasta 30 segundos, backoff simple)
+            for attempt in range(self.STARTUP_TIMEOUT_SECONDS):
                 time.sleep(1)
                 if self.is_healthy():
                     logger.info("Microservicio WhatsApp listo ✓")
                     self.running = True
                     return True
 
-            logger.warning("Microservicio no respondió en 10 segundos")
+            logger.warning(
+                "Microservicio no respondió en %d segundos. Revisa el log: %s",
+                self.STARTUP_TIMEOUT_SECONDS, log_path,
+            )
             return False
 
         except FileNotFoundError:
-            logger.debug("uvicorn no encontrado; microservicio no iniciado automáticamente")
-            logger.info("Para usar el microservicio, ejecuta manualmente:")
-            logger.info("  cd whatsapp_service && uvicorn main:app --port 8000")
+            logger.warning(
+                "No se pudo lanzar uvicorn con %s -m uvicorn; instala uvicorn en "
+                "el entorno del POS (pip install uvicorn).", sys.executable,
+            )
             return False
         except Exception as exc:
             logger.warning(f"No se pudo iniciar microservicio: {exc}")

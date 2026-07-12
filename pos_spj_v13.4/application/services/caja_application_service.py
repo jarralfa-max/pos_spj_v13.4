@@ -109,18 +109,29 @@ class CajaApplicationService:
 
     def registrar_movimiento_manual(
         self,
-        turno_id: int,
-        sucursal_id: int,
+        turno_id: str,
+        sucursal_id: str,
         usuario: str,
         tipo: str,
         monto: float,
         concepto: str,
+        modulo: str = "caja",
+        referencia_tipo: str = "",
     ) -> None:
-        """Registra INGRESO o RETIRO manual en el turno activo."""
+        """Registra INGRESO o RETIRO manual en el turno activo.
+
+        Guarda: Caja/POS solo maneja dinero físico operativo de sucursal.
+        Las compras de inventario y pagos a proveedores NO pasan por Caja.
+        """
         if monto <= 0:
             raise ValueError("El monto debe ser mayor a cero.")
         if tipo not in ("INGRESO", "RETIRO"):
             raise ValueError(f"Tipo inválido: {tipo}. Use INGRESO o RETIRO.")
+        if str(modulo or "").strip().lower() == "compras" or \
+           str(referencia_tipo or "").strip().lower() == "compra":
+            raise ValueError(
+                "Las compras no se registran desde Caja. Use Tesorería/Capital o CxP."
+            )
 
         self.db.execute(
             """INSERT INTO movimientos_caja

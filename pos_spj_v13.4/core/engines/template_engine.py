@@ -75,7 +75,7 @@ class TicketTemplateEngine(TemplateEngine):
         pago_desglose = self._desglose_pago_html(_pago)
 
         ctx = {
-            "folio":             str(venta_data.get("venta_id", "")),
+            "folio":             str(venta_data.get("folio") or venta_data.get("venta_id", "")),
             "folio_fiscal":      venta_data.get("uuid_cfdi", ""),
             "fecha":             venta_data.get("fecha", ""),
             "turno":             venta_data.get("turno", ""),

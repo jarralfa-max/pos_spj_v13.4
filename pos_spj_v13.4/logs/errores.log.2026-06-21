@@ -1,1 +1,0 @@
-{"ts": "2026-06-22T05:28:26.889913", "level": "ERROR", "logger": "spj.repo.wa_config", "msg": "save_numero: UNIQUE constraint failed: index 'idx_wa_num_canal_suc'", "module": "whatsapp_config_repository", "line": 107}

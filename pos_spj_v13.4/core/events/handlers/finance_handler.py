@@ -84,53 +84,30 @@ class CreditSaleFinanceHandler:
             return
 
         total       = float(payload.get("total", 0))
-        cliente_id  = payload.get("cliente_id") or payload.get("customer_id")
-        sale_id     = payload.get("sale_id") or payload.get("venta_id")
+        cliente_id  = str(payload.get("cliente_id") or payload.get("customer_id") or "")
+        sale_id     = str(payload.get("sale_id") or payload.get("venta_id") or "")
         folio       = str(payload.get("folio", ""))
         sucursal_id = str(payload.get("branch_id") or payload.get("sucursal_id") or "")
 
         if total <= 0 or not cliente_id or not sale_id:
-            logger.warning(
-                "CreditSaleFinanceHandler: incomplete payload "
-                "total=%.2f cliente_id=%s sale_id=%s — skipping",
-                total, cliente_id, sale_id,
+            # Venta a crédito sin cliente/venta identificables: NUNCA se omite
+            # la CxC en silencio — se aborta la venta (rollback del SAVEPOINT).
+            raise ValueError(
+                "Venta a crédito sin cliente o venta válidos: "
+                f"total={total:.2f} cliente_id={cliente_id!r} sale_id={sale_id!r}. "
+                "La CxC no puede omitirse."
             )
-            return
 
         try:
-            self._db.execute(
-                """INSERT OR IGNORE INTO cuentas_por_cobrar
-                       (cliente_id, venta_id, folio, monto_original,
-                        saldo_pendiente, sucursal_id, estado)
-                   VALUES (?, ?, ?, ?, ?, ?, 'pendiente')""",
-                (cliente_id, sale_id, folio, total, total, sucursal_id),
-            )
-            # Sync both canonical columns — credit_balance (English service layer)
-            # and saldo (Spanish legacy UI validation) must stay in lockstep.
-            self._db.execute(
-                "UPDATE clientes "
-                "SET credit_balance = COALESCE(credit_balance, 0) + ?, "
-                "    saldo          = COALESCE(saldo, 0) + ? "
-                "WHERE id = ?",
-                (total, total, cliente_id),
-            )
-
-            if hasattr(self._finance, "registrar_asiento"):
-                self._finance.registrar_asiento(
-                    debe         = "130.1-cuentas-por-cobrar",
-                    haber        = "401.0-ingresos-ventas",
-                    concepto     = f"Venta a crédito {folio}",
-                    monto        = total,
-                    modulo       = "ventas",
-                    referencia_id= sale_id,
-                    sucursal_id  = sucursal_id,
-                    evento       = "VENTA_CREDITO",
-                    metadata     = {"cliente_id": cliente_id, "folio": folio},
-                )
-
-            logger.info(
-                "CreditSaleFinanceHandler: CxC registrada cliente=%s venta=%s folio=%s monto=%.2f",
-                cliente_id, sale_id, folio, total,
+            # Ruta canónica única de CxC: CustomerCreditService (idempotente
+            # por venta_id, incluye credit_balance + asiento GL atómicos).
+            from application.services.customer_credit_service import CustomerCreditService
+            CustomerCreditService(self._db, self._finance).register_credit_sale(
+                cliente_id  = cliente_id,
+                sale_id     = sale_id,
+                folio       = folio,
+                monto       = total,
+                sucursal_id = sucursal_id,
             )
         except Exception as exc:
             logger.error("CreditSaleFinanceHandler.handle: %s", exc)

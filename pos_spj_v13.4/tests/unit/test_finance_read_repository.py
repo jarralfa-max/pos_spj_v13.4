@@ -18,8 +18,9 @@ def db():
     conn.executescript(
         """
         CREATE TABLE financial_documents (document_type TEXT, status TEXT, due_date TEXT);
-        CREATE TABLE cierres_caja (total_ventas REAL, total_efectivo REAL, fecha_cierre TEXT);
-        CREATE TABLE ventas (total REAL, anulado INTEGER DEFAULT 0);
+        CREATE TABLE cierres_caja (total_ventas REAL, total_efectivo REAL,
+                                   diferencia REAL DEFAULT 0, fecha_cierre TEXT);
+        CREATE TABLE ventas (total REAL, estado TEXT DEFAULT 'completada');
         CREATE TABLE compras (total REAL);
         CREATE TABLE financial_event_log (modulo TEXT, monto REAL);
 
@@ -29,10 +30,10 @@ def db():
             ('payable','paid','2000-01-01'),
             ('receivable','pending','2000-01-01');
         INSERT INTO cierres_caja VALUES
-            (100.0, 100.0, date('now')),
-            (100.0, 80.0,  date('now')),
-            (100.0, 50.0,  '2000-01-01');
-        INSERT INTO ventas VALUES (100.0,0),(50.0,0),(999.0,1);
+            (100.0, 100.0, 0.0,   date('now')),
+            (100.0, 80.0,  -20.0, date('now')),
+            (100.0, 50.0,  -50.0, '2000-01-01');
+        INSERT INTO ventas VALUES (100.0,'completada'),(50.0,'completada'),(999.0,'cancelada');
         INSERT INTO compras VALUES (40.0),(10.0);
         INSERT INTO financial_event_log VALUES ('ventas',100.0),('ventas',50.0),('compras',30.0);
         """
@@ -55,11 +56,13 @@ def test_count_overdue_receivables(repo):
 
 
 def test_count_cash_discrepancies_window(repo):
-    # only the recent >0.01 mismatch counts; the 2000 one is outside 30 days
+    # Solo la diferencia (contado vs esperado) reciente cuenta; la de 2000
+    # queda fuera de la ventana de 30 días. Nunca total_ventas vs efectivo.
     assert repo.count_cash_discrepancies() == 1
 
 
 def test_sum_sales_excludes_anulado(repo):
+    # 'anulado' no existe en el schema canónico: se filtra por estado.
     assert repo.sum_sales() == 150.0
 
 

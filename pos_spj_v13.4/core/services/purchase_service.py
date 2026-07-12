@@ -135,25 +135,14 @@ class PurchaseService:
                                 usuario=user,
                             )
 
-                    # Si se pagó al contado, registrar salida de caja si hay turno abierto
+                    # Compras NUNCA se registran como salida de Caja/POS.
+                    # El pago al contado sale de capital operativo / tesorería
+                    # (asiento de doble entrada), no de movimientos_caja.
                     if amount_paid > 0 and payment_method != 'CREDITO':
-                        turno = None
-                        try:
-                            turno = self.finance_service.get_estado_turno(branch_id, user)
-                        except Exception:
-                            pass
-                        if turno and hasattr(self.finance_service, 'registrar_movimiento_manual'):
-                            self.finance_service.registrar_movimiento_manual(
-                                turno['id'], branch_id, user,
-                                'RETIRO',
-                                amount_paid,
-                                f"Pago compra {folio} — {notes or 'proveedor'}"
-                            )
-                        # Double-entry journal — always, regardless of open shift
                         if hasattr(self.finance_service, 'registrar_asiento'):
                             self.finance_service.registrar_asiento(
-                                debe="inventario",
-                                haber="caja_efectivo",
+                                debe="inventario_almacen",
+                                haber="capital_operativo",
                                 concepto=f"Compra contado {folio}",
                                 monto=float(amount_paid),
                                 modulo="compras",
@@ -255,20 +244,24 @@ class PurchaseService:
                 numero_lote = f"{folio}-P{producto_id}"
                 fecha_caducidad = item.get("fecha_caducidad")  # opcional
 
+                # Identidad única UUIDv7 en lotes.id (sin columna uuid paralela,
+                # sin randomblob) — REGLA CERO de identidad.
+                nuevo_lote_id = new_uuid()
                 self.db.execute("""
                     INSERT OR IGNORE INTO lotes (
-                        uuid, producto_id, numero_lote, proveedor_id,
+                        id, producto_id, numero_lote, proveedor_id,
                         peso_inicial_kg, peso_actual_kg, costo_kg,
                         fecha_caducidad, sucursal_id,
                         temperatura_c, observaciones, estado
                     ) VALUES (
-                        lower(hex(randomblob(16))),
+                        ?,
                         ?, ?, ?,
                         ?, ?, ?,
                         ?, ?,
                         NULL, ?, 'activo'
                     )
                 """, (
+                    nuevo_lote_id,
                     producto_id, numero_lote, proveedor_id,
                     qty, qty, unit_cost,
                     fecha_caducidad, sucursal_id,
@@ -283,9 +276,9 @@ class PurchaseService:
                 if lote_id:
                     self.db.execute("""
                         INSERT INTO movimientos_lote
-                            (lote_id, tipo, cantidad_kg, referencia, usuario)
-                        VALUES (?, 'recepcion', ?, ?, ?)
-                    """, (lote_id[0], qty, folio, usuario))
+                            (id, lote_id, tipo, cantidad_kg, referencia, usuario)
+                        VALUES (?, ?, 'recepcion', ?, ?, ?)
+                    """, (new_uuid(), lote_id[0], qty, folio, usuario))
 
             except Exception as _le:
                 # No crítico: la compra ya se guardó, el lote es auditoría adicional

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
+from backend.shared.ids import new_uuid
+
 
 class SaleLoyaltyPolicy:
     """Canonical loyalty policy with idempotency guard by operation_id."""
@@ -68,9 +70,9 @@ class SaleLoyaltyPolicy:
         # fallback SQL canonicalized here while no loyalty reverse API exists
         self.db.execute("UPDATE clientes SET puntos = MAX(0, COALESCE(puntos,0) - ?) WHERE id = ?", (int(max(0, puntos)), cliente_id))
         self.db.execute(
-            "INSERT INTO historico_puntos (cliente_id, tipo, puntos, descripcion, saldo_actual, usuario, venta_id) "
-            "SELECT ?, 'CANCELACION', ?, ?, MAX(0, COALESCE(puntos,0) - ?), ?, ? FROM clientes WHERE id=?",
-            (cliente_id, -int(max(0, puntos)), f"Reversa venta #{venta_id}", int(max(0, puntos)), usuario, venta_id, cliente_id),
+            "INSERT INTO historico_puntos (id, cliente_id, tipo, puntos, descripcion, saldo_actual, usuario, venta_id) "
+            "SELECT ?, ?, 'CANCELACION', ?, ?, MAX(0, COALESCE(puntos,0) - ?), ?, ? FROM clientes WHERE id=?",
+            (new_uuid(), cliente_id, -int(max(0, puntos)), f"Reversa venta #{venta_id}", int(max(0, puntos)), usuario, venta_id, cliente_id),
         )
         self._mark(operation_id, "reverse", cliente_id, venta_id, str(puntos))
         return {"ok": True}

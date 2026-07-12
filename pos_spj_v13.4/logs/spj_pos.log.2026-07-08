@@ -1,0 +1,1008 @@
+{"ts": "2026-07-08T14:13:38.473492", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 113}
+{"ts": "2026-07-08T14:13:59.603037", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 141}
+{"ts": "2026-07-08T14:13:59.603702", "level": "INFO", "logger": "SPJ.Boot", "msg": "  SPJ POS Enterprise v13.4.0", "module": "main", "line": 142}
+{"ts": "2026-07-08T14:13:59.603947", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 143}
+{"ts": "2026-07-08T14:14:17.102830", "level": "INFO", "logger": "spj.theme_engine", "msg": "Tema aplicado globalmente: Dark", "module": "theme_engine", "line": 80}
+{"ts": "2026-07-08T14:14:17.103112", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Tema aplicado al arranque", "module": "main", "line": 153}
+{"ts": "2026-07-08T14:14:17.105784", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Normalizador global de diálogos activo", "module": "main", "line": 161}
+{"ts": "2026-07-08T14:14:18.115174", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Integridad BD OK", "module": "main", "line": 108}
+{"ts": "2026-07-08T14:14:18.201615", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-07-08T14:14:18.284267", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-07-08T14:14:18.301616", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Bootstrap DB OK", "module": "main", "line": 176}
+{"ts": "2026-07-08T14:14:18.396131", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 189}
+{"ts": "2026-07-08T14:14:18.404410", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 189}
+{"ts": "2026-07-08T14:14:18.431520", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Migraciones OK", "module": "main", "line": 198}
+{"ts": "2026-07-08T14:14:18.437679", "level": "INFO", "logger": "core.app_container", "msg": "Inicializando AppContainer...", "module": "app_container", "line": 61}
+{"ts": "2026-07-08T14:14:18.442591", "level": "INFO", "logger": "spj.session", "msg": "Sucursal cambiada: 'Cadenas' (active_branch_id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "session_context", "line": 135}
+{"ts": "2026-07-08T14:14:18.506521", "level": "INFO", "logger": "core.services.config_service", "msg": "Configuración cargada: 33 parámetros en memoria.", "module": "config_service", "line": 20}
+{"ts": "2026-07-08T14:14:18.947718", "level": "INFO", "logger": "core.services.hardware_service", "msg": "Configuraciones de hardware cargadas en memoria.", "module": "hardware_service", "line": 29}
+{"ts": "2026-07-08T14:14:19.491711", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión iniciada", "module": "printer_service", "line": 200}
+{"ts": "2026-07-08T14:14:19.492623", "level": "INFO", "logger": "spj.printer", "msg": "Configuración de impresoras cargada desde hardware_config: ticket=False etiquetas=False mode=raw model=", "module": "printer_service", "line": 373}
+{"ts": "2026-07-08T14:14:20.501194", "level": "INFO", "logger": "spj.events.wiring", "msg": "EventBus wiring completado — 63 eventos activos", "module": "wiring", "line": 290}
+{"ts": "2026-07-08T14:14:20.504745", "level": "INFO", "logger": "spj.accounting_engine", "msg": "AccountingEngine wired (prio=48)", "module": "accounting_engine", "line": 47}
+{"ts": "2026-07-08T14:14:20.517172", "level": "INFO", "logger": "spj.analytics_engine", "msg": "AnalyticsEngine wired (prio=5)", "module": "analytics_engine", "line": 39}
+{"ts": "2026-07-08T14:14:20.559912", "level": "INFO", "logger": "spj.rbac", "msg": "RBAC inicializado", "module": "rbac", "line": 114}
+{"ts": "2026-07-08T14:14:20.569058", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'conciliacion' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-08T14:14:20.569255", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'loyalty_snapshot' registrada (intervalo=1800s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-08T14:14:20.569358", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'forecast' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-08T14:14:20.569453", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'limpieza_event_log' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-08T14:14:20.569582", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'alertas_check' registrada (intervalo=300s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-08T14:14:20.569680", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'depreciacion_activos' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-08T14:14:20.569803", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'escalacion_pedidos_wa' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-08T14:14:20.569900", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'recordatorios_ordenes' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-08T14:14:20.569987", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'wa_fallidos_check' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-08T14:14:20.570150", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'happy_hour_check' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-08T14:14:20.570263", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'backup_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-08T14:14:20.570418", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'expiracion_estrellas' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-08T14:14:20.570512", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'mantenimiento_semanal' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-08T14:14:20.570597", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'auto_cierre_turno' registrada (intervalo=600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-08T14:14:20.570716", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'reporte_email_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-08T14:14:20.666166", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService iniciado con 15 tareas.", "module": "scheduler_service", "line": 144}
+{"ts": "2026-07-08T14:14:20.677409", "level": "INFO", "logger": "core.app_container", "msg": "✅ AppContainer inicializado con éxito. Todos los motores en línea.", "module": "app_container", "line": 741}
+{"ts": "2026-07-08T14:14:20.677623", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ AppContainer activo", "module": "main", "line": 221}
+{"ts": "2026-07-08T14:14:20.771837", "level": "INFO", "logger": "spj.distribution_engine", "msg": "Conciliación OK sucursal=1: diff=0.000", "module": "distribution_engine", "line": 539}
+{"ts": "2026-07-08T14:14:20.772021", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'conciliacion' OK (0.11s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:14:20.927793", "level": "INFO", "logger": "SPJ.Boot", "msg": "Verificando microservicio WhatsApp...", "module": "main", "line": 234}
+{"ts": "2026-07-08T14:14:20.991029", "level": "ERROR", "logger": "spj.scheduler", "msg": "Scheduler 'loyalty_snapshot' FALLÓ (err_consecutivos=1): no such column: ls.ultimo_evento_id", "module": "scheduler_service", "line": 200}
+{"ts": "2026-07-08T14:14:21.019594", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-08T14:14:21.019830", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.02s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:14:21.019951", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'depreciacion_activos' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:14:21.020411", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:14:21.020838", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'recordatorios_ordenes' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:14:21.021038", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'wa_fallidos_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:14:21.021255", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:14:21.021369", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'mantenimiento_semanal' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:14:21.021467", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:14:21.210651", "level": "INFO", "logger": "spj.whatsapp", "msg": "WA webhook puerto 8767", "module": "whatsapp_service", "line": 524}
+{"ts": "2026-07-08T14:14:38.489287", "level": "INFO", "logger": "spj.services.launcher", "msg": "Iniciando microservicio WhatsApp desde C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\whatsapp_service...", "module": "microservice_launcher", "line": 57}
+{"ts": "2026-07-08T14:14:42.755356", "level": "INFO", "logger": "spj.services.launcher", "msg": "Microservicio lanzado (PID 9336)", "module": "microservice_launcher", "line": 68}
+{"ts": "2026-07-08T14:14:44.118339", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-08T14:14:44.139728", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2300}
+{"ts": "2026-07-08T14:14:44.141368", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-08T14:14:51.057952", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] módulo inicializado sucursal_id=019f34e0-af3f-7368-9529-45586c221cb9", "module": "merma", "line": 93}
+{"ts": "2026-07-08T14:14:51.143879", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] historial cargado count=0", "module": "merma", "line": 602}
+{"ts": "2026-07-08T14:14:57.768502", "level": "ERROR", "logger": "spj.compras", "msg": "qr_sucursal_gen: no se pudieron cargar sucursales", "module": "compras_pro", "line": 1814, "exc": "Traceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\modulos\\compras_pro.py\", line 1810, in _build_subtab_etiqueta\n    for s in (self._prov_repo.get_sucursales_activas() or []):\n              ^^^^^^^^^^^^^^^\nAttributeError: 'ModuloComprasPro' object has no attribute '_prov_repo'"}
+{"ts": "2026-07-08T14:15:00.025812", "level": "ERROR", "logger": "spj.compras", "msg": "qr_sucursal_destino: no se pudieron cargar sucursales", "module": "compras_pro", "line": 2230, "exc": "Traceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\modulos\\compras_pro.py\", line 2223, in _build_subtab_asignar\n    for s in (self._prov_repo.get_sucursales_activas() or []):\n              ^^^^^^^^^^^^^^^\nAttributeError: 'ModuloComprasPro' object has no attribute '_prov_repo'"}
+{"ts": "2026-07-08T14:15:21.282728", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.13s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:15:21.341845", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.06s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:15:32.491671", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-08T14:15:35.448848", "level": "WARNING", "logger": "spj.services.launcher", "msg": "Microservicio no respondió en 10 segundos", "module": "microservice_launcher", "line": 78}
+{"ts": "2026-07-08T14:15:36.505432", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-08T14:15:36.508906", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-08T14:15:41.272519", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-08T14:15:41.273018", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-08T14:15:42.515797", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ UI lista", "module": "main", "line": 247}
+{"ts": "2026-07-08T14:15:46.811533", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-08T14:15:46.814056", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-08T14:16:21.583757", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:16:21.586269", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:16:47.511656", "level": "INFO", "logger": "core.services.auth_service", "msg": "Acceso concedido a admin (admin).", "module": "auth_service", "line": 208}
+{"ts": "2026-07-08T14:16:47.835735", "level": "INFO", "logger": "spj.session", "msg": "Sesión iniciada: Administrador Maestro (admin) en sucursal 'Cadenas' [active_branch_id=019f34e0-af3f-7368-9529-45586c221cb9]", "module": "session_context", "line": 119}
+{"ts": "2026-07-08T14:16:48.210638", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-08T14:16:48.308602", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2300}
+{"ts": "2026-07-08T14:16:48.309519", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Cadenas (id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "ventas", "line": 1339}
+{"ts": "2026-07-08T14:16:48.476888", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] historial cargado count=0", "module": "merma", "line": 602}
+{"ts": "2026-07-08T14:16:48.625341", "level": "INFO", "logger": "spj.session", "msg": "Sucursal cambiada: 'Cadenas' (active_branch_id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "session_context", "line": 135}
+{"ts": "2026-07-08T14:16:48.643803", "level": "INFO", "logger": "core.app_container", "msg": "Sucursal activa: 019f34e0-af3f-7368-9529-45586c221cb9 (Cadenas)", "module": "app_container", "line": 1087}
+{"ts": "2026-07-08T14:17:21.605279", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:17:21.608885", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:17:52.670294", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-08T14:17:52.692863", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=2", "module": "ventas", "line": 2300}
+{"ts": "2026-07-08T14:18:21.633437", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:18:21.633789", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:19:24.893767", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-08T14:19:24.897471", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (3.24s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:19:24.898025", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:19:24.898606", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:19:52.213953", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-08T14:19:52.226718", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-08T14:20:24.912844", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:20:24.913157", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:21:24.925533", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:21:24.926734", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:22:11.095428", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-08T14:22:11.131391", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2300}
+{"ts": "2026-07-08T14:22:24.945953", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:22:24.947259", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:23:24.964862", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:23:24.965171", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:24:24.983624", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-08T14:24:24.984249", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.02s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:24:24.985078", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:24:24.988119", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:24:24.991083", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:24:52.199505", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-08T14:24:52.200261", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-08T14:25:25.005286", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:25:25.005569", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:26:25.026759", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:26:25.027101", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:27:25.046852", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:27:25.047424", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:28:25.058914", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:28:25.059217", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:29:25.103932", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-08T14:29:25.104418", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.02s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:29:25.105158", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:29:25.105637", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:29:52.207097", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-08T14:29:52.209729", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-08T14:30:25.107207", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:30:25.107813", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:31:25.121964", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:31:25.122292", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:32:25.148449", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-08T14:32:25.148744", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T01:50:24.328381", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-09T01:50:24.331077", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-09T01:50:26.154449", "level": "INFO", "logger": "spj.distribution_engine", "msg": "Conciliación OK sucursal=1: diff=0.000", "module": "distribution_engine", "line": 539}
+{"ts": "2026-07-09T01:50:26.154892", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'conciliacion' OK (0.08s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T01:50:26.198739", "level": "ERROR", "logger": "spj.scheduler", "msg": "Scheduler 'loyalty_snapshot' FALLÓ (err_consecutivos=2): no such column: ls.ultimo_evento_id", "module": "scheduler_service", "line": 200}
+{"ts": "2026-07-09T01:50:27.080847", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-09T01:50:27.081013", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.88s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T01:50:27.081462", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T01:50:27.105404", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'recordatorios_ordenes' OK (0.02s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T01:50:27.113682", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'wa_fallidos_check' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T01:50:27.113973", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T01:50:27.115326", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T01:51:27.450355", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión detenida (impresos=0, fallos=0)", "module": "printer_service", "line": 206}
+{"ts": "2026-07-09T01:51:30.347486", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService detenido.", "module": "scheduler_service", "line": 150}
+{"ts": "2026-07-09T01:51:52.962533", "level": "INFO", "logger": "SPJ.Boot", "msg": "Sistema cerrado. Código: 0", "module": "main", "line": 273}
+{"ts": "2026-07-09T02:39:48.780621", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 113}
+{"ts": "2026-07-09T02:40:03.025216", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 141}
+{"ts": "2026-07-09T02:40:03.025513", "level": "INFO", "logger": "SPJ.Boot", "msg": "  SPJ POS Enterprise v13.4.0", "module": "main", "line": 142}
+{"ts": "2026-07-09T02:40:03.025620", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 143}
+{"ts": "2026-07-09T02:40:04.881229", "level": "INFO", "logger": "spj.theme_engine", "msg": "Tema aplicado globalmente: Dark", "module": "theme_engine", "line": 80}
+{"ts": "2026-07-09T02:40:04.881677", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Tema aplicado al arranque", "module": "main", "line": 153}
+{"ts": "2026-07-09T02:40:04.883054", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Normalizador global de diálogos activo", "module": "main", "line": 161}
+{"ts": "2026-07-09T02:40:05.165669", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Integridad BD OK", "module": "main", "line": 108}
+{"ts": "2026-07-09T02:40:05.192018", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-07-09T02:40:05.225174", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-07-09T02:40:05.238005", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Bootstrap DB OK", "module": "main", "line": 176}
+{"ts": "2026-07-09T02:40:05.272924", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 189}
+{"ts": "2026-07-09T02:40:05.274203", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 189}
+{"ts": "2026-07-09T02:40:05.290872", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Migraciones OK", "module": "main", "line": 198}
+{"ts": "2026-07-09T02:40:05.307633", "level": "INFO", "logger": "core.app_container", "msg": "Inicializando AppContainer...", "module": "app_container", "line": 61}
+{"ts": "2026-07-09T02:40:05.312823", "level": "INFO", "logger": "spj.session", "msg": "Sucursal cambiada: 'Cadenas' (active_branch_id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "session_context", "line": 135}
+{"ts": "2026-07-09T02:40:05.332421", "level": "INFO", "logger": "core.services.config_service", "msg": "Configuración cargada: 33 parámetros en memoria.", "module": "config_service", "line": 20}
+{"ts": "2026-07-09T02:40:05.493024", "level": "INFO", "logger": "core.services.hardware_service", "msg": "Configuraciones de hardware cargadas en memoria.", "module": "hardware_service", "line": 29}
+{"ts": "2026-07-09T02:40:05.525345", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión iniciada", "module": "printer_service", "line": 200}
+{"ts": "2026-07-09T02:40:05.526579", "level": "INFO", "logger": "spj.printer", "msg": "Configuración de impresoras cargada desde hardware_config: ticket=False etiquetas=False mode=raw model=", "module": "printer_service", "line": 373}
+{"ts": "2026-07-09T02:40:05.841146", "level": "INFO", "logger": "spj.events.wiring", "msg": "EventBus wiring completado — 63 eventos activos", "module": "wiring", "line": 290}
+{"ts": "2026-07-09T02:40:05.845240", "level": "INFO", "logger": "spj.accounting_engine", "msg": "AccountingEngine wired (prio=48)", "module": "accounting_engine", "line": 47}
+{"ts": "2026-07-09T02:40:05.858674", "level": "INFO", "logger": "spj.analytics_engine", "msg": "AnalyticsEngine wired (prio=5)", "module": "analytics_engine", "line": 39}
+{"ts": "2026-07-09T02:40:05.882266", "level": "INFO", "logger": "spj.rbac", "msg": "RBAC inicializado", "module": "rbac", "line": 114}
+{"ts": "2026-07-09T02:40:05.892229", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'conciliacion' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:40:05.892429", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'loyalty_snapshot' registrada (intervalo=1800s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:40:05.892531", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'forecast' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:40:05.892621", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'limpieza_event_log' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:40:05.892709", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'alertas_check' registrada (intervalo=300s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:40:05.892793", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'depreciacion_activos' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:40:05.892876", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'escalacion_pedidos_wa' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:40:05.892986", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'recordatorios_ordenes' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:40:05.893070", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'wa_fallidos_check' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:40:05.893155", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'happy_hour_check' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:40:05.893238", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'backup_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:40:05.893318", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'expiracion_estrellas' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:40:05.893409", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'mantenimiento_semanal' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:40:05.893489", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'auto_cierre_turno' registrada (intervalo=600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:40:05.893569", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'reporte_email_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:40:05.894531", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService iniciado con 15 tareas.", "module": "scheduler_service", "line": 144}
+{"ts": "2026-07-09T02:40:05.908799", "level": "INFO", "logger": "core.app_container", "msg": "✅ AppContainer inicializado con éxito. Todos los motores en línea.", "module": "app_container", "line": 741}
+{"ts": "2026-07-09T02:40:05.909039", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ AppContainer activo", "module": "main", "line": 221}
+{"ts": "2026-07-09T02:40:05.914770", "level": "INFO", "logger": "SPJ.Boot", "msg": "Verificando microservicio WhatsApp...", "module": "main", "line": 234}
+{"ts": "2026-07-09T02:40:05.931072", "level": "INFO", "logger": "spj.distribution_engine", "msg": "Conciliación OK sucursal=1: diff=0.000", "module": "distribution_engine", "line": 539}
+{"ts": "2026-07-09T02:40:05.931444", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'conciliacion' OK (0.04s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:40:05.939753", "level": "ERROR", "logger": "spj.scheduler", "msg": "Scheduler 'loyalty_snapshot' FALLÓ (err_consecutivos=1): no such column: ls.ultimo_evento_id", "module": "scheduler_service", "line": 200}
+{"ts": "2026-07-09T02:40:06.032179", "level": "INFO", "logger": "spj.whatsapp", "msg": "WA webhook puerto 8767", "module": "whatsapp_service", "line": 524}
+{"ts": "2026-07-09T02:40:06.071474", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-09T02:40:06.079163", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.14s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:40:06.079403", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'depreciacion_activos' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:40:06.099927", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:40:06.244008", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'recordatorios_ordenes' OK (0.14s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:40:06.244354", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'wa_fallidos_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:40:06.244626", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:40:06.244778", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'mantenimiento_semanal' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:40:06.244894", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:40:14.488794", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T02:40:14.494881", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T02:40:14.495354", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:40:14.571775", "level": "INFO", "logger": "spj.services.launcher", "msg": "Iniciando microservicio WhatsApp desde C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\whatsapp_service...", "module": "microservice_launcher", "line": 57}
+{"ts": "2026-07-09T02:40:15.375657", "level": "INFO", "logger": "spj.services.launcher", "msg": "Microservicio lanzado (PID 17908)", "module": "microservice_launcher", "line": 68}
+{"ts": "2026-07-09T02:40:15.925545", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] módulo inicializado sucursal_id=019f34e0-af3f-7368-9529-45586c221cb9", "module": "merma", "line": 93}
+{"ts": "2026-07-09T02:40:15.936433", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] historial cargado count=0", "module": "merma", "line": 602}
+{"ts": "2026-07-09T02:40:18.725272", "level": "ERROR", "logger": "spj.compras", "msg": "qr_sucursal_gen: no se pudieron cargar sucursales", "module": "compras_pro", "line": 1814, "exc": "Traceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\modulos\\compras_pro.py\", line 1810, in _build_subtab_etiqueta\n    for s in (self._prov_repo.get_sucursales_activas() or []):\n              ^^^^^^^^^^^^^^^\nAttributeError: 'ModuloComprasPro' object has no attribute '_prov_repo'"}
+{"ts": "2026-07-09T02:40:19.081042", "level": "ERROR", "logger": "spj.compras", "msg": "qr_sucursal_destino: no se pudieron cargar sucursales", "module": "compras_pro", "line": 2230, "exc": "Traceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\modulos\\compras_pro.py\", line 2223, in _build_subtab_asignar\n    for s in (self._prov_repo.get_sucursales_activas() or []):\n              ^^^^^^^^^^^^^^^\nAttributeError: 'ModuloComprasPro' object has no attribute '_prov_repo'"}
+{"ts": "2026-07-09T02:40:33.598667", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:40:41.184498", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:40:41.189822", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:40:48.679793", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:40:48.684263", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:40:51.735477", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ UI lista", "module": "main", "line": 247}
+{"ts": "2026-07-09T02:40:56.036705", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-09T02:40:56.037441", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-09T02:41:04.646080", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión detenida (impresos=0, fallos=0)", "module": "printer_service", "line": 206}
+{"ts": "2026-07-09T02:41:04.647990", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService detenido.", "module": "scheduler_service", "line": 150}
+{"ts": "2026-07-09T02:41:04.654610", "level": "INFO", "logger": "SPJ.Boot", "msg": "Sistema cerrado. Código: 0", "module": "main", "line": 273}
+{"ts": "2026-07-09T02:45:15.488724", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 113}
+{"ts": "2026-07-09T02:45:23.068262", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 141}
+{"ts": "2026-07-09T02:45:23.068511", "level": "INFO", "logger": "SPJ.Boot", "msg": "  SPJ POS Enterprise v13.4.0", "module": "main", "line": 142}
+{"ts": "2026-07-09T02:45:23.068608", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 143}
+{"ts": "2026-07-09T02:45:26.469705", "level": "INFO", "logger": "spj.theme_engine", "msg": "Tema aplicado globalmente: Dark", "module": "theme_engine", "line": 80}
+{"ts": "2026-07-09T02:45:26.470081", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Tema aplicado al arranque", "module": "main", "line": 153}
+{"ts": "2026-07-09T02:45:26.471073", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Normalizador global de diálogos activo", "module": "main", "line": 161}
+{"ts": "2026-07-09T02:45:26.662341", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Integridad BD OK", "module": "main", "line": 108}
+{"ts": "2026-07-09T02:45:26.677386", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-07-09T02:45:26.724129", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-07-09T02:45:26.735919", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Bootstrap DB OK", "module": "main", "line": 176}
+{"ts": "2026-07-09T02:45:26.760108", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 189}
+{"ts": "2026-07-09T02:45:26.761306", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 189}
+{"ts": "2026-07-09T02:45:26.777387", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Migraciones OK", "module": "main", "line": 198}
+{"ts": "2026-07-09T02:45:26.783021", "level": "INFO", "logger": "core.app_container", "msg": "Inicializando AppContainer...", "module": "app_container", "line": 61}
+{"ts": "2026-07-09T02:45:26.787215", "level": "INFO", "logger": "spj.session", "msg": "Sucursal cambiada: 'Cadenas' (active_branch_id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "session_context", "line": 135}
+{"ts": "2026-07-09T02:45:26.812794", "level": "INFO", "logger": "core.services.config_service", "msg": "Configuración cargada: 33 parámetros en memoria.", "module": "config_service", "line": 20}
+{"ts": "2026-07-09T02:45:26.942484", "level": "INFO", "logger": "core.services.hardware_service", "msg": "Configuraciones de hardware cargadas en memoria.", "module": "hardware_service", "line": 29}
+{"ts": "2026-07-09T02:45:26.990126", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión iniciada", "module": "printer_service", "line": 200}
+{"ts": "2026-07-09T02:45:26.991326", "level": "INFO", "logger": "spj.printer", "msg": "Configuración de impresoras cargada desde hardware_config: ticket=False etiquetas=False mode=raw model=", "module": "printer_service", "line": 373}
+{"ts": "2026-07-09T02:45:27.578310", "level": "INFO", "logger": "spj.events.wiring", "msg": "EventBus wiring completado — 63 eventos activos", "module": "wiring", "line": 290}
+{"ts": "2026-07-09T02:45:27.581590", "level": "INFO", "logger": "spj.accounting_engine", "msg": "AccountingEngine wired (prio=48)", "module": "accounting_engine", "line": 47}
+{"ts": "2026-07-09T02:45:27.593568", "level": "INFO", "logger": "spj.analytics_engine", "msg": "AnalyticsEngine wired (prio=5)", "module": "analytics_engine", "line": 39}
+{"ts": "2026-07-09T02:45:27.611808", "level": "INFO", "logger": "spj.rbac", "msg": "RBAC inicializado", "module": "rbac", "line": 114}
+{"ts": "2026-07-09T02:45:27.663078", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'conciliacion' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:45:27.663260", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'loyalty_snapshot' registrada (intervalo=1800s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:45:27.663370", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'forecast' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:45:27.663588", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'limpieza_event_log' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:45:27.663684", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'alertas_check' registrada (intervalo=300s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:45:27.663768", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'depreciacion_activos' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:45:27.663849", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'escalacion_pedidos_wa' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:45:27.663929", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'recordatorios_ordenes' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:45:27.664009", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'wa_fallidos_check' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:45:27.664094", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'happy_hour_check' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:45:27.664176", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'backup_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:45:27.664256", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'expiracion_estrellas' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:45:27.664361", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'mantenimiento_semanal' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:45:27.664443", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'auto_cierre_turno' registrada (intervalo=600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:45:27.664522", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'reporte_email_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:45:28.169457", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService iniciado con 15 tareas.", "module": "scheduler_service", "line": 144}
+{"ts": "2026-07-09T02:45:28.413019", "level": "INFO", "logger": "core.app_container", "msg": "✅ AppContainer inicializado con éxito. Todos los motores en línea.", "module": "app_container", "line": 741}
+{"ts": "2026-07-09T02:45:28.413242", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ AppContainer activo", "module": "main", "line": 221}
+{"ts": "2026-07-09T02:45:28.614319", "level": "INFO", "logger": "SPJ.Boot", "msg": "Verificando microservicio WhatsApp...", "module": "main", "line": 234}
+{"ts": "2026-07-09T02:45:29.224634", "level": "INFO", "logger": "spj.whatsapp", "msg": "WA webhook puerto 8767", "module": "whatsapp_service", "line": 524}
+{"ts": "2026-07-09T02:45:29.540994", "level": "INFO", "logger": "spj.distribution_engine", "msg": "Conciliación OK sucursal=1: diff=0.000", "module": "distribution_engine", "line": 539}
+{"ts": "2026-07-09T02:45:29.588436", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'conciliacion' OK (1.42s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:45:29.842889", "level": "ERROR", "logger": "spj.scheduler", "msg": "Scheduler 'loyalty_snapshot' FALLÓ (err_consecutivos=1): no such column: ls.ultimo_evento_id", "module": "scheduler_service", "line": 200}
+{"ts": "2026-07-09T02:45:29.903609", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-09T02:45:29.903843", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.06s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:45:29.903969", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'depreciacion_activos' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:45:29.904417", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:45:29.904803", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'recordatorios_ordenes' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:45:29.904985", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'wa_fallidos_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:45:29.905194", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:45:29.905300", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'mantenimiento_semanal' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:45:29.905392", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:45:34.285943", "level": "INFO", "logger": "spj.services.launcher", "msg": "Iniciando microservicio WhatsApp desde C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\whatsapp_service...", "module": "microservice_launcher", "line": 57}
+{"ts": "2026-07-09T02:45:34.792979", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T02:45:34.801781", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T02:45:34.802304", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:45:34.913798", "level": "INFO", "logger": "spj.services.launcher", "msg": "Microservicio lanzado (PID 8120)", "module": "microservice_launcher", "line": 68}
+{"ts": "2026-07-09T02:45:35.994612", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] módulo inicializado sucursal_id=019f34e0-af3f-7368-9529-45586c221cb9", "module": "merma", "line": 93}
+{"ts": "2026-07-09T02:45:36.004401", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] historial cargado count=0", "module": "merma", "line": 602}
+{"ts": "2026-07-09T02:45:37.538147", "level": "ERROR", "logger": "spj.compras", "msg": "qr_sucursal_gen: no se pudieron cargar sucursales", "module": "compras_pro", "line": 1814, "exc": "Traceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\modulos\\compras_pro.py\", line 1810, in _build_subtab_etiqueta\n    for s in (self._prov_repo.get_sucursales_activas() or []):\n              ^^^^^^^^^^^^^^^\nAttributeError: 'ModuloComprasPro' object has no attribute '_prov_repo'"}
+{"ts": "2026-07-09T02:45:37.701753", "level": "ERROR", "logger": "spj.compras", "msg": "qr_sucursal_destino: no se pudieron cargar sucursales", "module": "compras_pro", "line": 2230, "exc": "Traceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\modulos\\compras_pro.py\", line 2223, in _build_subtab_asignar\n    for s in (self._prov_repo.get_sucursales_activas() or []):\n              ^^^^^^^^^^^^^^^\nAttributeError: 'ModuloComprasPro' object has no attribute '_prov_repo'"}
+{"ts": "2026-07-09T02:45:51.464667", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:45:56.118150", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:45:56.118586", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:46:03.585622", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:46:03.586083", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:46:04.100282", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ UI lista", "module": "main", "line": 247}
+{"ts": "2026-07-09T02:46:08.282032", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-09T02:46:08.283044", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-09T02:46:12.403956", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión detenida (impresos=0, fallos=0)", "module": "printer_service", "line": 206}
+{"ts": "2026-07-09T02:46:12.404731", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService detenido.", "module": "scheduler_service", "line": 150}
+{"ts": "2026-07-09T02:46:12.408733", "level": "INFO", "logger": "SPJ.Boot", "msg": "Sistema cerrado. Código: 0", "module": "main", "line": 273}
+{"ts": "2026-07-09T02:46:31.216321", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 113}
+{"ts": "2026-07-09T02:46:41.638805", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 141}
+{"ts": "2026-07-09T02:46:41.639026", "level": "INFO", "logger": "SPJ.Boot", "msg": "  SPJ POS Enterprise v13.4.0", "module": "main", "line": 142}
+{"ts": "2026-07-09T02:46:41.639122", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 143}
+{"ts": "2026-07-09T02:46:42.617395", "level": "INFO", "logger": "spj.theme_engine", "msg": "Tema aplicado globalmente: Dark", "module": "theme_engine", "line": 80}
+{"ts": "2026-07-09T02:46:42.617628", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Tema aplicado al arranque", "module": "main", "line": 153}
+{"ts": "2026-07-09T02:46:42.617832", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Normalizador global de diálogos activo", "module": "main", "line": 161}
+{"ts": "2026-07-09T02:46:42.753274", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Integridad BD OK", "module": "main", "line": 108}
+{"ts": "2026-07-09T02:46:42.767524", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-07-09T02:46:42.801727", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-07-09T02:46:42.817044", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Bootstrap DB OK", "module": "main", "line": 176}
+{"ts": "2026-07-09T02:46:42.841645", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 189}
+{"ts": "2026-07-09T02:46:42.843089", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 189}
+{"ts": "2026-07-09T02:46:42.866004", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Migraciones OK", "module": "main", "line": 198}
+{"ts": "2026-07-09T02:46:42.869124", "level": "INFO", "logger": "core.app_container", "msg": "Inicializando AppContainer...", "module": "app_container", "line": 61}
+{"ts": "2026-07-09T02:46:42.871919", "level": "INFO", "logger": "spj.session", "msg": "Sucursal cambiada: 'Cadenas' (active_branch_id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "session_context", "line": 135}
+{"ts": "2026-07-09T02:46:42.886826", "level": "INFO", "logger": "core.services.config_service", "msg": "Configuración cargada: 33 parámetros en memoria.", "module": "config_service", "line": 20}
+{"ts": "2026-07-09T02:46:42.974691", "level": "INFO", "logger": "core.services.hardware_service", "msg": "Configuraciones de hardware cargadas en memoria.", "module": "hardware_service", "line": 29}
+{"ts": "2026-07-09T02:46:43.008646", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión iniciada", "module": "printer_service", "line": 200}
+{"ts": "2026-07-09T02:46:43.009496", "level": "INFO", "logger": "spj.printer", "msg": "Configuración de impresoras cargada desde hardware_config: ticket=False etiquetas=False mode=raw model=", "module": "printer_service", "line": 373}
+{"ts": "2026-07-09T02:46:43.478875", "level": "INFO", "logger": "spj.events.wiring", "msg": "EventBus wiring completado — 63 eventos activos", "module": "wiring", "line": 290}
+{"ts": "2026-07-09T02:46:43.483066", "level": "INFO", "logger": "spj.accounting_engine", "msg": "AccountingEngine wired (prio=48)", "module": "accounting_engine", "line": 47}
+{"ts": "2026-07-09T02:46:43.492842", "level": "INFO", "logger": "spj.analytics_engine", "msg": "AnalyticsEngine wired (prio=5)", "module": "analytics_engine", "line": 39}
+{"ts": "2026-07-09T02:46:43.509492", "level": "INFO", "logger": "spj.rbac", "msg": "RBAC inicializado", "module": "rbac", "line": 114}
+{"ts": "2026-07-09T02:46:43.577937", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'conciliacion' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:46:43.578438", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'loyalty_snapshot' registrada (intervalo=1800s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:46:43.636067", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'forecast' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:46:43.636344", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'limpieza_event_log' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:46:43.636470", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'alertas_check' registrada (intervalo=300s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:46:43.636563", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'depreciacion_activos' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:46:43.636648", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'escalacion_pedidos_wa' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:46:43.636732", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'recordatorios_ordenes' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:46:43.636813", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'wa_fallidos_check' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:46:43.637051", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'happy_hour_check' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:46:43.637163", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'backup_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:46:43.637265", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'expiracion_estrellas' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:46:43.637350", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'mantenimiento_semanal' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:46:43.637430", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'auto_cierre_turno' registrada (intervalo=600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:46:43.637509", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'reporte_email_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:46:43.814641", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService iniciado con 15 tareas.", "module": "scheduler_service", "line": 144}
+{"ts": "2026-07-09T02:46:43.819888", "level": "INFO", "logger": "core.app_container", "msg": "✅ AppContainer inicializado con éxito. Todos los motores en línea.", "module": "app_container", "line": 741}
+{"ts": "2026-07-09T02:46:43.820126", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ AppContainer activo", "module": "main", "line": 221}
+{"ts": "2026-07-09T02:46:43.837982", "level": "INFO", "logger": "SPJ.Boot", "msg": "Verificando microservicio WhatsApp...", "module": "main", "line": 234}
+{"ts": "2026-07-09T02:46:43.869937", "level": "INFO", "logger": "spj.distribution_engine", "msg": "Conciliación OK sucursal=1: diff=0.000", "module": "distribution_engine", "line": 539}
+{"ts": "2026-07-09T02:46:43.870122", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'conciliacion' OK (0.06s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:46:43.870781", "level": "ERROR", "logger": "spj.scheduler", "msg": "Scheduler 'loyalty_snapshot' FALLÓ (err_consecutivos=1): no such column: ls.ultimo_evento_id", "module": "scheduler_service", "line": 200}
+{"ts": "2026-07-09T02:46:43.883013", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-09T02:46:43.883239", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:46:43.883353", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'depreciacion_activos' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:46:43.883751", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:46:43.884162", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'recordatorios_ordenes' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:46:43.884341", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'wa_fallidos_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:46:43.884549", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:46:43.884684", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'mantenimiento_semanal' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:46:43.884780", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:46:43.986143", "level": "INFO", "logger": "spj.whatsapp", "msg": "WA webhook puerto 8767", "module": "whatsapp_service", "line": 524}
+{"ts": "2026-07-09T02:46:49.164957", "level": "INFO", "logger": "spj.services.launcher", "msg": "Iniciando microservicio WhatsApp desde C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\whatsapp_service...", "module": "microservice_launcher", "line": 57}
+{"ts": "2026-07-09T02:46:49.867542", "level": "INFO", "logger": "spj.services.launcher", "msg": "Microservicio lanzado (PID 11652)", "module": "microservice_launcher", "line": 68}
+{"ts": "2026-07-09T02:46:49.925200", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T02:46:49.930388", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T02:46:49.930881", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:46:51.434551", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] módulo inicializado sucursal_id=019f34e0-af3f-7368-9529-45586c221cb9", "module": "merma", "line": 93}
+{"ts": "2026-07-09T02:46:51.446024", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] historial cargado count=0", "module": "merma", "line": 602}
+{"ts": "2026-07-09T02:47:10.181291", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:47:12.999523", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:47:12.999962", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:47:19.867706", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:47:19.868130", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:47:20.734015", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ UI lista", "module": "main", "line": 247}
+{"ts": "2026-07-09T02:47:24.915112", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-09T02:47:24.915586", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-09T02:47:40.210989", "level": "WARNING", "logger": "spj.services.launcher", "msg": "Microservicio no respondió en 10 segundos", "module": "microservice_launcher", "line": 78}
+{"ts": "2026-07-09T02:47:43.911439", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:47:43.912128", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:48:44.002189", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.03s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:48:44.021159", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:49:44.030660", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:49:44.031101", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:50:44.431258", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.07s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:50:44.496410", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:50:44.656134", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión detenida (impresos=0, fallos=0)", "module": "printer_service", "line": 206}
+{"ts": "2026-07-09T02:50:44.694458", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService detenido.", "module": "scheduler_service", "line": 150}
+{"ts": "2026-07-09T02:50:44.754086", "level": "INFO", "logger": "SPJ.Boot", "msg": "Sistema cerrado. Código: 0", "module": "main", "line": 273}
+{"ts": "2026-07-09T02:53:11.948462", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 113}
+{"ts": "2026-07-09T02:53:21.360039", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 141}
+{"ts": "2026-07-09T02:53:21.360319", "level": "INFO", "logger": "SPJ.Boot", "msg": "  SPJ POS Enterprise v13.4.0", "module": "main", "line": 142}
+{"ts": "2026-07-09T02:53:21.360417", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 143}
+{"ts": "2026-07-09T02:53:32.083322", "level": "INFO", "logger": "spj.theme_engine", "msg": "Tema aplicado globalmente: Dark", "module": "theme_engine", "line": 80}
+{"ts": "2026-07-09T02:53:32.083534", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Tema aplicado al arranque", "module": "main", "line": 153}
+{"ts": "2026-07-09T02:53:32.089479", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Normalizador global de diálogos activo", "module": "main", "line": 161}
+{"ts": "2026-07-09T02:53:33.401862", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Integridad BD OK", "module": "main", "line": 108}
+{"ts": "2026-07-09T02:53:33.415778", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-07-09T02:53:33.610373", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-07-09T02:53:33.697373", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Bootstrap DB OK", "module": "main", "line": 176}
+{"ts": "2026-07-09T02:53:34.365698", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 189}
+{"ts": "2026-07-09T02:53:34.367219", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 189}
+{"ts": "2026-07-09T02:53:34.393149", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Migraciones OK", "module": "main", "line": 198}
+{"ts": "2026-07-09T02:53:34.891880", "level": "INFO", "logger": "core.app_container", "msg": "Inicializando AppContainer...", "module": "app_container", "line": 61}
+{"ts": "2026-07-09T02:53:34.897207", "level": "INFO", "logger": "spj.session", "msg": "Sucursal cambiada: 'Cadenas' (active_branch_id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "session_context", "line": 135}
+{"ts": "2026-07-09T02:53:34.924396", "level": "INFO", "logger": "core.services.config_service", "msg": "Configuración cargada: 33 parámetros en memoria.", "module": "config_service", "line": 20}
+{"ts": "2026-07-09T02:53:35.309843", "level": "INFO", "logger": "core.services.hardware_service", "msg": "Configuraciones de hardware cargadas en memoria.", "module": "hardware_service", "line": 29}
+{"ts": "2026-07-09T02:53:35.500855", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión iniciada", "module": "printer_service", "line": 200}
+{"ts": "2026-07-09T02:53:35.501782", "level": "INFO", "logger": "spj.printer", "msg": "Configuración de impresoras cargada desde hardware_config: ticket=False etiquetas=False mode=raw model=", "module": "printer_service", "line": 373}
+{"ts": "2026-07-09T02:53:36.575788", "level": "INFO", "logger": "spj.events.wiring", "msg": "EventBus wiring completado — 63 eventos activos", "module": "wiring", "line": 290}
+{"ts": "2026-07-09T02:53:36.581675", "level": "INFO", "logger": "spj.accounting_engine", "msg": "AccountingEngine wired (prio=48)", "module": "accounting_engine", "line": 47}
+{"ts": "2026-07-09T02:53:36.607861", "level": "INFO", "logger": "spj.analytics_engine", "msg": "AnalyticsEngine wired (prio=5)", "module": "analytics_engine", "line": 39}
+{"ts": "2026-07-09T02:53:36.717086", "level": "INFO", "logger": "spj.rbac", "msg": "RBAC inicializado", "module": "rbac", "line": 114}
+{"ts": "2026-07-09T02:53:37.111838", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'conciliacion' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:53:37.112054", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'loyalty_snapshot' registrada (intervalo=1800s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:53:37.112162", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'forecast' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:53:37.112261", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'limpieza_event_log' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:53:37.112567", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'alertas_check' registrada (intervalo=300s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:53:37.112693", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'depreciacion_activos' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:53:37.112784", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'escalacion_pedidos_wa' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:53:37.112880", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'recordatorios_ordenes' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:53:37.112970", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'wa_fallidos_check' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:53:37.113068", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'happy_hour_check' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:53:37.113161", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'backup_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:53:37.113255", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'expiracion_estrellas' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:53:37.113365", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'mantenimiento_semanal' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:53:37.114550", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'auto_cierre_turno' registrada (intervalo=600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:53:37.114689", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'reporte_email_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T02:53:37.559110", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService iniciado con 15 tareas.", "module": "scheduler_service", "line": 144}
+{"ts": "2026-07-09T02:53:37.569210", "level": "INFO", "logger": "core.app_container", "msg": "✅ AppContainer inicializado con éxito. Todos los motores en línea.", "module": "app_container", "line": 741}
+{"ts": "2026-07-09T02:53:37.569428", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ AppContainer activo", "module": "main", "line": 221}
+{"ts": "2026-07-09T02:53:38.591702", "level": "INFO", "logger": "SPJ.Boot", "msg": "Verificando microservicio WhatsApp...", "module": "main", "line": 234}
+{"ts": "2026-07-09T02:53:39.016458", "level": "INFO", "logger": "spj.distribution_engine", "msg": "Conciliación OK sucursal=1: diff=0.000", "module": "distribution_engine", "line": 539}
+{"ts": "2026-07-09T02:53:39.016657", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'conciliacion' OK (1.46s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:53:39.126489", "level": "ERROR", "logger": "spj.scheduler", "msg": "Scheduler 'loyalty_snapshot' FALLÓ (err_consecutivos=1): no such column: ls.ultimo_evento_id", "module": "scheduler_service", "line": 200}
+{"ts": "2026-07-09T02:53:39.142328", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-09T02:53:39.142520", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:53:39.142728", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'depreciacion_activos' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:53:39.143252", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:53:39.143673", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'recordatorios_ordenes' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:53:39.143871", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'wa_fallidos_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:53:39.144096", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:53:39.144209", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'mantenimiento_semanal' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:53:39.144304", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:53:39.186460", "level": "INFO", "logger": "spj.whatsapp", "msg": "WA webhook puerto 8767", "module": "whatsapp_service", "line": 524}
+{"ts": "2026-07-09T02:53:47.001874", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T02:53:47.008237", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T02:53:47.008687", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:53:47.205117", "level": "INFO", "logger": "spj.services.launcher", "msg": "Iniciando microservicio WhatsApp desde C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\whatsapp_service...", "module": "microservice_launcher", "line": 57}
+{"ts": "2026-07-09T02:53:48.739714", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] módulo inicializado sucursal_id=019f34e0-af3f-7368-9529-45586c221cb9", "module": "merma", "line": 93}
+{"ts": "2026-07-09T02:53:48.746430", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] historial cargado count=0", "module": "merma", "line": 602}
+{"ts": "2026-07-09T02:53:48.826944", "level": "INFO", "logger": "spj.services.launcher", "msg": "Microservicio lanzado (PID 7244)", "module": "microservice_launcher", "line": 68}
+{"ts": "2026-07-09T02:54:16.480440", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:54:37.178276", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:54:37.178700", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:54:40.611649", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:54:40.619633", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T02:54:41.122384", "level": "WARNING", "logger": "spj.services.launcher", "msg": "Microservicio no respondió en 10 segundos", "module": "microservice_launcher", "line": 78}
+{"ts": "2026-07-09T02:54:41.827704", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:54:41.828119", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T02:54:53.599783", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ UI lista", "module": "main", "line": 247}
+{"ts": "2026-07-09T02:55:00.030843", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-09T02:55:00.040317", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-09T02:55:13.141780", "level": "INFO", "logger": "core.services.auth_service", "msg": "Acceso concedido a admin (admin).", "module": "auth_service", "line": 208}
+{"ts": "2026-07-09T02:55:13.306946", "level": "INFO", "logger": "spj.session", "msg": "Sesión iniciada: Administrador Maestro (admin) en sucursal 'Cadenas' [active_branch_id=019f34e0-af3f-7368-9529-45586c221cb9]", "module": "session_context", "line": 119}
+{"ts": "2026-07-09T02:55:13.682448", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T02:55:13.749311", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T02:55:13.750191", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Cadenas (id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "ventas", "line": 1339}
+{"ts": "2026-07-09T02:55:13.931846", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] historial cargado count=0", "module": "merma", "line": 602}
+{"ts": "2026-07-09T02:55:14.092037", "level": "INFO", "logger": "spj.session", "msg": "Sucursal cambiada: 'Cadenas' (active_branch_id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "session_context", "line": 135}
+{"ts": "2026-07-09T02:55:14.110731", "level": "INFO", "logger": "core.app_container", "msg": "Sucursal activa: 019f34e0-af3f-7368-9529-45586c221cb9 (Cadenas)", "module": "app_container", "line": 1087}
+{"ts": "2026-07-09T02:55:20.465850", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T02:55:20.486353", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=2", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T02:55:25.063969", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión detenida (impresos=0, fallos=0)", "module": "printer_service", "line": 206}
+{"ts": "2026-07-09T02:55:25.067803", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService detenido.", "module": "scheduler_service", "line": 150}
+{"ts": "2026-07-09T02:55:25.107474", "level": "INFO", "logger": "SPJ.Boot", "msg": "Sistema cerrado. Código: 0", "module": "main", "line": 273}
+{"ts": "2026-07-09T03:04:34.911258", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 113}
+{"ts": "2026-07-09T03:04:49.155809", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 141}
+{"ts": "2026-07-09T03:04:49.156007", "level": "INFO", "logger": "SPJ.Boot", "msg": "  SPJ POS Enterprise v13.4.0", "module": "main", "line": 142}
+{"ts": "2026-07-09T03:04:49.156103", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 143}
+{"ts": "2026-07-09T03:04:52.533240", "level": "INFO", "logger": "spj.theme_engine", "msg": "Tema aplicado globalmente: Dark", "module": "theme_engine", "line": 80}
+{"ts": "2026-07-09T03:04:52.534393", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Tema aplicado al arranque", "module": "main", "line": 153}
+{"ts": "2026-07-09T03:04:52.536450", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Normalizador global de diálogos activo", "module": "main", "line": 161}
+{"ts": "2026-07-09T03:04:53.757346", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Integridad BD OK", "module": "main", "line": 108}
+{"ts": "2026-07-09T03:04:53.790823", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-07-09T03:04:54.049295", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-07-09T03:04:54.113156", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Bootstrap DB OK", "module": "main", "line": 176}
+{"ts": "2026-07-09T03:04:54.185928", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 189}
+{"ts": "2026-07-09T03:04:54.190512", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 189}
+{"ts": "2026-07-09T03:04:54.517176", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Migraciones OK", "module": "main", "line": 198}
+{"ts": "2026-07-09T03:04:54.534980", "level": "INFO", "logger": "core.app_container", "msg": "Inicializando AppContainer...", "module": "app_container", "line": 61}
+{"ts": "2026-07-09T03:04:54.650349", "level": "INFO", "logger": "spj.session", "msg": "Sucursal cambiada: 'Cadenas' (active_branch_id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "session_context", "line": 135}
+{"ts": "2026-07-09T03:04:56.070708", "level": "INFO", "logger": "core.services.config_service", "msg": "Configuración cargada: 33 parámetros en memoria.", "module": "config_service", "line": 20}
+{"ts": "2026-07-09T03:04:59.453372", "level": "INFO", "logger": "core.services.hardware_service", "msg": "Configuraciones de hardware cargadas en memoria.", "module": "hardware_service", "line": 29}
+{"ts": "2026-07-09T03:04:59.496566", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión iniciada", "module": "printer_service", "line": 200}
+{"ts": "2026-07-09T03:04:59.497483", "level": "INFO", "logger": "spj.printer", "msg": "Configuración de impresoras cargada desde hardware_config: ticket=False etiquetas=False mode=raw model=", "module": "printer_service", "line": 373}
+{"ts": "2026-07-09T03:04:59.733992", "level": "INFO", "logger": "spj.events.wiring", "msg": "EventBus wiring completado — 63 eventos activos", "module": "wiring", "line": 290}
+{"ts": "2026-07-09T03:04:59.737793", "level": "INFO", "logger": "spj.accounting_engine", "msg": "AccountingEngine wired (prio=48)", "module": "accounting_engine", "line": 47}
+{"ts": "2026-07-09T03:04:59.749688", "level": "INFO", "logger": "spj.analytics_engine", "msg": "AnalyticsEngine wired (prio=5)", "module": "analytics_engine", "line": 39}
+{"ts": "2026-07-09T03:04:59.794187", "level": "INFO", "logger": "spj.rbac", "msg": "RBAC inicializado", "module": "rbac", "line": 114}
+{"ts": "2026-07-09T03:04:59.811071", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'conciliacion' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:04:59.811222", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'loyalty_snapshot' registrada (intervalo=1800s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:04:59.811318", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'forecast' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:04:59.811484", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'limpieza_event_log' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:04:59.811622", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'alertas_check' registrada (intervalo=300s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:04:59.811708", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'depreciacion_activos' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:04:59.811961", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'escalacion_pedidos_wa' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:04:59.812052", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'recordatorios_ordenes' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:04:59.812133", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'wa_fallidos_check' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:04:59.812214", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'happy_hour_check' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:04:59.812295", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'backup_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:04:59.812396", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'expiracion_estrellas' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:04:59.812579", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'mantenimiento_semanal' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:04:59.812671", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'auto_cierre_turno' registrada (intervalo=600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:04:59.812750", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'reporte_email_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:04:59.827911", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService iniciado con 15 tareas.", "module": "scheduler_service", "line": 144}
+{"ts": "2026-07-09T03:04:59.848240", "level": "INFO", "logger": "core.app_container", "msg": "✅ AppContainer inicializado con éxito. Todos los motores en línea.", "module": "app_container", "line": 741}
+{"ts": "2026-07-09T03:04:59.848982", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ AppContainer activo", "module": "main", "line": 221}
+{"ts": "2026-07-09T03:04:59.875266", "level": "INFO", "logger": "spj.distribution_engine", "msg": "Conciliación OK sucursal=1: diff=0.000", "module": "distribution_engine", "line": 539}
+{"ts": "2026-07-09T03:04:59.875414", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'conciliacion' OK (0.05s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:04:59.886635", "level": "ERROR", "logger": "spj.scheduler", "msg": "Scheduler 'loyalty_snapshot' FALLÓ (err_consecutivos=1): no such column: ls.ultimo_evento_id", "module": "scheduler_service", "line": 200}
+{"ts": "2026-07-09T03:04:59.892672", "level": "INFO", "logger": "SPJ.Boot", "msg": "Verificando microservicio WhatsApp...", "module": "main", "line": 234}
+{"ts": "2026-07-09T03:04:59.899719", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-09T03:04:59.899886", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:04:59.899994", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'depreciacion_activos' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:04:59.900663", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:04:59.901831", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'recordatorios_ordenes' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:04:59.902369", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'wa_fallidos_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:04:59.902613", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:04:59.903110", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'mantenimiento_semanal' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:04:59.903317", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:05:00.012715", "level": "INFO", "logger": "spj.whatsapp", "msg": "WA webhook puerto 8767", "module": "whatsapp_service", "line": 524}
+{"ts": "2026-07-09T03:05:10.432992", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T03:05:10.442618", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T03:05:10.449399", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T03:05:10.945691", "level": "INFO", "logger": "spj.services.launcher", "msg": "Iniciando microservicio WhatsApp desde C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\whatsapp_service...", "module": "microservice_launcher", "line": 57}
+{"ts": "2026-07-09T03:05:12.779979", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] módulo inicializado sucursal_id=019f34e0-af3f-7368-9529-45586c221cb9", "module": "merma", "line": 93}
+{"ts": "2026-07-09T03:05:12.785912", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] historial cargado count=0", "module": "merma", "line": 602}
+{"ts": "2026-07-09T03:05:13.557164", "level": "INFO", "logger": "spj.services.launcher", "msg": "Microservicio lanzado (PID 9496)", "module": "microservice_launcher", "line": 68}
+{"ts": "2026-07-09T03:05:33.658522", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T03:05:45.355208", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T03:05:45.355564", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T03:05:46.756999", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T03:05:46.757537", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T03:05:48.649636", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ UI lista", "module": "main", "line": 247}
+{"ts": "2026-07-09T03:05:53.575138", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-09T03:05:53.626175", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-09T03:06:00.239357", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.26s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:06:00.247453", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:06:05.471613", "level": "WARNING", "logger": "spj.services.launcher", "msg": "Microservicio no respondió en 10 segundos", "module": "microservice_launcher", "line": 78}
+{"ts": "2026-07-09T03:06:06.384757", "level": "INFO", "logger": "core.services.auth_service", "msg": "Acceso concedido a admin (admin).", "module": "auth_service", "line": 208}
+{"ts": "2026-07-09T03:06:06.487053", "level": "INFO", "logger": "spj.session", "msg": "Sesión iniciada: Administrador Maestro (admin) en sucursal 'Cadenas' [active_branch_id=019f34e0-af3f-7368-9529-45586c221cb9]", "module": "session_context", "line": 119}
+{"ts": "2026-07-09T03:06:06.551643", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T03:06:06.601853", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T03:06:06.603010", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Cadenas (id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "ventas", "line": 1339}
+{"ts": "2026-07-09T03:06:06.698075", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] historial cargado count=0", "module": "merma", "line": 602}
+{"ts": "2026-07-09T03:06:06.797715", "level": "INFO", "logger": "spj.session", "msg": "Sucursal cambiada: 'Cadenas' (active_branch_id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "session_context", "line": 135}
+{"ts": "2026-07-09T03:06:06.811291", "level": "INFO", "logger": "core.app_container", "msg": "Sucursal activa: 019f34e0-af3f-7368-9529-45586c221cb9 (Cadenas)", "module": "app_container", "line": 1087}
+{"ts": "2026-07-09T03:06:16.730655", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T03:06:16.746077", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=2", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T03:06:19.937848", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T03:06:19.954690", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T03:06:21.274595", "level": "INFO", "logger": "spj.ventas", "msg": "Producto clickeado en grid: event_type=2 product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 nombre=Mango Enchilado", "module": "ventas", "line": 310}
+{"ts": "2026-07-09T03:06:21.276447", "level": "INFO", "logger": "spj.ventas", "msg": "Producto seleccionado: product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 nombre=Mango Enchilado sender=ProductCard", "module": "ventas", "line": 2317}
+{"ts": "2026-07-09T03:06:21.279203", "level": "INFO", "logger": "spj.ventas", "msg": "Producto cargado para agregar por unidad: product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 unidad=pza", "module": "ventas", "line": 2339}
+{"ts": "2026-07-09T03:07:00.438227", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.09s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:07:00.595384", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.16s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:07:01.720324", "level": "INFO", "logger": "spj.ventas", "msg": "Producto agregado al carrito desde selección: product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 cantidad=0.001 items=1", "module": "ventas", "line": 3423}
+{"ts": "2026-07-09T03:08:00.685074", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:08:00.690564", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:09:00.926512", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.03s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:09:00.939083", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:10:01.665966", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-09T03:10:01.668086", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.71s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:10:01.668610", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:10:01.668992", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:10:13.306116", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-09T03:10:13.315007", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-09T03:11:01.692117", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:11:01.692761", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:12:01.756278", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:12:01.756594", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:13:01.780805", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:13:01.781368", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:14:01.789755", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:14:01.790405", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:15:01.835311", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-09T03:15:01.841646", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.03s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:15:01.845283", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:15:01.845598", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:15:01.846687", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:15:13.286271", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-09T03:15:13.290286", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-09T03:16:01.969576", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:16:01.969906", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:17:01.994728", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:17:01.995164", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:18:02.247787", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:18:02.248451", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:19:02.615179", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:19:02.623923", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:20:02.671273", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-09T03:20:02.672612", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.03s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:20:02.673035", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:20:02.673271", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:20:13.289919", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-09T03:20:13.293845", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-09T03:21:02.764300", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.06s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:21:02.766309", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:22:02.787357", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:22:02.787670", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:23:02.886916", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:23:02.887373", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:23:47.301769", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión detenida (impresos=0, fallos=0)", "module": "printer_service", "line": 206}
+{"ts": "2026-07-09T03:23:47.322159", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService detenido.", "module": "scheduler_service", "line": 150}
+{"ts": "2026-07-09T03:23:47.556238", "level": "INFO", "logger": "SPJ.Boot", "msg": "Sistema cerrado. Código: 0", "module": "main", "line": 273}
+{"ts": "2026-07-09T03:25:08.341856", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 113}
+{"ts": "2026-07-09T03:25:43.220624", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 141}
+{"ts": "2026-07-09T03:25:43.221605", "level": "INFO", "logger": "SPJ.Boot", "msg": "  SPJ POS Enterprise v13.4.0", "module": "main", "line": 142}
+{"ts": "2026-07-09T03:25:43.221729", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 143}
+{"ts": "2026-07-09T03:25:44.636809", "level": "INFO", "logger": "spj.theme_engine", "msg": "Tema aplicado globalmente: Dark", "module": "theme_engine", "line": 80}
+{"ts": "2026-07-09T03:25:44.638120", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Tema aplicado al arranque", "module": "main", "line": 153}
+{"ts": "2026-07-09T03:25:44.639249", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Normalizador global de diálogos activo", "module": "main", "line": 161}
+{"ts": "2026-07-09T03:25:44.888599", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Integridad BD OK", "module": "main", "line": 108}
+{"ts": "2026-07-09T03:25:44.904970", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-07-09T03:25:44.958595", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-07-09T03:25:44.978882", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Bootstrap DB OK", "module": "main", "line": 176}
+{"ts": "2026-07-09T03:25:45.012586", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 189}
+{"ts": "2026-07-09T03:25:45.014309", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 189}
+{"ts": "2026-07-09T03:25:45.039214", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Migraciones OK", "module": "main", "line": 198}
+{"ts": "2026-07-09T03:25:45.044970", "level": "INFO", "logger": "core.app_container", "msg": "Inicializando AppContainer...", "module": "app_container", "line": 61}
+{"ts": "2026-07-09T03:25:45.048292", "level": "INFO", "logger": "spj.session", "msg": "Sucursal cambiada: 'Cadenas' (active_branch_id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "session_context", "line": 135}
+{"ts": "2026-07-09T03:25:45.110714", "level": "INFO", "logger": "core.services.config_service", "msg": "Configuración cargada: 33 parámetros en memoria.", "module": "config_service", "line": 20}
+{"ts": "2026-07-09T03:25:46.999590", "level": "INFO", "logger": "core.services.hardware_service", "msg": "Configuraciones de hardware cargadas en memoria.", "module": "hardware_service", "line": 29}
+{"ts": "2026-07-09T03:25:47.256794", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión iniciada", "module": "printer_service", "line": 200}
+{"ts": "2026-07-09T03:25:47.257642", "level": "INFO", "logger": "spj.printer", "msg": "Configuración de impresoras cargada desde hardware_config: ticket=False etiquetas=False mode=raw model=", "module": "printer_service", "line": 373}
+{"ts": "2026-07-09T03:25:47.571464", "level": "INFO", "logger": "spj.events.wiring", "msg": "EventBus wiring completado — 63 eventos activos", "module": "wiring", "line": 290}
+{"ts": "2026-07-09T03:25:47.574612", "level": "INFO", "logger": "spj.accounting_engine", "msg": "AccountingEngine wired (prio=48)", "module": "accounting_engine", "line": 47}
+{"ts": "2026-07-09T03:25:47.627051", "level": "INFO", "logger": "spj.analytics_engine", "msg": "AnalyticsEngine wired (prio=5)", "module": "analytics_engine", "line": 39}
+{"ts": "2026-07-09T03:25:47.649306", "level": "INFO", "logger": "spj.rbac", "msg": "RBAC inicializado", "module": "rbac", "line": 114}
+{"ts": "2026-07-09T03:25:47.656916", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'conciliacion' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:25:47.657128", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'loyalty_snapshot' registrada (intervalo=1800s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:25:47.657280", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'forecast' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:25:47.657551", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'limpieza_event_log' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:25:47.657765", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'alertas_check' registrada (intervalo=300s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:25:47.657909", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'depreciacion_activos' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:25:47.658039", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'escalacion_pedidos_wa' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:25:47.658167", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'recordatorios_ordenes' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:25:47.658294", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'wa_fallidos_check' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:25:47.658423", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'happy_hour_check' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:25:47.658552", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'backup_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:25:47.658774", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'expiracion_estrellas' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:25:47.658916", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'mantenimiento_semanal' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:25:47.659087", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'auto_cierre_turno' registrada (intervalo=600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:25:47.659265", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'reporte_email_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:25:47.680946", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService iniciado con 15 tareas.", "module": "scheduler_service", "line": 144}
+{"ts": "2026-07-09T03:25:47.760287", "level": "INFO", "logger": "core.app_container", "msg": "✅ AppContainer inicializado con éxito. Todos los motores en línea.", "module": "app_container", "line": 741}
+{"ts": "2026-07-09T03:25:47.760507", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ AppContainer activo", "module": "main", "line": 221}
+{"ts": "2026-07-09T03:25:47.797760", "level": "INFO", "logger": "spj.distribution_engine", "msg": "Conciliación OK sucursal=1: diff=0.000", "module": "distribution_engine", "line": 539}
+{"ts": "2026-07-09T03:25:47.798005", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'conciliacion' OK (0.12s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:25:47.805129", "level": "ERROR", "logger": "spj.scheduler", "msg": "Scheduler 'loyalty_snapshot' FALLÓ (err_consecutivos=1): no such column: ls.ultimo_evento_id", "module": "scheduler_service", "line": 200}
+{"ts": "2026-07-09T03:25:47.821951", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-09T03:25:47.822231", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.02s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:25:47.822420", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'depreciacion_activos' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:25:47.823035", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:25:47.823677", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'recordatorios_ordenes' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:25:47.823969", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'wa_fallidos_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:25:47.824269", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:25:47.824437", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'mantenimiento_semanal' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:25:47.824581", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:25:47.859945", "level": "INFO", "logger": "SPJ.Boot", "msg": "Verificando microservicio WhatsApp...", "module": "main", "line": 234}
+{"ts": "2026-07-09T03:25:49.015863", "level": "INFO", "logger": "spj.whatsapp", "msg": "WA webhook puerto 8767", "module": "whatsapp_service", "line": 524}
+{"ts": "2026-07-09T03:26:09.115331", "level": "INFO", "logger": "spj.services.launcher", "msg": "Iniciando microservicio WhatsApp desde C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\whatsapp_service...", "module": "microservice_launcher", "line": 57}
+{"ts": "2026-07-09T03:26:11.861345", "level": "INFO", "logger": "spj.services.launcher", "msg": "Microservicio lanzado (PID 11972)", "module": "microservice_launcher", "line": 68}
+{"ts": "2026-07-09T03:26:13.886349", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T03:26:13.949100", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T03:26:13.950276", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T03:26:25.756477", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] módulo inicializado sucursal_id=019f34e0-af3f-7368-9529-45586c221cb9", "module": "merma", "line": 93}
+{"ts": "2026-07-09T03:26:25.803436", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] historial cargado count=0", "module": "merma", "line": 602}
+{"ts": "2026-07-09T03:26:56.766683", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.54s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:26:57.005249", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.24s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:27:21.272228", "level": "WARNING", "logger": "spj.services.launcher", "msg": "Microservicio no respondió en 10 segundos", "module": "microservice_launcher", "line": 78}
+{"ts": "2026-07-09T03:27:33.578980", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T03:27:36.346079", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T03:27:36.346530", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T03:27:41.086875", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T03:27:41.090132", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T03:27:41.549771", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ UI lista", "module": "main", "line": 247}
+{"ts": "2026-07-09T03:27:45.790172", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-09T03:27:45.792181", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-09T03:27:58.228853", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.26s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:27:58.623352", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.39s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:28:11.607268", "level": "INFO", "logger": "core.services.auth_service", "msg": "Acceso concedido a admin (admin).", "module": "auth_service", "line": 208}
+{"ts": "2026-07-09T03:28:11.764397", "level": "INFO", "logger": "spj.session", "msg": "Sesión iniciada: Administrador Maestro (admin) en sucursal 'Cadenas' [active_branch_id=019f34e0-af3f-7368-9529-45586c221cb9]", "module": "session_context", "line": 119}
+{"ts": "2026-07-09T03:28:11.953236", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T03:28:12.027440", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T03:28:12.030453", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Cadenas (id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "ventas", "line": 1339}
+{"ts": "2026-07-09T03:28:12.269294", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] historial cargado count=0", "module": "merma", "line": 602}
+{"ts": "2026-07-09T03:28:12.396736", "level": "INFO", "logger": "spj.session", "msg": "Sucursal cambiada: 'Cadenas' (active_branch_id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "session_context", "line": 135}
+{"ts": "2026-07-09T03:28:12.417491", "level": "INFO", "logger": "core.app_container", "msg": "Sucursal activa: 019f34e0-af3f-7368-9529-45586c221cb9 (Cadenas)", "module": "app_container", "line": 1087}
+{"ts": "2026-07-09T03:28:20.651856", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T03:28:20.668202", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T03:28:22.404816", "level": "INFO", "logger": "spj.ventas", "msg": "Producto clickeado en grid: event_type=2 product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 nombre=Mango Enchilado", "module": "ventas", "line": 310}
+{"ts": "2026-07-09T03:28:22.407237", "level": "INFO", "logger": "spj.ventas", "msg": "Producto seleccionado: product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 nombre=Mango Enchilado sender=ProductCard", "module": "ventas", "line": 2317}
+{"ts": "2026-07-09T03:28:22.409193", "level": "INFO", "logger": "spj.ventas", "msg": "Producto cargado para agregar por unidad: product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 unidad=pza", "module": "ventas", "line": 2339}
+{"ts": "2026-07-09T03:28:58.793877", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.05s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:28:58.794300", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:29:58.812694", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:29:58.813458", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:31:00.266940", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-09T03:31:00.269020", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (1.43s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:31:00.269673", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:31:00.270126", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:31:33.803222", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-09T03:31:33.817113", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-09T03:32:00.314196", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:32:00.314509", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:33:00.350278", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:33:00.350802", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:34:00.366813", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:34:00.371607", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:35:00.425049", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:35:00.426213", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:36:00.464653", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-09T03:36:00.466179", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.02s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:36:00.467673", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:36:00.467993", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:36:00.469612", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:36:33.751110", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-09T03:36:33.755444", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-09T03:37:00.539066", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:37:00.539409", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:37:33.695344", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión detenida (impresos=0, fallos=0)", "module": "printer_service", "line": 206}
+{"ts": "2026-07-09T03:37:33.720003", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService detenido.", "module": "scheduler_service", "line": 150}
+{"ts": "2026-07-09T03:37:34.624141", "level": "INFO", "logger": "SPJ.Boot", "msg": "Sistema cerrado. Código: 0", "module": "main", "line": 273}
+{"ts": "2026-07-09T03:38:06.740933", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 113}
+{"ts": "2026-07-09T03:38:13.667825", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 141}
+{"ts": "2026-07-09T03:38:13.668070", "level": "INFO", "logger": "SPJ.Boot", "msg": "  SPJ POS Enterprise v13.4.0", "module": "main", "line": 142}
+{"ts": "2026-07-09T03:38:13.668221", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 143}
+{"ts": "2026-07-09T03:38:14.814788", "level": "INFO", "logger": "spj.theme_engine", "msg": "Tema aplicado globalmente: Dark", "module": "theme_engine", "line": 80}
+{"ts": "2026-07-09T03:38:14.815005", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Tema aplicado al arranque", "module": "main", "line": 153}
+{"ts": "2026-07-09T03:38:14.816052", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Normalizador global de diálogos activo", "module": "main", "line": 161}
+{"ts": "2026-07-09T03:38:15.187305", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Integridad BD OK", "module": "main", "line": 108}
+{"ts": "2026-07-09T03:38:15.204072", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-07-09T03:38:15.248414", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-07-09T03:38:15.276384", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Bootstrap DB OK", "module": "main", "line": 176}
+{"ts": "2026-07-09T03:38:15.731173", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 189}
+{"ts": "2026-07-09T03:38:15.736310", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 189}
+{"ts": "2026-07-09T03:38:16.785392", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Migraciones OK", "module": "main", "line": 198}
+{"ts": "2026-07-09T03:38:16.788801", "level": "INFO", "logger": "core.app_container", "msg": "Inicializando AppContainer...", "module": "app_container", "line": 61}
+{"ts": "2026-07-09T03:38:16.792437", "level": "INFO", "logger": "spj.session", "msg": "Sucursal cambiada: 'Cadenas' (active_branch_id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "session_context", "line": 135}
+{"ts": "2026-07-09T03:38:16.864884", "level": "INFO", "logger": "core.services.config_service", "msg": "Configuración cargada: 33 parámetros en memoria.", "module": "config_service", "line": 20}
+{"ts": "2026-07-09T03:38:17.480824", "level": "INFO", "logger": "core.services.hardware_service", "msg": "Configuraciones de hardware cargadas en memoria.", "module": "hardware_service", "line": 29}
+{"ts": "2026-07-09T03:38:17.552065", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión iniciada", "module": "printer_service", "line": 200}
+{"ts": "2026-07-09T03:38:17.552906", "level": "INFO", "logger": "spj.printer", "msg": "Configuración de impresoras cargada desde hardware_config: ticket=False etiquetas=False mode=raw model=", "module": "printer_service", "line": 373}
+{"ts": "2026-07-09T03:38:17.815805", "level": "INFO", "logger": "spj.events.wiring", "msg": "EventBus wiring completado — 63 eventos activos", "module": "wiring", "line": 290}
+{"ts": "2026-07-09T03:38:17.819034", "level": "INFO", "logger": "spj.accounting_engine", "msg": "AccountingEngine wired (prio=48)", "module": "accounting_engine", "line": 47}
+{"ts": "2026-07-09T03:38:17.881587", "level": "INFO", "logger": "spj.analytics_engine", "msg": "AnalyticsEngine wired (prio=5)", "module": "analytics_engine", "line": 39}
+{"ts": "2026-07-09T03:38:17.901298", "level": "INFO", "logger": "spj.rbac", "msg": "RBAC inicializado", "module": "rbac", "line": 114}
+{"ts": "2026-07-09T03:38:17.909275", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'conciliacion' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:38:17.909495", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'loyalty_snapshot' registrada (intervalo=1800s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:38:17.909653", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'forecast' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:38:17.909798", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'limpieza_event_log' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:38:17.909938", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'alertas_check' registrada (intervalo=300s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:38:17.910072", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'depreciacion_activos' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:38:17.910313", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'escalacion_pedidos_wa' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:38:17.910523", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'recordatorios_ordenes' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:38:17.910757", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'wa_fallidos_check' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:38:17.910912", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'happy_hour_check' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:38:17.911054", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'backup_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:38:17.911241", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'expiracion_estrellas' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:38:17.911883", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'mantenimiento_semanal' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:38:17.912064", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'auto_cierre_turno' registrada (intervalo=600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:38:17.912201", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'reporte_email_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T03:38:17.934339", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService iniciado con 15 tareas.", "module": "scheduler_service", "line": 144}
+{"ts": "2026-07-09T03:38:17.992366", "level": "INFO", "logger": "spj.distribution_engine", "msg": "Conciliación OK sucursal=1: diff=0.000", "module": "distribution_engine", "line": 539}
+{"ts": "2026-07-09T03:38:17.992580", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'conciliacion' OK (0.06s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:38:18.009097", "level": "INFO", "logger": "core.app_container", "msg": "✅ AppContainer inicializado con éxito. Todos los motores en línea.", "module": "app_container", "line": 741}
+{"ts": "2026-07-09T03:38:18.009329", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ AppContainer activo", "module": "main", "line": 221}
+{"ts": "2026-07-09T03:38:18.103407", "level": "ERROR", "logger": "spj.scheduler", "msg": "Scheduler 'loyalty_snapshot' FALLÓ (err_consecutivos=1): no such column: ls.ultimo_evento_id", "module": "scheduler_service", "line": 200}
+{"ts": "2026-07-09T03:38:18.117440", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-09T03:38:18.117670", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:38:18.117839", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'depreciacion_activos' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:38:18.118303", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:38:18.119168", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'recordatorios_ordenes' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:38:18.119454", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'wa_fallidos_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:38:18.119758", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:38:18.119924", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'mantenimiento_semanal' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:38:18.120071", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:38:18.200869", "level": "INFO", "logger": "SPJ.Boot", "msg": "Verificando microservicio WhatsApp...", "module": "main", "line": 234}
+{"ts": "2026-07-09T03:38:18.393014", "level": "INFO", "logger": "spj.whatsapp", "msg": "WA webhook puerto 8767", "module": "whatsapp_service", "line": 524}
+{"ts": "2026-07-09T03:38:27.452263", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T03:38:27.461176", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T03:38:27.461733", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T03:38:27.609451", "level": "INFO", "logger": "spj.services.launcher", "msg": "Iniciando microservicio WhatsApp desde C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\whatsapp_service...", "module": "microservice_launcher", "line": 57}
+{"ts": "2026-07-09T03:38:29.441481", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] módulo inicializado sucursal_id=019f34e0-af3f-7368-9529-45586c221cb9", "module": "merma", "line": 93}
+{"ts": "2026-07-09T03:38:29.447361", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] historial cargado count=0", "module": "merma", "line": 602}
+{"ts": "2026-07-09T03:38:29.487989", "level": "INFO", "logger": "spj.services.launcher", "msg": "Microservicio lanzado (PID 9496)", "module": "microservice_launcher", "line": 68}
+{"ts": "2026-07-09T03:38:45.523229", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T03:38:51.071836", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T03:38:51.077657", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T03:38:55.109723", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T03:38:55.110259", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T03:38:56.367554", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ UI lista", "module": "main", "line": 247}
+{"ts": "2026-07-09T03:39:00.476518", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-09T03:39:00.477081", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-09T03:39:18.148569", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:39:18.149094", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:39:19.090818", "level": "INFO", "logger": "core.services.auth_service", "msg": "Acceso concedido a admin (admin).", "module": "auth_service", "line": 208}
+{"ts": "2026-07-09T03:39:19.200245", "level": "INFO", "logger": "spj.session", "msg": "Sesión iniciada: Administrador Maestro (admin) en sucursal 'Cadenas' [active_branch_id=019f34e0-af3f-7368-9529-45586c221cb9]", "module": "session_context", "line": 119}
+{"ts": "2026-07-09T03:39:19.389603", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T03:39:19.425122", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T03:39:19.425906", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Cadenas (id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "ventas", "line": 1339}
+{"ts": "2026-07-09T03:39:19.546718", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] historial cargado count=0", "module": "merma", "line": 602}
+{"ts": "2026-07-09T03:39:19.612478", "level": "INFO", "logger": "spj.session", "msg": "Sucursal cambiada: 'Cadenas' (active_branch_id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "session_context", "line": 135}
+{"ts": "2026-07-09T03:39:19.613780", "level": "INFO", "logger": "core.app_container", "msg": "Sucursal activa: 019f34e0-af3f-7368-9529-45586c221cb9 (Cadenas)", "module": "app_container", "line": 1087}
+{"ts": "2026-07-09T03:39:19.985942", "level": "WARNING", "logger": "spj.services.launcher", "msg": "Microservicio no respondió en 10 segundos", "module": "microservice_launcher", "line": 78}
+{"ts": "2026-07-09T03:39:40.145439", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T03:39:40.167189", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=2", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T03:39:42.334519", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T03:39:42.357716", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T03:39:44.069092", "level": "INFO", "logger": "spj.ventas", "msg": "Producto clickeado en grid: event_type=2 product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 nombre=Mango Enchilado", "module": "ventas", "line": 310}
+{"ts": "2026-07-09T03:39:44.069522", "level": "INFO", "logger": "spj.ventas", "msg": "Producto seleccionado: product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 nombre=Mango Enchilado sender=ProductCard", "module": "ventas", "line": 2317}
+{"ts": "2026-07-09T03:39:44.102466", "level": "INFO", "logger": "spj.ventas", "msg": "Producto cargado para agregar por unidad: product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 unidad=pza", "module": "ventas", "line": 2339}
+{"ts": "2026-07-09T03:40:18.163795", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:40:18.164140", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:41:18.187168", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:41:18.187674", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:42:18.208450", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:42:18.208959", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:43:18.261048", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-09T03:43:18.262565", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.04s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:43:18.263325", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:43:18.263608", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:43:27.302230", "level": "INFO", "logger": "spj.ventas", "msg": "Producto agregado al carrito desde selección: product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 cantidad=1.236 items=1", "module": "ventas", "line": 3423}
+{"ts": "2026-07-09T03:43:30.007257", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-09T03:43:30.008528", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-09T03:44:18.289072", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:44:18.289487", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:45:18.298278", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:45:18.298615", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:46:18.456465", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.14s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:46:18.456872", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:47:18.483886", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:47:18.484196", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:48:18.532274", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-09T03:48:18.533823", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.04s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:48:18.535092", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:48:18.535340", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:48:18.536964", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:48:30.030810", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-09T03:48:30.038096", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-09T03:49:18.555166", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:49:18.556430", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:50:18.572001", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:50:18.572389", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:51:18.581813", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:51:18.582240", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:52:18.674972", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:52:18.681710", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:53:18.755259", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-09T03:53:18.756537", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.04s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:53:18.756933", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:53:18.757173", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:53:30.022065", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-09T03:53:30.029235", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-09T03:54:18.786169", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:54:18.786649", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:55:18.800930", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:55:18.801268", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T03:55:50.576973", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión detenida (impresos=0, fallos=0)", "module": "printer_service", "line": 206}
+{"ts": "2026-07-09T03:55:51.511573", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService detenido.", "module": "scheduler_service", "line": 150}
+{"ts": "2026-07-09T03:55:51.763016", "level": "INFO", "logger": "SPJ.Boot", "msg": "Sistema cerrado. Código: 0", "module": "main", "line": 273}
+{"ts": "2026-07-09T04:07:35.627671", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 113}
+{"ts": "2026-07-09T04:08:07.399317", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 141}
+{"ts": "2026-07-09T04:08:07.399649", "level": "INFO", "logger": "SPJ.Boot", "msg": "  SPJ POS Enterprise v13.4.0", "module": "main", "line": 142}
+{"ts": "2026-07-09T04:08:07.399808", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 143}
+{"ts": "2026-07-09T04:08:11.005071", "level": "INFO", "logger": "spj.theme_engine", "msg": "Tema aplicado globalmente: Dark", "module": "theme_engine", "line": 80}
+{"ts": "2026-07-09T04:08:11.005298", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Tema aplicado al arranque", "module": "main", "line": 153}
+{"ts": "2026-07-09T04:08:11.006301", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Normalizador global de diálogos activo", "module": "main", "line": 161}
+{"ts": "2026-07-09T04:08:12.365099", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Integridad BD OK", "module": "main", "line": 108}
+{"ts": "2026-07-09T04:08:12.427785", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-07-09T04:08:12.831744", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-07-09T04:08:13.025383", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Bootstrap DB OK", "module": "main", "line": 176}
+{"ts": "2026-07-09T04:08:13.120668", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 189}
+{"ts": "2026-07-09T04:08:13.128433", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 189}
+{"ts": "2026-07-09T04:08:13.163050", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Migraciones OK", "module": "main", "line": 198}
+{"ts": "2026-07-09T04:08:13.168077", "level": "INFO", "logger": "core.app_container", "msg": "Inicializando AppContainer...", "module": "app_container", "line": 61}
+{"ts": "2026-07-09T04:08:13.193080", "level": "INFO", "logger": "spj.session", "msg": "Sucursal cambiada: 'Cadenas' (active_branch_id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "session_context", "line": 135}
+{"ts": "2026-07-09T04:08:13.211312", "level": "INFO", "logger": "core.services.config_service", "msg": "Configuración cargada: 33 parámetros en memoria.", "module": "config_service", "line": 20}
+{"ts": "2026-07-09T04:08:13.457946", "level": "INFO", "logger": "core.services.hardware_service", "msg": "Configuraciones de hardware cargadas en memoria.", "module": "hardware_service", "line": 29}
+{"ts": "2026-07-09T04:08:13.718542", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión iniciada", "module": "printer_service", "line": 200}
+{"ts": "2026-07-09T04:08:13.719351", "level": "INFO", "logger": "spj.printer", "msg": "Configuración de impresoras cargada desde hardware_config: ticket=False etiquetas=False mode=raw model=", "module": "printer_service", "line": 373}
+{"ts": "2026-07-09T04:08:14.753077", "level": "INFO", "logger": "spj.events.wiring", "msg": "EventBus wiring completado — 63 eventos activos", "module": "wiring", "line": 290}
+{"ts": "2026-07-09T04:08:14.756582", "level": "INFO", "logger": "spj.accounting_engine", "msg": "AccountingEngine wired (prio=48)", "module": "accounting_engine", "line": 47}
+{"ts": "2026-07-09T04:08:14.866905", "level": "INFO", "logger": "spj.analytics_engine", "msg": "AnalyticsEngine wired (prio=5)", "module": "analytics_engine", "line": 39}
+{"ts": "2026-07-09T04:08:14.897575", "level": "INFO", "logger": "spj.rbac", "msg": "RBAC inicializado", "module": "rbac", "line": 114}
+{"ts": "2026-07-09T04:08:14.910452", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'conciliacion' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T04:08:14.910762", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'loyalty_snapshot' registrada (intervalo=1800s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T04:08:14.910920", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'forecast' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T04:08:14.911062", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'limpieza_event_log' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T04:08:14.911202", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'alertas_check' registrada (intervalo=300s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T04:08:14.911474", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'depreciacion_activos' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T04:08:14.911903", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'escalacion_pedidos_wa' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T04:08:14.912087", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'recordatorios_ordenes' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T04:08:14.912234", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'wa_fallidos_check' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T04:08:14.912374", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'happy_hour_check' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T04:08:14.912512", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'backup_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T04:08:14.912648", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'expiracion_estrellas' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T04:08:14.912778", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'mantenimiento_semanal' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T04:08:14.912906", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'auto_cierre_turno' registrada (intervalo=600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T04:08:14.913117", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'reporte_email_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-07-09T04:08:15.000759", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService iniciado con 15 tareas.", "module": "scheduler_service", "line": 144}
+{"ts": "2026-07-09T04:08:15.009416", "level": "INFO", "logger": "core.app_container", "msg": "✅ AppContainer inicializado con éxito. Todos los motores en línea.", "module": "app_container", "line": 741}
+{"ts": "2026-07-09T04:08:15.009649", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ AppContainer activo", "module": "main", "line": 221}
+{"ts": "2026-07-09T04:08:15.090573", "level": "INFO", "logger": "spj.distribution_engine", "msg": "Conciliación OK sucursal=1: diff=0.000", "module": "distribution_engine", "line": 539}
+{"ts": "2026-07-09T04:08:15.090795", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'conciliacion' OK (0.09s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:08:15.095735", "level": "INFO", "logger": "SPJ.Boot", "msg": "Verificando microservicio WhatsApp...", "module": "main", "line": 234}
+{"ts": "2026-07-09T04:08:15.126074", "level": "ERROR", "logger": "spj.scheduler", "msg": "Scheduler 'loyalty_snapshot' FALLÓ (err_consecutivos=1): no such column: ls.ultimo_evento_id", "module": "scheduler_service", "line": 200}
+{"ts": "2026-07-09T04:08:15.304198", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'forecast' OK (0.17s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:08:15.304632", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'limpieza_event_log' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:08:15.399328", "level": "INFO", "logger": "spj.whatsapp", "msg": "WA webhook puerto 8767", "module": "whatsapp_service", "line": 524}
+{"ts": "2026-07-09T04:08:15.648221", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-09T04:08:15.648674", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.34s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:08:15.649255", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'depreciacion_activos' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:08:15.650270", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:08:15.651298", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'recordatorios_ordenes' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:08:15.651667", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'wa_fallidos_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:08:15.652007", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:08:43.063767", "level": "INFO", "logger": "spj.services.launcher", "msg": "Iniciando microservicio WhatsApp desde C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\whatsapp_service...", "module": "microservice_launcher", "line": 57}
+{"ts": "2026-07-09T04:08:43.237103", "level": "INFO", "logger": "spj.backup", "msg": "Backup incremental: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\backups\\auto_20260708_220815.db (3.8 MB)", "module": "backup_engine", "line": 61}
+{"ts": "2026-07-09T04:08:43.237689", "level": "INFO", "logger": "spj.scheduler", "msg": "Backup automático: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\backups\\auto_20260708_220815.db", "module": "app_container", "line": 788}
+{"ts": "2026-07-09T04:08:43.238135", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'backup_diario' OK (27.59s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:08:43.239632", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'expiracion_estrellas' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:08:43.239894", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'mantenimiento_semanal' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:08:43.241285", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:08:43.364463", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'reporte_email_diario' OK (0.12s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:08:46.688973", "level": "INFO", "logger": "spj.services.launcher", "msg": "Microservicio lanzado (PID 15680)", "module": "microservice_launcher", "line": 68}
+{"ts": "2026-07-09T04:08:51.123601", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T04:08:51.160548", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T04:08:51.162592", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T04:08:56.874532", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] módulo inicializado sucursal_id=019f34e0-af3f-7368-9529-45586c221cb9", "module": "merma", "line": 93}
+{"ts": "2026-07-09T04:08:57.232861", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] historial cargado count=0", "module": "merma", "line": 602}
+{"ts": "2026-07-09T04:09:26.667513", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T04:09:35.738463", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T04:09:35.741350", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T04:09:36.915412", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T04:09:36.915904", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1278}
+{"ts": "2026-07-09T04:09:37.655021", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ UI lista", "module": "main", "line": 247}
+{"ts": "2026-07-09T04:09:37.727300", "level": "WARNING", "logger": "spj.services.launcher", "msg": "Microservicio no respondió en 10 segundos", "module": "microservice_launcher", "line": 78}
+{"ts": "2026-07-09T04:09:45.513323", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (2.05s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:09:45.518437", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:09:45.661725", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-09T04:09:45.776576", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-09T04:10:45.748135", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:10:45.753785", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:11:45.811373", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:11:45.814225", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:12:45.837321", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:12:45.839616", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:13:19.276108", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 166}
+{"ts": "2026-07-09T04:13:19.277232", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (3.43s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:13:21.959579", "level": "INFO", "logger": "core.services.auth_service", "msg": "Acceso concedido a admin (admin).", "module": "auth_service", "line": 208}
+{"ts": "2026-07-09T04:13:22.324611", "level": "INFO", "logger": "spj.session", "msg": "Sesión iniciada: Administrador Maestro (admin) en sucursal 'Cadenas' [active_branch_id=019f34e0-af3f-7368-9529-45586c221cb9]", "module": "session_context", "line": 119}
+{"ts": "2026-07-09T04:13:22.423830", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T04:13:22.607018", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T04:13:22.610619", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Cadenas (id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "ventas", "line": 1339}
+{"ts": "2026-07-09T04:13:22.782463", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] historial cargado count=0", "module": "merma", "line": 602}
+{"ts": "2026-07-09T04:13:22.971094", "level": "INFO", "logger": "spj.session", "msg": "Sucursal cambiada: 'Cadenas' (active_branch_id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "session_context", "line": 135}
+{"ts": "2026-07-09T04:13:22.996972", "level": "INFO", "logger": "core.app_container", "msg": "Sucursal activa: 019f34e0-af3f-7368-9529-45586c221cb9 (Cadenas)", "module": "app_container", "line": 1087}
+{"ts": "2026-07-09T04:13:31.912900", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T04:13:31.931075", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=2", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T04:13:33.410933", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T04:13:33.430950", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T04:13:36.001575", "level": "INFO", "logger": "spj.ventas", "msg": "Producto clickeado en grid: event_type=2 product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 nombre=Mango Enchilado", "module": "ventas", "line": 310}
+{"ts": "2026-07-09T04:13:36.390692", "level": "INFO", "logger": "spj.ventas", "msg": "Producto seleccionado: product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 nombre=Mango Enchilado sender=ProductCard", "module": "ventas", "line": 2317}
+{"ts": "2026-07-09T04:13:36.455332", "level": "INFO", "logger": "spj.ventas", "msg": "Producto cargado para agregar por unidad: product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 unidad=pza", "module": "ventas", "line": 2339}
+{"ts": "2026-07-09T04:13:37.173389", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\modulos\\ventas.py\", line 2340, in seleccionar_producto\n    self.agregar_producto_por_unidad(producto)\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\modulos\\ventas.py\", line 3281, in agregar_producto_por_unidad\n    cantidad, ok = QuantityInputDialog.get_quantity(\n                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^\n        self, \"Cantidad\",\n        ^^^^^^^^^^^^^^^^^\n        f\"Ingrese la cantidad para {producto['nombre']}:\",\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        decimals=3, maximo=9999.0, unidad=producto.get('unidad', ''),\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\frontend\\desktop\\components\\quantity_input_dialog.py\", line 38, in get_quantity\n    return cls.get_value(\n           ~~~~~~~~~~~~~^\n        parent, titulo, mensaje, decimals=decimals, minimo=minimo,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        maximo=maximo, unidad=unidad, inicial=inicial, permitir_cero=False,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\frontend\\desktop\\components\\numeric_keypad_dialog.py\", line 275, in get_value\n    dlg = cls(\n        parent, titulo=titulo, mensaje=mensaje, decimals=decimals,\n        minimo=minimo, maximo=maximo, unidad=unidad, inicial=inicial,\n        permitir_cero=permitir_cero,\n    )\nTypeError: QuantityInputDialog.__init__() got an unexpected keyword argument 'permitir_cero'\n", "module": "main", "line": 33}
+{"ts": "2026-07-09T04:13:49.293016", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:13:49.293411", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:14:01.595318", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-07-09T04:14:01.596707", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2117}
+{"ts": "2026-07-09T04:14:35.502145", "level": "INFO", "logger": "spj.ventas", "msg": "Producto clickeado en grid: event_type=2 product_id=019f3d7a-3605-7d0c-a2ce-086fb2d46069 nombre=Papel BOGUE", "module": "ventas", "line": 310}
+{"ts": "2026-07-09T04:14:35.502639", "level": "INFO", "logger": "spj.ventas", "msg": "Producto seleccionado: product_id=019f3d7a-3605-7d0c-a2ce-086fb2d46069 nombre=Papel BOGUE sender=ProductCard", "module": "ventas", "line": 2317}
+{"ts": "2026-07-09T04:14:35.505159", "level": "INFO", "logger": "spj.ventas", "msg": "Producto cargado para agregar por unidad: product_id=019f3d7a-3605-7d0c-a2ce-086fb2d46069 unidad=pza", "module": "ventas", "line": 2339}
+{"ts": "2026-07-09T04:14:35.508757", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\modulos\\ventas.py\", line 2340, in seleccionar_producto\n    self.agregar_producto_por_unidad(producto)\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\modulos\\ventas.py\", line 3281, in agregar_producto_por_unidad\n    cantidad, ok = QuantityInputDialog.get_quantity(\n                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^\n        self, \"Cantidad\",\n        ^^^^^^^^^^^^^^^^^\n        f\"Ingrese la cantidad para {producto['nombre']}:\",\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        decimals=3, maximo=9999.0, unidad=producto.get('unidad', ''),\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\frontend\\desktop\\components\\quantity_input_dialog.py\", line 38, in get_quantity\n    return cls.get_value(\n           ~~~~~~~~~~~~~^\n        parent, titulo, mensaje, decimals=decimals, minimo=minimo,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        maximo=maximo, unidad=unidad, inicial=inicial, permitir_cero=False,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\frontend\\desktop\\components\\numeric_keypad_dialog.py\", line 275, in get_value\n    dlg = cls(\n        parent, titulo=titulo, mensaje=mensaje, decimals=decimals,\n        minimo=minimo, maximo=maximo, unidad=unidad, inicial=inicial,\n        permitir_cero=permitir_cero,\n    )\nTypeError: QuantityInputDialog.__init__() got an unexpected keyword argument 'permitir_cero'\n", "module": "main", "line": 33}
+{"ts": "2026-07-09T04:14:49.316741", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:14:49.317514", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:15:49.559804", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.16s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:15:49.560966", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:16:15.023594", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] búsqueda ejecutada query='p'", "module": "merma", "line": 272}
+{"ts": "2026-07-09T04:16:15.071334", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] productos encontrados count=2 query='p'", "module": "merma", "line": 290}
+{"ts": "2026-07-09T04:16:15.073098", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] resultados renderizados count=2", "module": "merma", "line": 291}
+{"ts": "2026-07-09T04:16:16.549866", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] producto seleccionado desde SearchSelector product_id=019f3d7a-3605-7d0c-a2ce-086fb2d46069 label=Papel BOGUE", "module": "merma", "line": 307}
+{"ts": "2026-07-09T04:16:16.550763", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] metadata seleccionada id=019f3d7a-3605-7d0c-a2ce-086fb2d46069 stock=10.00 unit=pza cost=39.00", "module": "merma", "line": 334}
+{"ts": "2026-07-09T04:16:16.562338", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] UI actualizada product_id=019f3d7a-3605-7d0c-a2ce-086fb2d46069 unidad=pza stock=10.00 costo=39.00", "module": "merma", "line": 347}
+{"ts": "2026-07-09T04:16:49.579727", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:16:49.580126", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:17:22.487847", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] registro de merma iniciado product_id=019f3d7a-3605-7d0c-a2ce-086fb2d46069 quantity=1.00", "module": "merma", "line": 413}
+{"ts": "2026-07-09T04:17:22.488076", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] validación stock actual=10.00 cantidad=1.00", "module": "merma", "line": 417}
+{"ts": "2026-07-09T04:17:22.943311", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] use_case result success=True entity_id=019f4518-363a-7498-a96f-5790ea733803 message=WASTE_REGISTERED", "module": "merma", "line": 458}
+{"ts": "2026-07-09T04:17:22.991026", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] búsqueda ejecutada query=''", "module": "merma", "line": 272}
+{"ts": "2026-07-09T04:17:22.992090", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] productos encontrados count=3 query=''", "module": "merma", "line": 290}
+{"ts": "2026-07-09T04:17:22.992282", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] resultados renderizados count=3", "module": "merma", "line": 291}
+{"ts": "2026-07-09T04:17:22.994852", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] historial cargado count=0", "module": "merma", "line": 602}
+{"ts": "2026-07-09T04:17:38.761535", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2213}
+{"ts": "2026-07-09T04:17:38.786954", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2300}
+{"ts": "2026-07-09T04:17:49.603619", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:17:49.603949", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-07-09T04:18:05.683160", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión detenida (impresos=0, fallos=0)", "module": "printer_service", "line": 206}
+{"ts": "2026-07-09T04:18:05.856423", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService detenido.", "module": "scheduler_service", "line": 150}
+{"ts": "2026-07-09T04:18:05.954088", "level": "INFO", "logger": "SPJ.Boot", "msg": "Sistema cerrado. Código: 0", "module": "main", "line": 273}

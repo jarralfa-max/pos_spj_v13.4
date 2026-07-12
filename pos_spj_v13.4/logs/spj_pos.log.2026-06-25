@@ -1,0 +1,858 @@
+{"ts": "2026-06-26T01:00:45.736660", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 113}
+{"ts": "2026-06-26T01:00:56.652786", "level": "ERROR", "logger": "spj.main_window", "msg": "Error cargando ModuloVentas: from __future__ imports must occur at the beginning of the file (stock_reservation_service.py, line 2)", "module": "main_window", "line": 27}
+{"ts": "2026-06-26T01:01:10.091503", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 141}
+{"ts": "2026-06-26T01:01:10.091866", "level": "INFO", "logger": "SPJ.Boot", "msg": "  SPJ POS Enterprise v13.4.0", "module": "main", "line": 142}
+{"ts": "2026-06-26T01:01:10.092307", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 143}
+{"ts": "2026-06-26T01:01:16.439152", "level": "INFO", "logger": "spj.theme_engine", "msg": "Tema aplicado globalmente: Claro", "module": "theme_engine", "line": 80}
+{"ts": "2026-06-26T01:01:16.439406", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Tema aplicado al arranque", "module": "main", "line": 153}
+{"ts": "2026-06-26T01:01:16.440035", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Normalizador global de diálogos activo", "module": "main", "line": 161}
+{"ts": "2026-06-26T01:01:16.813669", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Integridad BD OK", "module": "main", "line": 108}
+{"ts": "2026-06-26T01:01:16.829772", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-06-26T01:01:16.899388", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-06-26T01:01:16.918092", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Bootstrap DB OK", "module": "main", "line": 176}
+{"ts": "2026-06-26T01:01:17.082800", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 112 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:01:17.083221", "level": "INFO", "logger": "spj.migrations", "msg": "Migraciones completadas: 1 ejecutadas.", "module": "engine", "line": 183}
+{"ts": "2026-06-26T01:01:17.084509", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 185}
+{"ts": "2026-06-26T01:01:17.124485", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "DB sin identidad UUIDv7 (corte 200 no aplicado): La base de datos NO tiene identidad UUIDv7: quedan 254 tablas con PRIMARY KEY entera (p.ej. accounts_payable.id, accounts_receivable.id, activos.id, activos_depreciacion.id, ai_consulta_log.id, ajustes_inventario.id, alert_engine_log.id, alertas_config.id). El runtime asume el esquema post-corte. Aplica el corte antes de iniciar:\n  1) Cierra la app y respalda el .db.\n  2) SPJ_UUID_CUTOVER_CONFIRMED=1 y ejecuta la migración 200 (migrations.standalone.200_uuid_identity_cutover.run(conn)).\nEl corte es atómico (foreign_key_check + rollback ante cualquier fallo).", "module": "main", "line": 203}
+{"ts": "2026-06-26T01:05:24.644111", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 113}
+{"ts": "2026-06-26T01:05:26.608234", "level": "ERROR", "logger": "spj.main_window", "msg": "Error cargando ModuloVentas: from __future__ imports must occur at the beginning of the file (stock_reservation_service.py, line 2)", "module": "main_window", "line": 27}
+{"ts": "2026-06-26T01:05:31.163351", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 141}
+{"ts": "2026-06-26T01:05:31.164837", "level": "INFO", "logger": "SPJ.Boot", "msg": "  SPJ POS Enterprise v13.4.0", "module": "main", "line": 142}
+{"ts": "2026-06-26T01:05:31.165092", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 143}
+{"ts": "2026-06-26T01:05:32.595695", "level": "INFO", "logger": "spj.theme_engine", "msg": "Tema aplicado globalmente: Oscuro", "module": "theme_engine", "line": 80}
+{"ts": "2026-06-26T01:05:32.595905", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Tema aplicado al arranque", "module": "main", "line": 153}
+{"ts": "2026-06-26T01:05:32.596103", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Normalizador global de diálogos activo", "module": "main", "line": 161}
+{"ts": "2026-06-26T01:05:32.657070", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Integridad BD OK", "module": "main", "line": 108}
+{"ts": "2026-06-26T01:05:32.662152", "level": "WARNING", "logger": "scripts.bootstrap_db", "msg": "DB vacía detectada — ejecutando migraciones: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 71}
+{"ts": "2026-06-26T01:05:32.679781", "level": "WARNING", "logger": "spj.migrations", "msg": "Schema vacío detectado — forzando re-ejecución de m000.", "module": "engine", "line": 154}
+{"ts": "2026-06-26T01:05:34.113854", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 000 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.156116", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 001 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.188472", "level": "INFO", "logger": "spj.migrations.concurrency_events", "msg": "016 — concurrency_events OK", "module": "016_concurrency_events", "line": 92}
+{"ts": "2026-06-26T01:05:34.190525", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 016 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.196515", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 018 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.202727", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 019 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.207568", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 020 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.245437", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 021 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.253630", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 022 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.394298", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 023 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.435753", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 024 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.473175", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 025 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.504292", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 026 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.510821", "level": "INFO", "logger": "spj.migrations.027", "msg": "branch_inventory: agregando CHECK(quantity >= 0) — migración única...", "module": "027_inventory_hardening", "line": 52}
+{"ts": "2026-06-26T01:05:34.532808", "level": "INFO", "logger": "spj.migrations.027", "msg": "branch_inventory migrada con CHECK(quantity >= 0). Negativos corregidos a 0.", "module": "027_inventory_hardening", "line": 114}
+{"ts": "2026-06-26T01:05:34.533993", "level": "INFO", "logger": "spj.migrations.027", "msg": "inventory_movements creada/verificada con triggers IMMUTABLE.", "module": "027_inventory_hardening", "line": 162}
+{"ts": "2026-06-26T01:05:34.534666", "level": "INFO", "logger": "spj.migrations.027", "msg": "Índices de inventory creados/verificados.", "module": "027_inventory_hardening", "line": 184}
+{"ts": "2026-06-26T01:05:34.535043", "level": "INFO", "logger": "spj.migrations.027", "msg": "Triggers de protección de inventario negativo creados/verificados.", "module": "027_inventory_hardening", "line": 217}
+{"ts": "2026-06-26T01:05:34.543132", "level": "INFO", "logger": "spj.migrations.027", "msg": "Migración 027 completada: branch_inventory + inventory_movements creados/verificados.", "module": "027_inventory_hardening", "line": 27}
+{"ts": "2026-06-26T01:05:34.545174", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 027 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.553453", "level": "INFO", "logger": "spj.migrations.028", "msg": "Tabla payments creada/verificada con triggers IMMUTABLE.", "module": "028_sales_transaction_hardening", "line": 72}
+{"ts": "2026-06-26T01:05:34.553919", "level": "INFO", "logger": "spj.migrations.028", "msg": "Columnas operation_id y credit_approved añadidas a ventas.", "module": "028_sales_transaction_hardening", "line": 92}
+{"ts": "2026-06-26T01:05:34.561621", "level": "INFO", "logger": "spj.migrations.028", "msg": "Índices de ventas/payments creados/verificados.", "module": "028_sales_transaction_hardening", "line": 112}
+{"ts": "2026-06-26T01:05:34.567214", "level": "INFO", "logger": "spj.migrations.028", "msg": "Triggers de protección de ventas completadas creados/verificados.", "module": "028_sales_transaction_hardening", "line": 145}
+{"ts": "2026-06-26T01:05:34.567402", "level": "INFO", "logger": "spj.migrations.028", "msg": "Migración 028 completada: payments + ventas hardening.", "module": "028_sales_transaction_hardening", "line": 27}
+{"ts": "2026-06-26T01:05:34.570207", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 028 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.578494", "level": "INFO", "logger": "spj.migrations.029", "msg": "Tabla sale_refunds creada/verificada.", "module": "029_reversals_hardening", "line": 79}
+{"ts": "2026-06-26T01:05:34.581954", "level": "INFO", "logger": "spj.migrations.029", "msg": "Tabla credit_notes creada/verificada.", "module": "029_reversals_hardening", "line": 118}
+{"ts": "2026-06-26T01:05:34.582394", "level": "INFO", "logger": "spj.migrations.029", "msg": "Columnas de trazabilidad añadidas a movimientos_caja.", "module": "029_reversals_hardening", "line": 138}
+{"ts": "2026-06-26T01:05:34.591732", "level": "INFO", "logger": "spj.migrations.029", "msg": "Triggers de transición de estado de ventas actualizados.", "module": "029_reversals_hardening", "line": 178}
+{"ts": "2026-06-26T01:05:34.596203", "level": "INFO", "logger": "spj.migrations.029", "msg": "Triggers de integridad de devoluciones creados/verificados.", "module": "029_reversals_hardening", "line": 217}
+{"ts": "2026-06-26T01:05:34.604947", "level": "INFO", "logger": "spj.migrations.029", "msg": "Índices de reversiones creados/verificados.", "module": "029_reversals_hardening", "line": 240}
+{"ts": "2026-06-26T01:05:34.605135", "level": "INFO", "logger": "spj.migrations.029", "msg": "Migración 029 completada: sale_refunds + credit_notes + triggers reversión.", "module": "029_reversals_hardening", "line": 31}
+{"ts": "2026-06-26T01:05:34.607370", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 029 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.611887", "level": "INFO", "logger": "spj.migrations.030", "msg": "Iniciando migración 030_recetas_industriales...", "module": "030_recetas_industriales", "line": 91}
+{"ts": "2026-06-26T01:05:34.614059", "level": "INFO", "logger": "spj.migrations.030", "msg": "product_recipe_components creada/verificada.", "module": "030_recetas_industriales", "line": 82}
+{"ts": "2026-06-26T01:05:34.621382", "level": "INFO", "logger": "spj.migrations.030", "msg": "Migración 030 aplicada correctamente.", "module": "030_recetas_industriales", "line": 98}
+{"ts": "2026-06-26T01:05:34.627917", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 030 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.633255", "level": "INFO", "logger": "spj.migrations.031", "msg": "inventario_actual creada/verificada.", "module": "031_inventory_engine", "line": 98}
+{"ts": "2026-06-26T01:05:34.635460", "level": "INFO", "logger": "spj.migrations.031", "msg": "transferencias creada/verificada.", "module": "031_inventory_engine", "line": 138}
+{"ts": "2026-06-26T01:05:34.635830", "level": "INFO", "logger": "spj.migrations.031", "msg": "transferencia_detalle creada/verificada.", "module": "031_inventory_engine", "line": 158}
+{"ts": "2026-06-26T01:05:34.638065", "level": "INFO", "logger": "spj.migrations.031", "msg": "configuracioneses creada/verificada.", "module": "031_inventory_engine", "line": 174}
+{"ts": "2026-06-26T01:05:34.638427", "level": "INFO", "logger": "spj.migrations.031", "msg": "unidades_conversion creada/verificada.", "module": "031_inventory_engine", "line": 189}
+{"ts": "2026-06-26T01:05:34.638792", "level": "INFO", "logger": "spj.migrations.031", "msg": "movimientos_inventario parchado.", "module": "031_inventory_engine", "line": 519}
+{"ts": "2026-06-26T01:05:34.639084", "level": "INFO", "logger": "spj.migrations.031", "msg": "configuracioneses por defecto insertadas.", "module": "031_inventory_engine", "line": 221}
+{"ts": "2026-06-26T01:05:34.639448", "level": "INFO", "logger": "spj.migrations.031", "msg": "Unidades de medida sembradas.", "module": "031_inventory_engine", "line": 613}
+{"ts": "2026-06-26T01:05:34.640952", "level": "INFO", "logger": "spj.migrations.031", "msg": "Índices de inventario industrial creados/verificados.", "module": "031_inventory_engine", "line": 591}
+{"ts": "2026-06-26T01:05:34.642724", "level": "INFO", "logger": "spj.migrations.031", "msg": "Triggers de inventario_actual creados/verificados.", "module": "031_inventory_engine", "line": 572}
+{"ts": "2026-06-26T01:05:34.643301", "level": "INFO", "logger": "spj.migrations.031", "msg": "inventario_actual reconstruido desde branch_inventory: 0 filas.", "module": "031_inventory_engine", "line": 347}
+{"ts": "2026-06-26T01:05:34.643529", "level": "INFO", "logger": "spj.migrations.031", "msg": "Tablas transfers + transfer_items creadas/verificadas.", "module": "031_inventory_engine", "line": 413}
+{"ts": "2026-06-26T01:05:34.643675", "level": "INFO", "logger": "spj.migrations.031", "msg": "Tablas recepciones + recepcion_items creadas/verificadas.", "module": "031_inventory_engine", "line": 450}
+{"ts": "2026-06-26T01:05:34.643795", "level": "INFO", "logger": "spj.migrations.031", "msg": "Tabla mermas creada/verificada.", "module": "031_inventory_engine", "line": 472}
+{"ts": "2026-06-26T01:05:34.643915", "level": "INFO", "logger": "spj.migrations.031", "msg": "Tabla ajustes_inventario creada/verificada.", "module": "031_inventory_engine", "line": 495}
+{"ts": "2026-06-26T01:05:34.644022", "level": "INFO", "logger": "spj.migrations.031", "msg": "Tabla unidades_medida creada/verificada.", "module": "031_inventory_engine", "line": 511}
+{"ts": "2026-06-26T01:05:34.648193", "level": "INFO", "logger": "spj.migrations.031", "msg": "Migracion 031 completada: inventario engine + industrial fusionado.", "module": "031_inventory_engine", "line": 44}
+{"ts": "2026-06-26T01:05:34.650314", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 031 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.653963", "level": "INFO", "logger": "spj.migrations.034", "msg": "ventas_diarias creada/verificada.", "module": "032_bi_tables", "line": 74}
+{"ts": "2026-06-26T01:05:34.654288", "level": "INFO", "logger": "spj.migrations.034", "msg": "inventario_diario creada/verificada.", "module": "032_bi_tables", "line": 91}
+{"ts": "2026-06-26T01:05:34.654513", "level": "INFO", "logger": "spj.migrations.034", "msg": "production_batches creada/verificada.", "module": "032_bi_tables", "line": 193}
+{"ts": "2026-06-26T01:05:34.654645", "level": "INFO", "logger": "spj.migrations.034", "msg": "production_outputs creada/verificada.", "module": "032_bi_tables", "line": 216}
+{"ts": "2026-06-26T01:05:34.654775", "level": "INFO", "logger": "spj.migrations.034", "msg": "production_yield_analysis creada/verificada.", "module": "032_bi_tables", "line": 243}
+{"ts": "2026-06-26T01:05:34.654929", "level": "INFO", "logger": "spj.migrations.034", "msg": "production_alerts creada/verificada.", "module": "032_bi_tables", "line": 263}
+{"ts": "2026-06-26T01:05:34.655051", "level": "INFO", "logger": "spj.migrations.034", "msg": "production_cost_ledger creada/verificada.", "module": "032_bi_tables", "line": 285}
+{"ts": "2026-06-26T01:05:34.655273", "level": "INFO", "logger": "spj.migrations.034", "msg": "recetas + receta_componentes parchadas para rendimiento esperado.", "module": "032_bi_tables", "line": 316}
+{"ts": "2026-06-26T01:05:34.668944", "level": "INFO", "logger": "spj.migrations.034", "msg": "Migración 032 completada.", "module": "032_bi_tables", "line": 53}
+{"ts": "2026-06-26T01:05:34.670632", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 032 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.673821", "level": "INFO", "logger": "spj.migrations.033", "msg": "Iniciando migración 033_demand_forecast...", "module": "033_demand_forecast", "line": 57}
+{"ts": "2026-06-26T01:05:34.697288", "level": "INFO", "logger": "spj.migrations.033", "msg": "Migración 033 aplicada correctamente.", "module": "033_demand_forecast", "line": 69}
+{"ts": "2026-06-26T01:05:34.699498", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 033 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.702403", "level": "INFO", "logger": "spj.migrations.035", "msg": "Iniciando migración 035_finance_erp...", "module": "035_finance_erp", "line": 87}
+{"ts": "2026-06-26T01:05:34.743478", "level": "INFO", "logger": "spj.migrations.035", "msg": "Migración 035 aplicada correctamente.", "module": "035_finance_erp", "line": 104}
+{"ts": "2026-06-26T01:05:34.745934", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 035 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.749293", "level": "INFO", "logger": "spj.migrations.036", "msg": "whatsapp_queue creada/verificada.", "module": "036_whatsapp_rasa", "line": 36}
+{"ts": "2026-06-26T01:05:34.752905", "level": "INFO", "logger": "spj.migrations.036", "msg": "rasa_sessions creada/verificada.", "module": "036_whatsapp_rasa", "line": 48}
+{"ts": "2026-06-26T01:05:34.753238", "level": "INFO", "logger": "spj.migrations.036", "msg": "marketing_messages creada/verificada.", "module": "036_whatsapp_rasa", "line": 62}
+{"ts": "2026-06-26T01:05:34.768550", "level": "INFO", "logger": "spj.migrations.036", "msg": "Índices 036 creados/verificados.", "module": "036_whatsapp_rasa", "line": 69}
+{"ts": "2026-06-26T01:05:34.768812", "level": "INFO", "logger": "spj.migrations.036", "msg": "Migración 036: WhatsApp queue + Rasa sessions completada.", "module": "036_whatsapp_rasa", "line": 19}
+{"ts": "2026-06-26T01:05:34.772193", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 036 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.777226", "level": "INFO", "logger": "spj.migrations.037", "msg": "Columna imagen_path verificada en productos.", "module": "037_product_images", "line": 24}
+{"ts": "2026-06-26T01:05:34.778374", "level": "INFO", "logger": "spj.migrations.037", "msg": "Directorio imagenes_productos verificado.", "module": "037_product_images", "line": 28}
+{"ts": "2026-06-26T01:05:34.778530", "level": "INFO", "logger": "spj.migrations.037", "msg": "Migración 037: imagen_path en productos completada.", "module": "037_product_images", "line": 14}
+{"ts": "2026-06-26T01:05:34.780574", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 037 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.786807", "level": "INFO", "logger": "spj.migrations.038", "msg": "transfer_suggestions creada/verificada.", "module": "038_transfer_suggestions", "line": 46}
+{"ts": "2026-06-26T01:05:34.796146", "level": "INFO", "logger": "spj.migrations.038", "msg": "Índices transfer_suggestions creados.", "module": "038_transfer_suggestions", "line": 61}
+{"ts": "2026-06-26T01:05:34.796344", "level": "INFO", "logger": "spj.migrations.038", "msg": "Migración 038: transfer_suggestions completada.", "module": "038_transfer_suggestions", "line": 21}
+{"ts": "2026-06-26T01:05:34.798620", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 038 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.807212", "level": "INFO", "logger": "spj.migrations.039", "msg": "branch_products creada/verificada.", "module": "039_branch_products", "line": 48}
+{"ts": "2026-06-26T01:05:34.811281", "level": "INFO", "logger": "spj.migrations.039", "msg": "Vista v_productos_activos creada.", "module": "039_branch_products", "line": 71}
+{"ts": "2026-06-26T01:05:34.812018", "level": "INFO", "logger": "spj.migrations.039", "msg": "Seed branch_products: 0 filas insertadas.", "module": "039_branch_products", "line": 90}
+{"ts": "2026-06-26T01:05:34.812771", "level": "INFO", "logger": "spj.migrations.039", "msg": "Índices branch_products creados.", "module": "039_branch_products", "line": 101}
+{"ts": "2026-06-26T01:05:34.817404", "level": "INFO", "logger": "spj.migrations.039", "msg": "Migración 039: branch_products completada.", "module": "039_branch_products", "line": 30}
+{"ts": "2026-06-26T01:05:34.821304", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 039 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.894286", "level": "INFO", "logger": "spj.migrations.040", "msg": "recepciones extendida con campos de pago + QR.", "module": "040_qr_reception", "line": 38}
+{"ts": "2026-06-26T01:05:34.921485", "level": "INFO", "logger": "spj.migrations.040", "msg": "recepcion_items extendida con trazabilidad.", "module": "040_qr_reception", "line": 44}
+{"ts": "2026-06-26T01:05:34.942207", "level": "INFO", "logger": "spj.migrations.040", "msg": "trazabilidad_qr extendida con recepcion_id.", "module": "040_qr_reception", "line": 49}
+{"ts": "2026-06-26T01:05:34.950413", "level": "INFO", "logger": "spj.migrations.040", "msg": "contenedores_qr creada.", "module": "040_qr_reception", "line": 75}
+{"ts": "2026-06-26T01:05:34.950614", "level": "INFO", "logger": "spj.migrations.040", "msg": "Migración 040: recepción QR completada.", "module": "040_qr_reception", "line": 21}
+{"ts": "2026-06-26T01:05:34.953068", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 040 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.963631", "level": "INFO", "logger": "spj.migrations.041", "msg": "Migración 041: notification_inbox completada.", "module": "041_notification_inbox", "line": 30}
+{"ts": "2026-06-26T01:05:34.966777", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 041 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.972529", "level": "INFO", "logger": "spj.migrations.042", "msg": "whatsapp_numeros creada.", "module": "042_whatsapp_multicanal", "line": 51}
+{"ts": "2026-06-26T01:05:34.976031", "level": "INFO", "logger": "spj.migrations.042", "msg": "Vista v_whatsapp_config creada.", "module": "042_whatsapp_multicanal", "line": 75}
+{"ts": "2026-06-26T01:05:34.976476", "level": "INFO", "logger": "spj.migrations.042", "msg": "Migración 042: whatsapp_numeros completada.", "module": "042_whatsapp_multicanal", "line": 24}
+{"ts": "2026-06-26T01:05:34.979668", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 042 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:34.995597", "level": "INFO", "logger": "spj.migrations.043", "msg": "historial_precios creada.", "module": "043_price_history", "line": 43}
+{"ts": "2026-06-26T01:05:35.000406", "level": "INFO", "logger": "spj.migrations.043", "msg": "Triggers historial_precios creados.", "module": "043_price_history", "line": 72}
+{"ts": "2026-06-26T01:05:35.000627", "level": "INFO", "logger": "spj.migrations.043", "msg": "Migración 043: historial de precios completada.", "module": "043_price_history", "line": 14}
+{"ts": "2026-06-26T01:05:35.002797", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 043 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.019128", "level": "INFO", "logger": "migrations.standalone.044_cotizaciones", "msg": "044 — cotizaciones y cotizaciones_detalle creadas", "module": "044_cotizaciones", "line": 62}
+{"ts": "2026-06-26T01:05:35.021587", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 044 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.052183", "level": "INFO", "logger": "migrations.standalone.045_performance_indexes", "msg": "045 — 12 índices de rendimiento creados", "module": "045_performance_indexes", "line": 56}
+{"ts": "2026-06-26T01:05:35.054262", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 045 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.073729", "level": "INFO", "logger": "migrations.standalone.046_comisiones_happy_hour", "msg": "046 — comisiones_config, comisiones_acumuladas, happy_hour_rules", "module": "046_comisiones_happy_hour", "line": 56}
+{"ts": "2026-06-26T01:05:35.078419", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 046 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.378387", "level": "INFO", "logger": "migrations.standalone.047_v13_schema", "msg": "047 — v13 schema aplicado", "module": "047_v13_schema", "line": 364}
+{"ts": "2026-06-26T01:05:35.381269", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 047 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.424560", "level": "INFO", "logger": "spj.migrations.048", "msg": "048 — v13.1 hardening aplicado", "module": "048_v131_hardening", "line": 97}
+{"ts": "2026-06-26T01:05:35.426609", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 048 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.437546", "level": "INFO", "logger": "spj.migrations.049", "msg": "Migración 049: tablas ERP inteligente v13.4 creadas/verificadas.", "module": "049_v134_intelligent_erp", "line": 124}
+{"ts": "2026-06-26T01:05:35.439727", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 049 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.493957", "level": "INFO", "logger": "spj.migrations.050", "msg": "Migración 050: tablas integración WhatsApp creadas/actualizadas.", "module": "050_wa_integration", "line": 149}
+{"ts": "2026-06-26T01:05:35.495968", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 050 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.508655", "level": "INFO", "logger": "spj.migrations.051", "msg": "Migration 051: kpi_snapshots creada/verificada.", "module": "051_fix_kpi_snapshots", "line": 72}
+{"ts": "2026-06-26T01:05:35.513878", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 051 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.535234", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 052 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.538927", "level": "INFO", "logger": "spj.migrations.053", "msg": "Migración 053 — tablas cárnicas huérfanas de 032...", "module": "053_meat_production_tables", "line": 31}
+{"ts": "2026-06-26T01:05:35.586514", "level": "INFO", "logger": "spj.migrations.053", "msg": "Migración 053 completada.", "module": "053_meat_production_tables", "line": 76}
+{"ts": "2026-06-26T01:05:35.588728", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 053 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.593191", "level": "INFO", "logger": "spj.migrations.054", "msg": "Migración 054 — sync improvements huérfanos de 048...", "module": "054_sync_improvements_orphan", "line": 19}
+{"ts": "2026-06-26T01:05:35.612343", "level": "INFO", "logger": "spj.migrations.054", "msg": "Migración 054 completada.", "module": "054_sync_improvements_orphan", "line": 76}
+{"ts": "2026-06-26T01:05:35.615566", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 054 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.622544", "level": "INFO", "logger": "spj.migrations.055", "msg": "055: vista inventario creada (compatibilidad legacy).", "module": "055_inventario_compat", "line": 51}
+{"ts": "2026-06-26T01:05:35.625594", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 055 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.642622", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 056 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.663700", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 057 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.678301", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 058 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.697882", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 059 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.713681", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 060 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.728452", "level": "INFO", "logger": "spj.migrations.061", "msg": "061: added financial_event_log.concepto", "module": "061_fix_finanzas_schema", "line": 24}
+{"ts": "2026-06-26T01:05:35.730785", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 061 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.756204", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 062 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.778733", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 063 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.792624", "level": "INFO", "logger": "spj.migrations.064", "msg": "064: added gastos.recurrente", "module": "064_fix_missing_columns", "line": 23}
+{"ts": "2026-06-26T01:05:35.802256", "level": "INFO", "logger": "spj.migrations.064", "msg": "064: added clientes.apellido_paterno", "module": "064_fix_missing_columns", "line": 23}
+{"ts": "2026-06-26T01:05:35.813711", "level": "INFO", "logger": "spj.migrations.064", "msg": "064: added compras_inventariables.saldo_pendiente", "module": "064_fix_missing_columns", "line": 23}
+{"ts": "2026-06-26T01:05:35.815924", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 064 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.819810", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_ventas_fecha_suc ON ventas (D", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T01:05:35.820030", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_ventas_cliente ON ventas (cli", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T01:05:35.822350", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_ventas_estado ON ventas (esta", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T01:05:35.822647", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_dv_venta ON detalles_venta (v", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T01:05:35.822783", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_dv_producto ON detalles_venta", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T01:05:35.826226", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_mov_producto_fecha ON movimie", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T01:05:35.828787", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_mov_sucursal ON movimientos_i", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T01:05:35.831345", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_mov_tipo ON movimientos_inven", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T01:05:35.833923", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_fel_fecha ON financial_event_", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T01:05:35.836467", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_fel_cuenta_debe ON financial_", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T01:05:35.843350", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_fel_cuenta_haber ON financial", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T01:05:35.843697", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_fel_evento ON financial_event", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T01:05:35.846354", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_bi_sales_fecha ON bi_sales_da", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T01:05:35.849487", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_bi_prod_profit_fecha ON bi_pr", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T01:05:35.852454", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: view v_ventas_diarias creada/confirmada", "module": "065_performance_indexes_views", "line": 152}
+{"ts": "2026-06-26T01:05:35.857208", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: view v_rentabilidad_productos creada/confirmada", "module": "065_performance_indexes_views", "line": 152}
+{"ts": "2026-06-26T01:05:35.861174", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: view v_stock_critico creada/confirmada", "module": "065_performance_indexes_views", "line": 152}
+{"ts": "2026-06-26T01:05:35.864117", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: view v_flujo_caja_diario creada/confirmada", "module": "065_performance_indexes_views", "line": 152}
+{"ts": "2026-06-26T01:05:35.866265", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 065 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.989710", "level": "INFO", "logger": "migrations.standalone.066_unificar_esquema_recetas", "msg": "Migration 066: 0 recetas legacy migradas a product_recipes; vista recetas_unificada creada.", "module": "066_unificar_esquema_recetas", "line": 168}
+{"ts": "2026-06-26T01:05:35.994663", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 066 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:35.998622", "level": "INFO", "logger": "spj.migrations.067", "msg": "Migración 067 — ERP Cárnico: trazabilidad de lotes y merma...", "module": "067_meat_erp_improvements", "line": 37}
+{"ts": "2026-06-26T01:05:36.241757", "level": "INFO", "logger": "spj.migrations.067", "msg": "Migración 067 completada — ERP Cárnico activo.", "module": "067_meat_erp_improvements", "line": 150}
+{"ts": "2026-06-26T01:05:36.243690", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 067 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:36.249519", "level": "INFO", "logger": "spj.migrations", "msg": "Índice uq_branch_inv_no_batch creado/verificado.", "module": "068_fix_branch_inventory_unique", "line": 63}
+{"ts": "2026-06-26T01:05:36.251464", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 068 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:36.280558", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 069 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:36.304849", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 070 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:36.342536", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 071 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:36.348376", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 072 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:36.364895", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 073 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:36.380202", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 074 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:36.391837", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 075 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:36.414806", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 076 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:36.629800", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 077 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:36.653877", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 078 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:36.675678", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 079 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:36.699231", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 080 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:36.721288", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 081 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:36.753305", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 082 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:36.842153", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 083 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:36.854333", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 084 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:36.920936", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 085 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.020989", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 086 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.044594", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 087 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.078872", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 088 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.112468", "level": "INFO", "logger": "spj.migrations.089", "msg": "Migración 089: dedupe_key/severity en notification_inbox completada.", "module": "089_notification_inbox_dedupe_key", "line": 25}
+{"ts": "2026-06-26T01:05:37.115300", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 089 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.229296", "level": "INFO", "logger": "spj.migrations.090", "msg": "Migración 090: workflow_type/scheduled_at/source_channel en ventas y delivery_orders completada.", "module": "090_whatsapp_delivery_workflow_columns", "line": 33}
+{"ts": "2026-06-26T01:05:37.231444", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 090 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.240664", "level": "INFO", "logger": "spj.migrations.091", "msg": "Migración 091: scheduled_demand_events completada.", "module": "091_scheduled_demand_events", "line": 29}
+{"ts": "2026-06-26T01:05:37.243217", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 091 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.264609", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 092 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.317685", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 093 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.363303", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 094 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.391468", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 095 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.399074", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 096 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.424248", "level": "INFO", "logger": "spj.migrations.097", "msg": "097: added mermas.fecha", "module": "097_waste_schema_integrity", "line": 34}
+{"ts": "2026-06-26T01:05:37.452499", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 097 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.467914", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 098 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.619873", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 099 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.698271", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 100 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.716518", "level": "INFO", "logger": "migrations.standalone.101_entity_uuid_columns", "msg": "101: added uuid column to sucursales", "module": "101_entity_uuid_columns", "line": 57}
+{"ts": "2026-06-26T01:05:37.717081", "level": "INFO", "logger": "migrations.standalone.101_entity_uuid_columns", "msg": "101: backfilled 1 uuid values in sucursales", "module": "101_entity_uuid_columns", "line": 69}
+{"ts": "2026-06-26T01:05:37.727616", "level": "INFO", "logger": "migrations.standalone.101_entity_uuid_columns", "msg": "101: added uuid column to productos", "module": "101_entity_uuid_columns", "line": 57}
+{"ts": "2026-06-26T01:05:37.736308", "level": "INFO", "logger": "migrations.standalone.101_entity_uuid_columns", "msg": "101: added uuid column to clientes", "module": "101_entity_uuid_columns", "line": 57}
+{"ts": "2026-06-26T01:05:37.745218", "level": "INFO", "logger": "migrations.standalone.101_entity_uuid_columns", "msg": "101: added uuid column to usuarios", "module": "101_entity_uuid_columns", "line": 57}
+{"ts": "2026-06-26T01:05:37.745818", "level": "INFO", "logger": "migrations.standalone.101_entity_uuid_columns", "msg": "101: backfilled 2 uuid values in usuarios", "module": "101_entity_uuid_columns", "line": 69}
+{"ts": "2026-06-26T01:05:37.751844", "level": "INFO", "logger": "migrations.standalone.101_entity_uuid_columns", "msg": "101: entity_uuid_columns migration complete", "module": "101_entity_uuid_columns", "line": 72}
+{"ts": "2026-06-26T01:05:37.754194", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 101 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.769755", "level": "INFO", "logger": "migrations.standalone.102_extended_uuid_columns", "msg": "102: added uuid column to happy_hour_rules", "module": "102_extended_uuid_columns", "line": 62}
+{"ts": "2026-06-26T01:05:37.783099", "level": "INFO", "logger": "migrations.standalone.102_extended_uuid_columns", "msg": "102: added uuid column to roles", "module": "102_extended_uuid_columns", "line": 62}
+{"ts": "2026-06-26T01:05:37.783812", "level": "INFO", "logger": "migrations.standalone.102_extended_uuid_columns", "msg": "102: backfilled 6 uuid values in roles", "module": "102_extended_uuid_columns", "line": 73}
+{"ts": "2026-06-26T01:05:37.793618", "level": "INFO", "logger": "migrations.standalone.102_extended_uuid_columns", "msg": "102: added uuid column to rol_permisos", "module": "102_extended_uuid_columns", "line": 62}
+{"ts": "2026-06-26T01:05:37.796880", "level": "INFO", "logger": "migrations.standalone.102_extended_uuid_columns", "msg": "102: backfilled 217 uuid values in rol_permisos", "module": "102_extended_uuid_columns", "line": 73}
+{"ts": "2026-06-26T01:05:37.806876", "level": "INFO", "logger": "migrations.standalone.102_extended_uuid_columns", "msg": "102: added uuid column to personal", "module": "102_extended_uuid_columns", "line": 62}
+{"ts": "2026-06-26T01:05:37.815826", "level": "INFO", "logger": "migrations.standalone.102_extended_uuid_columns", "msg": "102: added uuid column to audit_logs", "module": "102_extended_uuid_columns", "line": 62}
+{"ts": "2026-06-26T01:05:37.829045", "level": "INFO", "logger": "migrations.standalone.102_extended_uuid_columns", "msg": "102: added uuid column to cierre_mensual", "module": "102_extended_uuid_columns", "line": 62}
+{"ts": "2026-06-26T01:05:37.837535", "level": "INFO", "logger": "migrations.standalone.102_extended_uuid_columns", "msg": "102: added sucursal_uuid column to usuarios", "module": "102_extended_uuid_columns", "line": 81}
+{"ts": "2026-06-26T01:05:37.842688", "level": "INFO", "logger": "migrations.standalone.102_extended_uuid_columns", "msg": "102: extended_uuid_columns migration complete", "module": "102_extended_uuid_columns", "line": 84}
+{"ts": "2026-06-26T01:05:37.845218", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 102 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.859629", "level": "INFO", "logger": "migrations.standalone.103_happy_hour_sucursal_uuid", "msg": "[103] added column happy_hour_rules.sucursal_uuid", "module": "103_happy_hour_sucursal_uuid", "line": 42}
+{"ts": "2026-06-26T01:05:37.860690", "level": "INFO", "logger": "migrations.standalone.103_happy_hour_sucursal_uuid", "msg": "[103] backfilled 0 rows in happy_hour_rules.sucursal_uuid", "module": "103_happy_hour_sucursal_uuid", "line": 64}
+{"ts": "2026-06-26T01:05:37.861223", "level": "INFO", "logger": "migrations.standalone.103_happy_hour_sucursal_uuid", "msg": "[103] index idx_happy_hour_rules_sucursal_uuid ensured", "module": "103_happy_hour_sucursal_uuid", "line": 75}
+{"ts": "2026-06-26T01:05:37.863542", "level": "INFO", "logger": "migrations.standalone.103_happy_hour_sucursal_uuid", "msg": "[103] migration complete", "module": "103_happy_hour_sucursal_uuid", "line": 78}
+{"ts": "2026-06-26T01:05:37.865979", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 103 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.882253", "level": "INFO", "logger": "migrations.standalone.104_rol_permisos_uuid_columns", "msg": "[104] added column rol_permisos.rol_uuid", "module": "104_rol_permisos_uuid_columns", "line": 45}
+{"ts": "2026-06-26T01:05:37.883551", "level": "INFO", "logger": "migrations.standalone.104_rol_permisos_uuid_columns", "msg": "[104] backfilled 217 rows in rol_permisos.rol_uuid", "module": "104_rol_permisos_uuid_columns", "line": 64}
+{"ts": "2026-06-26T01:05:37.892909", "level": "INFO", "logger": "migrations.standalone.104_rol_permisos_uuid_columns", "msg": "[104] added column cierre_mensual.sucursal_uuid", "module": "104_rol_permisos_uuid_columns", "line": 45}
+{"ts": "2026-06-26T01:05:37.893652", "level": "INFO", "logger": "migrations.standalone.104_rol_permisos_uuid_columns", "msg": "[104] backfilled 0 rows in cierre_mensual.sucursal_uuid", "module": "104_rol_permisos_uuid_columns", "line": 64}
+{"ts": "2026-06-26T01:05:37.899468", "level": "INFO", "logger": "migrations.standalone.104_rol_permisos_uuid_columns", "msg": "[104] migration complete", "module": "104_rol_permisos_uuid_columns", "line": 96}
+{"ts": "2026-06-26T01:05:37.901472", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 104 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.905113", "level": "INFO", "logger": "spj.migrations.105", "msg": "105: ensuring movimientos_inventario exists …", "module": "105_movimientos_inventario", "line": 33}
+{"ts": "2026-06-26T01:05:37.910273", "level": "INFO", "logger": "spj.migrations.105", "msg": "105: movimientos_inventario created with indexes", "module": "105_movimientos_inventario", "line": 79}
+{"ts": "2026-06-26T01:05:37.910467", "level": "INFO", "logger": "spj.migrations.105", "msg": "105: done", "module": "105_movimientos_inventario", "line": 90}
+{"ts": "2026-06-26T01:05:37.912434", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 105 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.915996", "level": "INFO", "logger": "spj.migrations.106", "msg": "106: ensuring inventario_actual and branch_inventory exist …", "module": "106_inventario_actual_branch", "line": 35}
+{"ts": "2026-06-26T01:05:37.926155", "level": "INFO", "logger": "spj.migrations.106", "msg": "106: inventario_actual created", "module": "106_inventario_actual_branch", "line": 54}
+{"ts": "2026-06-26T01:05:37.932443", "level": "INFO", "logger": "spj.migrations.106", "msg": "106: branch_inventory created", "module": "106_inventario_actual_branch", "line": 94}
+{"ts": "2026-06-26T01:05:37.932643", "level": "INFO", "logger": "spj.migrations.106", "msg": "106: done", "module": "106_inventario_actual_branch", "line": 102}
+{"ts": "2026-06-26T01:05:37.934875", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 106 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.939039", "level": "INFO", "logger": "spj.migrations.107", "msg": "107: ensuring cost columns exist on productos and related tables …", "module": "107_productos_costo_column", "line": 37}
+{"ts": "2026-06-26T01:05:37.952516", "level": "INFO", "logger": "spj.migrations.107", "msg": "107: added column productos.costo", "module": "107_productos_costo_column", "line": 25}
+{"ts": "2026-06-26T01:05:37.966689", "level": "INFO", "logger": "spj.migrations.107", "msg": "107: added column productos.costo_promedio", "module": "107_productos_costo_column", "line": 25}
+{"ts": "2026-06-26T01:05:37.981072", "level": "INFO", "logger": "spj.migrations.107", "msg": "107: added column productos.precio_minimo", "module": "107_productos_costo_column", "line": 25}
+{"ts": "2026-06-26T01:05:37.981634", "level": "INFO", "logger": "spj.migrations.107", "msg": "107: done", "module": "107_productos_costo_column", "line": 53}
+{"ts": "2026-06-26T01:05:37.984255", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 107 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:37.988381", "level": "INFO", "logger": "spj.migrations.108", "msg": "108: syncing inventory_stock from inventario_actual …", "module": "108_sync_inventory_stock", "line": 41}
+{"ts": "2026-06-26T01:05:37.989462", "level": "INFO", "logger": "spj.migrations.108", "msg": "108: 0 inventory_actual rows synced to inventory_stock", "module": "108_sync_inventory_stock", "line": 86}
+{"ts": "2026-06-26T01:05:37.989777", "level": "INFO", "logger": "spj.migrations.108", "msg": "108: done", "module": "108_sync_inventory_stock", "line": 111}
+{"ts": "2026-06-26T01:05:37.992091", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 108 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:38.021952", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 109 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:38.033731", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 110 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:38.067151", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 111 (QR/contenedores schema) completada.", "module": "111_qr_containers_schema", "line": 77}
+{"ts": "2026-06-26T01:05:38.069633", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 111 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:38.150897", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 112 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T01:05:38.151132", "level": "INFO", "logger": "spj.migrations", "msg": "Migraciones completadas: 97 ejecutadas.", "module": "engine", "line": 183}
+{"ts": "2026-06-26T01:05:38.152602", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 185}
+{"ts": "2026-06-26T01:05:38.156218", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "Migraciones completadas (bootstrap DB vacía)", "module": "bootstrap_db", "line": 73}
+{"ts": "2026-06-26T01:05:38.243427", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-06-26T01:05:38.261693", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Bootstrap DB OK", "module": "main", "line": 176}
+{"ts": "2026-06-26T01:05:38.281021", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 185}
+{"ts": "2026-06-26T01:05:38.282159", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 185}
+{"ts": "2026-06-26T01:05:38.348723", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "DB sin identidad UUIDv7 (corte 200 no aplicado): La base de datos NO tiene identidad UUIDv7: quedan 234 tablas con PRIMARY KEY entera (p.ej. accounts_payable.id, accounts_receivable.id, activos.id, ajustes_inventario.id, alertas_config.id, alertas_log.id, anticipo_reglas.id, ap_payments.id). El runtime asume el esquema post-corte. Aplica el corte antes de iniciar:\n  1) Cierra la app y respalda el .db.\n  2) SPJ_UUID_CUTOVER_CONFIRMED=1 y ejecuta la migración 200 (migrations.standalone.200_uuid_identity_cutover.run(conn)).\nEl corte es atómico (foreign_key_check + rollback ante cualquier fallo).", "module": "main", "line": 203}
+{"ts": "2026-06-26T01:27:50.884524", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 113}
+{"ts": "2026-06-26T01:27:52.996792", "level": "ERROR", "logger": "spj.main_window", "msg": "Error cargando ModuloVentas: from __future__ imports must occur at the beginning of the file (stock_reservation_service.py, line 2)", "module": "main_window", "line": 27}
+{"ts": "2026-06-26T01:27:57.187781", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 141}
+{"ts": "2026-06-26T01:27:57.188163", "level": "INFO", "logger": "SPJ.Boot", "msg": "  SPJ POS Enterprise v13.4.0", "module": "main", "line": 142}
+{"ts": "2026-06-26T01:27:57.188269", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 143}
+{"ts": "2026-06-26T01:27:59.894383", "level": "INFO", "logger": "spj.theme_engine", "msg": "Tema aplicado globalmente: Claro", "module": "theme_engine", "line": 80}
+{"ts": "2026-06-26T01:27:59.894618", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Tema aplicado al arranque", "module": "main", "line": 153}
+{"ts": "2026-06-26T01:27:59.898219", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Normalizador global de diálogos activo", "module": "main", "line": 161}
+{"ts": "2026-06-26T01:28:00.065523", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Integridad BD OK", "module": "main", "line": 108}
+{"ts": "2026-06-26T01:28:00.082938", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-06-26T01:28:00.126570", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-06-26T01:28:00.141533", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Bootstrap DB OK", "module": "main", "line": 176}
+{"ts": "2026-06-26T01:28:00.160631", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 185}
+{"ts": "2026-06-26T01:28:00.161866", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 185}
+{"ts": "2026-06-26T01:28:00.188553", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "DB sin identidad UUIDv7 (corte 200 no aplicado): La base de datos NO tiene identidad UUIDv7: quedan 234 tablas con PRIMARY KEY entera (p.ej. accounts_payable.id, accounts_receivable.id, activos.id, ajustes_inventario.id, alertas_config.id, alertas_log.id, anticipo_reglas.id, ap_payments.id). El runtime asume el esquema post-corte. Aplica el corte antes de iniciar:\n  1) Cierra la app y respalda el .db.\n  2) SPJ_UUID_CUTOVER_CONFIRMED=1 y ejecuta la migración 200 (migrations.standalone.200_uuid_identity_cutover.run(conn)).\nEl corte es atómico (foreign_key_check + rollback ante cualquier fallo).", "module": "main", "line": 203}
+{"ts": "2026-06-26T01:31:37.711059", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 113}
+{"ts": "2026-06-26T01:31:39.412770", "level": "ERROR", "logger": "spj.main_window", "msg": "Error cargando ModuloVentas: from __future__ imports must occur at the beginning of the file (stock_reservation_service.py, line 2)", "module": "main_window", "line": 27}
+{"ts": "2026-06-26T01:31:44.783816", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 141}
+{"ts": "2026-06-26T01:31:44.784091", "level": "INFO", "logger": "SPJ.Boot", "msg": "  SPJ POS Enterprise v13.4.0", "module": "main", "line": 142}
+{"ts": "2026-06-26T01:31:44.784196", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 143}
+{"ts": "2026-06-26T01:31:45.744907", "level": "INFO", "logger": "spj.theme_engine", "msg": "Tema aplicado globalmente: Claro", "module": "theme_engine", "line": 80}
+{"ts": "2026-06-26T01:31:45.745115", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Tema aplicado al arranque", "module": "main", "line": 153}
+{"ts": "2026-06-26T01:31:45.746349", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Normalizador global de diálogos activo", "module": "main", "line": 161}
+{"ts": "2026-06-26T01:31:45.992323", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Integridad BD OK", "module": "main", "line": 108}
+{"ts": "2026-06-26T01:31:46.003634", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-06-26T01:31:46.030266", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-06-26T01:31:46.041619", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Bootstrap DB OK", "module": "main", "line": 176}
+{"ts": "2026-06-26T01:31:46.058301", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 185}
+{"ts": "2026-06-26T01:31:46.059629", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 185}
+{"ts": "2026-06-26T01:31:46.086481", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "DB sin identidad UUIDv7 (corte 200 no aplicado): La base de datos NO tiene identidad UUIDv7: quedan 234 tablas con PRIMARY KEY entera (p.ej. accounts_payable.id, accounts_receivable.id, activos.id, ajustes_inventario.id, alertas_config.id, alertas_log.id, anticipo_reglas.id, ap_payments.id). El runtime asume el esquema post-corte. Aplica el corte antes de iniciar:\n  1) Cierra la app y respalda el .db.\n  2) SPJ_UUID_CUTOVER_CONFIRMED=1 y ejecuta la migración 200 (migrations.standalone.200_uuid_identity_cutover.run(conn)).\nEl corte es atómico (foreign_key_check + rollback ante cualquier fallo).", "module": "main", "line": 203}
+{"ts": "2026-06-26T01:44:29.678948", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 113}
+{"ts": "2026-06-26T01:44:32.444596", "level": "ERROR", "logger": "spj.main_window", "msg": "Error cargando ModuloVentas: from __future__ imports must occur at the beginning of the file (stock_reservation_service.py, line 2)", "module": "main_window", "line": 27}
+{"ts": "2026-06-26T01:44:36.210432", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 141}
+{"ts": "2026-06-26T01:44:36.210843", "level": "INFO", "logger": "SPJ.Boot", "msg": "  SPJ POS Enterprise v13.4.0", "module": "main", "line": 142}
+{"ts": "2026-06-26T01:44:36.210969", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 143}
+{"ts": "2026-06-26T01:44:37.563375", "level": "INFO", "logger": "spj.theme_engine", "msg": "Tema aplicado globalmente: Claro", "module": "theme_engine", "line": 80}
+{"ts": "2026-06-26T01:44:37.563588", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Tema aplicado al arranque", "module": "main", "line": 153}
+{"ts": "2026-06-26T01:44:37.565367", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Normalizador global de diálogos activo", "module": "main", "line": 161}
+{"ts": "2026-06-26T01:44:37.727017", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Integridad BD OK", "module": "main", "line": 108}
+{"ts": "2026-06-26T01:44:37.743745", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-06-26T01:44:37.779096", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-06-26T01:44:37.794748", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Bootstrap DB OK", "module": "main", "line": 176}
+{"ts": "2026-06-26T01:44:37.809861", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 185}
+{"ts": "2026-06-26T01:44:37.811000", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 185}
+{"ts": "2026-06-26T01:44:37.868476", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Migraciones OK", "module": "main", "line": 198}
+{"ts": "2026-06-26T01:44:37.873788", "level": "INFO", "logger": "core.app_container", "msg": "Inicializando AppContainer...", "module": "app_container", "line": 61}
+{"ts": "2026-06-26T01:44:37.915493", "level": "INFO", "logger": "core.services.config_service", "msg": "Configuración cargada: 15 parámetros en memoria.", "module": "config_service", "line": 20}
+{"ts": "2026-06-26T01:44:38.952266", "level": "INFO", "logger": "core.services.hardware_service", "msg": "Configuraciones de hardware cargadas en memoria.", "module": "hardware_service", "line": 29}
+{"ts": "2026-06-26T01:44:39.131787", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión iniciada", "module": "printer_service", "line": 200}
+{"ts": "2026-06-26T01:44:39.133356", "level": "INFO", "logger": "spj.printer", "msg": "Configuración de impresoras cargada desde hardware_config: ticket=False etiquetas=False mode=raw model=", "module": "printer_service", "line": 371}
+{"ts": "2026-06-26T01:44:39.564973", "level": "INFO", "logger": "spj.events.wiring", "msg": "EventBus wiring completado — 61 eventos activos", "module": "wiring", "line": 273}
+{"ts": "2026-06-26T01:44:39.568570", "level": "INFO", "logger": "spj.accounting_engine", "msg": "AccountingEngine wired (prio=48)", "module": "accounting_engine", "line": 47}
+{"ts": "2026-06-26T01:44:39.579114", "level": "INFO", "logger": "spj.analytics_engine", "msg": "AnalyticsEngine wired (prio=5)", "module": "analytics_engine", "line": 39}
+{"ts": "2026-06-26T01:44:39.605122", "level": "INFO", "logger": "spj.rbac", "msg": "RBAC inicializado", "module": "rbac", "line": 138}
+{"ts": "2026-06-26T01:44:39.614150", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'conciliacion' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T01:44:39.614334", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'loyalty_snapshot' registrada (intervalo=1800s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T01:44:39.614431", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'forecast' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T01:44:39.614519", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'limpieza_event_log' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T01:44:39.614604", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'alertas_check' registrada (intervalo=300s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T01:44:39.614686", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'depreciacion_activos' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T01:44:39.614766", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'escalacion_pedidos_wa' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T01:44:39.614846", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'recordatorios_ordenes' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T01:44:39.614923", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'wa_fallidos_check' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T01:44:39.615006", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'happy_hour_check' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T01:44:39.615087", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'backup_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T01:44:39.615174", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'expiracion_estrellas' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T01:44:39.615738", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'mantenimiento_semanal' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T01:44:39.615843", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'auto_cierre_turno' registrada (intervalo=600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T01:44:39.615924", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'reporte_email_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T01:44:39.676361", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService iniciado con 15 tareas.", "module": "scheduler_service", "line": 144}
+{"ts": "2026-06-26T01:44:39.757354", "level": "INFO", "logger": "spj.distribution_engine", "msg": "Conciliación OK sucursal=1: diff=0.000", "module": "distribution_engine", "line": 539}
+{"ts": "2026-06-26T01:44:39.757550", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'conciliacion' OK (0.08s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T01:44:39.817310", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'loyalty_snapshot' OK (0.06s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T01:44:39.827993", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-06-26T01:44:39.857274", "level": "INFO", "logger": "core.app_container", "msg": "✅ AppContainer inicializado con éxito. Todos los motores en línea.", "module": "app_container", "line": 675}
+{"ts": "2026-06-26T01:44:39.857482", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ AppContainer activo", "module": "main", "line": 221}
+{"ts": "2026-06-26T01:44:39.987069", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-06-26T01:44:39.987278", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.17s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T01:44:39.987390", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'depreciacion_activos' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T01:44:39.987805", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T01:44:39.988177", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'recordatorios_ordenes' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T01:44:39.988357", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'wa_fallidos_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T01:44:39.988568", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T01:44:39.988675", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'mantenimiento_semanal' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T01:44:39.988767", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T01:44:40.404538", "level": "INFO", "logger": "SPJ.Boot", "msg": "Verificando microservicio WhatsApp...", "module": "main", "line": 234}
+{"ts": "2026-06-26T01:44:40.931516", "level": "INFO", "logger": "spj.whatsapp", "msg": "WA webhook puerto 8767", "module": "whatsapp_service", "line": 540}
+{"ts": "2026-06-26T01:44:49.581589", "level": "INFO", "logger": "spj.services.launcher", "msg": "Iniciando microservicio WhatsApp desde C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\whatsapp_service...", "module": "microservice_launcher", "line": 57}
+{"ts": "2026-06-26T01:44:51.617328", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] módulo inicializado sucursal_id=1", "module": "merma", "line": 93}
+{"ts": "2026-06-26T01:44:51.674722", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] historial cargado count=0", "module": "merma", "line": 602}
+{"ts": "2026-06-26T01:44:52.356209", "level": "INFO", "logger": "spj.services.launcher", "msg": "Microservicio lanzado (PID 16460)", "module": "microservice_launcher", "line": 68}
+{"ts": "2026-06-26T01:45:17.064543", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ UI lista", "module": "main", "line": 247}
+{"ts": "2026-06-26T01:45:21.185934", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-06-26T01:45:21.186491", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2096}
+{"ts": "2026-06-26T01:45:21.367582", "level": "INFO", "logger": "interfaz.main_window", "msg": "_leer_sucursal_instalacion: key not configured", "module": "main_window", "line": 262}
+{"ts": "2026-06-26T01:45:33.081278", "level": "WARNING", "logger": "repositories.auth_repository", "msg": "No se pudo migrar password_hash usuario 019f0198-a276-75c4-a8d8-4e8bc65d8cf0: invalid literal for int() with base 10: '019f0198-a276-75c4-a8d8-4e8bc65d8cf0'", "module": "auth_repository", "line": 107}
+{"ts": "2026-06-26T01:45:33.086460", "level": "INFO", "logger": "core.services.auth_service", "msg": "Acceso concedido a admin (admin).", "module": "auth_service", "line": 208}
+{"ts": "2026-06-26T01:45:33.242709", "level": "INFO", "logger": "spj.session", "msg": "Sesión iniciada: Administrador Maestro (admin) en sucursal 'Principal' [active_branch_id=019f0175-fdb4-7792-a1ce-9c66d26f4fa2 sucursal_num=019f0198-a275-74fa-bb74-f7b7c9120a3c]", "module": "session_context", "line": 113}
+{"ts": "2026-06-26T01:45:33.248279", "level": "WARNING", "logger": "repositories.config_repository", "msg": "User not found while resolving permissions: 019f0198-a276-75c4-a8d8-4e8bc65d8cf0", "module": "config_repository", "line": 803}
+{"ts": "2026-06-26T01:45:33.476207", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] historial cargado count=0", "module": "merma", "line": 602}
+{"ts": "2026-06-26T01:45:33.762347", "level": "INFO", "logger": "spj.session", "msg": "Sucursal cambiada: 'Principal' (sucursal_num=019f0198-a275-74fa-bb74-f7b7c9120a3c active_branch_id=019f0175-fdb4-7792-a1ce-9c66d26f4fa2)", "module": "session_context", "line": 129}
+{"ts": "2026-06-26T01:45:33.762678", "level": "INFO", "logger": "core.app_container", "msg": "Sucursal activa: 019f0198-a275-74fa-bb74-f7b7c9120a3c (Principal)", "module": "app_container", "line": 1018}
+{"ts": "2026-06-26T01:45:34.381660", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1029, in _start_badge_refresh\n    self._refresh_order_badges()\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1034, in _refresh_order_badges\n    branch_id = int(self.usuario_actual.get(\"sucursal_id\", 1))\nValueError: invalid literal for int() with base 10: '019f0198-a275-74fa-bb74-f7b7c9120a3c'\n", "module": "main", "line": 33}
+{"ts": "2026-06-26T01:45:40.048688", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T01:45:40.049074", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T01:45:42.730198", "level": "WARNING", "logger": "spj.services.launcher", "msg": "Microservicio no respondió en 10 segundos", "module": "microservice_launcher", "line": 78}
+{"ts": "2026-06-26T01:45:48.391813", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1034, in _refresh_order_badges\n    branch_id = int(self.usuario_actual.get(\"sucursal_id\", 1))\nValueError: invalid literal for int() with base 10: '019f0198-a275-74fa-bb74-f7b7c9120a3c'\n", "module": "main", "line": 33}
+{"ts": "2026-06-26T01:45:55.387870", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1034, in _refresh_order_badges\n    branch_id = int(self.usuario_actual.get(\"sucursal_id\", 1))\nValueError: invalid literal for int() with base 10: '019f0198-a275-74fa-bb74-f7b7c9120a3c'\n", "module": "main", "line": 33}
+{"ts": "2026-06-26T01:46:02.383741", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1034, in _refresh_order_badges\n    branch_id = int(self.usuario_actual.get(\"sucursal_id\", 1))\nValueError: invalid literal for int() with base 10: '019f0198-a275-74fa-bb74-f7b7c9120a3c'\n", "module": "main", "line": 33}
+{"ts": "2026-06-26T01:46:09.389490", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1034, in _refresh_order_badges\n    branch_id = int(self.usuario_actual.get(\"sucursal_id\", 1))\nValueError: invalid literal for int() with base 10: '019f0198-a275-74fa-bb74-f7b7c9120a3c'\n", "module": "main", "line": 33}
+{"ts": "2026-06-26T01:46:16.386894", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1034, in _refresh_order_badges\n    branch_id = int(self.usuario_actual.get(\"sucursal_id\", 1))\nValueError: invalid literal for int() with base 10: '019f0198-a275-74fa-bb74-f7b7c9120a3c'\n", "module": "main", "line": 33}
+{"ts": "2026-06-26T01:46:23.387948", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1034, in _refresh_order_badges\n    branch_id = int(self.usuario_actual.get(\"sucursal_id\", 1))\nValueError: invalid literal for int() with base 10: '019f0198-a275-74fa-bb74-f7b7c9120a3c'\n", "module": "main", "line": 33}
+{"ts": "2026-06-26T01:46:30.392676", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1034, in _refresh_order_badges\n    branch_id = int(self.usuario_actual.get(\"sucursal_id\", 1))\nValueError: invalid literal for int() with base 10: '019f0198-a275-74fa-bb74-f7b7c9120a3c'\n", "module": "main", "line": 33}
+{"ts": "2026-06-26T01:46:37.418743", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1034, in _refresh_order_badges\n    branch_id = int(self.usuario_actual.get(\"sucursal_id\", 1))\nValueError: invalid literal for int() with base 10: '019f0198-a275-74fa-bb74-f7b7c9120a3c'\n", "module": "main", "line": 33}
+{"ts": "2026-06-26T01:46:40.072340", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T01:46:40.073000", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T01:46:44.411822", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1034, in _refresh_order_badges\n    branch_id = int(self.usuario_actual.get(\"sucursal_id\", 1))\nValueError: invalid literal for int() with base 10: '019f0198-a275-74fa-bb74-f7b7c9120a3c'\n", "module": "main", "line": 33}
+{"ts": "2026-06-26T01:46:51.414607", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1034, in _refresh_order_badges\n    branch_id = int(self.usuario_actual.get(\"sucursal_id\", 1))\nValueError: invalid literal for int() with base 10: '019f0198-a275-74fa-bb74-f7b7c9120a3c'\n", "module": "main", "line": 33}
+{"ts": "2026-06-26T01:46:58.411714", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1034, in _refresh_order_badges\n    branch_id = int(self.usuario_actual.get(\"sucursal_id\", 1))\nValueError: invalid literal for int() with base 10: '019f0198-a275-74fa-bb74-f7b7c9120a3c'\n", "module": "main", "line": 33}
+{"ts": "2026-06-26T01:47:05.423317", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1034, in _refresh_order_badges\n    branch_id = int(self.usuario_actual.get(\"sucursal_id\", 1))\nValueError: invalid literal for int() with base 10: '019f0198-a275-74fa-bb74-f7b7c9120a3c'\n", "module": "main", "line": 33}
+{"ts": "2026-06-26T01:47:19.417814", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1034, in _refresh_order_badges\n    branch_id = int(self.usuario_actual.get(\"sucursal_id\", 1))\nValueError: invalid literal for int() with base 10: '019f0198-a275-74fa-bb74-f7b7c9120a3c'\n", "module": "main", "line": 33}
+{"ts": "2026-06-26T01:47:26.416067", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1034, in _refresh_order_badges\n    branch_id = int(self.usuario_actual.get(\"sucursal_id\", 1))\nValueError: invalid literal for int() with base 10: '019f0198-a275-74fa-bb74-f7b7c9120a3c'\n", "module": "main", "line": 33}
+{"ts": "2026-06-26T01:47:33.657549", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1034, in _refresh_order_badges\n    branch_id = int(self.usuario_actual.get(\"sucursal_id\", 1))\nValueError: invalid literal for int() with base 10: '019f0198-a275-74fa-bb74-f7b7c9120a3c'\n", "module": "main", "line": 33}
+{"ts": "2026-06-26T01:47:40.079928", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T01:47:40.080247", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T01:47:40.415789", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1034, in _refresh_order_badges\n    branch_id = int(self.usuario_actual.get(\"sucursal_id\", 1))\nValueError: invalid literal for int() with base 10: '019f0198-a275-74fa-bb74-f7b7c9120a3c'\n", "module": "main", "line": 33}
+{"ts": "2026-06-26T01:47:47.416307", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1034, in _refresh_order_badges\n    branch_id = int(self.usuario_actual.get(\"sucursal_id\", 1))\nValueError: invalid literal for int() with base 10: '019f0198-a275-74fa-bb74-f7b7c9120a3c'\n", "module": "main", "line": 33}
+{"ts": "2026-06-26T01:47:52.877243", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión detenida (impresos=0, fallos=0)", "module": "printer_service", "line": 206}
+{"ts": "2026-06-26T01:47:52.879385", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService detenido.", "module": "scheduler_service", "line": 150}
+{"ts": "2026-06-26T01:47:52.921457", "level": "INFO", "logger": "SPJ.Boot", "msg": "Sistema cerrado. Código: 0", "module": "main", "line": 273}
+{"ts": "2026-06-26T02:10:52.671617", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 113}
+{"ts": "2026-06-26T02:10:54.464835", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\main.py\", line 49, in <module>\n    from interfaz.main_window import MainWindow\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1032\n    if not self.usuario_actual:\n    ^^\nIndentationError: expected an indented block after function definition on line 1031\n", "module": "main", "line": 33}
+{"ts": "2026-06-26T04:58:10.773350", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 113}
+{"ts": "2026-06-26T04:58:20.478638", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\main.py\", line 49, in <module>\n    from interfaz.main_window import MainWindow\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1056\n    >>>>>>> 4b2e106869272edc67411f374f926ed6faef491a\n            ^\nSyntaxError: invalid decimal literal\n", "module": "main", "line": 33}
+{"ts": "2026-06-26T05:03:03.834524", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 113}
+{"ts": "2026-06-26T05:03:05.723380", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "ERROR NO CAPTURADO:\nTraceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\main.py\", line 49, in <module>\n    from interfaz.main_window import MainWindow\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\main_window.py\", line 1032\n    if not self.usuario_actual:\n    ^^\nIndentationError: expected an indented block after function definition on line 1031\n", "module": "main", "line": 33}
+{"ts": "2026-06-26T05:12:38.870329", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 113}
+{"ts": "2026-06-26T05:12:52.299155", "level": "ERROR", "logger": "spj.main_window", "msg": "Error cargando ModuloVentas: from __future__ imports must occur at the beginning of the file (stock_reservation_service.py, line 2)", "module": "main_window", "line": 27}
+{"ts": "2026-06-26T05:13:09.144209", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 141}
+{"ts": "2026-06-26T05:13:09.145574", "level": "INFO", "logger": "SPJ.Boot", "msg": "  SPJ POS Enterprise v13.4.0", "module": "main", "line": 142}
+{"ts": "2026-06-26T05:13:09.145751", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 143}
+{"ts": "2026-06-26T05:13:10.935514", "level": "INFO", "logger": "spj.theme_engine", "msg": "Tema aplicado globalmente: Claro", "module": "theme_engine", "line": 80}
+{"ts": "2026-06-26T05:13:10.935819", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Tema aplicado al arranque", "module": "main", "line": 153}
+{"ts": "2026-06-26T05:13:10.937444", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Normalizador global de diálogos activo", "module": "main", "line": 161}
+{"ts": "2026-06-26T05:13:11.173590", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Integridad BD OK", "module": "main", "line": 108}
+{"ts": "2026-06-26T05:13:11.189211", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-06-26T05:13:11.227308", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-06-26T05:13:11.240010", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Bootstrap DB OK", "module": "main", "line": 176}
+{"ts": "2026-06-26T05:13:11.291452", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 185}
+{"ts": "2026-06-26T05:13:11.292633", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 185}
+{"ts": "2026-06-26T05:13:11.314540", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "DB sin identidad UUIDv7 (corte 200 no aplicado): La base de datos NO tiene identidad UUIDv7: quedan 18 tablas con PRIMARY KEY entera (p.ej. activos_depreciacion.id, ai_consulta_log.id, alert_engine_log.id, cuentas_por_cobrar.id, delivery_outbox_events.id, delivery_print_log.id, loyalty_pasivo_log.id, raffle_eligible_branches.id). El runtime asume el esquema post-corte. Aplica el corte antes de iniciar:\n  1) Cierra la app y respalda el .db.\n  2) SPJ_UUID_CUTOVER_CONFIRMED=1 y ejecuta la migración 200 (migrations.standalone.200_uuid_identity_cutover.run(conn)).\nEl corte es atómico (foreign_key_check + rollback ante cualquier fallo).", "module": "main", "line": 203}
+{"ts": "2026-06-26T05:18:27.878174", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 113}
+{"ts": "2026-06-26T05:18:31.197973", "level": "ERROR", "logger": "spj.main_window", "msg": "Error cargando ModuloVentas: from __future__ imports must occur at the beginning of the file (stock_reservation_service.py, line 2)", "module": "main_window", "line": 27}
+{"ts": "2026-06-26T05:18:37.452081", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 141}
+{"ts": "2026-06-26T05:18:37.452300", "level": "INFO", "logger": "SPJ.Boot", "msg": "  SPJ POS Enterprise v13.4.0", "module": "main", "line": 142}
+{"ts": "2026-06-26T05:18:37.452405", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 143}
+{"ts": "2026-06-26T05:18:38.444204", "level": "INFO", "logger": "spj.theme_engine", "msg": "Tema aplicado globalmente: Oscuro", "module": "theme_engine", "line": 80}
+{"ts": "2026-06-26T05:18:38.444582", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Tema aplicado al arranque", "module": "main", "line": 153}
+{"ts": "2026-06-26T05:18:38.445783", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Normalizador global de diálogos activo", "module": "main", "line": 161}
+{"ts": "2026-06-26T05:18:38.542215", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Integridad BD OK", "module": "main", "line": 108}
+{"ts": "2026-06-26T05:18:38.546898", "level": "WARNING", "logger": "scripts.bootstrap_db", "msg": "DB vacía detectada — ejecutando migraciones: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 71}
+{"ts": "2026-06-26T05:18:38.564991", "level": "WARNING", "logger": "spj.migrations", "msg": "Schema vacío detectado — forzando re-ejecución de m000.", "module": "engine", "line": 154}
+{"ts": "2026-06-26T05:18:40.114886", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 000 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.152223", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 001 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.173080", "level": "INFO", "logger": "spj.migrations.concurrency_events", "msg": "016 — concurrency_events OK", "module": "016_concurrency_events", "line": 92}
+{"ts": "2026-06-26T05:18:40.181692", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 016 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.187702", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 018 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.195599", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 019 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.200765", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 020 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.250746", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 021 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.261392", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 022 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.294289", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 023 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.346109", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 024 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.387633", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 025 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.430789", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 026 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.436478", "level": "INFO", "logger": "spj.migrations.027", "msg": "branch_inventory: agregando CHECK(quantity >= 0) — migración única...", "module": "027_inventory_hardening", "line": 52}
+{"ts": "2026-06-26T05:18:40.454773", "level": "INFO", "logger": "spj.migrations.027", "msg": "branch_inventory migrada con CHECK(quantity >= 0). Negativos corregidos a 0.", "module": "027_inventory_hardening", "line": 114}
+{"ts": "2026-06-26T05:18:40.455516", "level": "INFO", "logger": "spj.migrations.027", "msg": "inventory_movements creada/verificada con triggers IMMUTABLE.", "module": "027_inventory_hardening", "line": 162}
+{"ts": "2026-06-26T05:18:40.456674", "level": "INFO", "logger": "spj.migrations.027", "msg": "Índices de inventory creados/verificados.", "module": "027_inventory_hardening", "line": 184}
+{"ts": "2026-06-26T05:18:40.457247", "level": "INFO", "logger": "spj.migrations.027", "msg": "Triggers de protección de inventario negativo creados/verificados.", "module": "027_inventory_hardening", "line": 217}
+{"ts": "2026-06-26T05:18:40.460885", "level": "INFO", "logger": "spj.migrations.027", "msg": "Migración 027 completada: branch_inventory + inventory_movements creados/verificados.", "module": "027_inventory_hardening", "line": 27}
+{"ts": "2026-06-26T05:18:40.463395", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 027 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.472247", "level": "INFO", "logger": "spj.migrations.028", "msg": "Tabla payments creada/verificada con triggers IMMUTABLE.", "module": "028_sales_transaction_hardening", "line": 72}
+{"ts": "2026-06-26T05:18:40.472772", "level": "INFO", "logger": "spj.migrations.028", "msg": "Columnas operation_id y credit_approved añadidas a ventas.", "module": "028_sales_transaction_hardening", "line": 92}
+{"ts": "2026-06-26T05:18:40.485490", "level": "INFO", "logger": "spj.migrations.028", "msg": "Índices de ventas/payments creados/verificados.", "module": "028_sales_transaction_hardening", "line": 112}
+{"ts": "2026-06-26T05:18:40.489309", "level": "INFO", "logger": "spj.migrations.028", "msg": "Triggers de protección de ventas completadas creados/verificados.", "module": "028_sales_transaction_hardening", "line": 145}
+{"ts": "2026-06-26T05:18:40.489527", "level": "INFO", "logger": "spj.migrations.028", "msg": "Migración 028 completada: payments + ventas hardening.", "module": "028_sales_transaction_hardening", "line": 27}
+{"ts": "2026-06-26T05:18:40.491345", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 028 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.500039", "level": "INFO", "logger": "spj.migrations.029", "msg": "Tabla sale_refunds creada/verificada.", "module": "029_reversals_hardening", "line": 79}
+{"ts": "2026-06-26T05:18:40.506382", "level": "INFO", "logger": "spj.migrations.029", "msg": "Tabla credit_notes creada/verificada.", "module": "029_reversals_hardening", "line": 118}
+{"ts": "2026-06-26T05:18:40.506919", "level": "INFO", "logger": "spj.migrations.029", "msg": "Columnas de trazabilidad añadidas a movimientos_caja.", "module": "029_reversals_hardening", "line": 138}
+{"ts": "2026-06-26T05:18:40.514713", "level": "INFO", "logger": "spj.migrations.029", "msg": "Triggers de transición de estado de ventas actualizados.", "module": "029_reversals_hardening", "line": 178}
+{"ts": "2026-06-26T05:18:40.519254", "level": "INFO", "logger": "spj.migrations.029", "msg": "Triggers de integridad de devoluciones creados/verificados.", "module": "029_reversals_hardening", "line": 217}
+{"ts": "2026-06-26T05:18:40.534579", "level": "INFO", "logger": "spj.migrations.029", "msg": "Índices de reversiones creados/verificados.", "module": "029_reversals_hardening", "line": 240}
+{"ts": "2026-06-26T05:18:40.534808", "level": "INFO", "logger": "spj.migrations.029", "msg": "Migración 029 completada: sale_refunds + credit_notes + triggers reversión.", "module": "029_reversals_hardening", "line": 31}
+{"ts": "2026-06-26T05:18:40.537243", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 029 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.541116", "level": "INFO", "logger": "spj.migrations.030", "msg": "Iniciando migración 030_recetas_industriales...", "module": "030_recetas_industriales", "line": 91}
+{"ts": "2026-06-26T05:18:40.543568", "level": "INFO", "logger": "spj.migrations.030", "msg": "product_recipe_components creada/verificada.", "module": "030_recetas_industriales", "line": 82}
+{"ts": "2026-06-26T05:18:40.549421", "level": "INFO", "logger": "spj.migrations.030", "msg": "Migración 030 aplicada correctamente.", "module": "030_recetas_industriales", "line": 98}
+{"ts": "2026-06-26T05:18:40.553248", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 030 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.560414", "level": "INFO", "logger": "spj.migrations.031", "msg": "inventario_actual creada/verificada.", "module": "031_inventory_engine", "line": 98}
+{"ts": "2026-06-26T05:18:40.562470", "level": "INFO", "logger": "spj.migrations.031", "msg": "transferencias creada/verificada.", "module": "031_inventory_engine", "line": 138}
+{"ts": "2026-06-26T05:18:40.562800", "level": "INFO", "logger": "spj.migrations.031", "msg": "transferencia_detalle creada/verificada.", "module": "031_inventory_engine", "line": 158}
+{"ts": "2026-06-26T05:18:40.564886", "level": "INFO", "logger": "spj.migrations.031", "msg": "configuracioneses creada/verificada.", "module": "031_inventory_engine", "line": 174}
+{"ts": "2026-06-26T05:18:40.565366", "level": "INFO", "logger": "spj.migrations.031", "msg": "unidades_conversion creada/verificada.", "module": "031_inventory_engine", "line": 189}
+{"ts": "2026-06-26T05:18:40.565776", "level": "INFO", "logger": "spj.migrations.031", "msg": "movimientos_inventario parchado.", "module": "031_inventory_engine", "line": 519}
+{"ts": "2026-06-26T05:18:40.566089", "level": "INFO", "logger": "spj.migrations.031", "msg": "configuracioneses por defecto insertadas.", "module": "031_inventory_engine", "line": 221}
+{"ts": "2026-06-26T05:18:40.566348", "level": "INFO", "logger": "spj.migrations.031", "msg": "Unidades de medida sembradas.", "module": "031_inventory_engine", "line": 613}
+{"ts": "2026-06-26T05:18:40.568265", "level": "INFO", "logger": "spj.migrations.031", "msg": "Índices de inventario industrial creados/verificados.", "module": "031_inventory_engine", "line": 591}
+{"ts": "2026-06-26T05:18:40.569143", "level": "INFO", "logger": "spj.migrations.031", "msg": "Triggers de inventario_actual creados/verificados.", "module": "031_inventory_engine", "line": 572}
+{"ts": "2026-06-26T05:18:40.569853", "level": "INFO", "logger": "spj.migrations.031", "msg": "inventario_actual reconstruido desde branch_inventory: 0 filas.", "module": "031_inventory_engine", "line": 347}
+{"ts": "2026-06-26T05:18:40.570136", "level": "INFO", "logger": "spj.migrations.031", "msg": "Tablas transfers + transfer_items creadas/verificadas.", "module": "031_inventory_engine", "line": 413}
+{"ts": "2026-06-26T05:18:40.570310", "level": "INFO", "logger": "spj.migrations.031", "msg": "Tablas recepciones + recepcion_items creadas/verificadas.", "module": "031_inventory_engine", "line": 450}
+{"ts": "2026-06-26T05:18:40.570482", "level": "INFO", "logger": "spj.migrations.031", "msg": "Tabla mermas creada/verificada.", "module": "031_inventory_engine", "line": 472}
+{"ts": "2026-06-26T05:18:40.570618", "level": "INFO", "logger": "spj.migrations.031", "msg": "Tabla ajustes_inventario creada/verificada.", "module": "031_inventory_engine", "line": 495}
+{"ts": "2026-06-26T05:18:40.570733", "level": "INFO", "logger": "spj.migrations.031", "msg": "Tabla unidades_medida creada/verificada.", "module": "031_inventory_engine", "line": 511}
+{"ts": "2026-06-26T05:18:40.576368", "level": "INFO", "logger": "spj.migrations.031", "msg": "Migracion 031 completada: inventario engine + industrial fusionado.", "module": "031_inventory_engine", "line": 44}
+{"ts": "2026-06-26T05:18:40.580392", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 031 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.585817", "level": "INFO", "logger": "spj.migrations.034", "msg": "ventas_diarias creada/verificada.", "module": "032_bi_tables", "line": 74}
+{"ts": "2026-06-26T05:18:40.586127", "level": "INFO", "logger": "spj.migrations.034", "msg": "inventario_diario creada/verificada.", "module": "032_bi_tables", "line": 91}
+{"ts": "2026-06-26T05:18:40.586371", "level": "INFO", "logger": "spj.migrations.034", "msg": "production_batches creada/verificada.", "module": "032_bi_tables", "line": 193}
+{"ts": "2026-06-26T05:18:40.586518", "level": "INFO", "logger": "spj.migrations.034", "msg": "production_outputs creada/verificada.", "module": "032_bi_tables", "line": 216}
+{"ts": "2026-06-26T05:18:40.586666", "level": "INFO", "logger": "spj.migrations.034", "msg": "production_yield_analysis creada/verificada.", "module": "032_bi_tables", "line": 243}
+{"ts": "2026-06-26T05:18:40.588117", "level": "INFO", "logger": "spj.migrations.034", "msg": "production_alerts creada/verificada.", "module": "032_bi_tables", "line": 263}
+{"ts": "2026-06-26T05:18:40.588353", "level": "INFO", "logger": "spj.migrations.034", "msg": "production_cost_ledger creada/verificada.", "module": "032_bi_tables", "line": 285}
+{"ts": "2026-06-26T05:18:40.588635", "level": "INFO", "logger": "spj.migrations.034", "msg": "recetas + receta_componentes parchadas para rendimiento esperado.", "module": "032_bi_tables", "line": 316}
+{"ts": "2026-06-26T05:18:40.613813", "level": "INFO", "logger": "spj.migrations.034", "msg": "Migración 032 completada.", "module": "032_bi_tables", "line": 53}
+{"ts": "2026-06-26T05:18:40.616739", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 032 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.621916", "level": "INFO", "logger": "spj.migrations.033", "msg": "Iniciando migración 033_demand_forecast...", "module": "033_demand_forecast", "line": 57}
+{"ts": "2026-06-26T05:18:40.648584", "level": "INFO", "logger": "spj.migrations.033", "msg": "Migración 033 aplicada correctamente.", "module": "033_demand_forecast", "line": 69}
+{"ts": "2026-06-26T05:18:40.653135", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 033 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.657121", "level": "INFO", "logger": "spj.migrations.035", "msg": "Iniciando migración 035_finance_erp...", "module": "035_finance_erp", "line": 87}
+{"ts": "2026-06-26T05:18:40.697882", "level": "INFO", "logger": "spj.migrations.035", "msg": "Migración 035 aplicada correctamente.", "module": "035_finance_erp", "line": 104}
+{"ts": "2026-06-26T05:18:40.700482", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 035 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.704197", "level": "INFO", "logger": "spj.migrations.036", "msg": "whatsapp_queue creada/verificada.", "module": "036_whatsapp_rasa", "line": 36}
+{"ts": "2026-06-26T05:18:40.706921", "level": "INFO", "logger": "spj.migrations.036", "msg": "rasa_sessions creada/verificada.", "module": "036_whatsapp_rasa", "line": 48}
+{"ts": "2026-06-26T05:18:40.707248", "level": "INFO", "logger": "spj.migrations.036", "msg": "marketing_messages creada/verificada.", "module": "036_whatsapp_rasa", "line": 62}
+{"ts": "2026-06-26T05:18:40.720545", "level": "INFO", "logger": "spj.migrations.036", "msg": "Índices 036 creados/verificados.", "module": "036_whatsapp_rasa", "line": 69}
+{"ts": "2026-06-26T05:18:40.720756", "level": "INFO", "logger": "spj.migrations.036", "msg": "Migración 036: WhatsApp queue + Rasa sessions completada.", "module": "036_whatsapp_rasa", "line": 19}
+{"ts": "2026-06-26T05:18:40.723045", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 036 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.728627", "level": "INFO", "logger": "spj.migrations.037", "msg": "Columna imagen_path verificada en productos.", "module": "037_product_images", "line": 24}
+{"ts": "2026-06-26T05:18:40.729387", "level": "INFO", "logger": "spj.migrations.037", "msg": "Directorio imagenes_productos verificado.", "module": "037_product_images", "line": 28}
+{"ts": "2026-06-26T05:18:40.729522", "level": "INFO", "logger": "spj.migrations.037", "msg": "Migración 037: imagen_path en productos completada.", "module": "037_product_images", "line": 14}
+{"ts": "2026-06-26T05:18:40.731929", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 037 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.737855", "level": "INFO", "logger": "spj.migrations.038", "msg": "transfer_suggestions creada/verificada.", "module": "038_transfer_suggestions", "line": 46}
+{"ts": "2026-06-26T05:18:40.749025", "level": "INFO", "logger": "spj.migrations.038", "msg": "Índices transfer_suggestions creados.", "module": "038_transfer_suggestions", "line": 61}
+{"ts": "2026-06-26T05:18:40.749377", "level": "INFO", "logger": "spj.migrations.038", "msg": "Migración 038: transfer_suggestions completada.", "module": "038_transfer_suggestions", "line": 21}
+{"ts": "2026-06-26T05:18:40.751207", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 038 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.756779", "level": "INFO", "logger": "spj.migrations.039", "msg": "branch_products creada/verificada.", "module": "039_branch_products", "line": 48}
+{"ts": "2026-06-26T05:18:40.759628", "level": "INFO", "logger": "spj.migrations.039", "msg": "Vista v_productos_activos creada.", "module": "039_branch_products", "line": 71}
+{"ts": "2026-06-26T05:18:40.760223", "level": "INFO", "logger": "spj.migrations.039", "msg": "Seed branch_products: 0 filas insertadas.", "module": "039_branch_products", "line": 90}
+{"ts": "2026-06-26T05:18:40.761025", "level": "INFO", "logger": "spj.migrations.039", "msg": "Índices branch_products creados.", "module": "039_branch_products", "line": 101}
+{"ts": "2026-06-26T05:18:40.762996", "level": "INFO", "logger": "spj.migrations.039", "msg": "Migración 039: branch_products completada.", "module": "039_branch_products", "line": 30}
+{"ts": "2026-06-26T05:18:40.768946", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 039 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.843780", "level": "INFO", "logger": "spj.migrations.040", "msg": "recepciones extendida con campos de pago + QR.", "module": "040_qr_reception", "line": 38}
+{"ts": "2026-06-26T05:18:40.876689", "level": "INFO", "logger": "spj.migrations.040", "msg": "recepcion_items extendida con trazabilidad.", "module": "040_qr_reception", "line": 44}
+{"ts": "2026-06-26T05:18:40.895615", "level": "INFO", "logger": "spj.migrations.040", "msg": "trazabilidad_qr extendida con recepcion_id.", "module": "040_qr_reception", "line": 49}
+{"ts": "2026-06-26T05:18:40.901508", "level": "INFO", "logger": "spj.migrations.040", "msg": "contenedores_qr creada.", "module": "040_qr_reception", "line": 75}
+{"ts": "2026-06-26T05:18:40.901714", "level": "INFO", "logger": "spj.migrations.040", "msg": "Migración 040: recepción QR completada.", "module": "040_qr_reception", "line": 21}
+{"ts": "2026-06-26T05:18:40.905666", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 040 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.914684", "level": "INFO", "logger": "spj.migrations.041", "msg": "Migración 041: notification_inbox completada.", "module": "041_notification_inbox", "line": 30}
+{"ts": "2026-06-26T05:18:40.916719", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 041 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.922154", "level": "INFO", "logger": "spj.migrations.042", "msg": "whatsapp_numeros creada.", "module": "042_whatsapp_multicanal", "line": 51}
+{"ts": "2026-06-26T05:18:40.929559", "level": "INFO", "logger": "spj.migrations.042", "msg": "Vista v_whatsapp_config creada.", "module": "042_whatsapp_multicanal", "line": 75}
+{"ts": "2026-06-26T05:18:40.930010", "level": "INFO", "logger": "spj.migrations.042", "msg": "Migración 042: whatsapp_numeros completada.", "module": "042_whatsapp_multicanal", "line": 24}
+{"ts": "2026-06-26T05:18:40.932762", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 042 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.947575", "level": "INFO", "logger": "spj.migrations.043", "msg": "historial_precios creada.", "module": "043_price_history", "line": 43}
+{"ts": "2026-06-26T05:18:40.954677", "level": "INFO", "logger": "spj.migrations.043", "msg": "Triggers historial_precios creados.", "module": "043_price_history", "line": 72}
+{"ts": "2026-06-26T05:18:40.954902", "level": "INFO", "logger": "spj.migrations.043", "msg": "Migración 043: historial de precios completada.", "module": "043_price_history", "line": 14}
+{"ts": "2026-06-26T05:18:40.958801", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 043 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:40.972881", "level": "INFO", "logger": "migrations.standalone.044_cotizaciones", "msg": "044 — cotizaciones y cotizaciones_detalle creadas", "module": "044_cotizaciones", "line": 62}
+{"ts": "2026-06-26T05:18:40.978527", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 044 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:41.006329", "level": "INFO", "logger": "migrations.standalone.045_performance_indexes", "msg": "045 — 12 índices de rendimiento creados", "module": "045_performance_indexes", "line": 56}
+{"ts": "2026-06-26T05:18:41.008998", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 045 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:41.032405", "level": "INFO", "logger": "migrations.standalone.046_comisiones_happy_hour", "msg": "046 — comisiones_config, comisiones_acumuladas, happy_hour_rules", "module": "046_comisiones_happy_hour", "line": 56}
+{"ts": "2026-06-26T05:18:41.034186", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 046 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:41.370234", "level": "INFO", "logger": "migrations.standalone.047_v13_schema", "msg": "047 — v13 schema aplicado", "module": "047_v13_schema", "line": 364}
+{"ts": "2026-06-26T05:18:41.379365", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 047 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:41.422097", "level": "INFO", "logger": "spj.migrations.048", "msg": "048 — v13.1 hardening aplicado", "module": "048_v131_hardening", "line": 97}
+{"ts": "2026-06-26T05:18:41.426795", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 048 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:41.438711", "level": "INFO", "logger": "spj.migrations.049", "msg": "Migración 049: tablas ERP inteligente v13.4 creadas/verificadas.", "module": "049_v134_intelligent_erp", "line": 124}
+{"ts": "2026-06-26T05:18:41.445412", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 049 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:41.485151", "level": "INFO", "logger": "spj.migrations.050", "msg": "Migración 050: tablas integración WhatsApp creadas/actualizadas.", "module": "050_wa_integration", "line": 149}
+{"ts": "2026-06-26T05:18:41.487602", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 050 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:41.501262", "level": "INFO", "logger": "spj.migrations.051", "msg": "Migration 051: kpi_snapshots creada/verificada.", "module": "051_fix_kpi_snapshots", "line": 72}
+{"ts": "2026-06-26T05:18:41.503714", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 051 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:41.523093", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 052 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:41.529406", "level": "INFO", "logger": "spj.migrations.053", "msg": "Migración 053 — tablas cárnicas huérfanas de 032...", "module": "053_meat_production_tables", "line": 31}
+{"ts": "2026-06-26T05:18:41.580843", "level": "INFO", "logger": "spj.migrations.053", "msg": "Migración 053 completada.", "module": "053_meat_production_tables", "line": 76}
+{"ts": "2026-06-26T05:18:41.583290", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 053 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:41.589970", "level": "INFO", "logger": "spj.migrations.054", "msg": "Migración 054 — sync improvements huérfanos de 048...", "module": "054_sync_improvements_orphan", "line": 19}
+{"ts": "2026-06-26T05:18:41.614331", "level": "INFO", "logger": "spj.migrations.054", "msg": "Migración 054 completada.", "module": "054_sync_improvements_orphan", "line": 76}
+{"ts": "2026-06-26T05:18:41.617884", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 054 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:41.636699", "level": "INFO", "logger": "spj.migrations.055", "msg": "055: vista inventario creada (compatibilidad legacy).", "module": "055_inventario_compat", "line": 51}
+{"ts": "2026-06-26T05:18:41.640102", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 055 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:41.655910", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 056 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:41.670445", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 057 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:41.700433", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 058 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:41.725635", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 059 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:41.738225", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 060 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:41.752205", "level": "INFO", "logger": "spj.migrations.061", "msg": "061: added financial_event_log.concepto", "module": "061_fix_finanzas_schema", "line": 24}
+{"ts": "2026-06-26T05:18:41.757423", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 061 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:41.787963", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 062 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:41.809555", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 063 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:41.821641", "level": "INFO", "logger": "spj.migrations.064", "msg": "064: added gastos.recurrente", "module": "064_fix_missing_columns", "line": 23}
+{"ts": "2026-06-26T05:18:41.837286", "level": "INFO", "logger": "spj.migrations.064", "msg": "064: added clientes.apellido_paterno", "module": "064_fix_missing_columns", "line": 23}
+{"ts": "2026-06-26T05:18:41.847371", "level": "INFO", "logger": "spj.migrations.064", "msg": "064: added compras_inventariables.saldo_pendiente", "module": "064_fix_missing_columns", "line": 23}
+{"ts": "2026-06-26T05:18:41.849720", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 064 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:41.854773", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_ventas_fecha_suc ON ventas (D", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T05:18:41.855073", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_ventas_cliente ON ventas (cli", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T05:18:41.857882", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_ventas_estado ON ventas (esta", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T05:18:41.858277", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_dv_venta ON detalles_venta (v", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T05:18:41.858438", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_dv_producto ON detalles_venta", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T05:18:41.860948", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_mov_producto_fecha ON movimie", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T05:18:41.865441", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_mov_sucursal ON movimientos_i", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T05:18:41.868517", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_mov_tipo ON movimientos_inven", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T05:18:41.871371", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_fel_fecha ON financial_event_", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T05:18:41.877357", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_fel_cuenta_debe ON financial_", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T05:18:41.882214", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_fel_cuenta_haber ON financial", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T05:18:41.882557", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_fel_evento ON financial_event", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T05:18:41.885390", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_bi_sales_fecha ON bi_sales_da", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T05:18:41.889970", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: CREATE INDEX IF NOT EXISTS idx_bi_prod_profit_fecha ON bi_pr", "module": "065_performance_indexes_views", "line": 71}
+{"ts": "2026-06-26T05:18:41.894398", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: view v_ventas_diarias creada/confirmada", "module": "065_performance_indexes_views", "line": 152}
+{"ts": "2026-06-26T05:18:41.900462", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: view v_rentabilidad_productos creada/confirmada", "module": "065_performance_indexes_views", "line": 152}
+{"ts": "2026-06-26T05:18:41.902832", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: view v_stock_critico creada/confirmada", "module": "065_performance_indexes_views", "line": 152}
+{"ts": "2026-06-26T05:18:41.905443", "level": "INFO", "logger": "spj.migrations.065", "msg": "065: view v_flujo_caja_diario creada/confirmada", "module": "065_performance_indexes_views", "line": 152}
+{"ts": "2026-06-26T05:18:41.908533", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 065 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:42.039744", "level": "INFO", "logger": "migrations.standalone.066_unificar_esquema_recetas", "msg": "Migration 066: 0 recetas legacy migradas a product_recipes; vista recetas_unificada creada.", "module": "066_unificar_esquema_recetas", "line": 168}
+{"ts": "2026-06-26T05:18:42.043608", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 066 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:42.048134", "level": "INFO", "logger": "spj.migrations.067", "msg": "Migración 067 — ERP Cárnico: trazabilidad de lotes y merma...", "module": "067_meat_erp_improvements", "line": 37}
+{"ts": "2026-06-26T05:18:42.277555", "level": "INFO", "logger": "spj.migrations.067", "msg": "Migración 067 completada — ERP Cárnico activo.", "module": "067_meat_erp_improvements", "line": 150}
+{"ts": "2026-06-26T05:18:42.285307", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 067 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:42.293187", "level": "INFO", "logger": "spj.migrations", "msg": "Índice uq_branch_inv_no_batch creado/verificado.", "module": "068_fix_branch_inventory_unique", "line": 63}
+{"ts": "2026-06-26T05:18:42.295614", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 068 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:42.321936", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 069 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:42.358124", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 070 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:42.399838", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 071 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:42.411147", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 072 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:42.422508", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 073 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:42.442493", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 074 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:42.464120", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 075 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:42.494258", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 076 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:42.710962", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 077 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:42.734266", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 078 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:42.750362", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 079 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:42.772418", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 080 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:42.796097", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 081 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:42.832142", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 082 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:42.930568", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 083 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:42.949903", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 084 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:43.032161", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 085 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:43.152511", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 086 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:43.176180", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 087 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:43.210993", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 088 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:43.242090", "level": "INFO", "logger": "spj.migrations.089", "msg": "Migración 089: dedupe_key/severity en notification_inbox completada.", "module": "089_notification_inbox_dedupe_key", "line": 25}
+{"ts": "2026-06-26T05:18:43.244580", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 089 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:43.349504", "level": "INFO", "logger": "spj.migrations.090", "msg": "Migración 090: workflow_type/scheduled_at/source_channel en ventas y delivery_orders completada.", "module": "090_whatsapp_delivery_workflow_columns", "line": 33}
+{"ts": "2026-06-26T05:18:43.351717", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 090 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:43.363129", "level": "INFO", "logger": "spj.migrations.091", "msg": "Migración 091: scheduled_demand_events completada.", "module": "091_scheduled_demand_events", "line": 29}
+{"ts": "2026-06-26T05:18:43.367581", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 091 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:43.389744", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 092 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:43.446676", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 093 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:43.491077", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 094 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:43.514303", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 095 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:43.530077", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 096 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:43.547821", "level": "INFO", "logger": "spj.migrations.097", "msg": "097: added mermas.fecha", "module": "097_waste_schema_integrity", "line": 34}
+{"ts": "2026-06-26T05:18:43.581342", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 097 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:43.598175", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 098 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:43.711663", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 099 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:43.797623", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 100 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:43.814301", "level": "INFO", "logger": "migrations.standalone.101_entity_uuid_columns", "msg": "101: added uuid column to sucursales", "module": "101_entity_uuid_columns", "line": 57}
+{"ts": "2026-06-26T05:18:43.814965", "level": "INFO", "logger": "migrations.standalone.101_entity_uuid_columns", "msg": "101: backfilled 1 uuid values in sucursales", "module": "101_entity_uuid_columns", "line": 69}
+{"ts": "2026-06-26T05:18:43.831436", "level": "INFO", "logger": "migrations.standalone.101_entity_uuid_columns", "msg": "101: added uuid column to productos", "module": "101_entity_uuid_columns", "line": 57}
+{"ts": "2026-06-26T05:18:43.842060", "level": "INFO", "logger": "migrations.standalone.101_entity_uuid_columns", "msg": "101: added uuid column to clientes", "module": "101_entity_uuid_columns", "line": 57}
+{"ts": "2026-06-26T05:18:43.851289", "level": "INFO", "logger": "migrations.standalone.101_entity_uuid_columns", "msg": "101: added uuid column to usuarios", "module": "101_entity_uuid_columns", "line": 57}
+{"ts": "2026-06-26T05:18:43.851816", "level": "INFO", "logger": "migrations.standalone.101_entity_uuid_columns", "msg": "101: backfilled 2 uuid values in usuarios", "module": "101_entity_uuid_columns", "line": 69}
+{"ts": "2026-06-26T05:18:43.858740", "level": "INFO", "logger": "migrations.standalone.101_entity_uuid_columns", "msg": "101: entity_uuid_columns migration complete", "module": "101_entity_uuid_columns", "line": 72}
+{"ts": "2026-06-26T05:18:43.861011", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 101 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:43.883670", "level": "INFO", "logger": "migrations.standalone.102_extended_uuid_columns", "msg": "102: added uuid column to happy_hour_rules", "module": "102_extended_uuid_columns", "line": 62}
+{"ts": "2026-06-26T05:18:43.901638", "level": "INFO", "logger": "migrations.standalone.102_extended_uuid_columns", "msg": "102: added uuid column to roles", "module": "102_extended_uuid_columns", "line": 62}
+{"ts": "2026-06-26T05:18:43.902367", "level": "INFO", "logger": "migrations.standalone.102_extended_uuid_columns", "msg": "102: backfilled 6 uuid values in roles", "module": "102_extended_uuid_columns", "line": 73}
+{"ts": "2026-06-26T05:18:43.912166", "level": "INFO", "logger": "migrations.standalone.102_extended_uuid_columns", "msg": "102: added uuid column to rol_permisos", "module": "102_extended_uuid_columns", "line": 62}
+{"ts": "2026-06-26T05:18:43.915969", "level": "INFO", "logger": "migrations.standalone.102_extended_uuid_columns", "msg": "102: backfilled 217 uuid values in rol_permisos", "module": "102_extended_uuid_columns", "line": 73}
+{"ts": "2026-06-26T05:18:43.926678", "level": "INFO", "logger": "migrations.standalone.102_extended_uuid_columns", "msg": "102: added uuid column to personal", "module": "102_extended_uuid_columns", "line": 62}
+{"ts": "2026-06-26T05:18:43.943230", "level": "INFO", "logger": "migrations.standalone.102_extended_uuid_columns", "msg": "102: added uuid column to audit_logs", "module": "102_extended_uuid_columns", "line": 62}
+{"ts": "2026-06-26T05:18:43.952780", "level": "INFO", "logger": "migrations.standalone.102_extended_uuid_columns", "msg": "102: added uuid column to cierre_mensual", "module": "102_extended_uuid_columns", "line": 62}
+{"ts": "2026-06-26T05:18:44.007923", "level": "INFO", "logger": "migrations.standalone.102_extended_uuid_columns", "msg": "102: added sucursal_uuid column to usuarios", "module": "102_extended_uuid_columns", "line": 81}
+{"ts": "2026-06-26T05:18:44.013994", "level": "INFO", "logger": "migrations.standalone.102_extended_uuid_columns", "msg": "102: extended_uuid_columns migration complete", "module": "102_extended_uuid_columns", "line": 84}
+{"ts": "2026-06-26T05:18:44.016440", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 102 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:44.038740", "level": "INFO", "logger": "migrations.standalone.103_happy_hour_sucursal_uuid", "msg": "[103] added column happy_hour_rules.sucursal_uuid", "module": "103_happy_hour_sucursal_uuid", "line": 42}
+{"ts": "2026-06-26T05:18:44.040075", "level": "INFO", "logger": "migrations.standalone.103_happy_hour_sucursal_uuid", "msg": "[103] backfilled 0 rows in happy_hour_rules.sucursal_uuid", "module": "103_happy_hour_sucursal_uuid", "line": 64}
+{"ts": "2026-06-26T05:18:44.040823", "level": "INFO", "logger": "migrations.standalone.103_happy_hour_sucursal_uuid", "msg": "[103] index idx_happy_hour_rules_sucursal_uuid ensured", "module": "103_happy_hour_sucursal_uuid", "line": 75}
+{"ts": "2026-06-26T05:18:44.044099", "level": "INFO", "logger": "migrations.standalone.103_happy_hour_sucursal_uuid", "msg": "[103] migration complete", "module": "103_happy_hour_sucursal_uuid", "line": 78}
+{"ts": "2026-06-26T05:18:44.046629", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 103 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:44.068512", "level": "INFO", "logger": "migrations.standalone.104_rol_permisos_uuid_columns", "msg": "[104] added column rol_permisos.rol_uuid", "module": "104_rol_permisos_uuid_columns", "line": 45}
+{"ts": "2026-06-26T05:18:44.069916", "level": "INFO", "logger": "migrations.standalone.104_rol_permisos_uuid_columns", "msg": "[104] backfilled 217 rows in rol_permisos.rol_uuid", "module": "104_rol_permisos_uuid_columns", "line": 64}
+{"ts": "2026-06-26T05:18:44.093717", "level": "INFO", "logger": "migrations.standalone.104_rol_permisos_uuid_columns", "msg": "[104] added column cierre_mensual.sucursal_uuid", "module": "104_rol_permisos_uuid_columns", "line": 45}
+{"ts": "2026-06-26T05:18:44.094595", "level": "INFO", "logger": "migrations.standalone.104_rol_permisos_uuid_columns", "msg": "[104] backfilled 0 rows in cierre_mensual.sucursal_uuid", "module": "104_rol_permisos_uuid_columns", "line": 64}
+{"ts": "2026-06-26T05:18:44.099450", "level": "INFO", "logger": "migrations.standalone.104_rol_permisos_uuid_columns", "msg": "[104] migration complete", "module": "104_rol_permisos_uuid_columns", "line": 96}
+{"ts": "2026-06-26T05:18:44.102382", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 104 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:44.106599", "level": "INFO", "logger": "spj.migrations.105", "msg": "105: ensuring movimientos_inventario exists …", "module": "105_movimientos_inventario", "line": 33}
+{"ts": "2026-06-26T05:18:44.114135", "level": "INFO", "logger": "spj.migrations.105", "msg": "105: movimientos_inventario created with indexes", "module": "105_movimientos_inventario", "line": 79}
+{"ts": "2026-06-26T05:18:44.114340", "level": "INFO", "logger": "spj.migrations.105", "msg": "105: done", "module": "105_movimientos_inventario", "line": 90}
+{"ts": "2026-06-26T05:18:44.116403", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 105 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:44.120099", "level": "INFO", "logger": "spj.migrations.106", "msg": "106: ensuring inventario_actual and branch_inventory exist …", "module": "106_inventario_actual_branch", "line": 35}
+{"ts": "2026-06-26T05:18:44.128154", "level": "INFO", "logger": "spj.migrations.106", "msg": "106: inventario_actual created", "module": "106_inventario_actual_branch", "line": 54}
+{"ts": "2026-06-26T05:18:44.133831", "level": "INFO", "logger": "spj.migrations.106", "msg": "106: branch_inventory created", "module": "106_inventario_actual_branch", "line": 94}
+{"ts": "2026-06-26T05:18:44.134045", "level": "INFO", "logger": "spj.migrations.106", "msg": "106: done", "module": "106_inventario_actual_branch", "line": 102}
+{"ts": "2026-06-26T05:18:44.140551", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 106 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:44.144292", "level": "INFO", "logger": "spj.migrations.107", "msg": "107: ensuring cost columns exist on productos and related tables …", "module": "107_productos_costo_column", "line": 37}
+{"ts": "2026-06-26T05:18:44.159438", "level": "INFO", "logger": "spj.migrations.107", "msg": "107: added column productos.costo", "module": "107_productos_costo_column", "line": 25}
+{"ts": "2026-06-26T05:18:44.174893", "level": "INFO", "logger": "spj.migrations.107", "msg": "107: added column productos.costo_promedio", "module": "107_productos_costo_column", "line": 25}
+{"ts": "2026-06-26T05:18:44.186331", "level": "INFO", "logger": "spj.migrations.107", "msg": "107: added column productos.precio_minimo", "module": "107_productos_costo_column", "line": 25}
+{"ts": "2026-06-26T05:18:44.186806", "level": "INFO", "logger": "spj.migrations.107", "msg": "107: done", "module": "107_productos_costo_column", "line": 53}
+{"ts": "2026-06-26T05:18:44.192073", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 107 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:44.196636", "level": "INFO", "logger": "spj.migrations.108", "msg": "108: syncing inventory_stock from inventario_actual …", "module": "108_sync_inventory_stock", "line": 41}
+{"ts": "2026-06-26T05:18:44.197590", "level": "INFO", "logger": "spj.migrations.108", "msg": "108: 0 inventory_actual rows synced to inventory_stock", "module": "108_sync_inventory_stock", "line": 86}
+{"ts": "2026-06-26T05:18:44.197854", "level": "INFO", "logger": "spj.migrations.108", "msg": "108: done", "module": "108_sync_inventory_stock", "line": 111}
+{"ts": "2026-06-26T05:18:44.199595", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 108 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:44.233072", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 109 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:44.238897", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 110 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:44.274754", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 111 (QR/contenedores schema) completada.", "module": "111_qr_containers_schema", "line": 77}
+{"ts": "2026-06-26T05:18:44.280645", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 111 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:44.359120", "level": "INFO", "logger": "spj.migrations", "msg": "Migración 112 ejecutada.", "module": "engine", "line": 171}
+{"ts": "2026-06-26T05:18:44.359340", "level": "INFO", "logger": "spj.migrations", "msg": "Migraciones completadas: 97 ejecutadas.", "module": "engine", "line": 183}
+{"ts": "2026-06-26T05:18:44.360731", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 185}
+{"ts": "2026-06-26T05:18:44.364352", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "Migraciones completadas (bootstrap DB vacía)", "module": "bootstrap_db", "line": 73}
+{"ts": "2026-06-26T05:18:44.583893", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-06-26T05:18:44.631581", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Bootstrap DB OK", "module": "main", "line": 176}
+{"ts": "2026-06-26T05:18:44.648563", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 185}
+{"ts": "2026-06-26T05:18:44.649738", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 185}
+{"ts": "2026-06-26T05:18:44.701211", "level": "CRITICAL", "logger": "SPJ.Boot", "msg": "DB sin identidad UUIDv7 (corte 200 no aplicado): La base de datos NO tiene identidad UUIDv7: quedan 234 tablas con PRIMARY KEY entera (p.ej. accounts_payable.id, accounts_receivable.id, activos.id, ajustes_inventario.id, alertas_config.id, alertas_log.id, anticipo_reglas.id, ap_payments.id). El runtime asume el esquema post-corte. Aplica el corte antes de iniciar:\n  1) Cierra la app y respalda el .db.\n  2) SPJ_UUID_CUTOVER_CONFIRMED=1 y ejecuta la migración 200 (migrations.standalone.200_uuid_identity_cutover.run(conn)).\nEl corte es atómico (foreign_key_check + rollback ante cualquier fallo).", "module": "main", "line": 203}
+{"ts": "2026-06-26T05:22:13.358306", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 113}
+{"ts": "2026-06-26T05:22:15.499382", "level": "ERROR", "logger": "spj.main_window", "msg": "Error cargando ModuloVentas: from __future__ imports must occur at the beginning of the file (stock_reservation_service.py, line 2)", "module": "main_window", "line": 27}
+{"ts": "2026-06-26T05:22:19.520067", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 141}
+{"ts": "2026-06-26T05:22:19.520395", "level": "INFO", "logger": "SPJ.Boot", "msg": "  SPJ POS Enterprise v13.4.0", "module": "main", "line": 142}
+{"ts": "2026-06-26T05:22:19.520499", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 143}
+{"ts": "2026-06-26T05:22:21.788015", "level": "INFO", "logger": "spj.theme_engine", "msg": "Tema aplicado globalmente: Claro", "module": "theme_engine", "line": 80}
+{"ts": "2026-06-26T05:22:21.788217", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Tema aplicado al arranque", "module": "main", "line": 153}
+{"ts": "2026-06-26T05:22:21.789141", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Normalizador global de diálogos activo", "module": "main", "line": 161}
+{"ts": "2026-06-26T05:22:22.052683", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Integridad BD OK", "module": "main", "line": 108}
+{"ts": "2026-06-26T05:22:22.065910", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-06-26T05:22:22.097484", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-06-26T05:22:22.108146", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Bootstrap DB OK", "module": "main", "line": 176}
+{"ts": "2026-06-26T05:22:22.134949", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 185}
+{"ts": "2026-06-26T05:22:22.136235", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 185}
+{"ts": "2026-06-26T05:22:22.157462", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Migraciones OK", "module": "main", "line": 198}
+{"ts": "2026-06-26T05:22:22.162311", "level": "INFO", "logger": "core.app_container", "msg": "Inicializando AppContainer...", "module": "app_container", "line": 61}
+{"ts": "2026-06-26T05:22:22.271173", "level": "INFO", "logger": "core.services.config_service", "msg": "Configuración cargada: 15 parámetros en memoria.", "module": "config_service", "line": 20}
+{"ts": "2026-06-26T05:22:22.951909", "level": "INFO", "logger": "core.services.hardware_service", "msg": "Configuraciones de hardware cargadas en memoria.", "module": "hardware_service", "line": 29}
+{"ts": "2026-06-26T05:22:23.184543", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión iniciada", "module": "printer_service", "line": 200}
+{"ts": "2026-06-26T05:22:23.185721", "level": "INFO", "logger": "spj.printer", "msg": "Configuración de impresoras cargada desde hardware_config: ticket=False etiquetas=False mode=raw model=", "module": "printer_service", "line": 371}
+{"ts": "2026-06-26T05:22:23.962042", "level": "INFO", "logger": "spj.events.wiring", "msg": "EventBus wiring completado — 61 eventos activos", "module": "wiring", "line": 273}
+{"ts": "2026-06-26T05:22:23.965939", "level": "INFO", "logger": "spj.accounting_engine", "msg": "AccountingEngine wired (prio=48)", "module": "accounting_engine", "line": 47}
+{"ts": "2026-06-26T05:22:23.984103", "level": "INFO", "logger": "spj.analytics_engine", "msg": "AnalyticsEngine wired (prio=5)", "module": "analytics_engine", "line": 39}
+{"ts": "2026-06-26T05:22:24.005476", "level": "INFO", "logger": "spj.rbac", "msg": "RBAC inicializado", "module": "rbac", "line": 138}
+{"ts": "2026-06-26T05:22:24.041986", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'conciliacion' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T05:22:24.042243", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'loyalty_snapshot' registrada (intervalo=1800s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T05:22:24.042481", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'forecast' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T05:22:24.042582", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'limpieza_event_log' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T05:22:24.042678", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'alertas_check' registrada (intervalo=300s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T05:22:24.042763", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'depreciacion_activos' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T05:22:24.042848", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'escalacion_pedidos_wa' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T05:22:24.042930", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'recordatorios_ordenes' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T05:22:24.043012", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'wa_fallidos_check' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T05:22:24.043096", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'happy_hour_check' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T05:22:24.043332", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'backup_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T05:22:24.043429", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'expiracion_estrellas' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T05:22:24.043571", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'mantenimiento_semanal' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T05:22:24.043652", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'auto_cierre_turno' registrada (intervalo=600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T05:22:24.043731", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'reporte_email_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-06-26T05:22:24.124511", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService iniciado con 15 tareas.", "module": "scheduler_service", "line": 144}
+{"ts": "2026-06-26T05:22:24.148345", "level": "INFO", "logger": "core.app_container", "msg": "✅ AppContainer inicializado con éxito. Todos los motores en línea.", "module": "app_container", "line": 703}
+{"ts": "2026-06-26T05:22:24.148565", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ AppContainer activo", "module": "main", "line": 221}
+{"ts": "2026-06-26T05:22:24.200514", "level": "INFO", "logger": "spj.distribution_engine", "msg": "Conciliación OK sucursal=1: diff=0.000", "module": "distribution_engine", "line": 539}
+{"ts": "2026-06-26T05:22:24.200724", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'conciliacion' OK (0.08s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:22:24.238514", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'loyalty_snapshot' OK (0.04s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:22:24.246216", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'forecast' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:22:24.246703", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'limpieza_event_log' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:22:24.265474", "level": "INFO", "logger": "SPJ.Boot", "msg": "Verificando microservicio WhatsApp...", "module": "main", "line": 234}
+{"ts": "2026-06-26T05:22:24.689628", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-06-26T05:22:24.698149", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-06-26T05:22:24.698362", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.45s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:22:24.698483", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'depreciacion_activos' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:22:24.698909", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:22:24.699345", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'recordatorios_ordenes' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:22:24.699559", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'wa_fallidos_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:22:24.699840", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:22:24.755768", "level": "INFO", "logger": "spj.whatsapp", "msg": "WA webhook puerto 8767", "module": "whatsapp_service", "line": 540}
+{"ts": "2026-06-26T05:22:25.061053", "level": "INFO", "logger": "spj.backup", "msg": "Backup incremental: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\backups\\auto_20260625_232224.db (5.0 MB)", "module": "backup_engine", "line": 61}
+{"ts": "2026-06-26T05:22:25.061300", "level": "INFO", "logger": "spj.scheduler", "msg": "Backup automático: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\backups\\auto_20260625_232224.db", "module": "app_container", "line": 743}
+{"ts": "2026-06-26T05:22:25.061423", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'backup_diario' OK (0.36s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:22:25.061869", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'expiracion_estrellas' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:22:25.062008", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'mantenimiento_semanal' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:22:25.062112", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:22:29.456957", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'reporte_email_diario' OK (4.39s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:22:30.229106", "level": "INFO", "logger": "spj.services.launcher", "msg": "Iniciando microservicio WhatsApp desde C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\whatsapp_service...", "module": "microservice_launcher", "line": 57}
+{"ts": "2026-06-26T05:22:30.848772", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] módulo inicializado sucursal_id=1", "module": "merma", "line": 93}
+{"ts": "2026-06-26T05:22:30.858737", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] historial cargado count=0", "module": "merma", "line": 602}
+{"ts": "2026-06-26T05:22:32.440033", "level": "INFO", "logger": "spj.services.launcher", "msg": "Microservicio lanzado (PID 1684)", "module": "microservice_launcher", "line": 68}
+{"ts": "2026-06-26T05:22:58.349421", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ UI lista", "module": "main", "line": 247}
+{"ts": "2026-06-26T05:23:02.506521", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-06-26T05:23:02.507107", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2096}
+{"ts": "2026-06-26T05:23:03.045821", "level": "INFO", "logger": "interfaz.main_window", "msg": "_leer_sucursal_instalacion: key not configured", "module": "main_window", "line": 262}
+{"ts": "2026-06-26T05:23:18.654440", "level": "WARNING", "logger": "repositories.auth_repository", "msg": "No se pudo migrar password_hash usuario 019f025e-4102-7bf3-a9dd-290c875fa697: invalid literal for int() with base 10: '019f025e-4102-7bf3-a9dd-290c875fa697'", "module": "auth_repository", "line": 107}
+{"ts": "2026-06-26T05:23:18.659011", "level": "INFO", "logger": "core.services.auth_service", "msg": "Acceso concedido a admin (admin).", "module": "auth_service", "line": 208}
+{"ts": "2026-06-26T05:23:18.937473", "level": "INFO", "logger": "spj.session", "msg": "Sesión iniciada: Administrador Maestro (admin) en sucursal 'Principal' [active_branch_id=019f025d-b666-74e3-b4e3-689b8c0057c0 sucursal_num=019f025e-4101-712f-a854-ae2681f0e8d2]", "module": "session_context", "line": 113}
+{"ts": "2026-06-26T05:23:19.051604", "level": "WARNING", "logger": "repositories.config_repository", "msg": "User not found while resolving permissions: 019f025e-4102-7bf3-a9dd-290c875fa697", "module": "config_repository", "line": 803}
+{"ts": "2026-06-26T05:23:19.110874", "level": "INFO", "logger": "spj.modulo.merma", "msg": "[MERMA] historial cargado count=0", "module": "merma", "line": 602}
+{"ts": "2026-06-26T05:23:19.212271", "level": "INFO", "logger": "spj.session", "msg": "Sucursal cambiada: 'Principal' (sucursal_num=019f025e-4101-712f-a854-ae2681f0e8d2 active_branch_id=019f025d-b666-74e3-b4e3-689b8c0057c0)", "module": "session_context", "line": 129}
+{"ts": "2026-06-26T05:23:19.212760", "level": "INFO", "logger": "core.app_container", "msg": "Sucursal activa: 019f025e-4101-712f-a854-ae2681f0e8d2 (Principal)", "module": "app_container", "line": 1046}
+{"ts": "2026-06-26T05:23:22.924745", "level": "WARNING", "logger": "spj.services.launcher", "msg": "Microservicio no respondió en 10 segundos", "module": "microservice_launcher", "line": 78}
+{"ts": "2026-06-26T05:23:29.472951", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:23:29.473342", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:24:29.485855", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:24:29.487368", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:25:29.556418", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:25:29.556708", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:26:29.611554", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:26:29.611858", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:27:36.013616", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-06-26T05:27:36.502490", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-06-26T05:27:36.633942", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2096}
+{"ts": "2026-06-26T05:27:36.768100", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-06-26T05:27:36.769808", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (5.32s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:27:36.781837", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:27:36.783590", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:28:43.413205", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (3.34s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:28:43.806098", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.09s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:29:44.047760", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:29:44.089157", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:30:45.388564", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.09s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:30:45.451097", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:31:45.892507", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.02s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:31:45.943688", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:32:32.867209", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-06-26T05:32:33.006157", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2096}
+{"ts": "2026-06-26T05:32:47.035746", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-06-26T05:32:47.099708", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-06-26T05:32:47.101251", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (1.15s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:32:47.110372", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:32:47.111280", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:32:47.116181", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:33:47.159567", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:33:47.167913", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:34:47.201375", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:34:47.201957", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:35:47.219665", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:35:47.220816", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:36:47.254290", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:36:47.254625", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:37:31.860520", "level": "INFO", "logger": "spj.delivery.application.query_service", "msg": "DeliveryQueryService.list_orders: rows=0 dto_built=0 dropped=0 branch_id=None status=None fulfillment=None date=None", "module": "query_service", "line": 124}
+{"ts": "2026-06-26T05:37:31.867270", "level": "INFO", "logger": "spj.delivery", "msg": "Delivery board: dtos=0 view_rows=0 list_rows=0 kanban_cards=0 filtro=", "module": "delivery", "line": 2096}
+{"ts": "2026-06-26T05:37:47.341566", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-06-26T05:37:47.365540", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-06-26T05:37:47.368710", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.06s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:37:47.369203", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:37:47.369450", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-06-26T05:38:29.937762", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión detenida (impresos=0, fallos=0)", "module": "printer_service", "line": 206}
+{"ts": "2026-06-26T05:38:29.985435", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService detenido.", "module": "scheduler_service", "line": 150}
+{"ts": "2026-06-26T05:38:30.276760", "level": "INFO", "logger": "SPJ.Boot", "msg": "Sistema cerrado. Código: 0", "module": "main", "line": 273}

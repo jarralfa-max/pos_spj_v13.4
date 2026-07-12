@@ -17,47 +17,41 @@ DIAS_ALERTA_CADUCIDAD = 3    # avisar si caduca en <= 3 dias
 
 
 class LoteService:
-    def __init__(self, conn=None, sucursal_id: int = 1, usuario: str = "system"):
+    def __init__(self, conn=None, sucursal_id: str = "", usuario: str = "system"):
         self.conn        = conn or get_connection()
-        self.sucursal_id = sucursal_id
+        self.sucursal_id = str(sucursal_id or "")
         self.usuario     = usuario
-        self._init_tables()
-
-    def _init_tables(self):
-        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
-        try: self.conn.commit()
-        except Exception: pass
 
     # ── Ingreso de lote ────────────────────────────────────────────────
-    def registrar_lote(self, producto_id: int, peso_kg: float,
-                       fecha_caducidad: str = None, proveedor_id: int = None,
+    def registrar_lote(self, producto_id: str, peso_kg: float,
+                       fecha_caducidad: str = None, proveedor_id: str = None,
                        numero_lote: str = None, costo_kg: float = 0,
-                       temperatura: float = None, observaciones: str = "") -> int:
+                       temperatura: float = None, observaciones: str = "") -> str:
         if not numero_lote:
             numero_lote = f"L{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        lid = new_uuid()
         with transaction(self.conn) as c:
-            lid = c.execute("""INSERT INTO lotes
-                (uuid,producto_id,numero_lote,proveedor_id,peso_inicial_kg,
+            c.execute("""INSERT INTO lotes
+                (id,producto_id,numero_lote,proveedor_id,peso_inicial_kg,
                  peso_actual_kg,costo_kg,fecha_caducidad,sucursal_id,
                  temperatura_c,observaciones)
                 VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
-                (new_uuid(), producto_id, numero_lote, proveedor_id,
+                (lid, producto_id, numero_lote, proveedor_id,
                  peso_kg, peso_kg, costo_kg, fecha_caducidad,
                  self.sucursal_id, temperatura, observaciones))
-            lid = c.execute("SELECT id FROM lotes WHERE numero_lote=? AND producto_id=? ORDER BY rowid DESC LIMIT 1", (numero_lote, producto_id)).fetchone()[0]  # noqa: capture UUID just inserted
             c.execute("""INSERT INTO movimientos_lote
-                (lote_id,tipo,cantidad_kg,referencia,usuario)
-                VALUES(?,'recepcion',?,?,?)""",
-                (lid, peso_kg, numero_lote, self.usuario))
+                (id,lote_id,tipo,cantidad_kg,referencia,usuario)
+                VALUES(?,?,'recepcion',?,?,?)""",
+                (new_uuid(), lid, peso_kg, numero_lote, self.usuario))
             # Actualizar existencia del producto
             c.execute("UPDATE productos SET existencia=existencia+? WHERE id=?",
                       (peso_kg, producto_id))
-        logger.info("Lote %s registrado: prod=%d %.3fkg caducidad=%s",
+        logger.info("Lote %s registrado: prod=%s %.3fkg caducidad=%s",
                     numero_lote, producto_id, peso_kg, fecha_caducidad)
         return lid
 
     # ── Descarga FIFO ────────────────────────────────────────────────
-    def descargar_fifo(self, producto_id: int, cantidad_kg: float,
+    def descargar_fifo(self, producto_id: str, cantidad_kg: float,
                        referencia: str = "", tipo: str = "venta") -> list:
         """
         Descarga cantidad_kg del producto usando FIFO
@@ -85,14 +79,14 @@ class LoteService:
                     "UPDATE lotes SET peso_actual_kg=?, estado=CASE WHEN ?<=0 THEN 'agotado' ELSE estado END WHERE id=?",
                     (nuevo_peso, nuevo_peso, lid))
                 c.execute("""INSERT INTO movimientos_lote
-                    (lote_id,tipo,cantidad_kg,referencia,usuario) VALUES(?,?,?,?,?)""",
-                    (lid, tipo, -usar, referencia, self.usuario))
+                    (id,lote_id,tipo,cantidad_kg,referencia,usuario) VALUES(?,?,?,?,?,?)""",
+                    (new_uuid(), lid, tipo, -usar, referencia, self.usuario))
                 afectados.append({"lote_id": lid, "numero_lote": num,
                                    "cantidad_kg": usar, "caducidad": caducidad})
                 pendiente = round(pendiente - usar, 4)
 
             if pendiente > 0.001:
-                logger.warning("Stock insuficiente en lotes: prod=%d faltaron=%.3fkg",
+                logger.warning("Stock insuficiente en lotes: prod=%s faltaron=%.3fkg",
                                producto_id, pendiente)
         return afectados
 
@@ -119,7 +113,7 @@ class LoteService:
             result.append(d)
         return result
 
-    def get_stock_por_lote(self, producto_id: int) -> list:
+    def get_stock_por_lote(self, producto_id: str) -> list:
         rows = self.conn.execute("""
             SELECT l.*, p.nombre as producto_nombre
             FROM lotes l JOIN productos p ON p.id=l.producto_id
@@ -140,7 +134,7 @@ class LoteService:
             logger.warning("Lotes marcados como caducados: %d", affected)
         return affected
 
-    def get_costo_promedio_ponderado(self, producto_id: int) -> float:
+    def get_costo_promedio_ponderado(self, producto_id: str) -> float:
         """CAPP para valoracion de inventario."""
         row = self.conn.execute("""
             SELECT CASE WHEN SUM(peso_actual_kg)>0

@@ -363,14 +363,18 @@ class DialogoCorteZCiego(QDialog):
         return w
 
     def _recalcular_arqueo(self):
-        total = 0.0
-        for row, (_, valor) in enumerate(self.DENOMINACIONES):
+        from backend.application.services.cash_count_service import (
+            compute_denomination_subtotals,
+        )
+        counts = {}
+        for _, valor in self.DENOMINACIONES:
             spin = self._den_spins.get(valor)
-            sub  = float(valor) * (spin.value() if spin else 0)
-            total += sub
-            it = self._tbl_den.item(row, 2)
-            if it:
-                it.setText(f"${sub:,.2f}")
+            counts[valor] = spin.value() if spin else 0
+        subtotales, total = compute_denomination_subtotals(self.DENOMINACIONES, counts)
+        for _, valor in self.DENOMINACIONES:
+            lbl = self._den_sub_labels.get(valor)
+            if lbl:
+                lbl.setText(f"${subtotales.get(valor, 0.0):,.2f}")
         self.total_contado = total
         self.lbl_total_arq.setText(f"${total:,.2f}")
 

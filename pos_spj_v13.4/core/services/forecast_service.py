@@ -1,9 +1,14 @@
 
 # core/services/forecast_service.py
 import logging
-import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
+
+# Dependencias de cómputo (pandas/statsmodels) se cargan de forma perezosa:
+# su ausencia debe producir un mensaje claro en la UI, no romper el arranque.
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
 try:
     from statsmodels.tsa.holtwinters import ExponentialSmoothing
 except ImportError:
@@ -32,12 +37,26 @@ class ForecastService:
             return self._module_config.is_enabled('forecasting')
         return True
 
-    def generar_plan_compras(self, producto_id: int, sucursal_id: int, dias_historial: int, dias_pronostico: int, stock_seguridad: float) -> dict:
+    def generar_plan_compras(self, producto_id: str, sucursal_id: str, dias_historial: int, dias_pronostico: int, stock_seguridad: float) -> dict:
         """
         Analiza el pasado para predecir el futuro y calcular cuánto comprar hoy.
+
+        producto_id y sucursal_id son UUID strings — nunca se convierten a int.
         """
+        if pd is None:
+            raise RuntimeError(
+                "La librería 'pandas' no está instalada. "
+                "Instálala en el entorno del POS con: pip install pandas"
+            )
         if not ExponentialSmoothing:
-            raise RuntimeError("La librería 'statsmodels' no está instalada en el servidor.")
+            raise RuntimeError(
+                "La librería 'statsmodels' no está instalada. "
+                "Instálala en el entorno del POS con: pip install statsmodels"
+            )
+        producto_id = str(producto_id or "").strip()
+        sucursal_id = str(sucursal_id or "").strip()
+        if not producto_id or not sucursal_id:
+            raise ValueError("Se requieren producto y sucursal válidos (UUID) para el pronóstico.")
 
         # 1. Extraer historial de ventas (El repositorio integrado)
         query_historial = """
@@ -62,7 +81,10 @@ class ForecastService:
         )
 
         if df.empty or len(df) < 3:
-            raise ValueError(f"No hay suficientes datos históricos (mínimo 3 días) para pronosticar este producto.")
+            raise ValueError(
+                "No hay suficientes datos históricos (mínimo 3 días con ventas) "
+                "para pronosticar este producto en la sucursal seleccionada."
+            )
 
         # 2. Preparar el DataFrame (Rellenar días sin ventas con 0)
         df.set_index('fecha', inplace=True)

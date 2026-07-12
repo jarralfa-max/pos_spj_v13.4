@@ -233,6 +233,27 @@ def _create_auth(conn):
             PRIMARY KEY (usuario_id, rol_id, sucursal_id)
         )
     """)
+    # Overrides de permisos por usuario y restricciones por sucursal (RBAC).
+    # usuario_id/sucursal_id son UUID TEXT — nunca enteros.
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS usuario_permisos (
+            id         TEXT PRIMARY KEY,
+            usuario_id TEXT NOT NULL,
+            modulo     TEXT NOT NULL,
+            accion     TEXT NOT NULL,
+            permitido  INTEGER DEFAULT 1
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS usuario_sucursal_permisos (
+            id          TEXT PRIMARY KEY,
+            usuario_id  TEXT NOT NULL,
+            sucursal_id TEXT NOT NULL,
+            modulo      TEXT NOT NULL,
+            accion      TEXT NOT NULL,
+            permitido   INTEGER DEFAULT 1
+        )
+    """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS login_attempts (
             id       TEXT NOT NULL PRIMARY KEY,
@@ -281,9 +302,8 @@ def _create_clientes(conn):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_clientes_telefono ON clientes(telefono)")
     # Legacy eliminado (REGLA 3): 'puntos' era una tabla muerta (0 referencias).
     # El historial de puntos canónico es historico_puntos / loyalty_ledger.
-    # NOTA: historico_puntos sigue INTEGER-PK; sus escritores (sale_loyalty_policy,
-    # sales_reversal) están pre-rotos (insertan saldo_actual/usuario inexistentes)
-    # — su saneo va en un follow-up dedicado, no en este corte.
+    # saldo_actual/usuario son parte del contrato de escritura de
+    # sale_loyalty_policy y sales_reversal_service.
     conn.execute("""
         CREATE TABLE IF NOT EXISTS historico_puntos (
             id          TEXT NOT NULL PRIMARY KEY,
@@ -2987,6 +3007,8 @@ def _ensure_extra_columns(conn):
     ensure_column(conn, "usuarios", "ultimo_acceso DATETIME")
     ensure_column(conn, "usuarios", "intentos_fallidos INTEGER DEFAULT 0")
     ensure_column(conn, "usuarios", "bloqueado_hasta DATETIME")
+    ensure_column(conn, "usuarios", "locked_reason TEXT")
+    ensure_column(conn, "usuarios", "updated_at DATETIME")
 
     # mermas — impacto financiero
     ensure_column(conn, "mermas", "costo_unitario REAL DEFAULT 0")
@@ -3180,6 +3202,8 @@ def _create_runtime_service_tables(conn: sqlite3.Connection):
             fecha           DATETIME DEFAULT (datetime('now')),
             fecha_pago      DATETIME
         );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_cxc_venta_unica
+            ON cuentas_por_cobrar(venta_id) WHERE venta_id IS NOT NULL;
         CREATE TABLE IF NOT EXISTS activos_depreciacion (
             id            TEXT NOT NULL PRIMARY KEY,
             activo_id     TEXT,

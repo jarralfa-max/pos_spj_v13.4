@@ -332,12 +332,12 @@ class SalesReversalService:
                     )
                     conn.execute("""
                         INSERT INTO historico_puntos
-                            (cliente_id, tipo, puntos, descripcion, saldo_actual, usuario, venta_id)
-                        SELECT ?, 'CANCELACION', ?, ?,
+                            (id, cliente_id, tipo, puntos, descripcion, saldo_actual, usuario, venta_id)
+                        SELECT ?, ?, 'CANCELACION', ?, ?,
                                MAX(0, puntos - ?), ?, ?
                         FROM clientes WHERE id = ?
                     """, (
-                        cliente_id, -puntos,
+                        new_uuid(), cliente_id, -puntos,
                         f"Cancelación venta {venta['folio']}",
                         puntos, usuario, sale_id, cliente_id,
                     ))

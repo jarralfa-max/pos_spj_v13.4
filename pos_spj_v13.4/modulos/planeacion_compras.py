@@ -143,6 +143,16 @@ class ModuloPlaneacionCompras(QWidget):
         h_layout.addWidget(panel_resultados, stretch=1)
         layout.addLayout(h_layout)
 
+    @property
+    def _planning_reads(self):
+        """QueryService canónico de planeación (la UI no ejecuta SQL)."""
+        if not hasattr(self, '_planning_reads_instance'):
+            from backend.application.queries.purchase_planning_query_service import (
+                PurchasePlanningReadService,
+            )
+            self._planning_reads_instance = PurchasePlanningReadService(self.container.db)
+        return self._planning_reads_instance
+
     def cargar_productos(self):
         self.cmb_producto.clear()
         try:
@@ -163,8 +173,8 @@ class ModuloPlaneacionCompras(QWidget):
             # 🚀 MAGIA ENTERPRISE: El servicio de IA hace los cálculos de Pandas y Statsmodels
             if hasattr(self.container, 'forecast_service'):
                 resultado = self.container.forecast_service.generar_plan_compras(
-                    producto_id=producto_id,
-                    sucursal_id=self.sucursal_id,
+                    producto_id=str(producto_id),
+                    sucursal_id=str(self.sucursal_id),
                     dias_historial=self.spin_historial.value(),
                     dias_pronostico=self.spin_pronostico.value(),
                     stock_seguridad=self.spin_seguridad.value()

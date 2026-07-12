@@ -4,15 +4,21 @@ CustomerCreditService — validación de clientes y crédito (CxC) en checkout.
 
 Responsabilidades:
 - Verificar que el cliente existe antes de completar la venta
-- Validar que el cliente tiene crédito suficiente para ventas a crédito
+- Validar que el cliente tiene crédito autorizado y suficiente
 - Registrar la deuda en cuentas_por_cobrar para ventas a crédito
 
-No contiene lógica de UI ni SQL de negocio embebido en capas superiores.
+Reglas:
+- Identidad UUID string en todos los contratos (nunca int).
+- Sin sucursal default '1'.
+- CxC idempotente por venta_id (índice único idx_cxc_venta_unica).
+- No crea ni altera schema (canónico en migrations/).
 """
 from __future__ import annotations
 
 import logging
 from typing import Optional, Tuple
+
+from backend.shared.ids import new_uuid
 
 logger = logging.getLogger("spj.customer_credit")
 
@@ -26,18 +32,21 @@ class CustomerCreditService:
     def __init__(self, db_conn, finance_service=None):
         self.db = db_conn
         self._finance = finance_service
-        self._ensure_cxc_table()
 
     # ── API pública ───────────────────────────────────────────────────────────
 
-    def get_customer(self, cliente_id: int) -> Optional[dict]:
+    def get_customer(self, cliente_id: str) -> Optional[dict]:
         """
         Retorna dict con datos del cliente o None si no existe/está inactivo.
-        Claves: id, nombre, activo, credit_limit, credit_balance, puntos
+        Claves: id, nombre, activo, allows_credit, credit_limit, credit_balance, puntos
         """
+        cliente_id = str(cliente_id or "").strip()
+        if not cliente_id:
+            return None
         try:
             row = self.db.execute(
                 """SELECT id, nombre, activo,
+                          COALESCE(allows_credit, 0)    AS allows_credit,
                           COALESCE(credit_limit, 0.0)   AS credit_limit,
                           COALESCE(credit_balance, 0.0) AS credit_balance,
                           COALESCE(puntos, 0)           AS puntos
@@ -52,15 +61,16 @@ class CustomerCreditService:
             return None
 
         return {
-            "id":             row[0],
+            "id":             str(row[0]),
             "nombre":         row[1],
             "activo":         bool(row[2]),
-            "credit_limit":   float(row[3]),
-            "credit_balance": float(row[4]),
-            "puntos":         int(row[5]),
+            "allows_credit":  bool(row[3]),
+            "credit_limit":   float(row[4]),
+            "credit_balance": float(row[5]),
+            "puntos":         int(row[6]),
         }
 
-    def validate_credit(self, cliente_id: int, monto: float) -> Tuple[bool, str]:
+    def validate_credit(self, cliente_id: str, monto: float) -> Tuple[bool, str]:
         """
         Verifica si el cliente puede comprar a crédito por `monto`.
 
@@ -68,9 +78,19 @@ class CustomerCreditService:
             (True, "")              — aprobado
             (False, "motivo...")    — rechazado
         """
+        cliente_id = str(cliente_id or "").strip()
+        if not cliente_id:
+            return False, "Para vender a crédito debe seleccionar un cliente con crédito autorizado."
+
         customer = self.get_customer(cliente_id)
         if not customer:
-            return False, f"Cliente ID {cliente_id} no encontrado o inactivo."
+            return False, f"Cliente {cliente_id} no encontrado o inactivo."
+
+        if not customer["allows_credit"]:
+            return False, f"El cliente '{customer['nombre']}' no tiene crédito autorizado."
+
+        if customer["credit_limit"] <= 0:
+            return False, f"El cliente '{customer['nombre']}' no tiene límite de crédito configurado."
 
         disponible = customer["credit_limit"] - customer["credit_balance"]
         if disponible < monto:
@@ -83,28 +103,43 @@ class CustomerCreditService:
 
     def register_credit_sale(
         self,
-        cliente_id: int,
-        sale_id: int,
+        cliente_id: str,
+        sale_id: str,
         folio: str,
         monto: float,
-        sucursal_id: int = 1,
+        sucursal_id: str,
     ) -> None:
         """
         Registra la deuda en cuentas_por_cobrar, actualiza credit_balance y asienta
         el ledger DENTRO de la misma transacción.
 
-        NOTA: Este método es llamado post-SAVEPOINT para compatibilidad con flujos legacy.
-        Para nuevas ventas a crédito procesadas vía SalesService, CreditSaleFinanceHandler
-        maneja todo dentro del SAVEPOINT de forma atómica.
+        Idempotente por venta_id: el índice único idx_cxc_venta_unica evita
+        duplicar la CxC al reintentar el evento (INSERT OR IGNORE).
+        Si falla la CxC, la excepción se propaga y la venta debe abortar:
+        nunca se omite CxC en silencio.
         """
-        try:
-            self.db.execute(
-                """INSERT OR IGNORE INTO cuentas_por_cobrar
-                       (cliente_id, venta_id, folio, monto_original, saldo_pendiente,
-                        sucursal_id, estado)
-                   VALUES (?, ?, ?, ?, ?, ?, 'pendiente')""",
-                (cliente_id, sale_id, folio, monto, monto, sucursal_id),
+        cliente_id  = str(cliente_id or "").strip()
+        sale_id     = str(sale_id or "").strip()
+        sucursal_id = str(sucursal_id or "").strip()
+        if not cliente_id or not sale_id:
+            raise ValueError(
+                "register_credit_sale requiere cliente_id y venta_id UUID válidos."
             )
+        try:
+            cur = self.db.execute(
+                """INSERT OR IGNORE INTO cuentas_por_cobrar
+                       (id, cliente_id, venta_id, folio, monto_original,
+                        saldo_pendiente, sucursal_id, estado)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 'pendiente')""",
+                (new_uuid(), cliente_id, sale_id, folio, monto, monto, sucursal_id),
+            )
+            if getattr(cur, "rowcount", 1) == 0:
+                logger.info(
+                    "CxC ya registrada para venta=%s (idempotente) — sin cambios",
+                    sale_id,
+                )
+                return
+
             # Sync both canonical columns so service layer and legacy UI stay consistent
             self.db.execute(
                 "UPDATE clientes "
@@ -129,32 +164,10 @@ class CustomerCreditService:
                     metadata      = {"cliente_id": cliente_id, "folio": folio},
                 )
 
-            try:
-                self.db.commit()
-            except Exception:
-                pass
-
             logger.info(
-                "CxC registrada: cliente=%d venta=%d folio=%s monto=%.2f",
+                "CxC registrada: cliente=%s venta=%s folio=%s monto=%.2f",
                 cliente_id, sale_id, folio, monto,
             )
         except Exception as e:
             logger.error("register_credit_sale: %s", e)
-            try:
-                self.db.rollback()
-            except Exception:
-                pass
             raise
-
-    # ── Infraestructura ───────────────────────────────────────────────────────
-
-    def _ensure_cxc_table(self) -> None:
-        """Crea cuentas_por_cobrar si no existe (idempotente)."""
-        try:
-            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
-            try:
-                self.db.commit()
-            except Exception:
-                pass
-        except Exception as e:
-            logger.debug("_ensure_cxc_table: %s", e)
