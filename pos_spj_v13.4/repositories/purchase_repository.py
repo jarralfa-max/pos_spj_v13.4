@@ -14,6 +14,20 @@ class PurchaseRepository:
     def __init__(self, db_conn):
         self.db = db_conn
 
+    def ultimo_costo_unitario(self, producto_id: str) -> float:
+        """Último precio unitario comprado de un producto (hint de costo)."""
+        try:
+            row = self.db.execute(
+                "SELECT dd.precio_unitario "
+                "FROM detalles_compra dd JOIN compras c ON c.id = dd.compra_id "
+                "WHERE dd.producto_id = ? "
+                "ORDER BY c.fecha DESC, c.id DESC LIMIT 1",
+                (producto_id,),
+            ).fetchone()
+            return float(row[0] or 0) if row else 0.0
+        except Exception:
+            return 0.0
+
     def create_purchase(self, branch_id: int = 1, user: str = "Sistema",
                         provider_id: int = 0,
                         subtotal: float = 0, tax: float = 0,

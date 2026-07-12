@@ -7,7 +7,7 @@ import logging
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QStackedWidget,
                              QLabel, QDialog, QVBoxLayout, QLineEdit, QPushButton,
                              QMessageBox, QFrame, QSizePolicy)
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, pyqtSlot
 
 logger = logging.getLogger("spj.main_window")
 
@@ -286,6 +286,11 @@ class DialogoLogin(QDialog):
             " background: transparent;")
         btn_close = QPushButton("✕")
         btn_close.setFixedSize(24, 24)
+        # El ✕ NUNCA debe ser el botón por defecto: si lo fuera, pulsar Enter
+        # (p. ej. con el usuario escrito y sin contraseña) cerraría el diálogo
+        # y la app en vez de validar el login.
+        btn_close.setAutoDefault(False)
+        btn_close.setDefault(False)
         btn_close.setStyleSheet(
             "QPushButton { background: transparent; color: #475569;"
             " border: none; font-size: 13px; border-radius: 12px; }"
@@ -317,18 +322,17 @@ class DialogoLogin(QDialog):
             from PyQt5.QtGui import QPixmap as _QP
             import os
             _db = getattr(getattr(self.auth_service, 'repo', None), 'db', None)
+            _logo = ""
             if _db:
-                _r = _db.execute(
-                    "SELECT valor FROM configuraciones WHERE clave='logo_path'"
-                ).fetchone()
-                if _r and _r[0] and os.path.exists(_r[0]):
-                    _pix = _QP(_r[0])
-                    if not _pix.isNull():
-                        _scaled = _pix.scaled(
-                            64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                        self.lbl_logo.setPixmap(_scaled)
-                    else:
-                        raise Exception()
+                # Lectura vía repositorio (sin SQL en el diálogo — Remediación D).
+                from repositories.config_repository import ConfigRepository
+                _logo = ConfigRepository(_db).get_setting('logo_path', '')
+            if _logo and os.path.exists(_logo):
+                _pix = _QP(_logo)
+                if not _pix.isNull():
+                    _scaled = _pix.scaled(
+                        64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    self.lbl_logo.setPixmap(_scaled)
                 else:
                     raise Exception()
             else:
@@ -419,6 +423,7 @@ class DialogoLogin(QDialog):
         self.txt_usuario.setObjectName("inputField")
         self.txt_usuario.setMinimumHeight(42)
         self.txt_usuario.setStyleSheet(_input_qss)
+        self.txt_usuario.returnPressed.connect(self.intentar_login)
         layout.addWidget(self.txt_usuario)
         layout.addSpacing(12)
 
@@ -457,6 +462,10 @@ class DialogoLogin(QDialog):
             "QPushButton:pressed { background: #1e40af; }"
             "QPushButton:disabled { background: #1e293b; color: #475569; }"
         )
+        # ENTRAR es la acción por defecto: pulsar Enter siempre valida el login
+        # (mostrando el error si falta usuario o contraseña), nunca cierra la app.
+        self.btn_login.setAutoDefault(True)
+        self.btn_login.setDefault(True)
         self.btn_login.clicked.connect(self.intentar_login)
         layout.addWidget(self.btn_login)
 
@@ -731,6 +740,15 @@ class MainWindow(QMainWindow):
 
     # ── Login ─────────────────────────────────────────────────────────────────
     def mostrar_login(self):
+        """Muestra el login modal.
+
+        Las credenciales inválidas NO cierran la app: el diálogo permanece
+        abierto mostrando el error inline ("Usuario o contraseña incorrectos.")
+        y permite reintentar. Si el usuario CIERRA el diálogo (Escape/✕) sin
+        autenticar, el login es obligatorio, así que la app se cierra de forma
+        limpia — sin diálogos extra de confirmación.
+        """
+        from PyQt5.QtWidgets import QApplication
         self.hide()
         dlg = DialogoLogin(self.container.auth_service, self)
         if dlg.exec_() == QDialog.Accepted:
@@ -743,8 +761,13 @@ class MainWindow(QMainWindow):
             self._propagar_usuario()
             self.stack.setCurrentIndex(self.indices_pantallas["BIENVENIDA"])
             self.show()
-        else:
-            self.stack.setCurrentIndex(self.indices_pantallas.get('BIENVENIDA', 0))
+            return
+
+        # Login cancelado: salida limpia y explícita (login obligatorio).
+        self.usuario_actual = None
+        app = QApplication.instance()
+        if app:
+            app.quit()
 
     def _propagar_usuario(self):
         """Notifica a todos los módulos cargados el usuario y sucursal actual."""
@@ -784,11 +807,8 @@ class MainWindow(QMainWindow):
         sucursal_id = str(sucursal_id or "")
         if sucursal_id and not nombre_suc:
             try:
-                _row_n = self.container.db.execute(
-                    "SELECT nombre FROM sucursales WHERE id=?", (sucursal_id,)
-                ).fetchone()
-                if _row_n:
-                    nombre_suc = str(_row_n[0] or "")
+                from repositories.main_window_repository import MainWindowReadRepository
+                nombre_suc = MainWindowReadRepository(self.container.db).nombre_sucursal(sucursal_id)
             except Exception:
                 pass
         self.usuario_actual["sucursal_id"] = sucursal_id
@@ -881,6 +901,13 @@ class MainWindow(QMainWindow):
         # ── Session timeout: cierra sesión por inactividad ────────────────────
         self._arrancar_session_timeout()
 
+        # ── Inbox POS + badges de pedidos: arrancan tras CADA login ──────────
+        # (Antes vivían al final de aplicar_sucursal_activa(), que solo corre
+        # al re-anclar la sucursal desde Configuración — tras un login normal
+        # el inbox y el timer de badges nunca arrancaban.)
+        QTimer.singleShot(800, self._mostrar_inbox_login)
+        QTimer.singleShot(500, self._start_badge_refresh)
+
     def aplicar_sucursal_activa(self, sucursal_id: str, nombre: str = "") -> None:
         """Propaga EN VIVO un cambio de sucursal activa a toda la sesión.
 
@@ -929,10 +956,6 @@ class MainWindow(QMainWindow):
             })
         except Exception as _e:
             import logging; logging.getLogger(__name__).debug("ACTIVE_BRANCH_CHANGED publish: %s", _e)
-
-        # ── Inbox POS: mostrar mensajes no leídos tras login ──────────────────
-        QTimer.singleShot(800, self._mostrar_inbox_login)
-        QTimer.singleShot(500, self._start_badge_refresh)
 
     def refresh_module_access(self) -> None:
         """Reaplica permisos del usuario activo sobre el menú lateral."""
@@ -1048,14 +1071,20 @@ class MainWindow(QMainWindow):
             usuario_id = self.usuario_actual.get('id') if self.usuario_actual else None
             if not usuario_id:
                 return
-            # Buscar empleado_id asociado al usuario
-            row = self.container.db.execute(
-                "SELECT id FROM personal WHERE activo=1 LIMIT 1"
-            ).fetchone()
-            if not row:
+            # Buscar el empleado vinculado AL USUARIO LOGUEADO. (El código
+            # anterior tomaba el primer empleado activo de la tabla, mostrando
+            # y marcando como leído el inbox de OTRO empleado.)
+            # Dos rutas de vínculo: personal.usuario_id (legacy) y
+            # usuarios.personal_id (canónica — la escribe
+            # SQLiteEmployeeIdentityRepository.link_user_to_employee).
+            from repositories.main_window_repository import MainWindowReadRepository
+            personal_id = MainWindowReadRepository(
+                self.container.db).personal_id_de_usuario(usuario_id)
+            if not personal_id:
+                # Usuario sin empleado vinculado: no hay inbox que mostrar.
                 return
             notifs = self.container.notification_service.get_inbox_empleado(
-                row[0], solo_no_leidos=True
+                personal_id, solo_no_leidos=True
             )
             if not notifs:
                 return
@@ -1134,8 +1163,16 @@ class MainWindow(QMainWindow):
             )
         except Exception:
             pass  # fallback silencioso si la ventana ya cerró
-    def _on_pedido_nuevo(self, pedido: dict) -> None:
-        """Actualiza el badge y muestra notificación cuando llega pedido WA."""
+    @pyqtSlot()
+    @pyqtSlot(dict)
+    def _on_pedido_nuevo(self, pedido: dict = None) -> None:
+        """Actualiza el badge y muestra notificación cuando llega pedido WA.
+
+        Decorado con @pyqtSlot para que QMetaObject.invokeMethod (usado por
+        _on_pedido_nuevo_bus desde el hilo del EventBus) lo encuentre: sin el
+        decorador la invocación fallaba en silencio y el badge solo se
+        actualizaba por el polling de 7s/30s.
+        """
         try:
             self._refresh_order_badges()
         except Exception:
@@ -1362,32 +1399,22 @@ class MainWindow(QMainWindow):
             lst.clear()
             if len(texto) < 2: return
             try:
+                from repositories.main_window_repository import MainWindowReadRepository
+                repo = MainWindowReadRepository(db)
                 # Productos
-                rows = db.execute(
-                    "SELECT nombre, precio, existencia FROM productos "
-                    "WHERE (nombre LIKE ? OR codigo LIKE ?) AND activo=1 LIMIT 8",
-                    (f"%{texto}%", f"%{texto}%")
-                ).fetchall()
+                rows = repo.buscar_productos(texto)
                 for r in rows:
                     it = QListWidgetItem(f"📦 {r[0]}  —  ${float(r[1]):.2f}  |  stock: {float(r[2]):.1f}")
                     it.setData(Qt.UserRole, ("PRODUCTOS", None))
                     lst.addItem(it)
                 # Clientes
-                rows2 = db.execute(
-                    "SELECT nombre, COALESCE(apellido,''), COALESCE(telefono,'') "
-                    "FROM clientes WHERE nombre LIKE ? LIMIT 5",
-                    (f"%{texto}%",)
-                ).fetchall()
+                rows2 = repo.buscar_clientes(texto)
                 for r in rows2:
                     it = QListWidgetItem(f"👤 {r[0]} {r[1]}  —  {r[2]}")
                     it.setData(Qt.UserRole, ("CLIENTES", None))
                     lst.addItem(it)
                 # Ventas por folio
-                rows3 = db.execute(
-                    "SELECT folio, total, fecha FROM ventas "
-                    "WHERE folio LIKE ? ORDER BY fecha DESC LIMIT 4",
-                    (f"%{texto}%",)
-                ).fetchall()
+                rows3 = repo.buscar_ventas_por_folio(texto)
                 for r in rows3:
                     it = QListWidgetItem(f"🧾 Folio {r[0]}  —  ${float(r[1]):.2f}")
                     it.setData(Qt.UserRole, ("POS", None))
@@ -1415,14 +1442,10 @@ class MainWindow(QMainWindow):
     def _cargar_logo_empresa(self) -> None:
         """Carga el logo de la empresa desde BD y lo aplica en sidebar y titlebar."""
         try:
-            row = self.container.db.execute(
-                "SELECT valor FROM configuraciones WHERE clave='logo_path'"
-            ).fetchone()
-            logo_path = row[0] if row and row[0] else ""
-            nombre_row = self.container.db.execute(
-                "SELECT valor FROM configuraciones WHERE clave='nombre_empresa'"
-            ).fetchone()
-            nombre = nombre_row[0] if nombre_row and nombre_row[0] else "SPJ POS"
+            from repositories.config_repository import ConfigRepository
+            _cfg = ConfigRepository(self.container.db)
+            logo_path = _cfg.get_setting("logo_path", "") or ""
+            nombre = _cfg.get_setting("nombre_empresa", "") or "SPJ POS"
             if hasattr(self, 'menu') and hasattr(self.menu, 'actualizar_logo'):
                 self.menu.actualizar_logo(logo_path, nombre)
             self.setWindowTitle(f"{nombre} — ERP SPJ POS v13.4")
@@ -1442,10 +1465,9 @@ class MainWindow(QMainWindow):
             from modulos.spj_styles import apply_global_theme
             apply_global_theme(self.container.db)
             # Sync menu toggle
-            row = self.container.db.execute(
-                "SELECT valor FROM configuraciones WHERE clave='tema'"
-            ).fetchone()
-            is_dark = row and row[0] and 'dark' in str(row[0]).lower()
+            from repositories.config_repository import ConfigRepository
+            _tema = ConfigRepository(self.container.db).get_setting("tema", "")
+            is_dark = bool(_tema) and 'dark' in str(_tema).lower()
             if hasattr(self, '_action_dark'):
                 self._action_dark.setChecked(is_dark)
             if hasattr(self, "menu") and hasattr(self.menu, "enforce_dark_mode"):

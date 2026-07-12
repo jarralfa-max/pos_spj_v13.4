@@ -44,6 +44,14 @@ class ExportService:
         sql+=" GROUP BY v.id ORDER BY v.fecha DESC"
         return self.export(sql,tuple(params),fmt,title="Ventas")
 
+    def export_ventas_hoy_pdf(self, filepath:str) -> ExportResult:
+        """Fallback simple del dashboard BI: ventas del día actual a PDF."""
+        return self.export(
+            "SELECT folio, total, fecha FROM ventas "
+            "WHERE DATE(fecha)=DATE('now') ORDER BY fecha DESC LIMIT 500",
+            (), fmt="pdf", filepath=filepath, title="Ventas del día",
+        )
+
     def export_inventario(self, fmt:str="xlsx") -> ExportResult:
         return self.export(
             "SELECT id,nombre,existencia,stock_minimo,precio,COALESCE(precio_compra,0) as costo,unidad,categoria FROM productos WHERE activo=1 ORDER BY nombre",

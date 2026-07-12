@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from modulos.growth_engine import GrowthEngine
+from core.services.growth_engine import GrowthEngine
 
 
 @pytest.fixture

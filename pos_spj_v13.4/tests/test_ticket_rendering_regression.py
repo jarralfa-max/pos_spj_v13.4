@@ -112,9 +112,11 @@ def test_transparent_logo_background_becomes_white():
     b64 = base64.b64encode(buf.getvalue()).decode()
     out = TicketESCPOSRenderer()._render_logo(b64, "md")
     assert out is not None
-    # Raster header is 8 bytes; one black pixel should not turn whole transparent background black.
+    # Raster header is 8 bytes. Polaridad ESC/POS GS v0: bit 1 = punto negro impreso.
+    # El fondo transparente (→ blanco) NO debe imprimirse: bytes 0x00 mayoritarios;
+    # sólo el pixel negro enciende bits. (Antes se enviaba invertido → fondo negro.)
     payload = out[8:]
-    assert payload.count(b"\xff") > payload.count(b"\x00")
+    assert payload.count(b"\x00") > payload.count(b"\xff")
 
 
 def test_logo_data_uri_transparent_background_becomes_white():
@@ -126,7 +128,8 @@ def test_logo_data_uri_transparent_background_becomes_white():
     out = TicketESCPOSRenderer()._render_logo(data_uri, "md")
 
     assert out is not None
-    assert out[8:] == bytes([0b01111111])
+    # Pixel 0 negro → bit 1 (imprime, MSB); fondo blanco → bits 0. Polaridad correcta.
+    assert out[8:] == bytes([0b10000000])
 
 
 def test_logo_partial_alpha_antialias_does_not_create_black_background():
@@ -138,7 +141,9 @@ def test_logo_partial_alpha_antialias_does_not_create_black_background():
     out = TicketESCPOSRenderer()._render_logo(base64.b64encode(buf.getvalue()).decode(), "md")
 
     assert out is not None
-    assert out[8:] == bytes([0b01111111])
+    # Pixel 0 negro → bit 1; pixel 1 (alfa 64, casi transparente → blanco) y el resto
+    # del fondo → bits 0. El antialias no debe crear fondo negro.
+    assert out[8:] == bytes([0b10000000])
 
 
 def test_logo_alpha_diagnostic_enabled_by_layout_config(tmp_path, monkeypatch):

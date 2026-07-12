@@ -36,9 +36,10 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 BASELINE: dict[str, dict[str, int]] = {
     "modulos/delivery.py": {
         # Identity casts + branch defaults removed (Fase A). The residual
-        # sql_select prose match was removed (1->0); the sql_update matches are
-        # comments/prose, not executable SQL.
-        "sql_update": 2,
+        # sql_select prose match was removed (1->0). Remediación F: las 2
+        # docstrings "Update KPI/Update contextual header" que activaban
+        # sql_update fueron reescritas ("Refresca…") → sql_update 2->0.
+        # No queda SQL/prose que active los patrones.
     },
 }
 

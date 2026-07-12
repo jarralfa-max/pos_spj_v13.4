@@ -798,7 +798,8 @@ def _create_ventas(conn):
             estado           TEXT DEFAULT 'pendiente',
             error_msg        TEXT,
             qr_url           TEXT,
-            fecha_emision    DATETIME DEFAULT (datetime('now'))
+            fecha_emision    DATETIME DEFAULT (datetime('now')),
+            fecha_timbrado   DATETIME
         )
     """)
     conn.execute("""

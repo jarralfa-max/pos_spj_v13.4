@@ -66,7 +66,10 @@ class HealthHandler(BaseHTTPRequestHandler):
         from core.db.connection import get_connection
         try:
             conn  = get_connection()
-            turno = conn.execute("SELECT 1 FROM turno_actual WHERE abierto=1 LIMIT 1").fetchone()
+            # D1 2d: modelo canónico `turnos_caja` (antes `turno_actual`, tracker
+            # legacy vacío en prod → el readiness reportaba 503 permanentemente).
+            turno = conn.execute(
+                "SELECT 1 FROM turnos_caja WHERE estado='abierto' LIMIT 1").fetchone()
             ventas = conn.execute(
                 "SELECT COUNT(*) FROM ventas WHERE DATE(fecha)=DATE('now')").fetchone()[0]
             self._json(200 if turno else 503, {

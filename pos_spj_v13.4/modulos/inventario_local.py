@@ -618,6 +618,13 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
             self._init_refresh(container, [
                 "VENTA_COMPLETADA", "PRODUCTO_ACTUALIZADO", "PRODUCTO_CREADO",
                 "PRODUCTO_ELIMINADO", "AJUSTE_INVENTARIO", "COMPRA_REGISTRADA",
+                # B16: INVENTARIO_ACTUALIZADO es el evento canónico que publican
+                # TODOS los escritores de stock (unified_inventory_service,
+                # producción). Sin él, inventario no se refrescaba tras producción
+                # ni tras movimientos del unified service. Se añaden también los
+                # cierres de producción, traspaso y merma que alteran stock.
+                "INVENTARIO_ACTUALIZADO", "PRODUCCION_REGISTRADA",
+                "PRODUCCION_COMPLETADA", "TRASPASO_CONFIRMADO", "MERMA_REGISTRADA",
                 PRODUCT_CREATED, PRODUCT_UPDATED, PRODUCT_DEACTIVATED,
                 PRODUCTS_CHANGED,
             ])

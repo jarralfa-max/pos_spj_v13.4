@@ -319,9 +319,8 @@ class ModuloCotizaciones(ModuloBase):
         ):
             return
         try:
-            self.conexion.execute(
-                "UPDATE cotizaciones SET estado='aprobada' WHERE id=?", (cid,))
-            self.conexion.commit()
+            from core.services.cotizacion_service import CotizacionService
+            CotizacionService(self.conexion).aprobar(cid)
             try:
                 get_bus().publish("COTIZACION_ACTUALIZADA", {"event_type": "COTIZACION_ACTUALIZADA"})
             except Exception: pass
@@ -342,9 +341,8 @@ class ModuloCotizaciones(ModuloBase):
         ):
             return
         try:
-            self.conexion.execute(
-                "UPDATE cotizaciones SET estado='rechazada' WHERE id=?", (cid,))
-            self.conexion.commit()
+            from core.services.cotizacion_service import CotizacionService
+            CotizacionService(self.conexion).rechazar(cid)
             self._cargar_lista()
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
@@ -382,11 +380,10 @@ class ModuloCotizaciones(ModuloBase):
         if not cid:
             return
         try:
-            row = self.conexion.execute(
-                "SELECT * FROM cotizaciones WHERE id=?", (cid,)).fetchone()
-            items = self.conexion.execute(
-                "SELECT * FROM cotizaciones_detalle WHERE cotizacion_id=?", (cid,)
-            ).fetchall()
+            from core.services.cotizacion_service import CotizacionService
+            _svc = CotizacionService(self.conexion)
+            row = _svc.obtener(cid)
+            items = _svc.obtener_detalle(cid)
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e)); return
         dlg = DialogoDetalleCotizacion(dict(row), [dict(i) for i in items], parent=self)
@@ -423,26 +420,20 @@ class ModuloCotizaciones(ModuloBase):
             it = self.tabla_cotizaciones.item(row, 0)
             if not it: return
             cot_id = it.data(Qt.UserRole) or it.text()
-            sql = ("SELECT c.folio,c.total,c.fecha_vencimiento,cl.nombre,cl.telefono "
-                   "FROM cotizaciones c LEFT JOIN clientes cl ON cl.id=c.cliente_id "
-                   "WHERE c.id=? OR c.folio=?")
-            rd = self.container.db.execute(sql,(cot_id,str(cot_id))).fetchone()
+            from core.services.cotizacion_service import CotizacionService
+            _svc = CotizacionService(self.container.db)
+            rd = _svc.obtener_para_whatsapp(cot_id)
             if not rd: QMessageBox.warning(self,"","Cotizacion no encontrada."); return
             folio,total,venc,nombre_cli,telefono = rd
             if not telefono:
                 QMessageBox.warning(self,"Sin telefono",
                     f"El cliente '{nombre_cli}' no tiene telefono."); return
-            items = self.container.db.execute(
-                "SELECT nombre,cantidad,precio_unitario,subtotal "
-                "FROM cotizaciones_detalle WHERE cotizacion_id=?",
-                (cot_id,)).fetchall()
+            items = _svc.obtener_detalle_whatsapp(cot_id)
             detalle = "\n".join(
                 f"• {r[0]} {float(r[1]):.1f}kg x ${float(r[2]):.2f} = ${float(r[3]):.2f}"
                 for r in items)
             try:
-                nr = self.container.db.execute(
-                    "SELECT valor FROM configuraciones WHERE clave='nombre_empresa'"
-                ).fetchone()
+                nr = _svc.obtener_nombre_empresa()
                 neg = nr[0] if nr else "SPJ"
             except Exception: neg = "SPJ"
             msg = (f"Hola {nombre_cli or 'cliente'}, aqui tu cotizacion de {neg}:\n\n"
@@ -458,11 +449,10 @@ class ModuloCotizaciones(ModuloBase):
             QMessageBox.critical(self,"Error",str(e))
 
     def _generar_pdf_cotizacion(self, cid: int, ruta: str) -> None:
-        row   = self.conexion.execute(
-            "SELECT * FROM cotizaciones WHERE id=?", (cid,)).fetchone()
-        items = self.conexion.execute(
-            "SELECT * FROM cotizaciones_detalle WHERE cotizacion_id=?", (cid,)
-        ).fetchall()
+        from core.services.cotizacion_service import CotizacionService
+        _svc = CotizacionService(self.conexion)
+        row   = _svc.obtener(cid)
+        items = _svc.obtener_detalle(cid)
         row = dict(row); items = [dict(i) for i in items]
         try:
             from reportlab.lib.pagesizes import A4
@@ -532,7 +522,9 @@ class DialogoNuevaCotizacion(QDialog):
 
     def __init__(self, db, usuario: str, modulo, parent=None):
         super().__init__(parent)
+        from core.services.cotizacion_service import CotizacionService
         self._db     = db
+        self._cot_svc = CotizacionService(db)
         self._usuario = usuario
         self._modulo  = modulo
         self._items: List[Dict] = []
@@ -606,9 +598,7 @@ class DialogoNuevaCotizacion(QDialog):
         self._cmb_prod.clear()
         self._cmb_prod.addItem("— Seleccionar producto —", None)
         try:
-            rows = self._db.execute(
-                "SELECT id, nombre, precio, unidad FROM productos WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
+            rows = self._cot_svc.productos_activos()
             for r in rows:
                 self._cmb_prod.addItem(f"{r[1]} (${float(r[2]):.2f}/{r[3] or 'kg'})", r[0])
                 self._cmb_prod.setItemData(self._cmb_prod.count()-1, {

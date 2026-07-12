@@ -5,53 +5,62 @@ the existing count and fail when a file introduces additional violations or a
 new file starts violating a rule. Counts may be reduced as debt is removed.
 """
 
+# Ratchet (Remediación F): contadores APRETADOS a la realidad actual. El total
+# bajó de 371 a 187 tras las extracciones de fases previas + Remediación D
+# (diálogos captura-only). test_sql_in_ui_ratchet exige igualdad exacta: agregar
+# SQL en UI falla, y remover SQL obliga a bajar el contador aquí (sólo decrece).
+# Módulos ya en 0 (retirados): finanzas_unificadas, productos, inventario_local,
+# transferencias.
 SQL_IN_UI_ALLOWLIST = {
-    'pos_spj_v13.4/interfaz/main_window.py': 10,
-    'pos_spj_v13.4/modulos/activos.py': 19,
+    # main_window.py: SQL del shell → repositorios (Remediación F): reads de
+    # sucursal/empleado/búsqueda global → MainWindowReadRepository; config
+    # (logo/nombre/tema) → ConfigRepository.get_setting.
+    # activos.py: SQL 100% extraído a AssetService (Remediación F) — lecturas de
+    # tabla/depreciación/mantenimientos, bajas, borrados y la depreciación mensual.
     'pos_spj_v13.4/modulos/base.py': 3,
-    'pos_spj_v13.4/modulos/clientes.py': 16,
-    'pos_spj_v13.4/modulos/compras/actions_bar.py': 1,
-    'pos_spj_v13.4/modulos/compras_pro.py': 58,
-    # CONFIGURACION FASE 1: config_modules.py and configuracion.py have 0 SQL in UI.
-    'pos_spj_v13.4/modulos/cotizaciones.py': 10,
-    'pos_spj_v13.4/modulos/delivery.py': 37,
-    'pos_spj_v13.4/modulos/etiquetas.py': 4,
-    'pos_spj_v13.4/modulos/finanzas_unificadas.py': 20,
-    'pos_spj_v13.4/modulos/growth_engine.py': 33,
-    'pos_spj_v13.4/modulos/inventario_local.py': 7,
-    'pos_spj_v13.4/modulos/loyalty_card_designer.py': 12,
-    'pos_spj_v13.4/modulos/planeacion_compras.py': 2,
-    'pos_spj_v13.4/modulos/productos.py': 29,
-    'pos_spj_v13.4/modulos/recepcion_qr_widget.py': 29,
-    'pos_spj_v13.4/modulos/reportes_bi_v2.py': 3,
-    'pos_spj_v13.4/modulos/rrhh.py': 20,
-    'pos_spj_v13.4/modulos/rrhh_turnos.py': 18,
+    # clientes.py: 0 SQL real; el `d.update(` de dict → asignaciones de item (Rem. F).
+    # compras/actions_bar.py: 0 SQL real; docstring "Update" → reescrito.
+    # compras_pro.py: sin SQL real (delega 100% a use cases); los 7 antiguos eran
+    # falsos positivos de SQL_RE sobre docstrings ("Update"/"select") — reescritos.
+    # cotizaciones.py: SQL 100% extraído a CotizacionService (Remediación F).
+    # delivery.py: 0 SQL real; 2 docstrings "Update" → reescritos.
+    # etiquetas.py: SQL extraído a ProductoRepository/ConfigService/HardwareConfigRepository;
+    # el `.update(` de dict restante → bucle de asignación (Remediación F).
+    # loyalty_card_designer.py: SQL extraído a LoyaltyCardDesignerService; los 3
+    # `.update(` de dicts → asignaciones de item (Remediación F).
+    # planeacion_compras.py: SQL → ProductoRepository.listar_activos_combo +
+    # PurchaseRepository.ultimo_costo_unitario (Remediación F).
+    # recepcion_qr_widget.py: SQL 100% extraído a RecepcionQRService (Remediación F).
+    # reportes_bi_v2.py: KPIs → BIRepository.get_kpis_dia; fallback PDF →
+    # ExportService.export_ventas_hoy_pdf (Remediación F).
+    # rrhh.py: SQL 100% extraído a RRHHCatalogService (Remediación F).
+    # rrhh_turnos.py: SQL 100% extraído a RRHHTurnosService (Remediación F).
     'pos_spj_v13.4/modulos/sistema/backup_engine.py': 2,
-    'pos_spj_v13.4/modulos/sistema/health_monitor.py': 4,
-    'pos_spj_v13.4/modulos/spj_product_search.py': 2,
+    # health_monitor.py: SQL de diagnóstico → SystemHealthRepository (Remediación F):
+    # ping, error_count_24h, pending_sync_count, recent_errors.
     'pos_spj_v13.4/modulos/spj_styles.py': 2,
-    'pos_spj_v13.4/modulos/ticket_designer.py': 6,
-    'pos_spj_v13.4/modulos/transferencias.py': 5,
-    'pos_spj_v13.4/modulos/ventas.py': 17,
-    'pos_spj_v13.4/presentation/sales/dialogs/payment_dialog.py': 2,
+    # ticket_designer.py: SQL de configuraciones extraído a ConfigService (Remediación F).
+    # ventas.py: sin SQL real (delega a use cases); el `payload.update(` restante →
+    # asignaciones de item (Remediación F).
+    # payment_dialog.py: 0 SQL real; los 2 antiguos eran falsos positivos de
+    # SQL_RE (docstring "select all" + payload.update() de dict) — reescritos.
 }
 
 COMMIT_ROLLBACK_IN_UI_ALLOWLIST = {
-    'pos_spj_v13.4/modulos/activos.py': 7,
+    # activos.py: commit()/rollback() movidos a AssetService (Remediación F).
     'pos_spj_v13.4/modulos/base.py': 4,
     'pos_spj_v13.4/modulos/clientes.py': 5,
     'pos_spj_v13.4/modulos/compras_pro.py': 5,
     # CONFIGURACION FASE 1: config_hardware.py, config_modules.py and
     # configuracion.py no longer call commit()/rollback() in the UI.
-    'pos_spj_v13.4/modulos/cotizaciones.py': 2,
+    # cotizaciones.py: commit() movido a CotizacionService (Remediación F).
     'pos_spj_v13.4/modulos/delivery.py': 3,
-    'pos_spj_v13.4/modulos/growth_engine.py': 12,
-    'pos_spj_v13.4/modulos/loyalty_card_designer.py': 8,
+    # loyalty_card_designer.py: commit() movido a LoyaltyCardDesignerService (Remediación F).
     'pos_spj_v13.4/modulos/productos.py': 9,
-    'pos_spj_v13.4/modulos/recepcion_qr_widget.py': 4,
-    'pos_spj_v13.4/modulos/rrhh.py': 9,
-    'pos_spj_v13.4/modulos/rrhh_turnos.py': 7,
-    'pos_spj_v13.4/modulos/ticket_designer.py': 1,
+    # recepcion_qr_widget.py: commit() movido a RecepcionQRService (Remediación F).
+    # rrhh.py: commit()/rollback() movidos a RRHHCatalogService/repositorios (Remediación F).
+    # rrhh_turnos.py: commit() movido a RRHHTurnosService (Remediación F).
+    # ticket_designer.py: commit() eliminado (ConfigService persiste; Remediación F).
     'pos_spj_v13.4/modulos/transferencias.py': 2,
     'pos_spj_v13.4/modulos/ventas.py': 2,
 }
@@ -101,7 +110,7 @@ SCHEMA_CHANGES_OUTSIDE_MIGRATIONS_ALLOWLIST = {
     'pos_spj_v13.4/modulos/activos.py': 2,
     'pos_spj_v13.4/modulos/compras_pro.py': 9,
     'pos_spj_v13.4/modulos/configuracion.py': 1,
-    'pos_spj_v13.4/modulos/growth_engine.py': 5,
+    'pos_spj_v13.4/core/services/growth_engine.py': 5,
     'pos_spj_v13.4/modulos/loyalty_card_designer.py': 3,
     'pos_spj_v13.4/modulos/productos.py': 1,
     'pos_spj_v13.4/modulos/rrhh_turnos.py': 3,
@@ -347,4 +356,15 @@ APPCONTAINER_PASSED_TO_SERVICES_ALLOWLIST = {
 
 DEPRECATED_SERVICES_WITH_BUSINESS_LOGIC_ALLOWLIST = {
     'pos_spj_v13.4/core/delivery/application/legacy_event_bridge.py': 1,
+}
+
+# Remediación D — Diálogos que aún ejecutan lógica de persistencia/publicación.
+# Contrato objetivo: un QDialog SOLO captura → DTO/Command; el módulo delega en
+# un servicio. Cada entrada es "path::Clase" con las llamadas prohibidas que aún
+# contiene. Este allowlist es un RATCHET: no se admiten entradas nuevas y, cuando
+# un diálogo se limpia, su entrada DEBE retirarse (el test falla si queda obsoleta).
+# Referencia: DEEP_AUDIT_ALL_MODULES §8 y §17 (Remediación D), test T8.
+DIALOG_BUSINESS_LOGIC_ALLOWLIST = {
+    # Vacío: ningún QDialog en modulos/, ui/ o interfaz/ ejecuta SQL/commit/
+    # publish/asiento. El contrato queda enforced sin deuda tolerada.
 }

@@ -103,6 +103,7 @@ class DecisionEngine:
             return []
 
         sugs: List[Suggestion] = []
+        sugs.extend(self._suggest_ventas_insights(sucursal_id))
         sugs.extend(self._suggest_pricing(sucursal_id))
         sugs.extend(self._suggest_purchasing(sucursal_id))
         sugs.extend(self._suggest_transfers())
@@ -118,7 +119,7 @@ class DecisionEngine:
         # Persistir en log y publicar urgentes al EventBus
         import json
         for s in sugs:
-            self._persist(s)
+            self._persist(s, sucursal_id)
             if s.prioridad in ("urgente", "alta") and self._bus:
                 try:
                     from core.events.event_bus import DECISION_URGENTE
@@ -139,22 +140,115 @@ class DecisionEngine:
                     sum(1 for s in sugs if s.prioridad in ("urgente", "alta")))
         return result
 
-    def _persist(self, s: "Suggestion") -> None:
+    def _persist(self, s: "Suggestion", sucursal_id="") -> None:
         import json
+        from backend.shared.ids import new_uuid
         try:
             self.db.execute(
                 "INSERT INTO decision_log "
-                "(tipo, prioridad, titulo, detalle, impacto_estimado, accion_json) "
-                "VALUES (?,?,?,?,?,?)",
-                (s.tipo, s.prioridad, s.titulo, s.detalle,
+                "(id, tipo, prioridad, titulo, detalle, impacto_est, accion, sucursal_id) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (new_uuid(), s.tipo, s.prioridad, s.titulo, s.detalle,
                  s.impacto_estimado,
-                 json.dumps(s.accion_propuesta or {}, default=str)))
+                 json.dumps(s.accion_propuesta or {}, default=str),
+                 str(sucursal_id or "")))
             try:
                 self.db.commit()
             except Exception:
                 pass
         except Exception:
             pass
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  INSIGHTS DE VENTAS — siempre disponibles (no dependen de costos)
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _suggest_ventas_insights(self, suc_id: int = 0) -> List[Suggestion]:
+        """Insights derivados sólo de ventas/inventario (datos siempre presentes).
+
+        Garantiza que el panel muestre información accionable aunque los productos
+        no tengan costos capturados: sucursal líder, categoría líder y reabasto.
+        """
+        sugs: List[Suggestion] = []
+
+        # Sucursal con mayor venta del mes
+        try:
+            r = self.db.execute("""
+                SELECT COALESCE(s.nombre, '(sin sucursal)') AS nombre,
+                       COALESCE(SUM(v.total), 0) AS tot
+                FROM ventas v
+                LEFT JOIN sucursales s ON s.id = v.sucursal_id
+                WHERE v.estado='completada'
+                  AND v.fecha > datetime('now','-30 days')
+                GROUP BY v.sucursal_id
+                ORDER BY tot DESC LIMIT 1
+            """).fetchone()
+            if r and float(r[1] or 0) > 0:
+                sugs.append(Suggestion(
+                    tipo="ventas", prioridad="baja",
+                    titulo=f"Mayor venta en sucursal {r[0]}",
+                    detalle=f"Lidera las ventas del mes con ${float(r[1]):,.2f}.",
+                    impacto_estimado="Replicar sus buenas prácticas en otras sucursales.",
+                    accion_propuesta={"tipo": "benchmark_sucursal"}))
+        except Exception:
+            pass
+
+        # Categoría líder por ingresos
+        try:
+            r = self.db.execute("""
+                SELECT COALESCE(NULLIF(p.categoria,''), '(sin categoría)') AS cat,
+                       COALESCE(SUM(dv.subtotal), 0) AS ing
+                FROM detalles_venta dv
+                JOIN ventas v ON v.id = dv.venta_id
+                JOIN productos p ON p.id = dv.producto_id
+                WHERE v.estado='completada'
+                  AND v.fecha > datetime('now','-30 days')
+                GROUP BY cat ORDER BY ing DESC LIMIT 1
+            """).fetchone()
+            if r and float(r[1] or 0) > 0:
+                sugs.append(Suggestion(
+                    tipo="ventas", prioridad="baja",
+                    titulo=f"Oportunidad en categoría {r[0]}",
+                    detalle=f"Categoría líder con ${float(r[1]):,.2f} en ventas del mes.",
+                    impacto_estimado="Ampliar surtido y promociones en esta categoría.",
+                    accion_propuesta={"tipo": "impulsar_categoria"}))
+        except Exception:
+            pass
+
+        # Producto a reabastecer (menor cobertura en días)
+        try:
+            rows = self.db.execute("""
+                SELECT p.nombre, p.existencia, p.unidad,
+                       COALESCE((
+                           SELECT AVG(dv.cantidad) FROM detalles_venta dv
+                           JOIN ventas v ON v.id=dv.venta_id
+                           WHERE dv.producto_id=p.id AND v.estado='completada'
+                             AND v.fecha > datetime('now','-14 days')
+                       ), 0) AS venta_dia
+                FROM productos p
+                WHERE p.activo=1
+            """).fetchall()
+            candidatos = []
+            for r in rows:
+                vd = float(r[3] or 0)
+                if vd <= 0:
+                    continue
+                dias = float(r[1] or 0) / vd
+                candidatos.append((dias, r[0], r[2] or "uds"))
+            candidatos.sort(key=lambda x: x[0])
+            if candidatos and candidatos[0][0] <= 5:
+                dias, nombre, unidad = candidatos[0]
+                sugs.append(Suggestion(
+                    tipo="purchasing",
+                    prioridad="urgente" if dias <= 2 else "alta",
+                    titulo=f"Reabastecer {nombre}",
+                    detalle=f"Sólo quedan ~{dias:.1f} días de stock al ritmo de venta actual.",
+                    impacto_estimado="Generar orden de compra para evitar quiebre de stock.",
+                    accion_propuesta={"tipo": "generar_orden_compra", "producto": nombre}))
+        except Exception:
+            pass
+
+        return sugs
 
     # ══════════════════════════════════════════════════════════════════════════
     #  PRICING — Ajuste de precios
@@ -165,11 +259,11 @@ class DecisionEngine:
         try:
             # Productos vendidos por debajo del costo
             rows = self.db.execute("""
-                SELECT p.nombre, p.precio, COALESCE(p.precio_compra, p.costo, 0) as costo,
+                SELECT p.nombre, p.precio, COALESCE(NULLIF(p.precio_compra,0), NULLIF(p.costo,0), NULLIF(p.costo_promedio,0), 0) as costo,
                        p.id
                 FROM productos p
-                WHERE p.activo=1 AND COALESCE(p.precio_compra, p.costo, 0) > 0
-                  AND p.precio < COALESCE(p.precio_compra, p.costo, 0) * 1.10
+                WHERE p.activo=1 AND COALESCE(NULLIF(p.precio_compra,0), NULLIF(p.costo,0), NULLIF(p.costo_promedio,0), 0) > 0
+                  AND p.precio < COALESCE(NULLIF(p.precio_compra,0), NULLIF(p.costo,0), NULLIF(p.costo_promedio,0), 0) * 1.10
             """).fetchall()
             for r in rows:
                 nombre, precio, costo = r[0], float(r[1]), float(r[2])
@@ -194,13 +288,13 @@ class DecisionEngine:
         # Top 5 productos más vendidos con margen < 15%
         try:
             rows = self.db.execute("""
-                SELECT p.nombre, p.precio, COALESCE(p.precio_compra,p.costo,0) as costo,
+                SELECT p.nombre, p.precio, COALESCE(NULLIF(p.precio_compra,0), NULLIF(p.costo,0), NULLIF(p.costo_promedio,0), 0) as costo,
                        SUM(dv.cantidad) as vendido, p.id
                 FROM detalles_venta dv
                 JOIN ventas v ON v.id=dv.venta_id
                 JOIN productos p ON p.id=dv.producto_id
                 WHERE v.estado='completada' AND v.fecha > datetime('now','-30 days')
-                  AND COALESCE(p.precio_compra,p.costo,0) > 0
+                  AND COALESCE(NULLIF(p.precio_compra,0), NULLIF(p.costo,0), NULLIF(p.costo_promedio,0), 0) > 0
                 GROUP BY p.id
                 HAVING ((p.precio - costo) / costo * 100) < 15
                 ORDER BY vendido DESC LIMIT 5
@@ -229,7 +323,7 @@ class DecisionEngine:
             # Productos con stock < 3 días de venta
             rows = self.db.execute("""
                 SELECT p.nombre, p.existencia, p.unidad, p.id,
-                       COALESCE(p.precio_compra, p.costo, 0) as costo,
+                       COALESCE(NULLIF(p.precio_compra,0), NULLIF(p.costo,0), NULLIF(p.costo_promedio,0), 0) as costo,
                        COALESCE((
                            SELECT AVG(dv.cantidad) FROM detalles_venta dv
                            JOIN ventas v ON v.id=dv.venta_id
@@ -456,7 +550,7 @@ class DecisionEngine:
         sugs = []
         try:
             # Ventas por empleado
-            empleados = self._q("SELECT COUNT(*) FROM empleados WHERE activo=1")
+            empleados = self._q("SELECT COUNT(*) FROM personal WHERE activo=1")
             ingresos = self._q(
                 "SELECT COALESCE(SUM(total),0) FROM ventas "
                 "WHERE estado='completada' AND fecha > datetime('now','-30 days')")

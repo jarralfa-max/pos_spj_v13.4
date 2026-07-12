@@ -18,7 +18,7 @@ from PyQt5.QtWidgets import (
     QCompleter, QDateEdit, QSpinBox, QDoubleSpinBox,
     QFileDialog
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QMetaObject, pyqtSlot
 from PyQt5.QtGui import QFont
 
 class ModuloReportesBIv2(QWidget):
@@ -58,11 +58,32 @@ class ModuloReportesBIv2(QWidget):
             subtitle="Dashboard ejecutivo de BI",
         )
 
-        # Período
-        self.cmb_rango = create_combo(self, ["Hoy", "Esta Semana", "Este Mes"])
-        self.cmb_rango.currentTextChanged.connect(self.cargar_dashboard)
+        # ── Filtros globales (afectan todo el dashboard, persisten en sesión) ──
+        self.cmb_rango = create_combo(
+            self, ["Hoy", "Ayer", "Esta Semana", "Este Mes", "Mes Pasado"])
+        self.cmb_rango.setCurrentText("Este Mes")
+        self.cmb_rango.currentTextChanged.connect(self._on_filters_changed)
         self.page_header.add_action(QLabel("Período:"))
         self.page_header.add_action(self.cmb_rango)
+
+        self.cmb_sucursal = create_combo(self, ["Todas"])
+        self.cmb_sucursal.currentIndexChanged.connect(self._on_filters_changed)
+        self.page_header.add_action(QLabel("Sucursal:"))
+        self.page_header.add_action(self.cmb_sucursal)
+
+        self.cmb_categoria = create_combo(self, ["Todas"])
+        self.cmb_categoria.currentIndexChanged.connect(self._on_filters_changed)
+        self.page_header.add_action(QLabel("Categoría:"))
+        self.page_header.add_action(self.cmb_categoria)
+
+        self.cmb_metodo = create_combo(self, ["Todos"])
+        self.cmb_metodo.currentIndexChanged.connect(self._on_filters_changed)
+        self.page_header.add_action(QLabel("Pago:"))
+        self.page_header.add_action(self.cmb_metodo)
+
+        self.btn_limpiar = create_secondary_button(self, "🧹 Limpiar", "Limpiar todos los filtros")
+        self.btn_limpiar.clicked.connect(self._limpiar_filtros)
+        self.page_header.add_action(self.btn_limpiar)
 
         # Refrescar
         self.btn_actualizar = create_secondary_button(self, "🔄 Refrescar", "Actualizar datos del dashboard")
@@ -80,8 +101,8 @@ class ModuloReportesBIv2(QWidget):
 
         layout_principal.addWidget(self.page_header)
 
-        # ── KPI cards con sparklines ──────────────────────────────────────────
-        layout_principal.addWidget(self._crear_kpi_bar_bi())
+        # Los KPIs viven en el Dashboard Visual (payload de BiDashboardService);
+        # se retiró la barra superior de 4 tarjetas para no duplicar información.
 
         self.loading_dashboard = QLabel("⏳ Cargando datos…")
         self.loading_dashboard.setAlignment(Qt.AlignCenter)
@@ -90,128 +111,27 @@ class ModuloReportesBIv2(QWidget):
 
         self.tabs_bi = QTabWidget()
         self.tabs_bi.setDocumentMode(True)
+        # Pestañas compactas (sólo icono): no expandir para que quepan todas y la
+        # pestaña de Dashboard quede siempre fija y visible sin scroll.
+        self.tabs_bi.tabBar().setExpanding(False)
+        self.tabs_bi.setUsesScrollButtons(False)
+        self.tabs_bi.setElideMode(Qt.ElideNone)
         layout_principal.addWidget(self.tabs_bi)
 
         self._build_tab_visual_dashboard()
         self._build_tab_rankings()
         self._build_tab_rentabilidad()
         self._build_tab_cajeros()
-        self._build_tab_forecast()
+        # Forecast: existe un módulo dedicado de forecast; se retira la pestaña aquí.
         self._build_tab_decision_engine()
         self._build_tab_franchise()
+        self._build_section_tabs()
+        self._build_reportes_tab()
+        self._build_config_tab()
 
-    def _crear_kpi_bar_bi(self) -> 'QFrame':
-        """Barra de 4 KPI cards con valores reales del período actual."""
-        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
-        from modulos.design_tokens import Colors as _C
-
-        bar = _F()
-        bar.setObjectName("biKpiBar")
-        bar.setFixedHeight(72)
-        bar.setStyleSheet("QFrame#biKpiBar{background:transparent;}")
-
-        lay = _H(bar)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(8)
-
-        kpis = [
-            ("Ventas del período", "—", _C.SUCCESS_BASE, "↑ cargando..."),
-            ("Ticket promedio", "—", _C.PRIMARY_BASE, ""),
-            ("Margen bruto", "—", _C.WARNING_BASE, ""),
-            ("Clientes únicos", "—", _C.ACCENT_BASE, "")
-        ]
-
-        try:
-            db = self.conexion if hasattr(self, 'conexion') else None
-            if db:
-                r = db.execute("""
-                    SELECT 
-                        COALESCE(SUM(total),0),
-                        COUNT(*),
-                        COUNT(DISTINCT cliente_id) 
-                    FROM ventas 
-                    WHERE DATE(fecha)=DATE('now') 
-                    AND estado='completada'
-                """).fetchone()
-
-                ventas = float(r[0] or 0)
-                tickets = int(r[1] or 1)
-                cli = int(r[2] or 0)
-
-                prom = ventas / tickets if tickets > 0 else 0
-
-                kpis[0] = ("Ventas del período", f"${ventas:,.0f}", _C.SUCCESS_BASE, "↑ hoy")
-                kpis[1] = ("Ticket promedio", f"${prom:,.0f}", _C.PRIMARY_BASE, "")
-                kpis[3] = ("Clientes únicos", str(cli), _C.ACCENT_BASE, "")
-
-                r2 = db.execute("""
-                    SELECT 
-                        COALESCE(SUM(vd.cantidad*vd.precio_unitario),0),
-                        COALESCE(SUM(vd.cantidad*COALESCE(p.precio_compra,0)),0)
-                    FROM ventas v
-                    JOIN detalles_venta vd ON vd.venta_id = v.id
-                    JOIN productos p ON p.id = vd.producto_id
-                    WHERE DATE(v.fecha)=DATE('now') 
-                    AND v.estado='completada'
-                """).fetchone()
-
-                ing = float(r2[0] or 0)
-                cos = float(r2[1] or 0)
-
-                mg = ((ing - cos) / ing * 100) if ing > 0 else 0
-
-                kpis[2] = (
-                    "Margen bruto",
-                    f"{mg:.1f}%",
-                    _C.SUCCESS_BASE if mg >= 25 else _C.WARNING_BASE,
-                    ""
-                )
-
-        except Exception:
-            pass
-
-        kpi_self_attrs = [
-            'lbl_kpi_ingresos', 'lbl_kpi_ticket',
-            'lbl_kpi_ventas', 'lbl_kpi_clientes',
-        ]
-
-        for attr, (lbl, val, col, sub) in zip(kpi_self_attrs, kpis):
-            card = _F()
-            card.setObjectName("biKpiCard")
-            card.setStyleSheet(
-                f"QFrame#biKpiCard{{background:#1E293B;border-radius:8px;"
-                f"border:1px solid #334155;border-top:3px solid {col};}}"
-            )
-
-            cl = _V(card)
-            cl.setContentsMargins(14, 8, 14, 8)
-            cl.setSpacing(2)
-
-            vl = _L(val)
-            vl.setStyleSheet(
-                f"color:{col};font-size:20px;font-weight:700;background:transparent;"
-            )
-
-            ll = _L(lbl.upper())
-            ll.setStyleSheet(
-                "color:#64748B;font-size:9px;font-weight:700;"
-                "letter-spacing:0.5px;background:transparent;"
-            )
-
-            cl.addWidget(vl)
-            cl.addWidget(ll)
-
-            if sub:
-                sl = _L(sub)
-                sl.setStyleSheet(
-                    f"color:{col};font-size:9px;background:transparent;"
-                )
-                cl.addWidget(sl)
-
-            lay.addWidget(card, 1)
-            setattr(self, attr, vl)
-
-        return bar
+        # Poblar filtros + lazy loading de secciones al cambiar de pestaña.
+        self._populate_filter_options()
+        self.tabs_bi.currentChanged.connect(self._on_tab_changed)
 
     def _crear_tab_contenedor(self):
         tab = QWidget()
@@ -220,9 +140,24 @@ class ModuloReportesBIv2(QWidget):
         layout.setSpacing(10)
         return tab, layout
 
+    def _add_tab(self, widget, icon: str, tooltip: str) -> int:
+        """Añade una pestaña compacta: sólo icono visible + tooltip con el nombre."""
+        idx = self.tabs_bi.addTab(widget, icon)
+        self.tabs_bi.setTabToolTip(idx, tooltip)
+        return idx
+
     def _build_tab_visual_dashboard(self):
         """Dashboard visual moderno con QWebEngineView + Apache ECharts."""
         tab, layout = self._crear_tab_contenedor()
+
+        # Fila de KPIs nativos (mismas KPICard que el módulo de Inventario).
+        self._kpi_cards = {}
+        self._kpi_row = QWidget()
+        self._kpi_grid = QGridLayout(self._kpi_row)
+        self._kpi_grid.setContentsMargins(0, 0, 0, 0)
+        self._kpi_grid.setHorizontalSpacing(8)
+        self._kpi_grid.setVerticalSpacing(8)
+        layout.addWidget(self._kpi_row)
 
         self._chart_empty = EmptyStateWidget(
             "Sin datos para graficar",
@@ -235,6 +170,7 @@ class ModuloReportesBIv2(QWidget):
         try:
             from PyQt5.QtWebEngineWidgets import QWebEngineView
             self._chart_view = QWebEngineView(self)
+            self._install_drilldown(self._chart_view)
             layout.addWidget(self._chart_view, 1)
             layout.addWidget(self._chart_empty)
         except Exception:
@@ -243,7 +179,7 @@ class ModuloReportesBIv2(QWidget):
             fallback.setStyleSheet("color:#6c757d; padding:12px;")
             fallback.setAlignment(Qt.AlignCenter)
             layout.addWidget(fallback)
-        self.tabs_bi.addTab(tab, "Dashboard Visual")
+        self._add_tab(tab, "📈", "Dashboard Visual")
 
     def _build_tab_rankings(self):
         tab, layout = self._crear_tab_contenedor()
@@ -275,32 +211,27 @@ class ModuloReportesBIv2(QWidget):
         self._tabs_rankings.addTab(self._grp_lentos, "Lentos")
         self._tabs_rankings.addTab(self._grp_vips, "Clientes VIP")
         layout.addWidget(self._tabs_rankings)
-        self.tabs_bi.addTab(tab, "Ventas / Rankings")
+        self._add_tab(tab, "🏆", "Ventas / Rankings")
 
     def _build_tab_rentabilidad(self):
         tab, layout = self._crear_tab_contenedor()
         self._build_rentabilidad_section(layout)
-        self.tabs_bi.addTab(tab, "Rentabilidad")
+        self._add_tab(tab, "💹", "Rentabilidad")
 
     def _build_tab_cajeros(self):
         tab, layout = self._crear_tab_contenedor()
         self._build_cajeros_section(layout)
-        self.tabs_bi.addTab(tab, "Cajeros")
-
-    def _build_tab_forecast(self):
-        tab, layout = self._crear_tab_contenedor()
-        self._build_forecast_section(layout)
-        self.tabs_bi.addTab(tab, "Forecast / Planeación")
+        self._add_tab(tab, "🧑‍💼", "Cajeros")
 
     def _build_tab_decision_engine(self):
         tab, layout = self._crear_tab_contenedor()
         self._build_decision_engine_section(layout)
-        self.tabs_bi.addTab(tab, "Sugerencias")
+        self._add_tab(tab, "💡", "Sugerencias")
 
     def _build_tab_franchise(self):
         tab, layout = self._crear_tab_contenedor()
         self._build_franchise_section(layout)
-        self.tabs_bi.addTab(tab, "Sucursales / Franquicias")
+        self._add_tab(tab, "🏪", "Sucursales / Franquicias")
 
     def _build_rentabilidad_section(self, parent_layout):
         """Tabla de rentabilidad por producto: margen, rotación, contribución."""
@@ -335,6 +266,9 @@ class ModuloReportesBIv2(QWidget):
         self._lbl_rent_estado = QLabel("Calculando rentabilidad…")
         self._lbl_rent_estado.setStyleSheet("color:#6c757d; font-size:11px;")
         lay.addWidget(self._lbl_rent_estado)
+
+        self._chart_rent = self._make_chart_view()
+        lay.addWidget(self._chart_rent)
 
         parent_layout.addWidget(grp)
         self._cargar_rentabilidad()
@@ -375,6 +309,9 @@ class ModuloReportesBIv2(QWidget):
         self._tbl_caj.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
         self._tbl_caj.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         lay.addWidget(self._tbl_caj)
+
+        self._chart_caj = self._make_chart_view()
+        lay.addWidget(self._chart_caj)
 
         parent_layout.addWidget(grp)
 
@@ -420,121 +357,13 @@ class ModuloReportesBIv2(QWidget):
                         item.setForeground(
                             __import__('PyQt5.QtGui', fromlist=['QColor']).QColor('#27ae60'))
                     self._tbl_caj.setItem(i, j, item)
+            from modulos.bi_charts import bar_chart_html
+            self._set_chart(getattr(self, "_chart_caj", None), bar_chart_html(
+                "Ventas por cajero",
+                [str(r.get("cajero", "")) for r in rows[:8]],
+                [float(r.get("total_ventas", 0)) for r in rows[:8]]))
         except Exception as exc:
             self._lbl_caj_estado.setText(f"Error: {exc}")
-
-    # ── ActionableForecast: plan de compras y riesgos ─────────────────────────
-
-    def _build_forecast_section(self, parent_layout):
-        """Plan de compras semanal + análisis de riesgos de inventario. Fase 5."""
-        grp = QGroupBox("🔮 Forecast & Abastecimiento (ActionableForecast)")
-        grp.setStyleSheet(
-            "QGroupBox { font-weight:bold; border:1px solid #dee2e6;"
-            " border-radius:6px; margin-top:10px; padding-top:8px; }"
-        )
-        lay = QVBoxLayout(grp)
-
-        toolbar = QHBoxLayout()
-        btn_compras = create_primary_button(self, "🛒 Plan Compras Semanal",
-                                            "Generar plan de compras basado en demanda histórica")
-        btn_compras.clicked.connect(self._cargar_plan_compras)
-        btn_riesgos = create_secondary_button(self, "⚠️ Análisis de Riesgos",
-                                              "Detectar productos con riesgo de desabasto")
-        btn_riesgos.clicked.connect(self._cargar_riesgos_inventario)
-        toolbar.addWidget(btn_compras)
-        toolbar.addWidget(btn_riesgos)
-        toolbar.addStretch()
-        self._lbl_fc_estado = QLabel("Selecciona una acción para generar el forecast.")
-        self._lbl_fc_estado.setStyleSheet("color:#888; font-size:11px;")
-        toolbar.addWidget(self._lbl_fc_estado)
-        lay.addLayout(toolbar)
-
-        self._tbl_fc = QTableWidget()
-        self._tbl_fc.setColumnCount(6)
-        self._tbl_fc.setHorizontalHeaderLabels([
-            "Producto", "Stock Actual", "Demanda/día", "Días Stock",
-            "Comprar", "Costo Estimado $"
-        ])
-        hh = self._tbl_fc.horizontalHeader()
-        hh.setSectionResizeMode(0, QHeaderView.Stretch)
-        self._tbl_fc.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._tbl_fc.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._tbl_fc.setAlternatingRowColors(True)
-        self._tbl_fc.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
-        self._tbl_fc.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
-        self._tbl_fc.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        lay.addWidget(self._tbl_fc)
-
-        parent_layout.addWidget(grp)
-
-    def _cargar_plan_compras(self):
-        """Carga el plan de compras via ActionableForecastService.plan_compras_semanal()."""
-        self._tbl_fc.setRowCount(0)
-        self._tbl_fc.setHorizontalHeaderLabels([
-            "Producto", "Stock Actual", "Demanda/día", "Días Stock",
-            "Comprar", "Costo Estimado $"
-        ])
-        try:
-            svc = getattr(self.container, "actionable_forecast", None)
-            if svc is None:
-                self._lbl_fc_estado.setText("ActionableForecastService no disponible.")
-                return
-            rows = svc.plan_compras_semanal(sucursal_id=self.sucursal_id)
-            self._lbl_fc_estado.setText(f"{len(rows)} productos en plan de compras.")
-            for i, r in enumerate(rows):
-                self._tbl_fc.insertRow(i)
-                prioridad = r.get("prioridad", "")
-                vals = [
-                    str(r.get("producto", "")),
-                    f"{float(r.get('stock_actual', 0)):.2f}",
-                    f"{float(r.get('demanda_diaria', 0)):.2f}",
-                    f"{float(r.get('dias_stock', 0)):.1f}",
-                    f"{float(r.get('comprar_kg', r.get('cantidad_comprar', 0))):.2f}",
-                    f"${float(r.get('costo_est', r.get('costo_estimado', 0))):,.2f}",
-                ]
-                for j, v in enumerate(vals):
-                    item = QTableWidgetItem(v)
-                    item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                    if prioridad == "alta" and j == 0:
-                        item.setForeground(
-                            __import__('PyQt5.QtGui', fromlist=['QColor']).QColor('#e74c3c'))
-                    self._tbl_fc.setItem(i, j, item)
-        except Exception as exc:
-            self._lbl_fc_estado.setText(f"Error: {exc}")
-
-    def _cargar_riesgos_inventario(self):
-        """Carga riesgos de inventario via ActionableForecastService.analisis_riesgos()."""
-        self._tbl_fc.setRowCount(0)
-        self._tbl_fc.setHorizontalHeaderLabels([
-            "Tipo Riesgo", "Producto", "Días Stock", "Stock Actual",
-            "Prioridad", "Acción Sugerida"
-        ])
-        try:
-            svc = getattr(self.container, "actionable_forecast", None)
-            if svc is None:
-                self._lbl_fc_estado.setText("ActionableForecastService no disponible.")
-                return
-            rows = svc.analisis_riesgos(sucursal_id=self.sucursal_id)
-            self._lbl_fc_estado.setText(f"{len(rows)} riesgos detectados.")
-            for i, r in enumerate(rows):
-                self._tbl_fc.insertRow(i)
-                vals = [
-                    str(r.get("tipo", "")),
-                    str(r.get("producto", "")),
-                    f"{float(r.get('dias_stock', 0)):.1f}",
-                    f"{float(r.get('stock_actual', 0)):.2f}",
-                    str(r.get("prioridad", "")),
-                    str(r.get("accion", r.get("accion_sugerida", "")))[:60],
-                ]
-                for j, v in enumerate(vals):
-                    item = QTableWidgetItem(v)
-                    item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                    if r.get("prioridad") == "crítica":
-                        item.setForeground(
-                            __import__('PyQt5.QtGui', fromlist=['QColor']).QColor('#e74c3c'))
-                    self._tbl_fc.setItem(i, j, item)
-        except Exception as exc:
-            self._lbl_fc_estado.setText(f"Error: {exc}")
 
     # ── DecisionEngine: sugerencias accionables ───────────────────────────────
 
@@ -644,6 +473,9 @@ class ModuloReportesBIv2(QWidget):
         self._tbl_fm.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         lay.addWidget(self._tbl_fm)
 
+        self._chart_fm = self._make_chart_view()
+        lay.addWidget(self._chart_fm)
+
         parent_layout.addWidget(grp)
 
     def _cargar_franchise_ranking(self):
@@ -660,16 +492,21 @@ class ModuloReportesBIv2(QWidget):
                 self._tbl_fm.insertRow(i)
                 vals = [
                     str(r.get("nombre", r.get("sucursal_id", ""))),
-                    f"${float(r.get('total_ventas', 0)):,.2f}",
-                    str(r.get("num_transacciones", 0)),
+                    f"${float(r.get('ingresos', 0)):,.2f}",
+                    str(r.get("tickets", 0)),
                     f"${float(r.get('ticket_promedio', 0)):,.2f}",
-                    f"{float(r.get('margen_bruto_pct', 0)):.1f}%",
-                    str(r.get("rank", i + 1)),
+                    f"{float(r.get('margen_pct', 0)):.1f}%",
+                    str(r.get("posicion", i + 1)),
                 ]
                 for j, v in enumerate(vals):
                     item = QTableWidgetItem(str(v))
                     item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                     self._tbl_fm.setItem(i, j, item)
+            from modulos.bi_charts import bar_chart_html
+            self._set_chart(getattr(self, "_chart_fm", None), bar_chart_html(
+                "Ingresos por sucursal",
+                [str(r.get("nombre", r.get("sucursal_id", ""))) for r in rows[:8]],
+                [float(r.get("ingresos", 0)) for r in rows[:8]]))
         except Exception as exc:
             self._lbl_fm_estado.setText(f"Error: {exc}")
 
@@ -696,20 +533,13 @@ class ModuloReportesBIv2(QWidget):
             if not analytics:
                 raise RuntimeError("AnalyticsEngine no disponible")
             
-            # Usar método del servicio unificado
-            rows_raw = analytics.product_profitability(fecha_inicio, fecha_fin, self.sucursal_id, limit=50)
-            # Convertir al formato esperado por la UI
-            rows = []
-            for r in rows_raw:
-                # Necesitamos obtener nombre y categoría del producto
-                prod_info = self._get_producto_info(r['producto_id'])
-                rows.append((
-                    prod_info.get('nombre', f"Prod {r['producto_id']}"),
-                    prod_info.get('categoria', ''),
-                    0,  # unidades (no disponible en esta vista)
-                    r['ingresos'],
-                    r['costo']
-                ))
+            # Servicio unificado: incluye nombre, categoría, unidades y costo real.
+            rows_raw = analytics.product_profitability_detail(
+                fecha_inicio, fecha_fin, self.sucursal_id, limit=50)
+            rows = [
+                (r['nombre'], r['categoria'], r['unidades'], r['ingresos'], r['costo'])
+                for r in rows_raw
+            ]
         except Exception as e:
             self._lbl_rent_estado.setText(f"Error al cargar rentabilidad: {e}")
             return
@@ -751,16 +581,14 @@ class ModuloReportesBIv2(QWidget):
             self._tbl_rent.setItem(i, 7, QTableWidgetItem(abc))
         self._lbl_rent_estado.setText(f"{len(rows)} productos analizados.")
 
-    def _get_producto_info(self, producto_id: int) -> dict:
-        """Obtiene información básica de un producto (nombre, categoría) via AnalyticsEngine."""
-        analytics = getattr(self.container, 'analytics_engine', None)
-        if analytics and hasattr(analytics, 'get_product_info'):
-            try:
-                return analytics.get_product_info(producto_id)
-            except Exception:
-                pass
-        # Fallback mínimo sin SQL directo: retornar datos básicos
-        return {'nombre': f'Prod {producto_id}', 'categoria': ''}
+        # Gráfica: margen $ de los productos top (offline SVG)
+        from modulos.bi_charts import bar_chart_html
+        top = sorted(rows, key=lambda r: float(r[3] or 0) - float(r[4] or 0),
+                     reverse=True)[:8]
+        self._set_chart(getattr(self, "_chart_rent", None), bar_chart_html(
+            "Margen por producto (top 8)",
+            [str(r[0]) for r in top],
+            [float(r[3] or 0) - float(r[4] or 0) for r in top]))
 
     def _exportar_rentabilidad_csv(self):
         """Exporta la tabla de rentabilidad a CSV."""
@@ -828,88 +656,112 @@ class ModuloReportesBIv2(QWidget):
         )
 
     def _wire_business_events(self) -> None:
-        """Refresco reactivo ante eventos de negocio del ERP."""
+        """Refresco reactivo ante eventos de negocio del ERP.
+
+        Se suscribe a los canales REALES del bus. (Los canales anteriores —
+        'venta_confirmada', 'stock_actualizado', 'pago_registrado' — no los
+        emite nadie en el repo, por lo que el dashboard nunca se refrescaba
+        en caliente.) Debounce de 800 ms para no recargar por cada evento de
+        una ráfaga.
+        """
+        self._bi_refresh_pending = False
         try:
-            from core.events.event_bus import get_bus
-            from PyQt5.QtCore import QTimer as _QT
+            from core.events.event_bus import (
+                get_bus,
+                VENTA_COMPLETADA,
+                COMPRA_REGISTRADA,
+                MOVIMIENTO_FINANCIERO,
+                AJUSTE_INVENTARIO,
+            )
+            # Remediación A: el canal canónico de corte Z de caja (CASH_*) refresca
+            # el dashboard BI. El bridge CAJA_*→CASH_* garantiza que cualquier
+            # emisor de caja (interactivo o backend) llegue por este canal único.
+            from backend.shared.events.event_names import EventName
             bus = get_bus()
-            for evt in ("venta_confirmada", "stock_actualizado", "pago_registrado"):
-                bus.subscribe(evt, lambda _p, _self=self: _QT.singleShot(0, _self.cargar_dashboard),
-                              label=f"bi_v2.refresh.{evt}")
+            for evt in (VENTA_COMPLETADA, COMPRA_REGISTRADA,
+                        MOVIMIENTO_FINANCIERO, AJUSTE_INVENTARIO,
+                        EventName.CASH_Z_CUT_GENERATED.value):
+                bus.subscribe(evt, self._on_business_event,
+                              label=f"bi_v2.refresh.{str(evt).lower()}")
+        except Exception:
+            pass
+
+    def _on_business_event(self, _payload: dict) -> None:
+        """Handler del bus → hilo Qt vía invokeMethod.
+
+        VENTA_COMPLETADA y MOVIMIENTO_FINANCIERO se publican con async_=True,
+        así que este handler corre en el ThreadPoolExecutor del bus. Un
+        QTimer.singleShot desde ese hilo (sin event loop Qt) no dispararía y
+        dejaría el debounce atascado; invokeMethod con QueuedConnection
+        despacha el slot en el hilo del widget.
+        """
+        try:
+            QMetaObject.invokeMethod(
+                self, "_schedule_business_refresh", Qt.QueuedConnection
+            )
+        except Exception:
+            pass  # widget destruido o Qt no disponible — sin refresh
+
+    @pyqtSlot()
+    def _schedule_business_refresh(self) -> None:
+        """Corre en el hilo Qt: aplica el debounce de 800 ms."""
+        if getattr(self, "_bi_refresh_pending", False):
+            return
+        self._bi_refresh_pending = True
+        try:
+            from PyQt5.QtCore import QTimer as _QT
+            _QT.singleShot(800, self._do_business_refresh)
+        except Exception:
+            self._bi_refresh_pending = False
+
+    def _do_business_refresh(self) -> None:
+        self._bi_refresh_pending = False
+        try:
+            self.cargar_dashboard()
         except Exception:
             pass
 
     def _exportar(self, formato: str) -> None:
-        """Exporta el dashboard actual a PDF o Excel via ExportService."""
-        # [spj-dedup removed local QMessageBox import]
+        """Exporta el resumen ejecutivo a Excel/PDF vía BiExportService.
+
+        Respeta los filtros activos e incluye usuario, rango y fecha de generación.
+        """
         import os, datetime
 
-        rango = self.cmb_rango.currentText()
-        ts    = datetime.datetime.now().strftime("%Y%m%d_%H%M")
-        ext   = "xlsx" if formato == "excel" else "pdf"
-        nombre_default = f"dashboard_bi_{ts}.{ext}"
+        export_svc = getattr(self.container, "bi_export_service", None)
+        bi_svc = getattr(self.container, "bi_dashboard_service", None)
+        if export_svc is None or bi_svc is None:
+            QMessageBox.warning(self, "No disponible", "El servicio de BI no está listo.")
+            return
 
+        _map = {"excel": ("xlsx", "Excel (*.xlsx)"), "pdf": ("pdf", "PDF (*.pdf)"),
+                "csv": ("csv", "CSV (*.csv)")}
+        fmt, filtro = _map.get(formato, ("xlsx", "Excel (*.xlsx)"))
+        ext = fmt
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M")
         ruta, _ = QFileDialog.getSaveFileName(
-            self, f"Guardar {ext.upper()}", nombre_default,
-            f"{'Excel (*.xlsx)' if formato == 'excel' else 'PDF (*.pdf)'}"
-        )
+            self, f"Guardar {ext.upper()}", f"dashboard_bi_{ts}.{ext}", filtro)
         if not ruta:
             return
         if not confirm_action(
-            self,
-            "Confirmar exportación",
-            f"¿Deseas exportar el dashboard en formato {ext.upper()}?",
-            confirm_text="Sí, exportar",
-            cancel_text="Cancelar",
-        ):
+            self, "Confirmar exportación",
+            f"¿Deseas exportar el resumen ejecutivo en {ext.upper()}?",
+            confirm_text="Sí, exportar", cancel_text="Cancelar"):
             return
 
         try:
-            from core.services.export_service import ExportService
-            svc  = ExportService(self.container.db)
-            # BI unificado: fuente única analytics_engine
-            analytics = getattr(self.container, 'analytics_engine', None)
-            if not analytics:
-                raise RuntimeError("AnalyticsEngine no disponible en el contenedor")
-            data = analytics.get_dashboard_data(
-                self.sucursal_id,
-                rango.lower().split(" ")[-1]
-            )
-            if formato == "excel":
-                sheets = {
-                    "KPIs": [data["kpis"]],
-                    "Top Productos":    data.get("top_productos", []),
-                    "Productos Lentos": data.get("productos_lentos", []),
-                    "Clientes VIP":     data.get("clientes_recurrentes", []),
-                }
-                result = svc.export_ventas(fmt="xlsx")
-                # Write our structured BI export
-                import openpyxl
-                wb = openpyxl.Workbook()
-                for sheet_name, rows in sheets.items():
-                    ws = wb.create_sheet(title=sheet_name[:31])
-                    if rows:
-                        ws.append(list(rows[0].keys()))
-                        for row in rows:
-                            ws.append([str(v) for v in row.values()])
-                if "Sheet" in wb.sheetnames:
-                    del wb["Sheet"]
-                wb.save(ruta)
-            else:
-                # PDF via ReportEngine if available
-                try:
-                    from core.services.enterprise.report_engine import ReportEngine
-                    engine = ReportEngine(self.container.db)
-                    engine.export_pdf("dashboard", data, filepath=ruta)
-                except Exception:
-                    # Simple PDF fallback
-                    svc.export(
-                        "SELECT folio, total, fecha FROM ventas "
-                        "WHERE DATE(fecha)=DATE('now') ORDER BY fecha DESC LIMIT 500",
-                        (), fmt="pdf", filepath=ruta
-                    )
-            Toast.success(self, "Exportado", f"Archivo guardado en:\n{ruta}")
-            os.startfile(ruta) if os.name == "nt" else None
+            filters = self._current_filters().resolved()
+            payload = bi_svc.build_dashboard(filters).to_dict()
+            sucursal = self.cmb_sucursal.currentText() if hasattr(self, "cmb_sucursal") else "Todas"
+            meta = {
+                "usuario": str(getattr(self, "usuario_actual", "") or "—"),
+                "rango": f"{filters.date_from} a {filters.date_to} ({self.cmb_rango.currentText()})",
+                "sucursal": sucursal,
+                "generado": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+            }
+            escrito = export_svc.export_summary(payload, meta, ruta, fmt=fmt)
+            Toast.success(self, "Exportado", f"Archivo guardado en:\n{escrito}")
+            os.startfile(escrito) if os.name == "nt" else None
         except Exception as e:
             QMessageBox.critical(self, "Error al exportar", str(e))
 
@@ -925,12 +777,9 @@ class ModuloReportesBIv2(QWidget):
                 raise RuntimeError("AnalyticsEngine no disponible en el contenedor")
             data = analytics.get_dashboard_data(self.sucursal_id, rango_str)
             self._last_data = data
-            
-            # 1. Actualizar KPIs
-            self.lbl_kpi_ingresos.setText(f"${data['kpis']['ingresos']:,.2f}")
-            self.lbl_kpi_ticket.setText(f"${data['kpis']['ticket_promedio']:,.2f}")
-            self.lbl_kpi_ventas.setText(str(data['kpis']['tickets']))
-            self.lbl_kpi_clientes.setText(str(data['kpis']['clientes_unicos']))
+
+            # Los KPIs se renderizan en el Dashboard Visual desde el payload
+            # (ver _render_echarts_dashboard); ya no hay barra superior que actualizar.
 
             # Comparativa vs período anterior
             comp = data.get('comparativa', {})
@@ -980,45 +829,481 @@ class ModuloReportesBIv2(QWidget):
         finally:
             self.loading_dashboard.setVisible(False)
 
+    _PRESET_MAP = {
+        "hoy": "today", "ayer": "yesterday", "esta semana": "week",
+        "este mes": "month", "mes pasado": "last_month",
+    }
+
+    def _current_filters(self):
+        """Construye DashboardFilters desde la barra de filtros globales de la UI."""
+        from backend.application.dto.bi_dashboard_dto import DashboardFilters
+        preset = self._PRESET_MAP.get(self.cmb_rango.currentText().strip().lower(), "month")
+        branch = self.cmb_sucursal.currentData() if hasattr(self, "cmb_sucursal") else ""
+        cat = self.cmb_categoria.currentData() if hasattr(self, "cmb_categoria") else ""
+        pay = self.cmb_metodo.currentData() if hasattr(self, "cmb_metodo") else ""
+        return DashboardFilters(
+            preset=preset, branch_id=str(branch or ""),
+            category=str(cat or ""), payment_method=str(pay or ""))
+
+    def _current_theme(self) -> str:
+        """Tema activo ('dark'/'light'). Preferencia almacenada + fallback paleta."""
+        from modulos.bi_theme import normalize_theme
+        # 1) Preferencia del usuario (ThemeService — sin SQL en la UI).
+        try:
+            db = getattr(self.container, "db", None)
+            if db is not None:
+                from core.services.theme_service import ThemeService
+                pref = ThemeService(db).get_user_preferences().get("theme")
+                if pref:
+                    return normalize_theme(pref)  # 'Oscuro'→dark, 'Claro'→light
+        except Exception:
+            pass
+        # 2) Fallback: luminancia del fondo real del widget.
+        try:
+            from PyQt5.QtGui import QPalette
+            c = self.palette().color(QPalette.Window)
+            lum = 0.299 * c.red() + 0.587 * c.green() + 0.114 * c.blue()
+            return "light" if lum > 140 else "dark"
+        except Exception:
+            return "dark"
+
+    def _populate_filter_options(self):
+        """Rellena los combos de sucursal/categoría/método desde el servicio."""
+        svc = getattr(self.container, "bi_dashboard_service", None)
+        if svc is None:
+            return
+        try:
+            opts = svc.filter_options()
+        except Exception:
+            return
+        for combo, items in (
+            (self.cmb_sucursal, [(b["nombre"], b["id"]) for b in opts.get("branches", [])]),
+            (self.cmb_categoria, [(c, c) for c in opts.get("categories", [])]),
+            (self.cmb_metodo, [(str(m).replace("_", " ").title(), m)
+                               for m in opts.get("payment_methods", [])]),
+        ):
+            combo.blockSignals(True)
+            for label, data in items:
+                combo.addItem(label, data)
+            combo.blockSignals(False)
+
+    def _on_filters_changed(self, *_):
+        """Filtros cambiaron: invalida caché, marca secciones sucias y recarga."""
+        svc = getattr(self.container, "bi_dashboard_service", None)
+        if svc is not None:
+            try:
+                svc.invalidate_cache()
+            except Exception:
+                pass
+        self._section_dirty = {k: True for k in getattr(self, "_section_views", {})}
+        self.cargar_dashboard()
+        self._render_current_section()
+
+    def _limpiar_filtros(self):
+        """Restablece los filtros a sus valores por defecto."""
+        for combo in (getattr(self, "cmb_sucursal", None), getattr(self, "cmb_categoria", None),
+                      getattr(self, "cmb_metodo", None)):
+            if combo is not None:
+                combo.blockSignals(True)
+                combo.setCurrentIndex(0)
+                combo.blockSignals(False)
+        self.cmb_rango.setCurrentText("Este Mes")  # dispara _on_filters_changed
+
+    # ── Pestañas detalladas por sección (lazy) ────────────────────────────────
+
+    _SECTIONS = [
+        ("ventas", "🧾", "Ventas"), ("inventario", "📦", "Inventario"),
+        ("compras", "🛒", "Compras"), ("caja", "💵", "Caja"),
+        ("clientes", "👥", "Clientes"), ("proveedores", "🚚", "Proveedores"),
+        ("finanzas", "💰", "Finanzas"), ("merma", "🗑️", "Merma"),
+    ]
+
+    def _build_section_tabs(self):
+        self._section_views = {}          # web view (charts + tablas) por sección
+        self._section_tab_widget = {}     # contenedor (la pestaña real)
+        self._section_kpi_grid = {}       # grid de KPICard por sección
+        self._section_kpi_cards = {}      # {kpi_index: KPICard} por sección
+        self._section_dirty = {}
+        allowed = self._allowed_sections()
+        for key, icon, name in self._SECTIONS:
+            if key not in allowed:
+                continue
+            cont = QWidget()
+            lay = QVBoxLayout(cont)
+            lay.setContentsMargins(0, 0, 0, 0)
+            lay.setSpacing(8)
+            kpi_row = QWidget()
+            grid = QGridLayout(kpi_row)
+            grid.setContentsMargins(0, 0, 0, 0)
+            grid.setHorizontalSpacing(8)
+            grid.setVerticalSpacing(8)
+            lay.addWidget(kpi_row)
+            view = self._make_chart_view(min_height=320)
+            lay.addWidget(view, 1)
+            self._section_tab_widget[key] = cont
+            self._section_views[key] = view
+            self._section_kpi_grid[key] = grid
+            self._section_kpi_cards[key] = {}
+            self._section_dirty[key] = True
+            self._add_tab(cont, icon, name)
+
+    def _allowed_sections(self):
+        svc = getattr(self.container, "bi_dashboard_service", None)
+        if svc is None:
+            return {k for k, _icon, _name in self._SECTIONS}
+        try:
+            return set(svc.build_dashboard(self._current_filters()).allowed_sections)
+        except Exception:
+            return {k for k, _icon, _name in self._SECTIONS}
+
+    def _section_for_view(self, widget):
+        for key, cont in getattr(self, "_section_tab_widget", {}).items():
+            if cont is widget:
+                return key
+        return None
+
+    # ── Drill-down (clic en KPI → pestaña destino) ────────────────────────────
+
+    def _install_drilldown(self, view):
+        """Intercepta enlaces 'spjdrill:<section>' del web view y navega a la pestaña."""
+        try:
+            from PyQt5.QtWebEngineWidgets import QWebEnginePage
+        except Exception:
+            return
+        module = self
+
+        class _DrillPage(QWebEnginePage):
+            def acceptNavigationRequest(self, url, nav_type, is_main_frame):
+                s = url.toString()
+                if s.startswith("spjdrill:"):
+                    module._go_to_section(s.split(":", 1)[1])
+                    return False
+                return super().acceptNavigationRequest(url, nav_type, is_main_frame)
+
+        try:
+            view.setPage(_DrillPage(view))
+        except Exception:
+            pass
+
+    def _go_to_section(self, section):
+        """Cambia a la pestaña detallada de la sección (si existe y hay permiso)."""
+        section = str(section or "").strip()
+        cont = getattr(self, "_section_tab_widget", {}).get(section)
+        if cont is not None:
+            self._render_section(section)
+            self.tabs_bi.setCurrentWidget(cont)
+
+    def _on_tab_changed(self, _index):
+        widget = self.tabs_bi.currentWidget()
+        key = self._section_for_view(widget)
+        if key:
+            self._render_section(key)
+
+    def _render_current_section(self):
+        widget = self.tabs_bi.currentWidget() if hasattr(self, "tabs_bi") else None
+        key = self._section_for_view(widget)
+        if key:
+            self._render_section(key)
+
+    def _render_section(self, key):
+        if not self._section_dirty.get(key, True):
+            return
+        svc = getattr(self.container, "bi_dashboard_service", None)
+        if svc is None:
+            return
+        from modulos.bi_dashboard_view import render_section_html
+        try:
+            data = svc.section_data(key, self._current_filters())
+            # KPIs de la sección como KPICard nativas (mismo estándar global).
+            self._update_section_kpis(key, data.get("kpis", []))
+            view = self._section_views.get(key)
+            if view is not None and hasattr(view, "setHtml"):
+                view.setHtml(render_section_html(
+                    data, theme=self._current_theme(), include_kpis=False))
+            self._section_dirty[key] = False
+        except Exception:
+            pass
+
+    def _update_section_kpis(self, key, kpis):
+        """Crea/actualiza las KPICard nativas de una sección detallada."""
+        grid = getattr(self, "_section_kpi_grid", {}).get(key)
+        cards = getattr(self, "_section_kpi_cards", {}).get(key)
+        if grid is None or cards is None:
+            return
+        from modulos.kpi_card import KPICard
+        theme = self._current_theme()
+        if not cards:
+            for i, k in enumerate(kpis):
+                card = KPICard(k.get("title", ""), self._fmt_kpi(k),
+                               k.get("icon", "📊"), k.get("variant", "primary"),
+                               theme=theme)
+                card.setToolTip(self._kpi_tooltip(k))
+                cards[i] = card
+                grid.addWidget(card, 0, i)
+        else:
+            for i, k in enumerate(kpis):
+                card = cards.get(i)
+                if card is not None:
+                    card.set_valor(self._fmt_kpi(k))
+                    card.set_theme(theme)
+
+    def _restyle_section_kpi_cards(self, theme: str) -> None:
+        for cards in getattr(self, "_section_kpi_cards", {}).values():
+            for card in cards.values():
+                try:
+                    card.set_theme(theme)
+                except Exception:
+                    pass
+
+    # ── Reportes (exportación ejecutiva) ──────────────────────────────────────
+
+    def _build_reportes_tab(self):
+        if "reportes" not in self._allowed_sections():
+            return
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        titulo = QLabel("📄 Reportes — exportación del resumen ejecutivo")
+        titulo.setObjectName("heading")
+        layout.addWidget(titulo)
+        info = QLabel("Exporta el resumen ejecutivo respetando los filtros activos. "
+                      "Incluye usuario, periodo, sucursal y fecha de generación.")
+        info.setWordWrap(True)
+        info.setStyleSheet(f"color:{Colors.NEUTRAL.DARK_TEXT_SEC}; font-size:11px;")
+        layout.addWidget(info)
+
+        fila = QHBoxLayout()
+        btn_xlsx = create_success_button(self, "📊 Excel (.xlsx)", "Exportar resumen a Excel")
+        btn_xlsx.clicked.connect(lambda: self._exportar("excel"))
+        btn_pdf = create_danger_button(self, "📄 PDF", "Exportar resumen a PDF")
+        btn_pdf.clicked.connect(lambda: self._exportar("pdf"))
+        btn_csv = create_secondary_button(self, "🧾 CSV", "Exportar resumen a CSV")
+        btn_csv.clicked.connect(lambda: self._exportar("csv"))
+        fila.addWidget(btn_xlsx)
+        fila.addWidget(btn_pdf)
+        fila.addWidget(btn_csv)
+        fila.addStretch()
+        layout.addLayout(fila)
+        layout.addStretch()
+        self._add_tab(tab, "📄", "Reportes")
+
+    # ── Configuración BI (metas, umbrales, forecast) ──────────────────────────
+
+    _CONFIG_SPECS = [
+        ("threshold_merma_pct", "Umbral merma alta (%)", "%"),
+        ("threshold_margen_bajo_pct", "Umbral margen bajo (%)", "%"),
+        ("threshold_caida_ventas_pct", "Umbral caída de ventas (%)", "%"),
+        ("threshold_cxc_aumento_pct", "Umbral aumento CxC (%)", "%"),
+        ("threshold_compras_aumento_pct", "Umbral aumento compras (%)", "%"),
+        ("meta_ventas_periodo", "Meta de ventas del periodo ($)", "$"),
+    ]
+
+    def _build_config_tab(self):
+        if "configuracion" not in self._allowed_sections():
+            return
+        settings = getattr(self.container, "bi_settings_service", None)
+        if settings is None:
+            return
+        from PyQt5.QtWidgets import QFormLayout
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        titulo = QLabel("⚙️ Configuración BI — metas, umbrales de alertas y forecast")
+        titulo.setObjectName("heading")
+        layout.addWidget(titulo)
+
+        form = QFormLayout()
+        self._config_inputs = {}
+        for key, label, unit in self._CONFIG_SPECS:
+            spin = QDoubleSpinBox()
+            spin.setDecimals(2)
+            spin.setMaximum(1_000_000_000.0)
+            spin.setSingleStep(1.0)
+            spin.setSuffix(f" {unit}")
+            spin.setValue(float(settings.get(key)))
+            self._config_inputs[key] = spin
+            form.addRow(label, spin)
+
+        self._config_forecast = QSpinBox()
+        self._config_forecast.setMaximum(365)
+        self._config_forecast.setSuffix(" días")
+        self._config_forecast.setValue(int(settings.get("forecast_window_days")))
+        form.addRow("Ventana de forecast", self._config_forecast)
+        layout.addLayout(form)
+
+        botones = QHBoxLayout()
+        btn_guardar = create_primary_button(self, "💾 Guardar", "Guardar configuración de BI")
+        btn_guardar.clicked.connect(self._save_config)
+        btn_reset = create_secondary_button(self, "↩️ Restablecer", "Restablecer valores por defecto")
+        btn_reset.clicked.connect(self._reset_config)
+        botones.addWidget(btn_guardar)
+        botones.addWidget(btn_reset)
+        botones.addStretch()
+        layout.addLayout(botones)
+        layout.addStretch()
+        self._add_tab(tab, "⚙️", "Configuración")
+
+    def _save_config(self):
+        settings = getattr(self.container, "bi_settings_service", None)
+        svc = getattr(self.container, "bi_dashboard_service", None)
+        if settings is None:
+            return
+        try:
+            for key, spin in self._config_inputs.items():
+                settings.set(key, spin.value())
+            settings.set("forecast_window_days", self._config_forecast.value())
+            if svc is not None:
+                svc.invalidate_cache()
+            self._section_dirty = {k: True for k in getattr(self, "_section_views", {})}
+            self.cargar_dashboard()
+            Toast.success(self, "Configuración guardada", "Los umbrales de BI se actualizaron.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def _reset_config(self):
+        settings = getattr(self.container, "bi_settings_service", None)
+        if settings is None:
+            return
+        defaults = settings.defaults
+        for key, spin in self._config_inputs.items():
+            spin.setValue(float(defaults.get(key, 0)))
+        self._config_forecast.setValue(int(defaults.get("forecast_window_days", 30)))
+        self._save_config()
+
     def _render_echarts_dashboard(self, data: dict) -> None:
-        """Renderiza un mini dashboard con ECharts dentro de QWebEngineView."""
+        """Dashboard visual compuesto consumiendo BiDashboardService (payload).
+
+        Canonical route: UI → BiDashboardService → query services → DB. La UI sólo
+        transforma el payload en paneles SVG (offline, sin CDN).
+        """
+        svc = getattr(self.container, "bi_dashboard_service", None)
+        if svc is None:
+            return
+        from modulos.bi_dashboard_view import render_dashboard_html
+        try:
+            payload = svc.build_dashboard(self._current_filters()).to_dict()
+        except Exception:
+            return
+
+        # KPIs como tarjetas nativas (estilo Inventario) — siempre, aunque el
+        # web view de gráficas no esté disponible en este entorno.
+        self._update_kpi_cards(payload.get("kpis", []))
+
         if not getattr(self, "_chart_view", None):
             return
-        top = data.get('top_productos', [])
-        if not top:
+        # ¿Hay datos? (al menos una KPI de ventas > 0 o algún chart con valores)
+        kpis = {k["key"]: k for k in payload.get("kpis", [])}
+        ventas = float(kpis.get("ventas_netas", {}).get("value", 0) or 0)
+        if ventas <= 0 and not payload.get("charts"):
             self._chart_empty.show()
             self._chart_view.hide()
             return
-        labels = [str(i.get('nombre', 'N/A')) for i in top[:8]]
-        values = [float(i.get('ingresos_generados', 0) or 0) for i in top[:8]]
         self._chart_empty.hide()
         self._chart_view.show()
-        html = f"""
-        <html><head><meta charset='utf-8'>
-        <script src='https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js'></script>
-        <style>html,body,#c{{height:100%;margin:0;background:#0b1220;color:#e2e8f0;font-family:Inter,Arial;}}</style>
-        </head><body><div id='c'></div>
-        <script>
-        const labels = {labels};
-        const values = {values};
-        if (window.echarts) {{
-          const chart = echarts.init(document.getElementById('c'));
-          const option = {{
-            title: {{text: 'Top productos por ingresos', left: 'center', textStyle: {{color:'#e2e8f0'}}}},
-            tooltip: {{trigger: 'axis'}},
-            xAxis: {{type: 'category', data: labels, axisLabel: {{color:'#94a3b8', rotate:20}}}},
-            yAxis: {{type: 'value', axisLabel: {{color:'#94a3b8'}}}},
-            series: [{{type: 'bar', data: values, itemStyle: {{color:'#3b82f6'}}, barMaxWidth: 38}}]
-          }};
-          chart.setOption(option);
-        }} else {{
-          const c = document.getElementById('c');
-          const rows = labels.map((name, i) => `<div style="display:flex;justify-content:space-between;border-bottom:1px solid #1f2937;padding:8px 4px;"><span>${{name}}</span><b>$${{Number(values[i]||0).toFixed(2)}}</b></div>`).join('');
-          c.innerHTML = `<div style="padding:14px;"><h3 style="margin:0 0 8px 0;">Top productos por ingresos</h3><div style="font-size:12px;color:#94a3b8;margin-bottom:8px;">Modo fallback (ECharts no disponible)</div>${{rows}}</div>`;
-        }}
-        </script></body></html>
-        """
-        self._chart_view.setHtml(html)
+        self._chart_view.setHtml(render_dashboard_html(
+            payload, theme=self._current_theme(), include_kpis=False))
+
+    # ── KPI cards nativas (iguales a las del módulo Inventario) ────────────────
+
+    @staticmethod
+    def _fmt_kpi(k: dict) -> str:
+        v = float(k.get("value", 0) or 0)
+        u = k.get("unit", "")
+        if u == "%":
+            return f"{v:.1f}%"
+        if u == "x":
+            return f"{v:.2f}x"
+        if u == "":
+            return f"{int(round(v)):,}"
+        return f"${v:,.0f}"
+
+    @staticmethod
+    def _kpi_tooltip(k: dict) -> str:
+        dp, pts = k.get("delta_pct"), k.get("delta_points")
+        comp = (f"{dp:+.1f}% vs periodo anterior" if dp is not None
+                else f"{pts:+.2f} pp vs periodo anterior" if pts is not None else "")
+        base = k.get("tooltip") or k.get("formula") or ""
+        return " · ".join(x for x in (base, comp) if x)
+
+    def _update_kpi_cards(self, kpis: list) -> None:
+        """Crea (una vez) y actualiza la fila de KPICard nativas desde el payload."""
+        if not hasattr(self, "_kpi_grid"):
+            return
+        from modulos.kpi_card import KPICard
+        theme = self._current_theme()
+        if not self._kpi_cards:
+            cols = 5
+            for i, k in enumerate(kpis):
+                card = KPICard(k.get("title", ""), self._fmt_kpi(k),
+                               k.get("icon", "📊"), k.get("variant", "primary"),
+                               theme=theme)
+                card.setToolTip(self._kpi_tooltip(k))
+                self._kpi_cards[k["key"]] = card
+                drill = k.get("drilldown", "")
+                widget = card
+                if drill:
+                    btn = QPushButton()
+                    btn.setFlat(True)
+                    btn.setCursor(Qt.PointingHandCursor)
+                    bl = QHBoxLayout(btn)
+                    bl.setContentsMargins(0, 0, 0, 0)
+                    bl.addWidget(card)
+                    btn.clicked.connect(lambda _, s=drill: self._go_to_section(s))
+                    widget = btn
+                self._kpi_grid.addWidget(widget, i // cols, i % cols)
+            # Altura mínima para que se vean TODAS las filas completas.
+            import math
+            filas = max(1, math.ceil(len(kpis) / cols))
+            self._kpi_row.setMinimumHeight(filas * 112 + (filas - 1) * 8 + 4)
+        else:
+            for k in kpis:
+                card = self._kpi_cards.get(k["key"])
+                if card is not None:
+                    card.set_valor(self._fmt_kpi(k))
+                    card.set_theme(theme)
+                    card.setToolTip(self._kpi_tooltip(k))
+
+    def _restyle_kpi_cards(self, theme: str) -> None:
+        for card in getattr(self, "_kpi_cards", {}).values():
+            try:
+                card.set_theme(theme)
+            except Exception:
+                pass
+
+    def changeEvent(self, event):
+        """Re-renderiza las gráficas al cambiar el tema (paleta) de la app."""
+        try:
+            from PyQt5.QtCore import QEvent
+            if event.type() in (QEvent.PaletteChange, QEvent.StyleChange,
+                                QEvent.ApplicationPaletteChange):
+                theme = self._current_theme()
+                self._restyle_kpi_cards(theme)
+                self._restyle_section_kpi_cards(theme)
+                if getattr(self, "_chart_view", None) is not None:
+                    self._render_echarts_dashboard({})
+                self._section_dirty = {k: True for k in getattr(self, "_section_views", {})}
+                self._render_current_section()
+        except Exception:
+            pass
+        super().changeEvent(event)
+
+    # ── Chart helpers reutilizables por pestaña (offline SVG) ─────────────────
+
+    def _make_chart_view(self, min_height: int = 260):
+        """Crea una vista de gráfica (QWebEngineView) con fallback si no existe."""
+        try:
+            from PyQt5.QtWebEngineWidgets import QWebEngineView
+            view = QWebEngineView(self)
+            view.setMinimumHeight(min_height)
+            return view
+        except Exception:
+            lbl = QLabel("Gráfica no disponible (QWebEngine ausente).")
+            lbl.setStyleSheet("color:#6c757d; padding:10px;")
+            lbl.setAlignment(Qt.AlignCenter)
+            return lbl
+
+    def _set_chart(self, view, html: str) -> None:
+        """Coloca HTML en la vista si soporta setHtml (QWebEngineView)."""
+        if view is not None and hasattr(view, "setHtml"):
+            view.setHtml(html)
 
     def _llenar_tabla(self, tabla: QTableWidget, datos: list, llaves: list):
         if not datos:

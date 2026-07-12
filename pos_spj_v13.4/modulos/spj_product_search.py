@@ -167,20 +167,10 @@ class ProductSearchWidget(QWidget):
         """Search by exact barcode or internal code first."""
         if not self.db: return
         try:
-            row = self.db.execute(
-                """SELECT id, nombre, COALESCE(codigo,'') as codigo,
-                          COALESCE(codigo_barras,'') as codigo_barras,
-                          precio, COALESCE(precio_compra,0) as precio_compra,
-                          COALESCE(existencia,0) as existencia,
-                          COALESCE(unidad,'pz') as unidad
-                   FROM productos
-                   WHERE (COALESCE(codigo_barras,'')=? OR codigo=? OR CAST(id AS TEXT)=?)
-                     AND COALESCE(oculto,0)=0 AND COALESCE(activo,1)=1
-                   LIMIT 1""",
-                (codigo, codigo, codigo)
-            ).fetchone()
+            from repositories.productos import ProductoRepository
+            row = ProductoRepository(self.db).buscar_exacto_para_scanner(codigo)
             if row:
-                self._emit_product(dict(row))
+                self._emit_product(row)
                 self.txt_search.clear()
                 self._popup.hide()
                 return
@@ -195,38 +185,12 @@ class ProductSearchWidget(QWidget):
         if not text.strip() or not self.db:
             return
         try:
-            rows = self.db.execute(
-                """SELECT id, nombre,
-                          COALESCE(codigo,'') as codigo,
-                          COALESCE(codigo_barras,'') as codigo_barras,
-                          precio,
-                          COALESCE(precio_compra,0) as precio_compra,
-                          COALESCE(existencia,0) as existencia,
-                          COALESCE(unidad,'pz') as unidad
-                   FROM productos
-                   WHERE (
-                       nombre          LIKE ?            -- nombre
-                    OR COALESCE(codigo,'')      LIKE ?   -- código interno
-                    OR COALESCE(codigo_barras,'') LIKE ? -- código de barras
-                    OR CAST(id AS TEXT)          = ?     -- ID exacto
-                   )
-                   AND COALESCE(oculto,0)=0
-                   AND COALESCE(activo,1)=1
-                   ORDER BY
-                     CASE WHEN COALESCE(codigo_barras,'')=? THEN 0
-                          WHEN COALESCE(codigo,'')=?        THEN 1
-                          WHEN CAST(id AS TEXT)=?           THEN 2
-                          ELSE 3 END,
-                     nombre
-                   LIMIT 20""",
-                (f"%{text}%", f"%{text}%", f"%{text}%", text,
-                 text, text, text)
-            ).fetchall()
+            from repositories.productos import ProductoRepository
+            self._last_results = ProductoRepository(self.db).buscar_para_scanner(text)
         except Exception as e:
             logger.debug("_buscar: %s", e)
             return
 
-        self._last_results = [dict(r) for r in rows]
         self._show_popup()
 
     def _show_popup(self) -> None:

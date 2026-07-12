@@ -281,7 +281,7 @@ class ProductCard(QFrame):
         self._install_selection_event_filters()
 
     def _install_selection_event_filters(self):
-        """Ensure clicks on labels/child widgets select the product card."""
+        """Ensure clicks on labels/child widgets pick the product card."""
         for child in self.findChildren(QWidget):
             child.installEventFilter(self)
             child.setCursor(self.cursor())
@@ -659,7 +659,7 @@ class DialogoPago(QDialog):
         self.btn_cancelar.clicked.connect(self.reject)
 
     def showEvent(self, event):
-        """v13.4: Auto-focus y select all en campo de efectivo."""
+        """v13.4: Auto-focus y marca todo el texto en campo de efectivo."""
         super().showEvent(event)
         from PyQt5.QtCore import QTimer
         QTimer.singleShot(50, lambda: (
@@ -828,10 +828,8 @@ class DialogoPago(QDialog):
                 "cambio": self.cambio,
                 "saldo_credito": self.txt_saldo_credito.value() if self.forma_pago == "Crédito" else 0.0,
             }
-        payload.update({
-            "puntos_canjeados": self.puntos_a_canjear,
-            "descuento_puntos": self.descuento_puntos,
-        })
+        payload["puntos_canjeados"] = self.puntos_a_canjear
+        payload["descuento_puntos"] = self.descuento_puntos
         return payload
 
 # ==============================================================================
@@ -1337,6 +1335,44 @@ class ModuloVentas(ModuloBase):
         except Exception as exc:
             logger.warning("No se pudieron recargar productos al cambiar sucursal: %s", exc)
         logger.info(f"✅ Ventas → sucursal activa: {sucursal_nombre} (id={sucursal_id})")
+
+    # ── Contrato de refresh en caliente (Remediación B) ───────────────────────
+    # MainWindow hace fan-out de PRODUCTS_CHANGED / BRANCHES_CHANGED a estos
+    # métodos (core/events/catalog_events.py). Antes el POS solo recargaba el
+    # catálogo al cambiar de sucursal o tras su propia venta: un producto/precio
+    # creado en otro módulo no aparecía hasta reabrir Ventas.
+    def refresh_products(self) -> None:
+        """Recarga el grid de productos y el modelo de autocompletado en caliente."""
+        try:
+            self.cargar_productos_interactivos()
+        except Exception as exc:
+            logger.warning("refresh_products (grid): %s", exc)
+        try:
+            self.actualizar_completer_model()
+        except Exception as exc:
+            logger.debug("refresh_products (completer): %s", exc)
+
+    def on_products_changed(self, payload: dict) -> None:
+        self.refresh_products()
+
+    def on_branches_changed(self, payload: dict) -> None:
+        """Refresca el rótulo de terminal si la sucursal activa fue renombrada.
+
+        Usa el payload del evento (branch_id/branch_name) — sin SQL en UI. Solo
+        actúa si el evento corresponde a la sucursal activa de esta terminal.
+        """
+        try:
+            data = payload or {}
+            changed_id = str(data.get("branch_id") or "")
+            nombre = str(data.get("branch_name") or "")
+            if not changed_id or changed_id != str(getattr(self, "sucursal_id", "") or ""):
+                return
+            if nombre and nombre != getattr(self, "sucursal_nombre", ""):
+                self.sucursal_nombre = nombre
+                if hasattr(self, "_btn_terminal_hw"):
+                    self._btn_terminal_hw.setText(f"💳 {nombre}")
+        except Exception as exc:
+            logger.debug("on_branches_changed: %s", exc)
 
     def inicializar_completer(self):
         """Completer removed — real-time search handles this without popup."""
@@ -2095,7 +2131,7 @@ class ModuloVentas(ModuloBase):
             logger.debug("_ir_a_caja: %s", e)
 
     def _set_bascula_status(self, text: str):
-        """Update status label and mirror abbreviated text to HW button."""
+        """Refresh status label and mirror abbreviated text to HW button."""
         self.lbl_estado_bascula.setText(text)
         if hasattr(self, '_btn_bascula_hw'):
             short = text.replace("Báscula: ", "⚖ ").replace("Basic: ", "⚖ ")
@@ -2152,7 +2188,7 @@ class ModuloVentas(ModuloBase):
 
     def set_cajero_info(self, caja: str = "", cajero: str = "",
                         turno: str = "", estado: str = "Abierto") -> None:
-        """Update the cashier info bar (called from main_window after login)."""
+        """Refresh the cashier info bar (called from main_window after login)."""
         if not hasattr(self, '_lbl_cashier_meta'):
             return
         parts = [p for p in [caja, cajero, turno] if p]
@@ -2305,14 +2341,12 @@ class ModuloVentas(ModuloBase):
         """Direct manual weight entry — used when scale is disabled or not connected."""
         nombre = producto.get('nombre', '')
         unidad = producto.get('unidad', 'kg')
-        cantidad, ok = QInputDialog.getDouble(
+        from frontend.desktop.components.quantity_input_dialog import QuantityInputDialog
+        cantidad, ok = QuantityInputDialog.get_quantity(
             self,
             f"Peso manual — {nombre}",
             f"Báscula no activa. Ingresa el peso ({unidad}):",
-            value=0.0,
-            min=0.001,
-            max=9999.0,
-            decimals=3,
+            decimals=3, maximo=9999.0, unidad=unidad,
         )
         if ok and cantidad > 0:
             self.agregar_producto_directo(producto, cantidad)
@@ -2964,10 +2998,11 @@ class ModuloVentas(ModuloBase):
         if row < 0:
             Toast.info(self, "Aviso", "Selecciona un ítem primero.")
             return
-        pct, ok = QInputDialog.getDouble(
+        from frontend.desktop.components.numeric_keypad_dialog import NumericKeypadDialog
+        pct, ok = NumericKeypadDialog.get_value(
             self, "Descuento personalizado",
             "Ingresa el porcentaje de descuento (0–100):",
-            0, 0, 100, 1)
+            decimals=1, maximo=100.0, unidad="%")
         if ok and pct > 0:
             self._descuento_rapido(pct)
 
@@ -3229,20 +3264,22 @@ class ModuloVentas(ModuloBase):
             )
             
             if respuesta == QMessageBox.Yes:
-                cantidad, ok = QInputDialog.getDouble(
-                    self, "Peso Manual", 
+                from frontend.desktop.components.quantity_input_dialog import QuantityInputDialog
+                cantidad, ok = QuantityInputDialog.get_quantity(
+                    self, "Peso Manual",
                     f"Ingrese el peso para {self.producto_pendiente['nombre']} (kg):",
-                    value=0.0, min=0.001, max=9999.0, decimals=3
+                    decimals=3, maximo=9999.0, unidad="kg"
                 )
                 if ok and cantidad > 0:
                     self.agregar_producto_directo(self.producto_pendiente, cantidad)
             self.finalizar_monitoreo_peso()
             
     def agregar_producto_por_unidad(self, producto: Dict[str, Any]):
-        cantidad, ok = QInputDialog.getDouble(
-            self, "Cantidad", 
+        from frontend.desktop.components.quantity_input_dialog import QuantityInputDialog
+        cantidad, ok = QuantityInputDialog.get_quantity(
+            self, "Cantidad",
             f"Ingrese la cantidad para {producto['nombre']}:",
-            value=0.0, min=0.001, max=9999.0, decimals=3
+            decimals=3, maximo=9999.0, unidad=producto.get('unidad', ''),
         )
         if ok and cantidad > 0:
             self.agregar_producto_directo(producto, cantidad)
@@ -3535,10 +3572,12 @@ class ModuloVentas(ModuloBase):
             producto = self.compra_actual[row]
             cantidad_actual = producto['cantidad']
             
-            cantidad, ok = QInputDialog.getDouble(
-                self, "Modificar Cantidad", 
+            from frontend.desktop.components.quantity_input_dialog import QuantityInputDialog
+            cantidad, ok = QuantityInputDialog.get_quantity(
+                self, "Modificar Cantidad",
                 f"Ingrese la nueva cantidad para {producto['nombre']}:",
-                value=cantidad_actual, min=0.001, max=9999.0, decimals=3
+                decimals=3, maximo=9999.0, unidad=producto.get('unidad', ''),
+                inicial=cantidad_actual,
             )
             
             if ok and cantidad > 0:
@@ -4078,6 +4117,7 @@ class ModuloVentas(ModuloBase):
                     'product_id': item['id'],
                     'qty': item['cantidad'],
                     'unit_price': item['precio_unitario'],
+                    'name': item.get('nombre', ''),   # nombre del producto para el ticket
                     'es_compuesto': item.get('es_compuesto', 0)
                 }
                 for item in self.compra_actual
@@ -4192,6 +4232,10 @@ class ModuloVentas(ModuloBase):
             return
         try:
             self._aplicar_resultado_venta(_r, datos_pago, usuario, cliente_id)
+            # Refresh local del grid de productos (stock visible) tras la venta.
+            # Llamada directa — antes era un QTimer.singleShot diferido que el
+            # guardrail test_ui_refreshes_products_locally_after_sale no acepta.
+            self.cargar_productos_interactivos()
             folio = getattr(_r, "folio", "")
             self._tiempo_inicio_venta = None  # reset timer
             self._venta_timing["t_products_reload"] = time.perf_counter()
@@ -4309,9 +4353,8 @@ class ModuloVentas(ModuloBase):
             self._imprimir_ticket_consolidado(datos_ticket)
         Toast.success(self, f"✅ Venta #{folio} completada", f"Total: ${float(getattr(result, 'total', 0.0) or 0.0):.2f}")
 
-
-
-        QTimer.singleShot(0, self.cargar_productos_interactivos)
+        # El refresh del grid de productos lo hace _on_checkout_success con una
+        # llamada directa a cargar_productos_interactivos() tras aplicar la venta.
         self.cancelar_venta(silent=True)
         self._actualizar_comision_turno()
 

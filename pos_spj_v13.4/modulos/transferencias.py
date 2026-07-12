@@ -124,6 +124,23 @@ class ModuloTransferencias(ModuloBase):
     def _on_data_changed(self, _data: dict) -> None:
         QTimer.singleShot(0, self._refresh_all)
 
+    # ── Contrato de refresh en caliente (Remediación B) ───────────────────────
+    # MainWindow hace fan-out de BRANCHES_CHANGED / PRODUCTS_CHANGED aquí. Los
+    # diálogos ya re-consultan sucursales/productos frescos al abrir
+    # (_get_sucursales / ProductoRepository), así que basta con refrescar la
+    # lista y stats para que el módulo participe del refresh global.
+    def refresh_branches(self) -> None:
+        QTimer.singleShot(0, self._refresh_all)
+
+    def on_branches_changed(self, payload: dict) -> None:
+        self.refresh_branches()
+
+    def refresh_products(self) -> None:
+        QTimer.singleShot(0, self._refresh_all)
+
+    def on_products_changed(self, payload: dict) -> None:
+        self.refresh_products()
+
     def _refresh_all(self) -> None:
         self._load_transfers()
 

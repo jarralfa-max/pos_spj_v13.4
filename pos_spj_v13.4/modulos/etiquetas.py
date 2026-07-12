@@ -64,7 +64,8 @@ class EtiquetaPreview(QLabel):
         self._render()
 
     def set_opciones(self, opciones: dict):
-        self.opciones.update(opciones)
+        for _k, _v in (opciones or {}).items():
+            self.opciones[_k] = _v
         self._render()
 
     def actualizar(self, datos: dict):
@@ -442,10 +443,8 @@ class ModuloEtiquetas(QWidget):
     def _cargar_productos(self):
         """Carga productos de la BD y configura el autocompletado."""
         try:
-            rows = self.db.execute(
-                "SELECT id, nombre, COALESCE(precio,0), COALESCE(unidad,'pz') "
-                "FROM productos WHERE activo=1 ORDER BY nombre LIMIT 2000"
-            ).fetchall()
+            from repositories.productos import ProductoRepository
+            rows = ProductoRepository(self.db).listar_para_etiquetas()
             self._productos_cache = [
                 (r[0], r[1], float(r[2]), str(r[3])) for r in rows
             ]
@@ -491,10 +490,8 @@ class ModuloEtiquetas(QWidget):
 
     def _cargar_config(self):
         try:
-            row = self.db.execute(
-                "SELECT valor FROM configuraciones WHERE clave='nombre_empresa'"
-            ).fetchone()
-            self._nombre_negocio = row[0] if row else "SPJ"
+            cfg = getattr(self.container, "config_service", None)
+            self._nombre_negocio = (cfg.get("nombre_empresa") if cfg else None) or "SPJ"
         except Exception:
             self._nombre_negocio = "SPJ"
 
@@ -547,18 +544,14 @@ class ModuloEtiquetas(QWidget):
 
     def _get_printer_config(self) -> dict:
         """Lee configuración de impresora de etiquetas desde hardware_config."""
-        import json as _json
+        from core.repositories.hardware_config_repository import HardwareConfigRepository
+        repo = HardwareConfigRepository(self.db)
         # Intentar ambas claves posibles
         for tipo_key in ('etiquetas', 'impresora_etiquetas'):
             try:
-                row = self.db.execute(
-                    "SELECT configuraciones FROM hardware_config WHERE tipo=?",
-                    (tipo_key,)
-                ).fetchone()
-                if row and row[0]:
-                    cfg = _json.loads(row[0])
-                    if cfg.get("ubicacion") or cfg.get("ip") or cfg.get("puerto_serial"):
-                        return cfg
+                cfg = repo.get_config(tipo_key)
+                if cfg and (cfg.get("ubicacion") or cfg.get("ip") or cfg.get("puerto_serial")):
+                    return cfg
             except Exception:
                 pass
         return {}
