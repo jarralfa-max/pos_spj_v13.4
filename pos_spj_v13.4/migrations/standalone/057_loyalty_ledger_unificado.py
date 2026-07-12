@@ -6,7 +6,7 @@
 def run(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_ledger (
-            id             TEXT    PRIMARY KEY,
+            id             TEXT NOT NULL    PRIMARY KEY,
             cliente_id     TEXT    NOT NULL,
             tipo           TEXT    NOT NULL CHECK(tipo IN
                                ('acumulacion','canje','reversa','ajuste')),

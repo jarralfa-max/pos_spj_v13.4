@@ -11,7 +11,7 @@ Absence of these tables produced:
 def run(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS purchase_requests (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             folio        TEXT,
             estado       TEXT    NOT NULL DEFAULT 'borrador',
             solicitante  TEXT,
@@ -26,7 +26,7 @@ def run(conn):
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS purchase_request_items (
-            id                 TEXT PRIMARY KEY,
+            id                 TEXT NOT NULL PRIMARY KEY,
             pr_id              TEXT NOT NULL
                                    REFERENCES purchase_requests(id) ON DELETE CASCADE,
             producto_id        TEXT NOT NULL,
@@ -39,7 +39,7 @@ def run(conn):
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS purchase_request_events (
-            id         TEXT PRIMARY KEY,
+            id         TEXT NOT NULL PRIMARY KEY,
             pr_id      TEXT NOT NULL
                            REFERENCES purchase_requests(id) ON DELETE CASCADE,
             evento     TEXT    NOT NULL,

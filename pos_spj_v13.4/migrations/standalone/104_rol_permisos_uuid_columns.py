@@ -2,7 +2,7 @@
 
 Histórico: esta migración añadía columnas `uuid`/`rol_uuid`/`permiso_uuid` duales como preparación
 incremental del corte UUID (pre-Plan B). Con el schema born-clean la identidad
-canónica ya ES `id TEXT PRIMARY KEY` (UUIDv7): la columna dual está prohibida
+canónica ya ES `id TEXT NOT NULL PRIMARY KEY` (UUIDv7): la columna dual está prohibida
 (REGLA CERO — sin dualidad uuid/id) y no debe volver a crearse. Se conserva
 registrada en el engine sólo para no alterar el ledger schema_migrations.
 """

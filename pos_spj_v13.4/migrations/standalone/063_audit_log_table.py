@@ -8,7 +8,7 @@ Coexiste con audit_logs (columnas en español, legacy POS) — no se toca ni eli
 def run(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS audit_log (
-            id            TEXT PRIMARY KEY,
+            id            TEXT NOT NULL PRIMARY KEY,
             user_id       TEXT,
             action        TEXT    NOT NULL,
             entity        TEXT    NOT NULL,

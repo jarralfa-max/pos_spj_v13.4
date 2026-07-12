@@ -14,7 +14,7 @@ Tabla creada:
 def run(conn):
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS capital_movements (
-            id                  TEXT    PRIMARY KEY,
+            id                  TEXT NOT NULL    PRIMARY KEY,
             movement_type       TEXT    NOT NULL DEFAULT 'injection',
                                         -- injection | withdrawal | adjustment | opening_balance
             amount              REAL    NOT NULL CHECK(amount > 0),

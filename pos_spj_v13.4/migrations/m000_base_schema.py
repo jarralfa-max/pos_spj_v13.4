@@ -125,7 +125,7 @@ def up(conn: sqlite3.Connection) -> None:
 def _create_core_config(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS configuraciones (
-            clave       TEXT PRIMARY KEY,
+            clave       TEXT NOT NULL PRIMARY KEY,
             valor       TEXT,
             tipo        TEXT DEFAULT 'texto',
             grupo       TEXT DEFAULT 'general',
@@ -134,7 +134,7 @@ def _create_core_config(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS configuraciones (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             clave       TEXT    NOT NULL UNIQUE,
             valor       TEXT    NOT NULL,
             categoria   TEXT    DEFAULT 'general',
@@ -146,7 +146,7 @@ def _create_core_config(conn):
     
     conn.execute("""
         CREATE TABLE IF NOT EXISTS feature_flags (
-            clave               TEXT PRIMARY KEY,
+            clave               TEXT NOT NULL PRIMARY KEY,
             activo              INTEGER DEFAULT 0,
             descripcion         TEXT,
             valor               TEXT DEFAULT '0',
@@ -156,7 +156,7 @@ def _create_core_config(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS system_constants (
-            key         TEXT PRIMARY KEY,
+            key         TEXT NOT NULL PRIMARY KEY,
             value       TEXT NOT NULL,
             description TEXT,
             updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
@@ -165,7 +165,7 @@ def _create_core_config(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS hardware_config (
-            tipo                TEXT PRIMARY KEY,
+            tipo                TEXT NOT NULL PRIMARY KEY,
             nombre              TEXT NOT NULL,
             driver              TEXT,
             puerto              TEXT,
@@ -177,7 +177,7 @@ def _create_core_config(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sucursales (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             nombre      TEXT    NOT NULL,
             direccion   TEXT,
             telefono    TEXT,
@@ -191,7 +191,7 @@ def _create_core_config(conn):
 def _create_auth(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
-            id            TEXT PRIMARY KEY,
+            id            TEXT NOT NULL PRIMARY KEY,
             nombre        TEXT    NOT NULL,
             usuario       TEXT    UNIQUE NOT NULL,
             password_hash TEXT    NOT NULL,
@@ -204,7 +204,7 @@ def _create_auth(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS roles (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             nombre      TEXT UNIQUE NOT NULL,
             descripcion TEXT,
             activo      INTEGER DEFAULT 1
@@ -212,7 +212,7 @@ def _create_auth(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS permisos (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             codigo      TEXT UNIQUE NOT NULL,
             modulo      TEXT NOT NULL,
             descripcion TEXT
@@ -235,7 +235,7 @@ def _create_auth(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS login_attempts (
-            id       TEXT PRIMARY KEY,
+            id       TEXT NOT NULL PRIMARY KEY,
             usuario  TEXT,
             terminal TEXT DEFAULT 'local',
             exitoso  INTEGER DEFAULT 0,
@@ -259,7 +259,7 @@ def _create_clientes(conn):
     # sucursal_id TEXT sin default arbitrario (lo provee el contexto de sucursal).
     conn.execute("""
         CREATE TABLE IF NOT EXISTS clientes (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             nombre           TEXT    NOT NULL,
             telefono         TEXT,
             email            TEXT,
@@ -286,7 +286,7 @@ def _create_clientes(conn):
     # — su saneo va en un follow-up dedicado, no en este corte.
     conn.execute("""
         CREATE TABLE IF NOT EXISTS historico_puntos (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             cliente_id  TEXT,
             tipo        TEXT,
             puntos      INTEGER,
@@ -297,7 +297,7 @@ def _create_clientes(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS referidos (
-            id                 TEXT PRIMARY KEY,
+            id                 TEXT NOT NULL PRIMARY KEY,
             codigo             TEXT UNIQUE,
             cliente_referidor  INTEGER,
             cliente_referido   INTEGER,
@@ -312,14 +312,14 @@ def _create_clientes(conn):
 def _create_productos(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS categorias (
-            id     TEXT PRIMARY KEY,
+            id     TEXT NOT NULL PRIMARY KEY,
             nombre TEXT    UNIQUE NOT NULL,
             orden  INTEGER DEFAULT 0
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS productos (
-            id                   TEXT PRIMARY KEY,
+            id                   TEXT NOT NULL PRIMARY KEY,
             codigo               TEXT UNIQUE,
             codigo_barras        TEXT,
             nombre               TEXT NOT NULL,
@@ -349,7 +349,7 @@ def _create_productos(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS proveedores (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             nombre      TEXT NOT NULL,
             rfc         TEXT,
             telefono    TEXT,
@@ -364,7 +364,7 @@ def _create_productos(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS suppliers (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             proveedor_id     TEXT,
             nombre           TEXT NOT NULL,
             rfc              TEXT,
@@ -383,7 +383,7 @@ def _create_productos(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS tipos_cambio (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             moneda_origen   TEXT,
             moneda_destino  TEXT DEFAULT 'MXN',
             tasa            REAL,
@@ -394,7 +394,7 @@ def _create_productos(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS unidades_medida (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             codigo      TEXT NOT NULL UNIQUE,
             nombre      TEXT NOT NULL,
             factor_base REAL NOT NULL DEFAULT 1.0,
@@ -404,7 +404,7 @@ def _create_productos(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS unidades_conversion (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             unidad_desde TEXT NOT NULL,
             unidad_hasta TEXT NOT NULL,
             factor       REAL NOT NULL CHECK(factor > 0),
@@ -413,7 +413,7 @@ def _create_productos(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS componentes_producto (
-            id                      TEXT PRIMARY KEY,
+            id                      TEXT NOT NULL PRIMARY KEY,
             producto_compuesto_id   TEXT NOT NULL,
             producto_componente_id  TEXT NOT NULL,
             cantidad                REAL NOT NULL,
@@ -426,7 +426,7 @@ def _create_productos(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS productos_deletion_guard (
-            producto_id    TEXT PRIMARY KEY,
+            producto_id    TEXT NOT NULL PRIMARY KEY,
             has_sales      INTEGER NOT NULL DEFAULT 0,
             has_movements  INTEGER NOT NULL DEFAULT 0,
             has_recipes    INTEGER NOT NULL DEFAULT 0,
@@ -438,7 +438,7 @@ def _create_productos(conn):
 def _create_inventario(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS lotes (
-            id                TEXT PRIMARY KEY,
+            id                TEXT NOT NULL PRIMARY KEY,
             producto_id       TEXT,
             numero_lote       TEXT,
             proveedor_id      TEXT,
@@ -456,7 +456,7 @@ def _create_inventario(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS movimientos_lote (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             lote_id     TEXT,
             tipo        TEXT,
             cantidad_kg REAL,
@@ -467,7 +467,7 @@ def _create_inventario(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS inventario_global (
-            id            TEXT PRIMARY KEY,
+            id            TEXT NOT NULL PRIMARY KEY,
             producto_id   TEXT NOT NULL,
             peso_kg       REAL    NOT NULL DEFAULT 0,
             costo_total   REAL    DEFAULT 0,
@@ -484,7 +484,7 @@ def _create_inventario(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS inventario_sucursal (
-            id                  TEXT PRIMARY KEY,
+            id                  TEXT NOT NULL PRIMARY KEY,
             sucursal_id         TEXT NOT NULL,
             producto_id         TEXT NOT NULL,
             peso_kg             REAL    NOT NULL DEFAULT 0,
@@ -495,7 +495,7 @@ def _create_inventario(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS inventario_actual (
-            id                   TEXT PRIMARY KEY,
+            id                   TEXT NOT NULL PRIMARY KEY,
             producto_id          TEXT NOT NULL,
             sucursal_id          TEXT NOT NULL,
             cantidad             REAL    NOT NULL DEFAULT 0,
@@ -506,7 +506,7 @@ def _create_inventario(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS inventario_diario (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             fecha       DATE    NOT NULL,
             producto_id TEXT NOT NULL,
             sucursal_id TEXT NOT NULL,
@@ -518,7 +518,7 @@ def _create_inventario(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS movimientos_inventario (
-            id                  TEXT PRIMARY KEY,
+            id                  TEXT NOT NULL PRIMARY KEY,
             producto_id         TEXT,
             tipo                TEXT,
             tipo_movimiento     TEXT,
@@ -545,7 +545,7 @@ def _create_inventario(conn):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_mov_inv_producto ON movimientos_inventario(producto_id, fecha)")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS inventory_movements (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             operation_id   TEXT    NOT NULL,
             product_id     TEXT    NOT NULL,
             branch_id      TEXT    NOT NULL,
@@ -560,7 +560,7 @@ def _create_inventario(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS inventory_reservations (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             branch_id      TEXT NOT NULL,
             product_id     TEXT NOT NULL,
             reserved_qty   REAL NOT NULL CHECK(reserved_qty > 0),
@@ -573,7 +573,7 @@ def _create_inventario(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS branch_inventory (
-            id         TEXT PRIMARY KEY,
+            id         TEXT NOT NULL PRIMARY KEY,
             branch_id  TEXT NOT NULL,
             product_id TEXT NOT NULL,
             batch_id   TEXT,
@@ -584,7 +584,7 @@ def _create_inventario(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS mermas (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             producto_id    TEXT NOT NULL,
             sucursal_id    TEXT NOT NULL,
             cantidad       REAL    NOT NULL CHECK(cantidad > 0),
@@ -598,7 +598,7 @@ def _create_inventario(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ajustes_inventario (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             producto_id    TEXT NOT NULL,
             sucursal_id    TEXT NOT NULL,
             tipo           TEXT    NOT NULL,
@@ -613,7 +613,7 @@ def _create_inventario(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS transferencias_inventario (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             producto_id      TEXT NOT NULL,
             cantidad         REAL    NOT NULL,
             tipo             TEXT    NOT NULL,
@@ -629,7 +629,7 @@ def _create_inventario(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS traspasos_inventario (
-            id                  TEXT PRIMARY KEY,
+            id                  TEXT NOT NULL PRIMARY KEY,
             sucursal_origen_id  TEXT,
             sucursal_destino_id TEXT,
             producto_id         TEXT,
@@ -645,7 +645,7 @@ def _create_inventario(conn):
 def _create_ventas(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ventas (
-            id                TEXT PRIMARY KEY,
+            id                TEXT NOT NULL PRIMARY KEY,
             folio             TEXT,
             sucursal_id       TEXT,
             usuario           TEXT,
@@ -672,7 +672,7 @@ def _create_ventas(conn):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_ventas_cliente ON ventas(cliente_id)")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS detalles_venta (
-            id                  TEXT PRIMARY KEY,
+            id                  TEXT NOT NULL PRIMARY KEY,
             venta_id            TEXT,
             producto_id         TEXT,
             cantidad            REAL,
@@ -688,7 +688,7 @@ def _create_ventas(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS payments (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             venta_id     TEXT NOT NULL,
             method       TEXT    NOT NULL,
             amount       REAL    NOT NULL CHECK(amount > 0),
@@ -699,7 +699,7 @@ def _create_ventas(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sale_refunds (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             sale_id      TEXT NOT NULL,
             sale_item_id TEXT NOT NULL,
             product_id   TEXT NOT NULL,
@@ -714,7 +714,7 @@ def _create_ventas(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS credit_notes (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             sale_id      TEXT NOT NULL,
             amount       REAL    NOT NULL CHECK(amount > 0),
             reason       TEXT    NOT NULL,
@@ -725,7 +725,7 @@ def _create_ventas(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS devoluciones (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             folio            TEXT UNIQUE,
             venta_id         TEXT,
             tipo             TEXT DEFAULT 'devolucion',
@@ -741,7 +741,7 @@ def _create_ventas(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS devoluciones_detalle (
-            id                 TEXT PRIMARY KEY,
+            id                 TEXT NOT NULL PRIMARY KEY,
             devolucion_id      TEXT,
             producto_id        TEXT,
             cantidad           REAL,
@@ -752,7 +752,7 @@ def _create_ventas(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS cotizaciones (
-            id                TEXT    PRIMARY KEY,
+            id                TEXT NOT NULL    PRIMARY KEY,
             folio             TEXT UNIQUE,
             cliente_id        TEXT,
             cliente_nombre    TEXT,
@@ -771,7 +771,7 @@ def _create_ventas(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS cotizaciones_detalle (
-            id              TEXT    PRIMARY KEY,
+            id              TEXT NOT NULL    PRIMARY KEY,
             cotizacion_id   TEXT,
             producto_id     TEXT,
             nombre          TEXT,
@@ -784,7 +784,7 @@ def _create_ventas(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS facturas_cfdi (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             uuid_cfdi        TEXT UNIQUE,
             venta_id         TEXT,
             folio            TEXT,
@@ -804,7 +804,7 @@ def _create_ventas(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ventas_diarias (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             fecha           DATE    NOT NULL,
             sucursal_id     TEXT NOT NULL,
             total_ventas    REAL    NOT NULL DEFAULT 0,
@@ -821,7 +821,7 @@ def _create_ventas(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS clientes_diarios (
-            id                      TEXT PRIMARY KEY,
+            id                      TEXT NOT NULL PRIMARY KEY,
             fecha                   DATE    NOT NULL,
             sucursal_id             TEXT NOT NULL,
             clientes_activos        INTEGER NOT NULL DEFAULT 0,
@@ -838,7 +838,7 @@ def _create_ventas(conn):
 def _create_caja(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS movimientos_caja (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             tipo         TEXT    NOT NULL,
             monto        REAL    NOT NULL DEFAULT 0,
             descripcion  TEXT,
@@ -856,7 +856,7 @@ def _create_caja(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS caja_operations (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             branch_id      TEXT NOT NULL,
             operation_id   TEXT    NOT NULL UNIQUE,
             operation_type TEXT    NOT NULL,
@@ -871,7 +871,7 @@ def _create_caja(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS turnos_caja (
-            id                TEXT PRIMARY KEY,
+            id                TEXT NOT NULL PRIMARY KEY,
             sucursal_id       TEXT,
             usuario           TEXT,
             cajero            TEXT,
@@ -891,7 +891,7 @@ def _create_caja(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS cierres_caja (
-            id                  TEXT PRIMARY KEY,
+            id                  TEXT NOT NULL PRIMARY KEY,
             tipo                TEXT DEFAULT 'Z',
             sucursal_id         TEXT,
             usuario             TEXT,
@@ -915,7 +915,7 @@ def _create_caja(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS turno_actual (
-            sucursal_id    TEXT PRIMARY KEY,
+            sucursal_id    TEXT NOT NULL PRIMARY KEY,
             usuario        TEXT,
             turno          TEXT,
             fondo_inicial  REAL DEFAULT 0,
@@ -925,7 +925,7 @@ def _create_caja(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS cajas (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             nombre           TEXT NOT NULL,
             ubicacion        TEXT,
             fondo_inicial    REAL DEFAULT 0,
@@ -943,7 +943,7 @@ def _create_caja(conn):
 def _create_compras(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS compras (
-            id            TEXT PRIMARY KEY,
+            id            TEXT NOT NULL PRIMARY KEY,
             folio         TEXT UNIQUE,
             fecha         DATETIME DEFAULT (datetime('now')),
             proveedor_id  TEXT,
@@ -960,7 +960,7 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS detalles_compra (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             compra_id       TEXT NOT NULL,
             producto_id     TEXT NOT NULL,
             cantidad        REAL NOT NULL,
@@ -972,7 +972,7 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ordenes_compra (
-            id                     TEXT PRIMARY KEY,
+            id                     TEXT NOT NULL PRIMARY KEY,
             folio                  TEXT UNIQUE,
             proveedor_id           TEXT,
             estado                 TEXT DEFAULT 'borrador',
@@ -986,7 +986,7 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ordenes_compra_items (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             orden_id        TEXT,
             producto_id     TEXT,
             nombre          TEXT,
@@ -998,7 +998,7 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS gastos (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             fecha          DATE NOT NULL,
             categoria      TEXT NOT NULL,
             concepto       TEXT NOT NULL,
@@ -1016,7 +1016,7 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS compras_pollo (
-            id                  TEXT PRIMARY KEY,
+            id                  TEXT NOT NULL PRIMARY KEY,
             fecha               DATE NOT NULL,
             numero_pollos       INTEGER NOT NULL,
             kilos_totales       REAL NOT NULL,
@@ -1033,7 +1033,7 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS compras_inventariables (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             gasto_id        TEXT,
             producto_id     TEXT NOT NULL,
             batch_id_global INTEGER,
@@ -1050,7 +1050,7 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS inventario_subproductos (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             compra_pollo_id TEXT,
             producto_id     TEXT NOT NULL,
             cantidad        REAL NOT NULL,
@@ -1062,7 +1062,7 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS recepciones (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             folio        TEXT    NOT NULL,
             tipo         TEXT    NOT NULL DEFAULT 'COMPRA',
             proveedor_id TEXT,
@@ -1077,7 +1077,7 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS recepcion_items (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             recepcion_id   TEXT NOT NULL,
             producto_id    TEXT NOT NULL,
             cantidad       REAL    NOT NULL CHECK(cantidad > 0),
@@ -1088,7 +1088,7 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS recepciones_pollo (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             sucursal_id      TEXT NOT NULL,
             producto_id      TEXT NOT NULL,
             peso_kg          REAL    NOT NULL CHECK(peso_kg > 0),
@@ -1110,7 +1110,7 @@ def _create_compras(conn):
 def _create_pedidos_whatsapp(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS pedidos_whatsapp (
-            id                TEXT PRIMARY KEY,
+            id                TEXT NOT NULL PRIMARY KEY,
             numero_whatsapp   TEXT NOT NULL,
             cliente_id        TEXT,
             cliente_nombre    TEXT,
@@ -1135,7 +1135,7 @@ def _create_pedidos_whatsapp(conn):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_pedidos_wa_numero ON pedidos_whatsapp(numero_whatsapp)")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS pedidos_whatsapp_items (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             pedido_id       TEXT,
             producto_id     TEXT,
             nombre_producto TEXT,
@@ -1149,14 +1149,14 @@ def _create_pedidos_whatsapp(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS bot_sessions (
-            numero           TEXT PRIMARY KEY,
+            numero           TEXT NOT NULL PRIMARY KEY,
             datos            TEXT,
             ultima_actividad DATETIME DEFAULT (datetime('now'))
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS whatsapp_queue (
-            id         TEXT PRIMARY KEY,
+            id         TEXT NOT NULL PRIMARY KEY,
             to_number  TEXT NOT NULL,
             message    TEXT NOT NULL,
             template   TEXT,
@@ -1170,7 +1170,7 @@ def _create_pedidos_whatsapp(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS links_pago (
-            pedido_id      TEXT PRIMARY KEY,
+            pedido_id      TEXT NOT NULL PRIMARY KEY,
             monto          REAL,
             estado         TEXT DEFAULT 'pendiente',
             preference_id  TEXT,
@@ -1185,7 +1185,7 @@ def _create_pedidos_whatsapp(conn):
 def _create_delivery(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS drivers (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             nombre      TEXT NOT NULL,
             telefono    TEXT,
             vehiculo    TEXT,
@@ -1197,7 +1197,7 @@ def _create_delivery(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS driver_locations (
-            chofer_id TEXT PRIMARY KEY,
+            chofer_id TEXT NOT NULL PRIMARY KEY,
             lat       REAL,
             lng       REAL,
             timestamp DATETIME
@@ -1205,7 +1205,7 @@ def _create_delivery(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS delivery_orders (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             venta_id         TEXT,
             driver_id        TEXT,
             cliente_id       TEXT,
@@ -1226,7 +1226,7 @@ def _create_delivery(conn):
 def _create_trazabilidad(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS trazabilidad_qr (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             uuid_qr          TEXT UNIQUE NOT NULL,
             tipo             TEXT NOT NULL,
             producto_id      TEXT,
@@ -1248,7 +1248,7 @@ def _create_trazabilidad(conn):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_traz_uuid ON trazabilidad_qr(uuid_qr)")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS movimientos_trazabilidad (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             uuid_qr     TEXT NOT NULL,
             evento      TEXT NOT NULL,
             origen      TEXT,
@@ -1264,7 +1264,7 @@ def _create_trazabilidad(conn):
 def _create_listas_precio(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS listas_precio (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             nombre           TEXT UNIQUE,
             descripcion      TEXT,
             descuento_global REAL DEFAULT 0,
@@ -1282,7 +1282,7 @@ def _create_listas_precio(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS precios_volumen (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             producto_id  TEXT,
             lista_id     TEXT,
             cantidad_min REAL,
@@ -1292,13 +1292,13 @@ def _create_listas_precio(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS clientes_lista_precio (
-            cliente_id TEXT PRIMARY KEY,
+            cliente_id TEXT NOT NULL PRIMARY KEY,
             lista_id   TEXT
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS paquetes (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             producto_id     TEXT UNIQUE,
             nombre          TEXT NOT NULL,
             descripcion     TEXT,
@@ -1310,7 +1310,7 @@ def _create_listas_precio(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS paquetes_componentes (
-            id                 TEXT PRIMARY KEY,
+            id                 TEXT NOT NULL PRIMARY KEY,
             paquete_id         TEXT,
             corte_producto_id  TEXT,
             porcentaje         REAL NOT NULL
@@ -1318,7 +1318,7 @@ def _create_listas_precio(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS promotion_rules (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             nombre           TEXT NOT NULL,
             tipo             TEXT NOT NULL,
             activa           INTEGER DEFAULT 1,
@@ -1341,7 +1341,7 @@ def _create_listas_precio(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS marketing_messages (
-            id        TEXT PRIMARY KEY,
+            id        TEXT NOT NULL PRIMARY KEY,
             contexto  TEXT NOT NULL,
             nombre    TEXT NOT NULL,
             mensaje   TEXT NOT NULL,
@@ -1356,7 +1356,7 @@ def _create_listas_precio(conn):
 def _create_documentos(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS historial (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             tipo        TEXT,
             descripcion TEXT,
             usuario     TEXT,
@@ -1367,7 +1367,7 @@ def _create_documentos(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS logs (
-            id         TEXT PRIMARY KEY,
+            id         TEXT NOT NULL PRIMARY KEY,
             fecha      DATETIME DEFAULT (datetime('now')),
             usuario    TEXT,
             modulo     TEXT NOT NULL,
@@ -1379,7 +1379,7 @@ def _create_documentos(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS email_config (
-            id           TEXT PRIMARY KEY DEFAULT 1,
+            id           TEXT NOT NULL PRIMARY KEY DEFAULT 1,
             smtp_host    TEXT,
             smtp_port    INTEGER DEFAULT 587,
             smtp_user    TEXT,
@@ -1391,7 +1391,7 @@ def _create_documentos(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS email_schedule (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             tipo        TEXT,
             hora        TEXT DEFAULT '08:00',
             activo      INTEGER DEFAULT 1,
@@ -1403,7 +1403,7 @@ def _create_documentos(conn):
     # key-value `configuraciones` (ticket_logo_b64, etc.), no aquí.
     conn.execute("""
         CREATE TABLE IF NOT EXISTS config_diseno_tarjetas (
-            id    TEXT PRIMARY KEY,
+            id    TEXT NOT NULL PRIMARY KEY,
             clave TEXT NOT NULL UNIQUE,
             valor TEXT
         )
@@ -1413,7 +1413,7 @@ def _create_documentos(conn):
 def _create_personal_rrhh(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS personal (
-            id                   TEXT PRIMARY KEY,
+            id                   TEXT NOT NULL PRIMARY KEY,
             nombre               TEXT NOT NULL,
             apellidos            TEXT,
             puesto               TEXT,
@@ -1433,7 +1433,7 @@ def _create_personal_rrhh(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS asistencias (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             personal_id      TEXT NOT NULL,
             fecha            DATE NOT NULL,
             hora_entrada     TEXT,
@@ -1445,7 +1445,7 @@ def _create_personal_rrhh(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS nomina_records (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             personal_id    TEXT,
             periodo_inicio DATE NOT NULL,
             periodo_fin    DATE NOT NULL,
@@ -1460,7 +1460,7 @@ def _create_personal_rrhh(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS nomina_pagos (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             empleado_id    TEXT NOT NULL,
             periodo_inicio DATE NOT NULL,
             periodo_fin    DATE NOT NULL,
@@ -1476,7 +1476,7 @@ def _create_personal_rrhh(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS evaluaciones_personal (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             personal_id TEXT,
             periodo     TEXT,
             calificacion INTEGER,
@@ -1492,7 +1492,7 @@ def _create_activos(conn):
     # vida_util_anios sin default arbitrario (lo provee siempre quien registra).
     conn.execute("""
         CREATE TABLE IF NOT EXISTS activos (
-            id                  TEXT PRIMARY KEY,
+            id                  TEXT NOT NULL PRIMARY KEY,
             nombre              TEXT NOT NULL,
             categoria           TEXT,
             numero_serie        TEXT,
@@ -1510,7 +1510,7 @@ def _create_activos(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS mantenimientos (
-            id            TEXT PRIMARY KEY,
+            id            TEXT NOT NULL PRIMARY KEY,
             activo_id     TEXT,
             tipo          TEXT,
             descripcion   TEXT,
@@ -1523,7 +1523,7 @@ def _create_activos(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS assets (
-            id                 TEXT PRIMARY KEY,
+            id                 TEXT NOT NULL PRIMARY KEY,
             codigo             TEXT UNIQUE,
             nombre             TEXT NOT NULL,
             tipo               TEXT NOT NULL DEFAULT 'equipo',
@@ -1541,7 +1541,7 @@ def _create_activos(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS asset_maintenance (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             asset_id    TEXT NOT NULL,
             tipo        TEXT DEFAULT 'preventivo',
             fecha       DATE NOT NULL,
@@ -1557,7 +1557,7 @@ def _create_activos(conn):
 def _create_loyalty(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_programs (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             nombre          TEXT NOT NULL,
             activo          INTEGER DEFAULT 1,
             puntos_por_peso REAL DEFAULT 1.0,
@@ -1573,14 +1573,14 @@ def _create_loyalty(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_config (
-            clave       TEXT PRIMARY KEY,
+            clave       TEXT NOT NULL PRIMARY KEY,
             valor       TEXT NOT NULL,
             descripcion TEXT
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_scores (
-            cliente_id       TEXT PRIMARY KEY,
+            cliente_id       TEXT NOT NULL PRIMARY KEY,
             score_total      REAL NOT NULL DEFAULT 0,
             nivel            TEXT NOT NULL DEFAULT 'Bronce',
             score_frecuencia REAL NOT NULL DEFAULT 0,
@@ -1592,7 +1592,7 @@ def _create_loyalty(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_level_history (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             cliente_id   TEXT NOT NULL,
             level_before TEXT    NOT NULL,
             level_after  TEXT    NOT NULL,
@@ -1602,7 +1602,7 @@ def _create_loyalty(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_challenges (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             name           TEXT    NOT NULL,
             description    TEXT,
             challenge_type TEXT    NOT NULL DEFAULT 'PURCHASES',
@@ -1618,7 +1618,7 @@ def _create_loyalty(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_challenge_progress (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             challenge_id   TEXT NOT NULL,
             cliente_id     TEXT NOT NULL,
             current_value  REAL    NOT NULL DEFAULT 0,
@@ -1631,7 +1631,7 @@ def _create_loyalty(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_community_goals (
-            id            TEXT PRIMARY KEY,
+            id            TEXT NOT NULL PRIMARY KEY,
             name          TEXT    NOT NULL,
             description   TEXT,
             target_value  REAL    NOT NULL DEFAULT 0,
@@ -1650,7 +1650,7 @@ def _create_loyalty(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_community_contributions (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             goal_id      TEXT NOT NULL,
             cliente_id   TEXT NOT NULL,
             venta_id     TEXT,
@@ -1660,7 +1660,7 @@ def _create_loyalty(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_budget_caps (
-            id            TEXT PRIMARY KEY,
+            id            TEXT NOT NULL PRIMARY KEY,
             branch_id     TEXT NOT NULL,
             year_month    TEXT    NOT NULL,
             budget_limit  REAL    NOT NULL DEFAULT 0,
@@ -1672,7 +1672,7 @@ def _create_loyalty(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_multiplier_rules (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             rule_type       TEXT    NOT NULL,
             condition_value TEXT    NOT NULL,
             multiplier      REAL    NOT NULL DEFAULT 1.0,
@@ -1683,7 +1683,7 @@ def _create_loyalty(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_redemption_limits (
-            branch_id               TEXT PRIMARY KEY,
+            branch_id               TEXT NOT NULL PRIMARY KEY,
             max_pct_per_sale        REAL    NOT NULL DEFAULT 30.0,
             max_pts_per_sale        INTEGER NOT NULL DEFAULT 500,
             max_monthly_pts         INTEGER NOT NULL DEFAULT 5000,
@@ -1693,7 +1693,7 @@ def _create_loyalty(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_roi_tracking (
-            id                           TEXT PRIMARY KEY,
+            id                           TEXT NOT NULL PRIMARY KEY,
             branch_id                    TEXT NOT NULL,
             year_month                   TEXT    NOT NULL,
             revenue_from_loyal_customers REAL    NOT NULL DEFAULT 0,
@@ -1707,7 +1707,7 @@ def _create_loyalty(conn):
     # (0 referencias). El log canónico de puntos es loyalty_ledger.
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_snapshots (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             cliente_id     TEXT NOT NULL,
             fecha          DATE    NOT NULL,
             visitas_dia    INTEGER NOT NULL DEFAULT 0,
@@ -1721,7 +1721,7 @@ def _create_loyalty(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_ticket_messages (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             message_type     TEXT NOT NULL,
             message_template TEXT NOT NULL,
             is_active        INTEGER NOT NULL DEFAULT 1,
@@ -1730,7 +1730,7 @@ def _create_loyalty(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS config_programa_fidelidad (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             nombre_programa TEXT,
             puntos_por_peso REAL DEFAULT 1.0,
             niveles         TEXT,
@@ -1747,7 +1747,7 @@ def _create_tarjetas(conn):
     # numero/batch_id/activa nacen en base (antes los añadía la migración 112).
     conn.execute("""
         CREATE TABLE IF NOT EXISTS tarjetas_fidelidad (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             codigo_qr        TEXT NOT NULL,
             numero           TEXT,
             batch_id         TEXT,
@@ -1771,7 +1771,7 @@ def _create_tarjetas(conn):
     # identidad). generado_por/fecha_cierre nacen en base (antes en migración 112).
     conn.execute("""
         CREATE TABLE IF NOT EXISTS card_batches (
-            id                  TEXT PRIMARY KEY,
+            id                  TEXT NOT NULL PRIMARY KEY,
             nombre              TEXT NOT NULL,
             codigo_inicio       TEXT NOT NULL,
             codigo_fin          TEXT NOT NULL,
@@ -1787,7 +1787,7 @@ def _create_tarjetas(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS card_assignment_history (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             tarjeta_id       TEXT NOT NULL,
             cliente_id_prev  TEXT,
             cliente_id_nuevo TEXT,
@@ -1799,7 +1799,7 @@ def _create_tarjetas(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS historico_tarjetas (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             id_tarjeta     TEXT NOT NULL,
             tipo_cambio    TEXT NOT NULL,
             valor_anterior TEXT,
@@ -1813,7 +1813,7 @@ def _create_tarjetas(conn):
 def _create_recetas_produccion(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS recetas (
-            id                       TEXT PRIMARY KEY,
+            id                       TEXT NOT NULL PRIMARY KEY,
             nombre                   TEXT    NOT NULL,
             tipo_receta              TEXT    NOT NULL,
             producto_base_id         TEXT NOT NULL,
@@ -1830,7 +1830,7 @@ def _create_recetas_produccion(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS receta_componentes (
-            id                      TEXT PRIMARY KEY,
+            id                      TEXT NOT NULL PRIMARY KEY,
             receta_id               TEXT NOT NULL,
             producto_id             TEXT NOT NULL,
             cantidad                REAL,
@@ -1845,7 +1845,7 @@ def _create_recetas_produccion(conn):
     # product_recipes / product_recipe_components (UUIDv7).
     conn.execute("""
         CREATE TABLE IF NOT EXISTS product_recipes (
-            id                TEXT PRIMARY KEY,
+            id                TEXT NOT NULL PRIMARY KEY,
             product_id        TEXT NOT NULL,
             piece_product_id  TEXT NOT NULL,
             base_product_id   TEXT,
@@ -1860,7 +1860,7 @@ def _create_recetas_produccion(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS product_recipe_components (
-            id                   TEXT PRIMARY KEY,
+            id                   TEXT NOT NULL PRIMARY KEY,
             recipe_id            TEXT NOT NULL,
             component_product_id TEXT NOT NULL,
             rendimiento_pct      REAL    NOT NULL DEFAULT 0,
@@ -1877,7 +1877,7 @@ def _create_recetas_produccion(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS product_recipes_abarrotes (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             producto_id    TEXT NOT NULL,
             ingrediente_id TEXT NOT NULL,
             ratio          REAL    NOT NULL DEFAULT 1.0 CHECK(ratio > 0),
@@ -1899,7 +1899,7 @@ def _create_recetas_produccion(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS rendimiento_pollo (
-            id                   TEXT PRIMARY KEY,
+            id                   TEXT NOT NULL PRIMARY KEY,
             producto_pollo_id    TEXT NOT NULL UNIQUE,
             precio_kg            REAL NOT NULL,
             kg_totales           REAL NOT NULL,
@@ -1910,7 +1910,7 @@ def _create_recetas_produccion(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS rendimiento_derivados (
-            id                     TEXT PRIMARY KEY,
+            id                     TEXT NOT NULL PRIMARY KEY,
             producto_pollo_id      TEXT NOT NULL,
             producto_derivado_id   TEXT NOT NULL,
             porcentaje_rendimiento REAL NOT NULL,
@@ -1921,7 +1921,7 @@ def _create_recetas_produccion(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS producciones (
-            id               TEXT    PRIMARY KEY,
+            id               TEXT NOT NULL    PRIMARY KEY,
             receta_id        TEXT    NOT NULL,
             producto_base_id TEXT    NOT NULL,
             cantidad_base    REAL    NOT NULL CHECK(cantidad_base > 0),
@@ -1936,7 +1936,7 @@ def _create_recetas_produccion(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS produccion_detalle (
-            id                     TEXT    PRIMARY KEY,
+            id                     TEXT NOT NULL    PRIMARY KEY,
             produccion_id          TEXT    NOT NULL,
             producto_resultante_id TEXT    NOT NULL,
             cantidad_generada      REAL    NOT NULL,
@@ -1947,7 +1947,7 @@ def _create_recetas_produccion(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS production_batches (
-            id               TEXT    PRIMARY KEY,
+            id               TEXT NOT NULL    PRIMARY KEY,
             folio            TEXT    NOT NULL,
             product_source_id TEXT NOT NULL,
             source_weight    REAL    NOT NULL CHECK(source_weight > 0),
@@ -1961,7 +1961,7 @@ def _create_recetas_produccion(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS production_outputs (
-            id             TEXT    PRIMARY KEY,
+            id             TEXT NOT NULL    PRIMARY KEY,
             batch_id       TEXT    NOT NULL,
             product_id     TEXT NOT NULL,
             weight         REAL    NOT NULL CHECK(weight >= 0),
@@ -1975,7 +1975,7 @@ def _create_recetas_produccion(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS production_cost_ledger (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             batch_id    TEXT    NOT NULL,
             output_id   TEXT    NOT NULL,
             product_id  TEXT NOT NULL,
@@ -1988,7 +1988,7 @@ def _create_recetas_produccion(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS production_yield_analysis (
-            id             TEXT    PRIMARY KEY,
+            id             TEXT NOT NULL    PRIMARY KEY,
             batch_id       TEXT    NOT NULL UNIQUE,
             expected_yield REAL    NOT NULL,
             real_yield     REAL    NOT NULL,
@@ -2000,7 +2000,7 @@ def _create_recetas_produccion(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS production_alerts (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             batch_id       TEXT    NOT NULL,
             tipo           TEXT    NOT NULL,
             mensaje        TEXT    NOT NULL,
@@ -2016,7 +2016,7 @@ def _create_recetas_produccion(conn):
 def _create_batch_fifo(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS batches (
-            id                    TEXT PRIMARY KEY,
+            id                    TEXT NOT NULL PRIMARY KEY,
             producto_id           TEXT,
             weight                REAL,
             parent_batch_id       TEXT,
@@ -2033,7 +2033,7 @@ def _create_batch_fifo(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS chicken_batches (
-            id                  TEXT PRIMARY KEY,
+            id                  TEXT NOT NULL PRIMARY KEY,
             branch_id           TEXT NOT NULL,
             producto_id         TEXT NOT NULL,
             compra_global_id    TEXT,
@@ -2056,7 +2056,7 @@ def _create_batch_fifo(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS branch_inventory_batches (
-            id                  TEXT PRIMARY KEY,
+            id                  TEXT NOT NULL PRIMARY KEY,
             batch_id            TEXT NOT NULL,
             branch_id           TEXT NOT NULL,
             producto_id         TEXT NOT NULL,
@@ -2072,7 +2072,7 @@ def _create_batch_fifo(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS batch_movements (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             batch_id        TEXT NOT NULL,
             bib_id          TEXT,
             branch_id       TEXT NOT NULL,
@@ -2093,7 +2093,7 @@ def _create_batch_fifo(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS batch_tree_audits (
-            id                       TEXT PRIMARY KEY,
+            id                       TEXT NOT NULL PRIMARY KEY,
             root_batch_id            TEXT NOT NULL,
             original_weight          REAL NOT NULL,
             reconstructed_weight     REAL NOT NULL,
@@ -2111,7 +2111,7 @@ def _create_batch_fifo(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS conciliation_runs (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             branch_id      TEXT NOT NULL,
             usuario        TEXT    NOT NULL DEFAULT 'Sistema',
             tolerancia_kg  REAL    NOT NULL DEFAULT 0.05,
@@ -2128,7 +2128,7 @@ def _create_batch_fifo(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS system_locks (
-            id            TEXT PRIMARY KEY,
+            id            TEXT NOT NULL PRIMARY KEY,
             lock_key      TEXT    NOT NULL UNIQUE,
             branch_id     TEXT,
             adquirido_por TEXT    NOT NULL,
@@ -2143,7 +2143,7 @@ def _create_batch_fifo(conn):
 def _create_transferencias(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS transferencias (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             folio           TEXT    NOT NULL,
             origen_id       TEXT NOT NULL,
             destino_id      TEXT NOT NULL,
@@ -2159,7 +2159,7 @@ def _create_transferencias(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS transferencia_detalle (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             transferencia_id TEXT NOT NULL,
             producto_id      TEXT NOT NULL,
             cantidad         REAL    NOT NULL CHECK(cantidad > 0),
@@ -2171,7 +2171,7 @@ def _create_transferencias(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS transfers (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             branch_origin_id TEXT NOT NULL,
             branch_dest_id   TEXT NOT NULL,
             origin_type      TEXT    NOT NULL DEFAULT 'BRANCH',
@@ -2190,7 +2190,7 @@ def _create_transferencias(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS transfer_items (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             transfer_id      TEXT    NOT NULL,
             product_id       TEXT NOT NULL,
             quantity_sent    REAL    NOT NULL CHECK(quantity_sent > 0),
@@ -2202,7 +2202,7 @@ def _create_transferencias(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS traspasos_pollo (
-            id                    TEXT PRIMARY KEY,
+            id                    TEXT NOT NULL PRIMARY KEY,
             sucursal_origen_id    TEXT NOT NULL,
             sucursal_destino_id   TEXT NOT NULL,
             producto_id           TEXT NOT NULL,
@@ -2224,7 +2224,7 @@ def _create_mermas_ajustes(conn):
 def _create_sync(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sync_outbox (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             tabla       TEXT NOT NULL,
             operacion   TEXT NOT NULL,
             registro_id TEXT,
@@ -2239,7 +2239,7 @@ def _create_sync(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sync_inbox (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             tabla           TEXT NOT NULL,
             operacion       TEXT NOT NULL,
             registro_id     TEXT,
@@ -2252,13 +2252,13 @@ def _create_sync(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sync_state (
-            key   TEXT PRIMARY KEY,
+            key   TEXT NOT NULL PRIMARY KEY,
             value TEXT
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sync_batch_log (
-            batch_id      TEXT PRIMARY KEY,
+            batch_id      TEXT NOT NULL PRIMARY KEY,
             device_id     TEXT NOT NULL,
             event_count   INTEGER NOT NULL,
             compressed_size INTEGER,
@@ -2271,7 +2271,7 @@ def _create_sync(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sync_conflicts (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             event_id       TEXT NOT NULL,
             conflict_type  TEXT NOT NULL,
             local_version  INTEGER,
@@ -2284,7 +2284,7 @@ def _create_sync(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sync_version_history (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             event_id    TEXT NOT NULL,
             version     INTEGER NOT NULL,
             hash        TEXT NOT NULL,
@@ -2295,7 +2295,7 @@ def _create_sync(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS event_log (
-            id              TEXT    PRIMARY KEY,
+            id              TEXT NOT NULL    PRIMARY KEY,
             tipo            TEXT    NOT NULL,
             entidad         TEXT    NOT NULL,
             entidad_id      TEXT,
@@ -2318,7 +2318,7 @@ def _create_sync(conn):
 def _create_forecast(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS demand_forecast (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             product_id       TEXT NOT NULL,
             branch_id        TEXT NOT NULL,
             forecast_date    DATE    NOT NULL,
@@ -2337,7 +2337,7 @@ def _create_forecast(conn):
     # forecast_metrics (UUIDv7 TEXT).
     conn.execute("""
         CREATE TABLE IF NOT EXISTS forecast_metrics (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             product_id     TEXT NOT NULL,
             branch_id      TEXT NOT NULL,
             method         TEXT    NOT NULL,
@@ -2352,7 +2352,7 @@ def _create_forecast(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS forecast_run_log (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             branch_id       TEXT,
             productos_ok    INTEGER NOT NULL DEFAULT 0,
             productos_skip  INTEGER NOT NULL DEFAULT 0,
@@ -2365,7 +2365,7 @@ def _create_forecast(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS replenishment_recommendations (
-            id                   TEXT PRIMARY KEY,
+            id                   TEXT NOT NULL PRIMARY KEY,
             product_id           TEXT NOT NULL,
             branch_id            TEXT NOT NULL,
             recommended_quantity REAL    NOT NULL,
@@ -2396,7 +2396,7 @@ def _create_forecast(conn):
 def _create_reportes(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS report_export_log (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             report_type TEXT NOT NULL,
             format      TEXT NOT NULL,
             branch_id   TEXT,
@@ -2410,7 +2410,7 @@ def _create_reportes(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS reporte_exports (
-            id         TEXT PRIMARY KEY,
+            id         TEXT NOT NULL PRIMARY KEY,
             tipo       TEXT NOT NULL,
             formato    TEXT NOT NULL,
             ruta       TEXT,
@@ -2439,7 +2439,7 @@ def _create_reportes(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS system_integrity_reports (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             report_type TEXT NOT NULL,
             passed      INTEGER NOT NULL DEFAULT 0,
             details     TEXT,
@@ -2451,7 +2451,7 @@ def _create_reportes(conn):
 def _create_alertas(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS alertas_config (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             tipo        TEXT,
             activa      INTEGER DEFAULT 1,
             umbral      REAL,
@@ -2462,7 +2462,7 @@ def _create_alertas(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS alertas_log (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             tipo         TEXT,
             titulo       TEXT,
             mensaje      TEXT,
@@ -2482,7 +2482,7 @@ def _create_alertas(conn):
 def _create_logs_auditoria(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS cierre_mensual (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             periodo     TEXT UNIQUE NOT NULL,  -- YYYY-MM
             cerrado_por TEXT,
             fecha_cierre DATETIME DEFAULT (datetime('now')),
@@ -2496,7 +2496,7 @@ def _create_logs_auditoria(conn):
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS audit_logs (
-            id            TEXT PRIMARY KEY,
+            id            TEXT NOT NULL PRIMARY KEY,
             accion        TEXT NOT NULL,
             modulo        TEXT NOT NULL,
             entidad       TEXT,
@@ -2512,7 +2512,7 @@ def _create_logs_auditoria(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS json_log_events (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             level        TEXT NOT NULL DEFAULT 'INFO',
             logger_name  TEXT NOT NULL DEFAULT '',
             logger       TEXT,
@@ -2528,7 +2528,7 @@ def _create_logs_auditoria(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS json_audit_log (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             event_type  TEXT NOT NULL,
             entity_type TEXT NOT NULL,
             entity_id   TEXT,
@@ -2544,7 +2544,7 @@ def _create_logs_auditoria(conn):
 def _create_cuentas_cp_cr(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS accounts_payable (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             folio       TEXT,
             supplier_id TEXT,
             concepto    TEXT NOT NULL DEFAULT 'Sin concepto',
@@ -2565,7 +2565,7 @@ def _create_cuentas_cp_cr(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS accounts_receivable (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             folio       TEXT,
             cliente_id  TEXT,
             venta_id    TEXT,
@@ -2585,7 +2585,7 @@ def _create_cuentas_cp_cr(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ap_payments (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             ap_id       TEXT NOT NULL,
             monto       REAL NOT NULL,
             metodo_pago TEXT DEFAULT 'efectivo',
@@ -2597,7 +2597,7 @@ def _create_cuentas_cp_cr(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ar_payments (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             ar_id       TEXT NOT NULL,
             monto       REAL NOT NULL,
             metodo_pago TEXT DEFAULT 'efectivo',
@@ -2796,7 +2796,7 @@ def _ensure_extra_columns(conn):
     # ── WhatsApp numbers per branch ───────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS whatsapp_numeros (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             sucursal_id     TEXT,
             canal           TEXT    DEFAULT 'todos',
             proveedor       TEXT    DEFAULT 'meta',
@@ -2817,7 +2817,7 @@ def _ensure_extra_columns(conn):
     # ── RRHH: Turnos de trabajo ────────────────────────────────────────────
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS turno_roles(
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             nombre       TEXT NOT NULL UNIQUE,
             hora_inicio  TEXT DEFAULT '08:00',
             hora_fin     TEXT DEFAULT '16:00',
@@ -2826,7 +2826,7 @@ def _ensure_extra_columns(conn):
             activo       INTEGER DEFAULT 1
         );
         CREATE TABLE IF NOT EXISTS turno_asignaciones(
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             personal_id    TEXT NOT NULL,
             turno_rol_id   TEXT NOT NULL,
             fecha_inicio   DATE NOT NULL,
@@ -2839,7 +2839,7 @@ def _ensure_extra_columns(conn):
             notas          TEXT
         );
         CREATE TABLE IF NOT EXISTS turno_notificaciones_log(
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             personal_id  TEXT,
             tipo         TEXT,
             fecha_envio  DATETIME DEFAULT (datetime('now')),
@@ -2851,7 +2851,7 @@ def _ensure_extra_columns(conn):
     # ── Notification inbox (mensajes POS para empleados) ──────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS notification_inbox (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             empleado_id TEXT NOT NULL,
             tipo        TEXT    NOT NULL,
             titulo      TEXT    NOT NULL,
@@ -2868,7 +2868,7 @@ def _ensure_extra_columns(conn):
     # ── Growth Engine: ledger inmutable de puntos/moneda ──────────────────
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS growth_ledger (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             cliente_id  TEXT NOT NULL,
             sucursal_id TEXT NOT NULL,
             tipo        TEXT NOT NULL,
@@ -2883,7 +2883,7 @@ def _ensure_extra_columns(conn):
         );
         CREATE INDEX IF NOT EXISTS idx_growth_cliente ON growth_ledger(cliente_id, revertido);
         CREATE TABLE IF NOT EXISTS growth_metas (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             sucursal_id    TEXT,
             nombre         TEXT NOT NULL,
             descripcion    TEXT,
@@ -2899,7 +2899,7 @@ def _ensure_extra_columns(conn):
             created_at     DATETIME DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS growth_misiones (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             nombre         TEXT NOT NULL,
             descripcion    TEXT,
             condicion_tipo TEXT DEFAULT 'compras_consecutivas',
@@ -2909,7 +2909,7 @@ def _ensure_extra_columns(conn):
             activa         INTEGER DEFAULT 1
         );
         CREATE TABLE IF NOT EXISTS growth_misiones_progreso (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             cliente_id  TEXT NOT NULL,
             mision_id   TEXT NOT NULL,
             progreso    INTEGER DEFAULT 0,
@@ -2919,7 +2919,7 @@ def _ensure_extra_columns(conn):
             UNIQUE(cliente_id, mision_id)
         );
         CREATE TABLE IF NOT EXISTS growth_otp (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             cliente_id  TEXT NOT NULL,
             codigo      TEXT NOT NULL,
             monto_canje REAL NOT NULL,
@@ -2933,7 +2933,7 @@ def _ensure_extra_columns(conn):
     # ── Gastos futuros y fijos (Tesorería) ────────────────────────────────
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS gastos_futuros (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             sucursal_id TEXT,
             concepto    TEXT NOT NULL,
             categoria   TEXT,
@@ -2946,7 +2946,7 @@ def _ensure_extra_columns(conn):
         CREATE INDEX IF NOT EXISTS idx_gf_estado ON gastos_futuros(estado);
         CREATE INDEX IF NOT EXISTS idx_gf_fecha  ON gastos_futuros(fecha_prog);
         CREATE TABLE IF NOT EXISTS gastos_fijos (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             sucursal_id TEXT,
             concepto    TEXT NOT NULL,
             categoria   TEXT,
@@ -2963,7 +2963,7 @@ def _ensure_extra_columns(conn):
     # ── Permisos granulares por rol (Seguridad) ────────────────────────────
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS rol_permisos (
-            id        TEXT PRIMARY KEY,
+            id        TEXT NOT NULL PRIMARY KEY,
             rol_id    TEXT NOT NULL,
             modulo    TEXT NOT NULL,
             accion    TEXT NOT NULL,
@@ -3054,12 +3054,12 @@ def _create_runtime_service_tables(conn: sqlite3.Connection):
     """Tablas que los servicios creaban en runtime (Plan B born-clean, FASE 6).
 
     El DDL se movió aquí desde los servicios/repositorios/UI que lo emitían
-    (prohibido: el schema vive en migrations/). Todas nacen UUIDv7: id TEXT
+    (prohibido: el schema vive en migrations/). Todas nacen UUIDv7: id TEXT NOT NULL
     PRIMARY KEY o clave natural, FKs funcionales TEXT, sin DEFAULT 1.
     """
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS event_outbox (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             event_type     TEXT NOT NULL,
             payload        TEXT NOT NULL,
             aggregate_type TEXT DEFAULT '',
@@ -3070,7 +3070,7 @@ def _create_runtime_service_tables(conn: sqlite3.Connection):
             dispatched_at  TEXT
         );
         CREATE TABLE IF NOT EXISTS delivery_outbox_events (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             event_type     TEXT NOT NULL,
             aggregate_type TEXT DEFAULT 'delivery_order',
             aggregate_id   TEXT NOT NULL,
@@ -3083,7 +3083,7 @@ def _create_runtime_service_tables(conn: sqlite3.Connection):
             operation_id   TEXT
         );
         CREATE TABLE IF NOT EXISTS delivery_items (
-            id                 TEXT PRIMARY KEY,
+            id                 TEXT NOT NULL PRIMARY KEY,
             delivery_id        TEXT NOT NULL,
             producto_id        TEXT,
             nombre             TEXT NOT NULL,
@@ -3100,7 +3100,7 @@ def _create_runtime_service_tables(conn: sqlite3.Connection):
             tolerance_exceeded INTEGER DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS delivery_order_history (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             order_id        TEXT NOT NULL,
             estado_anterior TEXT,
             estado_nuevo    TEXT,
@@ -3113,7 +3113,7 @@ def _create_runtime_service_tables(conn: sqlite3.Connection):
             created_at      DATETIME DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS delivery_print_log (
-            id            TEXT PRIMARY KEY,
+            id            TEXT NOT NULL PRIMARY KEY,
             delivery_id   TEXT NOT NULL,
             document_type TEXT NOT NULL,
             operation_id  TEXT,
@@ -3122,7 +3122,7 @@ def _create_runtime_service_tables(conn: sqlite3.Connection):
             printed_at    DATETIME DEFAULT CURRENT_TIMESTAMP
         );
         CREATE TABLE IF NOT EXISTS pending_sales_intents (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             folio          TEXT UNIQUE NOT NULL,
             payload_json   TEXT NOT NULL,
             estado         TEXT NOT NULL DEFAULT 'pendiente_pago',
@@ -3134,7 +3134,7 @@ def _create_runtime_service_tables(conn: sqlite3.Connection):
             confirmed_at   TEXT
         );
         CREATE TABLE IF NOT EXISTS stock_reservas (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             folio        TEXT UNIQUE,
             branch_id    TEXT NOT NULL,
             estado       TEXT NOT NULL DEFAULT 'activa',
@@ -3144,14 +3144,14 @@ def _create_runtime_service_tables(conn: sqlite3.Connection):
             expires_at   TEXT DEFAULT (datetime('now', '+30 minutes'))
         );
         CREATE TABLE IF NOT EXISTS stock_reserva_detalles (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             reserva_id  TEXT NOT NULL REFERENCES stock_reservas(id),
             producto_id TEXT NOT NULL,
             cantidad    REAL NOT NULL,
             created_at  TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS loyalty_operations (
-            operation_id TEXT PRIMARY KEY,
+            operation_id TEXT NOT NULL PRIMARY KEY,
             kind         TEXT NOT NULL,
             cliente_id   TEXT,
             venta_id     TEXT,
@@ -3159,7 +3159,7 @@ def _create_runtime_service_tables(conn: sqlite3.Connection):
             created_at   TEXT DEFAULT CURRENT_TIMESTAMP
         );
         CREATE TABLE IF NOT EXISTS loyalty_pasivo_log (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             fecha          TEXT DEFAULT (datetime('now')),
             tipo           TEXT NOT NULL,
             estrellas      INTEGER DEFAULT 0,
@@ -3169,7 +3169,7 @@ def _create_runtime_service_tables(conn: sqlite3.Connection):
             sucursal_id    TEXT
         );
         CREATE TABLE IF NOT EXISTS cuentas_por_cobrar (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             cliente_id      TEXT NOT NULL,
             venta_id        TEXT,
             folio           TEXT,
@@ -3181,7 +3181,7 @@ def _create_runtime_service_tables(conn: sqlite3.Connection):
             fecha_pago      DATETIME
         );
         CREATE TABLE IF NOT EXISTS activos_depreciacion (
-            id            TEXT PRIMARY KEY,
+            id            TEXT NOT NULL PRIMARY KEY,
             activo_id     TEXT,
             monto         REAL,
             valor_antes   REAL,
@@ -3190,7 +3190,7 @@ def _create_runtime_service_tables(conn: sqlite3.Connection):
             sucursal_id   TEXT
         );
         CREATE TABLE IF NOT EXISTS ai_consulta_log (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             tipo           TEXT NOT NULL,
             pregunta       TEXT DEFAULT '',
             respuesta      TEXT DEFAULT '',
@@ -3199,7 +3199,7 @@ def _create_runtime_service_tables(conn: sqlite3.Connection):
             fecha          TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS alert_engine_log (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             category    TEXT NOT NULL,
             severity    TEXT NOT NULL,
             title       TEXT NOT NULL,
@@ -3210,7 +3210,7 @@ def _create_runtime_service_tables(conn: sqlite3.Connection):
             fecha       TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS simulation_log (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             escenario       TEXT NOT NULL,
             parametros_json TEXT DEFAULT '{}',
             resultado_json  TEXT DEFAULT '{}',
@@ -3219,7 +3219,7 @@ def _create_runtime_service_tables(conn: sqlite3.Connection):
             fecha           TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS ticket_layouts (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             layout_type TEXT NOT NULL DEFAULT 'sale_ticket',
             nombre      TEXT NOT NULL DEFAULT 'Default',
             config_json TEXT NOT NULL,

@@ -63,7 +63,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Protection flags table for deletion guards
     conn.execute("""
         CREATE TABLE IF NOT EXISTS productos_deletion_guard (
-            producto_id TEXT PRIMARY KEY REFERENCES productos(id) ON DELETE RESTRICT,
+            producto_id TEXT NOT NULL PRIMARY KEY REFERENCES productos(id) ON DELETE RESTRICT,
             has_sales   INTEGER NOT NULL DEFAULT 0,
             has_movements INTEGER NOT NULL DEFAULT 0,
             has_recipes INTEGER NOT NULL DEFAULT 0,
@@ -109,7 +109,7 @@ def up(conn: sqlite3.Connection) -> None:
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS transfers (
-            id                  TEXT PRIMARY KEY,
+            id                  TEXT NOT NULL PRIMARY KEY,
             branch_origin_id    TEXT NOT NULL,
             branch_dest_id      TEXT NOT NULL,
             origin_type         TEXT NOT NULL DEFAULT 'BRANCH'
@@ -132,7 +132,7 @@ def up(conn: sqlite3.Connection) -> None:
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS transfer_items (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             transfer_id     TEXT NOT NULL REFERENCES transfers(id) ON DELETE RESTRICT,
             product_id      TEXT NOT NULL REFERENCES productos(id) ON DELETE RESTRICT,
             quantity_sent   REAL NOT NULL CHECK(quantity_sent > 0),
@@ -177,7 +177,7 @@ def up(conn: sqlite3.Connection) -> None:
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS inventory_reservations (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             branch_id       TEXT NOT NULL,
             product_id      TEXT NOT NULL REFERENCES productos(id) ON DELETE RESTRICT,
             reserved_qty    REAL NOT NULL CHECK(reserved_qty > 0),
@@ -214,7 +214,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Challenges (gamification)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_challenges (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             name            TEXT NOT NULL,
             description     TEXT,
             challenge_type  TEXT NOT NULL
@@ -231,7 +231,7 @@ def up(conn: sqlite3.Connection) -> None:
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_challenge_progress (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             challenge_id    TEXT NOT NULL REFERENCES loyalty_challenges(id),
             cliente_id      TEXT NOT NULL REFERENCES clientes(id),
             current_value   REAL NOT NULL DEFAULT 0,
@@ -245,7 +245,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Community goals
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_community_goals (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             name            TEXT NOT NULL,
             description     TEXT,
             target_value    REAL NOT NULL,
@@ -264,7 +264,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Monthly budget cap for loyalty rewards
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_budget_caps (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             branch_id       TEXT NOT NULL,
             year_month      TEXT NOT NULL,
             budget_limit    REAL NOT NULL,
@@ -276,7 +276,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Dynamic multiplier rules
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_multiplier_rules (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             rule_name       TEXT NOT NULL,
             rule_type       TEXT NOT NULL
                             CHECK(rule_type IN ('DAY_OF_WEEK','HOUR_RANGE','PRODUCT_CATEGORY','LEVEL','CHALLENGE')),
@@ -290,7 +290,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Redemption ceiling table
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_redemption_limits (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             branch_id       TEXT NOT NULL,
             max_pct_per_sale REAL NOT NULL DEFAULT 30.0,
             max_pts_per_sale INTEGER NOT NULL DEFAULT 500,
@@ -303,7 +303,7 @@ def up(conn: sqlite3.Connection) -> None:
     # ROI tracking
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_roi_tracking (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             branch_id       TEXT NOT NULL,
             year_month      TEXT NOT NULL,
             points_issued   INTEGER NOT NULL DEFAULT 0,
@@ -319,7 +319,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Ticket engagement messages
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_ticket_messages (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             message_type    TEXT NOT NULL
                             CHECK(message_type IN ('COMMUNITY','LEVEL','CHALLENGE','GENERIC')),
             message_template TEXT NOT NULL,
@@ -348,7 +348,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Ensure tarjetas_fidelidad table exists with all required columns
     conn.execute("""
         CREATE TABLE IF NOT EXISTS tarjetas_fidelidad (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             codigo_qr       TEXT NOT NULL,
             id_cliente      INTEGER REFERENCES clientes(id),
             estado          TEXT NOT NULL DEFAULT 'disponible'
@@ -367,7 +367,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Ensure historico_tarjetas exists
     conn.execute("""
         CREATE TABLE IF NOT EXISTS historico_tarjetas (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             id_tarjeta  INTEGER NOT NULL REFERENCES tarjetas_fidelidad(id),
             tipo_cambio TEXT NOT NULL,
             valor_anterior TEXT,
@@ -380,7 +380,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Ensure config_diseno_tarjetas table exists
     conn.execute("""
         CREATE TABLE IF NOT EXISTS config_diseno_tarjetas (
-            id      TEXT PRIMARY KEY,
+            id      TEXT NOT NULL PRIMARY KEY,
             clave   TEXT NOT NULL UNIQUE,
             valor   TEXT
         )
@@ -412,7 +412,7 @@ def up(conn: sqlite3.Connection) -> None:
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS report_export_log (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             report_type TEXT NOT NULL,
             format      TEXT NOT NULL CHECK(format IN ('PDF','EXCEL','CSV')),
             branch_id   TEXT,
@@ -448,7 +448,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Caja operation log for concurrency safety
     conn.execute("""
         CREATE TABLE IF NOT EXISTS caja_operations (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             branch_id       TEXT NOT NULL,
             operation_id    TEXT NOT NULL UNIQUE,
             operation_type  TEXT NOT NULL
@@ -468,7 +468,7 @@ def up(conn: sqlite3.Connection) -> None:
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sync_batch_log (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             batch_id        TEXT NOT NULL UNIQUE,
             device_id       TEXT NOT NULL,
             event_count     INTEGER NOT NULL,
@@ -484,7 +484,7 @@ def up(conn: sqlite3.Connection) -> None:
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sync_version_history (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             event_id        TEXT NOT NULL,
             version         INTEGER NOT NULL,
             hash            TEXT NOT NULL,
@@ -507,7 +507,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Constants / config table expansion
     conn.execute("""
         CREATE TABLE IF NOT EXISTS system_constants (
-            key     TEXT PRIMARY KEY,
+            key     TEXT NOT NULL PRIMARY KEY,
             value   TEXT NOT NULL,
             type    TEXT NOT NULL DEFAULT 'STRING'
                     CHECK(type IN ('STRING','INTEGER','REAL','BOOLEAN','JSON')),
@@ -537,7 +537,7 @@ def up(conn: sqlite3.Connection) -> None:
     # JSON structured audit log
     conn.execute("""
         CREATE TABLE IF NOT EXISTS json_audit_log (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             event_type  TEXT NOT NULL,
             entity_type TEXT NOT NULL,
             entity_id   TEXT,

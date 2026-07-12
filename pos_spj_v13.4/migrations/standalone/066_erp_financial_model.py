@@ -16,7 +16,7 @@ def run(conn):
     # ── 1. TERCEROS ──────────────────────────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS terceros (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             tipo_tercero     TEXT    NOT NULL DEFAULT 'cliente'
                                      CHECK(tipo_tercero IN ('cliente','proveedor','empleado','mixto')),
             nombre           TEXT    NOT NULL,
@@ -41,7 +41,7 @@ def run(conn):
     # ── 2. CUENTAS FINANCIERAS ───────────────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS cuentas_financieras (
-            id            TEXT PRIMARY KEY,
+            id            TEXT NOT NULL PRIMARY KEY,
             nombre        TEXT NOT NULL,
             tipo          TEXT NOT NULL DEFAULT 'caja'
                                CHECK(tipo IN ('caja','banco','efectivo','terminal','cuenta_interna')),
@@ -59,7 +59,7 @@ def run(conn):
     # ── 3. CATÁLOGO DE CUENTAS CONTABLES ────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS catalogo_cuentas_contables (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             codigo         TEXT    NOT NULL UNIQUE,
             nombre         TEXT    NOT NULL,
             tipo           TEXT    NOT NULL
@@ -76,7 +76,7 @@ def run(conn):
     # ── 4. DOCUMENTOS FINANCIEROS ────────────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS documentos_financieros (
-            id                  TEXT PRIMARY KEY,
+            id                  TEXT NOT NULL PRIMARY KEY,
             folio               TEXT    NOT NULL UNIQUE,
             tipo_documento      TEXT    NOT NULL
                                         CHECK(tipo_documento IN (
@@ -119,7 +119,7 @@ def run(conn):
     # ── 5. PAGOS Y COBROS ────────────────────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS pagos_cobros (
-            id                  TEXT PRIMARY KEY,
+            id                  TEXT NOT NULL PRIMARY KEY,
             folio               TEXT    NOT NULL UNIQUE,
             tipo_operacion      TEXT    NOT NULL
                                         CHECK(tipo_operacion IN (
@@ -159,7 +159,7 @@ def run(conn):
     # ── 6. APLICACIONES DE PAGO/COBRO ────────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS pagos_cobros_aplicaciones (
-            id                       TEXT PRIMARY KEY,
+            id                       TEXT NOT NULL PRIMARY KEY,
             pago_cobro_id            TEXT NOT NULL REFERENCES pagos_cobros(id),
             documento_financiero_id  TEXT NOT NULL REFERENCES documentos_financieros(id),
             monto_aplicado           REAL    NOT NULL DEFAULT 0,
@@ -175,7 +175,7 @@ def run(conn):
     # ── 7. MOVIMIENTOS FINANCIEROS ───────────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS movimientos_financieros (
-            id                   TEXT PRIMARY KEY,
+            id                   TEXT NOT NULL PRIMARY KEY,
             folio                TEXT    NOT NULL UNIQUE,
             tipo_movimiento      TEXT    NOT NULL
                                          CHECK(tipo_movimiento IN (
@@ -206,7 +206,7 @@ def run(conn):
     # ── 8. LEDGER FINANCIERO (INMUTABLE) ────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS ledger_financiero (
-            id             TEXT PRIMARY KEY,
+            id             TEXT NOT NULL PRIMARY KEY,
             evento         TEXT    NOT NULL,
             entidad_tipo   TEXT,
             entidad_id     TEXT,
@@ -233,7 +233,7 @@ def run(conn):
     # ── 9. AUDITORÍA DE EVENTOS ───────────────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS auditoria_eventos (
-            id                   TEXT PRIMARY KEY,
+            id                   TEXT NOT NULL PRIMARY KEY,
             usuario_id           TEXT,
             accion               TEXT    NOT NULL
                                          CHECK(accion IN (
@@ -260,7 +260,7 @@ def run(conn):
     # ── 10. CORTES DE CAJA ───────────────────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS cortes_caja_erp (
-            id                TEXT PRIMARY KEY,
+            id                TEXT NOT NULL PRIMARY KEY,
             folio             TEXT    NOT NULL UNIQUE,
             caja_id           TEXT,
             usuario_id        TEXT,
@@ -286,7 +286,7 @@ def run(conn):
     # ── 11. CONCILIACIONES FINANCIERAS ──────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS conciliaciones_financieras (
-            id                   TEXT PRIMARY KEY,
+            id                   TEXT NOT NULL PRIMARY KEY,
             folio                TEXT    NOT NULL UNIQUE,
             cuenta_financiera_id TEXT REFERENCES cuentas_financieras(id),
             periodo              TEXT    NOT NULL,

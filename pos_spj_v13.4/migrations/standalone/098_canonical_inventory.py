@@ -28,7 +28,7 @@ def run(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS inventory_movements (
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL PRIMARY KEY,
             operation_id TEXT NOT NULL,
             product_id TEXT NOT NULL,
             branch_id TEXT NOT NULL,

@@ -56,7 +56,7 @@ def _create_contenedores_qr(conn):
     """
     conn.execute("""
         CREATE TABLE IF NOT EXISTS contenedores_qr (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             uuid_qr         TEXT    NOT NULL UNIQUE,
             codigo_interno  TEXT,
             descripcion     TEXT,

@@ -26,7 +26,7 @@ def run(conn: sqlite3.Connection) -> None:
 def _create_whatsapp_numeros(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS whatsapp_numeros (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             nombre          TEXT    NOT NULL,
             canal           TEXT    NOT NULL DEFAULT 'clientes'
                             CHECK(canal IN ('clientes','rrhh','alertas','todos')),

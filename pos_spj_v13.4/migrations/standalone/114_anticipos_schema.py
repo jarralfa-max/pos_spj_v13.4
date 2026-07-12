@@ -21,7 +21,7 @@ def run(conn):
     conn.executescript(
         """
         CREATE TABLE IF NOT EXISTS anticipos(
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             venta_id    TEXT NOT NULL,
             monto       REAL NOT NULL,
             metodo      TEXT DEFAULT 'mercadopago',

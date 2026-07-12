@@ -10,7 +10,7 @@ isolated per operator and location.
 def run(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS temp_purchase_drafts (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             usuario     TEXT NOT NULL,
             sucursal_id TEXT NOT NULL,
             draft_data  TEXT NOT NULL,

@@ -17,7 +17,7 @@ def up(conn):
     conn.executescript("""
         -- Cotizaciones / presupuestos
         CREATE TABLE IF NOT EXISTS cotizaciones (
-            id               TEXT    PRIMARY KEY,
+            id               TEXT NOT NULL    PRIMARY KEY,
             folio            TEXT UNIQUE,
             cliente_id       TEXT REFERENCES clientes(id) ON DELETE SET NULL,
             cliente_nombre   TEXT,
@@ -44,7 +44,7 @@ def up(conn):
 
         -- Items de cada cotización
         CREATE TABLE IF NOT EXISTS cotizaciones_detalle (
-            id               TEXT    PRIMARY KEY,
+            id               TEXT NOT NULL    PRIMARY KEY,
             cotizacion_id    TEXT NOT NULL
                              REFERENCES cotizaciones(id) ON DELETE CASCADE,
             producto_id      TEXT REFERENCES productos(id) ON DELETE SET NULL,
