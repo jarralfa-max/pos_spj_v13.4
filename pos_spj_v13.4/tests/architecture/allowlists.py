@@ -34,7 +34,8 @@ SQL_IN_UI_ALLOWLIST = {
     # rrhh.py: SQL 100% extraído a RRHHCatalogService (Remediación F).
     # rrhh_turnos.py: SQL 100% extraído a RRHHTurnosService (Remediación F).
     'pos_spj_v13.4/modulos/sistema/backup_engine.py': 2,
-    'pos_spj_v13.4/modulos/sistema/health_monitor.py': 4,
+    # health_monitor.py: SQL de diagnóstico → SystemHealthRepository (Remediación F):
+    # ping, error_count_24h, pending_sync_count, recent_errors.
     'pos_spj_v13.4/modulos/spj_styles.py': 2,
     # ticket_designer.py: SQL de configuraciones extraído a ConfigService (Remediación F).
     # ventas.py: sin SQL real (delega a use cases); el `payload.update(` restante →
