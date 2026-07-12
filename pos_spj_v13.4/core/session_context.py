@@ -35,14 +35,7 @@ class SessionContext:
         self._usuario: str = ""
         self._nombre_completo: str = ""
         self._rol: str = ""
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
         self._sucursal_id: str = ""        # espejo de active_branch_id (UUID str)
->>>>>>> claude/pos-spj-refactor-bugfix-c4ju0e
-=======
-        self._sucursal_id: str = ""        # espejo de active_branch_id (UUID str)
->>>>>>> c5484cec9ec52abdbd55dd26f26576c0aa274845
         self._sucursal_nombre: str = ""    # display name only — NOT identity
         # D6/REGLA CERO: la sucursal es UUIDv7 (str) y su ÚNICA fuente es
         # _active_branch_id. Se eliminó el _sucursal_id entero legacy (identidad
@@ -72,17 +65,7 @@ class SessionContext:
 
     @property
     def sucursal_id(self) -> str:
-<<<<<<< HEAD
-<<<<<<< HEAD
-        """UUIDv7 str de la sucursal activa. Alias de active_branch_id (D6):
-        misma identidad, sin dualidad int/str."""
-        return self._active_branch_id
-=======
         return self._sucursal_id
->>>>>>> claude/pos-spj-refactor-bugfix-c4ju0e
-=======
-        return self._sucursal_id
->>>>>>> c5484cec9ec52abdbd55dd26f26576c0aa274845
 
     @property
     def sucursal_nombre(self) -> str:
@@ -121,14 +104,7 @@ class SessionContext:
         self._usuario = user_data.get('username', '')
         self._nombre_completo = user_data.get('nombre', self._usuario)
         self._rol = str(user_data.get('rol', 'cajero') or 'cajero').strip().lower()
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
         self._sucursal_id = str(user_data.get('sucursal_id') or "").strip()
->>>>>>> claude/pos-spj-refactor-bugfix-c4ju0e
-=======
-        self._sucursal_id = str(user_data.get('sucursal_id') or "").strip()
->>>>>>> c5484cec9ec52abdbd55dd26f26576c0aa274845
         self._sucursal_nombre = user_data.get('sucursal_nombre', '')
         # Sucursal = UUIDv7 str (única identidad, REGLA CERO). Preferir el UUID
         # explícito; si solo viene un id numérico legacy, usar su repr str
@@ -146,22 +122,10 @@ class SessionContext:
             self._sucursal_nombre, self._active_branch_id,
         )
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-    def set_sucursal(self, sucursal_id: str = "", nombre: str = "",
-                     active_branch_id: str = "") -> None:
-        """Cambia la sucursal activa. sucursal_id es UUIDv7 str (REGLA CERO)."""
-=======
-=======
->>>>>>> c5484cec9ec52abdbd55dd26f26576c0aa274845
     def set_sucursal(self, sucursal_id: str, nombre: str = "",
                      active_branch_id: str = "") -> None:
         """Cambia la sucursal activa (para usuarios multi-branch)."""
         self._sucursal_id = str(sucursal_id or "").strip()
-<<<<<<< HEAD
->>>>>>> claude/pos-spj-refactor-bugfix-c4ju0e
-=======
->>>>>>> c5484cec9ec52abdbd55dd26f26576c0aa274845
         if nombre:
             self._sucursal_nombre = nombre
         # active_branch_id explícito gana; en su defecto el propio sucursal_id

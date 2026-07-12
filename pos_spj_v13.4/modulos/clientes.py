@@ -2,7 +2,7 @@
 # modulos/clientes.py
 import os
 import re
-import sqlite3  # requerido por los bloques `except sqlite3.Error` (antes sin importar)
+import sqlite3
 from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.spj_refresh_mixin import RefreshMixin
@@ -796,8 +796,7 @@ class DialogoHistorialCliente(QDialog):
     def cargar_historial_compras(self):
         """Carga el historial de compras del cliente (vía QueryService)."""
         try:
-            ventas = self._svc.historial_compras(self.id_cliente)
-
+            ventas = self._history_qs.get_purchase_history(str(self.id_cliente))
             self.tabla_compras.setRowCount(len(ventas))
             for row, v in enumerate(ventas):
                 self.tabla_compras.setItem(row, 0, QTableWidgetItem(str(v["fecha"] or "")))
@@ -810,8 +809,7 @@ class DialogoHistorialCliente(QDialog):
     def cargar_historial_puntos(self):
         """Carga el historial de puntos del cliente (vía QueryService)."""
         try:
-            puntos = self._svc.historial_puntos(self.id_cliente)
-
+            puntos = self._history_qs.get_points_history(str(self.id_cliente))
             self.tabla_puntos.setRowCount(len(puntos))
             for row, p in enumerate(puntos):
                 self.tabla_puntos.setItem(row, 0, QTableWidgetItem(str(p["fecha"] or "")))
@@ -825,8 +823,7 @@ class DialogoHistorialCliente(QDialog):
     def cargar_historial_creditos(self):
         """Carga el historial de crédito del cliente (vía QueryService)."""
         try:
-            creditos = self._svc.historial_creditos(self.id_cliente)
-
+            creditos = self._history_qs.get_credit_history(str(self.id_cliente))
             self.tabla_creditos.setRowCount(len(creditos))
             for row, c in enumerate(creditos):
                 self.tabla_creditos.setItem(row, 0, QTableWidgetItem(str(c["fecha"] or "")))

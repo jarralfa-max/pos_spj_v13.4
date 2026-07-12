@@ -87,13 +87,14 @@ class TicketTemplateEngine(TemplateEngine):
             "regimen_fiscal":    venta_data.get("regimen_fiscal") or self._get_config("regimen_fiscal", ""),
             "direccion":         self._get_config("direccion", ""),
             "telefono_empresa":  self._get_config("telefono_empresa", ""),
-            "web_empresa":       venta_data.get("web_empresa") or self._get_config("web_empresa", ""),
-            # Sucursal + WhatsApp: provienen del encabezado del ticket (SalesService).
-            "sucursal_id":        str(venta_data.get("sucursal_id", "")),
-            "sucursal_nombre":    venta_data.get("sucursal_nombre", ""),
-            "sucursal_direccion": venta_data.get("sucursal_direccion", ""),
-            "sucursal_telefono":  venta_data.get("sucursal_telefono", ""),
-            "whatsapp_empresa":   venta_data.get("whatsapp_empresa", ""),
+            "web_empresa":       self._get_config("web_empresa", ""),
+            "whatsapp_empresa":  self._get_config("whatsapp_empresa", ""),
+            # Datos de sucursal: vienen del payload (sales_service los resuelve
+            # con _ticket_header_data). Sin hardcodes ni sucursal default.
+            "sucursal_id":        str(venta_data.get("sucursal_id", "") or ""),
+            "sucursal_nombre":    str(venta_data.get("sucursal_nombre", "") or ""),
+            "sucursal_direccion": str(venta_data.get("sucursal_direccion", "") or ""),
+            "sucursal_telefono":  str(venta_data.get("sucursal_telefono", "") or ""),
             "cliente_nombre":    venta_data.get("cliente", "Público General"),
             "cliente_rfc":       venta_data.get("cliente_rfc", ""),
             "subtotal":          f"${subtotal:,.2f}",
