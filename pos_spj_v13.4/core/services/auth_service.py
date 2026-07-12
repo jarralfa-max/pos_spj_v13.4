@@ -153,7 +153,8 @@ class AuthService:
                 entidad_id=username, before_state={}, after_state={}, sucursal_id="",
                 detalles="Intento de acceso con usuario inexistente o inactivo."
             )
-            raise PermissionError("Usuario no encontrado o inactivo.")
+            # Mensaje genérico (no revela si falló el usuario o la contraseña).
+            raise PermissionError("Usuario o contraseña incorrectos.")
 
         db_pass = user_data['password_hash']
         is_valid = False
@@ -178,7 +179,8 @@ class AuthService:
                 entidad_id=str(user_data['id']), before_state={}, after_state={}, sucursal_id=user_data['sucursal_id'],
                 detalles="Contraseña incorrecta."
             )
-            raise PermissionError("Contraseña incorrecta.")
+            # Mensaje genérico (no revela si falló el usuario o la contraseña).
+            raise PermissionError("Usuario o contraseña incorrectos.")
 
         # 1.1 Auto-migración transparente a hash fuerte si venía en formato legacy
         if is_plain_legacy or is_sha_legacy:

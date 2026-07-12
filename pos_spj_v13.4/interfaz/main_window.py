@@ -730,55 +730,34 @@ class MainWindow(QMainWindow):
 
     # ── Login ─────────────────────────────────────────────────────────────────
     def mostrar_login(self):
-        """Muestra el login modal. Bloqueante hasta que haya sesión o salida.
+        """Muestra el login modal.
 
-        El diálogo maneja credenciales inválidas mostrando el error y quedando
-        abierto para reintentar. Si el usuario CIERRA el diálogo (Escape/✕),
-        no se debe cerrar la app en silencio: se confirma la salida y, si el
-        usuario decide quedarse, se vuelve a pedir el login. Antes, la ventana
-        principal quedaba oculta y `quitOnLastWindowClosed` mataba la app sin
-        mensaje — el bug de "solo se cierra la app".
+        Las credenciales inválidas NO cierran la app: el diálogo permanece
+        abierto mostrando el error inline ("Usuario o contraseña incorrectos.")
+        y permite reintentar. Si el usuario CIERRA el diálogo (Escape/✕) sin
+        autenticar, el login es obligatorio, así que la app se cierra de forma
+        limpia — sin diálogos extra de confirmación.
         """
-        from PyQt5.QtWidgets import QMessageBox, QApplication
-        app = QApplication.instance()
-        # Con la ventana principal oculta, el login es la única ventana viva.
-        # Si se cierra (Escape/✕), `quitOnLastWindowClosed` mataría la app en
-        # silencio ANTES de que podamos preguntar o reintentar. Se suspende
-        # mientras dura el login y se restaura al terminar.
-        prev_quit = app.quitOnLastWindowClosed() if app else True
-        if app:
-            app.setQuitOnLastWindowClosed(False)
-        try:
-            while True:
-                self.hide()
-                dlg = DialogoLogin(self.container.auth_service, self)
-                if dlg.exec_() == QDialog.Accepted:
-                    self.usuario_actual = dlg.usuario_autenticado
-                    nombre = self.usuario_actual.get("nombre",
-                             self.usuario_actual.get("username", "Usuario"))
-                    self.lbl_saludo.setText(f"¡Hola, {nombre}! Buen trabajo. 💼")
-                    try: self._cargar_logo_empresa()
-                    except Exception: pass
-                    self._propagar_usuario()
-                    self.stack.setCurrentIndex(self.indices_pantallas["BIENVENIDA"])
-                    self.show()
-                    return
+        from PyQt5.QtWidgets import QApplication
+        self.hide()
+        dlg = DialogoLogin(self.container.auth_service, self)
+        if dlg.exec_() == QDialog.Accepted:
+            self.usuario_actual = dlg.usuario_autenticado
+            nombre = self.usuario_actual.get("nombre",
+                     self.usuario_actual.get("username", "Usuario"))
+            self.lbl_saludo.setText(f"¡Hola, {nombre}! Buen trabajo. 💼")
+            try: self._cargar_logo_empresa()
+            except Exception: pass
+            self._propagar_usuario()
+            self.stack.setCurrentIndex(self.indices_pantallas["BIENVENIDA"])
+            self.show()
+            return
 
-                # Diálogo cerrado sin autenticar: confirmar salida explícita en
-                # vez de desaparecer sin dar señal.
-                resp = QMessageBox.question(
-                    None, "Salir del sistema",
-                    "No se inició sesión.\n\n¿Deseas salir de SPJ POS?",
-                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-                if resp == QMessageBox.Yes:
-                    self.usuario_actual = None
-                    if app:
-                        app.quit()
-                    return
-                # El usuario decidió quedarse: reintentar el login.
-        finally:
-            if app:
-                app.setQuitOnLastWindowClosed(prev_quit)
+        # Login cancelado: salida limpia y explícita (login obligatorio).
+        self.usuario_actual = None
+        app = QApplication.instance()
+        if app:
+            app.quit()
 
     def _propagar_usuario(self):
         """Notifica a todos los módulos cargados el usuario y sucursal actual."""

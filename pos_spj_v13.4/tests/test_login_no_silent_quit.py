@@ -50,8 +50,10 @@ def test_credenciales_invalidas_lanzan_permission_error_aunque_audit_falle(
     auth = container.auth_service
     auth.audit_service = _BoomAudit()   # el audit revienta en cada intento
 
-    with pytest.raises(PermissionError):
+    with pytest.raises(PermissionError) as exc:
         auth.authenticate(usuario, password)
+    # Mensaje genérico y uniforme: no revela si falló el usuario o la contraseña.
+    assert str(exc.value) == "Usuario o contraseña incorrectos."
 
 
 def test_audit_safe_no_propaga(tmp_path):
@@ -87,52 +89,40 @@ def window(qapp, tmp_path):
     return MainWindow(AppContainer(db_path=db))
 
 
-def test_reject_no_cierra_en_silencio_pide_confirmacion(qapp, window, monkeypatch):
-    """Cerrar el login sin autenticar debe PREGUNTAR antes de salir, no
-    desaparecer. Si el usuario confirma salir, se sale limpio (app.quit)."""
+def test_cancelar_login_cierra_limpio_sin_dialogo_extra(qapp, window, monkeypatch):
+    """Cerrar el login sin autenticar (Escape/✕) cierra la app de forma limpia
+    y explícita (app.quit), SIN un diálogo de confirmación adicional."""
     from PyQt5.QtWidgets import QDialog, QMessageBox
     from interfaz import main_window as mw
 
-    qapp.setQuitOnLastWindowClosed(True)
     monkeypatch.setattr(mw.DialogoLogin, "exec_", lambda self: QDialog.Rejected)
 
-    pregunto = {"n": 0}
-    def fake_question(*a, **k):
-        pregunto["n"] += 1
-        return QMessageBox.Yes   # el usuario decide salir
-    monkeypatch.setattr(QMessageBox, "question", staticmethod(fake_question))
+    # No debe aparecer ningún QMessageBox de confirmación.
+    def _no_popup(*a, **k):
+        pytest.fail("no debe mostrarse ningún diálogo extra al cancelar el login")
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(_no_popup))
 
     quits = {"n": 0}
     monkeypatch.setattr(qapp, "quit", lambda: quits.__setitem__("n", quits["n"] + 1))
 
     window.mostrar_login()
 
-    assert pregunto["n"] == 1, "debe confirmar la salida en vez de cerrarse solo"
-    assert quits["n"] == 1, "al confirmar, la salida debe ser explícita (app.quit)"
+    assert quits["n"] == 1, "cancelar el login debe cerrar la app (app.quit)"
     assert window.usuario_actual is None
-    # El flag global debe quedar restaurado tras el login.
-    assert qapp.quitOnLastWindowClosed() is True
 
 
-def test_reject_y_reintento_permite_iniciar_sesion(qapp, window, monkeypatch):
-    """Si el usuario cierra el diálogo pero decide quedarse (No), el login se
-    vuelve a pedir y puede completarse; la app nunca se cierra."""
-    from PyQt5.QtWidgets import QDialog, QMessageBox
+def test_login_correcto_muestra_ventana(qapp, window, monkeypatch):
+    """Con credenciales válidas, el login procede y se muestra la ventana
+    principal; la app nunca se cierra."""
+    from PyQt5.QtWidgets import QDialog
     from interfaz import main_window as mw
 
-    resultados = [QDialog.Rejected, QDialog.Accepted]
     def fake_exec(self):
-        r = resultados.pop(0)
-        if r == QDialog.Accepted:
-            self.usuario_autenticado = {
-                "nombre": "Ana", "username": "ana", "rol": "admin",
-            }
-        return r
+        self.usuario_autenticado = {"nombre": "Ana", "username": "ana", "rol": "admin"}
+        return QDialog.Accepted
     monkeypatch.setattr(mw.DialogoLogin, "exec_", fake_exec)
-    monkeypatch.setattr(QMessageBox, "question",
-                        staticmethod(lambda *a, **k: QMessageBox.No))  # quedarse
     monkeypatch.setattr(qapp, "quit",
-                        lambda: pytest.fail("no debe salir si el usuario reintenta"))
+                        lambda: pytest.fail("un login correcto no debe cerrar la app"))
 
     window.mostrar_login()
 
