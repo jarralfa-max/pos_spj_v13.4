@@ -2,6 +2,7 @@
 # modulos/clientes.py
 import os
 import re
+import sqlite3
 from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.spj_refresh_mixin import RefreshMixin
@@ -870,72 +871,55 @@ class DialogoHistorialCliente(QDialog):
         self.cargar_historial_puntos()
         self.cargar_historial_creditos()
 
+    @property
+    def _history_qs(self):
+        """QueryService canónico de historial (la UI no ejecuta SQL)."""
+        if not hasattr(self, '_history_qs_instance'):
+            from backend.application.queries.customer_history_query_service import (
+                CustomerHistoryQueryService,
+            )
+            self._history_qs_instance = CustomerHistoryQueryService(self.conexion)
+        return self._history_qs_instance
+
     def cargar_historial_compras(self):
-        """Carga el historial de compras del cliente."""
+        """Carga el historial de compras del cliente (vía QueryService)."""
         try:
-            cursor = self.conexion.cursor()
-            cursor.execute("""
-                SELECT fecha, total, metodo_pago, puntos_ganados 
-                FROM ventas 
-                WHERE cliente_id = ? 
-                ORDER BY fecha DESC
-            """, (self.id_cliente,))
-            ventas = cursor.fetchall()
-            
+            ventas = self._history_qs.get_purchase_history(str(self.id_cliente))
             self.tabla_compras.setRowCount(len(ventas))
-            for row, venta in enumerate(ventas):
-                for col, valor in enumerate(venta):
-                    if col == 1:  # Total
-                        self.tabla_compras.setItem(row, col, QTableWidgetItem(f"${valor:.2f}"))
-                    elif col == 3:  # Puntos
-                        self.tabla_compras.setItem(row, col, QTableWidgetItem(str(valor) if valor else "0"))
-                    else:
-                        self.tabla_compras.setItem(row, col, QTableWidgetItem(str(valor) if valor is not None else ""))
-                        
-        except sqlite3.Error as e:
+            for row, v in enumerate(ventas):
+                self.tabla_compras.setItem(row, 0, QTableWidgetItem(str(v["fecha"] or "")))
+                self.tabla_compras.setItem(row, 1, QTableWidgetItem(f"${v['total']:.2f}"))
+                self.tabla_compras.setItem(row, 2, QTableWidgetItem(v["forma_pago"]))
+                self.tabla_compras.setItem(row, 3, QTableWidgetItem(str(v["puntos_ganados"])))
+        except Exception as e:
             QMessageBox.critical(self, "Error", f"Error al cargar historial de compras: {str(e)}")
 
     def cargar_historial_puntos(self):
-        """Carga el historial de puntos del cliente."""
+        """Carga el historial de puntos del cliente (vía QueryService)."""
         try:
-            cursor = self.conexion.cursor()
-            cursor.execute("""
-                SELECT fecha, tipo, puntos, saldo_actual, descripcion 
-                FROM historico_puntos 
-                WHERE id_cliente = ? 
-                ORDER BY fecha DESC
-            """, (self.id_cliente,))
-            puntos = cursor.fetchall()
-            
+            puntos = self._history_qs.get_points_history(str(self.id_cliente))
             self.tabla_puntos.setRowCount(len(puntos))
-            for row, punto in enumerate(puntos):
-                for col, valor in enumerate(punto):
-                    self.tabla_puntos.setItem(row, col, QTableWidgetItem(str(valor) if valor is not None else ""))
-                        
-        except sqlite3.Error as e:
+            for row, p in enumerate(puntos):
+                self.tabla_puntos.setItem(row, 0, QTableWidgetItem(str(p["fecha"] or "")))
+                self.tabla_puntos.setItem(row, 1, QTableWidgetItem(p["tipo"]))
+                self.tabla_puntos.setItem(row, 2, QTableWidgetItem(str(p["puntos"])))
+                self.tabla_puntos.setItem(row, 3, QTableWidgetItem(str(p["saldo_actual"])))
+                self.tabla_puntos.setItem(row, 4, QTableWidgetItem(p["descripcion"]))
+        except Exception as e:
             QMessageBox.critical(self, "Error", f"Error al cargar historial de puntos: {str(e)}")
 
     def cargar_historial_creditos(self):
-        """Carga el historial de movimientos de crédito del cliente."""
+        """Carga el historial de crédito del cliente (vía QueryService)."""
         try:
-            cursor = self.conexion.cursor()
-            cursor.execute("""
-                SELECT fecha, tipo, monto, descripcion, usuario 
-                FROM movimientos_credito 
-                WHERE cliente_id = ? 
-                ORDER BY fecha DESC
-            """, (self.id_cliente,))
-            creditos = cursor.fetchall()
-            
+            creditos = self._history_qs.get_credit_history(str(self.id_cliente))
             self.tabla_creditos.setRowCount(len(creditos))
-            for row, credito in enumerate(creditos):
-                for col, valor in enumerate(credito):
-                    if col == 2:  # Monto
-                        self.tabla_creditos.setItem(row, col, QTableWidgetItem(f"${valor:.2f}"))
-                    else:
-                        self.tabla_creditos.setItem(row, col, QTableWidgetItem(str(valor) if valor is not None else ""))
-                        
-        except sqlite3.Error as e:
+            for row, c in enumerate(creditos):
+                self.tabla_creditos.setItem(row, 0, QTableWidgetItem(str(c["fecha"] or "")))
+                self.tabla_creditos.setItem(row, 1, QTableWidgetItem(c["tipo"]))
+                self.tabla_creditos.setItem(row, 2, QTableWidgetItem(f"${c['monto']:.2f}"))
+                self.tabla_creditos.setItem(row, 3, QTableWidgetItem(c["descripcion"]))
+                self.tabla_creditos.setItem(row, 4, QTableWidgetItem(c["usuario"]))
+        except Exception as e:
             QMessageBox.critical(self, "Error", f"Error al cargar historial de créditos: {str(e)}")
 
 # ── v9: Diálogos Tarjetas desde Clientes ─────────────────────────────────────

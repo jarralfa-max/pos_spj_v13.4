@@ -3004,29 +3004,9 @@ class ModuloVentas(ModuloBase):
             if self.container.hardware_service.open_cash_drawer():
                 return
         
-        # Legacy Fallback (cajón — no usa PrinterService)
-        if not self._hw_cajon_habilitado: return
-        try:
-            metodo = self._hw_cajon_cfg.get("metodo", "escpos")
-            if metodo == "escpos":
-                from escpos.printer import Usb
-                pulse = bytes([0x10, 0x14, 0x01, 0x00, 0x05])
-                puerto = self._hw_cajon_cfg.get("puerto", "USB")
-                if puerto == "USB":
-                    try:
-                        p = Usb(0x04b8, 0x0202)
-                        p._raw(pulse)
-                    except Exception: pass
-            elif metodo == "serial" and HAS_SERIAL:
-                import serial as _ser
-                puerto_s = self._hw_cajon_cfg.get("puerto_serial", "COM4")
-                baud     = int(self._hw_cajon_cfg.get("baud", 9600))
-                try:
-                    with _ser.Serial(puerto_s, baud, timeout=0.5) as s:
-                        s.write(bytes([0x10, 0x14, 0x01, 0x00, 0x05]))
-                except Exception: pass
-        except Exception as exc:
-            logger.debug("abrir_cajon (legacy): %s", exc)
+        # Ruta canónica única: HardwareService. La UI no maneja transporte
+        # de hardware ni usa escpos.printer.Usb directamente (regla Windows).
+        logger.debug("abrir_cajon: hardware_service no disponible o falló — sin fallback en UI")
 
     def _imprimir_ticket_consolidado(self, datos_ticket: dict) -> None:
         """

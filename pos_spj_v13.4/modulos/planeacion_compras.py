@@ -143,14 +143,21 @@ class ModuloPlaneacionCompras(QWidget):
         h_layout.addWidget(panel_resultados, stretch=1)
         layout.addLayout(h_layout)
 
+    @property
+    def _planning_reads(self):
+        """QueryService canónico de planeación (la UI no ejecuta SQL)."""
+        if not hasattr(self, '_planning_reads_instance'):
+            from backend.application.queries.purchase_planning_query_service import (
+                PurchasePlanningReadService,
+            )
+            self._planning_reads_instance = PurchasePlanningReadService(self.container.db)
+        return self._planning_reads_instance
+
     def cargar_productos(self):
         self.cmb_producto.clear()
         try:
-            cursor = self.container.db.cursor()
-            # Cargar productos que tengan ventas previas para evitar modelos vacíos
-            rows = cursor.execute("SELECT id, nombre FROM productos WHERE activo = 1 ORDER BY nombre").fetchall()
-            for row in rows:
-                self.cmb_producto.addItem(row['nombre'], row['id'])
+            for prod in self._planning_reads.list_forecastable_products(str(self.sucursal_id)):
+                self.cmb_producto.addItem(prod['nombre'], prod['id'])
         except Exception as e:
             logger.error(f"Error cargando productos para pronóstico: {e}")
 
@@ -164,8 +171,8 @@ class ModuloPlaneacionCompras(QWidget):
             # 🚀 MAGIA ENTERPRISE: El servicio de IA hace los cálculos de Pandas y Statsmodels
             if hasattr(self.container, 'forecast_service'):
                 resultado = self.container.forecast_service.generar_plan_compras(
-                    producto_id=producto_id,
-                    sucursal_id=self.sucursal_id,
+                    producto_id=str(producto_id),
+                    sucursal_id=str(self.sucursal_id),
                     dias_historial=self.spin_historial.value(),
                     dias_pronostico=self.spin_pronostico.value(),
                     stock_seguridad=self.spin_seguridad.value()
@@ -272,16 +279,7 @@ class ModuloPlaneacionCompras(QWidget):
         # Look up last purchase cost for this product as a price hint
         unit_cost = 0.0
         try:
-            row = self.container.db.execute(
-                """SELECT dd.precio_unitario
-                   FROM detalles_compra dd
-                   JOIN compras c ON c.id = dd.compra_id
-                   WHERE dd.producto_id = ?
-                   ORDER BY c.fecha DESC, c.id DESC LIMIT 1""",
-                (producto_id,),
-            ).fetchone()
-            if row:
-                unit_cost = float(row[0] or 0)
+            unit_cost = self._planning_reads.last_purchase_cost(str(producto_id))
         except Exception:
             pass
 

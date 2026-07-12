@@ -186,6 +186,14 @@ class HardwareService:
         
         try:
             if tipo_conexion == 'USB':
+                import platform
+                if platform.system() == "Windows":
+                    # Ruta canónica en Windows: spooler RAW (win32print).
+                    # escpos.printer.Usb (libusb) NO es la ruta default en Windows.
+                    from core.services.printer_service import PrintTransport
+                    return PrintTransport._send_win32(
+                        data, config.get('printer_name', '') or config.get('nombre', '')
+                    )
                 from escpos.printer import Usb
                 p = Usb(config['vid'], config['pid'])
                 p._raw(data)

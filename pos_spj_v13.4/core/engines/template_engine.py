@@ -66,7 +66,7 @@ class TicketTemplateEngine(TemplateEngine):
         forma_pago = fp_map.get(fp_raw, venta_data.get("forma_pago", "Efectivo"))
 
         ctx = {
-            "folio":             str(venta_data.get("venta_id", "")),
+            "folio":             str(venta_data.get("folio") or venta_data.get("venta_id", "")),
             "folio_fiscal":      venta_data.get("uuid_cfdi", ""),
             "fecha":             venta_data.get("fecha", ""),
             "turno":             venta_data.get("turno", ""),
@@ -77,6 +77,13 @@ class TicketTemplateEngine(TemplateEngine):
             "direccion":         self._get_config("direccion", ""),
             "telefono_empresa":  self._get_config("telefono_empresa", ""),
             "web_empresa":       self._get_config("web_empresa", ""),
+            "whatsapp_empresa":  self._get_config("whatsapp_empresa", ""),
+            # Datos de sucursal: vienen del payload (sales_service los resuelve
+            # con _ticket_header_data). Sin hardcodes ni sucursal default.
+            "sucursal_id":        str(venta_data.get("sucursal_id", "") or ""),
+            "sucursal_nombre":    str(venta_data.get("sucursal_nombre", "") or ""),
+            "sucursal_direccion": str(venta_data.get("sucursal_direccion", "") or ""),
+            "sucursal_telefono":  str(venta_data.get("sucursal_telefono", "") or ""),
             "cliente_nombre":    venta_data.get("cliente", "Público General"),
             "cliente_rfc":       venta_data.get("cliente_rfc", ""),
             "subtotal":          f"${subtotal:,.2f}",

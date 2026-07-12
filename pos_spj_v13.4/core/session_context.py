@@ -8,12 +8,12 @@ sus propias copias de sucursal_id/usuario_actual.
 
 Uso:
     session = container.session
-    session.sucursal_id       # 2
+    session.sucursal_id       # "0198..." (UUID str)
     session.sucursal_nombre   # "Centro"
     session.usuario           # "juan"
     session.nombre_completo   # "Juan Pérez"
     session.rol               # "gerente"
-    session.user_id           # 5
+    session.user_id           # "0198..." (UUID str)
     session.tiene_permiso("ventas.cancelar")  # True/False
     session.es_admin          # True/False
     session.is_active         # True/False
@@ -31,11 +31,11 @@ class SessionContext:
     """Contexto de sesión inmutable-ish — se actualiza solo via set_*."""
 
     def __init__(self):
-        self._user_id: int = 0
+        self._user_id: str = ""
         self._usuario: str = ""
         self._nombre_completo: str = ""
         self._rol: str = ""
-        self._sucursal_id: int = 0         # legacy integer, kept for backward compat
+        self._sucursal_id: str = ""        # espejo de active_branch_id (UUID str)
         self._sucursal_nombre: str = ""    # display name only — NOT identity
         self._active_branch_id: str = ""   # canonical UUID — single source of truth
         self._permisos: Set[str] = set()
@@ -45,7 +45,7 @@ class SessionContext:
     # ── Properties (read-only desde fuera) ────────────────────────────────────
 
     @property
-    def user_id(self) -> int:
+    def user_id(self) -> str:
         return self._user_id
 
     @property
@@ -61,7 +61,7 @@ class SessionContext:
         return self._rol
 
     @property
-    def sucursal_id(self) -> int:
+    def sucursal_id(self) -> str:
         return self._sucursal_id
 
     @property
@@ -97,11 +97,11 @@ class SessionContext:
 
     def set_user(self, user_data: dict) -> None:
         """Establece el usuario autenticado. Se llama desde MainWindow al hacer login."""
-        self._user_id = user_data.get('id', 0)
+        self._user_id = str(user_data.get('id') or "").strip()
         self._usuario = user_data.get('username', '')
         self._nombre_completo = user_data.get('nombre', self._usuario)
         self._rol = str(user_data.get('rol', 'cajero') or 'cajero').strip().lower()
-        self._sucursal_id = user_data.get('sucursal_id', 0)
+        self._sucursal_id = str(user_data.get('sucursal_id') or "").strip()
         self._sucursal_nombre = user_data.get('sucursal_nombre', '')
         # Prefer explicit UUID; fall back to string repr of integer id (never 'Principal')
         self._active_branch_id = (
@@ -116,10 +116,10 @@ class SessionContext:
             self._sucursal_nombre, self._active_branch_id, self._sucursal_id,
         )
 
-    def set_sucursal(self, sucursal_id: int, nombre: str = "",
+    def set_sucursal(self, sucursal_id: str, nombre: str = "",
                      active_branch_id: str = "") -> None:
         """Cambia la sucursal activa (para usuarios multi-branch)."""
-        self._sucursal_id = sucursal_id
+        self._sucursal_id = str(sucursal_id or "").strip()
         if nombre:
             self._sucursal_nombre = nombre
         if active_branch_id:
@@ -137,7 +137,7 @@ class SessionContext:
         logger.debug("Permisos cargados: %d", len(self._permisos))
 
     def clear(self) -> None:
-        """Cierra la sesión — limpia todo. No restaura '' ni sucursal_id=1."""
+        """Cierra la sesión — limpia todo. No restaura defaults ni sucursal_id=1."""
         old_user = self._usuario
         self.__init__()
         if old_user:

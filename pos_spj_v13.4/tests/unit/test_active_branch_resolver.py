@@ -190,8 +190,9 @@ def test_22_session_context_never_defaults_sucursal_nombre_to_principal():
 
 
 def test_23_session_context_sucursal_id_defaults_to_zero_not_one():
+    # Identidad UUID string: el default es vacío (nunca '1' ni entero).
     ctx = SessionContext()
-    assert ctx.sucursal_id == 0
+    assert ctx.sucursal_id == ""
 
 
 # ── Test 24: ACTIVE_BRANCH_CHANGED event ─────────────────────────────────────

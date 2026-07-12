@@ -300,3 +300,34 @@ métodos públicos como wrappers de compatibilidad hacia atrás (facade pattern)
 - TestMigracion082TreasuryTables (7 tests) — verifica creación e idempotencia de tablas
 
 **Total suite finanzas**: 117 tests pasando.
+
+---
+
+## 2026-07-12 — Bugfix/Refactor auditoría funcional (rama claude/pos-spj-refactor-bugfix)
+
+Cambios al schema base (`m000_base_schema.py`) — sin migraciones de rescate,
+la DB de desarrollo debe resetearse (born-clean UUIDv7):
+
+- **S-01 — `loyalty_snapshots` reconstruida a forma checkpoint**: columnas
+  `cliente_id UNIQUE`, `puntos_actuales`, `nivel`, `visitas`, `importe_total`,
+  `ultimo_evento_id TEXT` (UUID), `fecha_snapshot`. Corrige
+  `no such column: ls.ultimo_evento_id` del scheduler. La forma anterior
+  (visitas_dia/importe_dia…) no tenía lectores.
+- **S-02 — `historico_puntos` gana `saldo_actual REAL` y `usuario TEXT`**:
+  sus escritores (sale_loyalty_policy, sales_reversal) ya insertaban esas
+  columnas; ahora además acuñan `id` con `new_uuid()`.
+- **S-03 — `usuarios` gana `intentos_fallidos`, `bloqueado_hasta`,
+  `locked_reason`, `updated_at`** en el CREATE base (antes solo por
+  ensure_column parcial). Soporta el flujo administrativo de desbloqueo.
+- **S-04 — `usuario_permisos` y `usuario_sucursal_permisos` creadas**:
+  overrides RBAC por usuario/sucursal con `usuario_id`/`sucursal_id` UUID TEXT.
+  Antes no existían y los overrides se ignoraban en silencio.
+- **S-05 — Índice único `idx_cxc_venta_unica` en
+  `cuentas_por_cobrar(venta_id)`**: garantiza idempotencia de CxC por venta.
+
+Cambios de servicios (fuera de schema) documentados en el PR/reporte:
+compras ya no escriben `movimientos_caja` (asiento contra
+`capital_operativo`); Corte Z compara solo efectivo esperado vs contado;
+`ConfigRepository` sin `int(UUID)`; `SessionContext` con identidad str;
+lotes/movimientos_lote con `id` UUIDv7 (sin columna `uuid` ni randomblob);
+`new_uuid()` monótono in-process (checkpoints UUIDv7).

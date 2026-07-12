@@ -3,12 +3,24 @@
 from __future__ import annotations
 
 import secrets
+import threading
 import time
 import uuid
 
+_monotonic_lock = threading.Lock()
+_last_value = 0
+
 
 def _uuid7_fallback() -> uuid.UUID:
-    """Return a UUIDv7 value when the runtime does not expose uuid.uuid7()."""
+    """Return a UUIDv7 value when the runtime does not expose uuid.uuid7().
+
+    Garantiza monotonicidad dentro del proceso: dos UUIDs generados en el
+    mismo milisegundo conservan orden lexicográfico == orden de generación.
+    Los checkpoints incrementales (p. ej. loyalty_snapshots.ultimo_evento_id)
+    dependen de esta propiedad.
+    """
+    global _last_value
+
     timestamp_ms = time.time_ns() // 1_000_000
     if timestamp_ms >= 1 << 48:
         raise OverflowError("UUIDv7 timestamp exceeds 48 bits")
@@ -22,6 +34,13 @@ def _uuid7_fallback() -> uuid.UUID:
     value |= rand_a << 64
     value |= 0b10 << 62
     value |= rand_b
+
+    with _monotonic_lock:
+        if value <= _last_value:
+            # Mismo milisegundo con random menor: avanzar 1 conserva
+            # versión/variant (solo crece rand_b; overflow es teórico).
+            value = _last_value + 1
+        _last_value = value
     return uuid.UUID(int=value)
 
 
