@@ -12,7 +12,9 @@ new file starts violating a rule. Counts may be reduced as debt is removed.
 # Módulos ya en 0 (retirados): finanzas_unificadas, productos, inventario_local,
 # transferencias.
 SQL_IN_UI_ALLOWLIST = {
-    'pos_spj_v13.4/interfaz/main_window.py': 9,
+    # main_window.py: SQL del shell → repositorios (Remediación F): reads de
+    # sucursal/empleado/búsqueda global → MainWindowReadRepository; config
+    # (logo/nombre/tema) → ConfigRepository.get_setting.
     # activos.py: SQL 100% extraído a AssetService (Remediación F) — lecturas de
     # tabla/depreciación/mantenimientos, bajas, borrados y la depreciación mensual.
     'pos_spj_v13.4/modulos/base.py': 3,

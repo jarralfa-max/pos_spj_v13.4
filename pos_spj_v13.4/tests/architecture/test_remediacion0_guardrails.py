@@ -52,20 +52,29 @@ def test_wiring_no_compara_raffle_id_str_con_int():
 # ── B7: inbox del login debe ser del usuario logueado ────────────────────────
 
 def test_inbox_login_filtra_por_usuario():
-    body = _method_source("interfaz/main_window.py", "MainWindow", "_mostrar_inbox_login")
-    flat = " ".join(body.split())
+    # Remediación F: el SQL se movió a MainWindowReadRepository. El shell debe
+    # delegar en la resolución filtrada-por-usuario, y el repo debe conservar el
+    # filtro (personal.usuario_id + usuarios.personal_id), sin caer al primer
+    # empleado activo.
+    ui = _method_source("interfaz/main_window.py", "MainWindow", "_mostrar_inbox_login")
+    assert "personal_id_de_usuario" in ui, (
+        "B7: _mostrar_inbox_login debe delegar en "
+        "MainWindowReadRepository.personal_id_de_usuario (vínculo por usuario)."
+    )
+
+    repo = _method_source(
+        "repositories/main_window_repository.py",
+        "MainWindowReadRepository", "personal_id_de_usuario")
+    flat = " ".join(repo.split())
     assert "usuario_id=?" in flat, (
-        "B7: _mostrar_inbox_login debe buscar el empleado vinculado al usuario "
+        "B7: personal_id_de_usuario debe buscar el empleado vinculado al usuario "
         "logueado (personal.usuario_id), no el primer empleado activo."
     )
-    # Review Codex P2: también debe resolver por el vínculo canónico
-    # usuarios.personal_id (lo escribe link_user_to_employee del RRHH
-    # identity service; personal.usuario_id puede no estar poblado).
     assert "personal_id" in flat, (
         "B7: la búsqueda del empleado debe cubrir usuarios.personal_id "
         "(vínculo canónico del RRHH identity service)."
     )
-    assert "WHERE activo=1 LIMIT 1" not in body, (
+    assert "WHERE activo=1 LIMIT 1" not in repo, (
         "B7: query sin filtro de usuario — muestra/marca leído el inbox de "
         "OTRO empleado."
     )
