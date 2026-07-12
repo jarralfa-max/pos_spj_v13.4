@@ -563,12 +563,16 @@ class ConfigRepository:
 
     def list_users_v13(self) -> list[tuple]:
         # Born-clean: usuarios.id y sucursales.id son la identidad UUIDv7 única.
+        # intentos_fallidos/bloqueado_hasta alimentan el flujo administrativo
+        # de desbloqueo en Configuración/Seguridad.
         return self.db.execute(
             """
             SELECT u.id AS id, u.usuario, u.nombre,
                    COALESCE(r.nombre,'cajero') AS rol,
                    COALESCE(s.nombre,'') AS sucursal,
-                   u.activo, u.id AS usuario_uuid, s.id AS sucursal_uuid_val
+                   u.activo, u.id AS usuario_uuid, s.id AS sucursal_uuid_val,
+                   COALESCE(u.intentos_fallidos, 0) AS intentos_fallidos,
+                   u.bloqueado_hasta
             FROM usuarios u
             LEFT JOIN roles r ON r.nombre = u.rol
             LEFT JOIN sucursales s ON s.id = u.sucursal_id
@@ -717,9 +721,8 @@ class ConfigRepository:
         return self._role_permissions_by_row_id(role_uuid)
 
     def permission_codes_for_user(self, user_id: str, branch_id: str | None = None) -> set[str]:
-        # usuarios.id es la identidad canónica del usuario (entero pre-cutover,
-        # UUIDv7 TEXT tras el corte global); el binding por afinidad de SQLite
-        # resuelve ambos casos sin ramas duales uuid/id.
+        # usuarios.id es la identidad canónica del usuario: UUIDv7 TEXT.
+        # Nunca se convierte a entero (REGLA CERO de identidad).
         user_id_str = str(user_id or "").strip()
         if not user_id_str:
             logger.warning("permission_codes_for_user: invalid user_id %r — returning empty set", user_id)
@@ -731,13 +734,13 @@ class ConfigRepository:
         normalized_role = self._normalize_role(row[1])
         if normalized_role in {"admin", "superadmin", "administrador"}:
             return {"*"}
-        int_id = int(row[0])
+        user_uuid = str(row[0]).strip()
         permissions = set(self.permission_codes_for_role_name(normalized_role))
-        permissions = self._apply_user_permission_overrides(int_id, permissions)
-        permissions = self._apply_branch_permission_restrictions(int_id, branch_id, permissions)
+        permissions = self._apply_user_permission_overrides(user_uuid, permissions)
+        permissions = self._apply_branch_permission_restrictions(user_uuid, branch_id, permissions)
         return {normalize_permission(permission) for permission in permissions}
 
-    def _apply_user_permission_overrides(self, user_row_id: int, permissions: set[str]) -> set[str]:
+    def _apply_user_permission_overrides(self, user_id: str, permissions: set[str]) -> set[str]:
         if not self._table_exists("usuario_permisos"):
             return permissions
         rows = self.db.execute(
@@ -746,7 +749,7 @@ class ConfigRepository:
             FROM usuario_permisos
             WHERE usuario_id=? AND COALESCE(modulo, '') != '' AND COALESCE(accion, '') != ''
             """,
-            (user_row_id,),
+            (user_id,),
         ).fetchall()
         resolved = set(permissions)
         for row in rows:
@@ -758,7 +761,7 @@ class ConfigRepository:
         return resolved
 
     def _apply_branch_permission_restrictions(
-        self, user_row_id: int, branch_id: str | None, permissions: set[str]
+        self, user_id: str, branch_id: str | None, permissions: set[str]
     ) -> set[str]:
         if branch_id is None or not self._table_exists("usuario_sucursal_permisos"):
             return permissions
@@ -770,7 +773,7 @@ class ConfigRepository:
             WHERE usuario_id=? AND sucursal_id=?
               AND COALESCE(modulo, '') != '' AND COALESCE(accion, '') != ''
             """,
-            (user_row_id, branch_row_id),
+            (user_id, branch_row_id),
         ).fetchall()
         if not rows:
             return permissions

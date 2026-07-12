@@ -1021,12 +1021,18 @@ class FinanceService:
         return cierre_id
 
     def generar_corte_z(
-        self, turno_id: str, sucursal_id: int,
+        self, turno_id: str, sucursal_id: str,
         usuario: str, efectivo_fisico: float
     ) -> dict:
-        """Cierra el turno y calcula diferencias."""
+        """Cierra el turno y calcula diferencias.
+
+        La diferencia compara el efectivo contado contra el efectivo ESPERADO:
+        solo ventas en efectivo (y la porción en efectivo de pagos mixtos).
+        Tarjeta, transferencia y crédito NO forman parte del efectivo esperado.
+        """
         turno_id = str(turno_id)
-        # Sumar ventas del turno
+        sucursal_id = str(sucursal_id)
+        # Total de ventas del turno (informativo, todos los medios de pago)
         row_v = self.db.execute(
             """SELECT COALESCE(SUM(total),0) FROM ventas
                WHERE sucursal_id=? AND usuario=?
@@ -1034,6 +1040,30 @@ class FinanceService:
             (sucursal_id, usuario, turno_id)
         ).fetchone()
         total_ventas = float(row_v[0]) if row_v else 0.0
+
+        # Ventas en EFECTIVO del turno (lo único comparable contra lo contado)
+        try:
+            ventas_cols = {r[1] for r in self.db.execute("PRAGMA table_info(ventas)").fetchall()}
+        except Exception:
+            ventas_cols = set()
+        if {"efectivo_recibido", "cambio"} <= ventas_cols:
+            mixto_expr = "MAX(0, COALESCE(efectivo_recibido,0) - COALESCE(cambio,0))"
+        else:
+            mixto_expr = "0"
+        row_ve = self.db.execute(
+            f"""SELECT COALESCE(SUM(CASE
+                     WHEN lower(COALESCE(forma_pago,'efectivo')) = 'efectivo'
+                          THEN total
+                     WHEN lower(COALESCE(forma_pago,'')) IN ('pago mixto','mixto')
+                          THEN {mixto_expr}
+                     ELSE 0 END), 0)
+               FROM ventas
+               WHERE sucursal_id=? AND usuario=?
+               AND lower(COALESCE(estado,'completada')) NOT IN ('cancelada','anulada')
+               AND fecha >= (SELECT fecha_apertura FROM turnos_caja WHERE id=?)""",
+            (sucursal_id, usuario, turno_id)
+        ).fetchone()
+        ventas_efectivo = float(row_ve[0]) if row_ve else 0.0
 
         # Sumar movimientos
         row_m = self.db.execute(
@@ -1051,8 +1081,8 @@ class FinanceService:
         ).fetchone()
         fondo = float(row_t['fondo_inicial']) if row_t else 0.0
 
-        esperado   = fondo + total_ventas + otros_ingresos - retiros
-        diferencia = efectivo_fisico - esperado
+        esperado   = round(fondo + ventas_efectivo + otros_ingresos - retiros, 2)
+        diferencia = round(efectivo_fisico - esperado, 2)
 
         # Cerrar turno
         self.db.execute(
@@ -1098,6 +1128,7 @@ class FinanceService:
             "turno_id":      turno_id,
             "fondo_inicial": fondo,
             "total_ventas":  total_ventas,
+            "ventas_efectivo": ventas_efectivo,
             "otros_ingresos":otros_ingresos,
             "retiros":       retiros,
             "efectivo_esperado": esperado,

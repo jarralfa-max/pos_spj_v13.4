@@ -235,7 +235,7 @@ class SalesService:
         payment_method: str,
         total_a_pagar: float,
         payment_lines: dict,
-        client_id: int = None,
+        client_id: str | None = None,
     ):
         from core.services.payment_normalization import is_credit_sale
 
@@ -243,7 +243,17 @@ class SalesService:
         total_a_pagar = round(float(total_a_pagar or 0.0), 2)
         lines = dict(payment_lines or {})
 
-        if is_credit_sale(method) and client_id and self.customer_service:
+        if is_credit_sale(method):
+            # Venta a crédito SIEMPRE exige cliente válido con crédito autorizado.
+            # Nunca se omite la validación en silencio.
+            if not client_id:
+                raise ValueError(
+                    "Para vender a crédito debe seleccionar un cliente con crédito autorizado."
+                )
+            if not self.customer_service:
+                raise ValueError(
+                    "Servicio de crédito no disponible — no es posible validar la venta a crédito."
+                )
             ok, msg = self.customer_service.validate_credit(client_id, total_a_pagar)
             if not ok:
                 raise ValueError(msg)
@@ -958,12 +968,15 @@ class SalesService:
                 'raffle_tickets_snapshot': raffle_tickets_snapshot,
                 'raffle_tickets_lines': [f"🎟️ Rifas/Sorteos\nRifa: {t.get('raffle','')}\nBoletos: {t.get('numero_boleto','')}" for t in (raffle_tickets_snapshot or [])],
             }
-            # Encabezado de ticket: empresa + sucursal (branch_id UUID str, sin default)
-            ticket_header = self._ticket_header_data(str(branch_id))
-            datos_venta.update(ticket_header)
+            datos_venta.update(self._ticket_header_data(branch_id))
             template_html = self.config_service.get('ticket_template_html')
             if not template_html:
-                raise ValueError("ticket_template_html not configured")
+                # La falta de configuración NUNCA bloquea la venta: se usa el
+                # template default y se deja constancia en el log.
+                logger.warning(
+                    "ticket_template_html no configurado — usando template default"
+                )
+                template_html = self._default_ticket_template()
             ticket_final_html = self.ticket_template_engine.generar_ticket(
                 template_html, datos_venta, mensaje_psicologico="🐔 ¡Gracias por tu compra!"
             )
@@ -1036,7 +1049,75 @@ class SalesService:
             }
         return folio, ticket_final_html
 
+    # ── Ticket: datos de sucursal y template default ──────────────────────────
 
+    def _ticket_header_data(self, branch_id: str) -> dict:
+        """
+        Datos de encabezado del ticket: empresa (configuraciones) + sucursal
+        (tabla sucursales por UUID). Sin hardcodes, sin sucursal default,
+        sin convertir branch_id a int. Si falta un dato, se deja vacío —
+        nunca se bloquea la venta.
+        """
+        header = {
+            "sucursal_id":        str(branch_id or ""),
+            "sucursal_nombre":    "",
+            "sucursal_direccion": "",
+            "sucursal_telefono":  "",
+        }
+        try:
+            for clave, key in (
+                ("nombre_empresa",   "nombre_empresa"),
+                ("rfc",              "rfc_emisor"),
+                ("regimen_fiscal",   "regimen_fiscal"),
+                ("web_empresa",      "web_empresa"),
+                ("whatsapp_empresa", "whatsapp_empresa"),
+            ):
+                val = self.config_service.get(clave) if self.config_service else None
+                if val:
+                    header[key] = str(val)
+        except Exception as e:
+            logger.warning("_ticket_header_data: config empresa incompleta: %s", e)
+        try:
+            if branch_id:
+                row = self.db.execute(
+                    "SELECT nombre, COALESCE(direccion,''), COALESCE(telefono,'') "
+                    "FROM sucursales WHERE id=?",
+                    (str(branch_id),),
+                ).fetchone()
+                if row:
+                    header["sucursal_nombre"]    = str(row[0] or "")
+                    header["sucursal_direccion"] = str(row[1] or "")
+                    header["sucursal_telefono"]  = str(row[2] or "")
+        except Exception as e:
+            logger.warning("_ticket_header_data: sucursal %s no resuelta: %s", branch_id, e)
+        return header
+
+    @staticmethod
+    def _default_ticket_template() -> str:
+        """Template HTML mínimo usado cuando ticket_template_html no está configurado."""
+        return (
+            '<div style="text-align:center;">'
+            "<strong>{{nombre_empresa}}</strong><br>"
+            "Sucursal: {{sucursal_nombre}}<br>"
+            "{{sucursal_direccion}}<br>"
+            "Tel: {{sucursal_telefono}}<br>"
+            "WhatsApp: {{whatsapp_empresa}}<br>"
+            "RFC: {{rfc_emisor}}<br>"
+            "Régimen: {{regimen_fiscal}}<br>"
+            "<hr>"
+            "Ticket: {{folio}}<br>"
+            "Fecha: {{fecha}}<br>"
+            "Cajero: {{cajero}}<br>"
+            "Cliente: {{cliente_nombre}}<br>"
+            "<hr>"
+            "<table>{{items_html}}</table>"
+            "<hr>"
+            "Subtotal: {{subtotal}}<br>"
+            "Total: {{total}}<br>"
+            "Forma de pago: {{forma_pago}}<br>"
+            "{{mensaje_psicologico}}"
+            "</div>"
+        )
 
     def _calculate_change(self, payment_method: str, payment_lines: dict, total: float) -> float:
         method = self._normalize_payment_method(payment_method)

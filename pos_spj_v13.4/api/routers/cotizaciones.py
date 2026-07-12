@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from api.deps import get_db
 from api.auth import verify_api_key
+from backend.shared.ids import new_uuid
 
 router = APIRouter(prefix="/cotizaciones", tags=["cotizaciones"])
 
@@ -14,7 +15,8 @@ router = APIRouter(prefix="/cotizaciones", tags=["cotizaciones"])
 # ── Request / Response models ─────────────────────────────────────────────────
 
 class ItemCotizacionIn(BaseModel):
-    producto_id: str
+    # Identidad UUIDv7 string (REGLA CERO): la API transporta UUIDs.
+    producto_id:     str
     nombre:          str   = ""
     cantidad:        float = Field(gt=0)
     precio_unitario: float = Field(ge=0)
@@ -22,9 +24,9 @@ class ItemCotizacionIn(BaseModel):
 
 
 class CotizacionIn(BaseModel):
-    cliente_id: str
+    cliente_id:   str
     items:        List[ItemCotizacionIn]
-    sucursal_id: str = ""
+    sucursal_id:  str   = ""
     usuario:      str   = "whatsapp"
     notas:        str   = ""
     vigencia_dias: int  = 7
@@ -55,8 +57,7 @@ async def crear_cotizacion(
         ).fetchone()
         cliente_nombre = cliente_row[0] if cliente_row else ""
 
-        # REGLA CERO: identidad UUIDv7 explícita, no lastrowid.
-        from backend.shared.ids import new_uuid
+        # Identidad UUIDv7 acuñada en aplicación — nunca lastrowid.
         cot_id = new_uuid()
         db.execute("""
             INSERT INTO cotizaciones (
@@ -142,15 +143,14 @@ async def convertir_a_venta(
     total = cot["total"]
 
     try:
-        # REGLA CERO: identidad UUIDv7 explícita, no lastrowid; sin default 1.
-        from backend.shared.ids import new_uuid
         venta_id = new_uuid()
         db.execute("""
             INSERT INTO ventas (
                 id, folio, cliente_id, total, subtotal, estado,
                 sucursal_id, tipo_entrega, canal, fecha
             ) VALUES (?, ?, ?, ?, ?, 'pendiente_wa', ?, 'sucursal', 'whatsapp', datetime('now'))
-        """, (venta_id, folio, cot["cliente_id"], total, total, cot.get("sucursal_id", "")))
+        """, (venta_id, folio, cot["cliente_id"], total, total,
+              cot.get("sucursal_id") or ""))
 
         for it in items:
             it = dict(it)

@@ -8,6 +8,7 @@ Arquitectura: SPJ -> CfdiService -> PacAdapter -> PAC (Finkok/SW Sapien/Stub)
 from __future__ import annotations
 import logging, uuid, json
 from datetime import datetime
+from backend.shared.ids import new_uuid
 from core.db.connection import get_connection, transaction
 
 logger = logging.getLogger("spj.cfdi")
@@ -204,11 +205,8 @@ class CfdiService:
         subtotal = sum(float(i.get("cantidad",1))*float(i.get("precio_unitario",0)) for i in items)
         iva      = round(subtotal*0.16,2)
 
-        # Guardar en BD antes de timbrar (por si el PAC falla).
-        # B15/REGLA CERO: identidad UUIDv7 explícita — no lastrowid (que contra
-        # el schema TEXT PK devolvía el rowid y dejaba id NULL, rompiendo el
-        # UPDATE de timbrado posterior).
-        from backend.shared.ids import new_uuid
+        # Guardar en BD antes de timbrar (por si el PAC falla)
+        # Identidad UUIDv7 acuñada en aplicación — nunca lastrowid.
         fid = new_uuid()
         with transaction(self.conn) as c:
             c.execute("""INSERT INTO facturas_cfdi

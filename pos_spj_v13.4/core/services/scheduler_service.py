@@ -70,7 +70,7 @@ class SchedulerService:
     def __init__(
         self,
         conn_factory:  Callable[[], sqlite3.Connection],
-        sucursal_id:   int = 1,
+        sucursal_id:   str = "",
         usuario:       str = "Sistema",
     ) -> None:
         self._conn_factory = conn_factory
@@ -255,25 +255,15 @@ class SchedulerService:
         Solo procesa clientes que tienen eventos NUEVOS desde su último snapshot.
         Fix #10: evita recalcular toda la historia — solo desde ultimo_evento_id.
         """
-        # Asegurar tabla snapshot
-        # Ensure ultimo_evento_id column exists
-        try:
-            cols = {r[1] for r in conn.execute('PRAGMA table_info(loyalty_snapshots)').fetchall()}
-            if 'ultimo_evento_id' not in cols:
-                pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
-                try: conn.commit()
-                except Exception: pass
-        except Exception: pass
-        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
-        conn.commit()
-
-        # Clientes con eventos nuevos desde su último snapshot
+        # Schema canónico en migrations/ (born-clean); este servicio no crea
+        # ni altera tablas. Los ids de historico_puntos son UUIDv7 (TEXT),
+        # cuyo orden lexicográfico coincide con el orden temporal.
         clientes_dirty = conn.execute("""
         SELECT DISTINCT hp.cliente_id
             FROM historico_puntos hp
             LEFT JOIN loyalty_snapshots ls ON ls.cliente_id = hp.cliente_id
             WHERE ls.cliente_id IS NULL
-               OR hp.id > COALESCE(ls.ultimo_evento_id, 0)
+               OR hp.id > COALESCE(ls.ultimo_evento_id, '')
         """).fetchall()
 
         actualizados = 0
@@ -288,12 +278,13 @@ class SchedulerService:
             )
 
     def _recalcular_snapshot_cliente(
-        self, conn: sqlite3.Connection, cliente_id: int
+        self, conn: sqlite3.Connection, cliente_id: str
     ) -> None:
         """Recalcula snapshot de un cliente específico desde su ultimo_evento_id."""
+        from backend.shared.ids import new_uuid
         from core.domain.models import LoyaltySnapshot
 
-        # Obtener checkpoint anterior
+        # Obtener checkpoint anterior (ultimo_evento_id es UUID TEXT; '' = sin checkpoint)
         snap_row = conn.execute(
             "SELECT puntos_actuales, visitas, importe_total, ultimo_evento_id "
             "FROM loyalty_snapshots WHERE cliente_id=?",
@@ -303,15 +294,17 @@ class SchedulerService:
         base_puntos     = int(snap_row[0]) if snap_row else 0
         base_visitas    = int(snap_row[1]) if snap_row else 0
         base_importe    = float(snap_row[2]) if snap_row else 0.0
-        ultimo_ev_id    = int(snap_row[3]) if snap_row and snap_row[3] else 0
+        ultimo_ev_id    = str(snap_row[3]) if snap_row and snap_row[3] else ""
 
-        # Agregar solo eventos NUEVOS (mayor que el checkpoint)
+        # Agregar solo eventos NUEVOS (UUIDv7: orden lexicográfico == temporal).
+        # El importe del evento proviene de la venta asociada (si existe).
         eventos = conn.execute(
             """
-            SELECT id, puntos, tipo_movimiento, importe
-            FROM historico_puntos
-            WHERE cliente_id = ? AND id > ?
-            ORDER BY id ASC
+            SELECT hp.id, hp.puntos, hp.tipo, COALESCE(v.total, 0)
+            FROM historico_puntos hp
+            LEFT JOIN ventas v ON v.id = hp.venta_id
+            WHERE hp.cliente_id = ? AND hp.id > ?
+            ORDER BY hp.id ASC
             """,
             (cliente_id, ultimo_ev_id),
         ).fetchall()
@@ -323,18 +316,18 @@ class SchedulerService:
             ev_id, puntos_delta, tipo, importe = row
             base_puntos  += int(puntos_delta or 0)
             base_importe += float(importe or 0)
-            if tipo in ("venta", "ganancia"):
+            if str(tipo or "").lower() in ("venta", "ganancia"):
                 base_visitas += 1
-            ultimo_ev_id = ev_id
+            ultimo_ev_id = str(ev_id)
 
         nivel = LoyaltySnapshot.calcular_nivel(base_puntos)
 
         conn.execute(
             """
             INSERT INTO loyalty_snapshots
-                (cliente_id, puntos_actuales, nivel, visitas, importe_total,
+                (id, cliente_id, puntos_actuales, nivel, visitas, importe_total,
                  ultimo_evento_id, fecha_snapshot)
-            VALUES (?,?,?,?,?,?,datetime('now'))
+            VALUES (?,?,?,?,?,?,?,datetime('now'))
             ON CONFLICT(cliente_id) DO UPDATE SET
                 puntos_actuales  = excluded.puntos_actuales,
                 nivel            = excluded.nivel,
@@ -343,5 +336,6 @@ class SchedulerService:
                 ultimo_evento_id = excluded.ultimo_evento_id,
                 fecha_snapshot   = excluded.fecha_snapshot
             """,
-            (cliente_id, base_puntos, nivel, base_visitas, base_importe, ultimo_ev_id),
+            (new_uuid(), cliente_id, base_puntos, nivel, base_visitas,
+             base_importe, ultimo_ev_id or None),
         )
