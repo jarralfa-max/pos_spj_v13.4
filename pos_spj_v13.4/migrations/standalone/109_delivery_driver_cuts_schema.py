@@ -5,7 +5,7 @@ from __future__ import annotations
 def run(conn) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS delivery_driver_cuts (
-            id                TEXT PRIMARY KEY,
+            id                TEXT NOT NULL PRIMARY KEY,
             driver_id         TEXT NOT NULL,
             driver_nombre     TEXT NOT NULL,
             turno_inicio      DATETIME,
@@ -25,7 +25,7 @@ def run(conn) -> None:
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS delivery_cut_items (
-            id            TEXT PRIMARY KEY,
+            id            TEXT NOT NULL PRIMARY KEY,
             cut_id        TEXT NOT NULL REFERENCES delivery_driver_cuts(id),
             order_id      TEXT NOT NULL,
             cliente_nombre TEXT,

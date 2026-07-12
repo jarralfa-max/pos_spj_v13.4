@@ -14,7 +14,7 @@ def run(conn):
 
     cur.executescript("""
         CREATE TABLE IF NOT EXISTS financial_event_log (
-            id            TEXT PRIMARY KEY,
+            id            TEXT NOT NULL PRIMARY KEY,
             timestamp     DATETIME DEFAULT CURRENT_TIMESTAMP,
             evento        TEXT NOT NULL,
             modulo        TEXT NOT NULL,

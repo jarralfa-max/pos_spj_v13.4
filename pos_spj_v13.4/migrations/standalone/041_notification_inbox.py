@@ -8,7 +8,7 @@ logger = logging.getLogger("spj.migrations.041")
 def run(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS notification_inbox (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             empleado_id TEXT NOT NULL,
             tipo        TEXT    NOT NULL,
             titulo      TEXT    NOT NULL,

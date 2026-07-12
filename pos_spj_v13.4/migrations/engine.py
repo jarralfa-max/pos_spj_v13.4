@@ -120,7 +120,7 @@ def _ensure_tracking_table(conn):
     # alineado con la definición born-clean de la migración 026).
     conn.execute("""
         CREATE TABLE IF NOT EXISTS schema_migrations (
-            version     TEXT PRIMARY KEY,
+            version     TEXT NOT NULL PRIMARY KEY,
             executed_at TEXT DEFAULT (datetime('now'))
         )""")
     try: conn.commit()

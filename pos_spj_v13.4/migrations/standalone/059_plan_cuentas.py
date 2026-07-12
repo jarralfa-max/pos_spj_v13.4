@@ -7,7 +7,7 @@
 def run(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS plan_cuentas (
-            codigo_sat   TEXT    PRIMARY KEY,
+            codigo_sat   TEXT NOT NULL    PRIMARY KEY,
             nombre       TEXT    NOT NULL,
             tipo         TEXT    NOT NULL CHECK(tipo IN
                             ('activo','pasivo','capital','ingreso','costo','gasto')),

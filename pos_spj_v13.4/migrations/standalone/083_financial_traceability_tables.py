@@ -31,7 +31,7 @@ def run(conn):
         -- Capa unificada: CxC, CxP, nómina por pagar, activo pendiente, etc.
         -- Coexiste con accounts_payable / accounts_receivable (legacy).
         CREATE TABLE IF NOT EXISTS financial_documents (
-            id                  TEXT    PRIMARY KEY,
+            id                  TEXT NOT NULL    PRIMARY KEY,
             document_type       TEXT    NOT NULL,       -- receivable|payable|payroll|maintenance|asset
             status              TEXT    NOT NULL DEFAULT 'pending',
             source_module       TEXT    NOT NULL,       -- ventas|compras|nomina|mantenimiento|activos
@@ -60,7 +60,7 @@ def run(conn):
         -- ── MOVIMIENTOS DE TESORERÍA ──────────────────────────────────────────
         -- Dinero real confirmado. Coexiste con treasury_ledger (legacy).
         CREATE TABLE IF NOT EXISTS treasury_movements (
-            id                      TEXT    PRIMARY KEY,
+            id                      TEXT NOT NULL    PRIMARY KEY,
             movement_type           TEXT    NOT NULL,   -- inflow|outflow
             direction               TEXT    NOT NULL,   -- in|out
             amount                  REAL    NOT NULL,
@@ -87,7 +87,7 @@ def run(conn):
         -- ── ASIENTOS CONTABLES ────────────────────────────────────────────────
         -- Idempotentes por operation_id. Coexiste con financial_event_log (legacy).
         CREATE TABLE IF NOT EXISTS journal_entries (
-            id              TEXT    PRIMARY KEY,
+            id              TEXT NOT NULL    PRIMARY KEY,
             event_type      TEXT    NOT NULL,
             source_module   TEXT    NOT NULL,
             source_id       TEXT,
@@ -111,7 +111,7 @@ def run(conn):
         -- ── ACTIVOS FIJOS ─────────────────────────────────────────────────────
         -- Canónico para trazabilidad. Coexiste con tabla 'activos' (legacy).
         CREATE TABLE IF NOT EXISTS fixed_assets (
-            id                      TEXT    PRIMARY KEY,
+            id                      TEXT NOT NULL    PRIMARY KEY,
             asset_name              TEXT    NOT NULL,
             asset_type              TEXT    NOT NULL,   -- equipment|vehicle|furniture|computer|other
             acquisition_date        TEXT    NOT NULL,
@@ -139,7 +139,7 @@ def run(conn):
 
         -- ── DEPRECIACIONES ────────────────────────────────────────────────────
         CREATE TABLE IF NOT EXISTS asset_depreciation_entries (
-            id              TEXT    PRIMARY KEY,
+            id              TEXT NOT NULL    PRIMARY KEY,
             asset_id        TEXT    NOT NULL,
             period          TEXT    NOT NULL,   -- 'YYYY-MM'
             amount          REAL    NOT NULL,
@@ -153,7 +153,7 @@ def run(conn):
 
         -- ── MANTENIMIENTOS ────────────────────────────────────────────────────
         CREATE TABLE IF NOT EXISTS maintenance_records (
-            id                      TEXT    PRIMARY KEY,
+            id                      TEXT NOT NULL    PRIMARY KEY,
             asset_id                TEXT,
             maintenance_type        TEXT    NOT NULL,  -- preventive|corrective|repair|parts|labor
             description             TEXT    DEFAULT '',
@@ -179,7 +179,7 @@ def run(conn):
         -- ── INSUMOS OPERATIVOS ────────────────────────────────────────────────
         -- Rollos térmicos, etiquetas, limpieza, papelería, bolsas, empaques.
         CREATE TABLE IF NOT EXISTS operating_supplies (
-            id                      TEXT    PRIMARY KEY,
+            id                      TEXT NOT NULL    PRIMARY KEY,
             supply_type             TEXT    NOT NULL,  -- thermal_rolls|labels|cleaning|stationery|bags|packaging|other
             description             TEXT    DEFAULT '',
             quantity                REAL    DEFAULT 1,
@@ -203,7 +203,7 @@ def run(conn):
 
         -- ── BITÁCORA DE TRAZABILIDAD ──────────────────────────────────────────
         CREATE TABLE IF NOT EXISTS financial_trace_log (
-            id              TEXT    PRIMARY KEY,
+            id              TEXT NOT NULL    PRIMARY KEY,
             event_type      TEXT    NOT NULL,
             source_module   TEXT    NOT NULL,
             source_id       TEXT,
@@ -221,7 +221,7 @@ def run(conn):
 
         -- ── REGISTROS DE CONCILIACIÓN ─────────────────────────────────────────
         CREATE TABLE IF NOT EXISTS reconciliation_records (
-            id              TEXT    PRIMARY KEY,
+            id              TEXT NOT NULL    PRIMARY KEY,
             check_type      TEXT    NOT NULL,  -- sale_vs_treasury|cxc_journal|cxp_journal|etc.
             source_module   TEXT    NOT NULL,
             source_id       TEXT,

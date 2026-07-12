@@ -24,7 +24,7 @@ def run(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS config_programa_fidelidad (
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL PRIMARY KEY,
             nombre_programa TEXT,
             puntos_por_peso DECIMAL(10,2) DEFAULT 1.0,
             niveles TEXT,
@@ -45,7 +45,7 @@ def run(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS module_toggles (
-            clave TEXT PRIMARY KEY,
+            clave TEXT NOT NULL PRIMARY KEY,
             activo INTEGER DEFAULT 1,
             descripcion TEXT DEFAULT ''
         )

@@ -549,3 +549,26 @@ Verificado end-to-end: 5@40 + 10@50 → 15 uds, costo 46.67, existencia sincroni
 movimiento de auditoría, trazabilidad 'recibido'. Sin regresión (architecture 35F;
 unit 26F/252P; integration 107F/128P). Las 14 lecturas restantes del widget quedan
 para un paso siguiente (query service).
+
+## Fase G — Endurecimiento born-clean: PK TEXT declaradas NOT NULL
+
+Cierre del único riesgo residual del corte Plan B (cierre_global.md §6): SQLite no
+impone NOT NULL en una `PRIMARY KEY` TEXT declarada sin `NOT NULL` (a diferencia de
+`INTEGER PRIMARY KEY`, alias de ROWID), así que un INSERT que omitía la PK escribía
+un id NULL en silencio.
+
+Cambio mecánico: toda declaración `TEXT PRIMARY KEY` de la cadena de migraciones se
+endureció a `TEXT NOT NULL PRIMARY KEY` (383 sitios en 66 archivos; preservando el
+whitespace de alineación). Aplica a `id` y a las PK TEXT naturales (`codigo_sat`,
+`tipo`, `clave`, `producto_id`, etc.).
+
+Verificación:
+- `tools/born_clean_audit.py` → BORN-CLEAN OK (273 tablas, int_pk=0, fk_check OK):
+  ningún seed rompe con la nueva constraint.
+- Nuevo guardrail + humo `tests/architecture/test_text_pk_not_null.py` (6 tests):
+  toda PK TEXT de una columna reporta `notnull=1`; insertar id NULL es rechazado
+  con "NOT NULL constraint failed"; ninguna tabla admite fila con PK NULL.
+- Suites: architecture 35F/235P (baseline 35F, +6 nuevos verdes; 2 guardrails de
+  DDL literal de `test_clean_birth_guardrails` actualizados a la forma endurecida).
+  unit+integration sin una sola "NOT NULL constraint failed" nueva (los writers
+  canónicos ya acuñan `new_uuid()`).

@@ -55,7 +55,7 @@ def run(conn: sqlite3.Connection) -> None:
 def _create_ventas_diarias(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ventas_diarias (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             fecha           DATE    NOT NULL,
             sucursal_id     TEXT NOT NULL,
             total_ventas    REAL    NOT NULL DEFAULT 0,
@@ -76,7 +76,7 @@ def _create_ventas_diarias(conn):
 def _create_inventario_diario(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS inventario_diario (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             fecha           DATE    NOT NULL,
             producto_id     TEXT NOT NULL,
             sucursal_id     TEXT NOT NULL,
@@ -93,7 +93,7 @@ def _create_inventario_diario(conn):
 def _create_clientes_diarios(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS clientes_diarios (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             fecha           DATE    NOT NULL,
             sucursal_id     TEXT NOT NULL,
             clientes_activos INTEGER NOT NULL DEFAULT 0,
@@ -111,7 +111,7 @@ def _create_clientes_diarios(conn):
 def _create_reporte_exports(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS reporte_exports (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             tipo        TEXT NOT NULL,
             formato     TEXT NOT NULL,
             ruta        TEXT,
@@ -158,7 +158,7 @@ TOLERANCE_PCT = 0.5   # 0.5% tolerancia matemática
 def _create_production_batches(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS production_batches (
-            id                  TEXT    PRIMARY KEY,
+            id                  TEXT NOT NULL    PRIMARY KEY,
             folio               TEXT    NOT NULL,
             product_source_id   TEXT NOT NULL,
             source_weight       REAL    NOT NULL CHECK(source_weight > 0),
@@ -198,7 +198,7 @@ def _create_production_batches(conn: sqlite3.Connection) -> None:
 def _create_production_outputs(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS production_outputs (
-            id                  TEXT    PRIMARY KEY,
+            id                  TEXT NOT NULL    PRIMARY KEY,
             batch_id            TEXT    NOT NULL,
             product_id          TEXT NOT NULL,
             weight              REAL    NOT NULL CHECK(weight >= 0),
@@ -221,7 +221,7 @@ def _create_production_outputs(conn: sqlite3.Connection) -> None:
 def _create_production_yield_analysis(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS production_yield_analysis (
-            id              TEXT    PRIMARY KEY,
+            id              TEXT NOT NULL    PRIMARY KEY,
             batch_id        TEXT    NOT NULL UNIQUE,
             expected_yield  REAL    NOT NULL,
             real_yield      REAL    NOT NULL,
@@ -248,7 +248,7 @@ def _create_production_yield_analysis(conn: sqlite3.Connection) -> None:
 def _create_production_alerts(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS production_alerts (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             batch_id        TEXT    NOT NULL,
             tipo            TEXT    NOT NULL,
             mensaje         TEXT    NOT NULL,
@@ -268,7 +268,7 @@ def _create_production_alerts(conn: sqlite3.Connection) -> None:
 def _create_production_cost_ledger(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS production_cost_ledger (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             batch_id        TEXT    NOT NULL,
             output_id       TEXT    NOT NULL,
             product_id      TEXT NOT NULL,
@@ -375,7 +375,7 @@ def _patch_inventario_diario(conn):
 def _create_clientes_diarios(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS clientes_diarios (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             fecha       DATE    NOT NULL,
             sucursal_id TEXT NOT NULL,
             nuevos      INTEGER NOT NULL DEFAULT 0,
@@ -391,7 +391,7 @@ def _create_clientes_diarios(conn):
 def _create_export_log(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS report_export_log (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             tipo        TEXT    NOT NULL,
             formato     TEXT    NOT NULL CHECK(formato IN ('PDF','Excel','CSV')),
             branch_id   TEXT,

@@ -15,7 +15,7 @@ def run(conn):
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS contenedores (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             codigo          TEXT UNIQUE NOT NULL,
             tipo            TEXT NOT NULL DEFAULT 'caja',
             descripcion     TEXT,
@@ -45,7 +45,7 @@ def run(conn):
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS contenedor_productos (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             contenedor_id   TEXT NOT NULL,
             producto_id     TEXT NOT NULL,
             cantidad        REAL NOT NULL DEFAULT 0,

@@ -83,7 +83,7 @@ def _create_inventario_actual(conn: sqlite3.Connection) -> None:
     """
     conn.execute("""
         CREATE TABLE IF NOT EXISTS inventario_actual (
-            id                  TEXT PRIMARY KEY,
+            id                  TEXT NOT NULL PRIMARY KEY,
             producto_id         TEXT NOT NULL,
             sucursal_id         TEXT NOT NULL,
             cantidad            REAL    NOT NULL DEFAULT 0,
@@ -106,7 +106,7 @@ def _create_transferencias(conn: sqlite3.Connection) -> None:
     """
     conn.execute("""
         CREATE TABLE IF NOT EXISTS transferencias (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             folio           TEXT    NOT NULL,
             origen_id       TEXT NOT NULL,
             destino_id      TEXT NOT NULL,
@@ -142,7 +142,7 @@ def _create_transferencias(conn: sqlite3.Connection) -> None:
 def _create_transferencia_detalle(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS transferencia_detalle (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             transferencia_id TEXT NOT NULL,
             producto_id      TEXT NOT NULL,
             cantidad         REAL    NOT NULL CHECK(cantidad > 0),
@@ -169,7 +169,7 @@ def _create_transferencia_detalle(conn: sqlite3.Connection) -> None:
 def _create_unidades_conversion(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS unidades_conversion (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             unidad_desde TEXT NOT NULL,
             unidad_hasta TEXT NOT NULL,
             factor       REAL NOT NULL CHECK(factor > 0),
@@ -366,7 +366,7 @@ def _create_transfers(conn: sqlite3.Connection) -> None:
     """
     conn.execute("""
         CREATE TABLE IF NOT EXISTS transfers (
-            id                TEXT    PRIMARY KEY,
+            id                TEXT NOT NULL    PRIMARY KEY,
             branch_origin_id  TEXT NOT NULL,
             branch_dest_id    TEXT NOT NULL,
             origin_type       TEXT    NOT NULL DEFAULT 'BRANCH',
@@ -385,7 +385,7 @@ def _create_transfers(conn: sqlite3.Connection) -> None:
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS transfer_items (
-            id                 TEXT    PRIMARY KEY,
+            id                 TEXT NOT NULL    PRIMARY KEY,
             transfer_id        TEXT    NOT NULL,
             product_id         TEXT NOT NULL,
             quantity_sent      REAL    NOT NULL CHECK(quantity_sent > 0),
@@ -409,7 +409,7 @@ def _create_recepciones(conn: sqlite3.Connection) -> None:
     """Recepción directa: compras, ajustes iniciales, ingreso manual."""
     conn.execute("""
         CREATE TABLE IF NOT EXISTS recepciones (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             folio           TEXT    NOT NULL,
             tipo            TEXT    NOT NULL DEFAULT 'COMPRA',
             proveedor_id    TEXT,
@@ -426,7 +426,7 @@ def _create_recepciones(conn: sqlite3.Connection) -> None:
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS recepcion_items (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             recepcion_id    TEXT NOT NULL,
             producto_id     TEXT NOT NULL,
             cantidad        REAL    NOT NULL CHECK(cantidad > 0),
@@ -445,7 +445,7 @@ def _create_recepciones(conn: sqlite3.Connection) -> None:
 def _create_mermas(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS mermas (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             producto_id     TEXT NOT NULL,
             sucursal_id     TEXT NOT NULL,
             cantidad        REAL    NOT NULL CHECK(cantidad > 0),
@@ -467,7 +467,7 @@ def _create_mermas(conn: sqlite3.Connection) -> None:
 def _create_ajustes(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ajustes_inventario (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             producto_id     TEXT NOT NULL,
             sucursal_id     TEXT NOT NULL,
             tipo            TEXT    NOT NULL CHECK(tipo IN ('AJUSTE_POSITIVO','AJUSTE_NEGATIVO')),
@@ -490,7 +490,7 @@ def _create_ajustes(conn: sqlite3.Connection) -> None:
 def _create_unidades_medida(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS unidades_medida (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             codigo          TEXT    NOT NULL UNIQUE,
             nombre          TEXT    NOT NULL,
             factor_base     REAL    NOT NULL DEFAULT 1.0,
