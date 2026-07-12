@@ -7,7 +7,7 @@
 def run(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS print_job_log (
-            id          TEXT     PRIMARY KEY,        -- UUIDv7 acuñado por printer_service
+            id          TEXT NOT NULL     PRIMARY KEY,        -- UUIDv7 acuñado por printer_service
             job_id      TEXT     NOT NULL,
             job_type    TEXT     NOT NULL DEFAULT 'ticket',
             plantilla   TEXT     DEFAULT '',

@@ -7,6 +7,12 @@ Corte Z: cierre formal de turno/día.
   - Genera discrepancia
   - Bloquea nuevas ventas hasta apertura del siguiente turno
   - Imprime resumen via PrinterService
+
+DEPRECADO (Remediación D1): opera sobre el tracker legacy `turno_actual`, que en
+producción nadie abre. El auto-cierre del scheduler ya NO usa esta clase (paso 2c);
+usa la ruta canónica de corte Z (GenerateZCutUseCase → finance_service.generar_corte_z,
+sobre `turnos_caja`). Esta clase se conserva sólo por compatibilidad y se retirará
+al unificar los trackers de turno (paso 2d). No usar en código nuevo.
 """
 from __future__ import annotations
 from backend.shared.ids import new_uuid

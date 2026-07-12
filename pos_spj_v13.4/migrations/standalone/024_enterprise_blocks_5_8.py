@@ -27,7 +27,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Layer 2: Levels / Status history
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_level_history (
-            id            TEXT PRIMARY KEY,
+            id            TEXT NOT NULL PRIMARY KEY,
             cliente_id    TEXT NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
             level_before  TEXT    NOT NULL,
             level_after   TEXT    NOT NULL,
@@ -40,7 +40,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Layer 3: Challenges (Gamification)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_challenges (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             name            TEXT    NOT NULL,
             description     TEXT,
             challenge_type  TEXT    NOT NULL DEFAULT 'PURCHASES',
@@ -58,7 +58,7 @@ def up(conn: sqlite3.Connection) -> None:
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_challenge_progress (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             challenge_id    TEXT NOT NULL REFERENCES loyalty_challenges(id) ON DELETE CASCADE,
             cliente_id      TEXT NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
             current_value   REAL    NOT NULL DEFAULT 0,
@@ -75,7 +75,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Layer 4: Community Goals
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_community_goals (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             name            TEXT    NOT NULL,
             description     TEXT,
             target_value    REAL    NOT NULL DEFAULT 0,
@@ -96,7 +96,7 @@ def up(conn: sqlite3.Connection) -> None:
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_community_contributions (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             goal_id         TEXT NOT NULL REFERENCES loyalty_community_goals(id) ON DELETE CASCADE,
             cliente_id      TEXT NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
             venta_id        TEXT,
@@ -110,7 +110,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Financial guards: budget caps per month per branch
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_budget_caps (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             branch_id       TEXT NOT NULL,
             year_month      TEXT    NOT NULL,
             budget_limit    REAL    NOT NULL DEFAULT 0,
@@ -125,7 +125,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Multiplier rules
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_multiplier_rules (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             rule_type       TEXT    NOT NULL,
             condition_value TEXT    NOT NULL,
             multiplier      REAL    NOT NULL DEFAULT 1.0,
@@ -138,7 +138,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Redemption limits per branch
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_redemption_limits (
-            branch_id           TEXT PRIMARY KEY,
+            branch_id           TEXT NOT NULL PRIMARY KEY,
             max_pct_per_sale    REAL    NOT NULL DEFAULT 30.0,
             max_pts_per_sale    INTEGER NOT NULL DEFAULT 500,
             max_monthly_pts     INTEGER NOT NULL DEFAULT 5000,
@@ -150,7 +150,7 @@ def up(conn: sqlite3.Connection) -> None:
     # ROI tracking
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_roi_tracking (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             branch_id       TEXT NOT NULL,
             year_month      TEXT    NOT NULL,
             revenue_from_loyal_customers REAL NOT NULL DEFAULT 0,
@@ -167,7 +167,7 @@ def up(conn: sqlite3.Connection) -> None:
     # loyalty_scores UPSERT target
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_scores (
-            cliente_id      TEXT PRIMARY KEY REFERENCES clientes(id) ON DELETE CASCADE,
+            cliente_id      TEXT NOT NULL PRIMARY KEY REFERENCES clientes(id) ON DELETE CASCADE,
             score_total     REAL    NOT NULL DEFAULT 0,
             nivel           TEXT    NOT NULL DEFAULT 'Bronce',
             score_frecuencia REAL   NOT NULL DEFAULT 0,
@@ -189,7 +189,7 @@ def up(conn: sqlite3.Connection) -> None:
     # system_constants for loyalty
     conn.execute("""
         CREATE TABLE IF NOT EXISTS system_constants (
-            key     TEXT PRIMARY KEY,
+            key     TEXT NOT NULL PRIMARY KEY,
             value   TEXT NOT NULL,
             updated_at DATETIME DEFAULT (datetime('now'))
         )
@@ -228,7 +228,7 @@ def up(conn: sqlite3.Connection) -> None:
     # caja_operations — enterprise atomic caja table
     conn.execute("""
         CREATE TABLE IF NOT EXISTS caja_operations (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             branch_id       TEXT NOT NULL,
             operation_id    TEXT    NOT NULL UNIQUE,
             operation_type  TEXT    NOT NULL CHECK(operation_type IN ('INGRESO','EGRESO','APERTURA','CIERRE','AJUSTE')),
@@ -248,7 +248,7 @@ def up(conn: sqlite3.Connection) -> None:
     # movimientos_caja (legacy table — add missing columns)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS movimientos_caja (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             tipo        TEXT    NOT NULL,
             monto       REAL    NOT NULL DEFAULT 0,
             descripcion TEXT,
@@ -268,7 +268,7 @@ def up(conn: sqlite3.Connection) -> None:
     # JSON structured log events
     conn.execute("""
         CREATE TABLE IF NOT EXISTS json_log_events (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             level       TEXT    NOT NULL DEFAULT 'INFO',
             logger      TEXT    NOT NULL,
             message     TEXT    NOT NULL,

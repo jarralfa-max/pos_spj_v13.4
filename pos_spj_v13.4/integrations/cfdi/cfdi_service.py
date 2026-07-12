@@ -158,33 +158,10 @@ class CfdiService:
     def __init__(self, conn=None, pac: PacAdapter = None):
         self.conn = conn or get_connection()
         self.pac  = pac or StubPacAdapter()
-        self._init_tables()
-
-    def _init_tables(self):
-        self.conn.executescript("""
-            CREATE TABLE IF NOT EXISTS facturas_cfdi (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                uuid_cfdi     TEXT UNIQUE,
-                venta_id      INTEGER,
-                folio         TEXT,
-                rfc_receptor  TEXT,
-                nombre_receptor TEXT,
-                subtotal      DECIMAL(12,2),
-                iva           DECIMAL(12,2),
-                total         DECIMAL(12,2),
-                xml_generado  TEXT,
-                xml_timbrado  TEXT,
-                estado        TEXT DEFAULT 'pendiente',
-                error_msg     TEXT,
-                qr_url        TEXT,
-                fecha_emision DATETIME DEFAULT (datetime('now')),
-                fecha_timbrado DATETIME
-            );
-            CREATE INDEX IF NOT EXISTS idx_cfdi_venta
-                ON facturas_cfdi(venta_id);
-        """)
-        try: self.conn.commit()
-        except Exception: pass
+        # B15: NO se crea schema en runtime (REGLA 11). La tabla facturas_cfdi
+        # nace born-clean en migrations/m000_base_schema.py con `id TEXT PRIMARY
+        # KEY`. El CREATE runtime anterior reintroducía INTEGER PRIMARY KEY
+        # AUTOINCREMENT y contaminaba la BD UUIDv7.
 
     def _get_config(self, clave, default=""):
         try:

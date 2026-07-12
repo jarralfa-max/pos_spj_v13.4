@@ -19,7 +19,7 @@ def run(conn):
     conn.executescript("""
         -- ── Solicitudes de Compra (PR) ────────────────────────────────────────
         CREATE TABLE IF NOT EXISTS purchase_requests (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             folio           TEXT UNIQUE,
             proveedor_id    TEXT,
             proveedor_nombre TEXT,
@@ -60,7 +60,7 @@ def run(conn):
 
         -- ── Partidas de PR ────────────────────────────────────────────────────
         CREATE TABLE IF NOT EXISTS purchase_request_items (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             pr_id           TEXT NOT NULL REFERENCES purchase_requests(id),
             producto_id     TEXT NOT NULL,
             nombre          TEXT NOT NULL,

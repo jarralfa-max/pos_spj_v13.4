@@ -63,7 +63,7 @@ def up(conn):
     # ── 3. Órdenes de cotización ──────────────────────────────────────────────
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS ordenes_cotizacion (
-            id                      TEXT PRIMARY KEY,
+            id                      TEXT NOT NULL PRIMARY KEY,
             numero_orden            TEXT UNIQUE NOT NULL,
             cotizacion_id           TEXT REFERENCES cotizaciones(id),
             cliente_id              TEXT REFERENCES clientes(id),
@@ -103,7 +103,7 @@ def up(conn):
     # ── 4. Reglas de anticipo ─────────────────────────────────────────────────
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS anticipo_reglas (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             tipo         TEXT NOT NULL CHECK(tipo IN ('categoria','monto')),
             categoria    TEXT,
             monto_desde  REAL DEFAULT 0,
@@ -117,7 +117,7 @@ def up(conn):
         );
 
         CREATE TABLE IF NOT EXISTS anticipo_config (
-            clave TEXT PRIMARY KEY,
+            clave TEXT NOT NULL PRIMARY KEY,
             valor TEXT NOT NULL
         );
 
@@ -151,7 +151,7 @@ def up(conn):
     # ── 5. Lotes PDF de tarjetas ──────────────────────────────────────────────
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS lotes_tarjetas_pdf (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             nombre       TEXT,
             cantidad     INTEGER NOT NULL DEFAULT 0,
             nivel        TEXT DEFAULT 'todos',
@@ -167,7 +167,7 @@ def up(conn):
     # ── 6. Permisos granulares ────────────────────────────────────────────────
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS rol_permisos (
-            id       TEXT PRIMARY KEY,
+            id       TEXT NOT NULL PRIMARY KEY,
             rol_id   TEXT NOT NULL,
             modulo   TEXT NOT NULL,
             accion   TEXT NOT NULL,

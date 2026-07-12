@@ -340,6 +340,15 @@ class AppContainer:
             finance_service=self.finance_service,
         )
 
+        # v13.4 Fase D: AssetService (EAM) — ruta canónica UI → servicio → DB.
+        # Los diálogos de activos delegan aquí (captura-only, sin SQL en UI).
+        from core.services.asset_service import AssetService
+        self.asset_service = AssetService(
+            self.db,
+            treasury_service=self.treasury_service,
+            finance_service=self.finance_service,
+        )
+
         from core.services.hr_rule_engine import HRRuleEngine
         self.hr_rule_engine = HRRuleEngine(
             db_conn=self.db,
@@ -642,6 +651,41 @@ class AppContainer:
             self.analytics_engine = None
             logger.debug("AnalyticsEngine: %s", _anae)
 
+        # ── BI dashboard (query layer + application service) ─────────────────
+        try:
+            from backend.application.queries.bi_dashboard_query_service import (
+                BiDashboardQueryService,
+            )
+            from backend.application.services.bi_dashboard_service import (
+                BiDashboardService,
+            )
+
+            def _bi_can(perm: str) -> bool:
+                # Fuente única: SessionContext.tiene_permiso (admin => todo).
+                session = getattr(self, "session", None)
+                if session is not None and hasattr(session, "tiene_permiso"):
+                    try:
+                        if not session.is_active:
+                            return True  # sin sesión activa (arranque): no bloquear
+                        return bool(session.tiene_permiso(perm))
+                    except Exception:
+                        return True
+                return True
+
+            from backend.application.services.bi_settings_service import BiSettingsService
+            from backend.application.services.bi_export_service import BiExportService
+
+            self.bi_settings_service = BiSettingsService(self.config_service)
+            self.bi_dashboard_service = BiDashboardService(
+                BiDashboardQueryService(self.db), permission_checker=_bi_can,
+                settings=self.bi_settings_service)
+            self.bi_export_service = BiExportService()
+        except Exception as _bie:
+            self.bi_dashboard_service = None
+            self.bi_settings_service = None
+            self.bi_export_service = None
+            logger.debug("BiDashboardService: %s", _bie)
+
         # ── ERP FASE 8: FiscalEngine ─────────────────────────────────────────
         try:
             from core.services.finance.fiscal_engine import FiscalEngine
@@ -706,7 +750,7 @@ class AppContainer:
 
         # ── Growth Engine ──────────────────────────────────────────────
         try:
-            from modulos.growth_engine import GrowthEngine
+            from core.services.growth_engine import GrowthEngine
             self.growth_engine = GrowthEngine(
                 db=self.db,
                 sucursal_id="",
@@ -790,8 +834,7 @@ class AppContainer:
             from datetime import datetime as _dt
             if _dt.now().day != 1: return
             try:
-                from modulos.activos import calcular_depreciacion_mensual
-                results = calcular_depreciacion_mensual(self.db, self.sucursal_id)
+                results = self.asset_service.calcular_depreciacion_mensual(self.sucursal_id)
                 if results:
                     _log.getLogger("spj.scheduler").info(
                         "Depreciacion mensual: %d activos", len(results))
@@ -1002,6 +1045,10 @@ class AppContainer:
             "mantenimiento_semanal", _mantenimiento_semanal, intervalo_seg=86400)
 
         # ── Auto-cierre de turno a medianoche ─────────────────────────────
+        # D1 paso 2c: cierra los turnos abiertos canónicos (turnos_caja) por la
+        # ruta canónica de corte Z (GenerateZCutUseCase → finance_service), que
+        # registra cierres_caja y postea el asiento de diferencia. Antes usaba
+        # CierreCajaService sobre turno_actual (tracker legacy vacío en prod → no-op).
         def _auto_cierre_turno():
             from datetime import datetime
             ahora = datetime.now()
@@ -1009,19 +1056,8 @@ class AppContainer:
             if not (ahora.hour == 23 and ahora.minute >= 50) and not (ahora.hour == 0 and ahora.minute <= 10):
                 return
             try:
-                from core.services.cierre_caja_service import CierreCajaService
-                # Verificar sucursales con turno abierto
-                sucursales = self.db.execute(
-                    "SELECT DISTINCT sucursal_id FROM turno_actual WHERE abierto=1"
-                ).fetchall()
-                for row in sucursales:
-                    suc_id = row[0]
-                    svc = CierreCajaService(conn=self.db, sucursal_id=suc_id, usuario="SISTEMA")
-                    if svc.turno_activo():
-                        svc.corte_z(efectivo_contado=0.0,
-                                    comentarios="Cierre automático por sistema — medianoche")
-                        _log.getLogger("spj.scheduler").warning(
-                            "Turno sucursal %d cerrado automáticamente a medianoche", suc_id)
+                from core.services.caja_auto_close import auto_close_open_shifts
+                auto_close_open_shifts(self.db, getattr(self, "generate_z_cut_uc", None))
             except Exception as e:
                 _log.getLogger("spj.scheduler").debug("auto_cierre_turno: %s", e)
 

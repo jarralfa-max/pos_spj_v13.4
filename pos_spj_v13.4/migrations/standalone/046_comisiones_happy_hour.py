@@ -9,7 +9,7 @@ def up(conn):
     conn.executescript("""
         -- Config de comisiones por usuario (habilitable/deshabilitable)
         CREATE TABLE IF NOT EXISTS comisiones_config (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             usuario      TEXT NOT NULL UNIQUE,
             pct_comision REAL NOT NULL DEFAULT 0.5
                         CHECK(pct_comision >= 0 AND pct_comision <= 50),
@@ -20,7 +20,7 @@ def up(conn):
 
         -- Comisiones acumuladas por turno
         CREATE TABLE IF NOT EXISTS comisiones_acumuladas (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             usuario      TEXT NOT NULL,
             venta_id     TEXT REFERENCES ventas(id) ON DELETE CASCADE,
             total_venta  REAL NOT NULL,
@@ -36,7 +36,7 @@ def up(conn):
 
         -- Reglas de Happy Hour (descuentos por horario)
         CREATE TABLE IF NOT EXISTS happy_hour_rules (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             nombre       TEXT NOT NULL,
             hora_inicio  TEXT NOT NULL,   -- 'HH:MM'
             hora_fin     TEXT NOT NULL,   -- 'HH:MM'

@@ -46,7 +46,7 @@ def run(conn):
     # Ensure inventory_reservations exists (mirror of migration 023)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS inventory_reservations (
-            id            TEXT PRIMARY KEY,
+            id            TEXT NOT NULL PRIMARY KEY,
             branch_id     TEXT NOT NULL,
             product_id    TEXT NOT NULL,
             reserved_qty  REAL    NOT NULL CHECK(reserved_qty > 0),

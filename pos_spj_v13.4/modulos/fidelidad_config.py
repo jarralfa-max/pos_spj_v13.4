@@ -613,10 +613,11 @@ class ModuloFidelidadConfig(QWidget):
     def _on_reservar_presupuesto(self):
         row = self._require_selected_raffle()
         if not row: return
-        monto, ok = QInputDialog.getDouble(self, "Reservar presupuesto", "Monto:", 0.0, 0.0, 99999999.0, 2)
+        from frontend.desktop.components.numeric_keypad_dialog import NumericKeypadDialog
+        monto, ok = NumericKeypadDialog.get_value(self, "Reservar presupuesto", "Monto:", decimals=2, maximo=99999999.0, unidad="$")
         if not ok or monto <= 0: return
         try:
-            self.container.loyalty_service.reserve_raffle_budget(int(row["id"]), float(monto), self.usuario or "sistema", f"ui:reserve:{row['id']}")
+            self.container.loyalty_service.reserve_raffle_budget(row["id"], float(monto), self.usuario or "sistema", f"ui:reserve:{row['id']}")
             Toast.success(self, "Rifas", "Presupuesto reservado.")
             self._cargar_raffles()
         except Exception as e:
@@ -626,7 +627,7 @@ class ModuloFidelidadConfig(QWidget):
         row = self._require_selected_raffle();
         if not row: return
         try:
-            self.container.loyalty_service.activate_raffle(int(row["id"]), self.usuario or "sistema")
+            self.container.loyalty_service.activate_raffle(row["id"], self.usuario or "sistema")
             Toast.success(self, "Rifas", "Rifa activada.")
             self._cargar_raffles()
         except Exception as e:
@@ -636,7 +637,7 @@ class ModuloFidelidadConfig(QWidget):
         row = self._require_selected_raffle();
         if not row: return
         try:
-            self.container.loyalty_service.close_raffle(int(row["id"]), self.usuario or "sistema")
+            self.container.loyalty_service.close_raffle(row["id"], self.usuario or "sistema")
             Toast.success(self, "Rifas", "Rifa cerrada.")
             self._cargar_raffles()
         except Exception as e:
@@ -646,10 +647,10 @@ class ModuloFidelidadConfig(QWidget):
         row = self._require_selected_raffle();
         if not row: return
         try:
-            winner = self.container.loyalty_service.select_winner(int(row["id"]), self.usuario or "sistema")
-            winner_id = int(winner.get("id") or 0) if isinstance(winner, dict) else 0
-            if winner_id > 0:
-                self._last_raffle_winner_by_id[int(row["id"])] = winner_id
+            winner = self.container.loyalty_service.select_winner(row["id"], self.usuario or "sistema")
+            winner_id = str(winner.get("id") or "") if isinstance(winner, dict) else ""
+            if winner_id:
+                self._last_raffle_winner_by_id[str(row["id"])] = winner_id
             Toast.success(self, "Rifas", "Ganador seleccionado.")
             self._cargar_raffles()
         except Exception as e:
@@ -664,7 +665,8 @@ class ModuloFidelidadConfig(QWidget):
         winner_id, ok = QInputDialog.getText(self, "Entregar premio", "ID del ganador:", text=suggested)
         winner_id = str(winner_id or "").strip()
         if not ok or not winner_id: return
-        costo, ok2 = QInputDialog.getDouble(self, "Entregar premio", "Costo real:", 0.0, 0.0, 99999999.0, 2)
+        from frontend.desktop.components.numeric_keypad_dialog import NumericKeypadDialog
+        costo, ok2 = NumericKeypadDialog.get_value(self, "Entregar premio", "Costo real:", decimals=2, maximo=99999999.0, unidad="$", permitir_cero=True)
         if not ok2: return
         try:
             self.container.loyalty_service.mark_prize_delivered(winner_id, self.usuario or "sistema", float(costo), f"ui:winner:{winner_id}")
@@ -677,7 +679,7 @@ class ModuloFidelidadConfig(QWidget):
         row = self._require_selected_raffle()
         if not row: return
         try:
-            tickets = self.container.loyalty_service.list_raffle_tickets(int(row["id"]), limit=200)
+            tickets = self.container.loyalty_service.list_raffle_tickets(row["id"], limit=200)
             dlg = QDialog(self); dlg.setWindowTitle("Boletos de rifa"); dlg.resize(1080, 620)
             lay = QVBoxLayout(dlg)
             top = QHBoxLayout()

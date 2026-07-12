@@ -249,15 +249,35 @@ class TicketESCPOSRenderer:
 
     def _payment_bytes(self, ticket_data: Dict[str, Any], width: int) -> bytes:
         pago = ticket_data.get("pago", {}) or {}
-        if not pago.get("forma_pago"):
+        forma = str(pago.get("forma_pago", "") or "")
+        if not forma:
             return b""
         total_final = float((ticket_data.get("totales", {}) or {}).get("total_final", ticket_data.get("total", 0)) or 0)
         buf = bytearray()
         buf += ALIGN_LEFT + self._separator(width, char="-")
-        buf += self._text(f"Forma de pago: {pago.get('forma_pago', '')}")
-        if str(pago.get("forma_pago", "")).lower() == "efectivo":
-            buf += self._text(f"Recibido: ${float(pago.get('efectivo_recibido', total_final) or 0):.2f}")
-            buf += self._text(f"Cambio: ${float(pago.get('cambio', 0) or 0):.2f}")
+        buf += self._text(f"Forma de pago: {forma}")
+
+        # Desglose por método (siempre que haya más de un método con monto, p.ej. Pago Mixto)
+        lineas = pago.get("lineas") or pago.get("breakdown") or {}
+        etiquetas = {
+            "efectivo": "Efectivo", "tarjeta": "Tarjeta",
+            "transferencia": "Transferencia", "credito": "Crédito",
+            "mercado_pago": "Mercado Pago",
+        }
+        desglose = [(etiquetas.get(k, k.title()), float(v or 0))
+                    for k, v in lineas.items() if float(v or 0) > 0]
+        if len(desglose) > 1:
+            for etiqueta, monto in desglose:
+                buf += self._text(f"  {etiqueta}: ${monto:.2f}")
+
+        # Efectivo recibido y cambio (aplica a efectivo puro y a pago mixto con efectivo)
+        efectivo_recibido = float(pago.get("efectivo_recibido", 0) or 0)
+        cambio = float(pago.get("cambio", 0) or 0)
+        if efectivo_recibido > 0 or forma.lower() == "efectivo":
+            if efectivo_recibido <= 0:
+                efectivo_recibido = float(pago.get("amount_paid_real", total_final) or total_final)
+            buf += self._text(f"Recibido: ${efectivo_recibido:.2f}")
+            buf += self._text(f"Cambio: ${cambio:.2f}")
         return bytes(buf)
 
     def _loyalty_bytes(self, ticket_data: Dict[str, Any], width: int) -> bytes:
@@ -394,8 +414,22 @@ class TicketESCPOSRenderer:
         lines.append("=" * width)
         lines.append(f"TOTAL: ${total:.2f}".rjust(width)[:width])
         pago = ticket_data.get("pago", {}) or {}
-        if pago.get("forma_pago"):
-            lines.append(f"Pago: {self._sanitize_text(pago.get('forma_pago'))}"[:width])
+        forma = str(pago.get("forma_pago", "") or "")
+        if forma:
+            lines.append(f"Pago: {self._sanitize_text(forma)}"[:width])
+            _lineas = pago.get("lineas") or pago.get("breakdown") or {}
+            _et = {"efectivo": "Efectivo", "tarjeta": "Tarjeta", "transferencia": "Transferencia",
+                   "credito": "Crédito", "mercado_pago": "Mercado Pago"}
+            _desg = [(_et.get(k, k.title()), float(v or 0)) for k, v in _lineas.items() if float(v or 0) > 0]
+            if len(_desg) > 1:
+                for etq, monto in _desg:
+                    lines.append(f"  {etq}: ${monto:.2f}"[:width])
+            recibido = float(pago.get("efectivo_recibido", 0) or 0)
+            if recibido > 0 or forma.lower() == "efectivo":
+                if recibido <= 0:
+                    recibido = float(pago.get("amount_paid_real", 0) or 0)
+                lines.append(f"Recibido: ${recibido:.2f}"[:width])
+                lines.append(f"Cambio: ${float(pago.get('cambio', 0) or 0):.2f}"[:width])
         lines.append("-" * width)
         lines.append(self._sanitize_text(ticket_data.get("mensaje_psicologico", "¡Gracias por su compra!")).center(width)[:width])
         return "\n".join(lines)
@@ -433,7 +467,10 @@ class TicketESCPOSRenderer:
         original_mode = input_img.mode
         has_alpha = original_mode in ("RGBA", "LA") or (original_mode == "P" and "transparency" in input_img.info)
         if not has_alpha:
-            return input_img.convert("L"), None
+            # Sin canal alfa: si el logo tiene un fondo sólido de color (no blanco),
+            # el umbral térmico lo imprimiría como bloque negro. Se detecta el color
+            # de fondo por las esquinas y se pinta de blanco (no imprime).
+            return self._drop_solid_background(input_img.convert("RGB")), None
 
         rgba = input_img.convert("RGBA")
         alpha = rgba.getchannel("A")
@@ -444,6 +481,33 @@ class TicketESCPOSRenderer:
         transparent_mask = alpha.point(lambda a: 255 if a <= 32 else 0)
         composed.paste(255, mask=transparent_mask)
         return composed, alpha
+
+    def _drop_solid_background(self, rgb):
+        """Convierte a escala de grises quitando un fondo sólido de color.
+
+        Si las 4 esquinas comparten un color (fondo sólido) y ese color no es ya
+        casi-blanco, los píxeles de ese color se pintan de blanco (255) para que la
+        impresora térmica no los imprima como bloque. No toca logos con fondo blanco
+        (el umbral ya los descarta) ni con transparencia (esa ruta va aparte)."""
+        w, h = rgb.size
+        l = rgb.convert("L")
+        if w == 0 or h == 0:
+            return l
+        corners = [rgb.getpixel((0, 0)), rgb.getpixel((w - 1, 0)),
+                   rgb.getpixel((0, h - 1)), rgb.getpixel((w - 1, h - 1))]
+        br, bg, bb = corners[0]
+        uniforme = all(abs(c[0] - br) <= 24 and abs(c[1] - bg) <= 24 and abs(c[2] - bb) <= 24
+                       for c in corners)
+        if uniforme and not (br >= 230 and bg >= 230 and bb >= 230):
+            tol = 45
+            _rgb_px = getattr(rgb, "get_flattened_data", rgb.getdata)()
+            _l_px = getattr(l, "get_flattened_data", l.getdata)()
+            nuevos = [
+                255 if (abs(r - br) <= tol and abs(g - bg) <= tol and abs(b - bb) <= tol) else lum
+                for (r, g, b), lum in zip(_rgb_px, _l_px)
+            ]
+            l.putdata(nuevos)
+        return l
 
     def _resize_and_pad_logo(self, img, logo_size: str):
         from PIL import Image
@@ -554,7 +618,11 @@ class TicketESCPOSRenderer:
     def _image_to_escpos_raster(self, img) -> bytes:
         width_bytes = img.width // 8
         height = img.height
-        pixels = img.tobytes()
+        # ESC/POS GS v 0: bit=1 imprime punto (negro). PIL modo "1" empaqueta
+        # blanco(255)→bit 1 y negro(0)→bit 0, lo contrario de lo que espera la
+        # impresora. Sin invertir, el FONDO claro se imprime negro y el logo
+        # oscuro queda en blanco (ticket invertido). Se invierten los bits.
+        pixels = bytes(b ^ 0xFF for b in img.tobytes())
         buf = bytearray()
         buf += GS + b"v0" + bytes([0])
         buf += struct.pack("<H", width_bytes)

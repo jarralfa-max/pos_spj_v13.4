@@ -44,8 +44,11 @@ BASELINE: dict[str, dict[str, int]] = {
         # Identity casts + branch defaults removed; all executable read SQL
         # extracted to SalesReadRepository (Fase A). The residual sql_select/
         # sql_update matches are comments/prose, not executable SQL.
-        "sql_select": 2,
-        "sql_update": 9,
+        # Remediación F: reescritas 4 docstrings que activaban SQL_RE
+        # ("Update"/"select") → sql_select 2→0; sql_update 9→7 (el resto vive en
+        # líneas de comentario `#` y en `.update(` de dicts).
+        "sql_select": 0,
+        "sql_update": 7,
     },
 }
 

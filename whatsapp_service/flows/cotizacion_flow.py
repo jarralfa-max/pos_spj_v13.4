@@ -133,7 +133,7 @@ class CotizacionFlow(BaseFlow):
 
         if aid == "confirm_cotizacion":
             items = [i.to_dict() for i in ctx.cotizacion_items]
-            suc_id = ctx.sucursal_id or 1
+            suc_id = ctx.sucursal_id or ""
 
             # ── FASE WA: Usar orchestrator si disponible ──────────────────
             if self.orchestrator:
@@ -200,7 +200,7 @@ class CotizacionFlow(BaseFlow):
                         "quote_id": quote_id,
                         "quote_folio": ctx.current_quote_folio,
                         "customer_id": ctx.cliente_id,
-                    }, sucursal_id=ctx.sucursal_id or 1)
+                    }, sucursal_id=ctx.sucursal_id or "")
                 except Exception:
                     pass
             ctx.reset_flow()
@@ -218,12 +218,12 @@ class CotizacionFlow(BaseFlow):
 
             def _convert() -> dict:
                 return self.orchestrator.convertir_cotizacion_a_venta(
-                    cotizacion_id=int(quote_id),
+                    cotizacion_id=str(quote_id),
                     cliente_id=ctx.cliente_id or 0,
-                ) if using_orchestrator else (self.erp.convertir_cotizacion_a_venta(int(quote_id)) or {})
+                ) if using_orchestrator else (self.erp.convertir_cotizacion_a_venta(str(quote_id)) or {})
 
             result = idem.run_once(
-                action_key=f"convert_quote:{int(quote_id)}",
+                action_key=f"convert_quote:{str(quote_id)}",
                 phone=ctx.phone,
                 action_type="convert_quote",
                 callback=_convert,
@@ -236,17 +236,17 @@ class CotizacionFlow(BaseFlow):
                 return FlowResult(FlowState.COTIZACION_CONFIRMACION)
             if not using_orchestrator:
                 self.events.emit(WHATSAPP_QUOTE_ACCEPTED, {
-                    "quote_id": int(quote_id),
+                    "quote_id": str(quote_id),
                     "quote_folio": ctx.current_quote_folio,
                     "customer_id": ctx.cliente_id,
-                }, sucursal_id=ctx.sucursal_id or 1)
+                }, sucursal_id=ctx.sucursal_id or "")
                 self.events.emit(WHATSAPP_QUOTE_CONVERTED_TO_SALE, {
-                    "quote_id": int(quote_id),
+                    "quote_id": str(quote_id),
                     "quote_folio": ctx.current_quote_folio,
                     "sale_id": result.get("venta_id") or result.get("id"),
                     "sale_folio": result.get("folio"),
                     "customer_id": ctx.cliente_id,
-                }, sucursal_id=ctx.sucursal_id or 1)
+                }, sucursal_id=ctx.sucursal_id or "")
             await send_text(
                 ctx.phone,
                 f"✅ Cotización aceptada y convertida a venta.\nFolio venta: *{result.get('folio','')}*\nTotal: *${float(result.get('total',0)):.2f}*"

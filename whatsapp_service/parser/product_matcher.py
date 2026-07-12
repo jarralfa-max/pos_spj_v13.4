@@ -34,9 +34,10 @@ def _levenshtein(s1: str, s2: str) -> int:
 class ProductMatcher:
     """Busca productos en el catálogo del ERP por nombre aproximado."""
 
-    def __init__(self, db_conn, sucursal_id: int = 1):
+    def __init__(self, db_conn, sucursal_id: str = ""):
+        # REGLA CERO: sucursal_id es UUIDv7 (str); sin default arbitrario '1'.
         self.db = db_conn
-        self.sucursal_id = sucursal_id
+        self.sucursal_id = str(sucursal_id or "")
         self._cache: List[Dict] = []
         self._categories: List[str] = []
         self.reload()
@@ -74,7 +75,8 @@ class ProductMatcher:
         except Exception as e:
             logger.error("Error cargando catálogo: %s", e)
 
-    def set_sucursal(self, sucursal_id: int):
+    def set_sucursal(self, sucursal_id: str):
+        sucursal_id = str(sucursal_id or "")
         if sucursal_id != self.sucursal_id:
             self.sucursal_id = sucursal_id
             self.reload()
@@ -86,9 +88,11 @@ class ProductMatcher:
         cat_lower = category.lower()
         return [p for p in self._cache if p["categoria"].lower() == cat_lower]
 
-    def get_by_id(self, product_id: int) -> Optional[Dict]:
+    def get_by_id(self, product_id: str) -> Optional[Dict]:
+        # Identidad UUIDv7 (str): comparar como str evita fallos por tipos mixtos.
+        target = str(product_id or "")
         for p in self._cache:
-            if p["id"] == product_id:
+            if str(p["id"]) == target:
                 return p
         return None
 

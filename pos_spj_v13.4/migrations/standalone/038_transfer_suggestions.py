@@ -23,7 +23,7 @@ def run(conn: sqlite3.Connection) -> None:
 def _create_transfer_suggestions(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS transfer_suggestions (
-            id               TEXT PRIMARY KEY,
+            id               TEXT NOT NULL PRIMARY KEY,
             product_id       TEXT NOT NULL,
             origin_branch_id TEXT NOT NULL,
             dest_branch_id   TEXT NOT NULL,

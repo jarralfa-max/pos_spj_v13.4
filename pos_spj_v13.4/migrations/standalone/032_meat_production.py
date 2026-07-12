@@ -29,7 +29,7 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     """Crea las tablas del módulo cárnico asegurando compatibilidad bilingüe (fecha/created_at)."""
     conn.execute("""
         CREATE TABLE IF NOT EXISTS meat_production_runs (
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL PRIMARY KEY,
             branch_id TEXT NOT NULL,
             source_product_id TEXT NOT NULL,
             source_weight REAL NOT NULL,
@@ -44,7 +44,7 @@ def _create_tables(conn: sqlite3.Connection) -> None:
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS meat_production_yields (
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL PRIMARY KEY,
             run_id TEXT NOT NULL,
             yield_product_id TEXT NOT NULL,
             weight REAL NOT NULL,

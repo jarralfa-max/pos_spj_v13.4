@@ -22,7 +22,7 @@ SCHEMA_SQL = f"""
 BEGIN IMMEDIATE;
 
 CREATE TABLE IF NOT EXISTS {TABLE_NAME}(
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     operation_id TEXT NOT NULL,
     operation_type TEXT NOT NULL,
     retries INTEGER NOT NULL DEFAULT 0,
@@ -67,7 +67,7 @@ def upgrade(conn):
         # Create table if not exists
         conn.execute("""
             CREATE TABLE IF NOT EXISTS concurrency_events (
-                id            TEXT PRIMARY KEY,
+                id            TEXT NOT NULL PRIMARY KEY,
                 operation_id  TEXT    NOT NULL UNIQUE,
                 operation_type TEXT   NOT NULL,
                 retries       INTEGER NOT NULL DEFAULT 0,

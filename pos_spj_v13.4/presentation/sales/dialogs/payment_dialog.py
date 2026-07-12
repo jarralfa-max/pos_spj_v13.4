@@ -167,7 +167,7 @@ class DialogoPago(QDialog):
         self.btn_cancelar.clicked.connect(self.reject)
 
     def showEvent(self, event):
-        """v13.4: Auto-focus y select all en campo de efectivo."""
+        """v13.4: Auto-focus y marcar todo el texto del campo de efectivo."""
         super().showEvent(event)
         from PyQt5.QtCore import QTimer
         QTimer.singleShot(50, lambda: (
@@ -336,9 +336,7 @@ class DialogoPago(QDialog):
                 "cambio": self.cambio,
                 "saldo_credito": self.txt_saldo_credito.value() if self.forma_pago == "Crédito" else 0.0,
             }
-        payload.update({
-            "puntos_canjeados": self.puntos_a_canjear,
-            "descuento_puntos": self.descuento_puntos,
-        })
+        payload["puntos_canjeados"] = self.puntos_a_canjear
+        payload["descuento_puntos"] = self.descuento_puntos
         return payload
 

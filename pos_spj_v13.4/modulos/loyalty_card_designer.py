@@ -365,12 +365,12 @@ class ModuloLoyaltyCardDesigner(QWidget):
 
     def _load_plantilla(self) -> dict:
         try:
-            row = self.conexion.execute(
-                "SELECT valor FROM configuraciones WHERE clave='loyalty_card_plantilla'"
-            ).fetchone()
+            from core.services.loyalty_card_designer_service import LoyaltyCardDesignerService
+            row = LoyaltyCardDesignerService(self.conexion).obtener_plantilla()
             if row and row[0]:
                 d = dict(PLANTILLA_DEFAULT)
-                d.update(json.loads(row[0]))
+                for _k, _v in json.loads(row[0]).items():
+                    d[_k] = _v
                 return d
         except Exception:
             pass
@@ -378,45 +378,14 @@ class ModuloLoyaltyCardDesigner(QWidget):
 
     def _save_plantilla(self):
         try:
-            self.conexion.execute(
-                "INSERT OR REPLACE INTO configuraciones(clave,valor) VALUES(?,?)",
-                ("loyalty_card_plantilla", json.dumps(self.plantilla)))
-            try: self.conexion.commit()
-            except Exception: pass
+            from core.services.loyalty_card_designer_service import LoyaltyCardDesignerService
+            LoyaltyCardDesignerService(self.conexion).guardar_plantilla(json.dumps(self.plantilla))
         except Exception as e:
             logger.warning("_save_plantilla: %s", e)
 
     def _init_tables(self):
-        """Ensure tarjetas_fidelidad has all needed columns regardless of original schema."""
-        try:
-            # Create table only if doesn't exist at all
-            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
-            # Add columns that might be missing from either schema variant
-            for col in [
-                "codigo_qr TEXT", "codigo TEXT", "estado TEXT DEFAULT 'disponible'",
-                "activa INTEGER DEFAULT 1", "puntos INTEGER DEFAULT 0",
-                "puntos_actuales INTEGER DEFAULT 0", "es_pregenerada INTEGER DEFAULT 0",
-                "nivel TEXT DEFAULT 'Bronce'", "notas TEXT", "observaciones TEXT",
-                "fecha_emision DATE", "fecha_creacion DATETIME",
-                "fecha_asignacion DATETIME", "fecha_vencimiento DATE",
-                "numero TEXT",
-            ]:
-                try:
-                    pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
-                except Exception:
-                    pass  # Column already exists
-            # Ensure lotes PDF table exists
-            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
-            try:
-                pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
-            except Exception:
-                pass
-            try:
-                self.conexion.commit()
-            except Exception:
-                pass
-        except Exception as e:
-            logger.debug("_init_tables: %s", e)
+        # Plan B born-clean: schema canónico en migrations/ (DDL y commit removidos).
+        pass
 
     def _build_ui(self):
         lay = QVBoxLayout(self)
@@ -476,10 +445,7 @@ class ModuloLoyaltyCardDesigner(QWidget):
         btn_bg_clear = create_danger_button(self, "🗑️ Limpiar fondo")
         apply_tooltip(btn_bg_clear, "Quitar imagen de fondo")
         btn_bg_clear.setFixedWidth(120)
-        btn_bg_clear.clicked.connect(lambda: (
-            self.txt_bg_path.clear(),
-            self.plantilla.update({"bg_image_path": ""}),
-            self._on_plantilla_change()))
+        btn_bg_clear.clicked.connect(self._limpiar_fondo)
         bg_row = QHBoxLayout()
         bg_row.addWidget(self.txt_bg_path, 1)
         bg_row.addWidget(btn_bg)
@@ -637,15 +603,19 @@ class ModuloLoyaltyCardDesigner(QWidget):
         preview = sep.join(parts)
         self.lbl_qr_preview.setText(f"Ejemplo: {preview}")
 
+    def _limpiar_fondo(self):
+        """Quita la imagen de fondo de la plantilla."""
+        self.txt_bg_path.clear()
+        self.plantilla["bg_image_path"] = ""
+        self._on_plantilla_change()
+
     def _guardar_qr_config(self):
-        self.plantilla.update({
-            "qr_website": self.qr_website.text().strip(),
-            "qr_whatsapp": self.qr_whatsapp.text().strip(),
-            "qr_facebook": self.qr_facebook.text().strip(),
-            "qr_instagram": self.qr_instagram.text().strip(),
-            "qr_tiktok": self.qr_tiktok.text().strip(),
-            "qr_separador": self.cmb_sep.currentText(),
-        })
+        self.plantilla["qr_website"] = self.qr_website.text().strip()
+        self.plantilla["qr_whatsapp"] = self.qr_whatsapp.text().strip()
+        self.plantilla["qr_facebook"] = self.qr_facebook.text().strip()
+        self.plantilla["qr_instagram"] = self.qr_instagram.text().strip()
+        self.plantilla["qr_tiktok"] = self.qr_tiktok.text().strip()
+        self.plantilla["qr_separador"] = self.cmb_sep.currentText()
         self._save_plantilla()
         QMessageBox.information(self, "✅", "Configuración QR guardada.")
 
@@ -715,74 +685,30 @@ class ModuloLoyaltyCardDesigner(QWidget):
 
     def _build_card_list(self, cant: int, nivel: str) -> list:
         """Builds card list from existing cards or generates new ones."""
+        from core.services.loyalty_card_designer_service import LoyaltyCardDesignerService
+        svc = LoyaltyCardDesignerService(self.conexion)
         try:
             # v13.30: Use COALESCE to support both schema variants
             # (codigo_qr from m000 or codigo from legacy)
-            query = """SELECT COALESCE(codigo_qr, codigo, numero) as card_code, nivel
-                       FROM tarjetas_fidelidad
-                       WHERE COALESCE(activa, CASE estado WHEN 'disponible' THEN 1
-                             WHEN 'activa' THEN 1 ELSE 0 END, 1) = 1"""
-            params = []
-            if nivel != "Todos":
-                query += " AND nivel=?"; params.append(nivel)
-            if self.chk_sin_asignar.isChecked():
-                query += " AND (id_cliente IS NULL OR id_cliente=0)"
-            query += f" LIMIT {cant}"
-            rows = self.conexion.execute(query, params).fetchall()
+            rows = svc.listar_tarjetas_pregeneradas(
+                nivel, self.chk_sin_asignar.isChecked(), cant)
             if rows:
                 return [{"codigo": r[0], "nivel": r[1]} for r in rows if r[0]]
         except Exception as e:
             logger.debug("_build_card_list query: %s", e)
 
         # Generate new codes if none exist
-        n = min(cant, 500)
         nivel_real = nivel if nivel != "Todos" else "Bronce"
-        cards = []
-        try:
-            for _ in range(n):
-                codigo = f"SPJ{uuid.uuid4().hex[:8].upper()}"
-                # Identidad UUIDv7 explícita (REGLA CERO): el id no se delega a
-                # autoincrement. Insert con ambos nombres de columna por compat.
-                try:
-                    self.conexion.execute(
-                        "INSERT OR IGNORE INTO tarjetas_fidelidad"
-                        "(id, codigo_qr, codigo, nivel, estado, activa, es_pregenerada) "
-                        "VALUES(?,?,?,?,?,1,1)",
-                        (new_uuid(), codigo, codigo, nivel_real, 'disponible'))
-                except Exception:
-                    # Fallback: try with just one column variant
-                    try:
-                        self.conexion.execute(
-                            "INSERT OR IGNORE INTO tarjetas_fidelidad"
-                            "(id, codigo_qr, nivel, estado, es_pregenerada) "
-                            "VALUES(?,?,?,?,1)",
-                            (new_uuid(), codigo, nivel_real, 'disponible'))
-                    except Exception:
-                        self.conexion.execute(
-                            "INSERT OR IGNORE INTO tarjetas_fidelidad"
-                            "(id, codigo, nivel, activa, es_pregenerada) "
-                            "VALUES(?,?,?,1,1)",
-                            (new_uuid(), codigo, nivel_real))
-                cards.append({"codigo": codigo, "nivel": nivel_real})
-            try:
-                self.conexion.commit()
-            except Exception:
-                pass
-        except Exception as e:
-            logger.warning("generate cards: %s", e)
-        return cards
+        return svc.generar_tarjetas_pregeneradas(cant, nivel_real)
 
     def _on_pdf_done(self, path: str, count: int, nivel: str):
         self.btn_generar.setEnabled(True)
         self.progress_lote.setVisible(False); self.lbl_progreso.setVisible(False)
         # Save lote record
         try:
-            self.conexion.execute(
-                "INSERT INTO lotes_tarjetas_pdf(cantidad,nivel,ruta_pdf,plantilla,usuario) "
-                "VALUES(?,?,?,?,?)",
-                (count, nivel, path, json.dumps(self.plantilla), self.usuario))
-            try: self.conexion.commit()
-            except Exception: pass
+            from core.services.loyalty_card_designer_service import LoyaltyCardDesignerService
+            LoyaltyCardDesignerService(self.conexion).registrar_lote(
+                count, nivel, path, json.dumps(self.plantilla), self.usuario)
         except Exception as e:
             logger.debug("_on_pdf_done: %s", e)
 
@@ -839,21 +765,8 @@ class ModuloLoyaltyCardDesigner(QWidget):
 
     def _cargar_tarjetas(self):
         try:
-            rows = self.conexion.execute("""
-                SELECT COALESCE(t.codigo_qr, t.codigo, t.numero) as card_code,
-                       t.nivel,
-                       COALESCE(c.nombre,'Sin asignar'),
-                       COALESCE(t.puntos_actuales, t.puntos, 0),
-                       CASE
-                         WHEN t.activa=1 OR t.estado IN ('disponible','activa') THEN 'Activa'
-                         WHEN t.activa=0 OR t.estado='bloqueada' THEN 'Bloqueada'
-                         ELSE COALESCE(t.estado, 'Activa')
-                       END,
-                       COALESCE(t.fecha_emision, t.fecha_creacion, '')
-                FROM tarjetas_fidelidad t
-                LEFT JOIN clientes c ON c.id=t.id_cliente
-                ORDER BY COALESCE(t.puntos_actuales, t.puntos, 0) DESC LIMIT 300
-            """).fetchall()
+            from core.services.loyalty_card_designer_service import LoyaltyCardDesignerService
+            rows = LoyaltyCardDesignerService(self.conexion).listar_tarjetas()
         except Exception as e:
             logger.debug("_cargar_tarjetas: %s", e)
             rows = []
@@ -888,9 +801,8 @@ class ModuloLoyaltyCardDesigner(QWidget):
         pts, ok = QInputDialog.getInt(self, "Ajustar puntos", "Nuevos puntos totales:", 0, 0, 999999)
         if ok:
             try:
-                self.conexion.execute("UPDATE tarjetas_fidelidad SET puntos=? WHERE codigo=?", (pts, cod))
-                try: self.conexion.commit()
-                except Exception: pass
+                from core.services.loyalty_card_designer_service import LoyaltyCardDesignerService
+                LoyaltyCardDesignerService(self.conexion).ajustar_puntos(cod, pts)
                 self._cargar_tarjetas()
             except Exception as e: QMessageBox.critical(self, "Error", str(e))
 
@@ -904,9 +816,8 @@ class ModuloLoyaltyCardDesigner(QWidget):
             QMessageBox.information(self, "Máximo", "Ya está en el nivel máximo."); return
         nuevo = niveles[idx + 1]
         try:
-            self.conexion.execute("UPDATE tarjetas_fidelidad SET nivel=? WHERE codigo=?", (nuevo, cod))
-            try: self.conexion.commit()
-            except Exception: pass
+            from core.services.loyalty_card_designer_service import LoyaltyCardDesignerService
+            LoyaltyCardDesignerService(self.conexion).cambiar_nivel(cod, nuevo)
             self._cargar_tarjetas()
         except Exception as e: QMessageBox.critical(self, "Error", str(e))
 
@@ -915,9 +826,8 @@ class ModuloLoyaltyCardDesigner(QWidget):
         if not cod: return
         if QMessageBox.question(self, "Bloquear", "¿Bloquear esta tarjeta?") != QMessageBox.Yes: return
         try:
-            self.conexion.execute("UPDATE tarjetas_fidelidad SET activa=0 WHERE codigo=?", (cod,))
-            try: self.conexion.commit()
-            except Exception: pass
+            from core.services.loyalty_card_designer_service import LoyaltyCardDesignerService
+            LoyaltyCardDesignerService(self.conexion).bloquear_tarjeta(cod)
             self._cargar_tarjetas()
         except Exception as e: QMessageBox.critical(self, "Error", str(e))
 
@@ -928,10 +838,10 @@ class ModuloLoyaltyCardDesigner(QWidget):
         form = QFormLayout()
         cmb_cli   = QComboBox()
         cmb_nivel = QComboBox(); cmb_nivel.addItems(list(NIVELES.keys()))
+        from core.services.loyalty_card_designer_service import LoyaltyCardDesignerService
+        _svc = LoyaltyCardDesignerService(self.conexion)
         try:
-            rows = self.conexion.execute(
-                "SELECT id,nombre FROM clientes WHERE activo=1 ORDER BY nombre LIMIT 300"
-            ).fetchall()
+            rows = _svc.listar_clientes_lookup()
             for r in rows: cmb_cli.addItem(r[1], r[0])
         except Exception: cmb_cli.addItem("Sin clientes", None)
         form.addRow("Cliente:", cmb_cli); form.addRow("Nivel:", cmb_nivel)
@@ -944,11 +854,7 @@ class ModuloLoyaltyCardDesigner(QWidget):
         if not cid: return
         codigo = f"SPJ{uuid.uuid4().hex[:8].upper()}"
         try:
-            self.conexion.execute(
-                "INSERT OR IGNORE INTO tarjetas_fidelidad(id,id_cliente,codigo,nivel,activa) "
-                "VALUES(?,?,?,?,1)", (new_uuid(), cid, codigo, cmb_nivel.currentText()))
-            try: self.conexion.commit()
-            except Exception: pass
+            _svc.asignar_tarjeta_nueva(cid, codigo, cmb_nivel.currentText())
             self._cargar_tarjetas()
             QMessageBox.information(self, "✅", f"Tarjeta {codigo} asignada.")
         except Exception as e: QMessageBox.critical(self, "Error", str(e))
@@ -970,10 +876,8 @@ class ModuloLoyaltyCardDesigner(QWidget):
 
     def _cargar_historial(self):
         try:
-            rows = self.conexion.execute(
-                "SELECT created_at,cantidad,nivel,ruta_pdf,id FROM lotes_tarjetas_pdf "
-                "ORDER BY created_at DESC LIMIT 100"
-            ).fetchall()
+            from core.services.loyalty_card_designer_service import LoyaltyCardDesignerService
+            rows = LoyaltyCardDesignerService(self.conexion).listar_historial_lotes()
         except Exception: rows = []
         self.tbl_hist_lotes.setRowCount(len(rows))
         for ri, r in enumerate(rows):

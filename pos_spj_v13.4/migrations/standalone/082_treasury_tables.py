@@ -18,7 +18,7 @@ Tablas:
 def run(conn):
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS treasury_capital (
-            id          TEXT    PRIMARY KEY,
+            id          TEXT NOT NULL    PRIMARY KEY,
             fecha       TEXT    DEFAULT (datetime('now')),
             tipo        TEXT    NOT NULL,
             monto       REAL    NOT NULL,
@@ -28,7 +28,7 @@ def run(conn):
         );
 
         CREATE TABLE IF NOT EXISTS treasury_ledger (
-            id          TEXT    PRIMARY KEY,
+            id          TEXT NOT NULL    PRIMARY KEY,
             fecha       TEXT    DEFAULT (datetime('now')),
             tipo        TEXT    NOT NULL,
             categoria   TEXT    NOT NULL,
@@ -43,7 +43,7 @@ def run(conn):
         CREATE INDEX IF NOT EXISTS idx_tl_cat   ON treasury_ledger(categoria);
 
         CREATE TABLE IF NOT EXISTS treasury_gastos_fijos (
-            id             TEXT    PRIMARY KEY,
+            id             TEXT NOT NULL    PRIMARY KEY,
             categoria      TEXT    NOT NULL,
             nombre         TEXT    NOT NULL,
             monto_mensual  REAL    NOT NULL,
@@ -56,7 +56,7 @@ def run(conn):
         -- con identidad TEXT UUIDv7; ya no se crea aquí.
 
         CREATE TABLE IF NOT EXISTS pagos_cobros (
-            id              TEXT    PRIMARY KEY,
+            id              TEXT NOT NULL    PRIMARY KEY,
             folio           TEXT    UNIQUE,
             tipo_operacion  TEXT    NOT NULL,
             tercero_id      TEXT,
@@ -73,7 +73,7 @@ def run(conn):
         );
 
         CREATE TABLE IF NOT EXISTS pagos_cobros_aplicaciones (
-            id                          TEXT    PRIMARY KEY,
+            id                          TEXT NOT NULL    PRIMARY KEY,
             pago_cobro_id               TEXT    NOT NULL,
             documento_id                TEXT    NOT NULL,
             tipo_documento              TEXT    NOT NULL,

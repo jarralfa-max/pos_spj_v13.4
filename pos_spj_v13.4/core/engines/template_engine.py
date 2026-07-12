@@ -62,8 +62,17 @@ class TicketTemplateEngine(TemplateEngine):
             "transferencia": "03 - Transferencia electrónica",
             "credito":  "99 - Por definir",
         }
-        fp_raw     = str(venta_data.get("forma_pago", "efectivo")).lower()
-        forma_pago = fp_map.get(fp_raw, venta_data.get("forma_pago", "Efectivo"))
+        # El pago puede venir como dict (ruta canónica ticket_payload["pago"]) o como
+        # campos sueltos en venta_data. Se normaliza para leer forma/recibido/cambio.
+        _pago = venta_data.get("pago") if isinstance(venta_data.get("pago"), dict) else {}
+        fp_raw     = str(venta_data.get("forma_pago") or _pago.get("forma_pago") or "efectivo").lower()
+        forma_pago = fp_map.get(fp_raw, venta_data.get("forma_pago") or _pago.get("forma_pago") or "Efectivo")
+        efectivo_recibido = float(
+            venta_data.get("efectivo_recibido",
+                           _pago.get("efectivo_recibido", _pago.get("amount_paid_real", 0))) or 0
+        )
+        cambio_val = float(venta_data.get("cambio", _pago.get("cambio", 0)) or 0)
+        pago_desglose = self._desglose_pago_html(_pago)
 
         ctx = {
             "folio":             str(venta_data.get("folio") or venta_data.get("venta_id", "")),
@@ -71,9 +80,11 @@ class TicketTemplateEngine(TemplateEngine):
             "fecha":             venta_data.get("fecha", ""),
             "turno":             venta_data.get("turno", ""),
             "cajero":            venta_data.get("cajero", ""),
-            "nombre_empresa":    self._get_config("nombre_empresa", "SPJ"),
-            "rfc_emisor":        self._get_config("rfc", ""),
-            "regimen_fiscal":    self._get_config("regimen_fiscal", ""),
+            # Empresa: se prefiere el encabezado inyectado por SalesService
+            # (_ticket_header_data); si no viene, se lee de configuraciones.
+            "nombre_empresa":    venta_data.get("nombre_empresa") or self._get_config("nombre_empresa", "SPJ"),
+            "rfc_emisor":        venta_data.get("rfc_emisor") or self._get_config("rfc", ""),
+            "regimen_fiscal":    venta_data.get("regimen_fiscal") or self._get_config("regimen_fiscal", ""),
             "direccion":         self._get_config("direccion", ""),
             "telefono_empresa":  self._get_config("telefono_empresa", ""),
             "web_empresa":       self._get_config("web_empresa", ""),
@@ -92,8 +103,10 @@ class TicketTemplateEngine(TemplateEngine):
             "iva":               f"${monto_iva:,.2f}" if monto_iva > 0 else "",
             "tasa_iva":          f"{tasa_iva*100:.0f}%" if tasa_iva > 0 else "0%",
             "total":             f"${total:,.2f}",
-            "efectivo":          f"${float(venta_data.get('efectivo_recibido', 0)):,.2f}",
-            "cambio":            f"${float(venta_data.get('cambio', 0)):,.2f}",
+            "efectivo":          f"${efectivo_recibido:,.2f}",
+            "recibido":          f"${efectivo_recibido:,.2f}",
+            "cambio":            f"${cambio_val:,.2f}",
+            "pago_desglose":     pago_desglose,
             "forma_pago":        forma_pago,
             "puntos_ganados":    str(venta_data.get("puntos_ganados", "")),
             "puntos_totales":    str(venta_data.get("puntos_totales", "")),
@@ -103,10 +116,34 @@ class TicketTemplateEngine(TemplateEngine):
         }
         return self.render(template_db, ctx)
 
+    @staticmethod
+    def _desglose_pago_html(pago: dict) -> str:
+        """Filas <tr> con el monto por método de pago (para Pago Mixto)."""
+        lineas = (pago.get("lineas") or pago.get("breakdown") or {}) if isinstance(pago, dict) else {}
+        etiquetas = {"efectivo": "Efectivo", "tarjeta": "Tarjeta", "transferencia": "Transferencia",
+                     "credito": "Crédito", "mercado_pago": "Mercado Pago"}
+        filas = [(etiquetas.get(k, k.title()), float(v or 0)) for k, v in lineas.items() if float(v or 0) > 0]
+        if len(filas) <= 1:
+            return ""
+        return "".join(
+            f"<tr><td>{etq}:</td><td align='right'>${monto:,.2f}</td></tr>" for etq, monto in filas
+        )
+
+    @staticmethod
+    def _nombre_item(item: dict) -> str:
+        return (
+            item.get("nombre")
+            or item.get("name")
+            or item.get("producto")
+            or item.get("product_name")
+            or item.get("descripcion")
+            or f"Producto {item.get('product_id', '')}"
+        )
+
     def _generar_filas_items(self, items: list) -> str:
         filas = ""
         for item in items:
-            nombre = item.get("nombre", "")
+            nombre = self._nombre_item(item)
             cant   = item.get("cantidad", "")
             precio = float(item.get("precio_unitario", item.get("precio", 0)))
             total  = float(item.get("total", item.get("subtotal", 0)))
@@ -123,7 +160,7 @@ class TicketTemplateEngine(TemplateEngine):
     def _generar_items_texto(self, items: list) -> str:
         lineas = []
         for item in items:
-            nombre = item.get("nombre", "")[:24]
+            nombre = self._nombre_item(item)[:24]
             cant   = str(item.get("cantidad", ""))
             total  = float(item.get("total", item.get("subtotal", 0)))
             lineas.append(f"{nombre:<24} {cant:>6} ${total:>8.2f}")
