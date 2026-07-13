@@ -42,6 +42,7 @@ async def crear_pedido(
     Usado por el microservicio WhatsApp via REST en lugar de acceso directo a DB.
     """
     import uuid as _uuid
+    from backend.shared.ids import new_uuid
 
     total = sum(it.cantidad * it.precio_unitario for it in body.items)
     folio = f"WA-{_uuid.uuid4().hex[:8].upper()}"
@@ -81,7 +82,7 @@ async def crear_pedido(
 @router.get("")
 async def listar_pedidos(
     estado:      str = "pendiente_wa",
-    sucursal_id: int = 1,
+    sucursal_id: str = "",
     limit:       int = 50,
     _key: str = Depends(verify_api_key),
     db=Depends(get_db),
@@ -101,7 +102,7 @@ async def listar_pedidos(
 
 @router.get("/{pedido_id}")
 async def get_pedido(
-    pedido_id: int,
+    pedido_id: str,
     _key: str = Depends(verify_api_key),
     db=Depends(get_db),
 ):
@@ -123,7 +124,7 @@ async def get_pedido(
 
 @router.patch("/{pedido_id}/estado")
 async def actualizar_estado_pedido(
-    pedido_id: int,
+    pedido_id: str,
     estado:    str,
     notas:     str = "",
     _key: str = Depends(verify_api_key),

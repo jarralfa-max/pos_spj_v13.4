@@ -32,7 +32,7 @@ def run(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS puestos (
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL PRIMARY KEY,
             nombre TEXT NOT NULL UNIQUE,
             descripcion TEXT,
             activo INTEGER DEFAULT 1
@@ -42,7 +42,7 @@ def run(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS vacaciones_personal (
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL PRIMARY KEY,
             personal_id TEXT NOT NULL,
             tipo TEXT DEFAULT 'vacaciones',
             fecha_inicio DATE NOT NULL,

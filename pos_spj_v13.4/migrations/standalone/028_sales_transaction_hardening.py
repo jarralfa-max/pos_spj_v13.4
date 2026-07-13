@@ -37,7 +37,7 @@ def _create_payments(conn: sqlite3.Connection) -> None:
     """
     conn.execute("""
         CREATE TABLE IF NOT EXISTS payments (
-            id            TEXT PRIMARY KEY,
+            id            TEXT NOT NULL PRIMARY KEY,
             venta_id      TEXT NOT NULL,
             method        TEXT    NOT NULL,           -- 'Efectivo','Tarjeta','Crédito','Puntos'
             amount        REAL    NOT NULL

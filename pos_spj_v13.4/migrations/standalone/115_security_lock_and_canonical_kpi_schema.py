@@ -1,12 +1,11 @@
-# migrations/standalone/114_security_lock_and_canonical_kpi_schema.py
+# migrations.standalone.115_security_lock_and_canonical_kpi_schema.py
 """
-114 — Deltas de schema para bases existentes (features nuevas, NO rescate):
+115 — Deltas de schema para bases existentes (features nuevas, NO rescate):
 
   1. usuarios: locked_reason / updated_at / intentos_fallidos / bloqueado_hasta
      (flujo administrativo de desbloqueo con auditoría).
   2. usuario_permisos / usuario_sucursal_permisos: overrides RBAC por UUID.
-  3. anticipos: tabla canónica UUIDv7 (antes la creaba la API con
-     AUTOINCREMENT — prohibido).
+  3. anticipos: cubierta por 114_anticipos_schema.
   4. historico_puntos: saldo_actual / usuario (contrato real de escritores).
   5. loyalty_snapshots: forma checkpoint (puntos_actuales, nivel, visitas,
      importe_total, ultimo_evento_id TEXT UUID). Si existe la forma vieja
@@ -73,19 +72,7 @@ def run(conn: sqlite3.Connection) -> None:
         )
     """)
 
-    # ── 3. anticipos canónica ────────────────────────────────────────────────
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS anticipos (
-            id          TEXT PRIMARY KEY,
-            venta_id    TEXT NOT NULL,
-            monto       REAL NOT NULL,
-            metodo      TEXT DEFAULT 'mercadopago',
-            estado      TEXT DEFAULT 'pendiente',
-            referencia  TEXT DEFAULT '',
-            fecha       TEXT DEFAULT (datetime('now')),
-            fecha_pago  TEXT
-        )
-    """)
+    # ── 3. anticipos: la posee 114_anticipos_schema (misma rama) ────────────
 
     # ── 4. historico_puntos: contrato real de escritores ─────────────────────
     _ensure_column(conn, "historico_puntos", "saldo_actual REAL DEFAULT 0")

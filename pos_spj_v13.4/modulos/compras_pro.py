@@ -622,17 +622,16 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def __init__(self, container, parent=None):
         super().__init__(parent)
         self.container       = container
-        # Repositorio de proveedores/sucursales — atributo plano (no property):
-        # el flujo QR/etiquetas lo usa vía get_sucursales_activas()/get_activos().
-        try:
-            from repositories.proveedor_repository import ProveedorRepository
-            self._prov_repo = ProveedorRepository(container.db)
-        except Exception:
-            self._prov_repo = None
         self.sucursal_id     = getattr(container, "sucursal_id", "") or ""
         self.usuario_actual  = ""
         self._usuario_rol    = ""
         self.carrito_compra: list[dict] = []
+
+        # Repositorio de proveedores/sucursales (lecturas de catálogo). Se referencia
+        # como self._prov_repo en varios subtabs (asignar QR, alta directa) — antes
+        # nunca se inicializaba → AttributeError al cargar sucursales/proveedores.
+        from repositories.proveedor_repository import ProveedorRepository
+        self._prov_repo = ProveedorRepository(container.db)
 
         # EventBus: auto-refresh when products, purchases or branches change
         try:
@@ -3646,7 +3645,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         """
         Left ERP panel: documental workflow toolbar (Phase 8).
         Top section: PR/PO document list + detail card + action buttons.
-        Bottom section: provider quick-select (preserves existing logic).
+        Bottom section: provider quick-pick (preserves existing logic).
         Width: 260px.
         """
         sidebar = PurchaseDocumentToolbar()
@@ -4120,7 +4119,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._actualizar_chips_contadores()
 
     def _actualizar_chips_contadores(self) -> None:
-        """Update filter chip labels with live counts."""
+        """Refresh filter chip labels with live counts."""
         counts = {'all': len(self._docs_erp_cache)}
         for cat in ('pr_pend', 'pr_aprobadas', 'po_abiertas', 'rec_parc'):
             counts[cat] = sum(1 for d in self._docs_erp_cache if d.get('_categoria') == cat)
@@ -4643,7 +4642,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         La columna de condición de pago varía entre instancias:
         - condicion_pago  (nombre antiguo, algunas DBs)
         - condiciones_pago (nombre migración 047, plural)
-        Se usa SELECT * y se extrae por clave para evitar OperationalError.
+        Se lee la fila completa y se extrae por clave para evitar OperationalError.
         """
         if not hasattr(self, '_lbl_prov_info'):
             return
@@ -4764,7 +4763,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         )
 
     def _refresh_stepper(self) -> None:
-        """Update stepper colours based on current form completion state."""
+        """Refresh stepper colours based on current form completion state."""
         if not hasattr(self, '_stepper_labels') or not self._stepper_labels:
             return
 
@@ -4791,7 +4790,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             lbl.style().polish(lbl)
 
     def _refresh_stepper_for_doc(self, estado: str, tipo: str) -> None:
-        """Update stepper to reflect the selected document's workflow position.
+        """Refresh stepper to reflect the chosen document's workflow position.
 
         Maps document state → step index so the stepper reads like a timeline:
           ① Proveedor → ② Productos → ③ Condición → ④ Autorizar
@@ -4897,7 +4896,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._ver_detalle_compra(compra_id)
 
     def _auto_seleccionar_doc(self, folio: str) -> None:
-        """Auto-select a document in the ERP list by folio (called after PR/PO creation)."""
+        """Auto-pick a document in the ERP list by folio (called after PR/PO creation)."""
         if not hasattr(self, '_doc_erp_list'):
             return
         for i in range(self._doc_erp_list.count()):
@@ -5704,7 +5703,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._actualizar_panel_validacion()
 
     def _eliminar_seleccionados(self) -> None:
-        """Elimina las filas seleccionadas del carrito (multi-select support)."""
+        """Elimina las filas seleccionadas del carrito (soporta multi-selección)."""
         orig_rows: set[int] = set()
         for idx in self.tabla.selectedIndexes():
             id_item = self.tabla.item(idx.row(), 0)

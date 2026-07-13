@@ -531,9 +531,12 @@ class ModuloClientes(ModuloBase):
 
 
 class DialogoCliente(QDialog):
+    """Captura-only: arma el DTO y delega la persistencia en ClienteService.
+    No ejecuta SQL/commit/publish (Remediación D)."""
     def __init__(self, conexion, parent=None, cliente_data=None, uc_cliente=None):
         super().__init__(parent)
-        self.conexion = conexion
+        from core.services.cliente_service import ClienteService
+        self._svc = ClienteService(conexion)
         self.cliente_data = cliente_data
         self.uc_cliente = uc_cliente  # v13.5: UC opcional para delegación
         self.setWindowTitle("Nuevo Cliente" if not cliente_data else "Editar Cliente")
@@ -638,154 +641,63 @@ class DialogoCliente(QDialog):
             
         return True
 
-    def generar_id_cliente(self):
-        """Genera la identidad UUIDv7 de un cliente (REGLA CERO)."""
-        from backend.shared.ids import new_uuid
-        return new_uuid()
+    def get_dto(self) -> dict:
+        """DTO capturado del formulario. La persistencia la ejecuta ClienteService."""
+        telefono = (self.edit_telefono.get_e164().strip()
+                    if hasattr(self.edit_telefono, 'get_e164')
+                    else self.edit_telefono.text().strip())
+        return {
+            "is_edit": bool(self.cliente_data),
+            "cliente_id": self.cliente_data.get('id') if self.cliente_data else None,
+            "nombre": self.edit_nombre.text().strip(),
+            "apellido": self.edit_apellido.text().strip(),
+            "telefono": telefono,
+            "puntos": self.edit_puntos.value(),
+            "nivel": self.edit_nivel.currentText().strip(),
+            "descuento": self.edit_descuento.value(),
+            "saldo": self.edit_saldo.value(),
+            "limite_credito": self.edit_limite_credito.value(),
+            "activo": 1 if self.chk_activo.isChecked() else 0,
+            "tarjeta_raw": self.edit_tarjeta_id.text().strip(),
+        }
+
+    def _confirm_duplicate(self) -> bool:
+        """Callback UI para la confirmación de duplicado en alta."""
+        respuesta = QMessageBox.question(
+            self, "Cliente Existente",
+            "Ya existe un cliente con estos datos. ¿Desea crearlo de todos modos?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        return respuesta == QMessageBox.Yes
 
     def guardar(self):
-        """Guarda el cliente en la base de datos."""
+        """Captura el DTO y delega en ClienteService (UC + fallback)."""
         if not self.validar_formulario():
             return
 
-        # v13.5: Delegar al UC cuando está disponible
-        if self.uc_cliente:
-            try:
-                from core.use_cases.cliente import DatosCliente
-                nombre = self.edit_nombre.text().strip()
-                apellido = self.edit_apellido.text().strip() or ""
-                telefono = self.edit_telefono.get_e164().strip() if hasattr(self.edit_telefono, 'get_e164') else self.edit_telefono.text().strip()
-                limite_credito = self.edit_limite_credito.value()
-                datos = DatosCliente(
-                    nombre=f"{nombre} {apellido}".strip(),
-                    telefono=telefono,
-                    allows_credit=(limite_credito > 0),
-                    credit_limit=limite_credito,
-                )
-                if self.cliente_data:
-                    campos = {
-                        'nombre': nombre, 'apellido': apellido, 'telefono': telefono,
-                        'limite_credito': limite_credito, 'saldo': self.edit_saldo.value(),
-                        'activo': 1 if self.chk_activo.isChecked() else 0,
-                    }
-                    result = self.uc_cliente.actualizar_cliente(self.cliente_data['id'], campos, "sistema")
-                else:
-                    result = self.uc_cliente.crear_cliente(datos, 1, "sistema")
-                if result.ok:
-                    Toast.success(self, "Éxito", result.mensaje or "Guardado correctamente.")
-                    self.accept()
-                else:
-                    QMessageBox.critical(self, "Error", result.error)
-                return
-            except Exception as _e:
-                pass  # fallback al SQL directo si el UC falla
+        result = self._svc.guardar_formulario(
+            self.get_dto(),
+            confirm_duplicate=self._confirm_duplicate,
+            uc_cliente=self.uc_cliente,
+        )
 
-        try:
-            cursor = self.conexion.cursor()
-            
-            nombre = self.edit_nombre.text().strip()
-            apellido = self.edit_apellido.text().strip() or None
-            telefono = self.edit_telefono.get_e164().strip() or None
-            puntos = self.edit_puntos.value()
-            # QComboBox no expone .text(); usar currentText para evitar fallos al guardar
-            nivel = self.edit_nivel.currentText().strip() or None
-            descuento = self.edit_descuento.value()
-            saldo = self.edit_saldo.value()
-            limite_credito = self.edit_limite_credito.value()
-            activo = 1 if self.chk_activo.isChecked() else 0
-            
-            # v13.4: Parsear tarjeta ID
-            import re
-            tarjeta_raw = self.edit_tarjeta_id.text().strip()
-            tarjeta_id = ""
-            if tarjeta_raw:
-                m = re.match(r'^(?:TF|TAR|CARD)-(.+)$', tarjeta_raw, re.IGNORECASE)
-                if m:
-                    tarjeta_id = m.group(1).strip()
-                elif re.match(r'^CLT-(\d+)', tarjeta_raw, re.IGNORECASE):
-                    tarjeta_id = re.match(r'^CLT-(\d+)', tarjeta_raw, re.IGNORECASE).group(1)
-                else:
-                    tarjeta_id = tarjeta_raw
-
-            if self.cliente_data:  # Editar
-                id_cliente = self.cliente_data['id']
-                cursor.execute("""
-                    UPDATE clientes 
-                    SET nombre = ?, apellido = ?, telefono = ?, puntos = ?, nivel_fidelidad = ?,
-                        descuento = ?, saldo = ?, limite_credito = ?, activo = ?,
-                        codigo_qr = CASE WHEN ? != '' THEN ? ELSE codigo_qr END
-                    WHERE id = ?
-                """, (nombre, apellido, telefono, puntos, nivel, descuento, saldo, 
-                      limite_credito, activo, tarjeta_id, tarjeta_id, id_cliente))
-                
-                # v13.4: Crear/actualizar tarjeta de fidelidad si se proporcionó
-                if tarjeta_id:
-                    try:
-                        cursor.execute("""
-                            INSERT INTO tarjetas_fidelidad (codigo, id_cliente, nivel, activa, fecha_emision)
-                            VALUES (?, ?, COALESCE(?, 'Bronce'), 1, datetime('now'))
-                            ON CONFLICT(codigo) DO UPDATE SET id_cliente = ?, activa = 1
-                        """, (tarjeta_id, id_cliente, nivel, id_cliente))
-                    except Exception:
-                        pass
-                
-                self.conexion.commit()
-                try: get_bus().publish("CLIENTE_ACTUALIZADO", {"event_type": "CLIENTE_ACTUALIZADO"})
-                except Exception: pass
-                Toast.success(self, "Éxito", "Cliente actualizado correctamente.")
-                self.accept()
-            else:  # Nuevo
-                cursor.execute("""
-                    SELECT COUNT(*) FROM clientes
-                    WHERE nombre = ? AND COALESCE(apellido,'') = ? AND telefono = ?
-                """, (nombre, apellido, telefono))
-                if cursor.fetchone()[0] > 0:
-                    respuesta = QMessageBox.question(
-                        self, "Cliente Existente",
-                        "Ya existe un cliente con estos datos. ¿Desea crearlo de todos modos?",
-                        QMessageBox.Yes | QMessageBox.No
-                    )
-                    if respuesta == QMessageBox.No:
-                        return
-                
-                id_cliente = self.generar_id_cliente()
-                cursor.execute("""
-                    INSERT INTO clientes (id, nombre, apellido, telefono, puntos, nivel_fidelidad, 
-                                        descuento, saldo, limite_credito, activo, codigo_qr)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (id_cliente, nombre, apellido, telefono, puntos, nivel, descuento, 
-                      saldo, limite_credito, activo, tarjeta_id or None))
-                
-                # v13.4: Crear tarjeta de fidelidad si se proporcionó ID
-                if tarjeta_id:
-                    try:
-                        cursor.execute("""
-                            INSERT OR IGNORE INTO tarjetas_fidelidad 
-                                (codigo, id_cliente, nivel, activa, fecha_emision)
-                            VALUES (?, ?, 'Bronce', 1, datetime('now'))
-                        """, (tarjeta_id, id_cliente))
-                    except Exception:
-                        pass
-                
-                self.conexion.commit()
-                Toast.success(self, "Cliente creado", f"ID: {id_cliente}")
-                self.accept()
-
-        except sqlite3.IntegrityError as e:
-            self.conexion.rollback()
-            QMessageBox.warning(self, "Error", f"Error de integridad: {str(e)}")
-        except sqlite3.Error as e:
-            self.conexion.rollback()
-            QMessageBox.critical(self, "Error", f"Error en la base de datos: {str(e)}")
-        except Exception as e:
-            self.conexion.rollback()
-            QMessageBox.critical(self, "Error", f"Error inesperado: {str(e)}")
+        if result.get("cancelled"):
+            return
+        if result.get("ok"):
+            Toast.success(self, result.get("titulo", "Éxito"),
+                          result.get("mensaje", "Guardado correctamente."))
+            self.accept()
+        elif result.get("kind") == "integrity":
+            QMessageBox.warning(self, "Error", result.get("error", "Error de integridad"))
+        else:
+            QMessageBox.critical(self, "Error", result.get("error", "No se pudo guardar."))
 
 
 class DialogoHistorialCliente(QDialog):
     def __init__(self, conexion, id_cliente, nombre_cliente, parent=None):
         super().__init__(parent)
-        self.conexion = conexion
+        from core.services.cliente_query_service import ClienteQueryService
+        self._svc = ClienteQueryService(conexion)
         self.id_cliente = id_cliente
         self.nombre_cliente = nombre_cliente
         # QueryService canónico de historial — atributo plano asignado ANTES
@@ -925,9 +837,10 @@ class _DialogoAsignarTarjetaCliente(QDialog):
 
     def __init__(self, cliente_id, cliente_nombre, conexion, parent=None):
         super().__init__(parent)
+        from core.services.cliente_query_service import ClienteQueryService
         self.cliente_id   = cliente_id
         self.cliente_nombre = cliente_nombre
-        self.conexion     = conexion
+        self._svc         = ClienteQueryService(conexion)
         self.tarjeta_id   = None
         self.setWindowTitle(f"Asignar Tarjeta — {cliente_nombre}")
         self.setMinimumWidth(440)
@@ -984,10 +897,7 @@ class _DialogoAsignarTarjetaCliente(QDialog):
 
     def _cargar_tarjetas_libres(self):
         try:
-            rows = self.conexion.execute(
-                "SELECT id, numero, COALESCE(nivel,'Bronce') FROM tarjetas_fidelidad "
-                "WHERE estado IN ('libre','impresa','generada') ORDER BY id LIMIT 100"
-            ).fetchall()
+            rows = self._svc.tarjetas_libres()
             self.combo_tarjeta.clear()
             for tid, num, nivel in rows:
                 self.combo_tarjeta.addItem(f"{num} [{nivel}]", tid)
@@ -998,10 +908,7 @@ class _DialogoAsignarTarjetaCliente(QDialog):
         numero = self.txt_numero.text().strip()
         if not numero:
             return
-        row = self.conexion.execute(
-            "SELECT id, numero, estado FROM tarjetas_fidelidad WHERE numero=? OR codigo_qr=?",
-            (numero, numero)
-        ).fetchone()
+        row = self._svc.buscar_tarjeta(numero)
         if not row:
             self.lbl_estado_busqueda.setText("❌ No encontrada")
         elif row[2] == "asignada":
@@ -1035,9 +942,11 @@ class _DialogoTarjetasCliente(QDialog):
 
     def __init__(self, cliente_id, cliente_nombre, conexion, parent=None):
         super().__init__(parent)
+        from core.services.cliente_query_service import ClienteQueryService
         self.cliente_id     = cliente_id
         self.cliente_nombre = cliente_nombre
-        self.conexion       = conexion
+        self.conexion       = conexion  # requerido por CardBatchEngine (servicio)
+        self._svc           = ClienteQueryService(conexion)
         self.setWindowTitle(f"Tarjetas — {cliente_nombre}")
         self.setMinimumWidth(600)
         self.setMinimumHeight(480)
@@ -1113,11 +1022,7 @@ class _DialogoTarjetasCliente(QDialog):
         from PyQt5.QtWidgets import QTableWidgetItem
         # Tarjetas asignadas
         try:
-            rows = self.conexion.execute(
-                "SELECT id, numero, estado, COALESCE(nivel,'Bronce'), puntos_actuales, fecha_asignacion "
-                "FROM tarjetas_fidelidad WHERE id_cliente = ? ORDER BY fecha_asignacion DESC",
-                (self.cliente_id,)
-            ).fetchall()
+            rows = self._svc.tarjetas_de_cliente(self.cliente_id)
             self.tabla_tarjetas.setRowCount(len(rows))
             for i, r in enumerate(rows):
                 for j, v in enumerate(r):
@@ -1127,16 +1032,7 @@ class _DialogoTarjetasCliente(QDialog):
 
         # Historial
         try:
-            rows_h = self.conexion.execute(
-                """
-                SELECT h.accion, h.fecha, tf.numero, h.motivo, h.usuario
-                FROM card_assignment_history h
-                LEFT JOIN tarjetas_fidelidad tf ON tf.id = h.tarjeta_id
-                WHERE h.cliente_id_nuevo = ? OR h.cliente_id_prev = ?
-                ORDER BY h.fecha DESC LIMIT 100
-                """,
-                (self.cliente_id, self.cliente_id)
-            ).fetchall()
+            rows_h = self._svc.historial_asignaciones(self.cliente_id)
             self.tabla_historial.setRowCount(len(rows_h))
             for i, r in enumerate(rows_h):
                 for j, v in enumerate(r):
@@ -1146,12 +1042,7 @@ class _DialogoTarjetasCliente(QDialog):
 
         # Score fidelidad
         try:
-            score_row = self.conexion.execute(
-                "SELECT score_total, nivel, visitas_periodo, importe_total, "
-                "margen_generado, referidos, fecha_calculo "
-                "FROM loyalty_scores WHERE cliente_id = ?",
-                (self.cliente_id,)
-            ).fetchone()
+            score_row = self._svc.loyalty_score(self.cliente_id)
             if score_row:
                 txt = (
                     f"<b>Score Total:</b> {score_row[0]:.1f}/100  |  "
@@ -1268,7 +1159,8 @@ class _DialogoRFM(QDialog):
 
     def __init__(self, conn, parent=None):
         super().__init__(parent)
-        self.conn = conn
+        from core.services.cliente_query_service import ClienteQueryService
+        self._svc = ClienteQueryService(conn)
         self.setWindowTitle("📊 Segmentación RFM de Clientes")
         self.setMinimumSize(900, 600)
         self._build_ui()
@@ -1353,19 +1245,7 @@ class _DialogoRFM(QDialog):
 
         dias = self._dias_periodo()
         try:
-            rows = self.conn.execute(f"""
-                SELECT c.id, c.nombre, c.telefono,
-                       MAX(v.fecha) as ultima_compra,
-                       COUNT(v.id)  as num_compras,
-                       SUM(v.total) as total_gastado
-                FROM clientes c
-                JOIN ventas v ON v.cliente_id = c.id
-                WHERE v.estado = 'completada'
-                  AND v.fecha >= date('now', '-{dias} days')
-                GROUP BY c.id
-                ORDER BY total_gastado DESC
-                LIMIT 500
-            """).fetchall()
+            rows = self._svc.rfm_ventas(dias)
         except Exception as e:
             self.lbl_status.setText(f"Error: {e}")
             return
@@ -1423,7 +1303,7 @@ class _DialogoRFM(QDialog):
 
             segmento = self._clasificar(r_score, f_score, m_score)
             seg_counts[segmento] = seg_counts.get(segmento, 0) + 1
-            d.update({"r": r_score, "f": f_score, "m": m_score, "segmento": segmento})
+            d["r"] = r_score; d["f"] = f_score; d["m"] = m_score; d["segmento"] = segmento
             enriched.append(d)
 
         # Update segment cards

@@ -37,6 +37,9 @@ class SessionContext:
         self._rol: str = ""
         self._sucursal_id: str = ""        # espejo de active_branch_id (UUID str)
         self._sucursal_nombre: str = ""    # display name only — NOT identity
+        # D6/REGLA CERO: la sucursal es UUIDv7 (str) y su ÚNICA fuente es
+        # _active_branch_id. Se eliminó el _sucursal_id entero legacy (identidad
+        # dual int/str). La property `sucursal_id` es ahora un alias de esta.
         self._active_branch_id: str = ""   # canonical UUID — single source of truth
         self._permisos: Set[str] = set()
         self._is_active: bool = False
@@ -103,17 +106,20 @@ class SessionContext:
         self._rol = str(user_data.get('rol', 'cajero') or 'cajero').strip().lower()
         self._sucursal_id = str(user_data.get('sucursal_id') or "").strip()
         self._sucursal_nombre = user_data.get('sucursal_nombre', '')
-        # Prefer explicit UUID; fall back to string repr of integer id (never 'Principal')
+        # Sucursal = UUIDv7 str (única identidad, REGLA CERO). Preferir el UUID
+        # explícito; si solo viene un id numérico legacy, usar su repr str
+        # (nunca int, nunca 'Principal').
+        _suc_legacy = user_data.get('sucursal_id')
         self._active_branch_id = (
             str(user_data.get('active_branch_id') or user_data.get('sucursal_uuid') or "").strip()
-            or (str(self._sucursal_id) if self._sucursal_id else "")
+            or (str(_suc_legacy) if _suc_legacy else "")
         )
         self._sucursales_disponibles = user_data.get('sucursales_disponibles', [])
         self._is_active = True
         logger.info(
-            "Sesión iniciada: %s (%s) en sucursal '%s' [active_branch_id=%s sucursal_num=%s]",
+            "Sesión iniciada: %s (%s) en sucursal '%s' [active_branch_id=%s]",
             self._nombre_completo, self._rol,
-            self._sucursal_nombre, self._active_branch_id, self._sucursal_id,
+            self._sucursal_nombre, self._active_branch_id,
         )
 
     def set_sucursal(self, sucursal_id: str, nombre: str = "",
@@ -122,13 +128,14 @@ class SessionContext:
         self._sucursal_id = str(sucursal_id or "").strip()
         if nombre:
             self._sucursal_nombre = nombre
-        if active_branch_id:
-            self._active_branch_id = active_branch_id
-        elif not self._active_branch_id and sucursal_id:
-            self._active_branch_id = str(sucursal_id)
+        # active_branch_id explícito gana; en su defecto el propio sucursal_id
+        # (que ya es el UUID canónico). Nunca se degrada a entero.
+        branch = str(active_branch_id or sucursal_id or "").strip()
+        if branch:
+            self._active_branch_id = branch
         logger.info(
-            "Sucursal cambiada: '%s' (sucursal_num=%s active_branch_id=%s)",
-            nombre, sucursal_id, self._active_branch_id,
+            "Sucursal cambiada: '%s' (active_branch_id=%s)",
+            nombre, self._active_branch_id,
         )
 
     def set_permisos(self, permisos: Set[str]) -> None:
@@ -167,7 +174,7 @@ class SessionContext:
         if not self._is_active:
             return "SessionContext(inactive)"
         return (f"SessionContext(user={self._usuario}, rol={self._rol}, "
-                f"sucursal={self._sucursal_nombre}[{self._sucursal_id}], "
+                f"sucursal={self._sucursal_nombre}[{self._active_branch_id}], "
                 f"permisos={len(self._permisos)})")
 
     def to_dict(self) -> dict:
@@ -177,7 +184,8 @@ class SessionContext:
             "usuario": self._usuario,
             "nombre": self._nombre_completo,
             "rol": self._rol,
-            "sucursal_id": self._sucursal_id,
+            # sucursal_id == active_branch_id (UUIDv7 str, D6): una sola identidad.
+            "sucursal_id": self._active_branch_id,
             "sucursal_nombre": self._sucursal_nombre,
             "active_branch_id": self._active_branch_id,
             "is_active": self._is_active,

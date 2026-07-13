@@ -26,7 +26,11 @@ CANONICAL_MODULE_PERMISSIONS: dict[str, list[str]] = {
     "RRHH": ["ver", "crear", "editar"],
     "GROWTH_ENGINE": ["ver"],
     "TARJETAS_FIDELIDAD": ["ver"],
-    "INTELIGENCIA_BI": ["ver"],
+    "INTELIGENCIA_BI": [
+        "ver", "ver_ventas", "ver_inventario", "ver_compras", "ver_caja",
+        "ver_clientes", "ver_proveedores", "ver_finanzas", "ver_merma",
+        "exportar", "configurar",
+    ],
     "WHATSAPP": ["ver"],
     "DISEÑADOR_TICKETS": ["ver"],
     "CONFIG_HARDWARE": ["ver"],

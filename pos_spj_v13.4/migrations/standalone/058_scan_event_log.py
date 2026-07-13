@@ -6,7 +6,7 @@
 def run(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS scan_event_log (
-            id           TEXT    PRIMARY KEY,      -- UUIDv7 acuñado por qr_parser_service
+            id           TEXT NOT NULL    PRIMARY KEY,      -- UUIDv7 acuñado por qr_parser_service
             raw_code     TEXT    NOT NULL,
             tipo         TEXT    NOT NULL DEFAULT 'desconocido',
             contexto     TEXT    DEFAULT 'auto',   -- producto/cliente/auto

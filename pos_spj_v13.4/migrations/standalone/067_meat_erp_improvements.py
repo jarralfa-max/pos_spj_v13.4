@@ -89,7 +89,7 @@ def run(conn: sqlite3.Connection) -> None:
     # ── 7. Tabla merma_log — registro granular de merma ──────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS merma_log (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             producto_id     TEXT NOT NULL REFERENCES productos(id),
             lote_id         TEXT REFERENCES lotes(id),
             produccion_id   TEXT REFERENCES producciones(id),

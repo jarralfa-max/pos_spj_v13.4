@@ -536,7 +536,8 @@ def test_plan_cuentas_natural_key_born_clean():
 
     src = (REPO / "migrations/standalone/059_plan_cuentas.py").read_text(encoding="utf-8")
     assert "AUTOINCREMENT" not in src
-    assert "codigo_sat   TEXT    PRIMARY KEY" in src
+    # Fase G: la PK TEXT natural se declara NOT NULL (no NULL silencioso).
+    assert "codigo_sat   TEXT NOT NULL    PRIMARY KEY" in src
     assert "lastrowid" not in src
 
 
@@ -703,7 +704,8 @@ def test_hardware_config_keyed_by_natural_tipo():
     assert "CREATE TABLE" not in repo_src  # Plan B: repo sin DDL espejo
     assert "INTEGER PRIMARY KEY AUTOINCREMENT" not in repo_src
     m050_src = (REPO / "migrations" / "m050_hardware_config_canonical.py").read_text(encoding="utf-8")
-    assert "tipo TEXT PRIMARY KEY" in m050_src
+    # Fase G: la PK TEXT natural se declara NOT NULL (no NULL silencioso).
+    assert "tipo TEXT NOT NULL PRIMARY KEY" in m050_src
     assert "INTEGER PRIMARY KEY AUTOINCREMENT" not in m050_src
 
 

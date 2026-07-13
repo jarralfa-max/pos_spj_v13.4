@@ -37,7 +37,7 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS hardware_config (
-            tipo TEXT PRIMARY KEY,
+            tipo TEXT NOT NULL PRIMARY KEY,
             nombre TEXT NOT NULL,
             driver TEXT,
             puerto TEXT,

@@ -276,7 +276,7 @@ class ModuloPlaneacionCompras(QWidget):
         producto_id   = self.cmb_producto.currentData()
         producto_nom  = self.cmb_producto.currentText()
 
-        # Look up last purchase cost for this product as a price hint
+        # Look up last purchase cost for this product as a price hint (via repo)
         unit_cost = 0.0
         try:
             unit_cost = self._planning_reads.last_purchase_cost(str(producto_id))

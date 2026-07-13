@@ -21,12 +21,12 @@ def _build_db() -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS configuraciones (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             clave TEXT UNIQUE,
             valor TEXT
         );
         CREATE TABLE IF NOT EXISTS productos (
-            id INTEGER PRIMARY KEY,
+            id TEXT PRIMARY KEY,
             nombre TEXT NOT NULL,
             precio REAL DEFAULT 0,
             precio_compra REAL DEFAULT 0,
@@ -38,41 +38,41 @@ def _build_db() -> sqlite3.Connection:
             activo INTEGER DEFAULT 1
         );
         CREATE TABLE IF NOT EXISTS inventario_actual (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            producto_id INTEGER NOT NULL,
-            sucursal_id INTEGER DEFAULT 1,
+            id TEXT PRIMARY KEY,
+            producto_id TEXT NOT NULL,
+            sucursal_id TEXT DEFAULT '',
             cantidad REAL DEFAULT 0,
             costo_promedio REAL DEFAULT 0,
             ultima_actualizacion DATETIME DEFAULT (datetime('now')),
             UNIQUE(producto_id, sucursal_id)
         );
         CREATE TABLE IF NOT EXISTS branch_inventory (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id INTEGER NOT NULL,
-            branch_id INTEGER NOT NULL,
+            id TEXT PRIMARY KEY,
+            product_id TEXT NOT NULL,
+            branch_id TEXT NOT NULL,
             quantity REAL DEFAULT 0,
             updated_at DATETIME DEFAULT (datetime('now')),
             UNIQUE(product_id, branch_id)
         );
         CREATE TABLE IF NOT EXISTS movimientos_inventario (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            uuid TEXT, producto_id INTEGER, tipo TEXT, tipo_movimiento TEXT,
+            id TEXT PRIMARY KEY,
+            uuid TEXT, producto_id TEXT, tipo TEXT, tipo_movimiento TEXT,
             cantidad REAL, existencia_anterior REAL DEFAULT 0,
             existencia_nueva REAL DEFAULT 0,
             costo_unitario REAL DEFAULT 0, costo_total REAL DEFAULT 0,
             descripcion TEXT, referencia TEXT, usuario TEXT,
-            sucursal_id INTEGER DEFAULT 1,
+            sucursal_id TEXT DEFAULT '',
             fecha DATETIME DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS financial_event_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             tipo TEXT, cuenta_debe TEXT, cuenta_haber TEXT,
             monto REAL, referencia TEXT, descripcion TEXT,
-            usuario TEXT, sucursal_id INTEGER DEFAULT 1,
+            usuario TEXT, sucursal_id TEXT DEFAULT '',
             fecha DATETIME DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS clientes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             nombre TEXT NOT NULL,
             telefono TEXT DEFAULT '',
             email TEXT DEFAULT '',
@@ -87,14 +87,14 @@ def _build_db() -> sqlite3.Connection:
             fecha_registro DATETIME DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS loyalty_ledger (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            cliente_id INTEGER, delta REAL, tipo TEXT,
+            id TEXT PRIMARY KEY,
+            cliente_id TEXT, delta REAL, tipo TEXT,
             concepto TEXT, fecha DATETIME DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS ventas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            folio TEXT, sucursal_id INTEGER DEFAULT 1,
-            usuario TEXT, cliente_id INTEGER,
+            id TEXT PRIMARY KEY,
+            folio TEXT, sucursal_id TEXT DEFAULT '',
+            usuario TEXT, cliente_id TEXT,
             subtotal REAL DEFAULT 0, descuento REAL DEFAULT 0,
             total REAL DEFAULT 0, forma_pago TEXT DEFAULT 'Efectivo',
             monto_pagado REAL DEFAULT 0, cambio REAL DEFAULT 0,
@@ -107,18 +107,18 @@ def _build_db() -> sqlite3.Connection:
             fecha DATETIME DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS detalles_venta (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            venta_id INTEGER, producto_id INTEGER, nombre TEXT,
+            id TEXT PRIMARY KEY,
+            venta_id TEXT, producto_id TEXT, nombre TEXT,
             cantidad REAL, precio_unitario REAL,
             descuento REAL DEFAULT 0, subtotal REAL,
             unidad TEXT DEFAULT 'pza'
         );
         INSERT INTO productos (id, nombre, precio, precio_compra, existencia)
-            VALUES (1, 'Pollo Entero', 150.0, 80.0, 50.0);
-        INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad)
-            VALUES (1, 1, 50.0);
+            VALUES ('1', 'Pollo Entero', 150.0, 80.0, 50.0);
+        INSERT INTO inventario_actual (id, producto_id, sucursal_id, cantidad)
+            VALUES ('inv1', '1', '1', 50.0);
         INSERT INTO clientes (id, nombre, telefono)
-            VALUES (1, 'Juan Pérez', '5551234567');
+            VALUES ('1', 'Juan Pérez', '5551234567');
         INSERT INTO configuraciones (clave, valor)
             VALUES ('api_gateway_key', 'test-secret-key-g');
     """)
@@ -211,7 +211,7 @@ class TestInventarioRouter:
         resp = client.get("/api/v1/inventario/stock/1", headers=_HDR)
         assert resp.status_code == 200
         data = resp.json()
-        assert data["producto_id"] == 1
+        assert data["producto_id"] == "1"
         assert data["stock"] >= 0
 
     def test_stock_producto_no_existe(self, client):
@@ -233,14 +233,14 @@ class TestInventarioRouter:
 
     def test_ajuste_sin_app_service_devuelve_503(self, client):
         resp = client.post("/api/v1/inventario/ajuste",
-                          json={"producto_id": 1, "cantidad": 10.0},
+                          json={"producto_id": "1", "cantidad": 10.0},
                           headers=_HDR)
         # app_service es None en el container de test
         assert resp.status_code == 503
 
     def test_entrada_sin_app_service_devuelve_503(self, client):
         resp = client.post("/api/v1/inventario/entrada",
-                          json={"producto_id": 1, "cantidad": 5.0,
+                          json={"producto_id": "1", "cantidad": 5.0,
                                 "costo_unitario": 80.0},
                           headers=_HDR)
         assert resp.status_code == 503
@@ -265,7 +265,7 @@ class TestClientesRouter:
         resp = client.get("/api/v1/clientes/1", headers=_HDR)
         assert resp.status_code == 200
         data = resp.json()
-        assert data["cliente"]["id"] == 1
+        assert data["cliente"]["id"] == "1"
 
     def test_get_cliente_no_existe(self, client):
         resp = client.get("/api/v1/clientes/9999", headers=_HDR)
@@ -305,11 +305,11 @@ class TestClientesRouter:
 class TestPedidosRouter:
     def _pedido_payload(self, **overrides):
         base = {
-            "cliente_id": 1,
-            "items": [{"producto_id": 1, "nombre": "Pollo",
+            "cliente_id": "1",
+            "items": [{"producto_id": "1", "nombre": "Pollo",
                         "cantidad": 2.0, "precio_unitario": 150.0}],
             "tipo_entrega": "sucursal",
-            "sucursal_id": 1,
+            "sucursal_id": "1",
         }
         base.update(overrides)
         return base
@@ -373,7 +373,7 @@ class TestPedidosRouter:
 
     def test_pedido_items_vacios_falla(self, client):
         resp = client.post("/api/v1/pedidos",
-                           json={"items": [], "sucursal_id": 1},
+                           json={"items": [], "sucursal_id": "1"},
                            headers=_HDR)
         # La suma de items vacíos crea total=0, pero la inserción puede fallar
         # o retornar 201 con total 0 — solo verificamos que no crashea el servidor

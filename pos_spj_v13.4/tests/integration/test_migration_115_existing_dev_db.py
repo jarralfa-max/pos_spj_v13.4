@@ -1,4 +1,4 @@
-"""Migración 114: alinea bases de desarrollo existentes con el schema nuevo.
+"""Migración 115: alinea bases de desarrollo existentes con el schema nuevo.
 
 Regresión del bug reportado en validación manual: en una DB existente el
 engine salta m000 (_already_run) y el desbloqueo fallaba con
@@ -12,7 +12,7 @@ import sqlite3
 from backend.shared.ids import new_uuid
 
 MIG = importlib.import_module(
-    "migrations.standalone.114_security_lock_and_canonical_kpi_schema"
+    "migrations.standalone.115_security_lock_and_canonical_kpi_schema"
 )
 
 
@@ -51,7 +51,7 @@ def _old_dev_db() -> sqlite3.Connection:
     return conn
 
 
-def test_114_adds_lock_columns_and_unlock_works():
+def test_115_adds_lock_columns_and_unlock_works():
     conn = _old_dev_db()
     uid = new_uuid()
     conn.execute(
@@ -82,16 +82,25 @@ def test_114_adds_lock_columns_and_unlock_works():
     assert row[0] == 0 and row[1] is None
 
 
-def test_114_creates_rbac_and_anticipos_tables():
+def test_115_creates_rbac_tables():
     conn = _old_dev_db()
     MIG.run(conn)
-    for tabla in ("usuario_permisos", "usuario_sucursal_permisos", "anticipos"):
+    for tabla in ("usuario_permisos", "usuario_sucursal_permisos"):
         assert conn.execute(
             "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (tabla,)
         ).fetchone(), f"falta tabla {tabla}"
 
 
-def test_114_rebuilds_loyalty_snapshots_to_checkpoint_shape():
+def test_114_creates_anticipos_table():
+    conn = _old_dev_db()
+    mig114 = importlib.import_module("migrations.standalone.114_anticipos_schema")
+    mig114.run(conn)
+    assert conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='anticipos'"
+    ).fetchone()
+
+
+def test_115_rebuilds_loyalty_snapshots_to_checkpoint_shape():
     conn = _old_dev_db()
     MIG.run(conn)
     cols = {r[1] for r in conn.execute("PRAGMA table_info(loyalty_snapshots)")}
@@ -103,7 +112,7 @@ def test_114_rebuilds_loyalty_snapshots_to_checkpoint_shape():
     assert {"saldo_actual", "usuario"} <= cols_hp
 
 
-def test_114_dedupes_cxc_and_creates_unique_index():
+def test_115_dedupes_cxc_and_creates_unique_index():
     conn = _old_dev_db()
     venta = new_uuid()
     for _ in range(2):  # duplicado histórico del handler viejo

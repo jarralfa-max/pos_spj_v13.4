@@ -13,7 +13,7 @@ def run(conn):
     conn.executescript(
         """
         CREATE TABLE IF NOT EXISTS raffles(
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL PRIMARY KEY,
             nombre TEXT NOT NULL,
             descripcion TEXT DEFAULT '',
             premio TEXT DEFAULT '',
@@ -34,7 +34,7 @@ def run(conn):
             updated_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS raffle_tickets(
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL PRIMARY KEY,
             raffle_id TEXT NOT NULL,
             cliente_id TEXT,
             venta_id TEXT,
@@ -50,7 +50,7 @@ def run(conn):
             UNIQUE(raffle_id, venta_id, numero_boleto)
         );
         CREATE TABLE IF NOT EXISTS raffle_financial_ledger(
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL PRIMARY KEY,
             raffle_id TEXT NOT NULL,
             tipo TEXT NOT NULL,
             monto REAL DEFAULT 0,
@@ -62,7 +62,7 @@ def run(conn):
             UNIQUE(raffle_id, tipo, referencia)
         );
         CREATE TABLE IF NOT EXISTS raffle_winners(
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL PRIMARY KEY,
             raffle_id TEXT NOT NULL,
             ticket_id TEXT NOT NULL,
             prize_id TEXT,
@@ -79,7 +79,7 @@ def run(conn):
             UNIQUE(raffle_id, ticket_id)
         );
         CREATE TABLE IF NOT EXISTS raffle_rules(
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL PRIMARY KEY,
             raffle_id TEXT NOT NULL UNIQUE,
             requires_registered_customer INTEGER DEFAULT 0,
             min_sale_amount REAL DEFAULT 0,
@@ -96,7 +96,7 @@ def run(conn):
             created_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS raffle_prizes(
-            id TEXT PRIMARY KEY,
+            id TEXT NOT NULL PRIMARY KEY,
             raffle_id TEXT NOT NULL,
             nombre TEXT NOT NULL,
             descripcion TEXT DEFAULT '',
@@ -108,13 +108,13 @@ def run(conn):
             created_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS raffle_eligible_products(
-            id TEXT PRIMARY KEY, raffle_id TEXT NOT NULL, product_id TEXT NOT NULL
+            id TEXT NOT NULL PRIMARY KEY, raffle_id TEXT NOT NULL, product_id TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS raffle_eligible_categories(
-            id TEXT PRIMARY KEY, raffle_id TEXT NOT NULL, category_id TEXT NOT NULL
+            id TEXT NOT NULL PRIMARY KEY, raffle_id TEXT NOT NULL, category_id TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS raffle_eligible_branches(
-            id TEXT PRIMARY KEY, raffle_id TEXT NOT NULL, sucursal_id TEXT NOT NULL
+            id TEXT NOT NULL PRIMARY KEY, raffle_id TEXT NOT NULL, sucursal_id TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_raffles_estado_fecha ON raffles(estado, created_at);
         CREATE INDEX IF NOT EXISTS idx_raffle_tickets_raffle ON raffle_tickets(raffle_id, estado);

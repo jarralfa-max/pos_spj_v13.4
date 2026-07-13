@@ -70,20 +70,19 @@ class FranchiseManager:
                 "SELECT COUNT(*) FROM ventas "
                 "WHERE estado='completada' AND sucursal_id=? "
                 "AND DATE(fecha) BETWEEN ? AND ?", [sid, df, dt]))
-            gastos = self._q(
-                "SELECT COALESCE(SUM(monto),0) FROM gastos "
-                "WHERE DATE(fecha) BETWEEN ? AND ?", [df, dt])
-            nomina = self._q(
-                "SELECT COALESCE(SUM(np.total),0) FROM nomina_pagos np "
-                "JOIN empleados e ON e.id=np.empleado_id "
-                "WHERE e.sucursal_id=? AND np.estado='pagado' "
-                "AND DATE(np.fecha) BETWEEN ? AND ?", [sid, df, dt])
-            empleados = int(self._q(
-                "SELECT COUNT(*) FROM empleados "
-                "WHERE sucursal_id=? AND activo=1", [sid]))
+            # Costo de ventas (COGS) por sucursal: costo real capturado en la
+            # línea de venta, con fallback a columnas de costo del producto.
+            costo_ventas = self._q(
+                "SELECT COALESCE(SUM(dv.cantidad * COALESCE("
+                "  NULLIF(dv.costo_unitario_real,0), NULLIF(p.costo,0), "
+                "  NULLIF(p.precio_compra,0), NULLIF(p.costo_promedio,0), 0)),0) "
+                "FROM detalles_venta dv "
+                "JOIN ventas v ON v.id=dv.venta_id "
+                "LEFT JOIN productos p ON p.id=dv.producto_id "
+                "WHERE v.estado='completada' AND v.sucursal_id=? "
+                "AND DATE(v.fecha) BETWEEN ? AND ?", [sid, df, dt])
 
-            utilidad = ingresos - nomina  # simplificado para ranking
-            eficiencia = (ingresos / max(1, empleados))  # ingreso por empleado
+            margen_bruto = ingresos - costo_ventas
             ticket_avg = (ingresos / max(1, tickets))
 
             ranking.append({
@@ -92,16 +91,16 @@ class FranchiseManager:
                 "ingresos": round(ingresos, 2),
                 "tickets": tickets,
                 "ticket_promedio": round(ticket_avg, 2),
-                "nomina": round(nomina, 2),
-                "utilidad_estimada": round(utilidad, 2),
-                "empleados": empleados,
-                "ingreso_por_empleado": round(eficiencia, 2),
+                "costo_ventas": round(costo_ventas, 2),
+                "margen_bruto": round(margen_bruto, 2),
+                # utilidad_estimada: alias de margen bruto (compat expansion_analyzer)
+                "utilidad_estimada": round(margen_bruto, 2),
                 "margen_pct": round(
-                    (utilidad / ingresos * 100) if ingresos else 0, 1),
+                    (margen_bruto / ingresos * 100) if ingresos else 0, 1),
             })
 
-        # Ordenar por utilidad descendente
-        ranking.sort(key=lambda x: x["utilidad_estimada"], reverse=True)
+        # Ordenar por ingresos descendente
+        ranking.sort(key=lambda x: x["ingresos"], reverse=True)
 
         # Agregar posición
         for i, r in enumerate(ranking):
@@ -117,7 +116,7 @@ class FranchiseManager:
                     "sucursales_count": len(ranking),
                     "top_sucursal":     top["nombre"],
                     "top_sucursal_id":  top["sucursal_id"],
-                    "top_utilidad":     top["utilidad_estimada"],
+                    "top_ingresos":     top["ingresos"],
                     "top_margen_pct":   top["margen_pct"],
                     "fecha_desde":      df,
                     "fecha_hasta":      dt,

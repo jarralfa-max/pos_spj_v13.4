@@ -159,7 +159,40 @@ class AccountsPayableService:
             self._db.commit()
         except Exception:
             pass
+        # Post-commit: publica CXP_CREADA al bus. Antes NADIE publicaba este
+        # canal aunque la UI de Finanzas está suscrita a él (la pestaña CxP no
+        # se refrescaba). El string 'evento=' del asiento es solo metadata.
+        self._publish_created(
+            ap_id=ap_id, folio=folio, supplier_id=supplier_id,
+            tipo=tipo, monto=float(amount or 0), usuario=usuario,
+        )
         return ap_id
+
+    def _publish_created(self, *, ap_id, folio, supplier_id, tipo,
+                         monto, usuario) -> None:
+        """Publica ACCOUNT_PAYABLE_CREATED (=CXP_CREADA) post-commit.
+
+        Best-effort: un fallo del bus nunca rompe la operación ya confirmada.
+        """
+        try:
+            from datetime import datetime, timezone
+            from backend.shared.ids import new_uuid
+            from core.events.event_bus import get_bus
+            from core.events.domain_events import ACCOUNT_PAYABLE_CREATED
+            get_bus().publish(ACCOUNT_PAYABLE_CREATED, {
+                "event_id":      new_uuid(),
+                "operation_id":  new_uuid(),
+                "entity_id":     str(ap_id),
+                "folio":         folio,
+                "supplier_id":   str(supplier_id or ""),
+                "tipo":          tipo,
+                "monto":         monto,
+                "usuario":       usuario,
+                "timestamp":     datetime.now(timezone.utc).isoformat(),
+                "source_module": "accounts_payable_service",
+            })
+        except Exception as exc:
+            logger.debug("publish CXP_CREADA: %s", exc)
 
     def abonar_cxp(
         self,

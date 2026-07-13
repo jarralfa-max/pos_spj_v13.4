@@ -115,19 +115,18 @@ class DeliveryAPIHandler(BaseHTTPRequestHandler):
             return False
 
     def _guardar_ubicacion(self, body: dict) -> bool:
+        # B15: sin DDL en runtime (REGLA 11). driver_locations nace born-clean
+        # en migrations/m000_base_schema.py con `chofer_id TEXT PRIMARY KEY`; el
+        # CREATE runtime anterior reintroducía una PK entera y contaminaba la BD.
         try:
             conn = get_connection()
             conn.execute("""INSERT OR REPLACE INTO driver_locations
                 (chofer_id, lat, lng, timestamp) VALUES(?,?,?,datetime('now'))""",
-                (body.get("chofer_id"), body.get("lat"), body.get("lng")))
-            try:
-                conn.execute("""CREATE TABLE IF NOT EXISTS driver_locations(
-                    chofer_id INTEGER PRIMARY KEY, lat REAL, lng REAL,
-                    timestamp DATETIME)""")
-                conn.commit()
-            except Exception: pass
+                (str(body.get("chofer_id") or ""), body.get("lat"), body.get("lng")))
+            conn.commit()
             return True
-        except Exception: return False
+        except Exception:
+            return False
 
     def _send_json(self, data):
         body = json.dumps(data, default=str, ensure_ascii=False).encode()

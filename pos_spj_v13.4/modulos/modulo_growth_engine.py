@@ -35,7 +35,7 @@ class ModuloGrowthEngine(QWidget):
 
     def _engine_para(self, sucursal_id=None):
         # TODO(legacy): GrowthEngine debe manejar solo metas/misiones hasta migración completa.
-        from modulos.growth_engine import GrowthEngine
+        from core.services.growth_engine import GrowthEngine
         wa = getattr(self.container, 'whatsapp_service', None)
         return GrowthEngine(self.db, sucursal_id or self.sucursal_id, wa)
 

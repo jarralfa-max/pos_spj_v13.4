@@ -35,7 +35,7 @@ def run(conn):
     # bi_transformations es bitácora append (sin clave natural): id TEXT UUIDv7.
     conn.execute("""
         CREATE TABLE IF NOT EXISTS bi_transformations (
-            id              TEXT    PRIMARY KEY,
+            id              TEXT NOT NULL    PRIMARY KEY,
             fecha           TEXT    NOT NULL,
             sucursal_id     TEXT    NOT NULL,
             categoria       TEXT    NOT NULL DEFAULT '',

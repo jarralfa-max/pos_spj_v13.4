@@ -175,14 +175,29 @@ def get_permisos(usuario_id: int, sucursal_id: int = 1) -> Set[str]:
     return set()
 
 
+def _bi_permissions() -> Set[str]:
+    """Permisos completos del módulo BI, derivados del catálogo canónico."""
+    try:
+        from core.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
+        acciones = CANONICAL_MODULE_PERMISSIONS.get("INTELIGENCIA_BI", ["ver"])
+    except Exception:
+        acciones = ["ver"]
+    return {f"INTELIGENCIA_BI.{a}" for a in acciones}
+
+
 def _get_default_permisos(rol: str) -> Set[str]:
     """Permisos mínimos garantizados por rol cuando la BD no tiene datos."""
+    bi_full = _bi_permissions()
     defaults = {
         "admin":    {"*"},  # all
         "gerente":  {"POS.ver","POS.crear","INVENTARIO.ver","REPORTES_BI.ver",
-                     "CLIENTES.ver","CLIENTES.editar","CAJA.ver","USUARIOS.ver"},
-        "cajero":   {"POS.ver","POS.crear","CLIENTES.ver","CAJA.ver"},
-        "almacen":  {"INVENTARIO.ver","INVENTARIO.editar","PRODUCTOS.ver"},
+                     "CLIENTES.ver","CLIENTES.editar","CAJA.ver","USUARIOS.ver"}
+                    | bi_full,  # BI completo para gerencia/dueño
+        # Cajero: sólo resumen + ventas del BI.
+        "cajero":   {"POS.ver","POS.crear","CLIENTES.ver","CAJA.ver",
+                     "INTELIGENCIA_BI.ver","INTELIGENCIA_BI.ver_ventas"},
+        "almacen":  {"INVENTARIO.ver","INVENTARIO.editar","PRODUCTOS.ver",
+                     "INTELIGENCIA_BI.ver","INTELIGENCIA_BI.ver_inventario"},
         "repartidor":{"DELIVERY.ver","DELIVERY.editar"},
         "solo_lectura": {"POS.ver","INVENTARIO.ver","PRODUCTOS.ver"},
     }
