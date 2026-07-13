@@ -700,6 +700,12 @@ class DialogoHistorialCliente(QDialog):
         self._svc = ClienteQueryService(conexion)
         self.id_cliente = id_cliente
         self.nombre_cliente = nombre_cliente
+        # QueryService canónico de historial — atributo plano asignado ANTES
+        # de init_ui() (que dispara las cargas). La UI no ejecuta SQL.
+        from backend.application.queries.customer_history_query_service import (
+            CustomerHistoryQueryService,
+        )
+        self._history_qs = CustomerHistoryQueryService(conexion)
         self.setWindowTitle(f"Historial de {nombre_cliente}")
         self.resize(800, 600)
         self.init_ui()
@@ -782,16 +788,6 @@ class DialogoHistorialCliente(QDialog):
         self.cargar_historial_compras()
         self.cargar_historial_puntos()
         self.cargar_historial_creditos()
-
-    @property
-    def _history_qs(self):
-        """QueryService canónico de historial (la UI no ejecuta SQL)."""
-        if not hasattr(self, '_history_qs_instance'):
-            from backend.application.queries.customer_history_query_service import (
-                CustomerHistoryQueryService,
-            )
-            self._history_qs_instance = CustomerHistoryQueryService(self.conexion)
-        return self._history_qs_instance
 
     def cargar_historial_compras(self):
         """Carga el historial de compras del cliente (vía QueryService)."""

@@ -112,6 +112,7 @@ MIGRATIONS = [
     _Migration("112",  "migrations.standalone.112_card_schema_reconciliation"),
     _Migration("113",  "migrations.standalone.113_raffle_subsystem"),
     _Migration("114",  "migrations.standalone.114_anticipos_schema"),
+    _Migration("115",  "migrations.standalone.115_security_lock_and_canonical_kpi_schema"),
 ]
 
 def _ensure_tracking_table(conn):
