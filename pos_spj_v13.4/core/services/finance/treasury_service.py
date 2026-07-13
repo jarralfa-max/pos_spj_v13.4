@@ -819,13 +819,34 @@ class TreasuryService:
         dp = [fc] if fc else []
 
         # ── ACTIVO ────────────────────────────────────────────────────────────
-        caja = max(0.0,
+        # Caja y bancos = tesorería (treasury_ledger) + efectivo operativo de
+        # sucursal (movimientos_caja: ventas/ingresos − retiros/egresos).
+        # Fuente canónica: el POS escribe el efectivo en movimientos_caja;
+        # leer solo treasury_ledger dejaba el KPI en cero con datos reales.
+        mc_fecha = " AND DATE(fecha) <= ?" if fc else ""
+        caja_tesoreria = (
             self._q(f"SELECT COALESCE(SUM(ingreso),0) FROM treasury_ledger {tl_in_sql}", dp)
             - self._q(f"SELECT COALESCE(SUM(egreso),0) FROM treasury_ledger {tl_eg_sql}", dp)
         )
-        cxc = self._q(
-            "SELECT COALESCE(SUM(balance),0) FROM accounts_receivable "
-            "WHERE status IN ('pendiente','parcial')", [])
+        caja_operativa = (
+            self._q(
+                "SELECT COALESCE(SUM(monto),0) FROM movimientos_caja "
+                f"WHERE UPPER(COALESCE(tipo,'')) IN ('INGRESO','VENTA'){mc_fecha}", dp)
+            - self._q(
+                "SELECT COALESCE(SUM(monto),0) FROM movimientos_caja "
+                f"WHERE UPPER(COALESCE(tipo,'')) IN ('RETIRO','EGRESO'){mc_fecha}", dp)
+        )
+        caja = max(0.0, caja_tesoreria + caja_operativa)
+        # CxC = tabla enterprise (accounts_receivable) + CxC canónica de ventas
+        # a crédito (cuentas_por_cobrar, escrita por CreditSaleFinanceHandler).
+        cxc = (
+            self._q(
+                "SELECT COALESCE(SUM(balance),0) FROM accounts_receivable "
+                "WHERE status IN ('pendiente','parcial')", [])
+            + self._q(
+                "SELECT COALESCE(SUM(saldo_pendiente),0) FROM cuentas_por_cobrar "
+                "WHERE COALESCE(estado,'pendiente') IN ('pendiente','parcial')", [])
+        )
         inventario = self._q(
             "SELECT COALESCE(SUM(existencia * COALESCE(precio_compra,costo,0)),0) "
             "FROM productos WHERE activo=1", [])

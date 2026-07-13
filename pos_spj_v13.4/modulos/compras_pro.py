@@ -622,6 +622,13 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def __init__(self, container, parent=None):
         super().__init__(parent)
         self.container       = container
+        # Repositorio de proveedores/sucursales — atributo plano (no property):
+        # el flujo QR/etiquetas lo usa vía get_sucursales_activas()/get_activos().
+        try:
+            from repositories.proveedor_repository import ProveedorRepository
+            self._prov_repo = ProveedorRepository(container.db)
+        except Exception:
+            self._prov_repo = None
         self.sucursal_id     = getattr(container, "sucursal_id", "") or ""
         self.usuario_actual  = ""
         self._usuario_rol    = ""
@@ -657,14 +664,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._autosave_timer.start()
 
     # ── Repository access (lazy, same DB connection) ─────────────────────────
-    @property
-    def _prov_repo(self):
-        """Lazy ProveedorRepository bound to the container's DB connection."""
-        if not hasattr(self, '_prov_repo_instance'):
-            from repositories.proveedor_repository import ProveedorRepository
-            self._prov_repo_instance = ProveedorRepository(self.container.db)
-        return self._prov_repo_instance
-
     @property
     def _purchase_repo(self):
         """Lazy PurchaseRepository bound to the container's DB connection."""

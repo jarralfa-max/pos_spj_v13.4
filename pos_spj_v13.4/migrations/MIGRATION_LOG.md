@@ -346,3 +346,21 @@ lotes/movimientos_lote con `id` UUIDv7 (sin columna `uuid` ni randomblob);
 - **Contratos API a UUID string**: modelos Pydantic de cotizaciones y
   pedidos transportan `cliente_id`/`producto_id`/`sucursal_id` como str
   (sin defaults `sucursal_id=1`).
+
+### Hotfix post-validación manual (misma rama)
+
+- **114_security_lock_and_canonical_kpi_schema.py** (registrada en engine):
+  alinea bases de desarrollo EXISTENTES con el schema nuevo — el engine
+  salta m000 en DBs ya migradas (`_already_run`), por lo que
+  `locked_reason`, `usuario_permisos`, `anticipos`, la forma checkpoint de
+  `loyalty_snapshots` y el índice único de CxC no llegaban a DBs vivas
+  ("no such column: locked_reason" al desbloquear). Idempotente; deduplica
+  CxC por venta_id conservando la fila más antigua antes de crear el índice.
+- **balance_general (TreasuryService)**: "Caja y bancos" ahora suma el
+  efectivo operativo de `movimientos_caja` (ventas/ingresos − retiros) y
+  "Cuentas por cobrar" suma la CxC canónica `cuentas_por_cobrar` — antes
+  leía solo `treasury_ledger`/`accounts_receivable` (vacías) y los KPIs de
+  Finanzas quedaban en cero con datos reales.
+- **_prov_repo / _history_qs**: convertidos de @property a atributos planos
+  asignados en __init__ (la property sin setter chocaba con asignaciones de
+  hotfixes locales: "property '_prov_repo' has no setter").

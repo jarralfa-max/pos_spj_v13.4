@@ -19,3 +19,16 @@ def test_purchase_service_maps_condition_to_cxp_or_capital():
     assert "payment_method != 'CREDITO'" in src
     assert "crear_cxp" in src
     assert 'haber="capital_operativo"' in src
+
+
+def test_prov_repo_is_plain_attribute_not_property():
+    """Regresión: property '_prov_repo' has no setter (chocaba con hotfixes).
+
+    El repositorio se asigna como atributo plano en __init__ y admite
+    reasignación (self._prov_repo = ...).
+    """
+    src = (APP_ROOT / "modulos" / "compras_pro.py").read_text(encoding="utf-8")
+    assert "self._prov_repo = ProveedorRepository(container.db)" in src
+    # No debe existir property _prov_repo (impediría asignaciones)
+    import re
+    assert not re.search(r"@property\s+def _prov_repo\(", src)
