@@ -425,13 +425,15 @@ class RecetaRepository:
                 (receta_id,)
             )
             for i, comp in enumerate(components):
+                # Identidad UUIDv7 por línea (REGLA CERO): la PK TEXT es NOT NULL.
                 self.db.execute("""
                     INSERT INTO product_recipe_components (
-                        recipe_id, component_product_id,
+                        id, recipe_id, component_product_id,
                         rendimiento_pct, merma_pct, cantidad, unidad, component_role, factor_costo,
                         tolerancia_pct, orden, descripcion
-                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (
+                    new_uuid(),
                     receta_id,
                     comp["component_product_id"],
                     float(Decimal(str(comp.get("rendimiento_pct", 0)))),

@@ -8,7 +8,7 @@ class VentasFacade:
     DEPRECADO: Usar container.uc_venta directamente.
     Mantenido para compatibilidad con código externo.
     """
-    def __init__(self, conn=None, sucursal_id=1, usuario="cajero"):
+    def __init__(self, conn=None, sucursal_id="", usuario="cajero"):
         warnings.warn(
             "VentasFacade está deprecado. Usa container.uc_venta.",
             DeprecationWarning, stacklevel=2
