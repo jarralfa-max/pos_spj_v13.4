@@ -187,7 +187,7 @@ class AIIntentPanel(QWidget):
             return
 
         try:
-            matcher = deps["ProductMatcher"](self._db, sucursal_id=1)
+            matcher = deps["ProductMatcher"](self._db, sucursal_id="")
             parser = deps["IntentParser"](matcher, llm_client=deps["OllamaClient"]())
             resolver = deps["IntentResolver"](parser=parser, db=self._db)
             msg = deps["IncomingMessage"](
