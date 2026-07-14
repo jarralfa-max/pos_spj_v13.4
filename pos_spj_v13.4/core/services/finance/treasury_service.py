@@ -36,7 +36,12 @@ class TreasuryService:
             self._bus = get_bus()
         except Exception:
             pass
-        self._ensure_tables()
+        # Tesorería unificada: TreasuryService es la única fachada de tesorería.
+        # La capa de movimientos confirmados (tabla treasury_movements, mig 083)
+        # se expone aquí delegando en un TreasuryMovementService propio — sin
+        # duplicar lógica. Así todo caller que recibe `treasury_service` puede
+        # registrar tanto el ledger categorizado como los movimientos confirmados.
+        self._movements = None
 
     @property
     def enabled(self) -> bool:
@@ -44,11 +49,23 @@ class TreasuryService:
             return self._module_config.is_enabled('treasury_central')
         return True
 
-    def _ensure_tables(self):
-        # Tables are now created by migration 082_treasury_tables.py.
-        # This method is kept as a no-op for backwards compatibility with any
-        # callers that invoke it directly; it will be removed in a future cleanup.
-        pass
+    @property
+    def movements(self) -> "TreasuryMovementService":
+        """Servicio de movimientos confirmados (treasury_movements)."""
+        if self._movements is None:
+            from core.services.finance.treasury_movement_service import (
+                TreasuryMovementService,
+            )
+            self._movements = TreasuryMovementService(self.db)
+        return self._movements
+
+    def register_inflow(self, *args, **kwargs) -> str:
+        """Registra una entrada confirmada de tesorería (delegación canónica)."""
+        return self.movements.register_inflow(*args, **kwargs)
+
+    def register_outflow(self, *args, **kwargs) -> str:
+        """Registra una salida confirmada de tesorería (delegación canónica)."""
+        return self.movements.register_outflow(*args, **kwargs)
 
     # ══════════════════════════════════════════════════════════════════════════
     #  Capital — inyecciones y retiros
@@ -517,6 +534,11 @@ class TreasuryService:
     #  Operaciones UI — Tesorería módulo helper methods
     # ══════════════════════════════════════════════════════════════════════════
 
+    def _ensure_tables(self) -> None:
+        # Schema canónico en migrations/ (mig 082): este servicio no crea tablas.
+        # No-op conservado por compatibilidad con callers directos.
+        return None
+
     def ensure_gastos_tables(self):
         """Asegura que las tablas de gastos futuros y fijos existan."""
         self._ensure_tables()
@@ -819,13 +841,34 @@ class TreasuryService:
         dp = [fc] if fc else []
 
         # ── ACTIVO ────────────────────────────────────────────────────────────
-        caja = max(0.0,
+        # Caja y bancos = tesorería (treasury_ledger) + efectivo operativo de
+        # sucursal (movimientos_caja: ventas/ingresos − retiros/egresos).
+        # Fuente canónica: el POS escribe el efectivo en movimientos_caja;
+        # leer solo treasury_ledger dejaba el KPI en cero con datos reales.
+        mc_fecha = " AND DATE(fecha) <= ?" if fc else ""
+        caja_tesoreria = (
             self._q(f"SELECT COALESCE(SUM(ingreso),0) FROM treasury_ledger {tl_in_sql}", dp)
             - self._q(f"SELECT COALESCE(SUM(egreso),0) FROM treasury_ledger {tl_eg_sql}", dp)
         )
-        cxc = self._q(
-            "SELECT COALESCE(SUM(balance),0) FROM accounts_receivable "
-            "WHERE status IN ('pendiente','parcial')", [])
+        caja_operativa = (
+            self._q(
+                "SELECT COALESCE(SUM(monto),0) FROM movimientos_caja "
+                f"WHERE UPPER(COALESCE(tipo,'')) IN ('INGRESO','VENTA'){mc_fecha}", dp)
+            - self._q(
+                "SELECT COALESCE(SUM(monto),0) FROM movimientos_caja "
+                f"WHERE UPPER(COALESCE(tipo,'')) IN ('RETIRO','EGRESO'){mc_fecha}", dp)
+        )
+        caja = max(0.0, caja_tesoreria + caja_operativa)
+        # CxC = tabla enterprise (accounts_receivable) + CxC canónica de ventas
+        # a crédito (cuentas_por_cobrar, escrita por CreditSaleFinanceHandler).
+        cxc = (
+            self._q(
+                "SELECT COALESCE(SUM(balance),0) FROM accounts_receivable "
+                "WHERE status IN ('pendiente','parcial')", [])
+            + self._q(
+                "SELECT COALESCE(SUM(saldo_pendiente),0) FROM cuentas_por_cobrar "
+                "WHERE COALESCE(estado,'pendiente') IN ('pendiente','parcial')", [])
+        )
         inventario = self._q(
             "SELECT COALESCE(SUM(existencia * COALESCE(precio_compra,costo,0)),0) "
             "FROM productos WHERE activo=1", [])

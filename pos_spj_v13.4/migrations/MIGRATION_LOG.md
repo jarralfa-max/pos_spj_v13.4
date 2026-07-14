@@ -346,3 +346,42 @@ lotes/movimientos_lote con `id` UUIDv7 (sin columna `uuid` ni randomblob);
 - **Contratos API a UUID string**: modelos Pydantic de cotizaciones y
   pedidos transportan `cliente_id`/`producto_id`/`sucursal_id` como str
   (sin defaults `sucursal_id=1`).
+
+### Hotfix post-validación manual (misma rama)
+
+- **114_security_lock_and_canonical_kpi_schema.py** (registrada en engine):
+  alinea bases de desarrollo EXISTENTES con el schema nuevo — el engine
+  salta m000 en DBs ya migradas (`_already_run`), por lo que
+  `locked_reason`, `usuario_permisos`, `anticipos`, la forma checkpoint de
+  `loyalty_snapshots` y el índice único de CxC no llegaban a DBs vivas
+  ("no such column: locked_reason" al desbloquear). Idempotente; deduplica
+  CxC por venta_id conservando la fila más antigua antes de crear el índice.
+- **balance_general (TreasuryService)**: "Caja y bancos" ahora suma el
+  efectivo operativo de `movimientos_caja` (ventas/ingresos − retiros) y
+  "Cuentas por cobrar" suma la CxC canónica `cuentas_por_cobrar` — antes
+  leía solo `treasury_ledger`/`accounts_receivable` (vacías) y los KPIs de
+  Finanzas quedaban en cero con datos reales.
+- **_prov_repo / _history_qs**: convertidos de @property a atributos planos
+  asignados en __init__ (la property sin setter chocaba con asignaciones de
+  hotfixes locales: "property '_prov_repo' has no setter").
+
+### Lote 4 — Tesorería unificada, identidad de roles, integración financiera
+
+- **S-07 — Roles del sistema born-clean UUIDv7 (m000)**: `_seed_system_roles`
+  siembra `roles` + `rol_permisos` con UUIDv7 canónico (SYSTEM_ROLE_UUIDS).
+  Se eliminaron de 047 los seeds con id entero 1..6 (identidad legacy) y el
+  usuario demo pasó a UUIDv7 + sucursal de instalación. Migración 116 remienda
+  DBs existentes (roles enteros → UUIDv7, propagando rol_permisos/usuarios_roles).
+  Corrige "role_id must be a canonical lowercase UUIDv7".
+- **S-08 — proveedores gana limite_credito/condiciones_pago (m000)**: soporte
+  para la política de crédito de proveedor en Compras.
+- **Tesorería unificada**: TreasuryService expone register_inflow/outflow
+  delegando en un TreasuryMovementService propio (fix "register_outflow
+  inexistente" en CapitalService/OperatingSupplies/Maintenance/FinancialTrace).
+- **Corte Z → capital**: CashCutCapitalHandler consolida el efectivo del turno
+  en treasury_movements (idempotente) al cerrar caja.
+- **KPIs financieros**: count_overdue_payables/receivables ahora suman la unión
+  canónica (financial_documents + CxP/CxC del POS) — la CxC del POS siempre
+  cuenta en KPIs.
+- **Historial de puntos del cliente**: fuente canónica loyalty_ledger
+  (acumulación/canje por venta), no historico_puntos vacío.

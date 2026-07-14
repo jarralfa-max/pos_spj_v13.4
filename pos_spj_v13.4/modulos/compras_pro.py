@@ -664,14 +664,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     # ── Repository access (lazy, same DB connection) ─────────────────────────
     @property
-    def _prov_repo(self):
-        """Lazy ProveedorRepository bound to the container's DB connection."""
-        if not hasattr(self, '_prov_repo_instance'):
-            from repositories.proveedor_repository import ProveedorRepository
-            self._prov_repo_instance = ProveedorRepository(self.container.db)
-        return self._prov_repo_instance
-
-    @property
     def _purchase_repo(self):
         """Lazy PurchaseRepository bound to the container's DB connection."""
         if not hasattr(self, '_purchase_repo_instance'):

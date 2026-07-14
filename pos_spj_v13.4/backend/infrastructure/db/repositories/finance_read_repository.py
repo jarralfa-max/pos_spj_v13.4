@@ -46,36 +46,44 @@ class FinanceReadRepository:
 
     # ── KPI / alert counts ──────────────────────────────────────────────────────
     def count_overdue_payables(self) -> int:
-        # Fuente preferida: financial_documents; fallback canónico: cuentas_por_pagar
+        # Unión canónica: los documentos enterprise (financial_documents) Y las
+        # CxP del POS (cuentas_por_pagar) cuentan como pasivos — son subsistemas
+        # distintos, no se solapan. Antes se ignoraba CxP si existía
+        # financial_documents, dejando KPIs incompletos (Bug 10).
+        total = 0
         if self._table_exists("financial_documents"):
-            return int(self._scalar(
+            total += int(self._scalar(
                 "SELECT COUNT(*) FROM financial_documents"
                 " WHERE document_type='payable'"
                 " AND status IN ('pending','partial')"
                 " AND due_date < date('now')"
             ) or 0)
         if self._table_exists("cuentas_por_pagar"):
-            return int(self._scalar(
+            total += int(self._scalar(
                 "SELECT COUNT(*) FROM cuentas_por_pagar"
                 " WHERE COALESCE(estado,'pendiente') IN ('pendiente','parcial')"
                 " AND COALESCE(fecha_vencimiento, date('now','+1 day')) < date('now')"
             ) or 0)
-        return 0
+        return total
 
     def count_overdue_receivables(self) -> int:
+        # Unión canónica: financial_documents (enterprise) + cuentas_por_cobrar
+        # (CxC del POS, escrita por CreditSaleFinanceHandler). Bug 10: la CxC
+        # debe reflejarse siempre en los KPIs.
+        total = 0
         if self._table_exists("financial_documents"):
-            return int(self._scalar(
+            total += int(self._scalar(
                 "SELECT COUNT(*) FROM financial_documents"
                 " WHERE document_type='receivable'"
                 " AND status IN ('pending','partial')"
                 " AND due_date < date('now')"
             ) or 0)
         if self._table_exists("cuentas_por_cobrar"):
-            return int(self._scalar(
+            total += int(self._scalar(
                 "SELECT COUNT(*) FROM cuentas_por_cobrar"
                 " WHERE COALESCE(estado,'pendiente') IN ('pendiente','parcial')"
             ) or 0)
-        return 0
+        return total
 
     def count_cash_discrepancies(self, *, days: int = 30) -> int:
         if not self._table_exists("cierres_caja"):

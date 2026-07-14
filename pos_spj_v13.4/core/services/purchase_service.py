@@ -14,12 +14,22 @@ class PurchaseService:
     en una sola transacción segura.
     """
     
-    def __init__(self, db_conn, purchase_repo, inventory_service, finance_service):
+    def __init__(self, db_conn, purchase_repo, inventory_service, finance_service,
+                 supplier_credit_service=None):
         # Inyección de dependencias: El orquestador conoce a sus "subordinados"
         self.db = db_conn
         self.purchase_repo = purchase_repo
         self.inventory_service = inventory_service
         self.finance_service = finance_service
+        self._supplier_credit = supplier_credit_service
+
+    @property
+    def supplier_credit(self):
+        """Política de crédito de proveedor (misma conexión/UnitOfWork)."""
+        if self._supplier_credit is None:
+            from application.services.supplier_credit_service import SupplierCreditService
+            self._supplier_credit = SupplierCreditService(self.db)
+        return self._supplier_credit
 
     def register_purchase(self, provider_id: int, branch_id: int, user: str,
                           items: list, payment_method: str, amount_paid: float,
@@ -49,6 +59,14 @@ class PurchaseService:
         
         # Determinamos si se pagó completa o quedó a crédito
         status = "completada" if amount_paid >= total_purchase else "credito"
+
+        # Validación de crédito de proveedor ANTES de autorizar la compra a
+        # crédito. Falla claramente; nunca autoriza en silencio (Bug 8).
+        deuda_credito = round(total_purchase - float(amount_paid or 0), 2)
+        if deuda_credito > 0:
+            ok, msg = self.supplier_credit.validate_credit(provider_id, deuda_credito)
+            if not ok:
+                raise ValueError(msg)
 
         _sp = f"compra_{new_uuid().replace('-', '')[:8]}"
         _sp_released = False

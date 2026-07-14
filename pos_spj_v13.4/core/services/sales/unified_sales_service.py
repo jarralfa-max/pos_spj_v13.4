@@ -72,7 +72,7 @@ class ResultadoVenta:
 class UnifiedSalesService:
     """DEPRECADO — proxy a ProcesarVentaUC."""
 
-    def __init__(self, conn=None, usuario="cajero", branch_id=1):
+    def __init__(self, conn=None, usuario="cajero", branch_id=""):
         self.conn      = conn
         self.usuario   = usuario
         self.branch_id = branch_id
