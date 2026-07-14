@@ -367,4 +367,28 @@ lotes/movimientos_lote con `id` UUIDv7 (sin columna `uuid` ni randomblob);
 - **_prov_repo / _history_qs**: convertidos de @property a atributos planos
   asignados en __init__ (la property sin setter chocaba con asignaciones de
   hotfixes locales: "property '_prov_repo' has no setter").
+<<<<<<< HEAD
 >>>>>>> 876684f95476cf5bdc2db18775a21a510949ee54
+=======
+
+### Lote 4 — Tesorería unificada, identidad de roles, integración financiera
+
+- **S-07 — Roles del sistema born-clean UUIDv7 (m000)**: `_seed_system_roles`
+  siembra `roles` + `rol_permisos` con UUIDv7 canónico (SYSTEM_ROLE_UUIDS).
+  Se eliminaron de 047 los seeds con id entero 1..6 (identidad legacy) y el
+  usuario demo pasó a UUIDv7 + sucursal de instalación. Migración 116 remienda
+  DBs existentes (roles enteros → UUIDv7, propagando rol_permisos/usuarios_roles).
+  Corrige "role_id must be a canonical lowercase UUIDv7".
+- **S-08 — proveedores gana limite_credito/condiciones_pago (m000)**: soporte
+  para la política de crédito de proveedor en Compras.
+- **Tesorería unificada**: TreasuryService expone register_inflow/outflow
+  delegando en un TreasuryMovementService propio (fix "register_outflow
+  inexistente" en CapitalService/OperatingSupplies/Maintenance/FinancialTrace).
+- **Corte Z → capital**: CashCutCapitalHandler consolida el efectivo del turno
+  en treasury_movements (idempotente) al cerrar caja.
+- **KPIs financieros**: count_overdue_payables/receivables ahora suman la unión
+  canónica (financial_documents + CxP/CxC del POS) — la CxC del POS siempre
+  cuenta en KPIs.
+- **Historial de puntos del cliente**: fuente canónica loyalty_ledger
+  (acumulación/canje por venta), no historico_puntos vacío.
+>>>>>>> 1ee80499450027559f29f07d983e7658a0a37223

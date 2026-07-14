@@ -58,9 +58,39 @@ class CustomerHistoryQueryService:
         ]
 
     def get_points_history(self, customer_id: str) -> list[dict]:
-        """Movimientos de puntos: fecha, tipo, puntos, saldo, descripción."""
+        """Movimientos de puntos ganados/usados por venta.
+
+        Fuente canónica: loyalty_ledger (escrita por LoyaltyApplicationService
+        en cada acumulación/canje). El historial mostraba antes historico_puntos,
+        que el flujo normal de venta no escribe → aparecía vacío (Bug 7).
+        """
         customer_id = str(customer_id or "").strip()
-        if not customer_id or not self._table_exists("historico_puntos"):
+        if not customer_id:
+            return []
+        if self._table_exists("loyalty_ledger"):
+            rows = self.db.execute(
+                """
+                SELECT created_at, tipo, COALESCE(puntos, 0),
+                       COALESCE(saldo_post, 0), COALESCE(descripcion, ''),
+                       COALESCE(referencia, '')
+                FROM loyalty_ledger
+                WHERE cliente_id = ?
+                ORDER BY created_at DESC, id DESC
+                """,
+                (customer_id,),
+            ).fetchall()
+            return [
+                {
+                    "fecha": r[0],
+                    "tipo": str(r[1] or ""),
+                    "puntos": int(r[2] or 0),
+                    "saldo_actual": float(r[3] or 0),
+                    "descripcion": str(r[4] or ""),
+                    "venta_id": str(r[5] or ""),
+                }
+                for r in rows
+            ]
+        if not self._table_exists("historico_puntos"):
             return []
         rows = self.db.execute(
             """

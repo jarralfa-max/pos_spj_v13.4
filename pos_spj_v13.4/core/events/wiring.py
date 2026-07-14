@@ -302,6 +302,18 @@ def _wire_cash_events(bus, container) -> None:
     from core.events.cash_event_bridge import register_cash_event_bridge
     register_cash_event_bridge(bus, container)
 
+    # Bug 10: el corte Z consolida el efectivo del turno en capital/tesorería.
+    treasury = getattr(container, "treasury_service", None)
+    if treasury is not None:
+        from backend.shared.events.event_names import EventName
+        from core.events.handlers.cash_cut_capital_handler import CashCutCapitalHandler
+        cash_cut_capital = CashCutCapitalHandler(treasury)
+        bus.subscribe(
+            EventName.CASH_Z_CUT_GENERATED.value,
+            cash_cut_capital.handle,
+            priority=50, label="cash_cut_capital",
+        )
+
 
 def _wire_flujos_criticos(bus, container) -> None:
     """
