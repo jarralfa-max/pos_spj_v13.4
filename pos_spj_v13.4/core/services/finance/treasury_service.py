@@ -36,7 +36,12 @@ class TreasuryService:
             self._bus = get_bus()
         except Exception:
             pass
-        self._ensure_tables()
+        # Tesorería unificada: TreasuryService es la única fachada de tesorería.
+        # La capa de movimientos confirmados (tabla treasury_movements, mig 083)
+        # se expone aquí delegando en un TreasuryMovementService propio — sin
+        # duplicar lógica. Así todo caller que recibe `treasury_service` puede
+        # registrar tanto el ledger categorizado como los movimientos confirmados.
+        self._movements = None
 
     @property
     def enabled(self) -> bool:
@@ -44,11 +49,23 @@ class TreasuryService:
             return self._module_config.is_enabled('treasury_central')
         return True
 
-    def _ensure_tables(self):
-        # Tables are now created by migration 082_treasury_tables.py.
-        # This method is kept as a no-op for backwards compatibility with any
-        # callers that invoke it directly; it will be removed in a future cleanup.
-        pass
+    @property
+    def movements(self) -> "TreasuryMovementService":
+        """Servicio de movimientos confirmados (treasury_movements)."""
+        if self._movements is None:
+            from core.services.finance.treasury_movement_service import (
+                TreasuryMovementService,
+            )
+            self._movements = TreasuryMovementService(self.db)
+        return self._movements
+
+    def register_inflow(self, *args, **kwargs) -> str:
+        """Registra una entrada confirmada de tesorería (delegación canónica)."""
+        return self.movements.register_inflow(*args, **kwargs)
+
+    def register_outflow(self, *args, **kwargs) -> str:
+        """Registra una salida confirmada de tesorería (delegación canónica)."""
+        return self.movements.register_outflow(*args, **kwargs)
 
     # ══════════════════════════════════════════════════════════════════════════
     #  Capital — inyecciones y retiros
@@ -516,6 +533,11 @@ class TreasuryService:
     # ══════════════════════════════════════════════════════════════════════════
     #  Operaciones UI — Tesorería módulo helper methods
     # ══════════════════════════════════════════════════════════════════════════
+
+    def _ensure_tables(self) -> None:
+        # Schema canónico en migrations/ (mig 082): este servicio no crea tablas.
+        # No-op conservado por compatibilidad con callers directos.
+        return None
 
     def ensure_gastos_tables(self):
         """Asegura que las tablas de gastos futuros y fijos existan."""

@@ -375,17 +375,19 @@ def _create_productos(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS proveedores (
-            id          TEXT NOT NULL PRIMARY KEY,
-            nombre      TEXT NOT NULL,
-            rfc         TEXT,
-            telefono    TEXT,
-            email       TEXT,
-            direccion   TEXT,
-            contacto    TEXT,
-            categoria   TEXT DEFAULT 'Productos',
-            notas       TEXT,
-            activo      INTEGER DEFAULT 1,
-            fecha_alta  DATETIME DEFAULT (datetime('now'))
+            id               TEXT NOT NULL PRIMARY KEY,
+            nombre           TEXT NOT NULL,
+            rfc              TEXT,
+            telefono         TEXT,
+            email            TEXT,
+            direccion        TEXT,
+            contacto         TEXT,
+            categoria        TEXT DEFAULT 'Productos',
+            notas            TEXT,
+            limite_credito   REAL DEFAULT 0,
+            condiciones_pago INTEGER DEFAULT 0,
+            activo           INTEGER DEFAULT 1,
+            fecha_alta       DATETIME DEFAULT (datetime('now'))
         )
     """)
     conn.execute("""
@@ -3321,7 +3323,83 @@ def _seed_initial_data(conn: sqlite3.Connection):
             INSERT INTO usuarios (id, nombre, usuario, password_hash, rol, sucursal_id, activo)
             VALUES (?, 'Administrador Maestro', 'admin', ?, 'admin', ?, 1)
         """, (new_uuid(), hash_pass, INSTALL_BRANCH_UUID))
-        
+
+    # 4. Roles del sistema + matriz de permisos (rol_permisos) con identidad
+    # UUIDv7 canónica. Antes esto lo sembraba 047 con enteros 1..6, lo que
+    # rompía Configuración → Permisos ("role_id must be a canonical lowercase
+    # UUIDv7"). Aquí nace born-clean con UUIDv7.
+    _seed_system_roles(conn)
+
+
+def _seed_system_roles(conn: sqlite3.Connection) -> None:
+    """Roles de sistema (UUIDv7) y su matriz rol_permisos canónica."""
+    from backend.shared.ids import new_uuid, SYSTEM_ROLE_UUIDS
+
+    roles = [
+        ("admin",        "Acceso total al sistema"),
+        ("gerente",      "Acceso a reportes, RRHH y configuración"),
+        ("cajero",       "Ventas, caja y clientes"),
+        ("almacen",      "Inventario, compras y recepción"),
+        ("repartidor",   "Solo módulo delivery"),
+        ("solo_lectura", "Solo consulta sin modificaciones"),
+    ]
+    for nombre, desc in roles:
+        conn.execute(
+            "INSERT OR IGNORE INTO roles (id, nombre, descripcion, activo) VALUES (?,?,?,1)",
+            (SYSTEM_ROLE_UUIDS[nombre], nombre, desc),
+        )
+
+    modulos = [
+        'DASHBOARD', 'POS', 'INVENTARIO', 'PRODUCTOS', 'CLIENTES', 'COMPRAS',
+        'CAJA', 'REPORTES_BI', 'FINANZAS_UNIFICADAS', 'TESORERIA', 'RRHH',
+        'CONFIGURACION', 'USUARIOS', 'DELIVERY', 'COTIZACIONES', 'MERMA',
+        'PROVEEDORES', 'PRODUCCION', 'TRANSFERENCIAS',
+    ]
+    acciones = ['ver', 'crear', 'editar', 'eliminar', 'exportar']
+
+    def grant(rol_nombre: str, modulo: str, accion: str, permitido: int = 1) -> None:
+        conn.execute(
+            "INSERT OR IGNORE INTO rol_permisos (id, rol_id, modulo, accion, permitido) "
+            "VALUES (?,?,?,?,?)",
+            (new_uuid(), SYSTEM_ROLE_UUIDS[rol_nombre], modulo, accion, permitido),
+        )
+
+    # admin: todo permitido
+    for mod in modulos:
+        for acc in acciones:
+            grant('admin', mod, acc, 1)
+
+    # gerente: todo salvo eliminar en CONFIGURACION/USUARIOS
+    gerente_negar = {('CONFIGURACION', 'eliminar'), ('USUARIOS', 'eliminar')}
+    for mod in modulos:
+        for acc in acciones:
+            grant('gerente', mod, acc, 0 if (mod, acc) in gerente_negar else 1)
+
+    # cajero: incluye DASHBOARD.ver (hallazgo previo: cajero sin dashboard)
+    cajero = {
+        'DASHBOARD': ['ver'], 'POS': ['ver', 'crear', 'editar'],
+        'CAJA': ['ver', 'crear'], 'CLIENTES': ['ver', 'crear'],
+        'COTIZACIONES': ['ver', 'crear'], 'INVENTARIO': ['ver'], 'PRODUCTOS': ['ver'],
+    }
+    for mod, accs in cajero.items():
+        for acc in accs:
+            grant('cajero', mod, acc, 1)
+
+    almacen = {
+        'DASHBOARD': ['ver'], 'INVENTARIO': acciones, 'COMPRAS': acciones,
+        'PRODUCTOS': ['ver', 'crear', 'editar'], 'MERMA': acciones,
+        'PROVEEDORES': acciones, 'PRODUCCION': acciones, 'TRANSFERENCIAS': acciones,
+    }
+    for mod, accs in almacen.items():
+        for acc in accs:
+            grant('almacen', mod, acc, 1)
+
+    grant('repartidor', 'DELIVERY', 'ver', 1)
+    grant('repartidor', 'DELIVERY', 'editar', 1)
+
+    for mod in modulos:
+        grant('solo_lectura', mod, 'ver', 1)
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Punto de entrada para prueba directa
 # ─────────────────────────────────────────────────────────────────────────────

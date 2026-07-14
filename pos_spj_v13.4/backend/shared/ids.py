@@ -63,3 +63,25 @@ def new_uuid() -> str:
 # `sucursal_id == 1` está prohibido; debe resolver la sucursal real de la BD.
 INSTALL_BRANCH_UUID = "01900000-0000-7000-8000-000000000001"
 INSTALL_CASHBOX_UUID = "01900000-0000-7000-8000-000000000002"
+
+# Identidad ESTABLE de los roles del sistema. Son UUIDv7 canónicos (no enteros
+# '1'..'6'): el seed de roles/rol_permisos y RBAC deben usar estas constantes
+# para que Configuración → Permisos nunca reciba un role_id no-UUIDv7
+# ("role_id must be a canonical lowercase UUIDv7"). El nombre del rol sigue
+# siendo la referencia comercial; la identidad de dominio es este UUID.
+SYSTEM_ROLE_UUIDS: dict[str, str] = {
+    "admin":        "01900000-0000-7000-8000-0000000000a1",
+    "gerente":      "01900000-0000-7000-8000-0000000000a2",
+    "cajero":       "01900000-0000-7000-8000-0000000000a3",
+    "almacen":      "01900000-0000-7000-8000-0000000000a4",
+    "repartidor":   "01900000-0000-7000-8000-0000000000a5",
+    "solo_lectura": "01900000-0000-7000-8000-0000000000a6",
+    "delivery":     "01900000-0000-7000-8000-0000000000a7",
+    "marketing":    "01900000-0000-7000-8000-0000000000a8",
+    "finanzas":     "01900000-0000-7000-8000-0000000000a9",
+}
+
+
+def role_uuid(nombre: str) -> str:
+    """UUIDv7 canónico del rol de sistema, o uno nuevo para roles no-semilla."""
+    return SYSTEM_ROLE_UUIDS.get(str(nombre or "").strip().lower(), new_uuid())

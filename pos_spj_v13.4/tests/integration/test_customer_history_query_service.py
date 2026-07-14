@@ -19,10 +19,11 @@ def _seed(conn):
         "VALUES (?, 'F-1', ?, 320.5, 'Tarjeta', 32, 'completada')",
         (venta_id, cid),
     )
+    # Fuente canónica de puntos: loyalty_ledger (Bug 7).
     conn.execute(
-        "INSERT INTO historico_puntos (id, cliente_id, tipo, puntos, saldo_actual, descripcion) "
-        "VALUES (?, ?, 'venta', 32, 32, 'Compra F-1')",
-        (new_uuid(), cid),
+        "INSERT INTO loyalty_ledger (id, cliente_id, tipo, puntos, saldo_post, "
+        " referencia, descripcion) VALUES (?, ?, 'acumulacion', 32, 32, ?, 'Compra F-1')",
+        (new_uuid(), cid, venta_id),
     )
     conn.execute(
         "INSERT INTO cuentas_por_cobrar (id, cliente_id, venta_id, folio, monto_original, "
