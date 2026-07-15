@@ -55,8 +55,15 @@ def db_vacia(conn: sqlite3.Connection) -> bool:
 def bootstrap_database(db_path: str = "pos_spj.db", verify_only: bool = False) -> dict:
     """
     Inicializa y valida DB de forma idempotente.
-    - Si la DB está vacía, fuerza ejecución de migraciones.
-    - Si no está vacía, valida tablas críticas.
+
+    Ejecuta SIEMPRE las migraciones pendientes: el engine canónico
+    (migrations.engine.up) lleva registro en schema_migrations y omite las ya
+    aplicadas, por lo que en una DB al día es un no-op barato.
+
+    BUGFIX CRÍTICO: antes solo se migraba cuando la DB estaba VACÍA — toda
+    instalación existente quedaba congelada en su schema y NINGUNA migración
+    nueva (columnas, tablas, remapeos de identidad) llegaba al runtime. Los
+    arreglos de schema eran invisibles en producción/desarrollo con DB viva.
     """
     _parent = os.path.dirname(os.path.abspath(db_path))
     if _parent:
@@ -67,12 +74,13 @@ def bootstrap_database(db_path: str = "pos_spj.db", verify_only: bool = False) -
     finally:
         conn.close()
 
-    if not verify_only and is_empty:
-        logger.warning("DB vacía detectada — ejecutando migraciones: %s", db_path)
+    if not verify_only:
+        if is_empty:
+            logger.warning("DB vacía detectada — creando schema born-clean: %s", db_path)
+        else:
+            logger.info("DB existente — aplicando migraciones pendientes: %s", db_path)
         _run_migrations(db_path)
-        logger.info("Migraciones completadas (bootstrap DB vacía)")
-    elif not verify_only:
-        logger.info("DB ya contiene tablas — validando estado: %s", db_path)
+        logger.info("Migraciones al día")
 
     # Verificar tablas
     try:

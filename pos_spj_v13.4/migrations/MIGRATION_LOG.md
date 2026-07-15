@@ -385,3 +385,18 @@ lotes/movimientos_lote con `id` UUIDv7 (sin columna `uuid` ni randomblob);
   cuenta en KPIs.
 - **Historial de puntos del cliente**: fuente canónica loyalty_ledger
   (acumulación/canje por venta), no historico_puntos vacío.
+
+### Hotfix causa raíz — el arranque no aplicaba migraciones a DBs existentes
+
+- **scripts/bootstrap_db.py (bootstrap_database)**: ejecutaba `_run_migrations`
+  SOLO cuando la DB estaba vacía. Toda instalación con DB viva quedaba
+  congelada en su schema: 114/115/116 (anticipos, locked_reason,
+  usuario_permisos, loyalty_snapshots checkpoint, roles UUIDv7) jamás corrían
+  al arrancar — por eso los fixes de schema eran invisibles en validación
+  manual ("ningún bug se solucionó"). Ahora `_run_migrations` corre SIEMPRE:
+  el engine es idempotente (schema_migrations + `_already_run`), en una DB al
+  día es un no-op barato. `--verify-only` sigue sin migrar.
+- Test de regresión: `tests/integration/test_bootstrap_applies_pending_migrations.py`
+  (DB legacy con 115/116 pendientes recibe locked_reason + remapeo de roles a
+  UUIDv7 al llamar bootstrap_database; DB vacía sigue naciendo born-clean;
+  verify_only no migra; guard estático contra reintroducir el gating).
