@@ -348,11 +348,12 @@ class AlertaItem(QFrame):
 class PedidoWAItem(QFrame):
     """Compact WhatsApp order card with status badge."""
 
-    ver_pedido = pyqtSignal(int)
+    # UUIDv7 string — REGLA CERO: los IDs de dominio nunca viajan como int.
+    ver_pedido = pyqtSignal(str)
 
     def __init__(self, pedido: dict, parent=None):
         super().__init__(parent)
-        pid = pedido.get("id", 0)
+        pid = str(pedido.get("id", "") or "")
 
         self.setObjectName("pedidoWAItem")
         # Background/border/labels handled by global QSS (_block_dash_cards)
@@ -660,6 +661,17 @@ class Dashboard(QWidget):
             self._container = None
         super().__init__(parent)
         self.conn = conn or get_connection()
+        # Fuente única de lecturas del dashboard (Bug 2: KPIs diarios SOLO
+        # vía QueryService — la UI no ejecuta SQL). Preferir la instancia
+        # registrada en AppContainer; sin container (conexión suelta) se
+        # construye sobre la misma conexión con la misma clase canónica.
+        from backend.application.queries.dashboard_query_service import (
+            DashboardQueryService,
+        )
+        self._qs = (
+            getattr(self._container, "dashboard_query_service", None)
+            or DashboardQueryService(self.conn)
+        )
         self._setup_ui()
 
         # 60s fallback timer
@@ -1125,127 +1137,74 @@ class Dashboard(QWidget):
         self._actualizar_alertas()
         self._actualizar_repartidores()
 
+    def _branch_filter_id(self) -> str | None:
+        """Sucursal para filtrar KPIs: None para gerencia (vista global) o si
+        no hay sucursal activa. NUNCA un default entero arbitrario."""
+        es_gerente = getattr(self, "rol_actual", "cajero") in (
+            "admin", "administrador", "gerente"
+        )
+        if es_gerente:
+            return None
+        branch_id = str(getattr(self, "sucursal_id", "") or "").strip()
+        return branch_id or None
+
     def _actualizar_grafica(self) -> None:
         DIAS_ES = ["L", "M", "X", "J", "V", "S", "D"]
         datos = []
         try:
-            rows = self.conn.execute("""
-                SELECT DATE('now', printf('-%d days', 6-seq)) AS dia,
-                       COALESCE(SUM(v.total), 0) AS total
-                FROM (SELECT 0 AS seq UNION SELECT 1 UNION SELECT 2
-                      UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6) d
-                LEFT JOIN ventas v
-                    ON DATE(v.fecha) = DATE('now', printf('-%d days', 6-d.seq))
-                   AND v.estado = 'completada'
-                GROUP BY dia
-                ORDER BY dia
-            """).fetchall()
-            for row in rows:
+            for punto in self._qs.weekly_sales_by_day():
                 try:
                     import datetime as _dt
-                    d = _dt.date.fromisoformat(row[0])
+                    d = _dt.date.fromisoformat(punto["fecha"])
                     etiqueta = DIAS_ES[d.weekday()]
                 except Exception:
                     etiqueta = "?"
-                datos.append((etiqueta, float(row[1])))
+                datos.append((etiqueta, float(punto["total"])))
         except Exception as e:
             logger.debug("_actualizar_grafica: %s", e)
+        if not datos:
             datos = [(d, 0.0) for d in DIAS_ES]
         self._grafica.set_datos(datos)
 
     def _actualizar_kpis(self):
-        ventas_hoy = tickets_hoy = 0.0
-
-        # Ventas del día
         try:
-            es_gerente = getattr(self, "rol_actual", "cajero") in (
-                "admin", "administrador", "gerente"
-            )
-            suc_filter = (
-                ""
-                if es_gerente
-                else f"AND sucursal_id={getattr(self,'sucursal_id',1)}"
-            )
-            row = self.conn.execute(f"""
-                SELECT COALESCE(SUM(total),0), COUNT(*)
-                FROM ventas WHERE DATE(fecha)=DATE('now') AND estado='completada'
-                {suc_filter}
-            """).fetchone()
-            ventas_hoy  = float(row[0])
-            tickets_hoy = int(row[1])
-            self._kpis["ventas_hoy"].set_valor(f"${ventas_hoy:,.0f}")
-            self._kpis["tickets_hoy"].set_valor(str(tickets_hoy))
-            ticket_prom = ventas_hoy / tickets_hoy if tickets_hoy > 0 else 0
-            self._kpis["ticket_prom"].set_valor(f"${ticket_prom:,.0f}")
-        except Exception:
-            pass
+            kpi = self._qs.daily_kpis(self._branch_filter_id())
+        except Exception as e:
+            logger.debug("_actualizar_kpis: %s", e)
+            return
 
-        # Margen bruto
+        ventas_hoy = float(kpi.get("ventas_hoy", 0))
+        tickets_hoy = int(kpi.get("tickets_hoy", 0))
+        self._kpis["ventas_hoy"].set_valor(f"${ventas_hoy:,.0f}")
+        self._kpis["tickets_hoy"].set_valor(str(tickets_hoy))
+        self._kpis["ticket_prom"].set_valor(
+            f"${float(kpi.get('ticket_promedio', 0)):,.0f}"
+        )
+
+        margen = float(kpi.get("margen_pct", 0))
+        self._kpis["margen_hoy"].set_valor(f"{margen:.1f}%")
         try:
-            r = self.conn.execute("""
-                SELECT COALESCE(SUM(vd.cantidad * vd.precio_unitario),0),
-                       COALESCE(SUM(vd.cantidad * COALESCE(p.precio_compra,0)),0)
-                FROM ventas v
-                JOIN detalles_venta vd ON vd.venta_id=v.id
-                JOIN productos p ON p.id=vd.producto_id
-                WHERE DATE(v.fecha)=DATE('now') AND v.estado='completada'
-            """).fetchone()
-            ingresos = float(r[0] or 0)
-            costos   = float(r[1] or 0)
-            margen   = ((ingresos - costos) / ingresos * 100) if ingresos > 0 else 0
-            self._kpis["margen_hoy"].set_valor(f"{margen:.1f}%")
             self._kpis["margen_hoy"].set_estado(margen)
         except Exception:
             pass
 
-        # vs Ayer
-        try:
-            ayer = float(
-                self.conn.execute("""
-                    SELECT COALESCE(SUM(total),0) FROM ventas
-                    WHERE DATE(fecha)=DATE('now','-1 day') AND estado='completada'
-                """).fetchone()[0]
-            )
-            if ayer > 0:
-                delta = (ventas_hoy - ayer) / ayer * 100
-                sign  = "↑ +" if delta >= 0 else "↓ "
-                self._kpis["vs_ayer"].set_valor(f"{sign}{delta:.1f}%")
+        ayer = float(kpi.get("ventas_ayer", 0))
+        if ayer > 0:
+            delta = (ventas_hoy - ayer) / ayer * 100
+            sign = "↑ +" if delta >= 0 else "↓ "
+            self._kpis["vs_ayer"].set_valor(f"{sign}{delta:.1f}%")
+            try:
                 self._kpis["vs_ayer"].set_estado(ventas_hoy, ayer)
-            else:
-                self._kpis["vs_ayer"].set_valor("—")
-        except Exception:
-            pass
+            except Exception:
+                pass
+        else:
+            self._kpis["vs_ayer"].set_valor("—")
 
-        # Clientes
-        try:
-            n = self.conn.execute("""
-                SELECT COUNT(DISTINCT COALESCE(cliente_id,0)) FROM ventas
-                WHERE DATE(fecha)=DATE('now') AND estado='completada'
-                  AND cliente_id IS NOT NULL
-            """).fetchone()[0]
-            self._kpis["clientes_hoy"].set_valor(str(n))
-        except Exception:
-            pass
-
-        # Pedidos WA
-        try:
-            n = self.conn.execute("""
-                SELECT COUNT(*) FROM pedidos_whatsapp
-                WHERE estado NOT IN ('entregado','cancelado')
-            """).fetchone()[0]
-            self._kpis["pedidos_wa"].set_valor(str(n))
-        except Exception:
-            pass
-
-        # Stock bajo
-        try:
-            n = self.conn.execute("""
-                SELECT COUNT(*) FROM productos
-                WHERE existencia <= COALESCE(stock_minimo,5) AND activo=1
-            """).fetchone()[0]
-            self._kpis["productos_bajo"].set_valor(str(n))
-        except Exception:
-            pass
+        self._kpis["clientes_hoy"].set_valor(str(int(kpi.get("clientes_hoy", 0))))
+        self._kpis["pedidos_wa"].set_valor(str(int(kpi.get("pedidos_wa_activos", 0))))
+        self._kpis["productos_bajo"].set_valor(
+            str(int(kpi.get("productos_stock_bajo", 0)))
+        )
 
     def _actualizar_actividad(self) -> None:
         """Populate activity feed from recent sales and WA orders."""
@@ -1256,44 +1215,21 @@ class Dashboard(QWidget):
                 item.widget().deleteLater()
 
         eventos = []
-
         try:
-            rows = self.conn.execute("""
-                SELECT 'venta' as tipo, total, fecha, 'completada' as extra
-                FROM ventas
-                WHERE DATE(fecha)=DATE('now') AND estado='completada'
-                ORDER BY fecha DESC LIMIT 5
-            """).fetchall()
-            for r in rows:
+            for ev in self._qs.recent_activity(limit=8):
                 try:
-                    ts = datetime.fromisoformat(str(r[2]))
-                    hora = ts.strftime("%H:%M")
+                    hora = datetime.fromisoformat(ev["fecha"]).strftime("%H:%M")
                 except Exception:
                     hora = ""
-                eventos.append(("venta", f"Venta completada", f"${float(r[1]):,.0f}", hora))
-        except Exception:
-            pass
-
-        try:
-            rows = self.conn.execute("""
-                SELECT 'pedido' as tipo, total, fecha, estado
-                FROM pedidos_whatsapp
-                WHERE DATE(fecha)=DATE('now')
-                ORDER BY fecha DESC LIMIT 4
-            """).fetchall()
-            for r in rows:
-                try:
-                    ts = datetime.fromisoformat(str(r[2]))
-                    hora = ts.strftime("%H:%M")
-                except Exception:
-                    hora = ""
-                eventos.append(("pedido", f"Pedido WA — {r[3]}", f"${float(r[1]):,.0f}", hora))
-        except Exception:
-            pass
-
-        # Sort by timestamp desc (rough, based on hora string)
-        eventos.sort(key=lambda e: e[3], reverse=True)
-        eventos = eventos[:8]
+                if ev["tipo"] == "venta":
+                    desc = "Venta completada"
+                else:
+                    desc = f"Pedido WA — {ev['estado']}"
+                eventos.append(
+                    (ev["tipo"], desc, f"${float(ev['total']):,.0f}", hora)
+                )
+        except Exception as e:
+            logger.debug("_actualizar_actividad: %s", e)
 
         if not eventos:
             self._empty_actividad.show()
@@ -1311,21 +1247,12 @@ class Dashboard(QWidget):
             if item.widget():
                 item.widget().deleteLater()
         try:
-            rows = self.conn.execute("""
-                SELECT id, cliente_nombre, numero_whatsapp, estado,
-                       total, tipo_entrega, fecha
-                FROM pedidos_whatsapp
-                WHERE estado NOT IN ('entregado','cancelado')
-                ORDER BY CASE estado
-                    WHEN 'nuevo' THEN 0 WHEN 'confirmado' THEN 1
-                    WHEN 'pesando' THEN 2 ELSE 3 END, fecha DESC
-                LIMIT 8
-            """).fetchall()
-            if not rows:
+            pedidos = self._qs.active_whatsapp_orders(limit=8)
+            if not pedidos:
                 self._empty_wa.show()
                 return
-            for i, r in enumerate(rows):
-                card = PedidoWAItem(dict(r))
+            for i, pedido in enumerate(pedidos):
+                card = PedidoWAItem(pedido)
                 card.ver_pedido.connect(self._on_ver_pedido)
                 self._lyt_wa.insertWidget(i, card)
             self._empty_wa.hide()
@@ -1344,40 +1271,12 @@ class Dashboard(QWidget):
 
         alertas = []
         try:
-            rows = self.conn.execute("""
-                SELECT nombre FROM productos
-                WHERE existencia <= COALESCE(stock_minimo,5) AND activo=1
-                LIMIT 5
-            """).fetchall()
-            for r in rows:
-                alertas.append((f"Stock bajo: {r[0]}", "danger"))
-        except Exception:
-            pass
-
-        try:
-            rows = self.conn.execute("""
-                SELECT p.nombre FROM lotes l
-                JOIN productos p ON p.id=l.producto_id
-                WHERE l.caducidad <= DATE('now','+3 days')
-                  AND l.estado='activo' AND l.cantidad_disponible > 0
-                LIMIT 5
-            """).fetchall()
-            for r in rows:
-                alertas.append((f"Caducidad próxima: {r[0]}", "warning"))
-        except Exception:
-            pass
-
-        try:
-            rows = self.conn.execute("""
-                SELECT titulo, tipo FROM alertas_log
-                WHERE leida=0 AND tipo != 'ok'
-                ORDER BY fecha DESC LIMIT 10
-            """).fetchall()
-            for r in rows:
-                t = "warning" if r[1] in ("stock_bajo", "caducidad_proxima") else "info"
-                alertas.append((r[0], t))
-        except Exception:
-            pass
+            alertas = [
+                (a["texto"], a["tipo"])
+                for a in self._qs.operational_alerts(limit_each=5, log_limit=10)
+            ]
+        except Exception as e:
+            logger.debug("_actualizar_alertas: %s", e)
 
         # Update badge count
         if alertas:
@@ -1407,16 +1306,8 @@ class Dashboard(QWidget):
                 item.widget().deleteLater()
 
         try:
-            rows = self.conn.execute("""
-                SELECT d.nombre, d.en_ruta, COUNT(p.id) as pedidos_activos
-                FROM drivers d
-                LEFT JOIN pedidos_whatsapp p
-                    ON p.repartidor_id=d.id AND p.estado='listo'
-                WHERE d.activo=1
-                GROUP BY d.id
-                ORDER BY d.nombre
-            """).fetchall()
-            if not rows:
+            drivers = self._qs.drivers_status()
+            if not drivers:
                 no_driver = QLabel("Sin repartidores registrados", self)
                 no_driver.setStyleSheet(
                     f"color: {Colors.NEUTRAL.SLATE_500};"
@@ -1424,18 +1315,20 @@ class Dashboard(QWidget):
                 )
                 self._lyt_drivers.addWidget(no_driver)
                 return
-            for r in rows:
-                card = DriverCard(r[0], bool(r[1]), int(r[2]), self)
+            for d in drivers:
+                card = DriverCard(
+                    d["nombre"], d["en_ruta"], d["pedidos_activos"], self
+                )
                 self._lyt_drivers.addWidget(card)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("_actualizar_repartidores: %s", e)
 
-    def _on_ver_pedido(self, pedido_id: int):
+    def _on_ver_pedido(self, pedido_id: str):
         self.abrir_modulo.emit("pedidos_whatsapp")
 
     # ── Session state (consumed by main_window via hasattr) ───────────────────
 
-    def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
+    def set_sucursal(self, sucursal_id: str, nombre: str = "") -> None:
         self.sucursal_id = sucursal_id
         self._nombre_sucursal = nombre
         if nombre:

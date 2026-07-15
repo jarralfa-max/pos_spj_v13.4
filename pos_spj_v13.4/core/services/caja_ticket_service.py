@@ -17,11 +17,14 @@ logger = logging.getLogger("spj.caja.ticket")
 
 
 class CajaTicketService:
-    """Genera HTML, PDF y envía ESC/POS para comprobantes de corte Z."""
+    """Genera HTML, PDF y envía ESC/POS para comprobantes de corte Z.
 
-    def __init__(self, db=None, hardware_service=None, printer_service=None):
+    La impresión térmica pasa SIEMPRE por el PrinterService inyectado en el
+    constructor — no hay ruta ESC/POS paralela en este servicio.
+    """
+
+    def __init__(self, db=None, printer_service=None):
         self.db = db
-        self._hw = hardware_service
         self._printer_service = printer_service
 
     def generar_html_corte(self, datos: Dict, cierre_id: int) -> str:
@@ -110,8 +113,10 @@ class CajaTicketService:
 
     def preview_or_print_corte(self, resultado: Dict, cajero: str, parent=None) -> None:
         """
-        Muestra diálogo de vista previa con opciones: imprimir + guardar PDF.
-        Este es el único punto de entrada para impresión desde la UI.
+        Imprime automáticamente el corte vía PrinterService (si hay impresora
+        de tickets configurada), guarda el PDF y muestra la vista previa con
+        opciones de reimpresión. Único punto de entrada para la UI (Bug 4:
+        el corte de caja se auto-imprime al generarse).
         """
         datos = {
             "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -124,6 +129,17 @@ class CajaTicketService:
             "fondo_inicial": float(resultado.get("fondo_inicial", 0)),
         }
         cierre_id = str(resultado.get("cierre_id") or resultado.get("turno_id") or "")
+        datos["cierre_id"] = cierre_id
+
+        # Auto-print térmico (canónico: PrinterService). El fallo se reporta
+        # en log y no bloquea el corte ya registrado.
+        auto_impreso = False
+        try:
+            auto_impreso = self.enviar_escpos(datos)
+            if auto_impreso:
+                logger.info("Corte Z %s auto-impreso vía PrinterService", cierre_id)
+        except Exception as e:
+            logger.warning("auto-print corte Z: %s", e)
 
         # Auto-save PDF
         try:

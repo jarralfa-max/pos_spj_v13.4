@@ -58,7 +58,7 @@ class CajaApplicationService:
 
     # ── Estado ────────────────────────────────────────────────────────────────
 
-    def get_estado_turno(self, sucursal_id: int, usuario: str) -> Optional[Dict]:
+    def get_estado_turno(self, sucursal_id: str, usuario: str) -> Optional[Dict]:
         """Retorna el turno abierto actual o None."""
         try:
             row = self.db.execute(
@@ -75,7 +75,7 @@ class CajaApplicationService:
 
     # ── Abrir turno ───────────────────────────────────────────────────────────
 
-    def abrir_turno(self, sucursal_id: int, usuario: str, fondo_inicial: float) -> str:
+    def abrir_turno(self, sucursal_id: str, usuario: str, fondo_inicial: float) -> str:
         """Abre un nuevo turno. Lanza TurnoYaAbiertoError si ya hay uno abierto.
 
         REGLA CERO: identidad UUIDv7 acuñada con new_uuid() e insertada
@@ -155,7 +155,7 @@ class CajaApplicationService:
 
     # ── Movimientos del turno ─────────────────────────────────────────────────
 
-    def get_movimientos_turno(self, turno_id: int, rol: str = "cajero") -> List[Dict]:
+    def get_movimientos_turno(self, turno_id: str, rol: str = "cajero") -> List[Dict]:
         """Retorna movimientos del turno. Filtra montos si es cajero."""
         try:
             rows = self.db.execute(
@@ -175,7 +175,7 @@ class CajaApplicationService:
 
     # ── KPIs para barra de estado ─────────────────────────────────────────────
 
-    def get_caja_kpis(self, sucursal_id: int, usuario: str) -> Dict:
+    def get_caja_kpis(self, sucursal_id: str, usuario: str) -> Dict:
         """Retorna datos para la barra de KPIs de caja."""
         kpis = {
             "fondo_inicial": 0.0,
@@ -227,7 +227,7 @@ class CajaApplicationService:
 
     # ── Historial de cortes ───────────────────────────────────────────────────
 
-    def get_historial_cortes(self, sucursal_id: int, limit: int = 100) -> List[Dict]:
+    def get_historial_cortes(self, sucursal_id: str, limit: int = 100) -> List[Dict]:
         """Retorna historial de cortes Z de la sucursal."""
         try:
             rows = self.db.execute(
@@ -257,7 +257,7 @@ class CajaApplicationService:
 
     # ── Arqueo ────────────────────────────────────────────────────────────────
 
-    def calcular_arqueo(self, turno_id: int, total_fisico: float) -> Dict:
+    def calcular_arqueo(self, turno_id: str, total_fisico: float) -> Dict:
         """
         Calcula diferencia entre efectivo físico contado y efectivo esperado del turno.
         Solo cuenta ventas en EFECTIVO (no tarjeta ni transferencia).
@@ -301,7 +301,7 @@ class CajaApplicationService:
             return {"error": str(e)}
 
     def _sum_ventas_efectivo(
-        self, sucursal_id: int, cajero: str, fecha_apertura: str, turno_id: int
+        self, sucursal_id: str, cajero: str, fecha_apertura: str, turno_id: str
     ) -> float:
         """Suma SOLO las ventas en efectivo del turno."""
         formas = list(_EFECTIVO_FORMAS)
@@ -321,7 +321,7 @@ class CajaApplicationService:
             return 0.0
 
     def _sum_ventas_por_forma(
-        self, sucursal_id: int, fecha_apertura: str, turno_id: int
+        self, sucursal_id: str, fecha_apertura: str, turno_id: str
     ) -> Dict:
         """Retorna breakdown de ventas por forma de pago."""
         result = {}
@@ -348,8 +348,8 @@ class CajaApplicationService:
 
     def generar_corte_z(
         self,
-        turno_id: int,
-        sucursal_id: int,
+        turno_id: str,
+        sucursal_id: str,
         usuario: str,
         efectivo_fisico: float,
         observaciones: str = "",

@@ -4743,7 +4743,7 @@ class ModuloVentas(ModuloBase):
         grp = QGroupBox("Buscar venta a devolver")
         sf = QFormLayout(grp)
         txt_folio = QLineEdit()
-        txt_folio.setPlaceholderText("Folio VNT-… o ID")
+        txt_folio.setPlaceholderText("Folio VNT-… o ID (busca solo al 7º carácter)")
         txt_folio.setProperty("class", "standardInput")
         sf.addRow("Folio / ID:", txt_folio)
         lay.addWidget(grp)
@@ -4835,4 +4835,21 @@ class ModuloVentas(ModuloBase):
 
         btn_buscar.clicked.connect(_buscar)
         btn_cancel.clicked.connect(_cancelar)
+
+        # Autocompletado de búsqueda: dispara SOLO a partir del 7º carácter
+        # tecleado (con debounce), para no consultar por prefijos ambiguos.
+        from PyQt5.QtCore import QTimer as _QTimer
+        _debounce = _QTimer(dlg)
+        _debounce.setSingleShot(True)
+        _debounce.setInterval(250)
+        _debounce.timeout.connect(_buscar)
+
+        def _on_folio_typed(texto: str) -> None:
+            if len(texto.strip()) >= 7:
+                _debounce.start()
+            else:
+                _debounce.stop()
+
+        txt_folio.textChanged.connect(_on_folio_typed)
+        txt_folio.returnPressed.connect(_buscar)
         dlg.exec_()

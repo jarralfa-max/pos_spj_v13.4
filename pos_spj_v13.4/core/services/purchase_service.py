@@ -1,7 +1,6 @@
 from backend.shared.ids import new_uuid
 
 # core/services/purchase_service.py
-import uuid
 import logging
 
 logger = logging.getLogger("spj.purchase_service")
@@ -31,7 +30,7 @@ class PurchaseService:
             self._supplier_credit = SupplierCreditService(self.db)
         return self._supplier_credit
 
-    def register_purchase(self, provider_id: int, branch_id: int, user: str,
+    def register_purchase(self, provider_id: str, branch_id: str, user: str,
                           items: list, payment_method: str, amount_paid: float,
                           notes: str = "",
                           condicion_pago: str = "liquidado",
