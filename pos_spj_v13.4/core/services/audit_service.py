@@ -17,7 +17,7 @@ class AuditService:
                    entidad_id: str = "",
                    before_state: dict = None,
                    after_state: dict = None,
-                   sucursal_id: int = 1,
+                   sucursal_id: str = "",
                    detalles: str = ""):
         """
         Registra un cambio de estado en la base de datos.

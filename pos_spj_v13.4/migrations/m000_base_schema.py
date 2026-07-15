@@ -923,7 +923,7 @@ def _create_caja(conn):
             total_tarjeta     REAL DEFAULT 0,
             retiros           REAL DEFAULT 0,
             estado            TEXT DEFAULT 'abierto',
-            fecha_apertura    DATETIME DEFAULT (datetime('now')),
+            fecha_apertura    DATETIME DEFAULT (datetime('now','localtime')),
             fecha_cierre      DATETIME,
             efectivo_esperado REAL DEFAULT 0,
             efectivo_contado  REAL DEFAULT 0,
@@ -938,8 +938,9 @@ def _create_caja(conn):
             sucursal_id         TEXT,
             usuario             TEXT,
             turno               TEXT,
+            turno_id            TEXT,
             fecha_apertura      DATETIME,
-            fecha_cierre        DATETIME DEFAULT (datetime('now')),
+            fecha_cierre        DATETIME DEFAULT (datetime('now','localtime')),
             total_ventas        REAL DEFAULT 0,
             num_ventas          INTEGER DEFAULT 0,
             total_efectivo      REAL DEFAULT 0,
@@ -3052,6 +3053,7 @@ def _ensure_extra_columns(conn):
     # turnos_caja — cajero es alias de usuario
     ensure_column(conn, "turnos_caja", "cajero TEXT")
     ensure_column(conn, "turnos_caja", "fecha_cierre DATETIME")
+    ensure_column(conn, "cierres_caja", "turno_id TEXT")
 
     # productos — columnas añadidas después de la versión inicial
     ensure_column(conn, "productos", "codigo_barras TEXT DEFAULT ''")

@@ -861,281 +861,51 @@ class FinanceService:
         return count
 
     # ── Módulo Caja ───────────────────────────────────────────────────────────
+    # FUENTE ÚNICA: la lógica de turnos/corte Z vive en
+    # application/services/caja_application_service.py (CajaApplicationService).
+    # Estos métodos son delegados finos para los callers existentes de
+    # FinanceService — aquí NO hay lógica de caja duplicada.
 
-    def get_estado_turno(self, sucursal_id: int, usuario: str):
-        """Retorna el turno abierto actual o None si la caja está cerrada.
+    @property
+    def caja_app(self):
+        if getattr(self, "_caja_app", None) is None:
+            from application.services.caja_application_service import (
+                CajaApplicationService,
+            )
+            self._caja_app = CajaApplicationService(self.db, finance_service=self)
+        return self._caja_app
 
-        El ``id`` se devuelve como str (identidad UUIDv7-ready): el corte 200
-        lo convertirá a TEXT y los callers no cambian (afinidad SQLite)."""
-        try:
-            row = self.db.execute(
-                """SELECT id, fondo_inicial, fecha_apertura
-                   FROM turnos_caja
-                   WHERE sucursal_id=? AND cajero=? AND estado='abierto'
-                   ORDER BY fecha_apertura DESC LIMIT 1""",
-                (sucursal_id, usuario)
-            ).fetchone()
-            if not row:
-                return None
-            d = dict(row)
-            if d.get("id") is not None:
-                d["id"] = str(d["id"])
-            return d
-        except Exception:
-            return None
+    @caja_app.setter
+    def caja_app(self, svc) -> None:
+        self._caja_app = svc
 
-    def abrir_turno(self, sucursal_id: int, usuario: str, fondo_inicial: float) -> str:
-        """Abre un nuevo turno de caja. Lanza si ya hay uno abierto.
+    def get_estado_turno(self, sucursal_id: str, usuario: str):
+        """Retorna el turno abierto actual o None si la caja está cerrada."""
+        return self.caja_app.get_estado_turno(str(sucursal_id), usuario)
 
-        UUID-native (REGLA CERO): el turno_id es un UUIDv7 acuñado con
-        ``new_uuid()`` e insertado explícitamente en ``turnos_caja.id`` (identidad
-        acuñada, nunca el rowid implícito). El esquema born-clean define
-        ``turnos_caja.id`` como TEXT.
-        """
-        existing = self.get_estado_turno(sucursal_id, usuario)
-        if existing:
-            raise ValueError("Ya hay un turno abierto para este cajero.")
-        turno_id = new_uuid()
-        self.db.execute(
-            """INSERT INTO turnos_caja
-               (id, sucursal_id, cajero, fondo_inicial, estado, fecha_apertura)
-               VALUES (?,?,?,?,'abierto', datetime('now'))""",
-            (turno_id, sucursal_id, usuario, fondo_inicial)
-        )
-        try: self.db.commit()
-        except Exception: pass
-        return turno_id
+    def abrir_turno(self, sucursal_id: str, usuario: str, fondo_inicial: float) -> str:
+        """Abre un nuevo turno (UUIDv7). Lanza si ya hay uno abierto."""
+        return self.caja_app.abrir_turno(str(sucursal_id), usuario, fondo_inicial)
 
     def registrar_movimiento_manual(
-        self, turno_id: str, sucursal_id: int,
+        self, turno_id: str, sucursal_id: str,
         usuario: str, tipo: str, monto: float, concepto: str
     ) -> None:
         """Registra entrada o retiro manual en caja."""
-        self.db.execute(
-            """INSERT INTO movimientos_caja
-               (id, turno_id, sucursal_id, tipo, monto, concepto, usuario, fecha)
-               VALUES (?,?,?,?,?,?,?, datetime('now'))""",
-            (new_uuid(), str(turno_id), sucursal_id, tipo, monto, concepto, usuario)
+        self.caja_app.registrar_movimiento_manual(
+            turno_id=str(turno_id), sucursal_id=str(sucursal_id),
+            usuario=usuario, tipo=tipo, monto=monto, concepto=concepto,
         )
-        # FASE 9: no commit aquí — PurchaseService llama este método dentro
-        # de un SAVEPOINT; el commit lo hace PurchaseService al hacer RELEASE.
-
-    # Formas de pago consideradas efectivo (para el desglose del corte Z).
-    _EFECTIVO_FORMAS = frozenset({"Efectivo", "efectivo", "EFECTIVO", "cash", "Cash"})
-
-    def _cierres_caja_tiene_columna(self, columna: str) -> bool:
-        try:
-            return any(r[1] == columna
-                       for r in self.db.execute("PRAGMA table_info(cierres_caja)"))
-        except Exception:
-            return False
-
-    def _persist_corte_z_historial(
-        self, turno_id: str, sucursal_id, usuario: str, fondo: float,
-        total_ventas: float, ventas_por_pago: dict, efectivo_fisico: float,
-        esperado: float, diferencia: float, comentarios: str = "",
-    ) -> str:
-        """D1 paso 2b — Completa la ruta canónica: registra el corte Z en
-        `cierres_caja` (que lee el historial de la UI) y postea el asiento de
-        diferencia. Idempotente por turno_id (donde la columna existe)."""
-        tiene_turno_id = self._cierres_caja_tiene_columna("turno_id")
-        if tiene_turno_id:
-            ya = self.db.execute(
-                "SELECT id FROM cierres_caja WHERE turno_id=?", (str(turno_id),)
-            ).fetchone()
-            if ya:
-                return str(ya[0])  # ya registrado — no duplicar
-
-        # Desglose por forma de pago desde el agregado ya calculado.
-        total_efectivo = sum(v["total"] for fp, v in ventas_por_pago.items()
-                             if fp in self._EFECTIVO_FORMAS)
-        total_tarjeta = sum(v["total"] for fp, v in ventas_por_pago.items()
-                            if "tarjeta" in fp.lower() or "card" in fp.lower())
-        total_transferencia = sum(v["total"] for fp, v in ventas_por_pago.items()
-                                  if "transfer" in fp.lower())
-        total_otros = max(0.0, total_ventas - total_efectivo - total_tarjeta - total_transferencia)
-        num_ventas = sum(v.get("count", 0) for v in ventas_por_pago.values())
-
-        row_fa = self.db.execute(
-            "SELECT fecha_apertura FROM turnos_caja WHERE id=?", (str(turno_id),)
-        ).fetchone()
-        fecha_apertura = row_fa[0] if row_fa else None
-
-        row_a = self.db.execute(
-            """SELECT COUNT(*), COALESCE(SUM(total),0) FROM ventas
-               WHERE sucursal_id=? AND estado='cancelada'
-                 AND fecha >= (SELECT fecha_apertura FROM turnos_caja WHERE id=?)""",
-            (sucursal_id, str(turno_id)),
-        ).fetchone()
-        num_anulaciones = int(row_a[0]) if row_a else 0
-        total_anulaciones = float(row_a[1]) if row_a else 0.0
-
-        cierre_id = new_uuid()
-        cols = ["id", "tipo", "sucursal_id", "usuario", "turno", "fecha_apertura",
-                "total_ventas", "num_ventas", "total_efectivo", "total_tarjeta",
-                "total_transferencia", "total_otros", "total_anulaciones",
-                "num_anulaciones", "efectivo_contado", "fondo_inicial", "diferencia",
-                "comentarios", "estado"]
-        vals = [cierre_id, "Z", sucursal_id, usuario, usuario, fecha_apertura,
-                round(total_ventas, 2), num_ventas, round(total_efectivo, 2),
-                round(total_tarjeta, 2), round(total_transferencia, 2),
-                round(total_otros, 2), round(total_anulaciones, 2), num_anulaciones,
-                round(efectivo_fisico, 2), round(fondo, 2), diferencia,
-                comentarios or "", "cerrado"]
-        if tiene_turno_id:
-            cols.append("turno_id"); vals.append(str(turno_id))
-        placeholders = ",".join("?" * len(cols))
-        # 1) Registro de historial (debe persistir aunque el ledger falle).
-        try:
-            self.db.execute(
-                f"INSERT INTO cierres_caja ({','.join(cols)}) VALUES ({placeholders})",
-                vals,
-            )
-            self.db.commit()
-        except Exception as e:
-            try: self.db.rollback()
-            except Exception: pass
-            logger.warning("Corte Z historial (cierres_caja): %s", e)
-            return cierre_id
-
-        # 2) Asiento de diferencia (best-effort; mismas cuentas que la ruta legacy).
-        if abs(diferencia) >= 0.01 and hasattr(self, "registrar_asiento"):
-            try:
-                if diferencia > 0:
-                    debe, haber = "110-caja", "999-diferencias-caja"   # sobrante
-                else:
-                    debe, haber = "999-diferencias-caja", "110-caja"   # faltante
-                self.registrar_asiento(
-                    debe=debe, haber=haber,
-                    concepto=f"Diferencia Corte Z #{cierre_id} — cajero: {usuario}",
-                    monto=abs(diferencia), modulo="caja", referencia_id=cierre_id,
-                    sucursal_id=sucursal_id, evento="CORTE_Z",
-                    metadata={"efectivo_contado": efectivo_fisico,
-                              "efectivo_esperado": esperado, "cajero": usuario},
-                )
-                self.db.commit()
-            except Exception as e:
-                try: self.db.rollback()
-                except Exception: pass
-                logger.warning("Corte Z asiento diferencia: %s", e)
-        return cierre_id
 
     def generar_corte_z(
         self, turno_id: str, sucursal_id: str,
         usuario: str, efectivo_fisico: float
     ) -> dict:
-        """Cierra el turno y calcula diferencias.
-
-        La diferencia compara el efectivo contado contra el efectivo ESPERADO:
-        solo ventas en efectivo (y la porción en efectivo de pagos mixtos).
-        Tarjeta, transferencia y crédito NO forman parte del efectivo esperado.
-        """
-        turno_id = str(turno_id)
-        sucursal_id = str(sucursal_id)
-        # Total de ventas del turno (informativo, todos los medios de pago)
-        row_v = self.db.execute(
-            """SELECT COALESCE(SUM(total),0) FROM ventas
-               WHERE sucursal_id=? AND usuario=?
-               AND fecha >= (SELECT fecha_apertura FROM turnos_caja WHERE id=?)""",
-            (sucursal_id, usuario, turno_id)
-        ).fetchone()
-        total_ventas = float(row_v[0]) if row_v else 0.0
-
-        # Ventas en EFECTIVO del turno (lo único comparable contra lo contado)
-        try:
-            ventas_cols = {r[1] for r in self.db.execute("PRAGMA table_info(ventas)").fetchall()}
-        except Exception:
-            ventas_cols = set()
-        if {"efectivo_recibido", "cambio"} <= ventas_cols:
-            mixto_expr = "MAX(0, COALESCE(efectivo_recibido,0) - COALESCE(cambio,0))"
-        else:
-            mixto_expr = "0"
-        row_ve = self.db.execute(
-            f"""SELECT COALESCE(SUM(CASE
-                     WHEN lower(COALESCE(forma_pago,'efectivo')) = 'efectivo'
-                          THEN total
-                     WHEN lower(COALESCE(forma_pago,'')) IN ('pago mixto','mixto')
-                          THEN {mixto_expr}
-                     ELSE 0 END), 0)
-               FROM ventas
-               WHERE sucursal_id=? AND usuario=?
-               AND lower(COALESCE(estado,'completada')) NOT IN ('cancelada','anulada')
-               AND fecha >= (SELECT fecha_apertura FROM turnos_caja WHERE id=?)""",
-            (sucursal_id, usuario, turno_id)
-        ).fetchone()
-        ventas_efectivo = float(row_ve[0]) if row_ve else 0.0
-
-        # Sumar movimientos
-        row_m = self.db.execute(
-            """SELECT
-                 COALESCE(SUM(CASE WHEN tipo='INGRESO' THEN monto ELSE 0 END),0) as ingresos,
-                 COALESCE(SUM(CASE WHEN tipo='RETIRO'  THEN monto ELSE 0 END),0) as retiros
-               FROM movimientos_caja WHERE turno_id=?""",
-            (turno_id,)
-        ).fetchone()
-        otros_ingresos = float(row_m['ingresos']) if row_m else 0.0
-        retiros        = float(row_m['retiros'])  if row_m else 0.0
-
-        row_t = self.db.execute(
-            "SELECT fondo_inicial FROM turnos_caja WHERE id=?", (turno_id,)
-        ).fetchone()
-        fondo = float(row_t['fondo_inicial']) if row_t else 0.0
-
-        esperado   = round(fondo + ventas_efectivo + otros_ingresos - retiros, 2)
-        diferencia = round(efectivo_fisico - esperado, 2)
-
-        # Cerrar turno
-        self.db.execute(
-            """UPDATE turnos_caja SET
-               estado='cerrado', fecha_cierre=datetime('now'),
-               total_ventas=?, efectivo_esperado=?,
-               efectivo_contado=?, diferencia=?
-               WHERE id=?""",
-            (total_ventas, esperado, efectivo_fisico, diferencia, turno_id)
+        """Cierra el turno y calcula diferencias (delegado a la fuente única)."""
+        return self.caja_app.generar_corte_z(
+            turno_id=str(turno_id), sucursal_id=str(sucursal_id),
+            usuario=usuario, efectivo_fisico=efectivo_fisico,
         )
-        try: self.db.commit()
-        except Exception: pass
-
-        # Breakdown by forma_pago
-        ventas_por_pago = {}
-        try:
-            rows_fp = self.db.execute("""
-                SELECT COALESCE(forma_pago,'Efectivo') as fp,
-                       COALESCE(SUM(total),0) as total_fp,
-                       COUNT(*) as num_ventas
-                FROM ventas
-                WHERE sucursal_id=? AND estado='completada'
-                  AND fecha >= (SELECT COALESCE(fecha_apertura, DATE('now'))
-                                FROM turnos_caja WHERE id=?)
-                GROUP BY fp
-                ORDER BY total_fp DESC
-            """, (sucursal_id, turno_id)).fetchall()
-            for r in rows_fp:
-                ventas_por_pago[r[0]] = {'total': float(r[1]), 'count': int(r[2])}
-        except Exception:
-            pass
-
-        # D1 paso 2b — Completar la ruta canónica: registrar el corte en
-        # cierres_caja (historial de la UI) y postear el asiento de diferencia.
-        cierre_id = self._persist_corte_z_historial(
-            turno_id=turno_id, sucursal_id=sucursal_id, usuario=usuario,
-            fondo=fondo, total_ventas=total_ventas, ventas_por_pago=ventas_por_pago,
-            efectivo_fisico=efectivo_fisico, esperado=esperado, diferencia=diferencia,
-        )
-
-        return {
-            "cierre_id":     cierre_id,
-            "turno_id":      turno_id,
-            "fondo_inicial": fondo,
-            "total_ventas":  total_ventas,
-            "ventas_efectivo": ventas_efectivo,
-            "otros_ingresos":otros_ingresos,
-            "retiros":       retiros,
-            "efectivo_esperado": esperado,
-            "efectivo_contado":  efectivo_fisico,
-            "diferencia":    diferencia,
-            "ventas_por_pago": ventas_por_pago,
-        }
 
     def get_movimientos_turno(self, turno_id: str) -> list:
         """Retorna los movimientos manuales del turno."""
@@ -1163,7 +933,7 @@ class FinanceService:
             self.db.execute(
                 """INSERT INTO movimientos_caja
                    (id, turno_id, sucursal_id, tipo, monto, concepto, usuario, fecha)
-                   VALUES (?,?,?,?,?,?,?,datetime('now'))""",
+                   VALUES (?,?,?,?,?,?,?,datetime('now','localtime'))""",
                 (new_uuid(), turno_id, branch_id, 'VENTA', amount,
                  f"{category}: {description}", user)
             )

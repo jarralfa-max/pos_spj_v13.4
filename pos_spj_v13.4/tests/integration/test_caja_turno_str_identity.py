@@ -40,6 +40,15 @@ def svc():
             total REAL, estado TEXT DEFAULT 'completada', forma_pago TEXT DEFAULT 'Efectivo',
             fecha DATETIME DEFAULT (datetime('now'))
         );
+        CREATE TABLE cierres_caja (
+            id TEXT PRIMARY KEY, tipo TEXT, sucursal_id TEXT, usuario TEXT,
+            turno TEXT, turno_id TEXT, fecha_apertura DATETIME,
+            fecha_cierre DATETIME, total_ventas REAL, num_ventas INTEGER,
+            total_efectivo REAL, total_tarjeta REAL, total_transferencia REAL,
+            total_otros REAL, total_anulaciones REAL, num_anulaciones INTEGER,
+            efectivo_contado REAL, fondo_inicial REAL, diferencia REAL,
+            comentarios TEXT, estado TEXT
+        );
         """
     )
     conn.commit()

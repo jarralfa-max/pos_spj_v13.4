@@ -423,7 +423,7 @@ class SalesService:
             """SELECT folio FROM pending_sales_intents
                WHERE estado='pendiente_pago'
                  AND expires_at IS NOT NULL
-                 AND expires_at < datetime('now')"""
+                 AND expires_at < datetime('now','localtime')"""
         ).fetchall()
         for row in rows:
             folio = row[0] if isinstance(row, tuple) else row["folio"]
@@ -468,7 +468,7 @@ class SalesService:
         )
         folio_sale, ticket = rich.folio, rich.ticket_html
         self.db.execute(
-            "UPDATE pending_sales_intents SET estado='confirmada', payment_id=?, confirmed_at=datetime('now') WHERE folio=?",
+            "UPDATE pending_sales_intents SET estado='confirmada', payment_id=?, confirmed_at=datetime('now','localtime') WHERE folio=?",
             (str(payment_id or ""), str(folio)),
         )
         try:
@@ -1532,7 +1532,7 @@ class SalesService:
                 INSERT INTO ventas(
                     id, folio, sucursal_id, usuario, cliente_id, subtotal, descuento, total,
                     forma_pago, efectivo_recibido, cambio, estado, fecha
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?, 'completada', datetime('now'))
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?, 'completada', datetime('now','localtime'))
                 """,
                 (venta_id, folio, getattr(self, 'sucursal_id', '') or '', usuario, client_id,
                  subtotal, float(discount or 0), total,

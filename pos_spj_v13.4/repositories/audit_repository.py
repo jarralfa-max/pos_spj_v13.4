@@ -26,18 +26,19 @@ class AuditRepository:
         entidad_id: str,
         valor_antes: str = "{}",
         valor_despues: str = "{}",
-        sucursal_id: int = 1,
+        sucursal_id: str = "",
         detalles: str = "",
     ) -> None:
-        """Inserta un registro en audit_logs."""
+        """Inserta un registro en audit_logs (id UUIDv7 acuñado — REGLA CERO)."""
+        from backend.shared.ids import new_uuid
         try:
             self.db.execute(
                 """INSERT INTO audit_logs
-                   (usuario, accion, modulo, entidad, entidad_id,
+                   (id, usuario, accion, modulo, entidad, entidad_id,
                     valor_antes, valor_despues, sucursal_id, detalles)
-                   VALUES (?,?,?,?,?,?,?,?,?)""",
-                (usuario, accion, modulo, entidad, str(entidad_id),
-                 valor_antes, valor_despues, sucursal_id, detalles),
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                (new_uuid(), usuario, accion, modulo, entidad, str(entidad_id),
+                 valor_antes, valor_despues, str(sucursal_id or ""), detalles),
             )
             try:
                 self.db.commit()

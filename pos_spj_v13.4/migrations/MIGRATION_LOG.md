@@ -400,3 +400,34 @@ lotes/movimientos_lote con `id` UUIDv7 (sin columna `uuid` ni randomblob);
   (DB legacy con 115/116 pendientes recibe locked_reason + remapeo de roles a
   UUIDv7 al llamar bootstrap_database; DB vacía sigue naciendo born-clean;
   verify_only no migra; guard estático contra reintroducir el gating).
+
+### Lote 6 — Caja fuente única + hora local, y bugs con traceback
+
+- **Caja en ceros (causa raíz)**: `turnos_caja.fecha_apertura` y
+  `movimientos_caja.fecha` se escribían con `datetime('now')` (UTC) mientras
+  las ventas escriben hora LOCAL (`datetime.now()` de Python). En husos
+  negativos (México) la apertura quedaba ~6 h en el futuro: el filtro
+  `ventas.fecha >= fecha_apertura` no encontraba nada → KPIs de caja en 0 y
+  efectivo esperado del corte Z en 0. Todo el flujo de caja usa ahora
+  `datetime('now','localtime')`; **migración 117** remienda los turnos
+  abiertos existentes (timestamps en futuro local = firma de UTC).
+- **Fuente única de turnos/corte Z**: existían DOS implementaciones completas
+  (FinanceService.enterprise y CajaApplicationService). CajaApplicationService
+  es la única; FinanceService quedó con delegados finos y el contenedor cablea
+  CashRegisterApplicationService directo a `caja_service` (misma instancia
+  compartida vía `finance_service.caja_app`). Se portó la lógica de pago
+  mixto (efectivo_recibido − cambio) y las anulaciones; el re-cierre es
+  idempotente (devuelve el cierre existente). Se eliminó la columna dual
+  `uuid` del INSERT de cierres y el filtro por `usuario` en ventas del turno
+  (ningún INSERT de ventas lo setea — siempre daba 0).
+- **m000**: `cierres_caja.turno_id` ahora nace en el schema born-clean
+  (antes solo migración 080) + defaults de fecha en localtime.
+- **audit_logs.id / conciliation_runs.id NOT NULL**: los INSERT acuñan
+  UUIDv7; `sucursal_id=1` default eliminado de auditoría.
+- **tarjetas_fidelidad**: columnas canónicas `codigo_qr`/`id_cliente` en
+  CreateCustomerUseCase (la tabla no tiene `codigo` ni `fecha_emision`);
+  asignación de tarjetas pregeneradas sin duplicar.
+- **ventas.py**: stock pre-carrito vía `InventoryQueryService.get_stock`
+  (la API legacy `get_stock_sucursal` no existe); botones FX registran el
+  atajo real con `setShortcut` (solo pintaban el badge); `cfdi_service`
+  importa `new_uuid`.

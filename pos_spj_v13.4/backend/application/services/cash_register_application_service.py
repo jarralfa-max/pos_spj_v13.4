@@ -1,9 +1,11 @@
 """CashRegisterApplicationService — canonical orchestration for the caja module.
 
 Delegation target for OpenCashShift / RegisterCashMovement / GenerateZCut use
-cases. It orchestrates the existing FinanceService turno logic (abrir_turno,
-registrar_movimiento_manual, generar_corte_z) — no business rules live here — and
-emits the canonical CASH_* domain events with the command's operation_id.
+cases. It orchestrates the SINGLE turno implementation (CajaApplicationService:
+abrir_turno, registrar_movimiento_manual, generar_corte_z) — no business rules
+live here — and emits the canonical CASH_* domain events with the command's
+operation_id. FinanceService keeps thin delegates to the same instance for
+legacy callers; there is exactly ONE cash-shift implementation.
 
 REGLA CERO: the shift identity (turno_id) is a UUIDv7 minted by abrir_turno;
 operation_id (the command) and entity_id (the shift) are distinct UUIDs (rule 41).

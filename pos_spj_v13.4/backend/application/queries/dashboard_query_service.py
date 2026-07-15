@@ -55,12 +55,12 @@ class DashboardQueryService:
             return []
         rows = self.db.execute(
             """
-            SELECT DATE('now', printf('-%d days', 6-seq)) AS dia,
+            SELECT DATE('now','localtime', printf('-%d days', 6-seq)) AS dia,
                    COALESCE(SUM(v.total), 0) AS total
             FROM (SELECT 0 AS seq UNION SELECT 1 UNION SELECT 2
                   UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6) d
             LEFT JOIN ventas v
-                ON DATE(v.fecha) = DATE('now', printf('-%d days', 6-d.seq))
+                ON DATE(v.fecha) = DATE('now','localtime', printf('-%d days', 6-d.seq))
                AND v.estado = 'completada'
             GROUP BY dia
             ORDER BY dia
@@ -85,7 +85,7 @@ class DashboardQueryService:
         if self._table_exists("ventas"):
             row = self.db.execute(
                 "SELECT COALESCE(SUM(total),0), COUNT(*) FROM ventas"
-                " WHERE DATE(fecha)=DATE('now') AND estado='completada'" + clause,
+                " WHERE DATE(fecha)=DATE('now','localtime') AND estado='completada'" + clause,
                 params,
             ).fetchone()
             kpis["ventas_hoy"] = float(row[0] or 0)
@@ -95,7 +95,7 @@ class DashboardQueryService:
             kpis["ventas_ayer"] = float(
                 self._scalar(
                     "SELECT COALESCE(SUM(total),0) FROM ventas"
-                    " WHERE DATE(fecha)=DATE('now','-1 day')"
+                    " WHERE DATE(fecha)=DATE('now','localtime','-1 day')"
                     " AND estado='completada'" + clause,
                     params,
                 )
@@ -104,7 +104,7 @@ class DashboardQueryService:
             kpis["clientes_hoy"] = int(
                 self._scalar(
                     "SELECT COUNT(DISTINCT cliente_id) FROM ventas"
-                    " WHERE DATE(fecha)=DATE('now') AND estado='completada'"
+                    " WHERE DATE(fecha)=DATE('now','localtime') AND estado='completada'"
                     " AND cliente_id IS NOT NULL" + clause,
                     params,
                 )
@@ -122,7 +122,7 @@ class DashboardQueryService:
                 FROM ventas v
                 JOIN detalles_venta vd ON vd.venta_id = v.id
                 JOIN productos p ON p.id = vd.producto_id
-                WHERE DATE(v.fecha)=DATE('now') AND v.estado='completada'
+                WHERE DATE(v.fecha)=DATE('now','localtime') AND v.estado='completada'
                 """
             ).fetchone()
             ingresos = float(row[0] or 0)
@@ -155,7 +155,7 @@ class DashboardQueryService:
         if self._table_exists("ventas"):
             rows = self.db.execute(
                 "SELECT total, fecha FROM ventas"
-                " WHERE DATE(fecha)=DATE('now') AND estado='completada'"
+                " WHERE DATE(fecha)=DATE('now','localtime') AND estado='completada'"
                 " ORDER BY fecha DESC LIMIT ?",
                 (int(limit),),
             ).fetchall()
@@ -167,7 +167,7 @@ class DashboardQueryService:
         if self._table_exists("pedidos_whatsapp"):
             rows = self.db.execute(
                 "SELECT total, fecha, estado FROM pedidos_whatsapp"
-                " WHERE DATE(fecha)=DATE('now')"
+                " WHERE DATE(fecha)=DATE('now','localtime')"
                 " ORDER BY fecha DESC LIMIT ?",
                 (int(limit),),
             ).fetchall()

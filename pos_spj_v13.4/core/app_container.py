@@ -212,8 +212,13 @@ class AppContainer:
             from backend.application.use_cases.generate_z_cut_use_case import GenerateZCutUseCase
             from core.events.event_bus import get_bus as _cash_get_bus
 
+            if self.caja_service is None:
+                raise RuntimeError("CajaApplicationService no disponible")
+            # Fuente única de turnos/corte Z: CajaApplicationService. Los
+            # delegados legacy de FinanceService comparten ESTA instancia.
+            self.finance_service.caja_app = self.caja_service
             self.cash_register_service = CashRegisterApplicationService(
-                self.finance_service,
+                self.caja_service,
                 publisher=lambda evt, payload: _cash_get_bus().publish(evt, payload),
             )
             self.open_cash_shift_uc = OpenCashShiftUseCase(handler=self.cash_register_service.open_shift)
