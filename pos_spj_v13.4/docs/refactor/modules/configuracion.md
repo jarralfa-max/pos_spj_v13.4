@@ -238,9 +238,9 @@ INTEGRACIONES:
 VIOLACIONES RESTANTES:
 - 0
 
-SIGUIENTE LOTE:
-<<<<<<< HEAD
-- Continuar CONFIGURACION-02-IDENTITY hasta cerrar PK/FK/DTO/repositorios UUIDv7 sin identidad dual.
+SIGUIENTE LOTE HISTÓRICO:
+- El cierre F1–F8 registró como siguiente paso completar `CONFIGURACION-02-IDENTITY` mediante el corte atómico UUIDv7.
+- Las iteraciones posteriores de este documento cierran dicho lote y continúan con `CONFIGURACION-03-UI`; prevalecen sobre esta nota histórica.
 
 ---
 
@@ -282,8 +282,7 @@ El lote `CONFIGURACION-02-IDENTITY` permanece `IN_PROGRESS` (corte atómico UUID
 
 ### Siguiente
 Cerrar `CONFIGURACION-02-IDENTITY` con el corte atómico UUID (migración 200) o avanzar al siguiente módulo (`MERMA`) según prioridad.
-=======
-- Activar CONFIGURACION-03-UI.
+- Activar `CONFIGURACION-03-UI` una vez confirmado el cierre de identidad.
 
 ### CONFIGURACION-02-IDENTITY - Iteración 10
 
@@ -478,4 +477,3 @@ VIOLACIONES RESTANTES DEL LOTE:
 
 SIGUIENTE LOTE REGISTRADO:
 - `CONFIGURACION-06-DOMAIN_RULES`
->>>>>>> claude/intelligent-clarke-uq1ck7
