@@ -28,9 +28,13 @@ Publisher = Callable[[str, dict], Any]
 
 
 class CashRegisterApplicationService:
-    def __init__(self, finance_service, publisher: Publisher | None = None) -> None:
+    def __init__(self, finance_service, publisher: Publisher | None = None,
+                 *, employee_resolver: Callable[[str], str | None] | None = None) -> None:
         self._fin = finance_service
         self._publish: Publisher = publisher or (lambda *_: None)
+        # Resolves user_id → employee_id so CASH_SHIFT_OPENED carries HR identity
+        # (never the user name as identity). Injected by the composition root.
+        self._resolve_employee = employee_resolver or (lambda _user_id: None)
 
     # ── helpers ───────────────────────────────────────────────────────────────
     @staticmethod
@@ -48,12 +52,18 @@ class CashRegisterApplicationService:
             usuario=self._user(command),
             fondo_inicial=float(command.opening_amount or 0.0),
         )
+        from backend.shared.ids import new_uuid
+        employee_id = self._resolve_employee(command.user_id) if command.user_id else None
         self._publish(EventName.CASH_SHIFT_OPENED.value, {
+            "event_id": new_uuid(),
             "operation_id": command.operation_id,
             "shift_id": shift_id,
             "branch_id": command.branch_id,
+            "user_id": command.user_id,
+            "employee_id": employee_id,
+            "opened_at": None,  # abrir_turno stamps server time; handler defaults to now
             "opening_amount": float(command.opening_amount or 0.0),
-            "user": self._user(command),
+            "source": "POS",
         })
         return UseCaseResult(
             success=True, operation_id=command.operation_id, entity_id=str(shift_id),
