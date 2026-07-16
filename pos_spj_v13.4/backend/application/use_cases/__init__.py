@@ -10,6 +10,7 @@ from backend.application.use_cases.receive_transfer_use_case import ReceiveTrans
 from backend.application.use_cases.create_delivery_order_use_case import CreateDeliveryOrderUseCase
 from backend.application.use_cases.create_product_use_case import CreateProductUseCase
 from backend.application.use_cases.update_product_use_case import UpdateProductUseCase
+from backend.application.use_cases.close_cash_shift_use_case import CloseCashShiftUseCase
 from backend.application.use_cases.generate_z_cut_use_case import GenerateZCutUseCase
 from backend.application.use_cases.convert_quote_to_sale_use_case import ConvertQuoteToSaleUseCase
 from backend.application.use_cases.generate_purchase_plan_use_case import GeneratePurchasePlanUseCase
@@ -25,6 +26,7 @@ __all__ = [
     "CreateDeliveryOrderUseCase",
     "CreateProductUseCase",
     "UpdateProductUseCase",
+    "CloseCashShiftUseCase",
     "GenerateZCutUseCase",
     "ConvertQuoteToSaleUseCase",
     "GeneratePurchasePlanUseCase",

@@ -216,7 +216,7 @@ class TestPagarNominaMetodoPago:
             "WHERE referencia_id=?", (np_id,)
         ).fetchone()
         assert row is not None
-        assert row["evento"] == "NOMINA_PAGADA"
+        assert row["evento"] == "PAYROLL_PAID"
         assert row["cuenta_debe"] == "gasto_nomina"
         assert row["cuenta_haber"] == "caja_bancos"
 

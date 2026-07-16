@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SPJ Chart</title>
+</head>
+<body data-component="htmlChartTemplate">
+  <main id="chart-root" role="img" aria-label="Gráfica SPJ"></main>
+  <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+  <script>
+    window.SPJ_CHART_PAYLOAD = {{CHART_PAYLOAD}};
+  </script>
+  <script>
+{{ECHARTS_RENDERER}}
+  </script>
+</body>
+</html>
