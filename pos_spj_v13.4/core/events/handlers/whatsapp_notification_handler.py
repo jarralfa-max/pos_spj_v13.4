@@ -12,7 +12,7 @@ Eventos escuchados (definidos en wiring.py):
   - ANTICIPO_REGISTRADO    → NO WA staff (inbox only)
   - STOCK_BAJO             → NO WA staff (inbox only)
   - PEDIDO_ASIGNADO        → SÍ WA repartidor
-  - NOMINA_PAGADA          → SÍ WA empleado
+  - PAYROLL_PAID           → SÍ WA empleado
   - ALERTA_CRITICA         → SÍ WA responsables configurados
 
 Prioridad: 10 (notificaciones — soft fail, no bloquea cadena)

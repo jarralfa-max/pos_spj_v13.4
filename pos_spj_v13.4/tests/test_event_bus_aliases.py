@@ -32,10 +32,10 @@ def test_pre_existing_aliases_unchanged():
     from core.events.event_bus import (
         SALE_CREATED, VENTA_COMPLETADA,
         STOCK_LOW, STOCK_BAJO_MINIMO,
-        PAYROLL_DUE,
+        PAYROLL_PAID,
         ALERT_CRITICAL,
     )
     assert SALE_CREATED == VENTA_COMPLETADA
     assert STOCK_LOW == STOCK_BAJO_MINIMO
-    assert PAYROLL_DUE == "PAYROLL_DUE"
+    assert PAYROLL_PAID == "PAYROLL_PAID"
     assert ALERT_CRITICAL == "ALERT_CRITICAL"

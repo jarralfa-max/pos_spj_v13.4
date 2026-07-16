@@ -197,8 +197,8 @@ class PayrollFinanceHandler:
     """
     Consumes RRHH payroll events and records financial impact idempotently.
 
-    NOMINA_GENERADA accrues payroll expense against payroll payable.
-    NOMINA_PAGADA clears payroll payable against cash/bank.
+    PAYROLL_RUN_GENERATED accrues payroll expense against payroll payable.
+    PAYROLL_PAID clears payroll payable against cash/bank.
     Both entries use operation_id-derived keys so repeated events are safe.
     """
 
@@ -209,7 +209,7 @@ class PayrollFinanceHandler:
     def handle_generated(self, payload: Dict[str, Any]) -> None:
         self._post(
             payload=payload,
-            event_type="NOMINA_GENERADA",
+            event_type="PAYROLL_RUN_GENERATED",
             op_suffix="GEN",
             debit_account="6101",
             credit_account="2101",
@@ -219,7 +219,7 @@ class PayrollFinanceHandler:
     def handle_paid(self, payload: Dict[str, Any]) -> None:
         self._post(
             payload=payload,
-            event_type="NOMINA_PAGADA",
+            event_type="PAYROLL_PAID",
             op_suffix="PAID",
             debit_account="2101",
             credit_account="1101",

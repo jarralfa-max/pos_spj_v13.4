@@ -6,6 +6,8 @@
 
 import sqlite3
 
+from backend.infrastructure.db.schema.hr_schema import create_hr_schema
+
 version     = 0
 description = "base schema smart initializer"
 
@@ -197,6 +199,7 @@ def _create_auth(conn):
             password_hash     TEXT    NOT NULL,
             rol               TEXT    DEFAULT 'cajero',
             sucursal_id       TEXT,
+            employee_id        TEXT,
             activo            INTEGER DEFAULT 1,
             intentos_fallidos INTEGER DEFAULT 0,
             bloqueado_hasta   DATETIME,
@@ -1453,80 +1456,14 @@ def _create_documentos(conn):
 
 
 def _create_personal_rrhh(conn):
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS personal (
-            id                   TEXT NOT NULL PRIMARY KEY,
-            nombre               TEXT NOT NULL,
-            apellidos            TEXT,
-            puesto               TEXT,
-            salario              REAL DEFAULT 0,
-            fecha_ingreso        TEXT,
-            activo               INTEGER DEFAULT 1,
-            telefono             TEXT,
-            email                TEXT,
-            direccion            TEXT,
-            fecha_nacimiento     DATE,
-            curp                 TEXT,
-            rfc                  TEXT,
-            nss                  TEXT,
-            contacto_emergencia  TEXT,
-            telefono_emergencia  TEXT
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS asistencias (
-            id               TEXT NOT NULL PRIMARY KEY,
-            personal_id      TEXT NOT NULL,
-            fecha            DATE NOT NULL,
-            hora_entrada     TEXT,
-            hora_salida      TEXT,
-            horas_trabajadas REAL,
-            estado           TEXT DEFAULT 'PRESENTE',
-            observaciones    TEXT
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS nomina_records (
-            id             TEXT NOT NULL PRIMARY KEY,
-            personal_id    TEXT,
-            periodo_inicio DATE NOT NULL,
-            periodo_fin    DATE NOT NULL,
-            salario_base   REAL DEFAULT 0,
-            deducciones    REAL DEFAULT 0,
-            bonos          REAL DEFAULT 0,
-            neto_pagar     REAL DEFAULT 0,
-            estado         TEXT DEFAULT 'pendiente',
-            aprobado_por   TEXT,
-            fecha_registro DATETIME DEFAULT (datetime('now'))
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS nomina_pagos (
-            id             TEXT NOT NULL PRIMARY KEY,
-            empleado_id    TEXT NOT NULL,
-            periodo_inicio DATE NOT NULL,
-            periodo_fin    DATE NOT NULL,
-            salario_base   REAL NOT NULL DEFAULT 0,
-            bonos          REAL DEFAULT 0,
-            deducciones    REAL DEFAULT 0,
-            total          REAL NOT NULL DEFAULT 0,
-            metodo_pago    TEXT DEFAULT 'efectivo',
-            estado         TEXT DEFAULT 'pagado',
-            usuario        TEXT,
-            fecha          DATETIME DEFAULT (datetime('now'))
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS evaluaciones_personal (
-            id          TEXT NOT NULL PRIMARY KEY,
-            personal_id TEXT,
-            periodo     TEXT,
-            calificacion INTEGER,
-            comentarios TEXT,
-            evaluador   TEXT,
-            fecha       DATE DEFAULT (date('now'))
-        )
-    """)
+    """Create the canonical born-clean HR schema.
+
+    Legacy RRHH tables (`personal`, `asistencias`, `nomina_records`,
+    `nomina_pagos`, `evaluaciones_personal`) are intentionally not created
+    for new databases. RRHH now starts from the UUIDv7 HR schema under
+    `backend.infrastructure.db.schema.hr_schema`.
+    """
+    create_hr_schema(conn)
 
 
 def _create_activos(conn):
@@ -2854,39 +2791,8 @@ def _ensure_extra_columns(conn):
         )
     """)
 
-    # ── RRHH: Turnos de trabajo ────────────────────────────────────────────
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS turno_roles(
-            id           TEXT NOT NULL PRIMARY KEY,
-            nombre       TEXT NOT NULL UNIQUE,
-            hora_inicio  TEXT DEFAULT '08:00',
-            hora_fin     TEXT DEFAULT '16:00',
-            descripcion  TEXT,
-            color        TEXT DEFAULT '#3498db',
-            activo       INTEGER DEFAULT 1
-        );
-        CREATE TABLE IF NOT EXISTS turno_asignaciones(
-            id             TEXT NOT NULL PRIMARY KEY,
-            personal_id    TEXT NOT NULL,
-            turno_rol_id   TEXT NOT NULL,
-            fecha_inicio   DATE NOT NULL,
-            fecha_fin      DATE,
-            dia_descanso   TEXT DEFAULT 'Domingo',
-            rotacion_dias  INTEGER DEFAULT 7,
-            notif_semana   INTEGER DEFAULT 1,
-            notif_dia      INTEGER DEFAULT 1,
-            activo         INTEGER DEFAULT 1,
-            notas          TEXT
-        );
-        CREATE TABLE IF NOT EXISTS turno_notificaciones_log(
-            id           TEXT NOT NULL PRIMARY KEY,
-            personal_id  TEXT,
-            tipo         TEXT,
-            fecha_envio  DATETIME DEFAULT (datetime('now')),
-            mensaje      TEXT,
-            estado       TEXT DEFAULT 'enviado'
-        );
-    """)
+    # RRHH work shifts now live in the canonical `work_shifts` and
+    # `shift_assignments` tables created by `_create_personal_rrhh`.
 
     # ── Notification inbox (mensajes POS para empleados) ──────────────────
     conn.execute("""
