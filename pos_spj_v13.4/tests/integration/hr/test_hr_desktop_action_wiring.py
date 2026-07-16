@@ -67,6 +67,32 @@ def test_hr_desktop_action_wiring_creates_employee_through_use_case() -> None:
     assert row == ("EMP-020", "Laura", department.id, position.id)
 
 
+def test_hr_desktop_action_wiring_defaults_missing_enum_catalog_values() -> None:
+    conn, department, position = _setup()
+    wiring = _HRActionWiring(conn, _Session())
+    form = HREmployeeFormViewModel(
+        employee_code="EMP-020",
+        first_name="Laura",
+        last_name="Ríos",
+        branch_id=department.branch_id,
+        department_id=department.id,
+        position_id=position.id,
+        contract_type=None,  # type: ignore[arg-type]
+        payment_frequency=None,  # type: ignore[arg-type]
+        base_salary=Decimal("2500"),
+        daily_salary=Decimal("500"),
+        hire_date=date(2026, 6, 1),
+    )
+
+    wiring.create_employee(form)
+
+    row = conn.execute(
+        "SELECT contract_type, payment_frequency FROM employees WHERE employee_code = ?",
+        ("EMP-020",),
+    ).fetchone()
+    assert row == ("FULL_TIME", "WEEKLY")
+
+
 def test_hr_desktop_action_wiring_uses_central_permission_checker() -> None:
     conn, department, position = _setup()
     wiring = _HRActionWiring(conn, _Session(allowed=False))

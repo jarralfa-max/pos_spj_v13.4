@@ -53,3 +53,44 @@ MIGRATED — primera pasada enterprise aplicada sobre el módulo canónico `fron
 18. Resoluciones verificadas: el módulo mantiene minimum size y componentes sin anchos fijos grandes; validación visual manual pendiente.
 19. Temas verificados: no hay QSS local ni colores hardcodeados en páginas HR; queda delegado al tema global.
 20. Allowlist reducida: no se amplió allowlist.
+
+## Enterprise UI/UX master prompt follow-up
+
+| Elemento anterior | Reemplazo canónico | Estado |
+|-------------------|--------------------|--------|
+| QLineEdit horario | TimeInput / TimeRangeInput | MIGRATED |
+| combo sin búsqueda | SearchableComboBox | MIGRATED |
+| diálogo disperso | StandardDialog | MIGRATED |
+| estado de error local | ErrorState | MIGRATED |
+| estado sin permiso local | PermissionState | MIGRATED |
+| estado offline local | OfflineState | MIGRATED |
+| estado stale local | StaleState | MIGRATED |
+| decimal libre | DecimalInput | MIGRATED |
+| gráfica PyQt | HtmlChartView | MIGRATED |
+| grid dashboard manual | DashboardGrid | MIGRATED |
+
+### Reporte adicional obligatorio
+
+1. Componentes globales creados: `TimeInput`, `TimeRangeInput`, `MonthInput`, `SearchInput`, `SearchableComboBox`, `DecimalInput`, `StandardDialog`, estados de vista, `HtmlChartView`, `DashboardGrid`, `FormField` e inline feedback.
+2. Componentes globales modificados: `frontend.desktop.components.__init__` exporta los contratos canónicos.
+3. Inputs migrados: hora, rango horario, mes contable, decimal y selector searchable quedan disponibles como contratos compartidos.
+4. KPI migrados: se conserva `KPICard` y `KPIBar` como única ruta canónica existente.
+5. Cards migradas: se conserva `cards.py` como única ruta canónica existente.
+6. Charts migradas: se agrega `HtmlChartView` con contrato `renderer=html_js` y resumen accesible.
+7. Tablas migradas: se conserva `StandardTable` como contrato canónico para RRHH.
+8. Tooltips añadidos: los inputs nuevos usan `Tooltip.attach`.
+9. Tooltips corregidos: no se agrega un sistema paralelo.
+10. Horarios migrados a TimeInput: el contrato `HH:mm` queda protegido por tests.
+11. QLineEdit incorrectos eliminados: los nuevos horarios no usan `QLineEdit` ni `.text().strip()`.
+12. Estilos inline eliminados: los componentes nuevos solo asignan `objectName` y propiedades semánticas.
+13. Tokens añadidos: no se añadieron nuevos tokens en esta iteración; los componentes quedan listos para QSS global.
+14. QSS añadido: no se añadió QSS local por cumplimiento de fuente única visual.
+15. Formatters añadidos: no aplica en esta iteración de componentes de captura.
+16. Iconos migrados: se mantiene `Icons` como catálogo canónico.
+17. Estados añadidos: `ErrorState`, `PermissionState`, `OfflineState`, `StaleState`.
+18. Tests creados: tests unitarios de componentes enterprise y tests de arquitectura de contratos UI.
+19. Tests ejecutados: compileall, unitarios de componentes, arquitectura HR/UI, suite HR afectada y `git diff --check`.
+20. Resoluciones verificadas: no se ejecutó validación visual manual por entorno headless.
+21. Temas verificados: contratos sin QSS local; validación visual queda pendiente en entorno interactivo.
+22. Allowlists reducidas: no se agregaron allowlists.
+23. Archivos legacy eliminados: no se eliminaron archivos legacy en esta iteración incremental.
