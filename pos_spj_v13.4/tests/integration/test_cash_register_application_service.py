@@ -60,6 +60,7 @@ def ctx():
             estado TEXT DEFAULT 'completada', forma_pago TEXT DEFAULT 'Efectivo',
             fecha DATETIME DEFAULT (datetime('now'))
         );
+<<<<<<< HEAD
         CREATE TABLE cierres_caja (
             id TEXT PRIMARY KEY, tipo TEXT, sucursal_id TEXT, usuario TEXT,
             turno TEXT, turno_id TEXT, fecha_apertura DATETIME,
@@ -68,8 +69,30 @@ def ctx():
             total_otros REAL, total_anulaciones REAL, num_anulaciones INTEGER,
             efectivo_contado REAL, fondo_inicial REAL, diferencia REAL,
             comentarios TEXT, estado TEXT
+=======
+        CREATE TABLE usuarios (
+            id TEXT PRIMARY KEY, nombre TEXT, usuario TEXT, password_hash TEXT,
+            rol TEXT, sucursal_id TEXT, employee_id TEXT, activo INTEGER
+>>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
         );
         """
+    )
+    branch = str(uuid.uuid4())
+    department = Department(name="Operaciones", branch_id=branch)
+    position = Position(name="Caja", department_id=department.id)
+    employee = Employee(
+        employee_code="EMP-CASH", first_name="Ana", last_name="Caja",
+        branch_id=branch, department_id=department.id, position_id=position.id,
+        contract_type=ContractType.FULL_TIME, payment_frequency=PaymentFrequency.WEEKLY,
+        base_salary=Decimal("1000"), daily_salary=Decimal("200"), hire_date=date(2026, 1, 1),
+    )
+    SQLiteDepartmentRepository(conn).save(department)
+    SQLitePositionRepository(conn).save(position)
+    SQLiteEmployeeRepository(conn).save(employee)
+    user_id = str(uuid.uuid4())
+    conn.execute(
+        "INSERT INTO usuarios (id, nombre, usuario, password_hash, rol, sucursal_id, employee_id, activo) VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
+        (user_id, "Ana Caja", "ana", "hash", "cajero", branch, employee.id),
     )
     conn.commit()
     events = []

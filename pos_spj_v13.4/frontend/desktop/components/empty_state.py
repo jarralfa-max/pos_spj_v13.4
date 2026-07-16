@@ -13,6 +13,10 @@ class EmptyState(QWidget):
 
     def __init__(self, title: str, description: str = "", parent=None) -> None:
         super().__init__(parent)
+        self.setObjectName("emptyState")
+        self.setProperty("state", "EMPTY")
+        self.setAccessibleName(title)
+        self.setAccessibleDescription(description)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(DesktopSpacing.LG, DesktopSpacing.LG, DesktopSpacing.LG, DesktopSpacing.LG)
         layout.setSpacing(DesktopSpacing.SM)

@@ -666,72 +666,6 @@ def _wire_finanzas(bus, container) -> None:
 
 
 
-<<<<<<< HEAD
-=======
-def _wire_payroll_finance_handlers(bus, container) -> None:
-    """Finanzas consume eventos RRHH de nómina; RRHH no registra OPEX directo."""
-    from core.rrhh.events import NOMINA_GENERADA, NOMINA_PAGADA
-    from core.events.handlers.finance_handler import PayrollFinanceHandler
-
-    db = getattr(container, "db", None)
-    if db is None:
-        return
-
-    handler = PayrollFinanceHandler(db_conn=db)
-    bus.subscribe(NOMINA_GENERADA, handler.handle_generated,
-                  priority=60, label="payroll_finance_generated")
-    bus.subscribe(NOMINA_PAGADA, handler.handle_paid,
-                  priority=60, label="payroll_finance_paid")
-
-
-# ── RRHH: EMPLOYEE_OVERWORK / PAYROLL_DUE ────────────────────────────────────
-
-def _wire_rrhh(bus, container) -> None:
-    from core.events.event_bus import EMPLOYEE_OVERWORK, PAYROLL_DUE
-
-    def _notify_overwork(data: dict) -> None:
-        """Notifica por WhatsApp cuando un empleado supera días consecutivos (FASE 12)."""
-        try:
-            ws = getattr(container, "whatsapp_service", None)
-            if not ws:
-                return
-            tel_row = container.db.execute(
-                "SELECT telefono FROM configuraciones WHERE clave='tel_gerente_rrhh' LIMIT 1"
-            ).fetchone()
-            if not tel_row or not tel_row[0]:
-                return
-            nombre = data.get("nombre", f"Empleado #{data.get('empleado_id')}")
-            dias = data.get("dias_consecutivos", "?")
-            msg = (f"RRHH: {nombre} lleva {dias} días consecutivos trabajando. "
-                   f"Programar descanso obligatorio (NOM-035).")
-            ws.send_message(phone_number=tel_row[0], message=msg)
-        except Exception as e:
-            logger.debug("notify_overwork: %s", e)
-
-    def _notify_payroll_due(data: dict) -> None:
-        """Notifica cuando una nómina está por vencer (FASE 12)."""
-        try:
-            ws = getattr(container, "whatsapp_service", None)
-            if not ws:
-                return
-            tel_row = container.db.execute(
-                "SELECT telefono FROM configuraciones WHERE clave='tel_gerente_rrhh' LIMIT 1"
-            ).fetchone()
-            if not tel_row or not tel_row[0]:
-                return
-            nombre = data.get("nombre", f"Empleado #{data.get('empleado_id')}")
-            dias = data.get("dias_vencimiento", "?")
-            msg = f"RRHH: Nómina de {nombre} vence en {dias} días. Procesar pago."
-            ws.send_message(phone_number=tel_row[0], message=msg)
-        except Exception as e:
-            logger.debug("notify_payroll_due: %s", e)
-
-    bus.subscribe(EMPLOYEE_OVERWORK, _notify_overwork,
-                  priority=10, label="notify_overwork_wa")
-    bus.subscribe(PAYROLL_DUE, _notify_payroll_due,
-                  priority=10, label="notify_payroll_due_wa")
-
->>>>>>> claude/erp-financial-bounded-context-uqxz6b
 
 # ── PRICE_BELOW_MARGIN ────────────────────────────────────────────────────────
 
@@ -1361,7 +1295,6 @@ def _wire_notification_handler(bus, container) -> None:
 
 # ── migración 083: trazabilidad financiera end-to-end ────────────────────────
 
-<<<<<<< HEAD
 def _wire_financial_trace_handlers(bus, container) -> None:
     """
     Registra los handlers de trazabilidad financiera end-to-end.
@@ -1378,6 +1311,7 @@ def _wire_financial_trace_handlers(bus, container) -> None:
     # suscripciones a canales lowercase que NADIE emite y se reconectan waste y
     # driver-settlement a sus canales reales.
     #   Sanos ya:  VENTA_COMPLETADA, COMPRA_REGISTRADA, PUNTOS_ACUMULADOS,
+    #              PAYROLL_PAID
     #              PAYROLL_PAID
     #   Reconectados:
     #     WASTE_RECORDED("waste_recorded")           → MERMA_REGISTRADA (merma adapter)
@@ -1435,5 +1369,3 @@ def _wire_financial_trace_handlers(bus, container) -> None:
     bus.subscribe(DRIVER_SETTLEMENT_CREATED, DriverSettlementHandler(ts).handle,  priority=_PRIORITY, label="fin_trace_driver_settle")
 
     logger.debug("Registered 6 FinancialTrace handlers en canales con emisor (priority=%d)", _PRIORITY)
-=======
->>>>>>> claude/erp-financial-bounded-context-uqxz6b

@@ -197,7 +197,11 @@ def test_hr_phase9_enterprise_ui_uses_standard_states_navigation_and_pagination(
     assert "PaginationBar" in employees_page
     assert "EmptyState" in employees_page
     assert "LoadingState" in employees_page
+<<<<<<< HEAD
     assert "setToolTip" in employees_page
+=======
+    assert "set_action_button" in employees_page or "set_status_badge" in employees_page
+>>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
     assert "👔" not in hr_view
     assert "📅" not in hr_view
     assert "💸" not in hr_view
@@ -208,7 +212,11 @@ def test_hr_phase9_pages_have_empty_loading_and_pagination_states() -> None:
     missing: list[str] = []
     for page in pages:
         text = (HR_FRONTEND / "pages" / page).read_text(encoding="utf-8")
+<<<<<<< HEAD
         for token in ("EmptyState", "LoadingState", "PaginationBar", "setToolTip"):
+=======
+        for token in ("EmptyState", "LoadingState", "PaginationBar", "set_status_badge"):
+>>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
             if token not in text:
                 missing.append(f"{page}:{token}")
     assert missing == []

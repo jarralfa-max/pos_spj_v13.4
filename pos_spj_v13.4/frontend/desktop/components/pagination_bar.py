@@ -3,32 +3,35 @@
 from __future__ import annotations
 
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QLabel, QWidget
 
+from frontend.desktop.components.buttons import StandardButton
 from frontend.desktop.themes import DesktopSpacing
 
 
 class PaginationBar(QWidget):
-    """Simple offset pagination widget for QueryService-backed tables."""
+    """Offset pagination widget for QueryService-backed tables."""
 
     pageChanged = pyqtSignal(int, int)
 
     def __init__(self, parent=None, *, page_size: int = 25) -> None:
         super().__init__(parent)
+        self.setObjectName("paginationBar")
+        self.setProperty("component", "paginationBar")
         self._page_size = page_size
         self._offset = 0
         self._has_next = False
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(DesktopSpacing.SM)
+<<<<<<< HEAD
         self._previous = QPushButton("Anterior", self)
         self._next = QPushButton("Siguiente", self)
-        self._label = QLabel("Página 1", self)
-        self._previous.setToolTip("Mostrar la página anterior")
-        self._next.setToolTip("Mostrar la página siguiente")
+        self._label.setObjectName("paginationLabel")
+        self._label.setAccessibleName("Página actual")
+>>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
         self._previous.clicked.connect(self.previous_page)
         self._next.clicked.connect(self.next_page)
-        layout.addStretch(1)
         layout.addWidget(self._previous)
         layout.addWidget(self._label)
         layout.addWidget(self._next)

@@ -176,14 +176,10 @@ class SaleCancelledFinanceHandler:
 class PayrollFinanceHandler:
     """NOMINA_PAGADA → PAYROLL_PAID canónico (un asiento por pago).
 
-<<<<<<< HEAD
     PAYROLL_RUN_GENERATED accrues payroll expense against payroll payable.
     PAYROLL_PAID clears payroll payable against cash/bank.
     Both entries use operation_id-derived keys so repeated events are safe.
-=======
-    NOMINA_GENERADA ya no devenga aparte: el reconocimiento ocurre al pago,
-    evitando el doble efecto del esquema legacy devengo+pago sin conciliación.
->>>>>>> claude/erp-financial-bounded-context-uqxz6b
+    
     """
 
     def __init__(self, db_conn=None, finance_service=None, journal_service=None):
@@ -195,7 +191,6 @@ class PayrollFinanceHandler:
         self._handler = PayrollPaidHandler(db_conn)
 
     def handle_generated(self, payload: Dict[str, Any]) -> None:
-<<<<<<< HEAD
         self._post(
             payload=payload,
             event_type="PAYROLL_RUN_GENERATED",
@@ -224,11 +219,6 @@ class PayrollFinanceHandler:
         credit_account: str,
         source_folio: str,
     ) -> int:
-=======
-        logger.debug("NOMINA_GENERADA recibido; el reconocimiento ocurre al pago.")
-
-    def handle_paid(self, payload: Dict[str, Any]) -> None:
->>>>>>> claude/erp-financial-bounded-context-uqxz6b
         operation_id = str(payload.get("operation_id") or "").strip()
         if not operation_id:
             logger.warning("PayrollFinanceHandler NOMINA_PAGADA sin operation_id")

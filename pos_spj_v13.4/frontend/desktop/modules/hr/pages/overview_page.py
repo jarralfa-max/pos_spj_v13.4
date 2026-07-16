@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from PyQt5.QtWidgets import QVBoxLayout, QWidget
 
+<<<<<<< HEAD
 from frontend.desktop.components import Icons, KPIBar, KPIDTO, LoadingState, PageAction, PageHeader
+=======
+from frontend.desktop.components import EmptyState, ErrorState, Icons, InlineFeedback, KPIBar, KPIDTO, LoadingState, OfflineState, PageAction, PageHeader, PartialState, PermissionState, StaleState, Toast
+>>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
 from frontend.desktop.modules.hr.hr_presenter import HRPresenterPort
 from frontend.desktop.modules.hr.hr_view_models import HRDashboardKpiViewModel
 from frontend.desktop.themes import DesktopSpacing
@@ -48,6 +52,13 @@ class HROverviewPage(QWidget):
         )
         self._loading = LoadingState(parent=self)
         root.addWidget(self._loading)
+<<<<<<< HEAD
+=======
+        self._empty = EmptyState("Sin indicadores para mostrar", "Los KPI aparecerán cuando HRDashboardQueryService entregue datos.", self)
+        self._empty.setVisible(False)
+        root.addWidget(self._empty)
+        self._install_state_feedback(root)
+>>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
         self._kpi_bar = KPIBar(
             tuple(
                 KPIDTO(key=key, title=title, value="0", icon=icon, variant=variant, tooltip=tooltip)
@@ -60,10 +71,51 @@ class HROverviewPage(QWidget):
         root.addStretch(1)
         self.refresh()
 
+<<<<<<< HEAD
     def refresh(self) -> None:
         self._loading.setVisible(True)
         try:
             self.render(self._presenter.load_dashboard())
+=======
+    def _install_state_feedback(self, layout: QVBoxLayout) -> None:
+        self._error = ErrorState(parent=self)
+        self._offline = OfflineState(parent=self)
+        self._stale = StaleState(parent=self)
+        self._partial = PartialState(parent=self)
+        self._permission = PermissionState(parent=self)
+        self._feedback = InlineFeedback(parent=self, variant="info")
+        self._toast = Toast(parent=self)
+        for widget in (self._error, self._offline, self._stale, self._partial, self._permission, self._feedback, self._toast):
+            widget.setVisible(False)
+            layout.addWidget(widget)
+
+    def _hide_transient_states(self) -> None:
+        for widget in (self._error, self._offline, self._stale, self._partial, self._permission, self._feedback):
+            widget.setVisible(False)
+
+    def _show_error_state(self, message: str) -> None:
+        self._kpi_bar.setVisible(False)
+        self._empty.setVisible(False)
+        self._error.setVisible(True)
+        self._feedback.setText(message)
+        self._feedback.setProperty("variant", "danger")
+        self._feedback.setVisible(True)
+
+    def refresh(self) -> None:
+        self._loading.setVisible(True)
+        self._hide_transient_states()
+        try:
+            self.render(self._presenter.load_dashboard())
+            self._kpi_bar.setVisible(True)
+        except PermissionError as exc:
+            self._permission.setVisible(True)
+            self._show_error_state(str(exc) or "No tienes permiso para ver esta información.")
+        except ConnectionError as exc:
+            self._offline.setVisible(True)
+            self._show_error_state(str(exc) or "No se pudo conectar con la fuente de datos.")
+        except Exception as exc:
+            self._show_error_state(str(exc) or "No se pudo cargar la información.")
+>>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
         finally:
             self._loading.setVisible(False)
 

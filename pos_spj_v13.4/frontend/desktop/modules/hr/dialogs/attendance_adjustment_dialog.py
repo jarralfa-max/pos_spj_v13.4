@@ -1,14 +1,21 @@
-"""Canonical HR dialog shell for attendance_adjustment."""
+"""Canonical HR standard dialog shell for ajuste de asistencia."""
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QDialog, QVBoxLayout
+from PyQt5.QtWidgets import QDialogButtonBox
 
-from frontend.desktop.themes import DesktopSpacing
+from frontend.desktop.components import StandardDialog, StandardForm
 
 
-class HRAttendanceAdjustmentDialog(QDialog):
+class HRAttendanceAdjustmentDialog(StandardDialog):
+    """StandardDialog shell reserved for upcoming HR use-case wiring."""
+
     def __init__(self, parent=None) -> None:
-        super().__init__(parent)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(DesktopSpacing.LG, DesktopSpacing.LG, DesktopSpacing.LG, DesktopSpacing.LG)
+        self._form = StandardForm(parent)
+        super().__init__(
+            parent,
+            title='Ajuste de asistencia',
+            description='Solicita o revisa una corrección de jornada con trazabilidad.',
+            content=self._form,
+            buttons=QDialogButtonBox.Save | QDialogButtonBox.Cancel,
+        )

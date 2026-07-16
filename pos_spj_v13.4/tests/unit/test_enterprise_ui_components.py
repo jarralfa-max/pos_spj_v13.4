@@ -13,6 +13,10 @@ Qt = QtCore.Qt
 QApplication = QtWidgets.QApplication
 QComboBox = QtWidgets.QComboBox
 QLabel = QtWidgets.QLabel
+<<<<<<< HEAD
+=======
+QLineEdit = QtWidgets.QLineEdit
+>>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
 
 from frontend.desktop.components import (  # noqa: E402
     DecimalInput,
@@ -20,6 +24,11 @@ from frontend.desktop.components import (  # noqa: E402
     MonthInput,
     SearchableComboBox,
     StandardDialog,
+<<<<<<< HEAD
+=======
+    StandardForm,
+    FormField,
+>>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
     TimeInput,
     TimeRangeInput,
 )
@@ -87,6 +96,24 @@ def test_decimal_input_returns_decimal_not_float(app: QApplication) -> None:
     assert widget.decimal_value() == Decimal("12.5")
 
 
+<<<<<<< HEAD
+=======
+def test_standard_form_field_validation_state_and_focus(app: QApplication) -> None:
+    form = StandardForm()
+    field = form.add_field(
+        "name",
+        FormField("Nombre", QLineEdit(), helper_text="Ej. Ana", required=True),
+    )
+
+    form.set_error("name", "Captura el nombre.")
+
+    assert field.error.isVisible()
+    assert form.has_errors()
+    form.clear_errors()
+    assert not form.has_errors()
+
+
+>>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
 def test_standard_dialog_and_html_chart_are_semantic_components(app: QApplication) -> None:
     dialog = StandardDialog(title="Confirmar", description="Revisa los datos.", content=QLabel("Contenido"))
     chart = HtmlChartView(accessibility_summary="Ventas por día")
