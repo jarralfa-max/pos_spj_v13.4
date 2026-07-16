@@ -2,7 +2,6 @@
 from core.use_cases.venta import ProcesarVentaUC, ResultadoVenta
 from core.use_cases.compra import ProcesarCompraUC, ResultadoCompra  # deprecated — ver Phase 2
 from core.use_cases.cliente import GestionarClienteUC, ResultadoCliente
-from core.use_cases.nomina import GestionarNominaUC, ResultadoNomina
 from core.use_cases.inventario import GestionarInventarioUC
 from core.use_cases.produccion import GestionarProduccionUC
 
@@ -17,7 +16,6 @@ __all__ = [
     "ProcesarVentaUC", "ResultadoVenta",
     "ProcesarCompraUC", "ResultadoCompra",
     "GestionarClienteUC", "ResultadoCliente",
-    "GestionarNominaUC", "ResultadoNomina",
     "GestionarInventarioUC",
     "GestionarProduccionUC",
     # Phase 2 — ruta canónica de compras
