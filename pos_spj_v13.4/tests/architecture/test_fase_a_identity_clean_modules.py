@@ -5,7 +5,7 @@ The Fase A pass removed arbitrary branch defaults from these PyQt modules
 prevents cross-branch data leaks). They must stay at zero.
 
 INT_CLEAN_MODULES additionally have no int(_id) identity casts; the rest still
-carry a few casts that are later Fase A work (compras_pro, rrhh, fidelidad).
+carry a few casts that are later Fase A work (compras_pro, fidelidad).
 """
 
 from __future__ import annotations
@@ -28,8 +28,6 @@ BRANCH_CLEAN_MODULES = [
     "modulos/tarjetas.py",
     "modulos/compras_pro.py",
     "modulos/whatsapp/whatsapp_module.py",
-    "modulos/rrhh_turnos.py",
-    "modulos/rrhh.py",
     "modulos/etiquetas.py",
     "modulos/clientes.py",
     "modulos/fidelidad_config.py",

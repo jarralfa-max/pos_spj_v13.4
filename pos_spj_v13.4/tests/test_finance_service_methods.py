@@ -359,7 +359,7 @@ class TestAsientosAutomaticosFinanzas:
         )
         assert np_id  # UUIDv7
         row = conn.execute(
-            "SELECT evento, cuenta_debe, cuenta_haber, referencia_id FROM financial_event_log WHERE evento='NOMINA_PAGADA' ORDER BY id DESC LIMIT 1"
+            "SELECT evento, cuenta_debe, cuenta_haber, referencia_id FROM financial_event_log WHERE evento='PAYROLL_PAID' ORDER BY id DESC LIMIT 1"
         ).fetchone()
         assert row["cuenta_debe"] == "gasto_nomina"
         assert row["cuenta_haber"] == "caja_bancos"
@@ -384,7 +384,7 @@ class TestGenerarPolizaPeriodo:
             concepto="Nómina quincenal",
             monto=80.0,
             modulo="rrhh",
-            evento="NOMINA_PAGADA",
+            evento="PAYROLL_PAID",
         )
 
         pol = svc.generar_poliza_periodo("2000-01-01", "2100-12-31")
@@ -478,14 +478,14 @@ class TestExportarPolizaPeriodo:
             concepto="Nómina",
             monto=80.0,
             modulo="rrhh",
-            evento="NOMINA_PAGADA",
+            evento="PAYROLL_PAID",
         )
 
         pol = svc.generar_poliza_periodo(
             "2000-01-01", "2100-12-31",
             cuentas=["gasto_nomina"],
-            eventos=["NOMINA_PAGADA"],
+            eventos=["PAYROLL_PAID"],
         )
         assert pol["num_asientos"] == 1
-        assert pol["movimientos"][0]["evento"] == "NOMINA_PAGADA"
+        assert pol["movimientos"][0]["evento"] == "PAYROLL_PAID"
         assert pol["movimientos"][0]["debe"] == "gasto_nomina"

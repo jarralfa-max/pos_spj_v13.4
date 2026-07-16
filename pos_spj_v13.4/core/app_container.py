@@ -191,6 +191,7 @@ class AppContainer:
             from backend.application.services.cash_register_application_service import (
                 CashRegisterApplicationService,
             )
+            from backend.application.use_cases.close_cash_shift_use_case import CloseCashShiftUseCase
             from backend.application.use_cases.open_cash_shift_use_case import OpenCashShiftUseCase
             from backend.application.use_cases.register_cash_movement_use_case import (
                 RegisterCashMovementUseCase,
@@ -201,15 +202,41 @@ class AppContainer:
             self.cash_register_service = CashRegisterApplicationService(
                 self.finance_service,
                 publisher=lambda evt, payload: _cash_get_bus().publish(evt, payload),
+                permission_checker=lambda _user_id, permission: self.session.tiene_permiso(permission),
             )
             self.open_cash_shift_uc = OpenCashShiftUseCase(handler=self.cash_register_service.open_shift)
+            self.close_cash_shift_uc = CloseCashShiftUseCase(handler=self.cash_register_service.close_shift)
             self.register_cash_movement_uc = RegisterCashMovementUseCase(
                 handler=self.cash_register_service.register_movement
             )
             self.generate_z_cut_uc = GenerateZCutUseCase(handler=self.cash_register_service.generate_z_cut)
+
+            from backend.application.event_handlers.hr.cash_shift_closed_attendance_handler import CashShiftClosedAttendanceHandler
+            from backend.application.event_handlers.hr.cash_shift_opened_attendance_handler import CashShiftOpenedAttendanceHandler
+            from backend.application.use_cases.hr.register_attendance_punch_use_case import RegisterAttendancePunchUseCase
+            from backend.infrastructure.db.repositories.attendance_repository import SQLiteAttendanceRepository
+            from backend.infrastructure.db.repositories.employee_repository import SQLiteEmployeeRepository
+
+            _attendance_punch_uc = RegisterAttendancePunchUseCase(
+                SQLiteAttendanceRepository(self.db),
+                employee_repository=SQLiteEmployeeRepository(self.db),
+            )
+            _cash_get_bus().subscribe(
+                "CASH_SHIFT_OPENED",
+                CashShiftOpenedAttendanceHandler(_attendance_punch_uc).handle,
+                priority=50,
+                label="hr_attendance_cash_opened",
+            )
+            _cash_get_bus().subscribe(
+                "CASH_SHIFT_CLOSED",
+                CashShiftClosedAttendanceHandler(_attendance_punch_uc).handle,
+                priority=50,
+                label="hr_attendance_cash_closed",
+            )
         except Exception as _cash_err:
             self.cash_register_service = None
             self.open_cash_shift_uc = None
+            self.close_cash_shift_uc = None
             self.register_cash_movement_uc = None
             self.generate_z_cut_uc = None
             logger.warning("CashRegister use cases no cargados: %s", _cash_err)
@@ -349,20 +376,8 @@ class AppContainer:
             finance_service=self.finance_service,
         )
 
-        from core.services.hr_rule_engine import HRRuleEngine
-        self.hr_rule_engine = HRRuleEngine(
-            db_conn=self.db,
-            module_config=self.module_config,
-        )
-
-        from core.services.rrhh_service import RRHHService
-        self.rrhh_service = RRHHService(
-            db_conn=self.db,
-            treasury_service=self.treasury_service,
-            whatsapp_service=self.whatsapp_service,
-            template_engine=None,
-            hr_rule_engine=self.hr_rule_engine,
-        )
+        # RRHH legacy eliminado: el módulo canónico se compone en core.ui.hr_module_factory
+        # y toda mutación pasa por backend.application.use_cases.hr.
 
         # BI unificado: no se expone bi_service paralelo.
         self.bi_service = None
@@ -554,20 +569,18 @@ class AppContainer:
             self.receive_po_adapter    = None
             logger.debug("uc_compra_tradicional/pr/po/adapter: %s", _uc_trad)
 
-        # ── v13.5: ERP Use Cases — compra (deprecated), cliente, nomina, finanzas ──
+        # ── v13.5: ERP Use Cases — compra (deprecated), cliente y finanzas ──
         try:
             from core.use_cases.compra import ProcesarCompraUC
             from core.use_cases.cliente import GestionarClienteUC
-            from core.use_cases.nomina import GestionarNominaUC
             from core.use_cases.finanzas import GestionarFinanzasUC
             # uc_compra queda como alias deprecado hacia ProcesarCompraUC.
             # Código nuevo debe usar self.uc_compra_tradicional.
             self.uc_compra    = ProcesarCompraUC.desde_container(self)
             self.uc_cliente   = GestionarClienteUC.desde_container(self)
-            self.uc_nomina    = GestionarNominaUC.desde_container(self)
             self.uc_finanzas  = GestionarFinanzasUC.desde_container(self)
         except Exception as _uc_erp:
-            self.uc_compra = self.uc_cliente = self.uc_nomina = self.uc_finanzas = None
+            self.uc_compra = self.uc_cliente = self.uc_finanzas = None
             logger.debug("uc_erp v13.5: %s", _uc_erp)
 
         # ── v13.4: EventLogger para sync (usado por handlers del EventBus) ──

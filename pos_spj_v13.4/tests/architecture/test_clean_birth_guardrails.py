@@ -594,12 +594,8 @@ def test_deferred_debt_tables_are_born_clean_uuid_identity():
 
 
 def test_rrhh_tables_are_born_clean_uuid_identity():
-    """RRHH born-clean: personal / asistencias / nomina_records / nomina_pagos /
-    evaluaciones_personal / turno_roles / turno_asignaciones (base) y
-    vacaciones_personal / puestos (094) llevan id TEXT UUIDv7. Las FKs
-    personal_id / empleado_id / turno_rol_id van en TEXT. Los repositorios
-    canónicos (core/rrhh) acuñan new_uuid() (sin lastrowid) y la validación de
-    eventos exige identidad TEXT (no entero positivo).
+    """RRHH born-clean: una DB nueva crea solo tablas HR canónicas, con
+    identidades TEXT UUIDv7, y no recrea tablas legacy de RRHH.
     """
     import migrations.m000_base_schema as base
     from migrations import engine as migrator
@@ -610,26 +606,41 @@ def test_rrhh_tables_are_born_clean_uuid_identity():
     migrator.up(conn)
     conn.commit()
 
-    for table in ("personal", "asistencias", "nomina_records", "nomina_pagos",
-                  "evaluaciones_personal", "turno_roles", "turno_asignaciones",
-                  "vacaciones_personal", "puestos"):
+    canonical_tables = (
+        "employees", "departments", "positions", "work_shifts",
+        "shift_assignments", "attendance_punches", "attendance_workdays",
+        "attendance_adjustments", "leave_requests", "payroll_runs",
+        "payroll_lines", "payroll_concepts", "payroll_payments",
+    )
+    for table in canonical_tables:
         cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
         assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
 
-    asis = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(asistencias)").fetchall()}
-    assert asis["personal_id"] == "TEXT"
-    nom = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(nomina_pagos)").fetchall()}
-    assert nom["empleado_id"] == "TEXT"
-    asg = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(turno_asignaciones)").fetchall()}
-    assert asg["personal_id"] == "TEXT" and asg["turno_rol_id"] == "TEXT"
+    legacy_tables = (
+        "personal", "asistencias", "nomina_records", "nomina_pagos",
+        "evaluaciones_personal", "turno_roles", "turno_asignaciones",
+        "turno_notificaciones_log", "vacaciones_personal",
+    )
+    existing_tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert set(legacy_tables).isdisjoint(existing_tables)
 
-    repo_src = (REPO / "core/rrhh/infrastructure/sqlite_repositories.py").read_text(encoding="utf-8")
-    assert "from backend.shared.ids import new_uuid" in repo_src
-    assert "new_uuid()" in repo_src and "int(cur.lastrowid)" not in repo_src
+    punches = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(attendance_punches)").fetchall()}
+    assert punches["employee_id"] == "TEXT"
+    assert punches["branch_id"] == "TEXT"
+    assert punches["operation_id"] == "TEXT"
 
-    # La validación de eventos RRHH exige identidad TEXT (no entero positivo).
-    events_src = (REPO / "core/rrhh/events.py").read_text(encoding="utf-8")
-    assert "_ensure_positive_int" not in events_src
+    payroll_payments = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(payroll_payments)").fetchall()}
+    assert payroll_payments["payroll_run_id"] == "TEXT"
+    assert payroll_payments["branch_id"] == "TEXT"
+    assert payroll_payments["operation_id"] == "TEXT"
+
+    entities_src = (REPO / "backend/domain/hr/entities.py").read_text(encoding="utf-8")
+    assert "from backend.shared.ids import new_uuid" in entities_src
+    assert "new_uuid()" in entities_src and "lastrowid" not in entities_src
+
+    events_src = (REPO / "backend/shared/events/event_names.py").read_text(encoding="utf-8")
+    assert "PAYROLL_PAID" in events_src
+    assert "ATTENDANCE_PUNCH_REGISTERED" in events_src
 
 
 def test_whatsapp_messaging_tables_are_born_clean_uuid_identity():
@@ -659,10 +670,9 @@ def test_whatsapp_messaging_tables_are_born_clean_uuid_identity():
 
 
 def test_notification_tables_are_born_clean_uuid_identity():
-    """El subsistema de notificaciones es born-clean: notification_inbox y
-    turno_notificaciones_log llevan id TEXT UUIDv7, empleado_id/personal_id TEXT y
-    sucursal_id TEXT sin DEFAULT 1. Los escritores acuñan id con new_uuid() y el
-    CREATE de desktop_notification_service usa el mismo esquema TEXT.
+    """El subsistema de notificaciones es born-clean: notification_inbox
+    lleva id TEXT UUIDv7, empleado_id TEXT y sucursal_id TEXT sin DEFAULT 1.
+    La bitácora legacy de turnos RRHH ya no nace en el schema base.
     """
     conn = _fresh_base_schema()
     inbox = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(notification_inbox)").fetchall()}
@@ -670,9 +680,8 @@ def test_notification_tables_are_born_clean_uuid_identity():
     assert inbox["empleado_id"][0] == "TEXT"
     assert inbox["sucursal_id"][0] == "TEXT"
 
-    turno = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(turno_notificaciones_log)").fetchall()}
-    assert turno["id"] == ("TEXT", 1)
-    assert turno["personal_id"][0] == "TEXT"
+    existing_tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert "turno_notificaciones_log" not in existing_tables
 
     for path in ("core/services/notification_service.py",
                  "core/services/notifications/notification_dispatcher.py",

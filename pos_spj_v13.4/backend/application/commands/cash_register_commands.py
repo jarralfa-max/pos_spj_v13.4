@@ -16,6 +16,17 @@ class GenerateZCutCommand(BaseCommand):
 class OpenCashShiftCommand(BaseCommand):
     opening_amount: float = 0.0
     notes: str = ""
+    employee_id: str | None = None
+
+
+@dataclass(frozen=True)
+class CloseCashShiftCommand(BaseCommand):
+    shift_id: str | None = None
+    z_cut_id: str | None = None
+    cash_difference: float = 0.0
+    counted_cash: float = 0.0
+    notes: str = ""
+    employee_id: str | None = None
 
 
 @dataclass(frozen=True)

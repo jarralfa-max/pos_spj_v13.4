@@ -15,6 +15,7 @@ from backend.application.commands.cash_register_commands import (
     OpenCashShiftCommand as _OpenCashShiftCommand,
     RegisterCashMovementCommand as _RegisterCashMovementCommand,
     GenerateZCutCommand as _GenerateZCutCommand,
+    CloseCashShiftCommand as _CloseCashShiftCommand,
 )
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
@@ -484,13 +485,16 @@ class DialogoCorteZCiego(QDialog):
         obs      = self.txt_observaciones.text().strip()
 
         try:
-            # Ruta canónica única F7.7: GenerateZCutUseCase (CASH_Z_CUT_GENERATED + DIFFERENCE)
-            uc = getattr(self.container, 'generate_z_cut_uc', None)
-            if uc is None:
-                raise RuntimeError("GenerateZCutUseCase no disponible")
-            res = uc.execute(_GenerateZCutCommand(
+            # Ruta canónica explícita: CloseCashShiftUseCase (CASH_SHIFT_CLOSED).
+            # generate_z_cut_uc permanece cableado para cortes Z no-cierre; este flujo usa cierre explícito.
+            close_uc = getattr(self.container, 'close_cash_shift_uc', None)
+            if close_uc is None:
+                raise RuntimeError("CloseCashShiftUseCase no disponible")
+            res = close_uc.execute(_CloseCashShiftCommand(
                 operation_id=_new_uuid(), branch_id=str(self.sucursal_id),
-                user_name=self.cajero, payload={"efectivo_fisico": efectivo, "observaciones": obs},
+                user_id=str(getattr(getattr(self.container, "session", None), "user_id", "") or ""),
+                user_name=self.cajero, shift_id=str(self.turno_id),
+                counted_cash=efectivo, notes=obs,
             ))
             resultado = dict(res.data or {})
             self.resultado = resultado
@@ -1318,12 +1322,13 @@ class ModuloCaja(QWidget, RefreshMixin):
             uc = getattr(self.container, 'open_cash_shift_uc', None)
             if uc is None:
                 raise RuntimeError("OpenCashShiftUseCase no disponible")
-            uc.execute(_OpenCashShiftCommand(
+            res = uc.execute(_OpenCashShiftCommand(
                 operation_id=_new_uuid(), branch_id=str(self.sucursal_id),
+                user_id=str(getattr(getattr(self.container, "session", None), "user_id", "") or ""),
                 user_name=self.usuario_actual, opening_amount=fondo,
             ))
 
-            Toast.success(self, "Turno abierto", f"Fondo inicial: ${fondo:.2f}")
+            Toast.success(self, "Turno abierto", res.message or f"Fondo inicial: ${fondo:.2f}")
 
             if hasattr(self.container, 'hardware_service'):
                 self.container.hardware_service.open_cash_drawer()
@@ -1367,6 +1372,7 @@ class ModuloCaja(QWidget, RefreshMixin):
                 raise RuntimeError("RegisterCashMovementUseCase no disponible")
             uc.execute(_RegisterCashMovementCommand(
                 operation_id=_new_uuid(), branch_id=str(self.sucursal_id),
+                user_id=str(getattr(getattr(self.container, "session", None), "user_id", "") or ""),
                 user_name=self.usuario_actual, movement_type=tipo,
                 amount=monto, concept=concepto,
             ))

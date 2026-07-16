@@ -33,8 +33,6 @@ SQL_IN_UI_ALLOWLIST = {
     # recepcion_qr_widget.py: SQL 100% extraído a RecepcionQRService (Remediación F).
     # reportes_bi_v2.py: KPIs → BIRepository.get_kpis_dia; fallback PDF →
     # ExportService.export_ventas_hoy_pdf (Remediación F).
-    # rrhh.py: SQL 100% extraído a RRHHCatalogService (Remediación F).
-    # rrhh_turnos.py: SQL 100% extraído a RRHHTurnosService (Remediación F).
     'pos_spj_v13.4/modulos/sistema/backup_engine.py': 2,
     # health_monitor.py: SQL de diagnóstico → SystemHealthRepository (Remediación F):
     # ping, error_count_24h, pending_sync_count, recent_errors.
@@ -58,8 +56,6 @@ COMMIT_ROLLBACK_IN_UI_ALLOWLIST = {
     # loyalty_card_designer.py: commit() movido a LoyaltyCardDesignerService (Remediación F).
     'pos_spj_v13.4/modulos/productos.py': 9,
     # recepcion_qr_widget.py: commit() movido a RecepcionQRService (Remediación F).
-    # rrhh.py: commit()/rollback() movidos a RRHHCatalogService/repositorios (Remediación F).
-    # rrhh_turnos.py: commit() movido a RRHHTurnosService (Remediación F).
     # ticket_designer.py: commit() eliminado (ConfigService persiste; Remediación F).
     'pos_spj_v13.4/modulos/transferencias.py': 2,
     'pos_spj_v13.4/modulos/ventas.py': 2,
@@ -91,7 +87,6 @@ SCHEMA_CHANGES_OUTSIDE_MIGRATIONS_ALLOWLIST = {
     'pos_spj_v13.4/core/services/finance/production_cost_service.py': 1,
     'pos_spj_v13.4/core/services/finance/third_party_service.py': 1,
     'pos_spj_v13.4/core/services/financial_simulator.py': 1,
-    'pos_spj_v13.4/core/services/hr_rule_engine.py': 2,
     'pos_spj_v13.4/core/services/lote_service.py': 2,
     'pos_spj_v13.4/core/services/loyalty_service.py': 1,
     'pos_spj_v13.4/core/services/moneda_service.py': 1,
@@ -113,7 +108,6 @@ SCHEMA_CHANGES_OUTSIDE_MIGRATIONS_ALLOWLIST = {
     'pos_spj_v13.4/core/services/growth_engine.py': 5,
     'pos_spj_v13.4/modulos/loyalty_card_designer.py': 3,
     'pos_spj_v13.4/modulos/productos.py': 1,
-    'pos_spj_v13.4/modulos/rrhh_turnos.py': 3,
     'pos_spj_v13.4/repositories/driver_repository.py': 4,
     'pos_spj_v13.4/repositories/loyalty_repository.py': 11,
     'pos_spj_v13.4/repositories/purchase_request_repository.py': 2,
@@ -178,7 +172,6 @@ SCHEMA_CHANGES_OUTSIDE_MIGRATIONS_ALLOWLIST = {
     'pos_spj_v13.4/tests/test_fase0_recetas_integrity.py': 4,
     'pos_spj_v13.4/tests/test_fase0_theme_engine_persistence.py': 1,
     'pos_spj_v13.4/tests/test_fase0_theme_normalization.py': 1,
-    'pos_spj_v13.4/tests/test_fase11_hr_rule_engine.py': 3,
     'pos_spj_v13.4/tests/test_fase1_finance_schema_compat.py': 11,
     'pos_spj_v13.4/tests/test_fase1_printer_styles.py': 3,
     'pos_spj_v13.4/tests/test_fase2_bi_cajeros.py': 2,
@@ -186,9 +179,7 @@ SCHEMA_CHANGES_OUTSIDE_MIGRATIONS_ALLOWLIST = {
     'pos_spj_v13.4/tests/test_fase2_scan_audit.py': 1,
     'pos_spj_v13.4/tests/test_fase3_capital_account.py': 1,
     'pos_spj_v13.4/tests/test_fase3_depreciacion.py': 3,
-    'pos_spj_v13.4/tests/test_fase3_rrhh_retenciones.py': 2,
     'pos_spj_v13.4/tests/test_fase4_decision_engine.py': 6,
-    'pos_spj_v13.4/tests/test_fase4_rrhh_turnos.py': 6,
     'pos_spj_v13.4/tests/test_fase5_forecast.py': 5,
     'pos_spj_v13.4/tests/test_fase5_inventory_availability_service.py': 1,
     'pos_spj_v13.4/tests/test_fase5_stock_reservations.py': 1,
@@ -277,8 +268,6 @@ HARDCODED_NUMERIC_DEFAULTS_IN_UI_ALLOWLIST = {
     'pos_spj_v13.4/modulos/planeacion_compras.py': 2,
     'pos_spj_v13.4/modulos/productos.py': 1,
     'pos_spj_v13.4/modulos/recepcion_qr_widget.py': 2,
-    'pos_spj_v13.4/modulos/rrhh.py': 3,
-    'pos_spj_v13.4/modulos/rrhh_turnos.py': 1,
     'pos_spj_v13.4/modulos/ticket_designer.py': 2,
     'pos_spj_v13.4/modulos/transferencias.py': 1,
 }
@@ -304,7 +293,6 @@ ENTITY_COMBO_MASS_LOADING_ALLOWLIST = {
     'pos_spj_v13.4/modulos/produccion.py': 5,
     'pos_spj_v13.4/modulos/productos.py': 7,
     'pos_spj_v13.4/modulos/recepcion_qr_widget.py': 5,
-    'pos_spj_v13.4/modulos/rrhh.py': 6,
     'pos_spj_v13.4/modulos/ticket_designer.py': 1,
     'pos_spj_v13.4/modulos/transferencias.py': 3,
     'pos_spj_v13.4/modulos/ventas.py': 1,
@@ -346,7 +334,6 @@ APPCONTAINER_PASSED_TO_SERVICES_ALLOWLIST = {
     'pos_spj_v13.4/core/services/sales_service.py': 2,
     'pos_spj_v13.4/core/use_cases/cliente.py': 2,
     'pos_spj_v13.4/core/use_cases/compra.py': 2,
-    'pos_spj_v13.4/core/use_cases/nomina.py': 1,
     'pos_spj_v13.4/core/use_cases/venta.py': 2,
     'pos_spj_v13.4/notifications/service.py': 1,
     'pos_spj_v13.4/services/bot_pedidos.py': 1,
