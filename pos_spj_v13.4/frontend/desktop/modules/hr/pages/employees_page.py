@@ -2,16 +2,10 @@
 
 from __future__ import annotations
 
-<<<<<<< HEAD
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QInputDialog, QMenu, QMessageBox, QTableWidgetItem, QVBoxLayout, QWidget
 
 from frontend.desktop.components import DebouncedSearchInput, EmptyState, FilterBar, Icons, LoadingState, PageAction, PageHeader, PaginationBar, StandardTable, StatusBadge
-=======
-from PyQt5.QtWidgets import QInputDialog, QMenu, QMessageBox, QVBoxLayout, QWidget
-
-from frontend.desktop.components import DebouncedSearchInput, EmptyState, ErrorState, FilterBar, Icons, InlineFeedback, LoadingState, OfflineState, PageAction, PageHeader, PaginationBar, PartialState, PermissionState, StaleState, StandardTable, Toast
->>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
 from frontend.desktop.modules.hr.dialogs.employee_dialog import HREmployeeDialog
 from frontend.desktop.modules.hr.hr_presenter import HRPresenterPort
 from frontend.desktop.modules.hr.hr_view_models import HREmployeeRowViewModel
@@ -19,12 +13,7 @@ from frontend.desktop.themes import DesktopSpacing
 
 
 class HREmployeesPage(QWidget):
-<<<<<<< HEAD
     HEADERS = ("Código", "Empleado", "Sucursal", "Departamento", "Puesto", "Estado", "Fecha de ingreso", "Acciones")
-=======
-    HEADERS = ("ID", "Código", "Empleado", "Sucursal", "Departamento", "Puesto", "Estado", "Fecha de ingreso", "Acciones")
-    HIDDEN_HEADERS = ("ID",)
->>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
 
     def __init__(self, presenter: HRPresenterPort, parent=None) -> None:
         super().__init__(parent)
@@ -49,36 +38,20 @@ class HREmployeesPage(QWidget):
             )
         )
 
-<<<<<<< HEAD
         toolbar = FilterBar(self)
         self._search = DebouncedSearchInput(self)
         self._search.setPlaceholderText("Buscar personal por código, nombre o puesto")
         self._search.setToolTip("Filtra personal con espera breve para no saturar el QueryService")
         self._search.searchChanged.connect(self._search_changed)
         toolbar.add_filter(self._search, stretch=1)
-=======
-        self._filter_bar = FilterBar(self)
-        toolbar = self._filter_bar
-        self._search = DebouncedSearchInput(self)
-        self._search.setPlaceholderText("Buscar personal por código, nombre o puesto")
-        self._search.searchChanged.connect(self._search_changed)
-        toolbar.add_filter(self._search, stretch=1, tooltip="Filtra personal con espera breve para no saturar el QueryService")
-        toolbar.add_result_count()
->>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
         root.addWidget(toolbar)
 
         self._loading = LoadingState(parent=self)
         root.addWidget(self._loading)
         self._empty = EmptyState("Sin personal para mostrar", "Ajusta los filtros o crea un empleado nuevo.", self)
         root.addWidget(self._empty)
-<<<<<<< HEAD
         self._table = StandardTable(0, len(self.HEADERS), self)
         self._table.setHorizontalHeaderLabels(self.HEADERS)
-=======
-        self._install_state_feedback(root)
-        self._table = StandardTable(0, len(self.HEADERS), self)
-        self._table.configure_headers(self.HEADERS, hidden_headers=self.HIDDEN_HEADERS)
->>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
         self._table.setMinimumHeight(360)
         root.addWidget(self._table, 1)
         self._pagination = PaginationBar(self, page_size=25)
@@ -86,75 +59,25 @@ class HREmployeesPage(QWidget):
         root.addWidget(self._pagination)
         self.refresh()
 
-<<<<<<< HEAD
-=======
-    def _install_state_feedback(self, layout: QVBoxLayout) -> None:
-        self._error = ErrorState(parent=self)
-        self._offline = OfflineState(parent=self)
-        self._stale = StaleState(parent=self)
-        self._partial = PartialState(parent=self)
-        self._permission = PermissionState(parent=self)
-        self._feedback = InlineFeedback(parent=self, variant="info")
-        self._toast = Toast(parent=self)
-        for widget in (self._error, self._offline, self._stale, self._partial, self._permission, self._feedback, self._toast):
-            widget.setVisible(False)
-            layout.addWidget(widget)
-
-    def _hide_transient_states(self) -> None:
-        for widget in (self._error, self._offline, self._stale, self._partial, self._permission, self._feedback):
-            widget.setVisible(False)
-
-    def _show_error_state(self, message: str) -> None:
-        self._table.setVisible(False)
-        self._empty.setVisible(False)
-        self._error.setVisible(True)
-        self._feedback.setText(message)
-        self._feedback.setProperty("variant", "danger")
-        self._feedback.setVisible(True)
-
->>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
     def _search_changed(self, _text: str) -> None:
         self._pagination.reset()
         self.refresh()
 
     def refresh(self) -> None:
         self._loading.setVisible(True)
-<<<<<<< HEAD
-=======
-        self._hide_transient_states()
->>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
         try:
             rows = self._presenter.list_employees(search_text=self._search.text().strip(), limit=self._pagination.limit, offset=self._pagination.offset)
             self.render(rows)
             self._pagination.update_state(total_rows=len(rows))
-<<<<<<< HEAD
-=======
-        except PermissionError as exc:
-            self._permission.setVisible(True)
-            self._show_error_state(str(exc) or "No tienes permiso para ver esta información.")
-        except ConnectionError as exc:
-            self._offline.setVisible(True)
-            self._show_error_state(str(exc) or "No se pudo conectar con la fuente de datos.")
-        except Exception as exc:
-            self._show_error_state(str(exc) or "No se pudo cargar la información.")
->>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
         finally:
             self._loading.setVisible(False)
 
     def render(self, rows: list[HREmployeeRowViewModel]) -> None:
         self._empty.setVisible(len(rows) == 0)
-<<<<<<< HEAD
-=======
-        self._filter_bar.set_result_count(len(rows))
->>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
         self._table.setVisible(len(rows) > 0)
         self._table.setRowCount(len(rows))
         for row_index, row in enumerate(rows):
             values = (
-<<<<<<< HEAD
-=======
-                row.employee_id,
->>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
                 row.employee_code,
                 row.full_name,
                 row.branch_name,
@@ -164,7 +87,6 @@ class HREmployeesPage(QWidget):
                 row.hire_date.isoformat() if row.hire_date else "",
             )
             for column, value in enumerate(values):
-<<<<<<< HEAD
                 item = QTableWidgetItem(value)
                 item.setData(Qt.UserRole, row.employee_id)
                 item.setToolTip(value)
@@ -177,23 +99,6 @@ class HREmployeesPage(QWidget):
             action.setProperty("employee_id", row.employee_id)
             action.clicked.connect(lambda _checked=False, employee_id=row.employee_id: self._open_row_actions(employee_id))
             self._table.setCellWidget(row_index, 7, action)
-=======
-                self._table.set_text(row_index, column, value)
-            self._table.set_status_badge(
-                row_index,
-                6,
-                row.status,
-                status="success" if row.status.upper() == "ACTIVE" else "neutral",
-                tooltip="Estado laboral del empleado",
-            )
-            self._table.set_action_button(
-                row_index,
-                8,
-                "Acciones",
-                lambda employee_id=row.employee_id: self._open_row_actions(employee_id),
-                tooltip="Abrir acciones disponibles para este empleado",
-            )
->>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
 
     def _request_create_employee(self) -> None:
         dialog = HREmployeeDialog(self._presenter.load_employee_form_options(), self)

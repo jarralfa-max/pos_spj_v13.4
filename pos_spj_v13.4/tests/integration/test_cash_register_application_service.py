@@ -60,7 +60,6 @@ def ctx():
             estado TEXT DEFAULT 'completada', forma_pago TEXT DEFAULT 'Efectivo',
             fecha DATETIME DEFAULT (datetime('now'))
         );
-<<<<<<< HEAD
         CREATE TABLE cierres_caja (
             id TEXT PRIMARY KEY, tipo TEXT, sucursal_id TEXT, usuario TEXT,
             turno TEXT, turno_id TEXT, fecha_apertura DATETIME,
@@ -69,11 +68,6 @@ def ctx():
             total_otros REAL, total_anulaciones REAL, num_anulaciones INTEGER,
             efectivo_contado REAL, fondo_inicial REAL, diferencia REAL,
             comentarios TEXT, estado TEXT
-=======
-        CREATE TABLE usuarios (
-            id TEXT PRIMARY KEY, nombre TEXT, usuario TEXT, password_hash TEXT,
-            rol TEXT, sucursal_id TEXT, employee_id TEXT, activo INTEGER
->>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
         );
         """
     )

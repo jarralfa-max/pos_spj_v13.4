@@ -2,15 +2,9 @@
 
 from __future__ import annotations
 
-<<<<<<< HEAD
-from PyQt5.QtWidgets import QMessageBox, QTableWidgetItem, QVBoxLayout, QWidget
-
-from frontend.desktop.components import EmptyState, Icons, LoadingState, PageAction, PageHeader, PaginationBar, StandardTable, StatusBadge
-=======
 from PyQt5.QtWidgets import QMessageBox, QVBoxLayout, QWidget
 
 from frontend.desktop.components import EmptyState, ErrorState, Icons, InlineFeedback, LoadingState, OfflineState, PageAction, PageHeader, PaginationBar, PartialState, PermissionState, StaleState, StandardTable, Toast
->>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
 from frontend.desktop.modules.hr.dialogs.attendance_dialog import HRAttendanceDialog
 from frontend.desktop.modules.hr.hr_presenter import HRPresenterPort
 from frontend.desktop.themes import DesktopSpacing
@@ -19,12 +13,7 @@ from frontend.desktop.themes import DesktopSpacing
 class HRAttendancePage(QWidget):
     """Renders attendance workdays and emits manual-registration actions."""
 
-<<<<<<< HEAD
     HEADERS = ("Empleado", "Sucursal", "Entrada", "Salida", "Origen", "Horas", "Estado", "Incidencias", "Acciones")
-=======
-    HEADERS = ("ID", "Empleado", "Sucursal", "Entrada", "Salida", "Origen", "Horas", "Estado", "Incidencias", "Acciones")
-    HIDDEN_HEADERS = ("ID",)
->>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
 
     def __init__(self, presenter: HRPresenterPort, parent=None) -> None:
         super().__init__(parent)
@@ -58,14 +47,9 @@ class HRAttendancePage(QWidget):
         layout.addWidget(self._loading)
         self._empty = EmptyState("Sin jornadas de asistencia", "Las entradas, salidas e incidencias aparecerán aquí.", self)
         layout.addWidget(self._empty)
-<<<<<<< HEAD
-        self._table = StandardTable(0, len(self.HEADERS), self)
-        self._table.setHorizontalHeaderLabels(self.HEADERS)
-=======
         self._install_state_feedback(layout)
         self._table = StandardTable(0, len(self.HEADERS), self)
         self._table.configure_headers(self.HEADERS, hidden_headers=self.HIDDEN_HEADERS)
->>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
         self._table.setMinimumHeight(360)
         layout.addWidget(self._table, 1)
         self._pagination = PaginationBar(self, page_size=25)
@@ -73,10 +57,6 @@ class HRAttendancePage(QWidget):
         layout.addWidget(self._pagination)
         self.refresh()
 
-<<<<<<< HEAD
-    def refresh(self) -> None:
-        self._loading.setVisible(True)
-=======
     def _install_state_feedback(self, layout: QVBoxLayout) -> None:
         self._error = ErrorState(parent=self)
         self._offline = OfflineState(parent=self)
@@ -104,7 +84,6 @@ class HRAttendancePage(QWidget):
     def refresh(self) -> None:
         self._loading.setVisible(True)
         self._hide_transient_states()
->>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
         try:
             rows = self._presenter.list_attendance(limit=self._pagination.limit, offset=self._pagination.offset)
             self._empty.setVisible(len(rows) == 0)
@@ -112,10 +91,7 @@ class HRAttendancePage(QWidget):
             self._table.setRowCount(len(rows))
             for index, row in enumerate(rows):
                 values = (
-<<<<<<< HEAD
-=======
                     row.workday_id,
->>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
                     row.employee_label,
                     row.branch_label,
                     row.entry_at,
@@ -127,13 +103,6 @@ class HRAttendancePage(QWidget):
                     "Solicitar corrección / Justificar / Auditoría",
                 )
                 for column, value in enumerate(values):
-<<<<<<< HEAD
-                    item = QTableWidgetItem(value)
-                    item.setToolTip(value)
-                    self._table.setItem(index, column, item)
-                self._table.setCellWidget(index, 6, StatusBadge(row.status, self, status="warning" if row.pending_incidents else "success"))
-            self._pagination.update_state(total_rows=len(rows))
-=======
                     self._table.set_text(index, column, value)
                 self._table.set_status_badge(
                     index,
@@ -151,7 +120,6 @@ class HRAttendancePage(QWidget):
             self._show_error_state(str(exc) or "No se pudo conectar con la fuente de datos.")
         except Exception as exc:
             self._show_error_state(str(exc) or "No se pudo cargar la información.")
->>>>>>> 5f7df5247ec66f7297adb53c0d2e32ee56e33c23
         finally:
             self._loading.setVisible(False)
 
