@@ -240,7 +240,11 @@ def sales_svc_checkout(db_checkout):
     from core.events.handlers.finance_handler import CreditSaleFinanceHandler, SaleFinanceHandler
     bus = get_bus()
     credit_handler = CreditSaleFinanceHandler(db_conn=db_checkout, finance_service=finance_svc)
-    sale_finance_handler = SaleFinanceHandler(finance_service=finance_svc)
+    from backend.infrastructure.db.schema.finance_schema import create_finance_schema
+    from backend.application.services.finance.finance_bootstrap import bootstrap_finance
+    create_finance_schema(db_checkout)
+    bootstrap_finance(db_checkout)
+    sale_finance_handler = SaleFinanceHandler(db_conn=db_checkout, finance_service=finance_svc)
     bus.subscribe(SALE_ITEMS_PROCESS, credit_handler.handle,
                   priority=85, label="test_sale_credit_cxc")
     bus.subscribe(SALE_ITEMS_PROCESS, sale_finance_handler.handle,

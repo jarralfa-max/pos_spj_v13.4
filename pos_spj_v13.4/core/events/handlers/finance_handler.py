@@ -73,8 +73,8 @@ class SaleFinanceHandler:
             "sale_id": sale_id,
             "folio": str(payload.get("folio") or ""),
             "branch_id": str(payload.get("branch_id") or payload.get("sucursal_id") or "") or None,
-            "customer_id": (str(payload.get("client_id") or payload.get("cliente_id") or "")
-                            or None),
+            "customer_id": (str(payload.get("client_id") or payload.get("cliente_id")
+                                or payload.get("customer_id") or "") or None),
             "occurred_at": _occurred_now(),
             "currency_code": "MXN",
             "gross_total": total,

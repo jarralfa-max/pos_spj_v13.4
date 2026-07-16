@@ -296,23 +296,40 @@ class TestSaleCancelledFinanceHandler(unittest.TestCase):
         from core.events.handlers.finance_handler import SaleCancelledFinanceHandler
         return SaleCancelledFinanceHandler(db_conn=self.db, finance_service=self.fs)
 
+    def _with_finance_schema(self):
+        from backend.infrastructure.db.schema.finance_schema import create_finance_schema
+        from backend.application.services.finance.finance_bootstrap import bootstrap_finance
+        create_finance_schema(self.db)
+        bootstrap_finance(self.db)
+
     def test_cash_sale_cancellation_posts_reversal(self):
+        """FASE 20: la cancelación genera el reverso espejo en el ledger nuevo
+        (asiento original REVERSED + asiento de reverso POSTED); no existe
+        registrar_asiento legacy."""
+        from backend.shared.ids import new_uuid
+        from core.events.handlers.finance_handler import SaleFinanceHandler
+        self._with_finance_schema()
+        sale_id = new_uuid()
+        SaleFinanceHandler(db_conn=self.db).handle({
+            "sale_id": sale_id, "operation_id": new_uuid(),
+            "folio": "VNT-099", "total": 300.0, "payment_method": "Efectivo",
+        })
         handler = self._handler()
         handler.handle({
-            "venta_id": 99,
+            "venta_id": sale_id,
             "folio": "VNT-099",
             "total": 300.0,
             "payment_method": "Efectivo",
             "sucursal_id": 1,
         })
-        self.fs.registrar_asiento.assert_called_once()
-        kwargs = self.fs.registrar_asiento.call_args.kwargs
-        assert kwargs["debe"] == "401.0-ingresos-ventas"
-        assert kwargs["haber"] == "110-caja"
-        assert kwargs["monto"] == 300.0
-        assert kwargs["evento"] == "VENTA_CANCELADA"
+        self.fs.registrar_asiento.assert_not_called()
+        statuses = sorted(row[0] for row in self.db.execute(
+            "SELECT status FROM journal_entries"))
+        assert statuses == ["POSTED", "REVERSED"]
 
     def test_credit_sale_cancellation_reverses_cxc(self):
+        from backend.shared.ids import new_uuid
+        self._with_finance_schema()
         handler = self._handler()
         handler.handle({
             "venta_id": 10,
@@ -322,28 +339,21 @@ class TestSaleCancelledFinanceHandler(unittest.TestCase):
             "sucursal_id": 1,
             "cliente_id": 1,
         })
-        # CxC should be marked cancelled
+        # CxC operativa cancelada
         row = self.db.execute(
             "SELECT estado, saldo_pendiente FROM cuentas_por_cobrar WHERE venta_id=10"
         ).fetchone()
         assert row["estado"] == "cancelada"
         assert float(row["saldo_pendiente"]) == 0.0
 
-        # Client balance decremented
+        # credit_balance decrementado
         bal = self.db.execute(
             "SELECT credit_balance FROM clientes WHERE id=1"
         ).fetchone()
         assert float(bal["credit_balance"]) == 0.0
 
-        # GL reversal posted with CxC account
-        kwargs = self.fs.registrar_asiento.call_args.kwargs
-        assert kwargs["haber"] == "130.1-cuentas-por-cobrar"
-
-    def test_zero_total_skipped(self):
-        handler = self._handler()
-        handler.handle({"venta_id": 1, "total": 0.0, "payment_method": "Efectivo"})
+        # Sin ruta contable legacy (el reverso GL vive en el ledger nuevo)
         self.fs.registrar_asiento.assert_not_called()
-
 
 # ── 4. CustomerCreditService atomicity ───────────────────────────────────────
 

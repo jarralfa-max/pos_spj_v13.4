@@ -35,9 +35,21 @@ def _payload():
     }
 
 
+def _finance_db():
+    from backend.infrastructure.db.schema.finance_schema import create_finance_schema
+    from backend.application.services.finance.finance_bootstrap import bootstrap_finance
+    conn = sqlite3.connect(":memory:")
+    create_finance_schema(conn)
+    bootstrap_finance(conn)
+    return conn
+
+
 def test_phase6_payroll_finance_handler_consumes_generated_and_paid_idempotently():
-    journal = FakeJournalService()
-    handler = PayrollFinanceHandler(journal_service=journal)
+    """FASE 20: PayrollFinanceHandler es puente al bounded context.
+    NOMINA_GENERADA no devenga aparte (evita el doble efecto); NOMINA_PAGADA
+    postea exactamente un asiento PAYROLL en el ledger nuevo, idempotente."""
+    conn = _finance_db()
+    handler = PayrollFinanceHandler(db_conn=conn)
     payload = _payload()
 
     handler.handle_generated(payload)
@@ -45,17 +57,16 @@ def test_phase6_payroll_finance_handler_consumes_generated_and_paid_idempotently
     handler.handle_paid(payload)
     handler.handle_paid(payload)
 
-    assert len(journal.entries) == 2
-    assert journal.entries["op-payroll-001-GEN"] == 1
-    assert journal.entries["op-payroll-001-PAID"] == 2
-    assert journal.calls[0]["event_type"] == NOMINA_GENERADA
-    assert journal.calls[0]["debit_account"] == "6101"
-    assert journal.calls[0]["credit_account"] == "2101"
-    assert journal.calls[2]["event_type"] == NOMINA_PAGADA
-    assert journal.calls[2]["debit_account"] == "2101"
-    assert journal.calls[2]["credit_account"] == "1101"
-    assert journal.calls[2]["amount"] == 1820.0
-    assert journal.calls[2]["source_id"] == 77
+    entries = conn.execute(
+        "SELECT COUNT(*) FROM journal_entries WHERE posting_purpose='PAYROLL'"
+    ).fetchone()[0]
+    assert entries == 1, "un solo asiento por pago de nómina (sin devengo paralelo)"
+    total = conn.execute(
+        "SELECT SUM(CAST(debit_amount AS NUMERIC)) FROM journal_lines"
+    ).fetchone()[0]
+    assert float(total) == 1820.0
+    statuses = {row[0] for row in conn.execute("SELECT status FROM journal_entries")}
+    assert statuses == {"POSTED"}
 
 
 def test_phase6_rrhh_service_no_longer_registers_opex_directly():

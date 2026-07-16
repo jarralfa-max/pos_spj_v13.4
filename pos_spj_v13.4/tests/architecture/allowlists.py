@@ -66,6 +66,9 @@ COMMIT_ROLLBACK_IN_UI_ALLOWLIST = {
 }
 
 SCHEMA_CHANGES_OUTSIDE_MIGRATIONS_ALLOWLIST = {
+    # DDL canónico del bounded context financiero (ejecutado solo por la
+    # migración 117):
+    'pos_spj_v13.4/backend/infrastructure/db/schema/finance_schema.py': 24,
     'pos_spj_v13.4/api/routers/anticipos.py': 1,
     'pos_spj_v13.4/application/services/customer_credit_service.py': 1,
     'pos_spj_v13.4/core/auth/login_guard.py': 2,
