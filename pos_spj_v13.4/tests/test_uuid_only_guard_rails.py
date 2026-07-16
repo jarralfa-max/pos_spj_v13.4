@@ -93,7 +93,6 @@ def test_no_lastrowid_as_identity():
         "whatsapp_service.py",
         "reporte_email_service.py",
         "card_batch_engine.py",
-        "rrhh_service.py",
         "delivery_outbox_repository.py",
     )
     for abs_path, relpath in _business_files():

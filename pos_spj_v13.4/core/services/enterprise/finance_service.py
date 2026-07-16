@@ -731,7 +731,7 @@ class FinanceService:
             monto=float(total or 0),
             modulo="rrhh",
             referencia_id=np_id,
-            evento="NOMINA_PAGADA",
+            evento="PAYROLL_PAID",
             metadata={
                 "empleado_id": empleado_id,
                 "periodo_inicio": periodo_inicio,

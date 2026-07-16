@@ -23,7 +23,15 @@ CANONICAL_MODULE_PERMISSIONS: dict[str, list[str]] = {
     "PLANEACION_COMPRAS": ["ver", "generar"],
     "FINANZAS_UNIFICADAS": ["ver"],
     "ACTIVOS": ["ver", "crear", "mantenimiento"],
-    "RRHH": ["ver", "crear", "editar"],
+    "RRHH": [
+        "ver", "access",
+        "employee.read", "employee.create", "employee.update", "employee.deactivate",
+        "attendance.read", "attendance.register_manual", "attendance.adjust",
+        "attendance.justify", "attendance.approve_adjustment", "attendance.view_audit",
+        "shift.manage", "leave.read", "leave.request", "leave.approve",
+        "payroll.read", "payroll.generate", "payroll.authorize", "payroll.pay",
+        "payroll.cancel", "settings.manage",
+    ],
     "GROWTH_ENGINE": ["ver"],
     "TARJETAS_FIDELIDAD": ["ver"],
     "INTELIGENCIA_BI": [

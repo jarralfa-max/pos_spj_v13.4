@@ -15,7 +15,7 @@ Handlers disponibles:
   SaleTraceHandler          — VENTA_COMPLETADA → trace_sale
   PurchaseTraceHandler      — COMPRA_REGISTRADA → trace_purchase
   PaymentTraceHandler       — payment_confirmed → trace_payment
-  PayrollTraceHandler       — NOMINA_PAGADA → trace_payroll
+  PayrollTraceHandler       — PAYROLL_PAID → trace_payroll
   WasteTraceHandler         — waste_recorded → trace_waste
   LoyaltyTraceHandler       — PUNTOS_ACUMULADOS → trace_loyalty
   DeliveryPaymentHandler    — delivery_payment_confirmed → trace_delivery_payment
@@ -86,7 +86,7 @@ class PaymentTraceHandler:
 
 
 class PayrollTraceHandler:
-    """Traza nómina pagada (NOMINA_PAGADA)."""
+    """Traza nómina pagada (PAYROLL_PAID)."""
 
     def __init__(self, trace_service):
         self._ts = trace_service

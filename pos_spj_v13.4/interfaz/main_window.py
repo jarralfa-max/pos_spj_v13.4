@@ -103,10 +103,10 @@ except Exception as e:
 ModuloTesoreria = None
 
 try:
-    from modulos.rrhh import ModuloRRHH
+    from core.ui.hr_module_factory import CanonicalHRModule
 except Exception as e:
-    ModuloRRHH = None
-    logger.error("Error cargando ModuloRRHH: %s", e)
+    CanonicalHRModule = None
+    logger.error("Error cargando CanonicalHRModule: %s", e)
 
 try:
     from modulos.activos import ModuloActivos
@@ -658,7 +658,7 @@ class MainWindow(QMainWindow):
         # Todos consumen core/services/finance/* (single source of truth)
         self._conectar("FINANZAS_UNIFICADAS", ModuloFinanzas, "💰 Finanzas")
         self._conectar("ACTIVOS",             ModuloActivos,        "🏗️ Activos")
-        self._conectar("RRHH",                ModuloRRHH,           "👔 Recursos Humanos")
+        self._conectar("RRHH",                CanonicalHRModule,    "👔 Recursos Humanos")
         self._conectar("GROWTH_ENGINE",       ModuloFidelidadConfig,  "⭐ Fidelización")
         self._conectar("TARJETAS_FIDELIDAD",  ModuloTarjetas,         "💳 Tarjetas Fidelidad")
         # INTELIGENCIA DE NEGOCIOS UNIFICADA: Unifica BI, BI Pro, Decisiones y Planeación
@@ -1476,10 +1476,6 @@ class MainWindow(QMainWindow):
             import logging
             logging.getLogger(__name__).debug("_cargar_tema_inicial: %s", e)
 
-try:
-    from modulos.rrhh_turnos import ModuloRRHHTurnos
-except Exception:
-    ModuloRRHHTurnos = None
 try:
     from modulos.modulo_growth_engine import ModuloGrowthEngine
 except Exception:
