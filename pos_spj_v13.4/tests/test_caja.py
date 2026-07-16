@@ -255,11 +255,16 @@ def test_corte_z_turno_no_existe(svc):
 
 
 def test_corte_z_turno_ya_cerrado(svc, db):
-    from application.services.caja_application_service import TurnoCerradoError
+    """Contrato canónico: re-cerrar es IDEMPOTENTE — devuelve el mismo cierre
+    sin duplicar historial (unificación de la ruta de corte Z)."""
     tid = svc.abrir_turno(1, "cajero13", 100.0)
-    svc.generar_corte_z(tid, 1, "cajero13", 100.0)
-    with pytest.raises(TurnoCerradoError):
-        svc.generar_corte_z(tid, 1, "cajero13", 100.0)
+    r1 = svc.generar_corte_z(tid, 1, "cajero13", 100.0)
+    r2 = svc.generar_corte_z(tid, 1, "cajero13", 100.0)
+    assert r1["cierre_id"] == r2["cierre_id"]
+    n = db.execute(
+        "SELECT COUNT(*) FROM cierres_caja WHERE turno_id=?", (str(tid),)
+    ).fetchone()[0]
+    assert n == 1
 
 
 def test_corte_z_retorna_cierre_id(svc, db):

@@ -114,6 +114,7 @@ MIGRATIONS = [
     _Migration("114",  "migrations.standalone.114_anticipos_schema"),
     _Migration("115",  "migrations.standalone.115_security_lock_and_canonical_kpi_schema"),
     _Migration("116",  "migrations.standalone.116_roles_uuidv7_identity"),
+    _Migration("117",  "migrations.standalone.117_caja_localtime_normalization"),
 ]
 
 def _ensure_tracking_table(conn):

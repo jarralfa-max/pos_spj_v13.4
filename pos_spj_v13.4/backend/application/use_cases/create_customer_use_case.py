@@ -51,12 +51,33 @@ class CreateCustomerUseCase:
                     (customer_id, command.name.strip(), command.phone, command.email, command.address, command.loyalty_code),
                 )
             if command.loyalty_code:
-                self._db.execute(
-                    "INSERT OR IGNORE INTO tarjetas_fidelidad "
-                    "(codigo, id_cliente, nivel, activa, fecha_emision) "
-                    "VALUES (?, ?, 'Bronce', 1, datetime('now'))",
-                    (command.loyalty_code, customer_id),
-                )
+                # Schema canónico (m000): la tarjeta se identifica por codigo_qr
+                # (no existe columna `codigo` ni `fecha_emision`). Si la tarjeta
+                # ya existe (pregenerada sin dueño) se ASIGNA; si no, se crea
+                # con identidad UUIDv7 explícita.
+                card = self._db.execute(
+                    "SELECT id, COALESCE(id_cliente,'') FROM tarjetas_fidelidad "
+                    "WHERE codigo_qr = ? LIMIT 1",
+                    (command.loyalty_code,),
+                ).fetchone()
+                if card is not None:
+                    card_id = card["id"] if hasattr(card, "keys") else card[0]
+                    self._db.execute(
+                        "UPDATE tarjetas_fidelidad SET id_cliente=?, "
+                        " estado='asignada', activa=1, "
+                        " fecha_asignacion=datetime('now','localtime') "
+                        "WHERE id=? AND COALESCE(id_cliente,'')=''",
+                        (customer_id, str(card_id)),
+                    )
+                else:
+                    self._db.execute(
+                        "INSERT INTO tarjetas_fidelidad "
+                        "(id, codigo_qr, id_cliente, estado, activa, nivel, "
+                        " fecha_asignacion) "
+                        "VALUES (?, ?, ?, 'asignada', 1, 'Bronce', "
+                        " datetime('now','localtime'))",
+                        (new_uuid(), command.loyalty_code, customer_id),
+                    )
             self._db.commit()
         except Exception:
             logger.exception("Unable to create customer operation_id=%s", command.operation_id)
@@ -72,7 +93,7 @@ class CreateCustomerUseCase:
             row = self._db.execute(
                 "SELECT c.id, c.nombre FROM clientes c "
                 "JOIN tarjetas_fidelidad t ON t.id_cliente = c.id "
-                "WHERE t.codigo = ? AND t.activa = 1 LIMIT 1",
+                "WHERE t.codigo_qr = ? AND t.activa = 1 LIMIT 1",
                 (loyalty_code,),
             ).fetchone()
         except Exception:

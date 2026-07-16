@@ -6038,15 +6038,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     # ── E-5: Quick reception ticket print ────────────────────────────────────
 
     def _ofrecer_impresion_recepcion(self, folio: str) -> None:
-        """After a purchase is registered, offer to print the reception ticket."""
-        reply = QMessageBox.question(
-            self, "Imprimir comprobante",
-            f"Compra {folio} registrada.\n\n¿Deseas imprimir el comprobante de recepción?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if reply != QMessageBox.Yes:
-            return
+        """Imprime el comprobante de recepción de la compra registrada.
+
+        Ruta canónica (Bug 8.3): si hay impresora de tickets configurada en
+        PrinterService, el comprobante se imprime AUTOMÁTICAMENTE (sin
+        preguntar). Sin impresora térmica, se ofrece impresión estándar A5.
+        """
         try:
             compra_dict = self._purchase_repo.get_purchase_full(
                 ComprasReadRepository(self.container.db).get_purchase_id_by_folio(folio)
@@ -6056,8 +6053,52 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             prov_nombre = self._purchase_repo.get_provider_name(
                 str(compra_dict.get("proveedor_id") or ""))
             items = self._purchase_repo.get_purchase_detail_items(compra_dict["id"])
-            html = self._generar_html_recepcion(compra_dict, items, prov_nombre)
+        except Exception as e:
+            logger.warning("_ofrecer_impresion_recepcion datos: %s", e)
+            return
 
+        # 1) Auto-print térmico vía PrinterService (única ruta ESC/POS)
+        try:
+            printer_svc = getattr(self.container, "printer_service", None)
+            if printer_svc is not None and printer_svc.has_ticket_printer():
+                payload = {
+                    "ticket_type": "compra_recepcion",
+                    "folio": str(compra_dict.get("folio") or folio),
+                    "fecha": str(compra_dict.get("fecha") or "")[:16],
+                    "cajero": str(compra_dict.get("usuario") or ""),
+                    "cliente": f"Proveedor: {prov_nombre}",
+                    "items": [
+                        {
+                            "nombre": str(it.get("nombre", it.get("producto", ""))),
+                            "cantidad": float(it.get("cantidad", 0) or 0),
+                            "precio": float(it.get("costo_unitario",
+                                                   it.get("precio", 0)) or 0),
+                        }
+                        for it in (items or [])
+                        if isinstance(it, dict)
+                    ],
+                    "totales": {"total_final": float(compra_dict.get("total", 0) or 0)},
+                    "pago": {"forma_pago": str(compra_dict.get("condicion_pago", ""))},
+                    "mensaje_psicologico": "Comprobante de recepción de compra",
+                }
+                printer_svc.print_ticket(payload)
+                Toast.success(self, "🖨️ Comprobante impreso",
+                              f"Recepción de compra {folio} enviada a impresora.")
+                return
+        except Exception as e:
+            logger.warning("auto-print recepción compra: %s", e)
+
+        # 2) Sin impresora térmica: impresión estándar A5 bajo demanda
+        reply = QMessageBox.question(
+            self, "Imprimir comprobante",
+            f"Compra {folio} registrada.\n\n¿Deseas imprimir el comprobante de recepción?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+        try:
+            html = self._generar_html_recepcion(compra_dict, items, prov_nombre)
             from PyQt5.QtPrintSupport import QPrinter, QPrintDialog
             from PyQt5.QtGui import QTextDocument
             printer = QPrinter(QPrinter.HighResolution)

@@ -14,19 +14,16 @@ from typing import Dict, List, Optional
 
 logger = logging.getLogger("spj.application.caja")
 
-# Forma de pago que se considera efectivo
-_EFECTIVO_FORMAS = frozenset({"Efectivo", "efectivo", "EFECTIVO", "cash", "Cash"})
 
-
-class TurnoNoEncontradoError(Exception):
+class TurnoNoEncontradoError(ValueError):
     pass
 
 
-class TurnoYaAbiertoError(Exception):
+class TurnoYaAbiertoError(ValueError):
     pass
 
 
-class TurnoCerradoError(Exception):
+class TurnoCerradoError(ValueError):
     pass
 
 
@@ -58,7 +55,7 @@ class CajaApplicationService:
 
     # ── Estado ────────────────────────────────────────────────────────────────
 
-    def get_estado_turno(self, sucursal_id: int, usuario: str) -> Optional[Dict]:
+    def get_estado_turno(self, sucursal_id: str, usuario: str) -> Optional[Dict]:
         """Retorna el turno abierto actual o None."""
         try:
             row = self.db.execute(
@@ -75,7 +72,7 @@ class CajaApplicationService:
 
     # ── Abrir turno ───────────────────────────────────────────────────────────
 
-    def abrir_turno(self, sucursal_id: int, usuario: str, fondo_inicial: float) -> str:
+    def abrir_turno(self, sucursal_id: str, usuario: str, fondo_inicial: float) -> str:
         """Abre un nuevo turno. Lanza TurnoYaAbiertoError si ya hay uno abierto.
 
         REGLA CERO: identidad UUIDv7 acuñada con new_uuid() e insertada
@@ -85,10 +82,14 @@ class CajaApplicationService:
             raise TurnoYaAbiertoError("Ya hay un turno abierto para este cajero.")
 
         turno_id = new_uuid()
+        # HORA LOCAL: las ventas registran fecha con datetime.now() (hora local
+        # del POS). datetime('now') de SQLite es UTC — mezclarlos dejaba la
+        # apertura horas "en el futuro" y NINGUNA venta entraba al turno
+        # (KPIs y efectivo esperado siempre en 0).
         self.db.execute(
             """INSERT INTO turnos_caja
                (id, sucursal_id, cajero, usuario, fondo_inicial, estado, fecha_apertura)
-               VALUES (?,?,?,?,?,'abierto', datetime('now'))""",
+               VALUES (?,?,?,?,?,'abierto', datetime('now','localtime'))""",
             (turno_id, sucursal_id, usuario, usuario, fondo_inicial),
         )
         try:
@@ -136,7 +137,7 @@ class CajaApplicationService:
         self.db.execute(
             """INSERT INTO movimientos_caja
                (id, turno_id, sucursal_id, tipo, monto, concepto, usuario, fecha)
-               VALUES (?,?,?,?,?,?,?, datetime('now'))""",
+               VALUES (?,?,?,?,?,?,?, datetime('now','localtime'))""",
             (new_uuid(), turno_id, sucursal_id, tipo, monto, concepto, usuario),
         )
         try:
@@ -155,7 +156,7 @@ class CajaApplicationService:
 
     # ── Movimientos del turno ─────────────────────────────────────────────────
 
-    def get_movimientos_turno(self, turno_id: int, rol: str = "cajero") -> List[Dict]:
+    def get_movimientos_turno(self, turno_id: str, rol: str = "cajero") -> List[Dict]:
         """Retorna movimientos del turno. Filtra montos si es cajero."""
         try:
             rows = self.db.execute(
@@ -175,7 +176,7 @@ class CajaApplicationService:
 
     # ── KPIs para barra de estado ─────────────────────────────────────────────
 
-    def get_caja_kpis(self, sucursal_id: int, usuario: str) -> Dict:
+    def get_caja_kpis(self, sucursal_id: str, usuario: str) -> Dict:
         """Retorna datos para la barra de KPIs de caja."""
         kpis = {
             "fondo_inicial": 0.0,
@@ -188,20 +189,18 @@ class CajaApplicationService:
             turno = self.get_estado_turno(sucursal_id, usuario)
             if turno:
                 kpis["fondo_inicial"] = float(turno.get("fondo_inicial", 0) or 0)
-                formas_ef = list(_EFECTIVO_FORMAS)
-                ph = ",".join("?" * len(formas_ef))
                 # No filtra por usuario ni turno_id — ningún INSERT de ventas los setea.
-                # Usa solo sucursal_id + fecha >= fecha_apertura (mismo criterio que corte Z).
+                # Usa solo sucursal_id + fecha >= fecha_apertura (mismo criterio que
+                # corte Z). El efectivo usa la expresión canónica (incluye mixto).
                 row_v = self.db.execute(
                     f"""SELECT
                           COALESCE(SUM(total), 0),
-                          COALESCE(SUM(CASE WHEN COALESCE(forma_pago,'Efectivo') IN ({ph})
-                                           THEN total ELSE 0 END), 0)
+                          COALESCE(SUM({self._efectivo_case_sql()}), 0)
                         FROM ventas
                         WHERE sucursal_id=? AND estado='completada'
                           AND fecha >= (SELECT fecha_apertura
                                         FROM turnos_caja WHERE id=?)""",
-                    tuple(formas_ef) + (sucursal_id, turno["id"]),
+                    (sucursal_id, turno["id"]),
                 ).fetchone()
                 kpis["total_ventas_turno"]   = float(row_v[0] or 0) if row_v else 0.0
                 kpis["total_efectivo_turno"] = float(row_v[1] or 0) if row_v else 0.0
@@ -209,7 +208,8 @@ class CajaApplicationService:
             logger.warning("kpis ventas: %s", e)
         try:
             row_m = self.db.execute(
-                "SELECT COUNT(*) FROM movimientos_caja WHERE DATE(fecha)=DATE('now') AND sucursal_id=?",
+                "SELECT COUNT(*) FROM movimientos_caja"
+                " WHERE DATE(fecha)=DATE('now','localtime') AND sucursal_id=?",
                 (sucursal_id,),
             ).fetchone()
             kpis["num_movimientos_hoy"] = int(row_m[0] or 0) if row_m else 0
@@ -217,7 +217,8 @@ class CajaApplicationService:
             logger.debug("kpis movs: %s", e)
         try:
             row_c = self.db.execute(
-                "SELECT COUNT(*) FROM cierres_caja WHERE DATE(fecha_cierre)=DATE('now') AND sucursal_id=?",
+                "SELECT COUNT(*) FROM cierres_caja"
+                " WHERE DATE(fecha_cierre)=DATE('now','localtime') AND sucursal_id=?",
                 (sucursal_id,),
             ).fetchone()
             kpis["num_cortes_hoy"] = int(row_c[0] or 0) if row_c else 0
@@ -227,7 +228,7 @@ class CajaApplicationService:
 
     # ── Historial de cortes ───────────────────────────────────────────────────
 
-    def get_historial_cortes(self, sucursal_id: int, limit: int = 100) -> List[Dict]:
+    def get_historial_cortes(self, sucursal_id: str, limit: int = 100) -> List[Dict]:
         """Retorna historial de cortes Z de la sucursal."""
         try:
             rows = self.db.execute(
@@ -257,7 +258,7 @@ class CajaApplicationService:
 
     # ── Arqueo ────────────────────────────────────────────────────────────────
 
-    def calcular_arqueo(self, turno_id: int, total_fisico: float) -> Dict:
+    def calcular_arqueo(self, turno_id: str, total_fisico: float) -> Dict:
         """
         Calcula diferencia entre efectivo físico contado y efectivo esperado del turno.
         Solo cuenta ventas en EFECTIVO (no tarjeta ni transferencia).
@@ -300,20 +301,43 @@ class CajaApplicationService:
             logger.warning("calcular_arqueo: %s", e)
             return {"error": str(e)}
 
+    def _efectivo_case_sql(self) -> str:
+        """Expresión SQL canónica del efectivo de una venta.
+
+        Cubre pago mixto: la porción en efectivo es lo recibido menos el
+        cambio (lógica portada de la ruta legacy al unificar — Prioridad 0).
+        """
+        try:
+            ventas_cols = {
+                r[1] for r in self.db.execute("PRAGMA table_info(ventas)").fetchall()
+            }
+        except Exception:
+            ventas_cols = set()
+        if {"efectivo_recibido", "cambio"} <= ventas_cols:
+            mixto_expr = "MAX(0, COALESCE(efectivo_recibido,0) - COALESCE(cambio,0))"
+        else:
+            mixto_expr = "0"
+        return (
+            "CASE "
+            " WHEN lower(COALESCE(forma_pago,'efectivo')) IN ('efectivo','cash')"
+            "      THEN total "
+            f" WHEN lower(COALESCE(forma_pago,'')) IN ('pago mixto','mixto')"
+            f"      THEN {mixto_expr} "
+            " ELSE 0 END"
+        )
+
     def _sum_ventas_efectivo(
-        self, sucursal_id: int, cajero: str, fecha_apertura: str, turno_id: int
+        self, sucursal_id: str, cajero: str, fecha_apertura: str, turno_id: str
     ) -> float:
-        """Suma SOLO las ventas en efectivo del turno."""
-        formas = list(_EFECTIVO_FORMAS)
-        placeholders = ",".join("?" * len(formas))
+        """Suma SOLO el efectivo de las ventas del turno (incluye mixto)."""
         try:
             row = self.db.execute(
-                f"""SELECT COALESCE(SUM(total), 0)
+                f"""SELECT COALESCE(SUM({self._efectivo_case_sql()}), 0)
                     FROM ventas
-                    WHERE sucursal_id=? AND estado='completada'
-                      AND fecha >= ?
-                      AND COALESCE(forma_pago,'Efectivo') IN ({placeholders})""",
-                (sucursal_id, fecha_apertura) + tuple(formas),
+                    WHERE sucursal_id=? AND fecha >= ?
+                      AND lower(COALESCE(estado,'completada'))
+                          NOT IN ('cancelada','anulada')""",
+                (sucursal_id, fecha_apertura),
             ).fetchone()
             return float(row[0] or 0) if row else 0.0
         except Exception as e:
@@ -321,7 +345,7 @@ class CajaApplicationService:
             return 0.0
 
     def _sum_ventas_por_forma(
-        self, sucursal_id: int, fecha_apertura: str, turno_id: int
+        self, sucursal_id: str, fecha_apertura: str, turno_id: str
     ) -> Dict:
         """Retorna breakdown de ventas por forma de pago."""
         result = {}
@@ -332,7 +356,7 @@ class CajaApplicationService:
                           COUNT(*) AS num_ventas
                    FROM ventas
                    WHERE sucursal_id=? AND estado='completada'
-                     AND fecha >= (SELECT COALESCE(fecha_apertura, DATE('now'))
+                     AND fecha >= (SELECT COALESCE(fecha_apertura, DATE('now','localtime'))
                                    FROM turnos_caja WHERE id=?)
                    GROUP BY fp
                    ORDER BY total_fp DESC""",
@@ -346,10 +370,42 @@ class CajaApplicationService:
 
     # ── Corte Z ───────────────────────────────────────────────────────────────
 
+    def _cierre_existente(self, turno_id: str) -> Optional[Dict]:
+        """Cierre ya registrado para el turno (idempotencia del corte Z)."""
+        try:
+            row = self.db.execute(
+                """SELECT id, fondo_inicial, total_ventas, total_efectivo,
+                          efectivo_contado, diferencia
+                   FROM cierres_caja WHERE turno_id=? LIMIT 1""",
+                (str(turno_id),),
+            ).fetchone()
+        except Exception:
+            return None
+        if not row:
+            return None
+        esperado = round(
+            float(row["efectivo_contado"] or 0) - float(row["diferencia"] or 0), 2
+        )
+        return {
+            "cierre_id": str(row["id"]),
+            "turno_id": str(turno_id),
+            "fondo_inicial": float(row["fondo_inicial"] or 0),
+            "total_ventas": float(row["total_ventas"] or 0),
+            "ventas_efectivo": float(row["total_efectivo"] or 0),
+            "efectivo_esperado": esperado,
+            "efectivo_contado": float(row["efectivo_contado"] or 0),
+            "diferencia": float(row["diferencia"] or 0),
+            "ya_cerrado": True,
+            # alias keys for UI compat
+            "esperado": esperado,
+            "contado": float(row["efectivo_contado"] or 0),
+            "ventas_totales": float(row["total_ventas"] or 0),
+        }
+
     def generar_corte_z(
         self,
-        turno_id: int,
-        sucursal_id: int,
+        turno_id: str,
+        sucursal_id: str,
         usuario: str,
         efectivo_fisico: float,
         observaciones: str = "",
@@ -372,6 +428,11 @@ class CajaApplicationService:
         if not row_t:
             raise TurnoNoEncontradoError(f"Turno {turno_id} no encontrado.")
         if row_t["estado"] != "abierto":
+            # Idempotencia por turno: si ya se cerró y existe el cierre,
+            # devolver el registro existente en lugar de duplicar o fallar.
+            existente = self._cierre_existente(turno_id)
+            if existente is not None:
+                return existente
             raise TurnoCerradoError(f"El turno {turno_id} ya fue cerrado.")
 
         fondo = float(row_t["fondo_inicial"] or 0)
@@ -383,11 +444,23 @@ class CajaApplicationService:
         total_ventas = sum(v["total"] for v in ventas_por_pago.values())
         num_ventas = sum(v["count"] for v in ventas_por_pago.values())
 
-        # 3. Ventas solo en efectivo
-        ventas_efectivo = sum(
-            v["total"] for fp, v in ventas_por_pago.items()
-            if fp in _EFECTIVO_FORMAS
+        # 3. Efectivo del turno — expresión canónica (incluye porción en
+        #    efectivo de pagos mixtos)
+        ventas_efectivo = self._sum_ventas_efectivo(
+            sucursal_id, cajero, fecha_apertura, turno_id
         )
+
+        # 3b. Anulaciones del turno (informativo en el historial del corte)
+        try:
+            row_a = self.db.execute(
+                """SELECT COUNT(*), COALESCE(SUM(total),0) FROM ventas
+                   WHERE sucursal_id=? AND estado='cancelada' AND fecha >= ?""",
+                (sucursal_id, fecha_apertura),
+            ).fetchone()
+            num_anulaciones = int(row_a[0] or 0) if row_a else 0
+            total_anulaciones = float(row_a[1] or 0) if row_a else 0.0
+        except Exception:
+            num_anulaciones, total_anulaciones = 0, 0.0
 
         # 4. Movimientos manuales
         row_m = self.db.execute(
@@ -417,28 +490,31 @@ class CajaApplicationService:
         diferencia = round(efectivo_fisico - esperado, 2)
 
         cierre_uuid = new_uuid()
-        fecha_cierre = datetime.now().isoformat()
 
         # 7. Transacción atómica
         sp = f"sp_corte_{new_uuid().replace('-', '')[:6]}"
         try:
             self.db.execute(f"SAVEPOINT {sp}")
 
-            # 7a. Insertar en cierres_caja (turno_id added by migration 080)
+            # 7a. Insertar en cierres_caja (turno_id added by migration 080).
+            # REGLA CERO: identidad única en `id` — sin columna `uuid` paralela.
             self.db.execute(
                 """INSERT INTO cierres_caja
-                   (id, uuid, tipo, sucursal_id, usuario, turno, turno_id,
+                   (id, tipo, sucursal_id, usuario, turno, turno_id,
                     fecha_apertura, fecha_cierre,
                     total_ventas, num_ventas,
                     total_efectivo, total_tarjeta, total_transferencia, total_otros,
+                    total_anulaciones, num_anulaciones,
                     efectivo_contado, fondo_inicial, diferencia, comentarios, estado)
-                   VALUES (?,?,?,?,?,?,?,?,datetime('now'),?,?,?,?,?,?,?,?,?,?,'cerrado')""",
+                   VALUES (?,?,?,?,?,?,?,datetime('now','localtime'),
+                           ?,?,?,?,?,?,?,?,?,?,?,?,'cerrado')""",
                 (
-                    cierre_uuid, cierre_uuid, "Z", sucursal_id, usuario, cajero, turno_id,
+                    cierre_uuid, "Z", sucursal_id, usuario, cajero, turno_id,
                     fecha_apertura,
                     round(total_ventas, 2), num_ventas,
                     round(total_efectivo, 2), round(total_tarjeta, 2),
                     round(total_transferencia, 2), round(max(total_otros, 0), 2),
+                    round(total_anulaciones, 2), num_anulaciones,
                     round(efectivo_fisico, 2), round(fondo, 2),
                     diferencia, observaciones or "",
                 ),
@@ -448,7 +524,7 @@ class CajaApplicationService:
             # 7b. Actualizar turnos_caja
             self.db.execute(
                 """UPDATE turnos_caja SET
-                   estado='cerrado', fecha_cierre=datetime('now'),
+                   estado='cerrado', fecha_cierre=datetime('now','localtime'),
                    total_ventas=?, efectivo_esperado=?,
                    efectivo_contado=?, diferencia=?
                    WHERE id=?""",

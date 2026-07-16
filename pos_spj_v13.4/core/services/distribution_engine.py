@@ -515,12 +515,12 @@ class DistributionEngine:
             self.conn.execute(
                 """
                 INSERT INTO conciliation_runs
-                    (branch_id, usuario, tolerancia_kg,
+                    (id, branch_id, usuario, tolerancia_kg,
                      diferencia_kg, detalle_json, estado)
-                VALUES (?,?,?,?,?,'completado')
+                VALUES (?,?,?,?,?,?,'completado')
                 """,
                 (
-                    branch, self.usuario, umbral,
+                    new_uuid(), branch, self.usuario, umbral,
                     abs(total_diff),
                     json.dumps(productos_diff, ensure_ascii=False, default=str),
                 ),

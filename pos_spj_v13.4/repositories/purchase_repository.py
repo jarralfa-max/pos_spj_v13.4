@@ -164,7 +164,7 @@ class PurchaseRepository:
             "provider_count": int(r3[0] or 0) if r3 else 0,
         }
 
-    def get_purchase_detail_items(self, compra_id: int) -> list:
+    def get_purchase_detail_items(self, compra_id: str) -> list:
         """Line items for a purchase — used by inline detail panel and full detail dialog."""
         rows = self.db.cursor().execute(
             """SELECT p.nombre, dd.cantidad,

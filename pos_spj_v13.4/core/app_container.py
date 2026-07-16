@@ -111,6 +111,20 @@ class AppContainer:
         self.purchase_repo = PurchaseRepository(self.db)
         self.caja_repo = CajaRepository(self.db)
 
+        # Lecturas de Finanzas (KPIs/listados) — instancia única para toda la
+        # UI de finanzas: nada de construir FinanceReadRepository inline.
+        from backend.infrastructure.db.repositories.finance_read_repository import (
+            FinanceReadRepository,
+        )
+        self.finance_read_repository = FinanceReadRepository(self.db)
+
+        # Lecturas del Dashboard operativo (KPIs diarios) — Bug 2: la UI del
+        # dashboard consume SOLO este QueryService.
+        from backend.application.queries.dashboard_query_service import (
+            DashboardQueryService,
+        )
+        self.dashboard_query_service = DashboardQueryService(self.db)
+
         # Phase 3: repositorios documentales PR/PO
         try:
             from repositories.purchase_request_repository import PurchaseRequestRepository
@@ -198,8 +212,13 @@ class AppContainer:
             from backend.application.use_cases.generate_z_cut_use_case import GenerateZCutUseCase
             from core.events.event_bus import get_bus as _cash_get_bus
 
+            if self.caja_service is None:
+                raise RuntimeError("CajaApplicationService no disponible")
+            # Fuente única de turnos/corte Z: CajaApplicationService. Los
+            # delegados legacy de FinanceService comparten ESTA instancia.
+            self.finance_service.caja_app = self.caja_service
             self.cash_register_service = CashRegisterApplicationService(
-                self.finance_service,
+                self.caja_service,
                 publisher=lambda evt, payload: _cash_get_bus().publish(evt, payload),
             )
             self.open_cash_shift_uc = OpenCashShiftUseCase(handler=self.cash_register_service.open_shift)
@@ -213,17 +232,6 @@ class AppContainer:
             self.register_cash_movement_uc = None
             self.generate_z_cut_uc = None
             logger.warning("CashRegister use cases no cargados: %s", _cash_err)
-
-        # CajaTicketService — impresión y PDF de cortes Z
-        try:
-            from core.services.caja_ticket_service import CajaTicketService
-            self.caja_ticket_service = CajaTicketService(
-                db=self.db,
-                hardware_service=None,  # wired later after hardware_service init
-            )
-        except Exception as _caja_tkt_err:
-            self.caja_ticket_service = None
-            logger.warning("CajaTicketService no cargado: %s", _caja_tkt_err)
 
         # CustomerCreditService — validación de crédito y CxC en ventas
         from application.services.customer_credit_service import CustomerCreditService
@@ -278,7 +286,18 @@ class AppContainer:
         # Opcionales
         self.promotion_engine = PromotionEngine(self.promo_repo)
         self.sync_service = SyncService(self.db)
-        self.purchase_service = PurchaseService(self.db, self.purchase_repo, self.inventory_application_service, self.finance_service)
+
+        # SupplierCreditService — política de crédito de proveedor (Bug 8).
+        # Registrado aquí e inyectado explícitamente en PurchaseService
+        # (regla 16: sin dependencias implícitas autoconstruidas).
+        from application.services.supplier_credit_service import SupplierCreditService
+        self.supplier_credit_service = SupplierCreditService(self.db)
+
+        self.purchase_service = PurchaseService(
+            self.db, self.purchase_repo, self.inventory_application_service,
+            self.finance_service,
+            supplier_credit_service=self.supplier_credit_service,
+        )
 
         # =========================================================
         # CAPA 4: EL ORQUESTADOR PRINCIPAL (Ventas)
@@ -323,10 +342,6 @@ class AppContainer:
         # ── Servicios adicionales (v12) ───────────────────────────────────
         from core.services.hardware_service import HardwareService
         self.hardware_service = HardwareService(self.db)
-
-        # Wire hardware_service into CajaTicketService now that it's available
-        if self.caja_ticket_service is not None:
-            self.caja_ticket_service._hw = self.hardware_service
 
         # v13.4 Fase 1: ModuleConfig (toggles globales) — antes de otros servicios
         from core.module_config import ModuleConfig
@@ -373,6 +388,19 @@ class AppContainer:
         # v13.4 Fase 1: PrinterService unificado
         from core.services.printer_service import PrinterService
         self.printer_service = PrinterService(self.db, self.module_config)
+
+        # CajaTicketService — impresión y PDF de cortes Z. Construido DESPUÉS
+        # de PrinterService para inyectarlo explícitamente: sin él, el corte Z
+        # jamás auto-imprimía por la ruta térmica canónica (Bug 4).
+        try:
+            from core.services.caja_ticket_service import CajaTicketService
+            self.caja_ticket_service = CajaTicketService(
+                db=self.db,
+                printer_service=self.printer_service,
+            )
+        except Exception as _caja_tkt_err:
+            self.caja_ticket_service = None
+            logger.warning("CajaTicketService no cargado: %s", _caja_tkt_err)
 
         # v13.4 Fase 1.5: QRParserService (separar client_id de nombre)
         from core.services.qr_parser_service import QRParserService

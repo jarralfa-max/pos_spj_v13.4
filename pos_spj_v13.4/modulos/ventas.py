@@ -40,7 +40,7 @@ from PyQt5.QtWidgets import (
     QInputDialog, QGraphicsDropShadowEffect, QDialogButtonBox, QCompleter, QSpinBox
 )
 from PyQt5.QtCore import Qt, QDateTime, QTimer, pyqtSignal, QLocale, QPropertyAnimation, QRect, QUrl, QSize, QStringListModel, QThread, QEvent
-from PyQt5.QtGui import QIcon, QDoubleValidator, QPixmap, QImage, QColor, QFont, QPalette, QBrush, QPainter
+from PyQt5.QtGui import QIcon, QDoubleValidator, QPixmap, QImage, QColor, QFont, QPalette, QBrush, QPainter, QKeySequence
 
 # Importación de la clase base y utilidades
 from .base import ModuloBase
@@ -117,11 +117,18 @@ class _ScanContextFilter(QObject):
         return False  # Never consume the event — always pass through
 
 class _FKeyButton(QPushButton):
-    """QPushButton with an F-key shortcut badge painted inside the button, right side."""
+    """QPushButton con badge de tecla F pintado Y el atajo REAL registrado.
+
+    Bug FX: el badge se pintaba pero el atajo nunca se registraba — las teclas
+    rápidas F6-F12 no hacían nada. setShortcut respeta el estado enabled del
+    botón (un botón deshabilitado no dispara su acción).
+    """
 
     def __init__(self, text: str = "", fkey: str = "", parent=None):
         super().__init__(text, parent)
         self._fkey = fkey
+        if fkey:
+            self.setShortcut(QKeySequence(fkey))
 
     def paintEvent(self, event):
         super().paintEvent(event)
@@ -3345,12 +3352,13 @@ class ModuloVentas(ModuloBase):
                         'availability_message': producto.get('availability_message'),
                     }
                 # Verificar stock antes de agregar al carrito
-                # v13.4: Delegado a inventory_service para mantener abstracción de capa
+                # Lectura canónica: InventoryQueryService.get_stock (la API
+                # legacy get_stock_sucursal no existe en el servicio canónico).
                 try:
-                    _inv = getattr(self.container, 'inventory_service', None)
-                    if _inv:
-                        stock_actual = float(_inv.get_stock_sucursal(
-                            producto['id'], self.sucursal_id) or 0)
+                    _inv_qs = getattr(self.container, 'inventory_query_service', None)
+                    if _inv_qs:
+                        stock_actual = float(_inv_qs.get_stock(
+                            str(producto['id']), str(self.sucursal_id)).quantity or 0)
                     else:
                         stock_actual = float(producto.get('existencia', 0))
                     if stock_actual <= 0 and not producto.get('es_compuesto', 0):
@@ -4743,7 +4751,7 @@ class ModuloVentas(ModuloBase):
         grp = QGroupBox("Buscar venta a devolver")
         sf = QFormLayout(grp)
         txt_folio = QLineEdit()
-        txt_folio.setPlaceholderText("Folio VNT-… o ID")
+        txt_folio.setPlaceholderText("Folio VNT-… o ID (busca solo al 7º carácter)")
         txt_folio.setProperty("class", "standardInput")
         sf.addRow("Folio / ID:", txt_folio)
         lay.addWidget(grp)
@@ -4835,4 +4843,21 @@ class ModuloVentas(ModuloBase):
 
         btn_buscar.clicked.connect(_buscar)
         btn_cancel.clicked.connect(_cancelar)
+
+        # Autocompletado de búsqueda: dispara SOLO a partir del 7º carácter
+        # tecleado (con debounce), para no consultar por prefijos ambiguos.
+        from PyQt5.QtCore import QTimer as _QTimer
+        _debounce = _QTimer(dlg)
+        _debounce.setSingleShot(True)
+        _debounce.setInterval(250)
+        _debounce.timeout.connect(_buscar)
+
+        def _on_folio_typed(texto: str) -> None:
+            if len(texto.strip()) >= 7:
+                _debounce.start()
+            else:
+                _debounce.stop()
+
+        txt_folio.textChanged.connect(_on_folio_typed)
+        txt_folio.returnPressed.connect(_buscar)
         dlg.exec_()

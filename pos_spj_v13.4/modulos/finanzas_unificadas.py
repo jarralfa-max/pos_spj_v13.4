@@ -16,6 +16,13 @@ class _Rows:
     def __init__(self, rows): self._rows = rows
     def fetchall(self): return self._rows
 
+
+def _fin_read(m) -> "FinanceReadRepository | None":
+    """FinanceReadRepository registrado en AppContainer — fuente única de
+    lecturas financieras. La UI nunca construye el repositorio inline; si el
+    módulo se montó sin container, la sección simplemente se omite."""
+    return getattr(getattr(m, "container", None), "finance_read_repository", None)
+
 from typing import List, Dict, Any, Optional
 
 from PyQt5.QtWidgets import (
@@ -791,9 +798,8 @@ class _SeccionResumen(QWidget):
 
         # Alertas — consultas directas a tablas garantizadas
         try:
-            db = getattr(getattr(m, "container", None), "db", None)
-            if db:
-                _fin = FinanceReadRepository(db)
+            _fin = _fin_read(m)
+            if _fin:
                 # CxP vencidas (financial_documents mig083 o fallback 0)
                 cxp_venc = 0
                 try:
@@ -841,9 +847,9 @@ class _SeccionResumen(QWidget):
                 rows = m._je_svc.get_recientes(limit=20)
 
             if not rows:
-                db = getattr(getattr(m, "container", None), "db", None)
-                if db:
-                    rows = FinanceReadRepository(db).get_recent_activity(limit=20)
+                _fin = _fin_read(m)
+                if _fin:
+                    rows = _fin.get_recent_activity(limit=20)
 
             # Normalizar a dict uniforme y guardar cache
             self._rows_actividad = [
@@ -1029,10 +1035,10 @@ class _SeccionCajayConciliacion(QWidget):
             if m._recon_svc and hasattr(m._recon_svc, "get_conciliaciones"):
                 rows = m._recon_svc.get_conciliaciones(limit=100)
             if not rows:
-                db = getattr(getattr(m, "container", None), "db", None)
-                if db:
+                _fin = _fin_read(m)
+                if _fin:
                     try:
-                        cur = _Rows(FinanceReadRepository(db).list_cash_closures())
+                        cur = _Rows(_fin.list_cash_closures())
                         rows = [
                             {
                                 "fecha":         r[0],
@@ -1377,11 +1383,11 @@ class _SeccionCapital(QWidget):
 
             # Fallback: consulta directa a capital_movements (mig 084) o treasury_capital (legacy)
             if not rows:
-                db = getattr(getattr(m, "container", None), "db", None)
-                if db:
+                _fin = _fin_read(m)
+                if _fin:
                     # Intento 1: capital_movements (mig 084)
                     try:
-                        cur = _Rows(FinanceReadRepository(db).list_capital_movements())
+                        cur = _Rows(_fin.list_capital_movements())
                         cols = ["created_at", "movement_type", "partner_name", "concept",
                                 "payment_method", "amount", "reference", "status"]
                         rows = [dict(zip(cols, row)) for row in cur.fetchall()]
@@ -1390,7 +1396,7 @@ class _SeccionCapital(QWidget):
                     # Intento 2: treasury_capital (tabla legacy de TreasuryService)
                     if not rows:
                         try:
-                            cur = _Rows(FinanceReadRepository(db).list_treasury_capital())
+                            cur = _Rows(_fin.list_treasury_capital())
                             cols = ["created_at", "movement_type", "partner_name", "concept",
                                     "payment_method", "amount", "reference", "status"]
                             rows = [dict(zip(cols, row)) for row in cur.fetchall()]
@@ -1944,10 +1950,10 @@ class _SeccionMovimientos(QWidget):
                 rows = m._tm_svc.get_movimientos(sucursal_id=m.sucursal_id, limit=200)
             # Fallback directo a treasury_ledger (existe desde mig 082)
             if not rows:
-                db = getattr(getattr(m, "container", None), "db", None)
-                if db:
+                _fin = _fin_read(m)
+                if _fin:
                     try:
-                        cur = _Rows(FinanceReadRepository(db).list_treasury_ledger())
+                        cur = _Rows(_fin.list_treasury_ledger())
                         rows = [
                             {
                                 "fecha":     r[0],
@@ -2152,10 +2158,10 @@ class _SeccionAsientosContables(QWidget):
                 rows = m._je_svc.get_asientos(sucursal_id=m.sucursal_id, limit=200)
             # Fallback 1: journal_entries (mig 083)
             if not rows:
-                db = getattr(getattr(m, "container", None), "db", None)
-                if db:
+                _fin = _fin_read(m)
+                if _fin:
                     try:
-                        cur = _Rows(FinanceReadRepository(db).list_journal_entries())
+                        cur = _Rows(_fin.list_journal_entries())
                         rows = [
                             {
                                 "fecha":       r[0],
@@ -2172,9 +2178,9 @@ class _SeccionAsientosContables(QWidget):
                     except Exception:
                         rows = []
                     # Fallback 2: financial_event_log (desde m000 — siempre presente)
-                    if not rows and db:
+                    if not rows and _fin:
                         try:
-                            cur = _Rows(FinanceReadRepository(db).list_financial_event_log())
+                            cur = _Rows(_fin.list_financial_event_log())
                             rows = [
                                 {
                                     "fecha":       r[0],
@@ -2527,10 +2533,11 @@ class _SeccionProveedores(QWidget):
             except Exception as e:
                 logger.warning("_SeccionProveedores.recargar tps: %s", e)
 
-        # Fallback defensivo si el servicio falla pero hay db
-        if not rows and hasattr(m.container, "db"):
+        # Fallback defensivo si el servicio falla pero hay repositorio de lectura
+        _fin = _fin_read(m)
+        if not rows and _fin:
             try:
-                cur = _Rows(FinanceReadRepository(m.container.db).list_active_suppliers())
+                cur = _Rows(_fin.list_active_suppliers())
                 rows = [
                     {"id": r[0], "nombre": r[1], "telefono": r[2], "email": r[3],
                      "contacto": r[4], "condiciones_pago": r[5], "saldo_pendiente": 0.0}
@@ -2634,10 +2641,10 @@ class _SeccionClientesCredito(QWidget):
             # Fallback: mismas columnas que modulos/clientes.py — saldo y limite_credito
             # son la fuente de verdad; credit_limit/credit_balance son aliases secundarios.
             if not clientes:
-                db = getattr(getattr(m, "container", None), "db", None)
-                if db:
+                _fin = _fin_read(m)
+                if _fin:
                     try:
-                        cur = _Rows(FinanceReadRepository(db).list_customer_credit())
+                        cur = _Rows(_fin.list_customer_credit())
                         clientes = [
                             {"nombre": r[0], "limite_credito": float(r[1] or 0),
                              "saldo_credito": float(r[2] or 0), "ultima_compra": r[3] or ""}
@@ -2763,7 +2770,7 @@ class _SeccionReportes(QWidget):
 
     def _reporte_simple(self, titulo: str):
         m = self._m
-        db = getattr(getattr(m, "container", None), "db", None)
+        _fin = _fin_read(m)
         dlg = QDialog(self)
         dlg.setWindowTitle(titulo)
         dlg.resize(540, 340)
@@ -2775,8 +2782,7 @@ class _SeccionReportes(QWidget):
         try:
             if titulo == "Utilidad del período":
                 ingreso = egreso = 0.0
-                if db:
-                    _fin = FinanceReadRepository(db)
+                if _fin:
                     ingreso = _fin.sum_sales()
                     egreso  = _fin.sum_purchases()
                 utilidad = ingreso - egreso
@@ -2803,9 +2809,9 @@ class _SeccionReportes(QWidget):
                     lbl.setText("Balance general no disponible.\n"
                                 "Verifica que TreasuryService esté activo.")
             elif titulo == "Gastos por categoría":
-                if db:
+                if _fin:
                     try:
-                        rows = FinanceReadRepository(db).expenses_by_module(limit=12)
+                        rows = _fin.expenses_by_module(limit=12)
                         if rows:
                             lines = [f"{'Categoría':<28} {'Monto':>12}", "─" * 41]
                             for cat, monto in rows:
