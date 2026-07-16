@@ -27,7 +27,7 @@ MODULE_REGISTRY = {
     "tarjetas":         ("ModuloTarjetas",            "modulos.tarjetas",               []),
     "configuraciones":    ("Moduloconfiguraciones",       "modulos.configuraciones",          []),
     "delivery":         ("ModuloDelivery",            "modulos.delivery",               ["usuario"]),
-    "rrhh":             ("ModuloRRHH",                "modulos.rrhh",                   ["usuario"]),
+    "rrhh":             ("ModuloRRHH",                "modulos.rrhh",                   []),
     "bi_v2":            ("ModuloReportesBIv2",        "modulos.reportes_bi_v2",         ["usuario"]),
     "ticket_designer":  ("ModuloTicketDesigner",      "modulos.ticket_designer",        ["usuario"]),
     "loyalty_card":     ("ModuloLoyaltyCardDesigner", "modulos.loyalty_card_designer",  ["usuario"]),

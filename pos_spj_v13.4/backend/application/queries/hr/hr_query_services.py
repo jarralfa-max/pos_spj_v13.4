@@ -134,6 +134,25 @@ class PayrollQueryService(_HRQueryBase):
                 "net": str(float(gross) - float(deductions))}
 
 
+class ShiftQueryService(_HRQueryBase):
+    def list_active(self, *, branch_id: str | None = None) -> list[dict]:
+        if branch_id:
+            return self._query(
+                "SELECT id, name, start_time, end_time, break_minutes,"
+                " late_tolerance_minutes FROM work_shifts WHERE active=1"
+                " AND (branch_id=? OR branch_id IS NULL) ORDER BY name", (branch_id,))
+        return self._query(
+            "SELECT id, name, start_time, end_time, break_minutes,"
+            " late_tolerance_minutes FROM work_shifts WHERE active=1 ORDER BY name")
+
+    def assignments_for_employee(self, employee_id: str) -> list[dict]:
+        return self._query(
+            "SELECT a.id, a.work_shift_id, s.name AS shift_name, a.effective_from,"
+            " a.effective_to, a.weekdays FROM shift_assignments a"
+            " JOIN work_shifts s ON s.id=a.work_shift_id WHERE a.employee_id=?"
+            " ORDER BY a.effective_from DESC", (employee_id,))
+
+
 class HRDashboardQueryService(_HRQueryBase):
     def overview(self, *, work_date: str, branch_id: str | None = None) -> dict:
         branch_clause = " AND branch_id=?" if branch_id else ""

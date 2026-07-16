@@ -18,10 +18,6 @@ class TestApplicationImports:
         from application.use_cases import GestionarClienteUC
         assert GestionarClienteUC is not None
 
-    def test_gestionar_nomina_uc_importable(self):
-        from application.use_cases import GestionarNominaUC
-        assert GestionarNominaUC is not None
-
     def test_gestionar_inventario_uc_importable(self):
         from application.use_cases import GestionarInventarioUC
         assert GestionarInventarioUC is not None

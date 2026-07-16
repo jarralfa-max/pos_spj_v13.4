@@ -1477,10 +1477,6 @@ class MainWindow(QMainWindow):
             logging.getLogger(__name__).debug("_cargar_tema_inicial: %s", e)
 
 try:
-    from modulos.rrhh_turnos import ModuloRRHHTurnos
-except Exception:
-    ModuloRRHHTurnos = None
-try:
     from modulos.modulo_growth_engine import ModuloGrowthEngine
 except Exception:
     ModuloGrowthEngine = None

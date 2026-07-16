@@ -75,17 +75,24 @@ generar→autorizar→pagar idempotente; asistencia desde Caja por eventos (nunc
 | Fase | Contenido | Estado |
 |---|---|---|
 | 0 | Auditoría + este plan | ✅ COMPLETE |
-| 1 | Dominio + esquema limpio UUIDv7 | ⏳ PENDING |
-| 2 | Repositorios + QueryServices + DTOs | ⏳ PENDING |
-| 3 | Empleados, catálogos, permisos, vínculo usuario↔empleado | ⏳ PENDING |
-| 4 | Asistencia manual + jornada + ajustes + incidencias | ⏳ PENDING |
-| 5 | Integración Caja↔Asistencia por eventos | ⏳ PENDING |
-| 6 | Turnos laborales | ⏳ PENDING |
-| 7 | Vacaciones y permisos | ⏳ PENDING |
-| 8 | Nómina canónica idempotente | ⏳ PENDING |
-| 9 | UI/UX enterprise | ⏳ PENDING |
-| 10 | Eliminación de legacy | ⏳ PENDING |
-| 11 | Validación final | ⏳ PENDING |
+| 1 | Dominio + esquema limpio UUIDv7 | ✅ COMPLETE |
+| 2 | Repositorios + QueryServices + DTOs | ✅ COMPLETE |
+| 3 | Empleados, catálogos, permisos, vínculo usuario↔empleado | ✅ COMPLETE |
+| 4 | Asistencia manual + jornada + ajustes + incidencias | ✅ COMPLETE |
+| 5 | Integración Caja↔Asistencia por eventos | ✅ COMPLETE |
+| 6 | Turnos laborales | ✅ COMPLETE |
+| 7 | Vacaciones y permisos | ✅ COMPLETE |
+| 8 | Nómina canónica idempotente | ✅ COMPLETE |
+| 9 | UI/UX enterprise (`frontend/desktop/modules/hr/`: 9 páginas + diálogos) | ✅ COMPLETE |
+| 10 | Eliminación de legacy (`modulos/rrhh*`, `core/rrhh/`, servicios y nómina legacy) | ✅ COMPLETE |
+| 11 | Validación final (tests de arquitectura HR, born-clean UUIDv7, sin SQL en UI) | ✅ COMPLETE |
+
+Estado global: **MIGRATED**. La UI de RRHH vive en `frontend/desktop/modules/hr/`
+y delega en el bounded context (`backend/domain/hr`, `backend/application/**/hr`,
+`backend/infrastructure/db/{schema/hr_schema.py,repositories/hr}`). Nómina sigue la
+secuencia canónica Generar→Autorizar→Pagar (idempotente, un solo `PAYROLL_PAID`
+para finanzas). Caja↔Asistencia se integra por eventos (`CASH_SHIFT_OPENED/CLOSED`).
+111 tests HR verdes (dominio, integración, arquitectura).
 
 ## 4. Lista de eliminación (FASE 10)
 

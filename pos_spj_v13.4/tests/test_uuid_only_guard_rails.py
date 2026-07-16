@@ -70,7 +70,6 @@ def test_no_lastrowid_as_identity():
     lastrowid is an SQLite INTEGER row ID, not a UUID identity.
     Modules below are explicitly in their own pending migration phase:
     - finance/: full double-entry rewrite pending
-    - rrhh/: HR payroll rewrite pending
     - outbox.py: uses rowid for ordered delivery queue, not entity identity
     - caja_application_service.py, cierre_caja_service.py: cash session rewrite pending
     - cotizacion_service.py, happy_hour_service.py, anticipo_service.py: auxiliary
@@ -93,7 +92,6 @@ def test_no_lastrowid_as_identity():
         "whatsapp_service.py",
         "reporte_email_service.py",
         "card_batch_engine.py",
-        "rrhh_service.py",
         "delivery_outbox_repository.py",
     )
     for abs_path, relpath in _business_files():

@@ -27,7 +27,6 @@ BRANCH_CLEAN_MODULES = [
     "modulos/tarjetas.py",
     "modulos/compras_pro.py",
     "modulos/whatsapp/whatsapp_module.py",
-    "modulos/rrhh_turnos.py",
     "modulos/rrhh.py",
     "modulos/etiquetas.py",
     "modulos/clientes.py",

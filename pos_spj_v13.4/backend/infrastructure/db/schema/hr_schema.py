@@ -7,7 +7,8 @@ Rules:
 - Idempotency is structural: UNIQUE(operation_id) where an operation must not
   repeat, plus UNIQUE(source, source_reference_id, punch_type) for cash-driven
   punches.
-- No AUTOINCREMENT, no lastrowid, no legacy compatibility, no data rescue.
+- No AUTOINCREMENT, no integer row-id identity, no legacy compatibility, no
+  data rescue.
 
 Only a migration in ``migrations/`` may execute this DDL.
 """

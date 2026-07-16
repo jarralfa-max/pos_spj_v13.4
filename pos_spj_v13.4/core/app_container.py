@@ -349,20 +349,12 @@ class AppContainer:
             finance_service=self.finance_service,
         )
 
-        from core.services.hr_rule_engine import HRRuleEngine
-        self.hr_rule_engine = HRRuleEngine(
-            db_conn=self.db,
-            module_config=self.module_config,
-        )
-
-        from core.services.rrhh_service import RRHHService
-        self.rrhh_service = RRHHService(
-            db_conn=self.db,
-            treasury_service=self.treasury_service,
-            whatsapp_service=self.whatsapp_service,
-            template_engine=None,
-            hr_rule_engine=self.hr_rule_engine,
-        )
+        # RRHH migrado al bounded context de Recursos Humanos
+        # (backend/domain/hr, backend/application/**/hr, frontend/desktop/modules/hr).
+        # La UI se construye vía frontend.desktop.modules.hr.hr_routes.create_hr_view,
+        # que cablea sus propios query services y use cases. No hay servicio legacy.
+        self.hr_rule_engine = None
+        self.rrhh_service = None
 
         # BI unificado: no se expone bi_service paralelo.
         self.bi_service = None
@@ -554,17 +546,18 @@ class AppContainer:
             self.receive_po_adapter    = None
             logger.debug("uc_compra_tradicional/pr/po/adapter: %s", _uc_trad)
 
-        # ── v13.5: ERP Use Cases — compra (deprecated), cliente, nomina, finanzas ──
+        # ── v13.5: ERP Use Cases — compra (deprecated), cliente, finanzas ──
+        # Nómina migrada al bounded context RRHH (backend.application.use_cases.hr);
+        # ya no existe uc_nomina legacy.
         try:
             from core.use_cases.compra import ProcesarCompraUC
             from core.use_cases.cliente import GestionarClienteUC
-            from core.use_cases.nomina import GestionarNominaUC
             from core.use_cases.finanzas import GestionarFinanzasUC
             # uc_compra queda como alias deprecado hacia ProcesarCompraUC.
             # Código nuevo debe usar self.uc_compra_tradicional.
             self.uc_compra    = ProcesarCompraUC.desde_container(self)
             self.uc_cliente   = GestionarClienteUC.desde_container(self)
-            self.uc_nomina    = GestionarNominaUC.desde_container(self)
+            self.uc_nomina    = None
             self.uc_finanzas  = GestionarFinanzasUC.desde_container(self)
         except Exception as _uc_erp:
             self.uc_compra = self.uc_cliente = self.uc_nomina = self.uc_finanzas = None
