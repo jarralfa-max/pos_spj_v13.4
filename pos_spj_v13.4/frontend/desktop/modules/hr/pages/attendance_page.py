@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QAbstractItemView, QHeaderView, QHBoxLayout, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QMessageBox, QTableWidgetItem, QVBoxLayout, QWidget
 
-from frontend.desktop.components import EmptyState, LoadingState, PaginationBar, StatusBadge
+from frontend.desktop.components import EmptyState, Icons, LoadingState, PageAction, PageHeader, PaginationBar, StandardTable, StatusBadge
 from frontend.desktop.modules.hr.dialogs.attendance_dialog import HRAttendanceDialog
 from frontend.desktop.modules.hr.hr_presenter import HRPresenterPort
 from frontend.desktop.themes import DesktopSpacing
@@ -21,29 +21,34 @@ class HRAttendancePage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(DesktopSpacing.LG, DesktopSpacing.LG, DesktopSpacing.LG, DesktopSpacing.LG)
         layout.setSpacing(DesktopSpacing.MD)
-
-        actions = QHBoxLayout()
-        self._register_button = QPushButton("Registrar asistencia", self)
-        self._register_button.setToolTip("Registrar una entrada o salida manual con motivo obligatorio")
-        self._register_button.clicked.connect(self._register_attendance)
-        self._refresh_button = QPushButton("Actualizar", self)
-        self._refresh_button.setToolTip("Recargar jornadas desde AttendanceQueryService")
-        self._refresh_button.clicked.connect(self.refresh)
-        actions.addWidget(self._register_button)
-        actions.addWidget(self._refresh_button)
-        actions.addStretch(1)
-        layout.addLayout(actions)
+        layout.addWidget(
+            PageHeader(
+                title="Asistencia",
+                subtitle="Jornadas, marcaciones manuales e incidencias calculadas por RRHH canónico.",
+                icon=Icons.ATTENDANCE,
+                actions=(
+                    PageAction(
+                        text="Registrar asistencia",
+                        callback=self._register_attendance,
+                        variant="primary",
+                        tooltip="Registrar una entrada o salida manual con motivo obligatorio.",
+                    ),
+                    PageAction(
+                        text="Actualizar",
+                        callback=self.refresh,
+                        tooltip="Recargar jornadas desde AttendanceQueryService.",
+                    ),
+                ),
+                parent=self,
+            )
+        )
 
         self._loading = LoadingState(parent=self)
         layout.addWidget(self._loading)
         self._empty = EmptyState("Sin jornadas de asistencia", "Las entradas, salidas e incidencias aparecerán aquí.", self)
         layout.addWidget(self._empty)
-        self._table = QTableWidget(0, len(self.HEADERS), self)
+        self._table = StandardTable(0, len(self.HEADERS), self)
         self._table.setHorizontalHeaderLabels(self.HEADERS)
-        self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._table.verticalHeader().setVisible(False)
-        self._table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self._table.setMinimumHeight(360)
         layout.addWidget(self._table, 1)
         self._pagination = PaginationBar(self, page_size=25)

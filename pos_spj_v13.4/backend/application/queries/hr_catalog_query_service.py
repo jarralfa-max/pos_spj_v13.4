@@ -11,6 +11,26 @@ class HRCatalogQueryService:
     def __init__(self, connection: Connection) -> None:
         self._connection = connection
 
+    def list_departments(self, *, active_only: bool = True) -> list[HRCatalogItemDTO]:
+        where = "WHERE active = 1" if active_only else ""
+        rows = self._connection.execute(
+            f"SELECT id, id AS code, name, active FROM departments {where} ORDER BY name"
+        ).fetchall()
+        return [
+            HRCatalogItemDTO(id=row[0], code=row[1], name=row[2], active=bool(row[3]))
+            for row in rows
+        ]
+
+    def list_positions(self, *, active_only: bool = True) -> list[HRCatalogItemDTO]:
+        where = "WHERE active = 1" if active_only else ""
+        rows = self._connection.execute(
+            f"SELECT id, id AS code, name, active FROM positions {where} ORDER BY name"
+        ).fetchall()
+        return [
+            HRCatalogItemDTO(id=row[0], code=row[1], name=row[2], active=bool(row[3]))
+            for row in rows
+        ]
+
     def list_contract_types(self, *, active_only: bool = True) -> list[HRCatalogItemDTO]:
         return self._list_catalog("contract_types", active_only=active_only)
 
@@ -22,4 +42,7 @@ class HRCatalogQueryService:
         rows = self._connection.execute(
             f"SELECT id, code, name, active FROM {table_name} {where} ORDER BY name"
         ).fetchall()
-        return [HRCatalogItemDTO(id=row[0], code=row[1], name=row[2], active=bool(row[3])) for row in rows]
+        return [
+            HRCatalogItemDTO(id=row[0], code=row[1], name=row[2], active=bool(row[3]))
+            for row in rows
+        ]

@@ -1,4 +1,13 @@
 """Reusable desktop UI components for the SPJ refactor."""
+from frontend.desktop.components.buttons import StandardButton
+from frontend.desktop.components.cards import AlertCard, ChartCard, SectionCard, StandardCard, SummaryCard
+from frontend.desktop.components.filter_bar import FilterBar
+from frontend.desktop.components.icons import Icons
+from frontend.desktop.components.kpi_bar import KPIBar
+from frontend.desktop.components.kpi_card import KPIDTO, KPICard
+from frontend.desktop.components.page_header import PageAction, PageHeader
+from frontend.desktop.components.tables import StandardTable
+from frontend.desktop.components.tooltip import Tooltip
 
 from frontend.desktop.components.address_input import AddressInput, AddressSuggestion
 from frontend.desktop.components.asset_search_box import AssetSearchBox
@@ -23,6 +32,21 @@ from frontend.desktop.components.status_badge import StatusBadge
 from frontend.desktop.components.supplier_search_box import SupplierSearchBox
 
 __all__ = [
+    "StandardButton",
+    "AlertCard",
+    "ChartCard",
+    "SectionCard",
+    "StandardCard",
+    "SummaryCard",
+    "FilterBar",
+    "Icons",
+    "KPIBar",
+    "KPIDTO",
+    "KPICard",
+    "PageAction",
+    "PageHeader",
+    "StandardTable",
+    "Tooltip",
     "AddressInput",
     "AddressSuggestion",
     "DebouncedSearchInput",

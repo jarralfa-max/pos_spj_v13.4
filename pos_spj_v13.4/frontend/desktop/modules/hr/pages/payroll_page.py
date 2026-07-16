@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QAbstractItemView, QHeaderView, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QTableWidgetItem, QVBoxLayout, QWidget
 
-from frontend.desktop.components import EmptyState, LoadingState, PaginationBar, StatusBadge
+from frontend.desktop.components import EmptyState, Icons, LoadingState, PageAction, PageHeader, PaginationBar, StandardTable, StatusBadge
 from frontend.desktop.modules.hr.hr_presenter import HRPresenterPort
 from frontend.desktop.themes import DesktopSpacing
 
@@ -20,20 +20,28 @@ class HRPayrollPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(DesktopSpacing.LG, DesktopSpacing.LG, DesktopSpacing.LG, DesktopSpacing.LG)
         layout.setSpacing(DesktopSpacing.MD)
-        self._refresh_button = QPushButton("Actualizar corridas", self)
-        self._refresh_button.setToolTip("Recargar corridas desde PayrollQueryService")
-        self._refresh_button.clicked.connect(self.reload)
-        layout.addWidget(self._refresh_button)
+        layout.addWidget(
+            PageHeader(
+                title="Nómina",
+                subtitle="Corridas, autorización y pagos consultados desde PayrollQueryService.",
+                icon=Icons.PAYROLL,
+                actions=(
+                    PageAction(
+                        text="Actualizar corridas",
+                        callback=self.reload,
+                        variant="primary",
+                        tooltip="Recargar corridas desde PayrollQueryService.",
+                    ),
+                ),
+                parent=self,
+            )
+        )
         self._loading = LoadingState(parent=self)
         layout.addWidget(self._loading)
         self._empty = EmptyState("Sin corridas de nómina", "Las corridas calculadas, autorizadas o pagadas aparecerán aquí.", self)
         layout.addWidget(self._empty)
-        self._table = QTableWidget(0, len(self.HEADERS), self)
+        self._table = StandardTable(0, len(self.HEADERS), self)
         self._table.setHorizontalHeaderLabels(self.HEADERS)
-        self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._table.verticalHeader().setVisible(False)
-        self._table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         layout.addWidget(self._table, 1)
         self._pagination = PaginationBar(self, page_size=25)
         self._pagination.pageChanged.connect(lambda _limit, _offset: self.reload())
