@@ -29,53 +29,77 @@ from core.events.handlers.finance_handler import SaleFinanceHandler, CreditSaleF
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestSaleFinanceHandler:
-    def _mock_finance(self):
-        f = MagicMock()
-        f.register_income = MagicMock()
-        return f
+    """FASE 20: SaleFinanceHandler es un puente al bounded context financiero.
+    El ingreso se reconoce como asiento POSTED en el ledger nuevo (no existe
+    register_income); crédito y contado postean con liquidación ON_CREDIT/CASH."""
 
-    def _handler(self):
-        return SaleFinanceHandler(finance_service=self._mock_finance())
+    def _db(self):
+        import sqlite3
+        from backend.infrastructure.db.schema.finance_schema import create_finance_schema
+        from backend.application.services.finance.finance_bootstrap import bootstrap_finance
+        conn = sqlite3.connect(":memory:")
+        create_finance_schema(conn)
+        bootstrap_finance(conn)
+        return conn
+
+    def _payload(self, method, total, folio):
+        from backend.shared.ids import new_uuid
+        return {"payment_method": method, "total": total, "folio": folio,
+                "sale_id": new_uuid(), "operation_id": new_uuid()}
+
+    def _entries(self, conn):
+        return conn.execute(
+            "SELECT COUNT(*) FROM journal_entries WHERE status='POSTED'"
+        ).fetchone()[0]
 
     def test_efectivo_registra_ingreso(self):
-        fs = self._mock_finance()
-        h = SaleFinanceHandler(fs)
-        h.handle({"payment_method": "Efectivo", "total": 100.0, "folio": "VNT-001"})
-        fs.register_income.assert_called_once()
-        kwargs = fs.register_income.call_args
-        assert kwargs.kwargs.get("amount", kwargs.args[0] if kwargs.args else None) == 100.0
+        conn = self._db()
+        h = SaleFinanceHandler(db_conn=conn)
+        h.handle(self._payload("Efectivo", 100.0, "VNT-001"))
+        assert self._entries(conn) == 1
+        total = conn.execute(
+            "SELECT SUM(CAST(debit_amount AS NUMERIC)) FROM journal_lines"
+        ).fetchone()[0]
+        assert float(total) == 100.0
 
     def test_tarjeta_registra_ingreso(self):
-        fs = self._mock_finance()
-        h = SaleFinanceHandler(fs)
-        h.handle({"payment_method": "Tarjeta", "total": 250.0, "folio": "VNT-002"})
-        fs.register_income.assert_called_once()
+        conn = self._db()
+        h = SaleFinanceHandler(db_conn=conn)
+        h.handle(self._payload("Tarjeta", 250.0, "VNT-002"))
+        assert self._entries(conn) == 1
 
-    def test_credito_NO_registra_ingreso(self):
-        """Credit sales defer income — CxC is created by CreditSaleFinanceHandler."""
-        fs = self._mock_finance()
-        h = SaleFinanceHandler(fs)
-        h.handle({"payment_method": "Credito", "total": 150.0, "folio": "VNT-003"})
-        fs.register_income.assert_not_called()
-
-    def test_mercado_pago_NO_registra_ingreso(self):
-        """MercadoPago: only a link is generated, not confirmed payment."""
-        fs = self._mock_finance()
-        h = SaleFinanceHandler(fs)
-        h.handle({"payment_method": "Mercado Pago", "total": 200.0, "folio": "VNT-004"})
-        fs.register_income.assert_not_called()
+    def test_credito_registra_asiento_con_cxc(self):
+        """Crédito: mismo asiento con liquidación ON_CREDIT (Dr CxC / Cr ingreso)
+        y receivable financiera; el estado operativo lo lleva CreditSaleFinanceHandler."""
+        from backend.shared.ids import new_uuid
+        conn = self._db()
+        h = SaleFinanceHandler(db_conn=conn)
+        payload = self._payload("Credito", 150.0, "VNT-003")
+        payload["customer_id"] = new_uuid()
+        h.handle(payload)
+        assert self._entries(conn) == 1
+        receivables = conn.execute("SELECT COUNT(*) FROM receivables").fetchone()[0]
+        assert receivables == 1
 
     def test_total_cero_no_registra(self):
-        fs = self._mock_finance()
-        h = SaleFinanceHandler(fs)
-        h.handle({"payment_method": "Efectivo", "total": 0.0, "folio": "VNT-005"})
-        fs.register_income.assert_not_called()
+        conn = self._db()
+        h = SaleFinanceHandler(db_conn=conn)
+        h.handle(self._payload("Efectivo", 0.0, "VNT-005"))
+        assert self._entries(conn) == 0
 
     def test_transferencia_registra_ingreso(self):
-        fs = self._mock_finance()
-        h = SaleFinanceHandler(fs)
-        h.handle({"payment_method": "Transferencia", "total": 500.0, "folio": "VNT-006"})
-        fs.register_income.assert_called_once()
+        conn = self._db()
+        h = SaleFinanceHandler(db_conn=conn)
+        h.handle(self._payload("Transferencia", 500.0, "VNT-006"))
+        assert self._entries(conn) == 1
+
+    def test_reintento_es_idempotente(self):
+        conn = self._db()
+        h = SaleFinanceHandler(db_conn=conn)
+        payload = self._payload("Efectivo", 80.0, "VNT-007")
+        h.handle(payload)
+        h.handle(payload)
+        assert self._entries(conn) == 1
 
 
 # ─────────────────────────────────────────────────────────────────────────────

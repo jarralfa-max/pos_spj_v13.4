@@ -19,7 +19,6 @@ BRANCH_CLEAN_MODULES = [
     "modulos/caja.py",
     "modulos/inventario_local.py",
     "modulos/transferencias.py",
-    "modulos/finanzas_unificadas.py",
     "modulos/activos.py",
     "modulos/modulo_growth_engine.py",
     "modulos/cotizaciones.py",

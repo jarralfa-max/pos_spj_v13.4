@@ -52,12 +52,10 @@ def test_credit_sale_creates_cxc_and_updates_balance():
     ).fetchone()
     assert row[0] == 750.0 and row[1] == 750.0
 
-    # Asiento GL dentro de la misma transacción
-    assert len(fin.asientos) == 1
-    asiento = fin.asientos[0]
-    assert asiento["debe"] == "130.1-cuentas-por-cobrar"
-    assert asiento["haber"] == "401.0-ingresos-ventas"
-    assert asiento["monto"] == 750.0
+    # FASE 20 refactor financiero: ruta contable ÚNICA — el asiento de la
+    # venta a crédito lo publica el bounded context (SaleFinanceHandler →
+    # posting engine), NO este servicio operativo.
+    assert fin.asientos == []
 
 
 def test_credit_sale_is_idempotent_by_venta_id():
@@ -79,7 +77,7 @@ def test_credit_sale_is_idempotent_by_venta_id():
         "SELECT credit_balance FROM clientes WHERE id=?", (cid,)
     ).fetchone()[0]
     assert balance == 100.0, "credit_balance no debe duplicarse en el retry"
-    assert len(fin.asientos) == 1
+    assert fin.asientos == []  # sin ruta contable dual
 
 
 def test_handler_aborts_credit_sale_without_customer():

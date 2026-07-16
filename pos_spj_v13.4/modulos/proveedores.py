@@ -1,16 +1,11 @@
-"""Compat wrapper: Proveedores ahora es submódulo de FINANZAS.
-
-Este archivo conserva compatibilidad de import, pero NO contiene
-lógica de negocio ni UI duplicada. Redirige al módulo unificado.
-"""
+"""Wrapper legacy: Proveedores (CxP) es una página del módulo de Finanzas."""
 from __future__ import annotations
 
-from modulos.finanzas_unificadas import ModuloFinanzasUnificadas
+from frontend.desktop.modules.finance.finance_routes import create_finance_view
 
 
-class ModuloProveedores(ModuloFinanzasUnificadas):
-    """Vista de compatibilidad que abre directamente la pestaña Proveedores."""
-
-    def __init__(self, container, parent=None):
-        super().__init__(container, parent)
-        self.set_active_submodule("proveedores")
+class ModuloProveedores:
+    def __new__(cls, container, parent=None):
+        view = create_finance_view(container, parent)
+        view.set_active_submodule("cxp")
+        return view

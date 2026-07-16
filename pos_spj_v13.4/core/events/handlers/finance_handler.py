@@ -1,212 +1,201 @@
-# core/events/handlers/finance_handler.py — SPJ ERP v13.4  Phase 1 + Phase 6
-"""
-SaleFinanceHandler      — registers cash income when SALE_ITEMS_PROCESS fires (sync, inside SAVEPOINT).
-CreditSaleFinanceHandler — creates CxC + GL entry for credit sales (sync, inside SAVEPOINT, p=85).
-SaleCancelledFinanceHandler — reverses CxC/income when VENTA_CANCELADA fires (post-commit).
+# core/events/handlers/finance_handler.py — SPJ ERP v13.5
+"""Bridge adapters: legacy operational events → finance bounded context.
 
-Phase 6: finance reacts to events only; direct finance mutations replaced by handlers.
+FASE 20 del refactor financiero: la ruta contable canónica ÚNICA es el
+posting engine del bounded context (``backend/application/...finance``).
+Estos adaptadores traducen los payloads del bus legacy (floats, claves en
+español) al contrato canónico (cadenas decimales, UUIDs) y delegan en los
+handlers nuevos. Aquí NO se deciden cuentas contables ni se escriben asientos.
 
-NOTE: SaleCreatedFinanceHandler was removed (2026-05-21 audit).
-It was dead code — never subscribed in wiring.py — and would have caused double GL entries
-if activated alongside SaleFinanceHandler (p=90). Removed per CLAUDE.md rule: eliminate
-dead code detected in audit. See: docs/audits/FINANZAS_AUDIT_FIX_PLAN.md A-04.
+Efectos operativos (CxC en cuentas_por_cobrar + credit_balance del cliente)
+siguen siendo responsabilidad del módulo de clientes (CustomerCreditService);
+el reconocimiento financiero vive exclusivamente en el ledger nuevo.
 """
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 logger = logging.getLogger("spj.handlers.finance")
 
 
+def _decimal_str(value: Any) -> str:
+    """Normalize legacy float/str amounts to a canonical decimal string."""
+    try:
+        return f"{float(value or 0):.2f}"
+    except (TypeError, ValueError):
+        return "0.00"
+
+
+def _occurred_now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _settlements_from_legacy(payload: Dict[str, Any], net_total: str) -> list:
+    """Map legacy payment_method/payment_breakdown to canonical settlements."""
+    from core.services.payment_normalization import is_credit_sale
+
+    payment_method = str(payload.get("payment_method") or payload.get("forma_pago") or "")
+    normalized = payment_method.strip().lower()
+    if is_credit_sale(payment_method):
+        settlement_type = "ON_CREDIT"
+    elif "tarjeta" in normalized or "card" in normalized:
+        settlement_type = "CARD"
+    elif "transfer" in normalized:
+        settlement_type = "BANK_TRANSFER"
+    else:
+        settlement_type = "CASH"
+    return [{"type": settlement_type, "amount": net_total}]
+
+
 class SaleFinanceHandler:
-    """
-    Subscribes to SALE_ITEMS_PROCESS and registers the cash income via FinanceService.
+    """SALE_ITEMS_PROCESS → SALE_COMPLETED canónico (síncrono, en SAVEPOINT)."""
 
-    Args:
-        finance_service: Must implement register_income(...).
-    """
-
-    def __init__(self, finance_service):
-        self._finance = finance_service
+    def __init__(self, db_conn=None, finance_service=None):  # finance_service: legacy kw, ignorado
+        if db_conn is None:
+            raise ValueError("SaleFinanceHandler requiere db_conn")
+        from backend.application.event_handlers.finance.sale_completed_handler import (
+            SaleCompletedHandler,
+        )
+        self._handler = SaleCompletedHandler(db_conn)
 
     def handle(self, payload: Dict[str, Any]) -> None:
-        payment_method = str(payload.get("payment_method", "Efectivo"))
-        total          = float(payload.get("total", 0))
-
-        # Credit sales: income is deferred — CreditSaleFinanceHandler handles CxC.
-        # MercadoPago: only a payment link is generated here — income registered
-        # only after webhook confirmation. Do NOT record as collected income now.
-        from core.services.payment_normalization import is_deferred_payment
-        if is_deferred_payment(payment_method) or total <= 0:
+        operation_id = str(payload.get("operation_id") or "").strip()
+        sale_id = str(payload.get("sale_id") or payload.get("venta_id") or "").strip()
+        total = _decimal_str(payload.get("total"))
+        if not operation_id or not sale_id or float(total) <= 0:
             return
-
-        try:
-            self._finance.register_income(
-                amount        = total,
-                category      = "VENTAS_MOSTRADOR",
-                description   = f"Ingreso por venta {payload.get('folio', '')}",
-                payment_method= payment_method,
-                branch_id = str(payload.get("branch_id") or payload.get("sucursal_id") or ""),
-                user          = str(payload.get("user", payload.get("usuario", "sistema"))),
-                operation_id  = str(payload.get("operation_id", "")),
-                reference_id  = payload.get("sale_id", payload.get("venta_id")),
-            )
-        except Exception as exc:
-            logger.error("SaleFinanceHandler.handle: %s", exc)
-            raise  # re-raise so wiring can log the failure
+        canonical = {
+            # evento puente: idempotencia por operación (el bus legacy no emite event_id)
+            "event_id": f"bridge-sale-{operation_id}",
+            "operation_id": operation_id,
+            "sale_id": sale_id,
+            "folio": str(payload.get("folio") or ""),
+            "branch_id": str(payload.get("branch_id") or payload.get("sucursal_id") or "") or None,
+            "customer_id": (str(payload.get("client_id") or payload.get("cliente_id")
+                                or payload.get("customer_id") or "") or None),
+            "occurred_at": _occurred_now(),
+            "currency_code": "MXN",
+            "gross_total": total,
+            "discount_total": "0.00",
+            "net_total": total,
+            "tax_total": "0.00",
+            "settlements": _settlements_from_legacy(payload, total),
+        }
+        self._handler.handle(canonical)
 
 
 class CreditSaleFinanceHandler:
-    """
-    Subscribes to SALE_ITEMS_PROCESS for credit sales only.
+    """SALE_ITEMS_PROCESS (solo crédito) → CxC operativa del módulo de clientes.
 
-    Runs synchronously inside the sale SAVEPOINT (priority=85) so that both the
-    CxC record and the GL journal entry are atomic with the sale row.
-
-    Responsibilities:
-    1. INSERT into cuentas_por_cobrar
-    2. UPDATE clientes.credit_balance (increment debt)
-    3. registrar_asiento: debe=130.1-cuentas-por-cobrar / haber=401.0-ingresos-ventas
-
-    On any exception the handler re-raises so the SAVEPOINT rolls back the entire sale.
-    Non-credit sales are ignored silently.
+    El asiento financiero de la venta a crédito lo publica SaleFinanceHandler
+    (liquidación ON_CREDIT) en el ledger nuevo; aquí solo se mantiene el estado
+    operativo de crédito (cuentas_por_cobrar + credit_balance), idempotente por
+    venta_id.
     """
 
-    def __init__(self, db_conn, finance_service):
-        self._db      = db_conn
-        self._finance = finance_service
+    def __init__(self, db_conn, finance_service=None):  # finance_service: legacy kw, ignorado
+        self._db = db_conn
 
     def handle(self, payload: Dict[str, Any]) -> None:
-        payment_method = str(payload.get("payment_method", ""))
         from core.services.payment_normalization import is_credit_sale
+
+        payment_method = str(payload.get("payment_method", ""))
         if not is_credit_sale(payment_method):
             return
-
-        total       = float(payload.get("total", 0))
-        cliente_id  = str(payload.get("cliente_id") or payload.get("customer_id") or "")
-        sale_id     = str(payload.get("sale_id") or payload.get("venta_id") or "")
-        folio       = str(payload.get("folio", ""))
+        total = float(payload.get("total", 0) or 0)
+        cliente_id = str(payload.get("cliente_id") or payload.get("customer_id") or "")
+        sale_id = str(payload.get("sale_id") or payload.get("venta_id") or "")
         sucursal_id = str(payload.get("branch_id") or payload.get("sucursal_id") or "")
-
         if total <= 0 or not cliente_id or not sale_id:
-            # Venta a crédito sin cliente/venta identificables: NUNCA se omite
-            # la CxC en silencio — se aborta la venta (rollback del SAVEPOINT).
             raise ValueError(
                 "Venta a crédito sin cliente o venta válidos: "
                 f"total={total:.2f} cliente_id={cliente_id!r} sale_id={sale_id!r}. "
                 "La CxC no puede omitirse."
             )
-
-        try:
-            # Ruta canónica única de CxC: CustomerCreditService (idempotente
-            # por venta_id, incluye credit_balance + asiento GL atómicos).
-            from application.services.customer_credit_service import CustomerCreditService
-            CustomerCreditService(self._db, self._finance).register_credit_sale(
-                cliente_id  = cliente_id,
-                sale_id     = sale_id,
-                folio       = folio,
-                monto       = total,
-                sucursal_id = sucursal_id,
-            )
-        except Exception as exc:
-            logger.error("CreditSaleFinanceHandler.handle: %s", exc)
-            raise  # re-raise: rolls back the SAVEPOINT
+        from application.services.customer_credit_service import CustomerCreditService
+        CustomerCreditService(self._db).register_credit_sale(
+            cliente_id=cliente_id,
+            sale_id=sale_id,
+            folio=str(payload.get("folio", "")),
+            monto=total,
+            sucursal_id=sucursal_id,
+        )
 
 
 class SaleCancelledFinanceHandler:
-    """
-    Subscribes to VENTA_CANCELADA (post-commit, async) and posts the GL reversal entry.
+    """VENTA_CANCELADA → reverso espejo en el ledger nuevo + CxC operativa."""
 
-    For cash sales: reverses the income journal (debe=401.0-ingresos-ventas / haber=110-caja).
-    For credit sales: reverses CxC (debe=401.0-ingresos-ventas / haber=130.1-cuentas-por-cobrar)
-                      and decrements credit_balance.
-
-    Errors are logged but do NOT re-raise (post-commit, sale already recorded as cancelled).
-    """
-
-    def __init__(self, db_conn, finance_service):
-        self._db      = db_conn
-        self._finance = finance_service
+    def __init__(self, db_conn, finance_service=None):  # finance_service: legacy kw, ignorado
+        self._db = db_conn
+        from backend.application.event_handlers.finance.sale_reversed_handler import (
+            SaleReversedHandler,
+        )
+        self._handler = SaleReversedHandler(db_conn)
 
     def handle(self, payload: Dict[str, Any]) -> None:
-        total          = float(payload.get("total", 0))
-        payment_method = str(payload.get("payment_method", payload.get("forma_pago", "")))
-        folio          = str(payload.get("folio", ""))
-        sale_id        = payload.get("venta_id") or payload.get("sale_id")
-        sucursal_id = str(payload.get("sucursal_id") or payload.get("branch_id") or "")
-        cliente_id     = payload.get("cliente_id")
-
-        if total <= 0 or not sale_id:
+        sale_id = str(payload.get("venta_id") or payload.get("sale_id") or "")
+        operation_id = str(payload.get("operation_id") or "").strip() or f"cancel-{sale_id}"
+        if not sale_id:
             return
-
         try:
-            from core.services.payment_normalization import is_credit_sale
-            is_credit = is_credit_sale(payment_method)
-
-            if is_credit:
-                # Reverse CxC: mark document as cancelled
-                self._db.execute(
-                    """UPDATE cuentas_por_cobrar
-                          SET estado='cancelada', saldo_pendiente=0
-                        WHERE venta_id=? AND sucursal_id=?""",
-                    (sale_id, sucursal_id),
-                )
-                if cliente_id:
-                    # Both columns must stay in lockstep (credit_balance=service layer, saldo=legacy UI)
-                    self._db.execute(
-                        "UPDATE clientes "
-                        "SET credit_balance = MAX(0, COALESCE(credit_balance,0) - ?), "
-                        "    saldo          = MAX(0, COALESCE(saldo,0) - ?) "
-                        "WHERE id = ?",
-                        (total, total, cliente_id),
-                    )
-                try:
-                    self._db.commit()
-                except Exception:
-                    pass
-                haber_cuenta = "130.1-cuentas-por-cobrar"
-            else:
-                haber_cuenta = "110-caja"
-
-            if hasattr(self._finance, "registrar_asiento"):
-                self._finance.registrar_asiento(
-                    debe         = "401.0-ingresos-ventas",
-                    haber        = haber_cuenta,
-                    concepto     = f"Reversal cancelación venta {folio}",
-                    monto        = total,
-                    modulo       = "ventas",
-                    referencia_id= sale_id,
-                    sucursal_id  = sucursal_id,
-                    evento       = "VENTA_CANCELADA",
-                    metadata     = {
-                        "folio":          folio,
-                        "payment_method": payment_method,
-                        "cliente_id":     cliente_id,
-                    },
-                )
-            logger.info(
-                "SaleCancelledFinanceHandler: reversal registrado venta=%s folio=%s total=%.2f",
-                sale_id, folio, total,
-            )
+            self._handler.handle({
+                "event_id": f"bridge-sale-cancel-{sale_id}",
+                "operation_id": operation_id,
+                "sale_id": sale_id,
+                "reason": str(payload.get("motivo") or "Venta cancelada"),
+                "occurred_at": _occurred_now(),
+            })
         except Exception as exc:
-            logger.warning("SaleCancelledFinanceHandler.handle: %s", exc)
+            # Post-commit: la venta ya quedó cancelada operativamente; se reporta
+            # sin ocultar (queda en log y como excepción de integración en el
+            # panel de instrumentos/eventos sin asiento).
+            logger.error("SaleCancelledFinanceHandler: %s", exc)
+
+        # Estado operativo de crédito (módulo clientes)
+        from core.services.payment_normalization import is_credit_sale
+        if is_credit_sale(str(payload.get("payment_method", payload.get("forma_pago", "")))):
+            total = float(payload.get("total", 0) or 0)
+            cliente_id = payload.get("cliente_id")
+            self._db.execute(
+                "UPDATE cuentas_por_cobrar SET estado='cancelada', saldo_pendiente=0"
+                " WHERE venta_id=?",
+                (sale_id,),
+            )
+            if cliente_id and total > 0:
+                self._db.execute(
+                    "UPDATE clientes SET"
+                    " credit_balance = MAX(0, COALESCE(credit_balance,0) - ?),"
+                    " saldo          = MAX(0, COALESCE(saldo,0) - ?)"
+                    " WHERE id = ?",
+                    (total, total, cliente_id),
+                )
 
 
 class PayrollFinanceHandler:
-    """
-    Consumes RRHH payroll events and records financial impact idempotently.
+    """NOMINA_PAGADA → PAYROLL_PAID canónico (un asiento por pago).
 
+<<<<<<< HEAD
     PAYROLL_RUN_GENERATED accrues payroll expense against payroll payable.
     PAYROLL_PAID clears payroll payable against cash/bank.
     Both entries use operation_id-derived keys so repeated events are safe.
+=======
+    NOMINA_GENERADA ya no devenga aparte: el reconocimiento ocurre al pago,
+    evitando el doble efecto del esquema legacy devengo+pago sin conciliación.
+>>>>>>> claude/erp-financial-bounded-context-uqxz6b
     """
 
-    def __init__(self, finance_service=None, journal_service=None):
-        self._finance = finance_service
-        self._journal = journal_service or self._build_journal_service(finance_service)
+    def __init__(self, db_conn=None, finance_service=None, journal_service=None):
+        if db_conn is None:
+            raise ValueError("PayrollFinanceHandler requiere db_conn")
+        from backend.application.event_handlers.finance.payroll_paid_handler import (
+            PayrollPaidHandler,
+        )
+        self._handler = PayrollPaidHandler(db_conn)
 
     def handle_generated(self, payload: Dict[str, Any]) -> None:
+<<<<<<< HEAD
         self._post(
             payload=payload,
             event_type="PAYROLL_RUN_GENERATED",
@@ -235,71 +224,30 @@ class PayrollFinanceHandler:
         credit_account: str,
         source_folio: str,
     ) -> int:
+=======
+        logger.debug("NOMINA_GENERADA recibido; el reconocimiento ocurre al pago.")
+
+    def handle_paid(self, payload: Dict[str, Any]) -> None:
+>>>>>>> claude/erp-financial-bounded-context-uqxz6b
         operation_id = str(payload.get("operation_id") or "").strip()
         if not operation_id:
-            logger.warning("PayrollFinanceHandler %s sin operation_id", event_type)
-            return 0
-
-        amount = float(payload.get("neto", payload.get("total", 0.0)) or 0.0)
-        if amount <= 0:
-            logger.warning("PayrollFinanceHandler %s monto inválido %.2f", event_type, amount)
-            return 0
-
-        payroll_payment_id = payload.get("payroll_payment_id")
-        # source_id es identidad UUIDv7 (sin cast a entero).
-        source_id = payload.get("source_id") or payroll_payment_id or payload.get("employee_id")
-
-        entry_operation_id = f"{operation_id}-{op_suffix}"
-        metadata = {
-            "employee_id": payload.get("employee_id"),
-            "nombre": payload.get("nombre", ""),
-            "periodo_inicio": payload.get("period_start") or payload.get("periodo_inicio"),
-            "periodo_fin": payload.get("period_end") or payload.get("periodo_fin"),
-            "payroll_payment_id": payroll_payment_id,
-            "total": payload.get("total"),
-            "neto": payload.get("neto"),
-            "metodo_pago": payload.get("metodo_pago", ""),
-            "source_operation_id": operation_id,
-        }
-
-        if self._journal and hasattr(self._journal, "post_entry"):
-            return self._journal.post_entry(
-                operation_id=entry_operation_id,
-                event_type=event_type,
-                source_module="rrhh",
-                source_id=source_id,
-                source_folio=source_folio,
-                debit_account=debit_account,
-                credit_account=credit_account,
-                amount=amount,
-                branch_id=str(payload.get("sucursal_id") or payload.get("branch_id") or ""),
-                user=str(payload.get("usuario", payload.get("user", "sistema"))),
-                metadata=metadata,
-            )
-
-        if self._finance and hasattr(self._finance, "registrar_asiento"):
-            return self._finance.registrar_asiento(
-                debe=debit_account,
-                haber=credit_account,
-                concepto=f"{event_type} {payload.get('nombre', '')}".strip(),
-                monto=amount,
-                modulo="rrhh",
-                referencia_id=source_id,
-                sucursal_id=str(payload.get("sucursal_id") or payload.get("branch_id") or ""),
-                evento=event_type,
-                metadata=metadata,
-            )
-        return 0
-
-    def _build_journal_service(self, finance_service):
-        if not finance_service:
-            return None
-        db = getattr(finance_service, "db", None)
-        if db is None:
-            return None
-        try:
-            from core.services.finance.journal_entry_service import JournalEntryService
-            return JournalEntryService(db, gl_service=finance_service)
-        except Exception as exc:
-            logger.debug("PayrollFinanceHandler journal unavailable: %s", exc)
-            return None
+            logger.warning("PayrollFinanceHandler NOMINA_PAGADA sin operation_id")
+            return
+        amount = _decimal_str(payload.get("neto", payload.get("total")))
+        if float(amount) <= 0:
+            return
+        payroll_run_id = str(
+            payload.get("payroll_payment_id") or payload.get("source_id")
+            or payload.get("employee_id") or operation_id
+        )
+        self._handler.handle({
+            "event_id": f"bridge-payroll-{operation_id}",
+            "operation_id": operation_id,
+            "payroll_run_id": payroll_run_id,
+            "occurred_at": _occurred_now(),
+            "currency_code": "MXN",
+            "gross_salaries": amount,
+            "social_security": "0.00",
+            "net_paid": amount,
+            "branch_id": str(payload.get("sucursal_id") or payload.get("branch_id") or "") or None,
+        })

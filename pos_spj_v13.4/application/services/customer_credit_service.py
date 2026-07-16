@@ -149,20 +149,10 @@ class CustomerCreditService:
                 (monto, monto, cliente_id),
             )
 
-            # Asiento contable DENTRO de la misma transacción (antes del commit)
-            # Garantiza que CxC y GL sean atómicos: si el asiento falla, la CxC no se graba.
-            if self._finance and hasattr(self._finance, "registrar_asiento"):
-                self._finance.registrar_asiento(
-                    debe          = "130.1-cuentas-por-cobrar",
-                    haber         = "401.0-ingresos-ventas",
-                    concepto      = f"Venta a crédito {folio}",
-                    monto         = monto,
-                    modulo        = "ventas",
-                    referencia_id = sale_id,
-                    sucursal_id   = sucursal_id,
-                    evento        = "VENTA_CREDITO",
-                    metadata      = {"cliente_id": cliente_id, "folio": folio},
-                )
+            # FASE 20 refactor financiero: el asiento de la venta a crédito lo
+            # publica el bounded context de Finanzas (posting engine, liquidación
+            # ON_CREDIT). Este servicio conserva solo el estado operativo de
+            # crédito del cliente — una sola ruta contable, sin duplicados.
 
             logger.info(
                 "CxC registrada: cliente=%s venta=%s folio=%s monto=%.2f",

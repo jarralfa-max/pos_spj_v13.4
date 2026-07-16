@@ -358,21 +358,26 @@ def test_accounting_core_tables_are_born_clean_uuid_identity():
     migrator.up(conn)
     conn.commit()
 
-    for table in ("journal_entries", "financial_documents", "financial_trace_log", "financial_event_log"):
+    # FASE 20 refactor financiero: journal_entries / journal_lines /
+    # financial_documents ahora nacen del bounded context (migración 117) y
+    # financial_trace_log fue eliminada (trazabilidad = ledger + outbox).
+    for table in ("journal_entries", "journal_lines", "financial_documents",
+                  "financial_event_log"):
         cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
         assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
     je = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(journal_entries)").fetchall()}
-    assert je["branch_id"] == "TEXT" and je["source_id"] == "TEXT"
+    assert je["branch_id"] == "TEXT" and je["operation_id"] == "TEXT"
+    assert "AUTOINCREMENT" not in (next(iter(conn.execute(
+        "SELECT sql FROM sqlite_master WHERE name='journal_entries'").fetchone())) or "").upper()
     fel = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(financial_event_log)").fetchall()}
     assert fel["sucursal_id"] == "TEXT" and fel["referencia_id"] == "TEXT"
+    assert conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='financial_trace_log'"
+    ).fetchone() is None
 
-    for path in ("core/services/finance/journal_entry_service.py",
-                 "core/services/finance/general_ledger_service.py",
-                 "core/services/finance/financial_trace_service.py",
-                 "core/services/finance/financial_document_service.py"):
-        src = (REPO / path).read_text(encoding="utf-8")
-        assert "from backend.shared.ids import new_uuid" in src, path
-        assert "new_uuid()" in src and "cur.lastrowid" not in src, path
+    src = (REPO / "core/services/finance/general_ledger_service.py").read_text(encoding="utf-8")
+    assert "from backend.shared.ids import new_uuid" in src
+    assert "new_uuid()" in src and "cur.lastrowid" not in src
 
 
 def test_treasury_tables_are_born_clean_uuid_identity():
@@ -393,7 +398,7 @@ def test_treasury_tables_are_born_clean_uuid_identity():
     conn.commit()
 
     for table in ("treasury_capital", "treasury_ledger", "treasury_gastos_fijos",
-                  "treasury_movements", "capital_movements"):
+                  "treasury_movements"):
         cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
         assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
 
@@ -402,9 +407,6 @@ def test_treasury_tables_are_born_clean_uuid_identity():
     tm = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(treasury_movements)").fetchall()}
     assert tm["branch_id"] == "TEXT" and tm["source_id"] == "TEXT"
     assert tm["financial_document_id"] == "TEXT"
-    cm = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(capital_movements)").fetchall()}
-    assert cm["branch_id"] == "TEXT" and cm["partner_id"] == "TEXT"
-    assert cm["journal_entry_id"] == "TEXT" and cm["treasury_movement_id"] == "TEXT"
 
     # treasury_service.py es multi-tabla: las escrituras de tesorería (capital,
     # ledger, gastos_fijos) acuñan new_uuid(); conserva lastrowid solo en las
@@ -413,13 +415,15 @@ def test_treasury_tables_are_born_clean_uuid_identity():
     assert "from backend.shared.ids import new_uuid" in ts_src
     assert "INSERT INTO treasury_capital" in ts_src and "INSERT INTO treasury_ledger" in ts_src
     # Los dos servicios mono-tabla quedan totalmente born-clean (sin lastrowid).
-    for path in ("core/services/finance/treasury_movement_service.py",
-                 "core/services/finance/capital_service.py"):
+    # capital_service fue eliminado en FASE 20 (capital vive en el bounded
+    # context de Finanzas); treasury_movement_service sigue operativo.
+    for path in ("core/services/finance/treasury_movement_service.py",):
         src = (REPO / path).read_text(encoding="utf-8")
         assert "from backend.shared.ids import new_uuid" in src, path
         assert "new_uuid()" in src, path
         assert "cur.lastrowid" not in src, path
         assert 'int(existing["id"])' not in src, path
+    assert not (REPO / "core/services/finance/capital_service.py").exists()
 
 
 def test_gastos_tables_are_born_clean_uuid_identity():
@@ -514,11 +518,9 @@ def test_cxp_cxc_tables_are_born_clean_uuid_identity():
 
 
 def test_plan_cuentas_natural_key_born_clean():
-    """El plan de cuentas (migración 059) es born-clean por clave natural: la
-    identidad es codigo_sat (clave SAT) como TEXT PRIMARY KEY, sin surrogate
-    entero ni AUTOINCREMENT. El self-ref jerárquico usa padre_codigo (TEXT) hacia
-    codigo_sat. El catálogo se siembra por código (sin lastrowid/MAX(id)+1).
-    """
+    """FASE 20 refactor financiero: plan_cuentas fue sustituida por la tabla
+    canónica `accounts` del bounded context (código natural único + id UUIDv7).
+    Una DB nueva no debe contener plan_cuentas."""
     import migrations.m000_base_schema as base
     from migrations import engine as migrator
 
@@ -528,18 +530,12 @@ def test_plan_cuentas_natural_key_born_clean():
     migrator.up(conn)
     conn.commit()
 
-    cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(plan_cuentas)").fetchall()}
-    assert cols, "plan_cuentas missing after migration 059"
-    assert "id" not in cols, "no integer surrogate — codigo_sat es la identidad"
-    assert cols["codigo_sat"] == ("TEXT", 1), "codigo_sat must be TEXT PRIMARY KEY"
-    assert cols["padre_codigo"][0] == "TEXT", "padre_codigo must be TEXT (ref codigo_sat)"
-
-    src = (REPO / "migrations/standalone/059_plan_cuentas.py").read_text(encoding="utf-8")
-    assert "AUTOINCREMENT" not in src
-    # Fase G: la PK TEXT natural se declara NOT NULL (no NULL silencioso).
-    assert "codigo_sat   TEXT NOT NULL    PRIMARY KEY" in src
-    assert "lastrowid" not in src
-
+    assert conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='plan_cuentas'"
+    ).fetchone() is None, "plan_cuentas debe desaparecer (117)"
+    cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(accounts)").fetchall()}
+    assert cols["id"] == ("TEXT", 1)
+    assert cols["code"][0] == "TEXT"
 
 def test_deferred_debt_tables_are_born_clean_uuid_identity():
     """Deuda diferida born-clean (cierre de FINANZAS): activos/depreciación e
@@ -562,30 +558,32 @@ def test_deferred_debt_tables_are_born_clean_uuid_identity():
     conn.commit()
 
     for table in ("assets", "asset_maintenance", "fixed_assets",
-                  "asset_depreciation_entries", "maintenance_records",
-                  "operating_supplies", "reconciliation_records",
                   "depreciacion_acumulada"):
         cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
         assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
 
+    # FASE 20: fixed_assets pertenece al bounded context financiero (117);
+    # las tablas de traza 083 (asset_depreciation_entries, maintenance_records,
+    # operating_supplies, reconciliation_records) fueron eliminadas.
     fa = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(fixed_assets)").fetchall()}
-    assert fa["branch_id"] == "TEXT" and fa["financial_document_id"] == "TEXT"
-    assert fa["supplier_id"] == "TEXT"  # born-clean: suppliers ya es TEXT UUIDv7
-    ade = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(asset_depreciation_entries)").fetchall()}
-    assert ade["asset_id"] == "TEXT"
+    assert fa["branch_id"] == "TEXT" and fa["operation_id"] == "TEXT"
+    for gone in ("asset_depreciation_entries", "maintenance_records",
+                 "operating_supplies", "reconciliation_records"):
+        assert conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (gone,)
+        ).fetchone() is None, f"{gone} debe desaparecer (117)"
 
     # links_pago: clave natural pedido_id (sin identidad dual id+uuid).
     lp = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(links_pago)").fetchall()}
     assert "id" not in lp and "uuid" not in lp, "links_pago no debe tener identidad dual"
     assert lp["pedido_id"] == ("TEXT", 1), "links_pago.pedido_id debe ser TEXT PRIMARY KEY"
 
+    # FASE 20: los servicios de activos/mantenimiento/insumos de la traza 083
+    # fueron eliminados (activos viven en el bounded context financiero).
     for path in ("core/services/finance/fixed_asset_service.py",
                  "core/services/finance/maintenance_finance_service.py",
                  "core/services/finance/operating_supplies_service.py"):
-        s = (REPO / path).read_text(encoding="utf-8")
-        assert "from backend.shared.ids import new_uuid" in s, path
-        assert "new_uuid()" in s and "cur.lastrowid" not in s, path
-        assert 'int(existing["id"])' not in s, path
+        assert not (REPO / path).exists(), f"{path} no debe reaparecer"
 
     # El CRUD muerto de activos (phantom cols) fue removido de finance_service.
     fs_src = (REPO / "core/services/enterprise/finance_service.py").read_text(encoding="utf-8")
@@ -850,10 +848,9 @@ def test_proveedores_table_is_born_clean_uuid_identity():
     assert prov["id"] == ("TEXT", 1)
     assert "categoria" in prov and "notas" in prov     # plegadas al base (sin DDL en servicio)
 
-    tp_src = (REPO / "core" / "services" / "finance" / "third_party_service.py").read_text(encoding="utf-8")
-    assert "ALTER TABLE proveedores" not in tp_src      # DDL fuera del servicio
-    assert "_ensure_proveedor_columns" not in tp_src
-    assert "INSERT INTO proveedores" in tp_src and "new_uuid" in tp_src
+    # FASE 20: third_party_service fue eliminado (terceros viven en el
+    # bounded context financiero); no debe reaparecer.
+    assert not (REPO / "core" / "services" / "finance" / "third_party_service.py").exists()
 
     fin_src = (REPO / "core" / "services" / "enterprise" / "finance_service.py").read_text(encoding="utf-8")
     assert "INSERT INTO proveedores (id, nombre)" in fin_src   # create_supplier acuña id
@@ -877,8 +874,7 @@ def test_clientes_table_is_born_clean_uuid_identity():
 
     # Ningún writer del id de cliente inserta sin id explícito.
     for w in (REPO / "api" / "routers" / "clientes.py",
-              REPO / "integrations" / "pos_adapter.py",
-              REPO / "core" / "services" / "finance" / "financial_dashboard_service.py"):
+              REPO / "integrations" / "pos_adapter.py"):
         src = w.read_text(encoding="utf-8")
         assert ("INSERT INTO clientes (id," in src) or ("INSERT INTO clientes(id," in src), w.name
 
@@ -1049,6 +1045,9 @@ DDL_ALLOWLIST = {
     # Migrador de esquema delivery: infra de schema (pendiente de fusión a
     # migrations/), no lógica de negocio.
     "core/delivery/infrastructure/delivery_schema_migrator.py",
+    # DDL canónico del bounded context financiero: única definición del esquema,
+    # ejecutado exclusivamente por migrations/standalone/117.
+    "backend/infrastructure/db/schema/finance_schema.py",
 }
 
 # lastrowid permitido SOLO aquí (nunca como identidad de dominio):

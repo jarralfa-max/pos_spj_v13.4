@@ -62,6 +62,9 @@ COMMIT_ROLLBACK_IN_UI_ALLOWLIST = {
 }
 
 SCHEMA_CHANGES_OUTSIDE_MIGRATIONS_ALLOWLIST = {
+    # DDL canónico del bounded context financiero (ejecutado solo por la
+    # migración 117):
+    'pos_spj_v13.4/backend/infrastructure/db/schema/finance_schema.py': 24,
     'pos_spj_v13.4/api/routers/anticipos.py': 1,
     'pos_spj_v13.4/application/services/customer_credit_service.py': 1,
     'pos_spj_v13.4/core/auth/login_guard.py': 2,
@@ -274,7 +277,6 @@ HARDCODED_NUMERIC_DEFAULTS_IN_UI_ALLOWLIST = {
 
 PLAIN_PHONE_INPUTS_ALLOWLIST = {
     'pos_spj_v13.4/modulos/configuracion.py': 9,
-    'pos_spj_v13.4/modulos/finanzas_unificadas.py': 1,
     'pos_spj_v13.4/modulos/whatsapp/panels/credentials_panel.py': 1,
     'pos_spj_v13.4/modulos/whatsapp/panels/numbers_panel.py': 1,
 }
@@ -287,7 +289,6 @@ ENTITY_COMBO_MASS_LOADING_ALLOWLIST = {
     'pos_spj_v13.4/modulos/cotizaciones.py': 1,
     'pos_spj_v13.4/modulos/delivery.py': 9,
     'pos_spj_v13.4/modulos/dialogs/receta_dialog.py': 5,
-    'pos_spj_v13.4/modulos/finanzas_unificadas.py': 2,
     'pos_spj_v13.4/modulos/loyalty_card_designer.py': 1,
     'pos_spj_v13.4/modulos/planeacion_compras.py': 2,
     'pos_spj_v13.4/modulos/produccion.py': 5,

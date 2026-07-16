@@ -91,10 +91,10 @@ except Exception as e:
     logger.error("Error cargando ModuloConfigModulos: %s", e)
 
 # ── Finanzas & Admin (UNIFICADOS) ───────────────────────────────────────────
-# Nota: Tesorería, Finanzas y Proveedores ahora usan servicios unificados
-#       en core/services/finance/ pero mantienen UI independiente para UX
+# Finanzas: bounded context nuevo (frontend/desktop/modules/finance).
+# Tesorería y Proveedores son páginas del mismo módulo.
 try:
-    from modulos.finanzas_unificadas import ModuloFinanzasUnificadas as ModuloFinanzas
+    from modulos.finanzas import ModuloFinanzas
 except Exception as e:
     ModuloFinanzas = None
     logger.error("Error cargando ModuloFinanzas: %s", e)

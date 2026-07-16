@@ -392,6 +392,7 @@ lotes/movimientos_lote con `id` UUIDv7 (sin columna `uuid` ni randomblob);
 - **Historial de puntos del cliente**: fuente canónica loyalty_ledger
   (acumulación/canje por venta), no historico_puntos vacío.
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> 1ee80499450027559f29f07d983e7658a0a37223
 =======
 
@@ -441,3 +442,33 @@ lotes/movimientos_lote con `id` UUIDv7 (sin columna `uuid` ni randomblob);
   atajo real con `setShortcut` (solo pintaban el badge); `cfdi_service`
   importa `new_uuid`.
 >>>>>>> claude/pos-spj-refactor-bugfix-c4ju0e
+=======
+
+## 2026-07-16 — Migración 117: bounded context financiero born-clean (UUIDv7)
+
+- **Nueva migración `117_finance_bounded_context_schema.py`**: crea el esquema
+  canónico de doble partida (24 tablas: accounts, journals, journal_entries +
+  journal_lines, fiscal_periods, financial_documents, receivables/collections,
+  payables/supplier_payments, treasury_accounts, bank_statements,
+  reconciliations, budgets, cost/profit_centers, fixed_assets,
+  posting_profiles, commercial_obligations, finance_processed_events,
+  finance_outbox). Todo `TEXT PRIMARY KEY` UUIDv7; importes como cadenas
+  decimales (`Decimal`, sin `REAL`); idempotencia estructural por
+  `UNIQUE(operation_id)` y `UNIQUE(source_module, source_document_id,
+  posting_purpose)`.
+- **Drop de tablas legacy huérfanas** (sin rescate de datos — regla de
+  desarrollo): plan_cuentas, ledger_financiero, documentos_financieros,
+  movimientos_financieros, financial_trace_log, reconciliation_records,
+  capital_movements, cortes_caja_erp, terceros, cuentas_financieras,
+  catalogo_cuentas_contables, pagos_cobros_aplicaciones, cuentas_por_pagar,
+  loyalty_budget_caps, asset_depreciation_entries, maintenance_records,
+  operating_supplies, conciliaciones_financieras + las versiones legacy de
+  journal_entries/journal_lines/financial_documents/fixed_assets (se recrean
+  limpias).
+- **Conservadas** (escritores operativos vivos, migran con su módulo dueño):
+  financial_event_log, cuentas_por_cobrar, accounts_payable/receivable,
+  treasury_capital/ledger/gastos_fijos, pagos_cobros, treasury_movements,
+  production_cost_ledger, growth_ledger, activos_depreciacion.
+- El DDL vive en `backend/infrastructure/db/schema/finance_schema.py`; la
+  migración es el único punto de ejecución.
+>>>>>>> claude/erp-financial-bounded-context-uqxz6b
