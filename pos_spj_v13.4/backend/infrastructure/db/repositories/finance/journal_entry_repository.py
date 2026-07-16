@@ -92,6 +92,15 @@ class JournalEntryRepository(FinanceRepositoryBase):
         )
         return self._hydrate(row) if row else None
 
+    def get_posted_line(self, journal_line_id: str) -> dict | None:
+        """One journal line of a POSTED entry (read-model for reconciliation)."""
+        return self._query_one(
+            "SELECT jl.id, jl.debit_amount, jl.credit_amount, jl.currency_code"
+            " FROM journal_lines jl JOIN journal_entries je ON je.id=jl.journal_entry_id"
+            " WHERE jl.id=? AND je.status='POSTED'",
+            (journal_line_id,),
+        )
+
     def exists_unbalanced(self) -> bool:
         row = self._query_one(
             "SELECT COUNT(*) AS unbalanced FROM ("
