@@ -281,8 +281,9 @@ def wire_all(container: "AppContainer") -> None:
     _wire_driver_settlement_handler(bus, container)
     _wire_notification_handler(bus, container)
 
-    # migración 083: trazabilidad financiera end-to-end (priority=20, post-commit)
-    _wire_financial_trace_handlers(bus, container)
+    # FASE 20 refactor financiero: la trazabilidad 083 fue sustituida por el
+    # bounded context de Finanzas (journal_entries + finance_processed_events +
+    # finance_outbox); no hay handlers de traza paralelos.
 
     # Remediación A: bridge CAJA_*→CASH_* + audit de caja (antes sin consumidores)
     _wire_cash_events(bus, container)
@@ -672,12 +673,11 @@ def _wire_payroll_finance_handlers(bus, container) -> None:
     from core.rrhh.events import NOMINA_GENERADA, NOMINA_PAGADA
     from core.events.handlers.finance_handler import PayrollFinanceHandler
 
-    fs = getattr(container, "finance_service", None)
-    js = getattr(container, "journal_entry_service", None)
-    if not fs and not js:
+    db = getattr(container, "db", None)
+    if db is None:
         return
 
-    handler = PayrollFinanceHandler(finance_service=fs, journal_service=js)
+    handler = PayrollFinanceHandler(db_conn=db)
     bus.subscribe(NOMINA_GENERADA, handler.handle_generated,
                   priority=60, label="payroll_finance_generated")
     bus.subscribe(NOMINA_PAGADA, handler.handle_paid,
@@ -993,8 +993,8 @@ def _wire_sale_handlers(bus, container) -> None:
         )
         logger.debug("Registered SaleInventoryHandler on %s", SALE_ITEMS_PROCESS)
 
-    if fs:
-        fin_handler = SaleFinanceHandler(finance_service=fs)
+    if db:
+        fin_handler = SaleFinanceHandler(db_conn=db, finance_service=fs)
         bus.subscribe(
             SALE_ITEMS_PROCESS,
             fin_handler.handle,
@@ -1360,76 +1360,3 @@ def _wire_notification_handler(bus, container) -> None:
 
 # ── migración 083: trazabilidad financiera end-to-end ────────────────────────
 
-def _wire_financial_trace_handlers(bus, container) -> None:
-    """
-    Registra los handlers de trazabilidad financiera end-to-end.
-
-    Escuchan eventos post-commit (priority=20) y delegan a FinancialTraceService,
-    que escribe en las tablas canónicas de migración 083:
-      financial_documents, treasury_movements, journal_entries,
-      financial_trace_log, reconciliation_records.
-
-    No interfieren con handlers críticos (p=85-100) porque son post-commit.
-    Cada handler captura su propia excepción — un fallo de traza no corta el flujo.
-    """
-    # Canales REALES (con emisor confirmado). Remediación A: se retiran las
-    # suscripciones a canales lowercase que NADIE emite y se reconectan waste y
-    # driver-settlement a sus canales reales.
-    #   Sanos ya:  VENTA_COMPLETADA, COMPRA_REGISTRADA, PUNTOS_ACUMULADOS,
-    #              NOMINA_PAGADA (=PAYROLL_PAID)
-    #   Reconectados:
-    #     WASTE_RECORDED("waste_recorded")           → MERMA_REGISTRADA (merma adapter)
-    #     driver_settlement_created (domain lowercase)→ DRIVER_SETTLEMENT_CREATED (event_bus)
-    #   Retirados (0 emisores en todo el repo — handlers conservados en el módulo
-    #   para reconectarse cuando el flujo publique):
-    #     payment_confirmed, delivery_payment_confirmed,
-    #     maintenance_registered, operating_supply_purchased
-    from core.events.event_bus import (
-        VENTA_COMPLETADA,
-        COMPRA_REGISTRADA,
-        PUNTOS_ACUMULADOS,
-        MERMA_CREATED,               # = "MERMA_REGISTRADA" (emitido por merma)
-        DRIVER_SETTLEMENT_CREATED,   # = "DRIVER_SETTLEMENT_CREATED" (uppercase real)
-    )
-    from core.events.domain_events import (
-        PAYROLL_PAID,
-    )
-    from core.events.handlers.financial_trace_handler import (
-        SaleTraceHandler,
-        PurchaseTraceHandler,
-        PayrollTraceHandler,
-        WasteTraceHandler,
-        LoyaltyTraceHandler,
-        DriverSettlementHandler,
-        _build_trace_service,
-    )
-
-    db = getattr(container, "db", None)
-    if not db:
-        logger.debug("_wire_financial_trace_handlers: no container.db — skipping")
-        return
-
-    # Construir sub-servicios desde container (todos opcionales)
-    finance_services = {
-        "journal_service":          getattr(container, "journal_entry_service", None),
-        "document_service":         getattr(container, "financial_document_service", None),
-        "treasury_movement_service": getattr(container, "treasury_movement_service", None),
-        "asset_service":            getattr(container, "fixed_asset_service", None),
-        "maintenance_service":      getattr(container, "maintenance_finance_service", None),
-        "supply_service":           getattr(container, "operating_supplies_service", None),
-        "idempotency_service":      getattr(container, "idempotency_service", None),
-    }
-
-    ts = _build_trace_service(db, finance_services)
-
-    _PRIORITY = 20  # post-commit, después de todos los handlers críticos
-
-    bus.subscribe(VENTA_COMPLETADA,          SaleTraceHandler(ts).handle,        priority=_PRIORITY, label="fin_trace_sale")
-    bus.subscribe(COMPRA_REGISTRADA,         PurchaseTraceHandler(ts).handle,     priority=_PRIORITY, label="fin_trace_purchase")
-    bus.subscribe(PAYROLL_PAID,              PayrollTraceHandler(ts).handle,      priority=_PRIORITY, label="fin_trace_payroll")
-    bus.subscribe(PUNTOS_ACUMULADOS,         LoyaltyTraceHandler(ts).handle,      priority=_PRIORITY, label="fin_trace_loyalty")
-    # Reconectados a canales reales (Remediación A):
-    bus.subscribe(MERMA_CREATED,             WasteTraceHandler(ts).handle,        priority=_PRIORITY, label="fin_trace_waste")
-    bus.subscribe(DRIVER_SETTLEMENT_CREATED, DriverSettlementHandler(ts).handle,  priority=_PRIORITY, label="fin_trace_driver_settle")
-
-    logger.debug("Registered 6 FinancialTrace handlers en canales con emisor (priority=%d)", _PRIORITY)

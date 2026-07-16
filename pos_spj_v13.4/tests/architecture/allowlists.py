@@ -285,7 +285,6 @@ HARDCODED_NUMERIC_DEFAULTS_IN_UI_ALLOWLIST = {
 
 PLAIN_PHONE_INPUTS_ALLOWLIST = {
     'pos_spj_v13.4/modulos/configuracion.py': 9,
-    'pos_spj_v13.4/modulos/finanzas_unificadas.py': 1,
     'pos_spj_v13.4/modulos/whatsapp/panels/credentials_panel.py': 1,
     'pos_spj_v13.4/modulos/whatsapp/panels/numbers_panel.py': 1,
 }
@@ -298,7 +297,6 @@ ENTITY_COMBO_MASS_LOADING_ALLOWLIST = {
     'pos_spj_v13.4/modulos/cotizaciones.py': 1,
     'pos_spj_v13.4/modulos/delivery.py': 9,
     'pos_spj_v13.4/modulos/dialogs/receta_dialog.py': 5,
-    'pos_spj_v13.4/modulos/finanzas_unificadas.py': 2,
     'pos_spj_v13.4/modulos/loyalty_card_designer.py': 1,
     'pos_spj_v13.4/modulos/planeacion_compras.py': 2,
     'pos_spj_v13.4/modulos/produccion.py': 5,

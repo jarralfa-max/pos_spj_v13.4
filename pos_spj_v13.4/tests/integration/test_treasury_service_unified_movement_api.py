@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import inspect
 
-from core.services.finance.capital_service import CapitalService
 from core.services.finance.treasury_service import TreasuryService
 from tests.integration._born_clean_db import make_db
 
@@ -80,23 +79,6 @@ def test_movements_are_idempotent_by_operation_id():
         "SELECT COUNT(*) FROM treasury_movements WHERE operation_id='op-dup'"
     ).fetchone()[0]
     assert n == 1
-
-
-def test_capital_service_outflow_uses_unified_treasury():
-    """CapitalService.withdraw ya no revienta con 'register_outflow inexistente'."""
-    conn = make_db()
-    ts = TreasuryService(conn)
-    cap = CapitalService(conn, treasury_service=ts)
-    # La firma de withdraw/inject varía; basta con que el servicio pueda
-    # invocar la API de tesorería sin AttributeError.
-    assert hasattr(cap, "_tm") and hasattr(cap._tm, "register_outflow")
-    # Verificación directa: el _tm inyectado es la fachada unificada.
-    mov = cap._tm.register_outflow(
-        operation_id="cap-out-1", amount=99.0, payment_method="transferencia",
-        source_module="capital", branch_id="b1", user="u",
-    )
-    import uuid as _uuid
-    _uuid.UUID(str(mov))
 
 
 def test_no_caller_invokes_nonexistent_treasury_method():

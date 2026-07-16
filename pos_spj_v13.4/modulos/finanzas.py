@@ -1,15 +1,15 @@
-"""Compat wrapper: módulo FINANZAS único (UI delgada).
+"""Wrapper legacy: módulo FINANZAS.
 
-La implementación real vive en `modulos.finanzas_unificadas.ModuloFinanzasUnificadas`
-y toda la lógica de negocio en `core/services/finance/*` +
-`core/services/analytics/analytics_engine.py`.
+La implementación vive en ``frontend/desktop/modules/finance`` (bounded
+context financiero). Este archivo solo preserva imports legacy de navegación.
 """
 from __future__ import annotations
 
-from modulos.finanzas_unificadas import ModuloFinanzasUnificadas
+from frontend.desktop.modules.finance.finance_routes import create_finance_view
 
 
-class ModuloFinanzas(ModuloFinanzasUnificadas):
-    """Alias estable para mantener imports legacy sin duplicar lógica."""
+class ModuloFinanzas:
+    """Factory-compatible: ``ModuloFinanzas(container)`` devuelve la vista nueva."""
 
-    pass
+    def __new__(cls, container, parent=None):
+        return create_finance_view(container, parent)

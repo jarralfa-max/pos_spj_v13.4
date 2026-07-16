@@ -184,16 +184,23 @@ class TestLegacyDrop:
             "migrations.standalone.117_finance_bounded_context_schema"
         )
         conn = sqlite3.connect(":memory:")
-        conn.execute("CREATE TABLE financial_event_log (id INTEGER PRIMARY KEY, monto REAL)")
+        conn.execute("CREATE TABLE financial_trace_log (id INTEGER PRIMARY KEY, monto REAL)")
         migration.run(conn)
         tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        assert "financial_event_log" not in tables
+        assert "financial_trace_log" not in tables
         for table in FINANCE_TABLES:
             assert table in tables
         conn.close()
 
-    def test_legacy_list_covers_known_generations(self):
-        for table in ("plan_cuentas", "financial_event_log", "ledger_financiero",
-                      "treasury_ledger", "capital_movements", "cuentas_por_cobrar",
-                      "accounts_receivable", "accounts_payable", "pagos_cobros"):
+    def test_legacy_list_covers_orphaned_generations(self):
+        for table in ("plan_cuentas", "ledger_financiero", "documentos_financieros",
+                      "movimientos_financieros", "financial_trace_log",
+                      "reconciliation_records", "capital_movements", "cortes_caja_erp"):
             assert table in LEGACY_FINANCE_TABLES
+
+    def test_live_operational_tables_not_dropped(self):
+        """Tablas con escritores operativos vivos NO se tiran en esta fase."""
+        for table in ("financial_event_log", "cuentas_por_cobrar", "accounts_payable",
+                      "accounts_receivable", "treasury_ledger", "pagos_cobros",
+                      "production_cost_ledger"):
+            assert table not in LEGACY_FINANCE_TABLES

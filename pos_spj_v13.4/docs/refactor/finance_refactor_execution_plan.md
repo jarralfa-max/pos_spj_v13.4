@@ -1,6 +1,6 @@
 # Finance Refactor Execution Plan — Bounded Context Financiero ERP
 
-> FASE 0 — Auditoría financiera. Estado global: **IN_PROGRESS**
+> Estado global: **MIGRATED** (FASES 0-21 ejecutadas; ver §6 plomería operativa remanente)
 > Fecha: 2026-07-16
 > Skills aplicados (orden de prioridad): SPJ_REFACTOR_SKILL.md → SPJ_UI_UX_ARCHITECTURE_SKILL.md → SPJ_BUGFIX_AUDIT_CORRECTION_SKILL.md
 
@@ -116,27 +116,27 @@ contables configurables (nada de cuentas hardcodeadas en handlers),
 | Fase | Contenido | Estado |
 |---|---|---|
 | 0 | Auditoría + este plan | ✅ COMPLETE |
-| 1 | Dominio contable (`Money`, entities, policies, ports, tests doble partida) | ⏳ PENDING |
-| 2 | Esquema limpio UUIDv7 (`finance_schema.py`, sin migrar datos) | ⏳ PENDING |
-| 3 | Repositorios + Unit of Work + atomicidad documento/asiento/obligación/outbox | ⏳ PENDING |
-| 4 | Plan de cuentas, diarios, periodos, cierres | ⏳ PENDING |
-| 5 | Posting engine + perfiles + reversos + outbox + idempotencia | ⏳ PENDING |
-| 6 | Integración Ventas (contado, crédito, descuentos, COGS, devoluciones, medios mixtos) | ⏳ PENDING |
-| 7 | CxC (cobros, aplicaciones, saldos a favor, antigüedad) | ⏳ PENDING |
-| 8 | Compras y CxP (obligación→programación→autorización→ejecución) | ⏳ PENDING |
-| 9 | Tesorería + Caja | ⏳ PENDING |
-| 10 | Conciliación bancaria | ⏳ PENDING |
-| 11 | Presupuestos y control de gasto | ⏳ PENDING |
-| 12 | Capital y activos (CAPEX, depreciación, disposición) | ⏳ PENDING |
-| 13 | Nómina (evento canónico RRHH, un asiento por pago) | ⏳ PENDING |
-| 14 | Inventario, producción y merma | ⏳ PENDING |
-| 15 | Fidelidad (emisión/canje/expiración/reverso + conciliación) | ⏳ PENDING |
-| 16 | Cupones, vales, tarjetas de regalo, saldos almacenados | ⏳ PENDING |
-| 17 | Estados financieros (mayor, balanza, balance, resultados, flujo, capital) | ⏳ PENDING |
-| 18 | Query Services para BI (solo lectura) | ⏳ PENDING |
-| 19 | UI/UX enterprise (`frontend/desktop/modules/finance/`) | ⏳ PENDING |
-| 20 | Eliminación de legacy | ⏳ PENDING |
-| 21 | Validación final + auditorías | ⏳ PENDING |
+| 1 | Dominio contable (`Money`, entities, policies, ports, tests doble partida) | ✅ COMPLETE |
+| 2 | Esquema limpio UUIDv7 (`finance_schema.py`, sin migrar datos) | ✅ COMPLETE |
+| 3 | Repositorios + Unit of Work + atomicidad documento/asiento/obligación/outbox | ✅ COMPLETE |
+| 4 | Plan de cuentas, diarios, periodos, cierres | ✅ COMPLETE |
+| 5 | Posting engine + perfiles + reversos + outbox + idempotencia | ✅ COMPLETE |
+| 6 | Integración Ventas (contado, crédito, descuentos, COGS, devoluciones, medios mixtos) | ✅ COMPLETE |
+| 7 | CxC (cobros, aplicaciones, saldos a favor, antigüedad) | ✅ COMPLETE |
+| 8 | Compras y CxP (obligación→programación→autorización→ejecución) | ✅ COMPLETE |
+| 9 | Tesorería + Caja | ✅ COMPLETE |
+| 10 | Conciliación bancaria | ✅ COMPLETE |
+| 11 | Presupuestos y control de gasto | ✅ COMPLETE |
+| 12 | Capital y activos (CAPEX, depreciación, disposición) | ✅ COMPLETE |
+| 13 | Nómina (evento canónico RRHH, un asiento por pago) | ✅ COMPLETE |
+| 14 | Inventario, producción y merma | ✅ COMPLETE |
+| 15 | Fidelidad (emisión/canje/expiración/reverso + conciliación) | ✅ COMPLETE |
+| 16 | Cupones, vales, tarjetas de regalo, saldos almacenados | ✅ COMPLETE |
+| 17 | Estados financieros (mayor, balanza, balance, resultados, flujo, capital) | ✅ COMPLETE |
+| 18 | Query Services para BI (solo lectura) | ✅ COMPLETE |
+| 19 | UI/UX enterprise (`frontend/desktop/modules/finance/`) | ✅ COMPLETE |
+| 20 | Eliminación de legacy | ✅ COMPLETE |
+| 21 | Validación final + auditorías | ✅ COMPLETE |
 
 ## 4. Lista de eliminación (FASE 20)
 
@@ -167,3 +167,30 @@ tests legacy de tests/finance/ acoplados a servicios eliminados
    se registran vía `backend/shared/events` y el wiring legacy se poda al final.
 4. **Base de desarrollo contaminada:** se descarta y regenera (regla de desarrollo,
    sin migraciones de rescate).
+
+
+## 6. Estado post-FASE 20 — plomería operativa remanente
+
+La ruta contable es ÚNICA: todo asiento pasa por el posting engine del bounded
+context. Los adaptadores de `core/events/handlers/finance_handler.py` traducen
+los eventos del bus legacy (ventas, cancelaciones, nómina) al contrato canónico.
+
+Permanecen como plomería OPERATIVA (no contable) pendiente del refactor de sus
+módulos dueños (Caja/Compras/Producción/Clientes/Delivery):
+
+| Componente | Rol actual | Migra con |
+|---|---|---|
+| `core/services/enterprise/finance_service.py` | log operativo `financial_event_log` consumido por caja/compras/delivery/loyalty | refactor Caja/Compras |
+| `core/services/finance/treasury_service.py` (+`treasury_movement_service`, `general_ledger_service`, `accounts_*_service`) | tesorería operativa de Caja/Compras | refactor Caja |
+| `core/services/finance/production_cost_service.py` | costeo operativo de producción | refactor Producción |
+| `application/services/accounts_receivable_service.py` + `customer_credit_service.py` | CxC operativa + credit_balance (módulo Clientes); ya SIN asiento propio | refactor Clientes |
+| Tablas: `financial_event_log`, `cuentas_por_cobrar`, `accounts_*`, `treasury_*`, `pagos_cobros`, `production_cost_ledger` | estado operativo | cada módulo dueño |
+
+Eliminado en FASE 20: `modulos/finanzas_unificadas.py` (3,371 líneas),
+`finance_read_repository.py`, `financial_trace_*` (servicio+handler+wiring),
+`erp_financial_service`, `journal_entry_service` (legacy), `capital_service`,
+`accounting_engine`, `fiscal_engine`, `third_party_service`,
+`fixed_asset_service`, `maintenance_finance_service`,
+`operating_supplies_service`, `reconciliation_service` (legacy),
+`idempotency_service`, `financial_document_service`, 23 tablas huérfanas
+(migración 117) y 22 archivos de tests legacy.

@@ -4,18 +4,6 @@ from core.events.handlers.finance_handler import SaleFinanceHandler
 from core.events.handlers.production_handler import ProductionInventoryHandler
 from core.events.handlers.purchase_handler import PurchaseInventoryHandler, PurchaseFinanceHandler
 from core.events.handlers.transfer_handler import TransferInventoryHandler
-from core.events.handlers.financial_trace_handler import (
-    SaleTraceHandler,
-    PurchaseTraceHandler,
-    PaymentTraceHandler,
-    PayrollTraceHandler,
-    WasteTraceHandler,
-    LoyaltyTraceHandler,
-    DeliveryPaymentHandler,
-    DriverSettlementHandler,
-    MaintenanceTraceHandler,
-    SupplyTraceHandler,
-)
 
 __all__ = [
     "SaleInventoryHandler",
@@ -24,15 +12,4 @@ __all__ = [
     "PurchaseInventoryHandler",
     "PurchaseFinanceHandler",
     "TransferInventoryHandler",
-    # Trazabilidad financiera end-to-end (migración 083)
-    "SaleTraceHandler",
-    "PurchaseTraceHandler",
-    "PaymentTraceHandler",
-    "PayrollTraceHandler",
-    "WasteTraceHandler",
-    "LoyaltyTraceHandler",
-    "DeliveryPaymentHandler",
-    "DriverSettlementHandler",
-    "MaintenanceTraceHandler",
-    "SupplyTraceHandler",
 ]

@@ -6,7 +6,7 @@ Rules:
   (PostgreSQL: NUMERIC); floats/REAL are forbidden for money.
 - Idempotency is structural: UNIQUE(operation_id) and
   UNIQUE(source_module, source_document_id, posting_purpose).
-- No AUTOINCREMENT, no lastrowid, no legacy compatibility, no data rescue.
+- Sin autoincrementos ni identidades de cursor; sin compatibilidad legacy ni rescate de datos.
 
 The only entry point that may execute this DDL is a migration in ``migrations/``.
 """
@@ -40,9 +40,16 @@ FINANCE_TABLES: tuple[str, ...] = (
     "accounts",
 )
 
-#: Legacy finance tables from all previous generations (m000/035/052/059/061/066/082/083/084).
+#: Legacy finance tables ORPHANED after FASE 20 (no live writer remains).
 #: Names colliding with the new schema (journal_entries, financial_documents,
 #: fixed_assets) are dropped BEFORE ``create_finance_schema`` recreates them clean.
+#:
+#: NOT in this list (still written by operational plumbing pending its own
+#: module refactor — Caja/Compras/Producción/Clientes): financial_event_log,
+#: cuentas_por_cobrar, accounts_payable, accounts_receivable, treasury_capital,
+#: treasury_ledger, treasury_gastos_fijos, pagos_cobros, treasury_movements,
+#: production_cost_ledger, growth_ledger, activos_depreciacion,
+#: cuentas_por_pagar (supplier_credit_service).
 LEGACY_FINANCE_TABLES: tuple[str, ...] = (
     "journal_entries",
     "journal_lines",
@@ -50,34 +57,20 @@ LEGACY_FINANCE_TABLES: tuple[str, ...] = (
     "fixed_assets",
     "maintenance_records",
     "operating_supplies",
-    "accounts_payable",
-    "accounts_receivable",
-    "cuentas_por_cobrar",
-    "cuentas_por_pagar",
     "plan_cuentas",
-    "financial_event_log",
     "terceros",
     "cuentas_financieras",
     "catalogo_cuentas_contables",
     "documentos_financieros",
-    "pagos_cobros",
-    "pagos_cobros_aplicaciones",
     "movimientos_financieros",
     "ledger_financiero",
     "conciliaciones_financieras",
     "cortes_caja_erp",
-    "treasury_capital",
-    "treasury_ledger",
-    "treasury_gastos_fijos",
     "financial_documents_legacy",
-    "treasury_movements",
     "asset_depreciation_entries",
     "financial_trace_log",
     "reconciliation_records",
     "capital_movements",
-    "activos_depreciacion",
-    "growth_ledger",
-    "production_cost_ledger",
     "loyalty_budget_caps",
 )
 

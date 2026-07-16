@@ -617,30 +617,10 @@ class AppContainer:
             sucursal_id=self.sucursal_id
         )
 
-        # ── ERP FASE 3: AccountingEngine ─────────────────────────────────────
-        try:
-            from core.services.finance.accounting_engine import AccountingEngine
-            self.accounting_engine = AccountingEngine(self.finance_service)
-            self.accounting_engine.wire()
-        except Exception as _ae:
-            self.accounting_engine = None
-            logger.debug("AccountingEngine: %s", _ae)
-
-        # ── ERP FASE 4: UnifiedThirdPartyService ─────────────────────────────
-        try:
-            from core.services.finance.third_party_service import UnifiedThirdPartyService
-            self.third_party_service = UnifiedThirdPartyService(self.db, self.finance_service)
-        except Exception as _tp:
-            self.third_party_service = None
-            logger.debug("ThirdPartyService: %s", _tp)
-
-        # ── ERP FASE 4b: ERPFinancialService (Issue #104) ───────────────────
-        try:
-            from core.services.finance.erp_financial_service import ERPFinancialService
-            self.erp_financial_service = ERPFinancialService(self.db)
-        except Exception as _efs:
-            self.erp_financial_service = None
-            logger.debug("ERPFinancialService: %s", _efs)
+        # FASE 20 refactor financiero: AccountingEngine, ThirdPartyService,
+        # ERPFinancialService, FiscalEngine y CapitalService fueron sustituidos
+        # por el bounded context de Finanzas (backend/domain/finance +
+        # posting engine); no se conservan rutas financieras paralelas.
 
         # ── ERP FASE 5: AnalyticsEngine ──────────────────────────────────────
         try:
@@ -685,25 +665,6 @@ class AppContainer:
             self.bi_settings_service = None
             self.bi_export_service = None
             logger.debug("BiDashboardService: %s", _bie)
-
-        # ── ERP FASE 8: FiscalEngine ─────────────────────────────────────────
-        try:
-            from core.services.finance.fiscal_engine import FiscalEngine
-            self.fiscal_engine = FiscalEngine(self.db)
-        except Exception as _fe:
-            self.fiscal_engine = None
-            logger.debug("FiscalEngine: %s", _fe)
-
-        # ── ERP FASE 9: CapitalService (mig 084) ─────────────────────────────
-        try:
-            from core.services.finance.capital_service import CapitalService
-            self.capital_service = CapitalService(
-                self.db,
-                treasury_service=self.treasury_service,
-            )
-        except Exception as _cs:
-            self.capital_service = None
-            logger.debug("CapitalService: %s", _cs)
 
         # Wire kitchen printer and comisiones to sales_service
         try:
