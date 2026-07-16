@@ -1,4 +1,28 @@
 """Reusable desktop UI components for the SPJ refactor."""
+from frontend.desktop.components.buttons import StandardButton
+from frontend.desktop.components.cards import AlertCard, ChartCard, SectionCard, StandardCard, SummaryCard
+from frontend.desktop.components.filter_bar import FilterBar
+from frontend.desktop.components.icons import Icons
+from frontend.desktop.components.kpi_bar import KPIBar
+from frontend.desktop.components.kpi_card import KPIDTO, KPICard
+from frontend.desktop.components.page_header import PageAction, PageHeader
+from frontend.desktop.components.tables import StandardTable
+from frontend.desktop.components.tooltip import Tooltip
+from frontend.desktop.components.chart_view import HtmlChartView
+from frontend.desktop.components.dashboard_grid import DashboardGrid
+from frontend.desktop.components.decimal_input import DecimalInput
+from frontend.desktop.components.dialogs import StandardDialog
+from frontend.desktop.components.error_state import ErrorState
+from frontend.desktop.components.feedback import InlineFeedback, StatusMessage
+from frontend.desktop.components.form_field import FormField
+from frontend.desktop.components.month_input import MonthInput
+from frontend.desktop.components.offline_state import OfflineState
+from frontend.desktop.components.permission_state import PermissionState
+from frontend.desktop.components.search_input import SearchInput
+from frontend.desktop.components.searchable_combo import SearchableComboBox
+from frontend.desktop.components.stale_state import StaleState
+from frontend.desktop.components.time_input import TimeInput
+from frontend.desktop.components.time_range_input import TimeRangeInput
 
 from frontend.desktop.components.address_input import AddressInput, AddressSuggestion
 from frontend.desktop.components.asset_search_box import AssetSearchBox
@@ -23,6 +47,37 @@ from frontend.desktop.components.status_badge import StatusBadge
 from frontend.desktop.components.supplier_search_box import SupplierSearchBox
 
 __all__ = [
+    "StandardButton",
+    "AlertCard",
+    "ChartCard",
+    "SectionCard",
+    "StandardCard",
+    "SummaryCard",
+    "FilterBar",
+    "Icons",
+    "KPIBar",
+    "KPIDTO",
+    "KPICard",
+    "PageAction",
+    "PageHeader",
+    "StandardTable",
+    "Tooltip",
+    "TimeRangeInput",
+    "TimeInput",
+    "StaleState",
+    "SearchableComboBox",
+    "SearchInput",
+    "PermissionState",
+    "OfflineState",
+    "MonthInput",
+    "FormField",
+    "StatusMessage",
+    "InlineFeedback",
+    "ErrorState",
+    "StandardDialog",
+    "DecimalInput",
+    "DashboardGrid",
+    "HtmlChartView",
     "AddressInput",
     "AddressSuggestion",
     "DebouncedSearchInput",

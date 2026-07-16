@@ -142,10 +142,16 @@ class _HRActionWiring:
         return bool(self._session.tiene_permiso(permission))
 
     def _contract_type(self, value: str) -> ContractType:
-        return ContractType(str(value).strip().upper())
+        cleaned = str(value or "").strip().upper()
+        if cleaned in {"", "NONE", "NULL"}:
+            return ContractType.FULL_TIME
+        return ContractType(cleaned)
 
     def _payment_frequency(self, value: str) -> PaymentFrequency:
-        return PaymentFrequency(str(value).strip().upper())
+        cleaned = str(value or "").strip().upper()
+        if cleaned in {"", "NONE", "NULL"}:
+            return PaymentFrequency.WEEKLY
+        return PaymentFrequency(cleaned)
 
     def _commit_if_available(self) -> None:
         commit = getattr(self._connection, "commit", None)

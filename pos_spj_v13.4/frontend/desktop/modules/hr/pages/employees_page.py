@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QAbstractItemView, QHBoxLayout, QHeaderView, QInputDialog, QMenu, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QInputDialog, QMenu, QMessageBox, QTableWidgetItem, QVBoxLayout, QWidget
 
-from frontend.desktop.components import DebouncedSearchInput, EmptyState, LoadingState, PaginationBar, StatusBadge
+from frontend.desktop.components import DebouncedSearchInput, EmptyState, FilterBar, Icons, LoadingState, PageAction, PageHeader, PaginationBar, StandardTable, StatusBadge
 from frontend.desktop.modules.hr.dialogs.employee_dialog import HREmployeeDialog
 from frontend.desktop.modules.hr.hr_presenter import HRPresenterPort
 from frontend.desktop.modules.hr.hr_view_models import HREmployeeRowViewModel
@@ -21,29 +21,37 @@ class HREmployeesPage(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(DesktopSpacing.LG, DesktopSpacing.LG, DesktopSpacing.LG, DesktopSpacing.LG)
         root.setSpacing(DesktopSpacing.MD)
+        root.addWidget(
+            PageHeader(
+                title="Personal",
+                subtitle="Alta, consulta y seguimiento de empleados desde el bounded context canónico.",
+                icon=Icons.EMPLOYEE,
+                actions=(
+                    PageAction(
+                        text="Nuevo empleado",
+                        callback=self._request_create_employee,
+                        variant="primary",
+                        tooltip="Abrir formulario de alta de empleado.",
+                    ),
+                ),
+                parent=self,
+            )
+        )
 
-        toolbar = QHBoxLayout()
+        toolbar = FilterBar(self)
         self._search = DebouncedSearchInput(self)
         self._search.setPlaceholderText("Buscar personal por código, nombre o puesto")
         self._search.setToolTip("Filtra personal con espera breve para no saturar el QueryService")
         self._search.searchChanged.connect(self._search_changed)
-        create_button = QPushButton("Nuevo empleado", self)
-        create_button.setToolTip("Abrir formulario de alta de empleado")
-        create_button.clicked.connect(self._request_create_employee)
-        toolbar.addWidget(self._search, 1)
-        toolbar.addWidget(create_button)
-        root.addLayout(toolbar)
+        toolbar.add_filter(self._search, stretch=1)
+        root.addWidget(toolbar)
 
         self._loading = LoadingState(parent=self)
         root.addWidget(self._loading)
         self._empty = EmptyState("Sin personal para mostrar", "Ajusta los filtros o crea un empleado nuevo.", self)
         root.addWidget(self._empty)
-        self._table = QTableWidget(0, len(self.HEADERS), self)
+        self._table = StandardTable(0, len(self.HEADERS), self)
         self._table.setHorizontalHeaderLabels(self.HEADERS)
-        self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._table.verticalHeader().setVisible(False)
-        self._table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self._table.setMinimumHeight(360)
         root.addWidget(self._table, 1)
         self._pagination = PaginationBar(self, page_size=25)
@@ -86,7 +94,7 @@ class HREmployeesPage(QWidget):
             badge = StatusBadge(row.status, self, status="success" if row.status.upper() == "ACTIVE" else "neutral")
             badge.setToolTip("Estado laboral del empleado")
             self._table.setCellWidget(row_index, 5, badge)
-            action = QPushButton("Acciones", self)
+            action = StandardButton("Acciones", self)
             action.setToolTip("Abrir acciones disponibles para este empleado")
             action.setProperty("employee_id", row.employee_id)
             action.clicked.connect(lambda _checked=False, employee_id=row.employee_id: self._open_row_actions(employee_id))

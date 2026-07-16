@@ -64,6 +64,8 @@ def test_hr_catalog_use_cases_create_configurable_catalogs_and_publish_events() 
     assert frequency_result.success
 
     catalogs = HRCatalogQueryService(conn)
+    assert [item.name for item in catalogs.list_departments()] == ["Administración"]
+    assert [item.name for item in catalogs.list_positions()] == ["Auxiliar"]
     assert [item.code for item in catalogs.list_contract_types()] == ["FULL_TIME"]
     assert [item.code for item in catalogs.list_payment_frequencies()] == ["WEEKLY"]
     assert published == [EventName.HR_CATALOG_UPDATED] * 4

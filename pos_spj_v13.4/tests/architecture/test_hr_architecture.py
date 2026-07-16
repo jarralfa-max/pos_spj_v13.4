@@ -274,3 +274,63 @@ def test_hr_phase10_runtime_code_has_no_legacy_hr_imports_or_fallbacks() -> None
                 if token in text:
                     offenders.append(f"{path.relative_to(PACKAGE_ROOT)}:{token}")
     assert offenders == []
+
+
+def test_hr_ui_enterprise_components_exist() -> None:
+    components = PACKAGE_ROOT / "frontend" / "desktop" / "components"
+    expected = {
+        "buttons.py",
+        "cards.py",
+        "filter_bar.py",
+        "icons.py",
+        "kpi_bar.py",
+        "kpi_card.py",
+        "page_header.py",
+        "tables.py",
+        "tooltip.py",
+    }
+    missing = [name for name in expected if not (components / name).is_file()]
+    assert missing == []
+
+
+def test_hr_pages_use_enterprise_page_structure() -> None:
+    page_files = (
+        "overview_page.py",
+        "employees_page.py",
+        "attendance_page.py",
+        "leave_page.py",
+        "payroll_page.py",
+        "schedules_page.py",
+        "evaluations_page.py",
+        "settings_page.py",
+    )
+    missing: list[str] = []
+    for page in page_files:
+        text = (HR_FRONTEND / "pages" / page).read_text(encoding="utf-8")
+        if "PageHeader" not in text:
+            missing.append(f"{page}:PageHeader")
+        if "Icons." not in text:
+            missing.append(f"{page}:Icons")
+    assert missing == []
+
+
+def test_hr_operational_pages_use_standard_tables_and_actions() -> None:
+    page_files = ("employees_page.py", "attendance_page.py", "leave_page.py", "payroll_page.py", "schedules_page.py")
+    offenders: list[str] = []
+    for page in page_files:
+        text = (HR_FRONTEND / "pages" / page).read_text(encoding="utf-8")
+        if "StandardTable" not in text:
+            offenders.append(f"{page}:StandardTable")
+        if "QTableWidget(" in text:
+            offenders.append(f"{page}:QTableWidget")
+        if "QPushButton(" in text:
+            offenders.append(f"{page}:QPushButton")
+    assert offenders == []
+
+
+def test_hr_overview_uses_canonical_kpi_bar() -> None:
+    overview = (HR_FRONTEND / "pages" / "overview_page.py").read_text(encoding="utf-8")
+    assert "KPIBar" in overview
+    assert "KPIDTO" in overview
+    assert "QGridLayout" not in overview
+    assert "KPICard" not in overview or "KPIBar" in overview

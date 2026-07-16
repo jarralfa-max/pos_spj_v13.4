@@ -2,26 +2,26 @@
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QGridLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QVBoxLayout, QWidget
 
-from frontend.desktop.components import LoadingState
+from frontend.desktop.components import Icons, KPIBar, KPIDTO, LoadingState, PageAction, PageHeader
 from frontend.desktop.modules.hr.hr_presenter import HRPresenterPort
 from frontend.desktop.modules.hr.hr_view_models import HRDashboardKpiViewModel
 from frontend.desktop.themes import DesktopSpacing
 
 
 class HROverviewPage(QWidget):
-    """Dashboard page: all KPI values come from HRDashboardQueryService through the presenter."""
+    """Dashboard page: KPI values come from HRDashboardQueryService through the presenter."""
 
-    KPI_LABELS = (
-        ("active_employees", "Empleados activos", "Plantilla activa para el periodo actual"),
-        ("present_staff", "Personal presente", "Personas con jornada abierta o presente hoy"),
-        ("absences_today", "Ausencias de hoy", "Ausencias detectadas para revisión"),
-        ("late_arrivals", "Retardos", "Entradas fuera de tolerancia"),
-        ("pending_requests", "Solicitudes pendientes", "Vacaciones, permisos o ajustes por aprobar"),
-        ("overtime_hours", "Horas extra", "Horas extra calculadas por dominio"),
-        ("estimated_payroll_cost", "Costo estimado de nómina", "Estimación provista por QueryService"),
-        ("pending_incidents", "Incidencias pendientes", "Incidencias de asistencia sin resolver"),
+    KPI_DEFINITIONS = (
+        ("active_employees", "Empleados activos", "Plantilla activa para el periodo actual", Icons.EMPLOYEE, "primary"),
+        ("present_staff", "Personal presente", "Personas con jornada abierta o presente hoy", Icons.ATTENDANCE, "success"),
+        ("absences_today", "Ausencias de hoy", "Ausencias detectadas para revisión", Icons.WARNING, "warning"),
+        ("late_arrivals", "Retardos", "Entradas fuera de tolerancia", Icons.WARNING, "warning"),
+        ("pending_requests", "Solicitudes pendientes", "Vacaciones, permisos o ajustes por aprobar", Icons.LEAVE, "info"),
+        ("overtime_hours", "Horas extra", "Horas extra calculadas por dominio", Icons.SCHEDULE, "neutral"),
+        ("estimated_payroll_cost", "Costo estimado de nómina", "Estimación provista por QueryService", Icons.PAYROLL, "neutral"),
+        ("pending_incidents", "Incidencias pendientes", "Incidencias de asistencia sin resolver", Icons.WARNING, "danger"),
     )
 
     def __init__(self, presenter: HRPresenterPort, parent=None) -> None:
@@ -30,33 +30,33 @@ class HROverviewPage(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(DesktopSpacing.LG, DesktopSpacing.LG, DesktopSpacing.LG, DesktopSpacing.LG)
         root.setSpacing(DesktopSpacing.MD)
-        title = QLabel("Resumen de Recursos Humanos", self)
-        title.setWordWrap(True)
-        root.addWidget(title)
-        refresh = QPushButton("Actualizar indicadores", self)
-        refresh.setToolTip("Recargar KPI desde HRDashboardQueryService")
-        refresh.clicked.connect(self.refresh)
-        root.addWidget(refresh)
+        root.addWidget(
+            PageHeader(
+                title="Resumen de Recursos Humanos",
+                subtitle="Indicadores operativos calculados por el bounded context canónico de RRHH.",
+                icon=Icons.HR,
+                actions=(
+                    PageAction(
+                        text="Actualizar indicadores",
+                        callback=self.refresh,
+                        variant="primary",
+                        tooltip="Recargar KPI desde HRDashboardQueryService.",
+                    ),
+                ),
+                parent=self,
+            )
+        )
         self._loading = LoadingState(parent=self)
         root.addWidget(self._loading)
-        grid = QGridLayout()
-        grid.setSpacing(DesktopSpacing.MD)
-        self._labels: dict[str, QLabel] = {}
-        for index, (key, text, tooltip) in enumerate(self.KPI_LABELS):
-            card = QWidget(self)
-            card.setProperty("component", "kpiCard")
-            card_layout = QVBoxLayout(card)
-            card_layout.setContentsMargins(DesktopSpacing.MD, DesktopSpacing.MD, DesktopSpacing.MD, DesktopSpacing.MD)
-            name = QLabel(text, card)
-            name.setWordWrap(True)
-            value = QLabel("0", card)
-            value.setAccessibleName(text)
-            value.setToolTip(tooltip)
-            self._labels[key] = value
-            card_layout.addWidget(name)
-            card_layout.addWidget(value)
-            grid.addWidget(card, index // 4, index % 4)
-        root.addLayout(grid)
+        self._kpi_bar = KPIBar(
+            tuple(
+                KPIDTO(key=key, title=title, value="0", icon=icon, variant=variant, tooltip=tooltip)
+                for key, title, tooltip, icon, variant in self.KPI_DEFINITIONS
+            ),
+            self,
+            max_columns=4,
+        )
+        root.addWidget(self._kpi_bar)
         root.addStretch(1)
         self.refresh()
 
@@ -68,11 +68,11 @@ class HROverviewPage(QWidget):
             self._loading.setVisible(False)
 
     def render(self, kpi: HRDashboardKpiViewModel) -> None:
-        self._labels["active_employees"].setText(str(kpi.active_employees))
-        self._labels["present_staff"].setText(str(kpi.present_staff))
-        self._labels["absences_today"].setText(str(kpi.absences_today))
-        self._labels["late_arrivals"].setText(str(kpi.late_arrivals))
-        self._labels["pending_requests"].setText(str(kpi.pending_requests))
-        self._labels["overtime_hours"].setText(str(kpi.overtime_hours))
-        self._labels["estimated_payroll_cost"].setText(str(kpi.estimated_payroll_cost))
-        self._labels["pending_incidents"].setText(str(kpi.pending_incidents))
+        self._kpi_bar.update_value("active_employees", str(kpi.active_employees))
+        self._kpi_bar.update_value("present_staff", str(kpi.present_staff))
+        self._kpi_bar.update_value("absences_today", str(kpi.absences_today))
+        self._kpi_bar.update_value("late_arrivals", str(kpi.late_arrivals))
+        self._kpi_bar.update_value("pending_requests", str(kpi.pending_requests))
+        self._kpi_bar.update_value("overtime_hours", str(kpi.overtime_hours))
+        self._kpi_bar.update_value("estimated_payroll_cost", str(kpi.estimated_payroll_cost))
+        self._kpi_bar.update_value("pending_incidents", str(kpi.pending_incidents))
