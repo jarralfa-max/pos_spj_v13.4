@@ -244,6 +244,7 @@ def _seed_posting_profiles(uow: FinanceUnitOfWork, ids: dict[str, str], today: d
             "clearing_account_id": ids["1120"],
             "breakage_income_account_id": ids["4120"],
             "liability_account_id": ids["2134"],
+            "third_party_receivable_account_id": ids["1135"],
         }, effective, CommercialInstrumentType.PROMOTIONAL_COUPON),
         _profile("STORE_CREDIT", "Saldo a favor del cliente", {
             "contra_revenue_account_id": ids["4204"],

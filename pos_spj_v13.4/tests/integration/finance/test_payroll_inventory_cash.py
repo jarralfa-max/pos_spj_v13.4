@@ -8,6 +8,8 @@ from backend.application.event_handlers.finance.cash_shift_closed_handler import
 from backend.application.event_handlers.finance.inventory_adjustment_handler import (
     InventoryAdjustmentHandler,
     ProductionCompletedHandler,
+)
+from backend.application.event_handlers.finance.waste_registered_handler import (
     WasteRegisteredHandler,
 )
 from backend.application.event_handlers.finance.payroll_paid_handler import PayrollPaidHandler

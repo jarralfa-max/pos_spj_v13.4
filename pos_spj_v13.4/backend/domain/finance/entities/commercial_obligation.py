@@ -30,6 +30,9 @@ def _utcnow() -> str:
 _REDEEMABLE = (
     CommercialObligationStatus.OPEN,
     CommercialObligationStatus.PARTIALLY_REDEEMED,
+    # A NO_INITIAL_RECOGNITION instrument (promotional coupon) is redeemable
+    # and expirable while pending: its effect posts only at redemption time.
+    CommercialObligationStatus.PENDING_RECOGNITION,
 )
 
 
