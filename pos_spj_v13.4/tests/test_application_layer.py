@@ -18,9 +18,9 @@ class TestApplicationImports:
         from application.use_cases import GestionarClienteUC
         assert GestionarClienteUC is not None
 
-    def test_gestionar_nomina_uc_importable(self):
-        from application.use_cases import GestionarNominaUC
-        assert GestionarNominaUC is not None
+    def test_gestionar_nomina_uc_removed_from_legacy_shim(self):
+        import application.use_cases as use_cases
+        assert not hasattr(use_cases, "GestionarNominaUC")
 
     def test_gestionar_inventario_uc_importable(self):
         from application.use_cases import GestionarInventarioUC

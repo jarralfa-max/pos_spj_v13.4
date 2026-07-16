@@ -25,7 +25,7 @@ Eventos de dominio (v13.1):
   Simulación: SIMULACION_EJECUTADA
   IA:         AI_CONSULTA_REALIZADA
   Franquicia: FRANQUICIA_RANKING_GENERADO, FRANQUICIA_TRANSFERENCIA_SUGERIDA
-  RRHH:       EMPLOYEE_OVERWORK, EMPLOYEE_REST_DAY, PAYROLL_GENERATED, PAYROLL_DUE
+  HR:         PAYROLL_RUN_GENERATED, PAYROLL_PAID
   Spec (FASE 12): SALE_CREATED (=VENTA_COMPLETADA), STOCK_LOW (=STOCK_BAJO_MINIMO),
                   PRICE_BELOW_MARGIN
 """
@@ -105,9 +105,6 @@ COTIZACION_ACTUALIZADA      = "COTIZACION_ACTUALIZADA"
 # Producción
 PRODUCCION_REGISTRADA       = "PRODUCCION_REGISTRADA"
 
-# RRHH
-EMPLEADO_ACTUALIZADO        = "EMPLEADO_ACTUALIZADO"
-
 # Clientes
 CLIENTE_ACTUALIZADO     = "CLIENTE_ACTUALIZADO"
 CLIENTE_CREADO          = "CLIENTE_CREADO"
@@ -147,11 +144,9 @@ PRICE_BELOW_MARGIN      = "PRICE_BELOW_MARGIN"      # producto_id, precio_venta,
 FRANQUICIA_RANKING_GENERADO = "FRANQUICIA_RANKING_GENERADO"  # sucursales_count, top_sucursal, top_utilidad, fecha_desde, fecha_hasta
 FRANQUICIA_TRANSFERENCIA_SUGERIDA = "FRANQUICIA_TRANSFERENCIA_SUGERIDA"  # producto, desde_sucursal, hacia_sucursal, cantidad_sugerida
 
-# RRHH — FASE 11
-EMPLOYEE_OVERWORK       = "EMPLOYEE_OVERWORK"    # empleado_id, nombre, dias_consecutivos, sucursal_id
-EMPLOYEE_REST_DAY       = "EMPLOYEE_REST_DAY"    # empleado_id, nombre, fecha_descanso, sucursal_id
-PAYROLL_GENERATED       = "PAYROLL_GENERATED"    # empleado_id, nombre, periodo, total, sucursal_id
-PAYROLL_DUE             = "PAYROLL_DUE"          # empleado_id, nombre, dias_vencimiento, sucursal_id
+# HR payroll canonical event aliases
+PAYROLL_RUN_GENERATED   = "PAYROLL_RUN_GENERATED"
+PAYROLL_PAID            = "PAYROLL_PAID"
 
 # Sistema
 SESION_INICIADA         = "SESION_INICIADA"
@@ -161,8 +156,6 @@ FORECAST_GENERADO       = "FORECAST_GENERADO"
 CONCILIACION_DIFERENCIA = "CONCILIACION_DIFERENCIA"
 
 # v13.5: ERP Use Cases — additive constants only
-NOMINA_GENERADA         = "NOMINA_GENERADA"     # empleado_id, total, neto, periodo, payroll_payment_id, operation_id
-NOMINA_PAGADA           = "NOMINA_PAGADA"       # empleado_id, neto, periodo, payroll_payment_id, operation_id
 CLIENTE_REGISTRADO      = CLIENTE_CREADO        # alias v13.5 backward compat
 COMPRA_PROCESADA        = COMPRA_REGISTRADA     # alias v13.5 backward compat
 

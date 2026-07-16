@@ -2,7 +2,7 @@
 """
 FiscalEngine — Cálculos fiscales SAT México (IVA / ISR / Retenciones).
 
-Consolidates scattered tax logic from cfdi_service, rrhh_service, and
+Consolidates scattered tax logic from cfdi_service and
 template_engine into a single, stateless, zero-dependency service.
 
 All methods are pure functions (no DB, no network). Thread-safe.
@@ -145,7 +145,7 @@ class FiscalEngine:
     def calcular_isr_mensual(self, salario_mensual: float) -> Dict:
         """
         Monthly ISR withholding for employees — SAT Art. 96 LISR 2024.
-        Same table as rrhh_service.calcular_isr_mensual().
+        Canonical ISR monthly table used by HR payroll policies.
         """
         salario_mensual = float(salario_mensual)
         if salario_mensual <= 0:
