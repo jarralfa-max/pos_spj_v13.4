@@ -70,3 +70,30 @@ def test_page_does_not_do_money_math_or_offer_pos_cash():
     # the widget never offers the POS operative cash as a payment source
     vms = (PUR_UI / "direct_purchase_view_models.py").read_text(encoding="utf-8")
     assert "POS_CASH" not in vms and "CAJA_POS" not in vms
+
+
+# ── PUR-12 enterprise UI + analytics ─────────────────────────────────────────
+def test_enterprise_ui_exists_and_is_registered():
+    assert (PUR_UI / "enterprise_view.py").exists()
+    assert (PUR_UI / "pages" / "enterprise_pages.py").exists()
+    assert (PUR_UI / "pages" / "procurement_dashboard_page.py").exists()
+    wrapper = (REPO / "modulos/compras_enterprise.py").read_text(encoding="utf-8")
+    assert "create_enterprise_purchasing_view" in wrapper
+    loader = (REPO / "core/ui/module_loader.py").read_text(encoding="utf-8")
+    assert "compras_enterprise" in loader
+
+
+def test_analytics_dtos_are_color_free():
+    """The analytics service must not embed colors/hex — only ChartDataDTO."""
+    svc = (REPO / "backend/application/procurement/queries/"
+           "procurement_analytics_service.py").read_text(encoding="utf-8")
+    assert _HEX.search(svc) is None
+    assert "setStyleSheet" not in svc
+
+
+def test_enterprise_pages_delegate_to_presenter_only():
+    for name in ("pages/enterprise_pages.py", "pages/procurement_dashboard_page.py"):
+        text = (PUR_UI / name).read_text(encoding="utf-8")
+        assert "backend.application.procurement.use_cases" not in text
+        assert "backend.application.procurement.queries" not in text
+        assert "ProcurementUnitOfWork" not in text

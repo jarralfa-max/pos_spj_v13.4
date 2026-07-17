@@ -34,6 +34,7 @@ MODULE_REGISTRY = {
     "sistema":          ("ModuleSistema",             "modulos.sistema_dashboard",      ["usuario"]),
     "compras_pro":      ("ModuloComprasPro",          "modulos.compras_pro",            ["usuario"]),
     "compra_directa":   ("ModuloCompraDirecta",       "modulos.compra_directa",         []),
+    "compras_enterprise": ("ModuloComprasEnterprise", "modulos.compras_enterprise",     []),
     "activos":          ("ModuloActivos",             "modulos.activos",                ["usuario"]),
 }
 
