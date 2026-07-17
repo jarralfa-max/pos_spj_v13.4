@@ -57,3 +57,7 @@ class InvalidEvaluationError(SupplierDomainError):
 
 class SupplierDeletionForbiddenError(SupplierDomainError):
     pass
+
+
+class PermissionDeniedError(SupplierDomainError):
+    pass
