@@ -190,9 +190,39 @@ sobre casos de uso canónicos (`RegisterQrContainer`, `AssignQrContainer`,
 `CompleteQrReception`) y servicios de consulta (`QrTraceabilityReadService`,
 `PurchaseHistoryReadService`). Sin SQL ni escritura de inventario en el widget.
 
-Flip seguro ahora sólo requiere: reescribir/eliminar los ~20 tests que parsean
-`compras_pro`, luego repuntar `main_window`/`menu_lateral` y wrappear
-`compras_pro.py`.
+## Medición del flip (intentado y revertido)
+
+Se intentó wrappear `compras_pro.py` (auto-repunta `main_window`/`menu_lateral`/
+`module_loader`). **Medición objetiva:**
+
+- Árbol base (monolito intacto): **35 fallas preexistentes** (811 pasan) — ajenas
+  a Compras (in-memory `engine.up`, trigger de inventario, guards UI/UX).
+- Con el wrapper: **379 fallas** → el wrapper rompe **~344 tests** ligados al
+  monolito.
+
+El wrapper se **revirtió**: rompe comportamiento aún NO migrado + su cobertura.
+El blast radius de ~344 tests confirma acoplamiento real, no solo tests de parseo.
+
+### Comportamiento del monolito AÚN no migrado (revelado por los tests)
+
+| Comportamiento | Evidencia (test/servicio) | Estado |
+|---|---|---|
+| Creación de **lotes de carne/pollo + FIFO** | `test_purchase_lot_creation` → `LoteService`/`PurchaseService` | ❌ no migrado |
+| **Procesamiento de recetas** al comprar insumos | docstring `compras_pro` + flujo tradicional | ❌ no migrado |
+| **Compra tradicional** (estados crédito/pago parcial) vía `PurchaseService` | `test_traditional_purchase_current_flow` | ❌ no migrado |
+| Contratos de UI del monolito (tabs/tema/layout/payment fields) | `tests/purchases/*`, `tests/ui/*` | protegen arquitectura legacy (§13.20) |
+
+### Condición real para el flip seguro
+
+1. Migrar **lotes (FIFO) + recetas + compra tradicional** al bounded context
+   (dominio/aplicación + integración de inventario), con tests canónicos.
+2. Reescribir/eliminar los ~344 tests que parsean/ejercen el monolito (§13.20).
+3. Entonces sí: wrappear `compras_pro.py` + repuntar navegación + reducir la
+   allowlist. **No antes** — hacerlo ahora regresa funcionalidad (PRIORITY 0).
+
+Progreso hasta aquí: recepción QR, plantillas, variación de costo, ciclo de vida
+QR (generar/asignar/recibir/histórico) e historial documental YA son canónicos y
+tienen pestañas en el módulo enterprise; falta la vía tradicional (lotes/recetas).
 
 ## Condición de cierre (PUR-13.23)
 
