@@ -33,6 +33,7 @@ MODULE_REGISTRY = {
     "loyalty_card":     ("ModuloLoyaltyCardDesigner", "modulos.loyalty_card_designer",  ["usuario"]),
     "sistema":          ("ModuleSistema",             "modulos.sistema_dashboard",      ["usuario"]),
     "compras_pro":      ("ModuloComprasPro",          "modulos.compras_pro",            ["usuario"]),
+    "compra_directa":   ("ModuloCompraDirecta",       "modulos.compra_directa",         []),
     "activos":          ("ModuloActivos",             "modulos.activos",                ["usuario"]),
 }
 
