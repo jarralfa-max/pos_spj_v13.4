@@ -413,3 +413,34 @@ lotes/movimientos_lote con `id` UUIDv7 (sin columna `uuid` ni randomblob);
   production_cost_ledger, growth_ledger, activos_depreciacion.
 - El DDL vive en `backend/infrastructure/db/schema/finance_schema.py`; la
   migración es el único punto de ejecución.
+
+## Compras / Procurement bounded context (PUR-4 → PUR-13)
+
+- **Nueva migración `120_procurement_bounded_context_schema.py`**: crea el
+  esquema canónico born-clean de Compras (23 tablas: user/role/branch
+  purchase_limits, direct_purchases + direct_purchase_lines +
+  direct_purchase_authorizations, purchase_requisitions + lines,
+  requests_for_quotation, supplier_quotes + lines, purchase_orders + lines +
+  purchase_order_versions, goods_receipts + lines, receipt_discrepancies,
+  supplier_invoices + supplier_invoice_matches, purchase_authorization_log,
+  procurement_audit_log, procurement_outbox, procurement_processed_events).
+  Todo `TEXT PRIMARY KEY` UUIDv7; importes/cantidades como cadenas decimales
+  (sin `REAL`); idempotencia estructural por `UNIQUE(operation_id)`,
+  `UNIQUE(document_number)` y `UNIQUE(supplier_id, invoice_number)`.
+- **Sin colisión con legacy**: los nombres canónicos (direct_purchases,
+  purchase_orders, goods_receipts, purchase_requisitions, supplier_invoices…)
+  NO chocan con las tablas legacy en español (compras / ordenes_compra /
+  recepciones / purchase_requests), que conservan sus lectores vivos hasta que
+  migren en PUR-11.
+- El DDL vive en `backend/infrastructure/db/schema/procurement_schema.py`; la
+  migración es el único punto de ejecución (allowlist en el guardrail
+  clean-birth).
+- **Separación POS↔Compras (§87)**: el POS detecta necesidades (emite eventos de
+  reabasto) y NUNCA ejecuta compras; guardrail
+  `tests/architecture/test_pos_does_not_execute_purchases.py`.
+- **Integraciones (PUR-11)**: `backend/application/procurement/integrations/`
+  publica eventos canónicos (INVENTORY_ADJUSTMENT_REGISTERED, PAYABLE_CREATED,
+  SUPPLIER_PAYMENT_SCHEDULED, SUPPLIER_PERFORMANCE_RECORDED) y consume
+  necesidades (STOCK_REPLENISHMENT_REQUIRED / PURCHASE_NEED_DETECTED /
+  CUSTOMER_ORDER_REQUIRES_PURCHASE) creando solicitudes idempotentes. El pago
+  inmediato jamás sale de la caja operativa del POS.
