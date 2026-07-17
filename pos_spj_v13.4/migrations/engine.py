@@ -117,6 +117,7 @@ MIGRATIONS = [
     _Migration("117",  "migrations.standalone.117_finance_bounded_context_schema"),
     _Migration("118",  "migrations.standalone.118_hr_bounded_context_schema"),
     _Migration("119",  "migrations.standalone.119_supplier_bounded_context_schema"),
+    _Migration("120",  "migrations.standalone.120_procurement_bounded_context_schema"),
 ]
 
 def _ensure_tracking_table(conn):

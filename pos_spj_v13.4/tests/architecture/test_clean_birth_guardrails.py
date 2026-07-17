@@ -1046,6 +1046,9 @@ DDL_ALLOWLIST = {
     # DDL canónico del bounded context de Proveedores: única definición del
     # esquema, ejecutado exclusivamente por migrations/standalone/119.
     "backend/infrastructure/db/schema/supplier_schema.py",
+    # DDL canónico del bounded context de Compras/Procurement: única definición
+    # del esquema, ejecutado exclusivamente por migrations/standalone/120.
+    "backend/infrastructure/db/schema/procurement_schema.py",
 }
 
 # lastrowid permitido SOLO aquí (nunca como identidad de dominio):
