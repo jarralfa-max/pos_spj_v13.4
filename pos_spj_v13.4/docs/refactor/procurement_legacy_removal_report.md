@@ -203,14 +203,15 @@ Se intentó wrappear `compras_pro.py` (auto-repunta `main_window`/`menu_lateral`
 El wrapper se **revirtió**: rompe comportamiento aún NO migrado + su cobertura.
 El blast radius de ~344 tests confirma acoplamiento real, no solo tests de parseo.
 
-### Comportamiento del monolito AÚN no migrado (revelado por los tests)
+### Comportamiento del monolito — estado tras step 2d
 
-| Comportamiento | Evidencia (test/servicio) | Estado |
+| Comportamiento | Reemplazo canónico | Estado |
 |---|---|---|
-| Creación de **lotes de carne/pollo + FIFO** | `test_purchase_lot_creation` → `LoteService`/`PurchaseService` | ❌ no migrado |
-| **Procesamiento de recetas** al comprar insumos | docstring `compras_pro` + flujo tradicional | ❌ no migrado |
-| **Compra tradicional** (estados crédito/pago parcial) vía `PurchaseService` | `test_traditional_purchase_current_flow` | ❌ no migrado |
-| Contratos de UI del monolito (tabs/tema/layout/payment fields) | `tests/purchases/*`, `tests/ui/*` | protegen arquitectura legacy (§13.20) |
+| Creación de **lotes de carne/pollo** (per-lote costo/caducidad) | `PurchaseLotEntryHandler` (evento de recepción) | ✅ migrado |
+| **FIFO por lote** (descarga) | `LoteService.descargar_fifo` — es consumo de venta/producción, no compra | ✅ correcto (fuera de Compras) |
+| **Procesamiento de recetas** al comprar (consume insumos) | `PurchaseRecipeExplosionHandler` (evento de recepción) | ✅ migrado |
+| **Compra tradicional** (estados crédito/pago, inventario, CxP) | `DirectPurchase` + stock/payable events | ✅ cubierto |
+| Contratos de UI del monolito (tabs/tema/layout/payment fields) | pestañas enterprise + Design System | ⚠️ pendiente: reescribir ~344 tests que parsean el monolito (§13.20) |
 
 ### Condición real para el flip seguro
 

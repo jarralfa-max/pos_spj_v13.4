@@ -322,6 +322,13 @@ def _wire_procurement_pipeline(bus, container) -> None:
         lot_handler = PurchaseLotEntryHandler(db)
         bus.subscribe(PURCHASE_STOCK_ENTRY_REGISTERED, lot_handler.handle,
                       priority=90, label="procurement_inventory_lot_entry")
+        # recipe explosion on purchase (consume components) — migrated from monolith
+        from backend.application.event_handlers.inventory.purchase_recipe_explosion_handler import (
+            PurchaseRecipeExplosionHandler,
+        )
+        recipe_handler = PurchaseRecipeExplosionHandler(db)
+        bus.subscribe(PURCHASE_STOCK_ENTRY_REGISTERED, recipe_handler.handle,
+                      priority=80, label="procurement_inventory_recipe_explosion")
     except Exception as exc:  # pragma: no cover - defensive wiring
         logger.warning("procurement pipeline wiring failed (non-fatal): %s", exc)
 
