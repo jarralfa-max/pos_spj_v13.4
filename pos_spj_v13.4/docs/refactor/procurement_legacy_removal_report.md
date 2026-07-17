@@ -167,13 +167,37 @@ Migradas del monolito al contexto, en el nuevo estándar:
 - **Tests**: `test_price_variance_policy.py` (7) + `test_templates_and_variance.py`
   (6) capturan el comportamiento legacy contra el contrato canónico.
 
+## Bloqueo del flip de navegación (paso 2 — análisis)
+
+Repuntar la navegación `COMPRAS` → `compras_enterprise` y convertir
+`compras_pro.py` en wrapper **NO es seguro todavía**: `compras_pro` aún aloja
+superficies de UI NO migradas y romperían al desconectarlas o al wrappear el
+módulo (PRIORITY 0):
+
+| Superficie de UI en `compras_pro` | Estado | Bloqueo |
+|---|---|---|
+| Tab "Compra Tradicional" | ✅ cubierto por compra directa enterprise | — |
+| Recepción QR (mutación) | ✅ repuntado a `CompleteQrReceptionUseCase` | — |
+| Sub-tab "Generación etiqueta QR" | ❌ no migrado | falta página canónica |
+| Sub-tab "Asignar compra" (QR) | ❌ no migrado | falta página canónica |
+| Sub-tab "Histórico QR" | ❌ no migrado | falta página canónica |
+| Tab "Historial de Compras" (documental) | ❌ no migrado | falta página canónica |
+| ~20 tests que parsean el AST de `compras_pro` | protegen la UI legacy | reescribir/eliminar (§13.20) |
+
+Flip seguro requiere primero: migrar generación/asignación/histórico QR +
+historial documental a páginas canónicas del módulo enterprise, y reescribir/
+eliminar los ~20 tests que parsean `compras_pro`. Hasta entonces `compras_pro`
+permanece en la allowlist (BLOCKED) con esta condición explícita.
+
 ## Condición de cierre (PUR-13.23)
 
 Pendiente para declarar la fase terminada:
 
 1. ~~Migrar recepción QR~~ (backend hecho — paso 1) + ~~plantillas + alertas de
-   costo~~ (hecho — paso 1b) del monolito al contexto; repuntar el widget QR a
-   `CompleteQrReceptionUseCase`.
+   costo~~ (hecho — paso 1b) + ~~consumidor de stock + repoint del widget QR~~
+   (hecho — paso 2a/2b) del monolito al contexto.
+   Falta: migrar generación/asignación/histórico QR + historial documental →
+   páginas canónicas; luego repuntar navegación y wrappear `compras_pro`.
 2. Reconectar la navegación `COMPRAS` → módulo enterprise; verificar cero
    consumidores del monolito (13.22) y eliminarlo (o dejarlo como wrapper vacío).
 3. Migrar lectores de `compras/ordenes_compra/recepciones/purchase_requests` y
