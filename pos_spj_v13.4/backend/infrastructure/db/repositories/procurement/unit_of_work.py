@@ -19,6 +19,16 @@ from backend.infrastructure.db.repositories.procurement.goods_receipt_repository
 from backend.infrastructure.db.repositories.procurement.purchase_limit_repository import (
     PurchaseLimitRepository,
 )
+from backend.infrastructure.db.repositories.procurement.purchase_order_repository import (
+    PurchaseOrderRepository,
+)
+from backend.infrastructure.db.repositories.procurement.requisition_repository import (
+    PurchaseRequisitionRepository,
+)
+from backend.infrastructure.db.repositories.procurement.rfq_repository import RfqRepository
+from backend.infrastructure.db.repositories.procurement.supplier_invoice_repository import (
+    SupplierInvoiceRepository,
+)
 from backend.infrastructure.db.repositories.procurement.support_repositories import (
     DocumentSequenceRepository,
     ProcurementAuditRepository,
@@ -32,6 +42,10 @@ class ProcurementUnitOfWork:
     def __init__(self, connection: Any) -> None:
         self.connection = connection
         self.direct_purchases = DirectPurchaseRepository(connection)
+        self.requisitions = PurchaseRequisitionRepository(connection)
+        self.orders = PurchaseOrderRepository(connection)
+        self.rfqs = RfqRepository(connection)
+        self.invoices = SupplierInvoiceRepository(connection)
         self.receipts = GoodsReceiptRepository(connection)
         self.limits = PurchaseLimitRepository(connection)
         self.sequences = DocumentSequenceRepository(connection)
