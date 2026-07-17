@@ -34,6 +34,14 @@ class FinancePresenter:
         self._use_cases = use_cases
         self._session = session_context
 
+    # ── sub-module wiring (suppliers is a page inside Finanzas) ────────────
+    def connection(self):
+        """Expose the connection for embedded sub-modules (e.g. suppliers)."""
+        return self._conn()
+
+    def session_context(self):
+        return self._session
+
     # ── helpers ───────────────────────────────────────────────────────────
     def _run(self, action, *args, **kwargs) -> tuple[bool, str]:
         try:

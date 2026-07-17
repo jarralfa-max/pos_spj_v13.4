@@ -41,6 +41,7 @@ from frontend.desktop.modules.finance.pages.general_ledger_page import GeneralLe
 from frontend.desktop.modules.finance.pages.journal_entries_page import JournalEntriesPage
 from frontend.desktop.modules.finance.pages.overview_page import OverviewPage
 from frontend.desktop.modules.finance.pages.payments_page import PaymentsPage
+from frontend.desktop.modules.finance.pages.suppliers_page import SuppliersPage
 from frontend.desktop.modules.finance.pages.treasury_page import TreasuryPage
 
 #: (section label or None, page label, page class) — §25 navigation
@@ -52,6 +53,7 @@ _NAVIGATION = [
     ("Contabilidad", "Periodos", FiscalPeriodsPage),
     ("Cobranza", "Cuentas por cobrar", AccountsReceivablePage),
     ("Cobranza", "Cobros", CollectionsPage),
+    ("Proveedores", "Maestro de proveedores", SuppliersPage),
     ("Pagos", "Cuentas por pagar", AccountsPayablePage),
     ("Pagos", "Programación y autorizaciones", PaymentsPage),
     ("Tesorería", "Cuentas y transferencias", TreasuryPage),
@@ -127,7 +129,7 @@ class FinanceView(QWidget):
     def set_active_submodule(self, name: str) -> None:
         """Compatibility hook (e.g. legacy 'tesoreria' deep link)."""
         targets = {"tesoreria": TreasuryPage, "cxc": AccountsReceivablePage,
-                   "cxp": AccountsPayablePage}
+                   "cxp": AccountsPayablePage, "proveedores": SuppliersPage}
         page_class = targets.get(str(name or "").lower())
         if page_class is None:
             return
