@@ -8,6 +8,9 @@ repoint non-regressing (canonical receipts move real inventory).
 
 from decimal import Decimal
 
+from backend.application.event_handlers.inventory.purchase_lot_entry_handler import (
+    PurchaseLotEntryHandler,
+)
 from backend.application.event_handlers.inventory.purchase_stock_entry_handler import (
     PurchaseStockEntryHandler,
 )
@@ -48,6 +51,13 @@ def _inventory_schema(conn):
         " proveedor_id TEXT, usuario TEXT, sucursal_id TEXT)")
     conn.execute("CREATE TABLE productos (id TEXT PRIMARY KEY, existencia REAL DEFAULT 0,"
                  " precio_compra REAL DEFAULT 0)")
+    conn.execute(
+        "CREATE TABLE lotes (id TEXT PRIMARY KEY, producto_id TEXT, numero_lote TEXT,"
+        " proveedor_id TEXT, fecha_recepcion DATE, fecha_caducidad DATE, peso_inicial_kg REAL,"
+        " peso_actual_kg REAL, costo_kg REAL, sucursal_id TEXT, estado TEXT, temperatura_c REAL,"
+        " observaciones TEXT, tipo_origen TEXT, UNIQUE(numero_lote, producto_id))")
+    conn.execute("CREATE TABLE movimientos_lote (id TEXT PRIMARY KEY, lote_id TEXT, tipo TEXT,"
+                 " cantidad_kg REAL, referencia TEXT, usuario TEXT)")
     conn.execute("""
         CREATE TRIGGER trg_recalc_inventario_actual
         AFTER INSERT ON movimientos_inventario
@@ -94,3 +104,35 @@ def test_confirmed_purchase_updates_physical_stock(proc_conn):
     existencia = proc_conn.execute("SELECT existencia FROM productos"
                                   " WHERE id='p1'").fetchone()[0]
     assert Decimal(str(existencia)) == Decimal("10")
+
+
+def test_confirmed_weight_purchase_creates_lot(proc_conn):
+    _inventory_schema(proc_conn)
+    proc_conn.execute("INSERT INTO productos (id) VALUES ('pollo')")
+    proc_conn.commit()
+    bus = Bus()
+    wire_procurement(bus, proc_conn)
+    bus.subscribe(PURCHASE_STOCK_ENTRY_REGISTERED,
+                  PurchaseStockEntryHandler(proc_conn).handle)
+    bus.subscribe(PURCHASE_STOCK_ENTRY_REGISTERED,
+                  PurchaseLotEntryHandler(proc_conn).handle)
+
+    created = CreateDirectPurchaseUseCase().execute(
+        proc_conn, actor_user_id="u1", operation_id="e2e-lot", supplier_id="prov1",
+        branch_id="br-1", warehouse_id="wh-1",
+        lines=[{"product_id": "pollo", "description": "Pollo", "quantity": "20",
+                "unit_cost": "55", "inventory_unit": "KG"}])
+    ConfirmDirectPurchaseUseCase().execute(
+        proc_conn, actor_user_id="u1", direct_purchase_id=created.entity_id,
+        operation_id="e2e-lot-c", payment_source="PETTY_CASH")
+    dispatch_procurement_outbox(proc_conn, bus)
+
+    # stock AND a lot (FIFO by lot) exist for the weight product
+    stock = proc_conn.execute("SELECT cantidad FROM inventario_actual"
+                             " WHERE producto_id='pollo'").fetchone()[0]
+    lot = proc_conn.execute(
+        "SELECT peso_actual_kg, costo_kg, proveedor_id, estado FROM lotes"
+        " WHERE producto_id='pollo'").fetchone()
+    assert Decimal(str(stock)) == Decimal("20")
+    assert Decimal(str(lot[0])) == Decimal("20") and Decimal(str(lot[1])) == Decimal("55")
+    assert lot[2] == "prov1" and lot[3] == "activo"

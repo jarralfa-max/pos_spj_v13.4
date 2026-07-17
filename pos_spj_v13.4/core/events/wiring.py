@@ -300,6 +300,9 @@ def _wire_procurement_pipeline(bus, container) -> None:
     consumer. Additive and idempotent; downstream handlers are idempotent by
     event_id. Best-effort: a wiring failure never breaks the rest of the bus."""
     try:
+        from backend.application.event_handlers.inventory.purchase_lot_entry_handler import (
+            PurchaseLotEntryHandler,
+        )
         from backend.application.event_handlers.inventory.purchase_stock_entry_handler import (
             PurchaseStockEntryHandler,
         )
@@ -315,6 +318,10 @@ def _wire_procurement_pipeline(bus, container) -> None:
         stock_handler = PurchaseStockEntryHandler(db)
         bus.subscribe(PURCHASE_STOCK_ENTRY_REGISTERED, stock_handler.handle,
                       priority=100, label="procurement_inventory_stock_entry")
+        # meat/poultry lots (FIFO by lot) — migrated from the monolith
+        lot_handler = PurchaseLotEntryHandler(db)
+        bus.subscribe(PURCHASE_STOCK_ENTRY_REGISTERED, lot_handler.handle,
+                      priority=90, label="procurement_inventory_lot_entry")
     except Exception as exc:  # pragma: no cover - defensive wiring
         logger.warning("procurement pipeline wiring failed (non-fatal): %s", exc)
 
