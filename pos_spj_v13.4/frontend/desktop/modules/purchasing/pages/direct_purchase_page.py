@@ -130,8 +130,11 @@ class DirectPurchasePage(QWidget):
         add_btn.clicked.connect(lambda: self._add_line())
         del_btn = create_secondary_button(self, "Quitar línea")
         del_btn.clicked.connect(self._remove_selected_line)
+        tpl_btn = create_secondary_button(self, "Cargar plantilla")
+        tpl_btn.clicked.connect(self._load_template)
         line_actions.addWidget(add_btn)
         line_actions.addWidget(del_btn)
+        line_actions.addWidget(tpl_btn)
         line_actions.addStretch(1)
         self._totals_label = QLabel("")
         self._totals_label.setProperty("role", "muted")
@@ -236,6 +239,25 @@ class DirectPurchasePage(QWidget):
         self._cart.append(line)
         self._render_cart()
 
+    def _load_template(self) -> None:
+        templates = self._presenter.templates()
+        if not templates:
+            self._notify(False, "No hay plantillas de compra.")
+            return
+        from PyQt5.QtWidgets import QInputDialog
+        labels = [f"{t['name']}" for t in templates]
+        choice, ok = QInputDialog.getItem(self, "Cargar plantilla",
+                                          "Plantilla:", labels, 0, False)
+        if not ok:
+            return
+        template_id = templates[labels.index(choice)]["id"]
+        lines = self._presenter.template_lines(template_id)
+        if not lines:
+            self._notify(False, "La plantilla no tiene ítems.")
+            return
+        self._cart.extend(lines)
+        self._render_cart()
+
     def _remove_selected_line(self) -> None:
         idx = self._cart_table.currentRow()
         if 0 <= idx < len(self._cart):
@@ -262,6 +284,7 @@ class DirectPurchasePage(QWidget):
         if not self._cart:
             self._notify(False, "Agrega al menos un producto.")
             return
+        saved_cart = list(self._cart)
         ok, msg, data = self._presenter.create(
             supplier_id=self._supplier_id, lines=self._cart,
             mode=self._mode.current_id() or "DIRECT_WITH_IMMEDIATE_RECEIPT",
@@ -271,6 +294,13 @@ class DirectPurchasePage(QWidget):
             self._current_status = data.get("status")
             if data.get("requires_authorization"):
                 msg += "\nRequiere autorización en caliente antes de confirmar."
+            # cost-variance audit (migrated from the legacy monolith): record and
+            # surface any line whose cost deviates significantly from history.
+            detected = self._presenter.record_price_variances(
+                document_id=self._current_id, lines=saved_cart)
+            if detected:
+                lines = "\n".join(f"• {d['product_id']}: {d['label']}" for d in detected)
+                msg += f"\n\n⚠ Variación de costo detectada:\n{lines}"
         self._notify(ok, msg)
         if ok:
             self._cart = []

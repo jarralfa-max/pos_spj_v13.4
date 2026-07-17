@@ -134,12 +134,33 @@ al caso de uso canónico):
 | `core/services/recepcion_qr_service.py::procesar_recepcion` | `CompleteQrReceptionUseCase` | REWRITE (backend migrado) | `recepcion_qr_widget.py` |
 | `modulos/recepcion_qr_widget.py` (UI + escritura inventario) | UI de recepción canónica → `CompleteQrReceptionUseCase` | BLOCKED | `compras_pro.py`, `transferencias` |
 
+## Progreso — Paso 1b: plantillas de compra + alerta de variación de costo
+
+Migradas del monolito al contexto, en el nuevo estándar:
+
+- **Alerta de variación de costo** → `PriceVariancePolicy` (dominio, Decimal,
+  umbral configurable 20% por defecto; reemplaza el float + magic number del
+  widget) + `RecordPurchasePriceVarianceUseCase` (aplicación) que evalúa cada
+  línea contra el costo histórico y, para las significativas, registra auditoría y
+  emite el evento canónico `PURCHASE_PRICE_VARIANCE_DETECTED` (con envelope) —
+  reemplaza `audit_write(accion="VARIACION_PRECIO")`.
+- **Costo histórico** → `ProductPurchaseCostReadService` (precio_compra →
+  inventario_actual.costo_promedio → 0), reemplaza `_costo_compra_producto`.
+- **Plantillas de compra** → `PurchaseTemplateReadService` (list + template_lines),
+  reemplaza `ComprasReadRepository.list_purchase_templates/get_template_items`; la
+  UI canónica carga la plantilla al carrito vía presenter ("Cargar plantilla").
+- **UI**: la página de compra directa muestra la variación al guardar y permite
+  cargar plantillas; toda la lógica vive en presenter/dominio, sin SQL ni float en
+  el widget.
+- **Tests**: `test_price_variance_policy.py` (7) + `test_templates_and_variance.py`
+  (6) capturan el comportamiento legacy contra el contrato canónico.
+
 ## Condición de cierre (PUR-13.23)
 
 Pendiente para declarar la fase terminada:
 
-1. ~~Migrar recepción QR~~ (backend hecho — paso 1) + plantillas + alertas de
-   costo del monolito al contexto; repuntar el widget QR a
+1. ~~Migrar recepción QR~~ (backend hecho — paso 1) + ~~plantillas + alertas de
+   costo~~ (hecho — paso 1b) del monolito al contexto; repuntar el widget QR a
    `CompleteQrReceptionUseCase`.
 2. Reconectar la navegación `COMPRAS` → módulo enterprise; verificar cero
    consumidores del monolito (13.22) y eliminarlo (o dejarlo como wrapper vacío).

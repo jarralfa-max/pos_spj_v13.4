@@ -10,12 +10,20 @@ from backend.application.procurement.queries import (
     DirectPurchaseReadService,
     SupplierPickerQueryService,
 )
+from backend.application.procurement.queries.purchase_template_read_service import (
+    ProductPurchaseCostReadService,
+    PurchaseTemplateReadService,
+)
 from backend.application.procurement.use_cases.direct_purchase_use_cases import (
     AuthorizeDirectPurchaseUseCase,
     ConfirmDirectPurchaseUseCase,
     CreateDirectPurchaseUseCase,
     ReverseDirectPurchaseUseCase,
 )
+from backend.application.procurement.use_cases.pricing_use_cases import (
+    RecordPurchasePriceVarianceUseCase,
+)
+from backend.domain.procurement.pricing_policies import PriceVariancePolicy
 from backend.infrastructure.db.schema.procurement_schema import create_procurement_schema
 from frontend.desktop.modules.purchasing.direct_purchase_presenter import (
     DirectPurchasePresenter,
@@ -35,8 +43,12 @@ def build_direct_purchase_presenter(connection, session_context=None) -> DirectP
             "authorize": AuthorizeDirectPurchaseUseCase(),
             "confirm": ConfirmDirectPurchaseUseCase(),
             "reverse": ReverseDirectPurchaseUseCase(),
+            "record_variance": RecordPurchasePriceVarianceUseCase(),
         },
         session_context=session_context,
+        templates=PurchaseTemplateReadService(connection),
+        costs=ProductPurchaseCostReadService(connection),
+        variance_policy=PriceVariancePolicy(),
     )
 
 

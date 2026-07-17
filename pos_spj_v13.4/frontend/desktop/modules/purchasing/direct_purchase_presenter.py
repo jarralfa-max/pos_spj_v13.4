@@ -27,12 +27,16 @@ _PAGE_SIZE = 50
 
 class DirectPurchasePresenter:
     def __init__(self, *, connection_provider, read_service, supplier_picker,
-                 use_cases: dict, session_context=None) -> None:
+                 use_cases: dict, session_context=None, templates=None, costs=None,
+                 variance_policy=None) -> None:
         self._conn = connection_provider
         self._reads = read_service
         self._suppliers = supplier_picker
         self._use_cases = use_cases
         self._session = session_context
+        self._templates = templates
+        self._costs = costs
+        self._variance = variance_policy
 
     # session helpers ---------------------------------------------------------
     def _actor(self) -> str:
@@ -115,3 +119,55 @@ class DirectPurchasePresenter:
     def reverse(self, direct_purchase_id: str, reason: str) -> tuple[bool, str, dict]:
         return self._run("reverse", actor_user_id=self._actor(),
                          direct_purchase_id=direct_purchase_id, reason=reason)
+
+    # templates (migrated from the legacy sidebar) ----------------------------
+    def templates(self) -> list[dict]:
+        if self._templates is None:
+            return []
+        try:
+            return self._templates.list_templates()
+        except Exception:
+            logger.exception("templates list failed")
+            return []
+
+    def template_lines(self, template_id: str) -> list[CartLineVM]:
+        if self._templates is None:
+            return []
+        from decimal import Decimal
+        out: list[CartLineVM] = []
+        for raw in self._templates.template_lines(template_id):
+            out.append(CartLineVM(
+                product_id=raw["product_id"], description=raw["product_id"],
+                quantity=Decimal(str(raw["quantity"])),
+                unit_cost=Decimal(str(raw["unit_cost"]))))
+        return out
+
+    # cost-variance alert (migrated from the legacy monolith) -----------------
+    def historical_cost(self, product_id: str):
+        if self._costs is None:
+            return "0"
+        try:
+            return self._costs.historical_cost(product_id, branch_id=self.default_branch())
+        except Exception:
+            logger.exception("historical cost lookup failed")
+            return "0"
+
+    def price_variance(self, product_id: str, captured_cost) -> dict:
+        """Display-ready live variance for the add-line dialog (▲ SUBIÓ 25.0%)."""
+        if self._variance is None:
+            return {"label": "—", "is_significant": False, "percent": "0"}
+        result = self._variance.evaluate(self.historical_cost(product_id), captured_cost)
+        return {"label": result.label(), "is_significant": result.is_significant,
+                "percent": str(result.percent)}
+
+    def record_price_variances(self, *, document_id, lines: list[CartLineVM]
+                               ) -> list[dict]:
+        """After a save, record significant variances canonically (audit + event)."""
+        if "record_variance" not in self._use_cases:
+            return []
+        payload = [{"product_id": ln.product_id, "captured_cost": str(ln.unit_cost)}
+                   for ln in lines]
+        ok, _msg, data = self._run("record_variance", actor_user_id=self._actor(),
+                                   document_id=document_id, lines=payload,
+                                   branch_id=self.default_branch())
+        return data.get("detected", []) if ok else []
