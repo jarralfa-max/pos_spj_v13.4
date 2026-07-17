@@ -37,6 +37,7 @@ def build_qss(theme: str = "light") -> str:
         _badges(c),
         _tooltip(c),
         _dialogs(c),
+        _forms(c),
     ]
     return "\n\n".join(parts)
 
@@ -272,5 +273,27 @@ QDialog#standardDialog {{ background-color: {c.BACKGROUND}; }}
 QDialog#standardDialog QLabel[role="dialogTitle"] {{
     font-size: {Typography.SIZE_SUBTITLE}px; font-weight: {Typography.WEIGHT_SEMIBOLD};
     color: {c.TEXT_PRIMARY};
+}}
+""".strip()
+
+
+def _forms(c) -> str:
+    return f"""
+/* ── forms / specialized inputs ───────────────────────────────────────── */
+QLabel#formFieldLabel {{ color: {c.TEXT_SECONDARY}; font-weight: {Typography.WEIGHT_MEDIUM}; }}
+QLabel#formFieldHelper {{ color: {c.TEXT_MUTED}; font-size: {Typography.SIZE_CAPTION}px; }}
+QLabel#formFieldError, QLabel[state="error"] {{
+    color: {c.DANGER_DEFAULT}; font-size: {Typography.SIZE_CAPTION}px;
+}}
+QLineEdit#filePathField[readOnly="true"] {{
+    background-color: {c.SURFACE_MUTED}; color: {c.TEXT_SECONDARY};
+}}
+QListWidget#entitySearchResults {{
+    background-color: {c.SURFACE}; border: {Borders.WIDTH_THIN}px solid {c.BORDER_DEFAULT};
+    border-radius: {Radii.SM}px;
+}}
+QListWidget#entitySearchResults::item {{ padding: 6px 8px; }}
+QListWidget#entitySearchResults::item:selected {{
+    background-color: {c.SELECTION}; color: {c.TEXT_PRIMARY};
 }}
 """.strip()

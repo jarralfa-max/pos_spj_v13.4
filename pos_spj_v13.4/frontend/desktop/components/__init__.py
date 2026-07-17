@@ -56,6 +56,24 @@ from frontend.desktop.components.dialogs import (
 )
 from frontend.desktop.components.time_input import TimeInput
 from frontend.desktop.components.time_range_input import TimeRangeInput
+# ── DS-4 specialized inputs ───────────────────────────────────────────────────
+from frontend.desktop.components.decimal_input import DecimalInput
+from frontend.desktop.components.email_input import EmailInput
+from frontend.desktop.components.tax_identifier_input import TaxIdentifierInput
+from frontend.desktop.components.month_input import MonthInput
+from frontend.desktop.components.duration_input import DurationInput
+from frontend.desktop.components.date_input import DateInput, DateTimeInput
+from frontend.desktop.components.text_inputs import (
+    PasswordInput,
+    StandardLineEdit,
+    StandardTextArea,
+)
+from frontend.desktop.components.search_input import SearchInput
+from frontend.desktop.components.barcode_input import BarcodeInput
+from frontend.desktop.components.file_path_input import FilePathInput
+from frontend.desktop.components.searchable_combo import SearchableComboBox
+from frontend.desktop.components.entity_search_input import EntitySearchInput
+from frontend.desktop.components.form_field import FieldState, FormField, StandardForm
 
 __all__ = [
     "AddressInput",
@@ -114,4 +132,23 @@ __all__ = [
     "FormDialog",
     "TimeInput",
     "TimeRangeInput",
+    # DS-4 specialized inputs
+    "DecimalInput",
+    "EmailInput",
+    "TaxIdentifierInput",
+    "MonthInput",
+    "DurationInput",
+    "DateInput",
+    "DateTimeInput",
+    "StandardLineEdit",
+    "StandardTextArea",
+    "PasswordInput",
+    "SearchInput",
+    "BarcodeInput",
+    "FilePathInput",
+    "SearchableComboBox",
+    "EntitySearchInput",
+    "FormField",
+    "StandardForm",
+    "FieldState",
 ]
