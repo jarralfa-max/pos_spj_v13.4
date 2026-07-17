@@ -278,8 +278,10 @@ class ConfirmDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
                            actor_user_id=actor_user_id, supplier_id=dp.supplier_id,
                            branch_id=dp.branch_id, goods_receipt_id=receipt_id,
                            warehouse_id=dp.warehouse_id,
+                           source_channel=dp.source_channel.value,
                            inventory_lines=[{"product_id": ln.product_id,
-                                             "quantity": str(ln.inventory_quantity())}
+                                             "quantity": str(ln.inventory_quantity()),
+                                             "unit_cost": str(ln.unit_cost.amount)}
                                             for ln in dp.lines])
             else:
                 self._emit(uow, ProcurementEvents.DIRECT_PURCHASE_RECEIPT_PENDING,

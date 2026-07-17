@@ -101,11 +101,46 @@ Guardrails de blindaje del contexto canónico (impiden reintroducción):
 | evento `COMPRA_REGISTRADA` | `DIRECT_PURCHASE_CONFIRMED` / `GOODS_RECEIPT_COMPLETED` | DELETE con monolito | compras_pro.py |
 | `ordenes_compra` / `recepciones` (tablas) | `purchase_orders` / `goods_receipts` | REPLACE/MERGE | finance/treasury/QR/WA readers |
 
+## Progreso — Paso 1: recepción QR migrada (canónica)
+
+La recepción por QR fue migrada al bounded context, siguiendo el nuevo estándar:
+
+- **Reemplazo canónico**: `CompleteQrReceptionUseCase`
+  (`backend/application/procurement/use_cases/qr_reception_use_cases.py`) —
+  modela la recepción QR como un `DirectPurchase` con
+  `source_channel=MOBILE_RECEIVING` + recepción inmediata → `GoodsReceipt`.
+- **Trazabilidad**: `QrContainerRepository`
+  (`repositories/procurement/qr_container_repository.py`) lee la asignación del
+  contenedor y lo avanza a `recibido/disponible` (SOLO tablas de trazabilidad
+  `trazabilidad_qr`/`contenedores_qr`; nunca inventario/finanzas/caja).
+- **Comportamiento preservado** (vs `RecepcionQRService.procesar_recepcion`):
+  transacción atómica (UoW); sólo la cantidad recibida entra a inventario y ahora
+  **vía evento** `DIRECT_PURCHASE_RECEIVED` que transporta `unit_cost` (el costeo
+  promedio ponderado pasa a ser responsabilidad del contexto de Inventario, su
+  dueño correcto); el saldo pendiente (`monto_total − monto_pagado`) se vuelve CxP
+  vía `PURCHASE_PAYABLE_CREATED`; un contenedor liquidado no genera CxP; el
+  contenedor avanza a recibido/disponible con `viaje_actual++`.
+- **Garantías de la nueva arquitectura**: sin escritura directa a inventario/
+  finanzas/caja (guardrails PUR-13.10/11); efectos por evento; idempotente por
+  `operation_id` y por el estado `recibido` del contenedor.
+- **Tests**: `tests/integration/procurement/test_qr_reception.py` (8) capturan el
+  comportamiento legacy contra el contrato canónico.
+
+Legacy QR aún presente (consumidores vivos, condición de eliminación = repuntar
+al caso de uso canónico):
+
+| Legacy | Reemplazo | Acción | Consumidores restantes |
+|---|---|---|---|
+| `core/services/recepcion_qr_service.py::procesar_recepcion` | `CompleteQrReceptionUseCase` | REWRITE (backend migrado) | `recepcion_qr_widget.py` |
+| `modulos/recepcion_qr_widget.py` (UI + escritura inventario) | UI de recepción canónica → `CompleteQrReceptionUseCase` | BLOCKED | `compras_pro.py`, `transferencias` |
+
 ## Condición de cierre (PUR-13.23)
 
 Pendiente para declarar la fase terminada:
 
-1. Migrar recepción QR + plantillas + alertas de costo del monolito al contexto.
+1. ~~Migrar recepción QR~~ (backend hecho — paso 1) + plantillas + alertas de
+   costo del monolito al contexto; repuntar el widget QR a
+   `CompleteQrReceptionUseCase`.
 2. Reconectar la navegación `COMPRAS` → módulo enterprise; verificar cero
    consumidores del monolito (13.22) y eliminarlo (o dejarlo como wrapper vacío).
 3. Migrar lectores de `compras/ordenes_compra/recepciones/purchase_requests` y

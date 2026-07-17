@@ -61,7 +61,11 @@ class ProcurementDownstreamTranslators:
             "warehouse_id": payload.get("warehouse_id"),
             "branch_id": payload.get("branch_id"),
             "supplier_id": payload.get("supplier_id"),
-            "lines": [{"product_id": ln.get("product_id"), "quantity": ln.get("quantity")}
+            "source_channel": payload.get("source_channel"),
+            # unit_cost travels so the Inventory context can compute the weighted
+            # average cost (its responsibility; procurement only reports it).
+            "lines": [{"product_id": ln.get("product_id"), "quantity": ln.get("quantity"),
+                       "unit_cost": ln.get("unit_cost")}
                       for ln in lines],
         })
 
