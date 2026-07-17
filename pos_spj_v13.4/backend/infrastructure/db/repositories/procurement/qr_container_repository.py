@@ -61,6 +61,39 @@ class QrContainerRepository:
             "amount_total": Decimal(str(extra.get("monto_total", 0) or 0)),
         }
 
+    # ── writes (traceability only) ────────────────────────────────────────────
+    def register_container(self, *, uuid_qr: str, internal_code: str | None,
+                           description: str | None, origin_branch_id: str | None) -> None:
+        """Register (or ignore if it exists) a freshly generated container."""
+        self._execute(
+            "INSERT OR IGNORE INTO contenedores_qr"
+            " (uuid_qr, codigo_interno, descripcion, sucursal_origen)"
+            " VALUES (?,?,?,?)", (uuid_qr, internal_code, description, origin_branch_id))
+
+    def save_assignment(self, *, uuid_qr: str, supplier_id, origin_branch_id,
+                        destination_branch_id, datos_extra: dict) -> None:
+        """Assign a container to a supplier + products + payment terms. The
+        reception later reads this datos_extra. Traceability only."""
+        self._execute(
+            "INSERT INTO trazabilidad_qr"
+            " (uuid_qr, tipo, proveedor_id, sucursal_id, sucursal_destino, estado, datos_extra)"
+            " VALUES (?,?,?,?,?,'asignado',?)"
+            " ON CONFLICT(uuid_qr) DO UPDATE SET estado='asignado',"
+            " proveedor_id=excluded.proveedor_id, sucursal_destino=excluded.sucursal_destino,"
+            " datos_extra=excluded.datos_extra",
+            (uuid_qr, "contenedor", supplier_id, origin_branch_id, destination_branch_id,
+             json.dumps(datos_extra, ensure_ascii=False)))
+
+    def mark_partial(self, uuid_qr: str) -> None:
+        self._execute("UPDATE trazabilidad_qr SET estado='recepcion_parcial'"
+                      " WHERE uuid_qr=?", (uuid_qr,))
+
+    def mark_incident(self, uuid_qr: str, incident_json: str) -> None:
+        self._execute(
+            "UPDATE trazabilidad_qr SET estado='incidencia',"
+            " datos_extra=json_patch(COALESCE(datos_extra,'{}'), ?) WHERE uuid_qr=?",
+            (f'{{"incidencia":{incident_json}}}', uuid_qr))
+
     def is_received(self, uuid_qr: str) -> bool:
         row = self._query_one(
             "SELECT estado FROM trazabilidad_qr WHERE uuid_qr=? LIMIT 1", (uuid_qr,))
