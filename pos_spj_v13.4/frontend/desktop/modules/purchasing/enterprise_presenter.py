@@ -26,13 +26,16 @@ _PAGE_SIZE = 50
 
 class EnterprisePurchasingPresenter:
     def __init__(self, *, connection_provider, read_services: dict, analytics,
-                 use_cases: dict, session_context=None, event_dispatcher=None) -> None:
+                 use_cases: dict, session_context=None, event_dispatcher=None,
+                 qr_reads=None, history_reads=None) -> None:
         self._conn = connection_provider
         self._reads = read_services
         self._analytics = analytics
         self._use_cases = use_cases
         self._session = session_context
         self._dispatch = event_dispatcher
+        self._qr = qr_reads
+        self._history = history_reads
 
     # session -----------------------------------------------------------------
     def _actor(self) -> str:
@@ -152,6 +155,54 @@ class EnterprisePurchasingPresenter:
         return self._run("inv_release", releaser_user_id=self._actor(),
                          invoice_id=invoice_id, captured_by_user_id=captured_by_user_id,
                          reason=reason)
+
+    # ── QR container lifecycle ────────────────────────────────────────────────
+    def qr_available(self) -> TableViewModel:
+        rows = self._qr.available_containers() if self._qr else []
+        data = [[r["code"], r["description"], r["status"]] for r in rows]
+        return TableViewModel(data, [r["uuid_qr"] for r in rows], total=len(rows))
+
+    def qr_pending(self) -> TableViewModel:
+        rows = self._qr.pending_reception() if self._qr else []
+        data = [[r["code"], r["supplier"], r["status"]] for r in rows]
+        return TableViewModel(data, [r["uuid_qr"] for r in rows], total=len(rows))
+
+    def qr_history(self, desde: str, hasta: str) -> TableViewModel:
+        rows = self._qr.history(desde, hasta) if self._qr else []
+        data = [[r["container"], r["supplier"], r["destination"], r["status"],
+                 (r["received_at"] or "—")[:19]] for r in rows]
+        return TableViewModel(data, [r["uuid_qr"] for r in rows], total=len(rows))
+
+    def qr_search_suppliers(self, text: str) -> list[dict]:
+        return self._qr.search_suppliers(text) if (self._qr and text.strip()) else []
+
+    def qr_search_products(self, text: str) -> list[dict]:
+        return self._qr.search_products(text) if (self._qr and text.strip()) else []
+
+    def generate_qr_label(self, *, description: str) -> tuple[bool, str, dict]:
+        return self._run("qr_register", actor_user_id=self._actor(),
+                         description=description, origin_branch_id=self.default_branch())
+
+    def assign_qr(self, *, uuid_qr: str, supplier_id: str, items: list,
+                  payment_condition: str) -> tuple[bool, str, dict]:
+        return self._run("qr_assign", actor_user_id=self._actor(), uuid_qr=uuid_qr,
+                         supplier_id=supplier_id, items=items,
+                         payment_condition=payment_condition,
+                         origin_branch_id=self.default_branch())
+
+    def complete_qr_reception(self, *, uuid_qr: str, items: list) -> tuple[bool, str, dict]:
+        return self._run("qr_receive", actor_user_id=self._actor(), uuid_qr=uuid_qr,
+                         items=items, branch_id=self.default_branch(),
+                         warehouse_id=self.default_warehouse())
+
+    # ── documental purchase history ───────────────────────────────────────────
+    def purchase_history(self) -> TableViewModel:
+        if self._history is None:
+            return TableViewModel([], [], 0)
+        rows = self._history.canonical_receipts(limit=100)
+        data = [[r["document_number"], (r["supplier_id"] or "")[:8], r["status"],
+                 (r["created_at"] or "")[:19]] for r in rows]
+        return TableViewModel(data, [r["document_number"] for r in rows], total=len(rows))
 
     # ── analytics ─────────────────────────────────────────────────────────────
     def analytics_kpis(self):

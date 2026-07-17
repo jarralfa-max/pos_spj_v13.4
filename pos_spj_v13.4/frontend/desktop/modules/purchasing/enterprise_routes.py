@@ -14,6 +14,12 @@ from backend.application.procurement.queries.enterprise_read_services import (
 from backend.application.procurement.queries.procurement_analytics_service import (
     ProcurementAnalyticsService,
 )
+from backend.application.procurement.queries.purchase_history_read_service import (
+    PurchaseHistoryReadService,
+)
+from backend.application.procurement.queries.qr_traceability_read_service import (
+    QrTraceabilityReadService,
+)
 from backend.application.procurement.use_cases.purchase_order_use_cases import (
     ApprovePurchaseOrderUseCase,
     ChangePurchaseOrderUseCase,
@@ -25,6 +31,13 @@ from backend.application.procurement.use_cases.requisition_use_cases import (
     ApprovePurchaseRequisitionUseCase,
     CreatePurchaseRequisitionUseCase,
     SubmitPurchaseRequisitionUseCase,
+)
+from backend.application.procurement.use_cases.qr_container_use_cases import (
+    AssignQrContainerUseCase,
+    RegisterQrContainerUseCase,
+)
+from backend.application.procurement.use_cases.qr_reception_use_cases import (
+    CompleteQrReceptionUseCase,
 )
 from backend.application.procurement.use_cases.supplier_invoice_use_cases import (
     CaptureSupplierInvoiceUseCase,
@@ -74,8 +87,13 @@ def build_enterprise_presenter(connection, session_context=None) -> EnterprisePu
             "inv_capture": CaptureSupplierInvoiceUseCase(),
             "inv_match": MatchSupplierInvoiceUseCase(),
             "inv_release": ReleaseInvoiceVarianceUseCase(),
+            "qr_register": RegisterQrContainerUseCase(),
+            "qr_assign": AssignQrContainerUseCase(),
+            "qr_receive": CompleteQrReceptionUseCase(),
         },
         session_context=session_context,
+        qr_reads=QrTraceabilityReadService(connection),
+        history_reads=PurchaseHistoryReadService(connection),
     )
 
 

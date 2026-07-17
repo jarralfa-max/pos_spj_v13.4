@@ -76,9 +76,13 @@ class AssignQrContainerUseCase:
             return ProcurementResult.fail("La asignación requiere al menos un producto",
                                           "EMPTY", operation_id=operation_id)
 
-        total = sum((_dec(it.get("cantidad") or it.get("quantity"))
-                     * _dec(it.get("costo_unitario") or it.get("unit_cost"))
-                     for it in items), Decimal("0"))
+        def _qty(it):
+            return _dec(it.get("cantidad") or it.get("quantity"))
+
+        def _cost(it):
+            return _dec(it.get("costo_unitario") or it.get("unit_cost") or it.get("unit_price"))
+
+        total = sum((_qty(it) * _cost(it) for it in items), Decimal("0"))
         # payment terms mirror the legacy widget: liquidado ⇒ paid = total;
         # crédito ⇒ paid = 0; otherwise use the explicit amount_paid.
         if payment_condition == "liquidado":
@@ -95,8 +99,7 @@ class AssignQrContainerUseCase:
             "monto_total": str(total),
             "monto_pagado": str(paid),
             "items": [{"product_id": str(it.get("product_id") or it.get("producto_id")),
-                       "cantidad": str(it.get("cantidad") or it.get("quantity")),
-                       "costo_unitario": str(it.get("costo_unitario") or it.get("unit_cost"))}
+                       "cantidad": str(_qty(it)), "costo_unitario": str(_cost(it))}
                       for it in items],
             "notas": notes,
         }

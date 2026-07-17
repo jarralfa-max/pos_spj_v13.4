@@ -178,16 +178,21 @@ módulo (PRIORITY 0):
 |---|---|---|
 | Tab "Compra Tradicional" | ✅ cubierto por compra directa enterprise | — |
 | Recepción QR (mutación) | ✅ repuntado a `CompleteQrReceptionUseCase` | — |
-| Sub-tab "Generación etiqueta QR" | ❌ no migrado | falta página canónica |
-| Sub-tab "Asignar compra" (QR) | ❌ no migrado | falta página canónica |
-| Sub-tab "Histórico QR" | ❌ no migrado | falta página canónica |
-| Tab "Historial de Compras" (documental) | ❌ no migrado | falta página canónica |
+| Sub-tab "Generación etiqueta QR" | ✅ migrado → `QrReceptionPage` (Generar) | — |
+| Sub-tab "Asignar compra" (QR) | ✅ migrado → `QrReceptionPage` (Asignar) | — |
+| Sub-tab "Histórico QR" | ✅ migrado → `QrReceptionPage` (Histórico) | — |
+| Tab "Historial de Compras" (documental) | ✅ migrado → `PurchaseHistoryPage` | — |
 | ~20 tests que parsean el AST de `compras_pro` | protegen la UI legacy | reescribir/eliminar (§13.20) |
 
-Flip seguro requiere primero: migrar generación/asignación/histórico QR +
-historial documental a páginas canónicas del módulo enterprise, y reescribir/
-eliminar los ~20 tests que parsean `compras_pro`. Hasta entonces `compras_pro`
-permanece en la allowlist (BLOCKED) con esta condición explícita.
+Superficies migradas (paso 2c): el módulo enterprise ahora tiene pestañas
+**Recepción QR** (Generar etiqueta · Asignar · Recibir · Histórico) e **Historial**,
+sobre casos de uso canónicos (`RegisterQrContainer`, `AssignQrContainer`,
+`CompleteQrReception`) y servicios de consulta (`QrTraceabilityReadService`,
+`PurchaseHistoryReadService`). Sin SQL ni escritura de inventario en el widget.
+
+Flip seguro ahora sólo requiere: reescribir/eliminar los ~20 tests que parsean
+`compras_pro`, luego repuntar `main_window`/`menu_lateral` y wrappear
+`compras_pro.py`.
 
 ## Condición de cierre (PUR-13.23)
 

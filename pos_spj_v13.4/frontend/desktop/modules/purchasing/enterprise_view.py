@@ -17,6 +17,10 @@ from frontend.desktop.modules.purchasing.pages.enterprise_pages import (
 from frontend.desktop.modules.purchasing.pages.procurement_dashboard_page import (
     ProcurementDashboardPage,
 )
+from frontend.desktop.modules.purchasing.pages.purchase_history_page import (
+    PurchaseHistoryPage,
+)
+from frontend.desktop.modules.purchasing.pages.qr_reception_page import QrReceptionPage
 
 
 class EnterprisePurchasingView(QWidget):
@@ -35,6 +39,8 @@ class EnterprisePurchasingView(QWidget):
         self._requisitions = RequisitionsPage(presenter, self)
         self._orders = OrdersPage(presenter, self)
         self._invoices = InvoicesPage(presenter, self)
+        self._qr = QrReceptionPage(presenter, self)
+        self._history = PurchaseHistoryPage(presenter, self)
 
         self._tabs.addTab(self._dashboard, "Panel")
         if direct_purchase_view is not None:
@@ -44,7 +50,9 @@ class EnterprisePurchasingView(QWidget):
             self._direct = None
         self._tabs.addTab(self._requisitions, "Solicitudes")
         self._tabs.addTab(self._orders, "Órdenes")
+        self._tabs.addTab(self._qr, "Recepción QR")
         self._tabs.addTab(self._invoices, "Facturas")
+        self._tabs.addTab(self._history, "Historial")
 
         self._tabs.currentChanged.connect(self._on_tab_changed)
         self._on_tab_changed(0)
