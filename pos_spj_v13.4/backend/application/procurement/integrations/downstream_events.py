@@ -6,8 +6,10 @@ signals (supplier performance) that other contexts may subscribe to.
 
 from __future__ import annotations
 
-# Inventory: accepted quantity of a receipt enters stock.
-INVENTORY_ADJUSTMENT_REGISTERED = "INVENTORY_ADJUSTMENT_REGISTERED"
+# Inventory: accepted quantity of a purchase receipt enters stock. Distinct from
+# the finance INVENTORY_ADJUSTMENT_REGISTERED (accounting) — this is the physical
+# stock entry consumed by the Inventory context, with per-line unit cost.
+PURCHASE_STOCK_ENTRY_REGISTERED = "PURCHASE_STOCK_ENTRY_REGISTERED"
 # Accounts payable: a matched invoice / credit purchase becomes a payable.
 PAYABLE_CREATED = "PAYABLE_CREATED"
 # Treasury / petty cash: an immediate payment is scheduled from an authorized

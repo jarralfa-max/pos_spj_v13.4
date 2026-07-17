@@ -126,13 +126,25 @@ La recepción por QR fue migrada al bounded context, siguiendo el nuevo estánda
 - **Tests**: `tests/integration/procurement/test_qr_reception.py` (8) capturan el
   comportamiento legacy contra el contrato canónico.
 
-Legacy QR aún presente (consumidores vivos, condición de eliminación = repuntar
-al caso de uso canónico):
+Legacy QR — estado tras el paso 2a/2b:
 
 | Legacy | Reemplazo | Acción | Consumidores restantes |
 |---|---|---|---|
-| `core/services/recepcion_qr_service.py::procesar_recepcion` | `CompleteQrReceptionUseCase` | REWRITE (backend migrado) | `recepcion_qr_widget.py` |
-| `modulos/recepcion_qr_widget.py` (UI + escritura inventario) | UI de recepción canónica → `CompleteQrReceptionUseCase` | BLOCKED | `compras_pro.py`, `transferencias` |
+| `core/services/recepcion_qr_service.py::procesar_recepcion` | `CompleteQrReceptionUseCase` | ✅ ELIMINADO (método borrado; escritura directa de inventario removida) | 0 |
+| `modulos/recepcion_qr_widget.py::_procesar_recepcion_en_bd` | `CompleteQrReceptionUseCase` + dispatch outbox | ✅ REPUNTADO (ya no escribe inventario directo) | — |
+
+Pipeline canónico ahora activo (paso 2a):
+- `PurchaseStockEntryHandler` (contexto Inventario) aplica la entrada de stock por
+  compra (costo promedio ponderado, sync de existencia), idempotente por event_id,
+  replicando exactamente la lógica legacy.
+- `dispatch_procurement_outbox` + `wire_procurement` cableados en
+  `core/events/wiring.py::wire_all` (subscriptores) y disparados post-commit por
+  los presenters de Compras.
+- Evento dedicado `PURCHASE_STOCK_ENTRY_REGISTERED` (distinto del
+  `INVENTORY_ADJUSTMENT_REGISTERED` de Finanzas — corrige duplicidad §13.16).
+- Nota: el trigger `trg_recalc_inventario_actual` del esquema completo tiene un bug
+  PREEXISTENTE (inserta en `inventario_actual` sin el `id NOT NULL`); es un tema del
+  motor de inventario, ajeno a PUR-13.
 
 ## Progreso — Paso 1b: plantillas de compra + alerta de variación de costo
 

@@ -28,7 +28,7 @@ _PAGE_SIZE = 50
 class DirectPurchasePresenter:
     def __init__(self, *, connection_provider, read_service, supplier_picker,
                  use_cases: dict, session_context=None, templates=None, costs=None,
-                 variance_policy=None) -> None:
+                 variance_policy=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._reads = read_service
         self._suppliers = supplier_picker
@@ -37,6 +37,7 @@ class DirectPurchasePresenter:
         self._templates = templates
         self._costs = costs
         self._variance = variance_policy
+        self._dispatch = event_dispatcher
 
     # session helpers ---------------------------------------------------------
     def _actor(self) -> str:
@@ -55,6 +56,11 @@ class DirectPurchasePresenter:
             data = dict(result.data)
             if result.entity_id is not None:
                 data.setdefault("entity_id", result.entity_id)
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()   # post-commit: publish outbox → downstream
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
             return bool(result.success), result.message, data
         except Exception:
             logger.exception("DirectPurchasePresenter: error in %s", key)

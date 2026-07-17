@@ -26,12 +26,13 @@ _PAGE_SIZE = 50
 
 class EnterprisePurchasingPresenter:
     def __init__(self, *, connection_provider, read_services: dict, analytics,
-                 use_cases: dict, session_context=None) -> None:
+                 use_cases: dict, session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._reads = read_services
         self._analytics = analytics
         self._use_cases = use_cases
         self._session = session_context
+        self._dispatch = event_dispatcher
 
     # session -----------------------------------------------------------------
     def _actor(self) -> str:
@@ -50,6 +51,11 @@ class EnterprisePurchasingPresenter:
             data = dict(result.data)
             if result.entity_id is not None:
                 data.setdefault("entity_id", result.entity_id)
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()   # post-commit: publish outbox → downstream
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
             return bool(result.success), result.message, data
         except Exception:
             logger.exception("EnterprisePurchasingPresenter: error in %s", key)

@@ -65,9 +65,9 @@ def test_receipt_event_translates_to_inventory_and_supplier(proc_conn):
         "warehouse_id": "wh-1", "purchase_order_id": "po-1",
         "inventory_lines": [{"product_id": "p1", "quantity": "8"}]})
     names = bus.names()
-    assert "INVENTORY_ADJUSTMENT_REGISTERED" in names
+    assert "PURCHASE_STOCK_ENTRY_REGISTERED" in names
     assert "SUPPLIER_PERFORMANCE_RECORDED" in names
-    inv = next(p for n, p in bus.published if n == "INVENTORY_ADJUSTMENT_REGISTERED")
+    inv = next(p for n, p in bus.published if n == "PURCHASE_STOCK_ENTRY_REGISTERED")
     assert inv["reason"] == "PURCHASE_RECEIPT"
     assert inv["lines"][0]["quantity"] == "8"
 
@@ -112,7 +112,7 @@ def test_direct_purchase_outbox_dispatch_reaches_downstream(proc_conn):
     assert summary["dispatched"] >= 1
     names = bus.names()
     # received → inventory; immediate payment → treasury
-    assert "INVENTORY_ADJUSTMENT_REGISTERED" in names
+    assert "PURCHASE_STOCK_ENTRY_REGISTERED" in names
     assert "SUPPLIER_PAYMENT_SCHEDULED" in names
     # outbox rows are now marked dispatched (no re-publish on a second pass)
     again = dispatch_procurement_outbox(proc_conn, bus)

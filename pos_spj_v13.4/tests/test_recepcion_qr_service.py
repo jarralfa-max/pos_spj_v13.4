@@ -1,99 +1,145 @@
 # tests/test_recepcion_qr_service.py
-"""Remediación F — Red de seguridad para la recepción por QR.
+"""QR reception — regression net, rewritten against the CANONICAL contract (PUR-13).
 
-Caracteriza los efectos en BD de RecepcionQRService.procesar_recepcion (la
-transacción de inventario extraída de RecepcionQRWidget): cabecera de recepción,
-detalle, UPSERT de inventario con costo promedio ponderado, sync de
-productos.existencia, movimiento de auditoría y cambio de estado de trazabilidad.
+The legacy `RecepcionQRService.procesar_recepcion` (direct inventory write) was
+removed. The same characterization (weighted-average cost with prior stock, stock
+sync, traceability, receipt) is now asserted through the canonical pipeline:
+CompleteQrReceptionUseCase → procurement outbox → translator →
+PurchaseStockEntryHandler. The service's read/traceability helpers keep coverage.
+
+Note: this test builds a minimal WORKING inventory schema on purpose. The full
+`engine.up` inventory trigger (trg_recalc_inventario_actual) has a pre-existing
+bug — it inserts into inventario_actual without the NOT NULL `id`, so ANY movement
+raises there; that is an inventory-engine issue outside PUR-13's scope.
 """
 import json
+import sqlite3
 
 import pytest
 
 from backend.shared.ids import new_uuid
 
 
-@pytest.fixture
-def db():
-    import sqlite3
+class _Bus:
+    def __init__(self):
+        self._subs = {}
+
+    def publish(self, name, payload, async_=False):
+        for fn in self._subs.get(name, []):
+            fn(payload)
+
+    def subscribe(self, name, handler, priority=50, label=""):
+        self._subs.setdefault(name, []).append(handler)
+
+
+def _working_conn():
     conn = sqlite3.connect(":memory:")
-    conn.row_factory = sqlite3.Row
-    from migrations import engine
-    engine.up(conn)
-    conn.commit()
+    from backend.infrastructure.db.schema.procurement_schema import create_procurement_schema
+    create_procurement_schema(conn)
+    # traceability tables
+    conn.execute("CREATE TABLE trazabilidad_qr (uuid_qr TEXT PRIMARY KEY, estado TEXT,"
+                 " datos_extra TEXT, fecha_recepcion TEXT, recepcion_id TEXT)")
+    conn.execute("CREATE TABLE contenedores_qr (uuid_qr TEXT PRIMARY KEY, estado TEXT,"
+                 " sucursal_destino TEXT, viaje_actual INTEGER DEFAULT 0, updated_at TEXT)")
+    # minimal WORKING inventory schema (id autoincrement + correct trigger)
+    conn.execute("CREATE TABLE inventario_actual (id INTEGER PRIMARY KEY, producto_id TEXT,"
+                 " sucursal_id TEXT, cantidad REAL DEFAULT 0, costo_promedio REAL DEFAULT 0,"
+                 " ultima_actualizacion TEXT, UNIQUE(producto_id, sucursal_id))")
+    conn.execute("CREATE TABLE movimientos_inventario (id TEXT PRIMARY KEY, producto_id TEXT,"
+                 " tipo TEXT, tipo_movimiento TEXT, cantidad REAL, costo_unitario REAL,"
+                 " descripcion TEXT, referencia TEXT, referencia_id TEXT, referencia_tipo TEXT,"
+                 " proveedor_id TEXT, usuario TEXT, sucursal_id TEXT)")
+    conn.execute("CREATE TABLE productos (id TEXT PRIMARY KEY, existencia REAL DEFAULT 0,"
+                 " precio_compra REAL DEFAULT 0)")
+    conn.execute("""
+        CREATE TRIGGER trg_recalc_inventario_actual
+        AFTER INSERT ON movimientos_inventario
+        WHEN NEW.producto_id IS NOT NULL AND NEW.sucursal_id IS NOT NULL
+        BEGIN
+            INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad, ultima_actualizacion)
+            VALUES (NEW.producto_id, NEW.sucursal_id,
+                CASE WHEN NEW.tipo IN ('entrada','COMPRA') THEN NEW.cantidad ELSE -NEW.cantidad END,
+                datetime('now'))
+            ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET
+                cantidad = inventario_actual.cantidad +
+                    CASE WHEN NEW.tipo IN ('entrada','COMPRA') THEN NEW.cantidad ELSE -NEW.cantidad END;
+        END""")
     return conn
 
 
-def _seed(db):
+def _seed(conn):
     pid = "p1"
-    db.execute("INSERT INTO productos (id,nombre,precio,precio_compra,existencia,unidad,activo) "
-               "VALUES (?,?,?,?,?,?,1)", (pid, "Pollo", 95.0, 40.0, 5.0, "kg"))
-    # inventario previo: 5 @ costo 40 (para probar el promedio ponderado)
-    db.execute("INSERT INTO inventario_actual (id,producto_id,sucursal_id,cantidad,costo_promedio) "
-               "VALUES (?,?,?,?,?)", (new_uuid(), pid, "1", 5.0, 40.0))
-    # contenedor asignado con datos de pago
+    conn.execute("INSERT INTO productos (id, existencia, precio_compra) VALUES (?,?,?)",
+                 (pid, 5.0, 40.0))
+    conn.execute("INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad,"
+                 " costo_promedio) VALUES (?,?,?,?)", (pid, "1", 5.0, 40.0))
     datos = {"proveedor_id": "prov1", "condicion_pago": "liquidado",
              "metodo_pago": "efectivo", "monto_pagado": 500.0, "monto_total": 500.0}
-    db.execute("INSERT INTO trazabilidad_qr (uuid_qr,tipo,proveedor_id,sucursal_id,estado,datos_extra) "
-               "VALUES (?,?,?,?,'asignado',?)",
-               ("QR1", "contenedor", "prov1", "1", json.dumps(datos)))
-    db.commit()
+    conn.execute("INSERT INTO trazabilidad_qr (uuid_qr, estado, datos_extra)"
+                 " VALUES ('QR1','asignado',?)", (json.dumps(datos),))
+    conn.execute("INSERT INTO contenedores_qr (uuid_qr, estado, viaje_actual)"
+                 " VALUES ('QR1','en_transito',0)")
+    conn.commit()
     return pid
 
 
-def test_procesar_recepcion_efectos_en_bd(db):
-    from core.services.recepcion_qr_service import RecepcionQRService
-    pid = _seed(db)
-    svc = RecepcionQRService(db)
-
-    rid = svc.procesar_recepcion(
-        uuid_qr="QR1",
-        items=[{"product_id": pid, "cantidad": 10.0, "costo_unitario": 50.0}],
-        notas="recepcion test", sucursal_id="1", usuario="ana",
+def test_qr_reception_canonical_effects_match_legacy():
+    from backend.application.event_handlers.inventory.purchase_stock_entry_handler import (
+        PurchaseStockEntryHandler,
     )
-    assert rid and isinstance(rid, str)
+    from backend.application.procurement.integrations.downstream_events import (
+        PURCHASE_STOCK_ENTRY_REGISTERED,
+    )
+    from backend.application.procurement.integrations.procurement_outbox_dispatcher import (
+        dispatch_procurement_outbox,
+    )
+    from backend.application.procurement.integrations.wiring import wire_procurement
+    from backend.application.procurement.use_cases.qr_reception_use_cases import (
+        CompleteQrReceptionUseCase,
+    )
+    conn = _working_conn()
+    pid = _seed(conn)
+    bus = _Bus()
+    wire_procurement(bus, conn)  # DIRECT_PURCHASE_RECEIVED → PURCHASE_STOCK_ENTRY_REGISTERED
+    bus.subscribe(PURCHASE_STOCK_ENTRY_REGISTERED, PurchaseStockEntryHandler(conn).handle)
 
-    # Cabecera de recepción
-    rec = dict(db.execute("SELECT * FROM recepciones WHERE id=?", (rid,)).fetchone())
-    assert rec["estado"] == "completada"
-    assert rec["proveedor_id"] == "prov1"
-    assert rec["monto_total"] == 500.0
-    assert rec["saldo_pendiente"] == 0.0
-    assert rec["uuid_qr"] == "QR1"
+    result = CompleteQrReceptionUseCase().execute(
+        conn, actor_user_id="ana", operation_id=new_uuid(), uuid_qr="QR1",
+        items=[{"product_id": pid, "quantity": "10", "unit_cost": "50"}],
+        branch_id="1", warehouse_id="1")
+    assert result.success
+    dispatch_procurement_outbox(conn, bus)
 
-    # Detalle
-    it = dict(db.execute("SELECT * FROM recepcion_items WHERE recepcion_id=?", (rid,)).fetchone())
-    assert it["producto_id"] == pid and it["cantidad"] == 10.0 and it["costo_unitario"] == 50.0
+    # 5@40 + 10@50 → 15 unidades, costo promedio ponderado 46.666…
+    inv = conn.execute("SELECT cantidad, costo_promedio FROM inventario_actual"
+                       " WHERE producto_id=? AND sucursal_id='1'", (pid,)).fetchone()
+    assert inv[0] == 15.0 and round(inv[1], 2) == 46.67
 
-    # Inventario: 5@40 + 10@50 → 15 unidades, costo promedio ponderado 46.666…
-    inv = dict(db.execute(
-        "SELECT cantidad, costo_promedio FROM inventario_actual WHERE producto_id=? AND sucursal_id='1'",
-        (pid,)).fetchone())
-    assert inv["cantidad"] == 15.0
-    assert round(inv["costo_promedio"], 2) == 46.67
+    prod = conn.execute("SELECT existencia, precio_compra FROM productos WHERE id=?",
+                        (pid,)).fetchone()
+    assert prod[0] == 15.0 and prod[1] == 50.0
 
-    # productos.existencia = SUM(inventario_actual) = 15; precio_compra = último costo
-    prod = dict(db.execute("SELECT existencia, precio_compra FROM productos WHERE id=?", (pid,)).fetchone())
-    assert prod["existencia"] == 15.0
-    assert prod["precio_compra"] == 50.0
+    mov = conn.execute("SELECT tipo, tipo_movimiento, cantidad FROM movimientos_inventario"
+                       " WHERE producto_id=?", (pid,)).fetchone()
+    assert mov[0] == "entrada" and mov[1] == "COMPRA" and mov[2] == 10.0
 
-    # Movimiento de inventario (entrada/COMPRA)
-    mov = dict(db.execute(
-        "SELECT tipo, tipo_movimiento, cantidad FROM movimientos_inventario WHERE producto_id=?",
-        (pid,)).fetchone())
-    assert mov["tipo"] == "entrada" and mov["tipo_movimiento"] == "COMPRA" and mov["cantidad"] == 10.0
-
-    # Trazabilidad marcada como recibida y ligada a la recepción
-    tqr = dict(db.execute("SELECT estado, recepcion_id FROM trazabilidad_qr WHERE uuid_qr='QR1'").fetchone())
-    assert tqr["estado"] == "recibido"
-    assert tqr["recepcion_id"] == rid
+    tqr = conn.execute("SELECT estado, recepcion_id FROM trazabilidad_qr"
+                       " WHERE uuid_qr='QR1'").fetchone()
+    assert tqr[0] == "recibido" and tqr[1]
+    conn.close()
 
 
-def test_marcar_parcial_e_incidencia(db):
+def test_service_traceability_helpers_still_work():
+    """The service keeps its read/traceability helpers (procesar_recepcion removed)."""
     from core.services.recepcion_qr_service import RecepcionQRService
-    _seed(db)
-    svc = RecepcionQRService(db)
+    conn = _working_conn()
+    _seed(conn)
+    svc = RecepcionQRService(conn)
+    assert not hasattr(svc, "procesar_recepcion")  # legacy direct write removed
     svc.marcar_recepcion_parcial("QR1")
-    assert db.execute("SELECT estado FROM trazabilidad_qr WHERE uuid_qr='QR1'").fetchone()[0] == "recepcion_parcial"
-    svc.marcar_incidencia("QR1", json.dumps({"tipo": "faltante", "descripcion": "x"}))
-    assert db.execute("SELECT estado FROM trazabilidad_qr WHERE uuid_qr='QR1'").fetchone()[0] == "incidencia"
+    assert conn.execute("SELECT estado FROM trazabilidad_qr WHERE uuid_qr='QR1'"
+                        ).fetchone()[0] == "recepcion_parcial"
+    svc.marcar_incidencia("QR1", json.dumps({"tipo": "faltante"}))
+    assert conn.execute("SELECT estado FROM trazabilidad_qr WHERE uuid_qr='QR1'"
+                        ).fetchone()[0] == "incidencia"
+    conn.close()

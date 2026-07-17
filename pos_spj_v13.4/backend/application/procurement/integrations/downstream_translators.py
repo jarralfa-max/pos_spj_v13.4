@@ -12,8 +12,8 @@ import logging
 
 from backend.application.procurement.integrations.downstream_events import (
     FORBIDDEN_PAYMENT_SOURCES,
-    INVENTORY_ADJUSTMENT_REGISTERED,
     PAYABLE_CREATED,
+    PURCHASE_STOCK_ENTRY_REGISTERED,
     SUPPLIER_PAYMENT_SCHEDULED,
     SUPPLIER_PERFORMANCE_RECORDED,
 )
@@ -50,7 +50,7 @@ class ProcurementDownstreamTranslators:
         lines = payload.get("inventory_lines") or []
         if not lines:
             return
-        self._safe_publish(INVENTORY_ADJUSTMENT_REGISTERED, {
+        self._safe_publish(PURCHASE_STOCK_ENTRY_REGISTERED, {
             "event_id": _child_event_id(payload, "inv"),
             "operation_id": payload.get("operation_id"),
             "source_module": "procurement",

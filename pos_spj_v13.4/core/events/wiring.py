@@ -287,8 +287,36 @@ def wire_all(container: "AppContainer") -> None:
     # Remediación A: bridge CAJA_*→CASH_* + audit de caja (antes sin consumidores)
     _wire_cash_events(bus, container)
 
+    # PUR-11/13: contexto Compras — necesidades→solicitudes, recibo→inventario/
+    # proveedor, CxP, tesorería; + consumidor de entrada de stock por compra.
+    _wire_procurement_pipeline(bus, container)
+
     logger.info("EventBus wiring completado — %d eventos activos",
                 len(bus.registered_events()))
+
+
+def _wire_procurement_pipeline(bus, container) -> None:
+    """Subscribe the procurement integration handlers + the inventory stock-entry
+    consumer. Additive and idempotent; downstream handlers are idempotent by
+    event_id. Best-effort: a wiring failure never breaks the rest of the bus."""
+    try:
+        from backend.application.event_handlers.inventory.purchase_stock_entry_handler import (
+            PurchaseStockEntryHandler,
+        )
+        from backend.application.procurement.integrations.downstream_events import (
+            PURCHASE_STOCK_ENTRY_REGISTERED,
+        )
+        from backend.application.procurement.integrations.wiring import wire_procurement
+
+        db = getattr(container, "db", None)
+        if db is None:
+            return
+        wire_procurement(bus, db)
+        stock_handler = PurchaseStockEntryHandler(db)
+        bus.subscribe(PURCHASE_STOCK_ENTRY_REGISTERED, stock_handler.handle,
+                      priority=100, label="procurement_inventory_stock_entry")
+    except Exception as exc:  # pragma: no cover - defensive wiring
+        logger.warning("procurement pipeline wiring failed (non-fatal): %s", exc)
 
 
 def _wire_cash_events(bus, container) -> None:

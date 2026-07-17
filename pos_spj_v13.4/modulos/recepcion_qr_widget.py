@@ -1851,10 +1851,42 @@ class RecepcionQRWidget(QWidget):
             QMessageBox.critical(self, "Error", str(e))
 
     def _procesar_recepcion_en_bd(self, uuid_qr: str, items: List[Dict], notas: str) -> None:
-        """Delega la transacción de recepción en RecepcionQRService (Remediación F)."""
-        from core.services.recepcion_qr_service import RecepcionQRService
-        RecepcionQRService(self.conexion).procesar_recepcion(
-            uuid_qr, items, notas, self.sucursal_id, self.usuario)
+        """Recepción QR canónica (PUR-13): delega en CompleteQrReceptionUseCase.
+
+        Reemplaza la escritura directa de inventario del servicio legacy: crea un
+        GoodsReceipt vía compra directa (source_channel MOBILE_RECEIVING) y publica
+        el outbox → la entrada de stock (costo promedio ponderado) y la CxP del
+        saldo las aplica el contexto de Inventario/Finanzas por evento.
+        """
+        from backend.application.procurement.use_cases.qr_reception_use_cases import (
+            CompleteQrReceptionUseCase,
+        )
+        from backend.shared.ids import new_uuid
+
+        canon_items = [{
+            "product_id": str(it.get("product_id") or it.get("producto_id") or ""),
+            "quantity": str(it.get("cantidad") or it.get("quantity") or 0),
+            "unit_cost": str(it.get("costo_unitario") or it.get("unit_cost") or 0),
+            "description": str(it.get("nombre") or it.get("description") or ""),
+        } for it in items]
+
+        result = CompleteQrReceptionUseCase().execute(
+            self.conexion, actor_user_id=str(self.usuario or "system"),
+            operation_id=new_uuid(), uuid_qr=uuid_qr, items=canon_items,
+            branch_id=str(self.sucursal_id), warehouse_id=str(self.sucursal_id),
+            notes=notas or "")
+        if not result.success:
+            raise RuntimeError(result.message)
+
+        # Post-commit: publica el outbox al bus (entrada de stock + CxP + desempeño).
+        try:
+            from backend.application.procurement.integrations.procurement_outbox_dispatcher import (
+                dispatch_procurement_outbox,
+            )
+            from core.events.event_bus import get_bus
+            dispatch_procurement_outbox(self.conexion, get_bus())
+        except Exception:
+            pass  # best-effort; una fila pendiente se reintenta luego
 
     def _guardar_asignacion(self) -> None:
         """Guarda la asignación de productos + pago al contenedor."""

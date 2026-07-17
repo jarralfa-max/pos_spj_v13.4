@@ -37,6 +37,20 @@ from frontend.desktop.modules.purchasing.enterprise_presenter import (
 )
 
 
+def _post_commit_dispatcher(connection):
+    """Publish the procurement outbox to the app bus after a successful mutation."""
+    def _dispatch():
+        try:
+            from backend.application.procurement.integrations.procurement_outbox_dispatcher import (
+                dispatch_procurement_outbox,
+            )
+            from core.events.event_bus import get_bus
+            dispatch_procurement_outbox(connection, get_bus())
+        except Exception:
+            pass  # best-effort; a pending outbox row is retried next time
+    return _dispatch
+
+
 def build_enterprise_presenter(connection, session_context=None) -> EnterprisePurchasingPresenter:
     create_procurement_schema(connection)  # idempotent bootstrap
     return EnterprisePurchasingPresenter(
@@ -47,6 +61,7 @@ def build_enterprise_presenter(connection, session_context=None) -> EnterprisePu
             "invoices": InvoiceReadService(connection),
         },
         analytics=ProcurementAnalyticsService(connection),
+        event_dispatcher=_post_commit_dispatcher(connection),
         use_cases={
             "req_create": CreatePurchaseRequisitionUseCase(),
             "req_submit": SubmitPurchaseRequisitionUseCase(),
