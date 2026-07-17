@@ -42,7 +42,6 @@ class SectionCard(StandardCard):
         super().__init__(parent, padding=padding)
         if title:
             label = QLabel(title, self)
-            label.setStyleSheet("")  # look comes from QSS role, not inline
             label.setProperty("role", "subtitle")
             font = label.font()
             font.setPointSize(Typography.SIZE_SUBTITLE)
