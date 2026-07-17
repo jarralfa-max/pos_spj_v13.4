@@ -1043,6 +1043,9 @@ DDL_ALLOWLIST = {
     # DDL canónico del bounded context de Recursos Humanos: única definición del
     # esquema, ejecutado exclusivamente por migrations/standalone/118.
     "backend/infrastructure/db/schema/hr_schema.py",
+    # DDL canónico del bounded context de Proveedores: única definición del
+    # esquema, ejecutado exclusivamente por migrations/standalone/119.
+    "backend/infrastructure/db/schema/supplier_schema.py",
 }
 
 # lastrowid permitido SOLO aquí (nunca como identidad de dominio):
