@@ -99,6 +99,12 @@ CONTRACTS: tuple[ComponentContract, ...] = (
                       "FormField", "label + input + helper + error + tooltip."),
     ComponentContract("StandardForm", "frontend.desktop.components.form_field",
                       "StandardForm", "Formulario con validación inline."),
+    ComponentContract("HtmlChartView", "frontend.desktop.components.chart_view",
+                      "HtmlChartView", "Gráfica HTML+JS (ECharts) desde ChartDataDTO."),
+    ComponentContract("ChartCard", "frontend.desktop.components.cards", "ChartCard",
+                      "Contenedor de gráfica."),
+    ComponentContract("DashboardGrid", "frontend.desktop.components.dashboard_grid",
+                      "DashboardGrid", "Layout de dashboard con pesos."),
 )
 
 BUTTON_FACTORIES: tuple[str, ...] = (

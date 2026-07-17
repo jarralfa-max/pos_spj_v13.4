@@ -78,6 +78,19 @@ def test_time_input_builds_on_qtimeedit_not_qlineedit():
     assert "def time_text" in src and "def set_time_text" in src
 
 
+def test_charts_render_via_html_js_not_native():
+    """Charts go through ChartDataDTO → HTML+JS (ECharts). The DTO is color-free."""
+    charts = FRONTEND / "charts"
+    assert (charts / "templates" / "chart_base.html").exists()
+    assert (charts / "renderers" / "echarts_renderer.js").exists()
+    # The chart DTO must not embed color VALUES, HTML or JS (prose mentioning the
+    # word "color" is fine; concrete presentation is not).
+    dto_src = (REPO / "backend/application/dto/charts/chart_data.py").read_text(encoding="utf-8")
+    assert not _HEX_RE.search(dto_src), "ChartDataDTO must not contain hex colors"
+    for banned in ("rgb(", "rgba(", "<div", "setoption(", "echarts.init"):
+        assert banned not in dto_src.lower(), f"ChartDataDTO must not contain {banned!r}"
+
+
 def test_theme_layer_is_the_single_qss_source():
     """No component builds its own global stylesheet string via a QSS builder."""
     assert (THEMES / "qss_builder.py").exists()

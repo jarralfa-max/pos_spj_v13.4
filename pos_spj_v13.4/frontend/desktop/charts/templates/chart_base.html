@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: transparent; }
+    #chart { width: 100%; height: 100%; }
+    #fallback { font-family: 'Segoe UI', Inter, sans-serif; padding: 12px; }
+  </style>
+  <!-- ECharts is a vendored, offline asset (see ../vendor/README.md). -->
+  <script src="../vendor/echarts.min.js"></script>
+  <script src="../renderers/echarts_renderer.js"></script>
+</head>
+<body>
+  <div id="chart"></div>
+  <div id="fallback" hidden></div>
+  <script>
+    // The Python HtmlChartView replaces this token with the JSON payload.
+    window.__CHART__ = /*__CHART_PAYLOAD__*/ null;
+    (function () {
+      var el = document.getElementById("chart");
+      try {
+        if (window.SPJChart && window.__CHART__) {
+          window.SPJChart.render(el, window.__CHART__);
+        }
+      } catch (err) {
+        var fb = document.getElementById("fallback");
+        fb.hidden = false;
+        fb.textContent = "No fue posible renderizar la gráfica.";
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -74,6 +74,9 @@ from frontend.desktop.components.file_path_input import FilePathInput
 from frontend.desktop.components.searchable_combo import SearchableComboBox
 from frontend.desktop.components.entity_search_input import EntitySearchInput
 from frontend.desktop.components.form_field import FieldState, FormField, StandardForm
+# ── DS-5 charts ───────────────────────────────────────────────────────────────
+from frontend.desktop.components.chart_view import HtmlChartView
+from frontend.desktop.components.dashboard_grid import DashboardGrid
 
 __all__ = [
     "AddressInput",
@@ -151,4 +154,7 @@ __all__ = [
     "FormField",
     "StandardForm",
     "FieldState",
+    # DS-5 charts
+    "HtmlChartView",
+    "DashboardGrid",
 ]
