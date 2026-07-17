@@ -145,19 +145,8 @@ class TestQRFlowNoRegression:
             "PurchaseService no debe importar QRService — son flujos independientes"
         )
 
-    def test_compras_pro_module_has_no_syntax_error(self):
-        """compras_pro.py no debe tener SyntaxError tras ningún cambio."""
-        import ast
-        path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-            "modulos", "compras_pro.py"
-        )
-        with open(path, "r", encoding="utf-8") as f:
-            source = f.read()
-        try:
-            ast.parse(source)
-        except SyntaxError as e:
-            pytest.fail(f"SyntaxError en compras_pro.py: {e}")
+    # PUR-13: compras_pro.py fue eliminado (Compras es el módulo enterprise);
+    # el test de sintaxis del monolito se retiró.
 
     def test_qr_service_module_has_no_syntax_error(self):
         """qr_service.py no debe tener SyntaxError tras ningún cambio."""

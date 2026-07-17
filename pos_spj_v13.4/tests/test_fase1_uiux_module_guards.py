@@ -5,7 +5,7 @@ TARGETS = [
     'modulos/caja.py',
     'modulos/productos.py',
     'modulos/delivery.py',
-    'modulos/compras_pro.py',
+    # PUR-13: modulos/compras_pro.py eliminado — Compras es el módulo enterprise.
     'modulos/etiquetas.py',
     'modulos/finanzas.py',
     'modulos/activos.py',

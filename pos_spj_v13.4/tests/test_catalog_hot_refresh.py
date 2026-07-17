@@ -409,9 +409,7 @@ def test_registrar_compra_uc_accepts_uuid_string_ids():
     assert "proveedor_id <= 0" not in uc_src
     assert "sucursal_id <= 0" not in uc_src
     assert "product_id <= 0" not in uc_src
-    ui_src = _read("modulos/compras_pro.py")
-    assert "prod_id <= 0" not in ui_src
-    assert "proveedor_id > 0" not in ui_src
+    # PUR-13: modulos/compras_pro.py eliminado; la aserción sobre su fuente se retiró.
 
 
 # ── Test 7: la validación de cantidades sigue funcionando ────────────────────

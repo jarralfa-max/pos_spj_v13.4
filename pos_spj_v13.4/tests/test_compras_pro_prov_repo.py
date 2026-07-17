@@ -31,7 +31,7 @@ def test_proveedor_repository_metodos_contra_born_clean():
 
 
 # PUR-13: el test de inicialización de `self._prov_repo` en el monolito
-# ModuloComprasPro se retiró — compras_pro.py es ahora un wrapper canónico y la
+# ModuloComprasPro se retiró — compras_pro.py fue eliminado y la
 # asignación/proveedores del contenedor QR viven en el módulo enterprise
 # (AssignQrContainerUseCase + SupplierPickerQueryService), cubiertos por sus
 # propios tests. El repositorio canónico se valida arriba contra el esquema

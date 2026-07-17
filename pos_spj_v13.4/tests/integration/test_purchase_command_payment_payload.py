@@ -7,7 +7,7 @@ APP_ROOT = Path(__file__).resolve().parents[2]
 
 
 # PUR-13: los tests que leían el fuente del monolito (_payment_method, _prov_repo)
-# se retiraron — compras_pro.py es ahora un wrapper canónico. La derivación de la
+# se retiraron — compras_pro.py fue eliminado. La derivación de la
 # condición de pago vive en DirectPurchase/PurchaseService (validada abajo y en
 # los tests del contexto de Compras).
 

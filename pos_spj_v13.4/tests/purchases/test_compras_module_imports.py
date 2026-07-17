@@ -29,7 +29,8 @@ def _tree(rel_path: str) -> ast.Module:
 @pytest.mark.parametrize(
     "rel_path",
     [
-        "modulos/compras_pro.py",
+        # PUR-13: modulos/compras_pro.py eliminado; Compras es el módulo enterprise.
+        "modulos/compras_enterprise.py",
         "modulos/recepcion_qr_widget.py",
         "modulos/ui_components.py",
         "modulos/design_tokens.py",
@@ -54,9 +55,9 @@ def _import_or_skip(module_name: str):
 
 
 def test_modulo_compras_importa_y_expone_clase_principal():
-    # PUR-13: compras_pro.py es ahora un wrapper canónico → módulo enterprise.
-    module = _import_or_skip("modulos.compras_pro")
-    assert hasattr(module, "ModuloComprasPro")
+    # PUR-13: el monolito fue eliminado; Compras es el módulo enterprise canónico.
+    module = _import_or_skip("modulos.compras_enterprise")
+    assert hasattr(module, "ModuloComprasEnterprise")
 
 
 def test_recepcion_qr_widget_importa_sin_tocar_motor_qr():
@@ -64,11 +65,7 @@ def test_recepcion_qr_widget_importa_sin_tocar_motor_qr():
     assert hasattr(module, "RecepcionQRWidget")
 
 
-def test_compras_wrapper_delega_al_modulo_enterprise():
-    """El wrapper no reintroduce lógica del monolito: sólo delega."""
-    src = _source("modulos/compras_pro.py")
-    assert "ModuloComprasEnterprise" in src
-    # el wrapper no vuelve a traer SQL/estilos/lógica del monolito
-    for forbidden in ("SELECT ", "INSERT INTO", "setStyleSheet", "_build_ui"):
-        assert forbidden not in src, f"el wrapper no debe contener {forbidden!r}"
-    assert len(src.splitlines()) < 40
+def test_monolito_compras_pro_eliminado():
+    """PUR-13: el monolito compras_pro.py ya no existe (fue eliminado, no wrappeado)."""
+    assert not (ROOT / "modulos" / "compras_pro.py").exists()
+    assert not (ROOT / "modulos" / "compras").exists()

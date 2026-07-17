@@ -57,10 +57,11 @@ except Exception as e:
     logger.error("Error cargando ModuloDelivery: %s", e)
 
 try:
-    from modulos.compras_pro import ModuloComprasPro
+    # PUR-13: Compras es el módulo enterprise canónico (el monolito fue eliminado).
+    from modulos.compras_enterprise import ModuloComprasEnterprise as ModuloComprasPro
 except Exception as e:
     ModuloComprasPro = None
-    logger.error("Error cargando ModuloComprasPro: %s", e)
+    logger.error("Error cargando ModuloComprasEnterprise: %s", e)
 
 try:
     from modulos.cotizaciones import ModuloCotizaciones

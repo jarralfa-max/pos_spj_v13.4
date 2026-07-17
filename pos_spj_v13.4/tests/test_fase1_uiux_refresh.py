@@ -7,7 +7,7 @@ REPORTES = os.path.join(ROOT, 'modulos', 'reportes_bi_v2.py')
 COTIZACIONES = os.path.join(ROOT, 'modulos', 'cotizaciones.py')
 TRANSFERENCIAS = os.path.join(ROOT, 'modulos', 'transferencias.py')
 INVENTARIO_LOCAL = os.path.join(ROOT, 'modulos', 'inventario_local.py')
-COMPRAS_PRO = os.path.join(ROOT, 'modulos', 'compras_pro.py')
+# PUR-13: modulos/compras_pro.py eliminado — Compras es el módulo enterprise.
 MERMA = os.path.join(ROOT, 'modulos', 'merma.py')
 CLIENTES = os.path.join(ROOT, 'modulos', 'clientes.py')
 PRODUCTOS = os.path.join(ROOT, 'modulos', 'productos.py')
@@ -70,7 +70,6 @@ def test_uiux_components_applied_to_more_modules():
     cot = _read(COTIZACIONES)
     trf = _read(TRANSFERENCIAS)
     inv = _read(INVENTARIO_LOCAL)
-    com = _read(COMPRAS_PRO)
     mer = _read(MERMA)
     cli = _read(CLIENTES)
     pro = _read(PRODUCTOS)
@@ -89,10 +88,7 @@ def test_uiux_components_applied_to_more_modules():
     assert 'FilterBar(' in trf and 'LoadingIndicator(' in trf and 'EmptyStateWidget(' in trf
     assert 'confirm_action(' in trf
     assert 'FilterBar(' in inv and 'LoadingIndicator(' in inv and 'EmptyStateWidget(' in inv
-    assert 'FilterBar(' in com and 'LoadingIndicator(' in com and 'EmptyStateWidget(' in com
-    assert 'confirm_action(' in com
-    assert 'create_standard_tabs(' in com
-    assert 'wrap_in_scroll_area(' in com
+    # PUR-13: compras_pro.py eliminado; el DS de Compras vive en el módulo enterprise.
     assert 'FilterBar(' in mer and 'LoadingIndicator(' in mer and 'EmptyStateWidget(' in mer
     assert 'FilterBar(' in cli and 'LoadingIndicator(' in cli and 'EmptyStateWidget(' in cli
     assert 'confirm_action(' in cli
@@ -121,7 +117,6 @@ def test_python_syntax_ok():
     ast.parse(_read(COTIZACIONES))
     ast.parse(_read(TRANSFERENCIAS))
     ast.parse(_read(INVENTARIO_LOCAL))
-    ast.parse(_read(COMPRAS_PRO))
     ast.parse(_read(MERMA))
     ast.parse(_read(CLIENTES))
     ast.parse(_read(PRODUCTOS))

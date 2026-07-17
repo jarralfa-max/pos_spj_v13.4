@@ -50,7 +50,7 @@ COMMIT_ROLLBACK_IN_UI_ALLOWLIST = {
     # activos.py: commit()/rollback() movidos a AssetService (Remediación F).
     'pos_spj_v13.4/modulos/base.py': 4,
     'pos_spj_v13.4/modulos/clientes.py': 5,
-    'pos_spj_v13.4/modulos/compras_pro.py': 5,
+    # PUR-13: modulos/compras_pro.py eliminado (era 5) — Compras es enterprise.
     # CONFIGURACION FASE 1: config_hardware.py, config_modules.py and
     # configuracion.py no longer call commit()/rollback() in the UI.
     # cotizaciones.py: commit() movido a CotizacionService (Remediación F).
@@ -111,7 +111,7 @@ SCHEMA_CHANGES_OUTSIDE_MIGRATIONS_ALLOWLIST = {
     'pos_spj_v13.4/integrations/cfdi/cfdi_service.py': 1,
     'pos_spj_v13.4/integrations/delivery_pwa/pwa_server.py': 1,
     'pos_spj_v13.4/modulos/activos.py': 2,
-    'pos_spj_v13.4/modulos/compras_pro.py': 9,
+    # PUR-13: modulos/compras_pro.py eliminado (era 9) — Compras es enterprise.
     'pos_spj_v13.4/modulos/configuracion.py': 1,
     'pos_spj_v13.4/core/services/growth_engine.py': 5,
     'pos_spj_v13.4/modulos/loyalty_card_designer.py': 3,
@@ -267,8 +267,8 @@ SCHEMA_CHANGES_OUTSIDE_MIGRATIONS_ALLOWLIST = {
 HARDCODED_NUMERIC_DEFAULTS_IN_UI_ALLOWLIST = {
     'pos_spj_v13.4/interfaz/diagnostico.py': 3,
     'pos_spj_v13.4/modulos/caja.py': 1,
-    'pos_spj_v13.4/modulos/compras/totals_panel.py': 1,
-    'pos_spj_v13.4/modulos/compras_pro.py': 2,
+    # PUR-13: modulos/compras/totals_panel.py (era 1) y compras_pro.py (era 2)
+    # eliminados — Compras es el módulo enterprise.
     'pos_spj_v13.4/modulos/config_hardware.py': 1,
     'pos_spj_v13.4/modulos/configuracion.py': 5,
     'pos_spj_v13.4/modulos/cotizaciones.py': 1,
@@ -294,7 +294,7 @@ PLAIN_PHONE_INPUTS_ALLOWLIST = {
 
 ENTITY_COMBO_MASS_LOADING_ALLOWLIST = {
     'pos_spj_v13.4/modulos/activos.py': 7,
-    'pos_spj_v13.4/modulos/compras_pro.py': 14,
+    # PUR-13: modulos/compras_pro.py eliminado (era 14) — Compras es enterprise.
     'pos_spj_v13.4/modulos/config_modules.py': 3,
     'pos_spj_v13.4/modulos/configuracion.py': 13,
     'pos_spj_v13.4/modulos/cotizaciones.py': 1,

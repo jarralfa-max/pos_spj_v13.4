@@ -31,27 +31,6 @@ class LegacyEntry:
 
 LEGACY_ALLOWLIST: tuple[LegacyEntry, ...] = (
     LegacyEntry(
-        path="modulos/compras_pro.py",
-        reason="Ya NO es el monolito: fue reemplazado por un wrapper canónico "
-               "(delega en ModuloComprasEnterprise). Se conserva sólo para no "
-               "romper main_window/menu_lateral/module_loader, que abren Compras "
-               "vía ModuloComprasPro.",
-        owner="procurement-team",
-        created_at="2026-07-17",
-        removal_condition="Repuntar main_window/menu_lateral/module_loader a "
-                          "ModuloComprasEnterprise directamente y borrar el wrapper.",
-        classification="WRAP_TEMPORARILY"),
-    LegacyEntry(
-        path="modulos/compras/",
-        reason="Widgets de UI (actions_bar, items_table, proveedor_panel, "
-               "totals_panel) extraídos de compras_pro.py; sólo se consumen desde "
-               "el monolito.",
-        owner="procurement-team",
-        created_at="2026-07-17",
-        removal_condition="Se eliminan junto con compras_pro.py una vez repuntada "
-                          "la navegación al módulo enterprise.",
-        classification="WRAP_TEMPORARILY"),
-    LegacyEntry(
         path="modulos/planeacion_compras.py",
         reason="Planeación/forecast de compras cableada en main_window.py "
                "(PLANEACION_COMPRAS); emite necesidades pero aún no usa el intake "
@@ -63,20 +42,24 @@ LEGACY_ALLOWLIST: tuple[LegacyEntry, ...] = (
         classification="REWRITE"),
     LegacyEntry(
         path="backend/infrastructure/db/repositories/compras_read_repository.py",
-        reason="Repositorio de lectura legacy consumido por compras_pro.py.",
+        reason="Repositorio de lectura legacy. El monolito (compras_pro.py) ya se "
+               "borró; sólo lo consumen tests (test_catalog_hot_refresh, "
+               "tests/unit/test_compras_read_repository) que aún cubren catálogo/"
+               "sucursales legacy.",
         owner="procurement-team",
         created_at="2026-07-17",
-        removal_condition="Eliminar con compras_pro.py; las lecturas ya existen en "
-                          "backend/application/procurement/queries/.",
+        removal_condition="Migrar esos tests a los read services canónicos de "
+                          "backend/application/procurement/queries/ y borrar el repo.",
         classification="WRAP_TEMPORARILY"),
     LegacyEntry(
         path="backend/infrastructure/db/repositories/compras_write_repository.py",
-        reason="Repositorio de escritura legacy (mutaciones de compra) consumido "
-               "por compras_pro.py.",
+        reason="Repositorio de escritura legacy (mutaciones de compra). El monolito "
+               "(compras_pro.py) ya se borró; sólo lo consume "
+               "tests/unit/test_compras_write_repository.",
         owner="procurement-team",
         created_at="2026-07-17",
-        removal_condition="Eliminar con compras_pro.py; las mutaciones ya existen "
-                          "como casos de uso en backend/application/procurement/.",
+        removal_condition="Migrar ese test a los casos de uso canónicos de "
+                          "backend/application/procurement/ y borrar el repo.",
         classification="WRAP_TEMPORARILY"),
     LegacyEntry(
         path="repositories/purchase_repository.py",
@@ -105,4 +88,4 @@ LEGACY_ALLOWLIST: tuple[LegacyEntry, ...] = (
 )
 
 #: Monotonic ratchet: the allowlist may only shrink. Lower this as entries go.
-MAX_ENTRIES = 8
+MAX_ENTRIES = 6

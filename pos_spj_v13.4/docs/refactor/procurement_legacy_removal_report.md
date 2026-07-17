@@ -220,26 +220,45 @@ El blast radius de ~344 tests confirma acoplamiento real, no solo tests de parse
 2. ✅ Reescritos/eliminados los **~344 tests** que parseaban/ejercían el monolito
    (§13.20): 16 archivos de estructura-UI del monolito eliminados; 4 archivos
    mixtos editados quirúrgicamente (se conservó su cobertura válida de
-   servicios/repos); guardrail `test_compras_guardrails` con baseline vacío.
-3. ✅ **`compras_pro.py` es ahora un wrapper canónico** (delega en
-   `ModuloComprasEnterprise`); auto-repunta `main_window`/`menu_lateral`/
-   `module_loader`. Sin SQL/layouts/estilos/lógica/repos/inventario/pagos.
+   servicios/repos).
+3. ✅ Navegación (`main_window`/`menu_lateral`/`module_loader`) repuntada
+   directamente a `ModuloComprasEnterprise`.
 
-**Medición del flip final:** 0 fallas nuevas. Las 42 fallas de arquitectura y las
-~15 de `tests/purchases` son **preexistentes** (settings/configuracion/menu/
-text_pk/uiux — ajenas a Compras), idénticas antes y después del flip.
+### WRAPPER Y WIDGETS MUERTOS ELIMINADOS ✅ (2026-07-17)
+
+Tras verificar cero consumidores runtime del wrapper (sólo `main_window` +
+`module_loader`, ya repuntados a `modulos.compras_enterprise`):
+
+1. ✅ **`modulos/compras_pro.py` borrado** (ya no era el monolito ni un wrapper).
+   `main_window`/`module_loader` importan/registran `ModuloComprasEnterprise`
+   directamente; `menu_lateral` usa la clave de navegación `"compras_pro"` que el
+   `module_loader` resuelve al módulo enterprise (alias).
+2. ✅ **`modulos/compras/` borrado** (`actions_bar`, `items_table`,
+   `proveedor_panel`, `totals_panel`) — cero importadores fuera del monolito.
+3. ✅ Guardrail obsoleto `test_compras_guardrails.py` eliminado (protegía el
+   ratchet del monolito); la no-reintroducción queda cubierta por
+   `test_monolito_compras_pro_eliminado` + `test_no_legacy_procurement_imports`.
+4. ✅ Allowlists actualizadas: `procurement_legacy_allowlist` pierde las entradas
+   `compras_pro.py` y `modulos/compras/` (**MAX_ENTRIES 8 → 6**); `allowlists.py`
+   pierde las entradas de esos paths en los cuatro ratchets de UI.
+5. ✅ Repos legacy `compras_read/write_repository.py` **conservados** (sólo tienen
+   consumidores de tests: `test_catalog_hot_refresh`, `tests/unit/…`); su condición
+   de retiro se reescribió (migrar esos tests a los servicios canónicos).
+
+**Medición del borrado:** 0 fallas nuevas. Las 57 fallas medidas
+(42 arquitectura + 15 `tests/purchases`/uiux) son **preexistentes e idénticas**
+antes y después (settings/configuracion/menu/text_pk/refactor/finance-bounded/
+phone — ajenas a Compras), verificado por diff de node-ids con la base.
 
 Comportamiento canónico completo: recepción QR (generar/asignar/recibir/histórico),
 plantillas, variación de costo, historial documental, lotes (FIFO), recetas,
 compra tradicional (DirectPurchase + eventos stock/lote/receta/CxP). Ocho pestañas
 en el módulo enterprise. Compras nunca escribe inventario/finanzas directo.
 
-### Pendiente menor (no bloquea el flip)
+### Pendiente menor (no bloquea el cierre)
 
-- Repuntar `main_window`/`menu_lateral`/`module_loader` a `ModuloComprasEnterprise`
-  directamente y borrar el wrapper `compras_pro.py`.
-- Eliminar widgets muertos `modulos/compras/` y repos legacy cuando sus tests
-  unitarios migren. Reducir `MAX_ENTRIES` de la allowlist conforme se borren.
+- Migrar los tests que aún consumen `compras_read/write_repository.py` a los read
+  services / casos de uso canónicos y borrar esos repos (bajando `MAX_ENTRIES`).
 
 ## Condición de cierre (PUR-13.23)
 

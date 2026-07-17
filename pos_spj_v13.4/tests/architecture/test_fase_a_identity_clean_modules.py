@@ -25,7 +25,7 @@ BRANCH_CLEAN_MODULES = [
     "modulos/reportes_bi_v2.py",
     "modulos/planeacion_compras.py",
     "modulos/tarjetas.py",
-    "modulos/compras_pro.py",
+    # PUR-13: modulos/compras_pro.py eliminado (Compras es el módulo enterprise).
     "modulos/whatsapp/whatsapp_module.py",
     "modulos/rrhh.py",
     "modulos/etiquetas.py",

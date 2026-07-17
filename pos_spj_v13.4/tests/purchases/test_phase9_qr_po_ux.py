@@ -10,28 +10,16 @@ import pytest
 QR_SRC_PATH = os.path.join(
     os.path.dirname(__file__), "..", "..", "modulos", "recepcion_qr_widget.py"
 )
-COMPRAS_SRC_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "..", "modulos", "compras_pro.py"
-)
-
-
 def _qr() -> str:
     return open(QR_SRC_PATH).read()
 
 
-def _compras() -> str:
-    return open(COMPRAS_SRC_PATH).read()
-
-
 # ---------------------------------------------------------------------------
-# Sintaxis
+# Sintaxis  (PUR-13: compras_pro.py eliminado; este archivo protege el widget QR)
 # ---------------------------------------------------------------------------
 class TestSyntax:
     def test_qr_widget_no_syntax_error(self):
         ast.parse(_qr())
-
-    def test_compras_pro_no_syntax_error(self):
-        ast.parse(_compras())
 
 
 # ---------------------------------------------------------------------------
@@ -58,10 +46,8 @@ def test_qr_tabs_count_unchanged():
     assert "_tab_po_recv" not in src
 
 
-def test_qr_engine_not_duplicated_in_compras():
-    compras = _compras()
-    assert "_activar_lector_qr" not in compras
-    assert "trazabilidad_qr" not in compras
+# PUR-13: test_qr_engine_not_duplicated_in_compras se retiró — el monolito
+# compras_pro.py fue eliminado; el motor QR vive sólo en recepcion_qr_widget.py.
 
 
 # ---------------------------------------------------------------------------
