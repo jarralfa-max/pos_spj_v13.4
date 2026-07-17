@@ -31,22 +31,12 @@ PATTERNS: dict[str, re.Pattern[str]] = {
     "lastrowid": re.compile(r"lastrowid", re.I),
 }
 
-# Documented baseline after tanda 1 (supplier/branch read cluster extracted).
+# PUR-13: el monolito compras_pro.py fue reemplazado por un wrapper canónico
+# (delega en ModuloComprasEnterprise). El ratchet llegó a su meta: cero patrones
+# SQL/commit/schema en el archivo. Baseline vacío = el wrapper no puede
+# reintroducir nada.
 BASELINE: dict[str, dict[str, int]] = {
-    "modulos/compras_pro.py": {
-        # FULLY EXTRACTED: zero executable SQL / commit in the UI. All reads go
-        # through ComprasReadRepository, all writes through ComprasWriteRepository
-        # + ConnectionUnitOfWork, schema via migration 111. The remaining
-        # sql_select/sql_update matches are comments/prose, not executable SQL;
-        # the two .execute calls left are use-case executions (uc.execute).
-        # Hot-refresh fix: removing the duplicated dead _on_refresh/_exportar/
-        # _fallback block dropped one prose SELECT (7->6).
-        # Remediación F: reescritas 7 docstrings/prose que activaban SQL_RE
-        # ("Update"/"select"/"SELECT *") → ya no quedan falsos positivos en el
-        # ratchet SQL-in-UI; los restantes son texto en comentarios (# skipped).
-        "sql_select": 2,
-        "sql_update": 4,
-    },
+    "modulos/compras_pro.py": {},
 }
 
 

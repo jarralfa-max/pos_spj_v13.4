@@ -54,9 +54,9 @@ def _import_or_skip(module_name: str):
 
 
 def test_modulo_compras_importa_y_expone_clase_principal():
+    # PUR-13: compras_pro.py es ahora un wrapper canónico → módulo enterprise.
     module = _import_or_skip("modulos.compras_pro")
     assert hasattr(module, "ModuloComprasPro")
-    assert hasattr(module, "_PurchaseKPICard")
 
 
 def test_recepcion_qr_widget_importa_sin_tocar_motor_qr():
@@ -64,27 +64,11 @@ def test_recepcion_qr_widget_importa_sin_tocar_motor_qr():
     assert hasattr(module, "RecepcionQRWidget")
 
 
-def test_imports_runtime_criticos_estan_declarados():
+def test_compras_wrapper_delega_al_modulo_enterprise():
+    """El wrapper no reintroduce lógica del monolito: sólo delega."""
     src = _source("modulos/compras_pro.py")
-    assert "QInputDialog" in src, "QInputDialog debe estar importado para evitar NameError"
-    assert "QScrollArea" in src, "QScrollArea debe estar importado para evitar NameError"
-    assert "PageHeader" in src
-    assert "create_standard_tabs" in src
-    assert "wrap_in_scroll_area" in src
-
-
-def test_metodos_criticos_de_ui_existen():
-    tree = _tree("modulos/compras_pro.py")
-    methods = {n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
-    for name in {
-        "_build_ui",
-        "_build_tab_tradicional",
-        "_build_tab_qr",
-        "_build_tab_historial",
-        "_build_purchase_kpi_bar",
-        "_build_documental_toolbar",
-        "_build_center_column",
-        "_build_summary_panel",
-        "_procesar_compra",
-    }:
-        assert name in methods
+    assert "ModuloComprasEnterprise" in src
+    # el wrapper no vuelve a traer SQL/estilos/lógica del monolito
+    for forbidden in ("SELECT ", "INSERT INTO", "setStyleSheet", "_build_ui"):
+        assert forbidden not in src, f"el wrapper no debe contener {forbidden!r}"
+    assert len(src.splitlines()) < 40

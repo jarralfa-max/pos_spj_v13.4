@@ -30,19 +30,9 @@ def test_proveedor_repository_metodos_contra_born_clean():
     assert any(p["nombre"] == "ACME" for p in provs)
 
 
-def test_modulo_compras_pro_inicializa_prov_repo():
-    pytest.importorskip("PyQt5")
-    import os
-    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    import types
-    from PyQt5.QtWidgets import QApplication
-
-    app = QApplication.instance() or QApplication([])
-    container = types.SimpleNamespace(db=_db_con_datos(), sucursal_id="s1")
-    from modulos.compras_pro import ModuloComprasPro
-    w = ModuloComprasPro(container)
-    # El atributo debe existir y ser el repositorio correcto
-    from repositories.proveedor_repository import ProveedorRepository
-    assert isinstance(w._prov_repo, ProveedorRepository)
-    # El combo de sucursal destino (subtab asignar QR) debe poblarse, no quedar vacío
-    assert w.qr_sucursal_destino.count() >= 1
+# PUR-13: el test de inicialización de `self._prov_repo` en el monolito
+# ModuloComprasPro se retiró — compras_pro.py es ahora un wrapper canónico y la
+# asignación/proveedores del contenedor QR viven en el módulo enterprise
+# (AssignQrContainerUseCase + SupplierPickerQueryService), cubiertos por sus
+# propios tests. El repositorio canónico se valida arriba contra el esquema
+# born-clean.

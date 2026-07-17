@@ -235,14 +235,9 @@ def test_compras_sees_new_branch_after_event(catalog_db, bus_recorder):
         assert sorted(compras.branch_names) == ["Sucursal A", "Sucursal B"]
     finally:
         bus.unsubscribe(BRANCHES_CHANGED, compras.on_branches_changed)
-
-    # Y el módulo real implementa el contrato + suscripción a los eventos.
-    src = _read("modulos/compras_pro.py")
-    for needle in ("def refresh_branches", "def on_branches_changed",
-                   "def refresh_products", "def on_products_changed",
-                   "BRANCHES_CHANGED", "PRODUCTS_CHANGED"):
-        assert needle in src, needle
-    assert '"Sucursal Principal", 1' not in src
+    # PUR-13: la aserción sobre el fuente del monolito se retiró (compras_pro es
+    # ahora un wrapper canónico). El contrato de refresco por evento se valida
+    # arriba con el repo canónico ComprasReadRepository.
 
 
 # ── Test 4: crear producto emite eventos (incluye legacy) ────────────────────

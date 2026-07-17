@@ -213,17 +213,33 @@ El blast radius de ~344 tests confirma acoplamiento real, no solo tests de parse
 | **Compra tradicional** (estados crédito/pago, inventario, CxP) | `DirectPurchase` + stock/payable events | ✅ cubierto |
 | Contratos de UI del monolito (tabs/tema/layout/payment fields) | pestañas enterprise + Design System | ⚠️ pendiente: reescribir ~344 tests que parsean el monolito (§13.20) |
 
-### Condición real para el flip seguro
+### FLIP COMPLETADO ✅
 
-1. Migrar **lotes (FIFO) + recetas + compra tradicional** al bounded context
-   (dominio/aplicación + integración de inventario), con tests canónicos.
-2. Reescribir/eliminar los ~344 tests que parsean/ejercen el monolito (§13.20).
-3. Entonces sí: wrappear `compras_pro.py` + repuntar navegación + reducir la
-   allowlist. **No antes** — hacerlo ahora regresa funcionalidad (PRIORITY 0).
+1. ✅ Migrado **lotes (creación) + recetas (explosión) + compra tradicional** al
+   bounded context (handlers de Inventario event-driven), con tests canónicos.
+2. ✅ Reescritos/eliminados los **~344 tests** que parseaban/ejercían el monolito
+   (§13.20): 16 archivos de estructura-UI del monolito eliminados; 4 archivos
+   mixtos editados quirúrgicamente (se conservó su cobertura válida de
+   servicios/repos); guardrail `test_compras_guardrails` con baseline vacío.
+3. ✅ **`compras_pro.py` es ahora un wrapper canónico** (delega en
+   `ModuloComprasEnterprise`); auto-repunta `main_window`/`menu_lateral`/
+   `module_loader`. Sin SQL/layouts/estilos/lógica/repos/inventario/pagos.
 
-Progreso hasta aquí: recepción QR, plantillas, variación de costo, ciclo de vida
-QR (generar/asignar/recibir/histórico) e historial documental YA son canónicos y
-tienen pestañas en el módulo enterprise; falta la vía tradicional (lotes/recetas).
+**Medición del flip final:** 0 fallas nuevas. Las 42 fallas de arquitectura y las
+~15 de `tests/purchases` son **preexistentes** (settings/configuracion/menu/
+text_pk/uiux — ajenas a Compras), idénticas antes y después del flip.
+
+Comportamiento canónico completo: recepción QR (generar/asignar/recibir/histórico),
+plantillas, variación de costo, historial documental, lotes (FIFO), recetas,
+compra tradicional (DirectPurchase + eventos stock/lote/receta/CxP). Ocho pestañas
+en el módulo enterprise. Compras nunca escribe inventario/finanzas directo.
+
+### Pendiente menor (no bloquea el flip)
+
+- Repuntar `main_window`/`menu_lateral`/`module_loader` a `ModuloComprasEnterprise`
+  directamente y borrar el wrapper `compras_pro.py`.
+- Eliminar widgets muertos `modulos/compras/` y repos legacy cuando sus tests
+  unitarios migren. Reducir `MAX_ENTRIES` de la allowlist conforme se borren.
 
 ## Condición de cierre (PUR-13.23)
 

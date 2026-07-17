@@ -32,17 +32,15 @@ class LegacyEntry:
 LEGACY_ALLOWLIST: tuple[LegacyEntry, ...] = (
     LegacyEntry(
         path="modulos/compras_pro.py",
-        reason="Monolito de Compras (7,362 líneas) cableado en main_window.py y "
-               "menu_lateral.py; contiene lógica aún NO migrada (recepción QR, "
-               "plantillas de compra, alertas de variación de costo, procesamiento "
-               "de recetas) y está protegido por ~20 tests de comportamiento.",
+        reason="Ya NO es el monolito: fue reemplazado por un wrapper canónico "
+               "(delega en ModuloComprasEnterprise). Se conserva sólo para no "
+               "romper main_window/menu_lateral/module_loader, que abren Compras "
+               "vía ModuloComprasPro.",
         owner="procurement-team",
         created_at="2026-07-17",
-        removal_condition="Migrar recepción QR, plantillas de compra y alertas de "
-                          "costo al bounded context; repuntar la navegación COMPRAS "
-                          "al módulo enterprise; verificar cero consumidores (13.22); "
-                          "reescribir los ~20 tests contra contratos canónicos.",
-        classification="BLOCKED"),
+        removal_condition="Repuntar main_window/menu_lateral/module_loader a "
+                          "ModuloComprasEnterprise directamente y borrar el wrapper.",
+        classification="WRAP_TEMPORARILY"),
     LegacyEntry(
         path="modulos/compras/",
         reason="Widgets de UI (actions_bar, items_table, proveedor_panel, "

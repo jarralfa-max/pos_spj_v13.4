@@ -6,11 +6,10 @@ from pathlib import Path
 APP_ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_direct_and_pr_flows_share_payment_derivation():
-    src = (APP_ROOT / "modulos" / "compras_pro.py").read_text(encoding="utf-8")
-    # Ambos flujos (DIRECT y PR) derivan el método con la misma función
-    assert src.count("pago        = self._payment_method()") + \
-           src.count("pago     = self._payment_method()") == 2
+# PUR-13: los tests que leían el fuente del monolito (_payment_method, _prov_repo)
+# se retiraron — compras_pro.py es ahora un wrapper canónico. La derivación de la
+# condición de pago vive en DirectPurchase/PurchaseService (validada abajo y en
+# los tests del contexto de Compras).
 
 
 def test_purchase_service_maps_condition_to_cxp_or_capital():
@@ -19,16 +18,3 @@ def test_purchase_service_maps_condition_to_cxp_or_capital():
     assert "payment_method != 'CREDITO'" in src
     assert "crear_cxp" in src
     assert 'haber="capital_operativo"' in src
-
-
-def test_prov_repo_is_plain_attribute_not_property():
-    """Regresión: property '_prov_repo' has no setter (chocaba con hotfixes).
-
-    El repositorio se asigna como atributo plano en __init__ y admite
-    reasignación (self._prov_repo = ...).
-    """
-    src = (APP_ROOT / "modulos" / "compras_pro.py").read_text(encoding="utf-8")
-    assert "self._prov_repo = ProveedorRepository(container.db)" in src
-    # No debe existir property _prov_repo (impediría asignaciones)
-    import re
-    assert not re.search(r"@property\s+def _prov_repo\(", src)
