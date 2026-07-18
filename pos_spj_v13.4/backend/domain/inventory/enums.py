@@ -379,3 +379,35 @@ class QuarantineStatus(str, Enum):
     PARTIALLY_RELEASED = "PARTIALLY_RELEASED"
     REJECTED = "REJECTED"
     DISPOSED = "DISPOSED"
+
+
+# ── INV-16 waste / disposal (§30) ───────────────────────────────────────────
+class WasteType(str, Enum):
+    THEORETICAL_WASTE = "THEORETICAL_WASTE"   # standard/expected — no stock move
+    ACTUAL_WASTE = "ACTUAL_WASTE"
+    SHRINKAGE = "SHRINKAGE"
+    PROCESS_LOSS = "PROCESS_LOSS"
+    EXPIRY = "EXPIRY"
+    DAMAGE = "DAMAGE"
+    QUALITY_REJECTION = "QUALITY_REJECTION"
+    CONDEMNATION = "CONDEMNATION"
+    DISPOSAL = "DISPOSAL"
+
+
+#: Physical-exit movement type per waste classification (THEORETICAL_WASTE moves
+#: no stock — it is an informational/standard loss valued by production).
+WASTE_MOVEMENT_TYPE: dict[WasteType, MovementType] = {
+    WasteType.ACTUAL_WASTE: MovementType.WASTE,
+    WasteType.PROCESS_LOSS: MovementType.WASTE,
+    WasteType.DAMAGE: MovementType.WASTE,
+    WasteType.QUALITY_REJECTION: MovementType.WASTE,
+    WasteType.CONDEMNATION: MovementType.WASTE,
+    WasteType.SHRINKAGE: MovementType.SHRINKAGE,
+    WasteType.EXPIRY: MovementType.EXPIRY_DISPOSAL,
+    WasteType.DISPOSAL: MovementType.EXPIRY_DISPOSAL,
+}
+
+#: Loss classifications that require the disposal-authorization permission.
+DISPOSAL_WASTE_TYPES = frozenset({
+    WasteType.EXPIRY, WasteType.DISPOSAL, WasteType.CONDEMNATION,
+})

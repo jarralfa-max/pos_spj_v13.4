@@ -40,6 +40,9 @@ from backend.infrastructure.db.repositories.inventory.reservation_repository imp
 from backend.infrastructure.db.repositories.inventory.transfer_repository import (
     TransferRepository,
 )
+from backend.infrastructure.db.repositories.inventory.waste_repository import (
+    WasteRepository,
+)
 from backend.infrastructure.db.repositories.inventory.support_repositories import (
     InventoryAuditRepository,
     InventoryAuthorizationLogRepository,
@@ -63,6 +66,7 @@ class InventoryUnitOfWork:
         self.counts = CountRepository(connection)
         self.adjustments = AdjustmentRepository(connection)
         self.quarantines = QuarantineRepository(connection)
+        self.waste = WasteRepository(connection)
         self.cold_chain = ColdChainRepository(connection)
         self.warehouses = WarehouseRepository(connection)
         self.limits = InventoryLimitRepository(connection)

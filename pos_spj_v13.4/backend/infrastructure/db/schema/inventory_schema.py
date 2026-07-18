@@ -43,6 +43,7 @@ INVENTORY_TABLES: tuple[str, ...] = (
     "inventory_adjustment",
     "inventory_adjustment_line",
     "inventory_quarantine",
+    "inventory_waste_event",
     "inventory_temperature_readings",
     "inventory_temperature_excursions",
     "inventory_settings",
@@ -349,6 +350,25 @@ _DDL = (
         created_at TEXT NOT NULL
     )
     """,
+    # ── waste / disposal (§30, INV-16) ─────────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS inventory_waste_event (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        branch_id TEXT NOT NULL,
+        warehouse_id TEXT NOT NULL,
+        location_id TEXT,
+        lot_id TEXT,
+        waste_type TEXT NOT NULL,
+        quantity TEXT NOT NULL DEFAULT '0',
+        weight TEXT NOT NULL DEFAULT '0',
+        movement_id TEXT,
+        is_theoretical INTEGER NOT NULL DEFAULT 0,
+        reason_note TEXT,
+        created_by_user_id TEXT,
+        created_at TEXT NOT NULL
+    )
+    """,
     # ── cold chain (§21, INV-9) ────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS inventory_temperature_readings (
@@ -495,6 +515,8 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_inv_quarantine_status ON inventory_quarantine(status)",
     "CREATE INDEX IF NOT EXISTS idx_inv_quarantine_lot ON inventory_quarantine(lot_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_quarantine_prod ON inventory_quarantine(product_id, branch_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_waste_type ON inventory_waste_event(waste_type)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_waste_prod ON inventory_waste_event(product_id, branch_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_audit_entity ON inventory_audit_log(entity_type, entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_audit_product ON inventory_audit_log(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_outbox_status ON inventory_outbox(status)",

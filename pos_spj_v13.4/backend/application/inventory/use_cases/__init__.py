@@ -25,6 +25,7 @@ from backend.application.inventory.use_cases.quarantine_use_cases import (
     QuarantineStockUseCase,
     ReleaseQuarantineUseCase,
 )
+from backend.application.inventory.use_cases.register_waste import RegisterWasteUseCase
 from backend.application.inventory.use_cases.record_temperature_reading import (
     RecordTemperatureReadingUseCase,
 )
@@ -60,8 +61,9 @@ __all__ = [
     "PostInventoryMovementUseCase",
     "QuarantineStockUseCase",
     "ReceiveTransferUseCase",
-    "ReleaseQuarantineUseCase",
     "RecordCountUseCase",
+    "RegisterWasteUseCase",
+    "ReleaseQuarantineUseCase",
     "ReverseAdjustmentUseCase",
     "RecordTemperatureReadingUseCase",
     "RegisterInventoryLotUseCase",
