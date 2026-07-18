@@ -56,7 +56,7 @@ sync a `productos.existencia`; colapsar los 3 transfers y los 2 kardex.
 | **INV-3** | Esquema born-clean UUIDv7+Decimal: `inventory_schema.py` (12 tablas: ledger `inventory_ledger`+lines, `inventory_balances`, almacenes/zonas/ubicaciones, límites, settings, auth/audit, outbox), constraints/índices, migración 121, bootstrap; plan de consolidación | `inventory_schema.py` + migración 121 + `inventory_schema_consolidation.md` + tests (9) | ✅ |
 | **INV-4** | Repositorios + `InventoryUnitOfWork` atómico (ledger+balance+almacenes+límites+settings+auth+audit+outbox+processed en una transacción; commit al salir limpio, rollback ante excepción) | `infrastructure/db/repositories/inventory/**` + tests (10) | ✅ |
 | INV-5 | Almacenes, zonas, ubicaciones, jerarquía, estados + UI | páginas warehouses/locations | ⏳ |
-| INV-6 | **Ledger y balances**: movimientos, líneas, reversos, balance reconstruible, idempotencia | UseCases `PostInventoryMovement`/`ReverseInventoryMovement` | ⏳ |
+| **INV-6** | **Ledger y balances**: `PostInventoryMovementUseCase` (única ruta de escritura de stock; idempotente por operation_id; proyección de balance por dirección con NegativeInventoryPolicy; ledger+balance+audit+outbox atómicos) + `ReverseInventoryMovementUseCase` (inverso exacto, un solo reverso) + `InventoryProjectionService` | `backend/application/inventory/**` + tests (12) | ✅ |
 | INV-7 | Lotes y caducidad (FEFO por defecto), alertas de vencimiento | `InventoryLot` + `expiry_risk_service` | ⏳ |
 | INV-8 | Peso variable (piezas + peso), báscula vía gateway, rangos, captura manual autorizada | `CatchWeightPosition` + `scale_gateway` | ⏳ |
 | INV-9 | Cadena de frío: temperatura, sensores, excursiones, bloqueo, alertas | `cold_chain_policy` + lecturas | ⏳ |
