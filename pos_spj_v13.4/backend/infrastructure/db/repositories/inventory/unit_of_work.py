@@ -10,6 +10,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from backend.infrastructure.db.repositories.inventory.cold_chain_repository import (
+    ColdChainRepository,
+)
 from backend.infrastructure.db.repositories.inventory.inventory_balance_repository import (
     InventoryBalanceRepository,
 )
@@ -40,6 +43,7 @@ class InventoryUnitOfWork:
         self.ledger = InventoryLedgerRepository(connection)
         self.balances = InventoryBalanceRepository(connection)
         self.lots = InventoryLotRepository(connection)
+        self.cold_chain = ColdChainRepository(connection)
         self.warehouses = WarehouseRepository(connection)
         self.limits = InventoryLimitRepository(connection)
         self.settings = InventorySettingsRepository(connection)

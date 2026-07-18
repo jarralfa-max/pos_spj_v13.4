@@ -1,6 +1,7 @@
 """Inventory domain policies. INV-1 subset: limits + segregation of duties."""
 
 from backend.domain.inventory.policies.catch_weight_policy import CatchWeightPolicy
+from backend.domain.inventory.policies.cold_chain_policy import ColdChainPolicy
 from backend.domain.inventory.policies.inventory_limit_policy import (
     InventoryLimitPolicy,
 )
@@ -16,6 +17,8 @@ from backend.domain.inventory.policies.segregation_of_duties_policy import (
 )
 
 __all__ = [
+    "CatchWeightPolicy",
+    "ColdChainPolicy",
     "InventoryLimitPolicy",
     "MovementValidationPolicy",
     "NegativeInventoryPolicy",

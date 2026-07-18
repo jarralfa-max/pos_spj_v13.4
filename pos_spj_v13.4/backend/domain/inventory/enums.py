@@ -225,3 +225,26 @@ class WeightCaptureSource(str, Enum):
     IMPORT = "IMPORT"
     PRODUCTION = "PRODUCTION"
     RECEIVING = "RECEIVING"
+
+
+# ── INV-9 cold chain ────────────────────────────────────────────────────────
+class ColdChainStatus(str, Enum):
+    COMPLIANT = "COMPLIANT"
+    WARNING = "WARNING"
+    OUT_OF_RANGE = "OUT_OF_RANGE"
+    PENDING_REVIEW = "PENDING_REVIEW"
+    BLOCKED = "BLOCKED"
+
+
+class TemperaturePoint(str, Enum):
+    RECEIPT = "RECEIPT"
+    STORAGE = "STORAGE"
+    DISPATCH = "DISPATCH"
+    TRANSIT = "TRANSIT"
+
+
+class ExcursionAction(str, Enum):
+    NONE = "NONE"
+    WARN = "WARN"
+    BLOCK_LOT = "BLOCK_LOT"
+    QUARANTINE = "QUARANTINE"

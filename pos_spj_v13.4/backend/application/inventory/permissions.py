@@ -96,6 +96,9 @@ class InventoryPermissions:
     # ── negativo (override) (§16) ─────────────────────────────────────────
     NEGATIVE_OVERRIDE = "INVENTORY_NEGATIVE_OVERRIDE"
 
+    # ── cadena de frío (§21) ──────────────────────────────────────────────
+    TEMPERATURE_RECORD = "INVENTORY_TEMPERATURE_RECORD"
+
     # ── configuración (§46) ───────────────────────────────────────────────
     SETTINGS_VIEW = "INVENTORY_SETTINGS_VIEW"
     SETTINGS_MANAGE = "INVENTORY_SETTINGS_MANAGE"

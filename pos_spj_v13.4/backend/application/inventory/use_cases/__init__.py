@@ -7,12 +7,16 @@ from backend.application.inventory.use_cases.lot_use_cases import (
 from backend.application.inventory.use_cases.post_inventory_movement import (
     PostInventoryMovementUseCase,
 )
+from backend.application.inventory.use_cases.record_temperature_reading import (
+    RecordTemperatureReadingUseCase,
+)
 from backend.application.inventory.use_cases.reverse_inventory_movement import (
     ReverseInventoryMovementUseCase,
 )
 
 __all__ = [
     "PostInventoryMovementUseCase",
+    "RecordTemperatureReadingUseCase",
     "RegisterInventoryLotUseCase",
     "ReverseInventoryMovementUseCase",
     "SetLotQualityStatusUseCase",

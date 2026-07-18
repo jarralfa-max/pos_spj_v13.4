@@ -34,6 +34,8 @@ INVENTORY_TABLES: tuple[str, ...] = (
     "inventory_ledger_lines",
     "inventory_balances",
     "inventory_lots",
+    "inventory_temperature_readings",
+    "inventory_temperature_excursions",
     "inventory_settings",
     "inventory_authorization_log",
     "inventory_audit_log",
@@ -181,6 +183,37 @@ _DDL = (
         UNIQUE (product_id, lot_code)
     )
     """,
+    # ── cold chain (§21, INV-9) ────────────────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS inventory_temperature_readings (
+        id TEXT PRIMARY KEY,
+        sensor_id TEXT NOT NULL,
+        warehouse_id TEXT NOT NULL,
+        location_id TEXT,
+        lot_id TEXT,
+        temperature TEXT NOT NULL,
+        unit TEXT NOT NULL DEFAULT 'C',
+        reading_point TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'COMPLIANT',
+        captured_at TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS inventory_temperature_excursions (
+        id TEXT PRIMARY KEY,
+        reading_id TEXT NOT NULL,
+        warehouse_id TEXT NOT NULL,
+        lot_id TEXT,
+        status TEXT NOT NULL,
+        temperature TEXT NOT NULL,
+        min_temp TEXT NOT NULL,
+        max_temp TEXT NOT NULL,
+        action_taken TEXT NOT NULL DEFAULT 'WARN',
+        resolved INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+    )
+    """,
     # ── configuration (§56) ────────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS inventory_settings (
@@ -275,6 +308,10 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_inv_lots_product ON inventory_lots(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_lots_expiry ON inventory_lots(expiration_date)",
     "CREATE INDEX IF NOT EXISTS idx_inv_lots_quality ON inventory_lots(quality_status)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_temp_readings_wh ON inventory_temperature_readings(warehouse_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_temp_readings_lot ON inventory_temperature_readings(lot_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_temp_excursions_lot ON inventory_temperature_excursions(lot_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_temp_excursions_open ON inventory_temperature_excursions(resolved)",
     "CREATE INDEX IF NOT EXISTS idx_inv_audit_entity ON inventory_audit_log(entity_type, entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_audit_product ON inventory_audit_log(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_outbox_status ON inventory_outbox(status)",
