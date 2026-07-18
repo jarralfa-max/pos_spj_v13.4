@@ -36,6 +36,8 @@ INVENTORY_TABLES: tuple[str, ...] = (
     "inventory_lots",
     "inventory_reservation",
     "inventory_allocation",
+    "inventory_transfer",
+    "inventory_transfer_line",
     "inventory_temperature_readings",
     "inventory_temperature_excursions",
     "inventory_settings",
@@ -220,6 +222,43 @@ _DDL = (
         FOREIGN KEY (reservation_id) REFERENCES inventory_reservation(id)
     )
     """,
+    # ── transfers (§24-25, INV-12) ─────────────────────────────────────────
+    # Canonical singular names (inventory_transfer/-line) consolidate the 3 legacy
+    # tables (transferencias/transferencias_inventario/traspasos); reclaimed INV-27.
+    """
+    CREATE TABLE IF NOT EXISTS inventory_transfer (
+        id TEXT PRIMARY KEY,
+        folio TEXT NOT NULL,
+        origin_branch_id TEXT NOT NULL,
+        origin_warehouse_id TEXT NOT NULL,
+        destination_branch_id TEXT NOT NULL,
+        destination_warehouse_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'DRAFT',
+        created_by_user_id TEXT,
+        approved_by_user_id TEXT,
+        dispatched_by_user_id TEXT,
+        received_by_user_id TEXT,
+        carrier TEXT,
+        dispatched_at TEXT,
+        received_at TEXT,
+        created_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS inventory_transfer_line (
+        id TEXT PRIMARY KEY,
+        transfer_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        lot_id TEXT,
+        unit TEXT NOT NULL DEFAULT 'PZA',
+        quantity TEXT NOT NULL DEFAULT '0',
+        weight TEXT NOT NULL DEFAULT '0',
+        dispatched_quantity TEXT NOT NULL DEFAULT '0',
+        received_quantity TEXT NOT NULL DEFAULT '0',
+        difference_type TEXT,
+        FOREIGN KEY (transfer_id) REFERENCES inventory_transfer(id)
+    )
+    """,
     # ── cold chain (§21, INV-9) ────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS inventory_temperature_readings (
@@ -353,6 +392,10 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_inv_reservation_status ON inventory_reservation(status)",
     "CREATE INDEX IF NOT EXISTS idx_inv_reservation_doc ON inventory_reservation(source_document_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_allocation_res ON inventory_allocation(reservation_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_transfer_status ON inventory_transfer(status)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_transfer_origin ON inventory_transfer(origin_warehouse_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_transfer_dest ON inventory_transfer(destination_warehouse_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_transfer_line_tr ON inventory_transfer_line(transfer_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_audit_entity ON inventory_audit_log(entity_type, entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_audit_product ON inventory_audit_log(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_outbox_status ON inventory_outbox(status)",

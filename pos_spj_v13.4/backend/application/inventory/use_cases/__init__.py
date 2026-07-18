@@ -15,14 +15,24 @@ from backend.application.inventory.use_cases.reservation_use_cases import (
     CreateReservationUseCase,
     ReleaseReservationUseCase,
 )
+from backend.application.inventory.use_cases.transfer_use_cases import (
+    ApproveTransferUseCase,
+    CreateTransferUseCase,
+    DispatchTransferUseCase,
+    ReceiveTransferUseCase,
+)
 from backend.application.inventory.use_cases.reverse_inventory_movement import (
     ReverseInventoryMovementUseCase,
 )
 
 __all__ = [
     "AllocateReservationUseCase",
+    "ApproveTransferUseCase",
     "CreateReservationUseCase",
+    "CreateTransferUseCase",
+    "DispatchTransferUseCase",
     "PostInventoryMovementUseCase",
+    "ReceiveTransferUseCase",
     "RecordTemperatureReadingUseCase",
     "RegisterInventoryLotUseCase",
     "ReleaseReservationUseCase",

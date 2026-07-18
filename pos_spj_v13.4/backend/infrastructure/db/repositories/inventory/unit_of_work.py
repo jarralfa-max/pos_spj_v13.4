@@ -28,6 +28,9 @@ from backend.infrastructure.db.repositories.inventory.inventory_lot_repository i
 from backend.infrastructure.db.repositories.inventory.reservation_repository import (
     ReservationRepository,
 )
+from backend.infrastructure.db.repositories.inventory.transfer_repository import (
+    TransferRepository,
+)
 from backend.infrastructure.db.repositories.inventory.support_repositories import (
     InventoryAuditRepository,
     InventoryAuthorizationLogRepository,
@@ -47,6 +50,7 @@ class InventoryUnitOfWork:
         self.balances = InventoryBalanceRepository(connection)
         self.lots = InventoryLotRepository(connection)
         self.reservations = ReservationRepository(connection)
+        self.transfers = TransferRepository(connection)
         self.cold_chain = ColdChainRepository(connection)
         self.warehouses = WarehouseRepository(connection)
         self.limits = InventoryLimitRepository(connection)
