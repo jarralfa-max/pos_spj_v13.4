@@ -14,6 +14,7 @@ from backend.domain.inventory.entities.inventory_movement import (
     InventoryMovement,
     InventoryMovementLine,
 )
+from backend.domain.inventory.entities.quarantine import InventoryQuarantine
 from backend.domain.inventory.entities.reservation import (
     InventoryAllocation,
     InventoryReservation,
@@ -38,6 +39,7 @@ __all__ = [
     "InventoryLot",
     "InventoryMovement",
     "InventoryMovementLine",
+    "InventoryQuarantine",
     "InventoryReservation",
     "InventoryTransfer",
     "InventoryTransferLine",

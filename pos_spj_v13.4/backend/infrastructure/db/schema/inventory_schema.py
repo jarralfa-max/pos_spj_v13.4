@@ -42,6 +42,7 @@ INVENTORY_TABLES: tuple[str, ...] = (
     "inventory_count_line",
     "inventory_adjustment",
     "inventory_adjustment_line",
+    "inventory_quarantine",
     "inventory_temperature_readings",
     "inventory_temperature_excursions",
     "inventory_settings",
@@ -329,6 +330,25 @@ _DDL = (
         FOREIGN KEY (adjustment_id) REFERENCES inventory_adjustment(id)
     )
     """,
+    # ── quality / quarantine (§31, INV-15) ─────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS inventory_quarantine (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        branch_id TEXT NOT NULL,
+        warehouse_id TEXT NOT NULL,
+        location_id TEXT,
+        lot_id TEXT,
+        reason TEXT NOT NULL,
+        quantity TEXT NOT NULL DEFAULT '0',
+        weight TEXT NOT NULL DEFAULT '0',
+        status TEXT NOT NULL DEFAULT 'OPEN',
+        reason_note TEXT,
+        created_by_user_id TEXT,
+        resolved_by_user_id TEXT,
+        created_at TEXT NOT NULL
+    )
+    """,
     # ── cold chain (§21, INV-9) ────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS inventory_temperature_readings (
@@ -472,6 +492,9 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_inv_adjustment_status ON inventory_adjustment(status)",
     "CREATE INDEX IF NOT EXISTS idx_inv_adjustment_wh ON inventory_adjustment(warehouse_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_adjustment_line_adj ON inventory_adjustment_line(adjustment_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_quarantine_status ON inventory_quarantine(status)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_quarantine_lot ON inventory_quarantine(lot_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_quarantine_prod ON inventory_quarantine(product_id, branch_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_audit_entity ON inventory_audit_log(entity_type, entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_audit_product ON inventory_audit_log(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_outbox_status ON inventory_outbox(status)",

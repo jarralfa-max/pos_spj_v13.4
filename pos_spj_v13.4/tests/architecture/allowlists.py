@@ -71,8 +71,8 @@ SCHEMA_CHANGES_OUTSIDE_MIGRATIONS_ALLOWLIST = {
     'pos_spj_v13.4/backend/infrastructure/db/schema/finance_schema.py': 24,
     # Bounded context de Inventario (INV-3+): DDL canónico ejecutado sólo por las
     # migraciones 121 (núcleo), 122 (lotes), 123 (cadena de frío), 124 (reservas),
-    # 125 (transferencias), 126 (conteos) y 127 (ajustes).
-    'pos_spj_v13.4/backend/infrastructure/db/schema/inventory_schema.py': 23,
+    # 125 (transferencias), 126 (conteos), 127 (ajustes) y 128 (cuarentena).
+    'pos_spj_v13.4/backend/infrastructure/db/schema/inventory_schema.py': 24,
     'pos_spj_v13.4/api/routers/anticipos.py': 1,
     'pos_spj_v13.4/application/services/customer_credit_service.py': 1,
     'pos_spj_v13.4/core/auth/login_guard.py': 2,

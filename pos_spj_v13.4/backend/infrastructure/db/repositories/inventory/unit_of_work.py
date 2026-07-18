@@ -19,6 +19,9 @@ from backend.infrastructure.db.repositories.inventory.cold_chain_repository impo
 from backend.infrastructure.db.repositories.inventory.count_repository import (
     CountRepository,
 )
+from backend.infrastructure.db.repositories.inventory.quarantine_repository import (
+    QuarantineRepository,
+)
 from backend.infrastructure.db.repositories.inventory.inventory_balance_repository import (
     InventoryBalanceRepository,
 )
@@ -59,6 +62,7 @@ class InventoryUnitOfWork:
         self.transfers = TransferRepository(connection)
         self.counts = CountRepository(connection)
         self.adjustments = AdjustmentRepository(connection)
+        self.quarantines = QuarantineRepository(connection)
         self.cold_chain = ColdChainRepository(connection)
         self.warehouses = WarehouseRepository(connection)
         self.limits = InventoryLimitRepository(connection)
