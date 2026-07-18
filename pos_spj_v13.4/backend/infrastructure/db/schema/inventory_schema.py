@@ -34,6 +34,8 @@ INVENTORY_TABLES: tuple[str, ...] = (
     "inventory_ledger_lines",
     "inventory_balances",
     "inventory_lots",
+    "inventory_reservation",
+    "inventory_allocation",
     "inventory_temperature_readings",
     "inventory_temperature_excursions",
     "inventory_settings",
@@ -183,6 +185,41 @@ _DDL = (
         UNIQUE (product_id, lot_code)
     )
     """,
+    # ── reservations / allocations (§22, INV-10) ───────────────────────────
+    # Canonical names are singular (inventory_reservation/-allocation): the plural
+    # inventory_reservations belongs to legacy migrations and is reclaimed at INV-27.
+    """
+    CREATE TABLE IF NOT EXISTS inventory_reservation (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        branch_id TEXT NOT NULL,
+        warehouse_id TEXT NOT NULL,
+        location_id TEXT NOT NULL DEFAULT '',
+        lot_id TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL,
+        source_document_id TEXT NOT NULL,
+        operation_id TEXT NOT NULL UNIQUE,
+        quantity TEXT NOT NULL DEFAULT '0',
+        weight TEXT NOT NULL DEFAULT '0',
+        status TEXT NOT NULL DEFAULT 'CONFIRMED',
+        expires_at TEXT,
+        created_by_user_id TEXT,
+        created_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS inventory_allocation (
+        id TEXT PRIMARY KEY,
+        reservation_id TEXT NOT NULL,
+        lot_id TEXT,
+        location_id TEXT,
+        quantity TEXT NOT NULL DEFAULT '0',
+        weight TEXT NOT NULL DEFAULT '0',
+        status TEXT NOT NULL DEFAULT 'ALLOCATED',
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (reservation_id) REFERENCES inventory_reservation(id)
+    )
+    """,
     # ── cold chain (§21, INV-9) ────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS inventory_temperature_readings (
@@ -312,6 +349,10 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_inv_temp_readings_lot ON inventory_temperature_readings(lot_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_temp_excursions_lot ON inventory_temperature_excursions(lot_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_temp_excursions_open ON inventory_temperature_excursions(resolved)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_reservation_prod ON inventory_reservation(product_id, branch_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_reservation_status ON inventory_reservation(status)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_reservation_doc ON inventory_reservation(source_document_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_allocation_res ON inventory_allocation(reservation_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_audit_entity ON inventory_audit_log(entity_type, entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_audit_product ON inventory_audit_log(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_outbox_status ON inventory_outbox(status)",

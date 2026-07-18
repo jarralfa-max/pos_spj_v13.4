@@ -6,6 +6,10 @@ from backend.domain.inventory.entities.inventory_movement import (
     InventoryMovement,
     InventoryMovementLine,
 )
+from backend.domain.inventory.entities.reservation import (
+    InventoryAllocation,
+    InventoryReservation,
+)
 from backend.domain.inventory.entities.warehouse import (
     StorageLocation,
     Warehouse,
@@ -13,10 +17,12 @@ from backend.domain.inventory.entities.warehouse import (
 )
 
 __all__ = [
+    "InventoryAllocation",
     "InventoryBalance",
     "InventoryLot",
     "InventoryMovement",
     "InventoryMovementLine",
+    "InventoryReservation",
     "StorageLocation",
     "Warehouse",
     "WarehouseZone",

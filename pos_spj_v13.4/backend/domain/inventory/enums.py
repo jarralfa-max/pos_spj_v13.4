@@ -248,3 +248,40 @@ class ExcursionAction(str, Enum):
     WARN = "WARN"
     BLOCK_LOT = "BLOCK_LOT"
     QUARANTINE = "QUARANTINE"
+
+
+# ── INV-10 reservations / allocations ───────────────────────────────────────
+class ReservationSource(str, Enum):
+    SALE = "SALE"
+    CUSTOMER_ORDER = "CUSTOMER_ORDER"
+    DELIVERY_ORDER = "DELIVERY_ORDER"
+    PRODUCTION_ORDER = "PRODUCTION_ORDER"
+    TRANSFER = "TRANSFER"
+    QUALITY_SAMPLE = "QUALITY_SAMPLE"
+    INTERNAL_REQUEST = "INTERNAL_REQUEST"
+
+
+class ReservationStatus(str, Enum):
+    PENDING = "PENDING"
+    CONFIRMED = "CONFIRMED"
+    PARTIALLY_ALLOCATED = "PARTIALLY_ALLOCATED"
+    ALLOCATED = "ALLOCATED"
+    PARTIALLY_FULFILLED = "PARTIALLY_FULFILLED"
+    FULFILLED = "FULFILLED"
+    RELEASED = "RELEASED"
+    EXPIRED = "EXPIRED"
+    CANCELLED = "CANCELLED"
+
+
+class AllocationStatus(str, Enum):
+    ALLOCATED = "ALLOCATED"
+    FULFILLED = "FULFILLED"
+    RELEASED = "RELEASED"
+
+
+#: Reservation statuses that still hold availability (reduce available-to-promise).
+ACTIVE_RESERVATION_STATUSES = frozenset({
+    ReservationStatus.PENDING, ReservationStatus.CONFIRMED,
+    ReservationStatus.PARTIALLY_ALLOCATED, ReservationStatus.ALLOCATED,
+    ReservationStatus.PARTIALLY_FULFILLED,
+})
