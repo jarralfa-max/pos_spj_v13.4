@@ -57,7 +57,7 @@ sync a `productos.existencia`; colapsar los 3 transfers y los 2 kardex.
 | **INV-4** | Repositorios + `InventoryUnitOfWork` atómico (ledger+balance+almacenes+límites+settings+auth+audit+outbox+processed en una transacción; commit al salir limpio, rollback ante excepción) | `infrastructure/db/repositories/inventory/**` + tests (10) | ✅ |
 | INV-5 | Almacenes, zonas, ubicaciones, jerarquía, estados + UI | páginas warehouses/locations | ⏳ |
 | **INV-6** | **Ledger y balances**: `PostInventoryMovementUseCase` (única ruta de escritura de stock; idempotente por operation_id; proyección de balance por dirección con NegativeInventoryPolicy; ledger+balance+audit+outbox atómicos) + `ReverseInventoryMovementUseCase` (inverso exacto, un solo reverso) + `InventoryProjectionService` | `backend/application/inventory/**` + tests (12) | ✅ |
-| INV-7 | Lotes y caducidad (FEFO por defecto), alertas de vencimiento | `InventoryLot` + `expiry_risk_service` | ⏳ |
+| **INV-7** | Lotes y caducidad: `InventoryLot` (origen, códigos proveedor/producción/sacrificio, calidad), tabla `inventory_lots` (migración 122), `LotAllocationService` (FEFO por defecto, FIFO/LIFO/MANUAL; salta vencidos/bloqueados/sin vida útil), `ExpiryRiskService` (OK/WARNING/CRITICAL/EXPIRED), repo + UoW, use cases Register/SetQuality | `backend/domain|application/inventory/**` + tests (23) | ✅ |
 | INV-8 | Peso variable (piezas + peso), báscula vía gateway, rangos, captura manual autorizada | `CatchWeightPosition` + `scale_gateway` | ⏳ |
 | INV-9 | Cadena de frío: temperatura, sensores, excursiones, bloqueo, alertas | `cold_chain_policy` + lecturas | ⏳ |
 | INV-10 | Reservas y asignaciones (vigencia, lotes, liberación, idempotencia) | `ReservationService` | ⏳ |

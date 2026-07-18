@@ -184,3 +184,35 @@ class MovementStatus(str, Enum):
     DRAFT = "DRAFT"
     POSTED = "POSTED"
     REVERSED = "REVERSED"
+
+
+# ── INV-7 lots / expiration ─────────────────────────────────────────────────
+class LotOrigin(str, Enum):
+    PURCHASE = "PURCHASE"
+    PRODUCTION = "PRODUCTION"
+    SLAUGHTER_FUTURE = "SLAUGHTER_FUTURE"
+    CUSTOMER_RETURN = "CUSTOMER_RETURN"
+    TRANSFER = "TRANSFER"
+    MANUAL_AUTHORIZED = "MANUAL_AUTHORIZED"
+
+
+class LotQualityStatus(str, Enum):
+    PENDING_INSPECTION = "PENDING_INSPECTION"
+    RELEASED = "RELEASED"
+    BLOCKED = "BLOCKED"
+    QUARANTINED = "QUARANTINED"
+    REJECTED = "REJECTED"
+
+
+class AllocationStrategy(str, Enum):
+    FIFO = "FIFO"
+    FEFO = "FEFO"          # first-expired, first-out (default for perishables)
+    LIFO = "LIFO"
+    MANUAL_AUTHORIZED = "MANUAL_AUTHORIZED"
+
+
+class ExpiryRisk(str, Enum):
+    OK = "OK"
+    WARNING = "WARNING"
+    CRITICAL = "CRITICAL"
+    EXPIRED = "EXPIRED"

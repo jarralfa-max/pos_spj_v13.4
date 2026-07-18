@@ -33,6 +33,7 @@ INVENTORY_TABLES: tuple[str, ...] = (
     "inventory_ledger",
     "inventory_ledger_lines",
     "inventory_balances",
+    "inventory_lots",
     "inventory_settings",
     "inventory_authorization_log",
     "inventory_audit_log",
@@ -158,6 +159,28 @@ _DDL = (
                 serial_id, inventory_status)
     )
     """,
+    # ── lots / expiration (§19-20, INV-7) ──────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS inventory_lots (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        lot_code TEXT NOT NULL,
+        origin_type TEXT NOT NULL,
+        origin_document_id TEXT,
+        supplier_lot_code TEXT,
+        production_lot_code TEXT,
+        slaughter_lot_code TEXT,
+        production_date TEXT,
+        slaughter_date TEXT,
+        expiration_date TEXT,
+        received_at TEXT,
+        quality_status TEXT NOT NULL DEFAULT 'PENDING_INSPECTION',
+        traceability_status TEXT NOT NULL DEFAULT 'LINKED',
+        branch_id TEXT,
+        created_at TEXT NOT NULL,
+        UNIQUE (product_id, lot_code)
+    )
+    """,
     # ── configuration (§56) ────────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS inventory_settings (
@@ -249,6 +272,9 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_inv_ledger_lines_lot ON inventory_ledger_lines(lot_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_balances_prod_branch ON inventory_balances(product_id, branch_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_balances_wh ON inventory_balances(warehouse_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_lots_product ON inventory_lots(product_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_lots_expiry ON inventory_lots(expiration_date)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_lots_quality ON inventory_lots(quality_status)",
     "CREATE INDEX IF NOT EXISTS idx_inv_audit_entity ON inventory_audit_log(entity_type, entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_audit_product ON inventory_audit_log(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_outbox_status ON inventory_outbox(status)",

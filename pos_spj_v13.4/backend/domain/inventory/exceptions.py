@@ -38,3 +38,24 @@ class WarehouseScopeError(InventoryDomainError):
 
 class InvalidInventoryLimitError(InventoryDomainError):
     """A limit was defined with a float or an otherwise invalid threshold."""
+
+
+# ── INV-7 lots / expiration ─────────────────────────────────────────────────
+class LotNotFoundError(InventoryDomainError):
+    pass
+
+
+class LotRequiredError(InventoryDomainError):
+    """The product is lot-controlled but no lot was supplied."""
+
+
+class LotExpiredError(InventoryDomainError):
+    pass
+
+
+class LotBlockedError(InventoryDomainError):
+    """The lot is blocked/quarantined/rejected and cannot be allocated."""
+
+
+class InsufficientInventoryError(InventoryDomainError):
+    """Not enough eligible stock/lots to satisfy the requested quantity."""

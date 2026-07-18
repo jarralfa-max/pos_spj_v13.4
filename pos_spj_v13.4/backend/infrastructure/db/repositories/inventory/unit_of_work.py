@@ -19,6 +19,9 @@ from backend.infrastructure.db.repositories.inventory.inventory_ledger_repositor
 from backend.infrastructure.db.repositories.inventory.inventory_limit_repository import (
     InventoryLimitRepository,
 )
+from backend.infrastructure.db.repositories.inventory.inventory_lot_repository import (
+    InventoryLotRepository,
+)
 from backend.infrastructure.db.repositories.inventory.support_repositories import (
     InventoryAuditRepository,
     InventoryAuthorizationLogRepository,
@@ -36,6 +39,7 @@ class InventoryUnitOfWork:
         self.connection = connection
         self.ledger = InventoryLedgerRepository(connection)
         self.balances = InventoryBalanceRepository(connection)
+        self.lots = InventoryLotRepository(connection)
         self.warehouses = WarehouseRepository(connection)
         self.limits = InventoryLimitRepository(connection)
         self.settings = InventorySettingsRepository(connection)
