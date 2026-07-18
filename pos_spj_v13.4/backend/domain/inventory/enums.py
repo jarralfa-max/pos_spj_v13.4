@@ -312,3 +312,26 @@ class TransferDifferenceType(str, Enum):
     LOT_VARIANCE = "LOT_VARIANCE"
     TEMPERATURE_VARIANCE = "TEMPERATURE_VARIANCE"
     QUALITY_FAILURE = "QUALITY_FAILURE"
+
+
+# ── INV-13 counts ───────────────────────────────────────────────────────────
+class CountType(str, Enum):
+    CYCLE_COUNT = "CYCLE_COUNT"
+    FULL_COUNT = "FULL_COUNT"
+    LOCATION_COUNT = "LOCATION_COUNT"
+    PRODUCT_COUNT = "PRODUCT_COUNT"
+    LOT_COUNT = "LOT_COUNT"
+    BLIND_COUNT = "BLIND_COUNT"
+    SPOT_CHECK = "SPOT_CHECK"
+
+
+class CountStatus(str, Enum):
+    DRAFT = "DRAFT"
+    PLANNED = "PLANNED"
+    IN_PROGRESS = "IN_PROGRESS"
+    COUNTED = "COUNTED"
+    PENDING_RECOUNT = "PENDING_RECOUNT"
+    PENDING_APPROVAL = "PENDING_APPROVAL"
+    APPROVED = "APPROVED"
+    POSTED = "POSTED"
+    CANCELLED = "CANCELLED"

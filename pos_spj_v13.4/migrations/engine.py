@@ -123,6 +123,7 @@ MIGRATIONS = [
     _Migration("123",  "migrations.standalone.123_inventory_cold_chain_schema"),
     _Migration("124",  "migrations.standalone.124_inventory_reservations_schema"),
     _Migration("125",  "migrations.standalone.125_inventory_transfers_schema"),
+    _Migration("126",  "migrations.standalone.126_inventory_counts_schema"),
 ]
 
 def _ensure_tracking_table(conn):

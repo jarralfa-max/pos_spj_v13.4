@@ -38,6 +38,8 @@ INVENTORY_TABLES: tuple[str, ...] = (
     "inventory_allocation",
     "inventory_transfer",
     "inventory_transfer_line",
+    "inventory_count",
+    "inventory_count_line",
     "inventory_temperature_readings",
     "inventory_temperature_excursions",
     "inventory_settings",
@@ -259,6 +261,43 @@ _DDL = (
         FOREIGN KEY (transfer_id) REFERENCES inventory_transfer(id)
     )
     """,
+    # ── counts (§27-28, INV-13) ────────────────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS inventory_count (
+        id TEXT PRIMARY KEY,
+        folio TEXT NOT NULL,
+        count_type TEXT NOT NULL,
+        branch_id TEXT NOT NULL,
+        warehouse_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'DRAFT',
+        blind INTEGER NOT NULL DEFAULT 1,
+        scope_location_id TEXT,
+        scope_product_id TEXT,
+        scope_lot_id TEXT,
+        created_by_user_id TEXT,
+        counted_by_user_id TEXT,
+        approved_by_user_id TEXT,
+        created_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS inventory_count_line (
+        id TEXT PRIMARY KEY,
+        count_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        location_id TEXT,
+        lot_id TEXT,
+        expected_quantity TEXT NOT NULL DEFAULT '0',
+        expected_weight TEXT NOT NULL DEFAULT '0',
+        counted_quantity TEXT NOT NULL DEFAULT '0',
+        counted_weight TEXT NOT NULL DEFAULT '0',
+        variance_quantity TEXT NOT NULL DEFAULT '0',
+        variance_weight TEXT NOT NULL DEFAULT '0',
+        recount_count INTEGER NOT NULL DEFAULT 0,
+        counted INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (count_id) REFERENCES inventory_count(id)
+    )
+    """,
     # ── cold chain (§21, INV-9) ────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS inventory_temperature_readings (
@@ -396,6 +435,9 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_inv_transfer_origin ON inventory_transfer(origin_warehouse_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_transfer_dest ON inventory_transfer(destination_warehouse_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_transfer_line_tr ON inventory_transfer_line(transfer_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_count_status ON inventory_count(status)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_count_wh ON inventory_count(warehouse_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_count_line_ct ON inventory_count_line(count_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_audit_entity ON inventory_audit_log(entity_type, entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_audit_product ON inventory_audit_log(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_outbox_status ON inventory_outbox(status)",

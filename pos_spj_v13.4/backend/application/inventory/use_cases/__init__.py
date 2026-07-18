@@ -4,6 +4,12 @@ from backend.application.inventory.use_cases.lot_use_cases import (
     RegisterInventoryLotUseCase,
     SetLotQualityStatusUseCase,
 )
+from backend.application.inventory.use_cases.count_use_cases import (
+    ApproveCountUseCase,
+    ConfirmCountUseCase,
+    CreateCountUseCase,
+    RecordCountUseCase,
+)
 from backend.application.inventory.use_cases.post_inventory_movement import (
     PostInventoryMovementUseCase,
 )
@@ -27,12 +33,16 @@ from backend.application.inventory.use_cases.reverse_inventory_movement import (
 
 __all__ = [
     "AllocateReservationUseCase",
+    "ApproveCountUseCase",
     "ApproveTransferUseCase",
+    "ConfirmCountUseCase",
+    "CreateCountUseCase",
     "CreateReservationUseCase",
     "CreateTransferUseCase",
     "DispatchTransferUseCase",
     "PostInventoryMovementUseCase",
     "ReceiveTransferUseCase",
+    "RecordCountUseCase",
     "RecordTemperatureReadingUseCase",
     "RegisterInventoryLotUseCase",
     "ReleaseReservationUseCase",
