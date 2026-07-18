@@ -216,3 +216,12 @@ class ExpiryRisk(str, Enum):
     WARNING = "WARNING"
     CRITICAL = "CRITICAL"
     EXPIRED = "EXPIRED"
+
+
+# ── INV-8 catch weight ──────────────────────────────────────────────────────
+class WeightCaptureSource(str, Enum):
+    SCALE = "SCALE"
+    MANUAL_AUTHORIZED = "MANUAL_AUTHORIZED"
+    IMPORT = "IMPORT"
+    PRODUCTION = "PRODUCTION"
+    RECEIVING = "RECEIVING"

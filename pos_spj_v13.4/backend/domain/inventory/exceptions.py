@@ -59,3 +59,12 @@ class LotBlockedError(InventoryDomainError):
 
 class InsufficientInventoryError(InventoryDomainError):
     """Not enough eligible stock/lots to satisfy the requested quantity."""
+
+
+# ── INV-8 catch weight ──────────────────────────────────────────────────────
+class InvalidCatchWeightError(InventoryDomainError):
+    """A weight/pieces capture is malformed or outside the allowed range."""
+
+
+class ManualWeightAuthorizationRequiredError(InventoryDomainError):
+    """A manual weight outside tolerance needs a distinct authorizer (§18, §47)."""

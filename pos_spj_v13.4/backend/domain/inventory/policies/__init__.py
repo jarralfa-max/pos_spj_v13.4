@@ -1,5 +1,6 @@
 """Inventory domain policies. INV-1 subset: limits + segregation of duties."""
 
+from backend.domain.inventory.policies.catch_weight_policy import CatchWeightPolicy
 from backend.domain.inventory.policies.inventory_limit_policy import (
     InventoryLimitPolicy,
 )
