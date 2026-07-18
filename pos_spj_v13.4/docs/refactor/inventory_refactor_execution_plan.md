@@ -50,8 +50,8 @@ sync a `productos.existencia`; colapsar los 3 transfers y los 2 kardex.
 
 | Fase | Objetivo | Entregable principal | Estado |
 |---|---|---|---|
-| **INV-0** | Auditoría + plan | `inventory_legacy_inventory.md`, este plan | ✅ (este commit) |
-| INV-1 | Seguridad: ~70 permisos `INVENTORY_*` granulares, alcance sucursal/almacén, límites, segregación, autorización en caliente, auditoría | catálogo permisos + policies + tests | ⏳ |
+| **INV-0** | Auditoría + plan | `inventory_legacy_inventory.md`, este plan | ✅ |
+| **INV-1** | Seguridad: 67 permisos `INVENTORY_*` granulares, alcance sucursal/almacén, límites (WITHIN/REQUIRES_APPROVAL/EXCEEDS), segregación de funciones, autorización en caliente (grant auditado), permission gate | `backend/{domain,application}/inventory/**` + tests (36) | ✅ |
 | INV-2 | Dominio base: `Warehouse`, `WarehouseZone`, `StorageLocation`, estados de inventario, `InventoryMovement(+Line)`, `InventoryBalance`, policies base, eventos, enums, exceptions | `backend/domain/inventory/**` | ⏳ |
 | INV-3 | Esquema limpio UUIDv7 + Decimal: `inventory_schema.py`, constraints, índices, ledger, balance projection, outbox, bootstrap; **retirar** fuentes duplicadas (plan de consolidación) | `backend/infrastructure/db/schema/inventory_schema.py` + `inventory_schema_consolidation.md` | ⏳ |
 | INV-4 | Repositorios + UnitOfWork atómico (movimiento+balance+lote+reserva+evento+outbox) | `infrastructure/db/repositories/inventory/**` | ⏳ |
