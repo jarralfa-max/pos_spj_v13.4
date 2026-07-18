@@ -10,6 +10,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from backend.infrastructure.db.repositories.inventory.adjustment_repository import (
+    AdjustmentRepository,
+)
 from backend.infrastructure.db.repositories.inventory.cold_chain_repository import (
     ColdChainRepository,
 )
@@ -55,6 +58,7 @@ class InventoryUnitOfWork:
         self.reservations = ReservationRepository(connection)
         self.transfers = TransferRepository(connection)
         self.counts = CountRepository(connection)
+        self.adjustments = AdjustmentRepository(connection)
         self.cold_chain = ColdChainRepository(connection)
         self.warehouses = WarehouseRepository(connection)
         self.limits = InventoryLimitRepository(connection)

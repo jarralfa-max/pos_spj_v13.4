@@ -335,3 +335,26 @@ class CountStatus(str, Enum):
     APPROVED = "APPROVED"
     POSTED = "POSTED"
     CANCELLED = "CANCELLED"
+
+
+# ── INV-14 adjustments ──────────────────────────────────────────────────────
+class AdjustmentReason(str, Enum):
+    COUNT_VARIANCE = "COUNT_VARIANCE"
+    DAMAGE = "DAMAGE"
+    EXPIRY = "EXPIRY"
+    SHRINKAGE = "SHRINKAGE"
+    WASTE = "WASTE"
+    THEFT_SUSPECTED = "THEFT_SUSPECTED"
+    QUALITY_REJECTION = "QUALITY_REJECTION"
+    SYSTEM_CORRECTION = "SYSTEM_CORRECTION"
+    WEIGHT_VARIANCE = "WEIGHT_VARIANCE"
+    MANUAL_AUTHORIZED = "MANUAL_AUTHORIZED"
+
+
+class AdjustmentStatus(str, Enum):
+    DRAFT = "DRAFT"
+    PENDING_APPROVAL = "PENDING_APPROVAL"
+    APPROVED = "APPROVED"
+    POSTED = "POSTED"
+    REVERSED = "REVERSED"
+    CANCELLED = "CANCELLED"

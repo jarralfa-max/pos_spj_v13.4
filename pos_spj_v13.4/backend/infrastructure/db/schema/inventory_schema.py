@@ -40,6 +40,8 @@ INVENTORY_TABLES: tuple[str, ...] = (
     "inventory_transfer_line",
     "inventory_count",
     "inventory_count_line",
+    "inventory_adjustment",
+    "inventory_adjustment_line",
     "inventory_temperature_readings",
     "inventory_temperature_excursions",
     "inventory_settings",
@@ -298,6 +300,35 @@ _DDL = (
         FOREIGN KEY (count_id) REFERENCES inventory_count(id)
     )
     """,
+    # ── adjustments (§29, INV-14) ──────────────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS inventory_adjustment (
+        id TEXT PRIMARY KEY,
+        folio TEXT NOT NULL,
+        branch_id TEXT NOT NULL,
+        warehouse_id TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'DRAFT',
+        reason_note TEXT,
+        source_count_id TEXT,
+        created_by_user_id TEXT,
+        approved_by_user_id TEXT,
+        created_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS inventory_adjustment_line (
+        id TEXT PRIMARY KEY,
+        adjustment_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        location_id TEXT,
+        lot_id TEXT,
+        quantity_delta TEXT NOT NULL DEFAULT '0',
+        weight_delta TEXT NOT NULL DEFAULT '0',
+        reason_code TEXT,
+        FOREIGN KEY (adjustment_id) REFERENCES inventory_adjustment(id)
+    )
+    """,
     # ── cold chain (§21, INV-9) ────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS inventory_temperature_readings (
@@ -438,6 +469,9 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_inv_count_status ON inventory_count(status)",
     "CREATE INDEX IF NOT EXISTS idx_inv_count_wh ON inventory_count(warehouse_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_count_line_ct ON inventory_count_line(count_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_adjustment_status ON inventory_adjustment(status)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_adjustment_wh ON inventory_adjustment(warehouse_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_adjustment_line_adj ON inventory_adjustment_line(adjustment_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_audit_entity ON inventory_audit_log(entity_type, entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_audit_product ON inventory_audit_log(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_outbox_status ON inventory_outbox(status)",
