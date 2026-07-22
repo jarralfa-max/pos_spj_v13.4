@@ -19,6 +19,7 @@ from backend.domain.inventory.entities.reservation import (
     InventoryAllocation,
     InventoryReservation,
 )
+from backend.domain.inventory.entities.traceability_link import TraceabilityLink
 from backend.domain.inventory.entities.transfer import (
     InventoryTransfer,
     InventoryTransferLine,
@@ -43,6 +44,7 @@ __all__ = [
     "InventoryReservation",
     "InventoryTransfer",
     "InventoryTransferLine",
+    "TraceabilityLink",
     "StorageLocation",
     "Warehouse",
     "WarehouseZone",

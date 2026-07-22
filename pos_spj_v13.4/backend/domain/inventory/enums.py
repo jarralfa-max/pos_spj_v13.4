@@ -411,3 +411,20 @@ WASTE_MOVEMENT_TYPE: dict[WasteType, MovementType] = {
 DISPOSAL_WASTE_TYPES = frozenset({
     WasteType.EXPIRY, WasteType.DISPOSAL, WasteType.CONDEMNATION,
 })
+
+
+# ── INV-17 traceability (§32) ───────────────────────────────────────────────
+class TraceabilityDirection(str, Enum):
+    UPSTREAM = "UPSTREAM"      # where the lot came from (supplier/production/slaughter)
+    DOWNSTREAM = "DOWNSTREAM"  # where the lot went (sale/transfer/consumption)
+
+
+class TraceabilityLinkType(str, Enum):
+    """Explicit genealogy edges (parent lot → child lot) for transformations that
+    the ledger alone cannot infer (production/slaughter break a lot's identity)."""
+    PRODUCTION = "PRODUCTION"          # input lots consumed → output lot
+    SLAUGHTER = "SLAUGHTER"            # carcass lot → cut/piece lots (future §33)
+    REPACK = "REPACK"                  # relabel/repackage into a new lot
+    TRANSFORMATION = "TRANSFORMATION"  # generic transformation
+    SPLIT = "SPLIT"                    # one lot → many child lots
+    MERGE = "MERGE"                    # many lots → one child lot

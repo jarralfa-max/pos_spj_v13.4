@@ -44,6 +44,7 @@ INVENTORY_TABLES: tuple[str, ...] = (
     "inventory_adjustment_line",
     "inventory_quarantine",
     "inventory_waste_event",
+    "inventory_traceability_link",
     "inventory_temperature_readings",
     "inventory_temperature_excursions",
     "inventory_settings",
@@ -369,6 +370,28 @@ _DDL = (
         created_at TEXT NOT NULL
     )
     """,
+    # ── traceability genealogy (§32-33, INV-17) ────────────────────────────
+    # Explicit parent→child lot edges for transformations the ledger can't infer
+    # (production/slaughter/repack). Most trace is derived from the ledger by lot;
+    # these edges bridge lot-identity breaks so a recall can walk the genealogy.
+    """
+    CREATE TABLE IF NOT EXISTS inventory_traceability_link (
+        id TEXT PRIMARY KEY,
+        parent_lot_id TEXT NOT NULL,
+        child_lot_id TEXT NOT NULL,
+        link_type TEXT NOT NULL,
+        product_id TEXT,
+        quantity TEXT NOT NULL DEFAULT '0',
+        weight TEXT NOT NULL DEFAULT '0',
+        source_module TEXT NOT NULL DEFAULT 'inventory',
+        source_document_type TEXT,
+        source_document_id TEXT,
+        operation_id TEXT,
+        created_by_user_id TEXT,
+        created_at TEXT NOT NULL,
+        UNIQUE (parent_lot_id, child_lot_id, link_type)
+    )
+    """,
     # ── cold chain (§21, INV-9) ────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS inventory_temperature_readings (
@@ -517,6 +540,8 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_inv_quarantine_prod ON inventory_quarantine(product_id, branch_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_waste_type ON inventory_waste_event(waste_type)",
     "CREATE INDEX IF NOT EXISTS idx_inv_waste_prod ON inventory_waste_event(product_id, branch_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_trace_parent ON inventory_traceability_link(parent_lot_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_trace_child ON inventory_traceability_link(child_lot_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_audit_entity ON inventory_audit_log(entity_type, entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_audit_product ON inventory_audit_log(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_outbox_status ON inventory_outbox(status)",
