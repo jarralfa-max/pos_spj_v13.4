@@ -13,9 +13,28 @@ logger = logging.getLogger("spj.bi.inventory")
 _PROD_COST = "COALESCE(NULLIF(p.costo,0), NULLIF(p.precio_compra,0), NULLIF(p.costo_promedio,0), 0)"
 
 
+# Canonical on-hand source (INV-27): a subquery exposing ist.product_id/branch_id/
+# quantity from inventory_balances, so the BI SQL is unchanged apart from the FROM.
+_CANONICAL_STOCK = (
+    "(SELECT product_id, branch_id,"
+    " SUM(CAST(quantity AS REAL)) AS quantity FROM inventory_balances"
+    " WHERE inventory_status='AVAILABLE' GROUP BY product_id, branch_id)")
+
+
 class BiInventoryQueryService:
     def __init__(self, conn):
         self._conn = conn
+
+    def _stock_source(self) -> str:
+        """FROM fragment for on-hand stock: canonical projection when the cutover
+        flag is ON, legacy inventory_stock while OFF (reads follow writes)."""
+        try:
+            from backend.application.inventory.cutover import is_cutover_enabled
+            if is_cutover_enabled(self._conn):
+                return _CANONICAL_STOCK
+        except Exception:
+            pass
+        return "inventory_stock"
 
     def _scalar(self, sql, params=()) -> float:
         try:
@@ -28,7 +47,7 @@ class BiInventoryQueryService:
     def inventory_valued(self, f) -> float:
         """Inventario valorizado = sum(existencia_sucursal * costo_producto)."""
         sql = (f"SELECT COALESCE(SUM(ist.quantity * {_PROD_COST}),0) "
-               "FROM inventory_stock ist JOIN productos p ON p.id = ist.product_id "
+               f"FROM {self._stock_source()} ist JOIN productos p ON p.id = ist.product_id "
                "WHERE COALESCE(p.activo,1)=1")
         params: list = []
         if f.branch_id:
@@ -49,7 +68,7 @@ class BiInventoryQueryService:
     def critical_stock(self, f, limit: int = 15) -> list[dict]:
         """Productos por debajo o al nivel de su stock mínimo (por sucursal)."""
         sql = ("SELECT p.nombre, ist.quantity, COALESCE(p.stock_minimo,0), COALESCE(p.unidad,'') "
-               "FROM inventory_stock ist JOIN productos p ON p.id = ist.product_id "
+               f"FROM {self._stock_source()} ist JOIN productos p ON p.id = ist.product_id "
                "WHERE COALESCE(p.activo,1)=1 AND COALESCE(p.stock_minimo,0) > 0 "
                "AND ist.quantity <= p.stock_minimo")
         params: list = []

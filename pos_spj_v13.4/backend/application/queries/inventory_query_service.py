@@ -118,7 +118,13 @@ class InventoryQueryService:
             return []
 
     def list_availability_rows(self, branch_id: str) -> list[dict]:
-        """Return physical and sale availability from inventory_stock (canonical)."""
+        """Return physical and sale availability. INV-27: with the cutover flag ON,
+        reads the canonical projection (inventory_balances); while OFF, legacy
+        inventory_stock − stock_reservas."""
+        from backend.application.inventory.cutover import is_cutover_enabled
+        if is_cutover_enabled(self._connection) and _tbl_exists(
+                self._connection, "inventory_balances"):
+            return self._canonical_availability_rows(str(branch_id))
         has_reservas = _tbl_exists(self._connection, "stock_reserva_detalles")
         res_join = (
             """LEFT JOIN (
@@ -167,6 +173,44 @@ class InventoryQueryService:
                 "reserved": reserved,
                 "physical_available": available,
                 "virtual_available": None,
+                "sale_available": available,
+                "mode": "DIRECTO" if available > 0 else "NO DISPONIBLE",
+            })
+        return out
+
+    def _canonical_availability_rows(self, branch_id: str) -> list[dict]:
+        try:
+            rows = self._connection.execute(
+                """
+                SELECT p.id, p.nombre,
+                       COALESCE(b.physical, 0) AS physical_stock,
+                       COALESCE(b.reserved, 0) AS reserved_qty
+                FROM productos p
+                LEFT JOIN (
+                    SELECT product_id,
+                           SUM(CAST(quantity AS REAL)) AS physical,
+                           SUM(CAST(reserved_quantity AS REAL)) AS reserved
+                    FROM inventory_balances
+                    WHERE branch_id = ? AND inventory_status = 'AVAILABLE'
+                    GROUP BY product_id
+                ) b ON b.product_id = p.id
+                WHERE COALESCE(p.activo, 1) = 1
+                ORDER BY p.nombre
+                """,
+                (branch_id,),
+            ).fetchall()
+        except Exception:
+            logger.exception("Error listing canonical availability rows branch_id=%s", branch_id)
+            return []
+        out: list[dict] = []
+        for row in rows:
+            physical = float(row[2] or 0.0)
+            reserved = float(row[3] or 0.0)
+            available = max(0.0, physical - reserved)
+            out.append({
+                "product_id": str(row[0]), "name": str(row[1] or ""),
+                "physical_stock": physical, "reserved": reserved,
+                "physical_available": available, "virtual_available": None,
                 "sale_available": available,
                 "mode": "DIRECTO" if available > 0 else "NO DISPONIBLE",
             })

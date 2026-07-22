@@ -77,3 +77,34 @@ class TestInventoryBalanceQueryRepoint:
         assert b["fuente"] == "inventory_balances"
         assert b["stock_fisico"] == Decimal("9") and b["stock_reservado"] == Decimal("2")
         assert b["stock_disponible"] == Decimal("7")
+
+
+class TestBiInventoryRepoint:
+    def _svc(self, conn):
+        from backend.application.queries.bi_inventory_query_service import (
+            BiInventoryQueryService,
+        )
+        # add cost + a critical-stock scenario
+        conn.execute("ALTER TABLE productos ADD COLUMN costo REAL")
+        conn.execute("ALTER TABLE productos ADD COLUMN precio_compra REAL")
+        conn.execute("ALTER TABLE productos ADD COLUMN costo_promedio REAL")
+        conn.execute("UPDATE productos SET costo=2.0, stock_minimo=100 WHERE id='p1'")
+        conn.commit()
+        return BiInventoryQueryService(conn)
+
+    class _F:
+        branch_id = "b1"
+        date_from = "2000-01-01"
+        date_to = "2100-01-01"
+
+    def test_flag_off_valuation_from_legacy(self, conn, monkeypatch):
+        monkeypatch.delenv("INVENTORY_CANONICAL_CUTOVER", raising=False)
+        assert self._svc(conn).inventory_valued(self._F()) == 100.0  # 50 legacy * 2
+
+    def test_flag_on_valuation_from_canonical(self, conn, monkeypatch):
+        monkeypatch.setenv("INVENTORY_CANONICAL_CUTOVER", "1")
+        svc = self._svc(conn)
+        # canonical quantity is 9 (reserved 0 for valuation) → 9 * 2
+        assert svc.inventory_valued(self._F()) == 18.0
+        crit = svc.critical_stock(self._F())
+        assert crit and crit[0]["existencia"] == 9.0

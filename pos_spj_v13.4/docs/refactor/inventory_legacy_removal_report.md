@@ -79,8 +79,9 @@ atómica. Por eso repuntar un lector con el flag OFF es un no-op de comportamien
 | `core/services/enterprise/demand_forecasting.py` + `core/forecast/replenishment_engine.py` | READ | ⏳ |
 | `core/services/enterprise/report_engine_v2.py` + `backend/application/queries/bi_*` | READ (BI) | ⏳ |
 | `core/services/distribution_engine.py` / `production_query_service.py` | READ | ⏳ |
-| `backend/application/queries/inventory_query_service.py` / `transfer_query_service.py` | READ | ⏳ |
-| `backend/application/queries/bi_inventory_query_service.py` / `bi_dashboard_service.py` | READ (BI) | ⏳ |
+| `backend/application/queries/inventory_query_service.list_availability_rows` | READ | ✅ repunteado |
+| `backend/application/queries/bi_inventory_query_service.py` (valorizado, crítico) | READ (BI) | ✅ repunteado |
+| `backend/application/queries/transfer_query_service.py` / `bi_dashboard_service.py` | READ | ⏳ |
 | `backend/infrastructure/db/repositories/inventory_repository.py` (098) | READ | ⏳ |
 
 ### Escritores (NO se repuntan — se **neutralizan** al encender el flag, paso 4)
