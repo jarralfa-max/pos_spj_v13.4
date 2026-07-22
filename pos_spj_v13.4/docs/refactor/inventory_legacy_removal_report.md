@@ -54,6 +54,42 @@ global/subproductos/sucursal`, `inventory_movements`(098), `movimientos_inventar
 `stock_reservas(+detalle)`, `inventory_reservations`, `lotes`.
 Triggers: `trg_sync_existencia_*`, `trg_recalc_inventario_actual`.
 
+## Repunte de lectores (en curso) — modelo "reads follow writes"
+
+Regla de oro del strangler: **las lecturas siguen a las escrituras**. Mientras el
+flag está OFF el path legacy es dueño de las escrituras, así que el canónico es
+sólo un snapshot del backfill; los lectores repunteados devuelven legacy. Al
+encender el flag, **todos** los lectores repunteados cambian a canónico de forma
+atómica. Por eso repuntar un lector con el flag OFF es un no-op de comportamiento
+(seguro), y el `CanonicalStockReadAdapter` implementa exactamente esa regla.
+
+### Foundation
+| Pieza | Estado |
+|---|---|
+| `migrations/deferred/backfill_legacy_stock.py` (siembra ledger canónico) | ✅ |
+| `core/services/inventory/canonical_stock_read_adapter.py` (adapter reads-follow-writes) | ✅ |
+
+### Lectores (repoint) — retrocompatibles (sin `connection_provider`/flag = legacy)
+| Lector | Tipo | Estado |
+|---|---|---|
+| `core/services/inventory_availability_service.py` (disponible venta) | READ | ✅ repunteado |
+| `core/services/stock_reservation_service.stock_disponible` | READ | ✅ repunteado |
+| `core/services/sales/product_catalog_query_service.py` | READ | ⏳ |
+| `core/services/enterprise/demand_forecasting.py` + `core/forecast/replenishment_engine.py` | READ | ⏳ |
+| `core/services/enterprise/report_engine_v2.py` + `backend/application/queries/bi_*` | READ (BI) | ⏳ |
+| `core/services/distribution_engine.py` / `production_query_service.py` | READ | ⏳ |
+| `backend/application/queries/inventory_query_service.py` / `transfer_query_service.py` | READ | ⏳ |
+| `backend/infrastructure/db/repositories/inventory_repository.py` / `inventory_balance_service.py` (098) | READ | ⏳ |
+
+### Escritores (NO se repuntan — se **neutralizan** al encender el flag, paso 4)
+`unified_inventory_service`, `lote_service`, `production_engine`/`cost_allocator`/
+`production_handler`, `purchase_stock_entry_handler` (y lote/recipe), `inventory_
+application_service`, `waste_application_service`.
+
+### UI legacy (NO se repunta — se **borra** en el paso 5, reemplazada por INV-25)
+`modulos/inventario_local.py`, `modulos/transferencias.py`, entradas muertas del
+`module_loader` (`inventario_enterprise`, `inventario_industrial`).
+
 ## Riesgo controlado
 
 - Nada en runtime cambia con el flag OFF: la app sigue usando el path legacy.

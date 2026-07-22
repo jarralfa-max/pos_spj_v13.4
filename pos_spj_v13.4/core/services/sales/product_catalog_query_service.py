@@ -65,12 +65,25 @@ class ProductCatalogQueryService:
 
 
     def _stock_source_sql(self, branch_id: int) -> tuple[str, str, List[Any]]:
-        """Return the canonical stock expression for the POS catalog.
+        """Return the stock expression + join for the POS catalog.
 
-        Operational stock has one source of truth: inventory_stock. When the
-        canonical table is not present yet, the catalog renders stock as zero
-        instead of silently reading legacy stock columns or tables.
+        INV-27 (reads follow writes): with the cutover flag ON the operational
+        stock comes from the canonical projection ``inventory_balances`` (available
+        = quantity − reserved, AVAILABLE bucket); while OFF it stays on the legacy
+        ``inventory_stock`` so the catalog matches the live write path. When no
+        source table exists, stock renders as zero (never a silent legacy read).
         """
+        from backend.application.inventory.cutover import is_cutover_enabled
+        if is_cutover_enabled(self.db) and self._table_exists("inventory_balances"):
+            return (
+                "COALESCE(icanon.qty, 0)",
+                "LEFT JOIN (SELECT product_id, branch_id,"
+                " SUM(CAST(quantity AS REAL) - CAST(reserved_quantity AS REAL)) AS qty"
+                " FROM inventory_balances WHERE inventory_status='AVAILABLE'"
+                " GROUP BY product_id, branch_id) icanon"
+                " ON icanon.product_id=p.id AND icanon.branch_id=? ",
+                [branch_id],
+            )
         if self._table_exists("inventory_stock"):
             return (
                 "COALESCE(istock.quantity, 0)",

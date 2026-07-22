@@ -1,0 +1,50 @@
+"""INV-27 — legacy readers repointed to the canonical projection (flag-gated).
+
+Each reader is backward-compatible: with the cutover flag OFF it reads the legacy
+source (the live write path); with the flag ON it reads inventory_balances.
+"""
+
+import sqlite3
+
+import pytest
+
+from backend.infrastructure.db.schema.inventory_schema import create_inventory_schema
+
+
+@pytest.fixture
+def conn():
+    c = sqlite3.connect(":memory:")
+    c.row_factory = sqlite3.Row
+    create_inventory_schema(c)
+    c.execute("CREATE TABLE productos (id TEXT PRIMARY KEY, nombre TEXT, precio REAL,"
+              " oculto INT DEFAULT 0, activo INT DEFAULT 1, unidad TEXT, categoria TEXT,"
+              " stock_minimo REAL, imagen_path TEXT, es_compuesto INT DEFAULT 0,"
+              " es_subproducto INT DEFAULT 0, codigo_barras TEXT, codigo TEXT)")
+    c.execute("INSERT INTO productos (id,nombre,precio,stock_minimo) VALUES ('p1','P',10.0,2)")
+    c.execute("CREATE TABLE inventory_stock (product_id TEXT, branch_id TEXT,"
+              " quantity REAL, unit TEXT)")
+    c.execute("INSERT INTO inventory_stock VALUES ('p1','b1',50.0,'u')")
+    c.execute("INSERT INTO inventory_balances (id,product_id,branch_id,warehouse_id,"
+              "inventory_status,quantity,reserved_quantity,updated_at)"
+              " VALUES ('x','p1','b1','b1','AVAILABLE','9','0',datetime('now'))")
+    c.commit()
+    yield c
+    c.close()
+
+
+class TestProductCatalogRepoint:
+    def _svc(self, conn):
+        from core.services.sales.product_catalog_query_service import (
+            ProductCatalogQueryService,
+        )
+        return ProductCatalogQueryService(conn)
+
+    def test_flag_off_reads_legacy_inventory_stock(self, conn, monkeypatch):
+        monkeypatch.delenv("INVENTORY_CANONICAL_CUTOVER", raising=False)
+        rows = self._svc(conn).list_visible_products(branch_id="b1")
+        assert rows[0]["existencia"] == 50.0
+
+    def test_flag_on_reads_canonical_balances(self, conn, monkeypatch):
+        monkeypatch.setenv("INVENTORY_CANONICAL_CUTOVER", "1")
+        rows = self._svc(conn).list_visible_products(branch_id="b1")
+        assert rows[0]["existencia"] == 9.0  # 9 available (quantity − reserved)
