@@ -23,6 +23,9 @@ from backend.application.event_handlers.inventory.purchase_receipt_handler impor
 from backend.application.event_handlers.inventory.sale_issue_handler import (
     SaleIssueHandler,
 )
+from backend.application.event_handlers.inventory.slaughter_stub_handler import (
+    SlaughterExecutedStubHandler,
+)
 from backend.application.event_handlers.inventory.supplier_return_handler import (
     SupplierReturnHandler,
 )
@@ -33,5 +36,6 @@ __all__ = [
     "GoodsReceiptReversedHandler",
     "PurchaseReceiptHandler",
     "SaleIssueHandler",
+    "SlaughterExecutedStubHandler",
     "SupplierReturnHandler",
 ]

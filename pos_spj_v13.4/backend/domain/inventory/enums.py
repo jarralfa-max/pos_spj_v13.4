@@ -453,3 +453,41 @@ class ReplenishmentSuggestionStatus(str, Enum):
     ACTED = "ACTED"            # a purchase/transfer was created from it
     DISMISSED = "DISMISSED"
     EXPIRED = "EXPIRED"
+
+
+# ── INV-21 slaughter preparation (§33, FUTURE) ──────────────────────────────
+# Vocabulary for a future slaughter (faena) module. It is intentionally a stub:
+# no schema, no live wiring. It maps onto the born-clean primitives already in
+# place — MovementType.SLAUGHTER_INPUT_FUTURE / SLAUGHTER_OUTPUT_FUTURE,
+# LotOrigin.SLAUGHTER_FUTURE, TraceabilityLinkType.SLAUGHTER — so the flow slots
+# in without a redesign when it is enabled.
+class SlaughterSpecies(str, Enum):
+    POULTRY = "POULTRY"
+    BOVINE = "BOVINE"
+    PORCINE = "PORCINE"
+    OVINE = "OVINE"
+    CAPRINE = "CAPRINE"
+    OTHER = "OTHER"
+
+
+class CarcassState(str, Enum):
+    WHOLE = "WHOLE"            # canal entera
+    HALVED = "HALVED"         # media canal
+    QUARTERED = "QUARTERED"   # cuarto de canal
+    DISASSEMBLED = "DISASSEMBLED"  # despiezada en cortes
+
+
+class SlaughterOutputType(str, Enum):
+    PRIMARY_CUT = "PRIMARY_CUT"   # corte primario vendible
+    CO_PRODUCT = "CO_PRODUCT"     # coproducto (p.ej. vísceras comestibles)
+    BY_PRODUCT = "BY_PRODUCT"     # subproducto (p.ej. piel, hueso, grasa)
+    OFFAL = "OFFAL"               # despojos
+    WASTE = "WASTE"               # decomiso/merma del proceso
+
+
+#: Output classes that yield sellable/usable stock (become on-hand via
+#: SLAUGHTER_OUTPUT_FUTURE); WASTE never becomes stock.
+SLAUGHTER_STOCK_OUTPUTS = frozenset({
+    SlaughterOutputType.PRIMARY_CUT, SlaughterOutputType.CO_PRODUCT,
+    SlaughterOutputType.BY_PRODUCT, SlaughterOutputType.OFFAL,
+})
