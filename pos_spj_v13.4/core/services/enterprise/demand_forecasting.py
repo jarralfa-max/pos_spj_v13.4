@@ -334,13 +334,27 @@ class DemandForecastingEngine:
     ) -> List[AlertaInventario]:
         """Genera lista de alertas de inventario con sugerencias de compra."""
         if branch_id:
-            rows = self.db.fetchall("""
+            # INV-27: canonical projection when the cutover flag is ON, else legacy.
+            try:
+                from backend.application.inventory.cutover import is_cutover_enabled
+                canonical = is_cutover_enabled(self.db)
+            except Exception:
+                canonical = False
+            if canonical:
+                stock_join = (
+                    "LEFT JOIN (SELECT product_id,"
+                    " SUM(CAST(quantity AS REAL) - CAST(reserved_quantity AS REAL)) AS quantity"
+                    " FROM inventory_balances WHERE inventory_status='AVAILABLE'"
+                    " AND branch_id = ? GROUP BY product_id) ia ON ia.product_id = p.id")
+            else:
+                stock_join = ("LEFT JOIN inventory_stock ia"
+                              " ON ia.product_id = p.id AND ia.branch_id = ?")
+            rows = self.db.fetchall(f"""
                 SELECT p.id, p.nombre, p.unidad,
                        COALESCE(ia.quantity, p.existencia, 0) AS stock,
                        COALESCE(p.stock_minimo, 0) AS stock_min
                 FROM productos p
-                LEFT JOIN inventory_stock ia
-                    ON ia.product_id = p.id AND ia.branch_id = ?
+                {stock_join}
                 WHERE p.activo = 1
             """, (branch_id,))
         else:

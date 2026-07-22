@@ -108,3 +108,23 @@ class TestBiInventoryRepoint:
         assert svc.inventory_valued(self._F()) == 18.0
         crit = svc.critical_stock(self._F())
         assert crit and crit[0]["existencia"] == 9.0
+
+
+class TestTransferDispatchRepoint:
+    def _src(self, conn):
+        from backend.application.queries.transfer_query_service import (
+            SQLiteTransferQueryDataSource,
+        )
+        conn.execute("ALTER TABLE productos ADD COLUMN existencia REAL DEFAULT 0")
+        conn.commit()
+        return SQLiteTransferQueryDataSource(conn)
+
+    def test_flag_off_dispatch_stock_legacy(self, conn, monkeypatch):
+        monkeypatch.delenv("INVENTORY_CANONICAL_CUTOVER", raising=False)
+        rows = self._src(conn).list_products_for_dispatch("b1")
+        assert rows[0]["existencia"] == 50.0
+
+    def test_flag_on_dispatch_stock_canonical(self, conn, monkeypatch):
+        monkeypatch.setenv("INVENTORY_CANONICAL_CUTOVER", "1")
+        rows = self._src(conn).list_products_for_dispatch("b1")
+        assert rows[0]["existencia"] == 9.0

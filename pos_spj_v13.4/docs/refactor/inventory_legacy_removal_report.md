@@ -76,13 +76,15 @@ atómica. Por eso repuntar un lector con el flag OFF es un no-op de comportamien
 | `core/services/stock_reservation_service.stock_disponible` | READ | ✅ repunteado |
 | `core/services/sales/product_catalog_query_service.py` | READ | ✅ repunteado |
 | `backend/application/queries/inventory_balance_service.py` (físico+reservado) | READ | ✅ repunteado |
-| `core/services/enterprise/demand_forecasting.py` + `core/forecast/replenishment_engine.py` | READ | ⏳ |
-| `core/services/enterprise/report_engine_v2.py` + `backend/application/queries/bi_*` | READ (BI) | ⏳ |
-| `core/services/distribution_engine.py` / `production_query_service.py` | READ | ⏳ |
+| `core/services/enterprise/demand_forecasting.py` (alertas) | READ | ✅ repunteado |
+| `core/forecast/replenishment_engine._get_stock` | READ | ✅ repunteado |
+| `core/services/production_query_service.get_stock` (delega a balance service) | READ | ✅ (heredado) |
 | `backend/application/queries/inventory_query_service.list_availability_rows` | READ | ✅ repunteado |
 | `backend/application/queries/bi_inventory_query_service.py` (valorizado, crítico) | READ (BI) | ✅ repunteado |
-| `backend/application/queries/transfer_query_service.py` / `bi_dashboard_service.py` | READ | ⏳ |
-| `backend/infrastructure/db/repositories/inventory_repository.py` (098) | READ | ⏳ |
+| `backend/application/queries/transfer_query_service.py` (despacho) | READ | ✅ repunteado |
+| `core/services/enterprise/report_engine_v2.py` (reportes) | READ (BI) | ⏳ (menor) |
+| `backend/infrastructure/db/repositories/inventory_repository.py` (098) | READ+WRITE → neutralizar | ⏳ |
+| `backend/application/services/bi_dashboard_service.py:287` | sólo etiqueta fórmula (no query) | n/a |
 
 ### Escritores (NO se repuntan — se **neutralizan** al encender el flag, paso 4)
 `unified_inventory_service`, `lote_service`, `production_engine`/`cost_allocator`/

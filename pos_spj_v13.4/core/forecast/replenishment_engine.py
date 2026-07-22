@@ -64,7 +64,18 @@ class ReplenishmentEngine:
             return default
 
     def _get_stock(self, product_id: int, branch_id: int) -> float:
+        # INV-27: with the cutover flag ON, available stock for planning comes
+        # from the canonical projection; while OFF, legacy inventory_stock.
         try:
+            from backend.application.inventory.cutover import is_cutover_enabled
+            if is_cutover_enabled(self.db):
+                row = self.db.fetchone("""
+                    SELECT COALESCE(SUM(CAST(quantity AS REAL)
+                                        - CAST(reserved_quantity AS REAL)), 0)
+                    FROM inventory_balances
+                    WHERE product_id=? AND branch_id=? AND inventory_status='AVAILABLE'
+                """, (product_id, branch_id))
+                return float(row[0]) if row else 0.0
             row = self.db.fetchone("""
                 SELECT COALESCE(quantity, 0) FROM inventory_stock
                 WHERE product_id=? AND branch_id=?

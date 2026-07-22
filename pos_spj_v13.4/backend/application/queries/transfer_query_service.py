@@ -202,22 +202,35 @@ class SQLiteTransferQueryDataSource:
     def list_products_for_dispatch(self, sucursal_id: int) -> list[dict]:
         """Return active products with current stock for the dispatch SearchSelector."""
         try:
-            has_ia = bool(
+            # INV-27: with the cutover flag ON, dispatch stock comes from the
+            # canonical projection; while OFF, legacy inventory_stock.
+            from backend.application.inventory.cutover import is_cutover_enabled
+            canonical = is_cutover_enabled(self._db) and bool(
+                self._db.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table'"
+                    " AND name='inventory_balances'").fetchone())
+            has_ia = (not canonical) and bool(
                 self._db.execute(
                     "SELECT 1 FROM sqlite_master WHERE type='table' AND name='inventory_stock'"
                 ).fetchone()
             )
-            stock_expr = (
-                "COALESCE(ia.quantity, p.existencia, 0)"
-                if has_ia
-                else "COALESCE(p.existencia, 0)"
-            )
-            ia_join = (
-                f"LEFT JOIN inventory_stock ia "
-                f"ON ia.product_id=p.id AND ia.branch_id='"+str(sucursal_id)+"'"
-                if has_ia
-                else ""
-            )
+            branch = str(sucursal_id).replace("'", "")
+            if canonical:
+                stock_expr = "COALESCE(ia.qty, p.existencia, 0)"
+                ia_join = (
+                    "LEFT JOIN (SELECT product_id,"
+                    " SUM(CAST(quantity AS REAL) - CAST(reserved_quantity AS REAL)) AS qty"
+                    " FROM inventory_balances WHERE inventory_status='AVAILABLE'"
+                    f" AND branch_id='{branch}' GROUP BY product_id) ia"
+                    " ON ia.product_id=p.id")
+            elif has_ia:
+                stock_expr = "COALESCE(ia.quantity, p.existencia, 0)"
+                ia_join = (
+                    "LEFT JOIN inventory_stock ia "
+                    f"ON ia.product_id=p.id AND ia.branch_id='{branch}'")
+            else:
+                stock_expr = "COALESCE(p.existencia, 0)"
+                ia_join = ""
             rows = self._db.execute(
                 f"""
                 SELECT p.id, p.nombre,
