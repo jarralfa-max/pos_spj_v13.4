@@ -94,6 +94,11 @@ class InventoryPermissions:
     LABEL_PRINT = "INVENTORY_LABEL_PRINT"
     LABEL_REPRINT = "INVENTORY_LABEL_REPRINT"
 
+    # ── reposición (§34) ──────────────────────────────────────────────────
+    REPLENISHMENT_VIEW = "INVENTORY_REPLENISHMENT_VIEW"
+    REPLENISHMENT_MANAGE = "INVENTORY_REPLENISHMENT_MANAGE"
+    REPLENISHMENT_GENERATE = "INVENTORY_REPLENISHMENT_GENERATE"
+
     # ── negativo (override) (§16) ─────────────────────────────────────────
     NEGATIVE_OVERRIDE = "INVENTORY_NEGATIVE_OVERRIDE"
 

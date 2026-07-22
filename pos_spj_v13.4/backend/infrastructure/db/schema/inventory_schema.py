@@ -45,6 +45,8 @@ INVENTORY_TABLES: tuple[str, ...] = (
     "inventory_quarantine",
     "inventory_waste_event",
     "inventory_traceability_link",
+    "inventory_replenishment_rule",
+    "inventory_replenishment_suggestion",
     "inventory_temperature_readings",
     "inventory_temperature_excursions",
     "inventory_settings",
@@ -392,6 +394,49 @@ _DDL = (
         UNIQUE (parent_lot_id, child_lot_id, link_type)
     )
     """,
+    # ── replenishment planning (§34, INV-18) ───────────────────────────────
+    # Rules are the per-product/branch/warehouse min/max/safety/target policy;
+    # suggestions are the immutable output of evaluating rules vs availability.
+    # Neither moves stock — acting creates a purchase/transfer in its own context.
+    """
+    CREATE TABLE IF NOT EXISTS inventory_replenishment_rule (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        branch_id TEXT NOT NULL,
+        warehouse_id TEXT NOT NULL,
+        basis TEXT NOT NULL DEFAULT 'QUANTITY',
+        min_quantity TEXT NOT NULL DEFAULT '0',
+        reorder_point TEXT NOT NULL DEFAULT '0',
+        target_quantity TEXT NOT NULL DEFAULT '0',
+        max_quantity TEXT,
+        safety_stock TEXT NOT NULL DEFAULT '0',
+        lead_time_days INTEGER NOT NULL DEFAULT 0,
+        preferred_source TEXT NOT NULL DEFAULT 'PURCHASE',
+        source_warehouse_id TEXT,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        UNIQUE (product_id, branch_id, warehouse_id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS inventory_replenishment_suggestion (
+        id TEXT PRIMARY KEY,
+        rule_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        branch_id TEXT NOT NULL,
+        warehouse_id TEXT NOT NULL,
+        basis TEXT NOT NULL DEFAULT 'QUANTITY',
+        current_available TEXT NOT NULL DEFAULT '0',
+        suggested_quantity TEXT NOT NULL DEFAULT '0',
+        source_type TEXT NOT NULL,
+        source_warehouse_id TEXT,
+        urgency TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'OPEN',
+        operation_id TEXT,
+        generated_at TEXT NOT NULL,
+        FOREIGN KEY (rule_id) REFERENCES inventory_replenishment_rule(id)
+    )
+    """,
     # ── cold chain (§21, INV-9) ────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS inventory_temperature_readings (
@@ -542,6 +587,10 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_inv_waste_prod ON inventory_waste_event(product_id, branch_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_trace_parent ON inventory_traceability_link(parent_lot_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_trace_child ON inventory_traceability_link(child_lot_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_replen_rule_scope ON inventory_replenishment_rule(branch_id, warehouse_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_replen_rule_active ON inventory_replenishment_rule(active)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_replen_sug_status ON inventory_replenishment_suggestion(status)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_replen_sug_scope ON inventory_replenishment_suggestion(branch_id, warehouse_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_audit_entity ON inventory_audit_log(entity_type, entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_audit_product ON inventory_audit_log(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_outbox_status ON inventory_outbox(status)",

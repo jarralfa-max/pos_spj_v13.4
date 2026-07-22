@@ -67,3 +67,15 @@ class InventoryAvailabilityQueryService(InventoryRepositoryBase):
         dto = self.get_availability(product_id=product_id, branch_id=branch_id,
                                     warehouse_id=warehouse_id)
         return dto.available >= to_decimal(quantity)
+
+    def available_at_warehouse(self, *, product_id: str, warehouse_id: str) -> Decimal:
+        """Available-to-promise at a single warehouse regardless of branch —
+        the surplus a replenishment transfer can draw from (§34)."""
+        rows = self._query(
+            "SELECT quantity, reserved_quantity FROM inventory_balances"
+            " WHERE product_id=? AND warehouse_id=? AND inventory_status=?",
+            (product_id, warehouse_id, InventoryStatus.AVAILABLE.value))
+        available = Decimal("0")
+        for r in rows:
+            available += to_decimal(r["quantity"]) - to_decimal(r["reserved_quantity"])
+        return available

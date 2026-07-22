@@ -28,6 +28,10 @@ from backend.application.inventory.use_cases.quarantine_use_cases import (
 from backend.application.inventory.use_cases.register_traceability_link import (
     RegisterTraceabilityLinkUseCase,
 )
+from backend.application.inventory.use_cases.replenishment_use_cases import (
+    GenerateReplenishmentSuggestionsUseCase,
+    SetReplenishmentRuleUseCase,
+)
 from backend.application.inventory.use_cases.register_waste import RegisterWasteUseCase
 from backend.application.inventory.use_cases.record_temperature_reading import (
     RecordTemperatureReadingUseCase,
@@ -60,6 +64,7 @@ __all__ = [
     "CreateTransferUseCase",
     "DispatchTransferUseCase",
     "DisposeQuarantineUseCase",
+    "GenerateReplenishmentSuggestionsUseCase",
     "PostAdjustmentUseCase",
     "PostInventoryMovementUseCase",
     "QuarantineStockUseCase",
@@ -67,6 +72,7 @@ __all__ = [
     "RecordCountUseCase",
     "RegisterTraceabilityLinkUseCase",
     "RegisterWasteUseCase",
+    "SetReplenishmentRuleUseCase",
     "ReleaseQuarantineUseCase",
     "ReverseAdjustmentUseCase",
     "RecordTemperatureReadingUseCase",

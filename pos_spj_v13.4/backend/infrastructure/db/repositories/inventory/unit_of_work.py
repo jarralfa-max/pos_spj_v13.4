@@ -34,6 +34,10 @@ from backend.infrastructure.db.repositories.inventory.inventory_limit_repository
 from backend.infrastructure.db.repositories.inventory.inventory_lot_repository import (
     InventoryLotRepository,
 )
+from backend.infrastructure.db.repositories.inventory.replenishment_repository import (
+    ReplenishmentRuleRepository,
+    ReplenishmentSuggestionRepository,
+)
 from backend.infrastructure.db.repositories.inventory.reservation_repository import (
     ReservationRepository,
 )
@@ -71,6 +75,8 @@ class InventoryUnitOfWork:
         self.quarantines = QuarantineRepository(connection)
         self.waste = WasteRepository(connection)
         self.traceability = TraceabilityRepository(connection)
+        self.replenishment_rules = ReplenishmentRuleRepository(connection)
+        self.replenishment_suggestions = ReplenishmentSuggestionRepository(connection)
         self.cold_chain = ColdChainRepository(connection)
         self.warehouses = WarehouseRepository(connection)
         self.limits = InventoryLimitRepository(connection)

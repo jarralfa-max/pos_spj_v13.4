@@ -428,3 +428,28 @@ class TraceabilityLinkType(str, Enum):
     TRANSFORMATION = "TRANSFORMATION"  # generic transformation
     SPLIT = "SPLIT"                    # one lot → many child lots
     MERGE = "MERGE"                    # many lots → one child lot
+
+
+# ── INV-18 replenishment (§34) ──────────────────────────────────────────────
+class ReplenishmentBasis(str, Enum):
+    QUANTITY = "QUANTITY"
+    WEIGHT = "WEIGHT"
+
+
+class ReplenishmentSource(str, Enum):
+    PURCHASE = "PURCHASE"      # buy from a supplier (→ procurement)
+    TRANSFER = "TRANSFER"      # move surplus from another warehouse (→ transfers)
+
+
+class ReplenishmentUrgency(str, Enum):
+    OK = "OK"                  # above reorder point — no action
+    REORDER = "REORDER"        # at/below reorder point
+    CRITICAL = "CRITICAL"      # at/below safety stock
+    STOCKOUT = "STOCKOUT"      # zero or negative available
+
+
+class ReplenishmentSuggestionStatus(str, Enum):
+    OPEN = "OPEN"
+    ACTED = "ACTED"            # a purchase/transfer was created from it
+    DISMISSED = "DISMISSED"
+    EXPIRED = "EXPIRED"

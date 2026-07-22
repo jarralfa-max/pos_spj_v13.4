@@ -15,6 +15,10 @@ from backend.domain.inventory.entities.inventory_movement import (
     InventoryMovementLine,
 )
 from backend.domain.inventory.entities.quarantine import InventoryQuarantine
+from backend.domain.inventory.entities.replenishment import (
+    ReplenishmentRule,
+    ReplenishmentSuggestion,
+)
 from backend.domain.inventory.entities.reservation import (
     InventoryAllocation,
     InventoryReservation,
@@ -44,6 +48,8 @@ __all__ = [
     "InventoryReservation",
     "InventoryTransfer",
     "InventoryTransferLine",
+    "ReplenishmentRule",
+    "ReplenishmentSuggestion",
     "TraceabilityLink",
     "StorageLocation",
     "Warehouse",
