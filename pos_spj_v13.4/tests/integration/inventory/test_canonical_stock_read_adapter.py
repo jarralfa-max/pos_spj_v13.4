@@ -40,36 +40,38 @@ def _seed(conn, product, branch, qty):
 
 
 class TestAdapter:
-    def test_returns_canonical_when_present(self, conn):
+    def test_flag_off_returns_legacy_even_if_canonical_present(self, conn):
+        # Reads follow writes: flag OFF → legacy owns the truth, canonical is a
+        # (possibly stale) snapshot, so the adapter serves legacy.
         _seed(conn, "p1", "b1", "10")
-        legacy_calls = []
         adapter = CanonicalStockReadAdapter(
-            lambda: conn, legacy_available=lambda p, b: legacy_calls.append((p, b)) or 999,
-            env={})
-        assert adapter.available("p1", "b1") == Decimal("10")
-        assert legacy_calls == []  # canonical had data → no fallback
+            lambda: conn, legacy_available=lambda p, b: 8.0, env={})
+        assert adapter.available("p1", "b1") == Decimal("8.0")
 
-    def test_falls_back_to_legacy_when_canonical_missing(self, conn):
-        adapter = CanonicalStockReadAdapter(
-            lambda: conn, legacy_available=lambda p, b: 7.5, env={})
-        assert adapter.available("pX", "b1") == Decimal("7.5")
+    def test_flag_off_no_fallback_uses_canonical_best_effort(self, conn):
+        _seed(conn, "p1", "b1", "10")
+        adapter = CanonicalStockReadAdapter(lambda: conn, env={})  # no legacy
+        assert adapter.available("p1", "b1") == Decimal("10")
 
     def test_cutover_on_is_authoritative_no_fallback(self, conn):
+        _seed(conn, "p1", "b1", "10")
         adapter = CanonicalStockReadAdapter(
-            lambda: conn, legacy_available=lambda p, b: 7.5,
+            lambda: conn, legacy_available=lambda p, b: 999,
             env={"INVENTORY_CANONICAL_CUTOVER": "1"})
-        # canonical has no row for pX, but cutover ON → canonical (0), never legacy
-        assert adapter.available("pX", "b1") == Decimal("0")
+        assert adapter.available("p1", "b1") == Decimal("10")   # canonical, not legacy
+        assert adapter.available("pX", "b1") == Decimal("0")    # missing → canonical 0
 
     def test_total_across_branches_when_no_branch(self, conn):
         _seed(conn, "p1", "b1", "10")
         _seed(conn, "p1", "b2", "4")
-        adapter = CanonicalStockReadAdapter(lambda: conn, env={})
+        adapter = CanonicalStockReadAdapter(
+            lambda: conn, env={"INVENTORY_CANONICAL_CUTOVER": "1"})
         assert adapter.available("p1") == Decimal("14")
 
     def test_available_float_shim(self, conn):
         _seed(conn, "p1", "b1", "10")
-        adapter = CanonicalStockReadAdapter(lambda: conn, env={})
+        adapter = CanonicalStockReadAdapter(
+            lambda: conn, env={"INVENTORY_CANONICAL_CUTOVER": "1"})
         assert adapter.available_float("p1", "b1") == 10.0
 
     def test_reserved_reduces_available(self, conn):
@@ -77,7 +79,8 @@ class TestAdapter:
         conn.execute("UPDATE inventory_balances SET reserved_quantity='3'"
                      " WHERE product_id='p1' AND inventory_status='AVAILABLE'")
         conn.commit()
-        adapter = CanonicalStockReadAdapter(lambda: conn, env={})
+        adapter = CanonicalStockReadAdapter(
+            lambda: conn, env={"INVENTORY_CANONICAL_CUTOVER": "1"})
         assert adapter.available("p1", "b1") == Decimal("7")
 
 
@@ -98,12 +101,44 @@ class TestAvailabilityServiceRepoint:
         assert svc.disponible_para_venta(1) == 42.0
         assert svc.disponible_por_producto([1, 2]) == {1: 42.0, 2: 42.0}
 
-    def test_canonical_first_with_legacy_fallback(self, conn):
+    def test_flag_off_stays_legacy_flag_on_uses_canonical(self, conn):
         from core.services.inventory_availability_service import (
             InventoryAvailabilityService,
         )
         _seed(conn, "7", "b1", "9")
-        svc = InventoryAvailabilityService(
+        # flag OFF → legacy owns writes, so the reader stays on legacy (42)
+        off = InventoryAvailabilityService(
             _FakeReservations(), connection_provider=lambda: conn, env={})
-        assert svc.disponible_para_venta(7) == 9.0    # canonical has product 7
-        assert svc.disponible_para_venta(99) == 42.0  # missing → legacy fallback
+        assert off.disponible_para_venta(7) == 42.0
+        # flag ON → canonical is authoritative (product 7 = 9; missing = 0)
+        on = InventoryAvailabilityService(
+            _FakeReservations(), connection_provider=lambda: conn,
+            env={"INVENTORY_CANONICAL_CUTOVER": "1"})
+        assert on.disponible_para_venta(7) == 9.0
+        assert on.disponible_para_venta(99) == 0.0
+
+
+class TestStockReservationRepoint:
+    def _legacy(self, conn):
+        conn.execute("CREATE TABLE IF NOT EXISTS stock_reservas (id TEXT, estado TEXT,"
+                     " branch_id TEXT, created_at TEXT)")
+        conn.execute("CREATE TABLE IF NOT EXISTS stock_reserva_detalles (id TEXT,"
+                     " reserva_id TEXT, producto_id TEXT, cantidad REAL)")
+        conn.execute("CREATE TABLE IF NOT EXISTS inventory_stock (product_id TEXT,"
+                     " branch_id TEXT, quantity REAL, unit TEXT)")
+        conn.execute("INSERT INTO inventory_stock VALUES ('7','b1',50.0,'u')")
+        conn.commit()
+
+    def test_flag_off_uses_legacy_stock(self, conn):
+        from core.services.stock_reservation_service import StockReservationService
+        self._legacy(conn)
+        _seed(conn, "7", "b1", "9")
+        svc = StockReservationService(conn, "b1", env={})
+        assert svc.stock_disponible("7") == 50.0  # legacy inventory_stock
+
+    def test_flag_on_uses_canonical(self, conn):
+        from core.services.stock_reservation_service import StockReservationService
+        self._legacy(conn)
+        _seed(conn, "7", "b1", "9")
+        svc = StockReservationService(conn, "b1", env={"INVENTORY_CANONICAL_CUTOVER": "1"})
+        assert svc.stock_disponible("7") == 9.0  # canonical projection

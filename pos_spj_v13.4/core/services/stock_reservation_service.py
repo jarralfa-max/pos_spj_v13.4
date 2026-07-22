@@ -17,10 +17,24 @@ RESERVATION_TTL_MINUTES = 30
 class StockReservationService:
     """Reserva/libera stock lógico para ventas suspendidas."""
 
-    def __init__(self, db, branch_id: str = ""):
+    def __init__(self, db, branch_id: str = "", *, env=None):
         self.db = db
         self.branch_id = branch_id
+        self._env = env
         self._ensure_table()
+
+    def _canonical_available(self, producto_id):
+        """Canonical available for this product+branch, or None when the cutover
+        flag is OFF (legacy still owns writes → read legacy instead)."""
+        from backend.application.inventory.cutover import is_cutover_enabled
+        if not is_cutover_enabled(self.db, env=self._env):
+            return None
+        from core.services.inventory.canonical_stock_read_adapter import (
+            CanonicalStockReadAdapter,
+        )
+        return CanonicalStockReadAdapter(
+            lambda: self.db, env=self._env).available_float(
+                producto_id, self.branch_id or None)
 
     def _ensure_table(self):
         # Plan B born-clean: stock_reservas / stock_reserva_detalles viven en
@@ -50,6 +64,12 @@ class StockReservationService:
 
     def stock_disponible(self, producto_id: int) -> float:
         self.expirar_huerfanas()
+        # INV-27: with the cutover flag ON, the canonical projection is the single
+        # source of available (it already nets its own reservations). While OFF,
+        # fall through to the legacy inventory_stock − stock_reservas computation.
+        canonical = self._canonical_available(producto_id)
+        if canonical is not None:
+            return max(0.0, canonical)
         try:
             row = self.db.execute(
                 "SELECT COALESCE(quantity,0) FROM inventory_stock "

@@ -1,15 +1,18 @@
 """CanonicalStockReadAdapter — strangler read facade for the cutover (INV-27).
 
 Lets legacy availability readers be repointed to the canonical projection one at a
-time, safely. It reads ``inventory_balances`` (canonical, Decimal) and:
+time, safely. **Reads follow writes**, gated by the cutover flag:
 
-- if the canonical cutover flag is ON → canonical is authoritative (no fallback);
-- else, during transition → returns canonical when a balance row exists for the
-  product, otherwise falls back to the injected legacy callable.
+- flag ON  → canonical (``inventory_balances``) is authoritative; the legacy path
+  has been neutralized, so canonical is the live truth.
+- flag OFF → the legacy path still OWNS writes, so canonical is only a stale
+  backfilled snapshot; the adapter returns the injected legacy callable. Reading
+  canonical here would serve stale data, so it does not.
 
-This is the seam that keeps the POS working while stock is being backfilled and
-readers migrated. It lives in the legacy ``core`` layer (float↔Decimal bridging is
-allowed here); the canonical context stays Decimal-only.
+Because of this, repointing a reader to the adapter while the flag is OFF is a
+behavioral no-op (still legacy) — the switch to canonical happens atomically for
+every repointed reader the moment the flag flips. It lives in the legacy ``core``
+layer (float↔Decimal bridging allowed); the canonical context stays Decimal-only.
 """
 
 from __future__ import annotations
@@ -36,43 +39,29 @@ class CanonicalStockReadAdapter:
 
     def available(self, product_id, branch_id=None) -> Decimal:
         conn = self._conn()
-        canonical, found = self._canonical(conn, str(product_id),
-                                           None if branch_id is None else str(branch_id))
-        if found or is_cutover_enabled(conn, env=self._env):
-            return canonical
+        if is_cutover_enabled(conn, env=self._env):
+            return self._canonical(conn, str(product_id),
+                                   None if branch_id is None else str(branch_id))
         if self._legacy_available is not None:
             return _dec(self._legacy_available(product_id, branch_id))
-        return canonical
+        # No legacy fallback available → best-effort canonical.
+        return self._canonical(conn, str(product_id),
+                               None if branch_id is None else str(branch_id))
 
     def available_float(self, product_id, branch_id=None) -> float:
         """Compat shim for legacy callers that expect a float."""
         return float(self.available(product_id, branch_id))
 
     # ── internals ────────────────────────────────────────────────────────────
-    def _canonical(self, conn, product_id: str, branch_id: str | None):
-        """Return (available, found). ``found`` is True when the canonical
-        projection has any AVAILABLE row for this product (± branch)."""
+    def _canonical(self, conn, product_id: str, branch_id: str | None) -> Decimal:
         if branch_id is not None:
-            dto = InventoryAvailabilityQueryService(conn).get_availability(
-                product_id=product_id, branch_id=branch_id)
-            found = self._has_row(conn, product_id, branch_id)
-            return dto.available, found
+            return InventoryAvailabilityQueryService(conn).get_availability(
+                product_id=product_id, branch_id=branch_id).available
         # no branch → total available across branches
-        rows = self._query(
-            conn,
+        rows = conn.execute(
             "SELECT quantity, reserved_quantity FROM inventory_balances"
-            " WHERE product_id=? AND inventory_status='AVAILABLE'", (product_id,))
+            " WHERE product_id=? AND inventory_status='AVAILABLE'", (product_id,)).fetchall()
         total = Decimal("0")
         for r in rows:
             total += _dec(r[0]) - _dec(r[1])
-        return total, bool(rows)
-
-    def _has_row(self, conn, product_id: str, branch_id: str) -> bool:
-        return bool(self._query(
-            conn,
-            "SELECT 1 FROM inventory_balances WHERE product_id=? AND branch_id=?"
-            " AND inventory_status='AVAILABLE' LIMIT 1", (product_id, branch_id)))
-
-    @staticmethod
-    def _query(conn, sql: str, params: tuple):
-        return conn.execute(sql, params).fetchall()
+        return total
