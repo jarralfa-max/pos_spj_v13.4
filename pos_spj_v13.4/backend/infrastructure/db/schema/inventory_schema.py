@@ -54,6 +54,8 @@ INVENTORY_TABLES: tuple[str, ...] = (
     "inventory_audit_log",
     "inventory_outbox",
     "inventory_processed_events",
+    "inventory_sync_dispatch",
+    "inventory_sync_cursor",
 )
 
 _DDL = (
@@ -543,6 +545,38 @@ _DDL = (
         processed_at TEXT NOT NULL
     )
     """,
+    # ── offline-first sync: dispatch (retry/backoff) + cursor (§57, INV-22) ─
+    # Each outbox event gets a per-node monotonic sequence and a dispatch state
+    # with retry/backoff and dead-lettering, so a terminal that was offline
+    # replays its local ledger in order when connectivity returns. The cursor
+    # tracks how far each node/stream has been confirmed synced.
+    """
+    CREATE TABLE IF NOT EXISTS inventory_sync_dispatch (
+        id TEXT PRIMARY KEY,
+        event_id TEXT NOT NULL UNIQUE,
+        operation_id TEXT NOT NULL,
+        node_id TEXT NOT NULL,
+        sequence INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'PENDING',   -- PENDING | DISPATCHED | DEAD_LETTER
+        attempts INTEGER NOT NULL DEFAULT 0,
+        max_attempts INTEGER NOT NULL DEFAULT 5,
+        next_attempt_at TEXT,
+        last_error TEXT,
+        created_at TEXT NOT NULL,
+        dispatched_at TEXT,
+        UNIQUE (node_id, sequence)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS inventory_sync_cursor (
+        id TEXT PRIMARY KEY,
+        node_id TEXT NOT NULL,
+        stream TEXT NOT NULL DEFAULT 'outbox',
+        last_sequence INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL,
+        UNIQUE (node_id, stream)
+    )
+    """,
 )
 
 _INDEXES = (
@@ -595,6 +629,8 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_inv_audit_product ON inventory_audit_log(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_outbox_status ON inventory_outbox(status)",
     "CREATE INDEX IF NOT EXISTS idx_inv_settings_scope ON inventory_settings(scope_type, scope_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_sync_dispatch_due ON inventory_sync_dispatch(node_id, status, sequence)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_sync_dispatch_event ON inventory_sync_dispatch(event_id)",
 )
 
 

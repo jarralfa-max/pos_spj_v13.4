@@ -129,6 +129,7 @@ MIGRATIONS = [
     _Migration("129",  "migrations.standalone.129_inventory_waste_schema"),
     _Migration("130",  "migrations.standalone.130_inventory_traceability_schema"),
     _Migration("131",  "migrations.standalone.131_inventory_replenishment_schema"),
+    _Migration("132",  "migrations.standalone.132_inventory_sync_schema"),
 ]
 
 def _ensure_tracking_table(conn):

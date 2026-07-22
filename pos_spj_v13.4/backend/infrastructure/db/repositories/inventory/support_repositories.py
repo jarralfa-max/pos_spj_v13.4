@@ -76,6 +76,11 @@ class InventoryOutboxRepository(InventoryRepositoryBase):
             " FROM inventory_outbox WHERE status='PENDING' ORDER BY created_at LIMIT ?",
             (limit,))
 
+    def get_by_event_id(self, event_id: str) -> dict | None:
+        return self._query_one(
+            "SELECT id, event_id, event_name, payload_json, operation_id, status"
+            " FROM inventory_outbox WHERE event_id=?", (event_id,))
+
     def mark_dispatched(self, outbox_id: str) -> None:
         self._execute(
             "UPDATE inventory_outbox SET status='DISPATCHED', dispatched_at=? WHERE id=?",
