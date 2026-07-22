@@ -60,6 +60,9 @@ INVENTORY_NAV: tuple[NavEntry, ...] = (
     NavEntry("inventory_notifications", "Alertas", "bell",
              InventoryPermissions.NOTIFICATIONS_MANAGE,
              "Reglas de notificación y alertas de WhatsApp."),
+    NavEntry("inventory_analytics", "Analítica", "chart",
+             InventoryPermissions.EXPORT,
+             "KPIs, gráficos de existencias/movimientos/merma y exportación."),
 )
 
 

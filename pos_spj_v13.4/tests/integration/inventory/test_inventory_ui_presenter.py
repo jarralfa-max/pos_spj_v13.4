@@ -6,6 +6,7 @@ import sqlite3
 
 import pytest
 
+from backend.application.inventory.analytics import InventoryAnalyticsService
 from backend.application.inventory.queries import (
     InventoryAvailabilityQueryService,
     ReplenishmentQueryService,
@@ -64,6 +65,7 @@ def _presenter(conn):
         replenishment_query_factory=ReplenishmentQueryService,
         generate_suggestions_uc=GenerateReplenishmentSuggestionsUseCase(),
         warehouse_query_factory=WarehouseQueryService,
+        analytics_factory=InventoryAnalyticsService,
         session_context=_Session())
 
 
@@ -89,6 +91,16 @@ class TestPresenter:
         kpis = {k.key: k.value for k in pres.replenishment_kpis()}
         assert kpis["open"] == "1"
 
+    def test_analytics_kpis_and_export(self, conn):
+        _seed(conn)
+        pres = _presenter(conn)
+        kpis = {k.key: k.value for k in pres.inventory_kpis()}
+        assert kpis["available"] == "5"
+        charts = pres.analytics_charts()
+        assert len(charts) == 4
+        assert "product_id" in pres.export_availability_csv()
+        assert pres.freshness().state in ("LIVE", "FRESH")
+
     def test_warehouses_and_location_tree(self, conn):
         wid = CreateWarehouseUseCase().execute(
             conn, code="WH1", name="Central", branch_id="b1",
@@ -108,6 +120,9 @@ class TestPagesSmoke:
     def test_pages_build_and_refresh(self, conn):
         pytest.importorskip("PyQt5")
         from PyQt5.QtWidgets import QApplication
+        # NOTE: InventoryAnalyticsPage is intentionally excluded — it builds
+        # HtmlChartView (QtWebEngine), which hangs under headless offscreen. Its
+        # data path is covered by test_analytics_kpis_and_export via the presenter.
         from frontend.desktop.modules.inventory.pages import (
             InventoryDashboardPage,
             LocationsPage,

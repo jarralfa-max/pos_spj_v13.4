@@ -28,13 +28,14 @@ logger = logging.getLogger("spj.inventory.presenter")
 class InventoryPresenter:
     def __init__(self, *, connection_provider, availability_service_factory,
                  replenishment_query_factory, generate_suggestions_uc=None,
-                 warehouse_query_factory=None, session_context=None,
-                 event_dispatcher=None) -> None:
+                 warehouse_query_factory=None, analytics_factory=None,
+                 session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
         self._replenishment_factory = replenishment_query_factory
         self._generate_uc = generate_suggestions_uc
         self._warehouse_factory = warehouse_query_factory
+        self._analytics_factory = analytics_factory
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -94,6 +95,32 @@ class InventoryPresenter:
     def location_tree(self, *, warehouse_id: str) -> TableViewModel:
         svc = self._warehouse_factory(self._conn())
         return locations_table(svc.location_hierarchy(warehouse_id=warehouse_id))
+
+    # analytics (INV-24) -------------------------------------------------------
+    def inventory_kpis(self, *, branch_id: str | None = None) -> list[KpiViewModel]:
+        branch = branch_id or self.default_branch()
+        dtos = self._analytics_factory(self._conn()).kpis(branch_id=branch)
+        return [KpiViewModel(key=d.key, title=d.title, value=d.value, variant=d.variant,
+                             subtitle=d.unit, tooltip=d.tooltip) for d in dtos]
+
+    def analytics_charts(self, *, branch_id: str | None = None) -> list:
+        branch = branch_id or self.default_branch()
+        svc = self._analytics_factory(self._conn())
+        return [
+            svc.stock_by_status_chart(branch_id=branch),
+            svc.stock_by_warehouse_chart(branch_id=branch),
+            svc.movements_by_type_chart(branch_id=branch),
+            svc.waste_by_type_chart(branch_id=branch),
+        ]
+
+    def freshness(self, *, branch_id: str | None = None):
+        branch = branch_id or self.default_branch()
+        return self._analytics_factory(self._conn()).freshness(branch_id=branch)
+
+    def export_availability_csv(self, *, branch_id: str | None = None) -> str:
+        branch = branch_id or self.default_branch()
+        return self._analytics_factory(self._conn()).export_availability_csv(
+            branch_id=branch)
 
     # commands ----------------------------------------------------------------
     def generate_suggestions(self, *, branch_id: str | None = None) -> tuple[bool, str, dict]:
