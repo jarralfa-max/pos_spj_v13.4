@@ -50,6 +50,10 @@ from backend.infrastructure.db.repositories.inventory.transfer_repository import
 from backend.infrastructure.db.repositories.inventory.waste_repository import (
     WasteRepository,
 )
+from backend.infrastructure.db.repositories.inventory.notification_repositories import (
+    NotificationLogRepository,
+    NotificationRuleRepository,
+)
 from backend.infrastructure.db.repositories.inventory.sync_repositories import (
     SyncCursorRepository,
     SyncDispatchRepository,
@@ -91,6 +95,8 @@ class InventoryUnitOfWork:
         self.processed_events = InventoryProcessedEventRepository(connection)
         self.sync_dispatch = SyncDispatchRepository(connection)
         self.sync_cursor = SyncCursorRepository(connection)
+        self.notification_rules = NotificationRuleRepository(connection)
+        self.notification_log = NotificationLogRepository(connection)
         self._completed = False
 
     def __enter__(self) -> "InventoryUnitOfWork":

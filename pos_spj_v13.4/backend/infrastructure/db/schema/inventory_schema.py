@@ -56,6 +56,8 @@ INVENTORY_TABLES: tuple[str, ...] = (
     "inventory_processed_events",
     "inventory_sync_dispatch",
     "inventory_sync_cursor",
+    "inventory_notification_rule",
+    "inventory_notification_log",
 )
 
 _DDL = (
@@ -577,6 +579,44 @@ _DDL = (
         UNIQUE (node_id, stream)
     )
     """,
+    # ── notifications / WhatsApp alerts (§55, INV-23) ──────────────────────
+    # Rules route an alert event (scoped GLOBAL/branch/warehouse) to recipients
+    # on channels above a minimum severity; the log is the audit trail and the
+    # idempotency guard (UNIQUE dedupe_key) + throttle source.
+    """
+    CREATE TABLE IF NOT EXISTS inventory_notification_rule (
+        id TEXT PRIMARY KEY,
+        event_name TEXT NOT NULL,
+        scope_type TEXT NOT NULL DEFAULT 'GLOBAL',
+        scope_id TEXT NOT NULL DEFAULT '',
+        channel TEXT NOT NULL,
+        recipient_type TEXT NOT NULL,
+        recipient_ref TEXT NOT NULL,
+        min_severity TEXT NOT NULL DEFAULT 'INFO',
+        throttle_seconds INTEGER NOT NULL DEFAULT 0,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        UNIQUE (event_name, scope_type, scope_id, channel, recipient_ref)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS inventory_notification_log (
+        id TEXT PRIMARY KEY,
+        event_id TEXT NOT NULL,
+        event_name TEXT NOT NULL,
+        rule_id TEXT,
+        channel TEXT NOT NULL,
+        recipient_ref TEXT NOT NULL,
+        severity TEXT NOT NULL,
+        status TEXT NOT NULL,
+        dedupe_key TEXT NOT NULL UNIQUE,
+        message TEXT,
+        branch_id TEXT,
+        warehouse_id TEXT,
+        product_id TEXT,
+        created_at TEXT NOT NULL
+    )
+    """,
 )
 
 _INDEXES = (
@@ -631,6 +671,9 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_inv_settings_scope ON inventory_settings(scope_type, scope_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_sync_dispatch_due ON inventory_sync_dispatch(node_id, status, sequence)",
     "CREATE INDEX IF NOT EXISTS idx_inv_sync_dispatch_event ON inventory_sync_dispatch(event_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_notif_rule_event ON inventory_notification_rule(event_name, active)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_notif_log_event ON inventory_notification_log(event_id)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_notif_log_throttle ON inventory_notification_log(event_name, channel, recipient_ref, created_at)",
 )
 
 

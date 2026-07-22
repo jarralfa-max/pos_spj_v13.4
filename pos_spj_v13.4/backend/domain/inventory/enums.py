@@ -491,3 +491,55 @@ SLAUGHTER_STOCK_OUTPUTS = frozenset({
     SlaughterOutputType.PRIMARY_CUT, SlaughterOutputType.CO_PRODUCT,
     SlaughterOutputType.BY_PRODUCT, SlaughterOutputType.OFFAL,
 })
+
+
+# ── INV-23 notifications (§55) ──────────────────────────────────────────────
+class NotificationChannel(str, Enum):
+    WHATSAPP = "WHATSAPP"
+    DESKTOP = "DESKTOP"
+    EMAIL = "EMAIL"
+    IN_APP = "IN_APP"
+
+
+class NotificationSeverity(str, Enum):
+    INFO = "INFO"
+    WARNING = "WARNING"
+    CRITICAL = "CRITICAL"
+
+
+class NotificationRecipientType(str, Enum):
+    USER = "USER"
+    ROLE = "ROLE"
+    PHONE = "PHONE"        # a raw WhatsApp/SMS number
+    TOPIC = "TOPIC"        # a broadcast topic/channel
+
+
+class NotificationStatus(str, Enum):
+    SENT = "SENT"
+    FAILED = "FAILED"
+    THROTTLED = "THROTTLED"   # suppressed by the rule's throttle window
+    SUPPRESSED = "SUPPRESSED"  # below the rule's minimum severity
+
+
+#: Rank for severity gating (min_severity comparisons).
+_SEVERITY_RANK = {
+    NotificationSeverity.INFO: 0,
+    NotificationSeverity.WARNING: 1,
+    NotificationSeverity.CRITICAL: 2,
+}
+
+
+def severity_rank(severity: "NotificationSeverity") -> int:
+    return _SEVERITY_RANK[severity]
+
+
+#: Default severity per inventory alert event (payload may override).
+ALERT_EVENT_SEVERITY: dict[str, NotificationSeverity] = {
+    "INVENTORY_STOCK_LOW": NotificationSeverity.WARNING,
+    "INVENTORY_STOCK_CRITICAL": NotificationSeverity.CRITICAL,
+    "INVENTORY_STOCK_OUT": NotificationSeverity.CRITICAL,
+    "INVENTORY_LOT_EXPIRING": NotificationSeverity.WARNING,
+    "INVENTORY_LOT_EXPIRED": NotificationSeverity.CRITICAL,
+    "INVENTORY_TEMPERATURE_ALERT": NotificationSeverity.CRITICAL,
+    "INVENTORY_NEGATIVE_DETECTED": NotificationSeverity.CRITICAL,
+}
