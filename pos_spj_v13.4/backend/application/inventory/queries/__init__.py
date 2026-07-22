@@ -6,6 +6,10 @@ from backend.application.inventory.queries.availability_query_service import (
 from backend.application.inventory.queries.replenishment_query_service import (
     ReplenishmentQueryService,
 )
+from backend.application.inventory.queries.warehouse_query_service import (
+    LocationNode,
+    WarehouseQueryService,
+)
 from backend.application.inventory.queries.traceability_query_service import (
     GenealogyEdge,
     LotTraceDTO,
@@ -17,9 +21,11 @@ from backend.application.inventory.queries.traceability_query_service import (
 __all__ = [
     "GenealogyEdge",
     "InventoryAvailabilityQueryService",
+    "LocationNode",
     "LotTraceDTO",
     "RecallReportDTO",
     "ReplenishmentQueryService",
     "TraceEvent",
     "TraceabilityQueryService",
+    "WarehouseQueryService",
 ]

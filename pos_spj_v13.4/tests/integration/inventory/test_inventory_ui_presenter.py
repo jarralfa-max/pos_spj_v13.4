@@ -9,12 +9,16 @@ import pytest
 from backend.application.inventory.queries import (
     InventoryAvailabilityQueryService,
     ReplenishmentQueryService,
+    WarehouseQueryService,
 )
 from backend.application.inventory.use_cases import (
+    CreateLocationUseCase,
+    CreateWarehouseUseCase,
     GenerateReplenishmentSuggestionsUseCase,
     PostInventoryMovementUseCase,
     SetReplenishmentRuleUseCase,
 )
+from backend.domain.inventory.enums import WarehouseType
 from backend.domain.inventory.entities.inventory_movement import (
     InventoryMovement,
     InventoryMovementLine,
@@ -59,6 +63,7 @@ def _presenter(conn):
         availability_service_factory=InventoryAvailabilityQueryService,
         replenishment_query_factory=ReplenishmentQueryService,
         generate_suggestions_uc=GenerateReplenishmentSuggestionsUseCase(),
+        warehouse_query_factory=WarehouseQueryService,
         session_context=_Session())
 
 
@@ -84,6 +89,20 @@ class TestPresenter:
         kpis = {k.key: k.value for k in pres.replenishment_kpis()}
         assert kpis["open"] == "1"
 
+    def test_warehouses_and_location_tree(self, conn):
+        wid = CreateWarehouseUseCase().execute(
+            conn, code="WH1", name="Central", branch_id="b1",
+            warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1").entity_id
+        aisle = CreateLocationUseCase().execute(
+            conn, warehouse_id=wid, code="A1", name="Pasillo", actor_user_id="u1").entity_id
+        CreateLocationUseCase().execute(
+            conn, warehouse_id=wid, code="A1-R1", name="Rack", actor_user_id="u1",
+            parent_location_id=aisle, level=1)
+        pres = _presenter(conn)
+        assert pres.warehouses().rows[0][0] == "WH1"
+        tree = pres.location_tree(warehouse_id=wid)
+        assert tree.total == 2 and tree.rows[1][0].startswith("· ")
+
 
 class TestPagesSmoke:
     def test_pages_build_and_refresh(self, conn):
@@ -91,9 +110,16 @@ class TestPagesSmoke:
         from PyQt5.QtWidgets import QApplication
         from frontend.desktop.modules.inventory.pages import (
             InventoryDashboardPage,
+            LocationsPage,
             ReplenishmentPage,
+            WarehousesPage,
         )
         _seed(conn)
+        wid = CreateWarehouseUseCase().execute(
+            conn, code="WH1", name="Central", branch_id="b1",
+            warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1").entity_id
+        CreateLocationUseCase().execute(
+            conn, warehouse_id=wid, code="A1", name="Pasillo", actor_user_id="u1")
         app = QApplication.instance() or QApplication([])
         pres = _presenter(conn)
         pres.generate_suggestions()
@@ -103,4 +129,10 @@ class TestPagesSmoke:
         page = ReplenishmentPage(pres)
         page.refresh()
         assert page._table.rowCount() == 1
+        wh_page = WarehousesPage(pres)
+        wh_page.refresh()
+        assert wh_page._table.rowCount() == 1
+        loc_page = LocationsPage(pres, warehouse_id=wid)
+        loc_page.refresh()
+        assert loc_page._table.rowCount() == 1
         del app

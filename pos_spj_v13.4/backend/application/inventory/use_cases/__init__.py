@@ -50,6 +50,13 @@ from backend.application.inventory.use_cases.transfer_use_cases import (
 from backend.application.inventory.use_cases.reverse_inventory_movement import (
     ReverseInventoryMovementUseCase,
 )
+from backend.application.inventory.use_cases.warehouse_use_cases import (
+    CreateLocationUseCase,
+    CreateWarehouseUseCase,
+    CreateZoneUseCase,
+    SetLocationStatusUseCase,
+    SetWarehouseStatusUseCase,
+)
 
 __all__ = [
     "AllocateReservationUseCase",
@@ -60,8 +67,11 @@ __all__ = [
     "CreateAdjustmentFromCountUseCase",
     "CreateAdjustmentUseCase",
     "CreateCountUseCase",
+    "CreateLocationUseCase",
     "CreateReservationUseCase",
     "CreateTransferUseCase",
+    "CreateWarehouseUseCase",
+    "CreateZoneUseCase",
     "DispatchTransferUseCase",
     "DisposeQuarantineUseCase",
     "GenerateReplenishmentSuggestionsUseCase",
@@ -72,7 +82,9 @@ __all__ = [
     "RecordCountUseCase",
     "RegisterTraceabilityLinkUseCase",
     "RegisterWasteUseCase",
+    "SetLocationStatusUseCase",
     "SetReplenishmentRuleUseCase",
+    "SetWarehouseStatusUseCase",
     "ReleaseQuarantineUseCase",
     "ReverseAdjustmentUseCase",
     "RecordTemperatureReadingUseCase",

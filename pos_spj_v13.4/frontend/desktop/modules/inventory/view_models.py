@@ -26,6 +26,13 @@ URGENCY_ES = {
 URGENCY_VARIANT = {
     "OK": "success", "REORDER": "warning", "CRITICAL": "danger", "STOCKOUT": "danger",
 }
+WAREHOUSE_TYPE_ES = {
+    "STORE": "Tienda", "CENTRAL": "Central", "DISTRIBUTION_CENTER": "Centro de distribución",
+    "RAW_MATERIAL": "Materia prima", "FINISHED_GOODS": "Producto terminado",
+    "COLD_STORAGE": "Refrigerado", "FROZEN_STORAGE": "Congelado", "QUARANTINE": "Cuarentena",
+}
+WAREHOUSE_STATUS_ES = {"ACTIVE": "Activo", "BLOCKED": "Bloqueado", "INACTIVE": "Inactivo"}
+LOCATION_STATUS_ES = {"ACTIVE": "Activa", "BLOCKED": "Bloqueada", "INACTIVE": "Inactiva"}
 SOURCE_ES = {"PURCHASE": "Compra", "TRANSFER": "Transferencia"}
 SEVERITY_ES = {"INFO": "Informativo", "WARNING": "Advertencia", "CRITICAL": "Crítico"}
 DIRECTION_ES = {"UPSTREAM": "Origen (ascendente)", "DOWNSTREAM": "Destino (descendente)"}
@@ -45,6 +52,18 @@ def urgency_variant(code) -> str:
 
 def source_es(code) -> str:
     return SOURCE_ES.get(str(code or ""), str(code or "—"))
+
+
+def warehouse_type_es(code) -> str:
+    return WAREHOUSE_TYPE_ES.get(str(code or ""), str(code or "—"))
+
+
+def warehouse_status_es(code) -> str:
+    return WAREHOUSE_STATUS_ES.get(str(code or ""), str(code or "—"))
+
+
+def location_status_es(code) -> str:
+    return LOCATION_STATUS_ES.get(str(code or ""), str(code or "—"))
 
 
 def qty(value, unit: str | None = None) -> str:
@@ -79,6 +98,39 @@ def availability_table(rows: list[dict]) -> TableViewModel:
             qty(r.get("reserved")),
             qty(r.get("available")),
         ])
+    return TableViewModel(rows=out, row_ids=ids, total=len(out))
+
+
+def warehouses_table(rows: list[dict]) -> TableViewModel:
+    out, ids = [], []
+    for r in rows:
+        ids.append(str(r.get("id") or ""))
+        out.append([
+            str(r.get("code") or "—"),
+            str(r.get("name") or "—"),
+            warehouse_type_es(r.get("warehouse_type")),
+            warehouse_status_es(r.get("status")),
+        ])
+    return TableViewModel(rows=out, row_ids=ids, total=len(out))
+
+
+def locations_table(nodes) -> TableViewModel:
+    """Flatten a LocationNode forest into an indented table (hierarchy visible)."""
+    out, ids = [], []
+
+    def _walk(node, depth):
+        ids.append(node.id)
+        out.append([
+            ("· " * depth) + node.code,
+            node.name,
+            str(node.level),
+            location_status_es(node.status),
+        ])
+        for child in node.children:
+            _walk(child, depth + 1)
+
+    for root in nodes:
+        _walk(root, 0)
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 
 

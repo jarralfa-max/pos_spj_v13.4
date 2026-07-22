@@ -16,8 +16,10 @@ from frontend.desktop.modules.inventory.view_models import (
     KpiViewModel,
     TableViewModel,
     availability_table,
+    locations_table,
     replenishment_table,
     urgency_variant,
+    warehouses_table,
 )
 
 logger = logging.getLogger("spj.inventory.presenter")
@@ -26,11 +28,13 @@ logger = logging.getLogger("spj.inventory.presenter")
 class InventoryPresenter:
     def __init__(self, *, connection_provider, availability_service_factory,
                  replenishment_query_factory, generate_suggestions_uc=None,
-                 session_context=None, event_dispatcher=None) -> None:
+                 warehouse_query_factory=None, session_context=None,
+                 event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
         self._replenishment_factory = replenishment_query_factory
         self._generate_uc = generate_suggestions_uc
+        self._warehouse_factory = warehouse_query_factory
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -81,6 +85,15 @@ class InventoryPresenter:
                          value=str(by_urgency.get("REORDER", 0)),
                          variant=urgency_variant("REORDER")),
         ]
+
+    def warehouses(self, *, branch_id: str | None = None) -> TableViewModel:
+        branch = branch_id or self.default_branch()
+        svc = self._warehouse_factory(self._conn())
+        return warehouses_table(svc.list_warehouses(branch_id=branch))
+
+    def location_tree(self, *, warehouse_id: str) -> TableViewModel:
+        svc = self._warehouse_factory(self._conn())
+        return locations_table(svc.location_hierarchy(warehouse_id=warehouse_id))
 
     # commands ----------------------------------------------------------------
     def generate_suggestions(self, *, branch_id: str | None = None) -> tuple[bool, str, dict]:
