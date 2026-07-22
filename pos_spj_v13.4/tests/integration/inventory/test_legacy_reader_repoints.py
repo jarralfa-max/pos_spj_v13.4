@@ -48,3 +48,32 @@ class TestProductCatalogRepoint:
         monkeypatch.setenv("INVENTORY_CANONICAL_CUTOVER", "1")
         rows = self._svc(conn).list_visible_products(branch_id="b1")
         assert rows[0]["existencia"] == 9.0  # 9 available (quantity − reserved)
+
+
+class TestInventoryBalanceQueryRepoint:
+    def _svc(self, conn):
+        from backend.application.queries.inventory_balance_service import (
+            InventoryBalanceQueryService,
+        )
+        conn.execute("CREATE TABLE IF NOT EXISTS stock_reservas (id TEXT, estado TEXT,"
+                     " branch_id TEXT)")
+        conn.execute("CREATE TABLE IF NOT EXISTS stock_reserva_detalles (id TEXT,"
+                     " reserva_id TEXT, producto_id TEXT, cantidad REAL)")
+        conn.execute("UPDATE inventory_balances SET reserved_quantity='2'"
+                     " WHERE product_id='p1'")
+        conn.commit()
+        return InventoryBalanceQueryService(conn)
+
+    def test_flag_off_reads_legacy(self, conn, monkeypatch):
+        from decimal import Decimal
+        monkeypatch.delenv("INVENTORY_CANONICAL_CUTOVER", raising=False)
+        b = self._svc(conn).get_product_balance("p1", "b1")
+        assert b["stock_fisico"] == Decimal("50") and b["fuente"] == "inventory_stock"
+
+    def test_flag_on_reads_canonical(self, conn, monkeypatch):
+        from decimal import Decimal
+        monkeypatch.setenv("INVENTORY_CANONICAL_CUTOVER", "1")
+        b = self._svc(conn).get_product_balance("p1", "b1")
+        assert b["fuente"] == "inventory_balances"
+        assert b["stock_fisico"] == Decimal("9") and b["stock_reservado"] == Decimal("2")
+        assert b["stock_disponible"] == Decimal("7")

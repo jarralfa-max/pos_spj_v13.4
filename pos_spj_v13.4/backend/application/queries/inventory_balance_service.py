@@ -90,9 +90,24 @@ class InventoryBalanceQueryService:
         sucursal_id = str(sucursal_id)
 
         stock_fisico = _ZERO
+        stock_reservado = _ZERO
         fuente = "unknown"
+        canonical = False
 
-        if self._has_inv_actual:
+        # INV-27 (reads follow writes): with the cutover flag ON the canonical
+        # projection owns stock; read physical + reserved from inventory_balances.
+        from backend.application.inventory.cutover import is_cutover_enabled
+        if is_cutover_enabled(self._db) and _tbl_exists(self._db, "inventory_balances"):
+            canonical = True
+            fuente = "inventory_balances"
+            for r in self._db.execute(
+                "SELECT quantity, reserved_quantity FROM inventory_balances"
+                " WHERE product_id=? AND branch_id=? AND inventory_status='AVAILABLE'",
+                (producto_id, sucursal_id),
+            ).fetchall():
+                stock_fisico += _dec(r[0])
+                stock_reservado += _dec(r[1])
+        elif self._has_inv_actual:
             row = self._db.execute(
                 "SELECT COALESCE(quantity, 0) FROM inventory_stock "
                 "WHERE product_id=? AND branch_id=?",
@@ -123,9 +138,8 @@ class InventoryBalanceQueryService:
         ).fetchone()
         unidad_base = str(unit_row[0] if unit_row else "kg")
 
-        # Reservations
-        stock_reservado = _ZERO
-        if self._has_reservas:
+        # Reservations — legacy source only when not already read from canonical.
+        if not canonical and self._has_reservas:
             try:
                 res_row = self._db.execute(
                     """
