@@ -55,7 +55,6 @@ def test_engine_combinacion_uses_real_quantities(monkeypatch):
     class _Bus:
         def handler_count(self, _): return 0
         def publish(self, *_a, **_k): return None
-    monkeypatch.setattr("core.services.recipe_engine.InventoryEngine", _Inv)
     monkeypatch.setattr("core.events.event_bus.get_bus", lambda: _Bus())
 
     dto = RecipeEngine(conn, 1).ejecutar_produccion(1, 1.0, "qa")

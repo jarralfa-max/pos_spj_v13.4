@@ -44,7 +44,6 @@ def test_phase6_costing_allocates_different_cost_per_kg_and_waste(monkeypatch):
         def get_stock(self, _): return 999
         def process_movement(self, **kwargs): return None
     monkeypatch.setattr("core.events.event_bus.get_bus", lambda: _Bus())
-    monkeypatch.setattr("core.services.recipe_engine.InventoryEngine", _Inv)
 
     RecipeEngine(db, 1).ejecutar_produccion(1, 1.0, "qa")
     p2 = db.execute("SELECT precio_compra,costo FROM productos WHERE id=2").fetchone()

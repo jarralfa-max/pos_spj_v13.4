@@ -51,7 +51,6 @@ def conn(monkeypatch):
         def allocate_recipe_run_costs(self, *a, **k):
             return {"raw_material_cost": 0.0, "finished_goods_cost": 0.0, "waste_cost": 0.0}
 
-    monkeypatch.setattr("core.services.recipe_engine.InventoryEngine", _Inv)
     monkeypatch.setattr("core.events.event_bus.get_bus", lambda: _Bus())
     monkeypatch.setattr(
         "core.services.finance.production_cost_service.ProductionCostService", _Cost

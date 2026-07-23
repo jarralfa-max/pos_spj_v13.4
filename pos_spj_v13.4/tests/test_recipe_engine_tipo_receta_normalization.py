@@ -36,7 +36,6 @@ def _install_mocks(monkeypatch):
         def handler_count(self, _evt): return 0
         def publish(self, *_args, **_kwargs): return None
 
-    monkeypatch.setattr("core.services.recipe_engine.InventoryEngine", _Inv)
     monkeypatch.setattr("core.events.event_bus.get_bus", lambda: _Bus())
 
 

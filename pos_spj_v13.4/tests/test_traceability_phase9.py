@@ -71,7 +71,6 @@ def test_production_cost_ledger_has_waste_line(monkeypatch):
         def get_stock(self, _): return 999
         def process_movement(self, **kwargs): return None
     monkeypatch.setattr("core.events.event_bus.get_bus", lambda: _Bus())
-    monkeypatch.setattr("core.services.recipe_engine.InventoryEngine", _Inv)
     RecipeEngine(db, 1).ejecutar_produccion(1, 1.0, "u")
     waste_rows = db.execute("SELECT COUNT(*) FROM production_cost_ledger WHERE is_waste=1").fetchone()[0]
     assert waste_rows == 1
