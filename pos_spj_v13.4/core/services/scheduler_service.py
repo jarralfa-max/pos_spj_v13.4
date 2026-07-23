@@ -212,16 +212,26 @@ class SchedulerService:
     # ── Implementaciones de tareas ────────────────────────────────────────────
 
     def _task_conciliacion(self) -> None:
-        """Conciliación automática global vs local — fix #9."""
-        from core.services.distribution_engine import DistributionEngine
+        """Parity monitor over the canonical ledger.
+
+        The legacy global-vs-local reconciliation (BIB batches vs the deprecated
+        productos.existencia) is obsolete after the inventory cutover: the
+        canonical inventory_balances projection is the single source of truth.
+        This task now reports canonical↔legacy drift while a legacy stock source
+        still exists (a safety net during the corte); once the legacy tables are
+        dropped it simply finds nothing to reconcile."""
+        from backend.application.inventory.cutover.reconciliation import (
+            InventoryReconciliationService,
+        )
         conn = self._conn_factory()
-        eng  = DistributionEngine(conn, sucursal_id=self._sucursal_id, usuario="Scheduler")
-        result = eng.conciliar()
-        if result.alerta:
-            logger.warning(
-                "Scheduler conciliación ALERTA: diferencia=%.3f sucursal=%d",
-                result.diferencia, result.sucursal_id,
-            )
+        try:
+            drifts = InventoryReconciliationService(conn).drifts()
+        except Exception as exc:  # noqa: BLE001 — best-effort background monitor
+            logger.debug("Scheduler conciliación: no disponible (%s).", exc)
+            return
+        if drifts:
+            logger.warning("Scheduler conciliación: %d producto(s) con drift "
+                           "canónico↔legacy.", len(drifts))
 
     def _task_loyalty_snapshot(self) -> None:
         """Snapshot incremental de fidelidad — fix #10."""
