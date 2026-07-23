@@ -18,7 +18,6 @@ from backend.application.commands.waste_commands import RegisterWasteCommand
 from backend.shared.ids import new_uuid
 from backend.application.queries.inventory_query_service import InventoryQueryService
 from backend.application.queries.waste_query_service import WasteQueryService
-from backend.application.services.inventory_application_service import InventoryApplicationService
 from backend.application.services.waste_application_service import WasteApplicationService, WasteFinanceHandler
 from backend.application.use_cases.register_waste_use_case import RegisterWasteUseCase
 from backend.infrastructure.db.repositories.inventory_repository import InventoryRepository
@@ -99,10 +98,14 @@ class ModuloMerma(QWidget):
         self._waste_repository = repository
         self._inventory_query_service = InventoryQueryService(inventory_repository)
         event_bus = self._resolve_event_bus(container)
-        inventory_service = InventoryApplicationService(
-            repository=inventory_repository,
-            event_bus=event_bus,
+        # Corte INV-27: la merma descuenta stock por el ledger canónico (WASTE),
+        # no por el motor legacy inventory_stock. El adaptador postea sin commit;
+        # el repositorio de merma (save_changes) es dueño de la transacción, así
+        # la fila de merma y el movimiento de inventario se confirman juntos.
+        from core.services.inventory.canonical_waste_adapter import (
+            CanonicalWasteInventoryService,
         )
+        inventory_service = CanonicalWasteInventoryService(lambda: container.db)
         finance_service = getattr(container, "finance_service", None) or getattr(container, "treasury_service", None)
         finance_handler = WasteFinanceHandler(finance_service)
         self._waste_query_service = WasteQueryService(repository)
