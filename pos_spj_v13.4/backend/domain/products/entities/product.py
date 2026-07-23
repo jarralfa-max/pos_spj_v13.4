@@ -22,6 +22,7 @@ from backend.domain.products.enums import (
     ProductRole,
     ProductType,
 )
+from backend.domain.products.internal_enums import INTERNAL_STAGES, InternalStage
 from backend.domain.products.exceptions import (
     InvalidProductStateError,
     ProductIncompleteError,
@@ -47,6 +48,7 @@ class Product:
     id: str = field(default_factory=new_uuid)
     lifecycle_status: LifecycleStatus = LifecycleStatus.DRAFT
 
+    internal_stage: InternalStage = InternalStage.NONE
     short_name: str | None = None
     description: str | None = None
     category_id: str | None = None
@@ -85,6 +87,11 @@ class Product:
             self.product_type = ProductType(str(self.product_type))
         if not self.base_unit_id:
             raise ProductsDomainError("El producto requiere una unidad base (§7)")
+        if not isinstance(self.internal_stage, InternalStage):
+            self.internal_stage = InternalStage(str(self.internal_stage))
+        # Una etapa interna de proceso implica producto interno no vendible (§13).
+        if self.internal_stage in INTERNAL_STAGES:
+            self.internal_only = True
         if self.internal_only and self.sellable:
             raise ProductsDomainError(
                 "Un producto interno (INTERNAL_ONLY) no puede ser vendible (§13)")
@@ -93,6 +100,24 @@ class Product:
     @property
     def is_meat(self) -> bool:
         return self.product_type in MEAT_PRODUCT_TYPES
+
+    @property
+    def is_internal(self) -> bool:
+        """Producto interno / WIP / intermedio: no vendible en POS (§13)."""
+        return self.internal_only or self.internal_stage in INTERNAL_STAGES
+
+    @property
+    def is_work_in_progress(self) -> bool:
+        return self.internal_stage in (
+            InternalStage.WORK_IN_PROGRESS, InternalStage.PROCESS_INTERMEDIATE)
+
+    def is_visible_in_pos(self) -> bool:
+        """POS/e-commerce no muestran productos internos ni de proceso (§13, §33)."""
+        return not self.is_internal and self.sellable
+
+    def can_be_recipe_component(self) -> bool:
+        """Un producto interno puede ser input/output de receta (§13)."""
+        return self.recipe_allowed or self.is_internal or self.producible
 
     @property
     def roles(self) -> frozenset[ProductRole]:

@@ -140,6 +140,7 @@ _DDL = (
         description TEXT,
         product_type TEXT NOT NULL,
         lifecycle_status TEXT NOT NULL DEFAULT 'DRAFT',
+        internal_stage TEXT NOT NULL DEFAULT 'NONE',
         category_id TEXT,
         brand_id TEXT,
         species_id TEXT,
