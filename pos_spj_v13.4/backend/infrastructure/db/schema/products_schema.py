@@ -48,6 +48,9 @@ PRODUCT_TABLES: tuple[str, ...] = (
     "product_bundles",
     "bundle_versions",
     "bundle_components",
+    "branch_product",
+    "assortments",
+    "assortment_products",
     "products",
     "product_authorization_log",
     "product_audit_log",
@@ -418,6 +421,43 @@ _DDL = (
         FOREIGN KEY (component_product_id) REFERENCES products(id)
     )
     """,
+    # ── sucursales / surtidos (PROD-14) ───────────────────────────────────
+    #   Canónico singular ``branch_product`` (NO colisiona con el legacy plural
+    #   ``branch_products`` con precio_local, que se elimina en PROD-19). Sin
+    #   precio (Pricing) ni stock (Inventory).
+    """
+    CREATE TABLE IF NOT EXISTS branch_product (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        branch_id TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0,1)),
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(product_id, branch_id),
+        FOREIGN KEY (product_id) REFERENCES products(id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS assortments (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        channel TEXT NOT NULL,
+        branch_id TEXT,
+        active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS assortment_products (
+        id TEXT PRIMARY KEY,
+        assortment_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0,1)),
+        UNIQUE(assortment_id, product_id),
+        FOREIGN KEY (assortment_id) REFERENCES assortments(id),
+        FOREIGN KEY (product_id) REFERENCES products(id)
+    )
+    """,
     # ── product master (PROD-2) ───────────────────────────────────────────
     #   NOTE: no existencia, no precio. Stock → Inventory, price → Pricing.
     """
@@ -542,6 +582,10 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_bundles_product ON product_bundles(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_bundle_versions_bundle ON bundle_versions(bundle_id, status)",
     "CREATE INDEX IF NOT EXISTS idx_bundle_components_version ON bundle_components(version_id)",
+    "CREATE INDEX IF NOT EXISTS idx_branch_product_branch ON branch_product(branch_id, enabled)",
+    "CREATE INDEX IF NOT EXISTS idx_branch_product_product ON branch_product(product_id)",
+    "CREATE INDEX IF NOT EXISTS idx_assortments_channel ON assortments(channel, active)",
+    "CREATE INDEX IF NOT EXISTS idx_assortment_products_assortment ON assortment_products(assortment_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_audit_entity ON product_audit_log(entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_audit_op ON product_audit_log(operation_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_authz_op ON product_authorization_log(operation_id)",

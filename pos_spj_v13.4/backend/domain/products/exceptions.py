@@ -179,3 +179,16 @@ class InvalidBundleError(ProductsDomainError):
 
 class BundleCycleDetectedError(ProductsDomainError):
     """A bundle would contain itself as a component directly or transitively (§28)."""
+
+
+# ── PROD-14 branch products / assortments ────────────────────────────────────
+class InvalidBranchProductError(ProductsDomainError):
+    """A branch-product assignment is malformed (§29)."""
+
+
+class InvalidAssortmentError(ProductsDomainError):
+    """An assortment/assortment-product is malformed (§29)."""
+
+
+class ChannelNotAllowedError(ProductsDomainError):
+    """The product cannot be enabled for the requested channel (§13, §29, §33)."""
