@@ -1416,7 +1416,6 @@ class SalesService:
         """Cancela una venta: revierte stock via apply_movement y genera asiento contable."""
         from core.services.sales.unified_sales_service import VentaError
         from core.db.connection import transaction as _txn
-        from core.services.inventory.unified_inventory_service import UnifiedInventoryService as _UIS
         try:
             row = self.db.execute(
                 "SELECT id, folio, total, sucursal_id, estado FROM ventas WHERE id=?",
@@ -1438,18 +1437,13 @@ class SalesService:
             ).fetchall()
 
             with _txn(self.db):
-                for d in detalles:
-                    pid = str(d["producto_id"])
-                    qty = float(d["cantidad"] or 0)
-                    if qty <= 0:
-                        continue
-                    _UIS(self.db, sucursal_id=sucursal_id, usuario=usuario).process_movement(
-                        product_id=pid,
-                        quantity=qty,
-                        movement_type="DEVOLUCION_ANULACION",
-                        reference=folio,
-                        metadata={"notas": f"Anulación venta {folio}: {motivo}"},
-                    )
+                # Canonical stock restore: a cancellation returns goods that never
+                # left the store, so they go straight back to AVAILABLE (a
+                # SALE_RETURN INCREASE), reversing the SALE_ISSUE of the flip. One
+                # movement, idempotent by operation_id, inside this transaction.
+                self._restore_stock_on_cancel(
+                    detalles=detalles, branch_id=sucursal_id, venta_id=str(venta_id),
+                    folio=folio, user=usuario)
 
                 # Marcar venta como cancelada
                 try:
@@ -1487,6 +1481,43 @@ class SalesService:
             raise
         except Exception as exc:
             raise VentaError(str(exc)) from exc
+
+    def _restore_stock_on_cancel(self, *, detalles, branch_id, venta_id, folio, user):
+        """Post a canonical SALE_RETURN (→ AVAILABLE) restoring the cancelled sale's
+        stock. Joins the caller's transaction (owns_transaction=False); idempotent
+        by operation_id so a re-cancel is a no-op."""
+        from decimal import Decimal
+
+        from backend.application.inventory.use_cases.post_inventory_movement import (
+            PostInventoryMovementUseCase,
+        )
+        from backend.domain.inventory.entities.inventory_movement import (
+            InventoryMovement,
+            InventoryMovementLine,
+        )
+        from backend.domain.inventory.enums import InventoryStatus, MovementType
+
+        branch = str(branch_id or "")
+        lines = []
+        for d in detalles:
+            pid = str(d["producto_id"])
+            qty = Decimal(str(d["cantidad"] or 0))
+            if qty <= 0 or not pid:
+                continue
+            lines.append(InventoryMovementLine.create(
+                product_id=pid, quantity=qty, to_location_id=branch,
+                to_status=InventoryStatus.AVAILABLE, reason_code="SALE_CANCELLATION"))
+        if not lines or not branch:
+            return
+        movement = InventoryMovement.create(
+            movement_type=MovementType.SALE_RETURN, branch_id=branch, warehouse_id=branch,
+            source_module="sales", source_document_type="SALE_CANCELLATION",
+            source_document_id=folio, operation_id=f"sale-cancel:{venta_id}",
+            created_by_user_id=str(user or "system"), lines=lines)
+        result = PostInventoryMovementUseCase().execute(
+            self.db, movement, actor_user_id=str(user or "system"), owns_transaction=False)
+        if not result.success:
+            raise RuntimeError(result.message or "No se pudo restaurar inventario de la anulación.")
 
     def _procesar_venta_legacy_minimal(
         self, *, items_payload, payment_method, amount_paid, client_id, discount, usuario
