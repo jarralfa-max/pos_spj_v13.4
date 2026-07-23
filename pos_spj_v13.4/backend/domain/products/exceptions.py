@@ -47,3 +47,36 @@ class DuplicateOperationError(ProductsDomainError):
 
 class InvalidAuthorizationError(ProductsDomainError):
     """A hot authorization or audit entry was built with invalid/missing data."""
+
+
+# ── PROD-2 Product Master ────────────────────────────────────────────────────
+class ProductNotFoundError(ProductsDomainError):
+    """No product exists for the given id/code."""
+
+
+class ProductAlreadyExistsError(ProductsDomainError):
+    """A product with the same code/barcode already exists."""
+
+
+class InvalidProductTypeError(ProductsDomainError):
+    """An unknown or inconsistent product type was supplied."""
+
+
+class InvalidProductStateError(ProductsDomainError):
+    """A lifecycle transition is not allowed from the current state."""
+
+
+class ProductInactiveError(ProductsDomainError):
+    """The product is not ACTIVE and cannot be used for the requested operation."""
+
+
+class ProductDiscontinuedError(ProductsDomainError):
+    """The product is DISCONTINUED/ARCHIVED and cannot be reactivated in place."""
+
+
+class ProductIncompleteError(ProductsDomainError):
+    """The product cannot be activated while required master data is missing (§7)."""
+
+
+class SpeciesRequiredError(ProductsDomainError):
+    """A meat product type was created without a species (§7, §11)."""
