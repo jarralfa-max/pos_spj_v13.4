@@ -300,12 +300,6 @@ def _wire_procurement_pipeline(bus, container) -> None:
     consumer. Additive and idempotent; downstream handlers are idempotent by
     event_id. Best-effort: a wiring failure never breaks the rest of the bus."""
     try:
-        from backend.application.event_handlers.inventory.purchase_lot_entry_handler import (
-            PurchaseLotEntryHandler,
-        )
-        from backend.application.event_handlers.inventory.purchase_stock_entry_handler import (
-            PurchaseStockEntryHandler,
-        )
         from backend.application.procurement.integrations.downstream_events import (
             PURCHASE_STOCK_ENTRY_REGISTERED,
         )
@@ -315,14 +309,18 @@ def _wire_procurement_pipeline(bus, container) -> None:
         if db is None:
             return
         wire_procurement(bus, db)
-        stock_handler = PurchaseStockEntryHandler(db)
+        # corte INV-27: la recepción de compra postea al ledger canónico
+        # (PURCHASE_RECEIPT + lotes por lot_code + costo en la línea), no a
+        # movimientos_inventario/inventario_actual legacy. Reemplaza a
+        # PurchaseStockEntryHandler + PurchaseLotEntryHandler.
+        from backend.application.event_handlers.inventory.purchase_stock_entry_bridge import (
+            CanonicalPurchaseStockEntryHandler,
+        )
+        stock_handler = CanonicalPurchaseStockEntryHandler(db)
         bus.subscribe(PURCHASE_STOCK_ENTRY_REGISTERED, stock_handler.handle,
                       priority=100, label="procurement_inventory_stock_entry")
-        # meat/poultry lots (FIFO by lot) — migrated from the monolith
-        lot_handler = PurchaseLotEntryHandler(db)
-        bus.subscribe(PURCHASE_STOCK_ENTRY_REGISTERED, lot_handler.handle,
-                      priority=90, label="procurement_inventory_lot_entry")
-        # recipe explosion on purchase (consume components) — migrated from monolith
+        # recipe explosion on purchase (consume components) — PENDIENTE de migrar
+        # al ledger canónico (aún escribe movimientos_inventario legacy).
         from backend.application.event_handlers.inventory.purchase_recipe_explosion_handler import (
             PurchaseRecipeExplosionHandler,
         )
