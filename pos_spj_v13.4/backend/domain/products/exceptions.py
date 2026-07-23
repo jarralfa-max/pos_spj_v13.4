@@ -114,3 +114,20 @@ class BarcodeAlreadyAssignedError(ProductsDomainError):
 
 class InvalidScaleBarcodeError(ProductsDomainError):
     """A scale barcode does not match the configured embedded-weight format (§12)."""
+
+
+# ── PROD-8 quality / shelf life / logistics ──────────────────────────────────
+class InvalidTemperatureRangeError(ProductsDomainError):
+    """A temperature range is malformed (min > max, float, missing unit) (§18)."""
+
+
+class InvalidShelfLifeProfileError(ProductsDomainError):
+    """A shelf-life profile has invalid day values or window (§19)."""
+
+
+class ShelfLifeRequiredError(ProductsDomainError):
+    """A perishable product was activated without a shelf-life profile (§19, §35)."""
+
+
+class InvalidQualityProfileError(ProductsDomainError):
+    """A quality profile has an invalid percentage/range (§20)."""

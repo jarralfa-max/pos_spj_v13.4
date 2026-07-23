@@ -32,6 +32,9 @@ PRODUCT_TABLES: tuple[str, ...] = (
     "product_catch_weight_config",
     "product_barcodes",
     "product_alternate_codes",
+    "product_shelf_life_profiles",
+    "product_quality_profiles",
+    "product_logistics_profiles",
     "products",
     "product_authorization_log",
     "product_audit_log",
@@ -161,6 +164,60 @@ _DDL = (
         FOREIGN KEY (product_id) REFERENCES products(id)
     )
     """,
+    # ── calidad / vida útil / logística (PROD-8) ──────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS product_shelf_life_profiles (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        shelf_life_days INTEGER NOT NULL,
+        minimum_remaining_for_receipt INTEGER NOT NULL DEFAULT 0,
+        minimum_remaining_for_sale INTEGER NOT NULL DEFAULT 0,
+        storage_condition TEXT NOT NULL DEFAULT 'AMBIENT',
+        opened_shelf_life_days INTEGER NOT NULL DEFAULT 0,
+        frozen_shelf_life_days INTEGER NOT NULL DEFAULT 0,
+        thawed_shelf_life_days INTEGER NOT NULL DEFAULT 0,
+        effective_from TEXT,
+        effective_to TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (product_id) REFERENCES products(id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS product_quality_profiles (
+        product_id TEXT PRIMARY KEY,
+        inspection_required INTEGER NOT NULL DEFAULT 0,
+        temperature_required INTEGER NOT NULL DEFAULT 0,
+        weight_check_required INTEGER NOT NULL DEFAULT 0,
+        organoleptic_check_required INTEGER NOT NULL DEFAULT 0,
+        microbiological_test_required INTEGER NOT NULL DEFAULT 0,
+        fat_pct_min TEXT, fat_pct_max TEXT,
+        moisture_pct_min TEXT, moisture_pct_max TEXT,
+        color_requirement TEXT, odor_requirement TEXT,
+        packaging_requirement TEXT, documentation_requirement TEXT,
+        quarantine_required INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT,
+        FOREIGN KEY (product_id) REFERENCES products(id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS product_logistics_profiles (
+        product_id TEXT PRIMARY KEY,
+        gross_weight TEXT, net_weight TEXT, weight_unit TEXT NOT NULL DEFAULT 'KG',
+        dimensions TEXT,
+        storage_temp_min TEXT, storage_temp_max TEXT, storage_temp_unit TEXT,
+        transport_temp_min TEXT, transport_temp_max TEXT, transport_temp_unit TEXT,
+        fragile INTEGER NOT NULL DEFAULT 0,
+        perishable INTEGER NOT NULL DEFAULT 0,
+        frozen INTEGER NOT NULL DEFAULT 0,
+        chilled INTEGER NOT NULL DEFAULT 0,
+        stackable INTEGER NOT NULL DEFAULT 1,
+        shelf_life_days INTEGER NOT NULL DEFAULT 0,
+        open_package_shelf_life_days INTEGER NOT NULL DEFAULT 0,
+        requires_cold_chain INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT,
+        FOREIGN KEY (product_id) REFERENCES products(id)
+    )
+    """,
     # ── product master (PROD-2) ───────────────────────────────────────────
     #   NOTE: no existencia, no precio. Stock → Inventory, price → Pricing.
     """
@@ -270,6 +327,7 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_barcodes_type ON product_barcodes(barcode_type)",
     "CREATE INDEX IF NOT EXISTS idx_altcodes_product ON product_alternate_codes(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_altcodes_code ON product_alternate_codes(code)",
+    "CREATE INDEX IF NOT EXISTS idx_shelf_life_product ON product_shelf_life_profiles(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_audit_entity ON product_audit_log(entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_audit_op ON product_audit_log(operation_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_authz_op ON product_authorization_log(operation_id)",
