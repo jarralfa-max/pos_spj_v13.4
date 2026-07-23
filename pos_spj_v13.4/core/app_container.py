@@ -165,8 +165,16 @@ class AppContainer:
         ## =========================================================
         # CAPA 3: SERVICIOS DE NEGOCIO (Los motores del ERP)
         # =========================================================
+        # INV-27 corte: las mutaciones de InventoryApplicationService van al ledger
+        # canónico (CanonicalInventoryRepository), no a inventory_stock legacy. El
+        # inventory_repository legacy se conserva solo para lecturas del query
+        # service (se repuntan por flag/backfill aparte).
+        from backend.application.services.canonical_inventory_repository import (
+            CanonicalInventoryRepository,
+        )
+        self.inventory_write_repository = CanonicalInventoryRepository(self.db)
         self.inventory_application_service = InventoryApplicationService(
-            repository=self.inventory_repository,
+            repository=self.inventory_write_repository,
         )
         # Compatibility alias only: points to canonical InventoryApplicationService.
         self.inventory_service = self.inventory_application_service
