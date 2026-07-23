@@ -140,6 +140,7 @@ MIGRATIONS = [
     _Migration("140",  "migrations.standalone.140_products_quality_shelf_life_schema"),
     _Migration("141",  "migrations.standalone.141_products_recipes_schema"),
     _Migration("142",  "migrations.standalone.142_products_yield_profiles_schema"),
+    _Migration("143",  "migrations.standalone.143_products_cutting_schemes_schema"),
 ]
 
 def _ensure_tracking_table(conn):

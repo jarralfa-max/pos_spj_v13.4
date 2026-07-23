@@ -161,3 +161,12 @@ class YieldProfileInvalidError(ProductsDomainError):
 
 class YieldToleranceExceededError(ProductsDomainError):
     """The declared outputs do not sum within the configured tolerance (§23)."""
+
+
+# ── PROD-11 cutting schemes ──────────────────────────────────────────────────
+class CuttingSchemeInvalidError(ProductsDomainError):
+    """A cutting scheme/version/output is malformed (§24)."""
+
+
+class CuttingSchemeCycleDetectedError(ProductsDomainError):
+    """A cutting scheme would contain itself as an output (§24)."""

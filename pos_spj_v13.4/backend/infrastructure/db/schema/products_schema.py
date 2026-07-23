@@ -42,6 +42,9 @@ PRODUCT_TABLES: tuple[str, ...] = (
     "yield_profiles",
     "yield_profile_versions",
     "yield_outputs",
+    "cutting_schemes",
+    "cutting_scheme_versions",
+    "cutting_outputs",
     "products",
     "product_authorization_log",
     "product_audit_log",
@@ -325,6 +328,52 @@ _DDL = (
         FOREIGN KEY (product_id) REFERENCES products(id)
     )
     """,
+    # ── esquemas de despiece (PROD-11) ────────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS cutting_schemes (
+        id TEXT PRIMARY KEY,
+        input_product_id TEXT NOT NULL,
+        species_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        cut_level TEXT NOT NULL DEFAULT 'PRIMARY',
+        active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (input_product_id) REFERENCES products(id),
+        FOREIGN KEY (species_id) REFERENCES species(id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS cutting_scheme_versions (
+        id TEXT PRIMARY KEY,
+        cutting_scheme_id TEXT NOT NULL,
+        version_number INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'DRAFT',
+        effective_from TEXT,
+        effective_to TEXT,
+        approved_by_user_id TEXT,
+        reason TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(cutting_scheme_id, version_number),
+        FOREIGN KEY (cutting_scheme_id) REFERENCES cutting_schemes(id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS cutting_outputs (
+        id TEXT PRIMARY KEY,
+        version_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        output_type TEXT NOT NULL DEFAULT 'MAIN_PRODUCT',
+        measure_kind TEXT NOT NULL,         -- BY_PIECE | BY_WEIGHT
+        quantity TEXT NOT NULL,             -- Decimal string
+        unit_id TEXT NOT NULL,
+        cut_classification_id TEXT,
+        cut_level TEXT,
+        bone_status TEXT NOT NULL DEFAULT 'NOT_APPLICABLE',
+        sequence INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (version_id) REFERENCES cutting_scheme_versions(id),
+        FOREIGN KEY (product_id) REFERENCES products(id)
+    )
+    """,
     # ── product master (PROD-2) ───────────────────────────────────────────
     #   NOTE: no existencia, no precio. Stock → Inventory, price → Pricing.
     """
@@ -442,6 +491,10 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_yield_profiles_input ON yield_profiles(input_product_id)",
     "CREATE INDEX IF NOT EXISTS idx_yield_versions_profile ON yield_profile_versions(yield_profile_id, status)",
     "CREATE INDEX IF NOT EXISTS idx_yield_outputs_version ON yield_outputs(version_id)",
+    "CREATE INDEX IF NOT EXISTS idx_cutting_schemes_input ON cutting_schemes(input_product_id)",
+    "CREATE INDEX IF NOT EXISTS idx_cutting_schemes_species ON cutting_schemes(species_id)",
+    "CREATE INDEX IF NOT EXISTS idx_cutting_versions_scheme ON cutting_scheme_versions(cutting_scheme_id, status)",
+    "CREATE INDEX IF NOT EXISTS idx_cutting_outputs_version ON cutting_outputs(version_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_audit_entity ON product_audit_log(entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_audit_op ON product_audit_log(operation_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_authz_op ON product_authorization_log(operation_id)",
