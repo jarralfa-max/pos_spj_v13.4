@@ -51,6 +51,9 @@ PRODUCT_TABLES: tuple[str, ...] = (
     "branch_product",
     "assortments",
     "assortment_products",
+    "external_catalog_sources",
+    "external_product_records",
+    "product_import_batches",
     "products",
     "product_authorization_log",
     "product_audit_log",
@@ -458,6 +461,54 @@ _DDL = (
         FOREIGN KEY (product_id) REFERENCES products(id)
     )
     """,
+    # ── catálogos externos / importación (PROD-15) ────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS external_catalog_sources (
+        id TEXT PRIMARY KEY,
+        code TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        provider_type TEXT NOT NULL,
+        endpoint TEXT,
+        active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS external_product_records (
+        id TEXT PRIMARY KEY,
+        source_id TEXT NOT NULL,
+        external_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        barcode TEXT,
+        brand TEXT,
+        category TEXT,
+        net_weight TEXT,
+        unit TEXT,
+        raw_payload TEXT,
+        status TEXT NOT NULL DEFAULT 'PENDING_REVIEW',
+        matched_product_id TEXT,
+        data_quality_score INTEGER NOT NULL DEFAULT 0,
+        batch_id TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(source_id, external_id),
+        FOREIGN KEY (source_id) REFERENCES external_catalog_sources(id),
+        FOREIGN KEY (matched_product_id) REFERENCES products(id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS product_import_batches (
+        id TEXT PRIMARY KEY,
+        source_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'PENDING',
+        total_records INTEGER NOT NULL DEFAULT 0,
+        matched_records INTEGER NOT NULL DEFAULT 0,
+        imported_records INTEGER NOT NULL DEFAULT 0,
+        failed_records INTEGER NOT NULL DEFAULT 0,
+        created_by TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (source_id) REFERENCES external_catalog_sources(id)
+    )
+    """,
     # ── product master (PROD-2) ───────────────────────────────────────────
     #   NOTE: no existencia, no precio. Stock → Inventory, price → Pricing.
     """
@@ -586,6 +637,9 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_branch_product_product ON branch_product(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_assortments_channel ON assortments(channel, active)",
     "CREATE INDEX IF NOT EXISTS idx_assortment_products_assortment ON assortment_products(assortment_id)",
+    "CREATE INDEX IF NOT EXISTS idx_ext_records_source ON external_product_records(source_id, status)",
+    "CREATE INDEX IF NOT EXISTS idx_ext_records_barcode ON external_product_records(barcode)",
+    "CREATE INDEX IF NOT EXISTS idx_ext_records_batch ON external_product_records(batch_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_audit_entity ON product_audit_log(entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_audit_op ON product_audit_log(operation_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_authz_op ON product_authorization_log(operation_id)",

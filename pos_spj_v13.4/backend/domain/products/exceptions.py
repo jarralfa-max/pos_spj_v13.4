@@ -192,3 +192,20 @@ class InvalidAssortmentError(ProductsDomainError):
 
 class ChannelNotAllowedError(ProductsDomainError):
     """The product cannot be enabled for the requested channel (§13, §29, §33)."""
+
+
+# ── PROD-15 external catalogs / import ───────────────────────────────────────
+class InvalidExternalRecordError(ProductsDomainError):
+    """An external product record is malformed (§15)."""
+
+
+class ExternalCatalogUnavailableError(ProductsDomainError):
+    """The external catalog provider is unreachable or misconfigured (§47)."""
+
+
+class ExternalRecordNotReviewedError(ProductsDomainError):
+    """An external record was imported without the required review (§15, §39)."""
+
+
+class UnknownCatalogProviderError(ProductsDomainError):
+    """No adapter is registered for the requested provider (§15)."""
