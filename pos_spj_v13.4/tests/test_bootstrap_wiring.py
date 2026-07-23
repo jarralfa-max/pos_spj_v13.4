@@ -129,29 +129,14 @@ def test_inventory_ajustar_merma_exists_and_callable():
     assert callable(getattr(svc, "ajustar_merma", None))
 
 
-def test_inventory_descontar_stock_calls_deduct():
-    svc, repo = _make_inventory_service()
-    svc.descontar_stock(producto_id=1, cantidad=5.0, branch_id=1)
-    repo.insert_movement.assert_called_once()
-    call_kwargs = repo.insert_movement.call_args
-    assert call_kwargs.kwargs.get("movement_type") == "OUT"
-
-
-def test_inventory_incrementar_stock_calls_add():
-    svc, repo = _make_inventory_service()
-    repo.get_current_stock.return_value = 0.0
-    svc.incrementar_stock(producto_id=2, cantidad=10.0, unit_cost=5.0, branch_id=1)
-    repo.insert_movement.assert_called_once()
-    call_kwargs = repo.insert_movement.call_args
-    assert call_kwargs.kwargs.get("movement_type") == "IN"
-
-
-def test_inventory_ajustar_merma_uses_waste_reference():
-    svc, repo = _make_inventory_service()
-    svc.ajustar_merma(producto_id=3, cantidad=2.0, branch_id=1)
-    repo.insert_movement.assert_called_once()
-    call_kwargs = repo.insert_movement.call_args
-    assert call_kwargs.kwargs.get("reference_type") == "WASTE"
+# NOTE (INV-27 corte): los antiguos tests que fijaban el detalle interno del shim
+# (descontar/incrementar/ajustar_merma → repo legacy `insert_movement` con
+# movement_type "OUT"/"IN" y reference_type "WASTE") se eliminaron. El shim
+# `InventoryService` ya NO escribe la tabla legacy `inventory_stock`: delega en
+# `InventoryApplicationService` respaldado por `CanonicalInventoryRepository`
+# (ledger canónico). El contrato de existencia de los alias en español queda
+# cubierto por los tests `*_exists_and_callable`; el comportamiento canónico
+# extremo a extremo está cubierto por la suite `tests/integration/inventory/`.
 
 
 # ─────────────────────────────────────────────────────────────
