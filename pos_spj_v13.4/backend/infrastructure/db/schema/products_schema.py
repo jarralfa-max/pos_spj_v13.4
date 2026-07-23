@@ -39,6 +39,9 @@ PRODUCT_TABLES: tuple[str, ...] = (
     "recipe_versions",
     "recipe_components",
     "recipe_outputs",
+    "yield_profiles",
+    "yield_profile_versions",
+    "yield_outputs",
     "products",
     "product_authorization_log",
     "product_audit_log",
@@ -276,6 +279,52 @@ _DDL = (
         FOREIGN KEY (product_id) REFERENCES products(id)
     )
     """,
+    # ── rendimientos (PROD-10) ────────────────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS yield_profiles (
+        id TEXT PRIMARY KEY,
+        input_product_id TEXT NOT NULL,
+        species_id TEXT,
+        name TEXT NOT NULL,
+        active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (input_product_id) REFERENCES products(id),
+        FOREIGN KEY (species_id) REFERENCES species(id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS yield_profile_versions (
+        id TEXT PRIMARY KEY,
+        yield_profile_id TEXT NOT NULL,
+        version_number INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'DRAFT',
+        tolerance_pct TEXT NOT NULL DEFAULT '0',
+        effective_from TEXT,
+        effective_to TEXT,
+        approved_by_user_id TEXT,
+        reason TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(yield_profile_id, version_number),
+        FOREIGN KEY (yield_profile_id) REFERENCES yield_profiles(id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS yield_outputs (
+        id TEXT PRIMARY KEY,
+        version_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        output_type TEXT NOT NULL,
+        expected_yield_pct TEXT NOT NULL,
+        expected_quantity TEXT NOT NULL DEFAULT '0',
+        minimum_yield_pct TEXT,
+        maximum_yield_pct TEXT,
+        unit_id TEXT NOT NULL,
+        cost_allocation_weight TEXT NOT NULL DEFAULT '0',
+        sequence INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (version_id) REFERENCES yield_profile_versions(id),
+        FOREIGN KEY (product_id) REFERENCES products(id)
+    )
+    """,
     # ── product master (PROD-2) ───────────────────────────────────────────
     #   NOTE: no existencia, no precio. Stock → Inventory, price → Pricing.
     """
@@ -390,6 +439,9 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_recipe_versions_recipe ON recipe_versions(recipe_id, status)",
     "CREATE INDEX IF NOT EXISTS idx_recipe_components_version ON recipe_components(version_id)",
     "CREATE INDEX IF NOT EXISTS idx_recipe_outputs_version ON recipe_outputs(version_id)",
+    "CREATE INDEX IF NOT EXISTS idx_yield_profiles_input ON yield_profiles(input_product_id)",
+    "CREATE INDEX IF NOT EXISTS idx_yield_versions_profile ON yield_profile_versions(yield_profile_id, status)",
+    "CREATE INDEX IF NOT EXISTS idx_yield_outputs_version ON yield_outputs(version_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_audit_entity ON product_audit_log(entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_audit_op ON product_audit_log(operation_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_authz_op ON product_authorization_log(operation_id)",

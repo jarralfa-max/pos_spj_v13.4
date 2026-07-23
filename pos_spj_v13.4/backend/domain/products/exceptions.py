@@ -152,3 +152,12 @@ class RecipeVersionImmutableError(ProductsDomainError):
 
 class NoActiveRecipeVersionError(ProductsDomainError):
     """No ACTIVE version exists for the requested recipe."""
+
+
+# ── PROD-10 yield profiles ───────────────────────────────────────────────────
+class YieldProfileInvalidError(ProductsDomainError):
+    """A yield profile/version/output is malformed (§23)."""
+
+
+class YieldToleranceExceededError(ProductsDomainError):
+    """The declared outputs do not sum within the configured tolerance (§23)."""
