@@ -1,15 +1,12 @@
-# core/events/handlers — Phase 1 + Phase 3 + Phase 4 + Phase 5 + Phase 6 + Phase 7 domain event handlers
-from core.events.handlers.inventory_handler import SaleInventoryHandler
+# core/events/handlers — domain event handlers.
+# INV-27 corte: los *InventoryHandler legacy (Sale/Production/Purchase/Transfer)
+# fueron eliminados; el inventario se mueve por el ledger canónico (bridges en
+# backend/application/event_handlers/inventory). Solo quedan los handlers de
+# finanzas.
 from core.events.handlers.finance_handler import SaleFinanceHandler
-from core.events.handlers.production_handler import ProductionInventoryHandler
-from core.events.handlers.purchase_handler import PurchaseInventoryHandler, PurchaseFinanceHandler
-from core.events.handlers.transfer_handler import TransferInventoryHandler
+from core.events.handlers.purchase_handler import PurchaseFinanceHandler
 
 __all__ = [
-    "SaleInventoryHandler",
     "SaleFinanceHandler",
-    "ProductionInventoryHandler",
-    "PurchaseInventoryHandler",
     "PurchaseFinanceHandler",
-    "TransferInventoryHandler",
 ]

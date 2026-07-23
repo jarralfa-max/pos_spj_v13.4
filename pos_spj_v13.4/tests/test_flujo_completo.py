@@ -92,14 +92,18 @@ def uc_venta(mem_db, producto):
     from core.services.sales_service import SalesService
     from core.events.event_bus import get_bus
     from core.events.domain_events import SALE_ITEMS_PROCESS
-    from core.events.handlers.inventory_handler import SaleInventoryHandler
+    from backend.application.event_handlers.inventory.sale_items_bridge import (
+        CanonicalSaleInventoryHandler,
+    )
+    from backend.infrastructure.db.schema.inventory_schema import create_inventory_schema
     from repositories.sales_repository import SalesRepository
 
     sales_repo = SalesRepository(mem_db)
     inv_svc    = InventoryService(mem_db)
 
-    # Registrar handler de inventario para que SALE_ITEMS_PROCESS descuente stock
-    _handler = SaleInventoryHandler(inv_svc, recipe_repo=None)
+    # corte INV-27: la deducción de SALE_ITEMS_PROCESS es canónica (SALE_ISSUE).
+    create_inventory_schema(mem_db)
+    _handler = CanonicalSaleInventoryHandler(lambda: mem_db)
     bus = get_bus()
     bus.subscribe(SALE_ITEMS_PROCESS, _handler.handle, priority=100)
 

@@ -68,20 +68,6 @@ class _Container:
         self.finance_service = finance_service
 
 
-class _LegacyInvStub:
-    """Records legacy decrease_stock calls (proves the legacy path is chosen)."""
-
-    def __init__(self):
-        self.calls = []
-
-    def decrease_stock(self, **kwargs):
-        self.calls.append(kwargs)
-        class _R:
-            success = True
-            message = ""
-        return _R()
-
-
 def _enable_cutover(conn):
     InventorySettingsRepository(conn).set(
         setting_key="canonical_cutover_enabled", setting_value="true")
@@ -113,29 +99,14 @@ def _wire(bus, container):
 
 
 class TestFlagSelectsHandler:
-    def test_flag_off_wires_legacy_engine(self, conn):
+    def test_wires_canonical_bridge(self, conn):
+        # corte INV-27: el wiring es canónico incondicional (motor legacy eliminado)
         bus = _FakeBus()
-        legacy = _LegacyInvStub()
-        _wire(bus, _Container(conn, inventory_service=legacy))
-        # legacy path chosen: publishing deducts via the legacy engine
-        bus.publish(SALE_ITEMS_PROCESS, {
-            "branch_id": "b1", "operation_id": "s1", "sale_id": "S1",
-            "items": [{"product_id": "p1", "qty": "4", "es_compuesto": 0}]})
-        assert len(legacy.calls) == 1
-        # the canonical ledger is untouched
-        assert conn.execute(
-            "SELECT COUNT(*) FROM inventory_ledger").fetchone()[0] == 0
-
-    def test_flag_on_wires_canonical_bridge(self, conn):
-        _enable_cutover(conn)
-        bus = _FakeBus()
-        legacy = _LegacyInvStub()
-        _wire(bus, _Container(conn, inventory_service=legacy))
+        _wire(bus, _Container(conn))
         _seed(conn, qty="10")
         bus.publish(SALE_ITEMS_PROCESS, {
             "branch_id": "b1", "operation_id": "s1", "sale_id": "S1",
             "items": [{"product_id": "p1", "qty": "4", "es_compuesto": 0}]})
-        assert legacy.calls == []            # legacy engine NOT called
         assert _available(conn) == Decimal("6")  # canonical ledger deducted
         row = conn.execute(
             "SELECT movement_type FROM inventory_ledger WHERE operation_id='s1'"

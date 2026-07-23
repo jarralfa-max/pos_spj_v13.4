@@ -1,6 +1,5 @@
 # core/events/handlers/purchase_handler.py — Phase 4
 """
-PurchaseInventoryHandler — handles PURCHASE_ITEMS_PROCESS.
 PurchaseFinanceHandler   — handles PURCHASE_CREATED (post-transaction).
 
 Registered by wiring.py.
@@ -12,57 +11,6 @@ from typing import Any, Dict
 
 logger = logging.getLogger("spj.handlers.purchase")
 
-
-class PurchaseInventoryHandler:
-    """
-    Subscribes to PURCHASE_ITEMS_PROCESS and applies inventory IN for each
-    purchased item via inventory_service.add_stock().
-
-    Payload expected:
-        items        — list of {product_id, qty, unit_cost, nombre?}
-        branch_id    — branch receiving the goods
-        operation_id — idempotency key
-        compra_id    — purchase record ID
-        folio        — purchase folio for notes
-        user         — usuario triggering the purchase
-    """
-
-    def __init__(self, inventory_service):
-        self._inv = inventory_service
-
-    def handle(self, payload: Dict[str, Any]) -> None:
-        branch_id = str(payload.get("branch_id") or "")
-        operation_id = str(payload.get("operation_id", ""))
-        compra_id    = payload.get("compra_id", "")
-        folio        = str(payload.get("folio", ""))
-        user         = str(payload.get("user", payload.get("usuario", "sistema")))
-
-        for item in payload.get("items", []):
-            product_id = item.get("product_id")
-            qty        = float(item.get("qty", item.get("cantidad", 0)))
-            unit_cost  = float(item.get("unit_cost", item.get("costo_unit", 0)))
-
-            if qty <= 0 or not product_id:
-                continue
-
-            try:
-                self._inv.add_stock(
-                    product_id     = product_id,
-                    branch_id      = branch_id,
-                    qty            = qty,
-                    unit_cost      = unit_cost,
-                    reference_type = "COMPRA",
-                    reference_id   = str(compra_id),
-                    operation_id   = f"{operation_id}_{product_id}",
-                    user           = user,
-                    notes          = f"Entrada por compra {folio}",
-                )
-            except Exception as exc:
-                logger.error(
-                    "PurchaseInventoryHandler: error product=%s qty=%.4f folio=%s: %s",
-                    product_id, qty, folio, exc,
-                )
-                raise
 
 
 class PurchaseFinanceHandler:

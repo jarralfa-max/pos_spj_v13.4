@@ -956,43 +956,24 @@ def _wire_sale_handlers(bus, container) -> None:
     from core.events.domain_events import SALE_ITEMS_PROCESS
     from core.events.handlers.finance_handler import SaleFinanceHandler
 
-    inv      = getattr(container, "inventory_service", None)
     fs       = getattr(container, "finance_service", None)
     db       = getattr(container, "db", None)
 
-    # ── Inventory deduction: canonical ledger (flag ON) vs legacy engine (OFF) ──
-    # The cutover flip swaps the SALE_ITEMS_PROCESS deduction from the legacy
-    # UnifiedInventoryService.decrease_stock to a canonical SALE_ISSUE movement
-    # posted to the ledger. Both run synchronously inside the sale's SAVEPOINT;
-    # the outer sale owns the commit. Only ONE is ever subscribed (no double
-    # deduction).
-    from backend.application.inventory.cutover.canonical_cutover import (
-        is_cutover_enabled,
+    # ── Inventory deduction: canonical SALE_ISSUE on the ledger (corte INV-27) ──
+    # The legacy UnifiedInventoryService.decrease_stock path was removed; the sale
+    # deduction always posts a canonical SALE_ISSUE movement inside the sale's
+    # SAVEPOINT (the outer sale owns the commit).
+    from backend.application.event_handlers.inventory.sale_items_bridge import (
+        CanonicalSaleInventoryHandler,
     )
-
-    if is_cutover_enabled(db):
-        from backend.application.event_handlers.inventory.sale_items_bridge import (
-            CanonicalSaleInventoryHandler,
-        )
-        canonical_handler = CanonicalSaleInventoryHandler(lambda: getattr(container, "db", None))
-        bus.subscribe(
-            SALE_ITEMS_PROCESS,
-            canonical_handler.handle,
-            priority=100,
-            label="sale_inventory_deduct",
-        )
-        logger.warning("Inventory CUTOVER ON: canonical SALE_ISSUE handler on %s",
-                       SALE_ITEMS_PROCESS)
-    elif inv:
-        from core.events.handlers.inventory_handler import SaleInventoryHandler
-        inv_handler = SaleInventoryHandler(inventory_service=inv, db=db)
-        bus.subscribe(
-            SALE_ITEMS_PROCESS,
-            inv_handler.handle,
-            priority=100,
-            label="sale_inventory_deduct",
-        )
-        logger.debug("Registered SaleInventoryHandler on %s", SALE_ITEMS_PROCESS)
+    canonical_handler = CanonicalSaleInventoryHandler(lambda: getattr(container, "db", None))
+    bus.subscribe(
+        SALE_ITEMS_PROCESS,
+        canonical_handler.handle,
+        priority=100,
+        label="sale_inventory_deduct",
+    )
+    logger.debug("Registered canonical SALE_ISSUE handler on %s", SALE_ITEMS_PROCESS)
 
     if db:
         fin_handler = SaleFinanceHandler(db_conn=db, finance_service=fs)
@@ -1032,42 +1013,21 @@ def _wire_production_items_handlers(bus, container) -> None:
         logger.debug("_wire_production_items_handlers: no container.db — skipping")
         return
 
-    # ── Inventory movements: canonical ledger (flag ON) vs legacy engine (OFF) ──
-    # The cutover flip swaps the PRODUCTION_ITEMS_PROCESS movements from the legacy
-    # UnifiedInventoryService.process_movement to canonical PRODUCTION_CONSUMPTION
-    # + PRODUCTION_OUTPUT movements on the ledger. Both run inside the production
-    # transaction; the outer flow owns the commit. Only ONE is ever subscribed.
-    from backend.application.inventory.cutover.canonical_cutover import (
-        is_cutover_enabled,
+    # ── Canonical PRODUCTION_CONSUMPTION + PRODUCTION_OUTPUT (corte INV-27) ─────
+    # The legacy UnifiedInventoryService.process_movement path was removed; the
+    # production movements always post to the ledger inside the production
+    # transaction (the outer flow owns the commit).
+    from backend.application.event_handlers.inventory.production_items_bridge import (
+        CanonicalProductionInventoryHandler,
     )
-
-    if is_cutover_enabled(db):
-        from backend.application.event_handlers.inventory.production_items_bridge import (
-            CanonicalProductionInventoryHandler,
-        )
-        handler = CanonicalProductionInventoryHandler(lambda: getattr(container, "db", None))
-        bus.subscribe(
-            PRODUCTION_ITEMS_PROCESS,
-            handler.handle,
-            priority=100,
-            label="production_inventory_handler",
-        )
-        logger.warning("Inventory CUTOVER ON: canonical production handler on %s",
-                       PRODUCTION_ITEMS_PROCESS)
-    else:
-        from core.events.handlers.production_handler import ProductionInventoryHandler
-        from core.services.inventory.unified_inventory_service import (
-            UnifiedInventoryService,
-        )
-        inv_eng = UnifiedInventoryService(conn=db, sucursal_id=1, usuario="produccion")
-        handler = ProductionInventoryHandler(inventory_engine=inv_eng)
-        bus.subscribe(
-            PRODUCTION_ITEMS_PROCESS,
-            handler.handle,
-            priority=100,
-            label="production_inventory_handler",
-        )
-        logger.debug("Registered ProductionInventoryHandler on %s", PRODUCTION_ITEMS_PROCESS)
+    handler = CanonicalProductionInventoryHandler(lambda: getattr(container, "db", None))
+    bus.subscribe(
+        PRODUCTION_ITEMS_PROCESS,
+        handler.handle,
+        priority=100,
+        label="production_inventory_handler",
+    )
+    logger.debug("Registered canonical production handler on %s", PRODUCTION_ITEMS_PROCESS)
 
     # Production GL: PRODUCCION_COMPLETADA → cost-of-production journal entry
     # FASE 6: pass db= so the handler can query production_cost_ledger for real
@@ -1102,31 +1062,16 @@ def _wire_production_items_handlers(bus, container) -> None:
 
 def _wire_purchase_items_handlers(bus, container) -> None:
     """
-    Register PurchaseInventoryHandler on PURCHASE_ITEMS_PROCESS (sync, inside SAVEPOINT)
-    and PurchaseFinanceHandler on PURCHASE_CREATED (async, post-transaction).
+    Register PurchaseFinanceHandler on PURCHASE_CREATED (async, post-transaction).
 
-    Priority order:
-      100 — PurchaseInventoryHandler: add stock IN (must run first)
-       80 — PurchaseFinanceHandler:   record cost-of-goods journal entry
+    Purchase-receipt stock is owned by the canonical procurement pipeline
+    (PURCHASE_STOCK_ENTRY_REGISTERED, PUR-13); the legacy PURCHASE_ITEMS_PROCESS
+    inventory handler was removed (it had no live publisher).
     """
-    from core.events.domain_events import PURCHASE_ITEMS_PROCESS, PURCHASE_CREATED
-    from core.events.handlers.purchase_handler import (
-        PurchaseInventoryHandler,
-        PurchaseFinanceHandler,
-    )
+    from core.events.domain_events import PURCHASE_CREATED
+    from core.events.handlers.purchase_handler import PurchaseFinanceHandler
 
-    inv = getattr(container, "inventory_service", None)
     fs  = getattr(container, "finance_service", None)
-
-    if inv:
-        inv_handler = PurchaseInventoryHandler(inventory_service=inv)
-        bus.subscribe(
-            PURCHASE_ITEMS_PROCESS,
-            inv_handler.handle,
-            priority=100,
-            label="purchase_inventory_handler",
-        )
-        logger.debug("Registered PurchaseInventoryHandler on %s", PURCHASE_ITEMS_PROCESS)
 
     if fs:
         fin_handler = PurchaseFinanceHandler(finance_service=fs)
@@ -1158,42 +1103,21 @@ def _wire_transfer_items_handlers(bus, container) -> None:
         logger.debug("_wire_transfer_items_handlers: no container.db — skipping")
         return
 
-    # ── Transfer legs: canonical ledger (flag ON) vs legacy engine (OFF) ────────
-    # The cutover flip swaps the TRANSFER_ITEMS_PROCESS movements from the legacy
-    # UnifiedInventoryService.process_movement to canonical TRANSFER_DISPATCH
-    # (out) + TRANSFER_RECEIPT (in) movements on the ledger. Both run inside the
-    # transfer transaction; the outer flow owns the commit. Only ONE is subscribed.
-    from backend.application.inventory.cutover.canonical_cutover import (
-        is_cutover_enabled,
+    # ── Canonical TRANSFER_DISPATCH (out) + TRANSFER_RECEIPT (in) (corte INV-27) ─
+    # The legacy UnifiedInventoryService.process_movement path was removed; the
+    # transfer legs always post to the ledger inside the transfer transaction
+    # (the outer flow owns the commit).
+    from backend.application.event_handlers.inventory.transfer_items_bridge import (
+        CanonicalTransferInventoryHandler,
     )
-
-    if is_cutover_enabled(db):
-        from backend.application.event_handlers.inventory.transfer_items_bridge import (
-            CanonicalTransferInventoryHandler,
-        )
-        handler = CanonicalTransferInventoryHandler(lambda: getattr(container, "db", None))
-        bus.subscribe(
-            TRANSFER_ITEMS_PROCESS,
-            handler.handle,
-            priority=100,
-            label="transfer_inventory_handler",
-        )
-        logger.warning("Inventory CUTOVER ON: canonical transfer handler on %s",
-                       TRANSFER_ITEMS_PROCESS)
-    else:
-        from core.events.handlers.transfer_handler import TransferInventoryHandler
-        from core.services.inventory.unified_inventory_service import (
-            UnifiedInventoryService,
-        )
-        inv_eng = UnifiedInventoryService(conn=db, sucursal_id=1, usuario="transferencia")
-        handler = TransferInventoryHandler(inventory_engine=inv_eng)
-        bus.subscribe(
-            TRANSFER_ITEMS_PROCESS,
-            handler.handle,
-            priority=100,
-            label="transfer_inventory_handler",
-        )
-        logger.debug("Registered TransferInventoryHandler on %s", TRANSFER_ITEMS_PROCESS)
+    handler = CanonicalTransferInventoryHandler(lambda: getattr(container, "db", None))
+    bus.subscribe(
+        TRANSFER_ITEMS_PROCESS,
+        handler.handle,
+        priority=100,
+        label="transfer_inventory_handler",
+    )
+    logger.debug("Registered canonical transfer handler on %s", TRANSFER_ITEMS_PROCESS)
 
 
 def _wire_delivery_handlers(bus, container) -> None:

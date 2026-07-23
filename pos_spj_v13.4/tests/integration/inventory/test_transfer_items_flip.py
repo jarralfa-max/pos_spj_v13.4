@@ -102,11 +102,11 @@ def _transfer_payload(op="tr-1"):
 
 
 class TestFlagSelectsHandler:
-    def test_flag_off_wires_legacy_engine(self, conn):
+    def test_wires_canonical_handler(self, conn):
+        # corte INV-27: wiring canónico incondicional (motor legacy eliminado)
         bus = _FakeBus()
         _wire(bus, _Container(conn))
         assert bus.labels[TRANSFER_ITEMS_PROCESS] == ["transfer_inventory_handler"]
-        assert conn.execute("SELECT COUNT(*) FROM inventory_ledger").fetchone()[0] == 0
 
     def test_flag_on_posts_dispatch_and_receipt(self, conn):
         _enable_cutover(conn)

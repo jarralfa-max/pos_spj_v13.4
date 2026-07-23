@@ -101,13 +101,11 @@ def _prod_payload(op="prod-1"):
 
 
 class TestFlagSelectsHandler:
-    def test_flag_off_wires_legacy_engine(self, conn):
+    def test_wires_canonical_handler(self, conn):
+        # corte INV-27: wiring canónico incondicional (motor legacy eliminado)
         bus = _FakeBus()
         _wire(bus, _Container(conn))
         assert bus.labels[PRODUCTION_ITEMS_PROCESS] == ["production_inventory_handler"]
-        # legacy engine handler subscribed → canonical ledger untouched on publish
-        # (legacy UnifiedInventoryService writes to legacy tables, not the ledger)
-        assert conn.execute("SELECT COUNT(*) FROM inventory_ledger").fetchone()[0] == 0
 
     def test_flag_on_posts_canonical_consumption_and_output(self, conn):
         _enable_cutover(conn)

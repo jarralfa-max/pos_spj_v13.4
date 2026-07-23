@@ -5,7 +5,6 @@ import pytest
 
 from core.events.domain_events import SALE_ITEMS_PROCESS
 from core.events.event_bus import get_bus
-from core.events.handlers.inventory_handler import SaleInventoryHandler
 from core.services.sales_fulfillment_service import SaleFulfillmentService
 from core.services.sales_service import SalesService
 
@@ -194,26 +193,6 @@ def test_prevalidate_stock_handles_recipe_schema_without_cantidad_column():
     assert lines[0].mode == "VIRTUAL_FROM_COMPONENTS"
 
 
-def test_inventory_handler_still_blocks_if_stock_changes_after_prevalidation():
-    db = _db_with_basic_sales_schema(stock=2.0)
-    SaleFulfillmentService(db).resolve_item(1, 1, 1)
-
-    class RaceAwareInventory:
-        def __init__(self):
-            self.stock = 0.0
-
-        def deduct_stock(self, product_id, branch_id, qty, **kwargs):
-            if self.stock < float(qty):
-                raise RuntimeError("Stock insuficiente después de prevalidación")
-            self.stock -= float(qty)
-
-    inv = RaceAwareInventory()
-    handler = SaleInventoryHandler(inv, db=db)
-
-    with pytest.raises(RuntimeError, match="Stock insuficiente después de prevalidación"):
-        handler.handle({"branch_id": 1, "sale_id": 10, "folio": "F10", "items": [{"product_id": 1, "qty": 1}]})
-
-    assert inv.stock == 0.0
 
 
 def test_sale_rollback_keeps_cash_and_inventory_intact():
