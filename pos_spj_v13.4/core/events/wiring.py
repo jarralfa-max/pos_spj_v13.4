@@ -1152,23 +1152,48 @@ def _wire_transfer_items_handlers(bus, container) -> None:
     Runs synchronously inside the transfer SAVEPOINT at priority=100.
     """
     from core.events.domain_events import TRANSFER_ITEMS_PROCESS
-    from core.events.handlers.transfer_handler import TransferInventoryHandler
-    from core.services.inventory.unified_inventory_service import UnifiedInventoryService
 
     db = getattr(container, "db", None)
     if not db:
         logger.debug("_wire_transfer_items_handlers: no container.db — skipping")
         return
 
-    inv_eng = UnifiedInventoryService(conn=db, sucursal_id=1, usuario="transferencia")
-    handler = TransferInventoryHandler(inventory_engine=inv_eng)
-    bus.subscribe(
-        TRANSFER_ITEMS_PROCESS,
-        handler.handle,
-        priority=100,
-        label="transfer_inventory_handler",
+    # ── Transfer legs: canonical ledger (flag ON) vs legacy engine (OFF) ────────
+    # The cutover flip swaps the TRANSFER_ITEMS_PROCESS movements from the legacy
+    # UnifiedInventoryService.process_movement to canonical TRANSFER_DISPATCH
+    # (out) + TRANSFER_RECEIPT (in) movements on the ledger. Both run inside the
+    # transfer transaction; the outer flow owns the commit. Only ONE is subscribed.
+    from backend.application.inventory.cutover.canonical_cutover import (
+        is_cutover_enabled,
     )
-    logger.debug("Registered TransferInventoryHandler on %s", TRANSFER_ITEMS_PROCESS)
+
+    if is_cutover_enabled(db):
+        from backend.application.event_handlers.inventory.transfer_items_bridge import (
+            CanonicalTransferInventoryHandler,
+        )
+        handler = CanonicalTransferInventoryHandler(lambda: getattr(container, "db", None))
+        bus.subscribe(
+            TRANSFER_ITEMS_PROCESS,
+            handler.handle,
+            priority=100,
+            label="transfer_inventory_handler",
+        )
+        logger.warning("Inventory CUTOVER ON: canonical transfer handler on %s",
+                       TRANSFER_ITEMS_PROCESS)
+    else:
+        from core.events.handlers.transfer_handler import TransferInventoryHandler
+        from core.services.inventory.unified_inventory_service import (
+            UnifiedInventoryService,
+        )
+        inv_eng = UnifiedInventoryService(conn=db, sucursal_id=1, usuario="transferencia")
+        handler = TransferInventoryHandler(inventory_engine=inv_eng)
+        bus.subscribe(
+            TRANSFER_ITEMS_PROCESS,
+            handler.handle,
+            priority=100,
+            label="transfer_inventory_handler",
+        )
+        logger.debug("Registered TransferInventoryHandler on %s", TRANSFER_ITEMS_PROCESS)
 
 
 def _wire_delivery_handlers(bus, container) -> None:
