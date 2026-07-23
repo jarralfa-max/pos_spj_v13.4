@@ -319,12 +319,11 @@ def _wire_procurement_pipeline(bus, container) -> None:
         stock_handler = CanonicalPurchaseStockEntryHandler(db)
         bus.subscribe(PURCHASE_STOCK_ENTRY_REGISTERED, stock_handler.handle,
                       priority=100, label="procurement_inventory_stock_entry")
-        # recipe explosion on purchase (consume components) — PENDIENTE de migrar
-        # al ledger canónico (aún escribe movimientos_inventario legacy).
-        from backend.application.event_handlers.inventory.purchase_recipe_explosion_handler import (
-            PurchaseRecipeExplosionHandler,
+        # recipe explosion on purchase (consume components) — canónico (ADJUSTMENT_OUT).
+        from backend.application.event_handlers.inventory.purchase_recipe_explosion_bridge import (
+            CanonicalPurchaseRecipeExplosionHandler,
         )
-        recipe_handler = PurchaseRecipeExplosionHandler(db)
+        recipe_handler = CanonicalPurchaseRecipeExplosionHandler(db)
         bus.subscribe(PURCHASE_STOCK_ENTRY_REGISTERED, recipe_handler.handle,
                       priority=80, label="procurement_inventory_recipe_explosion")
     except Exception as exc:  # pragma: no cover - defensive wiring
