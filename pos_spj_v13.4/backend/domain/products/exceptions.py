@@ -131,3 +131,24 @@ class ShelfLifeRequiredError(ProductsDomainError):
 
 class InvalidQualityProfileError(ProductsDomainError):
     """A quality profile has an invalid percentage/range (§20)."""
+
+
+# ── PROD-9 recipes / BOM ─────────────────────────────────────────────────────
+class InvalidRecipeError(ProductsDomainError):
+    """A recipe/version/component/output is malformed (§21)."""
+
+
+class RecipeCycleDetectedError(ProductsDomainError):
+    """A recipe would consume its own output directly or transitively (§21)."""
+
+
+class RecipeYieldInvalidError(ProductsDomainError):
+    """A recipe output yield/quantity is invalid (§21)."""
+
+
+class RecipeVersionImmutableError(ProductsDomainError):
+    """An ACTIVE/APPROVED recipe version cannot be modified in place (§22)."""
+
+
+class NoActiveRecipeVersionError(ProductsDomainError):
+    """No ACTIVE version exists for the requested recipe."""
