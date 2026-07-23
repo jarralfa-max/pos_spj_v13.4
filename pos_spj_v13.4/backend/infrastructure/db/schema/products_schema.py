@@ -45,6 +45,9 @@ PRODUCT_TABLES: tuple[str, ...] = (
     "cutting_schemes",
     "cutting_scheme_versions",
     "cutting_outputs",
+    "product_bundles",
+    "bundle_versions",
+    "bundle_components",
     "products",
     "product_authorization_log",
     "product_audit_log",
@@ -374,6 +377,47 @@ _DDL = (
         FOREIGN KEY (product_id) REFERENCES products(id)
     )
     """,
+    # ── combos / kits / paquetes (PROD-13) ────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS product_bundles (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        bundle_type TEXT NOT NULL,
+        name TEXT NOT NULL,
+        active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (product_id) REFERENCES products(id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS bundle_versions (
+        id TEXT PRIMARY KEY,
+        bundle_id TEXT NOT NULL,
+        version_number INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'DRAFT',
+        effective_from TEXT,
+        effective_to TEXT,
+        approved_by_user_id TEXT,
+        reason TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(bundle_id, version_number),
+        FOREIGN KEY (bundle_id) REFERENCES product_bundles(id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS bundle_components (
+        id TEXT PRIMARY KEY,
+        version_id TEXT NOT NULL,
+        component_product_id TEXT NOT NULL,
+        quantity TEXT NOT NULL,             -- Decimal string
+        unit_id TEXT NOT NULL,
+        optional INTEGER NOT NULL DEFAULT 0 CHECK(optional IN (0,1)),
+        substitutable INTEGER NOT NULL DEFAULT 0 CHECK(substitutable IN (0,1)),
+        sequence INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (version_id) REFERENCES bundle_versions(id),
+        FOREIGN KEY (component_product_id) REFERENCES products(id)
+    )
+    """,
     # ── product master (PROD-2) ───────────────────────────────────────────
     #   NOTE: no existencia, no precio. Stock → Inventory, price → Pricing.
     """
@@ -495,6 +539,9 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_cutting_schemes_species ON cutting_schemes(species_id)",
     "CREATE INDEX IF NOT EXISTS idx_cutting_versions_scheme ON cutting_scheme_versions(cutting_scheme_id, status)",
     "CREATE INDEX IF NOT EXISTS idx_cutting_outputs_version ON cutting_outputs(version_id)",
+    "CREATE INDEX IF NOT EXISTS idx_bundles_product ON product_bundles(product_id)",
+    "CREATE INDEX IF NOT EXISTS idx_bundle_versions_bundle ON bundle_versions(bundle_id, status)",
+    "CREATE INDEX IF NOT EXISTS idx_bundle_components_version ON bundle_components(version_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_audit_entity ON product_audit_log(entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_audit_op ON product_audit_log(operation_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_authz_op ON product_authorization_log(operation_id)",

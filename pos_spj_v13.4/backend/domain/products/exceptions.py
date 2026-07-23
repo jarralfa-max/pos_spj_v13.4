@@ -170,3 +170,12 @@ class CuttingSchemeInvalidError(ProductsDomainError):
 
 class CuttingSchemeCycleDetectedError(ProductsDomainError):
     """A cutting scheme would contain itself as an output (§24)."""
+
+
+# ── PROD-13 bundles / combos / kits ──────────────────────────────────────────
+class InvalidBundleError(ProductsDomainError):
+    """A bundle/version/component is malformed (§28)."""
+
+
+class BundleCycleDetectedError(ProductsDomainError):
+    """A bundle would contain itself as a component directly or transitively (§28)."""
