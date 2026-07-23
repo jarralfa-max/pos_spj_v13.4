@@ -1025,26 +1025,49 @@ def _wire_production_items_handlers(bus, container) -> None:
     and ProductionFinanceHandler on PRODUCCION_COMPLETADA (async, priority=45).
     """
     from core.events.domain_events import PRODUCTION_ITEMS_PROCESS
-    from core.events.handlers.production_handler import (
-        ProductionInventoryHandler,
-        ProductionFinanceHandler,
-    )
-    from core.services.inventory.unified_inventory_service import UnifiedInventoryService
+    from core.events.handlers.production_handler import ProductionFinanceHandler
 
     db = getattr(container, "db", None)
     if not db:
         logger.debug("_wire_production_items_handlers: no container.db — skipping")
         return
 
-    inv_eng = UnifiedInventoryService(conn=db, sucursal_id=1, usuario="produccion")
-    handler = ProductionInventoryHandler(inventory_engine=inv_eng)
-    bus.subscribe(
-        PRODUCTION_ITEMS_PROCESS,
-        handler.handle,
-        priority=100,
-        label="production_inventory_handler",
+    # ── Inventory movements: canonical ledger (flag ON) vs legacy engine (OFF) ──
+    # The cutover flip swaps the PRODUCTION_ITEMS_PROCESS movements from the legacy
+    # UnifiedInventoryService.process_movement to canonical PRODUCTION_CONSUMPTION
+    # + PRODUCTION_OUTPUT movements on the ledger. Both run inside the production
+    # transaction; the outer flow owns the commit. Only ONE is ever subscribed.
+    from backend.application.inventory.cutover.canonical_cutover import (
+        is_cutover_enabled,
     )
-    logger.debug("Registered ProductionInventoryHandler on %s", PRODUCTION_ITEMS_PROCESS)
+
+    if is_cutover_enabled(db):
+        from backend.application.event_handlers.inventory.production_items_bridge import (
+            CanonicalProductionInventoryHandler,
+        )
+        handler = CanonicalProductionInventoryHandler(lambda: getattr(container, "db", None))
+        bus.subscribe(
+            PRODUCTION_ITEMS_PROCESS,
+            handler.handle,
+            priority=100,
+            label="production_inventory_handler",
+        )
+        logger.warning("Inventory CUTOVER ON: canonical production handler on %s",
+                       PRODUCTION_ITEMS_PROCESS)
+    else:
+        from core.events.handlers.production_handler import ProductionInventoryHandler
+        from core.services.inventory.unified_inventory_service import (
+            UnifiedInventoryService,
+        )
+        inv_eng = UnifiedInventoryService(conn=db, sucursal_id=1, usuario="produccion")
+        handler = ProductionInventoryHandler(inventory_engine=inv_eng)
+        bus.subscribe(
+            PRODUCTION_ITEMS_PROCESS,
+            handler.handle,
+            priority=100,
+            label="production_inventory_handler",
+        )
+        logger.debug("Registered ProductionInventoryHandler on %s", PRODUCTION_ITEMS_PROCESS)
 
     # Production GL: PRODUCCION_COMPLETADA → cost-of-production journal entry
     # FASE 6: pass db= so the handler can query production_cost_ledger for real
