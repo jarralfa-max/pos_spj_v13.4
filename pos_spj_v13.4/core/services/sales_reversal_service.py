@@ -14,7 +14,7 @@
 #   issue_credit_note(sale_id, amount, reason, usuario)
 #
 # PROHIBIDO DESDE AFUERA:
-#   Llamar a InventoryEngine directamente para reversiones
+#   Postear movimientos de inventario directamente para reversiones
 #   INSERT en movimientos_caja directamente para reversiones
 #   UPDATE directos sobre ventas, detalles_venta, payments
 #
@@ -28,11 +28,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Optional
-
-from core.services.inventory.unified_inventory_service import (
-    UnifiedInventoryService as InventoryEngine,
-    StockInsuficienteError,
-)
 
 logger = logging.getLogger("spj.sales_reversal_service")
 
@@ -220,6 +215,63 @@ class SalesReversalService:
         return mov_id
 
     # ═════════════════════════════════════════════════════════════════════════
+    # Inventario canónico (reemplaza al motor legacy en cancelación/refund)
+    # ═════════════════════════════════════════════════════════════════════════
+
+    def _post_canonical_return(self, *, conn, lines_data, branch_id, sale_id,
+                               doc_type, operation_id, reason_code, user):
+        """Post ONE canonical SALE_RETURN (INCREASE → AVAILABLE) restoring stock,
+        inside the caller's transaction (owns_transaction=False). ``lines_data`` is
+        a list of ``(product_id, qty, lot_id)``. Returns the number of lines posted.
+        Preserves the legacy behaviour: returned/cancelled goods go back to
+        sellable stock. Idempotent by ``operation_id``."""
+        from decimal import Decimal as _D
+
+        from backend.application.inventory.use_cases.post_inventory_movement import (
+            PostInventoryMovementUseCase,
+        )
+        from backend.domain.inventory.entities.inventory_movement import (
+            InventoryMovement,
+            InventoryMovementLine,
+        )
+        from backend.domain.inventory.enums import InventoryStatus, MovementType
+
+        branch = str(branch_id or "")
+        lines = []
+        for product_id, qty, lot_id in lines_data:
+            q = _D(str(qty or 0))
+            if q <= 0 or not product_id:
+                continue
+            lines.append(InventoryMovementLine.create(
+                product_id=str(product_id), quantity=q, lot_id=lot_id or None,
+                to_location_id=branch, to_status=InventoryStatus.AVAILABLE,
+                reason_code=reason_code))
+        if not lines or not branch:
+            return 0
+        movement = InventoryMovement.create(
+            movement_type=MovementType.SALE_RETURN, branch_id=branch, warehouse_id=branch,
+            source_module="sales", source_document_type=doc_type,
+            source_document_id=str(sale_id), operation_id=str(operation_id),
+            created_by_user_id=str(user or "system"), lines=lines)
+        result = PostInventoryMovementUseCase().execute(
+            conn, movement, actor_user_id=str(user or "system"), owns_transaction=False)
+        if not result.success:
+            raise ReversalError(result.message or "No se pudo restaurar inventario.")
+        return len(lines)
+
+    def _restore_stock_canonical(self, *, conn, items, branch_id, sale_id, folio, user):
+        """Full-cancellation stock restore → canonical SALE_RETURN. Idempotent by
+        ``sale-cancel:{sale_id}`` so a re-cancel is a no-op."""
+        lines_data = [
+            (str(it["producto_id"]), it["cantidad"], it.get("batch_id"))
+            for it in items
+        ]
+        return self._post_canonical_return(
+            conn=conn, lines_data=lines_data, branch_id=branch_id, sale_id=sale_id,
+            doc_type="SALE_CANCELLATION", operation_id=f"sale-cancel:{sale_id}",
+            reason_code="SALE_CANCELLATION", user=user)
+
+    # ═════════════════════════════════════════════════════════════════════════
     # 1. CANCELACIÓN TOTAL
     # ═════════════════════════════════════════════════════════════════════════
 
@@ -230,7 +282,7 @@ class SalesReversalService:
         Flujo atómico (BEGIN IMMEDIATE):
             1. Validar: venta existe, está 'completada', no cancelada antes
             2. Marcar venta como 'CANCEL_PENDING' (estado transitorio atómico)
-            3. Revertir inventario ítem por ítem vía InventoryEngine(conn=conn)
+            3. Revertir inventario vía SALE_RETURN canónico (ledger, misma transacción)
             4. Insertar movimiento compensatorio de caja (SALE_CANCEL_OUT, monto negativo)
             5. Revertir puntos de fidelidad si aplica
             6. Marcar venta como 'cancelada'
@@ -274,27 +326,13 @@ class SalesReversalService:
                 (sale_id,)
             )
 
-            # ── PASO 3: Revertir inventario ───────────────────────────────────
-            inv_engine = InventoryEngine(self.db, branch_id, usuario)
-            items_restaurados = 0
-
-            for item in items:
-                qty = float(item["cantidad"])
-                prod_id = item["producto_id"]
-                batch_id = item.get("batch_id")
-
-                inv_engine.process_movement(
-                    product_id=prod_id,
-                    branch_id=branch_id,
-                    quantity=+qty,
-                    movement_type="SALE_CANCEL",
-                    operation_id=f"{operation_id}_prod_{prod_id}",
-                    batch_id=batch_id,
-                    reference_id=sale_id,
-                    reference_type="VENTA_CANCEL",
-                    conn=conn,   # ← misma transacción, sin BEGIN propio
-                )
-                items_restaurados += 1
+            # ── PASO 3: Revertir inventario (ledger canónico) ─────────────────
+            # Un movimiento SALE_RETURN (→ AVAILABLE) por venta cancelada, en la
+            # misma transacción (owns_transaction=False) e idempotente por
+            # operation_id; conserva el lote (batch_id → lot_id).
+            items_restaurados = self._restore_stock_canonical(
+                conn=conn, items=items, branch_id=branch_id, sale_id=sale_id,
+                folio=venta["folio"], user=usuario)
 
             # ── PASO 4: Movimiento compensatorio de caja ──────────────────────
             # Monto negativo = salida de caja (se devuelve dinero al cliente)
@@ -415,7 +453,7 @@ class SalesReversalService:
         Flujo atómico (BEGIN IMMEDIATE):
             1. Validar: venta completada, cantidades no exceden lo vendido/ya devuelto
             2. INSERT sale_refunds por cada ítem
-            3. Restaurar inventario vía InventoryEngine(conn=conn)
+            3. Restaurar inventario vía SALE_RETURN canónico (ledger, misma transacción)
             4. Movimiento de caja compensatorio según método de pago
             COMMIT
 
@@ -448,10 +486,10 @@ class SalesReversalService:
 
             branch_id = venta["sucursal_id"]
             caja_id = self._get_caja_abierta(conn, branch_id)
-            inv_engine = InventoryEngine(self.db, branch_id, usuario)
 
             total_devuelto = Decimal("0")
             refund_ids = []
+            return_lines_data = []  # (product_id, qty, lot_id) for the canonical SALE_RETURN
 
             for ref_item in items:
                 # Obtener detalle original
@@ -512,19 +550,18 @@ class SalesReversalService:
                 refund_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
                 refund_ids.append(refund_id)
 
-                # ── PASO 3: Restaurar inventario ──────────────────────────────
-                batch_id = orig.get("batch_id")
-                inv_engine.process_movement(
-                    product_id=orig["producto_id"],
-                    branch_id=branch_id,
-                    quantity=+qty_a_devolver,
-                    movement_type="PARTIAL_REFUND",
-                    operation_id=f"{operation_id}_item_{ref_item.sale_item_id}",
-                    batch_id=batch_id,
-                    reference_id=sale_id,
-                    reference_type="VENTA_REFUND",
-                    conn=conn,
-                )
+                # ── PASO 3: acumular línea para el SALE_RETURN canónico ───────
+                return_lines_data.append(
+                    (str(orig["producto_id"]), qty_a_devolver, orig.get("batch_id")))
+
+            # ── PASO 3b: Restaurar inventario (un SALE_RETURN canónico) ────────
+            # Preserva el comportamiento legacy: la mercancía devuelta vuelve a
+            # AVAILABLE (vendible). Mismo transaction (owns_transaction=False).
+            self._post_canonical_return(
+                conn=conn, lines_data=return_lines_data, branch_id=branch_id,
+                sale_id=sale_id, doc_type="SALE_PARTIAL_REFUND",
+                operation_id=operation_id, reason_code="SALE_PARTIAL_REFUND",
+                user=usuario)
 
             total_f = float(total_devuelto.quantize(CENTAVO, ROUND_HALF_UP))
 
