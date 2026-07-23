@@ -101,3 +101,16 @@ class UnitConversionNotFoundError(ProductsDomainError):
 
 class InvalidCatchWeightConfigurationError(ProductsDomainError):
     """A catch-weight configuration has an invalid range/tolerance/price basis (§12)."""
+
+
+# ── PROD-7 barcodes / codes / labels ─────────────────────────────────────────
+class InvalidBarcodeError(ProductsDomainError):
+    """A barcode is empty, malformed, or fails its checksum (§17)."""
+
+
+class BarcodeAlreadyAssignedError(ProductsDomainError):
+    """An active barcode is already assigned to another product (§17 uniqueness)."""
+
+
+class InvalidScaleBarcodeError(ProductsDomainError):
+    """A scale barcode does not match the configured embedded-weight format (§12)."""

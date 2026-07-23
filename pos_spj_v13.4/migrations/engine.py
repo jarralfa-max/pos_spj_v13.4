@@ -136,6 +136,7 @@ MIGRATIONS = [
     _Migration("136",  "migrations.standalone.136_products_bounded_context_schema"),
     _Migration("137",  "migrations.standalone.137_products_units_catch_weight_schema"),
     _Migration("138",  "migrations.standalone.138_products_internal_stage"),
+    _Migration("139",  "migrations.standalone.139_products_barcodes_schema"),
 ]
 
 def _ensure_tracking_table(conn):

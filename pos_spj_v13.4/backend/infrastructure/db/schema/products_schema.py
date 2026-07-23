@@ -30,6 +30,8 @@ PRODUCT_TABLES: tuple[str, ...] = (
     "units_of_measure",
     "product_unit_conversions",
     "product_catch_weight_config",
+    "product_barcodes",
+    "product_alternate_codes",
     "products",
     "product_authorization_log",
     "product_audit_log",
@@ -126,6 +128,37 @@ _DDL = (
         FOREIGN KEY (product_id) REFERENCES products(id),
         FOREIGN KEY (nominal_unit_id) REFERENCES units_of_measure(id),
         FOREIGN KEY (weight_unit_id) REFERENCES units_of_measure(id)
+    )
+    """,
+    # ── códigos / barcodes (PROD-7) ───────────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS product_barcodes (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        variant_id TEXT,
+        barcode_value TEXT NOT NULL,
+        barcode_type TEXT NOT NULL,
+        is_primary INTEGER NOT NULL DEFAULT 0 CHECK(is_primary IN (0,1)),
+        active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (product_id) REFERENCES products(id)
+    )
+    """,
+    # Unicidad de códigos ACTIVOS (§17): un valor activo pertenece a un producto.
+    """
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_barcode_active_value
+        ON product_barcodes(barcode_value) WHERE active = 1
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS product_alternate_codes (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        code TEXT NOT NULL,
+        code_type TEXT NOT NULL DEFAULT 'SUPPLIER_CODE',
+        supplier_id TEXT,
+        active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (product_id) REFERENCES products(id)
     )
     """,
     # ── product master (PROD-2) ───────────────────────────────────────────
@@ -233,6 +266,10 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_units_dimension ON units_of_measure(dimension)",
     "CREATE INDEX IF NOT EXISTS idx_conv_product ON product_unit_conversions(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_conv_from_to ON product_unit_conversions(from_unit_id, to_unit_id)",
+    "CREATE INDEX IF NOT EXISTS idx_barcodes_product ON product_barcodes(product_id)",
+    "CREATE INDEX IF NOT EXISTS idx_barcodes_type ON product_barcodes(barcode_type)",
+    "CREATE INDEX IF NOT EXISTS idx_altcodes_product ON product_alternate_codes(product_id)",
+    "CREATE INDEX IF NOT EXISTS idx_altcodes_code ON product_alternate_codes(code)",
     "CREATE INDEX IF NOT EXISTS idx_prod_audit_entity ON product_audit_log(entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_audit_op ON product_audit_log(operation_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_authz_op ON product_authorization_log(operation_id)",
