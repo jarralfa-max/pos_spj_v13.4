@@ -543,3 +543,21 @@ ALERT_EVENT_SEVERITY: dict[str, NotificationSeverity] = {
     "INVENTORY_TEMPERATURE_ALERT": NotificationSeverity.CRITICAL,
     "INVENTORY_NEGATIVE_DETECTED": NotificationSeverity.CRITICAL,
 }
+
+
+# ── etiquetas / impresión (INV-26, §46 LABEL_PRINT/LABEL_REPRINT) ─────────────
+class LabelType(str, Enum):
+    """Kinds of inventory label/ticket the print service renders."""
+    LOT = "LOT"                # lote: producto, código de lote, caducidad, origen
+    WEIGHT = "WEIGHT"          # peso variable (catch-weight): neto/tara
+    TRANSFER = "TRANSFER"      # transferencia: origen→destino, ítems
+    COUNT = "COUNT"            # hoja/etiqueta de conteo
+    ADJUSTMENT = "ADJUSTMENT"  # ajuste posteado
+    PRODUCT = "PRODUCT"        # etiqueta de producto/precio
+
+
+class LabelFormat(str, Enum):
+    """Output format the print gateway must render to."""
+    ZPL = "ZPL"          # Zebra
+    ESCPOS = "ESCPOS"    # tickets térmicos
+    TEXT = "TEXT"        # texto plano / preview

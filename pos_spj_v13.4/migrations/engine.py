@@ -132,6 +132,7 @@ MIGRATIONS = [
     _Migration("132",  "migrations.standalone.132_inventory_sync_schema"),
     _Migration("133",  "migrations.standalone.133_inventory_notifications_schema"),
     _Migration("134",  "migrations.standalone.134_inventory_canonical_cutover"),
+    _Migration("135",  "migrations.standalone.135_inventory_labels_schema"),
 ]
 
 def _ensure_tracking_table(conn):

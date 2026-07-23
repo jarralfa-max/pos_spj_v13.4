@@ -58,6 +58,7 @@ INVENTORY_TABLES: tuple[str, ...] = (
     "inventory_sync_cursor",
     "inventory_notification_rule",
     "inventory_notification_log",
+    "inventory_label_print_log",
 )
 
 _DDL = (
@@ -617,6 +618,22 @@ _DDL = (
         created_at TEXT NOT NULL
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS inventory_label_print_log (
+        id TEXT PRIMARY KEY,
+        label_type TEXT NOT NULL,
+        label_format TEXT NOT NULL,
+        entity_ref TEXT,
+        printer_ref TEXT,
+        copies INTEGER NOT NULL,
+        is_reprint INTEGER NOT NULL DEFAULT 0,
+        reason TEXT,
+        title TEXT,
+        branch_id TEXT,
+        printed_by TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )
+    """,
 )
 
 _INDEXES = (
@@ -674,6 +691,8 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_inv_notif_rule_event ON inventory_notification_rule(event_name, active)",
     "CREATE INDEX IF NOT EXISTS idx_inv_notif_log_event ON inventory_notification_log(event_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_notif_log_throttle ON inventory_notification_log(event_name, channel, recipient_ref, created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_label_log_type ON inventory_label_print_log(label_type, created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_inv_label_log_entity ON inventory_label_print_log(entity_ref)",
 )
 
 
