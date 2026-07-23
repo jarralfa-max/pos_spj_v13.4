@@ -4,6 +4,13 @@ Repositories never commit; the UoW commits on clean exit and rolls back on any
 exception, guaranteeing atomicity across the ledger movement, its lines, the
 balance projection, the authorization/audit log and the outbox (§4). Events
 enqueued in the outbox are published only after a successful commit.
+
+When ``owns_transaction=False`` the UoW writes on a connection whose transaction
+boundary is owned by an *outer* flow (e.g. a POS sale runs inventory deduction
+inside its own SAVEPOINT and commits the sale + stock atomically). In that mode
+``commit()``/``rollback()`` do NOT touch the connection: the outer flow decides
+whether the whole unit commits or rolls back. This is the canonical replacement
+for the legacy ``auto_commit=False`` contract.
 """
 
 from __future__ import annotations
@@ -71,8 +78,9 @@ from backend.infrastructure.db.repositories.inventory.warehouse_repository impor
 
 
 class InventoryUnitOfWork:
-    def __init__(self, connection: Any) -> None:
+    def __init__(self, connection: Any, *, owns_transaction: bool = True) -> None:
         self.connection = connection
+        self._owns_transaction = owns_transaction
         self.ledger = InventoryLedgerRepository(connection)
         self.balances = InventoryBalanceRepository(connection)
         self.lots = InventoryLotRepository(connection)
@@ -111,11 +119,16 @@ class InventoryUnitOfWork:
         return False
 
     def commit(self) -> None:
-        self.connection.commit()
+        # When an outer flow owns the transaction (e.g. a POS sale SAVEPOINT),
+        # the UoW never touches the connection: the outer flow commits the sale
+        # and the stock deduction together, atomically.
+        if self._owns_transaction:
+            self.connection.commit()
         self._completed = True
 
     def rollback(self) -> None:
-        rollback = getattr(self.connection, "rollback", None)
-        if rollback is not None:
-            rollback()
+        if self._owns_transaction:
+            rollback = getattr(self.connection, "rollback", None)
+            if rollback is not None:
+                rollback()
         self._completed = True

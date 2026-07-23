@@ -35,14 +35,18 @@ class PostInventoryMovementUseCase:
     def execute(self, connection, movement: InventoryMovement, *,
                 actor_user_id: str,
                 permission_code: str = InventoryPermissions.MOVEMENT_CREATE,
-                negative_allowed: bool = False, authorized: bool = False) -> InventoryResult:
+                negative_allowed: bool = False, authorized: bool = False,
+                owns_transaction: bool = True) -> InventoryResult:
+        """Post a movement. When ``owns_transaction=False`` the stock write joins
+        an outer transaction (e.g. a POS sale SAVEPOINT) that owns the commit —
+        the canonical replacement for the legacy ``auto_commit=False`` contract."""
         try:
             self._auth.require(actor_user_id, permission_code)
         except InventoryPermissionDeniedError as exc:
             return InventoryResult.fail(str(exc), "PERMISSION_DENIED",
                                         operation_id=movement.operation_id)
         try:
-            with InventoryUnitOfWork(connection) as uow:
+            with InventoryUnitOfWork(connection, owns_transaction=owns_transaction) as uow:
                 movement_id, already = post_movement(
                     uow, movement, actor_user_id=actor_user_id,
                     negative_allowed=negative_allowed, authorized=authorized)

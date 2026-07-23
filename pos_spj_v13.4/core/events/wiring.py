@@ -954,14 +954,37 @@ def _wire_sale_handlers(bus, container) -> None:
        90 — SaleFinanceHandler:   register cash income
     """
     from core.events.domain_events import SALE_ITEMS_PROCESS
-    from core.events.handlers.inventory_handler import SaleInventoryHandler
     from core.events.handlers.finance_handler import SaleFinanceHandler
 
     inv      = getattr(container, "inventory_service", None)
     fs       = getattr(container, "finance_service", None)
     db       = getattr(container, "db", None)
 
-    if inv:
+    # ── Inventory deduction: canonical ledger (flag ON) vs legacy engine (OFF) ──
+    # The cutover flip swaps the SALE_ITEMS_PROCESS deduction from the legacy
+    # UnifiedInventoryService.decrease_stock to a canonical SALE_ISSUE movement
+    # posted to the ledger. Both run synchronously inside the sale's SAVEPOINT;
+    # the outer sale owns the commit. Only ONE is ever subscribed (no double
+    # deduction).
+    from backend.application.inventory.cutover.canonical_cutover import (
+        is_cutover_enabled,
+    )
+
+    if is_cutover_enabled(db):
+        from backend.application.event_handlers.inventory.sale_items_bridge import (
+            CanonicalSaleInventoryHandler,
+        )
+        canonical_handler = CanonicalSaleInventoryHandler(lambda: getattr(container, "db", None))
+        bus.subscribe(
+            SALE_ITEMS_PROCESS,
+            canonical_handler.handle,
+            priority=100,
+            label="sale_inventory_deduct",
+        )
+        logger.warning("Inventory CUTOVER ON: canonical SALE_ISSUE handler on %s",
+                       SALE_ITEMS_PROCESS)
+    elif inv:
+        from core.events.handlers.inventory_handler import SaleInventoryHandler
         inv_handler = SaleInventoryHandler(inventory_service=inv, db=db)
         bus.subscribe(
             SALE_ITEMS_PROCESS,
