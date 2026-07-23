@@ -162,28 +162,43 @@ class ERPApplicationService:
     #  HELPERS (fallback si inventory_service no está disponible)
     # ══════════════════════════════════════════════════════════════════════════
 
-    def _entrada_directa(self, prod_id, qty, costo, tipo, ref, usuario, sid):
-        """Registra entrada via UnifiedInventoryService (canonical apply_movement)."""
-        from core.services.inventory.unified_inventory_service import UnifiedInventoryService
-        UnifiedInventoryService(self.db, sucursal_id=sid, usuario=usuario).process_movement(
-            product_id=prod_id,
-            quantity=qty,
-            movement_type=tipo,
-            reference=ref,
-            metadata={"unit_cost": costo},
+    def _inventory_app(self):
+        from backend.application.services.canonical_inventory_repository import (
+            CanonicalInventoryRepository,
         )
+        from backend.application.services.inventory_application_service import (
+            InventoryApplicationService,
+        )
+        # auto_commit=False: el flujo llamador (venta WA / compra) es dueño del commit.
+        return InventoryApplicationService(
+            repository=CanonicalInventoryRepository(self.db), auto_commit=False)
+
+    def _entrada_directa(self, prod_id, qty, costo, tipo, ref, usuario, sid):
+        """Registra entrada por el ledger canónico (corte INV-27)."""
+        result = self._inventory_app().increase_stock(
+            str(prod_id), str(sid), float(qty), "unit", tipo or "", f"{ref}:{prod_id}",
+            tipo or "erp", tipo, str(ref), usuario or "system")
+        if not result.success:
+            raise RuntimeError(result.message or "Fallo al ingresar inventario.")
 
     def _salida_directa(self, prod_id, qty, tipo, ref, usuario, sid):
-        """Registra salida via UnifiedInventoryService; caps at available stock (legacy MAX(0,...) behavior)."""
-        from core.services.inventory.unified_inventory_service import UnifiedInventoryService, StockInsuficienteError
-        svc = UnifiedInventoryService(self.db, sucursal_id=sid, usuario=usuario)
-        try:
-            svc.process_movement(product_id=prod_id, quantity=-qty, movement_type=tipo, reference=ref)
-        except StockInsuficienteError:
-            row = self.db.execute("SELECT COALESCE(existencia, 0) FROM productos WHERE id=?", (prod_id,)).fetchone()
-            available = float(row[0]) if row else 0.0
+        """Registra salida por el ledger canónico; conserva el tope a stock
+        disponible (comportamiento legacy MAX(0,...))."""
+        app = self._inventory_app()
+        result = app.decrease_stock(
+            str(prod_id), str(sid), float(qty), "unit", tipo or "", f"{ref}:{prod_id}",
+            tipo or "erp", tipo, str(ref), usuario or "system")
+        if not result.success:
+            from backend.application.inventory.queries import (
+                InventoryAvailabilityQueryService,
+            )
+            available = float(InventoryAvailabilityQueryService(self.db).get_availability(
+                product_id=str(prod_id), branch_id=str(sid)).available)
             if available > 1e-9:
-                svc.process_movement(product_id=prod_id, quantity=-available, movement_type=tipo, reference=ref)
+                app.decrease_stock(
+                    str(prod_id), str(sid), available, "unit", tipo or "",
+                    f"{ref}:{prod_id}:cap", tipo or "erp", tipo, str(ref),
+                    usuario or "system")
 
     def _get_costo_producto(self, producto_id: int) -> float:
         try:
