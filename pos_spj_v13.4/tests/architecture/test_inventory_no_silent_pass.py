@@ -3,7 +3,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 WATCHED = [
-    ROOT / "modulos/inventario_local.py",
+    ROOT / "modulos/inventario_enterprise.py",
     ROOT / "backend/application/queries/inventory_query_service.py",
 ]
 

@@ -33,10 +33,10 @@ except Exception as e:
     logger.error("Error cargando ModuloCaja: %s", e)
 
 try:
-    from modulos.inventario_local import ModuloInventarioLocal
+    from modulos.inventario_enterprise import ModuloInventarioEnterprise as ModuloInventarioLocal
 except Exception as e:
     ModuloInventarioLocal = None
-    logger.error("Error cargando ModuloInventarioLocal: %s", e)
+    logger.error("Error cargando ModuloInventarioEnterprise: %s", e)
 
 try:
     from modulos.productos import ModuloProductos

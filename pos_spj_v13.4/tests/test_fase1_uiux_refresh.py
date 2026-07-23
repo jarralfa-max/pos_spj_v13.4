@@ -6,7 +6,7 @@ UI_COMPONENTS = os.path.join(ROOT, 'modulos', 'ui_components.py')
 REPORTES = os.path.join(ROOT, 'modulos', 'reportes_bi_v2.py')
 COTIZACIONES = os.path.join(ROOT, 'modulos', 'cotizaciones.py')
 TRANSFERENCIAS = os.path.join(ROOT, 'modulos', 'transferencias.py')
-INVENTARIO_LOCAL = os.path.join(ROOT, 'modulos', 'inventario_local.py')
+INVENTARIO_LOCAL = os.path.join(ROOT, 'modulos', 'inventario_enterprise.py')
 # PUR-13: modulos/compras_pro.py eliminado — Compras es el módulo enterprise.
 MERMA = os.path.join(ROOT, 'modulos', 'merma.py')
 CLIENTES = os.path.join(ROOT, 'modulos', 'clientes.py')

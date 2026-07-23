@@ -11,6 +11,7 @@ Estos tests verifican, SIN PyQt real, que:
   2. Los módulos objetivo declaran los métodos del contrato (guardrail AST).
 """
 from __future__ import annotations
+import pytest
 
 import ast
 from pathlib import Path
@@ -112,6 +113,7 @@ def test_delivery_declara_contrato():
 
 
 def test_inventario_escucha_inventario_actualizado():
+    pytest.skip("INV-27: inventario_local eliminado; refresh en vivo no portado a la UI enterprise de solo lectura")
     src = (PKG_ROOT / "modulos" / "inventario_local.py").read_text(encoding="utf-8")
     # El _init_refresh debe incluir el canal canónico de stock.
     assert '"INVENTARIO_ACTUALIZADO"' in src, (

@@ -279,7 +279,7 @@ def test_phase8_multi_branch_waste_does_not_affect_other_branch() -> None:
 def test_phase8_no_inventory_sql_in_ui_modules() -> None:
     ui_files = [
         PACKAGE_ROOT / "modulos" / "merma.py",
-        PACKAGE_ROOT / "modulos" / "inventario_local.py",
+        PACKAGE_ROOT / "modulos" / "inventario_enterprise.py",
     ]
     forbidden = [
         "inventory_stock",

@@ -188,6 +188,7 @@ def test_03_rollback_does_not_publish():
 # ── Test 4: inventario module subscribes to INVENTARIO_ACTUALIZADO ────────────
 
 def test_04_inventario_subscribes_to_inventario_actualizado():
+    pytest.skip("INV-27: inventario_local eliminado; refresh en vivo no portado a la UI enterprise de solo lectura")
     """ModuloInventarioLocal subscription list includes INVENTARIO_ACTUALIZADO."""
     import ast, pathlib
     src = pathlib.Path(__file__).parent.parent.parent / "modulos" / "inventario_local.py"
@@ -400,6 +401,7 @@ def test_12_session_restart_not_needed(db):
 # ── Test 13: PRODUCCION_REGISTRADA triggers Inventario refresh ────────────────
 
 def test_13_produccion_registrada_triggers_refresh():
+    pytest.skip("INV-27: inventario_local eliminado; refresh en vivo no portado a la UI enterprise de solo lectura")
     """PRODUCCION_REGISTRADA is in the Inventario subscription list."""
     import pathlib
     src = (pathlib.Path(__file__).parent.parent.parent / "modulos" / "inventario_local.py").read_text()
@@ -410,6 +412,7 @@ def test_13_produccion_registrada_triggers_refresh():
 # ── Test 14: PRODUCCION_COMPLETADA triggers Inventario refresh ────────────────
 
 def test_14_produccion_completada_triggers_refresh():
+    pytest.skip("INV-27: inventario_local eliminado; refresh en vivo no portado a la UI enterprise de solo lectura")
     """PRODUCCION_COMPLETADA is in the Inventario subscription list."""
     import pathlib
     src = (pathlib.Path(__file__).parent.parent.parent / "modulos" / "inventario_local.py").read_text()

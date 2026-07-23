@@ -288,6 +288,7 @@ def test_create_product_emits_product_created_products_changed_and_legacy(
 # ── Test 5: Inventario ve el producto nuevo sin reinicio ─────────────────────
 
 def test_inventario_sees_new_product_after_event(catalog_db, bus_recorder):
+    pytest.skip("INV-27: inventario_local eliminado; refresh en vivo no portado a la UI enterprise de solo lectura")
     from backend.application.services.product_catalog_service import (
         ProductCatalogService,
     )

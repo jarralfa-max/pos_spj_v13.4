@@ -2,7 +2,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 APP_CONTAINER = REPO_ROOT / "core" / "app_container.py"
-INVENTORY_UI = REPO_ROOT / "modulos" / "inventario_local.py"
+INVENTORY_UI = REPO_ROOT / "modulos" / "inventario_enterprise.py"
 
 
 def test_app_container_uses_only_canonical_inventory_route():
@@ -21,14 +21,15 @@ def test_app_container_uses_only_canonical_inventory_route():
     assert "repository=InventoryRepository(self.db)" not in source
 
 
-def test_inventory_ui_mutations_use_canonical_application_service():
+def test_inventory_ui_is_read_only_over_canonical_presenter():
+    # INV-27 corte: la UI legacy (inventario_local) fue eliminada. La UI enterprise
+    # (inventario_enterprise) es solo lectura vía InventoryPresenter: sin motor
+    # legacy, sin SQL directo, sin productos.existencia.
     source = INVENTORY_UI.read_text(encoding="utf-8")
 
     assert "from repositories.inventory_repository import InventoryRepository" not in source
     assert "UnifiedInventoryService" not in source
     assert "GestionarInventarioUC" not in source
-    assert "self._inventory_app = InventoryApplicationService(repository=self._inventory_repository)" in source
-    assert "self._inventory_app.increase_stock(" in source
-    assert "self._inventory_app.adjust_stock(" in source
-    assert "SELECT nombre, existencia" not in source
+    assert "InventoryPresenter" in source
+    assert "SELECT " not in source
     assert "productos.existencia" not in source

@@ -10,7 +10,7 @@ logger = logging.getLogger("spj.ui.loader")
 MODULE_REGISTRY = {
     "ventas":           ("ModuloVentas",              "modulos.ventas",                 []),
     "caja":             ("ModuloCaja",                "modulos.caja",                   []),
-    "inventario":       ("ModuloInventarioLocal",     "modulos.inventario_local",       []),
+    "inventario":       ("ModuloInventarioEnterprise", "modulos.inventario_enterprise",   []),
     "productos":        ("ModuloProductos",           "modulos.productos",              []),
     "clientes":         ("ModuloClientes",            "modulos.clientes",               []),
     "recetas":          ("ModuloRecetas",             "modulos.recetas",                []),
