@@ -80,3 +80,24 @@ class ProductIncompleteError(ProductsDomainError):
 
 class SpeciesRequiredError(ProductsDomainError):
     """A meat product type was created without a species (§7, §11)."""
+
+
+# ── PROD-5 units / conversions / catch weight ────────────────────────────────
+class InvalidUnitOfMeasureError(ProductsDomainError):
+    """A unit of measure was defined with a missing/invalid code or dimension."""
+
+
+class InvalidUnitConversionError(ProductsDomainError):
+    """A conversion has a non-positive factor, mixes float, or is malformed."""
+
+
+class UnitConversionCycleError(ProductsDomainError):
+    """The conversion graph would contain a cycle (§16)."""
+
+
+class UnitConversionNotFoundError(ProductsDomainError):
+    """No conversion path exists between the requested units."""
+
+
+class InvalidCatchWeightConfigurationError(ProductsDomainError):
+    """A catch-weight configuration has an invalid range/tolerance/price basis (§12)."""

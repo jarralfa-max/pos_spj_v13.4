@@ -27,6 +27,9 @@ PRODUCT_TABLES: tuple[str, ...] = (
     "species",
     "anatomical_regions",
     "cut_classifications",
+    "units_of_measure",
+    "product_unit_conversions",
+    "product_catch_weight_config",
     "products",
     "product_authorization_log",
     "product_audit_log",
@@ -76,6 +79,53 @@ _DDL = (
         FOREIGN KEY (species_id) REFERENCES species(id),
         FOREIGN KEY (anatomical_region_id) REFERENCES anatomical_regions(id),
         FOREIGN KEY (parent_cut_id) REFERENCES cut_classifications(id)
+    )
+    """,
+    # ── unidades / conversiones / peso variable (PROD-5) ──────────────────
+    """
+    CREATE TABLE IF NOT EXISTS units_of_measure (
+        id TEXT PRIMARY KEY,
+        code TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        dimension TEXT NOT NULL,            -- WEIGHT | COUNT | VOLUME | ...
+        active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS product_unit_conversions (
+        id TEXT PRIMARY KEY,
+        product_id TEXT,                    -- NULL = conversión global
+        from_unit_id TEXT NOT NULL,
+        to_unit_id TEXT NOT NULL,
+        factor TEXT NOT NULL,               -- Decimal string (no REAL)
+        rounding_scale INTEGER NOT NULL DEFAULT 6,
+        effective_from TEXT,
+        effective_to TEXT,
+        active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (from_unit_id) REFERENCES units_of_measure(id),
+        FOREIGN KEY (to_unit_id) REFERENCES units_of_measure(id),
+        FOREIGN KEY (product_id) REFERENCES products(id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS product_catch_weight_config (
+        product_id TEXT PRIMARY KEY,
+        enabled INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN (0,1)),
+        nominal_unit_id TEXT,
+        weight_unit_id TEXT,
+        minimum_weight TEXT,                -- Decimal string
+        maximum_weight TEXT,
+        average_weight TEXT,
+        tolerance_pct TEXT NOT NULL DEFAULT '0',
+        price_basis TEXT NOT NULL DEFAULT 'PER_KILOGRAM',
+        label_required INTEGER NOT NULL DEFAULT 1 CHECK(label_required IN (0,1)),
+        scale_barcode_enabled INTEGER NOT NULL DEFAULT 0 CHECK(scale_barcode_enabled IN (0,1)),
+        updated_at TEXT,
+        FOREIGN KEY (product_id) REFERENCES products(id),
+        FOREIGN KEY (nominal_unit_id) REFERENCES units_of_measure(id),
+        FOREIGN KEY (weight_unit_id) REFERENCES units_of_measure(id)
     )
     """,
     # ── product master (PROD-2) ───────────────────────────────────────────
@@ -179,6 +229,9 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_cuts_species ON cut_classifications(species_id)",
     "CREATE INDEX IF NOT EXISTS idx_cuts_region ON cut_classifications(anatomical_region_id)",
     "CREATE INDEX IF NOT EXISTS idx_cuts_parent ON cut_classifications(parent_cut_id)",
+    "CREATE INDEX IF NOT EXISTS idx_units_dimension ON units_of_measure(dimension)",
+    "CREATE INDEX IF NOT EXISTS idx_conv_product ON product_unit_conversions(product_id)",
+    "CREATE INDEX IF NOT EXISTS idx_conv_from_to ON product_unit_conversions(from_unit_id, to_unit_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_audit_entity ON product_audit_log(entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_audit_op ON product_audit_log(operation_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_authz_op ON product_authorization_log(operation_id)",
