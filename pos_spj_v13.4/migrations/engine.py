@@ -149,6 +149,8 @@ MIGRATIONS = [
     _Migration("149",  "migrations.standalone.149_pricing_bounded_context_schema"),
     _Migration("150",  "migrations.standalone.150_pricing_backfill_from_legacy"),
     _Migration("151",  "migrations.standalone.151_pricing_cost_tracked_quantity"),
+    _Migration("152",  "migrations.standalone.152_products_recipes_backfill_from_legacy"),
+    _Migration("153",  "migrations.standalone.153_products_yields_backfill_from_legacy"),
 ]
 
 def _ensure_tracking_table(conn):

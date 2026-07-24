@@ -35,39 +35,43 @@ romper el POS/Inventario/Compras vivos mientras se repuntan los 78 consumidores.
 | 1 | **Backfill** `productos` → `products` canónico (migración 148, aditiva, idempotente, sin precio/existencia; ids UUID preservados) | ✅ |
 | 2 | Scaffolding: DROP diferido `migrations/deferred/legacy_products_drop.py` (env-guard `PRODUCTS_ALLOW_LEGACY_DROP=1`, **no registrado**), este reporte | ✅ |
 | 3 | Repuntar lecturas de catálogo/búsqueda de POS/Ventas a `products` (o vista de compat) | ⏳ |
-| 4 | Migrar recetas legacy → `recipe`/`recipe_version` canónico; neutralizar `recipe_engine`/`core/services/recipes` | ⏳ |
-| 5 | Migrar rendimientos `rendimiento_pollo` → `yield_profile*` | ⏳ |
+| 4 | **Backfill** recetas legacy → `recipe`/`recipe_version`/`recipe_components`/`recipe_outputs` (migración **152**, aditiva idempotente; `recetas`+`receta_componentes` y `product_recipes`+`product_recipe_components`; v1 ACTIVE/DRAFT, Decimal). Neutralización de `recipe_engine` → paso 4b | ✅ (backfill) |
+| 5 | **Backfill** rendimientos `rendimiento_pollo`+`rendimiento_derivados` → `yield_profiles`/`yield_profile_versions`/`yield_outputs` (migración **153**, aditiva idempotente, Decimal, BY_PRODUCT/MAIN) | ✅ (backfill) |
 | 6 | Repuntar compras/producción/BI/fidelidad/forecast a `products.id` | ⏳ |
 | 7 | Borrar `modulos/productos.py` + cablear UI enterprise (`ModuloProductosEnterprise`) en `module_loader`/`main_window` | ⏳ |
 | 8 | Migrar permisos `PRODUCTOS`→`PRODUCTS_*` y eventos `PRODUCTO_*`→`PRODUCT_*` | ⏳ |
 | 9 | Allowlist → vacía; guardrails `test_no_legacy_products_imports` / `test_products_legacy_allowlist_is_empty` | ⏳ |
 | 10 | **DROP** destructivo (`PRODUCTS_ALLOW_LEGACY_DROP=1`) de ~20 tablas legacy + trigger | ⏳ |
 
-## 🔴 Bloqueador estructural del DROP (hallazgo paso 3)
+## 🟢 Bloqueador estructural — RESUELTO (Pricing PRC-0→PRC-9)
 
-El DROP destructivo de `productos` está **bloqueado** por dos razones, no sólo por
-volumen de consumidores:
+El bloqueador #1 (no existía Pricing/Costing canónico) queda **resuelto**: el
+bounded context Pricing/Costing está cerrado y verde (PRC-9, 124/124). Precio y
+costo tienen destino canónico:
+- Precio → `ProductPriceQueryService` / `PricingReadFacade.sale_price`.
+- Costo → `ProductCostQueryService` / `PricingReadFacade.unit_cost`.
+- Backfill 150 pobló `product_price`/`product_cost` desde el legacy; el costo se
+  mantiene fresco por evento (PRC-6).
 
-1. **No existe un bounded context de Pricing/Costing canónico.** `productos` guarda
-   `precio`, `precio_compra`, `costo`, `costo_promedio`, `precio_minimo`. Decenas
-   de consumidores (POS/Ventas, BI, Compras, incluso el KPI de catálogo
-   `core/services/product_catalog_query_service.py` vía `precio_compra`) leen esos
-   valores. El plan canónico dice "precio → Pricing", pero ese contexto **aún no se
-   ha construido**, así que no hay a dónde repuntar las lecturas de precio/costo.
-2. **La existencia sigue acoplada a `productos.existencia`** en lectores de POS que
-   no usan `inventory_balances` (canónico). Requiere el mismo repunte que dejó
-   diferido el DROP de Inventario (INV-27).
+El bloqueador #2 (existencia acoplada a `productos.existencia`) sigue vigente: los
+lectores de POS que no usan `inventory_balances` requieren el mismo repunte que dejó
+diferido INV-27.
 
-**Conclusión (disciplina INV-27):** el maestro canónico `products` queda construido
-y respaldado (backfill 148), el DROP queda **diferido y documentado**, y los pasos
-destructivos 4-10 quedan **bloqueados hasta que exista un contexto Pricing/Costing
-canónico** (fase futura, fuera del alcance de Productos) y se repunten las lecturas
-de existencia. Repuntar a ciegas las consultas de precio/costo rompería el checkout,
-lo cual viola "no romper flujos existentes" (REGLA CERO §6).
+### ⚠️ Restricción de secuenciación (lección INV-27)
 
-Recomendación al usuario: construir el contexto **Pricing/Costing** antes de
-completar el DROP de Productos; hasta entonces, `products` y `productos` conviven
-(canónico = fuente de maestro; legacy = fuente de precio/existencia).
+Repuntar **lecturas** de catálogo a `products` mientras las **escrituras** del
+maestro siguen en `productos` produce **lecturas obsoletas** (un producto creado en
+`productos` no aparecería en `products` hasta el próximo backfill) → regresión. Por
+tanto el orden seguro es:
+
+1. **Flip del path de escritura** del maestro a `products` (use case canónico
+   create/update + repunte de `modulos/productos.py`), o un sync escritura-dual
+   temporal.
+2. **Luego** repuntar lecturas de catálogo/búsqueda (paso 3).
+
+Los pasos 4-5 (backfill de recetas y rendimientos legacy → canónico) son
+**aditivos** y NO dependen del flip de escritura: pueden ejecutarse antes, con el
+mismo método idempotente que 148/150, sin tocar el checkout vivo.
 
 ## Invariante de no-regresión
 
