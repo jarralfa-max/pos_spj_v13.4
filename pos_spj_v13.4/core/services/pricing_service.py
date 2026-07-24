@@ -1,15 +1,22 @@
+# core/services/pricing_service.py — SPJ ERP (PRC-8)
+"""Legacy price façade → delegates to the canonical Pricing/Costing context.
 
-# core/services/pricing_service.py — SPJ POS v10
+Historically this service read ``productos.precio`` / ``precios_lista`` /
+``precios_volumen`` / ``clientes_lista_precio`` with int ids and float prices
+(violating REGLA CERO). It is now a thin shim over the canonical
+``ProductPriceQueryService`` (UUIDv7 + Money/Decimal, resolution priority
+volumen > lista cliente > lista > base): no legacy price tables, no float pricing.
+
+Only ``get_precio`` had live consumers (``sales_service``); the old list/volume
+management methods were dead and were removed. The legacy price tables are dropped
+by ``migrations/deferred/legacy_pricing_drop.py``.
 """
-Gestion de listas de precios y descuentos por volumen.
-  - Listas: Mostrador, Mayoreo, VIP, Empleados, Sucursal-X
-  - Precio por cantidad: kg >= 10 -> precio especial
-  - Precio por cliente (asignado a un cliente especifico)
-  - Precio por sucursal
-  - Herencia: Lista Mayoreo hereda de Lista Mostrador
-"""
+
 from __future__ import annotations
+
 import logging
+from decimal import Decimal
+
 from core.db.connection import get_connection
 
 logger = logging.getLogger("spj.pricing")
@@ -18,141 +25,40 @@ logger = logging.getLogger("spj.pricing")
 class PricingService:
     def __init__(self, conn=None):
         self.conn = conn or get_connection()
-        self._init_tables()
 
-    def _init_tables(self):
-        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
-        # Seed listas base
-        for nombre, desc in [
-            ("Mostrador",  "Precio al publico general"),
-            ("Mayoreo",    "Precio para compras grandes (>10kg)"),
-            ("VIP",        "Precio especial clientes frecuentes"),
-            ("Empleados",  "Precio interno para empleados"),
-        ]:
-            try:
-                self.conn.execute(
-                    "INSERT OR IGNORE INTO listas_precio(nombre,descripcion) VALUES(?,?)",
-                    (nombre, desc))
-            except Exception:
-                pass
-        try: self.conn.commit()
-        except Exception: pass
+    def get_precio(self, producto_id: str, cantidad: float = 1.0,
+                   lista_id=None, cliente_id: str | None = None,
+                   sucursal_id: str | None = None) -> dict:
+        """Best applicable price for a product, resolved by the canonical context.
 
-    # ── Consulta de precio ──────────────────────────────────────────────
-    def get_precio(self, producto_id: int, cantidad: float = 1.0,
-                   lista_id: int = None, cliente_id: int = None,
-                   sucursal_id: int = 1) -> dict:
+        Returns the legacy dict contract (``precio`` / ``precio_base`` / ``fuente`` /
+        ``lista_id`` / ``descuento_pct``) that ``sales_service`` consumes, but reads
+        from ``product_price`` / ``volume_price`` (never ``productos.precio``).
+        ``fuente == 'base'`` means "no override" for the caller.
         """
-        Retorna el mejor precio aplicable.
-        Prioridad: precio_volumen > precio_lista_cliente > precio_lista > precio_base
-        """
-        # Determinar lista del cliente
-        if cliente_id and not lista_id:
-            row = self.conn.execute(
-                "SELECT lista_id FROM clientes_lista_precio WHERE cliente_id=?",
-                (cliente_id,)).fetchone()
-            if row:
-                lista_id = row[0]
+        from backend.application.pricing.queries.product_price_query_service import (
+            ProductPriceQueryService,
+        )
 
-        base = self._get_base_price(producto_id)
-        precio_final = base
-        fuente       = "base"
+        try:
+            qty = Decimal(str(cantidad or 1))
+        except Exception:
+            qty = Decimal("1")
 
-        # Precio de lista
-        if lista_id:
-            lp = self._get_list_price(producto_id, lista_id)
-            if lp:
-                precio_final = lp
-                fuente       = f"lista:{lista_id}"
+        resolution = ProductPriceQueryService(self.conn).get_sale_price(
+            str(producto_id),
+            branch_id=(str(sucursal_id) if sucursal_id else None),
+            customer_id=(str(cliente_id) if cliente_id else None),
+            quantity=qty)
 
-            # Precio por volumen (para carne cruda — kg)
-            vp = self._get_volume_price(producto_id, cantidad, lista_id)
-            if vp:
-                precio_final = vp
-                fuente       = f"volumen:lista{lista_id}:qty{cantidad}"
-
-        descuento_pct = self._get_lista_descuento(lista_id) if lista_id else 0
-        if descuento_pct and fuente == f"lista:{lista_id}":
-            precio_final = round(precio_final * (1 - descuento_pct / 100), 4)
-
+        precio = float(resolution.price.amount) if resolution.price is not None else 0.0
+        source = resolution.source.value  # VOLUME | CUSTOMER_LIST | LIST | BASE | NONE
+        fuente = "base" if source in ("BASE", "NONE") else source.lower()
         return {
-            "producto_id":  producto_id,
-            "precio":       round(precio_final, 4),
-            "precio_base":  base,
-            "lista_id":     lista_id,
-            "fuente":       fuente,
-            "descuento_pct":descuento_pct,
+            "producto_id": str(producto_id),
+            "precio": round(precio, 4),
+            "precio_base": precio,
+            "lista_id": lista_id,
+            "fuente": fuente,
+            "descuento_pct": 0,
         }
-
-    def _get_base_price(self, prod_id: int) -> float:
-        row = self.conn.execute(
-            "SELECT precio FROM productos WHERE id=?", (prod_id,)).fetchone()
-        return float(row[0]) if row else 0.0
-
-    def _get_list_price(self, prod_id: int, lista_id: int) -> float | None:
-        row = self.conn.execute(
-            "SELECT precio FROM precios_lista WHERE lista_id=? AND producto_id=?",
-            (lista_id, prod_id)).fetchone()
-        if row:
-            return float(row[0])
-        # Intentar lista padre (herencia)
-        parent = self.conn.execute(
-            "SELECT hereda_de FROM listas_precio WHERE id=?", (lista_id,)).fetchone()
-        if parent and parent[0]:
-            return self._get_list_price(prod_id, parent[0])
-        return None
-
-    def _get_volume_price(self, prod_id: int, qty: float, lista_id: int) -> float | None:
-        row = self.conn.execute("""
-            SELECT precio FROM precios_volumen
-            WHERE producto_id=? AND lista_id=? AND cantidad_min<=?
-            ORDER BY cantidad_min DESC LIMIT 1""",
-            (prod_id, lista_id, qty)).fetchone()
-        return float(row[0]) if row else None
-
-    def _get_lista_descuento(self, lista_id: int) -> float:
-        row = self.conn.execute(
-            "SELECT descuento_global FROM listas_precio WHERE id=?",
-            (lista_id,)).fetchone()
-        return float(row[0]) if row else 0.0
-
-    # ── Gestion de listas ───────────────────────────────────────────────
-    def get_listas(self) -> list:
-        return [dict(r) for r in self.conn.execute(
-            "SELECT * FROM listas_precio ORDER BY id").fetchall()]
-
-    def set_precio_lista(self, lista_id: int, producto_id: int, precio: float):
-        self.conn.execute(
-            "INSERT OR REPLACE INTO precios_lista(lista_id,producto_id,precio) VALUES(?,?,?)",
-            (lista_id, producto_id, precio))
-        try: self.conn.commit()
-        except Exception: pass
-
-    def set_precio_volumen(self, producto_id: int, lista_id: int,
-                           cantidad_min: float, precio: float, unidad: str = "kg"):
-        self.conn.execute("""
-            INSERT OR REPLACE INTO precios_volumen
-            (producto_id,lista_id,cantidad_min,precio,unidad) VALUES(?,?,?,?,?)""",
-            (producto_id, lista_id, cantidad_min, precio, unidad))
-        try: self.conn.commit()
-        except Exception: pass
-
-    def asignar_lista_cliente(self, cliente_id: int, lista_id: int):
-        self.conn.execute(
-            "INSERT OR REPLACE INTO clientes_lista_precio(cliente_id,lista_id) VALUES(?,?)",
-            (cliente_id, lista_id))
-        try: self.conn.commit()
-        except Exception: pass
-
-    def get_precios_producto(self, producto_id: int) -> list:
-        """Retorna todos los precios configurados para un producto."""
-        rows = self.conn.execute("""
-            SELECT l.nombre as lista, pl.precio, NULL as cant_min, NULL as unidad
-            FROM precios_lista pl JOIN listas_precio l ON l.id=pl.lista_id
-            WHERE pl.producto_id=?
-            UNION ALL
-            SELECT l.nombre, pv.precio, pv.cantidad_min, pv.unidad
-            FROM precios_volumen pv JOIN listas_precio l ON l.id=pv.lista_id
-            WHERE pv.producto_id=?
-            ORDER BY 1""", (producto_id, producto_id)).fetchall()
-        return [dict(r) for r in rows]
