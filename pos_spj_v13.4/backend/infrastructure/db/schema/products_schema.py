@@ -54,6 +54,7 @@ PRODUCT_TABLES: tuple[str, ...] = (
     "external_catalog_sources",
     "external_product_records",
     "product_import_batches",
+    "product_notification_log",
     "products",
     "product_authorization_log",
     "product_audit_log",
@@ -509,6 +510,21 @@ _DDL = (
         FOREIGN KEY (source_id) REFERENCES external_catalog_sources(id)
     )
     """,
+    # ── notificaciones (PROD-16) ──────────────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS product_notification_log (
+        id TEXT PRIMARY KEY,
+        alert_type TEXT NOT NULL,
+        severity TEXT NOT NULL,
+        channel TEXT NOT NULL,
+        recipient_ref TEXT NOT NULL,
+        entity_id TEXT,
+        message TEXT NOT NULL,
+        status TEXT NOT NULL,               -- SENT | FAILED | THROTTLED
+        operation_id TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
     # ── product master (PROD-2) ───────────────────────────────────────────
     #   NOTE: no existencia, no precio. Stock → Inventory, price → Pricing.
     """
@@ -640,6 +656,8 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_ext_records_source ON external_product_records(source_id, status)",
     "CREATE INDEX IF NOT EXISTS idx_ext_records_barcode ON external_product_records(barcode)",
     "CREATE INDEX IF NOT EXISTS idx_ext_records_batch ON external_product_records(batch_id)",
+    "CREATE INDEX IF NOT EXISTS idx_prod_notif_throttle ON product_notification_log(alert_type, entity_id, channel, recipient_ref, created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_prod_notif_status ON product_notification_log(status, created_at)",
     "CREATE INDEX IF NOT EXISTS idx_prod_audit_entity ON product_audit_log(entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_audit_op ON product_audit_log(operation_id)",
     "CREATE INDEX IF NOT EXISTS idx_prod_authz_op ON product_authorization_log(operation_id)",

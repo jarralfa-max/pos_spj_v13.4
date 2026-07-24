@@ -1,0 +1,43 @@
+"""Product notification enums (§35, §36).
+
+PROD-16. Products raises alerts for master-data inconsistencies (incomplete
+product, duplicate barcode, circular recipe, out-of-tolerance yield, meat product
+without species/quality, …). Each alert has a severity; WhatsApp is reserved for
+high-impact alerts only (§36).
+"""
+
+from __future__ import annotations
+
+from enum import Enum
+
+
+class NotificationSeverity(str, Enum):
+    INFO = "INFO"
+    WARNING = "WARNING"
+    DANGER = "DANGER"
+    CRITICAL = "CRITICAL"
+
+
+class NotificationChannel(str, Enum):
+    IN_APP = "IN_APP"
+    WHATSAPP = "WHATSAPP"
+
+
+class ProductAlertType(str, Enum):
+    PRODUCT_INCOMPLETE = "PRODUCT_INCOMPLETE"
+    PENDING_APPROVAL = "PENDING_APPROVAL"
+    BARCODE_DUPLICATE = "BARCODE_DUPLICATE"
+    CONVERSION_INCONSISTENT = "CONVERSION_INCONSISTENT"
+    RECIPE_CIRCULAR = "RECIPE_CIRCULAR"
+    YIELD_OUT_OF_TOLERANCE = "YIELD_OUT_OF_TOLERANCE"
+    YIELD_PROFILE_UNAPPROVED = "YIELD_PROFILE_UNAPPROVED"
+    MEAT_WITHOUT_SPECIES = "MEAT_WITHOUT_SPECIES"
+    PERISHABLE_WITHOUT_SHELF_LIFE = "PERISHABLE_WITHOUT_SHELF_LIFE"
+    LOT_REQUIRED_NOT_CONFIGURED = "LOT_REQUIRED_NOT_CONFIGURED"
+    CATCH_WEIGHT_WITHOUT_RANGE = "CATCH_WEIGHT_WITHOUT_RANGE"
+    MEAT_WITHOUT_QUALITY_PROFILE = "MEAT_WITHOUT_QUALITY_PROFILE"
+    RECIPE_VERSION_EXPIRING = "RECIPE_VERSION_EXPIRING"
+    DISCONTINUED_STILL_ACTIVE = "DISCONTINUED_STILL_ACTIVE"
+    EXTERNAL_DATA_CONFLICT = "EXTERNAL_DATA_CONFLICT"
+    IMPORT_WITH_ERRORS = "IMPORT_WITH_ERRORS"
+    QUALITY_BLOCKED = "QUALITY_BLOCKED"
