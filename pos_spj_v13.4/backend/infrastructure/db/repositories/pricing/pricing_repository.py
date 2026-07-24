@@ -14,6 +14,7 @@ from backend.domain.pricing.entities.product_cost import ProductCost
 from backend.domain.pricing.entities.product_price import ProductPrice, VolumePrice
 from backend.domain.pricing.enums import CostMethod, PriceListKind, PriceListStatus
 from backend.domain.pricing.value_objects.money import Money
+from backend.shared.ids import new_uuid
 
 
 def _money(amount: str | None, currency: str | None) -> Money | None:
@@ -143,6 +144,55 @@ class PricingRepository:
              None if c.last_cost is None else str(c.last_cost.amount),
              None if c.standard_cost is None else str(c.standard_cost.amount),
              c.cost_method.value, c.effective_from))
+
+    def cost_basis(self, product_id: str, branch_id: str = "") -> tuple[Money | None, Decimal]:
+        """Prior (average_cost, tracked_quantity) used by the moving average."""
+        row = self._conn.execute(
+            "SELECT average_cost, average_cost_currency, tracked_quantity FROM product_cost "
+            "WHERE product_id=? AND branch_id=?", (product_id, branch_id)).fetchone()
+        if row is None:
+            return None, Decimal("0")
+        avg = _money(row["average_cost"], row["average_cost_currency"])
+        qty = Decimal(row["tracked_quantity"]) if row["tracked_quantity"] else Decimal("0")
+        return avg, qty
+
+    def upsert_cost_basis(self, *, product_id: str, branch_id: str, average: Money,
+                          last: Money, tracked_quantity: Decimal) -> None:
+        self._conn.execute(
+            """INSERT INTO product_cost (id, product_id, branch_id, average_cost,
+                average_cost_currency, last_cost, cost_method, tracked_quantity)
+               VALUES (?,?,?,?,?,?, 'AVERAGE', ?)
+               ON CONFLICT(product_id, branch_id) DO UPDATE SET
+                 average_cost=excluded.average_cost,
+                 average_cost_currency=excluded.average_cost_currency,
+                 last_cost=excluded.last_cost,
+                 tracked_quantity=excluded.tracked_quantity,
+                 updated_at=datetime('now')""",
+            (new_uuid(), product_id, branch_id or "", str(average.amount), average.currency,
+             str(last.amount), str(tracked_quantity)))
+
+    def cost_change_applied(self, product_id: str, operation_id: str) -> bool:
+        """Idempotency: a cost change already logged for this (product, event)."""
+        return self._conn.execute(
+            "SELECT 1 FROM price_change_log WHERE product_id=? AND field='cost' "
+            "AND operation_id=? LIMIT 1", (product_id, operation_id)).fetchone() is not None
+
+    def log_cost_change(self, *, product_id: str, branch_id: str | None, old_value: Money | None,
+                        new_value: Money, operation_id: str, user_id: str | None = None) -> None:
+        self._conn.execute(
+            """INSERT INTO price_change_log (id, product_id, branch_id, field, old_value,
+                new_value, currency, user_id, operation_id)
+               VALUES (?,?,?, 'cost', ?,?,?,?,?)""",
+            (new_uuid(), product_id, branch_id or None,
+             None if old_value is None else str(old_value.amount),
+             str(new_value.amount), new_value.currency, user_id, operation_id))
+
+    def enqueue_event(self, *, event_id: str, event_name: str, operation_id: str | None,
+                      entity_id: str | None, payload: str) -> None:
+        self._conn.execute(
+            "INSERT OR IGNORE INTO pricing_outbox (id, event_id, event_name, operation_id, "
+            "entity_id, payload) VALUES (?,?,?,?,?,?)",
+            (new_uuid(), event_id, event_name, operation_id, entity_id, payload))
 
     def get_cost(self, product_id: str, branch_id: str | None = None) -> ProductCost | None:
         row = None
