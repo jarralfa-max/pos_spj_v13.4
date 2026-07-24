@@ -23,7 +23,6 @@ TABLAS_SINCRONIZABLES = [
     "ordenes_compra", "delivery_orders",
     # Tablas añadidas en Fase B — necesarias para consistencia multi-sucursal
     "mermas",
-    "transferencias",
     "production_batches",
     "production_batch_outputs",
     "branch_inventory",

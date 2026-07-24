@@ -29,7 +29,7 @@ def test_scan_standalone_finds_files():
     assert len(nums) > 0
     # Los canónicos deben estar presentes
     assert "030" in nums
-    assert "031" in nums
+    assert "154" in nums
     assert "032" in nums
     assert "048" in nums
 
@@ -45,12 +45,12 @@ def test_scan_engine_finds_registered():
     assert "054" in registered
 
 
-def test_orphans_030_031_are_comment_only():
-    """030_recipe_tables y 031_inventory_industrial son solo comentarios."""
+def test_orphan_030_is_comment_only():
+    """030_recipe_tables permanece como marcador histórico sin ejecución."""
     from pathlib import Path
     base = Path(__file__).parent.parent / "migrations" / "standalone"
 
-    for fname in ["030_recipe_tables.py", "031_inventory_industrial.py"]:
+    for fname in ["030_recipe_tables.py"]:
         path = base / fname
         assert path.exists(), f"{fname} no existe"
         content = path.read_text().strip()

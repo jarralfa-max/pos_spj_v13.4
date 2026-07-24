@@ -5,8 +5,6 @@ from backend.application.use_cases.base_use_case import DelegatingUseCase
 from backend.application.use_cases.register_waste_use_case import RegisterWasteUseCase
 from backend.application.use_cases.create_sale_use_case import CreateSaleUseCase
 from backend.application.use_cases.execute_meat_production_use_case import ExecuteMeatProductionUseCase
-from backend.application.use_cases.dispatch_transfer_use_case import DispatchTransferUseCase
-from backend.application.use_cases.receive_transfer_use_case import ReceiveTransferUseCase
 from backend.application.use_cases.create_delivery_order_use_case import CreateDeliveryOrderUseCase
 from backend.application.use_cases.create_product_use_case import CreateProductUseCase
 from backend.application.use_cases.update_product_use_case import UpdateProductUseCase
@@ -20,8 +18,6 @@ __all__ = [
     "RegisterWasteUseCase",
     "CreateSaleUseCase",
     "ExecuteMeatProductionUseCase",
-    "DispatchTransferUseCase",
-    "ReceiveTransferUseCase",
     "CreateDeliveryOrderUseCase",
     "CreateProductUseCase",
     "UpdateProductUseCase",

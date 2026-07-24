@@ -6,7 +6,6 @@ permitiendo rollback transaccional en operaciones críticas:
   - SALE_ITEMS_PROCESS
   - PRODUCTION_ITEMS_PROCESS
   - PURCHASE_ITEMS_PROCESS
-  - TRANSFER_ITEMS_PROCESS
 
 Verifica también que publish normal (strict=False) mantiene comportamiento
 original: errores se loguean pero no se propagan.
@@ -249,26 +248,6 @@ class TestRollbackSimulado:
             db_state["compra_insertada"] = False
 
         assert not db_state["compra_insertada"]
-
-    def test_transfer_rollback_si_inventario_falla(self, clean_bus):
-        from core.events.domain_events import TRANSFER_ITEMS_PROCESS
-
-        db_state = {"traspaso_guardado": False}
-
-        def _inv_handler_falla(p):
-            raise _SentinelError("sin stock en origen")
-
-        clean_bus.subscribe(TRANSFER_ITEMS_PROCESS, _inv_handler_falla, priority=100)
-
-        try:
-            db_state["traspaso_guardado"] = True
-            clean_bus.publish(TRANSFER_ITEMS_PROCESS, {"movements": []}, strict=True)
-        except _SentinelError:
-            db_state["traspaso_guardado"] = False
-        except Exception:
-            db_state["traspaso_guardado"] = False
-
-        assert not db_state["traspaso_guardado"]
 
     def test_handler_exitoso_antes_de_fallo_no_deshace_trabajo_propio(self, clean_bus):
         """

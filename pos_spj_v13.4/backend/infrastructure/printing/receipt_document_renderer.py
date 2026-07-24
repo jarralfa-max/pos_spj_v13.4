@@ -1,0 +1,3 @@
+from .transfer_document_renderer import TransferDocumentHtmlRenderer
+
+ReceiptDocumentRenderer = TransferDocumentHtmlRenderer

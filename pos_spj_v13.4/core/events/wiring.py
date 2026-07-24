@@ -267,9 +267,6 @@ def wire_all(container: "AppContainer") -> None:
     # Phase 4: PURCHASE_ITEMS_PROCESS + PURCHASE_CREATED — inventory + finance handlers
     _wire_purchase_items_handlers(bus, container)
 
-    # Phase 5: TRANSFER_ITEMS_PROCESS — multi-sucursal OUT/IN inventory handler
-    _wire_transfer_items_handlers(bus, container)
-
     # v13.5: Delivery weight adjustments + inventory reservations
     _wire_delivery_handlers(bus, container)
     _wire_legacy_delivery_event_bridge(bus, container)
@@ -1081,42 +1078,6 @@ def _wire_purchase_items_handlers(bus, container) -> None:
         logger.debug("Registered PurchaseFinanceHandler on %s", PURCHASE_CREATED)
 
 
-# ── Phase 5: TRANSFER_ITEMS_PROCESS handler ───────────────────────────────────
-
-def _wire_transfer_items_handlers(bus, container) -> None:
-    """
-    Register TransferInventoryHandler on TRANSFER_ITEMS_PROCESS.
-
-    Handles multi-sucursal transfers:
-      OUT origin branch  (delta < 0, TRANSFER_OUT / TRANSFER_CANCEL)
-      IN  dest   branch  (delta > 0, TRANSFER_IN)
-
-    Runs synchronously inside the transfer SAVEPOINT at priority=100.
-    """
-    from core.events.domain_events import TRANSFER_ITEMS_PROCESS
-
-    db = getattr(container, "db", None)
-    if not db:
-        logger.debug("_wire_transfer_items_handlers: no container.db — skipping")
-        return
-
-    # ── Canonical TRANSFER_DISPATCH (out) + TRANSFER_RECEIPT (in) (corte INV-27) ─
-    # The legacy UnifiedInventoryService.process_movement path was removed; the
-    # transfer legs always post to the ledger inside the transfer transaction
-    # (the outer flow owns the commit).
-    from backend.application.event_handlers.inventory.transfer_items_bridge import (
-        CanonicalTransferInventoryHandler,
-    )
-    handler = CanonicalTransferInventoryHandler(lambda: getattr(container, "db", None))
-    bus.subscribe(
-        TRANSFER_ITEMS_PROCESS,
-        handler.handle,
-        priority=100,
-        label="transfer_inventory_handler",
-    )
-    logger.debug("Registered canonical transfer handler on %s", TRANSFER_ITEMS_PROCESS)
-
-
 def _wire_delivery_handlers(bus, container) -> None:
     """v13.5: Delivery reservation + weight-adjustment handler chain.
 
@@ -1329,4 +1290,3 @@ def _wire_notification_handler(bus, container) -> None:
 
 
 # ── migración 083: trazabilidad financiera end-to-end ────────────────────────
-

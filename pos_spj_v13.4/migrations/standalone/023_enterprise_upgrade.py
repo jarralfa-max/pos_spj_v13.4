@@ -4,7 +4,7 @@
 # Blocks 1-10 structural changes:
 #   Block 1: productos soft-delete, UNIQUE constraints, is_active/deleted_at
 #   Block 2: recetas FK constraints, ON DELETE RESTRICT, cycle prevention columns
-#   Block 3: transferencias two-phase (dispatch + reception)
+#   Block 3: removed; Transfers owns its canonical schema in migration 154
 #   Block 4: inventory_reservations, reservation_id column
 #   Block 5: loyalty_enterprise (challenges, community_goals, budget_caps)
 #   Block 6: tarjetas persistence fix, config_diseno_tarjetas migration
@@ -103,74 +103,6 @@ def up(conn: sqlite3.Connection) -> None:
             depth            INTEGER NOT NULL DEFAULT 1,
             PRIMARY KEY (parent_recipe_id, child_product_id)
         )
-    """)
-
-    # ══ BLOCK 3 — TRANSFERENCIAS ════════════════════════════════════════════
-
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS transfers (
-            id                  TEXT NOT NULL PRIMARY KEY,
-            branch_origin_id    TEXT NOT NULL,
-            branch_dest_id      TEXT NOT NULL,
-            origin_type         TEXT NOT NULL DEFAULT 'BRANCH'
-                                CHECK(origin_type IN ('BRANCH','GLOBAL')),
-            destination_type    TEXT NOT NULL DEFAULT 'BRANCH'
-                                CHECK(destination_type IN ('BRANCH','GLOBAL')),
-            status              TEXT NOT NULL DEFAULT 'PENDING'
-                                CHECK(status IN ('PENDING','DISPATCHED','RECEIVED','CANCELLED')),
-            dispatched_by       TEXT NOT NULL,
-            dispatched_at       DATETIME,
-            received_by         TEXT,
-            received_at         DATETIME,
-            observations        TEXT,
-            difference_kg       REAL DEFAULT 0,
-            operation_id        TEXT UNIQUE,
-            created_at          DATETIME NOT NULL DEFAULT (datetime('now')),
-            _sync_version       INTEGER NOT NULL DEFAULT 0
-        )
-    """)
-
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS transfer_items (
-            id              TEXT NOT NULL PRIMARY KEY,
-            transfer_id     TEXT NOT NULL REFERENCES transfers(id) ON DELETE RESTRICT,
-            product_id      TEXT NOT NULL REFERENCES productos(id) ON DELETE RESTRICT,
-            quantity_sent   REAL NOT NULL CHECK(quantity_sent > 0),
-            unit            TEXT NOT NULL DEFAULT 'kg',
-            quantity_received REAL,
-            difference      REAL GENERATED ALWAYS AS
-                                (COALESCE(quantity_received,0) - quantity_sent) VIRTUAL,
-            batch_id        TEXT,
-            notes           TEXT
-        )
-    """)
-
-    _add_idx(conn, "transfers",      "idx_transfers_status",     "status")
-    _add_idx(conn, "transfers",      "idx_transfers_origin",     "branch_origin_id, status")
-    _add_idx(conn, "transfers",      "idx_transfers_dest",       "branch_dest_id, status")
-    _add_idx(conn, "transfer_items", "idx_transfer_items_xfer",  "transfer_id")
-    _add_idx(conn, "transfer_items", "idx_transfer_items_prod",  "product_id")
-
-    # Prevent receiving more than sent via trigger
-    conn.execute("""
-        CREATE TRIGGER IF NOT EXISTS trg_transfer_items_received_check
-        BEFORE UPDATE OF quantity_received ON transfer_items
-        FOR EACH ROW
-        WHEN NEW.quantity_received > OLD.quantity_sent
-        BEGIN
-            SELECT RAISE(ABORT, 'RECEIVED_EXCEEDS_SENT');
-        END
-    """)
-
-    # Prevent editing after receipt
-    conn.execute("""
-        CREATE TRIGGER IF NOT EXISTS trg_transfer_edit_after_receipt
-        BEFORE UPDATE ON transfers
-        FOR EACH ROW
-        WHEN OLD.status = 'RECEIVED' AND NEW.status != OLD.status
-        BEGIN
-            SELECT RAISE(ABORT, 'TRANSFER_ALREADY_RECEIVED');
-        END
     """)
 
     # ══ BLOCK 4 — INVENTARIO ════════════════════════════════════════════════

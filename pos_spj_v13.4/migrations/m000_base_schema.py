@@ -98,7 +98,6 @@ def up(conn: sqlite3.Connection) -> None:
     _safe(conn, _create_tarjetas,          "tarjetas")
     _safe(conn, _create_recetas_produccion,"recetas_produccion")
     _safe(conn, _create_batch_fifo,        "batch_fifo")
-    _safe(conn, _create_transferencias,    "transferencias")
     _safe(conn, _create_mermas_ajustes,    "mermas_ajustes")
     _safe(conn, _create_sync,              "sync")
     _safe(conn, _create_forecast,          "forecast")
@@ -637,35 +636,6 @@ def _create_inventario(conn):
             autorizado_por TEXT,
             operation_id   TEXT    NOT NULL,
             created_at     TEXT    DEFAULT (datetime('now'))
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS transferencias_inventario (
-            id               TEXT NOT NULL PRIMARY KEY,
-            producto_id      TEXT NOT NULL,
-            cantidad         REAL    NOT NULL,
-            tipo             TEXT    NOT NULL,
-            origen           TEXT,
-            destino          TEXT,
-            motivo           TEXT,
-            usuario          TEXT    NOT NULL,
-            fecha            DATETIME DEFAULT (datetime('now')),
-            observaciones    TEXT,
-            estado           TEXT DEFAULT 'COMPLETADA',
-            fecha_completada DATETIME
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS traspasos_inventario (
-            id                  TEXT NOT NULL PRIMARY KEY,
-            sucursal_origen_id  TEXT,
-            sucursal_destino_id TEXT,
-            producto_id         TEXT,
-            cantidad            REAL,
-            estado              TEXT DEFAULT 'pendiente',
-            usuario_origen      TEXT,
-            usuario_destino     TEXT,
-            observaciones       TEXT
         )
     """)
 
@@ -2176,83 +2146,6 @@ def _create_batch_fifo(conn):
             adquirido_en  DATETIME NOT NULL DEFAULT (datetime('now')),
             expira_en     DATETIME NOT NULL,
             activo        INTEGER  NOT NULL DEFAULT 1
-        )
-    """)
-
-
-def _create_transferencias(conn):
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS transferencias (
-            id              TEXT NOT NULL PRIMARY KEY,
-            folio           TEXT    NOT NULL,
-            origen_id       TEXT NOT NULL,
-            destino_id      TEXT NOT NULL,
-            estado          TEXT    NOT NULL DEFAULT 'pendiente',
-            notas           TEXT    DEFAULT '',
-            usuario_origen  TEXT    NOT NULL,
-            usuario_destino TEXT,
-            operation_id    TEXT    NOT NULL,
-            fecha_creacion  TEXT    DEFAULT (datetime('now')),
-            fecha_envio     TEXT,
-            fecha_recepcion TEXT
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS transferencia_detalle (
-            id               TEXT NOT NULL PRIMARY KEY,
-            transferencia_id TEXT NOT NULL,
-            producto_id      TEXT NOT NULL,
-            cantidad         REAL    NOT NULL CHECK(cantidad > 0),
-            cantidad_recibida REAL   DEFAULT 0,
-            unidad           TEXT    NOT NULL DEFAULT 'kg',
-            costo_unitario   REAL    DEFAULT 0,
-            notas            TEXT    DEFAULT ''
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS transfers (
-            id               TEXT NOT NULL PRIMARY KEY,
-            branch_origin_id TEXT NOT NULL,
-            branch_dest_id   TEXT NOT NULL,
-            origin_type      TEXT    NOT NULL DEFAULT 'BRANCH',
-            destination_type TEXT    NOT NULL DEFAULT 'BRANCH',
-            status           TEXT    NOT NULL DEFAULT 'DISPATCHED',
-            dispatched_by    TEXT    NOT NULL,
-            dispatched_at    TEXT    NOT NULL,
-            received_by      TEXT,
-            received_at      TEXT,
-            delivered_by     TEXT,
-            difference_kg    REAL    NOT NULL DEFAULT 0,
-            observations     TEXT,
-            operation_id     TEXT    NOT NULL,
-            created_at       TEXT    NOT NULL DEFAULT (datetime('now'))
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS transfer_items (
-            id               TEXT NOT NULL PRIMARY KEY,
-            transfer_id      TEXT    NOT NULL,
-            product_id       TEXT NOT NULL,
-            quantity_sent    REAL    NOT NULL CHECK(quantity_sent > 0),
-            quantity_received REAL,
-            unit             TEXT    NOT NULL DEFAULT 'kg',
-            batch_id         TEXT,
-            notes            TEXT
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS traspasos_pollo (
-            id                    TEXT NOT NULL PRIMARY KEY,
-            sucursal_origen_id    TEXT NOT NULL,
-            sucursal_destino_id   TEXT NOT NULL,
-            producto_id           TEXT NOT NULL,
-            peso_kg               REAL    NOT NULL CHECK(peso_kg > 0),
-            estado                TEXT    NOT NULL DEFAULT 'pendiente',
-            usuario_origen        TEXT    NOT NULL DEFAULT 'Sistema',
-            usuario_destino       TEXT,
-            observaciones         TEXT,
-            fecha_solicitud       DATETIME DEFAULT (datetime('now')),
-            fecha_confirmacion    DATETIME
         )
     """)
 

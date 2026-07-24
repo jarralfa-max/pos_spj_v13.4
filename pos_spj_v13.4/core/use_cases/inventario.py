@@ -168,55 +168,6 @@ class GestionarInventarioUC:
 
     # ── Traspaso entre sucursales ─────────────────────────────────────────────
 
-    def registrar_traspaso(
-        self,
-        producto_id:    int,
-        cantidad:       float,
-        sucursal_origen: int,
-        sucursal_destino: int,
-        usuario:        str,
-        notas:          str = "",
-    ) -> ResultadoInventario:
-        if sucursal_origen == sucursal_destino:
-            return ResultadoInventario(ok=False, error="Origen y destino iguales.")
-        if cantidad <= 0:
-            return ResultadoInventario(ok=False, error="Cantidad debe ser > 0.")
-
-        op_id = _gen_op_id()
-        try:
-            result = self._inv.transfer_stock(
-                product_id=producto_id,
-                from_branch_id=sucursal_origen,
-                to_branch_id=sucursal_destino,
-                quantity=cantidad,
-                unit="unit",
-                reason=notas or "Traspaso entre sucursales",
-                operation_id=op_id,
-                source_module="inventory_use_case",
-                reference_type="INVENTORY_TRANSFER",
-                reference_id=str(sucursal_destino),
-                user_name=usuario,
-            )
-            if not result.success:
-                raise ValueError(result.message)
-            stock_nuevo = self._stock_quantity(producto_id, sucursal_destino)
-            self._audit("TRASPASO", producto_id, sucursal_origen, usuario,
-                        f"suc={sucursal_origen} cant={cantidad}",
-                        f"suc_dest={sucursal_destino}", op_id)
-            self._bus_publish("TRASPASO_INICIADO", {
-                "producto_id":      producto_id,
-                "cantidad":         cantidad,
-                "sucursal_origen":  sucursal_origen,
-                "sucursal_destino": sucursal_destino,
-                "usuario":          usuario,
-                "operation_id":     op_id,
-                "op_id":            op_id,
-            })
-            return ResultadoInventario(ok=True, operacion_id=op_id, stock_nuevo=stock_nuevo)
-        except Exception as e:
-            logger.error("Traspaso prod=%s: %s", producto_id, e)
-            return ResultadoInventario(ok=False, error=str(e))
-
     # ── Helpers internos ──────────────────────────────────────────────────────
 
     def _stock_quantity(self, producto_id: int, sucursal_id: int) -> float:
