@@ -23,7 +23,7 @@ from backend.infrastructure.db.schema.pricing_schema import (
     create_pricing_schema,
 )
 
-_ROOT = Path(__file__).resolve().parents[1]
+_ROOT = Path(__file__).resolve().parents[2]
 _SCAN_DIRS = (
     _ROOT / "backend" / "domain" / "pricing",
     _ROOT / "backend" / "application" / "pricing",

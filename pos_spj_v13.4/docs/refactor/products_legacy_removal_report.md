@@ -40,7 +40,7 @@ romper el POS/Inventario/Compras vivos mientras se repuntan los 78 consumidores.
 | 6 | Repuntar compras/producción/BI/fidelidad/forecast a `products.id` | ⏳ |
 | 7 | Borrar `modulos/productos.py` + cablear UI enterprise (`ModuloProductosEnterprise`) en `module_loader`/`main_window` | ⏳ |
 | 8 | Migrar permisos `PRODUCTOS`→`PRODUCTS_*` y eventos `PRODUCTO_*`→`PRODUCT_*` | ⏳ |
-| 9 | Allowlist → vacía; guardrails `test_no_legacy_products_imports` / `test_products_legacy_allowlist_is_empty` | ⏳ |
+| 9 | Ratchet de consumidores: allowlist congelada de **78** archivos que leen `productos` por SQL (`test_products_legacy_consumers_ratchet`), sólo decrece; objetivo = vacía | 🔄 (ratchet armado, 78→0 pendiente) |
 | 10 | **DROP** destructivo (`PRODUCTS_ALLOW_LEGACY_DROP=1`) de ~20 tablas legacy + trigger | ⏳ |
 
 ## 🟢 Bloqueador estructural — RESUELTO (Pricing PRC-0→PRC-9)
@@ -81,8 +81,9 @@ tras confirmar cero consumidores legacy.
 
 ## Métricas (se completan al cerrar el corte)
 
-- Allowlist inicial: (los 78 consumidores + UI legacy) — pendiente de enumerar.
-- Allowlist final: **vacía** (objetivo).
+- Allowlist inicial: **78** archivos con SQL sobre `productos` (congelados en
+  `test_products_legacy_consumers_ratchet`).
+- Allowlist final: **vacía** (objetivo del paso 10).
 - Tablas consolidadas: `productos`+`branch_products` → `products`+`branch_product`;
   8 recetas → `recipe*`; 4 rendimientos → `yield_profile*`.
 - Bootstrap limpio: ✅ (148 migraciones, cobertura 80.0%).

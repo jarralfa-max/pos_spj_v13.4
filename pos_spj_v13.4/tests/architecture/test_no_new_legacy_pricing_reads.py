@@ -18,7 +18,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-_ROOT = Path(__file__).resolve().parents[1]
+_ROOT = Path(__file__).resolve().parents[2]
 _SCAN_DIRS = ("backend", "core", "modulos", "frontend", "integrations", "services")
 _LEGACY_TABLES = (
     "listas_precio", "precios_lista", "precios_volumen",

@@ -14,7 +14,7 @@ from pathlib import Path
 
 from backend.infrastructure.db.schema.pricing_schema import _DDL
 
-_ROOT = Path(__file__).resolve().parents[1]
+_ROOT = Path(__file__).resolve().parents[2]
 _SCAN_DIRS = (
     _ROOT / "backend" / "domain" / "pricing",
     _ROOT / "backend" / "application" / "pricing",
