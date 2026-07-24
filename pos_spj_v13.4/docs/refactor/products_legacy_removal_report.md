@@ -43,6 +43,32 @@ romper el POS/Inventario/Compras vivos mientras se repuntan los 78 consumidores.
 | 9 | Allowlist → vacía; guardrails `test_no_legacy_products_imports` / `test_products_legacy_allowlist_is_empty` | ⏳ |
 | 10 | **DROP** destructivo (`PRODUCTS_ALLOW_LEGACY_DROP=1`) de ~20 tablas legacy + trigger | ⏳ |
 
+## 🔴 Bloqueador estructural del DROP (hallazgo paso 3)
+
+El DROP destructivo de `productos` está **bloqueado** por dos razones, no sólo por
+volumen de consumidores:
+
+1. **No existe un bounded context de Pricing/Costing canónico.** `productos` guarda
+   `precio`, `precio_compra`, `costo`, `costo_promedio`, `precio_minimo`. Decenas
+   de consumidores (POS/Ventas, BI, Compras, incluso el KPI de catálogo
+   `core/services/product_catalog_query_service.py` vía `precio_compra`) leen esos
+   valores. El plan canónico dice "precio → Pricing", pero ese contexto **aún no se
+   ha construido**, así que no hay a dónde repuntar las lecturas de precio/costo.
+2. **La existencia sigue acoplada a `productos.existencia`** en lectores de POS que
+   no usan `inventory_balances` (canónico). Requiere el mismo repunte que dejó
+   diferido el DROP de Inventario (INV-27).
+
+**Conclusión (disciplina INV-27):** el maestro canónico `products` queda construido
+y respaldado (backfill 148), el DROP queda **diferido y documentado**, y los pasos
+destructivos 4-10 quedan **bloqueados hasta que exista un contexto Pricing/Costing
+canónico** (fase futura, fuera del alcance de Productos) y se repunten las lecturas
+de existencia. Repuntar a ciegas las consultas de precio/costo rompería el checkout,
+lo cual viola "no romper flujos existentes" (REGLA CERO §6).
+
+Recomendación al usuario: construir el contexto **Pricing/Costing** antes de
+completar el DROP de Productos; hasta entonces, `products` y `productos` conviven
+(canónico = fuente de maestro; legacy = fuente de precio/existencia).
+
 ## Invariante de no-regresión
 
 Cada paso mide node-ids de tests antes/después (0 fallas nuevas) y bootstrap
