@@ -224,26 +224,6 @@ def test_c_transferencia_venta(iterations: int = 20) -> bool:
     for it in range(iterations):
         raw, db, eng, batch_id = _setup_db(KG_LOTE)
 
-        # Crear tabla traspasos_inventario si no existe (puede estar en otra migración)
-        try:
-            raw.execute("""
-                CREATE TABLE IF NOT EXISTS traspasos_inventario (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    uuid TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
-                    sucursal_origen_id INTEGER,
-                    sucursal_destino_id INTEGER,
-                    producto_id INTEGER,
-                    cantidad REAL,
-                    estado TEXT DEFAULT 'pendiente',
-                    usuario_origen TEXT,
-                    usuario_destino TEXT,
-                    observaciones TEXT
-                )
-            """)
-            raw.commit()
-        except Exception:
-            pass
-
         barrier  = threading.Barrier(2)
         results  = []
         lock_res = threading.Lock()

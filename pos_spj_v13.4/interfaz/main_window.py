@@ -183,10 +183,10 @@ except Exception as e:
     logger.error("Error cargando ModuloTicketDesigner: %s", e)
 
 try:
-    from modulos.transferencias import ModuloTransferencias
+    from backend.infrastructure.desktop.transfers_factory import TransfersModuleHost
 except Exception as e:
-    ModuloTransferencias = None
-    logger.error("Error cargando ModuloTransferencias: %s", e)
+    TransfersModuleHost = None
+    logger.error("Error cargando TransfersModuleHost: %s", e)
 
 # BI/Analytics UNIFICADO: único módulo visible = INTELIGENCIA_BI
 
@@ -639,7 +639,7 @@ class MainWindow(QMainWindow):
         self._conectar("POS",            ModuloVentas,         "🛒 Punto de Venta")
         self._conectar("CAJA",           ModuloCaja,           "💰 Caja / Cortes Z")
         self._conectar("INVENTARIO",     ModuloInventarioLocal,"📦 Inventario")
-        self._conectar("TRANSFERENCIAS", ModuloTransferencias, "🔄 Transferencias")
+        self._conectar("TRANSFERENCIAS", TransfersModuleHost, "Transferencias")
         self._conectar("PRODUCTOS",      ModuloProductos,      "🏷️ Productos")
         self._conectar("CLIENTES",       ModuloClientes,       "👥 Clientes")
         self._conectar("MERMA",          ModuloMerma,          "🗑️ Merma")

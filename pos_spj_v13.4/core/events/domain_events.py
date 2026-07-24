@@ -39,15 +39,11 @@ PRODUCTION_BATCH_CREATED = "PRODUCTION_BATCH_CREATED"
 # Distinct from COMPRA_REGISTRADA (async, post-commit, for downstream consumers).
 PURCHASE_ITEMS_PROCESS = "purchase_items_process"
 
-# Phase 5: inter-branch transfer events.
-# TRANSFER_CREATED / TRANSFER_COMPLETED alias the existing bus constants so
-# downstream consumers can use ERP-standard names without changing the bus channel.
+# Canonical inter-branch transfer facts.
 from core.events.event_bus import (
-    TRASPASO_INICIADO   as TRANSFER_CREATED,    # "TRASPASO_INICIADO"
-    TRASPASO_CONFIRMADO as TRANSFER_COMPLETED,  # "TRASPASO_CONFIRMADO"
+    TRANSFER_DISPATCHED as TRANSFER_CREATED,
+    TRANSFER_RECEIVED as TRANSFER_COMPLETED,
 )
-# Internal sync event — inventory handler runs inside transfer SAVEPOINT.
-TRANSFER_ITEMS_PROCESS = "transfer_items_process"
 
 # Reserva de stock (ventas suspendidas / pedidos anticipados).
 # No existen en event_bus.py — son eventos de UI/orquestación, sin handlers críticos.
@@ -84,7 +80,6 @@ __all__ = [
     "PURCHASE_ITEMS_PROCESS",
     "TRANSFER_CREATED",
     "TRANSFER_COMPLETED",
-    "TRANSFER_ITEMS_PROCESS",
     "VENTA_CANCELADA",
     "PUNTOS_ACUMULADOS",
     "NIVEL_CAMBIADO",
@@ -178,5 +173,3 @@ __all__ += [
     "PRODUCT_DEACTIVATED",
     "PRODUCTS_CHANGED",
 ]
-
-

@@ -1,0 +1,27 @@
+"""Explicit errors for protected transfer workflow transitions."""
+class TransferError(Exception): pass
+class TransferNotFoundError(TransferError): pass
+class TransferInvalidStatusError(TransferError): pass
+class TransferSameOriginDestinationError(TransferError): pass
+class TransferApprovalRequiredError(TransferError): pass
+class TransferStockInsufficientError(TransferError): pass
+class TransferReservationFailedError(TransferError): pass
+class TransferLotAllocationError(TransferError): pass
+class TransferPickingNotCompleteError(TransferError): pass
+class TransferDispatchNotAllowedError(TransferError): pass
+class TransferAlreadyDispatchedError(TransferError): pass
+class TransferReceiptNotAllowedError(TransferError): pass
+class TransferAlreadyReceivedError(TransferError): pass
+class TransferOverReceiptError(TransferError): pass
+class TransferWeightVarianceError(TransferError): pass
+class TransferTemperatureVarianceError(TransferError): pass
+class TransferDifferenceReviewRequiredError(TransferError): pass
+class TransferCancellationNotAllowedError(TransferError): pass
+class TransferReversalNotAllowedError(TransferError): pass
+class DuplicateOperationError(TransferError): pass
+class OfflineOperationNotAllowedError(TransferError): pass
+class PermissionDeniedError(TransferError): pass
+class TransferSyncConflictError(TransferError): pass
+class SegregationOfDutiesError(TransferError): pass
+class TransferLimitExceededError(TransferError): pass
+class TransferAuthorizationRequiredError(TransferError): pass

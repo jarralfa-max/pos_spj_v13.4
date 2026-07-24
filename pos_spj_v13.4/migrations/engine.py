@@ -29,13 +29,11 @@ MIGRATIONS = [
     _Migration("028",  "migrations.standalone.028_sales_transaction_hardening"),
     _Migration("029",  "migrations.standalone.029_reversals_hardening"),
     _Migration("030",  "migrations.standalone.030_recetas_industriales"),
-    _Migration("031",  "migrations.standalone.031_inventory_engine"),
     _Migration("032",  "migrations.standalone.032_bi_tables"),
     _Migration("033",  "migrations.standalone.033_demand_forecast"),
     _Migration("035",  "migrations.standalone.035_finance_erp"),
     _Migration("036",  "migrations.standalone.036_whatsapp_rasa"),
     _Migration("037",  "migrations.standalone.037_product_images"),
-    _Migration("038",  "migrations.standalone.038_transfer_suggestions"),
     _Migration("039",  "migrations.standalone.039_branch_products"),
     _Migration("040",  "migrations.standalone.040_qr_reception"),
     _Migration("041",  "migrations.standalone.041_notification_inbox"),
@@ -122,7 +120,6 @@ MIGRATIONS = [
     _Migration("122",  "migrations.standalone.122_inventory_lots_schema"),
     _Migration("123",  "migrations.standalone.123_inventory_cold_chain_schema"),
     _Migration("124",  "migrations.standalone.124_inventory_reservations_schema"),
-    _Migration("125",  "migrations.standalone.125_inventory_transfers_schema"),
     _Migration("126",  "migrations.standalone.126_inventory_counts_schema"),
     _Migration("127",  "migrations.standalone.127_inventory_adjustments_schema"),
     _Migration("128",  "migrations.standalone.128_inventory_quarantine_schema"),
@@ -151,6 +148,7 @@ MIGRATIONS = [
     _Migration("151",  "migrations.standalone.151_pricing_cost_tracked_quantity"),
     _Migration("152",  "migrations.standalone.152_products_recipes_backfill_from_legacy"),
     _Migration("153",  "migrations.standalone.153_products_yields_backfill_from_legacy"),
+    _Migration("154",  "migrations.standalone.154_transfers_bounded_context_schema"),
 ]
 
 def _ensure_tracking_table(conn):

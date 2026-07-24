@@ -5,7 +5,6 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UI_COMPONENTS = os.path.join(ROOT, 'modulos', 'ui_components.py')
 REPORTES = os.path.join(ROOT, 'modulos', 'reportes_bi_v2.py')
 COTIZACIONES = os.path.join(ROOT, 'modulos', 'cotizaciones.py')
-TRANSFERENCIAS = os.path.join(ROOT, 'modulos', 'transferencias.py')
 INVENTARIO_LOCAL = os.path.join(ROOT, 'modulos', 'inventario_enterprise.py')
 # PUR-13: modulos/compras_pro.py eliminado — Compras es el módulo enterprise.
 MERMA = os.path.join(ROOT, 'modulos', 'merma.py')
@@ -68,7 +67,6 @@ def test_reportes_uses_filter_bar_and_echarts():
 
 def test_uiux_components_applied_to_more_modules():
     cot = _read(COTIZACIONES)
-    trf = _read(TRANSFERENCIAS)
     inv = _read(INVENTARIO_LOCAL)
     mer = _read(MERMA)
     cli = _read(CLIENTES)
@@ -115,7 +113,6 @@ def test_python_syntax_ok():
     ast.parse(_read(UI_COMPONENTS))
     ast.parse(_read(REPORTES))
     ast.parse(_read(COTIZACIONES))
-    ast.parse(_read(TRANSFERENCIAS))
     ast.parse(_read(INVENTARIO_LOCAL))
     ast.parse(_read(MERMA))
     ast.parse(_read(CLIENTES))

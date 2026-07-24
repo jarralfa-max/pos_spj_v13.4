@@ -24,10 +24,6 @@ from backend.domain.inventory.entities.reservation import (
     InventoryReservation,
 )
 from backend.domain.inventory.entities.traceability_link import TraceabilityLink
-from backend.domain.inventory.entities.transfer import (
-    InventoryTransfer,
-    InventoryTransferLine,
-)
 from backend.domain.inventory.entities.warehouse import (
     StorageLocation,
     Warehouse,
@@ -46,8 +42,6 @@ __all__ = [
     "InventoryMovementLine",
     "InventoryQuarantine",
     "InventoryReservation",
-    "InventoryTransfer",
-    "InventoryTransferLine",
     "ReplenishmentRule",
     "ReplenishmentSuggestion",
     "TraceabilityLink",

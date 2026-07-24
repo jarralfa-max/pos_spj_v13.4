@@ -8,7 +8,7 @@ events) from ``backend/infrastructure/db/schema/inventory_schema.py`` (single
 source of DDL).
 
 The legacy/partial inventory tables (inventario_actual, inventory_stock,
-branch_inventory, movimientos_inventario, transferencias/traspasos…) still have
+branch_inventory, movimientos_inventario…) still have
 live readers and are NOT touched here — their readers migrate in INV-6/INV-11
 and the tables drop in INV-27 (see inventory_schema_consolidation.md).
 """

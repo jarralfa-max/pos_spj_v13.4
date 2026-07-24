@@ -51,9 +51,6 @@ from backend.infrastructure.db.repositories.inventory.reservation_repository imp
 from backend.infrastructure.db.repositories.inventory.traceability_repository import (
     TraceabilityRepository,
 )
-from backend.infrastructure.db.repositories.inventory.transfer_repository import (
-    TransferRepository,
-)
 from backend.infrastructure.db.repositories.inventory.waste_repository import (
     WasteRepository,
 )
@@ -85,7 +82,6 @@ class InventoryUnitOfWork:
         self.balances = InventoryBalanceRepository(connection)
         self.lots = InventoryLotRepository(connection)
         self.reservations = ReservationRepository(connection)
-        self.transfers = TransferRepository(connection)
         self.counts = CountRepository(connection)
         self.adjustments = AdjustmentRepository(connection)
         self.quarantines = QuarantineRepository(connection)

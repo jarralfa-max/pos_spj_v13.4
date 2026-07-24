@@ -15,7 +15,7 @@ Rules (REGLA CERO / §8 / §9):
 Canonical English names (warehouses, storage_locations, inventory_ledger,
 inventory_balances…) do NOT collide with the legacy/partial tables
 (inventario_actual, inventory_stock, inventory_movements[098], movimientos_
-inventario, transferencias…), which keep their live readers until INV-6/INV-11
+inventario…), which keep their live readers until INV-6/INV-11
 migrate them and INV-27 drops them (see inventory_schema_consolidation.md). The
 canonical ledger is ``inventory_ledger`` (the name ``inventory_movements`` is
 still owned by the legacy migration 098 and is reclaimed only at INV-27).
@@ -36,8 +36,6 @@ INVENTORY_TABLES: tuple[str, ...] = (
     "inventory_lots",
     "inventory_reservation",
     "inventory_allocation",
-    "inventory_transfer",
-    "inventory_transfer_line",
     "inventory_count",
     "inventory_count_line",
     "inventory_adjustment",
@@ -234,43 +232,6 @@ _DDL = (
         status TEXT NOT NULL DEFAULT 'ALLOCATED',
         created_at TEXT NOT NULL,
         FOREIGN KEY (reservation_id) REFERENCES inventory_reservation(id)
-    )
-    """,
-    # ── transfers (§24-25, INV-12) ─────────────────────────────────────────
-    # Canonical singular names (inventory_transfer/-line) consolidate the 3 legacy
-    # tables (transferencias/transferencias_inventario/traspasos); reclaimed INV-27.
-    """
-    CREATE TABLE IF NOT EXISTS inventory_transfer (
-        id TEXT PRIMARY KEY,
-        folio TEXT NOT NULL,
-        origin_branch_id TEXT NOT NULL,
-        origin_warehouse_id TEXT NOT NULL,
-        destination_branch_id TEXT NOT NULL,
-        destination_warehouse_id TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'DRAFT',
-        created_by_user_id TEXT,
-        approved_by_user_id TEXT,
-        dispatched_by_user_id TEXT,
-        received_by_user_id TEXT,
-        carrier TEXT,
-        dispatched_at TEXT,
-        received_at TEXT,
-        created_at TEXT NOT NULL
-    )
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS inventory_transfer_line (
-        id TEXT PRIMARY KEY,
-        transfer_id TEXT NOT NULL,
-        product_id TEXT NOT NULL,
-        lot_id TEXT,
-        unit TEXT NOT NULL DEFAULT 'PZA',
-        quantity TEXT NOT NULL DEFAULT '0',
-        weight TEXT NOT NULL DEFAULT '0',
-        dispatched_quantity TEXT NOT NULL DEFAULT '0',
-        received_quantity TEXT NOT NULL DEFAULT '0',
-        difference_type TEXT,
-        FOREIGN KEY (transfer_id) REFERENCES inventory_transfer(id)
     )
     """,
     # ── counts (§27-28, INV-13) ────────────────────────────────────────────
@@ -661,10 +622,6 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_inv_reservation_status ON inventory_reservation(status)",
     "CREATE INDEX IF NOT EXISTS idx_inv_reservation_doc ON inventory_reservation(source_document_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_allocation_res ON inventory_allocation(reservation_id)",
-    "CREATE INDEX IF NOT EXISTS idx_inv_transfer_status ON inventory_transfer(status)",
-    "CREATE INDEX IF NOT EXISTS idx_inv_transfer_origin ON inventory_transfer(origin_warehouse_id)",
-    "CREATE INDEX IF NOT EXISTS idx_inv_transfer_dest ON inventory_transfer(destination_warehouse_id)",
-    "CREATE INDEX IF NOT EXISTS idx_inv_transfer_line_tr ON inventory_transfer_line(transfer_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_count_status ON inventory_count(status)",
     "CREATE INDEX IF NOT EXISTS idx_inv_count_wh ON inventory_count(warehouse_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_count_line_ct ON inventory_count_line(count_id)",

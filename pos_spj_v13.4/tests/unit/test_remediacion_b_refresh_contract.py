@@ -99,14 +99,6 @@ def test_ventas_declara_contrato_productos():
     )
 
 
-def test_transferencias_declara_contrato_sucursales_y_productos():
-    m = _class_methods("modulos/transferencias.py")
-    assert {"refresh_branches", "on_branches_changed",
-            "refresh_products", "on_products_changed"} <= m, (
-        "Transferencias debe reaccionar a BRANCHES_CHANGED/PRODUCTS_CHANGED."
-    )
-
-
 def test_delivery_declara_contrato():
     m = _class_methods("modulos/delivery.py")
     assert {"refresh_products", "on_products_changed"} <= m

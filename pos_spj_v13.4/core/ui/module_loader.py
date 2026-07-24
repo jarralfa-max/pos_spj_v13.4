@@ -20,7 +20,7 @@ MODULE_REGISTRY = {
     "prod_carnica":     ("ModuloProduccionCarnica",   "modulos.produccion_carnica",     []),
     "planeacion":       ("ModuloPlaneacionCompras",   "modulos.planeacion_compras",     []),
     "bi":               ("ModuloReportesBi",          "modulos.reportes_bi",            []),
-    "transferencias":   ("ModuloTransferencias",      "modulos.transferencias",         []),
+    "transferencias":   ("TransfersModuleHost", "backend.infrastructure.desktop.transfers_factory", []),
     "fidelidad":        ("ModuloFidelidad",           "modulos.fidelidad",              []),
     "reportes":         ("ModuloReportes",            "modulos.reportes",               []),
     "gastos":           ("ModuloFinanzas",            "modulos.finanzas",               []),

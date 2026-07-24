@@ -5,7 +5,6 @@ import os
 import sqlite3
 import pytest
 from unittest.mock import MagicMock, call
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
@@ -170,69 +169,3 @@ class TestRegistrarAjuste:
             producto_id=2, cantidad_nueva=12.0, sucursal_id=1, usuario="admin"
         )
         assert r.operacion_id.startswith("INV-")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# registrar_traspaso
-# ─────────────────────────────────────────────────────────────────────────────
-
-class TestRegistrarTraspaso:
-    def test_traspaso_valido_descuenta_origen_y_suma_destino(self):
-        uc, inv, _ = _make_uc(initial_stock=0.0)
-        inv._stock[(5, 1)] = 60.0
-        inv._stock[(5, 2)] = 10.0
-        r = uc.registrar_traspaso(
-            producto_id=5, cantidad=20.0,
-            sucursal_origen=1, sucursal_destino=2,
-            usuario="almacen",
-        )
-        assert r.ok is True
-        assert inv.get_stock(5, 1) == pytest.approx(40.0)
-        assert inv.get_stock(5, 2) == pytest.approx(30.0)
-
-    def test_traspaso_mismo_origen_destino_retorna_error(self):
-        uc, _, _ = _make_uc()
-        r = uc.registrar_traspaso(
-            producto_id=1, cantidad=10.0,
-            sucursal_origen=1, sucursal_destino=1,
-            usuario="x",
-        )
-        assert r.ok is False
-        assert "Origen" in r.error or "destino" in r.error.lower()
-
-    def test_traspaso_cantidad_cero_retorna_error(self):
-        uc, _, _ = _make_uc()
-        r = uc.registrar_traspaso(
-            producto_id=1, cantidad=0.0,
-            sucursal_origen=1, sucursal_destino=2,
-            usuario="x",
-        )
-        assert r.ok is False
-
-    def test_traspaso_publica_evento_traspaso_iniciado(self):
-        bus = MagicMock()
-        uc, inv, _ = _make_uc(initial_stock=0.0, event_bus=bus)
-        inv._stock[(3, 1)] = 50.0
-        inv._stock[(3, 2)] = 0.0
-        uc.registrar_traspaso(
-            producto_id=3, cantidad=10.0,
-            sucursal_origen=1, sucursal_destino=2,
-            usuario="mgr",
-        )
-        bus.publish.assert_called_once()
-        event_name = bus.publish.call_args.args[0]
-        assert event_name == "TRASPASO_INICIADO"
-
-    def test_traspaso_fallo_retorna_error(self):
-        from core.use_cases.inventario import GestionarInventarioUC
-        inv = MagicMock()
-        inv.get_stock.return_value = 100.0
-        inv.deduct_stock.side_effect = RuntimeError("stock insuficiente")
-        uc = GestionarInventarioUC(db=_make_db(), inventory_service=inv)
-        r = uc.registrar_traspaso(
-            producto_id=1, cantidad=10.0,
-            sucursal_origen=1, sucursal_destino=2,
-            usuario="x",
-        )
-        assert r.ok is False
-        assert "stock insuficiente" in r.error
