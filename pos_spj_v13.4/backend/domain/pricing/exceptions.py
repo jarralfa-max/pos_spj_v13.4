@@ -34,3 +34,28 @@ class BranchScopeError(PricingDomainError):
 
 class InvalidAuthorizationError(PricingDomainError):
     """A hot authorization or audit entry was built with invalid/missing data."""
+
+
+# ── PRC-2 dominio de precios/costos ──────────────────────────────────────────
+class InvalidMoneyError(PricingDomainError):
+    """A Money amount is a float, negative where forbidden, or mismatched currency."""
+
+
+class CurrencyMismatchError(PricingDomainError):
+    """Two Money values of different currencies were combined."""
+
+
+class PriceBelowMinimumError(PricingDomainError):
+    """A sale price is below the product's minimum price (needs override)."""
+
+
+class InvalidPriceListError(PricingDomainError):
+    """A price list / product price / volume tier is malformed."""
+
+
+class InvalidCostError(PricingDomainError):
+    """A product cost is malformed (float, negative)."""
+
+
+class InvalidMarginPolicyError(PricingDomainError):
+    """A margin policy has an invalid minimum price or target margin."""
