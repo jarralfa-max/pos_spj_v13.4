@@ -1,5 +1,4 @@
 # modulos/dialogs/__init__.py
-# Production-module dialog widgets extracted from modulos/produccion.py
-from .receta_dialog import DialogoReceta
-
-__all__ = ["DialogoReceta"]
+# PROD-19 FLIP: DialogoReceta (receta_dialog.py) fue eliminado junto con la UI
+# legacy de Productos (modulos/productos.py), su único consumidor.
+__all__ = []

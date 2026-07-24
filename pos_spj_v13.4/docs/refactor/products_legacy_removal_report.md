@@ -38,7 +38,7 @@ romper el POS/Inventario/Compras vivos mientras se repuntan los 78 consumidores.
 | 4 | **Backfill** recetas legacy → `recipe`/`recipe_version`/`recipe_components`/`recipe_outputs` (migración **152**, aditiva idempotente; `recetas`+`receta_componentes` y `product_recipes`+`product_recipe_components`; v1 ACTIVE/DRAFT, Decimal). Neutralización de `recipe_engine` → paso 4b | ✅ (backfill) |
 | 5 | **Backfill** rendimientos `rendimiento_pollo`+`rendimiento_derivados` → `yield_profiles`/`yield_profile_versions`/`yield_outputs` (migración **153**, aditiva idempotente, Decimal, BY_PRODUCT/MAIN) | ✅ (backfill) |
 | 6 | Repuntar compras/producción/BI/fidelidad/forecast a `products.id` | ⏳ |
-| 7 | Borrar `modulos/productos.py` + cablear UI enterprise (`ModuloProductosEnterprise`) en `module_loader`/`main_window` | ⏳ |
+| 7 | **FLIP**: `modulos/productos.py` (1534) + `modulos/dialogs/receta_dialog.py` (455) ELIMINADOS; host `modulos/productos_enterprise.py` (`ModuloProductosEnterprise`) monta las páginas PRC-7 (Resumen+Catálogo) sobre `ProductCatalogReadService`; `module_loader`/`main_window`/`diagnostico` repuntados. **Decisión del usuario "borrar ya": sin alta/edición en la UI hasta construir formularios enterprise** (use cases canónicos ya existen) | ✅ (solo-lectura) |
 | 8 | Migrar permisos `PRODUCTOS`→`PRODUCTS_*` y eventos `PRODUCTO_*`→`PRODUCT_*` | ⏳ |
 | 9 | Ratchet de consumidores: allowlist congelada de **78** archivos que leen `productos` por SQL (`test_products_legacy_consumers_ratchet`), sólo decrece; objetivo = vacía | 🔄 (ratchet armado, 78→0 pendiente) |
 | 10 | **DROP** destructivo (`PRODUCTS_ALLOW_LEGACY_DROP=1`) de ~20 tablas legacy + trigger | ⏳ |

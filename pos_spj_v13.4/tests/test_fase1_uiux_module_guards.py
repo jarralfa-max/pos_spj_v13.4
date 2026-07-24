@@ -3,7 +3,7 @@ from pathlib import Path
 
 TARGETS = [
     'modulos/caja.py',
-    'modulos/productos.py',
+    # PROD-19 FLIP: modulos/productos.py eliminado — Productos es el módulo enterprise.
     'modulos/delivery.py',
     # PUR-13: modulos/compras_pro.py eliminado — Compras es el módulo enterprise.
     'modulos/etiquetas.py',

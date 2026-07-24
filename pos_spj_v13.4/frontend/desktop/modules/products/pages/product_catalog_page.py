@@ -53,4 +53,4 @@ class ProductCatalogPage(QWidget):
 
     def refresh(self, *, query=None) -> None:
         table = self._presenter.catalog(query=query)
-        self.table.set_rows(table.rows)
+        self.table.load_rows(table.rows, row_ids=table.row_ids)

@@ -56,7 +56,6 @@ COMMIT_ROLLBACK_IN_UI_ALLOWLIST = {
     # cotizaciones.py: commit() movido a CotizacionService (Remediación F).
     'pos_spj_v13.4/modulos/delivery.py': 3,
     # loyalty_card_designer.py: commit() movido a LoyaltyCardDesignerService (Remediación F).
-    'pos_spj_v13.4/modulos/productos.py': 9,
     # recepcion_qr_widget.py: commit() movido a RecepcionQRService (Remediación F).
     # rrhh.py: commit()/rollback() movidos a RRHHCatalogService/repositorios (Remediación F).
     # rrhh_turnos.py: commit() movido a RRHHTurnosService (Remediación F).
@@ -122,7 +121,6 @@ SCHEMA_CHANGES_OUTSIDE_MIGRATIONS_ALLOWLIST = {
     'pos_spj_v13.4/modulos/configuracion.py': 1,
     'pos_spj_v13.4/core/services/growth_engine.py': 5,
     'pos_spj_v13.4/modulos/loyalty_card_designer.py': 3,
-    'pos_spj_v13.4/modulos/productos.py': 1,
     'pos_spj_v13.4/modulos/rrhh_turnos.py': 3,
     'pos_spj_v13.4/repositories/driver_repository.py': 4,
     'pos_spj_v13.4/repositories/loyalty_repository.py': 11,
@@ -285,7 +283,6 @@ HARDCODED_NUMERIC_DEFAULTS_IN_UI_ALLOWLIST = {
     'pos_spj_v13.4/modulos/loyalty_card_designer.py': 1,
     'pos_spj_v13.4/modulos/modulo_growth_engine.py': 3,
     'pos_spj_v13.4/modulos/planeacion_compras.py': 2,
-    'pos_spj_v13.4/modulos/productos.py': 1,
     'pos_spj_v13.4/modulos/recepcion_qr_widget.py': 2,
     'pos_spj_v13.4/modulos/rrhh.py': 3,
     'pos_spj_v13.4/modulos/rrhh_turnos.py': 1,
@@ -306,11 +303,9 @@ ENTITY_COMBO_MASS_LOADING_ALLOWLIST = {
     'pos_spj_v13.4/modulos/configuracion.py': 13,
     'pos_spj_v13.4/modulos/cotizaciones.py': 1,
     'pos_spj_v13.4/modulos/delivery.py': 9,
-    'pos_spj_v13.4/modulos/dialogs/receta_dialog.py': 5,
     'pos_spj_v13.4/modulos/loyalty_card_designer.py': 1,
     'pos_spj_v13.4/modulos/planeacion_compras.py': 2,
     'pos_spj_v13.4/modulos/produccion.py': 5,
-    'pos_spj_v13.4/modulos/productos.py': 7,
     'pos_spj_v13.4/modulos/recepcion_qr_widget.py': 5,
     'pos_spj_v13.4/modulos/rrhh.py': 6,
     'pos_spj_v13.4/modulos/ticket_designer.py': 1,

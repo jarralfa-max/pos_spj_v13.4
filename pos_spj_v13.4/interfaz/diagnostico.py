@@ -163,7 +163,7 @@ class DiagnosticoSistema(QDialog):
                 ("Ventas", "modulos.ventas"),
                 ("Caja", "modulos.caja"),
                 ("Inventario", "modulos.inventario"),
-                ("Productos", "modulos.productos"),
+                ("Productos", "modulos.productos_enterprise"),
                 ("Clientes", "modulos.clientes"),
                 ("Finanzas", "modulos.finanzas"),
                 ("Reportes", "modulos.reportes"),

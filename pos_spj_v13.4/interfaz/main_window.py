@@ -39,7 +39,8 @@ except Exception as e:
     logger.error("Error cargando ModuloInventarioEnterprise: %s", e)
 
 try:
-    from modulos.productos import ModuloProductos
+    # PROD-19 FLIP: UI legacy (modulos/productos.py) eliminada → host enterprise.
+    from modulos.productos_enterprise import ModuloProductosEnterprise as ModuloProductos
 except Exception as e:
     ModuloProductos = None
     logger.error("Error cargando ModuloProductos: %s", e)

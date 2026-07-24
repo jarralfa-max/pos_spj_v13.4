@@ -17,7 +17,9 @@ from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 
-UI_FILES = ["modulos/productos.py"]
+# PROD-19 FLIP: la UI legacy modulos/productos.py fue eliminada; el ratchet ahora
+# sólo cubre la capa canónica backend (que sí sobrevive).
+UI_FILES: list[str] = []
 BACKEND_FILES = [
     "backend/application/commands/product_commands.py",
     "backend/application/queries/product_query_service.py",
@@ -56,10 +58,6 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 
 # Documented FASE 0 baseline (measured 2026-06). Drive every number DOWN.
 BASELINE: dict[str, dict[str, int]] = {
-    "modulos/productos.py": {
-        # Clean: SQL extracted (F5), tx -> ConnectionUnitOfWork (F3), identity
-        # casts removed (F2). Remaining int() calls are on the `activo` flag only.
-    },
     "backend/application/commands/product_commands.py": {},
     "backend/application/queries/product_query_service.py": {
         "sql_select": 10,

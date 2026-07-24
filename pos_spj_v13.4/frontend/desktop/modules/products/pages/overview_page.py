@@ -19,8 +19,6 @@ from frontend.desktop.components import (
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.themes.tokens import Spacing
 
-_VARIANT_STATE = {"danger": "ERROR", "warning": "STALE", "success": "READY",
-                  "info": "READY", "neutral": "READY"}
 
 
 class ProductsOverviewPage(QWidget):
@@ -51,9 +49,8 @@ class ProductsOverviewPage(QWidget):
         self.refresh()
 
     def refresh(self) -> None:
-        self.kpi_bar.set_kpis([
-            KPIDTO(key=k.key, label=k.title, value=k.value,
-                   state=_VARIANT_STATE.get(k.variant, "READY"))
+        self.kpi_bar.set_cards([
+            KPIDTO(key=k.key, title=k.title, value=k.value, variant=k.variant)
             for k in self._presenter.overview_kpis()])
         table = self._presenter.recent_alerts()
-        self.alerts.set_rows(table.rows)
+        self.alerts.load_rows(table.rows, row_ids=table.row_ids)
