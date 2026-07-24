@@ -22,9 +22,49 @@ logger = logging.getLogger("spj.products.presenter")
 
 
 class ProductsPresenter:
-    def __init__(self, *, read_service_factory, session_context=None) -> None:
+    def __init__(self, *, read_service_factory, write_service_factory=None,
+                 session_context=None) -> None:
         self._read_factory = read_service_factory
+        self._write_factory = write_service_factory
         self._session = session_context
+
+    # ── alta / edición del maestro (PROD-19 7b) ───────────────────────────
+    @property
+    def can_write(self) -> bool:
+        return self._write_factory is not None
+
+    def get_product(self, product_id: str) -> dict | None:
+        """Fila del maestro para prellenar el formulario de edición."""
+        if not self.can_write:
+            return None
+        create_uc, update_uc, repo = self._write_factory()
+        return repo.get(product_id)
+
+    def save_product(self, *, product_id: str | None, fields: dict) -> tuple[bool, str, str | None]:
+        """Alta (product_id None) o edición. Devuelve (ok, mensaje, product_id)."""
+        if not self.can_write:
+            return False, "Sin permisos de escritura", None
+        from backend.application.products.commands.product_master_commands import (
+            CreateProductMasterCommand,
+            UpdateProductMasterCommand,
+        )
+        from backend.shared.ids import new_uuid
+
+        user_id = getattr(self._session, "user_id", None)
+        create_uc, update_uc, _repo = self._write_factory()
+        try:
+            if product_id:
+                cmd = UpdateProductMasterCommand(
+                    operation_id=new_uuid(), user_id=user_id, product_id=product_id, **fields)
+                result = update_uc.execute(cmd)
+            else:
+                cmd = CreateProductMasterCommand(
+                    operation_id=new_uuid(), user_id=user_id, **fields)
+                result = create_uc.execute(cmd)
+        except Exception as exc:  # noqa: BLE001 — el error se muestra en la UI
+            logger.exception("Guardado de producto falló")
+            return False, f"Error: {exc}", None
+        return result.success, result.message, result.product_id
 
     # ── overview (§43) ────────────────────────────────────────────────────
     def overview_kpis(self) -> list[KpiViewModel]:

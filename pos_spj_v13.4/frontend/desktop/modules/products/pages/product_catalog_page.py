@@ -6,7 +6,7 @@ No SQL, no business logic, no local styles; the presenter formats rows.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QPushButton, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -34,9 +34,19 @@ class ProductCatalogPage(QWidget):
             icon=getattr(Icons, "CATALOG", None), compact=True)
         layout.addWidget(self.header)
 
+        toolbar = QHBoxLayout()
         self.search = SearchInput(placeholder="Buscar producto por nombre o código…")
         self.search.textChanged.connect(self._on_search)
-        layout.addWidget(self.search)
+        toolbar.addWidget(self.search, 1)
+        self.btn_new = QPushButton("Nuevo")
+        self.btn_edit = QPushButton("Editar")
+        self.btn_new.clicked.connect(lambda: self._open_form(None))
+        self.btn_edit.clicked.connect(self._edit_selected)
+        can_write = getattr(self._presenter, "can_write", False)
+        for b in (self.btn_new, self.btn_edit):
+            b.setEnabled(can_write)
+            toolbar.addWidget(b)
+        layout.addLayout(toolbar)
 
         self.table = StandardTable(columns=[
             ColumnSpec("Código", "code"),
@@ -50,6 +60,19 @@ class ProductCatalogPage(QWidget):
 
     def _on_search(self, text) -> None:
         self.refresh(query=text)
+
+    def _edit_selected(self) -> None:
+        product_id = self.table.selected_row_id()
+        if product_id:
+            self._open_form(product_id)
+
+    def _open_form(self, product_id) -> None:
+        from frontend.desktop.modules.products.dialogs.product_form_dialog import (
+            ProductFormDialog,
+        )
+        dialog = ProductFormDialog(self._presenter, product_id=product_id, parent=self)
+        if dialog.exec_():
+            self.refresh(query=self.search.text() or None)
 
     def refresh(self, *, query=None) -> None:
         table = self._presenter.catalog(query=query)

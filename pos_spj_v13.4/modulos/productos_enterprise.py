@@ -51,10 +51,22 @@ class ModuloProductosEnterprise(QWidget):
         from backend.application.products.queries.catalog_read_service import (
             ProductCatalogReadService,
         )
+        from backend.application.products.use_cases.product_master_use_cases import (
+            CreateProductMasterUseCase,
+            UpdateProductMasterUseCase,
+        )
+        from backend.infrastructure.db.repositories.products.product_master_repository import (
+            ProductMasterRepository,
+        )
         from frontend.desktop.modules.products.presenter import ProductsPresenter
+
+        def write_factory():
+            return (CreateProductMasterUseCase(conn), UpdateProductMasterUseCase(conn),
+                    ProductMasterRepository(conn))
 
         return ProductsPresenter(
             read_service_factory=lambda: ProductCatalogReadService(conn),
+            write_service_factory=write_factory,
             session_context=session)
 
     def _add_pages(self, presenter):
