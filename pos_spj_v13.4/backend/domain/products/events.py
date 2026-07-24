@@ -54,6 +54,10 @@ class ProductEvents:
     PRODUCT_NOTIFICATION_CREATED = "PRODUCT_NOTIFICATION_CREATED"
     PRODUCT_WHATSAPP_ALERT_SENT = "PRODUCT_WHATSAPP_ALERT_SENT"
 
+    # ── integración con Calidad (PROD-17, §34) ────────────────────────────
+    PRODUCT_QUALITY_BLOCKED = "PRODUCT_QUALITY_BLOCKED"
+    PRODUCT_QUALITY_RELEASED = "PRODUCT_QUALITY_RELEASED"
+
 
 ALL_PRODUCT_EVENTS = frozenset(
     v for k, v in vars(ProductEvents).items()
