@@ -108,6 +108,12 @@ class ModuloProductosEnterprise(QWidget):
             UpdateAttributeOptionUseCase,
             UpdateProductAttributeUseCase,
         )
+        from backend.application.products.queries.product_variant_query_service import (
+            ProductVariantQueryService,
+        )
+        from backend.application.products.use_cases.product_variant_use_cases import (
+            GenerateProductVariantsUseCase,
+        )
         from frontend.desktop.modules.products.presenter import ProductsPresenter
 
         # P0-02: en producción la política SIEMPRE lleva un checker real (fail-closed);
@@ -166,6 +172,9 @@ class ModuloProductosEnterprise(QWidget):
             brands_write_factory=brands_write_factory,
             attributes_read_factory=lambda: ProductAttributeQueryService(conn),
             attributes_write_factory=attributes_write_factory,
+            variants_read_factory=lambda: ProductVariantQueryService(conn),
+            variants_write_factory=lambda: GenerateProductVariantsUseCase(
+                conn, authorization),
             permission_checker=checker,
             session_context=session)
 

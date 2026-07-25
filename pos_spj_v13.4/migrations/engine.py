@@ -154,6 +154,7 @@ MIGRATIONS = [
     _Migration("157",  "migrations.standalone.157_product_categories"),
     _Migration("158",  "migrations.standalone.158_product_brands"),
     _Migration("159",  "migrations.standalone.159_product_attributes"),
+    _Migration("160",  "migrations.standalone.160_product_variants"),
 ]
 
 def _ensure_tracking_table(conn):

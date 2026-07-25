@@ -40,12 +40,14 @@ class ProductMasterRepository:
         self._conn.execute(
             f"""INSERT INTO products (
                     id, code, name, name_normalized, short_name, description,
-                    product_type, lifecycle_status, category_id, brand_id, species_id,
+                    product_type, lifecycle_status, category_id, brand_id,
+                    parent_product_id, species_id,
                     base_unit_id, created_by, {', '.join(_CAP_FLAGS)})
                 VALUES (:id, :code, :name, :name_normalized, :short_name, :description,
-                    :product_type, :lifecycle_status, :category_id, :brand_id, :species_id,
+                    :product_type, :lifecycle_status, :category_id, :brand_id,
+                    :parent_product_id, :species_id,
                     :base_unit_id, :created_by, {', '.join(':' + f for f in _CAP_FLAGS)})""",
-            {"brand_id": None, **data, **flags})
+            {"brand_id": None, "parent_product_id": None, **data, **flags})
 
     def update_lifecycle(self, product_id: str, *, status: str,
                          activated_at: str | None = None,

@@ -27,7 +27,8 @@ class ProductsPresenter:
                  code_service_factory=None, categories_read_factory=None,
                  categories_write_factory=None, brands_read_factory=None,
                  brands_write_factory=None, attributes_read_factory=None,
-                 attributes_write_factory=None,
+                 attributes_write_factory=None, variants_read_factory=None,
+                 variants_write_factory=None,
                  permission_checker=None, session_context=None) -> None:
         self._read_factory = read_service_factory
         self._write_factory = write_service_factory
@@ -40,6 +41,8 @@ class ProductsPresenter:
         self._brands_write = brands_write_factory
         self._attributes_read = attributes_read_factory
         self._attributes_write = attributes_write_factory
+        self._variants_read = variants_read_factory
+        self._variants_write = variants_write_factory
         self._has_permission = permission_checker
         self._session = session_context
 
@@ -370,6 +373,54 @@ class ProductsPresenter:
             logger.exception("Guardado de opción falló")
             return False, f"Error: {exc}", None
         return res.success, res.message, res.entity_id
+
+    # ── variantes (P1-03) ──────────────────────────────────────────────────
+    @property
+    def can_generate_variants(self) -> bool:
+        from backend.application.products.permissions import ProductPermissions
+        if self._variants_write is None:
+            return False
+        if self._has_permission is None:
+            return True
+        return bool(self._has_permission(ProductPermissions.VARIANTS_GENERATE))
+
+    def variant_axes_catalog(self) -> list[dict]:
+        """Atributos LISTA con sus opciones, para elegir los ejes de variación."""
+        if self._attributes_read is None:
+            return []
+        try:
+            return self._attributes_read().attributes_with_options(active_only=True)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudieron cargar ejes de variante")
+            return []
+
+    def list_variants(self, parent_product_id: str) -> list[dict]:
+        if self._variants_read is None:
+            return []
+        try:
+            return self._variants_read().list_variants(parent_product_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudieron listar variantes")
+            return []
+
+    def generate_variants(self, *, parent_product_id: str,
+                          axes: dict) -> tuple[bool, str]:
+        if self._variants_write is None:
+            return False, "Sin permisos de generación de variantes"
+        from backend.application.products.commands.product_variant_commands import (
+            GenerateVariantsCommand,
+        )
+        from backend.shared.ids import new_uuid
+        uc = self._variants_write()
+        user_id = getattr(self._session, "user_id", None)
+        try:
+            res = uc.execute(GenerateVariantsCommand(
+                operation_id=new_uuid(), parent_product_id=parent_product_id,
+                axes=axes, user_id=user_id))
+        except Exception as exc:  # noqa: BLE001 — mostrado en la UI
+            logger.exception("Generación de variantes falló")
+            return False, f"Error: {exc}"
+        return res.success, res.message
 
     def list_units(self) -> list[dict]:
         """Unidades del catálogo para el selector del formulario (P0-03)."""

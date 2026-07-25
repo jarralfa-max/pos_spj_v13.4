@@ -31,6 +31,7 @@ PRODUCT_TABLES: tuple[str, ...] = (
     "product_brands",
     "product_attributes",
     "product_attribute_options",
+    "product_variant_assignments",
     "units_of_measure",
     "product_unit_conversions",
     "product_catch_weight_config",
@@ -126,6 +127,18 @@ _DDL = (
         active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         UNIQUE(attribute_id, code),
+        FOREIGN KEY (attribute_id) REFERENCES product_attributes(id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS product_variant_assignments (
+        id TEXT NOT NULL PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        attribute_id TEXT NOT NULL,
+        option_id TEXT,
+        value_text TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(product_id, attribute_id),
         FOREIGN KEY (attribute_id) REFERENCES product_attributes(id)
     )
     """,
@@ -606,6 +619,7 @@ _DDL = (
         internal_stage TEXT NOT NULL DEFAULT 'NONE',
         category_id TEXT,
         brand_id TEXT,
+        parent_product_id TEXT,
         species_id TEXT,
         base_unit_id TEXT NOT NULL,
         tax_profile_id TEXT,
@@ -715,6 +729,8 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_brands_active ON product_brands(active)",
     "CREATE INDEX IF NOT EXISTS idx_products_brand ON products(brand_id)",
     "CREATE INDEX IF NOT EXISTS idx_attr_options_attr ON product_attribute_options(attribute_id)",
+    "CREATE INDEX IF NOT EXISTS idx_products_parent ON products(parent_product_id)",
+    "CREATE INDEX IF NOT EXISTS idx_variant_assign_product ON product_variant_assignments(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_products_name_norm ON products(name_normalized)",
     "CREATE INDEX IF NOT EXISTS idx_regions_species ON anatomical_regions(species_id)",
     "CREATE INDEX IF NOT EXISTS idx_cuts_species ON cut_classifications(species_id)",

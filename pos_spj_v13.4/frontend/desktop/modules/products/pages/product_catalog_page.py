@@ -40,12 +40,17 @@ class ProductCatalogPage(QWidget):
         toolbar.addWidget(self.search, 1)
         self.btn_new = QPushButton("Nuevo")
         self.btn_edit = QPushButton("Editar")
+        self.btn_variants = QPushButton("Variantes")
         self.btn_new.clicked.connect(lambda: self._open_form(None))
         self.btn_edit.clicked.connect(self._edit_selected)
+        self.btn_variants.clicked.connect(self._open_variants)
         # PROD-19 paso 8: gating granular por permiso canónico PRODUCTS_CREATE/EDIT.
         self.btn_new.setEnabled(getattr(self._presenter, "can_create", False))
         self.btn_edit.setEnabled(getattr(self._presenter, "can_edit", False))
-        for b in (self.btn_new, self.btn_edit):
+        # P1-03: generación de variantes gateada por PRODUCTS_VARIANTS_GENERATE.
+        self.btn_variants.setEnabled(
+            getattr(self._presenter, "can_generate_variants", False))
+        for b in (self.btn_new, self.btn_edit, self.btn_variants):
             toolbar.addWidget(b)
         layout.addLayout(toolbar)
 
@@ -66,6 +71,19 @@ class ProductCatalogPage(QWidget):
         product_id = self.table.selected_row_id()
         if product_id:
             self._open_form(product_id)
+
+    def _open_variants(self) -> None:
+        product_id = self.table.selected_row_id()
+        if not product_id:
+            return
+        from frontend.desktop.modules.products.dialogs.variant_generator_dialog import (
+            VariantGeneratorDialog,
+        )
+        row = self._presenter.get_product(product_id) or {}
+        VariantGeneratorDialog(self._presenter, product_id=product_id,
+                               product_name=row.get("name") or "Producto",
+                               parent=self).exec_()
+        self.refresh(query=self.search.text() or None)
 
     def _open_form(self, product_id) -> None:
         from frontend.desktop.modules.products.dialogs.product_form_dialog import (
