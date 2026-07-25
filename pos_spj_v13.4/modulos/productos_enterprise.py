@@ -62,16 +62,41 @@ class ModuloProductosEnterprise(QWidget):
             ProductMasterRepository,
         )
         from backend.application.products.authorization.permission_bridge import (
+            SessionPermissionChecker,
             make_permission_checker,
+        )
+        from backend.application.products.authorization.policy import (
+            ProductsAuthorizationPolicy,
+        )
+        from backend.application.products.queries.product_activation_readiness_query_service import (  # noqa: E501
+            ProductActivationReadinessQueryService,
         )
         from backend.application.products.queries.unit_catalog_query_service import (
             UnitCatalogQueryService,
         )
+        from backend.application.products.use_cases.product_lifecycle_use_cases import (
+            ActivateProductUseCase,
+            SubmitProductUseCase,
+        )
         from frontend.desktop.modules.products.presenter import ProductsPresenter
 
+        # P0-02: en producción la política SIEMPRE lleva un checker real (fail-closed);
+        # sin sesión (tests de arranque) queda permisiva.
+        authorization = (ProductsAuthorizationPolicy(
+            SessionPermissionChecker(self._live_session))
+            if self._live_session is not None else ProductsAuthorizationPolicy())
+
         def write_factory():
-            return (CreateProductMasterUseCase(conn), UpdateProductMasterUseCase(conn),
+            return (CreateProductMasterUseCase(conn, authorization),
+                    UpdateProductMasterUseCase(conn, authorization),
                     ProductMasterRepository(conn))
+
+        def lifecycle_factory():
+            return {
+                "submit": SubmitProductUseCase(conn, authorization),
+                "activate": ActivateProductUseCase(conn, authorization),
+                "readiness": ProductActivationReadinessQueryService(conn),
+            }
 
         checker = (make_permission_checker(self._live_session)
                    if self._live_session is not None else None)
@@ -79,6 +104,7 @@ class ModuloProductosEnterprise(QWidget):
             read_service_factory=lambda: ProductCatalogReadService(conn),
             write_service_factory=write_factory,
             units_service_factory=lambda: UnitCatalogQueryService(conn),
+            lifecycle_service_factory=lifecycle_factory,
             permission_checker=checker,
             session_context=session)
 

@@ -92,7 +92,7 @@ class TestDetectors:
     def test_discontinued_still_active(self):
         p = Product(code="OLD", name="Viejo", product_type=ProductType.RESALE_PRODUCT,
                     base_unit_id="pza", category_id="c1")
-        p.activate(); p.discontinue()
+        p.submit(); p.activate(); p.discontinue()
         assert detect_discontinued_still_active(p, enabled_branch_count=2) \
             is ProductAlertType.DISCONTINUED_STILL_ACTIVE
         assert detect_discontinued_still_active(p, enabled_branch_count=0) is None

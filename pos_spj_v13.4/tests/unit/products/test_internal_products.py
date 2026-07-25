@@ -50,7 +50,7 @@ class TestVisibility:
 
     def test_internal_not_sellable_now_even_if_active(self):
         p = _product(internal_stage=InternalStage.WORK_IN_PROGRESS)
-        p.activate()
+        p.submit(); p.activate()
         assert not p.is_sellable_now()
 
 

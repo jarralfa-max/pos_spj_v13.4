@@ -10,9 +10,12 @@ from __future__ import annotations
 
 from backend.domain.products.enums import LifecycleStatus as S
 
-# origen → destinos permitidos
+# origen → destinos permitidos.
+# P0-01: DRAFT NO puede ir directo a ACTIVE; debe pasar por UNDER_REVIEW
+# (DRAFT → UNDER_REVIEW → ACTIVE). Un borrador sólo puede enviarse a revisión o
+# archivarse.
 _TRANSITIONS: dict[S, frozenset[S]] = {
-    S.DRAFT: frozenset({S.UNDER_REVIEW, S.ACTIVE, S.INACTIVE, S.ARCHIVED}),
+    S.DRAFT: frozenset({S.UNDER_REVIEW, S.ARCHIVED}),
     S.UNDER_REVIEW: frozenset({S.DRAFT, S.ACTIVE, S.INACTIVE, S.ARCHIVED}),
     S.ACTIVE: frozenset({S.BLOCKED, S.INACTIVE, S.DISCONTINUED}),
     S.BLOCKED: frozenset({S.ACTIVE, S.INACTIVE, S.DISCONTINUED}),

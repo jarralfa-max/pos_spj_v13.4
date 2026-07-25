@@ -23,13 +23,38 @@ logger = logging.getLogger("spj.products.presenter")
 
 class ProductsPresenter:
     def __init__(self, *, read_service_factory, write_service_factory=None,
-                 units_service_factory=None, permission_checker=None,
-                 session_context=None) -> None:
+                 units_service_factory=None, lifecycle_service_factory=None,
+                 permission_checker=None, session_context=None) -> None:
         self._read_factory = read_service_factory
         self._write_factory = write_service_factory
         self._units_factory = units_service_factory
+        self._lifecycle_factory = lifecycle_service_factory
         self._has_permission = permission_checker
         self._session = session_context
+
+    # ── ciclo de vida (P0-01/05) ──────────────────────────────────────────
+    def activation_readiness(self, product_id: str):
+        if self._lifecycle_factory is None:
+            return None
+        return self._lifecycle_factory()["readiness"].readiness(product_id)
+
+    def submit_product(self, product_id: str) -> tuple[bool, str]:
+        return self._run_lifecycle("submit", product_id)
+
+    def activate_product(self, product_id: str) -> tuple[bool, str]:
+        return self._run_lifecycle("activate", product_id)
+
+    def _run_lifecycle(self, action: str, product_id: str) -> tuple[bool, str]:
+        if self._lifecycle_factory is None:
+            return False, "Acción no disponible"
+        user_id = getattr(self._session, "user_id", None)
+        try:
+            result = self._lifecycle_factory()[action].execute(
+                product_id=product_id, user_id=user_id or "")
+        except Exception as exc:  # noqa: BLE001 — se muestra en la UI
+            logger.exception("Acción de ciclo de vida %s falló", action)
+            return False, f"Error: {exc}"
+        return result.success, result.message
 
     def list_units(self) -> list[dict]:
         """Unidades del catálogo para el selector del formulario (P0-03)."""

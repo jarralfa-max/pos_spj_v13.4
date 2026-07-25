@@ -64,3 +64,20 @@ def make_permission_checker(session) -> Callable[[str], bool]:
         return any(check(code) for code in legacy_codes_for(canonical_code))
 
     return has
+
+
+class SessionPermissionChecker:
+    """Adaptador `PermissionChecker` (para `ProductsAuthorizationPolicy`) sobre la
+    sesión viva. Concede si el rol tiene el permiso canónico inglés o cualquiera de
+    los códigos legacy mapeados (P0-02: el backend re-valida siempre)."""
+
+    def __init__(self, session) -> None:
+        self._session = session
+
+    def has_permission(self, user_id: str, permission_code: str) -> bool:
+        check = getattr(self._session, "tiene_permiso", None)
+        if not callable(check):
+            return False
+        if check(permission_code):
+            return True
+        return any(check(code) for code in legacy_codes_for(permission_code))

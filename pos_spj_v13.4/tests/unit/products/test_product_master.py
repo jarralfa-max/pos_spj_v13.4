@@ -117,6 +117,7 @@ class TestLifecycle:
 
     def test_cannot_activate_incomplete(self):
         p = _product(category_id=None)
+        p.submit()
         with pytest.raises(ProductIncompleteError):
             p.activate()
 
@@ -129,7 +130,7 @@ class TestLifecycle:
 
     def test_block_and_unblock(self):
         p = _product()
-        p.activate()
+        p.submit(); p.activate()
         p.block()
         assert p.lifecycle_status is LifecycleStatus.BLOCKED
         p.unblock()
@@ -137,7 +138,7 @@ class TestLifecycle:
 
     def test_discontinue_sets_timestamp_and_blocks_reactivation(self):
         p = _product()
-        p.activate()
+        p.submit(); p.activate()
         p.discontinue()
         assert p.lifecycle_status is LifecycleStatus.DISCONTINUED and p.discontinued_at
         with pytest.raises(InvalidProductStateError):
@@ -149,11 +150,13 @@ class TestLifecycle:
     def test_transition_table(self):
         assert can_transition(LifecycleStatus.ACTIVE, LifecycleStatus.BLOCKED)
         assert not can_transition(LifecycleStatus.DISCONTINUED, LifecycleStatus.ACTIVE)
+        # P0-01: DRAFT no puede activarse directo
+        assert not can_transition(LifecycleStatus.DRAFT, LifecycleStatus.ACTIVE)
 
     def test_sellable_now_requires_active_and_sellable(self):
         p = _product(sellable=True)
         assert not p.is_sellable_now()  # aún DRAFT
-        p.activate()
+        p.submit(); p.activate()
         assert p.is_sellable_now()
 
 

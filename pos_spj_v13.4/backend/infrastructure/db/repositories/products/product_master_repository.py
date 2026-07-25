@@ -47,6 +47,18 @@ class ProductMasterRepository:
                     :base_unit_id, :created_by, {', '.join(':' + f for f in _CAP_FLAGS)})""",
             {**data, **flags})
 
+    def update_lifecycle(self, product_id: str, *, status: str,
+                         activated_at: str | None = None,
+                         discontinued_at: str | None = None) -> None:
+        """Sólo cambia el estado de ciclo de vida (casos de uso de lifecycle)."""
+        self._conn.execute(
+            "UPDATE products SET lifecycle_status=:status, "
+            "activated_at=COALESCE(:activated_at, activated_at), "
+            "discontinued_at=COALESCE(:discontinued_at, discontinued_at), "
+            "updated_at=datetime('now') WHERE id=:id",
+            {"status": status, "activated_at": activated_at,
+             "discontinued_at": discontinued_at, "id": product_id})
+
     def update(self, product_id: str, data: dict[str, Any]) -> None:
         flags = {f: 1 if data.get(f) else 0 for f in _CAP_FLAGS}
         self._conn.execute(

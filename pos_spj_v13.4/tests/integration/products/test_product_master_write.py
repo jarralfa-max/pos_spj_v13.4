@@ -94,13 +94,31 @@ def test_update_changes_fields(conn):
     r = _create(conn)
     cmd = UpdateProductMasterCommand(
         operation_id="op9", product_id=r.product_id, code="A-1", name="Bistec Premium",
-        product_type="PRIMARY_CUT", base_unit_id=_UNIT_ID, lifecycle_status="ACTIVE",
+        product_type="PRIMARY_CUT", base_unit_id=_UNIT_ID, species_id="sp1",
         sellable=True, purchasable=False, inventory_managed=True)
     r2 = UpdateProductMasterUseCase(conn).execute(cmd)
     assert r2.success
     row = conn.execute("SELECT * FROM products WHERE id=?", (r.product_id,)).fetchone()
-    assert row["name"] == "Bistec Premium" and row["lifecycle_status"] == "ACTIVE"
-    assert row["product_type"] == "PRIMARY_CUT" and row["purchasable"] == 0
+    assert row["name"] == "Bistec Premium" and row["product_type"] == "PRIMARY_CUT"
+    # P0-01: el update NO cambia el estado (sigue DRAFT); eso es del ciclo de vida.
+    assert row["lifecycle_status"] == "DRAFT" and row["purchasable"] == 0
+
+
+def test_update_meat_without_species_fails(conn):
+    r = _create(conn)
+    cmd = UpdateProductMasterCommand(
+        operation_id="op9", product_id=r.product_id, code="A-1", name="Corte",
+        product_type="PRIMARY_CUT", base_unit_id=_UNIT_ID)  # sin especie
+    r2 = UpdateProductMasterUseCase(conn).execute(cmd)
+    assert not r2.success and "especie" in r2.message.lower()
+
+
+def test_create_starts_in_draft(conn):
+    # P0-01: el alta nace DRAFT aunque el comando pida ACTIVE.
+    r = _create(conn, lifecycle_status="ACTIVE")
+    row = conn.execute("SELECT lifecycle_status FROM products WHERE id=?",
+                       (r.product_id,)).fetchone()
+    assert row[0] == "DRAFT"
 
 
 def test_update_unknown_product(conn):
