@@ -98,6 +98,16 @@ class ModuloProductosEnterprise(QWidget):
             SetProductBrandActiveUseCase,
             UpdateProductBrandUseCase,
         )
+        from backend.application.products.queries.product_attribute_query_service import (
+            ProductAttributeQueryService,
+        )
+        from backend.application.products.use_cases.product_attribute_use_cases import (
+            AddAttributeOptionUseCase,
+            CreateProductAttributeUseCase,
+            SetProductAttributeActiveUseCase,
+            UpdateAttributeOptionUseCase,
+            UpdateProductAttributeUseCase,
+        )
         from frontend.desktop.modules.products.presenter import ProductsPresenter
 
         # P0-02: en producción la política SIEMPRE lleva un checker real (fail-closed);
@@ -133,6 +143,15 @@ class ModuloProductosEnterprise(QWidget):
                 "set_active": SetProductBrandActiveUseCase(conn, authorization),
             }
 
+        def attributes_write_factory():
+            return {
+                "create": CreateProductAttributeUseCase(conn, authorization),
+                "update": UpdateProductAttributeUseCase(conn, authorization),
+                "set_active": SetProductAttributeActiveUseCase(conn, authorization),
+                "add_option": AddAttributeOptionUseCase(conn, authorization),
+                "update_option": UpdateAttributeOptionUseCase(conn, authorization),
+            }
+
         checker = (make_permission_checker(self._live_session)
                    if self._live_session is not None else None)
         return ProductsPresenter(
@@ -145,6 +164,8 @@ class ModuloProductosEnterprise(QWidget):
             categories_write_factory=categories_write_factory,
             brands_read_factory=lambda: ProductBrandQueryService(conn),
             brands_write_factory=brands_write_factory,
+            attributes_read_factory=lambda: ProductAttributeQueryService(conn),
+            attributes_write_factory=attributes_write_factory,
             permission_checker=checker,
             session_context=session)
 
@@ -161,11 +182,15 @@ class ModuloProductosEnterprise(QWidget):
         from frontend.desktop.modules.products.pages.brands_page import (
             ProductBrandsPage,
         )
+        from frontend.desktop.modules.products.pages.attributes_page import (
+            ProductAttributesPage,
+        )
         specs = (
             (ProductsOverviewPage, "Resumen"),
             (ProductCatalogPage, "Catálogo"),
             (ProductCategoriesPage, "Categorías"),
             (ProductBrandsPage, "Marcas"),
+            (ProductAttributesPage, "Atributos"),
         )
         for cls, title in specs:
             try:

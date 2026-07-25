@@ -26,7 +26,8 @@ class ProductsPresenter:
                  units_service_factory=None, lifecycle_service_factory=None,
                  code_service_factory=None, categories_read_factory=None,
                  categories_write_factory=None, brands_read_factory=None,
-                 brands_write_factory=None,
+                 brands_write_factory=None, attributes_read_factory=None,
+                 attributes_write_factory=None,
                  permission_checker=None, session_context=None) -> None:
         self._read_factory = read_service_factory
         self._write_factory = write_service_factory
@@ -37,6 +38,8 @@ class ProductsPresenter:
         self._categories_write = categories_write_factory
         self._brands_read = brands_read_factory
         self._brands_write = brands_write_factory
+        self._attributes_read = attributes_read_factory
+        self._attributes_write = attributes_write_factory
         self._has_permission = permission_checker
         self._session = session_context
 
@@ -259,6 +262,114 @@ class ProductsPresenter:
             logger.exception("Activación de marca falló")
             return False, f"Error: {exc}"
         return res.success, res.message
+
+    # ── atributos (P1-03) ──────────────────────────────────────────────────
+    @property
+    def can_manage_attributes(self) -> bool:
+        from backend.application.products.permissions import ProductPermissions
+        if self._attributes_write is None:
+            return False
+        if self._has_permission is None:
+            return True
+        return bool(self._has_permission(ProductPermissions.ATTRIBUTES_MANAGE))
+
+    def attribute_catalog(self) -> list[dict]:
+        if self._attributes_read is None:
+            return []
+        try:
+            return self._attributes_read().list_attributes()
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudo cargar el catálogo de atributos")
+            return []
+
+    def get_attribute(self, attribute_id: str) -> dict | None:
+        if self._attributes_read is None:
+            return None
+        try:
+            return self._attributes_read().get(attribute_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudo obtener el atributo")
+            return None
+
+    def list_attribute_options(self, attribute_id: str) -> list[dict]:
+        if self._attributes_read is None:
+            return []
+        try:
+            return self._attributes_read().list_options(attribute_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudieron listar opciones")
+            return []
+
+    def save_attribute(self, *, attribute_id: str | None, code: str, name: str,
+                       data_type: str = "LIST") -> tuple[bool, str, str | None]:
+        if self._attributes_write is None:
+            return False, "Sin permisos de gestión de atributos", None
+        from backend.application.products.commands.product_attribute_commands import (
+            CreateAttributeCommand,
+            UpdateAttributeCommand,
+        )
+        from backend.shared.ids import new_uuid
+        ucs = self._attributes_write()
+        user_id = getattr(self._session, "user_id", None)
+        try:
+            if attribute_id:
+                res = ucs["update"].execute(UpdateAttributeCommand(
+                    operation_id=new_uuid(), attribute_id=attribute_id, code=code,
+                    name=name, user_id=user_id))
+            else:
+                res = ucs["create"].execute(CreateAttributeCommand(
+                    operation_id=new_uuid(), code=code, name=name,
+                    data_type=data_type, user_id=user_id))
+        except Exception as exc:  # noqa: BLE001 — mostrado en la UI
+            logger.exception("Guardado de atributo falló")
+            return False, f"Error: {exc}", None
+        return res.success, res.message, res.entity_id
+
+    def set_attribute_active(self, attribute_id: str,
+                             active: bool) -> tuple[bool, str]:
+        if self._attributes_write is None:
+            return False, "Sin permisos de gestión de atributos"
+        from backend.application.products.commands.product_attribute_commands import (
+            SetAttributeActiveCommand,
+        )
+        from backend.shared.ids import new_uuid
+        ucs = self._attributes_write()
+        user_id = getattr(self._session, "user_id", None)
+        try:
+            res = ucs["set_active"].execute(SetAttributeActiveCommand(
+                operation_id=new_uuid(), attribute_id=attribute_id, active=active,
+                user_id=user_id))
+        except Exception as exc:  # noqa: BLE001 — mostrado en la UI
+            logger.exception("Activación de atributo falló")
+            return False, f"Error: {exc}"
+        return res.success, res.message
+
+    def save_attribute_option(self, *, option_id: str | None, attribute_id: str,
+                              code: str, label: str, sort_order: int = 0,
+                              active: bool = True) -> tuple[bool, str, str | None]:
+        if self._attributes_write is None:
+            return False, "Sin permisos de gestión de atributos", None
+        from backend.application.products.commands.product_attribute_commands import (
+            AddAttributeOptionCommand,
+            UpdateAttributeOptionCommand,
+        )
+        from backend.shared.ids import new_uuid
+        ucs = self._attributes_write()
+        user_id = getattr(self._session, "user_id", None)
+        try:
+            if option_id:
+                res = ucs["update_option"].execute(UpdateAttributeOptionCommand(
+                    operation_id=new_uuid(), option_id=option_id, code=code,
+                    label=label, sort_order=sort_order, active=active,
+                    user_id=user_id))
+            else:
+                res = ucs["add_option"].execute(AddAttributeOptionCommand(
+                    operation_id=new_uuid(), attribute_id=attribute_id, code=code,
+                    label=label, sort_order=sort_order, user_id=user_id))
+        except Exception as exc:  # noqa: BLE001 — mostrado en la UI
+            logger.exception("Guardado de opción falló")
+            return False, f"Error: {exc}", None
+        return res.success, res.message, res.entity_id
 
     def list_units(self) -> list[dict]:
         """Unidades del catálogo para el selector del formulario (P0-03)."""

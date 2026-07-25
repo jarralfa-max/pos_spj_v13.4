@@ -235,3 +235,20 @@ class CategoryHasChildrenError(ProductsDomainError):
 # ── P1-02 brands ─────────────────────────────────────────────────────────────
 class InvalidBrandError(ProductsDomainError):
     """A product brand is malformed (missing code/name)."""
+
+
+# ── P1-03 attributes / variants ──────────────────────────────────────────────
+class InvalidAttributeError(ProductsDomainError):
+    """A product attribute/option is malformed (missing code/name, bad type)."""
+
+
+class AttributeOptionNotAllowedError(ProductsDomainError):
+    """Options may only be attached to LIST-typed attributes."""
+
+
+class InvalidVariantError(ProductsDomainError):
+    """A variant generation request is malformed (no axes/options, bad parent)."""
+
+
+class VariantAlreadyExistsError(ProductsDomainError):
+    """A variant with the same attribute-value combination already exists."""

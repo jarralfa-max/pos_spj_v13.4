@@ -42,6 +42,11 @@ class ProductPermissions:
     BRANDS_VIEW = "PRODUCTS_BRANDS_VIEW"
     BRANDS_MANAGE = "PRODUCTS_BRANDS_MANAGE"
 
+    # ── atributos / variantes (P1-03) ──────────────────────────────────────
+    ATTRIBUTES_VIEW = "PRODUCTS_ATTRIBUTES_VIEW"
+    ATTRIBUTES_MANAGE = "PRODUCTS_ATTRIBUTES_MANAGE"
+    VARIANTS_GENERATE = "PRODUCTS_VARIANTS_GENERATE"
+
     # ── clasificación cárnica (§38) ───────────────────────────────────────
     SPECIES_VIEW = "PRODUCTS_SPECIES_VIEW"
     SPECIES_MANAGE = "PRODUCTS_SPECIES_MANAGE"

@@ -153,6 +153,7 @@ MIGRATIONS = [
     _Migration("156",  "migrations.standalone.156_products_code_generation"),
     _Migration("157",  "migrations.standalone.157_product_categories"),
     _Migration("158",  "migrations.standalone.158_product_brands"),
+    _Migration("159",  "migrations.standalone.159_product_attributes"),
 ]
 
 def _ensure_tracking_table(conn):

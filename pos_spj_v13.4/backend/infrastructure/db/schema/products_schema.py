@@ -29,6 +29,8 @@ PRODUCT_TABLES: tuple[str, ...] = (
     "cut_classifications",
     "product_categories",
     "product_brands",
+    "product_attributes",
+    "product_attribute_options",
     "units_of_measure",
     "product_unit_conversions",
     "product_catch_weight_config",
@@ -97,6 +99,34 @@ _DDL = (
         created_by TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT
+    )
+    """,
+    # ── atributos configurables (P1-03) ────────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS product_attributes (
+        id TEXT NOT NULL PRIMARY KEY,
+        code TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        name_normalized TEXT NOT NULL DEFAULT '',
+        data_type TEXT NOT NULL DEFAULT 'LIST'
+            CHECK(data_type IN ('LIST','TEXT','NUMBER','BOOLEAN')),
+        active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+        created_by TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS product_attribute_options (
+        id TEXT NOT NULL PRIMARY KEY,
+        attribute_id TEXT NOT NULL,
+        code TEXT NOT NULL,
+        label TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(attribute_id, code),
+        FOREIGN KEY (attribute_id) REFERENCES product_attributes(id)
     )
     """,
     # ── clasificación cárnica (PROD-3) ────────────────────────────────────
@@ -684,6 +714,7 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_categories_path ON product_categories(path)",
     "CREATE INDEX IF NOT EXISTS idx_brands_active ON product_brands(active)",
     "CREATE INDEX IF NOT EXISTS idx_products_brand ON products(brand_id)",
+    "CREATE INDEX IF NOT EXISTS idx_attr_options_attr ON product_attribute_options(attribute_id)",
     "CREATE INDEX IF NOT EXISTS idx_products_name_norm ON products(name_normalized)",
     "CREATE INDEX IF NOT EXISTS idx_regions_species ON anatomical_regions(species_id)",
     "CREATE INDEX IF NOT EXISTS idx_cuts_species ON cut_classifications(species_id)",

@@ -46,6 +46,10 @@ CANONICAL_TO_LEGACY: dict[str, tuple[str, ...]] = {
     # P1-02: ver marcas con la vista; gestionarlas exige edición.
     ProductPermissions.BRANDS_VIEW: ("PRODUCTOS.ver",),
     ProductPermissions.BRANDS_MANAGE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
+    # P1-03: ver atributos con la vista; gestionarlos/generar variantes exige edición.
+    ProductPermissions.ATTRIBUTES_VIEW: ("PRODUCTOS.ver",),
+    ProductPermissions.ATTRIBUTES_MANAGE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
+    ProductPermissions.VARIANTS_GENERATE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
 }
 
 #: Cuando un permiso canónico no está mapeado arriba, se concede con la vista.
