@@ -23,11 +23,23 @@ logger = logging.getLogger("spj.products.presenter")
 
 class ProductsPresenter:
     def __init__(self, *, read_service_factory, write_service_factory=None,
-                 permission_checker=None, session_context=None) -> None:
+                 units_service_factory=None, permission_checker=None,
+                 session_context=None) -> None:
         self._read_factory = read_service_factory
         self._write_factory = write_service_factory
+        self._units_factory = units_service_factory
         self._has_permission = permission_checker
         self._session = session_context
+
+    def list_units(self) -> list[dict]:
+        """Unidades del catálogo para el selector del formulario (P0-03)."""
+        if self._units_factory is None:
+            return []
+        try:
+            return self._units_factory().list_units()
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudieron listar unidades")
+            return []
 
     # ── alta / edición del maestro (PROD-19 7b) ───────────────────────────
     @property

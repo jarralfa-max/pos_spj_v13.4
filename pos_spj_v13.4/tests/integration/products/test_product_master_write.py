@@ -19,11 +19,17 @@ from backend.infrastructure.db.repositories.products.product_master_repository i
 from backend.infrastructure.db.schema.products_schema import create_products_schema
 
 
+_UNIT_ID = "unit-kg-0001"
+
+
 @pytest.fixture
 def conn():
     c = sqlite3.connect(":memory:")
     c.row_factory = sqlite3.Row
     create_products_schema(c)
+    # P0-03: unidad base debe ser un id de catálogo real, no el texto "KG".
+    c.execute("INSERT INTO units_of_measure (id, code, name, dimension, active) "
+              "VALUES (?, 'KG', 'Kilogramo', 'WEIGHT', 1)", (_UNIT_ID,))
     c.commit()
     yield c
     c.close()
@@ -31,7 +37,7 @@ def conn():
 
 def _create(conn, **kw):
     base = dict(operation_id="op1", code="A-1", name="Bistec de Res",
-                product_type="RAW_MATERIAL", base_unit_id="KG", user_id="u1")
+                product_type="RAW_MATERIAL", base_unit_id=_UNIT_ID, user_id="u1")
     base.update(kw)
     return CreateProductMasterUseCase(conn).execute(CreateProductMasterCommand(**base))
 
@@ -42,8 +48,14 @@ def test_create_writes_canonical_products(conn):
     row = conn.execute("SELECT * FROM products WHERE id=?", (r.product_id,)).fetchone()
     assert row["code"] == "A-1" and row["name"] == "Bistec de Res"
     assert row["name_normalized"] == "bistec de res"
-    assert row["product_type"] == "RAW_MATERIAL" and row["base_unit_id"] == "KG"
+    assert row["product_type"] == "RAW_MATERIAL" and row["base_unit_id"] == _UNIT_ID
     assert row["sellable"] == 1 and row["inventory_managed"] == 1
+
+
+def test_create_rejects_text_unit_code_as_id(conn):
+    # P0-03: guardar "KG" (código) como base_unit_id debe fallar; requiere UUID real.
+    r = _create(conn, code="Z-9", name="Sin unidad", base_unit_id="KG")
+    assert not r.success and "unidad" in r.message.lower()
 
 
 def test_create_is_uuidv7_id(conn):
@@ -82,7 +94,7 @@ def test_update_changes_fields(conn):
     r = _create(conn)
     cmd = UpdateProductMasterCommand(
         operation_id="op9", product_id=r.product_id, code="A-1", name="Bistec Premium",
-        product_type="PRIMARY_CUT", base_unit_id="KG", lifecycle_status="ACTIVE",
+        product_type="PRIMARY_CUT", base_unit_id=_UNIT_ID, lifecycle_status="ACTIVE",
         sellable=True, purchasable=False, inventory_managed=True)
     r2 = UpdateProductMasterUseCase(conn).execute(cmd)
     assert r2.success
@@ -94,7 +106,7 @@ def test_update_changes_fields(conn):
 def test_update_unknown_product(conn):
     cmd = UpdateProductMasterCommand(
         operation_id="op9", product_id="nope", code="X-1", name="X",
-        product_type="RAW_MATERIAL", base_unit_id="KG")
+        product_type="RAW_MATERIAL", base_unit_id=_UNIT_ID)
     r = UpdateProductMasterUseCase(conn).execute(cmd)
     assert not r.success and "no existe" in r.message
 
@@ -104,7 +116,7 @@ def test_update_rejects_code_collision(conn):
     b = _create(conn, operation_id="op2", code="B-1", name="Pollo")
     cmd = UpdateProductMasterCommand(
         operation_id="op9", product_id=b.product_id, code="A-1", name="Pollo",
-        product_type="RAW_MATERIAL", base_unit_id="KG")
+        product_type="RAW_MATERIAL", base_unit_id=_UNIT_ID)
     r = UpdateProductMasterUseCase(conn).execute(cmd)
     assert not r.success and "ya existe" in r.message
 

@@ -59,8 +59,10 @@ class ProductFormDialog(QDialog):
         self.code = QLineEdit()
         self.name = QLineEdit()
         self.short_name = QLineEdit()
-        self.base_unit = QLineEdit()
-        self.base_unit.setPlaceholderText("KG, PZA, LT…")
+        # P0-03: unidad base por catálogo (guarda units_of_measure.id, no texto).
+        self.base_unit = QComboBox()
+        for unit in self._presenter.list_units():
+            self.base_unit.addItem(f"{unit['code']} — {unit['name']}", unit["id"])
         self.product_type = QComboBox()
         for code, label in sorted(PRODUCT_TYPE_ES.items(), key=lambda kv: kv[1]):
             self.product_type.addItem(label, code)
@@ -107,7 +109,7 @@ class ProductFormDialog(QDialog):
         self.code.setText(str(row.get("code") or ""))
         self.name.setText(str(row.get("name") or ""))
         self.short_name.setText(str(row.get("short_name") or ""))
-        self.base_unit.setText(str(row.get("base_unit_id") or ""))
+        self._select(self.base_unit, row.get("base_unit_id"))
         self._select(self.product_type, row.get("product_type"))
         self._select(self.lifecycle, row.get("lifecycle_status"))
         for key, cb in self._flag_boxes.items():
@@ -126,7 +128,7 @@ class ProductFormDialog(QDialog):
             "name": self.name.text().strip(),
             "short_name": self.short_name.text().strip() or None,
             "product_type": self.product_type.currentData(),
-            "base_unit_id": self.base_unit.text().strip().upper(),
+            "base_unit_id": self.base_unit.currentData(),
             "lifecycle_status": self.lifecycle.currentData(),
         }
         fields.update({key: cb.isChecked() for key, cb in self._flag_boxes.items()})

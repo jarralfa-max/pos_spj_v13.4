@@ -25,12 +25,21 @@ class _Session:
     user_id = "u1"
 
 
+_UNIT_ID = "unit-kg-0001"
+
+
 @pytest.fixture
 def presenter():
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     create_products_schema(conn)
+    conn.execute("INSERT INTO units_of_measure (id, code, name, dimension, active) "
+                 "VALUES (?, 'KG', 'Kilogramo', 'WEIGHT', 1)", (_UNIT_ID,))
     conn.commit()
+
+    from backend.application.products.queries.unit_catalog_query_service import (
+        UnitCatalogQueryService,
+    )
 
     def write_factory():
         return (CreateProductMasterUseCase(conn), UpdateProductMasterUseCase(conn),
@@ -38,14 +47,16 @@ def presenter():
 
     p = ProductsPresenter(
         read_service_factory=lambda: ProductCatalogReadService(conn),
-        write_service_factory=write_factory, session_context=_Session())
+        write_service_factory=write_factory,
+        units_service_factory=lambda: UnitCatalogQueryService(conn),
+        session_context=_Session())
     p._conn = conn
     yield p
     conn.close()
 
 
 _FIELDS = dict(code="A-1", name="Bistec", short_name=None, product_type="RAW_MATERIAL",
-               base_unit_id="KG", lifecycle_status="ACTIVE", sellable=True,
+               base_unit_id=_UNIT_ID, lifecycle_status="ACTIVE", sellable=True,
                purchasable=True, inventory_managed=True, producible=False,
                internal_only=False, recipe_allowed=False, bundle_allowed=False,
                lot_controlled=False, expiration_controlled=False,
@@ -92,6 +103,9 @@ def test_dialog_constructs_and_reads_fields(presenter):
     dlg = ProductFormDialog(presenter, product_id=None)
     dlg.code.setText("Z-9")
     dlg.name.setText("Producto Z")
-    dlg.base_unit.setText("pza")
+    # P0-03: la unidad es un combo de catálogo; guarda el UUID, no el texto.
+    idx = dlg.base_unit.findData(_UNIT_ID)
+    assert idx >= 0
+    dlg.base_unit.setCurrentIndex(idx)
     f = dlg._fields()
-    assert f["code"] == "Z-9" and f["base_unit_id"] == "PZA" and f["name"] == "Producto Z"
+    assert f["code"] == "Z-9" and f["base_unit_id"] == _UNIT_ID and f["name"] == "Producto Z"

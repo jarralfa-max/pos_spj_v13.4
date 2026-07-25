@@ -64,6 +64,9 @@ class ModuloProductosEnterprise(QWidget):
         from backend.application.products.authorization.permission_bridge import (
             make_permission_checker,
         )
+        from backend.application.products.queries.unit_catalog_query_service import (
+            UnitCatalogQueryService,
+        )
         from frontend.desktop.modules.products.presenter import ProductsPresenter
 
         def write_factory():
@@ -75,6 +78,7 @@ class ModuloProductosEnterprise(QWidget):
         return ProductsPresenter(
             read_service_factory=lambda: ProductCatalogReadService(conn),
             write_service_factory=write_factory,
+            units_service_factory=lambda: UnitCatalogQueryService(conn),
             permission_checker=checker,
             session_context=session)
 

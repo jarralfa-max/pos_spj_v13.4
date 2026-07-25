@@ -16,6 +16,9 @@ from backend.application.products.commands.product_master_commands import (
     CreateProductMasterCommand,
     UpdateProductMasterCommand,
 )
+from backend.application.products.queries.unit_catalog_query_service import (
+    UnitCatalogQueryService,
+)
 from backend.domain.products.events import ProductEvents
 from backend.infrastructure.db.repositories.products.product_master_repository import (
     ProductMasterRepository,
@@ -57,6 +60,9 @@ class CreateProductMasterUseCase:
 
     def execute(self, command: CreateProductMasterCommand) -> ProductMasterResult:
         command.validate()
+        if not UnitCatalogQueryService(self._conn).unit_exists(command.base_unit_id):
+            return ProductMasterResult(
+                False, None, "La unidad base debe ser una unidad válida del catálogo")
         if self._repo.code_exists(command.code):
             return ProductMasterResult(False, None, f"El código '{command.code}' ya existe")
         product_id = new_uuid()
@@ -92,6 +98,9 @@ class UpdateProductMasterUseCase:
         command.validate()
         if self._repo.get(command.product_id) is None:
             return ProductMasterResult(False, None, "El producto no existe")
+        if not UnitCatalogQueryService(self._conn).unit_exists(command.base_unit_id):
+            return ProductMasterResult(
+                False, None, "La unidad base debe ser una unidad válida del catálogo")
         if self._repo.code_exists(command.code, exclude_id=command.product_id):
             return ProductMasterResult(False, None, f"El código '{command.code}' ya existe")
         data = {"name_normalized": _normalized(command.name),
