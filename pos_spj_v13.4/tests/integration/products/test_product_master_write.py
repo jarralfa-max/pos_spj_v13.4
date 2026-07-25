@@ -63,6 +63,26 @@ def test_create_is_uuidv7_id(conn):
     assert "-" in r.product_id and len(r.product_id) == 36  # UUID canónico
 
 
+def test_create_persists_category_and_brand(conn):
+    # P1-01/P1-02: el maestro guarda las FK de clasificación (no texto).
+    r = _create(conn, category_id="cat-1", brand_id="brand-1")
+    assert r.success
+    row = conn.execute("SELECT category_id, brand_id FROM products WHERE id=?",
+                       (r.product_id,)).fetchone()
+    assert row["category_id"] == "cat-1" and row["brand_id"] == "brand-1"
+
+
+def test_update_changes_brand(conn):
+    r = _create(conn, brand_id="brand-1")
+    cmd = UpdateProductMasterCommand(
+        operation_id="opb", product_id=r.product_id, code="A-1", name="Bistec de Res",
+        product_type="RAW_MATERIAL", base_unit_id=_UNIT_ID, brand_id="brand-2")
+    assert UpdateProductMasterUseCase(conn).execute(cmd).success
+    row = conn.execute("SELECT brand_id FROM products WHERE id=?",
+                       (r.product_id,)).fetchone()
+    assert row["brand_id"] == "brand-2"
+
+
 def test_create_rejects_duplicate_code(conn):
     _create(conn)
     r2 = _create(conn, operation_id="op2", name="Otro")

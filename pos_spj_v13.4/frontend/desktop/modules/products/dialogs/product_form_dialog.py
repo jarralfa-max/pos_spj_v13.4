@@ -80,6 +80,11 @@ class ProductFormDialog(QDialog):
         self.category.addItem("(Sin categoría)", None)
         for cat in self._presenter.list_categories():
             self.category.addItem(cat["label"], cat["id"])
+        # P1-02: marca por catálogo (guarda product_brands.id).
+        self.brand = QComboBox()
+        self.brand.addItem("(Sin marca)", None)
+        for br in self._presenter.list_brands():
+            self.brand.addItem(br["label"], br["id"])
         self.lifecycle = QComboBox()
         for code in _LIFECYCLE_CHOICES:
             self.lifecycle.addItem(LIFECYCLE_ES.get(code, code), code)
@@ -104,6 +109,7 @@ class ProductFormDialog(QDialog):
         form.addRow("Nombre corto", self.short_name)
         form.addRow("Tipo *", self.product_type)
         form.addRow("Categoría", self.category)
+        form.addRow("Marca", self.brand)
         form.addRow("Unidad base *", self.base_unit)
         form.addRow("Estado", self.lifecycle)
         layout.addLayout(form)
@@ -146,6 +152,7 @@ class ProductFormDialog(QDialog):
         self._select(self.base_unit, row.get("base_unit_id"))
         self._select(self.product_type, row.get("product_type"))
         self._select(self.category, row.get("category_id"))
+        self._select(self.brand, row.get("brand_id"))
         self._select(self.lifecycle, row.get("lifecycle_status"))
         for key, cb in self._flag_boxes.items():
             cb.setChecked(bool(row.get(key)))
@@ -198,6 +205,7 @@ class ProductFormDialog(QDialog):
             "short_name": self.short_name.text().strip() or None,
             "product_type": self.product_type.currentData(),
             "category_id": self.category.currentData(),
+            "brand_id": self.brand.currentData(),
             "base_unit_id": self.base_unit.currentData(),
             "lifecycle_status": self.lifecycle.currentData(),
         }

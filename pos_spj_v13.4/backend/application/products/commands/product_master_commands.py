@@ -25,6 +25,7 @@ class CreateProductMasterCommand:
     short_name: str | None = None
     description: str | None = None
     category_id: str | None = None
+    brand_id: str | None = None
     species_id: str | None = None
     lifecycle_status: str = "DRAFT"
     sellable: bool = True

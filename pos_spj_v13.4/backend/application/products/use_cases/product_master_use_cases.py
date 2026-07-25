@@ -59,7 +59,8 @@ def _entity_row(product: Product) -> dict:
         "short_name": product.short_name, "description": product.description,
         "product_type": product.product_type.value,
         "lifecycle_status": product.lifecycle_status.value,
-        "category_id": product.category_id, "species_id": product.species_id,
+        "category_id": product.category_id, "brand_id": product.brand_id,
+        "species_id": product.species_id,
         "base_unit_id": product.base_unit_id, "created_by": product.created_by,
     }
     row.update({f: getattr(product, f) for f in _FLAG_FIELDS})
@@ -80,8 +81,8 @@ def _build_entity(command, *, product_id: str, lifecycle: LifecycleStatus,
         id=product_id, code=code, name=command.name, product_type=ptype,
         base_unit_id=command.base_unit_id, lifecycle_status=lifecycle,
         short_name=command.short_name, description=command.description,
-        category_id=command.category_id, species_id=command.species_id,
-        created_by=command.user_id, **flags)
+        category_id=command.category_id, brand_id=command.brand_id,
+        species_id=command.species_id, created_by=command.user_id, **flags)
 
 
 class CreateProductMasterUseCase:

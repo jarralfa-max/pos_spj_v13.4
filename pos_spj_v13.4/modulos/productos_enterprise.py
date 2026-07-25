@@ -90,6 +90,14 @@ class ModuloProductosEnterprise(QWidget):
             SetProductCategoryActiveUseCase,
             UpdateProductCategoryUseCase,
         )
+        from backend.application.products.queries.product_brand_query_service import (
+            ProductBrandQueryService,
+        )
+        from backend.application.products.use_cases.product_brand_use_cases import (
+            CreateProductBrandUseCase,
+            SetProductBrandActiveUseCase,
+            UpdateProductBrandUseCase,
+        )
         from frontend.desktop.modules.products.presenter import ProductsPresenter
 
         # P0-02: en producción la política SIEMPRE lleva un checker real (fail-closed);
@@ -118,6 +126,13 @@ class ModuloProductosEnterprise(QWidget):
                 "set_active": SetProductCategoryActiveUseCase(conn, authorization),
             }
 
+        def brands_write_factory():
+            return {
+                "create": CreateProductBrandUseCase(conn, authorization),
+                "update": UpdateProductBrandUseCase(conn, authorization),
+                "set_active": SetProductBrandActiveUseCase(conn, authorization),
+            }
+
         checker = (make_permission_checker(self._live_session)
                    if self._live_session is not None else None)
         return ProductsPresenter(
@@ -128,6 +143,8 @@ class ModuloProductosEnterprise(QWidget):
             code_service_factory=lambda: PreviewProductCodeQueryService(conn),
             categories_read_factory=lambda: ProductCategoryQueryService(conn),
             categories_write_factory=categories_write_factory,
+            brands_read_factory=lambda: ProductBrandQueryService(conn),
+            brands_write_factory=brands_write_factory,
             permission_checker=checker,
             session_context=session)
 
@@ -141,10 +158,14 @@ class ModuloProductosEnterprise(QWidget):
         from frontend.desktop.modules.products.pages.categories_page import (
             ProductCategoriesPage,
         )
+        from frontend.desktop.modules.products.pages.brands_page import (
+            ProductBrandsPage,
+        )
         specs = (
             (ProductsOverviewPage, "Resumen"),
             (ProductCatalogPage, "Catálogo"),
             (ProductCategoriesPage, "Categorías"),
+            (ProductBrandsPage, "Marcas"),
         )
         for cls, title in specs:
             try:

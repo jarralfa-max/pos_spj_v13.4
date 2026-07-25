@@ -28,6 +28,7 @@ PRODUCT_TABLES: tuple[str, ...] = (
     "anatomical_regions",
     "cut_classifications",
     "product_categories",
+    "product_brands",
     "units_of_measure",
     "product_unit_conversions",
     "product_catch_weight_config",
@@ -82,6 +83,20 @@ _DDL = (
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT,
         FOREIGN KEY (parent_id) REFERENCES product_categories(id)
+    )
+    """,
+    # ── marcas (P1-02) ─────────────────────────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS product_brands (
+        id TEXT NOT NULL PRIMARY KEY,
+        code TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        name_normalized TEXT NOT NULL DEFAULT '',
+        description TEXT,
+        active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+        created_by TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT
     )
     """,
     # ── clasificación cárnica (PROD-3) ────────────────────────────────────
@@ -667,6 +682,8 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_products_species ON products(species_id)",
     "CREATE INDEX IF NOT EXISTS idx_categories_parent ON product_categories(parent_id)",
     "CREATE INDEX IF NOT EXISTS idx_categories_path ON product_categories(path)",
+    "CREATE INDEX IF NOT EXISTS idx_brands_active ON product_brands(active)",
+    "CREATE INDEX IF NOT EXISTS idx_products_brand ON products(brand_id)",
     "CREATE INDEX IF NOT EXISTS idx_products_name_norm ON products(name_normalized)",
     "CREATE INDEX IF NOT EXISTS idx_regions_species ON anatomical_regions(species_id)",
     "CREATE INDEX IF NOT EXISTS idx_cuts_species ON cut_classifications(species_id)",

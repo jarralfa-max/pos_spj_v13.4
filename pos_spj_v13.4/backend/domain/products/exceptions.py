@@ -230,3 +230,8 @@ class CategoryDepthExceededError(ProductsDomainError):
 
 class CategoryHasChildrenError(ProductsDomainError):
     """A category with active children cannot be deactivated/removed."""
+
+
+# ── P1-02 brands ─────────────────────────────────────────────────────────────
+class InvalidBrandError(ProductsDomainError):
+    """A product brand is malformed (missing code/name)."""

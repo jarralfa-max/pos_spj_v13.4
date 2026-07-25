@@ -38,6 +38,10 @@ class ProductPermissions:
     CATEGORIES_VIEW = "PRODUCTS_CATEGORIES_VIEW"
     CATEGORIES_MANAGE = "PRODUCTS_CATEGORIES_MANAGE"
 
+    # ── marcas (P1-02) ─────────────────────────────────────────────────────
+    BRANDS_VIEW = "PRODUCTS_BRANDS_VIEW"
+    BRANDS_MANAGE = "PRODUCTS_BRANDS_MANAGE"
+
     # ── clasificación cárnica (§38) ───────────────────────────────────────
     SPECIES_VIEW = "PRODUCTS_SPECIES_VIEW"
     SPECIES_MANAGE = "PRODUCTS_SPECIES_MANAGE"

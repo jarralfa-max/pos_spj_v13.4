@@ -25,7 +25,8 @@ class ProductsPresenter:
     def __init__(self, *, read_service_factory, write_service_factory=None,
                  units_service_factory=None, lifecycle_service_factory=None,
                  code_service_factory=None, categories_read_factory=None,
-                 categories_write_factory=None,
+                 categories_write_factory=None, brands_read_factory=None,
+                 brands_write_factory=None,
                  permission_checker=None, session_context=None) -> None:
         self._read_factory = read_service_factory
         self._write_factory = write_service_factory
@@ -34,6 +35,8 @@ class ProductsPresenter:
         self._code_factory = code_service_factory
         self._categories_read = categories_read_factory
         self._categories_write = categories_write_factory
+        self._brands_read = brands_read_factory
+        self._brands_write = brands_write_factory
         self._has_permission = permission_checker
         self._session = session_context
 
@@ -173,6 +176,87 @@ class ProductsPresenter:
             res = ucs[action].execute(cmd)
         except Exception as exc:  # noqa: BLE001 — mostrado en la UI
             logger.exception("Acción de categoría %s falló", action)
+            return False, f"Error: {exc}"
+        return res.success, res.message
+
+    # ── marcas (P1-02) ─────────────────────────────────────────────────────
+    @property
+    def can_manage_brands(self) -> bool:
+        from backend.application.products.permissions import ProductPermissions
+        if self._brands_write is None:
+            return False
+        if self._has_permission is None:
+            return True
+        return bool(self._has_permission(ProductPermissions.BRANDS_MANAGE))
+
+    def list_brands(self) -> list[dict]:
+        """Opciones para el selector de marca del formulario (activas)."""
+        if self._brands_read is None:
+            return []
+        try:
+            return self._brands_read().options(active_only=True)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudieron listar marcas")
+            return []
+
+    def brand_catalog(self) -> list[dict]:
+        if self._brands_read is None:
+            return []
+        try:
+            return self._brands_read().list_brands()
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudo cargar el catálogo de marcas")
+            return []
+
+    def get_brand(self, brand_id: str) -> dict | None:
+        if self._brands_read is None:
+            return None
+        try:
+            return self._brands_read().get(brand_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudo obtener la marca")
+            return None
+
+    def save_brand(self, *, brand_id: str | None, code: str, name: str,
+                   description: str | None = None) -> tuple[bool, str, str | None]:
+        if self._brands_write is None:
+            return False, "Sin permisos de gestión de marcas", None
+        from backend.application.products.commands.product_brand_commands import (
+            CreateBrandCommand,
+            UpdateBrandCommand,
+        )
+        from backend.shared.ids import new_uuid
+        ucs = self._brands_write()
+        user_id = getattr(self._session, "user_id", None)
+        try:
+            if brand_id:
+                res = ucs["update"].execute(UpdateBrandCommand(
+                    operation_id=new_uuid(), brand_id=brand_id, code=code, name=name,
+                    description=description, user_id=user_id))
+            else:
+                res = ucs["create"].execute(CreateBrandCommand(
+                    operation_id=new_uuid(), code=code, name=name,
+                    description=description, user_id=user_id))
+        except Exception as exc:  # noqa: BLE001 — mostrado en la UI
+            logger.exception("Guardado de marca falló")
+            return False, f"Error: {exc}", None
+        return res.success, res.message, res.brand_id
+
+    def set_brand_active(self, brand_id: str, active: bool) -> tuple[bool, str]:
+        if self._brands_write is None:
+            return False, "Sin permisos de gestión de marcas"
+        from backend.application.products.commands.product_brand_commands import (
+            SetBrandActiveCommand,
+        )
+        from backend.shared.ids import new_uuid
+        ucs = self._brands_write()
+        user_id = getattr(self._session, "user_id", None)
+        try:
+            res = ucs["set_active"].execute(SetBrandActiveCommand(
+                operation_id=new_uuid(), brand_id=brand_id, active=active,
+                user_id=user_id))
+        except Exception as exc:  # noqa: BLE001 — mostrado en la UI
+            logger.exception("Activación de marca falló")
             return False, f"Error: {exc}"
         return res.success, res.message
 
