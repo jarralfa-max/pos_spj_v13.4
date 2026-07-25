@@ -81,6 +81,15 @@ class ModuloProductosEnterprise(QWidget):
             ActivateProductUseCase,
             SubmitProductUseCase,
         )
+        from backend.application.products.queries.product_category_query_service import (
+            ProductCategoryQueryService,
+        )
+        from backend.application.products.use_cases.product_category_use_cases import (
+            CreateProductCategoryUseCase,
+            MoveProductCategoryUseCase,
+            SetProductCategoryActiveUseCase,
+            UpdateProductCategoryUseCase,
+        )
         from frontend.desktop.modules.products.presenter import ProductsPresenter
 
         # P0-02: en producción la política SIEMPRE lleva un checker real (fail-closed);
@@ -101,6 +110,14 @@ class ModuloProductosEnterprise(QWidget):
                 "readiness": ProductActivationReadinessQueryService(conn),
             }
 
+        def categories_write_factory():
+            return {
+                "create": CreateProductCategoryUseCase(conn, authorization),
+                "update": UpdateProductCategoryUseCase(conn, authorization),
+                "move": MoveProductCategoryUseCase(conn, authorization),
+                "set_active": SetProductCategoryActiveUseCase(conn, authorization),
+            }
+
         checker = (make_permission_checker(self._live_session)
                    if self._live_session is not None else None)
         return ProductsPresenter(
@@ -109,6 +126,8 @@ class ModuloProductosEnterprise(QWidget):
             units_service_factory=lambda: UnitCatalogQueryService(conn),
             lifecycle_service_factory=lifecycle_factory,
             code_service_factory=lambda: PreviewProductCodeQueryService(conn),
+            categories_read_factory=lambda: ProductCategoryQueryService(conn),
+            categories_write_factory=categories_write_factory,
             permission_checker=checker,
             session_context=session)
 
@@ -119,9 +138,13 @@ class ModuloProductosEnterprise(QWidget):
         from frontend.desktop.modules.products.pages.product_catalog_page import (
             ProductCatalogPage,
         )
+        from frontend.desktop.modules.products.pages.categories_page import (
+            ProductCategoriesPage,
+        )
         specs = (
             (ProductsOverviewPage, "Resumen"),
             (ProductCatalogPage, "Catálogo"),
+            (ProductCategoriesPage, "Categorías"),
         )
         for cls, title in specs:
             try:
