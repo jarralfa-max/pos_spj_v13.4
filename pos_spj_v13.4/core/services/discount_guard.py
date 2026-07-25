@@ -156,13 +156,15 @@ class DiscountGuard:
 
         return False
 
-    def _get_costo(self, producto_id: int) -> float:
+    def _get_costo(self, producto_id) -> float:
+        # PROD-19 repunte: costo canónico desde Pricing/Costing (product_cost),
+        # ya no desde el maestro legacy.
         try:
-            r = self.db.execute(
-                "SELECT COALESCE(precio_compra,0) FROM productos WHERE id=?",
-                (producto_id,)
-            ).fetchone()
-            return float(r[0]) if r else 0.0
+            from backend.application.pricing.queries.product_price_query_service import (
+                ProductCostQueryService,
+            )
+            cost = ProductCostQueryService(self.db).get_average_cost(str(producto_id))
+            return float(cost.amount) if cost is not None else 0.0
         except Exception:
             return 0.0
 

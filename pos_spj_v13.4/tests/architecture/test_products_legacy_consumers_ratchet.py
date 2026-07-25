@@ -89,7 +89,7 @@ _ALLOWLIST: frozenset[str] = frozenset({
     "core/services/cotizacion_service.py",
     "core/services/decision_engine.py",
     "core/services/delivery_service.py",
-    "core/services/discount_guard.py",
+    # PROD-19 repunte batch 1: discount_guard → ProductCostQueryService (Pricing).
     "core/services/enterprise/demand_forecasting.py",
     "core/services/enterprise/finance_service.py",
     "core/services/enterprise/report_engine.py",
