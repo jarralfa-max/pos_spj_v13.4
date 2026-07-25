@@ -66,7 +66,8 @@ def _entity_row(product: Product) -> dict:
     return row
 
 
-def _build_entity(command, *, product_id: str, lifecycle: LifecycleStatus) -> Product:
+def _build_entity(command, *, product_id: str, lifecycle: LifecycleStatus,
+                  code: str) -> Product:
     """Construye la entidad (VOs validan código/nombre/tipo) y corre la política de
     creación. Lanza ProductsDomainError si algún invariante falla."""
     ptype = ProductType(command.product_type)
@@ -76,7 +77,7 @@ def _build_entity(command, *, product_id: str, lifecycle: LifecycleStatus) -> Pr
         internal_only=bool(command.internal_only))
     flags = {f: bool(getattr(command, f)) for f in _FLAG_FIELDS}
     return Product(
-        id=product_id, code=command.code, name=command.name, product_type=ptype,
+        id=product_id, code=code, name=command.name, product_type=ptype,
         base_unit_id=command.base_unit_id, lifecycle_status=lifecycle,
         short_name=command.short_name, description=command.description,
         category_id=command.category_id, species_id=command.species_id,
@@ -95,22 +96,41 @@ class CreateProductMasterUseCase:
     def execute(self, command: CreateProductMasterCommand) -> ProductMasterResult:
         command.validate()
         self._auth.require(command.user_id or "", ProductPermissions.CREATE)
+        # P0-04: asignar el código a mano exige PRODUCTS_OVERRIDE_CODE (fail-closed,
+        # fuera del try de dominio para que la denegación se propague, no se degrade).
+        code_overridden = not command.auto_generate_code
+        if code_overridden:
+            self._auth.require(command.user_id or "", ProductPermissions.OVERRIDE_CODE)
         if not UnitCatalogQueryService(self._conn).unit_exists(command.base_unit_id):
             return ProductMasterResult(
                 False, None, "La unidad base debe ser una unidad válida del catálogo")
-        if self._repo.code_exists(command.code):
-            return ProductMasterResult(False, None, f"El código '{command.code}' ya existe")
         from backend.shared.ids import new_uuid
         product_id = new_uuid()
         try:
+            # P0-04: código automático (reserva transaccional) o manual (ya autorizado).
+            if command.auto_generate_code:
+                from backend.application.products.queries.product_code_query_service import (  # noqa: E501
+                    reserve_next_code,
+                )
+                code = reserve_next_code(self._conn, product_type=command.product_type,
+                                         category_id=command.category_id)
+            else:
+                code = command.code
+            if self._repo.code_exists(code):
+                _rollback(self._conn)
+                return ProductMasterResult(False, None, f"El código '{code}' ya existe")
             # P0-01: el alta nace SIEMPRE en DRAFT (se ignora cualquier estado enviado).
             product = _build_entity(command, product_id=product_id,
-                                    lifecycle=LifecycleStatus.DRAFT)
+                                    lifecycle=LifecycleStatus.DRAFT, code=code)
         except ProductsDomainError as exc:
+            _rollback(self._conn)
             return ProductMasterResult(False, None, str(exc))
         try:
             self._repo.create(_entity_row(product))
-            _enqueue_outbox(self._conn, ProductEvents.PRODUCT_CREATED, command, product_id)
+            if code_overridden:
+                _audit_code_override(self._conn, product_id, code, command)
+            _enqueue_outbox(self._conn, ProductEvents.PRODUCT_CREATED, command,
+                            product_id, code=code)
             self._conn.commit()
         except Exception:
             _rollback(self._conn)
@@ -144,13 +164,13 @@ class UpdateProductMasterUseCase:
         current = LifecycleStatus(existing["lifecycle_status"])
         try:
             product = _build_entity(command, product_id=command.product_id,
-                                    lifecycle=current)
+                                    lifecycle=current, code=command.code)
         except ProductsDomainError as exc:
             return ProductMasterResult(False, None, str(exc))
         try:
             self._repo.update(command.product_id, _entity_row(product))
             _enqueue_outbox(self._conn, ProductEvents.PRODUCT_UPDATED, command,
-                            command.product_id)
+                            command.product_id, code=command.code)
             self._conn.commit()
         except Exception:
             _rollback(self._conn)
@@ -166,7 +186,21 @@ def _rollback(conn) -> None:
         rb()
 
 
-def _enqueue_outbox(conn, event_name: str, command, product_id: str) -> None:
+def _audit_code_override(conn, product_id: str, code: str, command) -> None:
+    """P0-04: registra en auditoría toda asignación MANUAL de código."""
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND "
+                    "name='product_audit_log'").fetchone() is None:
+        return
+    from backend.shared.ids import new_uuid
+    conn.execute(
+        "INSERT INTO product_audit_log (id, action, entity_id, user_id, operation_id, "
+        "after, reason, source) VALUES (?,?,?,?,?,?,?, 'product_master')",
+        (new_uuid(), "CODE_OVERRIDE", product_id, command.user_id, command.operation_id,
+         json.dumps({"code": code}), "Código asignado manualmente"))
+
+
+def _enqueue_outbox(conn, event_name: str, command, product_id: str,
+                    *, code: str | None = None) -> None:
     from backend.shared.ids import new_uuid
     if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND "
                     "name='product_outbox'").fetchone() is None:
@@ -174,7 +208,8 @@ def _enqueue_outbox(conn, event_name: str, command, product_id: str) -> None:
     event_id = new_uuid()
     payload = json.dumps({"event_id": event_id, "event_name": event_name,
                           "operation_id": command.operation_id, "entity_id": product_id,
-                          "product_id": product_id, "code": command.code,
+                          "product_id": product_id,
+                          "code": code if code is not None else command.code,
                           "name": command.name, "product_type": command.product_type})
     conn.execute(
         "INSERT OR IGNORE INTO product_outbox (id, event_id, event_name, operation_id, "

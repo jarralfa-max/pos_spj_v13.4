@@ -31,6 +31,8 @@ class ProductPermissions:
     DEACTIVATE = "PRODUCTS_DEACTIVATE"
     DISCONTINUE = "PRODUCTS_DISCONTINUE"
     ARCHIVE = "PRODUCTS_ARCHIVE"
+    OVERRIDE_CODE = "PRODUCTS_OVERRIDE_CODE"   # editar manualmente el código (P0-04)
+    CODE_RULES_MANAGE = "PRODUCTS_CODE_RULES_MANAGE"
 
     # ── clasificación cárnica (§38) ───────────────────────────────────────
     SPECIES_VIEW = "PRODUCTS_SPECIES_VIEW"

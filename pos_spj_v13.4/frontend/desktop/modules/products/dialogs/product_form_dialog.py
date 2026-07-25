@@ -16,10 +16,13 @@ from PyQt5.QtWidgets import (
     QFormLayout,
     QGridLayout,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
+    QPushButton,
     QVBoxLayout,
+    QWidget,
 )
 
 from frontend.desktop.modules.products.view_models import (
@@ -54,6 +57,12 @@ class ProductFormDialog(QDialog):
         self.setMinimumWidth(460)
         self._flag_boxes: dict[str, QCheckBox] = {}
 
+        # P0-04: en alta el código se genera automáticamente; sólo con permiso
+        # PRODUCTS_OVERRIDE_CODE puede editarse manualmente.
+        self._is_new = product_id is None
+        self._can_override = bool(getattr(self._presenter, "can_override_code", False))
+        self._manual_code = not self._is_new  # en edición el código ya es explícito
+
         layout = QVBoxLayout(self)
         form = QFormLayout()
         self.code = QLineEdit()
@@ -70,13 +79,32 @@ class ProductFormDialog(QDialog):
         for code in _LIFECYCLE_CHOICES:
             self.lifecycle.addItem(LIFECYCLE_ES.get(code, code), code)
 
-        form.addRow("Código *", self.code)
+        # Fila de código: campo + botón "Regenerar" + checkbox "manual" (si aplica).
+        code_row = QWidget()
+        code_layout = QHBoxLayout(code_row)
+        code_layout.setContentsMargins(0, 0, 0, 0)
+        code_layout.addWidget(self.code)
+        self._regen_btn = QPushButton("Regenerar")
+        self._regen_btn.setObjectName("secondaryButton")
+        self._regen_btn.clicked.connect(self._refresh_preview)
+        code_layout.addWidget(self._regen_btn)
+        self._manual_box = QCheckBox("Manual")
+        self._manual_box.setToolTip("Asignar el código manualmente (requiere permiso)")
+        self._manual_box.toggled.connect(self._on_manual_toggled)
+        if self._is_new and self._can_override:
+            code_layout.addWidget(self._manual_box)
+
+        form.addRow("Código *", code_row)
         form.addRow("Nombre *", self.name)
         form.addRow("Nombre corto", self.short_name)
         form.addRow("Tipo *", self.product_type)
         form.addRow("Unidad base *", self.base_unit)
         form.addRow("Estado", self.lifecycle)
         layout.addLayout(form)
+
+        # El tipo determina el prefijo → refrescar la vista previa al cambiarlo.
+        self.product_type.currentIndexChanged.connect(self._on_type_changed)
+        self._apply_code_mode()
 
         flags_box = QGroupBox("Capacidades")
         grid = QGridLayout(flags_box)
@@ -121,23 +149,65 @@ class ProductFormDialog(QDialog):
         if idx >= 0:
             combo.setCurrentIndex(idx)
 
+    # ── código automático (P0-04) ────────────────────────────────────────────
+    @property
+    def _auto_code(self) -> bool:
+        """True cuando el código lo genera el sistema (alta sin override manual)."""
+        return self._is_new and not self._manual_code
+
+    def _apply_code_mode(self) -> None:
+        """Ajusta editabilidad del código y muestra la vista previa según el modo."""
+        auto = self._auto_code
+        # En alta auto el campo es de sólo lectura (se muestra la vista previa);
+        # en edición sólo es editable con permiso de override.
+        editable = (not auto) if self._is_new else self._can_override
+        self.code.setReadOnly(not editable)
+        self._regen_btn.setVisible(auto)
+        if self._is_new and self._can_override:
+            self._manual_box.setChecked(self._manual_code)
+        if auto:
+            self._refresh_preview()
+        elif self._is_new:
+            self.code.clear()
+
+    def _on_manual_toggled(self, checked: bool) -> None:
+        self._manual_code = bool(checked)
+        self._apply_code_mode()
+
+    def _on_type_changed(self, _index: int) -> None:
+        if self._auto_code:
+            self._refresh_preview()
+
+    def _refresh_preview(self) -> None:
+        preview = self._presenter.preview_code(
+            product_type=self.product_type.currentData())
+        if preview:
+            self.code.setText(preview)
+
     # ── guardado ───────────────────────────────────────────────────────────
     def _fields(self) -> dict:
         fields = {
-            "code": self.code.text().strip().upper(),
             "name": self.name.text().strip(),
             "short_name": self.short_name.text().strip() or None,
             "product_type": self.product_type.currentData(),
             "base_unit_id": self.base_unit.currentData(),
             "lifecycle_status": self.lifecycle.currentData(),
         }
+        if self._auto_code:
+            # El código lo reserva el caso de uso dentro de su transacción.
+            fields["auto_generate_code"] = True
+            fields["code"] = ""
+        else:
+            fields["code"] = self.code.text().strip().upper()
         fields.update({key: cb.isChecked() for key, cb in self._flag_boxes.items()})
         return fields
 
     def _on_save(self) -> None:
         self._error.setText("")
         fields = self._fields()
-        if not fields["code"] or not fields["name"] or not fields["base_unit_id"]:
+        needs_code = not fields.get("auto_generate_code")
+        if (needs_code and not fields["code"]) or not fields["name"] \
+                or not fields["base_unit_id"]:
             self._error.setText("Código, Nombre y Unidad base son obligatorios.")
             return
         ok, message, _pid = self._presenter.save_product(

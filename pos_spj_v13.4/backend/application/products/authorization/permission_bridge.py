@@ -36,6 +36,10 @@ CANONICAL_TO_LEGACY: dict[str, tuple[str, ...]] = {
     ProductPermissions.APPROVE: ("PRODUCTOS.editar",),
     ProductPermissions.ACTIVATE: ("PRODUCTOS.editar",),
     ProductPermissions.BLOCK: ("PRODUCTOS.editar",),
+    # P0-04: sobrescribir el código y gestionar sus reglas son privilegios de
+    # edición/configuración — nunca se conceden con la sola vista.
+    ProductPermissions.OVERRIDE_CODE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
+    ProductPermissions.CODE_RULES_MANAGE: ("PRODUCTOS.configurar",),
 }
 
 #: Cuando un permiso canónico no está mapeado arriba, se concede con la vista.

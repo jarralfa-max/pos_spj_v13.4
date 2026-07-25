@@ -35,10 +35,16 @@ def presenter():
     create_products_schema(conn)
     conn.execute("INSERT INTO units_of_measure (id, code, name, dimension, active) "
                  "VALUES (?, 'KG', 'Kilogramo', 'WEIGHT', 1)", (_UNIT_ID,))
+    conn.execute("INSERT INTO product_code_generation_rules "
+                 "(id, scope_type, scope_value, prefix, padding, separator, active) "
+                 "VALUES ('r1','PRODUCT_TYPE','RAW_MATERIAL','MP',6,'-',1)")
     conn.commit()
 
     from backend.application.products.queries.unit_catalog_query_service import (
         UnitCatalogQueryService,
+    )
+    from backend.application.products.queries.product_code_query_service import (
+        PreviewProductCodeQueryService,
     )
 
     def write_factory():
@@ -49,6 +55,7 @@ def presenter():
         read_service_factory=lambda: ProductCatalogReadService(conn),
         write_service_factory=write_factory,
         units_service_factory=lambda: UnitCatalogQueryService(conn),
+        code_service_factory=lambda: PreviewProductCodeQueryService(conn),
         session_context=_Session())
     p._conn = conn
     yield p
@@ -93,7 +100,8 @@ def test_duplicate_code_surfaces_error(presenter):
     assert not ok and pid is None and "ya existe" in msg
 
 
-def test_dialog_constructs_and_reads_fields(presenter):
+def test_dialog_auto_generates_code_preview(presenter):
+    # P0-04: en alta el código se genera automáticamente (vista previa, sin consumir).
     from PyQt5.QtWidgets import QApplication
 
     from frontend.desktop.modules.products.dialogs.product_form_dialog import (
@@ -101,11 +109,30 @@ def test_dialog_constructs_and_reads_fields(presenter):
     )
     app = QApplication.instance() or QApplication([])
     dlg = ProductFormDialog(presenter, product_id=None)
-    dlg.code.setText("Z-9")
     dlg.name.setText("Producto Z")
-    # P0-03: la unidad es un combo de catálogo; guarda el UUID, no el texto.
+    dlg._select(dlg.product_type, "RAW_MATERIAL")
     idx = dlg.base_unit.findData(_UNIT_ID)
     assert idx >= 0
     dlg.base_unit.setCurrentIndex(idx)
+    assert dlg.code.isReadOnly() and dlg.code.text() == "MP-000001"
     f = dlg._fields()
-    assert f["code"] == "Z-9" and f["base_unit_id"] == _UNIT_ID and f["name"] == "Producto Z"
+    # Con auto-generación el código lo reserva el caso de uso, no la UI.
+    assert f["auto_generate_code"] is True and f["code"] == ""
+    assert f["base_unit_id"] == _UNIT_ID and f["name"] == "Producto Z"
+
+
+def test_dialog_manual_override_captures_code(presenter):
+    # Con permiso de override el usuario puede capturar el código manualmente.
+    from PyQt5.QtWidgets import QApplication
+
+    from frontend.desktop.modules.products.dialogs.product_form_dialog import (
+        ProductFormDialog,
+    )
+    app = QApplication.instance() or QApplication([])
+    assert presenter.can_override_code  # sin checker → permisivo
+    dlg = ProductFormDialog(presenter, product_id=None)
+    dlg._manual_box.setChecked(True)
+    dlg.code.setText("Z-9")
+    dlg.name.setText("Producto Z")
+    f = dlg._fields()
+    assert not f.get("auto_generate_code") and f["code"] == "Z-9"

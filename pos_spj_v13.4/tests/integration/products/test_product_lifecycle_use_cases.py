@@ -34,7 +34,8 @@ class _Checker:
 
 
 _ALL = ProductsAuthorizationPolicy(_Checker({
-    ProductPermissions.CREATE, ProductPermissions.SUBMIT, ProductPermissions.ACTIVATE}))
+    ProductPermissions.CREATE, ProductPermissions.OVERRIDE_CODE,
+    ProductPermissions.SUBMIT, ProductPermissions.ACTIVATE}))
 
 
 @pytest.fixture

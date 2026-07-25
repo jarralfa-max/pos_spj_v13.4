@@ -19,6 +19,9 @@ class CreateProductMasterCommand:
     product_type: str
     base_unit_id: str
     user_id: str | None = None
+    # P0-04: si True, el alta genera el código automáticamente (no requiere `code`);
+    # si False, el `code` es manual y exige el permiso PRODUCTS_OVERRIDE_CODE.
+    auto_generate_code: bool = False
     short_name: str | None = None
     description: str | None = None
     category_id: str | None = None
@@ -38,8 +41,10 @@ class CreateProductMasterCommand:
     traceability_required: bool = False
 
     def validate(self) -> None:
-        missing = [f for f in ("operation_id", "code", "name", "product_type",
-                               "base_unit_id") if not getattr(self, f)]
+        required = ["operation_id", "name", "product_type", "base_unit_id"]
+        if not self.auto_generate_code:
+            required.append("code")  # con auto-generación el código es opcional
+        missing = [f for f in required if not getattr(self, f)]
         if missing:
             raise ValueError(f"Faltan campos requeridos: {', '.join(missing)}")
 

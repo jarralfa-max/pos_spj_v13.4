@@ -24,11 +24,13 @@ logger = logging.getLogger("spj.products.presenter")
 class ProductsPresenter:
     def __init__(self, *, read_service_factory, write_service_factory=None,
                  units_service_factory=None, lifecycle_service_factory=None,
+                 code_service_factory=None,
                  permission_checker=None, session_context=None) -> None:
         self._read_factory = read_service_factory
         self._write_factory = write_service_factory
         self._units_factory = units_service_factory
         self._lifecycle_factory = lifecycle_service_factory
+        self._code_factory = code_service_factory
         self._has_permission = permission_checker
         self._session = session_context
 
@@ -55,6 +57,25 @@ class ProductsPresenter:
             logger.exception("Acción de ciclo de vida %s falló", action)
             return False, f"Error: {exc}"
         return result.success, result.message
+
+    # ── generación de código (P0-04) ─────────────────────────────────────
+    @property
+    def can_override_code(self) -> bool:
+        """El código manual sólo lo permite PRODUCTS_OVERRIDE_CODE."""
+        from backend.application.products.permissions import ProductPermissions
+        return self._allowed(ProductPermissions.OVERRIDE_CODE)
+
+    def preview_code(self, *, product_type: str,
+                     category_id: str | None = None) -> str | None:
+        """Vista previa del código automático (no consume la secuencia)."""
+        if self._code_factory is None:
+            return None
+        try:
+            return self._code_factory().preview(
+                product_type=product_type, category_id=category_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudo previsualizar el código")
+            return None
 
     def list_units(self) -> list[dict]:
         """Unidades del catálogo para el selector del formulario (P0-03)."""

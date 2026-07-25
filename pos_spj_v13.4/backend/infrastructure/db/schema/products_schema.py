@@ -60,6 +60,8 @@ PRODUCT_TABLES: tuple[str, ...] = (
     "product_audit_log",
     "product_outbox",
     "product_processed_events",
+    "product_code_generation_rules",
+    "product_code_sequences",
 )
 
 _DDL = (
@@ -613,6 +615,28 @@ _DDL = (
         event_id TEXT PRIMARY KEY,
         event_name TEXT NOT NULL,
         processed_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
+    # ── generación de código (P0-04) ──────────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS product_code_generation_rules (
+        id TEXT NOT NULL PRIMARY KEY,
+        scope_type TEXT NOT NULL,           -- PRODUCT_TYPE | CATEGORY | DEFAULT
+        scope_value TEXT NOT NULL DEFAULT '',
+        prefix TEXT NOT NULL,
+        padding INTEGER NOT NULL DEFAULT 6,
+        separator TEXT NOT NULL DEFAULT '-',
+        active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(scope_type, scope_value)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS product_code_sequences (
+        prefix TEXT NOT NULL PRIMARY KEY,
+        next_value INTEGER NOT NULL DEFAULT 1,
+        padding INTEGER NOT NULL DEFAULT 6,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
     """,
 )

@@ -74,6 +74,9 @@ class ModuloProductosEnterprise(QWidget):
         from backend.application.products.queries.unit_catalog_query_service import (
             UnitCatalogQueryService,
         )
+        from backend.application.products.queries.product_code_query_service import (
+            PreviewProductCodeQueryService,
+        )
         from backend.application.products.use_cases.product_lifecycle_use_cases import (
             ActivateProductUseCase,
             SubmitProductUseCase,
@@ -105,6 +108,7 @@ class ModuloProductosEnterprise(QWidget):
             write_service_factory=write_factory,
             units_service_factory=lambda: UnitCatalogQueryService(conn),
             lifecycle_service_factory=lifecycle_factory,
+            code_service_factory=lambda: PreviewProductCodeQueryService(conn),
             permission_checker=checker,
             session_context=session)
 
