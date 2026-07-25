@@ -40,6 +40,9 @@ CANONICAL_TO_LEGACY: dict[str, tuple[str, ...]] = {
     # edición/configuración — nunca se conceden con la sola vista.
     ProductPermissions.OVERRIDE_CODE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
     ProductPermissions.CODE_RULES_MANAGE: ("PRODUCTOS.configurar",),
+    # P1-01: ver categorías con la vista; gestionarlas exige edición.
+    ProductPermissions.CATEGORIES_VIEW: ("PRODUCTOS.ver",),
+    ProductPermissions.CATEGORIES_MANAGE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
 }
 
 #: Cuando un permiso canónico no está mapeado arriba, se concede con la vista.

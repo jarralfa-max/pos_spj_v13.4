@@ -34,6 +34,10 @@ class ProductPermissions:
     OVERRIDE_CODE = "PRODUCTS_OVERRIDE_CODE"   # editar manualmente el código (P0-04)
     CODE_RULES_MANAGE = "PRODUCTS_CODE_RULES_MANAGE"
 
+    # ── categorías jerárquicas (P1-01) ────────────────────────────────────
+    CATEGORIES_VIEW = "PRODUCTS_CATEGORIES_VIEW"
+    CATEGORIES_MANAGE = "PRODUCTS_CATEGORIES_MANAGE"
+
     # ── clasificación cárnica (§38) ───────────────────────────────────────
     SPECIES_VIEW = "PRODUCTS_SPECIES_VIEW"
     SPECIES_MANAGE = "PRODUCTS_SPECIES_MANAGE"

@@ -209,3 +209,24 @@ class ExternalRecordNotReviewedError(ProductsDomainError):
 
 class UnknownCatalogProviderError(ProductsDomainError):
     """No adapter is registered for the requested provider (§15)."""
+
+
+# ── P1-01 category hierarchy ─────────────────────────────────────────────────
+class InvalidCategoryError(ProductsDomainError):
+    """A product category is malformed (missing code/name, bad depth)."""
+
+
+class CategoryCycleDetectedError(ProductsDomainError):
+    """Re-parenting a category under itself or one of its descendants."""
+
+
+class CategoryNotFoundError(ProductsDomainError):
+    """The referenced parent/target category does not exist."""
+
+
+class CategoryDepthExceededError(ProductsDomainError):
+    """The category tree would exceed the maximum allowed depth."""
+
+
+class CategoryHasChildrenError(ProductsDomainError):
+    """A category with active children cannot be deactivated/removed."""
