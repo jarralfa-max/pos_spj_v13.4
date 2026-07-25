@@ -42,9 +42,10 @@ class ProductCatalogPage(QWidget):
         self.btn_edit = QPushButton("Editar")
         self.btn_new.clicked.connect(lambda: self._open_form(None))
         self.btn_edit.clicked.connect(self._edit_selected)
-        can_write = getattr(self._presenter, "can_write", False)
+        # PROD-19 paso 8: gating granular por permiso canónico PRODUCTS_CREATE/EDIT.
+        self.btn_new.setEnabled(getattr(self._presenter, "can_create", False))
+        self.btn_edit.setEnabled(getattr(self._presenter, "can_edit", False))
         for b in (self.btn_new, self.btn_edit):
-            b.setEnabled(can_write)
             toolbar.addWidget(b)
         layout.addLayout(toolbar)
 

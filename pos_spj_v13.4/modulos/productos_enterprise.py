@@ -38,6 +38,9 @@ class ModuloProductosEnterprise(QWidget):
         branch_id = str(getattr(container, "sucursal_id", None)
                         or getattr(container, "branch_id", None) or "1")
         session = _Session(user_id, branch_id)
+        # Sesión viva (con tiene_permiso) para el gating granular; None en tests.
+        self._live_session = (getattr(container, "session", None)
+                              or getattr(container, "sesion", None))
 
         presenter = self._build_presenter(conn, session)
         self._tabs = QTabWidget()
@@ -58,15 +61,21 @@ class ModuloProductosEnterprise(QWidget):
         from backend.infrastructure.db.repositories.products.product_master_repository import (
             ProductMasterRepository,
         )
+        from backend.application.products.authorization.permission_bridge import (
+            make_permission_checker,
+        )
         from frontend.desktop.modules.products.presenter import ProductsPresenter
 
         def write_factory():
             return (CreateProductMasterUseCase(conn), UpdateProductMasterUseCase(conn),
                     ProductMasterRepository(conn))
 
+        checker = (make_permission_checker(self._live_session)
+                   if self._live_session is not None else None)
         return ProductsPresenter(
             read_service_factory=lambda: ProductCatalogReadService(conn),
             write_service_factory=write_factory,
+            permission_checker=checker,
             session_context=session)
 
     def _add_pages(self, presenter):

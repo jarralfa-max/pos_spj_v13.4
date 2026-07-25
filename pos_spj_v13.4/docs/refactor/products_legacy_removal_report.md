@@ -40,7 +40,7 @@ romper el POS/Inventario/Compras vivos mientras se repuntan los 78 consumidores.
 | 6 | Repuntar compras/producción/BI/fidelidad/forecast a `products.id` | ⏳ |
 | 7 | **FLIP**: `modulos/productos.py` (1534) + `modulos/dialogs/receta_dialog.py` (455) ELIMINADOS; host `modulos/productos_enterprise.py` monta las páginas PRC-7 sobre `ProductCatalogReadService`; `module_loader`/`main_window`/`diagnostico` repuntados | ✅ |
 | 7b | **Alta/edición born-clean** (hueco cerrado): path de escritura canónico del maestro `products` — `ProductMasterRepository` + `Create/UpdateProductMasterUseCase` (UUIDv7, código único, `name_normalized`, evento a `product_outbox`, atómico, **sin precio/existencia**) + `ProductFormDialog` cableado vía `ProductsPresenter.save_product`. Escribe y lee el MISMO maestro `products` (sin lecturas obsoletas). Precio→Pricing, existencia→Inventory | ✅ |
-| 8 | Migrar permisos `PRODUCTOS`→`PRODUCTS_*` y eventos `PRODUCTO_*`→`PRODUCT_*` | ⏳ |
+| 8 | **Permisos**: puente aditivo `permission_bridge` (canónico `PRODUCTS_*` → legacy vivo `PRODUCTOS.accion`/`CREAR_PRODUCTO`); gating granular `PRODUCTS_CREATE`/`PRODUCTS_EDIT` en la UI enterprise (botones Nuevo/Editar) vía `ProductsPresenter.can_create/can_edit` + `make_permission_checker(session)`; sin tocar el catálogo vivo (sin lock-out). **Eventos**: canónicos `PRODUCT_CREATED/UPDATED` ya emitidos (outbox del maestro + doble-emisión español/inglés de `catalog_events`) | ✅ |
 | 9 | Ratchet de consumidores: allowlist congelada de **78** archivos que leen `productos` por SQL (`test_products_legacy_consumers_ratchet`), sólo decrece; objetivo = vacía | 🔄 (ratchet armado, 78→0 pendiente) |
 | 10 | **DROP** destructivo (`PRODUCTS_ALLOW_LEGACY_DROP=1`) de ~20 tablas legacy + trigger | ⏳ |
 

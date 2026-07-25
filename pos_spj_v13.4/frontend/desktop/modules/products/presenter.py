@@ -23,15 +23,33 @@ logger = logging.getLogger("spj.products.presenter")
 
 class ProductsPresenter:
     def __init__(self, *, read_service_factory, write_service_factory=None,
-                 session_context=None) -> None:
+                 permission_checker=None, session_context=None) -> None:
         self._read_factory = read_service_factory
         self._write_factory = write_service_factory
+        self._has_permission = permission_checker
         self._session = session_context
 
     # ── alta / edición del maestro (PROD-19 7b) ───────────────────────────
     @property
     def can_write(self) -> bool:
         return self._write_factory is not None
+
+    def _allowed(self, canonical_code: str) -> bool:
+        """Permiso granular canónico (PROD-19 paso 8). Sin verificador → permisivo
+        (compat: el gating del menú ya restringió el acceso al módulo)."""
+        if self._has_permission is None:
+            return self.can_write
+        return self.can_write and bool(self._has_permission(canonical_code))
+
+    @property
+    def can_create(self) -> bool:
+        from backend.application.products.permissions import ProductPermissions
+        return self._allowed(ProductPermissions.CREATE)
+
+    @property
+    def can_edit(self) -> bool:
+        from backend.application.products.permissions import ProductPermissions
+        return self._allowed(ProductPermissions.EDIT)
 
     def get_product(self, product_id: str) -> dict | None:
         """Fila del maestro para prellenar el formulario de edición."""
