@@ -162,6 +162,14 @@ class ModuloProductosEnterprise(QWidget):
             SubmitBundleVersionUseCase,
             UpdateBundleVersionUseCase,
         )
+        from backend.application.products.queries.product_import_query_service import (
+            ProductImportQueryService,
+        )
+        from backend.application.products.use_cases.product_import_use_cases import (
+            ApproveImportBatchUseCase,
+            CreateImportBatchUseCase,
+            ExecuteImportBatchUseCase,
+        )
         from frontend.desktop.modules.products.presenter import ProductsPresenter
 
         # P0-02: en producción la política SIEMPRE lleva un checker real (fail-closed);
@@ -261,6 +269,12 @@ class ModuloProductosEnterprise(QWidget):
                 "approve": ApproveBundleVersionUseCase(conn, authorization),
                 "activate": ActivateBundleVersionUseCase(conn, authorization),
             },
+            import_read_factory=lambda: ProductImportQueryService(conn),
+            import_write_factory=lambda: {
+                "create": CreateImportBatchUseCase(conn, authorization),
+                "approve": ApproveImportBatchUseCase(conn, authorization),
+                "execute": ExecuteImportBatchUseCase(conn, authorization),
+            },
             permission_checker=checker,
             session_context=session)
 
@@ -280,12 +294,16 @@ class ModuloProductosEnterprise(QWidget):
         from frontend.desktop.modules.products.pages.attributes_page import (
             ProductAttributesPage,
         )
+        from frontend.desktop.modules.products.pages.import_page import (
+            ProductImportPage,
+        )
         specs = (
             (ProductsOverviewPage, "Resumen"),
             (ProductCatalogPage, "Catálogo"),
             (ProductCategoriesPage, "Categorías"),
             (ProductBrandsPage, "Marcas"),
             (ProductAttributesPage, "Atributos"),
+            (ProductImportPage, "Importar"),
         )
         for cls, title in specs:
             try:

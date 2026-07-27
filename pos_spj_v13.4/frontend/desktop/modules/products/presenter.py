@@ -33,7 +33,8 @@ class ProductsPresenter:
                  recipes_write_factory=None, yields_read_factory=None,
                  yields_write_factory=None, cutting_read_factory=None,
                  cutting_write_factory=None, bundles_read_factory=None,
-                 bundles_write_factory=None,
+                 bundles_write_factory=None, import_read_factory=None,
+                 import_write_factory=None,
                  permission_checker=None, session_context=None) -> None:
         self._read_factory = read_service_factory
         self._write_factory = write_service_factory
@@ -58,6 +59,8 @@ class ProductsPresenter:
         self._cutting_write = cutting_write_factory
         self._bundles_read = bundles_read_factory
         self._bundles_write = bundles_write_factory
+        self._import_read = import_read_factory
+        self._import_write = import_write_factory
         self._has_permission = permission_checker
         self._session = session_context
 
@@ -853,6 +856,75 @@ class ProductsPresenter:
             logger.exception("Acción de combo %s falló", action)
             return False, f"Error: {exc}"
         return res.success, res.message
+
+    # ── importación CSV/XLSX ────────────────────────────────────────────────
+    @property
+    def can_import(self) -> bool:
+        from backend.application.products.permissions import ProductPermissions
+        if self._import_write is None:
+            return False
+        if self._has_permission is None:
+            return True
+        return bool(self._has_permission(ProductPermissions.IMPORT_EXECUTE))
+
+    @property
+    def can_approve_import(self) -> bool:
+        from backend.application.products.permissions import ProductPermissions
+        if self._has_permission is None:
+            return self._import_write is not None
+        return bool(self._has_permission(ProductPermissions.IMPORT_APPROVE))
+
+    def list_import_jobs(self) -> list[dict]:
+        if self._import_read is None:
+            return []
+        try:
+            return self._import_read().list_jobs()
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudieron listar importaciones")
+            return []
+
+    def import_preview(self, job_id: str) -> list[dict]:
+        if self._import_read is None:
+            return []
+        try:
+            return self._import_read().preview_rows(job_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudo cargar la vista previa")
+            return []
+
+    def create_import_batch(self, *, filename: str,
+                            data: bytes) -> tuple[bool, str, str | None]:
+        return self._run_import("create", filename=filename, data=data)
+
+    def approve_import_batch(self, job_id: str) -> tuple[bool, str, str | None]:
+        return self._run_import("approve", job_id=job_id)
+
+    def execute_import_batch(self, job_id: str) -> tuple[bool, str, str | None]:
+        return self._run_import("execute", job_id=job_id)
+
+    def _run_import(self, action: str, **kw) -> tuple[bool, str, str | None]:
+        if self._import_write is None:
+            return False, "Sin permisos de importación", None
+        from backend.application.products.commands.product_import_commands import (
+            CreateImportBatchCommand,
+            ImportBatchActionCommand,
+        )
+        from backend.shared.ids import new_uuid
+        ucs = self._import_write()
+        user_id = getattr(self._session, "user_id", None)
+        try:
+            if action == "create":
+                cmd = CreateImportBatchCommand(
+                    operation_id=new_uuid(), filename=kw["filename"],
+                    data=kw["data"], user_id=user_id)
+            else:
+                cmd = ImportBatchActionCommand(
+                    operation_id=new_uuid(), job_id=kw["job_id"], user_id=user_id)
+            res = ucs[action].execute(cmd)
+        except Exception as exc:  # noqa: BLE001 — mostrado en la UI
+            logger.exception("Acción de importación %s falló", action)
+            return False, f"Error: {exc}", None
+        return res.success, res.message, res.job_id
 
     def list_units(self) -> list[dict]:
         """Unidades del catálogo para el selector del formulario (P0-03)."""

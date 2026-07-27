@@ -33,6 +33,8 @@ PRODUCT_TABLES: tuple[str, ...] = (
     "product_attribute_options",
     "product_variant_assignments",
     "product_images",
+    "product_import_jobs",
+    "product_import_rows",
     "units_of_measure",
     "product_unit_conversions",
     "product_catch_weight_config",
@@ -154,6 +156,37 @@ _DDL = (
         sort_order INTEGER NOT NULL DEFAULT 0,
         created_by TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
+    # ── importación CSV/XLSX (staging + preview) ───────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS product_import_jobs (
+        id TEXT NOT NULL PRIMARY KEY,
+        filename TEXT NOT NULL DEFAULT '',
+        source_format TEXT NOT NULL DEFAULT 'CSV',
+        status TEXT NOT NULL DEFAULT 'PREVIEWED'
+            CHECK(status IN ('PREVIEWED','APPROVED','EXECUTED','FAILED')),
+        total_rows INTEGER NOT NULL DEFAULT 0,
+        valid_rows INTEGER NOT NULL DEFAULT 0,
+        invalid_rows INTEGER NOT NULL DEFAULT 0,
+        created_rows INTEGER NOT NULL DEFAULT 0,
+        created_by TEXT,
+        approved_by TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS product_import_rows (
+        id TEXT NOT NULL PRIMARY KEY,
+        job_id TEXT NOT NULL,
+        row_number INTEGER NOT NULL,
+        payload TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'VALID'
+            CHECK(status IN ('VALID','INVALID','CREATED')),
+        error TEXT,
+        product_id TEXT,
+        FOREIGN KEY (job_id) REFERENCES product_import_jobs(id)
     )
     """,
     # ── clasificación cárnica (PROD-3) ────────────────────────────────────
@@ -748,6 +781,7 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_products_parent ON products(parent_product_id)",
     "CREATE INDEX IF NOT EXISTS idx_variant_assign_product ON product_variant_assignments(product_id)",
     "CREATE INDEX IF NOT EXISTS idx_product_images_product ON product_images(product_id)",
+    "CREATE INDEX IF NOT EXISTS idx_import_rows_job ON product_import_rows(job_id)",
     "CREATE INDEX IF NOT EXISTS idx_products_name_norm ON products(name_normalized)",
     "CREATE INDEX IF NOT EXISTS idx_regions_species ON anatomical_regions(species_id)",
     "CREATE INDEX IF NOT EXISTS idx_cuts_species ON cut_classifications(species_id)",

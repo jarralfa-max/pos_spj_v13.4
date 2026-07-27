@@ -158,6 +158,7 @@ MIGRATIONS = [
     _Migration("161",  "migrations.standalone.161_product_images"),
     _Migration("162",  "migrations.standalone.162_recipe_version_creator"),
     _Migration("163",  "migrations.standalone.163_yield_version_creator"),
+    _Migration("164",  "migrations.standalone.164_product_import_staging"),
 ]
 
 def _ensure_tracking_table(conn):

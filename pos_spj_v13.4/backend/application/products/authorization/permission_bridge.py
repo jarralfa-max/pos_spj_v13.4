@@ -71,6 +71,9 @@ CANONICAL_TO_LEGACY: dict[str, tuple[str, ...]] = {
     # Combos / kits: ver con la vista; gestionar con edición.
     ProductPermissions.BUNDLES_VIEW: ("PRODUCTOS.ver",),
     ProductPermissions.BUNDLES_MANAGE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
+    # Importación CSV/XLSX: ejecutar/aprobar son privilegios de creación/edición.
+    ProductPermissions.IMPORT_EXECUTE: ("PRODUCTOS.crear", "CREAR_PRODUCTO"),
+    ProductPermissions.IMPORT_APPROVE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
 }
 
 #: Cuando un permiso canónico no está mapeado arriba, se concede con la vista.
