@@ -136,12 +136,25 @@ class ProductFormDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         buttons.button(QDialogButtonBox.Save).setText("Guardar")
         buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
+        # P1: galería de imágenes (sólo en edición: requiere product_id existente).
+        if not self._is_new and getattr(self._presenter, "can_manage_images", False):
+            self._btn_images = QPushButton("Imágenes…")
+            self._btn_images.clicked.connect(self._open_gallery)
+            buttons.addButton(self._btn_images, QDialogButtonBox.ActionRole)
         buttons.accepted.connect(self._on_save)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
         if product_id:
             self._load(product_id)
+
+    def _open_gallery(self) -> None:
+        from frontend.desktop.modules.products.dialogs.image_gallery_dialog import (
+            ImageGalleryDialog,
+        )
+        ImageGalleryDialog(self._presenter, product_id=self._product_id,
+                           product_name=self.name.text() or "Producto",
+                           parent=self).exec_()
 
     # ── carga (edición) ────────────────────────────────────────────────────
     def _load(self, product_id: str) -> None:

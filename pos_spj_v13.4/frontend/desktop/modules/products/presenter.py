@@ -28,7 +28,8 @@ class ProductsPresenter:
                  categories_write_factory=None, brands_read_factory=None,
                  brands_write_factory=None, attributes_read_factory=None,
                  attributes_write_factory=None, variants_read_factory=None,
-                 variants_write_factory=None,
+                 variants_write_factory=None, images_read_factory=None,
+                 images_write_factory=None,
                  permission_checker=None, session_context=None) -> None:
         self._read_factory = read_service_factory
         self._write_factory = write_service_factory
@@ -43,6 +44,8 @@ class ProductsPresenter:
         self._attributes_write = attributes_write_factory
         self._variants_read = variants_read_factory
         self._variants_write = variants_write_factory
+        self._images_read = images_read_factory
+        self._images_write = images_write_factory
         self._has_permission = permission_checker
         self._session = session_context
 
@@ -419,6 +422,65 @@ class ProductsPresenter:
                 axes=axes, user_id=user_id))
         except Exception as exc:  # noqa: BLE001 — mostrado en la UI
             logger.exception("Generación de variantes falló")
+            return False, f"Error: {exc}"
+        return res.success, res.message
+
+    # ── imágenes (P1) ──────────────────────────────────────────────────────
+    @property
+    def can_manage_images(self) -> bool:
+        from backend.application.products.permissions import ProductPermissions
+        if self._images_write is None:
+            return False
+        if self._has_permission is None:
+            return True
+        return bool(self._has_permission(ProductPermissions.IMAGES_MANAGE))
+
+    def list_images(self, product_id: str) -> list[dict]:
+        if self._images_read is None:
+            return []
+        try:
+            return self._images_read().list_images(product_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudieron listar imágenes")
+            return []
+
+    def add_image(self, *, product_id: str, uri: str, alt_text: str | None = None,
+                  make_primary: bool = False) -> tuple[bool, str]:
+        return self._run_image("add", product_id=product_id, uri=uri,
+                               alt_text=alt_text, make_primary=make_primary)
+
+    def set_primary_image(self, image_id: str) -> tuple[bool, str]:
+        return self._run_image("set_primary", image_id=image_id)
+
+    def remove_image(self, image_id: str) -> tuple[bool, str]:
+        return self._run_image("remove", image_id=image_id)
+
+    def _run_image(self, action: str, **kw) -> tuple[bool, str]:
+        if self._images_write is None:
+            return False, "Sin permisos de gestión de imágenes"
+        from backend.application.products.commands.product_image_commands import (
+            AddProductImageCommand,
+            RemoveProductImageCommand,
+            SetPrimaryImageCommand,
+        )
+        from backend.shared.ids import new_uuid
+        ucs = self._images_write()
+        user_id = getattr(self._session, "user_id", None)
+        try:
+            if action == "add":
+                cmd = AddProductImageCommand(
+                    operation_id=new_uuid(), product_id=kw["product_id"],
+                    uri=kw["uri"], alt_text=kw.get("alt_text"),
+                    make_primary=bool(kw.get("make_primary")), user_id=user_id)
+            elif action == "set_primary":
+                cmd = SetPrimaryImageCommand(
+                    operation_id=new_uuid(), image_id=kw["image_id"], user_id=user_id)
+            else:
+                cmd = RemoveProductImageCommand(
+                    operation_id=new_uuid(), image_id=kw["image_id"], user_id=user_id)
+            res = ucs[action].execute(cmd)
+        except Exception as exc:  # noqa: BLE001 — mostrado en la UI
+            logger.exception("Acción de imagen %s falló", action)
             return False, f"Error: {exc}"
         return res.success, res.message
 

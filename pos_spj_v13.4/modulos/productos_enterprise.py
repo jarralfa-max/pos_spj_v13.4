@@ -114,6 +114,14 @@ class ModuloProductosEnterprise(QWidget):
         from backend.application.products.use_cases.product_variant_use_cases import (
             GenerateProductVariantsUseCase,
         )
+        from backend.application.products.queries.product_image_query_service import (
+            ProductImageQueryService,
+        )
+        from backend.application.products.use_cases.product_image_use_cases import (
+            AddProductImageUseCase,
+            RemoveProductImageUseCase,
+            SetPrimaryImageUseCase,
+        )
         from frontend.desktop.modules.products.presenter import ProductsPresenter
 
         # P0-02: en producción la política SIEMPRE lleva un checker real (fail-closed);
@@ -175,6 +183,12 @@ class ModuloProductosEnterprise(QWidget):
             variants_read_factory=lambda: ProductVariantQueryService(conn),
             variants_write_factory=lambda: GenerateProductVariantsUseCase(
                 conn, authorization),
+            images_read_factory=lambda: ProductImageQueryService(conn),
+            images_write_factory=lambda: {
+                "add": AddProductImageUseCase(conn, authorization),
+                "set_primary": SetPrimaryImageUseCase(conn, authorization),
+                "remove": RemoveProductImageUseCase(conn, authorization),
+            },
             permission_checker=checker,
             session_context=session)
 

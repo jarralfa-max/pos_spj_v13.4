@@ -47,6 +47,9 @@ class ProductPermissions:
     ATTRIBUTES_MANAGE = "PRODUCTS_ATTRIBUTES_MANAGE"
     VARIANTS_GENERATE = "PRODUCTS_VARIANTS_GENERATE"
 
+    # ── imágenes (P1) ──────────────────────────────────────────────────────
+    IMAGES_MANAGE = "PRODUCTS_IMAGES_MANAGE"
+
     # ── clasificación cárnica (§38) ───────────────────────────────────────
     SPECIES_VIEW = "PRODUCTS_SPECIES_VIEW"
     SPECIES_MANAGE = "PRODUCTS_SPECIES_MANAGE"

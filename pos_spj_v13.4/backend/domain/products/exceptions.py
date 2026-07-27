@@ -252,3 +252,8 @@ class InvalidVariantError(ProductsDomainError):
 
 class VariantAlreadyExistsError(ProductsDomainError):
     """A variant with the same attribute-value combination already exists."""
+
+
+# ── P1 images ────────────────────────────────────────────────────────────────
+class InvalidProductImageError(ProductsDomainError):
+    """A product image is malformed (missing product/uri)."""
