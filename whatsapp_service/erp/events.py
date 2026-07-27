@@ -6,6 +6,7 @@ Cada evento incluye: sucursal_id, prioridad, timestamp.
 CORRECCIÓN (FASE WA): WAEventEmitter usa ERP's bus.publish(), NO emit().
 """
 from __future__ import annotations
+import json
 import logging
 from datetime import datetime
 from typing import Callable, Dict, Any, Optional
@@ -37,6 +38,17 @@ PURCHASE_FOLLOWUP_REMINDER  = "PURCHASE_FOLLOWUP_REMINDER"    # oc_id, producto,
 STAFF_NOTIFICATION          = "STAFF_NOTIFICATION"      # mensaje, tipo, sucursal_id
 VACATION_REMINDER           = "VACATION_REMINDER"       # empleado_id, nombre, fecha_inicio
 FORECAST_DEMAND_UPDATED     = "FORECAST_DEMAND_UPDATED" # producto_id, demanda_est, periodo
+WHATSAPP_QUOTE_CREATED      = "WHATSAPP_QUOTE_CREATED"
+WHATSAPP_QUOTE_ACCEPTED     = "WHATSAPP_QUOTE_ACCEPTED"
+WHATSAPP_QUOTE_REJECTED     = "WHATSAPP_QUOTE_REJECTED"
+WHATSAPP_QUOTE_CONVERTED_TO_SALE = "WHATSAPP_QUOTE_CONVERTED_TO_SALE"
+WHATSAPP_MESSAGE_RECEIVED   = "WHATSAPP_MESSAGE_RECEIVED"
+WHATSAPP_INTENT_DETECTED    = "WHATSAPP_INTENT_DETECTED"
+WHATSAPP_ORDER_CONFIRMED_BY_CUSTOMER = "WHATSAPP_ORDER_CONFIRMED_BY_CUSTOMER"
+WHATSAPP_QUOTE_ACCEPTED_BY_CUSTOMER = "WHATSAPP_QUOTE_ACCEPTED_BY_CUSTOMER"
+WHATSAPP_NOTIFICATION_SENT  = "WHATSAPP_NOTIFICATION_SENT"
+WHATSAPP_NOTIFICATION_FAILED = "WHATSAPP_NOTIFICATION_FAILED"
+WHATSAPP_CONVERSATION_STATE_CHANGED = "WHATSAPP_CONVERSATION_STATE_CHANGED"
 
 # ── Eventos que ESCUCHAMOS del ERP ────────────────────────────────────────────
 ERP_STOCK_BAJO          = "STOCK_BAJO_MINIMO"
@@ -97,12 +109,17 @@ class WAEventEmitter:
         # Guardar en BD para trazabilidad
         if self.db:
             try:
+                # Serialize payload as real JSON (not str())
+                try:
+                    data_json = json.dumps(event_data, ensure_ascii=False,
+                                           default=str)[:4000]
+                except Exception:
+                    data_json = str(event_data)[:4000]
                 self.db.execute("""
                     INSERT INTO wa_event_log (event_type, data_json,
                         sucursal_id, prioridad, timestamp)
                     VALUES (?, ?, ?, ?, datetime('now'))
-                """, (event_type, str(event_data)[:2000],
-                      sucursal_id, prioridad))
+                """, (event_type, data_json, sucursal_id, prioridad))
                 try:
                     self.db.commit()
                 except Exception:
@@ -110,11 +127,12 @@ class WAEventEmitter:
             except Exception:
                 pass  # Table may not exist yet
 
-        # Emitir al EventBus del ERP (FIX: usa publish(), no emit())
+        # Emitir al EventBus del ERP (usa publish(), no emit())
+        # Prioridad ≥ 80 → crítico (síncrono); resto async para no bloquear WA.
+        # Ref: CLAUDE.md priority table: 80 = operaciones críticas de negocio.
         if self._bus:
             try:
-                # Eventos críticos: síncronos; el resto async para no bloquear WA
-                is_critical = prioridad <= 2
+                is_critical = prioridad >= 80
                 self._bus.publish(event_type, event_data, async_=not is_critical)
             except Exception as e:
                 logger.debug("EventBus publish error: %s", e)

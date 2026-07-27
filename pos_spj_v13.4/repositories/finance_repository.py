@@ -1,6 +1,7 @@
 
 # repositories/finance_repository.py
 import logging
+from backend.shared.ids import new_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +26,12 @@ class FinanceRepository:
     def open_shift(self, branch_id: int, user: str, initial_cash: float) -> int:
         """Abre un nuevo turno de caja."""
         cursor = self.db.cursor()
+        turno_id = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
         cursor.execute("""
-            INSERT INTO caja_turnos (sucursal_id, usuario, fondo_inicial, fecha_apertura, estado)
-            VALUES (?, ?, ?, datetime('now'), 'abierto')
-        """, (branch_id, user, initial_cash))
-        return cursor.lastrowid
+            INSERT INTO caja_turnos (id, sucursal_id, usuario, fondo_inicial, fecha_apertura, estado)
+            VALUES (?, ?, ?, ?, datetime('now'), 'abierto')
+        """, (turno_id, branch_id, user, initial_cash))
+        return turno_id
 
     def register_movement(self, turno_id: int, branch_id: int, user: str, 
                           amount: float, type_mov: str, category: str, 

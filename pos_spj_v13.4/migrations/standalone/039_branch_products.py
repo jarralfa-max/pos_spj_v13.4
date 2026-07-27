@@ -32,8 +32,8 @@ def run(conn: sqlite3.Connection) -> None:
 def _create_branch_products(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS branch_products (
-            branch_id       INTEGER NOT NULL,
-            product_id      INTEGER NOT NULL,
+            branch_id       TEXT NOT NULL,
+            product_id      TEXT NOT NULL,
             activo          INTEGER NOT NULL DEFAULT 1
                             CHECK(activo IN (0,1)),
             precio_local    REAL,       -- NULL = usar productos.precio

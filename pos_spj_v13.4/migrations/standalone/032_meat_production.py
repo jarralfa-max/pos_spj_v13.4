@@ -1,3 +1,6 @@
+# 032_meat_production.py — FUSIONADO en 053_meat_production_tables.py (v13.4 audit)
+# Este archivo NO está registrado en engine.py. Sus tablas se aplican via 053.
+# NO ELIMINAR — referencia histórica para git blame.
 
 import logging
 import sqlite3
@@ -26,24 +29,24 @@ def _create_tables(conn: sqlite3.Connection) -> None:
     """Crea las tablas del módulo cárnico asegurando compatibilidad bilingüe (fecha/created_at)."""
     conn.execute("""
         CREATE TABLE IF NOT EXISTS meat_production_runs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            branch_id INTEGER NOT NULL,
-            source_product_id INTEGER NOT NULL,
+            id TEXT NOT NULL PRIMARY KEY,
+            branch_id TEXT NOT NULL,
+            source_product_id TEXT NOT NULL,
             source_weight REAL NOT NULL,
             source_cost REAL NOT NULL,
             status TEXT NOT NULL DEFAULT 'DRAFT',
             created_at DATETIME DEFAULT (datetime('now')),
             fecha DATETIME DEFAULT (datetime('now')), 
             completed_at DATETIME,
-            user_id INTEGER
+            user_id TEXT
         )
     """)
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS meat_production_yields (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            run_id INTEGER NOT NULL,
-            yield_product_id INTEGER NOT NULL,
+            id TEXT NOT NULL PRIMARY KEY,
+            run_id TEXT NOT NULL,
+            yield_product_id TEXT NOT NULL,
             weight REAL NOT NULL,
             allocated_cost REAL NOT NULL DEFAULT 0,
             FOREIGN KEY (run_id) REFERENCES meat_production_runs(id) ON DELETE CASCADE

@@ -1,6 +1,7 @@
 
 # core/services/cotizacion_service.py — SPJ POS v10
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 import logging, uuid
 from datetime import datetime, date, timedelta
 from core.db.connection import get_connection, transaction
@@ -8,65 +9,46 @@ from core.db.connection import get_connection, transaction
 logger = logging.getLogger("spj.cotizaciones")
 
 class CotizacionService:
-    def __init__(self, conn=None, sucursal_id: int = 1, usuario: str = "vendedor", container=None):
+    def __init__(self, conn=None, sucursal_id: str = None, usuario: str = "vendedor", container=None):
         self.conn = conn or get_connection()
         self.sucursal_id = sucursal_id
         self.usuario = usuario
         self.container = container  # AppContainer for full service chain
-        self._init_tables()
+        # Schema lo crean las migraciones (m000 / 044): el servicio no crea schema (REGLA 11).
 
-    def _init_tables(self):
-        self.conn.executescript("""
-            CREATE TABLE IF NOT EXISTS cotizaciones (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                uuid TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
-                folio TEXT UNIQUE,
-                cliente_id INTEGER, cliente_nombre TEXT,
-                subtotal DECIMAL(12,2) DEFAULT 0, descuento DECIMAL(12,2) DEFAULT 0,
-                total DECIMAL(12,2) DEFAULT 0,
-                estado TEXT DEFAULT 'pendiente',  -- pendiente|aprobada|rechazada|vencida|convertida
-                notas TEXT, vigencia_dias INTEGER DEFAULT 7,
-                fecha_vencimiento DATE,
-                venta_id INTEGER,  -- si se convirtio en venta
-                usuario TEXT, sucursal_id INTEGER DEFAULT 1,
-                fecha DATETIME DEFAULT (datetime('now'))
-            );
-            CREATE TABLE IF NOT EXISTS cotizaciones_detalle (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cotizacion_id INTEGER REFERENCES cotizaciones(id) ON DELETE CASCADE,
-                producto_id INTEGER, nombre TEXT,
-                cantidad DECIMAL(10,3), unidad TEXT DEFAULT 'kg',
-                precio_unitario DECIMAL(10,4), descuento_pct DECIMAL(5,2) DEFAULT 0, subtotal DECIMAL(12,2)
-            );
-        """)
-        try: self.conn.commit()
-        except Exception: pass
+    def productos_activos(self) -> list:
+        """Catálogo de productos activos para armar cotizaciones (id, nombre, precio, unidad).
+        Ruta canónica: el diálogo delega esta lectura aquí (Remediación D)."""
+        return self.conn.execute(
+            "SELECT id, nombre, precio, unidad FROM productos WHERE activo=1 ORDER BY nombre"
+        ).fetchall()
 
-    def crear(self, items: list, cliente_id: int = None, cliente_nombre: str = "",
+    def crear(self, items: list, cliente_id: str = None, cliente_nombre: str = "",
               notas: str = "", vigencia_dias: int = 7, descuento_global: float = 0) -> dict:
         subtotal = sum(float(i["cantidad"]) * float(i["precio_unitario"]) for i in items)
         total = round(subtotal - descuento_global, 2)
         folio = f"COT-{datetime.now().strftime('%Y%m%d')}-{self.conn.execute('SELECT COUNT(*) FROM cotizaciones').fetchone()[0]+1:04d}"
         venc  = (date.today() + timedelta(days=vigencia_dias)).isoformat()
+        cid = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO), no autoincrement
         with transaction(self.conn) as c:
-            cid = c.execute("""INSERT INTO cotizaciones
-                (uuid,folio,cliente_id,cliente_nombre,subtotal,descuento,total,notas,
+            c.execute("""INSERT INTO cotizaciones
+                (id,folio,cliente_id,cliente_nombre,subtotal,descuento,total,notas,
                  vigencia_dias,fecha_vencimiento,usuario,sucursal_id)
                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (str(uuid.uuid4()),folio,cliente_id,cliente_nombre,
+                (cid,folio,cliente_id,cliente_nombre,
                  subtotal,descuento_global,total,notas,vigencia_dias,venc,
-                 self.usuario,self.sucursal_id)).lastrowid
+                 self.usuario,self.sucursal_id))
             for i in items:
                 sub = float(i["cantidad"])*float(i["precio_unitario"])*(1-float(i.get("descuento_pct",0))/100)
                 c.execute("""INSERT INTO cotizaciones_detalle
-                    (cotizacion_id,producto_id,nombre,cantidad,unidad,precio_unitario,descuento_pct,subtotal)
-                    VALUES(?,?,?,?,?,?,?,?)""",
-                    (cid,i.get("producto_id"),i.get("nombre",""),i["cantidad"],
+                    (id,cotizacion_id,producto_id,nombre,cantidad,unidad,precio_unitario,descuento_pct,subtotal)
+                    VALUES(?,?,?,?,?,?,?,?,?)""",
+                    (new_uuid(),cid,i.get("product_id"),i.get("nombre",""),i["cantidad"],
                      i.get("unidad","kg"),i["precio_unitario"],i.get("descuento_pct",0),sub))
         logger.info("Cotizacion %s creada: total=$%.2f", folio, total)
         return {"cotizacion_id":cid,"folio":folio,"total":total,"vencimiento":venc}
 
-    def convertir_en_venta(self, cotizacion_id: int) -> int:
+    def convertir_en_venta(self, cotizacion_id: str) -> str:
         """Convierte la cotizacion aprobada en venta real usando ProcesarVentaUC (v13.1)."""
         cot = self.conn.execute(
             "SELECT * FROM cotizaciones WHERE id=?", (cotizacion_id,)
@@ -149,3 +131,45 @@ class CotizacionService:
         if estado: sql += " AND estado=?"; params.append(estado)
         sql += " ORDER BY fecha DESC LIMIT ?"; params.append(limit)
         return [dict(r) for r in self.conn.execute(sql, params).fetchall()]
+
+    # ── Cambios de estado (aprobar/rechazar) ────────────────────────────────────
+    def aprobar(self, cotizacion_id: str) -> None:
+        self.conn.execute(
+            "UPDATE cotizaciones SET estado='aprobada' WHERE id=?", (cotizacion_id,))
+        self.conn.commit()
+
+    def rechazar(self, cotizacion_id: str) -> None:
+        self.conn.execute(
+            "UPDATE cotizaciones SET estado='rechazada' WHERE id=?", (cotizacion_id,))
+        self.conn.commit()
+
+    # ── Lecturas para detalle / PDF ─────────────────────────────────────────────
+    def obtener(self, cotizacion_id):
+        """Cabecera de cotización (fila cruda). Preserva SELECT * de la UI."""
+        return self.conn.execute(
+            "SELECT * FROM cotizaciones WHERE id=?", (cotizacion_id,)).fetchone()
+
+    def obtener_detalle(self, cotizacion_id) -> list:
+        return self.conn.execute(
+            "SELECT * FROM cotizaciones_detalle WHERE cotizacion_id=?",
+            (cotizacion_id,)).fetchall()
+
+    # ── Lecturas para envío por WhatsApp ────────────────────────────────────────
+    def obtener_para_whatsapp(self, cot_id):
+        """Cabecera + cliente/teléfono para el mensaje de WhatsApp. Acepta id o folio."""
+        return self.conn.execute(
+            "SELECT c.folio,c.total,c.fecha_vencimiento,cl.nombre,cl.telefono "
+            "FROM cotizaciones c LEFT JOIN clientes cl ON cl.id=c.cliente_id "
+            "WHERE c.id=? OR c.folio=?",
+            (cot_id, str(cot_id))).fetchone()
+
+    def obtener_detalle_whatsapp(self, cot_id) -> list:
+        return self.conn.execute(
+            "SELECT nombre,cantidad,precio_unitario,subtotal "
+            "FROM cotizaciones_detalle WHERE cotizacion_id=?",
+            (cot_id,)).fetchall()
+
+    def obtener_nombre_empresa(self):
+        return self.conn.execute(
+            "SELECT valor FROM configuraciones WHERE clave='nombre_empresa'"
+        ).fetchone()

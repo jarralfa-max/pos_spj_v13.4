@@ -22,24 +22,27 @@ class DeliveryBridge:
     async def crear_entrega(self, venta_id: int, direccion: str,
                             sucursal_id: int, cliente_phone: str,
                             notas: str = "") -> bool:
-        """Registra una entrega a domicilio en el ERP."""
+        """Registra una entrega a domicilio en el ERP.
+
+        Delegates to DeliveryGateway.schedule() so that the canonical
+        delivery_repository / SyncWhatsAppOrdersUseCase path remains the
+        single source of truth for delivery_orders rows.
+        """
         try:
-            self.erp.db.execute("""
-                INSERT INTO delivery_orders (
-                    venta_id, direccion, sucursal_id,
-                    telefono_cliente, notas, estado, fecha
-                ) VALUES (?, ?, ?, ?, ?, 'pendiente', datetime('now'))
-            """, (venta_id, direccion, sucursal_id, cliente_phone, notas))
-            self.erp.db.commit()
-
-            self.events.emit("WA_DELIVERY_CREADO", {
-                "venta_id": venta_id,
-                "direccion": direccion,
-                "telefono": cliente_phone,
-            }, sucursal_id=sucursal_id, prioridad=3)
-
-            logger.info("Delivery creado: venta=%d, suc=%d", venta_id, sucursal_id)
-            return True
+            ok = self.erp.delivery.schedule(
+                venta_id=venta_id,
+                direccion=direccion,
+                fecha_entrega="",
+                telefono_cliente=cliente_phone,
+            )
+            if ok:
+                self.events.emit("WA_DELIVERY_CREADO", {
+                    "venta_id": venta_id,
+                    "direccion": direccion,
+                    "telefono": cliente_phone,
+                }, sucursal_id=sucursal_id, prioridad=3)
+                logger.info("Delivery registrado via gateway: venta=%d, suc=%d", venta_id, sucursal_id)
+            return ok
         except Exception as e:
             logger.error("Error creando delivery: %s", e)
             return False

@@ -1,0 +1,33 @@
+<html><head><meta charset='utf-8'><style>
+            body { font-family:'Courier New',monospace; font-size:12px;
+                   margin:5px; max-width:240px; }
+            table { width:100%; border-collapse:collapse; font-size:11px; }
+            th { padding:3px; text-align:left; border-bottom:1px solid #ccc; }
+            td { padding:2px 3px; vertical-align:top; }
+            hr { border:none; border-top:1px dashed #000; margin:6px 0; }
+            </style></head><body><div style="text-align:center;max-width:300px;margin:auto;">
+
+<h2 style="margin:4px 0;">JUANIS</h2>
+<p style="font-size:10px;margin:2px 0;"><br>Tel: +524421910121</p>
+<hr style="border:none;border-top:1px dashed #000;">
+<p>Ticket: <b>VNT-20260709174257-F998D67F</b><br>2026-07-09 17:42:57<br>Cajero: admin</p>
+<hr style="border:none;border-top:1px dashed #000;">
+<table width="100%" style="font-size:11px;">
+  <tr><th align="left">Producto</th><th>Cant</th><th align="right">Total</th></tr>
+  <tr><td></td><td>1.000 pz</td><td style='text-align:right'>$190.00</td></tr><tr><td></td><td>1.000 pz</td><td style='text-align:right'>$39.00</td></tr>
+</table>
+<hr style="border:none;border-top:1px dashed #000;">
+<table width="100%" style="font-size:12px;">
+  <tr><td>Subtotal:</td><td align="right">$229.00</td></tr>
+  <tr><td>Descuento:</td><td align="right">$6.50</td></tr>
+  <tr><td><b>TOTAL:</b></td><td align="right"><b>$222.50</b></td></tr>
+  <tr><td>Pagó:</td><td align="right">Efectivo</td></tr>
+  <tr><td>Cambio:</td><td align="right">$0.00</td></tr>
+</table>
+<hr style="border:none;border-top:1px dashed #000;">
+<p style="font-size:10px;">Cliente: Público General<br>
+Puntos: +22 | Total: 22</p>
+
+
+<p style="font-style:italic;font-size:10px;">¡Gracias por su compra!</p>
+</div></body></html>

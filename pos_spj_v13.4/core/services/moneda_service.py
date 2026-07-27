@@ -11,16 +11,7 @@ class MonedaService:
     def __init__(self, conn=None):
         self.conn = conn or get_connection(); self._init_tables()
     def _init_tables(self):
-        self.conn.executescript("""
-            CREATE TABLE IF NOT EXISTS tipos_cambio (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                moneda_origen TEXT NOT NULL, moneda_destino TEXT DEFAULT 'MXN',
-                tasa DECIMAL(12,6) NOT NULL, fuente TEXT DEFAULT 'manual',
-                fecha DATE DEFAULT (date('now')), activa INTEGER DEFAULT 1
-            );
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_tc_fecha
-                ON tipos_cambio(moneda_origen, moneda_destino, fecha);
-        """)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         # Seed USD default
         try:
             self.conn.execute(

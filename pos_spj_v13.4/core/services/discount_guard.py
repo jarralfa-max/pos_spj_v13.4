@@ -11,9 +11,12 @@ La validación es síncrona y se llama ANTES de aplicar el descuento.
 """
 from __future__ import annotations
 import logging
+import time
 from typing import Optional, Tuple
 
 logger = logging.getLogger("spj.discount_guard")
+
+_CFG_CACHE_TTL = 60  # segundos — refresca config cada minuto
 
 
 class DiscountGuard:
@@ -29,9 +32,11 @@ class DiscountGuard:
     def __init__(self, db):
         self.db = db
         self._cfg_cache: dict = {}
+        self._cfg_timestamps: dict = {}
 
     def _cfg(self, clave: str, default: str) -> str:
-        if clave not in self._cfg_cache:
+        now = time.monotonic()
+        if clave not in self._cfg_cache or (now - self._cfg_timestamps.get(clave, 0)) > _CFG_CACHE_TTL:
             try:
                 r = self.db.execute(
                     "SELECT valor FROM configuraciones WHERE clave=?", (clave,)
@@ -39,10 +44,12 @@ class DiscountGuard:
                 self._cfg_cache[clave] = r[0] if r else default
             except Exception:
                 self._cfg_cache[clave] = default
+            self._cfg_timestamps[clave] = now
         return self._cfg_cache[clave]
 
     def limpiar_cache(self) -> None:
         self._cfg_cache.clear()
+        self._cfg_timestamps.clear()
 
     def validar_descuento(
         self,
@@ -108,22 +115,46 @@ class DiscountGuard:
 
     def solicitar_pin_gerente(self, db, pin_ingresado: str) -> bool:
         """
-        Verifica el PIN de un gerente o admin.
-        Retorna True si el PIN corresponde a un usuario con rol gerente/admin.
+        Verifica el PIN de un gerente o admin contra el hash almacenado.
+        Soporta bcrypt (preferido) y SHA-256 (legacy). NUNCA texto plano.
         """
-        import hashlib
-        h = hashlib.sha256(pin_ingresado.encode()).hexdigest()
-        try:
-            row = db.execute(
-                """SELECT id FROM usuarios
-                   WHERE (password_hash=? OR password_hash=?)
-                     AND rol IN ('admin','administrador','gerente')
-                     AND activo=1 LIMIT 1""",
-                (pin_ingresado, h)   # acepta texto plano y sha256
-            ).fetchone()
-            return row is not None
-        except Exception:
+        if not pin_ingresado:
             return False
+        try:
+            rows = db.execute(
+                """SELECT contrasena FROM usuarios
+                   WHERE rol IN ('admin','administrador','gerente')
+                     AND activo=1"""
+            ).fetchall()
+        except Exception as e:
+            logger.error("solicitar_pin_gerente: error DB: %s", e)
+            return False
+
+        import hashlib
+        sha256_ingresado = hashlib.sha256(pin_ingresado.encode()).hexdigest()
+
+        try:
+            import bcrypt
+            HAS_BCRYPT = True
+        except ImportError:
+            HAS_BCRYPT = False
+
+        for row in rows:
+            stored = row[0] if row else ""
+            if not stored:
+                continue
+            if stored.startswith(("$2b$", "$2a$", "$2y$")):
+                if HAS_BCRYPT:
+                    try:
+                        if bcrypt.checkpw(pin_ingresado.encode("utf-8"), stored.encode("utf-8")):
+                            return True
+                    except Exception:
+                        pass
+            elif stored == sha256_ingresado:
+                return True
+            # Nota: comparación de texto plano eliminada intencionalmente
+
+        return False
 
     def _get_costo(self, producto_id: int) -> float:
         try:

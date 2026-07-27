@@ -7,14 +7,16 @@ import logging
 from repositories.config_repository import ConfigRepository
 from repositories.security_repository import SecurityRepository
 from repositories.auth_repository import AuthRepository
-from repositories.inventory_repository import InventoryRepository
 from repositories.recetas import RecetaRepository as RecipeRepository
 from repositories.finance_repository import FinanceRepository
-from repositories.sales_repository import SalesRepository
+from infrastructure.persistence.sqlite_sales_repository import SQLiteSalesRepository
 from repositories.purchase_repository import PurchaseRepository
+from repositories.caja import CajaRepository
+from repositories.productos import ProductoRepository
 # Si tienes estos, descoméntalos; si no, coméntalos para que no den error:
 from repositories.promotion_repository import PromotionRepository
-from repositories.bi_repository import BIRepository
+# [REFACTOR FASE 2] BIRepository eliminado - toda la lógica migrada a AnalyticsEngine
+# from repositories.bi_repository import BIRepository
 from repositories.sync_repository import SyncRepository
 
 # --- IMPORTACIONES DE SERVICIOS (CAPAS 2 Y 3) ---
@@ -24,8 +26,10 @@ from core.services.config_service import ConfigService
 from core.services.feature_flag_service import FeatureFlagService
 from core.services.security_service import SecurityService
 from core.services.auth_service import AuthService
+from backend.infrastructure.db.repositories.inventory_repository import InventoryRepository
+from backend.application.services.inventory_application_service import InventoryApplicationService
+from backend.application.queries.inventory_query_service import InventoryQueryService
 
-from core.services.inventory_service import InventoryService
 from core.services.finance_service import FinanceService
 from core.services.loyalty_service import LoyaltyService
 from core.services.recipe_engine import RecipeEngine
@@ -40,6 +44,7 @@ from core.services.purchase_service import PurchaseService
 
 logger = logging.getLogger(__name__)
 
+
 class AppContainer:
     """
     Contenedor de Inyección de Dependencias (Enterprise Architecture).
@@ -51,8 +56,8 @@ class AppContainer:
         self.session = SessionContext()
 
         # sucursal_id dinámico — proxy al SessionContext (compat con módulos existentes)
-        self.sucursal_id: int = 1
-        self.sucursal_nombre: str = "Principal"
+        self.sucursal_id: str = ""
+        self.sucursal_nombre: str = ""
         logger.info("Inicializando AppContainer...")
 
         # 0. CONEXIÓN A BASE DE DATOS
@@ -63,24 +68,82 @@ class AppContainer:
         set_db_path(db_path)          # registra la ruta en el módulo canónico
         self.db = get_connection()    # WAL + NORMAL sync + FK + busy_timeout
 
+        # Sucursal activa inicial — resolución canónica en 3 estados:
+        #   1) clave 'sucursal_instalacion_id' válida → sucursal configurada.
+        #   2) clave presente pero inválida ("None"/""/"null" o sucursal
+        #      inexistente/inactiva) → warning fuerte y sucursal_id="".
+        #      Una configuración inválida NUNCA se convierte silenciosamente
+        #      en 'Principal' ni en la primera sucursal activa.
+        #   3) clave ausente (bootstrap inicial) → primera sucursal activa
+        #      válida, registrada como instalación PENDIENTE de configurar.
+        self.installation_branch_configured: bool = False
+        try:
+            from core.services.branch_resolution import resolve_installation_branch
+            _res = resolve_installation_branch(self.db)
+            if _res.get('id'):
+                self.sucursal_id = str(_res['id'])
+                self.sucursal_nombre = str(_res.get('nombre') or "")
+                self.installation_branch_configured = bool(_res.get('configured'))
+                if hasattr(self, "session"):
+                    try:
+                        self.session.set_sucursal(self.sucursal_id, self.sucursal_nombre)
+                    except Exception:
+                        pass
+            else:
+                # Configuración inválida: queda visible (sucursal_id vacío);
+                # el helper ya registró el warning fuerte.
+                self.sucursal_id = ""
+                self.sucursal_nombre = ""
+        except Exception as _e:
+            logger.warning("No se pudo resolver la sucursal inicial: %s", _e)
+
         # =========================================================
         # CAPA 1: REPOSITORIOS (Acceso crudo a las tablas)
         # =========================================================
         self.config_repo = ConfigRepository(self.db)
         self.security_repo = SecurityRepository(self.db)
         self.auth_repo = AuthRepository(self.db)
-        self.inventory_repo = InventoryRepository(self.db)
+        self.inventory_repository = InventoryRepository(self.db)
+        self.inventory_query_service = InventoryQueryService(repository=self.inventory_repository)
         self.recipe_repo = RecipeRepository(self.db)
         self.finance_repo = FinanceRepository(self.db)
-        self.sales_repo = SalesRepository(self.db)
+        self.sales_repo = SQLiteSalesRepository(self.db)
         self.purchase_repo = PurchaseRepository(self.db)
-        
+        self.caja_repo = CajaRepository(self.db)
+
+        # Lecturas de Finanzas (KPIs/listados) — instancia única para toda la
+        # UI de finanzas: nada de construir FinanceReadRepository inline.
+        from backend.infrastructure.db.repositories.finance_read_repository import (
+            FinanceReadRepository,
+        )
+        self.finance_read_repository = FinanceReadRepository(self.db)
+
+        # Lecturas del Dashboard operativo (KPIs diarios) — Bug 2: la UI del
+        # dashboard consume SOLO este QueryService.
+        from backend.application.queries.dashboard_query_service import (
+            DashboardQueryService,
+        )
+        self.dashboard_query_service = DashboardQueryService(self.db)
+
+        # Phase 3: repositorios documentales PR/PO
+        try:
+            from repositories.purchase_request_repository import PurchaseRequestRepository
+            from repositories.purchase_order_repository import PurchaseOrderRepository
+            self.purchase_request_repo = PurchaseRequestRepository(self.db)
+            self.purchase_order_repo   = PurchaseOrderRepository(self.db)
+        except Exception as _pr_repo_err:
+            self.purchase_request_repo = None
+            self.purchase_order_repo   = None
+            logger.debug("purchase_request/order_repo: %s", _pr_repo_err)
+
         # Opcionales (depende de qué tan avanzados vayan tus módulos)
         self.promo_repo = PromotionRepository(self.db)
-        self.bi_repo = BIRepository(self.db)
+        # [REFACTOR FASE 2] BIRepository eliminado - toda la lógica migrada a AnalyticsEngine
+        # self.bi_repo = BIRepository(self.db)
         self.sync_repo = SyncRepository(self.db)
         from repositories.cliente_repository import ClienteRepository
         self.cliente_repo = ClienteRepository(self.db)
+        self.producto_repo = ProductoRepository(self.db)
 
         # MercadoPago (pagos digitales con link)
         try:
@@ -116,15 +179,111 @@ class AppContainer:
         ## =========================================================
         # CAPA 3: SERVICIOS DE NEGOCIO (Los motores del ERP)
         # =========================================================
-        self.inventory_service = InventoryService(self.db, self.inventory_repo)
-        self.inventory_service.audit_service = self.audit_service # Inyectar auditoría manualmente
+        self.inventory_application_service = InventoryApplicationService(
+            repository=self.inventory_repository,
+        )
+        # Compatibility alias only: points to canonical InventoryApplicationService.
+        self.inventory_service = self.inventory_application_service
 
         self.finance_service = FinanceService(self.db) # Solo recibe 1 parámetro
-        self.loyalty_service = LoyaltyService(self.db)  # module_config set below
+        self.loyalty_service = LoyaltyService(self.db, finance_service=self.finance_service)  # module_config set below
+
+        # CajaApplicationService — fuente única de verdad para operaciones de caja
+        try:
+            from application.services.caja_application_service import CajaApplicationService
+            self.caja_service = CajaApplicationService(
+                db=self.db,
+                finance_service=self.finance_service,
+                caja_repo=self.caja_repo,
+            )
+        except Exception as _caja_svc_err:
+            self.caja_service = None
+            logger.warning("CajaApplicationService no cargado: %s", _caja_svc_err)
+
+        # FASE 7.7 — capa canónica de caja (use cases + eventos CASH_*)
+        try:
+            from backend.application.services.cash_register_application_service import (
+                CashRegisterApplicationService,
+            )
+            from backend.application.use_cases.close_cash_shift_use_case import CloseCashShiftUseCase
+            from backend.application.use_cases.open_cash_shift_use_case import OpenCashShiftUseCase
+            from backend.application.use_cases.register_cash_movement_use_case import (
+                RegisterCashMovementUseCase,
+            )
+            from backend.application.use_cases.generate_z_cut_use_case import GenerateZCutUseCase
+            from core.events.event_bus import get_bus as _cash_get_bus
+
+            if self.caja_service is None:
+                raise RuntimeError("CajaApplicationService no disponible")
+            # Fuente única de turnos/corte Z: CajaApplicationService. Los
+            # delegados legacy de FinanceService comparten ESTA instancia.
+            self.finance_service.caja_app = self.caja_service
+            self.cash_register_service = CashRegisterApplicationService(
+                self.caja_service,
+                publisher=lambda evt, payload: _cash_get_bus().publish(evt, payload),
+                permission_checker=lambda _user_id, permission: self.session.tiene_permiso(permission),
+            )
+            self.open_cash_shift_uc = OpenCashShiftUseCase(handler=self.cash_register_service.open_shift)
+            self.close_cash_shift_uc = CloseCashShiftUseCase(handler=self.cash_register_service.close_shift)
+            self.register_cash_movement_uc = RegisterCashMovementUseCase(
+                handler=self.cash_register_service.register_movement
+            )
+            self.generate_z_cut_uc = GenerateZCutUseCase(handler=self.cash_register_service.generate_z_cut)
+
+            from backend.application.event_handlers.hr.cash_shift_closed_attendance_handler import CashShiftClosedAttendanceHandler
+            from backend.application.event_handlers.hr.cash_shift_opened_attendance_handler import CashShiftOpenedAttendanceHandler
+            from backend.application.use_cases.hr.register_attendance_punch_use_case import RegisterAttendancePunchUseCase
+            from backend.infrastructure.db.repositories.attendance_repository import SQLiteAttendanceRepository
+            from backend.infrastructure.db.repositories.employee_repository import SQLiteEmployeeRepository
+
+            _attendance_punch_uc = RegisterAttendancePunchUseCase(
+                SQLiteAttendanceRepository(self.db),
+                employee_repository=SQLiteEmployeeRepository(self.db),
+            )
+            _cash_get_bus().subscribe(
+                "CASH_SHIFT_OPENED",
+                CashShiftOpenedAttendanceHandler(_attendance_punch_uc).handle,
+                priority=50,
+                label="hr_attendance_cash_opened",
+            )
+            _cash_get_bus().subscribe(
+                "CASH_SHIFT_CLOSED",
+                CashShiftClosedAttendanceHandler(_attendance_punch_uc).handle,
+                priority=50,
+                label="hr_attendance_cash_closed",
+            )
+        except Exception as _cash_err:
+            self.cash_register_service = None
+            self.open_cash_shift_uc = None
+            self.close_cash_shift_uc = None
+            self.register_cash_movement_uc = None
+            self.generate_z_cut_uc = None
+            logger.warning("CashRegister use cases no cargados: %s", _cash_err)
+
+        # CustomerCreditService — validación de crédito y CxC en ventas
+        from application.services.customer_credit_service import CustomerCreditService
+        self.customer_credit_service = CustomerCreditService(
+            db_conn=self.db,
+            finance_service=self.finance_service,
+        )
+
+        # CreditValidationService — rich pre-authorization (post-dialog, credit only)
+        from application.services.credit_validation_service import CreditValidationService
+        self.credit_validation_service = CreditValidationService(
+            db_conn=self.db,
+            block_on_overdue=False,
+        )
+
+        # AccountsReceivableService — canonical CxC mutation path
+        from application.services.accounts_receivable_service import AccountsReceivableService
+        self.accounts_receivable_service = AccountsReceivableService(
+            db_conn=self.db,
+            finance_service=self.finance_service,
+        )
 
         # Motores de producción — fuente canónica
-        self.recipe_engine = RecipeEngine(self.db, branch_id=1)
-        self.production_engine = ProductionEngine(self.db, branch_id=1)
+        self.recipe_engine = RecipeEngine(self.db, branch_id="")
+        self.production_engine = ProductionEngine(self.db, branch_id="")
         
         # Motores visuales y de comunicación
         self.ticket_template_engine = TicketTemplateEngine(db_conn=self.db)
@@ -153,8 +312,19 @@ class AppContainer:
         
         # Opcionales
         self.promotion_engine = PromotionEngine(self.promo_repo)
-        self.sync_service = SyncService(self.sync_repo)
-        self.purchase_service = PurchaseService(self.db, self.purchase_repo, self.inventory_service, self.finance_service)
+        self.sync_service = SyncService(self.db)
+
+        # SupplierCreditService — política de crédito de proveedor (Bug 8).
+        # Registrado aquí e inyectado explícitamente en PurchaseService
+        # (regla 16: sin dependencias implícitas autoconstruidas).
+        from application.services.supplier_credit_service import SupplierCreditService
+        self.supplier_credit_service = SupplierCreditService(self.db)
+
+        self.purchase_service = PurchaseService(
+            self.db, self.purchase_repo, self.inventory_application_service,
+            self.finance_service,
+            supplier_credit_service=self.supplier_credit_service,
+        )
 
         # =========================================================
         # CAPA 4: EL ORQUESTADOR PRINCIPAL (Ventas)
@@ -165,7 +335,8 @@ class AppContainer:
         from core.db.connection import _DatabaseShim
         _db_shim = _DatabaseShim(self.db_path)
         self.sales_reversal_service = SalesReversalService(
-            db=_db_shim, branch_id=1
+            db=_db_shim, branch_id="",
+            finance_service=self.finance_service,
         )
 
         from core.services.pricing_service import PricingService
@@ -190,7 +361,10 @@ class AppContainer:
             pricing_service=self.pricing_service,
             growth_engine=getattr(self, 'growth_engine', None),
             notification_service=getattr(self, 'notification_service', None),
+            customer_service=self.customer_credit_service,
         )
+        if getattr(self, "mercado_pago_service", None) is not None:
+            self.mercado_pago_service.sales_service = self.sales_service
         
         # ── Servicios adicionales (v12) ───────────────────────────────────
         from core.services.hardware_service import HardwareService
@@ -201,26 +375,27 @@ class AppContainer:
         self.module_config = ModuleConfig(self.db)
 
         # v13.4 Fase 3: TreasuryService (Tesorería Central / CAPEX)
-        from core.services.treasury_service import TreasuryService
-        self.treasury_service = TreasuryService(self.db, self.module_config)
-
-        from core.services.hr_rule_engine import HRRuleEngine
-        self.hr_rule_engine = HRRuleEngine(
-            db_conn=self.db,
-            module_config=self.module_config,
+        # [REFACTOR FASE 1] Movido a core/services/finance/treasury_service.py
+        from core.services.finance.treasury_service import TreasuryService
+        self.treasury_service = TreasuryService(
+            self.db, self.module_config,
+            finance_service=self.finance_service,
         )
 
-        from core.services.rrhh_service import RRHHService
-        self.rrhh_service = RRHHService(
-            db_conn=self.db,
+        # v13.4 Fase D: AssetService (EAM) — ruta canónica UI → servicio → DB.
+        # Los diálogos de activos delegan aquí (captura-only, sin SQL en UI).
+        from core.services.asset_service import AssetService
+        self.asset_service = AssetService(
+            self.db,
             treasury_service=self.treasury_service,
-            whatsapp_service=self.whatsapp_service,
-            template_engine=None,
-            hr_rule_engine=self.hr_rule_engine,
+            finance_service=self.finance_service,
         )
 
-        from core.services.bi_service import BIService
-        self.bi_service = BIService(self.bi_repo, self.feature_flag_service)
+        # RRHH legacy eliminado: el módulo canónico se compone en core.ui.hr_module_factory
+        # y toda mutación pasa por backend.application.use_cases.hr.
+
+        # BI unificado: no se expone bi_service paralelo.
+        self.bi_service = None
 
         from core.services.theme_service import ThemeService
         self.theme_service = ThemeService(self.db)
@@ -228,6 +403,19 @@ class AppContainer:
         # v13.4 Fase 1: PrinterService unificado
         from core.services.printer_service import PrinterService
         self.printer_service = PrinterService(self.db, self.module_config)
+
+        # CajaTicketService — impresión y PDF de cortes Z. Construido DESPUÉS
+        # de PrinterService para inyectarlo explícitamente: sin él, el corte Z
+        # jamás auto-imprimía por la ruta térmica canónica (Bug 4).
+        try:
+            from core.services.caja_ticket_service import CajaTicketService
+            self.caja_ticket_service = CajaTicketService(
+                db=self.db,
+                printer_service=self.printer_service,
+            )
+        except Exception as _caja_tkt_err:
+            self.caja_ticket_service = None
+            logger.warning("CajaTicketService no cargado: %s", _caja_tkt_err)
 
         # v13.4 Fase 1.5: QRParserService (separar client_id de nombre)
         from core.services.qr_parser_service import QRParserService
@@ -354,6 +542,75 @@ class AppContainer:
             self.uc_produccion = None
             logger.debug("uc_produccion: %s", _uc_p)
 
+        # ── FASE 7: unified production application service ───────────────────
+        try:
+            from core.services.production_application_service import (
+                ProductionApplicationService,
+            )
+            self.produccion_service = ProductionApplicationService.from_container(self)
+        except Exception as _pas_err:
+            self.produccion_service = None
+            logger.debug("produccion_service: %s", _pas_err)
+
+        # ── FASE 9: production query service (SQL extracted from UI) ─────────
+        try:
+            from core.services.production_query_service import (
+                get_daily_kpis,
+                get_active_lotes_count,
+                get_recetas_list,
+                get_recipe_components,
+                get_historial_carnica,
+                get_stock,
+                get_stocks_for_products,
+                get_recetas_for_combo,
+            )
+            import types as _types
+            _pqs = _types.SimpleNamespace(
+                get_daily_kpis         = lambda *a, **kw: get_daily_kpis(self.db, *a, **kw),
+                get_active_lotes_count = lambda: get_active_lotes_count(self.db),
+                get_recetas_list       = lambda: get_recetas_list(self.db),
+                get_recipe_components  = lambda rid: get_recipe_components(self.db, rid),
+                get_historial_carnica  = lambda limit=100: get_historial_carnica(self.db, limit),
+                get_stock              = lambda pid, suc: get_stock(self.db, pid, suc),
+                get_stocks_for_products= lambda pids, suc: get_stocks_for_products(self.db, pids, suc),
+                get_recetas_for_combo  = lambda: get_recetas_for_combo(self.db),
+            )
+            self.production_query_service = _pqs
+        except Exception as _pqs_err:
+            self.production_query_service = None
+            logger.debug("production_query_service: %s", _pqs_err)
+
+        # ── Phase 2/3/4: Ruta canónica + UCs documentales + adaptador recepción ─
+        try:
+            from application.purchases.traditional_purchase_uc import TraditionalPurchaseUC
+            from application.purchases.purchase_request_uc import PurchaseRequestUC
+            from application.purchases.purchase_order_uc import PurchaseOrderUC
+            from application.purchases.receive_po_adapter import ReceivePOAdapter
+            self.uc_compra_tradicional = TraditionalPurchaseUC(self)
+            self.uc_purchase_request   = PurchaseRequestUC(self)
+            self.uc_purchase_order     = PurchaseOrderUC(self)
+            self.receive_po_adapter    = ReceivePOAdapter(self)
+        except Exception as _uc_trad:
+            self.uc_compra_tradicional = None
+            self.uc_purchase_request   = None
+            self.uc_purchase_order     = None
+            self.receive_po_adapter    = None
+            logger.debug("uc_compra_tradicional/pr/po/adapter: %s", _uc_trad)
+
+        # ── v13.5: ERP Use Cases — compra (deprecated), cliente y finanzas ──
+        try:
+            from core.use_cases.compra import ProcesarCompraUC
+            from core.use_cases.cliente import GestionarClienteUC
+            from core.use_cases.finanzas import GestionarFinanzasUC
+            # uc_compra queda como alias deprecado hacia ProcesarCompraUC.
+            # Código nuevo debe usar self.uc_compra_tradicional.
+            self.uc_compra    = ProcesarCompraUC.desde_container(self)
+            self.uc_cliente   = GestionarClienteUC.desde_container(self)
+            self.uc_finanzas  = GestionarFinanzasUC.desde_container(self)
+        except Exception as _uc_erp:
+            self.uc_compra = self.uc_cliente = self.uc_finanzas = None
+            logger.debug("uc_erp v13.5: %s", _uc_erp)
+
         # ── v13.4: EventLogger para sync (usado por handlers del EventBus) ──
         try:
             from sync.event_logger import EventLogger
@@ -401,6 +658,55 @@ class AppContainer:
             sucursal_id=self.sucursal_id
         )
 
+        # FASE 20 refactor financiero: AccountingEngine, ThirdPartyService,
+        # ERPFinancialService, FiscalEngine y CapitalService fueron sustituidos
+        # por el bounded context de Finanzas (backend/domain/finance +
+        # posting engine); no se conservan rutas financieras paralelas.
+
+        # ── ERP FASE 5: AnalyticsEngine ──────────────────────────────────────
+        try:
+            from core.services.analytics.analytics_engine import AnalyticsEngine
+            self.analytics_engine = AnalyticsEngine(self.db)
+            self.analytics_engine.wire()
+        except Exception as _anae:
+            self.analytics_engine = None
+            logger.debug("AnalyticsEngine: %s", _anae)
+
+        # ── BI dashboard (query layer + application service) ─────────────────
+        try:
+            from backend.application.queries.bi_dashboard_query_service import (
+                BiDashboardQueryService,
+            )
+            from backend.application.services.bi_dashboard_service import (
+                BiDashboardService,
+            )
+
+            def _bi_can(perm: str) -> bool:
+                # Fuente única: SessionContext.tiene_permiso (admin => todo).
+                session = getattr(self, "session", None)
+                if session is not None and hasattr(session, "tiene_permiso"):
+                    try:
+                        if not session.is_active:
+                            return True  # sin sesión activa (arranque): no bloquear
+                        return bool(session.tiene_permiso(perm))
+                    except Exception:
+                        return True
+                return True
+
+            from backend.application.services.bi_settings_service import BiSettingsService
+            from backend.application.services.bi_export_service import BiExportService
+
+            self.bi_settings_service = BiSettingsService(self.config_service)
+            self.bi_dashboard_service = BiDashboardService(
+                BiDashboardQueryService(self.db), permission_checker=_bi_can,
+                settings=self.bi_settings_service)
+            self.bi_export_service = BiExportService()
+        except Exception as _bie:
+            self.bi_dashboard_service = None
+            self.bi_settings_service = None
+            self.bi_export_service = None
+            logger.debug("BiDashboardService: %s", _bie)
+
         # Wire kitchen printer and comisiones to sales_service
         try:
             self.sales_service._hw_svc = self.hardware_service
@@ -420,11 +726,11 @@ class AppContainer:
             lambda p: logger.debug("VENTA_COMPLETADA bus: folio=%s", p.get('folio')),
             label="container.log_venta", priority=0
         )
-        # Invalidar caché BI tras cada venta (bi_service registrado después)
+        # Invalidar caché BI tras cada venta (analytics_engine único)
         bus.subscribe(
             VENTA_COMPLETADA,
             lambda p: (
-                getattr(getattr(self, 'bi_service', None), 'invalidar_cache', lambda *a: None)
+                getattr(getattr(self, 'analytics_engine', None), 'invalidar_cache', lambda *a: None)
                 (p.get('branch_id', 1))
             ),
             label="bi.cache_invalidate", priority=-1
@@ -446,15 +752,20 @@ class AppContainer:
 
         # ── Growth Engine ──────────────────────────────────────────────
         try:
-            from modulos.growth_engine import GrowthEngine
+            from core.services.growth_engine import GrowthEngine
             self.growth_engine = GrowthEngine(
                 db=self.db,
-                sucursal_id=1,
+                sucursal_id="",
                 whatsapp_service=self.whatsapp_service,
             )
         except Exception as _ge:
             self.growth_engine = None
             logger.warning("GrowthEngine no inicializado: %s", _ge)
+
+        # Backfill growth_engine reference into SalesService (initialized earlier)
+        if self.growth_engine is not None and hasattr(self, 'sales_service') \
+                and self.sales_service is not None:
+            self.sales_service.growth_engine = self.growth_engine
 
         # ── DiscountGuard (motor financiero de descuentos) ────────────
         try:
@@ -472,6 +783,13 @@ class AppContainer:
         from modulos.sistema.backup_engine import crear_backup
         import logging as _log
 
+        # AlertasService exige una sucursal UUIDv7 (sin default arbitrario). Si la
+        # sesión aún no fijó sucursal activa, el scheduler de alertas se omite.
+        if not self.sucursal_id:
+            _log.getLogger("spj.scheduler").info(
+                "Scheduler de alertas omitido: sin sucursal activa (UUIDv7)."
+            )
+            return
         alertas_svc = AlertasService(self.db, sucursal_id=self.sucursal_id)
         alertas_svc.notification_service = self.notification_service
 
@@ -518,8 +836,7 @@ class AppContainer:
             from datetime import datetime as _dt
             if _dt.now().day != 1: return
             try:
-                from modulos.activos import calcular_depreciacion_mensual
-                results = calcular_depreciacion_mensual(self.db, self.sucursal_id)
+                results = self.asset_service.calcular_depreciacion_mensual(self.sucursal_id)
                 if results:
                     _log.getLogger("spj.scheduler").info(
                         "Depreciacion mensual: %d activos", len(results))
@@ -730,6 +1047,10 @@ class AppContainer:
             "mantenimiento_semanal", _mantenimiento_semanal, intervalo_seg=86400)
 
         # ── Auto-cierre de turno a medianoche ─────────────────────────────
+        # D1 paso 2c: cierra los turnos abiertos canónicos (turnos_caja) por la
+        # ruta canónica de corte Z (GenerateZCutUseCase → finance_service), que
+        # registra cierres_caja y postea el asiento de diferencia. Antes usaba
+        # CierreCajaService sobre turno_actual (tracker legacy vacío en prod → no-op).
         def _auto_cierre_turno():
             from datetime import datetime
             ahora = datetime.now()
@@ -737,19 +1058,8 @@ class AppContainer:
             if not (ahora.hour == 23 and ahora.minute >= 50) and not (ahora.hour == 0 and ahora.minute <= 10):
                 return
             try:
-                from core.services.cierre_caja_service import CierreCajaService
-                # Verificar sucursales con turno abierto
-                sucursales = self.db.execute(
-                    "SELECT DISTINCT sucursal_id FROM turno_actual WHERE abierto=1"
-                ).fetchall()
-                for row in sucursales:
-                    suc_id = row[0]
-                    svc = CierreCajaService(conn=self.db, sucursal_id=suc_id, usuario="SISTEMA")
-                    if svc.turno_activo():
-                        svc.corte_z(efectivo_contado=0.0,
-                                    comentarios="Cierre automático por sistema — medianoche")
-                        _log.getLogger("spj.scheduler").warning(
-                            "Turno sucursal %d cerrado automáticamente a medianoche", suc_id)
+                from core.services.caja_auto_close import auto_close_open_shifts
+                auto_close_open_shifts(self.db, getattr(self, "generate_z_cut_uc", None))
             except Exception as e:
                 _log.getLogger("spj.scheduler").debug("auto_cierre_turno: %s", e)
 
@@ -784,7 +1094,7 @@ class AppContainer:
             import logging as _l
             _l.getLogger("spj.container").warning("EventBus wiring: %s", _e)
 
-    def set_sucursal_activa(self, sucursal_id: int, nombre: str = "") -> None:
+    def set_sucursal_activa(self, sucursal_id: str, nombre: str = "") -> None:
         """
         Cambia la sucursal activa del sistema.
         Propaga a SessionContext + todos los servicios.
@@ -796,16 +1106,19 @@ class AppContainer:
         if hasattr(self, 'session'):
             self.session.set_sucursal(sucursal_id, nombre)
 
-        # Actualizar servicios que usan sucursal_id
-        for svc_name in ['inventory_service', 'sales_service', 'treasury_service',
-                          'happy_hour_service', 'comisiones_service',
-                          'loyalty_service', 'anticipo_service']:
-            svc = getattr(self, svc_name, None)
-            if svc and hasattr(svc, 'sucursal_id'):
-                svc.sucursal_id = sucursal_id
-            if svc and hasattr(svc, 'set_sucursal'):
-                try: svc.set_sucursal(sucursal_id)
-                except Exception: pass
+        # Actualizar TODOS los servicios del container que llevan sucursal_id
+        # copiada en su construcción (genérico: antes era una lista fija de 7 y
+        # el resto conservaba la sucursal vieja hasta reiniciar).
+        for attr_name, svc in list(self.__dict__.items()):
+            if svc is None or svc is self or isinstance(svc, (str, int, float, bool, list, dict, set, tuple)):
+                continue
+            try:
+                if hasattr(svc, 'sucursal_id'):
+                    svc.sucursal_id = sucursal_id
+                if hasattr(svc, 'set_sucursal'):
+                    svc.set_sucursal(sucursal_id)
+            except Exception as _svc_exc:
+                logger.debug("set_sucursal_activa → %s: %s", attr_name, _svc_exc)
 
         logger.info("Sucursal activa: %s (%s)", sucursal_id, nombre)
 
@@ -815,17 +1128,32 @@ class AppContainer:
         Se llama desde MainWindow._propagar_usuario() después del login.
         """
         if hasattr(self, 'session'):
+            _terminal_id = self.sucursal_id
+            _terminal_nombre = self.sucursal_nombre
             self.session.set_user(user_data)
-            # Sincronizar compat attrs
-            self.sucursal_id = self.session.sucursal_id
-            self.sucursal_nombre = self.session.sucursal_nombre
+            _session_suc = str(self.session.sucursal_id or "").strip()
+            if _session_suc and _session_suc.lower() not in ("none", "null"):
+                # Sincronizar compat attrs con la sucursal resuelta en sesión
+                self.sucursal_id = self.session.sucursal_id
+                self.sucursal_nombre = self.session.sucursal_nombre
+            elif _terminal_id:
+                # La sucursal del usuario no viene resuelta: NO sobreescribir
+                # la sucursal de terminal válida ya configurada.
+                logger.warning(
+                    "set_session_user: usuario sin sucursal válida (%r); se "
+                    "conserva la sucursal de terminal %s (%s).",
+                    self.session.sucursal_id, _terminal_id, _terminal_nombre,
+                )
+                self.session.set_sucursal(_terminal_id, _terminal_nombre)
+                self.sucursal_id = _terminal_id
+                self.sucursal_nombre = _terminal_nombre
 
     def clear_session(self) -> None:
         """v13.4: Limpia la sesión (logout)."""
         if hasattr(self, 'session'):
             self.session.clear()
-        self.sucursal_id = 1
-        self.sucursal_nombre = "Principal"
+        self.sucursal_id = ""
+        self.sucursal_nombre = ""
 
     def close(self):
         """Cierra la base de datos limpiamente al apagar el ERP."""

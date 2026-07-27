@@ -1,0 +1,94 @@
+from __future__ import annotations
+
+import json
+from backend.shared.ids import new_uuid
+from datetime import datetime, timezone
+from typing import List, Dict, Any
+
+
+def _utc_now_iso() -> str:
+    """UTC timezone-aware timestamp in ISO8601 for outbox persistence."""
+    utc_tz = getattr(datetime, "UTC", timezone.utc)
+    return datetime.now(utc_tz).isoformat()
+
+
+def ensure_outbox_table(db) -> None:
+    pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
+    try:
+        db.commit()
+    except Exception:
+        pass
+
+
+def enqueue_event(
+    db,
+    event_type: str,
+    payload: Dict[str, Any],
+    aggregate_type: str = "",
+    aggregate_id: str = "",
+) -> str:
+    ensure_outbox_table(db)
+    event_id = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+    db.execute(
+        """
+        INSERT INTO event_outbox
+        (id, event_type, payload, aggregate_type, aggregate_id, status, created_at)
+        VALUES (?,?,?,?,?, 'PENDING', ?)
+        """,
+        (
+            event_id,
+            event_type,
+            json.dumps(payload or {}, ensure_ascii=False, default=str),
+            aggregate_type or "",
+            str(aggregate_id or ""),
+            _utc_now_iso(),
+        ),
+    )
+    try:
+        db.commit()
+    except Exception:
+        pass
+    return event_id
+
+
+def fetch_pending(db, limit: int = 100) -> List[dict]:
+    ensure_outbox_table(db)
+    rows = db.execute(
+        """
+        SELECT id, event_type, payload, aggregate_type, aggregate_id, created_at
+        FROM event_outbox
+        WHERE status='PENDING'
+        ORDER BY created_at ASC, id ASC
+        LIMIT ?
+        """,
+        (int(limit),),
+    ).fetchall()
+    out = []
+    for r in rows:
+        out.append(
+            {
+                "id": r["id"] if hasattr(r, "__getitem__") else r[0],
+                "event_type": r["event_type"] if hasattr(r, "__getitem__") else r[1],
+                "payload": json.loads(r["payload"] if hasattr(r, "__getitem__") else r[2]),
+                "aggregate_type": r["aggregate_type"] if hasattr(r, "__getitem__") else r[3],
+                "aggregate_id": r["aggregate_id"] if hasattr(r, "__getitem__") else r[4],
+                "created_at": r["created_at"] if hasattr(r, "__getitem__") else r[5],
+            }
+        )
+    return out
+
+
+def mark_dispatched(db, event_id: int, error: str = "") -> None:
+    status = "ERROR" if error else "DISPATCHED"
+    db.execute(
+        """
+        UPDATE event_outbox
+        SET status=?, error=?, dispatched_at=?
+        WHERE id=?
+        """,
+        (status, error or "", _utc_now_iso(), str(event_id)),
+    )
+    try:
+        db.commit()
+    except Exception:
+        pass

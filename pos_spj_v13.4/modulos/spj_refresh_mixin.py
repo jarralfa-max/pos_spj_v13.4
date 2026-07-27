@@ -14,7 +14,7 @@ USO:
             self.cargar_clientes()   # método que recarga datos
 """
 from __future__ import annotations
-from typing import Callable, List
+from typing import List
 import logging
 from PyQt5.QtCore import QTimer
 
@@ -26,6 +26,10 @@ class RefreshMixin:
     Mixin que suscribe al módulo al EventBus.
     El refresco tiene un debounce de 500ms para evitar múltiples recargas
     cuando varios eventos llegan en ráfaga.
+
+    También provee wrappers seguros para cargas auxiliares. Estos wrappers no
+    reemplazan reglas de negocio: solo evitan que un error secundario de KPI,
+    pestañas, header o notificaciones tumbe la carga principal de un módulo.
     """
 
     def _init_refresh(
@@ -68,7 +72,6 @@ class RefreshMixin:
         event_type = data.get("event_type", "")
         self._pending_event = event_type
         self._pending_data  = data
-        # Use singleShot(0) — always safe across threads, dispatches to main Qt loop
         try:
             from PyQt5.QtCore import QTimer as _QT
             _QT.singleShot(0, self._schedule_refresh)
@@ -102,3 +105,31 @@ class RefreshMixin:
                 except Exception as e:
                     logger.debug("RefreshMixin auto-refresh %s: %s", method_name, e)
                     return
+
+    def _safe_call_auxiliary(self, method_name: str, *args, **kwargs):
+        """Ejecuta una carga auxiliar sin romper la carga principal."""
+        method = getattr(self, method_name, None)
+        if not callable(method):
+            logger.debug("Auxiliary method missing: %s", method_name)
+            return None
+        try:
+            return method(*args, **kwargs)
+        except Exception as exc:
+            logger.warning("Auxiliary UI load failed in %s: %s", method_name, exc)
+            try:
+                setattr(self, "_last_aux_error", str(exc))
+            except Exception:
+                pass
+            return None
+
+    def _safe_update_filter_tabs(self, pedidos, counts_estado):
+        return self._safe_call_auxiliary("_update_filter_tabs", pedidos, counts_estado)
+
+    def _safe_update_kpi(self, pedidos):
+        return self._safe_call_auxiliary("_update_kpi", pedidos)
+
+    def _safe_refresh_operational_header(self):
+        return self._safe_call_auxiliary("_refresh_operational_header")
+
+    def _safe_poll_delivery_notifications(self):
+        return self._safe_call_auxiliary("_poll_delivery_notifications")

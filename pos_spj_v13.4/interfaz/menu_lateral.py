@@ -1,63 +1,185 @@
 
 # interfaz/menu_lateral.py
-from PyQt5.QtWidgets import (QFrame, QVBoxLayout, QPushButton, QLabel, 
-                             QSpacerItem, QSizePolicy, QScrollArea, QWidget)
+from PyQt5.QtWidgets import (QFrame, QVBoxLayout, QPushButton, QLabel,
+                             QSpacerItem, QSizePolicy, QScrollArea, QWidget,
+                             QShortcut)
 from PyQt5.QtCore import pyqtSignal, Qt
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QPixmap, QKeySequence
+import unicodedata
+
+from modulos.ui_components import create_input_field
+from modulos.design_tokens import Colors, Borders, Typography
+
+# Inventario explícito de módulos v13.4 (referencia para wiring UI)
+MODULOS = [
+    "ventas",
+    "compras_pro",
+    "inventario",
+    "productos",
+    "clientes",
+    # "proveedores",  # ELIMINADO: Ahora integrado en FINANZAS_UNIFICADAS
+    "caja",
+    "finanzas_unificadas",  # UNIFICADO: Incluye Tesorería, Finanzas y Proveedores
+    "contabilidad",
+    "rrhh",
+    "activos",
+    "merma",
+    "produccion",
+    "transferencias",
+    "delivery",
+    "whatsapp",
+    "tarjetas",
+    "fidelidad",
+    "etiquetas",
+    "ticket_designer",
+    "hardware",
+    "configuracion",
+    "modulos_config",
+    "inteligencia_bi",  # UNIFICADO: Incluye BI, BI Pro y Decisiones
+]
+
+def _build_sidebar_qss() -> str:
+    """
+    Genera el QSS del sidebar desde design_tokens.Colors.SIDEBAR.
+
+    Invariante de producto (Plan Maestro SPJ v13.4): el sidebar es
+    SIEMPRE oscuro independientemente del tema activo de la aplicación.
+    El QSS resultante contiene literalmente:
+
+        QFrame#MenuLateral {
+            background-color: #020617;   ← Colors.SIDEBAR.BG
+            color:            #E2E8F0;   ← Colors.SIDEBAR.TEXT
+            border-right:     1px solid #1E293B;  ← Colors.SIDEBAR.BORDER
+        }
+
+    El sidebar NO se parametriza por tema (claro/oscuro) — siempre es
+    oscuro. Pero los hex codes se centralizan aquí: cualquier ajuste
+    futuro en design_tokens.py propaga automáticamente al sidebar.
+    """
+    s = Colors.SIDEBAR
+    n = Colors.NEUTRAL
+    return f"""
+        QFrame#MenuLateral {{
+            background-color: {s.BG};
+            color: {s.TEXT};
+            border-right: 1px solid {s.BORDER};
+        }}
+        QFrame#MenuLateral QScrollArea {{
+            border: none;
+            background-color: transparent;
+        }}
+        QFrame#MenuLateral QWidget#ContenedorBotones {{
+            background-color: transparent;
+        }}
+        QFrame#MenuLateral QLabel[class="SeccionHeader"] {{
+            color: {n.SLATE_500};
+            font-size: {Typography.SIZE_SM};
+            font-weight: {Typography.WEIGHT_BOLD};
+            text-transform: uppercase;
+            padding-left: 15px;
+            margin-top: 20px;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }}
+        QFrame#MenuLateral QPushButton {{
+            background-color: transparent;
+            color: {s.ICON};
+            text-align: left;
+            padding: 12px 16px;
+            font-size: {Typography.SIZE_LG};
+            font-weight: {Typography.WEIGHT_MEDIUM};
+            border: none;
+            border-radius: {Borders.RADIUS_LG}px;
+            margin: 2px 8px;
+        }}
+        QFrame#MenuLateral QLineEdit#SidebarSearch {{
+            background-color: {n.SLATE_900};
+            color: {s.TEXT};
+            border: 1px solid {n.SLATE_700};
+            border-radius: {Borders.RADIUS_LG}px;
+            padding: 8px 10px;
+            selection-background-color: {Colors.PRIMARY.BASE};
+        }}
+        QFrame#MenuLateral QPushButton:hover {{
+            background-color: {s.HOVER};
+            color: {s.TEXT};
+        }}
+        QFrame#MenuLateral QPushButton:pressed {{
+            background-color: {s.ACTIVE};
+            color: {n.WHITE};
+        }}
+        QFrame#MenuLateral QPushButton:checked {{
+            background-color: {s.ACTIVE};
+            color: {n.WHITE};
+            font-weight: {Typography.WEIGHT_SEMIBOLD};
+            border: none;
+        }}
+        QFrame#MenuLateral QPushButton:focus {{
+            outline: none;
+            border: none;
+        }}
+        QFrame#MenuLateral QScrollBar:vertical {{
+            background-color: {s.BG};
+            width: 6px;
+            margin: 0;
+            border: none;
+        }}
+        QFrame#MenuLateral QScrollBar::handle:vertical {{
+            background-color: {n.SLATE_700};
+            border-radius: 3px;
+            min-height: 20px;
+        }}
+        QFrame#MenuLateral QScrollBar::handle:vertical:hover {{
+            background-color: {n.SLATE_600};
+        }}
+        QFrame#MenuLateral QScrollBar::add-line:vertical,
+        QFrame#MenuLateral QScrollBar::sub-line:vertical {{
+            height: 0;
+            background: none;
+        }}
+    """
+
+
+_SIDEBAR_DARK_QSS = _build_sidebar_qss()
 
 class MenuLateral(QFrame):
     # Señal maestra que avisa a la ventana principal a qué módulo queremos ir
     opcion_seleccionada = pyqtSignal(str)
 
+    # Anchos del sidebar
+    EXPANDED_WIDTH  = 240
+    COLLAPSED_WIDTH = 56
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("MenuLateral")
-        self.setFixedWidth(240) # Lo hicimos un poco más ancho para que quepan los nombres largos
-        
-        # Estilos base del panel lateral
-        self.setStyleSheet("""
-            QFrame#MenuLateral {
-                background-color: #1E272E;
-                color: white;
-            }
-            QScrollArea {
-                border: none;
-                background-color: transparent;
-            }
-            QWidget#ContenedorBotones {
-                background-color: transparent;
-            }
-            QLabel.SeccionHeader {
-                color: #808E9B;
-                font-size: 11px;
-                font-weight: bold;
-                text-transform: uppercase;
-                padding-left: 15px;
-                margin-top: 15px;
-                margin-bottom: 5px;
-            }
-            QPushButton {
-                background-color: transparent;
-                color: #D2DAE2;
-                text-align: left;
-                padding: 10px 15px;
-                font-size: 13px;
-                border: none;
-                border-radius: 4px;
-                margin: 0px 5px;
-            }
-            QPushButton:hover {
-                background-color: #34495E;
-                color: white;
-            }
-            QPushButton:pressed {
-                background-color: #0FB9B1;
-                color: white;
-            }
-        """)
+        self._collapsed = False
+        self.setFixedWidth(self.EXPANDED_WIDTH)
+        self.enforce_dark_mode()
         self._permisos = set()
         self._rol = ""
+        self._menu_buttons = []
+        self._permission_visible_by_code: dict[str, bool] = {}
+        self._feature_visible_by_code: dict[str, bool] = {}
+        self._hidden_reasons_by_code: dict[str, str] = {}
+        self._search_text = ""
         self._configurar_ui()
+
+    def enforce_dark_mode(self) -> None:
+        """Sidebar SIEMPRE oscuro — re-aplica después de cualquier cambio de tema global."""
+        self.setStyleSheet(_SIDEBAR_DARK_QSS)
+        # Forzar color en cada SeccionHeader individualmente para que gane
+        # sobre el QSS de la app (widget-level > app-level en Qt, pero reforzamos)
+        from PyQt5.QtWidgets import QLabel as _QLabel
+        for child in self.findChildren(_QLabel):
+            if child.property("class") == "SeccionHeader":
+                child.setStyleSheet(
+                    f"color: {Colors.NEUTRAL.SLATE_500};"
+                    f" font-size: {Typography.SIZE_SM};"
+                    f" font-weight: {Typography.WEIGHT_BOLD};"
+                    f" padding-left: 15px; margin-top: 20px; margin-bottom: 8px;"
+                    f" background: transparent;"
+                )
 
     def _configurar_ui(self):
         # Layout principal del Frame
@@ -69,9 +191,12 @@ class MenuLateral(QFrame):
         # 1. ZONA DEL LOGO Y NOMBRE DE LA EMPRESA
         # ==========================================
         zona_logo = QFrame()
-        zona_logo.setStyleSheet("background-color: #1E272E;")
+        zona_logo.setStyleSheet(
+            f"background-color: {Colors.SIDEBAR.BG};"
+            f" border-bottom: 1px solid {Colors.SIDEBAR.BORDER};"
+        )
         layout_logo = QVBoxLayout(zona_logo)
-        layout_logo.setContentsMargins(10, 20, 10, 20)
+        layout_logo.setContentsMargins(10, 24, 10, 24)
         layout_logo.setAlignment(Qt.AlignCenter)
 
         self.lbl_logo = QLabel()
@@ -82,14 +207,46 @@ class MenuLateral(QFrame):
             self.lbl_logo.setPixmap(pixmap.scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         else:
             self.lbl_logo.setText("🏢\nSPJ POS")
-            self.lbl_logo.setStyleSheet("font-size: 24px; font-weight: bold; color: white;")
-            
+            self.lbl_logo.setStyleSheet(
+                f"font-size: 28px;"
+                f" font-weight: {Typography.WEIGHT_BOLD};"
+                f" color: {Colors.NEUTRAL.WHITE};"
+            )
+
         layout_logo.addWidget(self.lbl_logo)
-        
-        lbl_version = QLabel("Enterprise Edition v13.4")
-        lbl_version.setAlignment(Qt.AlignCenter)
-        lbl_version.setStyleSheet("color: #0FB9B1; font-size: 10px; font-weight: bold;")
-        layout_logo.addWidget(lbl_version)
+
+        # ── Botón colapsar/expandir ───────────────────────────────────────────
+        self._btn_toggle = QPushButton("‹")
+        self._btn_toggle.setFixedSize(28, 28)
+        self._btn_toggle.setObjectName("SidebarToggleBtn")
+        self._btn_toggle.setCursor(Qt.PointingHandCursor)
+        self._btn_toggle.setToolTip("Colapsar / expandir menú")
+        self._btn_toggle.setStyleSheet(f"""
+            QPushButton {{
+                background: {Colors.SIDEBAR.HOVER};
+                color: {Colors.SIDEBAR.TEXT};
+                border: 1px solid {Colors.SIDEBAR.BORDER};
+                border-radius: 6px;
+                font-size: 16px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background: {Colors.PRIMARY.BASE};
+                color: white;
+            }}
+        """)
+        self._btn_toggle.clicked.connect(self.toggle_collapse)
+        layout_logo.addWidget(self._btn_toggle)
+
+        self._lbl_version = QLabel("Enterprise Edition v13.4")
+        self._lbl_version.setAlignment(Qt.AlignCenter)
+        self._lbl_version.setStyleSheet(
+            f"color: {Colors.PRIMARY.BASE};"
+            f" font-size: {Typography.SIZE_SM};"
+            f" font-weight: {Typography.WEIGHT_SEMIBOLD};"
+            f" letter-spacing: 0.5px;"
+        )
+        layout_logo.addWidget(self._lbl_version)
         
         layout_principal.addWidget(zona_logo)
 
@@ -105,6 +262,26 @@ class MenuLateral(QFrame):
         layout_botones = QVBoxLayout(contenedor_botones)
         layout_botones.setContentsMargins(0, 0, 0, 0)
         layout_botones.setSpacing(2)
+
+        # Filtro rápido para navegar todos los módulos del menú lateral.
+        self.txt_buscar_modulo = create_input_field(
+            self,
+            placeholder="🔎 Buscar módulo... (Ctrl+K)",
+            fixed_width=206,
+        )
+        self.txt_buscar_modulo.setObjectName("SidebarSearch")
+        self.txt_buscar_modulo.textChanged.connect(self._filtrar_modulos_menu)
+        # Atajo Ctrl+K para enfocar la búsqueda — patrón estándar SaaS
+        # (Notion, Linear, Stripe). El parent es self (sidebar), pero el
+        # contexto Qt.ApplicationShortcut hace que funcione desde cualquier
+        # widget de la app.
+        self._search_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
+        self._search_shortcut.setContext(Qt.ApplicationShortcut)
+        self._search_shortcut.activated.connect(self._enfocar_buscador)
+        row_busqueda = QVBoxLayout()
+        row_busqueda.setContentsMargins(12, 10, 12, 8)
+        row_busqueda.addWidget(self.txt_buscar_modulo)
+        layout_botones.addLayout(row_busqueda)
 
         # --- SECCIÓN: OPERACIONES CORE ---
         layout_botones.addWidget(self._crear_header("Operaciones"))
@@ -122,30 +299,33 @@ class MenuLateral(QFrame):
         layout_botones.addWidget(self._crear_boton("🛵 Delivery", "DELIVERY"))
         layout_botones.addWidget(self._crear_boton("🛒 Compras", "COMPRAS"))
         layout_botones.addWidget(self._crear_boton("📋 Cotizaciones", "COTIZACIONES"))
-        layout_botones.addWidget(self._crear_boton("🏭 Proveedores", "PROVEEDORES"))
+        # ELIMINADO: Botón "Proveedores" — ahora integrado en FINANZAS_UNIFICADAS
 
         # --- SECCIÓN: PRODUCCIÓN ---
         layout_botones.addWidget(self._crear_header("Producción"))
         layout_botones.addWidget(self._crear_boton("🔪 Procesamiento Cárnico", "PRODUCCION"))
         layout_botones.addWidget(self._crear_boton("🏷️ Etiquetas", "ETIQUETAS"))
-        layout_botones.addWidget(self._crear_boton("📖 Recetas Industriales", "RECETAS"))
         layout_botones.addWidget(self._crear_boton("📈 Planeación de Compras", "PLANEACION_COMPRAS"))
 
         # --- SECCIÓN: ADMINISTRACIÓN ---
         layout_botones.addWidget(self._crear_header("Administración"))
-        layout_botones.addWidget(self._crear_boton("🏦 Tesorería", "TESORERIA"))
-        layout_botones.addWidget(self._crear_boton("📊 Finanzas", "FINANZAS"))
+        # FINANZAS UNIFICADAS: Incluye Tesorería, Contabilidad y Gestión de Proveedores
+        # Todos consumen core/services/finance/* (single source of truth)
+        layout_botones.addWidget(self._crear_boton("💰 Finanzas", "FINANZAS_UNIFICADAS"))
         layout_botones.addWidget(self._crear_boton("🏗️ Activos", "ACTIVOS"))
         layout_botones.addWidget(self._crear_boton("👔 Recursos Humanos", "RRHH"))
         layout_botones.addWidget(self._crear_boton("⭐ Fidelización", "GROWTH_ENGINE"))
         layout_botones.addWidget(self._crear_boton("💳 Tarjetas Fidelidad", "TARJETAS_FIDELIDAD"))
-        layout_botones.addWidget(self._crear_boton("📈 Inteligencia (BI)", "INTELIGENCIA_BI"))
+        # INTELIGENCIA DE NEGOCIOS UNIFICADA: Incluye BI, BI Pro, Decisiones y Planeación
+        # Todos consumen core/services/analytics/analytics_engine.py
+        layout_botones.addWidget(self._crear_boton("📈 Inteligencia de Negocios", "INTELIGENCIA_BI"))
         layout_botones.addWidget(self._crear_boton("📱 Pedidos WhatsApp", "WHATSAPP"))
 
-        # --- SECCIÓN: CONFIGURACIÓN ---
+        # --- SECCIÓN: SISTEMA ---
         layout_botones.addWidget(self._crear_header("Sistema"))
         layout_botones.addWidget(self._crear_boton("🎨 Diseñador Tickets", "DISEÑADOR_TICKETS"))
         layout_botones.addWidget(self._crear_boton("🖨️ Hardware", "CONFIG_HARDWARE"))
+        layout_botones.addWidget(self._crear_boton("🔌 Configuración Módulos", "CONFIG_MODULOS"))
         layout_botones.addWidget(self._crear_boton("🛡️ Configuración", "CONFIG_SEGURIDAD"))
 
         # Espaciador para empujar los botones hacia arriba dentro del scroll
@@ -160,18 +340,24 @@ class MenuLateral(QFrame):
         # 3. ZONA INFERIOR (CERRAR SESIÓN)
         # ==========================================
         zona_inferior = QFrame()
-        zona_inferior.setStyleSheet("background-color: #1E272E;")
+        zona_inferior.setStyleSheet(
+            f"background-color: {Colors.SIDEBAR.BG};"
+            f" border-top: 1px solid {Colors.SIDEBAR.BORDER};"
+        )
         layout_inferior = QVBoxLayout(zona_inferior)
-        layout_inferior.setContentsMargins(5, 10, 5, 10)
+        layout_inferior.setContentsMargins(8, 12, 8, 12)
         
         btn_logout = self._crear_boton("🚪 Cerrar Sesión", "LOGOUT")
-        btn_logout.setStyleSheet(
-            "color: #FF4757; font-weight: bold; background-color: transparent;"
-            "text-align: left; padding: 10px 15px; border: none; border-radius: 4px;"
-            "margin: 0px 5px;")
+        # El hover se maneja por el estilo global del sidebar
         layout_inferior.addWidget(btn_logout)
         
         layout_principal.addWidget(zona_inferior)
+        self._status_badge = QLabel("Pedidos: 0 | Programados: 0 | Ajustes pendientes: 0 | Notificaciones: 0")
+        self._status_badge.setStyleSheet(
+            f"color: {Colors.NEUTRAL.SLATE_300}; font-size: {Typography.SIZE_XS}; padding: 8px;"
+        )
+        self._status_badge.setWordWrap(True)
+        layout_principal.addWidget(self._status_badge)
 
     def _crear_header(self, texto):
         """Crea un título pequeño para agrupar las secciones."""
@@ -180,66 +366,75 @@ class MenuLateral(QFrame):
         return lbl
 
     def set_permisos(self, permisos: set, rol: str = "") -> None:
-        """
-        Filtra los botones del menú según los permisos del usuario activo.
-        Llámalo desde main_window después de login exitoso.
-        """
-        self._permisos = permisos
-        self._rol = rol.lower()
+        """Filtra botones del menú según permisos ya resueltos por el backend."""
+        normalized_role = str(rol or "").strip().lower()
+        self._permisos = {str(perm).upper() for perm in (permisos or set())}
+        if not self._permisos and normalized_role in {"admin", "superadmin", "administrador"}:
+            self._permisos = {"*"}
+        self._rol = ""
 
-        # Módulos restringidos por rol
-        SOLO_ADMIN_GERENTE = {
-            "TESORERIA", "RRHH", "ACTIVOS", "CONFIG_SEGURIDAD",
-            "CONFIG_MODULOS", "CONFIG_HARDWARE",
-        }
-        SOLO_ADMIN = {"CONFIG_SEGURIDAD", "CONFIG_MODULOS"}
-        GERENTE_O_SUPERIOR = {"INTELIGENCIA_BI", "PREDICCIONES"}
-
-        from PyQt5.QtWidgets import QPushButton as _QPB
-        for btn in self.findChildren(_QPB):
-            codigo = btn.property("modulo_codigo")
-            if not codigo or codigo == "LOGOUT":
-                continue
-            visible = True
-            if codigo in SOLO_ADMIN and self._rol not in ("admin", "administrador"):
-                visible = False
-            elif codigo in SOLO_ADMIN_GERENTE and self._rol not in ("admin", "administrador", "gerente"):
-                visible = False
-            elif codigo in GERENTE_O_SUPERIOR and self._rol not in ("admin", "administrador", "gerente"):
-                visible = False
-            btn.setVisible(visible)
+        for btn in self._menu_buttons:
+            codigo = str(btn.property("modulo_codigo") or "")
+            self._permission_visible_by_code[codigo] = self._is_allowed_by_permissions(codigo)
+        self._apply_access_filters()
 
     def set_module_config(self, module_config) -> None:
-        """
-        Muestra u oculta botones según feature flags del ModuleConfig (FASES 1-13).
-        Se llama desde main_window después del login exitoso.
-
-        Módulos avanzados que se ocultan si su toggle está desactivado:
-          franchise_mode_enabled  → (solo info — no hay módulo UI independiente)
-          forecasting_enabled     → PLANEACION_COMPRAS
-          whatsapp_integration_enabled → WHATSAPP
-          rrhh_enabled            → RRHH
-          treasury_central_enabled → TESORERIA
-        """
-        # Mapeo: código de botón → clave de toggle en module_config
-        TOGGLE_MAP = {
+        """Aplica feature flags sólo para ocultar; nunca concede acceso negado."""
+        toggle_map = {
             "PLANEACION_COMPRAS": "forecasting_enabled",
-            "WHATSAPP":           "whatsapp_integration_enabled",
-            "RRHH":               "rrhh_enabled",
-            "TESORERIA":          "treasury_central_enabled",
-            "INTELIGENCIA_BI":    "finance_enabled",
+            "WHATSAPP": "whatsapp_integration_enabled",
+            "RRHH": "rrhh_enabled",
+            "FINANZAS_UNIFICADAS": "finance_enabled",
+            "INTELIGENCIA_BI": "analytics_enabled",
         }
 
-        from PyQt5.QtWidgets import QPushButton as _QPB
-        for btn in self.findChildren(_QPB):
-            codigo = btn.property("modulo_codigo")
-            if not codigo or codigo == "LOGOUT":
+        for btn in self._menu_buttons:
+            codigo = str(btn.property("modulo_codigo") or "")
+            toggle_key = toggle_map.get(codigo)
+            self._feature_visible_by_code[codigo] = (
+                True if toggle_key is None else bool(module_config.is_enabled(toggle_key))
+            )
+        self._apply_access_filters()
+
+    def _is_allowed_by_permissions(self, codigo: str) -> bool:
+        if codigo == "LOGOUT":
+            return True
+        permission_view = f"{codigo}.ver".upper()
+        permission_access = f"{codigo}.acceder".upper()
+        return "*" in self._permisos or permission_view in self._permisos or permission_access in self._permisos
+
+    def _apply_access_filters(self) -> None:
+        self._hidden_reasons_by_code.clear()
+        for btn in self._menu_buttons:
+            codigo = str(btn.property("modulo_codigo") or "")
+            if codigo == "LOGOUT":
+                btn.setVisible(True)
+                self._hidden_reasons_by_code[codigo] = "visible"
                 continue
-            toggle_key = TOGGLE_MAP.get(codigo)
-            if toggle_key is not None:
-                enabled = module_config.is_enabled(toggle_key)
-                if not enabled:
-                    btn.setVisible(False)
+            permission_visible = self._permission_visible_by_code.get(codigo, True)
+            feature_visible = self._feature_visible_by_code.get(codigo, True)
+            search_visible = self._matches_search(btn, self._search_text)
+            visible = permission_visible and feature_visible and search_visible
+            btn.setVisible(visible)
+            if visible:
+                self._hidden_reasons_by_code[codigo] = "visible"
+            elif not permission_visible:
+                self._hidden_reasons_by_code[codigo] = "permission"
+            elif not feature_visible:
+                self._hidden_reasons_by_code[codigo] = "feature_flag"
+            elif not search_visible:
+                self._hidden_reasons_by_code[codigo] = "search"
+
+    def hidden_reason(self, module_code: str) -> str:
+        return self._hidden_reasons_by_code.get(str(module_code or ""), "")
+
+    def _matches_search(self, btn: QPushButton, text: str) -> bool:
+        needle = self._normalizar(text)
+        if not needle:
+            return True
+        label = self._normalizar(str(btn.property("menu_label") or ""))
+        codigo = self._normalizar(str(btn.property("modulo_codigo") or ""))
+        return needle in label or needle in codigo
 
     def actualizar_logo(self, logo_path: str = "", nombre: str = "SPJ POS") -> None:
         """Actualiza el logo y nombre del negocio en el sidebar."""
@@ -259,11 +454,170 @@ class MenuLateral(QFrame):
                 pass
         # Fallback: text
         self.lbl_logo.setText(f"🏢\n{nombre[:12]}")
-        self.lbl_logo.setStyleSheet("font-size:20px;font-weight:bold;color:white;")
+        self.lbl_logo.setStyleSheet(
+            f"font-size: 20px;"
+            f" font-weight: {Typography.WEIGHT_BOLD};"
+            f" color: {Colors.NEUTRAL.WHITE};"
+        )
 
     def _crear_boton(self, texto, codigo_modulo):
-        """Fabrica el botón, lo etiqueta con su código y conecta la señal."""
+        """Fabrica el botón, lo etiqueta con su código y conecta la señal.
+
+        El botón es checkable para que el sidebar pueda marcar visualmente
+        cuál módulo está activo. set_modulo_activo() administra el grupo
+        exclusivo (solo uno checked a la vez). LOGOUT no se marca.
+        """
         btn = QPushButton(texto)
         btn.setProperty("modulo_codigo", codigo_modulo)
-        btn.clicked.connect(lambda _, m=codigo_modulo: self.opcion_seleccionada.emit(m))
+        btn.setProperty("menu_label", texto)
+        btn.setObjectName("SidebarModuleButton")
+        btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        btn.setMinimumHeight(40)
+        btn.setCursor(Qt.PointingHandCursor)
+        if codigo_modulo != "LOGOUT":
+            btn.setCheckable(True)
+        btn.clicked.connect(lambda _, m=codigo_modulo: self._on_clic_boton(m))
+        self._menu_buttons.append(btn)
         return btn
+
+    def _on_clic_boton(self, codigo_modulo: str) -> None:
+        """Marca el botón activo y emite la señal para la ventana principal."""
+        if codigo_modulo != "LOGOUT":
+            self.set_modulo_activo(codigo_modulo)
+        self.opcion_seleccionada.emit(codigo_modulo)
+
+    def set_modulo_activo(self, codigo_modulo: str) -> None:
+        """
+        Marca visualmente cuál módulo está activo en el sidebar.
+
+        Es seguro llamar desde main_window cuando el usuario navega
+        programáticamente (ej. atajos de teclado, click en KPICard del
+        dashboard) — el botón correspondiente queda checked y los demás
+        unchecked, simulando un grupo exclusivo.
+        """
+        for btn in self._menu_buttons:
+            if not btn.isCheckable():
+                continue
+            btn.setChecked(btn.property("modulo_codigo") == codigo_modulo)
+
+    def _enfocar_buscador(self) -> None:
+        """Selecciona y enfoca el campo de búsqueda (handler de Ctrl+K)."""
+        self.txt_buscar_modulo.setFocus()
+        self.txt_buscar_modulo.selectAll()
+
+    def _filtrar_modulos_menu(self, text: str) -> None:
+        """Filtra por texto sin romper permisos ni feature flags."""
+        self._search_text = text or ""
+        self._apply_access_filters()
+
+    @staticmethod
+    def _normalizar(texto: str) -> str:
+        if not texto:
+            return ""
+        raw = unicodedata.normalize("NFKD", texto)
+        return "".join(c for c in raw if not unicodedata.combining(c)).strip().lower()
+
+    def set_status_badges(self, *, pedidos: int, programados: int, ajustes: int, notificaciones: int) -> None:
+        badge_txt = f"{int(pedidos)}|{int(programados)}|{int(ajustes)}"
+        if hasattr(self, "_status_badge"):
+            self._status_badge.setText(
+                f"Pedidos: {int(pedidos)} | Programados: {int(programados)} | "
+                f"Ajustes pendientes: {int(ajustes)} | Notificaciones: {int(notificaciones)}"
+            )
+        # Keep delivery badge visible even when sidebar is collapsed
+        for btn in getattr(self, "_menu_buttons", []):
+            if str(btn.property("modulo_codigo") or "") != "DELIVERY":
+                continue
+            full_label = str(btn.property("menu_label") or "🚚 Delivery")
+            if getattr(self, "_collapsed", False):
+                btn.setToolTip(f"{full_label}\nPedidos|Prog|Ajustes: {badge_txt}")
+            else:
+                if "·" in full_label:
+                    full_label = full_label.split("·", 1)[0].strip()
+                btn.setText(f"{full_label} · {badge_txt}")
+                btn.setProperty("menu_label", full_label)
+
+    # ── Colapsar / Expandir ───────────────────────────────────────────────────
+    def toggle_collapse(self) -> None:
+        """Alterna entre sidebar expandido (240px) y colapsado (56px, sólo íconos)."""
+        self._collapsed = not self._collapsed
+        target_w = self.COLLAPSED_WIDTH if self._collapsed else self.EXPANDED_WIDTH
+
+        # Animación suave de ancho usando QPropertyAnimation
+        from PyQt5.QtCore import QPropertyAnimation, QEasingCurve
+        anim = QPropertyAnimation(self, b"minimumWidth", self)
+        anim.setDuration(200)
+        anim.setStartValue(self.width())
+        anim.setEndValue(target_w)
+        anim.setEasingCurve(QEasingCurve.OutCubic)
+        anim2 = QPropertyAnimation(self, b"maximumWidth", self)
+        anim2.setDuration(200)
+        anim2.setStartValue(self.width())
+        anim2.setEndValue(target_w)
+        anim2.setEasingCurve(QEasingCurve.OutCubic)
+        anim.start(QPropertyAnimation.DeleteWhenStopped)
+        anim2.start(QPropertyAnimation.DeleteWhenStopped)
+
+        # Actualizar icono del botón toggle
+        self._btn_toggle.setText("›" if self._collapsed else "‹")
+        self._btn_toggle.setToolTip("Expandir menú" if self._collapsed else "Colapsar menú")
+
+        # Ocultar/mostrar elementos según estado
+        self._aplicar_modo_colapso(self._collapsed)
+
+    def _aplicar_modo_colapso(self, collapsed: bool) -> None:
+        """
+        Muestra/oculta texto de botones y elementos del sidebar según estado colapsado.
+        Cuando está colapsado sólo se muestra el ícono (primer carácter emoji/unicode).
+        """
+        # Barra de búsqueda
+        if hasattr(self, 'txt_buscar_modulo'):
+            self.txt_buscar_modulo.setVisible(not collapsed)
+
+        # Labels de sección (SeccionHeader)
+        from PyQt5.QtWidgets import QLabel as _QLabel
+        for child in self.findChildren(_QLabel):
+            if child.property("class") == "SeccionHeader":
+                child.setVisible(not collapsed)
+
+        # Label versión
+        if hasattr(self, '_lbl_version'):
+            self._lbl_version.setVisible(not collapsed)
+
+        # Botones de módulo: texto completo ↔ sólo ícono
+        for btn in self._menu_buttons:
+            full_label = btn.property("menu_label") or ""
+            if collapsed:
+                # Extraer primer "token" visual (emoji o primeros 2 chars)
+                icon_char = self._extraer_icono(full_label)
+                btn.setText(icon_char)
+                btn.setToolTip(full_label)          # tooltip completo al colapsar
+                btn.setStyleSheet(
+                    "text-align: center; padding: 8px 0; font-size: 18px;"
+                )
+            else:
+                btn.setText(full_label)
+                btn.setToolTip("")
+                btn.setStyleSheet("")               # devuelve al QSS global
+
+        # Re-aplicar QSS oscuro sobre todo
+        self.enforce_dark_mode()
+
+    @staticmethod
+    def _extraer_icono(texto: str) -> str:
+        """
+        Extrae el primer carácter visual del label del botón.
+        Para emojis (>0xFFFF) devuelve los primeros 2 code points.
+        Para texto plano devuelve las primeras 2 letras en mayúsculas.
+        """
+        if not texto:
+            return "?"
+        # Si el primer carácter es emoji (fuera del BMP) tomar 2 code points por seguridad
+        first = texto[0]
+        if ord(first) > 0x2000:   # zona de símbolos/emojis
+            return texto[:2].strip()
+        # Texto plano: iniciales
+        partes = texto.split()
+        if len(partes) >= 2:
+            return (partes[0][0] + partes[1][0]).upper()
+        return texto[:2].upper()

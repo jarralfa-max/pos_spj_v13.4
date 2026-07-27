@@ -1,6 +1,11 @@
 # flows/pedido_flow.py — Flujo de pedido completo
 """
 State machine: categoría → producto → cantidad → ¿más? → entrega → confirmar
+
+Regla UX importante:
+- Al cancelar o confirmar un pedido NO se vuelve a mandar el menú principal.
+- La conversación queda cerrada en IDLE.
+- El cliente puede reabrirla escribiendo explícitamente: hola, menú, pedido, etc.
 """
 from __future__ import annotations
 from models.context import ConversationContext, FlowState, PedidoItem
@@ -9,6 +14,13 @@ from flows.base_flow import BaseFlow, FlowResult
 from erp.events import WA_PEDIDO_CREADO, WA_ANTICIPO_REQUERIDO
 from messaging import interactive
 from messaging.sender import send_text
+import hashlib
+import json
+from state.business_idempotency import BusinessIdempotencyService
+from application.confirm_order_use_case import (
+    ConfirmWhatsAppOrderCommand,
+    ConfirmWhatsAppOrderUseCase,
+)
 
 
 class PedidoFlow(BaseFlow):
@@ -66,15 +78,7 @@ class PedidoFlow(BaseFlow):
 
         # Si trae productos extraídos del texto libre
         if intent.products:
-            for prod in intent.products:
-                item = PedidoItem(
-                    producto_id=prod["id"],
-                    nombre=prod["nombre"],
-                    cantidad=prod["cantidad_solicitada"],
-                    unidad=prod.get("unidad", "kg"),
-                    precio_unitario=prod.get("precio", 0),
-                )
-                ctx.pedido_items.append(item)
+            self._append_intent_products(ctx, intent)
             await interactive.send_mas_productos(
                 ctx.phone, ctx.resumen_pedido())
             return FlowResult(FlowState.PEDIDO_MAS_PRODUCTOS)
@@ -185,19 +189,12 @@ class PedidoFlow(BaseFlow):
 
         if aid == "cancel_pedido":
             ctx.reset_flow()
-            await send_text(ctx.phone, "❌ Pedido cancelado.")
-            await interactive.send_menu_principal(ctx.phone, ctx.cliente_nombre)
+            await send_text(ctx.phone, "❌ Pedido cancelado. Cuando quieras iniciar otro, escribe *hola* o *pedido*.")
             return FlowResult(FlowState.IDLE)
 
         # Si escribe producto directamente en este paso
         if intent.products:
-            for prod in intent.products:
-                item = PedidoItem(
-                    producto_id=prod["id"], nombre=prod["nombre"],
-                    cantidad=prod["cantidad_solicitada"],
-                    unidad=prod.get("unidad", "kg"),
-                    precio_unitario=prod.get("precio", 0))
-                ctx.pedido_items.append(item)
+            self._append_intent_products(ctx, intent)
             await interactive.send_mas_productos(
                 ctx.phone, ctx.resumen_pedido())
             return FlowResult(FlowState.PEDIDO_MAS_PRODUCTOS)
@@ -233,9 +230,12 @@ class PedidoFlow(BaseFlow):
 
     async def _confirmar_pedido(self, ctx):
         """Muestra resumen final y botón de confirmar."""
+        await self._apply_business_hours_policy(ctx)
         entrega_txt = (f"🏪 Recoger en {ctx.sucursal_nombre}"
                        if ctx.pedido_tipo_entrega == "sucursal"
                        else f"🛵 Envío a: {ctx.pedido_direccion}")
+        if ctx.pedido_programado and ctx.pedido_fecha_entrega:
+            entrega_txt += f"\n📅 Atención programada: {ctx.pedido_fecha_entrega}"
         resumen = (f"{ctx.resumen_pedido()}\n\n"
                    f"Entrega: {entrega_txt}")
 
@@ -251,62 +251,68 @@ class PedidoFlow(BaseFlow):
 
     async def _handle_confirmacion(self, ctx, intent):
         aid = intent.action_id
+        raw = (intent.raw_text or "").strip().lower()
 
-        if aid == "cancel_pedido":
+        if aid == "cancel_pedido" or intent.intent in ("cancel", "cancelar") or raw in ("cancelar", "cancela", "no", "no confirmar"):
             ctx.reset_flow()
-            await send_text(ctx.phone, "❌ Pedido cancelado.")
-            await interactive.send_menu_principal(ctx.phone, ctx.cliente_nombre)
+            await send_text(ctx.phone, "❌ Pedido cancelado. No se registró ninguna venta. Para iniciar otro pedido, escribe *pedido*.")
             return FlowResult(FlowState.IDLE)
 
-        if aid == "confirm_pedido":
-            # Crear pedido en ERP
+        if aid == "confirm_pedido" or raw in ("confirmar", "confirmo", "sí", "si", "ok", "va", "adelante"):
+            await self._apply_business_hours_policy(ctx)
             items = [i.to_dict() for i in ctx.pedido_items]
-            result = self.erp.crear_pedido_wa(
-                items=items,
-                cliente_id=ctx.cliente_id or 0,
-                sucursal_id=ctx.sucursal_id or 1,
-                tipo_entrega=ctx.pedido_tipo_entrega,
-                direccion=ctx.pedido_direccion,
+            cart_hash = hashlib.sha256(
+                json.dumps(items, sort_keys=True, ensure_ascii=False).encode("utf-8")
+            ).hexdigest()[:16]
+            action_key = (
+                f"confirm_order:{ctx.phone}:{cart_hash}:{ctx.sucursal_id or 1}:{ctx.pedido_tipo_entrega}:{ctx.pedido_programado}:{ctx.pedido_fecha_entrega}"
             )
+            idem = BusinessIdempotencyService(self.erp.db)
+            use_case = ConfirmWhatsAppOrderUseCase(self.erp, orchestrator=self.orchestrator)
+
+            def _create_order() -> dict:
+                uc_result = use_case.execute(ConfirmWhatsAppOrderCommand(
+                    phone=ctx.phone,
+                    cliente_id=ctx.cliente_id or 0,
+                    sucursal_id=ctx.sucursal_id or 1,
+                    tipo_entrega=ctx.pedido_tipo_entrega,
+                    direccion=ctx.pedido_direccion,
+                    items=items,
+                    pedido_programado=getattr(ctx, "pedido_programado", False),
+                ))
+                return {
+                    "venta_id": uc_result.venta_id,
+                    "folio": uc_result.folio,
+                    "total": uc_result.total,
+                    "anticipo_requerido": uc_result.anticipo_requerido,
+                    "anticipo_monto": uc_result.anticipo_monto,
+                }
+
+            result = idem.run_once(action_key, ctx.phone, "confirm_order", _create_order)
+            if result.get("idempotency_status") == "in_progress":
+                await send_text(ctx.phone, "⏳ Tu confirmación ya se está procesando. En breve te compartimos el folio.")
+                return FlowResult(FlowState.PEDIDO_CONFIRMACION)
 
             folio = result["folio"]
             total = result["total"]
             venta_id = result["venta_id"]
             suc_id = ctx.sucursal_id or 1
+            ctx.last_venta_id = venta_id
 
-            # ── FASE WA: Orquestación completa (OC, anticipo real, delivery) ──
-            if self.orchestrator:
-                orch_result = self.orchestrator.procesar_pedido_wa(
-                    venta_id=venta_id, folio=folio, total=total,
-                    cliente_id=ctx.cliente_id or 0,
-                    items=items,
-                    tipo_entrega=ctx.pedido_tipo_entrega,
-                    direccion=ctx.pedido_direccion,
-                )
-                anticipo_req = orch_result.get("anticipo_requerido", False)
-                anticipo_monto = orch_result.get("anticipo_monto", total * 0.5)
+            anticipo_req = bool(result.get("anticipo_requerido", False))
+            anticipo_monto = float(result.get("anticipo_monto", 0.0) or 0.0)
 
-                # Programar recordatorios
-                if self.reminders and anticipo_req:
-                    self.reminders.programar_anticipo_pendiente(
-                        venta_id=venta_id, folio=folio,
-                        monto=anticipo_monto, phone=ctx.phone,
-                        sucursal_id=suc_id, delay_horas=2)
-                if self.reminders and ctx.pedido_tipo_entrega == "domicilio":
-                    self.reminders.programar_recordatorio_entrega(
-                        venta_id=venta_id, folio=folio,
-                        fecha_entrega=getattr(ctx, "pedido_fecha_entrega", ""),
-                        phone=ctx.phone, sucursal_id=suc_id)
-            else:
-                # Fallback legacy: anticipo hardcodeado al 50%
-                anticipo_req = self.erp.requiere_anticipo(
-                    ctx.cliente_id or 0, total,
-                    getattr(ctx, "pedido_programado", False))
-                anticipo_monto = total * 0.5
-                if anticipo_req:
-                    self.events.emit(WA_ANTICIPO_REQUERIDO, {
-                        "folio": folio, "monto": anticipo_monto,
-                    }, sucursal_id=suc_id, prioridad=2)
+            # Programar recordatorios
+            if self.reminders and anticipo_req:
+                self.reminders.programar_anticipo_pendiente(
+                    venta_id=venta_id, folio=folio,
+                    monto=anticipo_monto, phone=ctx.phone,
+                    sucursal_id=suc_id, delay_horas=2)
+            if self.reminders and ctx.pedido_tipo_entrega == "domicilio":
+                self.reminders.programar_recordatorio_entrega(
+                    venta_id=venta_id, folio=folio,
+                    fecha_entrega=getattr(ctx, "pedido_fecha_entrega", ""),
+                    phone=ctx.phone, sucursal_id=suc_id)
 
             if anticipo_req:
                 await send_text(ctx.phone,
@@ -314,11 +320,59 @@ class PedidoFlow(BaseFlow):
                     f"*${anticipo_monto:.2f}*\n"
                     f"Te enviaremos el link de pago.")
 
-            # Confirmar
+            # Confirmar al cliente una sola vez, sin reenviar menú principal.
             await interactive.send_confirmacion_pedido(
                 ctx.phone, ctx.resumen_pedido(), folio)
 
             ctx.reset_flow()
+            ctx.last_venta_id = venta_id
             return FlowResult(FlowState.IDLE)
 
-        return FlowResult(FlowState.PEDIDO_CONFIRMACION)
+        # Texto libre durante confirmación: no debe quedar en silencio.
+        # Si el cliente manda más productos, los agregamos y volvemos a "agregar más".
+        if intent.products:
+            self._append_intent_products(ctx, intent)
+            await interactive.send_mas_productos(ctx.phone, ctx.resumen_pedido())
+            return FlowResult(FlowState.PEDIDO_MAS_PRODUCTOS)
+
+        # Si escribe hola/pedido/menú mientras hay pedido pendiente, se le recuerda
+        # que ya hay un pedido listo para confirmar o cancelar.
+        if intent.intent in ("saludo", "pedido", "ayuda", "menu_action") or raw in ("hola", "menu", "menú", "pedido"):
+            await send_text(
+                ctx.phone,
+                "Tienes un pedido pendiente de confirmación. Puedes confirmar, cancelar o agregar otro producto."
+            )
+            return await self._confirmar_pedido(ctx)
+
+        await send_text(
+            ctx.phone,
+            "No entendí tu respuesta. Usa los botones para *confirmar* o *cancelar*, o escribe otro producto para agregarlo."
+        )
+        return await self._confirmar_pedido(ctx)
+
+    async def _apply_business_hours_policy(self, ctx) -> None:
+        schedules = getattr(self, "schedules", None)
+        if not schedules or not ctx.sucursal_id:
+            return
+        if schedules.esta_abierta(ctx.sucursal_id):
+            return
+        proximo = schedules.proximo_horario_apertura(ctx.sucursal_id) or "mañana"
+        if not ctx.pedido_programado:
+            await send_text(
+                ctx.phone,
+                "⏰ Estamos fuera del horario de atención. "
+                f"Tu pedido quedará programado y se atenderá en el próximo horario disponible: *{proximo}*."
+            )
+        ctx.pedido_programado = True
+        ctx.pedido_fecha_entrega = ctx.pedido_fecha_entrega or proximo
+
+    def _append_intent_products(self, ctx, intent) -> None:
+        for prod in getattr(intent, "products", []) or []:
+            item = PedidoItem(
+                producto_id=prod["id"],
+                nombre=prod["nombre"],
+                cantidad=prod["cantidad_solicitada"],
+                unidad=prod.get("unidad_solicitada") or prod.get("unidad", "kg"),
+                precio_unitario=prod.get("precio", 0),
+            )
+            ctx.pedido_items.append(item)

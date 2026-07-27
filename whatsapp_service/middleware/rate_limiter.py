@@ -7,7 +7,10 @@ from __future__ import annotations
 import time
 import logging
 from collections import defaultdict
-from config.settings import MAX_MESSAGES_PER_MINUTE
+try:
+    from config.settings import MAX_MESSAGES_PER_MINUTE
+except (ImportError, AttributeError):
+    MAX_MESSAGES_PER_MINUTE = 15
 
 logger = logging.getLogger("wa.ratelimit")
 

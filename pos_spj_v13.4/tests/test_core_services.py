@@ -33,13 +33,13 @@ def db():
         CREATE TABLE sucursales(id INTEGER PRIMARY KEY, nombre TEXT, activa INTEGER DEFAULT 1);
         INSERT INTO sucursales VALUES(1,'Matriz',1);
         CREATE TABLE alertas_config(
-            id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT UNIQUE,
+            id TEXT PRIMARY KEY, tipo TEXT,
             activa INTEGER DEFAULT 1, umbral REAL DEFAULT 0,
-            canal TEXT DEFAULT 'pantalla', sucursal_id INTEGER DEFAULT 1);
+            canal TEXT DEFAULT 'ui', sucursal_id TEXT, descripcion TEXT);
         CREATE TABLE alertas_log(
-            id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, mensaje TEXT,
-            datos TEXT, leida INTEGER DEFAULT 0, sucursal_id INTEGER DEFAULT 1,
-            fecha DATETIME DEFAULT (datetime('now')));
+            id TEXT PRIMARY KEY, tipo TEXT, titulo TEXT, mensaje TEXT,
+            datos TEXT, leida INTEGER DEFAULT 0, canal_enviado TEXT,
+            sucursal_id TEXT, fecha DATETIME DEFAULT (datetime('now')));
         CREATE TABLE productos(
             id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL,
             precio REAL DEFAULT 0, precio_compra REAL DEFAULT 0,
@@ -139,9 +139,23 @@ class TestAuditService:
 # ════════════════════════════════════════════════════════════════════════════
 class TestAlertasService:
 
+    # Identidad UUIDv7 (REGLA CERO): la sucursal es un UUID string, no un entero.
+    BRANCH = "019b1700-0000-7000-8000-0000000000a1"
+
     def _svc(self, db):
         from core.services.alertas_service import AlertasService
-        return AlertasService(conn=db, sucursal_id=1)
+        svc = AlertasService(conn=db, sucursal_id=self.BRANCH)
+        svc.seed_defaults()  # el servicio ya no auto-siembra desde DDL
+        return svc
+
+    def _add_config(self, svc, tipo):
+        from backend.shared.ids import new_uuid
+        svc.conn.execute(
+            "INSERT INTO alertas_config(id,tipo,activa,umbral,canal,sucursal_id,descripcion) "
+            "VALUES(?,?,1,0,'ui',?,?)",
+            (new_uuid(), tipo, svc.sucursal_id, tipo),
+        )
+        svc.conn.commit()
 
     def test_disparar_alerta_inserta_log(self, db):
         svc = self._svc(db)
@@ -149,9 +163,12 @@ class TestAlertasService:
         assert result is True
         row = db.execute("SELECT * FROM alertas_log WHERE tipo='stock_bajo'").fetchone()
         assert row is not None
+        import uuid
+        assert uuid.UUID(row["id"])  # log identity is UUIDv7
 
     def test_get_no_leidas_devuelve_lista(self, db):
         svc = self._svc(db)
+        self._add_config(svc, "test")
         svc.disparar("test", "Mensaje test")
         no_leidas = svc.get_no_leidas()
         assert isinstance(no_leidas, list)
@@ -159,6 +176,7 @@ class TestAlertasService:
 
     def test_marcar_leida(self, db):
         svc = self._svc(db)
+        self._add_config(svc, "test2")
         svc.disparar("test2", "Para marcar leída")
         no_leidas = svc.get_no_leidas()
         assert len(no_leidas) > 0

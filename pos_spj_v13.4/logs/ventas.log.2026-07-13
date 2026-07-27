@@ -1,0 +1,141 @@
+{"ts": "2026-07-14T03:27:38.401757", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T03:27:38.501000", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T03:27:38.508305", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T03:29:14.758128", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T03:29:24.037840", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T03:29:24.066949", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T03:29:31.458756", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T03:29:31.459145", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T03:30:05.480729", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T03:30:05.540796", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T03:30:05.542145", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Cadenas (id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "ventas", "line": 1337}
+{"ts": "2026-07-14T03:30:16.184377", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T03:30:16.202343", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=2", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T03:30:20.561609", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T03:30:20.581642", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T03:31:51.293511", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T03:31:51.344545", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T03:31:51.345318", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Cadenas (id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "ventas", "line": 1337}
+{"ts": "2026-07-14T03:34:41.892438", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T03:34:41.933488", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T03:34:41.934862", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Cadenas (id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "ventas", "line": 1337}
+{"ts": "2026-07-14T03:35:06.129987", "level": "INFO", "logger": "spj.ventas", "msg": "Producto clickeado en grid: event_type=2 product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 nombre=Mango Enchilado", "module": "ventas", "line": 310}
+{"ts": "2026-07-14T03:35:06.131097", "level": "INFO", "logger": "spj.ventas", "msg": "Producto seleccionado: product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 nombre=Mango Enchilado sender=ProductCard", "module": "ventas", "line": 2315}
+{"ts": "2026-07-14T03:35:06.133932", "level": "INFO", "logger": "spj.ventas", "msg": "Producto cargado para agregar por unidad: product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 unidad=pza", "module": "ventas", "line": 2337}
+{"ts": "2026-07-14T03:35:10.884566", "level": "INFO", "logger": "spj.ventas", "msg": "Producto agregado al carrito desde selección: product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 cantidad=1.0 items=1", "module": "ventas", "line": 3402}
+{"ts": "2026-07-14T03:35:12.661054", "level": "INFO", "logger": "spj.ventas", "msg": "Producto clickeado en grid: event_type=2 product_id=019f3d7a-3605-7d0c-a2ce-086fb2d46069 nombre=Papel BOGUE", "module": "ventas", "line": 310}
+{"ts": "2026-07-14T03:35:12.661276", "level": "INFO", "logger": "spj.ventas", "msg": "Producto seleccionado: product_id=019f3d7a-3605-7d0c-a2ce-086fb2d46069 nombre=Papel BOGUE sender=ProductCard", "module": "ventas", "line": 2315}
+{"ts": "2026-07-14T03:35:12.663153", "level": "INFO", "logger": "spj.ventas", "msg": "Producto cargado para agregar por unidad: product_id=019f3d7a-3605-7d0c-a2ce-086fb2d46069 unidad=pza", "module": "ventas", "line": 2337}
+{"ts": "2026-07-14T03:35:20.620265", "level": "INFO", "logger": "spj.ventas", "msg": "Producto agregado al carrito desde selección: product_id=019f3d7a-3605-7d0c-a2ce-086fb2d46069 cantidad=1.0 items=2", "module": "ventas", "line": 3402}
+{"ts": "2026-07-14T03:38:10.083623", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T03:38:10.150306", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T03:38:10.151079", "level": "INFO", "logger": "spj.ventas", "msg": "VENTA_TIMING folio=VNT-20260713213807-23684DF7 t_dialog_done=265293.200762 t_uc_start=265293.206359 t_uc_done=265293.428441 t_ticket_start=265293.431726 t_ticket_queued=265295.788873 t_pdf_queued=0.000000 t_products_reload=265295.937953 uc_ms=222.08 ticket_ms=2357.15 pdf_ms=2506.23 total_ms=2737.19", "module": "ventas", "line": 4233}
+{"ts": "2026-07-14T03:39:18.594522", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T03:39:18.695430", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T03:39:18.697391", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Cadenas (id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "ventas", "line": 1337}
+{"ts": "2026-07-14T03:47:02.564000", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T03:47:02.672777", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T03:47:02.676500", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Cadenas (id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "ventas", "line": 1337}
+{"ts": "2026-07-14T03:48:26.028667", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T03:48:26.106378", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T03:48:26.107316", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Cadenas (id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "ventas", "line": 1337}
+{"ts": "2026-07-14T03:49:06.489878", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T03:49:06.537945", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T03:49:06.538950", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Cadenas (id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "ventas", "line": 1337}
+{"ts": "2026-07-14T03:49:39.064396", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T03:49:39.098625", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T03:49:39.099260", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Cadenas (id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "ventas", "line": 1337}
+{"ts": "2026-07-14T03:57:35.430778", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T03:57:35.443634", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T03:57:35.460589", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T03:57:57.274513", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T03:58:06.919154", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T03:58:06.920053", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T03:58:12.737321", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T03:58:12.737723", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T04:03:19.637568", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T04:03:20.515871", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T04:03:20.517806", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Cadenas (id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "ventas", "line": 1337}
+{"ts": "2026-07-14T04:07:14.665633", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T04:07:14.717278", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T04:08:08.249710", "level": "INFO", "logger": "spj.ventas", "msg": "Producto clickeado en grid: event_type=2 product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 nombre=Mango Enchilado", "module": "ventas", "line": 310}
+{"ts": "2026-07-14T04:08:08.251410", "level": "INFO", "logger": "spj.ventas", "msg": "Producto seleccionado: product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 nombre=Mango Enchilado sender=ProductCard", "module": "ventas", "line": 2315}
+{"ts": "2026-07-14T04:08:08.253415", "level": "INFO", "logger": "spj.ventas", "msg": "Producto cargado para agregar por unidad: product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 unidad=pza", "module": "ventas", "line": 2337}
+{"ts": "2026-07-14T04:08:17.667911", "level": "INFO", "logger": "spj.ventas", "msg": "Producto clickeado en grid: event_type=2 product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 nombre=Mango Enchilado", "module": "ventas", "line": 310}
+{"ts": "2026-07-14T04:08:17.668756", "level": "INFO", "logger": "spj.ventas", "msg": "Producto seleccionado: product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 nombre=Mango Enchilado sender=ProductCard", "module": "ventas", "line": 2315}
+{"ts": "2026-07-14T04:08:17.670577", "level": "INFO", "logger": "spj.ventas", "msg": "Producto cargado para agregar por unidad: product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 unidad=pza", "module": "ventas", "line": 2337}
+{"ts": "2026-07-14T04:08:19.616674", "level": "INFO", "logger": "spj.ventas", "msg": "Producto agregado al carrito desde selección: product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 cantidad=1.0 items=1", "module": "ventas", "line": 3402}
+{"ts": "2026-07-14T04:08:20.509079", "level": "INFO", "logger": "spj.ventas", "msg": "Producto clickeado en grid: event_type=2 product_id=019f3d7a-3605-7d0c-a2ce-086fb2d46069 nombre=Papel BOGUE", "module": "ventas", "line": 310}
+{"ts": "2026-07-14T04:08:20.509308", "level": "INFO", "logger": "spj.ventas", "msg": "Producto seleccionado: product_id=019f3d7a-3605-7d0c-a2ce-086fb2d46069 nombre=Papel BOGUE sender=ProductCard", "module": "ventas", "line": 2315}
+{"ts": "2026-07-14T04:08:20.511715", "level": "INFO", "logger": "spj.ventas", "msg": "Producto cargado para agregar por unidad: product_id=019f3d7a-3605-7d0c-a2ce-086fb2d46069 unidad=pza", "module": "ventas", "line": 2337}
+{"ts": "2026-07-14T04:08:26.458483", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T04:08:26.484687", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T04:08:26.486038", "level": "INFO", "logger": "spj.ventas", "msg": "VENTA_TIMING folio=VNT-20260713220826-CD857B00 t_dialog_done=267111.721755 t_uc_start=267111.733586 t_uc_done=267111.881313 t_ticket_start=267111.882347 t_ticket_queued=267112.210375 t_pdf_queued=0.000000 t_products_reload=267112.272419 uc_ms=147.73 ticket_ms=328.03 pdf_ms=390.07 total_ms=550.66", "module": "ventas", "line": 4233}
+{"ts": "2026-07-14T04:26:52.611417", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T04:26:52.620231", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T04:26:52.620894", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T04:27:40.515774", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T04:27:45.031647", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T04:27:45.031987", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T04:27:47.151809", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T04:27:47.152127", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T04:29:15.630869", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T04:29:15.740765", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T04:29:15.742474", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Cadenas (id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "ventas", "line": 1337}
+{"ts": "2026-07-14T04:30:44.707114", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T04:30:44.739387", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=2", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T04:30:45.816035", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T04:30:45.837705", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T04:32:31.158609", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T04:32:31.167662", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T04:32:31.168377", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T04:32:59.252677", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T04:33:08.130643", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T04:33:08.131144", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T04:33:13.143528", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T04:33:13.143832", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T04:33:40.275507", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T04:33:40.335710", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T04:33:40.337186", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Cadenas (id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "ventas", "line": 1337}
+{"ts": "2026-07-14T04:36:30.808573", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T04:36:30.817611", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T04:36:30.818069", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T04:36:50.949512", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T04:36:57.855338", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T04:36:57.855653", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T04:37:02.732217", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T04:37:02.732831", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T04:37:29.317258", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T04:37:29.347504", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T04:37:29.348412", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Cadenas (id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "ventas", "line": 1337}
+{"ts": "2026-07-14T04:38:02.819318", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T04:38:02.839040", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T04:38:06.416888", "level": "INFO", "logger": "spj.ventas", "msg": "Producto clickeado en grid: event_type=2 product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 nombre=Mango Enchilado", "module": "ventas", "line": 310}
+{"ts": "2026-07-14T04:38:06.417736", "level": "INFO", "logger": "spj.ventas", "msg": "Producto seleccionado: product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 nombre=Mango Enchilado sender=ProductCard", "module": "ventas", "line": 2315}
+{"ts": "2026-07-14T04:38:06.420202", "level": "INFO", "logger": "spj.ventas", "msg": "Producto cargado para agregar por unidad: product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 unidad=pza", "module": "ventas", "line": 2337}
+{"ts": "2026-07-14T04:38:09.063793", "level": "INFO", "logger": "spj.ventas", "msg": "Producto agregado al carrito desde selección: product_id=019f3d7c-2978-7a42-a2f2-4ceaa1446ad8 cantidad=1.0 items=1", "module": "ventas", "line": 3402}
+{"ts": "2026-07-14T05:14:33.702355", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T05:14:33.719839", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T05:14:33.720714", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T05:15:06.804710", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T05:15:09.218294", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T05:15:09.218730", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T05:15:11.987569", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T05:15:11.987996", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1276}
+{"ts": "2026-07-14T05:15:41.631070", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T05:15:41.810808", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T05:15:41.811740", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Cadenas (id=019f34e0-af3f-7368-9529-45586c221cb9)", "module": "ventas", "line": 1337}
+{"ts": "2026-07-14T05:16:01.160129", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T05:16:01.184050", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=2", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T05:16:02.836987", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T05:16:02.860537", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=2", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T05:16:18.758300", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=3", "module": "ventas", "line": 2211}
+{"ts": "2026-07-14T05:16:18.783824", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=3 columnas=3", "module": "ventas", "line": 2298}
+{"ts": "2026-07-14T05:16:23.162728", "level": "INFO", "logger": "spj.ventas", "msg": "Producto clickeado en grid: event_type=2 product_id=019f3d7b-7526-7061-ae87-96c41a945f4b nombre=Piña Enchilada PREMIER", "module": "ventas", "line": 310}
+{"ts": "2026-07-14T05:16:23.164323", "level": "INFO", "logger": "spj.ventas", "msg": "Producto seleccionado: product_id=019f3d7b-7526-7061-ae87-96c41a945f4b nombre=Piña Enchilada PREMIER sender=ProductCard", "module": "ventas", "line": 2315}
+{"ts": "2026-07-14T05:16:23.534310", "level": "INFO", "logger": "spj.ventas", "msg": "Producto cargado para agregar por unidad: product_id=019f3d7b-7526-7061-ae87-96c41a945f4b unidad=pza", "module": "ventas", "line": 2337}
+{"ts": "2026-07-14T05:16:31.233953", "level": "INFO", "logger": "spj.ventas", "msg": "Producto agregado al carrito desde selección: product_id=019f3d7b-7526-7061-ae87-96c41a945f4b cantidad=1.0 items=1", "module": "ventas", "line": 3402}
+{"ts": "2026-07-14T05:22:54.428689", "level": "INFO", "logger": "spj.ventas", "msg": "Producto clickeado en grid: event_type=2 product_id=019f3d7b-7526-7061-ae87-96c41a945f4b nombre=Piña Enchilada PREMIER", "module": "ventas", "line": 310}
+{"ts": "2026-07-14T05:22:54.677850", "level": "INFO", "logger": "spj.ventas", "msg": "Producto seleccionado: product_id=019f3d7b-7526-7061-ae87-96c41a945f4b nombre=Piña Enchilada PREMIER sender=ProductCard", "module": "ventas", "line": 2315}
+{"ts": "2026-07-14T05:22:54.731130", "level": "INFO", "logger": "spj.ventas", "msg": "Producto cargado para agregar por unidad: product_id=019f3d7b-7526-7061-ae87-96c41a945f4b unidad=pza", "module": "ventas", "line": 2337}
+{"ts": "2026-07-14T05:23:00.845751", "level": "ERROR", "logger": "spj.ventas", "msg": "No se pudo validar stock antes de agregar al carrito: product_id=019f3d7b-7526-7061-ae87-96c41a945f4b", "module": "ventas", "line": 3366, "exc": "Traceback (most recent call last):\n  File \"C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\modulos\\ventas.py\", line 3352, in agregar_producto_directo\n    stock_actual = float(_inv.get_stock_sucursal(\n                         ^^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: 'InventoryApplicationService' object has no attribute 'get_stock_sucursal'"}

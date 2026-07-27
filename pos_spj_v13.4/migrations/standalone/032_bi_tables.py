@@ -39,8 +39,8 @@ def run(conn: sqlite3.Connection) -> None:
         "CREATE INDEX IF NOT EXISTS idx_vd_fecha_suc ON ventas_diarias(fecha, sucursal_id)",
         "CREATE INDEX IF NOT EXISTS idx_id_fecha ON inventario_diario(fecha)",
         "CREATE INDEX IF NOT EXISTS idx_cd_fecha_suc ON clientes_diarios(fecha, sucursal_id)",
-        "CREATE INDEX IF NOT EXISTS idx_kpi_snap_fecha ON kpi_snapshots(fecha)",
-        "CREATE INDEX IF NOT EXISTS idx_kpi_snap_suc ON kpi_snapshots(sucursal_id)",
+        "CREATE INDEX IF NOT EXISTS idx_kpi_snap_fecha ON kpi_snapshots(snapshot_date)",
+        "CREATE INDEX IF NOT EXISTS idx_kpi_snap_suc ON kpi_snapshots(branch_id)",
         "CREATE INDEX IF NOT EXISTS idx_export_log_tipo ON report_export_log(tipo)",
         "CREATE INDEX IF NOT EXISTS idx_export_log_fecha ON report_export_log(created_at)",
     ]:
@@ -55,9 +55,9 @@ def run(conn: sqlite3.Connection) -> None:
 def _create_ventas_diarias(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ventas_diarias (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT NOT NULL PRIMARY KEY,
             fecha           DATE    NOT NULL,
-            sucursal_id     INTEGER NOT NULL,
+            sucursal_id     TEXT NOT NULL,
             total_ventas    REAL    NOT NULL DEFAULT 0,
             total_costo     REAL    NOT NULL DEFAULT 0,
             total_descuento REAL    NOT NULL DEFAULT 0,
@@ -76,10 +76,10 @@ def _create_ventas_diarias(conn):
 def _create_inventario_diario(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS inventario_diario (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT NOT NULL PRIMARY KEY,
             fecha           DATE    NOT NULL,
-            producto_id     INTEGER NOT NULL,
-            sucursal_id     INTEGER NOT NULL,
+            producto_id     TEXT NOT NULL,
+            sucursal_id     TEXT NOT NULL,
             cantidad        REAL    NOT NULL DEFAULT 0,
             valor           REAL    NOT NULL DEFAULT 0,
             updated_at      TEXT    DEFAULT (datetime('now')),
@@ -93,9 +93,9 @@ def _create_inventario_diario(conn):
 def _create_clientes_diarios(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS clientes_diarios (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT NOT NULL PRIMARY KEY,
             fecha           DATE    NOT NULL,
-            sucursal_id     INTEGER NOT NULL,
+            sucursal_id     TEXT NOT NULL,
             clientes_activos INTEGER NOT NULL DEFAULT 0,
             clientes_nuevos  INTEGER NOT NULL DEFAULT 0,
             ventas_con_fidelidad INTEGER NOT NULL DEFAULT 0,
@@ -111,7 +111,7 @@ def _create_clientes_diarios(conn):
 def _create_reporte_exports(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS reporte_exports (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT NOT NULL PRIMARY KEY,
             tipo        TEXT NOT NULL,
             formato     TEXT NOT NULL,
             ruta        TEXT,
@@ -158,9 +158,9 @@ TOLERANCE_PCT = 0.5   # 0.5% tolerancia matemática
 def _create_production_batches(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS production_batches (
-            id                  TEXT    PRIMARY KEY,
+            id                  TEXT NOT NULL    PRIMARY KEY,
             folio               TEXT    NOT NULL,
-            product_source_id   INTEGER NOT NULL,
+            product_source_id   TEXT NOT NULL,
             source_weight       REAL    NOT NULL CHECK(source_weight > 0),
             processed_weight    REAL    NOT NULL DEFAULT 0 CHECK(processed_weight >= 0),
             waste_weight        REAL    NOT NULL DEFAULT 0 CHECK(waste_weight >= 0),
@@ -175,8 +175,8 @@ def _create_production_batches(conn: sqlite3.Connection) -> None:
                                 (CASE WHEN source_weight > 0
                                  THEN ROUND(source_cost_total / source_weight, 6)
                                  ELSE 0 END) VIRTUAL,
-            branch_id           INTEGER NOT NULL,
-            receta_id           INTEGER,
+            branch_id           TEXT NOT NULL,
+            receta_id           TEXT,
             estado              TEXT    NOT NULL DEFAULT 'abierto'
                                 CHECK(estado IN ('abierto','cerrado','cancelado')),
             created_by          TEXT    NOT NULL,
@@ -198,9 +198,9 @@ def _create_production_batches(conn: sqlite3.Connection) -> None:
 def _create_production_outputs(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS production_outputs (
-            id                  TEXT    PRIMARY KEY,
+            id                  TEXT NOT NULL    PRIMARY KEY,
             batch_id            TEXT    NOT NULL,
-            product_id          INTEGER NOT NULL,
+            product_id          TEXT NOT NULL,
             weight              REAL    NOT NULL CHECK(weight >= 0),
             expected_weight     REAL    NOT NULL DEFAULT 0 CHECK(expected_weight >= 0),
             expected_pct        REAL    NOT NULL DEFAULT 0 CHECK(expected_pct >= 0),
@@ -221,7 +221,7 @@ def _create_production_outputs(conn: sqlite3.Connection) -> None:
 def _create_production_yield_analysis(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS production_yield_analysis (
-            id              TEXT    PRIMARY KEY,
+            id              TEXT NOT NULL    PRIMARY KEY,
             batch_id        TEXT    NOT NULL UNIQUE,
             expected_yield  REAL    NOT NULL,
             real_yield      REAL    NOT NULL,
@@ -248,7 +248,7 @@ def _create_production_yield_analysis(conn: sqlite3.Connection) -> None:
 def _create_production_alerts(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS production_alerts (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT NOT NULL PRIMARY KEY,
             batch_id        TEXT    NOT NULL,
             tipo            TEXT    NOT NULL,
             mensaje         TEXT    NOT NULL,
@@ -268,10 +268,10 @@ def _create_production_alerts(conn: sqlite3.Connection) -> None:
 def _create_production_cost_ledger(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS production_cost_ledger (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT NOT NULL PRIMARY KEY,
             batch_id        TEXT    NOT NULL,
             output_id       TEXT    NOT NULL,
-            product_id      INTEGER NOT NULL,
+            product_id      TEXT NOT NULL,
             weight          REAL    NOT NULL,
             pct_utilizable  REAL    NOT NULL,
             cost_total      REAL    NOT NULL,
@@ -375,9 +375,9 @@ def _patch_inventario_diario(conn):
 def _create_clientes_diarios(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS clientes_diarios (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT NOT NULL PRIMARY KEY,
             fecha       DATE    NOT NULL,
-            sucursal_id INTEGER NOT NULL,
+            sucursal_id TEXT NOT NULL,
             nuevos      INTEGER NOT NULL DEFAULT 0,
             activos     INTEGER NOT NULL DEFAULT 0,
             recurrentes INTEGER NOT NULL DEFAULT 0,
@@ -391,10 +391,10 @@ def _create_clientes_diarios(conn):
 def _create_export_log(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS report_export_log (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT NOT NULL PRIMARY KEY,
             tipo        TEXT    NOT NULL,
             formato     TEXT    NOT NULL CHECK(formato IN ('PDF','Excel','CSV')),
-            branch_id   INTEGER,
+            branch_id   TEXT,
             fecha_desde DATE,
             fecha_hasta DATE,
             filepath    TEXT,
@@ -407,30 +407,29 @@ def _create_export_log(conn):
     
 
 def _create_kpi_snapshots(conn):
-    conn.execute("DROP TABLE IF EXISTS kpi_snapshots") # <--- AÑADE ESTO
     conn.execute("""
-        CREATE TABLE IF NOT EXISTS kpi_snapshots (...
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            fecha           DATE    NOT NULL,
-            sucursal_id     INTEGER NOT NULL,
-            total_revenue   REAL    NOT NULL DEFAULT 0,
-            total_cost      REAL    NOT NULL DEFAULT 0,
-            gross_margin    REAL    NOT NULL DEFAULT 0,
-            gross_margin_pct REAL   NOT NULL DEFAULT 0,
-            ticket_count    INTEGER NOT NULL DEFAULT 0,
-            avg_ticket      REAL    NOT NULL DEFAULT 0,
-            active_clients  INTEGER NOT NULL DEFAULT 0,
-            inventory_value REAL    NOT NULL DEFAULT 0,
-            merma_total     REAL    NOT NULL DEFAULT 0,
-            created_at      DATETIME DEFAULT (datetime('now')),
-            UNIQUE (fecha, sucursal_id)
+        CREATE TABLE IF NOT EXISTS kpi_snapshots (
+            branch_id        TEXT    NOT NULL,
+            snapshot_date    DATE    NOT NULL,
+            total_revenue    REAL    NOT NULL DEFAULT 0,
+            total_cost       REAL    NOT NULL DEFAULT 0,
+            gross_margin     REAL    NOT NULL DEFAULT 0,
+            gross_margin_pct REAL    NOT NULL DEFAULT 0,
+            ticket_count     INTEGER NOT NULL DEFAULT 0,
+            avg_ticket       REAL    NOT NULL DEFAULT 0,
+            active_clients   INTEGER NOT NULL DEFAULT 0,
+            new_clients      INTEGER NOT NULL DEFAULT 0,
+            points_issued    INTEGER NOT NULL DEFAULT 0,
+            inventory_value  REAL    NOT NULL DEFAULT 0,
+            computed_at      DATETIME NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (branch_id, snapshot_date)
         )
     """)
 
 
 def _create_indexes(conn):
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_kpi_snap_fecha   ON kpi_snapshots(fecha)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_kpi_snap_suc     ON kpi_snapshots(sucursal_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_kpi_snap_fecha   ON kpi_snapshots(snapshot_date)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_kpi_snap_suc     ON kpi_snapshots(branch_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_export_log_tipo  ON report_export_log(tipo)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_export_log_fecha ON report_export_log(created_at)")
 
@@ -464,8 +463,8 @@ def up(conn):
         "CREATE INDEX IF NOT EXISTS idx_vd_fecha_suc ON ventas_diarias(fecha, sucursal_id)",
         "CREATE INDEX IF NOT EXISTS idx_id_fecha ON inventario_diario(fecha)",
         "CREATE INDEX IF NOT EXISTS idx_cd_fecha_suc ON clientes_diarios(fecha, sucursal_id)",
-        "CREATE INDEX IF NOT EXISTS idx_kpi_snap_fecha ON kpi_snapshots(fecha)",
-        "CREATE INDEX IF NOT EXISTS idx_kpi_snap_suc ON kpi_snapshots(sucursal_id)",
+        "CREATE INDEX IF NOT EXISTS idx_kpi_snap_fecha ON kpi_snapshots(snapshot_date)",
+        "CREATE INDEX IF NOT EXISTS idx_kpi_snap_suc ON kpi_snapshots(branch_id)",
         "CREATE INDEX IF NOT EXISTS idx_export_log_tipo ON report_export_log(tipo)",
         "CREATE INDEX IF NOT EXISTS idx_export_log_fecha ON report_export_log(created_at)",
     ]:

@@ -2,9 +2,19 @@
 # modulos/clientes.py
 import os
 import re
+import sqlite3
 from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.spj_refresh_mixin import RefreshMixin
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.kpi_card import KPICard
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_danger_button, create_secondary_button,
+    create_input_field, create_combo, create_card, apply_tooltip, create_heading,
+    create_subheading, create_caption, create_table_with_columns, create_table_button,
+    FilterBar, LoadingIndicator, EmptyStateWidget, confirm_action, create_standard_tabs,
+    wrap_in_scroll_area, PageHeader, Toast,
+)
 from core.events.event_bus import VENTA_COMPLETADA, PUNTOS_ACUMULADOS, NIVEL_CAMBIADO
 from core.services.auto_audit import audit_write
 from core.events.event_bus import get_bus
@@ -14,26 +24,23 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdi
                             QTabWidget, QAbstractItemView, QComboBox)
 from PyQt5.QtCore import Qt, QRandomGenerator
 from PyQt5.QtGui import QPixmap, QColor, QIcon
-import sqlite3
 from .base import ModuloBase
 
 
-class ModuloClientes(ModuloBase): 
+class ModuloClientes(ModuloBase):
     def __init__(self, conexion, main_window=None):
         super().__init__(conexion, parent=main_window)
-        # Accept AppContainer or direct db connection
         if hasattr(conexion, 'db'):
             self.container = conexion
             self.conexion  = conexion.db
         else:
             self.container = None
             self.conexion  = conexion
-        # ClienteRepository: capa de datos para operaciones CRUD
         try:
-            from repositories.cliente_repository import ClienteRepository
-            self.repo = ClienteRepository(conexion)
+            from core.services.cliente_service import ClienteService
+            self._svc = ClienteService(self.conexion)
         except Exception:
-            self.repo = None
+            self._svc = None
         self.main_window = main_window
         self.cliente_actual = None
         self.filtro_activo = True
@@ -45,14 +52,32 @@ class ModuloClientes(ModuloBase):
         self.sucursal_id     = sucursal_id
         self.sucursal_nombre = sucursal_nombre
 
-        
-    def set_usuario_actual(self, usuario, rol):
-        """Establece el usuario actual para el módulo"""
-        self.usuario_actual = usuario
+    def _crear_stats_clientes(self) -> QWidget:
+        """Barra de KPIs: total clientes, activos, con tarjeta, puntos distribuidos."""
+        container = QWidget()
+        lay = QHBoxLayout(container)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(12)
 
-        try: self._init_refresh(container, ["VENTA_COMPLETADA", "PUNTOS_ACUMULADOS", "NIVEL_CAMBIADO"])
-        except Exception: pass
-        self.rol_usuario = rol
+        self._kpi_total = KPICard("Total Clientes", "—", "👥", "primary")
+        self._kpi_activos = KPICard("Activos", "—", "✅", "success")
+        self._kpi_tarjeta = KPICard("Con Tarjeta", "—", "💳", "info")
+        self._kpi_puntos = KPICard("Puntos Totales", "—", "⭐", "warning")
+
+        for card in (self._kpi_total, self._kpi_activos, self._kpi_tarjeta, self._kpi_puntos):
+            lay.addWidget(card)
+
+        try:
+            if self._svc:
+                stats = self._svc.get_stats()
+                self._kpi_total.set_valor(str(stats.get("total", 0)))
+                self._kpi_activos.set_valor(str(stats.get("activos", 0)))
+                self._kpi_tarjeta.set_valor(str(stats.get("con_tarjeta", 0)))
+                self._kpi_puntos.set_valor(f"{int(stats.get('puntos_totales', 0)):,}")
+        except Exception:
+            pass
+
+        return container
         
     def _on_refresh(self, event_type: str, data: dict) -> None:
         """Auto-refresh client list when sales or loyalty events occur."""
@@ -67,86 +92,95 @@ class ModuloClientes(ModuloBase):
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # --- Encabezado ---
-        header_layout = QHBoxLayout()
-        if os.path.exists("logo.png"):
-            logo_label = QLabel()
-            pixmap = QPixmap("logo.png")
-            if not pixmap.isNull():
-                pixmap = pixmap.scaled(50, 50, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                logo_label.setPixmap(pixmap)
-            header_layout.addWidget(logo_label)
+        # --- Encabezado (PageHeader) ---
+        self.page_header = PageHeader(
+            self,
+            title="👥 Gestión de Clientes",
+            subtitle="Cartera, fidelización y segmentación",
+        )
+        layout.addWidget(self.page_header)
 
-        title = QLabel("Gestión de Clientes")
-        title.setObjectName("tituloPrincipal")
-        header_layout.addWidget(title)
-        header_layout.addStretch()
-        layout.addLayout(header_layout)
+        # ── Stats bar ─────────────────────────────────────────────────────────
+        layout.addWidget(self._crear_stats_clientes())
 
         # --- Barra de herramientas ---
         toolbar = QHBoxLayout()
-        self.busqueda_cliente = QLineEdit()
-        self.busqueda_cliente.setPlaceholderText("Buscar por nombre, teléfono, ID o código QR...")
+        self._filter_bar = FilterBar(
+            self,
+            placeholder="Buscar por nombre, teléfono, ID o código QR...",
+            combo_filters={"estado": ["Activos", "Todos", "Inactivos"]},
+        )
+        self._filter_bar.filters_changed.connect(lambda _v: self.cargar_clientes())
+        self.busqueda_cliente = self._filter_bar.search
+        self.combo_filtro = self._filter_bar._combos.get("estado")
         self.btn_buscar_cliente = QPushButton()
+        self.btn_buscar_cliente.setObjectName("secondaryBtn")
         self.btn_buscar_cliente.setIcon(self.obtener_icono("search.png"))
         self.btn_buscar_cliente.setToolTip("Buscar Cliente")
         
-        self.combo_filtro = QComboBox()
-        self.combo_filtro.addItems(["Activos", "Todos", "Inactivos"])
-        self.combo_filtro.setCurrentText("Activos")
-        
         self.btn_nuevo_cliente = QPushButton("Nuevo Cliente")
+        self.btn_nuevo_cliente.setObjectName("primaryBtn")
         self.btn_nuevo_cliente.setIcon(self.obtener_icono("add.png"))
         
-        toolbar.addWidget(QLabel("Buscar:"))
-        toolbar.addWidget(self.busqueda_cliente)
+        toolbar.addWidget(self._filter_bar, 1)
         toolbar.addWidget(self.btn_buscar_cliente)
-        toolbar.addSpacing(20)
-        toolbar.addWidget(QLabel("Filtro:"))
-        toolbar.addWidget(self.combo_filtro)
         toolbar.addStretch()
         toolbar.addWidget(self.btn_nuevo_cliente)
         layout.addLayout(toolbar)
+        self._loading = LoadingIndicator("Cargando clientes…", self)
+        self._loading.hide()
+        layout.addWidget(self._loading)
 
         # --- Tabla de Clientes ---
-        self.tabla_clientes = QTableWidget()
-        self.tabla_clientes.setColumnCount(9)
-        self.tabla_clientes.setHorizontalHeaderLabels([
-            "ID", "Nombre", "Apellido", "Teléfono", "Puntos", "Nivel", "Saldo", "Límite Crédito", "Estado"
-        ])
+        self.tabla_clientes = create_table_with_columns(
+            self, 
+            columns=["ID", "Nombre", "Apellido", "Teléfono", "Puntos", "Nivel", "Saldo", "Límite Crédito", "Estado"],
+            show_grid=False,
+            alternating_colors=True
+        )
         self.tabla_clientes.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tabla_clientes.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.tabla_clientes.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.tabla_clientes)
+        self._empty_state = EmptyStateWidget(
+            "Sin clientes",
+            "No se encontraron clientes para el filtro seleccionado.",
+            "📭",
+            self,
+        )
+        self._empty_state.hide()
+        layout.addWidget(self._empty_state)
 
         # --- Barra de estado/botones de acción ---
         acciones_layout = QHBoxLayout()
         self.btn_editar_cliente = QPushButton("Editar")
+        self.btn_editar_cliente.setObjectName("outlineBtn")
         self.btn_editar_cliente.setIcon(self.obtener_icono("edit.png"))
         self.btn_editar_cliente.setEnabled(False)
-        
+
         self.btn_eliminar_cliente = QPushButton("Eliminar")
+        self.btn_eliminar_cliente.setObjectName("dangerBtn")
         self.btn_eliminar_cliente.setIcon(self.obtener_icono("delete.png"))
         self.btn_eliminar_cliente.setEnabled(False)
-        
+
         self.btn_ver_historial = QPushButton("Historial")
+        self.btn_ver_historial.setObjectName("secondaryBtn")
         self.btn_ver_historial.setIcon(self.obtener_icono("history.png"))
         self.btn_ver_historial.setEnabled(False)
-        
+
         self.btn_asignar_tarjeta = QPushButton("Asignar Tarjeta")
+        self.btn_asignar_tarjeta.setObjectName("secondaryBtn")
         self.btn_asignar_tarjeta.setIcon(self.obtener_icono("card.png"))
         self.btn_asignar_tarjeta.setEnabled(False)
 
-        # v9: Botón ver tarjetas y gestión completa
         self.btn_ver_tarjetas = QPushButton("💳 Tarjetas")
+        self.btn_ver_tarjetas.setObjectName("secondaryBtn")
         self.btn_ver_tarjetas.setEnabled(False)
         
         acciones_layout.addWidget(self.btn_editar_cliente)
         acciones_layout.addWidget(self.btn_eliminar_cliente)
         acciones_layout.addWidget(self.btn_ver_historial)
         acciones_layout.addWidget(self.btn_asignar_tarjeta)
-        self.btn_rfm = QPushButton("📊 Segmentación RFM")
-        self.btn_rfm.setStyleSheet("background:#8e44ad;color:white;font-weight:bold;padding:6px 10px;border-radius:5px;")
+        self.btn_rfm = create_secondary_button(self, "📊 Segmentación RFM", "Analizar segmentación RFM de clientes")
         self.btn_rfm.clicked.connect(self._abrir_rfm)
         acciones_layout.addWidget(self.btn_ver_tarjetas)
         acciones_layout.addWidget(self.btn_rfm)
@@ -217,48 +251,44 @@ class ModuloClientes(ModuloBase):
 
     def cargar_clientes(self):
         """Carga los clientes en la tabla según el filtro seleccionado."""
+        if hasattr(self, "_loading"):
+            self._loading.show()
         try:
-            cursor = self.conexion.cursor()
-            
-            filtro = self.combo_filtro.currentText()
+            filtro = self.combo_filtro.currentText() if self.combo_filtro else "Activos"
             if filtro == "Activos":
-                condicion = "WHERE activo = 1"
-                params = ()
+                filtro_param = "activos"
             elif filtro == "Inactivos":
-                condicion = "WHERE activo = 0"
-                params = ()
+                filtro_param = "inactivos"
             else:
-                condicion = ""
-                params = ()
+                filtro_param = "todos"
 
-            query = f"""
-                SELECT id, nombre, COALESCE(apellido,'') as apellido, telefono, puntos, nivel_fidelidad, 
-                       COALESCE(saldo,0) as saldo, COALESCE(limite_credito,0) as limite_credito, COALESCE(activo,1) as activo
-                FROM clientes
-                {condicion}
-                ORDER BY nombre
-            """
-            
-            cursor.execute(query, params)
-            clientes = cursor.fetchall()
-
-            self.tabla_clientes.setRowCount(len(clientes))
-            for row, cliente in enumerate(clientes):
-                for col, valor in enumerate(cliente):
-                    if col == 8:  # Columna de estado
-                        estado_texto = "Activo" if valor == 1 else "Inactivo"
-                        item = QTableWidgetItem(estado_texto)
-                        if valor != 1:
-                            item.setForeground(QColor('red'))
-                        self.tabla_clientes.setItem(row, col, item)
-                    elif col in [6, 7]:  # Saldo y Límite de crédito
-                        item = QTableWidgetItem(f"${valor:,.2f}" if valor is not None else "$0.00")
-                        self.tabla_clientes.setItem(row, col, item)
-                    else:
-                        self.tabla_clientes.setItem(row, col, QTableWidgetItem(str(valor) if valor is not None else ""))
-
-        except sqlite3.Error as e:
+            clientes = self._svc.get_filtered(filtro_param) if self._svc else []
+            self._mostrar_clientes(clientes)
+        except Exception as e:
             self.mostrar_mensaje("Error", f"Error al cargar clientes: {str(e)}", QMessageBox.Critical)
+        finally:
+            if hasattr(self, "_loading"):
+                self._loading.hide()
+
+    def _mostrar_clientes(self, clientes: list) -> None:
+        """Render clients list in table."""
+        self.tabla_clientes.setRowCount(len(clientes))
+        for row, cliente in enumerate(clientes):
+            values = list(cliente.values()) if isinstance(cliente, dict) else cliente
+            for col, valor in enumerate(values):
+                if col == 8:
+                    estado_texto = "Activo" if valor == 1 else "Inactivo"
+                    item = QTableWidgetItem(estado_texto)
+                    if valor != 1:
+                        item.setForeground(QColor('red'))
+                    self.tabla_clientes.setItem(row, col, item)
+                elif col in [6, 7]:
+                    item = QTableWidgetItem(f"${valor:,.2f}" if valor is not None else "$0.00")
+                    self.tabla_clientes.setItem(row, col, item)
+                else:
+                    self.tabla_clientes.setItem(row, col, QTableWidgetItem(str(valor) if valor is not None else ""))
+        if hasattr(self, "_empty_state"):
+            self._empty_state.setVisible(len(clientes) == 0)
 
     def buscar_clientes(self):
         """Busca clientes según el texto ingresado."""
@@ -267,62 +297,29 @@ class ModuloClientes(ModuloBase):
             self.cargar_clientes()
             return
 
+        if hasattr(self, "_loading"):
+            self._loading.show()
         try:
-            cursor = self.conexion.cursor()
-            
-            filtro = self.combo_filtro.currentText()
-            condicion_activo = ""
+            filtro = self.combo_filtro.currentText() if self.combo_filtro else "Activos"
             if filtro == "Activos":
-                condicion_activo = "AND c.activo = 1"
+                filtro_param = "activos"
             elif filtro == "Inactivos":
-                condicion_activo = "AND c.activo = 0"
-
-            # Determinar el tipo de búsqueda
-            if texto.startswith("CLI-") or texto.startswith("QR-"):
-                # Búsqueda por código QR o ID
-                consulta = f"""
-                    SELECT c.id, c.nombre, COALESCE(c.apellido,'') as apellido, c.telefono, 
-                           c.puntos, c.nivel_fidelidad, COALESCE(c.saldo,0) as saldo, COALESCE(c.limite_credito,0) as limite_credito, COALESCE(c.activo,1) as activo
-                    FROM clientes c
-                    WHERE (c.codigo_qr = ? OR c.id = ?)
-                    {condicion_activo}
-                """
-                params = (texto, texto.split('-')[-1] if '-' in texto else texto)
+                filtro_param = "inactivos"
             else:
-                # Búsqueda por nombre, apellido, teléfono o ID (parcial)
-                consulta = f"""
-                    SELECT c.id, c.nombre, COALESCE(c.apellido,'') as apellido, c.telefono, 
-                           c.puntos, c.nivel_fidelidad, COALESCE(c.saldo,0) as saldo, COALESCE(c.limite_credito,0) as limite_credito, COALESCE(c.activo,1) as activo
-                    FROM clientes c
-                    WHERE (c.nombre LIKE ? OR COALESCE(c.apellido,'') LIKE ? OR c.telefono LIKE ? OR c.id = ?)
-                    {condicion_activo}
-                """
-                params = (f"%{texto}%", f"%{texto}%", f"%{texto}%", texto)
+                filtro_param = "todos"
 
-            cursor.execute(consulta, params)
-            clientes = cursor.fetchall()
-
-            self.tabla_clientes.setRowCount(len(clientes))
-            for row, cliente in enumerate(clientes):
-                for col, valor in enumerate(cliente):
-                    if col == 8:  # Columna de estado
-                        estado_texto = "Activo" if valor == 1 else "Inactivo"
-                        item = QTableWidgetItem(estado_texto)
-                        if valor != 1:
-                            item.setForeground(QColor('red'))
-                        self.tabla_clientes.setItem(row, col, item)
-                    elif col in [6, 7]:  # Saldo y Límite de crédito
-                        item = QTableWidgetItem(f"${valor:,.2f}" if valor is not None else "$0.00")
-                        self.tabla_clientes.setItem(row, col, item)
-                    else:
-                        self.tabla_clientes.setItem(row, col, QTableWidgetItem(str(valor) if valor is not None else ""))
-
-        except sqlite3.Error as e:
+            clientes = self._svc.search(texto, filtro_param) if self._svc else []
+            self._mostrar_clientes(clientes)
+        except Exception as e:
             self.mostrar_mensaje("Error", f"Error en búsqueda: {str(e)}", QMessageBox.Critical)
+        finally:
+            if hasattr(self, "_loading"):
+                self._loading.hide()
 
     def nuevo_cliente(self):
         """Abre el diálogo para crear un nuevo cliente."""
-        dialogo = DialogoCliente(self.conexion, self)
+        _uc = getattr(self.container, 'uc_cliente', None) if self.container else None
+        dialogo = DialogoCliente(self.conexion, self, uc_cliente=_uc)
         if dialogo.exec_() == QDialog.Accepted:
             self.cargar_clientes()
             # NOTIFICAR EVENTO
@@ -340,19 +337,14 @@ class ModuloClientes(ModuloBase):
             return
 
         try:
-            id_cliente = int(self.tabla_clientes.item(fila_seleccionada, 0).text())
-            cursor = self.conexion.cursor()
-            cursor.execute("SELECT * FROM clientes WHERE id = ?", (id_cliente,))
-            cliente_data = cursor.fetchone()
-            
-            if cliente_data:
-                columnas = [description[0] for description in cursor.description]
-                cliente_dict = dict(zip(columnas, cliente_data))
-                
-                dialogo = DialogoCliente(self.conexion, self, cliente_dict)
+            id_cliente = self.tabla_clientes.item(fila_seleccionada, 0).text()
+            cliente_dict = self._svc.get_by_id(id_cliente) if self._svc else None
+
+            if cliente_dict:
+                _uc = getattr(self.container, 'uc_cliente', None) if self.container else None
+                dialogo = DialogoCliente(self.conexion, self, cliente_dict, uc_cliente=_uc)
                 if dialogo.exec_() == QDialog.Accepted:
                     self.cargar_clientes()
-                    # NOTIFICAR EVENTO
                     if hasattr(self.main_window, 'notificar_evento'):
                         self.main_window.notificar_evento('cliente_actualizado', {
                             'id': id_cliente,
@@ -363,7 +355,7 @@ class ModuloClientes(ModuloBase):
 
         except ValueError:
             self.mostrar_mensaje("Error", "ID de cliente inválido.")
-        except sqlite3.Error as e:
+        except Exception as e:
             self.mostrar_mensaje("Error", f"Error al cargar datos del cliente: {str(e)}", QMessageBox.Critical)
 
     def eliminar_cliente(self):
@@ -374,40 +366,39 @@ class ModuloClientes(ModuloBase):
             return
 
         try:
-            id_cliente = int(self.tabla_clientes.item(fila_seleccionada, 0).text())
+            id_cliente = self.tabla_clientes.item(fila_seleccionada, 0).text()
             nombre_cliente = self.tabla_clientes.item(fila_seleccionada, 1).text()
-            
-            respuesta = self.mostrar_mensaje(
-                "Confirmar Eliminación",
-                f"¿Está seguro que desea desactivar al cliente '{nombre_cliente}'?\n\n"
-                f"Esto lo marcará como inactivo, no se eliminarán los datos permanentemente.",
-                QMessageBox.Question,
-                QMessageBox.Yes | QMessageBox.No
-            )
-            
-            if respuesta == QMessageBox.Yes:
-                cursor = self.conexion.cursor()
-                cursor.execute("UPDATE clientes SET activo = 0, fecha_inactivacion = date('now') WHERE id = ?", (id_cliente,))
-                self.conexion.commit()
-                try:
-                    _uid = getattr(self,"usuario_actual",None) or getattr(self,"usuario","Sistema")
-                    _sid = getattr(self,"sucursal_id",1)
-                    _ctr = getattr(self,"container",None)
-                    if _ctr: audit_write(_ctr,modulo="CLIENTES",accion="MODIFICAR_CLIENTE",entidad="clientes",usuario=_uid,detalles="Cliente modificado",sucursal_id=_sid)
-                except Exception: pass
-                self.mostrar_mensaje("Éxito", "Cliente desactivado correctamente.")
-                self.cargar_clientes()
-                # NOTIFICAR EVENTO
-                if hasattr(self.main_window, 'notificar_evento'):
-                    self.main_window.notificar_evento('cliente_eliminado', {
-                        'id': id_cliente,
-                        'modulo': 'clientes'
-                    })
-                    
+
+            if confirm_action(
+                self,
+                "Confirmar Desactivación",
+                f"¿Desactivar al cliente '{nombre_cliente}'?\n"
+                "No se eliminarán datos financieros ni de trazabilidad.",
+                confirm_text="Desactivar",
+                cancel_text="Cancelar",
+            ):
+                if self._svc and self._svc.dar_de_baja(id_cliente):
+                    try:
+                        _uid = getattr(self, "usuario_actual", None) or getattr(self, "usuario", "Sistema")
+                        _sid = getattr(self, "sucursal_id", "") or ""
+                        _ctr = getattr(self, "container", None)
+                        if _ctr:
+                            audit_write(_ctr, modulo="CLIENTES", accion="MODIFICAR_CLIENTE",
+                                      entidad="clientes", usuario=_uid, detalles="Cliente dado de baja",
+                                      sucursal_id=_sid)
+                    except Exception:
+                        pass
+                    self.mostrar_mensaje("Éxito", "Cliente desactivado correctamente.")
+                    self.cargar_clientes()
+                    if hasattr(self.main_window, 'notificar_evento'):
+                        self.main_window.notificar_evento('cliente_eliminado', {
+                            'id': id_cliente,
+                            'modulo': 'clientes'
+                        })
+
         except ValueError:
             self.mostrar_mensaje("Error", "ID de cliente inválido.")
-        except sqlite3.Error as e:
-            self.conexion.rollback()
+        except Exception as e:
             self.mostrar_mensaje("Error", f"Error al desactivar cliente: {str(e)}", QMessageBox.Critical)
 
     def ver_historial_cliente(self):
@@ -418,7 +409,7 @@ class ModuloClientes(ModuloBase):
             return
 
         try:
-            id_cliente = int(self.tabla_clientes.item(fila_seleccionada, 0).text())
+            id_cliente = self.tabla_clientes.item(fila_seleccionada, 0).text()
             nombre_cliente = self.tabla_clientes.item(fila_seleccionada, 1).text()
             apellido_cliente = self.tabla_clientes.item(fila_seleccionada, 2).text() if self.tabla_clientes.item(fila_seleccionada, 2) else ""
             nombre_completo = f"{nombre_cliente} {apellido_cliente}".strip()
@@ -438,7 +429,7 @@ class ModuloClientes(ModuloBase):
             self.mostrar_mensaje("Advertencia", "Seleccione un cliente para asignar una tarjeta.")
             return
         try:
-            id_cliente     = int(self.tabla_clientes.item(fila, 0).text())
+            id_cliente     = self.tabla_clientes.item(fila, 0).text()
             nombre_cliente = self.tabla_clientes.item(fila, 1).text()
 
             from core.services.card_batch_engine import CardBatchEngine
@@ -469,7 +460,7 @@ class ModuloClientes(ModuloBase):
             self.mostrar_mensaje("Advertencia", "Seleccione un cliente.")
             return
         try:
-            id_cliente     = int(self.tabla_clientes.item(fila, 0).text())
+            id_cliente     = self.tabla_clientes.item(fila, 0).text()
             nombre_cliente = self.tabla_clientes.item(fila, 1).text()
             dlg = _DialogoTarjetasCliente(id_cliente, nombre_cliente, self.conexion, self)
             dlg.exec_()
@@ -540,31 +531,44 @@ class ModuloClientes(ModuloBase):
 
 
 class DialogoCliente(QDialog):
-    def __init__(self, conexion, parent=None, cliente_data=None):
+    """Captura-only: arma el DTO y delega la persistencia en ClienteService.
+    No ejecuta SQL/commit/publish (Remediación D)."""
+    def __init__(self, conexion, parent=None, cliente_data=None, uc_cliente=None):
         super().__init__(parent)
-        self.conexion = conexion
+        from core.services.cliente_service import ClienteService
+        self._svc = ClienteService(conexion)
         self.cliente_data = cliente_data
+        self.uc_cliente = uc_cliente  # v13.5: UC opcional para delegación
         self.setWindowTitle("Nuevo Cliente" if not cliente_data else "Editar Cliente")
         self.setFixedSize(400, 500)
         self.init_ui()
 
     def init_ui(self):
         layout = QVBoxLayout()
+        layout.setSpacing(Spacing.MD)
+        layout.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
 
+        # Encabezado
+        layout.addWidget(create_heading(self, "Nuevo Cliente" if not self.cliente_data else "Editar Cliente"))
+        
+        # Card principal con formulario
+        card = create_card(self, padding=Spacing.MD, with_layout=False)
         form_layout = QFormLayout()
+        form_layout.setSpacing(Spacing.SM)
+        form_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         
         # v13.4: Campo ID Tarjeta
-        self.edit_tarjeta_id = QLineEdit()
-        self.edit_tarjeta_id.setPlaceholderText("Escanear QR de tarjeta o escribir ID")
+        self.edit_tarjeta_id = create_input_field(self, "Escanear QR de tarjeta o escribir ID")
         
-        self.edit_nombre = QLineEdit()
-        self.edit_apellido = QLineEdit()
+        self.edit_nombre = create_input_field(self, "Nombre completo*")
+        self.edit_apellido = create_input_field(self, "Apellido")
         self.edit_telefono = PhoneWidget(default_country="+52")
         # setInputMask removed — PhoneWidget handles international format internally
         
         self.edit_puntos = QSpinBox()
         self.edit_puntos.setRange(0, 999999)
-        self.edit_nivel = QLineEdit()
+        self.edit_nivel = create_combo(self, ["Bronce", "Plata", "Oro", "Platino"])
+        self.edit_nivel.setEditable(True)
         self.edit_descuento = QDoubleSpinBox()
         self.edit_descuento.setRange(0.0, 100.0)
         self.edit_descuento.setSuffix(" %")
@@ -577,13 +581,14 @@ class DialogoCliente(QDialog):
         self.edit_limite_credito.setPrefix("$ ")
         
         self.chk_activo = QCheckBox("Activo")
+        self.chk_activo.setChecked(True)
 
         if self.cliente_data:
             self.edit_nombre.setText(self.cliente_data.get('nombre', ''))
             self.edit_apellido.setText(self.cliente_data.get('apellido', ''))
             self.edit_telefono.set_phone(self.cliente_data.get('telefono', ''))
             self.edit_puntos.setValue(self.cliente_data.get('puntos', 0))
-            self.edit_nivel.setText(self.cliente_data.get('nivel_fidelidad', ''))
+            self.edit_nivel.setCurrentText(self.cliente_data.get('nivel_fidelidad', 'Bronce'))
             self.edit_descuento.setValue(self.cliente_data.get('descuento', 0.0))
             self.edit_saldo.setValue(self.cliente_data.get('saldo', 0.0))
             self.edit_limite_credito.setValue(self.cliente_data.get('limite_credito', 0.0))
@@ -600,15 +605,20 @@ class DialogoCliente(QDialog):
         form_layout.addRow("Descuento (%):", self.edit_descuento)
         form_layout.addRow("Saldo Crédito:", self.edit_saldo)
         form_layout.addRow("Límite Crédito:", self.edit_limite_credito)
-        form_layout.addRow(self.chk_activo)
+        form_layout.addRow("", self.chk_activo)
+        
+        card.setLayout(form_layout)
+        layout.addWidget(card)
 
+        # Botones de acción
         btn_layout = QHBoxLayout()
-        self.btn_guardar = QPushButton("Guardar")
-        self.btn_cancelar = QPushButton("Cancelar")
-        btn_layout.addWidget(self.btn_guardar)
+        btn_layout.setSpacing(Spacing.SM)
+        self.btn_guardar = create_primary_button(self, "💾 Guardar", "Guardar datos del cliente")
+        self.btn_cancelar = create_secondary_button(self, "Cancelar", "Cancelar sin guardar")
+        btn_layout.addStretch()
         btn_layout.addWidget(self.btn_cancelar)
+        btn_layout.addWidget(self.btn_guardar)
 
-        layout.addLayout(form_layout)
         layout.addLayout(btn_layout)
         self.setLayout(layout)
 
@@ -631,175 +641,147 @@ class DialogoCliente(QDialog):
             
         return True
 
-    def generar_id_cliente(self):
-        """Genera un ID de cliente único de 4 dígitos."""
-        cursor = self.conexion.cursor()
-        while True:
-            nuevo_id = f"{QRandomGenerator.global_().bounded(1000, 10000)}"
-            cursor.execute("SELECT COUNT(*) FROM clientes WHERE id = ?", (nuevo_id,))
-            if cursor.fetchone()[0] == 0:
-                return nuevo_id
+    def get_dto(self) -> dict:
+        """DTO capturado del formulario. La persistencia la ejecuta ClienteService."""
+        telefono = (self.edit_telefono.get_e164().strip()
+                    if hasattr(self.edit_telefono, 'get_e164')
+                    else self.edit_telefono.text().strip())
+        return {
+            "is_edit": bool(self.cliente_data),
+            "cliente_id": self.cliente_data.get('id') if self.cliente_data else None,
+            "nombre": self.edit_nombre.text().strip(),
+            "apellido": self.edit_apellido.text().strip(),
+            "telefono": telefono,
+            "puntos": self.edit_puntos.value(),
+            "nivel": self.edit_nivel.currentText().strip(),
+            "descuento": self.edit_descuento.value(),
+            "saldo": self.edit_saldo.value(),
+            "limite_credito": self.edit_limite_credito.value(),
+            "activo": 1 if self.chk_activo.isChecked() else 0,
+            "tarjeta_raw": self.edit_tarjeta_id.text().strip(),
+        }
+
+    def _confirm_duplicate(self) -> bool:
+        """Callback UI para la confirmación de duplicado en alta."""
+        respuesta = QMessageBox.question(
+            self, "Cliente Existente",
+            "Ya existe un cliente con estos datos. ¿Desea crearlo de todos modos?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        return respuesta == QMessageBox.Yes
 
     def guardar(self):
-        """Guarda el cliente en la base de datos."""
+        """Captura el DTO y delega en ClienteService (UC + fallback)."""
         if not self.validar_formulario():
             return
 
-        try:
-            cursor = self.conexion.cursor()
-            
-            nombre = self.edit_nombre.text().strip()
-            apellido = self.edit_apellido.text().strip() or None
-            telefono = self.edit_telefono.get_e164().strip() or None
-            puntos = self.edit_puntos.value()
-            nivel = self.edit_nivel.text().strip() or None
-            descuento = self.edit_descuento.value()
-            saldo = self.edit_saldo.value()
-            limite_credito = self.edit_limite_credito.value()
-            activo = 1 if self.chk_activo.isChecked() else 0
-            
-            # v13.4: Parsear tarjeta ID
-            import re
-            tarjeta_raw = self.edit_tarjeta_id.text().strip()
-            tarjeta_id = ""
-            if tarjeta_raw:
-                m = re.match(r'^(?:TF|TAR|CARD)-(.+)$', tarjeta_raw, re.IGNORECASE)
-                if m:
-                    tarjeta_id = m.group(1).strip()
-                elif re.match(r'^CLT-(\d+)', tarjeta_raw, re.IGNORECASE):
-                    tarjeta_id = re.match(r'^CLT-(\d+)', tarjeta_raw, re.IGNORECASE).group(1)
-                else:
-                    tarjeta_id = tarjeta_raw
+        result = self._svc.guardar_formulario(
+            self.get_dto(),
+            confirm_duplicate=self._confirm_duplicate,
+            uc_cliente=self.uc_cliente,
+        )
 
-            if self.cliente_data:  # Editar
-                id_cliente = self.cliente_data['id']
-                cursor.execute("""
-                    UPDATE clientes 
-                    SET nombre = ?, apellido = ?, telefono = ?, puntos = ?, nivel_fidelidad = ?,
-                        descuento = ?, saldo = ?, limite_credito = ?, activo = ?,
-                        codigo_qr = CASE WHEN ? != '' THEN ? ELSE codigo_qr END
-                    WHERE id = ?
-                """, (nombre, apellido, telefono, puntos, nivel, descuento, saldo, 
-                      limite_credito, activo, tarjeta_id, tarjeta_id, id_cliente))
-                
-                # v13.4: Crear/actualizar tarjeta de fidelidad si se proporcionó
-                if tarjeta_id:
-                    try:
-                        cursor.execute("""
-                            INSERT INTO tarjetas_fidelidad (codigo, id_cliente, nivel, activa, fecha_emision)
-                            VALUES (?, ?, COALESCE(?, 'Bronce'), 1, datetime('now'))
-                            ON CONFLICT(codigo) DO UPDATE SET id_cliente = ?, activa = 1
-                        """, (tarjeta_id, id_cliente, nivel, id_cliente))
-                    except Exception:
-                        pass
-                
-                self.conexion.commit()
-                try: get_bus().publish("CLIENTE_ACTUALIZADO", {"event_type": "CLIENTE_ACTUALIZADO"})
-                except Exception: pass
-                QMessageBox.information(self, "Éxito", "Cliente actualizado correctamente.")
-                self.accept()
-            else:  # Nuevo
-                cursor.execute("""
-                    SELECT COUNT(*) FROM clientes
-                    WHERE nombre = ? AND COALESCE(apellido,'') = ? AND telefono = ?
-                """, (nombre, apellido, telefono))
-                if cursor.fetchone()[0] > 0:
-                    respuesta = QMessageBox.question(
-                        self, "Cliente Existente",
-                        "Ya existe un cliente con estos datos. ¿Desea crearlo de todos modos?",
-                        QMessageBox.Yes | QMessageBox.No
-                    )
-                    if respuesta == QMessageBox.No:
-                        return
-                
-                id_cliente = self.generar_id_cliente()
-                cursor.execute("""
-                    INSERT INTO clientes (id, nombre, apellido, telefono, puntos, nivel_fidelidad, 
-                                        descuento, saldo, limite_credito, activo, codigo_qr)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (id_cliente, nombre, apellido, telefono, puntos, nivel, descuento, 
-                      saldo, limite_credito, activo, tarjeta_id or None))
-                
-                # v13.4: Crear tarjeta de fidelidad si se proporcionó ID
-                if tarjeta_id:
-                    try:
-                        cursor.execute("""
-                            INSERT OR IGNORE INTO tarjetas_fidelidad 
-                                (codigo, id_cliente, nivel, activa, fecha_emision)
-                            VALUES (?, ?, 'Bronce', 1, datetime('now'))
-                        """, (tarjeta_id, id_cliente))
-                    except Exception:
-                        pass
-                
-                self.conexion.commit()
-                QMessageBox.information(self, "Éxito", f"Cliente creado correctamente con ID: {id_cliente}")
-                self.accept()
-
-        except sqlite3.IntegrityError as e:
-            self.conexion.rollback()
-            QMessageBox.warning(self, "Error", f"Error de integridad: {str(e)}")
-        except sqlite3.Error as e:
-            self.conexion.rollback()
-            QMessageBox.critical(self, "Error", f"Error en la base de datos: {str(e)}")
-        except Exception as e:
-            self.conexion.rollback()
-            QMessageBox.critical(self, "Error", f"Error inesperado: {str(e)}")
+        if result.get("cancelled"):
+            return
+        if result.get("ok"):
+            Toast.success(self, result.get("titulo", "Éxito"),
+                          result.get("mensaje", "Guardado correctamente."))
+            self.accept()
+        elif result.get("kind") == "integrity":
+            QMessageBox.warning(self, "Error", result.get("error", "Error de integridad"))
+        else:
+            QMessageBox.critical(self, "Error", result.get("error", "No se pudo guardar."))
 
 
 class DialogoHistorialCliente(QDialog):
     def __init__(self, conexion, id_cliente, nombre_cliente, parent=None):
         super().__init__(parent)
-        self.conexion = conexion
+        from core.services.cliente_query_service import ClienteQueryService
+        self._svc = ClienteQueryService(conexion)
         self.id_cliente = id_cliente
         self.nombre_cliente = nombre_cliente
+        # QueryService canónico de historial — atributo plano asignado ANTES
+        # de init_ui() (que dispara las cargas). La UI no ejecuta SQL.
+        from backend.application.queries.customer_history_query_service import (
+            CustomerHistoryQueryService,
+        )
+        self._history_qs = CustomerHistoryQueryService(conexion)
         self.setWindowTitle(f"Historial de {nombre_cliente}")
         self.resize(800, 600)
         self.init_ui()
 
     def init_ui(self):
         layout = QVBoxLayout()
+        layout.setSpacing(Spacing.MD)
+        layout.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
+
+        # Encabezado con información del cliente
+        layout.addWidget(create_heading(self, f"Historial de {self.nombre_cliente}"))
+        layout.addWidget(create_subheading(self, f"ID: {self.id_cliente}"))
         
-        lbl_titulo = QLabel(f"Historial del Cliente: {self.nombre_cliente} (ID: {self.id_cliente})")
-        lbl_titulo.setObjectName("tituloPrincipal")
-        layout.addWidget(lbl_titulo)
-        
-        tabs = QTabWidget()
+        tabs = create_standard_tabs(self)
+        tabs.setObjectName("historialTabs")
         
         # Pestaña de Compras
         self.tab_compras = QWidget()
         layout_compras = QVBoxLayout()
-        self.tabla_compras = QTableWidget()
-        self.tabla_compras.setColumnCount(5)
-        self.tabla_compras.setHorizontalHeaderLabels(["Fecha", "Total", "Método Pago", "Puntos Ganados", "Detalles"])
+        layout_compras.setSpacing(Spacing.SM)
+        layout_compras.setContentsMargins(Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM)
+        
+        layout_compras.addWidget(create_subheading(self, "Compras realizadas"))
+        self.tabla_compras = create_table_with_columns(
+            self, 
+            columns=["Fecha", "Total", "Método Pago", "Puntos Ganados", "Detalles"],
+            show_grid=False,
+            alternating_colors=True
+        )
         layout_compras.addWidget(self.tabla_compras)
         self.tab_compras.setLayout(layout_compras)
-        tabs.addTab(self.tab_compras, "Compras")
+        tabs.addTab(self.tab_compras, "🛒 Compras")
 
         # Pestaña de Puntos
         self.tab_puntos = QWidget()
         layout_puntos = QVBoxLayout()
-        self.tabla_puntos = QTableWidget()
-        self.tabla_puntos.setColumnCount(5)
-        self.tabla_puntos.setHorizontalHeaderLabels(["Fecha", "Tipo", "Puntos", "Saldo Actual", "Descripción"])
+        layout_puntos.setSpacing(Spacing.SM)
+        layout_puntos.setContentsMargins(Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM)
+        
+        layout_puntos.addWidget(create_subheading(self, "Movimientos de puntos"))
+        self.tabla_puntos = create_table_with_columns(
+            self,
+            columns=["Fecha", "Tipo", "Puntos", "Saldo Actual", "Descripción"],
+            show_grid=False,
+            alternating_colors=True
+        )
         layout_puntos.addWidget(self.tabla_puntos)
         self.tab_puntos.setLayout(layout_puntos)
-        tabs.addTab(self.tab_puntos, "Historial de Puntos")
+        tabs.addTab(self.tab_puntos, "⭐ Puntos")
 
         # Pestaña de Créditos
         self.tab_creditos = QWidget()
         layout_creditos = QVBoxLayout()
-        self.tabla_creditos = QTableWidget()
-        self.tabla_creditos.setColumnCount(5)
-        self.tabla_creditos.setHorizontalHeaderLabels(["Fecha", "Tipo", "Monto", "Descripción", "Usuario"])
+        layout_creditos.setSpacing(Spacing.SM)
+        layout_creditos.setContentsMargins(Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM)
+        
+        layout_creditos.addWidget(create_subheading(self, "Movimientos de crédito"))
+        self.tabla_creditos = create_table_with_columns(
+            self,
+            columns=["Fecha", "Tipo", "Monto", "Descripción", "Usuario"],
+            show_grid=False,
+            alternating_colors=True
+        )
         layout_creditos.addWidget(self.tabla_creditos)
         self.tab_creditos.setLayout(layout_creditos)
-        tabs.addTab(self.tab_creditos, "Movimientos de Crédito")
+        tabs.addTab(self.tab_creditos, "💳 Créditos")
 
         layout.addWidget(tabs)
         
-        btn_cerrar = QPushButton("Cerrar")
+        # Botón de cierre
+        btn_cerrar = create_secondary_button(self, "Cerrar", "Cerrar ventana de historial")
         btn_cerrar.clicked.connect(self.close)
-        layout.addWidget(btn_cerrar)
+        row_cierre = QHBoxLayout()
+        row_cierre.addStretch()
+        row_cierre.addWidget(btn_cerrar)
+        layout.addLayout(row_cierre)
         
         self.setLayout(layout)
         
@@ -808,71 +790,44 @@ class DialogoHistorialCliente(QDialog):
         self.cargar_historial_creditos()
 
     def cargar_historial_compras(self):
-        """Carga el historial de compras del cliente."""
+        """Carga el historial de compras del cliente (vía QueryService)."""
         try:
-            cursor = self.conexion.cursor()
-            cursor.execute("""
-                SELECT fecha, total, metodo_pago, puntos_ganados 
-                FROM ventas 
-                WHERE cliente_id = ? 
-                ORDER BY fecha DESC
-            """, (self.id_cliente,))
-            ventas = cursor.fetchall()
-            
+            ventas = self._history_qs.get_purchase_history(str(self.id_cliente))
             self.tabla_compras.setRowCount(len(ventas))
-            for row, venta in enumerate(ventas):
-                for col, valor in enumerate(venta):
-                    if col == 1:  # Total
-                        self.tabla_compras.setItem(row, col, QTableWidgetItem(f"${valor:.2f}"))
-                    elif col == 3:  # Puntos
-                        self.tabla_compras.setItem(row, col, QTableWidgetItem(str(valor) if valor else "0"))
-                    else:
-                        self.tabla_compras.setItem(row, col, QTableWidgetItem(str(valor) if valor is not None else ""))
-                        
-        except sqlite3.Error as e:
+            for row, v in enumerate(ventas):
+                self.tabla_compras.setItem(row, 0, QTableWidgetItem(str(v["fecha"] or "")))
+                self.tabla_compras.setItem(row, 1, QTableWidgetItem(f"${v['total']:.2f}"))
+                self.tabla_compras.setItem(row, 2, QTableWidgetItem(v["forma_pago"]))
+                self.tabla_compras.setItem(row, 3, QTableWidgetItem(str(v["puntos_ganados"])))
+        except Exception as e:
             QMessageBox.critical(self, "Error", f"Error al cargar historial de compras: {str(e)}")
 
     def cargar_historial_puntos(self):
-        """Carga el historial de puntos del cliente."""
+        """Carga el historial de puntos del cliente (vía QueryService)."""
         try:
-            cursor = self.conexion.cursor()
-            cursor.execute("""
-                SELECT fecha, tipo, puntos, saldo_actual, descripcion 
-                FROM historico_puntos 
-                WHERE id_cliente = ? 
-                ORDER BY fecha DESC
-            """, (self.id_cliente,))
-            puntos = cursor.fetchall()
-            
+            puntos = self._history_qs.get_points_history(str(self.id_cliente))
             self.tabla_puntos.setRowCount(len(puntos))
-            for row, punto in enumerate(puntos):
-                for col, valor in enumerate(punto):
-                    self.tabla_puntos.setItem(row, col, QTableWidgetItem(str(valor) if valor is not None else ""))
-                        
-        except sqlite3.Error as e:
+            for row, p in enumerate(puntos):
+                self.tabla_puntos.setItem(row, 0, QTableWidgetItem(str(p["fecha"] or "")))
+                self.tabla_puntos.setItem(row, 1, QTableWidgetItem(p["tipo"]))
+                self.tabla_puntos.setItem(row, 2, QTableWidgetItem(str(p["puntos"])))
+                self.tabla_puntos.setItem(row, 3, QTableWidgetItem(str(p["saldo_actual"])))
+                self.tabla_puntos.setItem(row, 4, QTableWidgetItem(p["descripcion"]))
+        except Exception as e:
             QMessageBox.critical(self, "Error", f"Error al cargar historial de puntos: {str(e)}")
 
     def cargar_historial_creditos(self):
-        """Carga el historial de movimientos de crédito del cliente."""
+        """Carga el historial de crédito del cliente (vía QueryService)."""
         try:
-            cursor = self.conexion.cursor()
-            cursor.execute("""
-                SELECT fecha, tipo, monto, descripcion, usuario 
-                FROM movimientos_credito 
-                WHERE cliente_id = ? 
-                ORDER BY fecha DESC
-            """, (self.id_cliente,))
-            creditos = cursor.fetchall()
-            
+            creditos = self._history_qs.get_credit_history(str(self.id_cliente))
             self.tabla_creditos.setRowCount(len(creditos))
-            for row, credito in enumerate(creditos):
-                for col, valor in enumerate(credito):
-                    if col == 2:  # Monto
-                        self.tabla_creditos.setItem(row, col, QTableWidgetItem(f"${valor:.2f}"))
-                    else:
-                        self.tabla_creditos.setItem(row, col, QTableWidgetItem(str(valor) if valor is not None else ""))
-                        
-        except sqlite3.Error as e:
+            for row, c in enumerate(creditos):
+                self.tabla_creditos.setItem(row, 0, QTableWidgetItem(str(c["fecha"] or "")))
+                self.tabla_creditos.setItem(row, 1, QTableWidgetItem(c["tipo"]))
+                self.tabla_creditos.setItem(row, 2, QTableWidgetItem(f"${c['monto']:.2f}"))
+                self.tabla_creditos.setItem(row, 3, QTableWidgetItem(c["descripcion"]))
+                self.tabla_creditos.setItem(row, 4, QTableWidgetItem(c["usuario"]))
+        except Exception as e:
             QMessageBox.critical(self, "Error", f"Error al cargar historial de créditos: {str(e)}")
 
 # ── v9: Diálogos Tarjetas desde Clientes ─────────────────────────────────────
@@ -882,9 +837,10 @@ class _DialogoAsignarTarjetaCliente(QDialog):
 
     def __init__(self, cliente_id, cliente_nombre, conexion, parent=None):
         super().__init__(parent)
+        from core.services.cliente_query_service import ClienteQueryService
         self.cliente_id   = cliente_id
         self.cliente_nombre = cliente_nombre
-        self.conexion     = conexion
+        self._svc         = ClienteQueryService(conexion)
         self.tarjeta_id   = None
         self.setWindowTitle(f"Asignar Tarjeta — {cliente_nombre}")
         self.setMinimumWidth(440)
@@ -892,53 +848,56 @@ class _DialogoAsignarTarjetaCliente(QDialog):
         self._build_ui()
 
     def _build_ui(self):
-        from PyQt5.QtWidgets import (
-            QVBoxLayout, QLabel, QComboBox, QHBoxLayout,
-            QPushButton, QGroupBox, QLineEdit, QFormLayout
-        )
         layout = QVBoxLayout(self)
-        layout.setSpacing(12)
-        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(Spacing.MD)
+        layout.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
 
-        layout.addWidget(QLabel(f"Asignar tarjeta libre a: <b>{self.cliente_nombre}</b>"))
+        # Encabezado
+        layout.addWidget(create_heading(self, f"Asignar Tarjeta"))
+        layout.addWidget(create_subheading(self, f"Cliente: {self.cliente_nombre}"))
+
+        # Card principal
+        card = create_card(self, padding=Spacing.MD, with_layout=False)
+        card_layout = QVBoxLayout()
+        card_layout.setSpacing(Spacing.SM)
 
         # Tarjetas libres
-        self.combo_tarjeta = QComboBox()
+        card_layout.addWidget(create_caption(self, "Tarjeta disponible:"))
+        self.combo_tarjeta = create_combo(self, [])
         self._cargar_tarjetas_libres()
-        layout.addWidget(QLabel("Tarjeta disponible:"))
-        layout.addWidget(self.combo_tarjeta)
+        card_layout.addWidget(self.combo_tarjeta)
 
         # O ingresar número manualmente
-        grp = QGroupBox("O buscar por número")
-        lay_g = QHBoxLayout(grp)
-        self.txt_numero = QLineEdit()
-        self.txt_numero.setPlaceholderText("Número de tarjeta…")
-        btn_buscar = QPushButton("Buscar")
+        card_layout.addWidget(create_subheading(self, "O buscar por número"))
+        search_layout = QHBoxLayout()
+        self.txt_numero = create_input_field(self, "Número de tarjeta…")
+        btn_buscar = create_primary_button(self, "🔍 Buscar", "Buscar tarjeta por número")
         btn_buscar.clicked.connect(self._buscar_numero)
-        lay_g.addWidget(self.txt_numero)
-        lay_g.addWidget(btn_buscar)
-        layout.addWidget(grp)
+        search_layout.addWidget(self.txt_numero)
+        search_layout.addWidget(btn_buscar)
+        card_layout.addLayout(search_layout)
 
-        self.lbl_estado_busqueda = QLabel("")
-        layout.addWidget(self.lbl_estado_busqueda)
+        self.lbl_estado_busqueda = create_caption(self, "")
+        card_layout.addWidget(self.lbl_estado_busqueda)
+        
+        card.setLayout(card_layout)
+        layout.addWidget(card)
 
-        # Botones
+        # Botones de acción
         btns = QHBoxLayout()
-        btn_ok  = QPushButton("✅ Asignar")
+        btns.setSpacing(Spacing.SM)
+        btn_ok = create_success_button(self, "✅ Asignar", "Asignar tarjeta al cliente")
         btn_ok.clicked.connect(self._confirmar)
-        btn_cancel = QPushButton("Cancelar")
+        btn_cancel = create_secondary_button(self, "Cancelar", "Cancelar asignación")
         btn_cancel.clicked.connect(self.reject)
         btns.addStretch()
-        btns.addWidget(btn_ok)
         btns.addWidget(btn_cancel)
+        btns.addWidget(btn_ok)
         layout.addLayout(btns)
 
     def _cargar_tarjetas_libres(self):
         try:
-            rows = self.conexion.execute(
-                "SELECT id, numero, COALESCE(nivel,'Bronce') FROM tarjetas_fidelidad "
-                "WHERE estado IN ('libre','impresa','generada') ORDER BY id LIMIT 100"
-            ).fetchall()
+            rows = self._svc.tarjetas_libres()
             self.combo_tarjeta.clear()
             for tid, num, nivel in rows:
                 self.combo_tarjeta.addItem(f"{num} [{nivel}]", tid)
@@ -949,10 +908,7 @@ class _DialogoAsignarTarjetaCliente(QDialog):
         numero = self.txt_numero.text().strip()
         if not numero:
             return
-        row = self.conexion.execute(
-            "SELECT id, numero, estado FROM tarjetas_fidelidad WHERE numero=? OR codigo_qr=?",
-            (numero, numero)
-        ).fetchone()
+        row = self._svc.buscar_tarjeta(numero)
         if not row:
             self.lbl_estado_busqueda.setText("❌ No encontrada")
         elif row[2] == "asignada":
@@ -986,9 +942,11 @@ class _DialogoTarjetasCliente(QDialog):
 
     def __init__(self, cliente_id, cliente_nombre, conexion, parent=None):
         super().__init__(parent)
+        from core.services.cliente_query_service import ClienteQueryService
         self.cliente_id     = cliente_id
         self.cliente_nombre = cliente_nombre
-        self.conexion       = conexion
+        self.conexion       = conexion  # requerido por CardBatchEngine (servicio)
+        self._svc           = ClienteQueryService(conexion)
         self.setWindowTitle(f"Tarjetas — {cliente_nombre}")
         self.setMinimumWidth(600)
         self.setMinimumHeight(480)
@@ -1008,21 +966,22 @@ class _DialogoTarjetasCliente(QDialog):
 
         layout.addWidget(QLabel(f"<b>Cliente:</b> {self.cliente_nombre} (ID: {self.cliente_id})"))
 
-        tabs = QTabWidget()
+        tabs = create_standard_tabs(self)
 
         # Tab 1: Tarjetas actuales
         tab_tarjetas = QWidget()
         lay_t = QVBoxLayout(tab_tarjetas)
         cols_t = ["ID Tarjeta", "Número", "Estado", "Nivel", "Puntos", "Fecha Asignación"]
-        self.tabla_tarjetas = QTableWidget(0, len(cols_t))
-        self.tabla_tarjetas.setHorizontalHeaderLabels(cols_t)
-        self.tabla_tarjetas.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.tabla_tarjetas.setEditTriggers(0)  # NoEditTriggers
-        lay_t.addWidget(self.tabla_tarjetas)
+        self.tabla_tarjetas = create_table_with_columns(
+            self, cols_t, show_grid=False, alternating_colors=True
+        )
+        lay_t.addWidget(wrap_in_scroll_area(self.tabla_tarjetas, self))
 
         btn_row = QHBoxLayout()
         self.btn_bloquear  = QPushButton("🔒 Bloquear")
+        self.btn_bloquear.setObjectName("dangerBtn")
         self.btn_liberar   = QPushButton("🔓 Liberar")
+        self.btn_liberar.setObjectName("successBtn")
         self.btn_bloquear.clicked.connect(self._bloquear_tarjeta)
         self.btn_liberar.clicked.connect(self._liberar_tarjeta)
         btn_row.addStretch()
@@ -1035,11 +994,10 @@ class _DialogoTarjetasCliente(QDialog):
         tab_hist = QWidget()
         lay_h = QVBoxLayout(tab_hist)
         cols_h = ["Acción", "Fecha", "Tarjeta", "Motivo", "Usuario"]
-        self.tabla_historial = QTableWidget(0, len(cols_h))
-        self.tabla_historial.setHorizontalHeaderLabels(cols_h)
-        self.tabla_historial.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.tabla_historial.setEditTriggers(0)
-        lay_h.addWidget(self.tabla_historial)
+        self.tabla_historial = create_table_with_columns(
+            self, cols_h, show_grid=False, alternating_colors=True
+        )
+        lay_h.addWidget(wrap_in_scroll_area(self.tabla_historial, self))
         tabs.addTab(tab_hist, "Historial de Asignaciones")
 
         # Tab 3: Score de fidelidad
@@ -1053,18 +1011,18 @@ class _DialogoTarjetasCliente(QDialog):
         layout.addWidget(tabs)
 
         btn_cerrar = QPushButton("Cerrar")
+        btn_cerrar.setObjectName("secondaryBtn")
         btn_cerrar.clicked.connect(self.accept)
-        layout.addWidget(btn_cerrar)
+        row_cierre = QHBoxLayout()
+        row_cierre.addStretch()
+        row_cierre.addWidget(btn_cerrar)
+        layout.addLayout(row_cierre)
 
     def _cargar_datos(self):
         from PyQt5.QtWidgets import QTableWidgetItem
         # Tarjetas asignadas
         try:
-            rows = self.conexion.execute(
-                "SELECT id, numero, estado, COALESCE(nivel,'Bronce'), puntos_actuales, fecha_asignacion "
-                "FROM tarjetas_fidelidad WHERE id_cliente = ? ORDER BY fecha_asignacion DESC",
-                (self.cliente_id,)
-            ).fetchall()
+            rows = self._svc.tarjetas_de_cliente(self.cliente_id)
             self.tabla_tarjetas.setRowCount(len(rows))
             for i, r in enumerate(rows):
                 for j, v in enumerate(r):
@@ -1074,16 +1032,7 @@ class _DialogoTarjetasCliente(QDialog):
 
         # Historial
         try:
-            rows_h = self.conexion.execute(
-                """
-                SELECT h.accion, h.fecha, tf.numero, h.motivo, h.usuario
-                FROM card_assignment_history h
-                LEFT JOIN tarjetas_fidelidad tf ON tf.id = h.tarjeta_id
-                WHERE h.cliente_id_nuevo = ? OR h.cliente_id_prev = ?
-                ORDER BY h.fecha DESC LIMIT 100
-                """,
-                (self.cliente_id, self.cliente_id)
-            ).fetchall()
+            rows_h = self._svc.historial_asignaciones(self.cliente_id)
             self.tabla_historial.setRowCount(len(rows_h))
             for i, r in enumerate(rows_h):
                 for j, v in enumerate(r):
@@ -1093,12 +1042,7 @@ class _DialogoTarjetasCliente(QDialog):
 
         # Score fidelidad
         try:
-            score_row = self.conexion.execute(
-                "SELECT score_total, nivel, visitas_periodo, importe_total, "
-                "margen_generado, referidos, fecha_calculo "
-                "FROM loyalty_scores WHERE cliente_id = ?",
-                (self.cliente_id,)
-            ).fetchone()
+            score_row = self._svc.loyalty_score(self.cliente_id)
             if score_row:
                 txt = (
                     f"<b>Score Total:</b> {score_row[0]:.1f}/100  |  "
@@ -1142,7 +1086,7 @@ class _DialogoTarjetasCliente(QDialog):
             res = eng.bloquear_tarjeta(tid, motivo.strip())
             if res.exito:
                 self._cargar_datos()
-                QMessageBox.information(self, "Bloqueada", f"Tarjeta {num} bloqueada.")
+                Toast.info(self, "Tarjeta bloqueada", f"Tarjeta {num} bloqueada.")
             else:
                 QMessageBox.warning(self, "Error", res.mensaje)
         except Exception as exc:
@@ -1165,7 +1109,7 @@ class _DialogoTarjetasCliente(QDialog):
             result = eng.liberar_tarjeta(tid, motivo="liberacion_manual")
             if result.exito:
                 self._cargar_datos()
-                QMessageBox.information(self, "Liberada", f"Tarjeta {num} liberada.")
+                Toast.info(self, "Tarjeta liberada", f"Tarjeta {num} liberada.")
             else:
                 QMessageBox.warning(self, "Error", result.mensaje)
         except Exception as exc:
@@ -1205,17 +1149,18 @@ class _DialogoRFM(QDialog):
     """
 
     SEGMENTOS = {
-        "Champions":    {"r": (4,5), "f": (4,5), "m": (3,5), "color": "#27ae60", "icono": "👑"},
-        "Leales":       {"r": (3,5), "f": (4,5), "m": (3,5), "color": "#2980b9", "icono": "⭐"},
-        "Potenciales":  {"r": (4,5), "f": (2,3), "m": (2,4), "color": "#8e44ad", "icono": "🌱"},
-        "Nuevos":       {"r": (4,5), "f": (1,1), "m": (1,3), "color": "#16a085", "icono": "🆕"},
-        "En riesgo":    {"r": (2,3), "f": (3,5), "m": (3,5), "color": "#e67e22", "icono": "⚠️"},
-        "Casi perdidos":{"r": (1,2), "f": (1,2), "m": (1,2), "color": "#e74c3c", "icono": "🚨"},
+        "Champions":    {"r": (4,5), "f": (4,5), "m": (3,5), "color": Colors.SUCCESS_BASE, "icono": "👑"},
+        "Leales":       {"r": (3,5), "f": (4,5), "m": (3,5), "color": Colors.PRIMARY_BASE, "icono": "⭐"},
+        "Potenciales":  {"r": (4,5), "f": (2,3), "m": (2,4), "color": Colors.ACCENT_BASE, "icono": "🌱"},
+        "Nuevos":       {"r": (4,5), "f": (1,1), "m": (1,3), "color": Colors.POS_ACTION_BASE, "icono": "🆕"},
+        "En riesgo":    {"r": (2,3), "f": (3,5), "m": (3,5), "color": Colors.WARNING_BASE, "icono": "⚠️"},
+        "Casi perdidos":{"r": (1,2), "f": (1,2), "m": (1,2), "color": Colors.DANGER_HOVER, "icono": "🚨"},
     }
 
     def __init__(self, conn, parent=None):
         super().__init__(parent)
-        self.conn = conn
+        from core.services.cliente_query_service import ClienteQueryService
+        self._svc = ClienteQueryService(conn)
         self.setWindowTitle("📊 Segmentación RFM de Clientes")
         self.setMinimumSize(900, 600)
         self._build_ui()
@@ -1231,12 +1176,10 @@ class _DialogoRFM(QDialog):
 
         # Header
         hdr = QHBoxLayout()
-        t = QLabel("📊 Segmentación RFM")
-        t.setStyleSheet("font-size:16px;font-weight:bold;")
-        self.cmb_periodo = QComboBox()
-        self.cmb_periodo.addItems(["Últimos 90 días","Últimos 180 días","Últimos 365 días","Todo el tiempo"])
+        t = create_heading(self, "📊 Segmentación RFM")
+        self.cmb_periodo = create_combo(self, ["Últimos 90 días","Últimos 180 días","Últimos 365 días","Todo el tiempo"])
         self.cmb_periodo.currentIndexChanged.connect(self._calcular_rfm)
-        btn_export = QPushButton("📥 Exportar Excel")
+        btn_export = create_primary_button(self, "📥 Exportar Excel", "Exportar análisis RFM a Excel")
         btn_export.clicked.connect(self._exportar)
         hdr.addWidget(t); hdr.addStretch()
         hdr.addWidget(QLabel("Período:")); hdr.addWidget(self.cmb_periodo)
@@ -1249,11 +1192,14 @@ class _DialogoRFM(QDialog):
         seg_w = QWidget(); seg_lay = QHBoxLayout(seg_w)
         self._seg_labels = {}
         for seg, cfg in self.SEGMENTOS.items():
-            card = QFrame(); card.setFrameStyle(QFrame.Box)
-            card.setStyleSheet(f"background:{cfg['color']}22;border:1px solid {cfg['color']};border-radius:6px;padding:4px;")
+            card = create_card(self, padding=Spacing.SM, with_layout=False)
+            card.setFrameStyle(QFrame.Box)
             c_lay = QVBoxLayout(card)
-            lbl_n = QLabel(f"{cfg['icono']} {seg}"); lbl_n.setStyleSheet(f"font-weight:bold;color:{cfg['color']};")
-            lbl_c = QLabel("0"); lbl_c.setStyleSheet("font-size:18px;font-weight:bold;")
+            c_lay.setSpacing(Spacing.XS)
+            c_lay.setContentsMargins(Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM)
+            lbl_n = QLabel(f"{cfg['icono']} {seg}")
+            lbl_n.setStyleSheet(f"font-weight:bold;color:{cfg['color']};")
+            lbl_c = QLabel("0"); lbl_c.setObjectName("heading")
             lbl_c.setAlignment(Qt.AlignCenter)
             c_lay.addWidget(lbl_n); c_lay.addWidget(lbl_c)
             self._seg_labels[seg] = lbl_c
@@ -1263,9 +1209,7 @@ class _DialogoRFM(QDialog):
 
         # Filter by segment
         flt = QHBoxLayout()
-        self.cmb_seg_filter = QComboBox()
-        self.cmb_seg_filter.addItem("Todos los segmentos")
-        self.cmb_seg_filter.addItems(list(self.SEGMENTOS.keys()))
+        self.cmb_seg_filter = create_combo(self, ["Todos los segmentos"] + list(self.SEGMENTOS.keys()))
         self.cmb_seg_filter.currentIndexChanged.connect(self._filtrar_tabla)
         flt.addWidget(QLabel("Filtrar:")); flt.addWidget(self.cmb_seg_filter); flt.addStretch()
         lay.addLayout(flt)
@@ -1282,11 +1226,11 @@ class _DialogoRFM(QDialog):
         self.tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tbl.verticalHeader().setVisible(False)
         self.tbl.setAlternatingRowColors(True)
+        self.tbl.setObjectName("tableView")
         lay.addWidget(self.tbl)
 
         # Footer
-        self.lbl_status = QLabel("")
-        self.lbl_status.setStyleSheet("color:#666;font-size:11px;")
+        self.lbl_status = create_caption(self, "")
         lay.addWidget(self.lbl_status)
 
     def _dias_periodo(self) -> int:
@@ -1301,19 +1245,7 @@ class _DialogoRFM(QDialog):
 
         dias = self._dias_periodo()
         try:
-            rows = self.conn.execute(f"""
-                SELECT c.id, c.nombre, c.telefono,
-                       MAX(v.fecha) as ultima_compra,
-                       COUNT(v.id)  as num_compras,
-                       SUM(v.total) as total_gastado
-                FROM clientes c
-                JOIN ventas v ON v.cliente_id = c.id
-                WHERE v.estado = 'completada'
-                  AND v.fecha >= date('now', '-{dias} days')
-                GROUP BY c.id
-                ORDER BY total_gastado DESC
-                LIMIT 500
-            """).fetchall()
+            rows = self._svc.rfm_ventas(dias)
         except Exception as e:
             self.lbl_status.setText(f"Error: {e}")
             return
@@ -1371,7 +1303,7 @@ class _DialogoRFM(QDialog):
 
             segmento = self._clasificar(r_score, f_score, m_score)
             seg_counts[segmento] = seg_counts.get(segmento, 0) + 1
-            d.update({"r": r_score, "f": f_score, "m": m_score, "segmento": segmento})
+            d["r"] = r_score; d["f"] = f_score; d["m"] = m_score; d["segmento"] = segmento
             enriched.append(d)
 
         # Update segment cards
@@ -1401,7 +1333,7 @@ class _DialogoRFM(QDialog):
         self.tbl.setRowCount(len(data))
         for ri, d in enumerate(data):
             seg_cfg = self.SEGMENTOS.get(d["segmento"], {})
-            color   = seg_cfg.get("color", "#888888")
+            color   = seg_cfg.get("color", Colors.NEUTRAL.SLATE_400)
             vals = [
                 d["nombre"], d["telefono"], d["ultima"],
                 str(d["dias_r"]),
@@ -1456,6 +1388,6 @@ class _DialogoRFM(QDialog):
                         f.write(f"{d['nombre']},{d['telefono']},{d['ultima']},"
                                 f"{d['dias_r']},{d['freq']},{d['monto']:.2f},"
                                 f"{d['r']},{d['f']},{d['m']},{d['segmento']}\n")
-            QMessageBox.information(self, "✅", f"Exportado: {ruta}")
+            Toast.success(self, "Exportado", f"Archivo: {ruta}")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))

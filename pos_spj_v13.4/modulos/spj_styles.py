@@ -1,43 +1,40 @@
-# modulos/spj_styles.py — SPJ POS v13.30
+# modulos/spj_styles.py — SPJ POS v13.4
 """
 Sistema de estilos centralizado SPJ.
-Paleta estándar de botones + temas globales aplicados desde configuración.
+Funciones utilitarias para auto-styling y temas globales.
 
-USO BOTONES:
-    from modulos.spj_styles import spj_btn, apply_btn_styles
-    spj_btn(btn, "success")   # verde → guardar, crear
-    spj_btn(btn, "danger")    # rojo → eliminar, cancelar
-    spj_btn(btn, "warning")   # naranja → editar
-    spj_btn(btn, "primary")   # azul → confirmar, cobrar
-    spj_btn(btn, "secondary") # gris → cerrar, volver
-    spj_btn(btn, "info")      # azul claro → ver, buscar
-    spj_btn(btn, "purple")    # morado → reportes, BI
-    spj_btn(btn, "dark")      # oscuro → menú
+NOTA: Los colores ahora están centralizados en design_tokens.py
+Este módulo solo proporciona funciones de utilidad para aplicar estilos.
 
-USO TEMA GLOBAL:
-    from modulos.spj_styles import apply_global_theme
-    apply_global_theme(db_connection)  # Lee tema de BD y aplica QSS
-
-USO AUTO-ESTILIZADO:
-    from modulos.spj_styles import apply_spj_buttons
-    apply_spj_buttons(widget)  # Recorre botones y asigna color por keyword
+USO:
+    from modulos.spj_styles import apply_spj_buttons, apply_global_theme, apply_theme_dialogs
+    
+    # Auto-aplicar estilos a botones por keyword
+    apply_spj_buttons(widget)
+    
+    # Aplicar tema global desde BD
+    apply_global_theme(db_connection)
+    
+    # Aplicar tema a dialogs
+    apply_theme_dialogs(dialog)
 """
 
 from PyQt5.QtWidgets import QPushButton
+from modulos.design_tokens import Colors
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  Paleta oficial SPJ
+#  Mapeo de variantes a colores centralizados (design_tokens.py)
 # ══════════════════════════════════════════════════════════════════════════════
 
 SPJ_COLORS = {
-    "primary":   ("#2E86C1", "#1A5276"),
-    "success":   ("#27ae60", "#1e8449"),
-    "danger":    ("#e74c3c", "#c0392b"),
-    "warning":   ("#e67e22", "#ca6f1e"),
-    "secondary": ("#7f8c8d", "#616a6b"),
-    "info":      ("#3498db", "#2980b9"),
-    "dark":      ("#2c3e50", "#1a252f"),
-    "purple":    ("#8e44ad", "#76369a"),
+    "primary":   (Colors.PRIMARY_BASE, Colors.PRIMARY_HOVER),
+    "success":   (Colors.SUCCESS_BASE, Colors.SUCCESS_HOVER),
+    "danger":    (Colors.DANGER_BASE, Colors.DANGER_HOVER),
+    "warning":   (Colors.WARNING_BASE, Colors.WARNING_HOVER),
+    "secondary": (Colors.NEUTRAL.SLATE_600, Colors.NEUTRAL.SLATE_500),
+    "info":      (Colors.INFO_BASE, Colors.INFO_HOVER),
+    "dark":      (Colors.NEUTRAL.SLATE_800, Colors.NEUTRAL.SLATE_700),
+    "purple":    (Colors.ACCENT_BASE, Colors.ACCENT_HOVER),
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -61,9 +58,9 @@ _BTN_BASE = (
 )
 
 _PADDING = {
-    "sm": ("4px 10px",  "6"),
-    "md": ("7px 16px",  "9"),
-    "lg": ("10px 22px", "12"),
+    "sm": ("2px 6px",  "4"),
+    "md": ("3px 9px",  "5"),
+    "lg": ("5px 13px", "7"),
 }
 
 
@@ -142,7 +139,7 @@ def apply_spj_buttons(widget) -> None:
         if "border-radius:5px" in existing and "font-weight:bold" in existing:
             continue
         # Skip very small buttons (icon-only, 30px wide action buttons)
-        if btn.maximumWidth() <= 36 or btn.fixedSize().width() == 30:
+        if btn.maximumWidth() <= 36 or btn.minimumWidth() == btn.maximumWidth() == 30:
             continue
         v = _variant_for_text(btn.text())
         if v:
@@ -169,8 +166,8 @@ def apply_theme_dialogs(dialog) -> None:
     qss = app.styleSheet() if app else ""
     bg_m = _re.search(r'background-color:\s*([#\w]+)', qss)
     fg_m = _re.search(r'QMainWindow[^}]*\bcolor:\s*([#\w]+)', qss)
-    bg = bg_m.group(1) if bg_m else "#f5f6fa"
-    fg = fg_m.group(1) if fg_m else "#2c3e50"
+    bg = bg_m.group(1) if bg_m else Colors.NEUTRAL.SLATE_100
+    fg = fg_m.group(1) if fg_m else Colors.NEUTRAL.SLATE_800
     base = (
         "QDialog, QWidget { background-color:" + bg + "; color:" + fg + "; }"
         "QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {"
@@ -188,21 +185,27 @@ def apply_theme_dialogs(dialog) -> None:
 
 def apply_global_theme(db_conn=None) -> None:
     """
-    v13.30: Solo Light/Dark. Lee 'tema' de BD → aplica QSS.
+    v13.4: Lee 'tema' de BD y aplica QSS a QApplication.
+    Primero intenta ThemeService; si falla, usa theme_engine.
     No modifica tamaño de iconos ni botones — solo colores.
     """
     from PyQt5.QtWidgets import QApplication
+    _log = __import__("logging").getLogger("spj.styles")
+
     tema = "Light"
     if db_conn:
         try:
             row = db_conn.execute(
                 "SELECT valor FROM configuraciones WHERE clave='tema'"
             ).fetchone()
-            if row and row[0] and 'dark' in str(row[0]).lower():
-                tema = "Dark"
+            if row and row[0]:
+                tema = str(row[0])
+                if 'dark' in tema.lower():
+                    tema = "Dark"
         except Exception:
             pass
 
+    # Intento 1: ThemeService (puede generar QSS richer)
     try:
         from core.services.theme_service import ThemeService
         ts = ThemeService(db_conn)
@@ -210,8 +213,163 @@ def apply_global_theme(db_conn=None) -> None:
                             font_size="12", icon_size="24")
         qss = ts.generate_qss()
         app = QApplication.instance()
-        if app:
+        if app and qss:
             app.setStyleSheet(qss)
+            return
     except Exception as e:
-        import logging
-        logging.getLogger("spj.styles").debug("apply_global_theme: %s", e)
+        _log.debug("ThemeService no disponible, usando theme_engine: %s", e)
+
+    # Intento 2: theme_engine (fuente de verdad config.TEMAS)
+    try:
+        from ui.themes.theme_engine import load_saved_theme
+        load_saved_theme(None)
+    except Exception as e:
+        _log.debug("apply_global_theme: %s", e)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Tooltips obligatorios (Fase 1 — Plan Maestro SPJ v13.4)
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Mapeo texto → tooltip descriptivo por keyword
+_TOOLTIP_MAP = {
+    "guardar":       "Guardar cambios",
+    "nuevo":         "Crear nuevo registro",
+    "agregar":       "Agregar elemento",
+    "crear":         "Crear nuevo elemento",
+    "confirmar":     "Confirmar operación",
+    "aceptar":       "Aceptar y continuar",
+    "eliminar":      "Eliminar permanentemente",
+    "borrar":        "Borrar registro",
+    "cancelar":      "Cancelar operación",
+    "editar":        "Editar registro",
+    "modificar":     "Modificar datos",
+    "actualizar":    "Actualizar información",
+    "buscar":        "Buscar en catálogo",
+    "filtrar":       "Filtrar resultados",
+    "imprimir":      "Enviar a impresora",
+    "reimprimir":    "Reimprimir último documento",
+    "exportar":      "Exportar a archivo",
+    "reporte":       "Ver reporte",
+    "cerrar":        "Cerrar ventana",
+    "salir":         "Salir del módulo",
+    "cobrar":        "Procesar pago",
+    "nueva venta":   "Iniciar nueva venta",
+    "abrir caja":    "Abrir turno de caja",
+    "corte":         "Generar corte de caja",
+    "generar":       "Generar documento",
+    "enviar":        "Enviar información",
+    "conectar":      "Probar conexión",
+    "probar":        "Probar función",
+    "analizar":      "Analizar datos",
+}
+
+
+def _tooltip_for_text(text: str) -> str:
+    """Determina tooltip a partir del texto del botón."""
+    import re
+    t = re.sub(r'[^\w\s]', ' ', text.lower()).strip()
+    best_kw, best_tip = "", ""
+    for kw, tip in _TOOLTIP_MAP.items():
+        if kw in t and len(kw) > len(best_kw):
+            best_kw, best_tip = kw, tip
+    return best_tip
+
+
+def apply_object_names(widget) -> None:
+    """
+    Recorre todos los QPushButton del widget y asigna objectName según el texto,
+    SOLO si el botón aún no tiene objectName asignado (es idempotente).
+
+    Permite que el QSS global de TEMAS (QPushButton#primaryBtn, etc.) se aplique
+    a botones creados con QPushButton() directo sin usar las factories de ui_components.
+
+    Fase 1 — Plan Maestro: design tokens uniformes en todos los módulos.
+    """
+    from PyQt5.QtWidgets import QPushButton
+    _NAMED = {"primaryBtn", "secondaryBtn", "successBtn", "dangerBtn",
+              "warningBtn", "outlineBtn"}
+    for btn in widget.findChildren(QPushButton):
+        if btn.objectName() in _NAMED:
+            continue  # Ya tiene objectName SPJ — no sobrescribir
+        v = _variant_for_text(btn.text())
+        if v:
+            name_map = {
+                "primary": "primaryBtn", "success": "successBtn",
+                "danger": "dangerBtn", "warning": "warningBtn",
+                "secondary": "secondaryBtn", "info": "primaryBtn",
+                "purple": "outlineBtn",
+            }
+            btn.setObjectName(name_map.get(v, "secondaryBtn"))
+        else:
+            btn.setObjectName("secondaryBtn")  # Fallback seguro para botones sin keyword
+
+
+def apply_spj_tooltips(widget) -> None:
+    """
+    Recorre todos los QPushButton del widget y asigna tooltips descriptivos
+    basados en el texto del botón. Solo asigna si el botón no tiene tooltip.
+
+    Fase 1 — Plan Maestro: tooltips obligatorios en UI.
+    """
+    from PyQt5.QtWidgets import QPushButton
+    for btn in widget.findChildren(QPushButton):
+        if btn.toolTip():
+            continue  # Ya tiene tooltip
+        tip = _tooltip_for_text(btn.text())
+        if tip:
+            btn.setToolTip(tip)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Scrollbars uniformes (Fase 1 — Plan Maestro SPJ v13.4)
+# ══════════════════════════════════════════════════════════════════════════════
+
+SCROLLBAR_QSS = """
+QScrollBar:vertical {
+    background: #f0f0f0;
+    width: 10px;
+    margin: 0;
+    border-radius: 5px;
+}
+QScrollBar::handle:vertical {
+    background: #b0b8c1;
+    min-height: 30px;
+    border-radius: 5px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #0FB9B1;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0;
+    background: none;
+}
+QScrollBar:horizontal {
+    background: #f0f0f0;
+    height: 10px;
+    margin: 0;
+    border-radius: 5px;
+}
+QScrollBar::handle:horizontal {
+    background: #b0b8c1;
+    min-width: 30px;
+    border-radius: 5px;
+}
+QScrollBar::handle:horizontal:hover {
+    background: #0FB9B1;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0;
+    background: none;
+}
+"""
+
+
+def apply_scrollbars(widget) -> None:
+    """
+    Aplica el estilo uniforme de scrollbars a un widget.
+    Fase 1 — Plan Maestro: scrollbars consistentes en toda la app.
+    """
+    existing = widget.styleSheet() or ""
+    if "QScrollBar" not in existing:
+        widget.setStyleSheet(existing + SCROLLBAR_QSS)

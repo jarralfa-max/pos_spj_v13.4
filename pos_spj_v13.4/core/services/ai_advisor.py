@@ -71,17 +71,7 @@ class AIAdvisor:
         if not self.db:
             return
         try:
-            self.db.execute("""
-                CREATE TABLE IF NOT EXISTS ai_consulta_log (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    tipo TEXT NOT NULL,
-                    pregunta TEXT DEFAULT '',
-                    respuesta TEXT DEFAULT '',
-                    datos_contexto TEXT DEFAULT '{}',
-                    disponible INTEGER DEFAULT 0,
-                    fecha TEXT DEFAULT (datetime('now'))
-                )
-            """)
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try:
                 self.db.commit()
             except Exception:

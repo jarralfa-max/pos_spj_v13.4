@@ -1,3 +1,4 @@
+from backend.shared.ids import new_uuid
 
 from datetime import datetime
 import uuid
@@ -10,7 +11,8 @@ DEFAULT_MAX_DEPTH = 50
 class IntegrityEngine:
 
     def __init__(self, db):
-        self.db = db
+        from core.db.connection import wrap
+        self.db = wrap(db)
 
     def _now(self):
         return datetime.utcnow().isoformat()
@@ -146,7 +148,7 @@ class IntegrityEngine:
                 and difference <= tolerance
             )
 
-            audit_id = str(uuid.uuid4())
+            audit_id = new_uuid()
             self.db.execute("""
                 INSERT INTO batch_tree_audits(
                     audit_uuid,

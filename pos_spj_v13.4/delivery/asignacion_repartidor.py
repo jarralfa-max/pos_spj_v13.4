@@ -21,18 +21,7 @@ class AsignacionRepartidor:
         self._init_tables()
 
     def _init_tables(self):
-        self.conn.executescript("""
-            CREATE TABLE IF NOT EXISTS drivers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre TEXT NOT NULL, telefono TEXT, vehiculo TEXT,
-                activo INTEGER DEFAULT 1, sucursal_id INTEGER DEFAULT 1,
-                en_ruta INTEGER DEFAULT 0
-            );
-            CREATE TABLE IF NOT EXISTS driver_locations (
-                chofer_id INTEGER PRIMARY KEY,
-                lat REAL, lng REAL, timestamp DATETIME
-            );
-        """)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         try: self.conn.commit()
         except Exception: pass
 

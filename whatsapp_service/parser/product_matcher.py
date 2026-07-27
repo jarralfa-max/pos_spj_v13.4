@@ -4,9 +4,11 @@ Busca productos por nombre aproximado usando Levenshtein distance.
 No requiere ML — pura comparación de strings.
 """
 from __future__ import annotations
+
 import logging
-from typing import List, Dict, Optional, Tuple
-from config.settings import FUZZY_MATCH_THRESHOLD
+from typing import Dict, List, Optional, Tuple
+
+from whatsapp_service.config.settings import FUZZY_MATCH_THRESHOLD
 
 logger = logging.getLogger("wa.matcher")
 
@@ -32,9 +34,10 @@ def _levenshtein(s1: str, s2: str) -> int:
 class ProductMatcher:
     """Busca productos en el catálogo del ERP por nombre aproximado."""
 
-    def __init__(self, db_conn, sucursal_id: int = 1):
+    def __init__(self, db_conn, sucursal_id: str = ""):
+        # REGLA CERO: sucursal_id es UUIDv7 (str); sin default arbitrario '1'.
         self.db = db_conn
-        self.sucursal_id = sucursal_id
+        self.sucursal_id = str(sucursal_id or "")
         self._cache: List[Dict] = []
         self._categories: List[str] = []
         self.reload()
@@ -72,7 +75,8 @@ class ProductMatcher:
         except Exception as e:
             logger.error("Error cargando catálogo: %s", e)
 
-    def set_sucursal(self, sucursal_id: int):
+    def set_sucursal(self, sucursal_id: str):
+        sucursal_id = str(sucursal_id or "")
         if sucursal_id != self.sucursal_id:
             self.sucursal_id = sucursal_id
             self.reload()
@@ -84,9 +88,11 @@ class ProductMatcher:
         cat_lower = category.lower()
         return [p for p in self._cache if p["categoria"].lower() == cat_lower]
 
-    def get_by_id(self, product_id: int) -> Optional[Dict]:
+    def get_by_id(self, product_id: str) -> Optional[Dict]:
+        # Identidad UUIDv7 (str): comparar como str evita fallos por tipos mixtos.
+        target = str(product_id or "")
         for p in self._cache:
-            if p["id"] == product_id:
+            if str(p["id"]) == target:
                 return p
         return None
 
@@ -119,7 +125,7 @@ class ProductMatcher:
         scored.sort(key=lambda x: x[0])
         return [p for _, p in scored[:max_results]]
 
-    def match_single(self, name_raw: str) -> Optional[Dict]:
-        """Intenta encontrar un único producto que coincida."""
-        results = self.search(name_raw, max_results=1)
+    def match_single(self, name: str) -> Optional[Dict]:
+        """Devuelve el mejor match para un nombre."""
+        results = self.search(name, max_results=1)
         return results[0] if results else None

@@ -2,15 +2,39 @@
 """
 Cliente HTTP para enviar mensajes, botones, listas y templates.
 Configuración dinámica desde ERP (multi-sucursal) con fallback a .env.
+
+Orden correcto de credenciales:
+1. Configuración global capturada desde el módulo WhatsApp:
+   configuraciones.wa_meta_token / configuraciones.wa_meta_phone_id
+2. Configuración por número/sucursal en whatsapp_numeros, cuando aplique.
+3. Variables .env como respaldo técnico.
 """
 from __future__ import annotations
 
 import httpx
 import logging
-import re
 from typing import List, Dict, Optional, Tuple
+from phone_number import normalize_to_e164
 
-from config.settings import WA_API_URL, WA_ACCESS_TOKEN, WA_PHONE_NUMBER_ID, ERP_DB_PATH
+try:
+    from config.settings import (
+        WA_ACCESS_TOKEN,
+        WA_PHONE_NUMBER_ID,
+        ERP_DB_PATH,
+        get_wa_api_url,
+        get_meta_access_token,
+        get_meta_phone_number_id,
+    )
+except (ImportError, AttributeError):
+    WA_ACCESS_TOKEN = None
+    WA_PHONE_NUMBER_ID = None
+    ERP_DB_PATH = None
+    def get_wa_api_url(phone_number_id=None):  # type: ignore[misc]
+        raise ValueError("config.settings not available")
+    def get_meta_access_token():  # type: ignore[misc]
+        return ""
+    def get_meta_phone_number_id():  # type: ignore[misc]
+        return ""
 from models.message import OutgoingMessage
 
 logger = logging.getLogger("wa.sender")
@@ -20,23 +44,10 @@ logger = logging.getLogger("wa.sender")
 # -----------------------------------------------------------------------------
 
 def _normalize_phone(phone: str) -> str:
-    """
-    Normaliza un número de teléfono a formato E.164 (con + y código de país).
-    Ejemplo: '5215659274265' -> '+5215659274265'
-    """
-    phone = phone.strip()
-    if not phone:
-        raise ValueError("Número de teléfono vacío")
-    if phone.startswith('+'):
-        return phone
-    # Si ya tiene código de país pero sin + (ej. 521...), agregamos +
-    if re.match(r'^\d{10,15}$', phone):
-        return f"+{phone}"
-    # Si tiene formato raro, intentamos limpiar solo dígitos
-    digits = re.sub(r'\D', '', phone)
-    if digits:
-        return f"+{digits}"
-    raise ValueError(f"Número inválido: {phone}")
+    normalized = normalize_to_e164(phone, default_country="MX")
+    if not normalized:
+        raise ValueError(f"Número inválido: {phone}")
+    return normalized
 
 # -----------------------------------------------------------------------------
 #  Configuración dinámica (ERP + .env)
@@ -44,22 +55,32 @@ def _normalize_phone(phone: str) -> str:
 
 def _get_whatsapp_config(sucursal_id: Optional[int] = None) -> Tuple[str, str]:
     """
-    Obtiene token y phone_id desde la base de datos (ERP) con fallback a .env.
+    Obtiene token y phone_id.
+
     Retorna: (token, phone_id)
     Lanza ValueError si no se puede obtener ninguna configuración válida.
     """
-    token = None
-    phone_id = None
+    # 1) Configuración global guardada desde el panel Meta/Credenciales.
+    # Esta debe ganar porque es lo que el usuario actualiza desde la UI.
+    try:
+        token = get_meta_access_token()
+        phone_id = get_meta_phone_number_id()
+        if token and phone_id:
+            logger.debug("Configuración obtenida desde configuraciones globales del ERP")
+            return token, phone_id
+    except Exception as e:
+        logger.warning("Error leyendo configuración global WhatsApp: %s", e)
 
-    # 1) Intentar desde ERP consultando directamente la tabla whatsapp_numeros
+    # 2) Configuración por número/sucursal en whatsapp_numeros.
+    # Se conserva como fallback para escenarios multi-número, pero no debe pisar
+    # el token global recién capturado desde el módulo.
     try:
         from erp.bridge import ERPBridge
         erp = ERPBridge(ERP_DB_PATH)
-        
         query = """
-            SELECT meta_token, meta_phone_id 
-            FROM whatsapp_numeros 
-            WHERE activo = 1 
+            SELECT meta_token, meta_phone_id
+            FROM whatsapp_numeros
+            WHERE activo = 1
         """
         params = []
         if sucursal_id:
@@ -67,26 +88,24 @@ def _get_whatsapp_config(sucursal_id: Optional[int] = None) -> Tuple[str, str]:
             params.append(sucursal_id)
         else:
             query += " ORDER BY sucursal_id LIMIT 1"
-        
         row = erp.db.execute(query, params).fetchone()
         if row:
             token = row["meta_token"]
             phone_id = row["meta_phone_id"]
             if token and phone_id:
-                logger.debug("Configuración obtenida desde BD (sucursal=%s)", sucursal_id or "primera activa")
+                logger.debug("Configuración obtenida desde whatsapp_numeros (sucursal=%s)", sucursal_id or "primera activa")
                 return token, phone_id
     except Exception as e:
         logger.warning("Error al acceder a BD para obtener configuración WhatsApp: %s", e)
 
-    # 2) Fallback a variables de entorno
+    # 3) Fallback a variables de entorno.
     token = WA_ACCESS_TOKEN
     phone_id = WA_PHONE_NUMBER_ID
     if token and phone_id:
         logger.debug("Configuración obtenida desde .env")
         return token, phone_id
 
-    # 3) Sin configuración válida
-    raise ValueError("No se pudo obtener token y phone_id para WhatsApp (ni BD ni .env)")
+    raise ValueError("No se pudo obtener token y phone_id para WhatsApp (configuración global, BD o .env)")
 
 
 def _build_headers(token: str) -> dict:
@@ -110,10 +129,8 @@ async def send_message(msg: OutgoingMessage, sucursal_id: Optional[int] = None) 
     - sucursal_id: opcional, si no se especifica se usa la primera sucursal activa
     """
     try:
-        # Obtener configuración dinámica
         token, phone_id = _get_whatsapp_config(sucursal_id)
 
-        # Construir payload según tipo de mensaje (los builders normalizan el número)
         if msg.buttons:
             payload = _build_buttons(msg)
         elif msg.list_sections:
@@ -121,11 +138,9 @@ async def send_message(msg: OutgoingMessage, sucursal_id: Optional[int] = None) 
         else:
             payload = _build_text(msg)
 
-        # Construir URL y headers
-        url = f"https://graph.facebook.com/v21.0/{phone_id}/messages"
+        url = get_wa_api_url(phone_id)
         headers = _build_headers(token)
 
-        # Enviar petición
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(url, json=payload, headers=headers)
 
@@ -134,7 +149,7 @@ async def send_message(msg: OutgoingMessage, sucursal_id: Optional[int] = None) 
             return True
         else:
             logger.error("Error enviando a %s: %s %s",
-                         _normalize_phone(msg.to), resp.status_code, resp.text[:200])
+                         _normalize_phone(msg.to), resp.status_code, resp.text[:500])
             return False
 
     except ValueError as ve:
@@ -197,7 +212,7 @@ async def send_template(to: str, template_name: str,
         if components:
             payload["template"]["components"] = components
 
-        url = f"https://graph.facebook.com/v21.0/{phone_id}/messages"
+        url = get_wa_api_url(phone_id)
         headers = _build_headers(token)
 
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -208,7 +223,7 @@ async def send_template(to: str, template_name: str,
             return True
         else:
             logger.error("Error enviando template a %s: %s %s",
-                         to, resp.status_code, resp.text[:200])
+                         to, resp.status_code, resp.text[:500])
             return False
 
     except ValueError as ve:
@@ -244,7 +259,7 @@ def _build_buttons(msg: OutgoingMessage) -> dict:
             "type": "reply",
             "reply": {
                 "id": btn["id"],
-                "title": btn["title"][:20],  # Límite WA: 20 chars
+                "title": btn["title"][:20],
             }
         })
 
@@ -267,35 +282,16 @@ def _build_buttons(msg: OutgoingMessage) -> dict:
 
 def _build_list(msg: OutgoingMessage) -> dict:
     """Construye payload de lista interactiva."""
-    to_norm = _normalize_phone(msg.to)
-    sections = []
-    for sec in msg.list_sections:
-        rows = []
-        for item in sec.get("rows", [])[:10]:
-            row = {"id": item["id"], "title": item["title"][:24]}
-            if item.get("description"):
-                row["description"] = item["description"][:72]
-            rows.append(row)
-        sections.append({
-            "title": sec.get("title", "Opciones")[:24],
-            "rows": rows,
-        })
-
-    body = {
+    return {
         "messaging_product": "whatsapp",
-        "to": to_norm,
+        "to": _normalize_phone(msg.to),
         "type": "interactive",
         "interactive": {
             "type": "list",
             "body": {"text": msg.text},
             "action": {
-                "button": msg.list_button_text[:20],
-                "sections": sections,
+                "button": msg.list_button_text or "Ver opciones",
+                "sections": msg.list_sections or [],
             },
-        }
+        },
     }
-    if msg.header:
-        body["interactive"]["header"] = {"type": "text", "text": msg.header}
-    if msg.footer:
-        body["interactive"]["footer"] = {"text": msg.footer}
-    return body

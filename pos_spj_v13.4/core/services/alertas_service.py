@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from core.db.connection import get_connection
+from backend.shared.ids import new_uuid
 
 logger = logging.getLogger("spj.alertas")
 
@@ -25,55 +26,54 @@ TIPOS_ALERTA = {
 
 
 class AlertasService:
-    def __init__(self, conn=None, sucursal_id: int = 1):
+    """Business logic for configurable alerts.
+
+    Identity is UUIDv7 (REGLA CERO): ``alertas_config`` and ``alertas_log`` carry
+    ``id TEXT PRIMARY KEY`` and ``sucursal_id TEXT``, both owned by
+    ``migrations/`` — this service never creates or alters schema. A branch
+    identity (UUID string) is mandatory so alerts are correctly scoped.
+    """
+
+    # Catálogo de alertas seedeable por sucursal: (tipo, activa, umbral, canal, descripcion)
+    DEFAULT_CONFIG = (
+        ("stock_bajo",        1, 0,    "ui",    "Stock bajo minimo"),
+        ("caducidad_proxima", 1, 3,    "ui",    "Caduca en 3 dias"),
+        ("venta_inusual",     1, 5000, "ui",    "Venta > $5,000"),
+        ("caja_saldo_bajo",   1, 500,  "ui",    "Caja < $500"),
+        ("lote_caducado",     1, 0,    "ambos", "Lote vencido"),
+    )
+
+    def __init__(self, conn=None, sucursal_id: str = None):
         self.conn = conn or get_connection()
-        self.sucursal_id = sucursal_id
+        if not sucursal_id:
+            raise ValueError("AlertasService requiere sucursal_id (UUIDv7 string).")
+        self.sucursal_id = str(sucursal_id)
         self._bus = None
         try:
             from core.events.event_bus import get_bus
             self._bus = get_bus()
         except Exception:
             pass
-        self._init_tables()
 
-    def _init_tables(self):
-        self.conn.executescript("""
-            CREATE TABLE IF NOT EXISTS alertas_config (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                tipo        TEXT NOT NULL,
-                activa      INTEGER DEFAULT 1,
-                umbral      DECIMAL(12,2),   -- valor numerico del trigger
-                canal       TEXT DEFAULT 'ui',  -- ui|whatsapp|ambos
-                sucursal_id INTEGER DEFAULT 1,
-                descripcion TEXT
-            );
-            CREATE TABLE IF NOT EXISTS alertas_log (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                tipo        TEXT,
-                mensaje     TEXT,
-                datos       TEXT,  -- JSON
-                leida       INTEGER DEFAULT 0,
-                canal_enviado TEXT,
-                sucursal_id INTEGER DEFAULT 1,
-                fecha       DATETIME DEFAULT (datetime('now'))
-            );
-            CREATE INDEX IF NOT EXISTS idx_alertas_no_leidas
-                ON alertas_log(leida, fecha) WHERE leida=0;
-        """)
-        # Seed alertas default
-        defaults = [
-            ("stock_bajo",        1, 0,    "ui",        "Stock bajo minimo"),
-            ("caducidad_proxima", 1, 3,    "ui",        "Caduca en 3 dias"),
-            ("venta_inusual",     1, 5000, "ui",        "Venta > $5,000"),
-            ("caja_saldo_bajo",   1, 500,  "ui",        "Caja < $500"),
-            ("lote_caducado",     1, 0,    "ambos",     "Lote vencido"),
-        ]
-        for tipo, activa, umbral, canal, desc in defaults:
-            try:
-                self.conn.execute(
-                    "INSERT OR IGNORE INTO alertas_config(tipo,activa,umbral,canal,descripcion) VALUES(?,?,?,?,?)",
-                    (tipo, activa, umbral, canal, desc))
-            except Exception: pass
+    def seed_defaults(self) -> None:
+        """Sembrar el catálogo de alertas para esta sucursal (idempotente).
+
+        Lógica de negocio UUID-safe: cada fila lleva un id UUIDv7 explícito y el
+        sucursal_id de la sesión. No crea schema. Llamar al dar de alta una
+        sucursal o desde el bootstrap por-sucursal.
+        """
+        for tipo, activa, umbral, canal, desc in self.DEFAULT_CONFIG:
+            exists = self.conn.execute(
+                "SELECT 1 FROM alertas_config WHERE tipo=? AND sucursal_id=? LIMIT 1",
+                (tipo, self.sucursal_id),
+            ).fetchone()
+            if exists:
+                continue
+            self.conn.execute(
+                "INSERT INTO alertas_config(id,tipo,activa,umbral,canal,sucursal_id,descripcion) "
+                "VALUES(?,?,?,?,?,?,?)",
+                (new_uuid(), tipo, activa, umbral, canal, self.sucursal_id, desc),
+            )
         try: self.conn.commit()
         except Exception: pass
 
@@ -81,7 +81,7 @@ class AlertasService:
         return [dict(r) for r in self.conn.execute(
             "SELECT * FROM alertas_config ORDER BY tipo").fetchall()]
 
-    def update_config(self, alerta_id: int, activa: bool,
+    def update_config(self, alerta_id: str, activa: bool,
                       umbral: float = None, canal: str = None):
         updates = {"activa": 1 if activa else 0}
         if umbral is not None: updates["umbral"] = umbral
@@ -102,9 +102,9 @@ class AlertasService:
         cfg = dict(cfg)
         import json
         self.conn.execute("""INSERT INTO alertas_log
-            (tipo,mensaje,datos,canal_enviado,sucursal_id)
-            VALUES(?,?,?,?,?)""",
-            (tipo, mensaje, json.dumps(datos or {}),
+            (id,tipo,mensaje,datos,canal_enviado,sucursal_id)
+            VALUES(?,?,?,?,?,?)""",
+            (new_uuid(), tipo, mensaje, json.dumps(datos or {}),
              cfg["canal"], self.sucursal_id))
         try: self.conn.commit()
         except Exception: pass
@@ -139,7 +139,7 @@ class AlertasService:
             (self.sucursal_id,)).fetchall()
         return [dict(r) for r in rows]
 
-    def marcar_leida(self, alerta_id: int = None):
+    def marcar_leida(self, alerta_id: str = None):
         if alerta_id:
             self.conn.execute("UPDATE alertas_log SET leida=1 WHERE id=?", (alerta_id,))
         else:

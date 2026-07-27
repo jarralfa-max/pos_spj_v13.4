@@ -1,0 +1,172 @@
+from __future__ import annotations
+from backend.shared.ids import new_uuid
+
+import json
+import logging
+from datetime import datetime
+from typing import List, Dict
+
+from core.events.event_bus import get_bus, AJUSTE_INVENTARIO
+
+logger = logging.getLogger("spj.stock_reserva")
+
+# Reservas activas más antiguas que este umbral se consideran huérfanas
+RESERVATION_TTL_MINUTES = 30
+
+
+class StockReservationService:
+    """Reserva/libera stock lógico para ventas suspendidas."""
+
+    def __init__(self, db, branch_id: str = ""):
+        self.db = db
+        self.branch_id = branch_id
+        self._ensure_table()
+
+    def _ensure_table(self):
+        # Plan B born-clean: stock_reservas / stock_reserva_detalles viven en
+        # migrations/m000_base_schema (id TEXT UUIDv7, FKs TEXT). Sin DDL aquí.
+        return None
+    def expirar_huerfanas(self) -> int:
+        """
+        Libera automáticamente reservas activas cuyo expires_at ya pasó.
+        Retorna la cantidad de reservas expiradas.
+        """
+        try:
+            cur = self.db.execute("""
+                UPDATE stock_reservas
+                SET estado     = 'expirada',
+                    updated_at = datetime('now')
+                WHERE estado = 'activa'
+                  AND expires_at IS NOT NULL
+                  AND expires_at < datetime('now')
+            """)
+            count = cur.rowcount
+            if count:
+                logger.info("stock_reservas: %d reservas expiradas", count)
+            return count
+        except Exception as e:
+            logger.debug("expirar_huerfanas: %s", e)
+            return 0
+
+    def stock_disponible(self, producto_id: int) -> float:
+        self.expirar_huerfanas()
+        try:
+            row = self.db.execute(
+                "SELECT COALESCE(quantity,0) FROM inventory_stock "
+                "WHERE branch_id=? AND product_id=?",
+                (self.branch_id, producto_id),
+            ).fetchone()
+            fisico = float(row[0]) if row else 0.0
+        except Exception as exc:
+            logger.error(
+                "inventory_stock no disponible para stock operativo; producto_id=%s branch_id=%s: %s",
+                producto_id, self.branch_id, exc,
+            )
+            fisico = 0.0
+        row2 = self.db.execute(
+            "SELECT COALESCE(SUM(d.cantidad),0) "
+            "FROM stock_reserva_detalles d "
+            "JOIN stock_reservas r ON r.id=d.reserva_id "
+            "WHERE r.estado='activa' AND r.branch_id=? AND d.producto_id=?",
+            (self.branch_id, producto_id),
+        ).fetchone()
+        reservado = float(row2[0]) if row2 and row2[0] is not None else 0.0
+        return max(0.0, fisico - reservado)
+
+    def reservar(self, folio: str, items: List[Dict]) -> str:
+        """
+        Reserva stock para un folio de manera ATÓMICA dentro de un SAVEPOINT.
+        Expira reservas huérfanas antes de validar disponibilidad.
+        """
+        import uuid as _uuid
+        sp = f"sp_reserva_{_uuid.uuid4().hex[:8]}"
+
+        self.expirar_huerfanas()
+
+        self.db.execute(f"SAVEPOINT {sp}")
+        try:
+            # Validar disponibilidad DENTRO del SAVEPOINT — evita race conditions
+            for item in items:
+                pid = str(item["id"])
+                cant = float(item["cantidad"])
+                disp = self.stock_disponible(pid)
+                if disp + 1e-6 < cant:
+                    self.db.execute(f"ROLLBACK TO SAVEPOINT {sp}")
+                    self.db.execute(f"RELEASE SAVEPOINT {sp}")
+                    raise ValueError(
+                        f"Stock insuficiente para reservar producto {pid}. "
+                        f"Disponible={disp:.3f}, requerido={cant:.3f}"
+                    )
+
+            payload = [
+                {"producto_id": int(i["id"]), "cantidad": float(i["cantidad"])}
+                for i in items
+            ]
+            expires = f"datetime('now', '+{RESERVATION_TTL_MINUTES} minutes')"
+            cur = self.db.execute(
+                f"INSERT INTO stock_reservas(folio, branch_id, estado, payload_json, expires_at) "
+                f"VALUES(?, ?, 'activa', ?, {expires})",
+                (folio, self.branch_id, json.dumps(payload)),
+            )
+            reserva_id = new_uuid()
+            for p in payload:
+                self.db.execute(
+                    "INSERT INTO stock_reserva_detalles"
+                    "(reserva_id, producto_id, cantidad) VALUES(?,?,?)",
+                    (reserva_id, str(p.get("product_id") or p.get("producto_id") or ""), float(p["cantidad"])),
+                )
+
+            self.db.execute(f"RELEASE SAVEPOINT {sp}")
+
+        except ValueError:
+            raise
+        except Exception as exc:
+            try:
+                self.db.execute(f"ROLLBACK TO SAVEPOINT {sp}")
+                self.db.execute(f"RELEASE SAVEPOINT {sp}")
+            except Exception as rb_exc:
+                logger.warning("Rollback de reserva falló savepoint=%s: %s", sp, rb_exc)
+            raise RuntimeError(f"reservar() falló: {exc}") from exc
+
+        get_bus().publish(AJUSTE_INVENTARIO, {
+            "motivo": "stock_reservado", "folio": folio,
+            "branch_id": self.branch_id,
+        })
+        return reserva_id
+
+    def liberar(self, reserva_id: str, motivo: str = "cancelada") -> None:
+        estado = "expirada" if str(motivo).strip().lower() == "expirada" else "cancelada"
+        self.db.execute(
+            "UPDATE stock_reservas SET estado=?, updated_at=datetime('now') "
+            "WHERE id=? AND estado='activa'",
+            (estado, reserva_id),
+        )
+        get_bus().publish(AJUSTE_INVENTARIO, {
+            "motivo": "stock_reserva_liberada",
+            "reserva_id": reserva_id,
+            "branch_id": self.branch_id,
+        })
+
+    def confirmar(self, reserva_id: str, venta_id: str, folio: str) -> None:
+        cur = self.db.execute(
+            "UPDATE stock_reservas SET estado='confirmada', updated_at=datetime('now') "
+            "WHERE id=? AND estado='activa'",
+            (reserva_id,),
+        )
+        if getattr(cur, "rowcount", 0) != 1:
+            raise RuntimeError(f"Reserva {reserva_id} no está activa para confirmar.")
+        get_bus().publish(AJUSTE_INVENTARIO, {
+            "motivo": "stock_reserva_confirmada",
+            "reserva_id": reserva_id,
+            "venta_id": str(venta_id or ""),
+            "folio": str(folio or ""),
+            "branch_id": self.branch_id,
+        })
+
+    def marcar_revision(self, reserva_id: int, motivo: str = "postventa_warning") -> None:
+        self.db.execute(
+            "UPDATE stock_reservas SET estado='revision', updated_at=datetime('now') "
+            "WHERE id=? AND estado='activa'",
+            (reserva_id,),
+        )
+        logger.warning("stock_reservas: reserva_id=%s quedó en revisión (%s)", reserva_id, motivo)

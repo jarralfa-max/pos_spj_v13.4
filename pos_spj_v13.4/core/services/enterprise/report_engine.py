@@ -19,7 +19,8 @@ logger = logging.getLogger("spj.enterprise.reports")
 class ReportEngine:
 
     def __init__(self, db):
-        self.db = db
+        from core.db.connection import wrap
+        self.db = wrap(db)
 
     def _now(self) -> str:
         return datetime.utcnow().isoformat()
@@ -468,12 +469,13 @@ class ReportEngine:
     def _log_export(self, report_type: str, fmt: str, file_path: str,
                      exported_by: str, row_count: int) -> None:
         try:
+            from backend.shared.ids import new_uuid
             self.db.execute("""
                 INSERT INTO report_export_log (
-                    report_type, format, exported_by,
+                    id, report_type, format, exported_by,
                     file_path, row_count, exported_at
-                ) VALUES (?,?,?,?,?,?)
-            """, (report_type, fmt, exported_by, file_path,
+                ) VALUES (?,?,?,?,?,?,?)
+            """, (new_uuid(), report_type, fmt, exported_by, file_path,
                   row_count, self._now()))
         except Exception as exc:
             logger.warning("export_log write failed: %s", exc)
@@ -485,7 +487,7 @@ class ReportEngine:
         rows = self.db.fetchall("""
             SELECT
                 DATE(v.fecha)                          AS fecha,
-                COALESCE(s.nombre, 'Principal')        AS sucursal_nombre,
+                COALESCE(s.nombre, '')        AS sucursal_nombre,
                 COUNT(DISTINCT v.id)                   AS tickets,
                 COALESCE(SUM(v.total),0)               AS ingresos,
                 COALESCE(SUM(dv.costo_unitario*dv.cantidad),0) AS costo,

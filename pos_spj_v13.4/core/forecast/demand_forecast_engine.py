@@ -21,6 +21,7 @@
 #   • Nunca forecast negativo
 
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 
 import logging
 import math
@@ -46,7 +47,8 @@ class DemandForecastEngine:
     """
 
     def __init__(self, db):
-        self.db = db
+        from core.db.connection import wrap
+        self.db = wrap(db)
 
     # ── Config ─────────────────────────────────────────────────────────────────
 
@@ -59,7 +61,7 @@ class DemandForecastEngine:
         except Exception:
             return default
 
-    def _get_product_config(self, product_id: int, branch_id: int) -> dict:
+    def _get_product_config(self, product_id: str, branch_id: str) -> dict:
         try:
             row = self.db.fetchone("""
                 SELECT lead_time_days, service_level_pct, alpha, method_preferred, min_history_days
@@ -293,7 +295,7 @@ class DemandForecastEngine:
 
         n = 0
         for (fdate, fqty) in result["forecast_by_day"]:
-            fid    = str(uuid.uuid4())
+            fid    = new_uuid()
             dow    = 0
             try:
                 dow = date.fromisoformat(fdate).weekday()
@@ -370,7 +372,7 @@ class DemandForecastEngine:
 
         # Guardar métricas
         try:
-            mid = str(uuid.uuid4())
+            mid = new_uuid()
             self.db.execute("""
                 INSERT INTO forecast_metrics
                     (id, product_id, branch_id, method, mae, rmse, mape, bias,

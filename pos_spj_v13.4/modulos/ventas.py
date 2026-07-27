@@ -2,6 +2,12 @@
 # MÓDULO DE VENTAS ENTERPRISE CON INYECCIÓN DE DEPENDENCIAS Y HAL (Hardware Abstraction Layer)
 
 from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_danger_button,
+    create_secondary_button, create_warning_button, apply_tooltip,
+    PageHeader, Toast,
+)
 import logging
 import os
 import sqlite3
@@ -16,9 +22,14 @@ import json
 import re
 from datetime import datetime
 from typing import List, Dict, Any, Optional
+from uuid import uuid4
+from backend.shared.ids import new_uuid
+from backend.infrastructure.db.repositories.sales_read_repository import SalesReadRepository
 
 from modulos.spj_phone_widget import PhoneWidget
 from core.services.auto_audit import audit_write
+from core.services.stock_reservation_service import StockReservationService
+from core.services.inventory_availability_service import InventoryAvailabilityService
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit,
     QComboBox, QMessageBox, QHBoxLayout,
@@ -26,14 +37,17 @@ from PyQt5.QtWidgets import (
     QGroupBox, QSizePolicy, QAction, QGridLayout,
     QAbstractItemView, QDialog, QCheckBox, QFormLayout, QDoubleSpinBox,
     QHeaderView, QRadioButton, QScrollArea, QListWidget, QListWidgetItem,
-    QInputDialog, QGraphicsDropShadowEffect, QDialogButtonBox, QCompleter
+    QInputDialog, QGraphicsDropShadowEffect, QDialogButtonBox, QCompleter, QSpinBox
 )
-from PyQt5.QtCore import Qt, QDateTime, QTimer, pyqtSignal, QLocale, QPropertyAnimation, QRect, QUrl, QSize, QStringListModel
-from PyQt5.QtGui import QIcon, QDoubleValidator, QPixmap, QImage, QColor, QTextDocument, QFont, QPalette
-from PyQt5.QtPrintSupport import QPrinter, QPrintDialog
+from PyQt5.QtCore import Qt, QDateTime, QTimer, pyqtSignal, QLocale, QPropertyAnimation, QRect, QUrl, QSize, QStringListModel, QThread, QEvent
+from PyQt5.QtGui import QIcon, QDoubleValidator, QPixmap, QImage, QColor, QFont, QPalette, QBrush, QPainter, QKeySequence
 
 # Importación de la clase base y utilidades
 from .base import ModuloBase
+from presentation.sales.workers.ticket_output_worker import TicketOutputWorker
+from backend.application.queries.hardware_settings_query_service import HardwareSettingsQueryService
+from backend.application.queries.ticket_settings_query_service import TicketSettingsQueryService
+from backend.application.use_cases.create_customer_use_case import CreateCustomerCommand, CreateCustomerUseCase
 
 logger = logging.getLogger("spj.ventas") 
 
@@ -42,7 +56,7 @@ try:
     from config import TEMAS, configuraciones_POR_DEFECTO, GestorTemas
 except ImportError:
     TEMAS = {}
-    configuraciones_POR_DEFECTO = {'tema': 'Oscuro Moderno'}
+    configuraciones_POR_DEFECTO = {'tema': 'Oscuro'}
     
     class GestorTemas:
         def __init__(self, conexion):
@@ -56,7 +70,7 @@ except ImportError:
             self.temas = TEMAS
         
         def obtener_tema_actual(self):
-            return "Oscuro Moderno"
+            return "Oscuro"
         
         def aplicar_tema(self, widget, nombre_tema):
             return False
@@ -102,76 +116,226 @@ class _ScanContextFilter(QObject):
             self._module._set_scan_context("auto", None)
         return False  # Never consume the event — always pass through
 
-class ProductCard(QFrame):
-    """Widget interactivo que respeta completamente los temas del sistema."""
-    product_selected = pyqtSignal(dict) 
+class _FKeyButton(QPushButton):
+    """QPushButton con badge de tecla F pintado Y el atajo REAL registrado.
 
-    # 🛠️ FIX ENTERPRISE: Recibe producto_data, no el container
+    Bug FX: el badge se pintaba pero el atajo nunca se registraba — las teclas
+    rápidas F6-F12 no hacían nada. setShortcut respeta el estado enabled del
+    botón (un botón deshabilitado no dispara su acción).
+    """
+
+    def __init__(self, text: str = "", fkey: str = "", parent=None):
+        super().__init__(text, parent)
+        self._fkey = fkey
+        if fkey:
+            self.setShortcut(QKeySequence(fkey))
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if not self._fkey:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        bw, bh = 24, 14
+        margin = 5
+        rx = self.width() - bw - margin
+        ry = (self.height() - bh) // 2
+        badge_rect = QRect(rx, ry, bw, bh)
+        # Badge background — semi-transparent dark pill
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(0, 0, 0, 55))
+        p.drawRoundedRect(badge_rect, 4, 4)
+        # Badge text
+        p.setPen(QColor(255, 255, 255, 200))
+        f = p.font()
+        f.setPointSize(7)
+        f.setBold(True)
+        p.setFont(f)
+        p.drawText(badge_rect, Qt.AlignCenter, self._fkey)
+        p.end()
+
+
+class ProductCard(QFrame):
+    """Operational retail product card — matches enterprise POS visual design."""
+    product_selected = pyqtSignal(dict)
+
+    CARD_W, CARD_H = 175, 198
+    ZOOM_W, ZOOM_H = 182, 206   # ~4% hover/selected zoom
+    IMG_H = 85
+    _ZOOM_STEPS = 6             # frames for the zoom animation
+    _ZOOM_INTERVAL_MS = 12      # ms per frame (~80 fps feel)
+
     def __init__(self, producto_data: dict, parent: QWidget = None):
         super().__init__(parent)
-        self.producto = producto_data
-        self.is_selected = False
-        self._is_hovering = False
-        self.original_size = QSize(160, 220)
-        self.zoom_size = QSize(170, 230)
-        
+        self.producto       = producto_data
+        self.is_selected    = False
+        self._is_hovering   = False
+        self.original_size  = QSize(self.CARD_W, self.CARD_H)
+        self.zoom_size      = QSize(self.ZOOM_W, self.ZOOM_H)
+        self._last_selection_emit_ms = 0.0
+
         self.setCursor(Qt.PointingHandCursor)
-        self.setFixedSize(self.original_size)
-        self.setFrameShape(QFrame.StyledPanel)
-        self.setFrameShadow(QFrame.Raised)
-        
-        self.setProperty("class", "product-card")
-        
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(5)
+        self.setFixedSize(self.CARD_W, self.CARD_H)
+        self.setFrameShape(QFrame.NoFrame)
 
-        self.lbl_imagen = QLabel()
-        self.lbl_imagen.setAlignment(Qt.AlignCenter)
-        self.lbl_imagen.setFixedSize(140, 120)
-        self.lbl_imagen.setProperty("class", "product-image")
-        self._load_image()
-        
-        self.lbl_nombre = QLabel(self.producto['nombre'])
-        self.lbl_nombre.setAlignment(Qt.AlignCenter)
-        self.lbl_nombre.setWordWrap(True)
-        self.lbl_nombre.setProperty("class", "product-name")
-        
-        self.lbl_precio = QLabel(f"${self.producto['precio']:.2f} / {self.producto['unidad']}")
-        self.lbl_precio.setAlignment(Qt.AlignCenter)
-        self.lbl_precio.setProperty("class", "product-price")
-        
-        existencia = self.producto.get('existencia', 0)
-        self.lbl_stock = QLabel(f"Stock: {existencia:.2f}")
-        self.lbl_stock.setAlignment(Qt.AlignCenter)
-        self.lbl_stock.setProperty("class", "product-stock")
+        # Stock state classification
+        existencia   = float(self.producto.get('existencia', 0))
+        stock_minimo = float(self.producto.get('stock_minimo', 0))
+        if existencia <= 0:
+            self._stock_state = "out-of-stock"
+        elif stock_minimo > 0 and existencia <= stock_minimo:
+            self._stock_state = "critical-stock"
+        elif stock_minimo > 0 and existencia <= stock_minimo * 2:
+            self._stock_state = "low-stock"
+        else:
+            self._stock_state = ""
 
-        layout.addWidget(self.lbl_imagen)
-        layout.addWidget(self.lbl_nombre)
-        layout.addWidget(self.lbl_precio)
-        layout.addWidget(self.lbl_stock)
-        layout.addStretch(1)
-        
+        base_class = f"product-card-{self._stock_state}" if self._stock_state else "product-card"
+        self.setProperty("class", base_class)
+
+        if self._stock_state == "out-of-stock":
+            self.setCursor(Qt.ForbiddenCursor)
+
+        # Subtle shadow
         self.shadow_effect = QGraphicsDropShadowEffect(self)
-        self.shadow_effect.setBlurRadius(15)
-        self.shadow_effect.setXOffset(2)
+        self.shadow_effect.setBlurRadius(8)
+        self.shadow_effect.setXOffset(0)
         self.shadow_effect.setYOffset(2)
-        self.update_shadow_color()
+        self.shadow_effect.setColor(QColor(0, 0, 0, 45))
         self.setGraphicsEffect(self.shadow_effect)
 
-    def update_shadow_color(self):
-        text_color = QColor(255, 255, 255)
-        try:
-            text_color = self.palette().color(QPalette.Text)
-        except:
-            pass
-            
-        brightness = text_color.red() * 0.299 + text_color.green() * 0.587 + text_color.blue() * 0.114
-        
-        if brightness > 128:
-            self.shadow_effect.setColor(QColor(0, 0, 0, 60))
+        # ── Layout: image on top, info below ─────────────────────────────
+        root_lay = QVBoxLayout(self)
+        root_lay.setContentsMargins(0, 0, 0, 0)
+        root_lay.setSpacing(0)
+
+        # Image area (borderless, fills card width)
+        self.lbl_imagen = QLabel()
+        self.lbl_imagen.setAlignment(Qt.AlignCenter)
+        self.lbl_imagen.setFixedSize(self.CARD_W, self.IMG_H)
+        self.lbl_imagen.setObjectName("posProductImage")
+        self.lbl_imagen.setProperty("class", "product-image")
+        self._load_image()
+        root_lay.addWidget(self.lbl_imagen)
+
+        # Info area
+        info_widget = QWidget()
+        info_widget.setObjectName("posProductInfo")
+        info_lay = QVBoxLayout(info_widget)
+        info_lay.setContentsMargins(8, 6, 8, 6)
+        info_lay.setSpacing(2)
+
+        self.lbl_nombre = QLabel(self.producto['nombre'])
+        self.lbl_nombre.setWordWrap(True)
+        name_class = "product-name-dimmed" if self._stock_state == "out-of-stock" else "product-name"
+        self.lbl_nombre.setProperty("class", name_class)
+        self.lbl_nombre.setMaximumHeight(34)   # max 2 lines
+
+        codigo = (self.producto.get('codigo', '')
+                  or self.producto.get('codigo_barras', '')
+                  or str(self.producto.get('id', '')))
+        self.lbl_codigo = QLabel(f"Cód: {codigo}")
+        self.lbl_codigo.setObjectName("posProductCode")
+
+        self.lbl_precio = QLabel(
+            f"${self.producto['precio']:.2f} /{self.producto['unidad']}")
+        self.lbl_precio.setProperty("class", "product-price")
+
+        # Stock label with state-aware text/color
+        if self._stock_state == "out-of-stock":
+            stock_txt = "⊘ Agotado"
+            stock_cls = "product-stock-out"
+        elif self._stock_state == "critical-stock":
+            stock_txt = f"● Stock: {existencia:.2f} {self.producto['unidad']}"
+            stock_cls = "product-stock-critical"
+        elif self._stock_state == "low-stock":
+            stock_txt = f"● Stock: {existencia:.2f} {self.producto['unidad']}"
+            stock_cls = "product-stock-low"
         else:
-            self.shadow_effect.setColor(QColor(0, 0, 0, 100))
+            stock_txt = f"● Stock: {existencia:.2f} {self.producto['unidad']}"
+            stock_cls = "product-stock"
+        self.lbl_stock = QLabel(stock_txt)
+        self.lbl_stock.setProperty("class", stock_cls)
+
+        info_lay.addWidget(self.lbl_nombre)
+        info_lay.addWidget(self.lbl_codigo)
+        info_lay.addWidget(self.lbl_precio)
+        info_lay.addWidget(self.lbl_stock)
+        info_lay.addStretch(1)
+        root_lay.addWidget(info_widget, 1)
+
+        # ── Corner overlays (absolute-positioned over image) ──────────────
+
+        # Star icon — top-right; filled gold when selected
+        self._btn_star = QLabel("☆", self)
+        self._btn_star.setObjectName("posProductStar")
+        self._btn_star.setFixedSize(26, 26)
+        self._btn_star.setAlignment(Qt.AlignCenter)
+
+        # Stock badge — top-left (CRÍTICO / BAJO / AGOTADO)
+        self._lbl_stock_badge = None
+        if self._stock_state in ("out-of-stock", "critical-stock", "low-stock"):
+            badge_txt = ("AGOTADO" if self._stock_state == "out-of-stock"
+                         else ("CRÍTICO" if self._stock_state == "critical-stock" else "BAJO"))
+            badge_obj = ("posOutOfStockBadge" if self._stock_state in ("out-of-stock", "critical-stock")
+                         else "posLowStockBadge")
+            self._lbl_stock_badge = QLabel(badge_txt, self)
+            self._lbl_stock_badge.setObjectName(badge_obj)
+            self._lbl_stock_badge.setAlignment(Qt.AlignCenter)
+            self._lbl_stock_badge.setFixedHeight(20)
+            self._lbl_stock_badge.adjustSize()
+
+        self._install_selection_event_filters()
+
+    def _install_selection_event_filters(self):
+        """Ensure clicks on labels/child widgets pick the product card."""
+        for child in self.findChildren(QWidget):
+            child.installEventFilter(self)
+            child.setCursor(self.cursor())
+
+    def eventFilter(self, obj, event):
+        if event.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonDblClick):
+            if event.button() == Qt.LeftButton:
+                self._emit_selection(event.type())
+                return True
+        return super().eventFilter(obj, event)
+
+    def _emit_selection(self, event_type=None):
+        now_ms = time.monotonic() * 1000
+        if now_ms - self._last_selection_emit_ms < 500:
+            logger.debug(
+                "Click duplicado ignorado en tarjeta de producto: event_type=%s product_id=%s",
+                event_type, self.producto.get('id')
+            )
+            return
+        self._last_selection_emit_ms = now_ms
+
+        product_id = self.producto.get('id')
+        if product_id in (None, ''):
+            logger.warning("Click en tarjeta de producto sin id estable: %s", self.producto)
+            return
+        logger.info(
+            "Producto clickeado en grid: event_type=%s product_id=%s nombre=%s",
+            event_type, product_id, self.producto.get('nombre')
+        )
+        self.product_selected.emit(self.producto)
+
+    def _position_overlays(self):
+        """Position star and badge overlays over the image area."""
+        if hasattr(self, '_btn_star'):
+            self._btn_star.move(self.CARD_W - 30, 6)
+            self._btn_star.raise_()
+        if self._lbl_stock_badge:
+            self._lbl_stock_badge.adjustSize()
+            self._lbl_stock_badge.move(6, 6)
+            self._lbl_stock_badge.raise_()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._position_overlays()
+
+    def update_shadow_color(self):
+        self.shadow_effect.setColor(QColor(0, 0, 0, 45))
 
     def _load_image(self):
         imagen_path = self.producto.get('imagen_path')
@@ -179,51 +343,115 @@ class ProductCard(QFrame):
             pixmap = QPixmap(imagen_path)
             if not pixmap.isNull():
                 pixmap = pixmap.scaled(
-                    self.lbl_imagen.size(), 
-                    Qt.KeepAspectRatio, 
+                    self.lbl_imagen.size(),
+                    Qt.KeepAspectRatio,
                     Qt.SmoothTransformation
                 )
                 self.lbl_imagen.setPixmap(pixmap)
                 return
-        
         self.lbl_imagen.setText("📦\nSin Imagen")
         self.lbl_imagen.setProperty("class", "product-image-placeholder")
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
-            self.product_selected.emit(self.producto)
-            super().mousePressEvent(event)
+            self._emit_selection(event.type())
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseDoubleClickEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._emit_selection(event.type())
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)
 
     def set_selected(self, selected: bool):
         self.is_selected = selected
         if selected:
             self.setProperty("class", "product-card-selected")
+            self.shadow_effect.setBlurRadius(20)
+            self.shadow_effect.setColor(QColor(37, 99, 235, 90))
+            self.shadow_effect.setXOffset(0)
+            self.shadow_effect.setYOffset(3)
+            self.animate_size(self.zoom_size)
+            self.raise_()
+            if hasattr(self, '_btn_star'):
+                self._btn_star.setText("★")
+                self._btn_star.setObjectName("posProductStarActive")
+                self._btn_star.style().unpolish(self._btn_star)
+                self._btn_star.style().polish(self._btn_star)
         else:
-            self.setProperty("class", "product-card")
+            base_class = f"product-card-{self._stock_state}" if self._stock_state else "product-card"
+            self.setProperty("class", base_class)
+            self.shadow_effect.setBlurRadius(8)
+            self.shadow_effect.setColor(QColor(0, 0, 0, 45))
+            self.shadow_effect.setXOffset(0)
+            self.shadow_effect.setYOffset(2)
+            if not self._is_hovering:
+                self.animate_size(self.original_size)
+            if hasattr(self, '_btn_star'):
+                self._btn_star.setText("☆")
+                self._btn_star.setObjectName("posProductStar")
+                self._btn_star.style().unpolish(self._btn_star)
+                self._btn_star.style().polish(self._btn_star)
         self.style().unpolish(self)
         self.style().polish(self)
-        
+
     def enterEvent(self, event):
         self._is_hovering = True
-        self.animate_size(self.zoom_size)
-        self.setProperty("class", "product-card-hover")
+        self.shadow_effect.setBlurRadius(18)
+        self.shadow_effect.setColor(QColor(37, 99, 235, 70))
+        self.setProperty("class", "product-card-hover" if not self.is_selected else "product-card-selected")
         self.style().unpolish(self)
         self.style().polish(self)
+        self.animate_size(self.zoom_size)
+        self.raise_()
         super().enterEvent(event)
 
     def leaveEvent(self, event):
         self._is_hovering = False
-        self.animate_size(self.original_size)
         if self.is_selected:
+            self.shadow_effect.setBlurRadius(18)
+            self.shadow_effect.setColor(QColor(37, 99, 235, 80))
             self.setProperty("class", "product-card-selected")
+            # stay zoomed while selected
         else:
-            self.setProperty("class", "product-card")
+            base_class = f"product-card-{self._stock_state}" if self._stock_state else "product-card"
+            self.setProperty("class", base_class)
+            self.shadow_effect.setBlurRadius(8)
+            self.shadow_effect.setColor(QColor(0, 0, 0, 45))
+            self.animate_size(self.original_size)
         self.style().unpolish(self)
         self.style().polish(self)
         super().leaveEvent(event)
-        
-    def animate_size(self, new_size):
-        self.setFixedSize(new_size)
+
+    def animate_size(self, target_size: QSize):
+        """Smooth step-based size animation toward target_size."""
+        self._zoom_target = target_size
+        if not hasattr(self, '_zoom_timer'):
+            self._zoom_timer = QTimer(self)
+            self._zoom_timer.setInterval(self._ZOOM_INTERVAL_MS)
+            self._zoom_timer.timeout.connect(self._step_zoom)
+        self._zoom_timer.start()
+
+    def _step_zoom(self):
+        if not hasattr(self, '_zoom_target'):
+            self._zoom_timer.stop()
+            return
+        cur_w, cur_h = self.width(), self.height()
+        tgt_w, tgt_h = self._zoom_target.width(), self._zoom_target.height()
+        diff_w = tgt_w - cur_w
+        diff_h = tgt_h - cur_h
+        if abs(diff_w) <= 1 and abs(diff_h) <= 1:
+            self.setFixedSize(tgt_w, tgt_h)
+            self._zoom_timer.stop()
+            self._position_overlays()
+            return
+        step_w = max(1, abs(diff_w) // 2) * (1 if diff_w > 0 else -1)
+        step_h = max(1, abs(diff_h) // 2) * (1 if diff_h > 0 else -1)
+        self.setFixedSize(cur_w + step_w, cur_h + step_h)
+        self._position_overlays()
 
 # ==============================================================================
 # 2. DIÁLOGO PARA SUSPENDER VENTA
@@ -252,8 +480,8 @@ class DialogoSuspender(QDialog):
         btn_layout = QHBoxLayout()
         btn_cancelar = QPushButton("Cancelar")
         btn_aceptar = QPushButton("Suspender Venta")
-        btn_cancelar.setProperty("class", "cancel-button")
-        btn_aceptar.setProperty("class", "accept-button")
+        btn_cancelar.setObjectName("secondaryBtn")
+        btn_aceptar.setObjectName("primaryBtn")
         
         btn_layout.addWidget(btn_cancelar)
         btn_layout.addWidget(btn_aceptar)
@@ -279,45 +507,60 @@ class DialogoSuspender(QDialog):
 # (Se mantiene exactamente igual)
 class DialogoPago(QDialog):
     def __init__(self, total_a_pagar: float, parent: QWidget = None,
-                 loyalty_balance: Dict = None):
+                 loyalty_balance: Dict = None, loyalty_preview_provider=None):
         super().__init__(parent)
-        self.setWindowTitle("Procesar Pago")
+        self.setWindowTitle("Cobrar")
         self.setModal(True)
-        self.setFixedSize(520, 480)
+        self.setMinimumSize(460, 400)
+        self.resize(500, 460)
+        # ISSUE 4 FIX: objectName para que el QSS global pueda estilizar el diálogo
+        self.setObjectName("paymentDialog")
         self.total_a_pagar = float(total_a_pagar) if total_a_pagar is not None else 0.0
         self.total_original = self.total_a_pagar
         self.efectivo_recibido = 0.0
         self.cambio = 0.0
         self.forma_pago = "Efectivo"
         self.saldo_credito = 0.0
-        # v13.4 Fase 2: Loyalty redemption
         self._loyalty = loyalty_balance or {}
+        self._loyalty_preview_provider = loyalty_preview_provider
         self.puntos_a_canjear = 0
         self.descuento_puntos = 0.0
         self.init_ui()
         self.conectar_eventos()
-        
+
     def init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(15)
-        
-        titulo = QLabel("PROCESAR PAGO")
-        titulo.setProperty("class", "payment-title")
-        layout.addWidget(titulo)
-        
-        self.lbl_total = QLabel(f"Total a pagar: ${self.total_a_pagar:.2f}")
-        self.lbl_total.setProperty("class", "payment-total")
+        layout.setSpacing(8)
+        layout.setContentsMargins(16, 14, 16, 14)
+
+        # ── Header: Total prominente ────────────────────────────────────────
+        header = QFrame()
+        header.setObjectName("paymentHeader")
+        hdr_lay = QVBoxLayout(header)
+        hdr_lay.setContentsMargins(12, 10, 12, 10)
+        hdr_lay.setSpacing(2)
+        lbl_caption = QLabel("TOTAL A COBRAR")
+        lbl_caption.setObjectName("paymentCaption")
+        lbl_caption.setAlignment(Qt.AlignCenter)
+        self.lbl_total = QLabel(f"${self.total_a_pagar:.2f}")
+        self.lbl_total.setObjectName("paymentTotalAmount")
         self.lbl_total.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.lbl_total)
-        
+        hdr_lay.addWidget(lbl_caption)
+        hdr_lay.addWidget(self.lbl_total)
+        layout.addWidget(header)
+
+        # ── Form ────────────────────────────────────────────────────────────
         form_layout = QFormLayout()
-        form_layout.setSpacing(10)
-        
+        form_layout.setSpacing(8)
+        form_layout.setContentsMargins(0, 4, 0, 4)
+        form_layout.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
         self.cmb_forma_pago = QComboBox()
         self.cmb_forma_pago.addItems(["Efectivo", "Tarjeta", "Transferencia", "Crédito", "Pago Mixto", "Mercado Pago"])
-        self.cmb_forma_pago.setProperty("class", "payment-combobox")
-        form_layout.addRow("Forma de Pago:", self.cmb_forma_pago)
-        
+        self.cmb_forma_pago.setObjectName("paymentCombo")
+        self.cmb_forma_pago.setMinimumHeight(32)
+        form_layout.addRow("Forma de pago:", self.cmb_forma_pago)
+
         self.txt_recibido = QDoubleSpinBox()
         self.txt_recibido.setRange(0.00, 99999.00)
         self.txt_recibido.setDecimals(2)
@@ -325,14 +568,12 @@ class DialogoPago(QDialog):
         self.txt_recibido.setSingleStep(10.0)
         self.txt_recibido.setPrefix("$ ")
         self.txt_recibido.setMinimumHeight(36)
-        self.txt_recibido.setStyleSheet("font-size:16px;font-weight:bold;")
-        # v13.4: Select all on click so user can type directly
+        self.txt_recibido.setObjectName("paymentSpinbox")
         self.txt_recibido.lineEdit().setReadOnly(False)
-        self.txt_recibido.setProperty("class", "payment-spinbox")
-        form_layout.addRow("💵 Monto Recibido:", self.txt_recibido)
+        form_layout.addRow("Monto recibido:", self.txt_recibido)
         
         self.lbl_cambio = QLabel("Cambio: $0.00")
-        self.lbl_cambio.setProperty("class", "payment-change")
+        self.lbl_cambio.setObjectName("paymentChange")
         form_layout.addRow("", self.lbl_cambio)
 
         # v13.4 Fase 2: Sección de canje de puntos
@@ -340,13 +581,13 @@ class DialogoPago(QDialog):
         _loy_lay = QVBoxLayout(self._loyalty_widget)
         _loy_lay.setContentsMargins(0, 0, 0, 0)
         _loy_lay.setSpacing(3)
-        pts = self._loyalty.get("puntos", 0)
-        valor = self._loyalty.get("valor_canje", 0)
-        puede = self._loyalty.get("puede_canjear", False)
+        pts = self._loyalty.get("puntos_disponibles", self._loyalty.get("puntos", 0))
+        valor = self._loyalty.get("descuento_maximo", self._loyalty.get("valor_canje", 0))
+        puede = self._loyalty.get("enabled", self._loyalty.get("puede_canjear", False))
 
         _loy_header = QHBoxLayout()
         self._lbl_puntos = QLabel(f"⭐ {pts} puntos disponibles (=${valor:.2f})")
-        self._lbl_puntos.setStyleSheet("font-weight:bold;")
+        self._lbl_puntos.setProperty("class", "text-bold")
         _loy_header.addWidget(self._lbl_puntos)
         _loy_lay.addLayout(_loy_header)
 
@@ -361,7 +602,7 @@ class DialogoPago(QDialog):
         self._spin_puntos.setSuffix(" pts")
         self._spin_puntos.valueChanged.connect(self._recalcular_canje)
         self._lbl_desc_puntos = QLabel("")
-        self._lbl_desc_puntos.setStyleSheet("color:#27ae60;font-weight:bold;")
+        self._lbl_desc_puntos.setProperty("class", "text-success")
         _loy_row.addWidget(self._chk_canjear)
         _loy_row.addWidget(self._spin_puntos)
         _loy_row.addWidget(self._lbl_desc_puntos)
@@ -396,24 +637,26 @@ class DialogoPago(QDialog):
         self.spin_tarjeta_mixto.valueChanged.connect(self._recalcular_mixto)
         _ml.addWidget(self.spin_tarjeta_mixto)
         self.lbl_mixto_diff = QLabel("")
-        self.lbl_mixto_diff.setStyleSheet("color:#e74c3c;font-size:11px;")
+        self.lbl_mixto_diff.setProperty("class", "text-danger caption")
         _ml.addWidget(self.lbl_mixto_diff)
         self._mixto_widget.hide()
         form_layout.addRow("", self._mixto_widget)
         
         layout.addLayout(form_layout)
         layout.addStretch(1)
-        
+
         btn_layout = QHBoxLayout()
-        self.btn_cancelar = QPushButton("❌ Cancelar")
-        self.btn_aceptar = QPushButton("✅ Confirmar Pago")
-        self.btn_cancelar.setProperty("class", "payment-cancel-button")
-        self.btn_aceptar.setProperty("class", "payment-accept-button")
-        
+        btn_layout.setSpacing(8)
+        self.btn_cancelar = QPushButton("Cancelar")
+        self.btn_cancelar.setObjectName("paymentCancelBtn")
+        self.btn_cancelar.setMinimumHeight(36)
+        self.btn_aceptar = QPushButton("💰 Confirmar Pago")
+        self.btn_aceptar.setObjectName("paymentConfirmBtn")
+        self.btn_aceptar.setMinimumHeight(40)
         btn_layout.addWidget(self.btn_cancelar)
-        btn_layout.addWidget(self.btn_aceptar)
+        btn_layout.addWidget(self.btn_aceptar, 2)
         layout.addLayout(btn_layout)
-        
+
         self.calcular_cambio()
         
     def conectar_eventos(self):
@@ -423,7 +666,7 @@ class DialogoPago(QDialog):
         self.btn_cancelar.clicked.connect(self.reject)
 
     def showEvent(self, event):
-        """v13.4: Auto-focus y select all en campo de efectivo."""
+        """v13.4: Auto-focus y marca todo el texto en campo de efectivo."""
         super().showEvent(event)
         from PyQt5.QtCore import QTimer
         QTimer.singleShot(50, lambda: (
@@ -431,7 +674,12 @@ class DialogoPago(QDialog):
             self.txt_recibido.selectAll()))
         
     def cambiar_forma_pago(self, forma_pago):
-        self.forma_pago = forma_pago
+        try:
+            from core.services.sales.payment_policy import PaymentPolicy
+            self.forma_pago = PaymentPolicy.normalize_payment_method(forma_pago)
+        except Exception:
+            self.forma_pago = forma_pago
+        forma_pago = self.forma_pago
         if forma_pago == "Efectivo":
             self.txt_recibido.setEnabled(True)
             self.txt_recibido.setValue(self.total_a_pagar)
@@ -453,7 +701,7 @@ class DialogoPago(QDialog):
             if not self.lbl_mp_info:
                 from PyQt5.QtWidgets import QLabel
                 self.lbl_mp_info = QLabel("🔗 Se generará link de pago al confirmar")
-                self.lbl_mp_info.setStyleSheet("color:#009ee3;font-size:11px;font-weight:bold;")
+                self.lbl_mp_info.setProperty("class", "text-info caption-bold")
                 self.layout().insertWidget(self.layout().count()-1, self.lbl_mp_info)
             self.lbl_mp_info.show()
         elif forma_pago == "Pago Mixto":
@@ -475,10 +723,23 @@ class DialogoPago(QDialog):
 
     def calcular_cambio(self):
         self.efectivo_recibido = self.txt_recibido.value()
+        try:
+            from core.services.sales.payment_policy import PaymentPolicy
+            validation = PaymentPolicy.validate_payment(
+                total=self.total_a_pagar,
+                method=self.forma_pago,
+                amount_paid=self.efectivo_recibido,
+                cash=self.spin_efectivo_mixto.value() if hasattr(self, "spin_efectivo_mixto") else 0.0,
+                card=self.spin_tarjeta_mixto.value() if hasattr(self, "spin_tarjeta_mixto") else 0.0,
+            )
+            self.cambio = float(validation.get("change", 0.0))
+            ok = bool(validation.get("ok", True))
+        except Exception:
+            ok = True
+            self.cambio = round(self.efectivo_recibido - self.total_a_pagar, 2) if self.forma_pago == "Efectivo" else 0.0
         if self.forma_pago == "Efectivo":
-            self.cambio = round(self.efectivo_recibido - self.total_a_pagar, 2)
             self.lbl_cambio.setText(f"Cambio: ${self.cambio:.2f}")
-            if self.cambio < 0:
+            if not ok or self.cambio < 0:
                 self.btn_aceptar.setEnabled(False)
                 self.lbl_cambio.setProperty("class", "payment-change-negative")
             else:
@@ -494,37 +755,89 @@ class DialogoPago(QDialog):
             return
         ef = self.spin_efectivo_mixto.value()
         ta = self.spin_tarjeta_mixto.value()
-        total = ef + ta
-        diff = round(total - self.total_a_pagar, 2)
+        try:
+            from core.services.sales.payment_policy import PaymentPolicy
+            v = PaymentPolicy.validate_mixed_payment(self.total_a_pagar, ef, ta)
+            diff = float(v.get("diff", 0.0))
+        except Exception:
+            total = ef + ta
+            diff = round(total - self.total_a_pagar, 2)
         if abs(diff) < 0.01:
             self.lbl_mixto_diff.setText("✅ Cuadra")
-            self.lbl_mixto_diff.setStyleSheet("color:#27ae60;font-size:11px;")
+            self.lbl_mixto_diff.setProperty("class", "text-success caption")
             self.btn_aceptar.setEnabled(True)
         elif diff > 0:
             self.lbl_mixto_diff.setText(f"Sobran ${diff:.2f}")
-            self.lbl_mixto_diff.setStyleSheet("color:#f39c12;font-size:11px;")
+            self.lbl_mixto_diff.setProperty("class", "text-warning caption")
             self.btn_aceptar.setEnabled(True)
         else:
             self.lbl_mixto_diff.setText(f"Faltan ${abs(diff):.2f}")
-            self.lbl_mixto_diff.setStyleSheet("color:#e74c3c;font-size:11px;")
+            self.lbl_mixto_diff.setProperty("class", "text-danger caption")
             self.btn_aceptar.setEnabled(False)
 
+    def _toggle_canje(self, checked: bool):
+        """v13.4 Fase 0 hotfix: Activa/desactiva el canje de puntos de fidelidad."""
+        if not hasattr(self, "_spin_puntos"):
+            return
+        self._spin_puntos.setEnabled(checked)
+        if checked:
+            self._recalcular_canje(self._spin_puntos.value())
+        else:
+            self.descuento_puntos = 0.0
+            self.puntos_a_canjear = 0
+            self.total_a_pagar = self.total_original
+            self._lbl_desc_puntos.setText("")
+            self.lbl_total.setText(f"Total a pagar: ${self.total_a_pagar:.2f}")
+            if hasattr(self, "txt_recibido"):
+                self.txt_recibido.setValue(self.total_a_pagar)
+            self.calcular_cambio()
+
+    def _recalcular_canje(self, value: int):
+        """v13.4 Fase 0 hotfix: Recalcula descuento al modificar puntos a canjear."""
+        if not hasattr(self, "_chk_canjear") or not self._chk_canjear.isChecked():
+            return
+        descuento = 0.0
+        if callable(self._loyalty_preview_provider):
+            try:
+                preview = self._loyalty_preview_provider(value, self.total_original) or {}
+                descuento = float(preview.get("descuento", 0.0))
+            except Exception:
+                descuento = 0.0
+        else:
+            descuento = 0.0
+        descuento = min(round(descuento, 2), self.total_original)
+        self.descuento_puntos = descuento
+        self.puntos_a_canjear = value
+        self.total_a_pagar = round(self.total_original - descuento, 2)
+        self._lbl_desc_puntos.setText(f"-${descuento:.2f}")
+        self.lbl_total.setText(f"Total a pagar: ${self.total_a_pagar:.2f}")
+        if hasattr(self, "txt_recibido"):
+            self.txt_recibido.setValue(self.total_a_pagar)
+        self.calcular_cambio()
+
     def get_datos_pago(self) -> Dict[str, Any]:
-        return {
-            "forma_pago": self.forma_pago,
-            "total_pagado": self.total_a_pagar,
-            "efectivo_recibido": (
-                self.spin_efectivo_mixto.value()
-                if self.forma_pago == "Pago Mixto"
-                else self.efectivo_recibido
-            ),
-            "monto_tarjeta_mixto": (
-                self.spin_tarjeta_mixto.value()
-                if self.forma_pago == "Pago Mixto" else 0.0
-            ),
-            "cambio": self.cambio,
-            "saldo_credito": self.txt_saldo_credito.value() if self.forma_pago == "Crédito" else 0.0
-        }
+        try:
+            from core.services.sales.payment_policy import PaymentPolicy
+            payload = PaymentPolicy.build_payment_breakdown(
+                total=self.total_a_pagar,
+                method=self.forma_pago,
+                amount_paid=self.efectivo_recibido,
+                cash=self.spin_efectivo_mixto.value() if self.forma_pago == "Pago Mixto" else 0.0,
+                card=self.spin_tarjeta_mixto.value() if self.forma_pago == "Pago Mixto" else 0.0,
+                saldo_credito=self.txt_saldo_credito.value() if self.forma_pago == "Crédito" else 0.0,
+            )
+        except Exception:
+            payload = {
+                "forma_pago": self.forma_pago,
+                "total_pagado": self.total_a_pagar,
+                "efectivo_recibido": self.efectivo_recibido,
+                "monto_tarjeta_mixto": 0.0,
+                "cambio": self.cambio,
+                "saldo_credito": self.txt_saldo_credito.value() if self.forma_pago == "Crédito" else 0.0,
+            }
+        payload["puntos_canjeados"] = self.puntos_a_canjear
+        payload["descuento_puntos"] = self.descuento_puntos
+        return payload
 
 # ==============================================================================
 # 4. DIÁLOGO PARA AGREGAR CLIENTE
@@ -697,11 +1010,14 @@ class _DialogoAsignarTarjeta(QDialog):
 
     def _buscar_cliente_existente(self):
         texto = self.txt_buscar_cliente.text().strip()
-        if not texto: return
-        rows = self.conexion.execute(
-            "SELECT id, nombre, telefono FROM clientes WHERE (nombre LIKE ? OR telefono LIKE ?) AND activo=1 LIMIT 5",
-            (f"%{texto}%", f"%{texto}%")
-        ).fetchall()
+        if not texto:
+            return
+        try:
+            from repositories.cliente_repository import ClienteRepository
+            cli_repo = ClienteRepository(self.conexion)
+            rows = cli_repo.buscar(texto, limit=5)
+        except Exception:
+            rows = []
         if not rows:
             self.lbl_cliente_encontrado.setText("❌ No encontrado")
             self.lbl_cliente_encontrado.setVisible(True)
@@ -711,15 +1027,20 @@ class _DialogoAsignarTarjeta(QDialog):
         if len(rows) == 1:
             self._seleccionar_cliente(rows[0])
         else:
-            items = [f"{r[1]} — {r[2] or ''}" for r in rows]
+            items = [f"{r['nombre']} — {r.get('telefono','')}" for r in rows]
             item, ok = QInputDialog.getItem(self, "Seleccionar cliente", "Múltiples resultados:", items, 0, False)
             if ok:
                 idx = items.index(item)
                 self._seleccionar_cliente(rows[idx])
 
     def _seleccionar_cliente(self, row):
-        self._cliente_id_sel = row[0]
-        self.lbl_cliente_encontrado.setText(f"✓ {row[1]}  {row[2] or ''}")
+        # row may be a dict (from ClienteRepository.buscar) or a tuple (legacy)
+        if isinstance(row, dict):
+            self._cliente_id_sel = row['id']
+            self.lbl_cliente_encontrado.setText(f"✓ {row['nombre']}  {row.get('telefono','')}")
+        else:
+            self._cliente_id_sel = row[0]
+            self.lbl_cliente_encontrado.setText(f"✓ {row[1]}  {row[2] or ''}")
         self.lbl_cliente_encontrado.setVisible(True)
         self.btn_asignar_existente.setEnabled(True)
 
@@ -737,16 +1058,117 @@ class _DialogoAsignarTarjeta(QDialog):
         import uuid as _uuid
         qr_code = _uuid.uuid4().hex[:12].upper()
         try:
-            cur = self.conexion.execute(
-                "INSERT INTO clientes (nombre, telefono, codigo_qr, activo, puntos) VALUES (?,?,?,1,0)",
-                (nombre, telefono or None, qr_code)
+            from repositories.cliente_repository import ClienteRepository
+            cli_repo = ClienteRepository(self.conexion)
+            cliente_id = cli_repo.crear(
+                nombre=nombre, telefono=telefono or "", codigo_fidelidad=qr_code
             )
-            cliente_id = cur.lastrowid
-            self.conexion.commit()
             self.resultado = {'cliente_id': cliente_id, 'nuevo': True}
             self.accept()
         except Exception as exc:
             QMessageBox.critical(self, "Error", f"No se pudo crear cliente: {exc}")
+
+# ==============================================================================
+# 5a. DIALOGO DE AUTORIZACION PROTEGIDA (descuentos, overrides, etc.)
+# ==============================================================================
+
+class _AuthDiscountDialog(QDialog):
+    """Enterprise authorization dialog for protected POS operations.
+
+    Replaces raw QInputDialog for PIN entry — provides structured reason
+    capture and supervisor PIN in a single, auditable dialog.
+    """
+    def __init__(self, operacion: str, detalles: str,
+                 requiere_pin: bool = True, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Autorización Requerida")
+        self.setModal(True)
+        self.setMinimumWidth(380)
+        self._pin: str = ""
+        self._motivo: str = ""
+        self._requiere_pin = requiere_pin
+        self._build_ui(operacion, detalles)
+
+    def _build_ui(self, operacion: str, detalles: str):
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        layout.setContentsMargins(16, 14, 16, 14)
+
+        hdr = QFrame()
+        hdr.setObjectName("authDialogHeader")
+        hdr_lay = QHBoxLayout(hdr)
+        hdr_lay.setContentsMargins(10, 8, 10, 8)
+        hdr_lay.setSpacing(8)
+        lbl_icon = QLabel("🔒")
+        lbl_icon.setObjectName("authDialogIcon")
+        lbl_title = QLabel(operacion)
+        lbl_title.setObjectName("authDialogTitle")
+        hdr_lay.addWidget(lbl_icon)
+        hdr_lay.addWidget(lbl_title)
+        hdr_lay.addStretch(1)
+        layout.addWidget(hdr)
+
+        lbl_det = QLabel(detalles)
+        lbl_det.setWordWrap(True)
+        lbl_det.setObjectName("authDialogDetail")
+        layout.addWidget(lbl_det)
+
+        form = QFormLayout()
+        form.setSpacing(8)
+        form.setContentsMargins(0, 4, 0, 4)
+        form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        self.txt_motivo = QLineEdit()
+        self.txt_motivo.setPlaceholderText("Motivo de la operación...")
+        self.txt_motivo.setObjectName("authDialogInput")
+        form.addRow("Motivo:", self.txt_motivo)
+
+        if self._requiere_pin:
+            self.txt_pin = QLineEdit()
+            self.txt_pin.setEchoMode(QLineEdit.Password)
+            self.txt_pin.setPlaceholderText("PIN del supervisor")
+            self.txt_pin.setMaxLength(8)
+            self.txt_pin.setObjectName("authDialogInput")
+            self.txt_pin.returnPressed.connect(self._aceptar)
+            form.addRow("PIN supervisor:", self.txt_pin)
+
+        layout.addLayout(form)
+        layout.addStretch(1)
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
+        btn_cancel = QPushButton("Cancelar")
+        btn_cancel.setObjectName("secondaryBtn")
+        btn_cancel.setMinimumHeight(34)
+        btn_ok = QPushButton("✓  Autorizar")
+        btn_ok.setObjectName("primaryBtn")
+        btn_ok.setMinimumHeight(36)
+        btn_row.addWidget(btn_cancel)
+        btn_row.addWidget(btn_ok, 2)
+        layout.addLayout(btn_row)
+
+        btn_ok.clicked.connect(self._aceptar)
+        btn_cancel.clicked.connect(self.reject)
+
+    def _aceptar(self):
+        if self._requiere_pin:
+            pin_field = getattr(self, 'txt_pin', None)
+            if not pin_field or not pin_field.text().strip():
+                QMessageBox.warning(self, "PIN Requerido",
+                                    "Ingresa el PIN de supervisor.")
+                return
+            self._pin = pin_field.text().strip()
+        self._motivo = self.txt_motivo.text().strip()
+        self.accept()
+
+    @property
+    def pin(self) -> str:
+        return self._pin
+
+    @property
+    def motivo(self) -> str:
+        return self._motivo
+
 
 # ==============================================================================
 # 5. MODULO PRINCIPAL DE VENTAS ENTERPRISE
@@ -760,7 +1182,7 @@ class ModuloVentas(ModuloBase):
         super().__init__(container.db, parent)
         
         self.container = container
-        self.conexion = container.db  # Mantenemos compatibilidad con consultas legacy
+        self.conexion = container.db  # alias legacy — usar repos para SQL nuevo
         
         # Estructuras de Venta
         self.compra_actual: List[Dict[str, Any]] = []
@@ -791,11 +1213,28 @@ class ModuloVentas(ModuloBase):
         self.peso_inicial = 0.0
         self.monitoreo_inicio = 0
         
-        self.sucursal_id     = 1
-        self.sucursal_nombre = "Principal"
+        # Sucursal desde el contexto de sesión; sin default arbitrario (regla 23).
+        self.sucursal_id     = getattr(container, "sucursal_id", "") or ""
+        self.sucursal_nombre = getattr(container, "sucursal_nombre", "") or "Principal"
+        self._stock_reservas = StockReservationService(self.conexion, branch_id=self.sucursal_id)
+        self._inventory_availability = InventoryAvailabilityService(self._stock_reservas)
+        self._hardware_settings_qs = HardwareSettingsQueryService(self.conexion)
+        self._sales_read_repo = SalesReadRepository(self.conexion)
+        self._ticket_settings_qs = TicketSettingsQueryService(self.conexion, getattr(self.container, 'config_service', None))
+        self._create_customer_uc = CreateCustomerUseCase(self.conexion, getattr(self.container, 'cliente_repo', None))
+        self._reserva_activa_id: Optional[int] = None
 
         self._theme_initialized = False
         self.gestor_temas = GestorTemas(self.conexion)
+
+        # ── Customer autocomplete ─────────────────────────────────────────
+        # Debounce timer: fires 180ms after last keystroke to query DB
+        self._cliente_debounce = QTimer(self)
+        self._cliente_debounce.setSingleShot(True)
+        self._cliente_debounce.setInterval(180)
+        self._cliente_debounce.timeout.connect(self._actualizar_sugerencias_cliente)
+        self._cliente_completer_model = None   # QStringListModel, lazy-init
+        self._cliente_completer = None         # QCompleter, lazy-init
 
         # ── SCANNER listener ──────────────────────────────────────────────
         self._scanner_buffer: str = ""
@@ -845,6 +1284,35 @@ class ModuloVentas(ModuloBase):
         except Exception as e:
             logger.error(f"❌ Error aplicando tema: {e}")
 
+    @property
+    def _cli_repo(self):
+        return getattr(self.container, 'cliente_repo', None)
+
+    @property
+    def _prod_repo(self):
+        return getattr(self.container, 'producto_repo', None)
+
+    @property
+    def _product_catalog_qs(self):
+        svc = getattr(self, "_product_catalog_query_service", None)
+        if svc is None:
+            from core.services.sales.product_catalog_query_service import ProductCatalogQueryService
+            svc = ProductCatalogQueryService(self.conexion)
+            self._product_catalog_query_service = svc
+        return svc
+
+    @property
+    def _customer_lookup_svc(self):
+        svc = getattr(self, "_customer_lookup_service", None)
+        if svc is None:
+            try:
+                from core.services.sales.customer_lookup_service import CustomerLookupService
+                svc = CustomerLookupService(self.conexion)
+            except Exception:
+                svc = None
+            self._customer_lookup_service = svc
+        return svc
+
     def set_usuario_actual(self, usuario: str, rol: str) -> None:
         """Activa/desactiva botones según el rol del usuario logueado."""
         self.usuario_actual = usuario
@@ -856,24 +1324,79 @@ class ModuloVentas(ModuloBase):
     def set_sucursal(self, sucursal_id: int, sucursal_nombre: str):
         self.sucursal_id     = sucursal_id
         self.sucursal_nombre = sucursal_nombre
+        self._stock_reservas = StockReservationService(self.conexion, branch_id=self.sucursal_id)
+        self._inventory_availability = InventoryAvailabilityService(self._stock_reservas)
+        self._hardware_settings_qs = HardwareSettingsQueryService(self.conexion)
+        self._sales_read_repo = SalesReadRepository(self.conexion)
+        self._ticket_settings_qs = TicketSettingsQueryService(self.conexion, getattr(self.container, 'config_service', None))
+        self._create_customer_uc = CreateCustomerUseCase(self.conexion, getattr(self.container, 'cliente_repo', None))
         if hasattr(self, "lbl_estado_terminal"):
-            self.lbl_estado_terminal.setText(f"Terminal: ❌ No disponible  |  🏪 {sucursal_nombre}")
+            status_text = f"Terminal: ❌ No disponible  |  🏪 {sucursal_nombre}"
+            self.lbl_estado_terminal.setText(status_text)
+            if hasattr(self, '_btn_terminal_hw'):
+                self._btn_terminal_hw.setText(f"💳 {sucursal_nombre}")
+                self._btn_terminal_hw.setToolTip(status_text)
         # v13.4: Recargar productos con stock de la sucursal correcta
         try:
             self.cargar_productos_interactivos()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("No se pudieron recargar productos al cambiar sucursal: %s", exc)
         logger.info(f"✅ Ventas → sucursal activa: {sucursal_nombre} (id={sucursal_id})")
+
+    # ── Contrato de refresh en caliente (Remediación B) ───────────────────────
+    # MainWindow hace fan-out de PRODUCTS_CHANGED / BRANCHES_CHANGED a estos
+    # métodos (core/events/catalog_events.py). Antes el POS solo recargaba el
+    # catálogo al cambiar de sucursal o tras su propia venta: un producto/precio
+    # creado en otro módulo no aparecía hasta reabrir Ventas.
+    def refresh_products(self) -> None:
+        """Recarga el grid de productos y el modelo de autocompletado en caliente."""
+        try:
+            self.cargar_productos_interactivos()
+        except Exception as exc:
+            logger.warning("refresh_products (grid): %s", exc)
+        try:
+            self.actualizar_completer_model()
+        except Exception as exc:
+            logger.debug("refresh_products (completer): %s", exc)
+
+    def on_products_changed(self, payload: dict) -> None:
+        self.refresh_products()
+
+    def on_branches_changed(self, payload: dict) -> None:
+        """Refresca el rótulo de terminal si la sucursal activa fue renombrada.
+
+        Usa el payload del evento (branch_id/branch_name) — sin SQL en UI. Solo
+        actúa si el evento corresponde a la sucursal activa de esta terminal.
+        """
+        try:
+            data = payload or {}
+            changed_id = str(data.get("branch_id") or "")
+            nombre = str(data.get("branch_name") or "")
+            if not changed_id or changed_id != str(getattr(self, "sucursal_id", "") or ""):
+                return
+            if nombre and nombre != getattr(self, "sucursal_nombre", ""):
+                self.sucursal_nombre = nombre
+                if hasattr(self, "_btn_terminal_hw"):
+                    self._btn_terminal_hw.setText(f"💳 {nombre}")
+        except Exception as exc:
+            logger.debug("on_branches_changed: %s", exc)
 
     def inicializar_completer(self):
         """Completer removed — real-time search handles this without popup."""
-        pass
+        logger.debug("Completer legacy deshabilitado; búsqueda en tiempo real activa.")
+        return None
 
     def actualizar_completer_model(self):
         try:
-            cursor = self.conexion.cursor()
-            cursor.execute("SELECT nombre, COALESCE(codigo_barras,'') FROM productos WHERE COALESCE(oculto,0) = 0")
-            productos = cursor.fetchall()
+            catalog_qs = self._product_catalog_qs
+            prod_repo = self._prod_repo
+            if catalog_qs:
+                rows = catalog_qs.list_visible_products(branch_id=getattr(self, "sucursal_id", "") or "")
+                productos = [(p['nombre'], p.get('codigo_barras', '')) for p in rows]
+            elif prod_repo:
+                productos = [(p['nombre'], p.get('codigo_barras', '')) for p in prod_repo.get_all()]
+            else:
+                productos = []
             sugerencias = []
             for nombre, codigo in productos:
                 sugerencias.append(nombre)
@@ -881,8 +1404,8 @@ class ModuloVentas(ModuloBase):
                     sugerencias.append(codigo)
             self.completer_model.setStringList(sugerencias)
             self.productos_cache = productos
-        except sqlite3.Error as e:
-            logger.error(f"Error actualizando completer: {e}")
+        except Exception as e:
+            logger.error("Error actualizando completer: %s", e)
 
     def conectar_eventos(self):
         self.txt_busqueda.returnPressed.connect(self.buscar_productos)
@@ -891,6 +1414,10 @@ class ModuloVentas(ModuloBase):
         self.txt_busqueda.textChanged.connect(self.buscar_productos_en_tiempo_real)
         self.txt_cliente.returnPressed.connect(self.buscar_cliente)
         self.btn_buscar_cliente.clicked.connect(self.buscar_cliente)
+        # Discount removal via table click (cellClicked is reliable for NoEditTriggers tables)
+        self.tabla_compra.cellClicked.connect(self._on_cart_cell_clicked)
+        # Real-time autocomplete: any keystroke (even 1 char) triggers debounced DB search
+        self.txt_cliente.textChanged.connect(self._cliente_textchanged)
         self.btn_agregar_cliente.clicked.connect(self.agregar_cliente)
         self.btn_limpiar_cliente.clicked.connect(self.limpiar_cliente)
         self.btn_cobrar.clicked.connect(self.procesar_pago)
@@ -908,7 +1435,7 @@ class ModuloVentas(ModuloBase):
                 self.main_window.registrar_evento('producto_eliminado', self.on_productos_actualizados)
                 self.main_window.registrar_evento('inventario_actualizado', self.on_productos_actualizados)
         except Exception as e:
-            pass
+            logger.warning("No se pudieron registrar eventos de actualización de ventas: %s", e)
 
     def desconectar_eventos_sistema(self):
         try:
@@ -917,7 +1444,8 @@ class ModuloVentas(ModuloBase):
                 self.main_window.desregistrar_evento('producto_actualizado', self.on_productos_actualizados)
                 self.main_window.desregistrar_evento('producto_eliminado', self.on_productos_actualizados)
                 self.main_window.desregistrar_evento('inventario_actualizado', self.on_productos_actualizados)
-        except Exception: pass
+        except Exception as exc:
+            logger.warning("No se pudieron desregistrar eventos de actualización de ventas: %s", exc)
             
     def on_productos_actualizados(self, datos):
         self.cargar_productos_interactivos()
@@ -925,58 +1453,178 @@ class ModuloVentas(ModuloBase):
 
     def init_ui(self):
         self.setWindowTitle("Punto de Venta - Sistema Avanzado")
-        main_layout = QHBoxLayout(self)
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
+
+        # ── CASHIER INFO BAR ─────────────────────────────────────────────────
+        cashier_bar = QFrame()
+        cashier_bar.setObjectName("posCashierBar")
+        cashier_bar.setFixedHeight(48)
+        cb_layout = QHBoxLayout(cashier_bar)
+        cb_layout.setContentsMargins(12, 4, 12, 4)
+        cb_layout.setSpacing(10)
+
+        self._lbl_pos_title = QLabel("🛒 Punto de Venta")
+        self._lbl_pos_title.setObjectName("posCashierTitle")
+        cb_layout.addWidget(self._lbl_pos_title)
+
+        self._lbl_cashier_meta = QLabel("")
+        self._lbl_cashier_meta.setObjectName("posCashierMeta")
+        cb_layout.addWidget(self._lbl_cashier_meta)
+        cb_layout.addStretch(1)
+
+        self._lbl_status_badge = QLabel("● Abierto")
+        self._lbl_status_badge.setObjectName("posStatusBadge")
+        cb_layout.addWidget(self._lbl_status_badge)
+
+        cb_layout.addSpacing(8)
+
+        self._btn_bascula_hw = QPushButton("⚖ Báscula")
+        self._btn_bascula_hw.setObjectName("posHWBtn")
+        self._btn_bascula_hw.setToolTip("Estado de la báscula")
+        cb_layout.addWidget(self._btn_bascula_hw)
+
+        self._btn_terminal_hw = QPushButton("💳 Terminal")
+        self._btn_terminal_hw.setObjectName("posHWBtn")
+        self._btn_terminal_hw.setToolTip("Estado de la terminal de pago")
+        cb_layout.addWidget(self._btn_terminal_hw)
+
+        self._btn_corte_z = QPushButton("📋 Corte Z")
+        self._btn_corte_z.setObjectName("posCorteBtn")
+        self._btn_corte_z.setToolTip("Realizar corte de caja (Corte Z)")
+        self._btn_corte_z.clicked.connect(self._ir_a_caja)
+        cb_layout.addWidget(self._btn_corte_z)
+
+        root_layout.addWidget(cashier_bar)
+
+        body = QWidget(self)
+        main_layout = QHBoxLayout(body)
         main_layout.setContentsMargins(8, 8, 8, 8)
         main_layout.setSpacing(8)
-        
+        root_layout.addWidget(body, 1)
+
         splitter = QSplitter(Qt.Horizontal)
         splitter.setProperty("class", "main-splitter")
         splitter.setHandleWidth(3)
-        
-        # --- PANEL IZQUIERDO (Productos) ---
+
+        # ── LEFT PANEL: PRODUCTS ─────────────────────────────────────────────
         panel_izquierdo = QWidget()
         layout_izquierdo = QVBoxLayout(panel_izquierdo)
-        layout_izquierdo.setSpacing(8)
+        layout_izquierdo.setSpacing(6)
         layout_izquierdo.setContentsMargins(5, 5, 5, 5)
-        
-        group_busqueda = QGroupBox("🔍 Buscar Producto")
-        group_busqueda.setMaximumHeight(80)
-        group_busqueda.setProperty("class", "search-group")
-        busqueda_layout = QHBoxLayout(group_busqueda)
-        busqueda_layout.setContentsMargins(8, 8, 8, 8)
-        
+
+        # ── SEARCH ROW ───────────────────────────────────────────────────────
+        search_row = QFrame()
+        search_row.setObjectName("posSearchFrame")
+        search_layout = QHBoxLayout(search_row)
+        search_layout.setContentsMargins(8, 6, 8, 6)
+        search_layout.setSpacing(6)
+
+        # Barcode icon button (visual cue)
+        btn_barcode = QPushButton("▦")
+        btn_barcode.setObjectName("posBarcodeBtn")
+        btn_barcode.setFixedSize(36, 36)
+        btn_barcode.setToolTip("Scanner de código de barras activo")
+        search_layout.addWidget(btn_barcode)
+
         self.txt_busqueda = QLineEdit()
-        self.txt_busqueda.setPlaceholderText("🔍 Escanear o escribir producto...")
+        self.txt_busqueda.setPlaceholderText("Escanear código o escribir nombre del producto...")
+        self.txt_busqueda.setObjectName("posSearchInput")
         self.txt_busqueda.setProperty("class", "search-input")
         self.txt_busqueda.setToolTip(
             "Campo activo para PRODUCTOS\n"
             "Cuando este campo tenga foco, el scanner agrega productos al carrito.")
-
-        # Scanner context signals
-        # Use event filter instead of monkey-patching (avoids sipBadCatcherResult)
         self._filter_busqueda = _ScanContextFilter(self, "producto", self.txt_busqueda)
         self.txt_busqueda.installEventFilter(self._filter_busqueda)
+        self._search_frame = search_row
+        search_layout.addWidget(self.txt_busqueda, 1)
+
         self.btn_buscar = QPushButton("Buscar")
-        self.btn_buscar.setProperty("class", "search-button")
-        self.btn_limpiar_busqueda = QPushButton("❌")
+        self.btn_buscar.setMinimumWidth(72)
+        self.btn_buscar.setObjectName("searchBtn")
+        self.btn_limpiar_busqueda = QPushButton("✕")
         self.btn_limpiar_busqueda.setToolTip("Limpiar búsqueda")
-        self.btn_limpiar_busqueda.setFixedWidth(40)
-        self.btn_limpiar_busqueda.setProperty("class", "icon-button")
-        
-        busqueda_layout.addWidget(self.txt_busqueda)
-        busqueda_layout.addWidget(self.btn_buscar)
-        busqueda_layout.addWidget(self.btn_limpiar_busqueda)
-        layout_izquierdo.addWidget(group_busqueda)
-        
-        group_productos = QGroupBox("📦 Productos Disponibles")
+        self.btn_limpiar_busqueda.setFixedSize(32, 32)
+        self.btn_limpiar_busqueda.setObjectName("deleteBtn")
+
+        # Persistent scanner state badge — ACTIVO / CLIENTE / LIBRE
+        self._lbl_scan_state = QLabel("LIBRE")
+        self._lbl_scan_state.setObjectName("posScanStateWaiting")
+        self._lbl_scan_state.setFixedHeight(22)
+        self._lbl_scan_state.setToolTip(
+            "Estado del scanner.\n"
+            "ACTIVO → El scanner agrega productos al carrito.\n"
+            "CLIENTE → El scanner carga cliente o tarjeta.\n"
+            "LIBRE → Sin campo activo.")
+
+        search_layout.addWidget(self.btn_buscar)
+        search_layout.addWidget(self.btn_limpiar_busqueda)
+        search_layout.addWidget(self._lbl_scan_state)
+        layout_izquierdo.addWidget(search_row)
+
+        # Scanner result notification — shown briefly after each scan event
+        self.lbl_scanner_notif = QLabel("")
+        self.lbl_scanner_notif.setObjectName("posScannerNotif")
+        self.lbl_scanner_notif.setWordWrap(False)
+        self.lbl_scanner_notif.setFixedHeight(24)
+        self.lbl_scanner_notif.hide()
+        layout_izquierdo.addWidget(self.lbl_scanner_notif)
+
+        # ── CATEGORY ROW (pills + view toggles) ─────────────────────────────
+        category_row_frame = QFrame()
+        category_row_frame.setObjectName("posCategoryRow")
+        cat_row_lay = QHBoxLayout(category_row_frame)
+        cat_row_lay.setContentsMargins(4, 4, 4, 4)
+        cat_row_lay.setSpacing(4)
+
+        # Scrollable pill area
+        self._category_scroll = QScrollArea()
+        self._category_scroll.setObjectName("posCategoryScroll")
+        self._category_scroll.setWidgetResizable(True)
+        self._category_scroll.setFixedHeight(32)
+        self._category_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._category_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        self._category_container = QWidget()
+        self._category_layout = QHBoxLayout(self._category_container)
+        self._category_layout.setContentsMargins(0, 0, 0, 0)
+        self._category_layout.setSpacing(4)
+        self._category_layout.addStretch(1)
+        self._category_scroll.setWidget(self._category_container)
+        self._pos_categoria_activa = ""
+        self._pos_category_buttons = {}
+        cat_row_lay.addWidget(self._category_scroll, 1)
+
+        # View toggle buttons — icon-only, visually distinct from category pills
+        self._btn_view_grid = QPushButton("⊞")
+        self._btn_view_grid.setObjectName("posViewIconBtn")
+        self._btn_view_grid.setFixedSize(28, 28)
+        self._btn_view_grid.setToolTip("Vista de cuadrícula")
+        self._btn_view_grid.setCheckable(True)
+        self._btn_view_grid.setChecked(True)
+
+        self._btn_view_list = QPushButton("☰")
+        self._btn_view_list.setObjectName("posViewIconBtn")
+        self._btn_view_list.setFixedSize(28, 28)
+        self._btn_view_list.setToolTip("Vista de lista (próximamente)")
+        self._btn_view_list.setEnabled(False)
+
+        cat_row_lay.addWidget(self._btn_view_grid)
+        cat_row_lay.addWidget(self._btn_view_list)
+        layout_izquierdo.addWidget(category_row_frame)
+
+        # Product grid
+        group_productos = QGroupBox()
         group_productos.setProperty("class", "products-group")
         productos_layout = QVBoxLayout(group_productos)
-        
+        productos_layout.setContentsMargins(4, 4, 4, 4)
+
         self.scroll_area_productos = QScrollArea()
         self.scroll_area_productos.setWidgetResizable(True)
         self.scroll_area_productos.setProperty("class", "products-scroll")
         self.scroll_area_productos.setMinimumHeight(300)
-        
+
         self.scroll_content = QWidget()
         self.grid_productos = QGridLayout(self.scroll_content)
         self.grid_productos.setAlignment(Qt.AlignTop | Qt.AlignLeft)
@@ -984,318 +1632,733 @@ class ModuloVentas(ModuloBase):
         self.grid_productos.setContentsMargins(10, 10, 10, 10)
         self.scroll_area_productos.setWidget(self.scroll_content)
         productos_layout.addWidget(self.scroll_area_productos)
-        
         layout_izquierdo.addWidget(group_productos, 1)
-        
-        status_layout = QHBoxLayout()
-        self.lbl_estado_bascula = QLabel("Báscula: ❌ No conectada")
-        self.lbl_estado_bascula.setProperty("class", "status-label")
-        self.lbl_estado_terminal = QLabel("Terminal: ❌ No disponible")
-        self.lbl_estado_terminal.setProperty("class", "status-label")
-        status_layout.addWidget(self.lbl_estado_bascula)
-        status_layout.addWidget(self.lbl_estado_terminal)
-        status_layout.addStretch()
-        layout_izquierdo.addLayout(status_layout)
-        
-        # --- PANEL DERECHO (Carrito y Acciones) ---
+
+        # API-compat orphaned labels — status is mirrored to HW buttons in header bar
+        self.lbl_estado_bascula = QLabel("⚖ Báscula: ❌ No conectada")
+        self.lbl_estado_terminal = QLabel("💳 Terminal: ❌ No disponible")
+
+        # ── RIGHT PANEL: CART & CHECKOUT ─────────────────────────────────────
         panel_derecho = QWidget()
-        panel_derecho.setMinimumWidth(420)
+        panel_derecho.setMinimumWidth(380)
+        panel_derecho.setMaximumWidth(600)
         layout_derecho = QVBoxLayout(panel_derecho)
-        layout_derecho.setSpacing(8)
-        layout_derecho.setContentsMargins(5, 5, 5, 5)
-        
-        group_cliente = QGroupBox("👤 Cliente")
-        group_cliente.setProperty("class", "client-group")
+        layout_derecho.setSpacing(0)
+        layout_derecho.setContentsMargins(0, 0, 0, 0)
+
+        # ── CART HEADER BAR ──────────────────────────────────────────────────
+        cart_header = QFrame()
+        cart_header.setObjectName("posCartHeader")
+        cart_header.setFixedHeight(42)
+        ch_lay = QHBoxLayout(cart_header)
+        ch_lay.setContentsMargins(14, 0, 10, 0)
+        ch_lay.setSpacing(4)
+        lbl_cart_title = QLabel("CARRITO DE COMPRA")
+        lbl_cart_title.setObjectName("posCartHeaderTitle")
+        ch_lay.addWidget(lbl_cart_title)
+        ch_lay.addStretch(1)
+        btn_cart_menu = QPushButton("⋮")
+        btn_cart_menu.setObjectName("posCartIconBtn")
+        btn_cart_menu.setFixedSize(28, 28)
+        btn_cart_menu.setToolTip("Opciones del carrito")
+        btn_cart_clear = QPushButton("🗑")
+        btn_cart_clear.setObjectName("posCartIconBtn")
+        btn_cart_clear.setFixedSize(28, 28)
+        btn_cart_clear.setToolTip("Vaciar carrito")
+        btn_cart_clear.clicked.connect(self.cancelar_venta)
+        ch_lay.addWidget(btn_cart_menu)
+        ch_lay.addWidget(btn_cart_clear)
+        layout_derecho.addWidget(cart_header)
+
+        # ── CART TABLE — flexible, absorbs all available vertical space ───────
+        self._carrito_group = QGroupBox()
+        self._carrito_group.setObjectName("posCartGroup")
+        self._carrito_group.setProperty("class", "venta-group")
+        self._carrito_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self._carrito_group.setMinimumHeight(160)
+        carrito_layout = QVBoxLayout(self._carrito_group)
+        carrito_layout.setContentsMargins(0, 0, 0, 0)
+        carrito_layout.setSpacing(0)
+
+        self.tabla_compra = QTableWidget()
+        self.tabla_compra.setProperty("class", "tabla-carrito")
+        self.tabla_compra.setObjectName("posCartTable")
+        self.tabla_compra.setColumnCount(7)
+        self.tabla_compra.setHorizontalHeaderLabels(
+            ["Producto", "Cant.", "Precio", "Desc.", "Total", "", ""])
+        self.tabla_compra.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabla_compra.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabla_compra.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.tabla_compra.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        # 48px rows — tall enough for 2-line product cells (name + code)
+        self.tabla_compra.verticalHeader().setDefaultSectionSize(48)
+        self.tabla_compra.verticalHeader().setMinimumSectionSize(48)
+        self.tabla_compra.verticalHeader().setVisible(False)
+        self.tabla_compra.setColumnWidth(1, 46)
+        self.tabla_compra.setColumnWidth(2, 58)
+        self.tabla_compra.setColumnWidth(3, 52)
+        self.tabla_compra.setColumnWidth(4, 62)
+        self.tabla_compra.setColumnWidth(5, 30)
+        self.tabla_compra.setColumnWidth(6, 30)
+        self.tabla_compra.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.tabla_compra.horizontalHeader().setSectionResizeMode(5, QHeaderView.Fixed)
+        self.tabla_compra.horizontalHeader().setSectionResizeMode(6, QHeaderView.Fixed)
+        self.tabla_compra.setMinimumHeight(3 * 48 + 28)
+        self.tabla_compra.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.tabla_compra.setFrameShape(QFrame.NoFrame)
+        # ISSUE 1 FIX: Padding inferior para que la última fila no quede tapada por el panel de totales
+        self.tabla_compra.setContentsMargins(0, 0, 0, 4)
+        carrito_layout.addWidget(self.tabla_compra, 1)
+
+        # Empty-cart placeholder
+        self._lbl_cart_empty = QLabel(
+            "Carrito vacío\n\n"
+            "• Escanea un código de barras\n"
+            "• Selecciona un producto del catálogo\n"
+            "• Escribe el nombre en el buscador"
+        )
+        self._lbl_cart_empty.setObjectName("posCartEmpty")
+        self._lbl_cart_empty.setAlignment(Qt.AlignCenter)
+        self._lbl_cart_empty.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self._lbl_cart_empty.show()
+        self.tabla_compra.hide()
+        carrito_layout.addWidget(self._lbl_cart_empty, 1)
+
+        self.lbl_info_carrito = QLabel("")
+        self.lbl_info_carrito.setMaximumHeight(0)
+        self.lbl_info_carrito.setVisible(False)
+        layout_derecho.addWidget(self._carrito_group, 1)
+
+        # ── CLIENT SECTION (compact display; txt_cliente hidden for scanner) ──
+        group_cliente = QFrame()
+        group_cliente.setObjectName("posClientFrame")
+        group_cliente.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         cliente_layout = QVBoxLayout(group_cliente)
-        cliente_layout.setContentsMargins(6, 6, 6, 6)
+        cliente_layout.setContentsMargins(12, 6, 12, 6)
         cliente_layout.setSpacing(3)
-        
+
+        # Section label
+        _lbl_cliente_sec = QLabel("Cliente")
+        _lbl_cliente_sec.setObjectName("posClientSectionLabel")
+        cliente_layout.addWidget(_lbl_cliente_sec)
+
+        # Hidden scanner field — scanner targets this when context = "cliente"
         self.txt_cliente = QLineEdit()
         self.txt_cliente.setPlaceholderText("💳 Escanear tarjeta o buscar cliente...")
         self.txt_cliente.setProperty("class", "client-input")
         self.txt_cliente.setToolTip(
             "Campo activo para CLIENTES / TARJETAS\n"
             "Cuando este campo tenga foco, el scanner carga el cliente por tarjeta o ID.")
-
-        # Scanner context signals
-        # Use event filter instead of monkey-patching (avoids sipBadCatcherResult)
         self._filter_cliente = _ScanContextFilter(self, "cliente", self.txt_cliente)
         self.txt_cliente.installEventFilter(self._filter_cliente)
+        self.txt_cliente.setVisible(False)
+        self.txt_cliente.setMaximumHeight(0)
+
+        # Search row (shown when Cambiar is clicked)
+        self._client_search_row = QFrame()
+        self._client_search_row.setObjectName("posClientSearchRow")
+        _csr_lay = QHBoxLayout(self._client_search_row)
+        _csr_lay.setContentsMargins(0, 0, 0, 0)
+        _csr_lay.setSpacing(4)
         self.btn_buscar_cliente = QPushButton("🔍")
-        self.btn_buscar_cliente.setFixedWidth(40)
-        self.btn_buscar_cliente.setProperty("class", "icon-button")
+        self.btn_buscar_cliente.setFixedSize(32, 28)
+        self.btn_buscar_cliente.setObjectName("searchBtn")
         self.btn_agregar_cliente = QPushButton("➕")
-        self.btn_agregar_cliente.setFixedWidth(40)
-        self.btn_agregar_cliente.setProperty("class", "icon-button")
-        self.btn_limpiar_cliente = QPushButton("❌")
-        self.btn_limpiar_cliente.setFixedWidth(40)
-        self.btn_limpiar_cliente.setProperty("class", "icon-button")
-        
-        busqueda_cliente_layout = QHBoxLayout()
-        busqueda_cliente_layout.addWidget(self.txt_cliente)
-        busqueda_cliente_layout.addWidget(self.btn_buscar_cliente)
-        busqueda_cliente_layout.addWidget(self.btn_agregar_cliente)
-        busqueda_cliente_layout.addWidget(self.btn_limpiar_cliente)
-        cliente_layout.addLayout(busqueda_cliente_layout)
-        
+        self.btn_agregar_cliente.setFixedSize(32, 28)
+        self.btn_agregar_cliente.setObjectName("addBtn")
+        self.btn_limpiar_cliente = QPushButton("✕")
+        self.btn_limpiar_cliente.setFixedSize(32, 28)
+        self.btn_limpiar_cliente.setObjectName("deleteBtn")
+        _csr_lay.addWidget(self.txt_cliente)
+        _csr_lay.addWidget(self.btn_buscar_cliente)
+        _csr_lay.addWidget(self.btn_agregar_cliente)
+        _csr_lay.addWidget(self.btn_limpiar_cliente)
+        self._client_search_row.setVisible(False)
+        cliente_layout.addWidget(self._client_search_row)
+
+        # Display row — name + pts + Cambiar button
+        self._client_display_row = QFrame()
+        self._client_display_row.setObjectName("posClientDisplayRow")
+        _cdr_lay = QHBoxLayout(self._client_display_row)
+        _cdr_lay.setContentsMargins(0, 0, 0, 0)
+        _cdr_lay.setSpacing(6)
+
+        _lbl_client_icon = QLabel("👤")
+        _lbl_client_icon.setObjectName("posClientIcon")
+        _lbl_client_icon.setFixedWidth(18)
+
         self.lbl_nombre_cliente = QLabel("Público General")
-        self.lbl_puntos_cliente = QLabel("Puntos: 0")
-        self.lbl_telefono_cliente = QLabel("Teléfono: -")  
-        self.lbl_email_cliente = QLabel("Email: -")        
-        
-        self.lbl_nombre_cliente.setProperty("class", "client-info-highlight")
+        self.lbl_nombre_cliente.setObjectName("posClientName")
+        self.lbl_puntos_cliente = QLabel("+ 0 pts")
         self.lbl_puntos_cliente.setProperty("class", "client-info-highlight")
+        self.lbl_telefono_cliente = QLabel("Tel: —")
         self.lbl_telefono_cliente.setProperty("class", "client-info")
+        self.lbl_email_cliente = QLabel("")
         self.lbl_email_cliente.setProperty("class", "client-info")
-        
-        cliente_info_layout = QHBoxLayout()
-        cliente_info_layout.addWidget(self.lbl_nombre_cliente)
-        cliente_info_layout.addStretch()
-        cliente_info_layout.addWidget(self.lbl_puntos_cliente)
-        cliente_layout.addLayout(cliente_info_layout)
-        
-        cliente_info2_layout = QHBoxLayout()
-        cliente_info2_layout.addWidget(self.lbl_telefono_cliente)
-        cliente_info2_layout.addStretch()
-        cliente_info2_layout.addWidget(self.lbl_email_cliente)
-        cliente_layout.addLayout(cliente_info2_layout)
-        
+        self.lbl_email_cliente.setVisible(False)
+
+        self._lbl_loyalty_tier = QLabel("")
+        self._lbl_loyalty_tier.setObjectName("posLoyaltyTierBadge")
+        self._lbl_loyalty_tier.hide()
+
+        _cdr_lay.addWidget(_lbl_client_icon)
+        _cdr_lay.addWidget(self.lbl_nombre_cliente)
+        _cdr_lay.addWidget(self._lbl_loyalty_tier)
+        _cdr_lay.addStretch(1)
+        btn_cambiar_cliente = QPushButton("Cambiar")
+        btn_cambiar_cliente.setObjectName("posClientChangeBtn")
+        btn_cambiar_cliente.setFixedHeight(24)
+        btn_cambiar_cliente.setToolTip("Buscar o cambiar el cliente de esta venta")
+        def _toggle_client_search():
+            visible = not self._client_search_row.isVisible()
+            self._client_search_row.setVisible(visible)
+            self.txt_cliente.setVisible(visible)
+            self.txt_cliente.setMaximumHeight(16777215 if visible else 0)
+            self._client_display_row.setVisible(not visible)
+            if visible:
+                self.txt_cliente.setFocus()
+                self.txt_cliente.selectAll()
+        btn_cambiar_cliente.clicked.connect(_toggle_client_search)
+        _cdr_lay.addWidget(btn_cambiar_cliente)
+        cliente_layout.addWidget(self._client_display_row)
+
+        # Second info line: pts + tel
+        _info2_lay = QHBoxLayout()
+        _info2_lay.setContentsMargins(0, 0, 0, 0)
+        _info2_lay.setSpacing(8)
+        _info2_lay.addWidget(self.lbl_puntos_cliente)
+        _info2_lay.addWidget(self.lbl_telefono_cliente)
+        _info2_lay.addStretch(1)
+        cliente_layout.addLayout(_info2_lay)
         layout_derecho.addWidget(group_cliente)
-        
-        group_carrito = QGroupBox("🛒 Carrito de Compra")
-        group_carrito.setProperty("class", "venta-group")
-        group_carrito.setMinimumHeight(200)
-        carrito_layout = QVBoxLayout(group_carrito)
-        carrito_layout.setContentsMargins(5, 5, 5, 5)
 
-        self.tabla_compra = QTableWidget()
-        self.tabla_compra.setProperty("class", "tabla-carrito")
-        self.tabla_compra.setColumnCount(7)
-        self.tabla_compra.setHorizontalHeaderLabels(
-            ["Producto", "Cant.", "Precio", "Desc%", "Total", "", ""])
-        self.tabla_compra.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.tabla_compra.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.tabla_compra.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        self.tabla_compra.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.tabla_compra.verticalHeader().setDefaultSectionSize(34)
-        self.tabla_compra.verticalHeader().setVisible(False)
-        self.tabla_compra.setColumnWidth(0, 140)
-        self.tabla_compra.setColumnWidth(1, 45) 
-        self.tabla_compra.setColumnWidth(2, 55) 
-        self.tabla_compra.setColumnWidth(3, 45)
-        self.tabla_compra.setColumnWidth(4, 60) 
-        self.tabla_compra.setColumnWidth(5, 28)
-        self.tabla_compra.setColumnWidth(6, 28) 
-        self.tabla_compra.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        carrito_layout.addWidget(self.tabla_compra)
-        
-        self.lbl_info_carrito = QLabel("")
-        self.lbl_info_carrito.setAlignment(Qt.AlignCenter)
-        self.lbl_info_carrito.setProperty("class", "info-label")
-        carrito_layout.addWidget(self.lbl_info_carrito)
-        
-        layout_derecho.addWidget(group_carrito, 1)
-    
-        group_info_venta = QGroupBox("📊 Resumen")
-        group_info_venta.setMaximumHeight(120)
-        group_info_venta.setProperty("class", "venta-group")
-        info_venta_layout = QGridLayout(group_info_venta)
-        info_venta_layout.setContentsMargins(8, 8, 8, 8)
-        
-        self.lbl_peso_bascula = QLabel("Peso: 0.000 kg")
-        self.lbl_total = QLabel("TOTAL: $0.00")
-        self.lbl_puntos_venta = QLabel("Puntos: 0")
-        
-        self.lbl_peso_bascula.setProperty("class", "info-box")
-        self.lbl_total.setProperty("class", "total-box")
-        self.lbl_puntos_venta.setProperty("class", "info-box")
-        
+        # ── TOTALS BREAKDOWN ──────────────────────────────────────────────────
+        totals_card = QFrame()
+        totals_card.setObjectName("posTotalsCard")
+        totals_card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        totals_layout = QVBoxLayout(totals_card)
+        totals_layout.setContentsMargins(12, 8, 12, 8)
+        totals_layout.setSpacing(4)
+
+        row_sub = QHBoxLayout()
+        row_sub.setSpacing(4)
+        lbl_sub_label = QLabel("Subtotal")
+        lbl_sub_label.setObjectName("posTotalsRowLabel")
+        self._lbl_subtotal_val = QLabel("$0.00")
+        self._lbl_subtotal_val.setObjectName("posTotalsRowValue")
+        self._lbl_subtotal_val.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        row_sub.addWidget(lbl_sub_label)
+        row_sub.addStretch(1)
+        row_sub.addWidget(self._lbl_subtotal_val)
+        totals_layout.addLayout(row_sub)
+
+        self._row_discount_widget = QWidget()
+        row_disc = QHBoxLayout(self._row_discount_widget)
+        row_disc.setContentsMargins(0, 0, 0, 0)
+        row_disc.setSpacing(4)
+        self._lbl_descuento_label = QLabel("Descuento")
+        self._lbl_descuento_label.setObjectName("posDiscountLabel")
+        self._lbl_descuento_val = QLabel("")
+        self._lbl_descuento_val.setObjectName("posDiscountValue")
+        self._lbl_descuento_val.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        row_disc.addWidget(self._lbl_descuento_label)
+        row_disc.addStretch(1)
+        row_disc.addWidget(self._lbl_descuento_val)
+        self._row_discount_widget.setVisible(False)
+        totals_layout.addWidget(self._row_discount_widget)
+
+        # IVA row — hidden until present
+        self._row_iva_widget = QWidget()
+        row_iva = QHBoxLayout(self._row_iva_widget)
+        row_iva.setContentsMargins(0, 0, 0, 0)
+        row_iva.setSpacing(4)
+        lbl_iva_label = QLabel("IVA (16%)")
+        lbl_iva_label.setObjectName("posTotalsRowLabel")
+        self._lbl_iva_val = QLabel("$0.00")
+        self._lbl_iva_val.setObjectName("posTotalsRowValue")
+        self._lbl_iva_val.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        row_iva.addWidget(lbl_iva_label)
+        row_iva.addStretch(1)
+        row_iva.addWidget(self._lbl_iva_val)
+        self._row_iva_widget.setVisible(False)
+        totals_layout.addWidget(self._row_iva_widget)
+
+        divider = QFrame()
+        divider.setObjectName("posTotalsDivider")
+        divider.setFrameShape(QFrame.HLine)
+        divider.setFixedHeight(1)
+        totals_layout.addWidget(divider)
+
+        # TOTAL row: LEFT [⚖ peso] [pts] [comision?] ── stretch ── RIGHT [TOTAL]
+        row_total = QHBoxLayout()
+        row_total.setSpacing(6)
+
+        # ── Báscula card (shown only when scale is active) ────────────────
+        card_peso = QFrame()
+        card_peso.setObjectName("posIndicatorCard")
+        card_peso.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        _cp_lay = QVBoxLayout(card_peso)
+        _cp_lay.setContentsMargins(6, 3, 6, 3)
+        _cp_lay.setSpacing(0)
+        _lbl_bsc = QLabel("⚖ Báscula")
+        _lbl_bsc.setObjectName("posIndicatorTitle")
+        _lbl_bsc.setAlignment(Qt.AlignCenter)
+        self.lbl_peso_bascula = QLabel("0.000 kg")
+        self.lbl_peso_bascula.setObjectName("posIndicatorValue")
         self.lbl_peso_bascula.setAlignment(Qt.AlignCenter)
-        self.lbl_total.setAlignment(Qt.AlignCenter)
+        _cp_lay.addWidget(_lbl_bsc)
+        _cp_lay.addWidget(self.lbl_peso_bascula)
+        card_peso.setVisible(False)
+        self._card_peso = card_peso
+        row_total.addWidget(card_peso)
+
+        # ── "Puntos a ganar" mini card ────────────────────────────────────
+        _pts_card = QFrame()
+        _pts_card.setObjectName("posPtsGainCard")
+        _pts_card_lay = QVBoxLayout(_pts_card)
+        _pts_card_lay.setContentsMargins(6, 3, 6, 3)
+        _pts_card_lay.setSpacing(0)
+        _lbl_pts_title = QLabel("Puntos a ganar")
+        _lbl_pts_title.setObjectName("posPtsGainTitle")
+        _lbl_pts_title.setAlignment(Qt.AlignCenter)
+        self.lbl_puntos_venta = QLabel("+0 pts")
+        self.lbl_puntos_venta.setObjectName("posPtsGainValue")
         self.lbl_puntos_venta.setAlignment(Qt.AlignCenter)
-        
-        info_venta_layout.addWidget(self.lbl_peso_bascula, 0, 0)
-        info_venta_layout.addWidget(self.lbl_total, 0, 1)
-        info_venta_layout.addWidget(self.lbl_puntos_venta, 1, 0, 1, 2)
+        _pts_card_lay.addWidget(_lbl_pts_title)
+        _pts_card_lay.addWidget(self.lbl_puntos_venta)
+        row_total.addWidget(_pts_card)
 
-        # Widget de comisión del turno (configurable: se muestra si está habilitado)
-        self.lbl_comision_turno = QLabel("💰 Comisión turno: $0.00")
+        # ── Comisión card (shown only when commissions config is active) ──
+        card_comision = QFrame()
+        card_comision.setObjectName("posIndicatorCard")
+        card_comision.setVisible(False)
+        _cc_lay = QVBoxLayout(card_comision)
+        _cc_lay.setContentsMargins(6, 3, 6, 3)
+        _cc_lay.setSpacing(0)
+        _lbl_com_title = QLabel("Comisión")
+        _lbl_com_title.setObjectName("posIndicatorTitle")
+        _lbl_com_title.setAlignment(Qt.AlignCenter)
+        self.lbl_comision_turno = QLabel("")
+        self.lbl_comision_turno.setObjectName("posIndicatorValue")
         self.lbl_comision_turno.setAlignment(Qt.AlignCenter)
-        self.lbl_comision_turno.setStyleSheet(
-            "background:#27ae60;color:white;font-weight:bold;"
-            "font-size:13px;padding:6px;border-radius:4px;"
-        )
-        self.lbl_comision_turno.setVisible(False)   # se activa si tiene config
-        info_venta_layout.addWidget(self.lbl_comision_turno, 2, 0, 1, 2)
-        
-        layout_derecho.addWidget(group_info_venta)
+        _cc_lay.addWidget(_lbl_com_title)
+        _cc_lay.addWidget(self.lbl_comision_turno)
+        self._card_comision = card_comision
+        row_total.addWidget(card_comision)
 
-        group_acciones = QGroupBox("⚡ Acciones")
-        group_acciones.setMaximumHeight(165)
-        group_acciones.setProperty("class", "venta-group")
-        acciones_layout = QGridLayout(group_acciones)
-        acciones_layout.setContentsMargins(8, 8, 8, 8)
-        acciones_layout.setVerticalSpacing(4)
-        
-        # ── Descuentos rápidos ───────────────────────────────────────────
-        grp_desc = QGroupBox("⚡ Descuento rápido")
-        grp_desc.setMaximumHeight(55)
-        desc_lay = QHBoxLayout(grp_desc)
-        desc_lay.setContentsMargins(6, 4, 6, 4)
-        for pct in [5, 10, 15, 20]:
-            btn_d = QPushButton(f"{pct}%")
-            btn_d.setToolTip(f"Aplicar {pct}% de descuento al ítem seleccionado")
-            btn_d.setStyleSheet("padding:3px 6px;font-size:11px;")
-            btn_d.clicked.connect(lambda _, p=pct: self._descuento_rapido(p))
-            desc_lay.addWidget(btn_d)
-        btn_custom = QPushButton("Custom")
-        btn_custom.setToolTip("Descuento personalizado")
-        btn_custom.setStyleSheet("padding:3px 6px;font-size:11px;background:#8e44ad;color:white;")
-        btn_custom.clicked.connect(lambda: self._descuento_custom())
-        desc_lay.addWidget(btn_custom)
-        layout_derecho.addWidget(grp_desc)
+        # ── Stretch pushes TOTAL to the right ────────────────────────────
+        row_total.addStretch(1)
 
-        self.btn_factura = QPushButton("🧾 Factura")
-        self.btn_factura.setToolTip("Generar CFDI de la última venta")
-        self.btn_factura.setStyleSheet("padding:6px 10px;border-radius:4px;background:#2c3e50;color:white;")
-        self.btn_factura.setEnabled(False)
-        self.btn_factura.clicked.connect(self._generar_factura)
-        layout_derecho.addWidget(self.btn_factura)
+        # ── TOTAL label + value ───────────────────────────────────────────
+        lbl_total_label = QLabel("TOTAL")
+        lbl_total_label.setObjectName("posGrandTotalLabel")
+        self.lbl_total = QLabel("$0.00")
+        self.lbl_total.setObjectName("posGrandTotalValue")
+        self.lbl_total.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        row_total.addWidget(lbl_total_label)
+        row_total.addSpacing(8)
+        row_total.addWidget(self.lbl_total)
+        totals_layout.addLayout(row_total)
 
-        self.btn_reimprimir = QPushButton("🖨️ Reimprimir")
-        self.btn_reimprimir.setToolTip("Reimprimir el ticket de la última venta")
-        self.btn_reimprimir.setStyleSheet("padding:6px 10px;border-radius:4px;background:#7f8c8d;color:white;")
-        self.btn_reimprimir.setEnabled(False)
-        self.btn_reimprimir.clicked.connect(self._reimprimir_ultima_venta)
-        layout_derecho.addWidget(self.btn_reimprimir)
+        layout_derecho.addWidget(totals_card)
 
         self._banner_sin_impresora = QLabel(
             "⚠️  Sin impresora configurada — los tickets se guardarán en PDF (carpeta TICKETS/)")
-        self._banner_sin_impresora.setStyleSheet(
-            "background:#fff3cd;color:#856404;padding:5px 10px;"
-            "border:1px solid #ffc107;border-radius:4px;font-size:11px;")
+        self._banner_sin_impresora.setProperty("class", "banner-warning caption")
         self._banner_sin_impresora.setWordWrap(True)
         self._banner_sin_impresora.setVisible(False)
         layout_derecho.addWidget(self._banner_sin_impresora)
 
-        self.btn_cobrar = QPushButton("💰 Cobrar")
-        self.btn_suspender = QPushButton("⏸️ Suspender")
-        self.btn_reanudar = QPushButton("▶️ Reanudar (0)")
-        self.btn_cancelar = QPushButton("❌ Cancelar")
-        
-        button_height = 38
-        self.btn_cobrar.setFixedHeight(button_height)
-        self.btn_suspender.setFixedHeight(button_height)
-        self.btn_reanudar.setFixedHeight(button_height)
-        self.btn_cancelar.setFixedHeight(button_height)
-        
-        self.btn_cobrar.setProperty("class", "venta-button")
-        self.btn_cancelar.setProperty("class", "venta-button")
-        self.btn_suspender.setProperty("class", "venta-button")
-        self.btn_reanudar.setProperty("class", "venta-button")
+        # ── DISCOUNT BUTTONS ─────────────────────────────────────────────────
+        desc_frame = QFrame()
+        desc_frame.setObjectName("posDiscountBar")
+        desc_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        desc_lay = QHBoxLayout(desc_frame)
+        desc_lay.setContentsMargins(8, 5, 8, 5)
+        desc_lay.setSpacing(5)
+        # ISSUE 3 FIX: Descuentos → ROJO BRILLANTE (#ef4444) según tokens semánticos
+        # variant="danger" activa el selector QPushButton[variant="danger"] del QSS global
+        for pct in [5, 10, 15, 20]:
+            btn_d = QPushButton(f"{pct}%")
+            btn_d.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            btn_d.setMinimumHeight(30)
+            btn_d.setToolTip(f"Aplicar {pct}% de descuento al ítem seleccionado")
+            btn_d.setObjectName("posDiscountBtn")
+            btn_d.setProperty("variant", "danger")
+            btn_d.clicked.connect(lambda _, p=pct: self._descuento_rapido(p))
+            desc_lay.addWidget(btn_d)
+        # ISSUE 3 FIX: "Personalizado" → AZUL (variant=primary = editar/configurar)
+        btn_custom = QPushButton("Personalizado")
+        btn_custom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        btn_custom.setMinimumHeight(30)
+        btn_custom.setToolTip("Descuento personalizado")
+        btn_custom.setObjectName("posDiscountCustomBtn")
+        btn_custom.setProperty("variant", "primary")
+        btn_custom.clicked.connect(lambda: self._descuento_custom())
+        desc_lay.addWidget(btn_custom)
+        layout_derecho.addWidget(desc_frame)
 
-        self.btn_devolucion = QPushButton("↩ Devolución")
-        self.btn_devolucion.setFixedHeight(button_height)
-        self.btn_devolucion.setProperty("class", "venta-button")
-        self.btn_devolucion.setToolTip(
-            "Cancelar o devolver una venta anterior (requiere permiso)")
-        self.btn_devolucion.setEnabled(False)   # se activa tras login con permiso
+        # ── PRIMARY TRANSACTION ACTIONS ──────────────────────────────────────
+        group_acciones = QFrame()
+        group_acciones.setObjectName("posCobrarFrame")
+        group_acciones.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        acciones_layout = QVBoxLayout(group_acciones)
+        acciones_layout.setContentsMargins(8, 6, 8, 6)
+        acciones_layout.setSpacing(5)
 
-        acciones_layout.addWidget(self.btn_cobrar, 0, 0, 1, 2)
-        acciones_layout.addWidget(self.btn_suspender, 1, 0)
-        acciones_layout.addWidget(self.btn_reanudar, 1, 1)
-        acciones_layout.addWidget(self.btn_cancelar, 2, 0)
-        acciones_layout.addWidget(self.btn_devolucion, 2, 1)
-        
+        # COBRAR — dominant full-width green button with F9 badge inside
+        self.btn_cobrar = _FKeyButton("💳  COBRAR  $0.00", "F9", self)
+        self.btn_cobrar.setObjectName("btnCobrarPOS")
+        self.btn_cobrar.setProperty("class", "success")
+        self.btn_cobrar.setProperty("fill_parent", True)
+        self.btn_cobrar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.btn_cobrar.setMinimumHeight(48)
+        self.btn_cobrar.setToolTip("Procesar el pago de la venta (F9)")
+        acciones_layout.addWidget(self.btn_cobrar)
+
+        # Row 1: Suspender | Reanudar | Cancelar (F-key badge inside each button)
+        row_secondary = QHBoxLayout()
+        row_secondary.setSpacing(4)
+        self.btn_suspender = _FKeyButton("⏸ Suspender", "F6", self)
+        self.btn_suspender.setObjectName("warningBtn")
+        self.btn_suspender.setProperty("class", "warning")
+        self.btn_suspender.setToolTip("Suspender venta (F6)")
+        self.btn_reanudar = _FKeyButton("▶ Reanudar (0)", "F7", self)
+        self.btn_reanudar.setObjectName("posActionBtn")
+        self.btn_reanudar.setProperty("class", "primary")
+        self.btn_reanudar.setToolTip("Reanudar venta suspendida (F7)")
+        self.btn_cancelar = _FKeyButton("✕ Cancelar", "F8", self)
+        self.btn_cancelar.setObjectName("dangerBtn")
+        self.btn_cancelar.setProperty("class", "danger")
+        self.btn_cancelar.setToolTip("Cancelar venta (F8)")
+        for _b in (self.btn_suspender, self.btn_reanudar, self.btn_cancelar):
+            _b.setProperty("fill_parent", True)
+            _b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            _b.setMinimumHeight(34)
+            row_secondary.addWidget(_b)
+        acciones_layout.addLayout(row_secondary)
+
         layout_derecho.addWidget(group_acciones)
-        
+
+        # ── UTILITY ACTIONS ROW ───────────────────────────────────────────────
+        group_utilidad = QFrame()
+        group_utilidad.setObjectName("posUtilBar")
+        group_utilidad.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        utilidad_layout = QHBoxLayout(group_utilidad)
+        utilidad_layout.setContentsMargins(8, 4, 8, 4)
+        utilidad_layout.setSpacing(4)
+
+        self.btn_devolucion = _FKeyButton("↩ Devolución", "F10", self)
+        self.btn_devolucion.setObjectName("posUtilBtn")
+        self.btn_devolucion.setEnabled(False)
+        self.btn_devolucion.setToolTip("Cancelar o devolver una venta anterior (requiere permiso) — F10")
+        self.btn_factura = _FKeyButton("🧾 Factura", "F11", self)
+        self.btn_factura.setObjectName("posUtilBtn")
+        self.btn_factura.setEnabled(False)
+        self.btn_factura.setToolTip("Generar CFDI de la última venta — F11")
+        self.btn_factura.clicked.connect(self._generar_factura)
+        self.btn_reimprimir = _FKeyButton("🖨️ Reimpr.", "F12", self)
+        self.btn_reimprimir.setObjectName("posUtilBtn")
+        self.btn_reimprimir.setEnabled(False)
+        self.btn_reimprimir.setToolTip("Reimprimir el ticket de la última venta — F12")
+        self.btn_reimprimir.clicked.connect(self._reimprimir_ultima_venta)
+
+        for _b in (self.btn_devolucion, self.btn_factura, self.btn_reimprimir):
+            _b.setProperty("fill_parent", True)
+            _b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            _b.setMinimumHeight(30)
+            utilidad_layout.addWidget(_b)
+
+        layout_derecho.addWidget(group_utilidad)
+
         splitter.addWidget(panel_izquierdo)
         splitter.addWidget(panel_derecho)
-        splitter.setSizes([600, 500])
+        splitter.setStretchFactor(0, 1)   # left panel absorbs extra width on maximize
+        splitter.setStretchFactor(1, 0)   # right panel holds preferred width
+        splitter.setSizes([620, 460])
         main_layout.addWidget(splitter)
+        self._normalizar_botones_principales()
+        self._pos_ui_ready = True          # guard for resizeEvent / recalcular_grid
+        QTimer.singleShot(0, self._cargar_categorias)
+
+    def _normalizar_botones_principales(self):
+        """
+        Evita que botones se estiren al ancho completo en layouts verticales.
+        Excluye botones marcados con la propiedad 'fill_parent' para que las
+        acciones primarias (cobrar, suspender, etc.) llenen su QGroupBox.
+        """
+        for btn in self.findChildren(QPushButton):
+            if btn.property("fill_parent"):
+                continue
+            # Preserve compact icon-buttons already configured at 40px.
+            if btn.minimumWidth() and btn.minimumWidth() <= 45:
+                continue
+            if btn.maximumWidth() == 16777215:
+                btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+            if btn.minimumHeight() < 32:
+                btn.setMinimumHeight(32)
+
+    # ── RESPONSIVE LAYOUT ────────────────────────────────────────────────────
+
+    def resizeEvent(self, event):
+        """Debounced grid reflow on window resize / maximize."""
+        super().resizeEvent(event)
+        # Ignore resize events that arrive before init_ui() finishes
+        if not getattr(self, '_pos_ui_ready', False):
+            return
+        if not hasattr(self, '_grid_resize_timer'):
+            self._grid_resize_timer = QTimer(self)
+            self._grid_resize_timer.setSingleShot(True)
+            self._grid_resize_timer.timeout.connect(self._recalcular_grid)
+        self._grid_resize_timer.start(150)   # 150 ms debounce — no paint storms
+
+    def _recalcular_grid(self):
+        """Reflow product grid columns after resize without losing filter state."""
+        if not getattr(self, '_pos_ui_ready', False):
+            return
+        if not hasattr(self, 'scroll_area_productos'):
+            return
+        try:
+            filtro = self.txt_busqueda.text().strip() if hasattr(self, 'txt_busqueda') else ''
+            cat = getattr(self, '_pos_categoria_activa', '')
+            self._selected_card = None  # cards rebuilt; reset selection reference
+            self.cargar_productos_interactivos(filtro, categoria=cat)
+        except RuntimeError:
+            pass
+
+    # ── NAVIGATION ───────────────────────────────────────────────────────────
+
+    def _ir_a_caja(self):
+        """Navega al módulo de Caja/Cortes Z a través de la ventana principal."""
+        try:
+            top = self.window()
+            if hasattr(top, 'manejar_navegacion'):
+                top.manejar_navegacion("CAJA")
+        except Exception as e:
+            logger.debug("_ir_a_caja: %s", e)
+
+    def _set_bascula_status(self, text: str):
+        """Refresh status label and mirror abbreviated text to HW button."""
+        self.lbl_estado_bascula.setText(text)
+        if hasattr(self, '_btn_bascula_hw'):
+            short = text.replace("Báscula: ", "⚖ ").replace("Basic: ", "⚖ ")
+            self._btn_bascula_hw.setText(short)
+            self._btn_bascula_hw.setToolTip(text)
+
+    # ── CATEGORY TABS ────────────────────────────────────────────────────────
+
+    def _cargar_categorias(self) -> None:
+        """Load unique product categories from DB and build the tab bar."""
+        # Guard: layout may be gone if widget is torn down before timer fires
+        try:
+            if not hasattr(self, '_category_layout'):
+                return
+            self._category_layout.count()   # raises RuntimeError if C++ object deleted
+        except RuntimeError:
+            return
+
+        categorias = [""]  # "" = Todos
+        try:
+            categorias += self._product_catalog_qs.get_categories()
+        except Exception as e:
+            logger.debug("_cargar_categorias: %s", e)
+
+        # Remove all existing buttons (except stretch)
+        while self._category_layout.count() > 1:
+            item = self._category_layout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.setParent(None)
+        self._pos_category_buttons.clear()
+
+        labels = {cat: ("Todos" if cat == "" else cat) for cat in categorias}
+        for cat in categorias:
+            btn = QPushButton(labels[cat])
+            btn.setObjectName("posCategoryBtn")
+            btn.setCheckable(False)
+            btn.setProperty("active", cat == self._pos_categoria_activa)
+            btn.clicked.connect(lambda checked=False, c=cat: self._filtrar_por_categoria(c))
+            self._category_layout.insertWidget(self._category_layout.count() - 1, btn)
+            self._pos_category_buttons[cat] = btn
+
+    def _filtrar_por_categoria(self, categoria: str) -> None:
+        """Filter the product grid by category. '' means show all."""
+        self._pos_categoria_activa = categoria
+        for cat, btn in self._pos_category_buttons.items():
+            btn.setProperty("active", cat == categoria)
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+        filtro_texto = self.txt_busqueda.text().strip()
+        self.cargar_productos_interactivos(filtro_texto, categoria=categoria)
+
+    # ── CASHIER INFO ─────────────────────────────────────────────────────────
+
+    def set_cajero_info(self, caja: str = "", cajero: str = "",
+                        turno: str = "", estado: str = "Abierto") -> None:
+        """Refresh the cashier info bar (called from main_window after login)."""
+        if not hasattr(self, '_lbl_cashier_meta'):
+            return
+        parts = [p for p in [caja, cajero, turno] if p]
+        self._lbl_cashier_meta.setText("  |  ".join(parts))
+        if hasattr(self, '_lbl_status_badge'):
+            self._lbl_status_badge.setText(f"● {estado}")
 
     def limpiar_busqueda_productos(self):
         self.txt_busqueda.clear()
-        self.cargar_productos_interactivos()
+        cat = getattr(self, '_pos_categoria_activa', '')
+        self.cargar_productos_interactivos(categoria=cat)
 
     def buscar_productos_en_tiempo_real(self, texto: str):
         if len(texto.strip()) >= 2:
-            self.cargar_productos_interactivos(texto.strip())
+            cat = getattr(self, '_pos_categoria_activa', '')
+            self.cargar_productos_interactivos(texto.strip(), categoria=cat)
 
-    def cargar_productos_interactivos(self, filtro: str = ""):
+    def cargar_productos_interactivos(self, filtro: str = "", categoria: str = ""):
+        productos = self._buscar_productos_catalogo(filtro=filtro, categoria=categoria)
+        logger.info(
+            "Búsqueda de productos: filtro=%r categoria=%r resultados=%d",
+            filtro, categoria, len(productos)
+        )
+        self._renderizar_productos(productos)
+
+    def _buscar_productos_catalogo(self, filtro: str = "", categoria: str = ""):
+        """Busca productos visibles mediante QueryService de catálogo POS."""
+        try:
+            catalog_qs = self._product_catalog_qs
+            if catalog_qs:
+                return catalog_qs.list_visible_products(
+                    branch_id=self.sucursal_id, filtro=filtro, categoria=categoria
+                )
+            logger.error("ProductCatalogQueryService no disponible para catálogo de ventas.")
+            self.mostrar_mensaje(
+                "Error",
+                "No se pudo cargar el catálogo de productos. Servicio de consulta no disponible.",
+                QMessageBox.Critical,
+            )
+            return []
+        except Exception:
+            logger.exception(
+                "Error al buscar productos: filtro=%r categoria=%r sucursal_id=%s",
+                filtro, categoria, self.sucursal_id
+            )
+            self.mostrar_mensaje("Error", "Error al cargar productos. Revisa el log para más detalle.", QMessageBox.Critical)
+            return []
+
+    def _normalizar_producto_para_card(self, producto):
+        if isinstance(producto, dict):
+            producto_data = dict(producto)
+        else:
+            producto_data = {
+                'id': producto[0],
+                'nombre': producto[1],
+                'precio': float(producto[2]),
+                'existencia': float(producto[3]),
+                'unidad': producto[4],
+                'categoria': producto[5],
+                'stock_minimo': float(producto[6]),
+                'imagen_path': producto[7],
+                'es_compuesto': producto[8],
+                'es_subproducto': producto[9],
+                'codigo_barras': producto[10],
+                'codigo': producto[11]
+            }
+        if producto_data.get('id') in (None, ''):
+            logger.warning("Producto omitido por falta de id estable: %s", producto_data)
+            return None
+        if 'existencia' not in producto_data and 'stock_sucursal' in producto_data:
+            producto_data['existencia'] = producto_data.get('stock_sucursal')
+        producto_data['precio'] = float(producto_data.get('precio') or 0)
+        producto_data['existencia'] = float(producto_data.get('existencia') or 0)
+        producto_data['stock_minimo'] = float(producto_data.get('stock_minimo') or 0)
+        producto_data['unidad'] = producto_data.get('unidad') or 'pz'
+        producto_data['nombre'] = producto_data.get('nombre') or f"Producto #{producto_data['id']}"
+        return producto_data
+
+    def _renderizar_productos(self, productos) -> None:
         for i in reversed(range(self.grid_productos.count())):
             widget = self.grid_productos.itemAt(i).widget()
             if widget:
                 widget.setParent(None)
-        
-        try:
-            cursor = self.conexion.cursor()
-            # v13.4: Leer stock de branch_inventory para la sucursal activa
-            # COALESCE: branch_inventory.quantity → productos.existencia → 0
-            query = """
-                SELECT p.id, p.nombre, p.precio,
-                       COALESCE(bi.quantity, p.existencia, 0) as stock_sucursal,
-                       p.unidad, p.categoria,
-                       p.stock_minimo, p.imagen_path, p.es_compuesto, p.es_subproducto,
-                       COALESCE(p.codigo_barras,'') as codigo_barras
-                FROM productos p
-                LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=?
-                WHERE p.oculto = 0 AND COALESCE(p.activo,1) = 1
-            """
-            params = [self.sucursal_id]
-            if filtro:
-                query += " AND (p.nombre LIKE ? OR p.id = ? OR p.categoria LIKE ? OR COALESCE(p.codigo_barras,'') = ?)"
-                params += [f'%{filtro}%', filtro, f'%{filtro}%', filtro]
-            
-            query += " ORDER BY p.nombre"
-            cursor.execute(query, params)
-            productos = cursor.fetchall()
-            
-            col_count = 3
-            for i, producto in enumerate(productos):
-                producto_data = {
-                    'id': producto[0],
-                    'nombre': producto[1],
-                    'precio': float(producto[2]),
-                    'existencia': float(producto[3]),
-                    'unidad': producto[4],
-                    'categoria': producto[5],
-                    'stock_minimo': float(producto[6]),
-                    'imagen_path': producto[7],
-                    'es_compuesto': producto[8],
-                    'es_subproducto': producto[9],
-                    'codigo_barras': producto[10]
-                }
-                
-                card = ProductCard(producto_data)
-                card.product_selected.connect(self.seleccionar_producto)
-                
-                row = i // col_count
-                col = i % col_count
-                self.grid_productos.addWidget(card, row, col)
-                
-        except sqlite3.Error as e:
-            self.mostrar_mensaje("Error", f"Error al cargar productos: {str(e)}", QMessageBox.Critical)
+
+        # Responsive column count: fill available viewport width with fixed-width cards
+        _spacing = self.grid_productos.spacing()
+        _card_cell = ProductCard.CARD_W + _spacing   # card fixed width + one gap
+        _vp_w = self.scroll_area_productos.viewport().width()
+        if _vp_w < 40:
+            # Viewport not yet laid out; approximate from scroll area minus scrollbar
+            _vp_w = max(300, self.scroll_area_productos.width() - 22)
+        col_count = max(2, _vp_w // _card_cell)
+
+        rendered = 0
+        for producto in productos:
+            producto_data = self._normalizar_producto_para_card(producto)
+            if not producto_data:
+                continue
+            card = ProductCard(producto_data)
+            card.product_selected.connect(self.seleccionar_producto)
+
+            row = rendered // col_count
+            col = rendered % col_count
+            self.grid_productos.addWidget(card, row, col)
+            rendered += 1
+
+        logger.info("Resultados de productos pintados en UI: cards=%d columnas=%d", rendered, col_count)
 
     def buscar_productos(self):
         filtro = self.txt_busqueda.text().strip()
         self.cargar_productos_interactivos(filtro)
 
     def seleccionar_producto(self, producto: Dict[str, Any]):
-        if self._selected_card:
+        if not isinstance(producto, dict):
+            logger.warning("Selección de producto inválida: payload=%r", producto)
+            return
+
+        producto_id = producto.get('id')
+        if producto_id in (None, ''):
+            logger.warning("Selección de producto sin id estable: %s", producto)
+            return
+
+        sender = self.sender()
+        logger.info(
+            "Producto seleccionado: product_id=%s nombre=%s sender=%s",
+            producto_id, producto.get('nombre'), type(sender).__name__ if sender else None
+        )
+
+        if self._selected_card and self._selected_card is not sender:
             self._selected_card.set_selected(False)
-            
+
         self._selected_card = self.sender()
         if self._selected_card:
             self._selected_card.set_selected(True)
-            
+
         self.producto_seleccionado = producto
         unidad = producto['unidad'].lower()
-        
+
         if any(peso_keyword in unidad for peso_keyword in ['kg', 'kilogramo', 'kilo', 'gramo', 'gr']):
-            self.iniciar_monitoreo_peso(producto)
+            logger.info("Producto cargado para captura por peso: product_id=%s unidad=%s", producto_id, unidad)
+            if self._hw_bascula_habilitada and getattr(self, 'bascula_conectada', False):
+                self.iniciar_monitoreo_peso(producto)
+            else:
+                self._solicitar_peso_manual_producto(producto)
         else:
+            logger.info("Producto cargado para agregar por unidad: product_id=%s unidad=%s", producto_id, unidad)
             self.agregar_producto_por_unidad(producto)
+
+    def _solicitar_peso_manual_producto(self, producto: Dict[str, Any]):
+        """Direct manual weight entry — used when scale is disabled or not connected."""
+        nombre = producto.get('nombre', '')
+        unidad = producto.get('unidad', 'kg')
+        from frontend.desktop.components.quantity_input_dialog import QuantityInputDialog
+        cantidad, ok = QuantityInputDialog.get_quantity(
+            self,
+            f"Peso manual — {nombre}",
+            f"Báscula no activa. Ingresa el peso ({unidad}):",
+            decimals=3, maximo=9999.0, unidad=unidad,
+        )
+        if ok and cantidad > 0:
+            self.agregar_producto_directo(producto, cantidad)
+        else:
+            self.limpiar_seleccion_producto()
 
     def _actualizar_banner_impresora(self) -> None:
         """Shows/hides the 'no printer' warning banner."""
@@ -1309,25 +2372,18 @@ class ModuloVentas(ModuloBase):
         self._banner_sin_impresora.setVisible(not tiene_impresora)
 
     def _cargar_hardware_config(self) -> None:
-        """Load hardware config from DB. Uses 'activo' column (not 'habilitado')."""
+        """Carga configuración de hardware vía QueryService."""
         try:
-            rows = self.conexion.execute(
-                "SELECT tipo, COALESCE(activo,1) as activo, configuraciones FROM hardware_config"
-            ).fetchall()
-            for row in rows:
-                tipo     = row[0] if not hasattr(row, 'keys') else row['tipo']
-                hab      = row[1] if not hasattr(row, 'keys') else row['activo']
-                cfg_json = row[2] if not hasattr(row, 'keys') else row['configuraciones']
-                try:
-                    cfg = json.loads(cfg_json) if cfg_json else {}
-                except Exception:
-                    cfg = {}
+            for row in self._hardware_settings_qs.list_active_configs():
+                tipo = row["type"]
+                hab = row["active"]
+                cfg = row["config"]
                 if tipo in ("impresora", "ticket"):
                     self._hw_impresora_habilitada = bool(hab)
-                    self._hw_impresora_cfg        = cfg
+                    self._hw_impresora_cfg = cfg
                 elif tipo == "cajon":
                     self._hw_cajon_habilitado = bool(hab)
-                    self._hw_cajon_cfg        = cfg
+                    self._hw_cajon_cfg = cfg
                 elif tipo == "scanner":
                     self._scanner_minlen = int(cfg.get("min_len", 3))
                     debounce = int(cfg.get("debounce_ms", 80))
@@ -1335,14 +2391,12 @@ class ModuloVentas(ModuloBase):
                 elif tipo == "bascula":
                     self._hw_bascula_habilitada = bool(hab)
                     self._hw_bascula_cfg = cfg
-            import logging
-            logging.getLogger(__name__).debug(
+            logger.debug(
                 "HW config loaded: impresora=%s cajon=%s",
                 self._hw_impresora_habilitada, self._hw_cajon_habilitado)
             self._actualizar_banner_impresora()
         except Exception as _e:
-            import logging
-            logging.getLogger(__name__).warning("_cargar_hardware_config: %s", _e)
+            logger.warning("_cargar_hardware_config: %s", _e)
 
     def keyPressEvent(self, event) -> None:
         """
@@ -1442,6 +2496,18 @@ class ModuloVentas(ModuloBase):
             return
 
         ctx = self._scan_context
+        # Fase 2 — helper para telemetría de escaneo sin romper el flujo
+        def _log_scan(tipo: str, accion: str, cliente_id=None, producto_id=None):
+            try:
+                from core.services.qr_parser_service import QRParserService
+                usuario = getattr(self, 'usuario_actual', '')
+                suc_id  = getattr(self, 'sucursal_id', '') or ''
+                QRParserService.log_scan_raw(
+                    self.conexion, codigo, tipo, accion,
+                    cliente_id=cliente_id, producto_id=producto_id,
+                    sucursal_id=suc_id, usuario=usuario)
+            except Exception:
+                pass
 
         try:
             # ════════════════════════════════════════════════════════════════
@@ -1459,13 +2525,11 @@ class ModuloVentas(ModuloBase):
                         puntos = 0
                         nivel = "Bronce"
                         try:
-                            row_pts = self.conexion.execute(
-                                "SELECT COALESCE(puntos,0), COALESCE(nivel,'Bronce') "
-                                "FROM clientes WHERE id=?",
-                                (qr_result.client_id,)).fetchone()
-                            if row_pts:
-                                puntos = int(row_pts[0])
-                                nivel = row_pts[1]
+                            _cli = self._cli_repo
+                            _row = _cli.get_by_id(qr_result.client_id) if _cli else None
+                            if _row:
+                                puntos = int(_row.get('puntos', 0) or 0)
+                                nivel = _row.get('nivel', 'Bronce') or 'Bronce'
                         except Exception:
                             pass
                         self._cargar_cliente_en_venta(
@@ -1474,6 +2538,8 @@ class ModuloVentas(ModuloBase):
                             telefono="",
                             puntos=puntos,
                             nivel=nivel)
+                        _log_scan(qr_result.tipo, "cliente_cargado",
+                                  cliente_id=qr_result.client_id)
                         return
 
                     if qr_result.tipo == QRType.TARJETA and qr_result.valid:
@@ -1481,51 +2547,52 @@ class ModuloVentas(ModuloBase):
                             cliente_id=qr_result.client_id,
                             nombre=qr_result.nombre,
                             puntos=0, nivel="Bronce")
+                        _log_scan("tarjeta", "cliente_cargado",
+                                  cliente_id=qr_result.client_id)
                         return
 
                 # Fallback: búsqueda tradicional
-                # 1a. Buscar tarjeta de fidelidad
-                row_tarj = self.conexion.execute(
-                    """SELECT t.id, t.codigo, COALESCE(t.nivel,'Bronce') as nivel,
-                              c.id as cliente_id, c.nombre as cliente_nombre,
-                              c.telefono, COALESCE(c.puntos,0) as puntos
-                       FROM tarjetas_fidelidad t
-                       JOIN clientes c ON c.id = t.id_cliente
-                       WHERE t.codigo = ? AND t.activa = 1
-                       LIMIT 1""",
-                    (codigo,)
-                ).fetchone()
-                if row_tarj:
+                # 1a. Resolver tarjeta vía LoyaltyService (sin SQL UI)
+                ls = getattr(self.container, 'loyalty_service', None) if hasattr(self, 'container') else None
+                row_tarj = ls.resolve_scan(codigo) if ls else {"found": False}
+                if row_tarj.get('found'):
                     self._cargar_cliente_en_venta(
                         cliente_id=row_tarj['cliente_id'],
-                        nombre=row_tarj['cliente_nombre'],
-                        telefono=row_tarj['telefono'] or "",
-                        puntos=int(row_tarj['puntos']),
-                        nivel=row_tarj['nivel'],
+                        nombre=row_tarj['nombre'],
+                        telefono=row_tarj.get('telefono', '') or "",
+                        puntos=int(row_tarj.get('puntos', 0) or 0),
+                        nivel=row_tarj.get('nivel', 'Bronce') or 'Bronce',
                     )
+                    _log_scan('tarjeta', 'cliente_cargado', cliente_id=row_tarj['cliente_id'])
                     return
 
-                # 1b. Buscar cliente por ID o teléfono (NO por nombre LIKE)
-                row_cli = self.conexion.execute(
-                    """SELECT id, nombre, COALESCE(telefono,'') as telefono,
-                              COALESCE(puntos,0) as puntos,
-                              COALESCE(nivel,'Bronce') as nivel
-                       FROM clientes
-                       WHERE CAST(id AS TEXT)=? OR telefono=? OR codigo_qr=?
-                       LIMIT 1""",
-                    (codigo, codigo, codigo)
-                ).fetchone()
+                # 1b. Buscar cliente por ID, teléfono o código QR
+                _cli = self._cli_repo
+                row_cli = _cli.get_by_scanner(codigo) if _cli else None
                 if row_cli:
                     self._cargar_cliente_en_venta(
                         cliente_id=row_cli['id'],
                         nombre=row_cli['nombre'],
-                        telefono=row_cli['telefono'],
-                        puntos=int(row_cli['puntos']),
-                        nivel=row_cli['nivel'],
+                        telefono=row_cli.get('telefono', '') or "",
+                        puntos=int(row_cli.get('puntos', 0) or 0),
+                        nivel=row_cli.get('nivel', 'Bronce') or 'Bronce',
                     )
+                    _log_scan("client_id", "cliente_cargado",
+                              cliente_id=row_cli['id'])
                     return
 
-                # 1c. No encontrado → poner en txt_cliente para búsqueda manual
+                # 1c. No encontrado — Flujo dual Fase 2 (Plan Maestro SPJ v13.4):
+                # Si el código tiene formato de tarjeta (TF-/TAR-/CARD-) →
+                # abrir DialogoAgregarCliente con tarjeta_id precargado.
+                # Si no, poner en txt_cliente para búsqueda manual.
+                import re as _re2
+                _es_tarjeta = bool(_re2.match(
+                    r'^(TF|TAR|CARD)-[A-Za-z0-9]+$', codigo, _re2.IGNORECASE))
+                if _es_tarjeta:
+                    _log_scan("tarjeta", "cliente_no_encontrado")
+                    self._abrir_nuevo_cliente_con_tarjeta(codigo)
+                    return
+                _log_scan("busqueda", "cliente_no_encontrado")
                 if hasattr(self, 'txt_cliente'):
                     self.txt_cliente.clear()
                     self.txt_cliente.setText(codigo)
@@ -1537,25 +2604,19 @@ class ModuloVentas(ModuloBase):
             # CONTEXTO PRODUCTO — el foco estaba en "Buscar Producto"
             # ════════════════════════════════════════════════════════════════
             if ctx == "producto":
-                row_prod = self.conexion.execute(
-                    """SELECT id, nombre, precio_venta, precio_kilo,
-                              existencia, unidad, tipo, imagen_path,
-                              categoria, descripcion,
-                              COALESCE(codigo_barras,'') as codigo_barras
-                       FROM productos
-                       WHERE (COALESCE(codigo_barras,'')=? OR codigo=? OR CAST(id AS TEXT)=?)
-                         AND COALESCE(activo,1)=1 AND COALESCE(oculto,0)=0
-                       LIMIT 1""",
-                    (codigo, codigo, codigo)
-                ).fetchone()
+                _prod = self._prod_repo
+                row_prod = _prod.get_by_barcode(codigo) if _prod else None
                 if row_prod:
                     self.agregar_al_carrito(dict(row_prod))
                     self._mostrar_notif_scanner(
                         f"📦 {row_prod['nombre']}", "product")
+                    _log_scan("producto", "producto_agregado",
+                              producto_id=row_prod['id'])
                     if hasattr(self, 'txt_busqueda'):
                         self.txt_busqueda.clear()
                     return
                 # Not found → populate search field
+                _log_scan("producto", "producto_no_encontrado")
                 if hasattr(self, 'txt_busqueda'):
                     self.txt_busqueda.setText(codigo)
                     self.buscar_productos()
@@ -1568,41 +2629,26 @@ class ModuloVentas(ModuloBase):
             # Orden: producto → tarjeta → UUID contenedor → búsqueda
             # ════════════════════════════════════════════════════════════════
             # ── 1. Producto ──────────────────────────────────────────────────
-            row_prod = self.conexion.execute(
-                """SELECT id, nombre, precio_venta, precio_kilo,
-                          existencia, unidad, tipo, imagen_path,
-                          categoria, descripcion,
-                          COALESCE(codigo_barras,'') as codigo_barras
-                   FROM productos
-                   WHERE (COALESCE(codigo_barras,'')=? OR codigo=? OR CAST(id AS TEXT)=?)
-                     AND COALESCE(activo,1)=1 AND COALESCE(oculto,0)=0
-                   LIMIT 1""",
-                (codigo, codigo, codigo)
-            ).fetchone()
+            _prod = self._prod_repo
+            row_prod = _prod.get_by_barcode(codigo) if _prod else None
             if row_prod:
                 self.agregar_al_carrito(dict(row_prod))
                 self._mostrar_notif_scanner(f"📦 {row_prod['nombre']}", "product")
+                _log_scan("producto", "producto_agregado",
+                          producto_id=row_prod['id'])
                 return
-
-            # ── 2. Tarjeta de fidelidad ──────────────────────────────────────
-            row_tarj = self.conexion.execute(
-                """SELECT t.id, t.codigo, COALESCE(t.nivel,'Bronce') as nivel,
-                          c.id as cliente_id, c.nombre as cliente_nombre,
-                          c.telefono, COALESCE(c.puntos,0) as puntos
-                   FROM tarjetas_fidelidad t
-                   JOIN clientes c ON c.id = t.id_cliente
-                   WHERE t.codigo = ? AND t.activa = 1
-                   LIMIT 1""",
-                (codigo,)
-            ).fetchone()
-            if row_tarj:
+            # ── 2. Tarjeta de fidelidad (sin SQL UI) ─────────────────────────
+            ls = getattr(self.container, 'loyalty_service', None) if hasattr(self, 'container') else None
+            row_tarj = ls.resolve_scan(codigo) if ls else {"found": False}
+            if row_tarj.get('found'):
                 self._cargar_cliente_en_venta(
                     cliente_id=row_tarj['cliente_id'],
-                    nombre=row_tarj['cliente_nombre'],
-                    telefono=row_tarj['telefono'] or "",
-                    puntos=int(row_tarj['puntos']),
-                    nivel=row_tarj['nivel'],
+                    nombre=row_tarj['nombre'],
+                    telefono=row_tarj.get('telefono', '') or "",
+                    puntos=int(row_tarj.get('puntos', 0) or 0),
+                    nivel=row_tarj.get('nivel', 'Bronce') or 'Bronce',
                 )
+                _log_scan('tarjeta', 'cliente_cargado', cliente_id=row_tarj['cliente_id'])
                 return
 
             # ── 3. UUID contenedor ───────────────────────────────────────────
@@ -1612,18 +2658,18 @@ class ModuloVentas(ModuloBase):
                 r'-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$', codigo
             ):
                 try:
-                    row_c = self.conexion.execute(
-                        "SELECT uuid_qr, descripcion FROM trazabilidad_qr WHERE uuid_qr=? LIMIT 1",
-                        (codigo,)).fetchone()
+                    row_c = self._sales_read_repo.get_qr_container(codigo)
                     if row_c:
                         self._mostrar_notif_scanner(
                             f"📦 Contenedor: {row_c['descripcion'] or codigo[:8]}...",
                             "container")
+                        _log_scan("contenedor", "contenedor_escaneado")
                         return
                 except Exception:
                     pass
 
             # ── 4. Sin coincidencia ──────────────────────────────────────────
+            _log_scan("busqueda", "sin_coincidencia")
             if hasattr(self, 'txt_busqueda'):
                 self.txt_busqueda.setText(codigo)
                 self.buscar_productos()
@@ -1633,96 +2679,8 @@ class ModuloVentas(ModuloBase):
             import logging
             logging.getLogger(__name__).warning("_procesar_scanner_con_codigo: %s", e)
 
-        try:
-            # ── 1. Intentar como producto (barcode o código interno) ─────────
-            row_prod = self.conexion.execute(
-                """SELECT id, nombre, precio_venta, precio_kilo,
-                          existencia, unidad, tipo,
-                          imagen_path, categoria, descripcion,
-                          COALESCE(codigo_barras,'') as codigo_barras
-                   FROM productos
-                   WHERE (COALESCE(codigo_barras,'') = ? OR codigo = ? OR CAST(id AS TEXT)=?)
-                     AND COALESCE(activo,1)=1 AND COALESCE(oculto,0)=0
-                   LIMIT 1""",
-                (codigo, codigo, codigo)
-            ).fetchone()
-
-            if row_prod:
-                prod_data = {
-                    'id':          row_prod['id'],
-                    'nombre':      row_prod['nombre'],
-                    'precio':      row_prod['precio_venta'],
-                    'precio_kilo': row_prod['precio_kilo'],
-                    'existencia':  row_prod['existencia'],
-                    'unidad':      row_prod['unidad'],
-                    'tipo':        row_prod['tipo'],
-                    'imagen_path': row_prod['imagen_path'],
-                    'categoria':   row_prod['categoria'],
-                    'descripcion': row_prod['descripcion'],
-                    'codigo_barras': row_prod['codigo_barras'],
-                }
-                self.agregar_al_carrito(prod_data)
-                self._mostrar_notif_scanner(f"📦 {prod_data['nombre']}", "product")
-                return
-
-            # ── 2. Intentar como tarjeta de fidelidad ───────────────────────
-            row_tarj = self.conexion.execute(
-                """SELECT t.id, t.codigo, t.nivel,
-                          c.id as cliente_id, c.nombre as cliente_nombre,
-                          c.telefono, COALESCE(c.puntos,0) as puntos
-                   FROM tarjetas_fidelidad t
-                   JOIN clientes c ON c.id = t.id_cliente
-                   WHERE t.codigo = ? AND t.activa = 1
-                   LIMIT 1""",
-                (codigo,)
-            ).fetchone()
-
-            if row_tarj:
-                # Load client into current sale
-                if hasattr(self, 'set_cliente_venta'):
-                    self.set_cliente_venta(
-                        cliente_id=row_tarj['cliente_id'],
-                        nombre=row_tarj['cliente_nombre'],
-                        telefono=row_tarj['telefono'] or "",
-                    )
-                nivel_icons = {"Bronce":"🥉","Plata":"🥈","Oro":"🥇","Diamante":"💎"}
-                nivel = row_tarj['nivel'] or "Bronce"
-                icon  = nivel_icons.get(nivel, "⭐")
-                self._mostrar_notif_scanner(
-                    f"{icon} Tarjeta {nivel}: {row_tarj['cliente_nombre']} — {int(row_tarj['puntos'])} pts",
-                    "card"
-                )
-                return
-
-            # ── 3. Intentar como QR de contenedor (UUID format) ─────────────
-            import re as _re
-            if _re.match(
-                r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
-                codigo
-            ):
-                try:
-                    row_cont = self.conexion.execute(
-                        "SELECT uuid_qr, descripcion, sucursal_id FROM trazabilidad_qr WHERE uuid_qr=? LIMIT 1",
-                        (codigo,)
-                    ).fetchone()
-                    if row_cont:
-                        self._mostrar_notif_scanner(
-                            f"📦 Contenedor: {row_cont['descripcion'] or codigo[:8]}...",
-                            "container"
-                        )
-                        return
-                except Exception:
-                    pass
-
-            # ── 4. No encontrado → poner en buscador para búsqueda manual ───
-            if hasattr(self, 'txt_busqueda'):
-                self.txt_busqueda.setText(codigo)
-                self.buscar_productos()
-            self._mostrar_notif_scanner(f"🔍 Buscando: {codigo}", "search")
-
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning("_procesar_buffer_scanner: %s", e)
+        # Fallback idéntico eliminado — self.conexion == container.db, misma conexión.
+        # Si el bloque principal falla, el fallback fallaría igual. Ver bloque try anterior.
 
     def _set_scan_context(self, context: str, active_field) -> None:
         """
@@ -1733,32 +2691,55 @@ class ModuloVentas(ModuloBase):
         """
         self._scan_context = context
 
-        # Reset styles — v13.4: sin colores de fondo hardcoded (compat dark mode)
-        base_product = ("QLineEdit { padding:6px 8px; border:2px solid gray;"
-                        " border-radius:4px; font-size:13px; }")
-        active_product = ("QLineEdit { padding:6px 8px; border:2px solid #27ae60;"
-                          " border-radius:4px; font-size:13px; }"
-                          "QLineEdit:focus { border-color:#27ae60; }")
-        active_client  = ("QLineEdit { padding:6px 8px; border:2px solid #2E86C1;"
-                          " border-radius:4px; font-size:13px; }"
-                          "QLineEdit:focus { border-color:#2E86C1; }")
-
+        # v13.4: Usar clases CSS en lugar de estilos inline
         for field in (getattr(self,'txt_busqueda',None), getattr(self,'txt_cliente',None)):
             if field is None: continue
+            
+            # Remover clases previas
+            field.setProperty("class", "")
+            
             if field is active_field:
                 if context == "producto":
-                    field.setStyleSheet(active_product)
+                    field.setProperty("class", "input-scanner-success")
                     field.setPlaceholderText("🟢 SCANNER ACTIVO — Escanear producto...")
                 elif context == "cliente":
-                    field.setStyleSheet(active_client)
+                    field.setProperty("class", "input-scanner-primary")
                     field.setPlaceholderText("🔵 SCANNER ACTIVO — Escanear tarjeta o cliente...")
             else:
-                field.setStyleSheet(base_product)
+                field.setProperty("class", "input-scanner-base")
                 # Restore original placeholder
                 if field is getattr(self, 'txt_busqueda', None):
-                    field.setPlaceholderText("🔍 Escanear o escribir producto...")
+                    field.setPlaceholderText("Escanear código o escribir nombre del producto...")
                 elif field is getattr(self, 'txt_cliente', None):
                     field.setPlaceholderText("💳 Escanear tarjeta o buscar cliente...")
+        
+        # Update persistent scanner state badge
+        badge = getattr(self, '_lbl_scan_state', None)
+        if badge:
+            if context == "producto":
+                badge.setText("● ACTIVO")
+                badge.setObjectName("posScanStateActive")
+            elif context == "cliente":
+                badge.setText("● CLIENTE")
+                badge.setObjectName("posScanStatePrimary")
+            else:
+                badge.setText("LIBRE")
+                badge.setObjectName("posScanStateWaiting")
+            badge.style().unpolish(badge)
+            badge.style().polish(badge)
+
+        # Highlight search frame border when product field is active
+        sf = getattr(self, '_search_frame', None)
+        if sf:
+            sf.setProperty("focused", context == "producto")
+            sf.style().unpolish(sf)
+            sf.style().polish(sf)
+
+        # Forzar actualización de estilos
+        for field in (getattr(self,'txt_busqueda',None), getattr(self,'txt_cliente',None)):
+            if field:
+                field.style().unpolish(field)
+                field.style().polish(field)
 
     def _cargar_cliente_en_venta(
         self,
@@ -1802,6 +2783,14 @@ class ModuloVentas(ModuloBase):
             self._mostrar_notif_scanner(
                 f"{icon} {nombre} ({nivel}){pts_txt}", "card")
 
+            # Switch to display mode
+            if hasattr(self, '_client_search_row'):
+                self._client_search_row.setVisible(False)
+                self.txt_cliente.setVisible(False)
+                self.txt_cliente.setMaximumHeight(0)
+            if hasattr(self, '_client_display_row'):
+                self._client_display_row.setVisible(True)
+
             # Refresh totals (in case discount rules apply to this client)
             if hasattr(self, '_actualizar_totales'):
                 try: self._actualizar_totales()
@@ -1813,18 +2802,16 @@ class ModuloVentas(ModuloBase):
     def _mostrar_notif_scanner(self, mensaje: str, tipo: str = "product") -> None:
         """Muestra una notificación visual del resultado del scanner."""
         try:
-            colores = {
-                "product":   "#27ae60",
-                "card":      "#f39c12",
-                "container": "#3498db",
-                "search":    "#7f8c8d",
+            clases_css = {
+                "product":   "badge-scanner-success",
+                "card":      "badge-scanner-warning",
+                "container": "badge-scanner-info",
+                "search":    "badge-scanner-secondary",
             }
-            color = colores.get(tipo, "#2c3e50")
+            clase = clases_css.get(tipo, "badge-scanner-default")
             if hasattr(self, 'lbl_scanner_notif'):
                 self.lbl_scanner_notif.setText(mensaje)
-                self.lbl_scanner_notif.setStyleSheet(
-                    f"background:{color};color:white;padding:6px 12px;"
-                    "border-radius:4px;font-weight:bold;font-size:12px;")
+                self.lbl_scanner_notif.setProperty("class", f"{clase} badge")
                 self.lbl_scanner_notif.show()
                 # Auto-hide after 3s
                 from PyQt5.QtCore import QTimer
@@ -1835,6 +2822,25 @@ class ModuloVentas(ModuloBase):
             pass
 
     
+    def _abrir_nuevo_cliente_con_tarjeta(self, codigo: str) -> None:
+        """
+        Flujo dual Fase 2 — tarjeta de fidelidad escaneada pero sin cliente registrado.
+        Abre DialogoAgregarCliente con el campo tarjeta_id precargado.
+        Si el usuario confirma, registra el cliente y lo vincula a la tarjeta.
+        """
+        try:
+            self._mostrar_notif_scanner(
+                f"🪪 Tarjeta nueva — registra el cliente: {codigo}", "card")
+            dialogo = DialogoAgregarCliente(self)
+            dialogo.txt_tarjeta_id.setText(codigo)
+            dialogo.txt_tarjeta_id.setReadOnly(True)   # evitar edición accidental
+            if dialogo.exec_() == QDialog.Accepted:
+                cliente_data = dialogo.get_cliente_data()
+                self.guardar_nuevo_cliente(cliente_data)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("_abrir_nuevo_cliente_con_tarjeta: %s", e)
+
     def _cargar_tarjeta_desde_scanner(self, tarjeta_row) -> None:
         """
         Carga automáticamente la tarjeta de fidelidad en la venta activa.
@@ -1872,11 +2878,10 @@ class ModuloVentas(ModuloBase):
                         'puntos':   tarjeta_row[8],
                         'saldo':    tarjeta_row[9],
                     }
-                QMessageBox.information(
-                    self, "💳 Tarjeta cargada",
-                    f"Cliente: {cliente_nombre}\n"
-                    f"Tarjeta: {numero}\n"
-                    f"Puntos acumulados: {puntos}"
+                Toast.success(
+                    self,
+                    "💳 Tarjeta cargada",
+                    f"{cliente_nombre} · {numero} · {puntos} pts",
                 )
         except Exception as exc:
             logger.warning("_cargar_tarjeta_desde_scanner: %s", exc)
@@ -1897,20 +2902,19 @@ class ModuloVentas(ModuloBase):
                 return
 
             if tarjeta.estado == "asignada" and tarjeta.id_cliente:
-                row = self.conexion.execute(
-                    "SELECT id, nombre, telefono, email, direccion, rfc, puntos, codigo_qr, saldo "
-                    "FROM clientes WHERE id = ? AND activo = 1",
-                    (tarjeta.id_cliente,)
-                ).fetchone()
-                if row:
+                _cli = self._cli_repo
+                row = _cli.get_by_id(tarjeta.id_cliente) if _cli else None
+                if row and row.get('activo', 1):
                     self.cliente_actual = {
-                        'id': row[0], 'nombre': row[1], 'telefono': row[2],
-                        'email': row[3], 'direccion': row[4], 'rfc': row[5],
-                        'puntos': row[6], 'codigo_qr': row[7], 'saldo': row[8] or 0.0,
+                        'id': row['id'], 'nombre': row['nombre'],
+                        'telefono': row.get('telefono', ''), 'email': row.get('email', ''),
+                        'direccion': row.get('direccion', ''), 'rfc': row.get('rfc', ''),
+                        'puntos': row.get('puntos', 0), 'codigo_qr': row.get('codigo_qr', ''),
+                        'saldo': row.get('saldo', 0.0) or 0.0,
                     }
                     self._actualizar_ui_cliente()
                     if hasattr(self, 'lbl_puntos_cliente'):
-                        self.lbl_puntos_cliente.setText(f"Puntos: {row[6]} | Nivel: {tarjeta.nivel}")
+                        self.lbl_puntos_cliente.setText(f"Puntos: {row.get('puntos',0)} | Nivel: {tarjeta.nivel}")
                     return
 
             dialogo = _DialogoAsignarTarjeta(tarjeta, self.conexion, self)
@@ -1919,31 +2923,26 @@ class ModuloVentas(ModuloBase):
                 if resultado and resultado.get('cliente_id'):
                     cliente_id = resultado['cliente_id']
                     eng.asignar_tarjeta(tarjeta.id, cliente_id, motivo="asignacion_en_venta")
-                    row = self.conexion.execute(
-                        "SELECT id, nombre, telefono, email, direccion, rfc, puntos, codigo_qr, saldo "
-                        "FROM clientes WHERE id = ?",
-                        (cliente_id,)
-                    ).fetchone()
+                    _cli = self._cli_repo
+                    row = _cli.get_by_id(cliente_id) if _cli else None
                     if row:
                         self.cliente_actual = {
-                            'id': row[0], 'nombre': row[1], 'telefono': row[2],
-                            'email': row[3], 'direccion': row[4], 'rfc': row[5],
-                            'puntos': row[6], 'codigo_qr': row[7], 'saldo': row[8] or 0.0,
+                            'id': row['id'], 'nombre': row['nombre'],
+                            'telefono': row.get('telefono', ''), 'email': row.get('email', ''),
+                            'direccion': row.get('direccion', ''), 'rfc': row.get('rfc', ''),
+                            'puntos': row.get('puntos', 0), 'codigo_qr': row.get('codigo_qr', ''),
+                            'saldo': row.get('saldo', 0.0) or 0.0,
                         }
                         self._actualizar_ui_cliente()
         except ImportError:
-            QMessageBox.information(self, "Tarjeta", "Motor de tarjetas no disponible en esta versión.")
+            Toast.info(self, "Tarjeta", "Motor de tarjetas no disponible en esta versión.")
         except Exception as exc:
             QMessageBox.critical(self, "Error Tarjeta", str(exc))
 
     def _actualizar_ui_cliente(self) -> None:
         if not self.cliente_actual: return
-        nombre = self.cliente_actual.get('nombre', '')
-        if hasattr(self, 'txt_cliente'): self.txt_cliente.setText(nombre)
-        if hasattr(self, 'lbl_nombre_cliente'): self.lbl_nombre_cliente.setText(nombre)
-        if hasattr(self, 'lbl_puntos_cliente'):
-            puntos = self.cliente_actual.get('puntos', 0)
-            self.lbl_puntos_cliente.setText(f"Puntos: {puntos}")
+        # Delegate to the canonical update method
+        self.actualizar_info_cliente()
 
     def _descuento_rapido(self, pct: float) -> None:
         """Aplica descuento % al ítem — validado por DiscountGuard financiero."""
@@ -1952,8 +2951,7 @@ class ModuloVentas(ModuloBase):
             if self.compra_actual:
                 row = len(self.compra_actual) - 1
             else:
-                QMessageBox.information(self, "Aviso",
-                    "Selecciona un ítem del carrito primero.")
+                Toast.info(self, "Aviso", "Selecciona un ítem del carrito primero.")
                 return
         if not (0 <= row < len(self.compra_actual)):
             return
@@ -1978,15 +2976,15 @@ class ModuloVentas(ModuloBase):
                 QMessageBox.critical(self, "Descuento Bloqueado", mensaje)
                 return
             if requiere_pin:
-                # Solicitar PIN de gerente
-                pin, ok = __import__('PyQt5.QtWidgets', fromlist=['QInputDialog']).QInputDialog.getText(
-                    self, "Autorización Requerida",
-                    "PIN de gerente requerido\n\n" + mensaje + "\n\nIngresa PIN:",
-                    __import__('PyQt5.QtWidgets', fromlist=['QLineEdit']).QLineEdit.Password
+                dlg = _AuthDiscountDialog(
+                    "Descuento Protegido",
+                    f"Se requiere autorización de gerente.\n\n{mensaje}",
+                    requiere_pin=True,
+                    parent=self,
                 )
-                if not ok:
+                if dlg.exec_() != QDialog.Accepted:
                     return
-                if not guard.solicitar_pin_gerente(self.conexion, pin):
+                if not guard.solicitar_pin_gerente(self.conexion, dlg.pin):
                     QMessageBox.warning(self, "PIN Incorrecto",
                         "PIN de gerente incorrecto. Descuento no aplicado.")
                     return
@@ -2005,12 +3003,13 @@ class ModuloVentas(ModuloBase):
         if row < 0 and self.compra_actual:
             row = len(self.compra_actual) - 1
         if row < 0:
-            QMessageBox.information(self, "Aviso", "Selecciona un ítem primero.")
+            Toast.info(self, "Aviso", "Selecciona un ítem primero.")
             return
-        pct, ok = QInputDialog.getDouble(
+        from frontend.desktop.components.numeric_keypad_dialog import NumericKeypadDialog
+        pct, ok = NumericKeypadDialog.get_value(
             self, "Descuento personalizado",
             "Ingresa el porcentaje de descuento (0–100):",
-            0, 0, 100, 1)
+            decimals=1, maximo=100.0, unidad="%")
         if ok and pct > 0:
             self._descuento_rapido(pct)
 
@@ -2020,18 +3019,24 @@ class ModuloVentas(ModuloBase):
             cs = getattr(self.container, 'comisiones_service', None)
             if not cs:
                 self.lbl_comision_turno.setVisible(False)
+                if hasattr(self, '_card_comision'):
+                    self._card_comision.setVisible(False)
                 return
             usuario = self.obtener_usuario_actual()
             cfg = cs.get_config(usuario)
             if not cfg or not cfg.get('activo'):
                 self.lbl_comision_turno.setVisible(False)
+                if hasattr(self, '_card_comision'):
+                    self._card_comision.setVisible(False)
                 return
             datos = cs.get_comision_turno(usuario)
             monto  = float(datos.get('comision', 0))
             ventas = int(datos.get('ventas', 0))
             self.lbl_comision_turno.setText(
-                f"💰 Comisión turno: ${monto:.2f}  ({ventas} vtas)")
+                f"${monto:.2f}  ({ventas} vtas)")
             self.lbl_comision_turno.setVisible(True)
+            if hasattr(self, '_card_comision'):
+                self._card_comision.setVisible(True)
         except Exception:
             pass
 
@@ -2041,187 +3046,122 @@ class ModuloVentas(ModuloBase):
             if self.container.hardware_service.open_cash_drawer():
                 return
         
-        # Legacy Fallback (cajón — no usa PrinterService)
-        if not self._hw_cajon_habilitado: return
-        try:
-            metodo = self._hw_cajon_cfg.get("metodo", "escpos")
-            if metodo == "escpos":
-                from escpos.printer import Usb
-                pulse = bytes([0x10, 0x14, 0x01, 0x00, 0x05])
-                puerto = self._hw_cajon_cfg.get("puerto", "USB")
-                if puerto == "USB":
-                    try:
-                        p = Usb(0x04b8, 0x0202)
-                        p._raw(pulse)
-                    except Exception: pass
-            elif metodo == "serial" and HAS_SERIAL:
-                import serial as _ser
-                puerto_s = self._hw_cajon_cfg.get("puerto_serial", "COM4")
-                baud     = int(self._hw_cajon_cfg.get("baud", 9600))
-                try:
-                    with _ser.Serial(puerto_s, baud, timeout=0.5) as s:
-                        s.write(bytes([0x10, 0x14, 0x01, 0x00, 0x05]))
-                except Exception: pass
-        except Exception as exc:
-            logger.debug("abrir_cajon (legacy): %s", exc)
+        # Ruta canónica única: HardwareService. La UI no maneja transporte
+        # de hardware ni usa escpos.printer.Usb directamente (regla Windows).
+        logger.debug("abrir_cajon: hardware_service no disponible o falló — sin fallback en UI")
 
     def _imprimir_ticket_consolidado(self, datos_ticket: dict) -> None:
         """
         Impresión de ticket unificada (v13.4 Fase 1):
         1. PrinterService → ESC/POS con logo, QR, formato completo
-        2. QPrintDialog (sistema) como fallback si no hay impresora configurada
-        3. PDF de auditoría siempre
+        2. PDF de auditoría siempre
         """
-        from PyQt5.QtPrintSupport import QPrinter, QPrintDialog
-        from PyQt5.QtGui import QTextDocument
-
-        impreso = False
-
         # ── Ruta 1: PrinterService unificado (ESC/POS) ────────────────────────
+        self._venta_timing = getattr(self, "_venta_timing", {})
+        self._venta_timing["t_ticket_start"] = time.perf_counter()
         printer_svc = getattr(self.container, 'printer_service', None)
-        if printer_svc and printer_svc.has_ticket_printer():
+        if printer_svc:
+            vr = printer_svc.validate_ticket_printer_config()
             try:
-                job_id = printer_svc.print_ticket(datos_ticket)
-                if job_id:
-                    impreso = True
-                    self.guardar_ticket_pdf(datos_ticket)
-                    return
+                if vr.ok:
+                    def _ok():
+                        QTimer.singleShot(0, lambda: Toast.success(self, "Ticket impreso", "Ticket impreso"))
+                    def _err(msg):
+                        QTimer.singleShot(0, lambda: Toast.warning(self, "Impresión", f"La venta fue completada, pero el ticket no se imprimió: {msg}"))
+                    job_id = printer_svc.print_ticket(datos_ticket, on_success=_ok, on_error=_err)
+                    if job_id:
+                        Toast.info(self, "Impresión", f"Ticket enviado a impresión: {job_id}")
+                        self._venta_timing["t_ticket_queued"] = time.perf_counter()
+                else:
+                    Toast.warning(self, "Impresora no válida", "\n".join(vr.errors or ["Config inválida"]))
             except Exception as _e:
-                logger.warning("PrinterService: %s", _e)
-
-        # ── Ruta 3: Impresora del sistema (QPrintDialog) ──────────────────────
-        # v13.4: QTextDocument con soporte para imágenes base64
-        try:
-            html = self.generar_html_ticket(datos_ticket)
-
-            doc = QTextDocument()
-
-            # v13.4: Registrar imágenes base64 como recursos del documento
-            # QTextDocument no entiende data:image/...;base64,... directamente
-            import re, base64
-            img_counter = 0
-            def _register_b64_image(match):
-                nonlocal img_counter
-                b64_full = match.group(1)  # "data:image/png;base64,XXXX"
+                logger.error("Error al encolar impresión de ticket: %s", _e)
+                Toast.warning(self, "Impresión", f"La venta fue completada, pero el ticket no se imprimió: {_e}")
+        else:
+            if self._hw_impresora_habilitada:
                 try:
-                    if ',' in b64_full:
-                        b64_data = b64_full.split(',', 1)[1]
-                    else:
-                        b64_data = b64_full
-                    img_bytes = base64.b64decode(b64_data)
-                    qimg = QImage()
-                    qimg.loadFromData(img_bytes)
-                    if not qimg.isNull():
-                        img_counter += 1
-                        res_name = f"ticket_img_{img_counter}"
-                        doc.addResource(
-                            QTextDocument.ImageResource,
-                            __import__('PyQt5.QtCore', fromlist=['QUrl']).QUrl(res_name),
-                            qimg)
-                        return f'src="{res_name}"'
-                except Exception:
-                    pass
-                return match.group(0)
-
-            html = re.sub(r'src="(data:image/[^"]+)"', _register_b64_image, html)
-            doc.setHtml(html)
-
-            # Leer config de papel
-            paper_w = 80; paper_h = 297; margin_top = 5; margin_side = 3
-            try:
-                db = self.container.db
-                def _pcfg(k, d=""):
-                    r = db.execute("SELECT valor FROM configuraciones WHERE clave=?", (k,)).fetchone()
-                    return r[0] if r and r[0] else d
-                try: paper_w = int(_pcfg('ticket_paper_width', '80'))
-                except: pass
-                try: paper_h = int(_pcfg('ticket_paper_height', '0')) or 297
-                except: pass
-                try: margin_top = int(_pcfg('ticket_margin_top', '5'))
-                except: pass
-                try: margin_side = int(_pcfg('ticket_margin_side', '3'))
-                except: pass
-            except Exception:
-                pass
-
-            from PyQt5.QtPrintSupport import QPrinterInfo
-            from PyQt5.QtCore import QSizeF
-            default_printer = QPrinterInfo.defaultPrinter()
-
-            if default_printer and not default_printer.isNull():
-                printer = QPrinter(default_printer, QPrinter.HighResolution)
-                printer.setPageSize(QPrinter.Custom)
-                printer.setPageSizeMM(QSizeF(paper_w, paper_h))
-                printer.setPageMargins(margin_side, margin_top, margin_side, margin_top, QPrinter.Millimeter)
-                doc.print_(printer)
-                impreso = True
-                logger.info("Ticket impreso: %s (%dx%dmm)",
-                            default_printer.printerName(), paper_w, paper_h)
+                    self._imprimir_ticket_legacy_real(datos_ticket)
+                    self._venta_timing["t_ticket_queued"] = time.perf_counter()
+                    Toast.info(self, "Impresión", "Ticket enviado por transporte legacy.")
+                except Exception as _legacy_e:
+                    logger.error("Impresión legacy falló: %s", _legacy_e)
+                    Toast.warning(
+                        self,
+                        "Impresión",
+                        f"La venta fue completada, pero el ticket no se imprimió (legacy): {_legacy_e}",
+                    )
             else:
-                printer = QPrinter(QPrinter.HighResolution)
-                dlg = QPrintDialog(printer, self)
-                dlg.setWindowTitle("Imprimir Ticket")
-                if dlg.exec_() == QPrintDialog.Accepted:
-                    printer.setPageSize(QPrinter.Custom)
-                    printer.setPageSizeMM(QSizeF(paper_w, paper_h))
-                    printer.setPageMargins(margin_side, margin_top, margin_side, margin_top, QPrinter.Millimeter)
-                    doc.print_(printer)
-                    impreso = True
-        except Exception as _e:
-            logger.debug("QPrintDialog ticket: %s", _e)
-
-        # ── Ruta 4: PDF de auditoría (siempre) ───────────────────────────────
-        try:
-            self.guardar_ticket_pdf(datos_ticket)
-        except Exception as _e:
-            import logging; logging.getLogger(__name__).debug("PDF ticket: %s", _e)
+                Toast.warning(self, "Impresión", "PrinterService no está disponible. No se puede imprimir térmico. Se guardará PDF.")
+        self._guardar_ticket_pdf_async(datos_ticket)
 
     def _imprimir_ticket_hardware(self, ticket_data: dict) -> None:
-        """v13.4: Delega a PrinterService."""
+        """Compatibilidad: usa fallback legacy real si está habilitado."""
+        self._imprimir_ticket_legacy_real(ticket_data)
+
+    def _imprimir_ticket_legacy_real(self, ticket_data: dict) -> None:
+        """
+        Fallback legacy REAL cuando no hay PrinterService.
+        No es un no-op: intenta enviar bytes ESC/POS por transporte legacy.
+        """
+        if not self._hw_impresora_habilitada:
+            raise RuntimeError("Impresora legacy deshabilitada en hardware_config.")
+        cfg = dict(getattr(self, "_hw_impresora_cfg", {}) or {})
+        if not cfg:
+            raise RuntimeError("No existe configuración legacy de impresora en hardware_config.")
         try:
-            ps = getattr(self.container, 'printer_service', None)
-            if ps and ps.has_ticket_printer():
-                ps.print_ticket(ticket_data)
+            from core.ticket_escpos_renderer import render_and_print_ticket
+            ok = render_and_print_ticket(ticket_data, cfg, self.container.db)
+            if not ok:
+                raise RuntimeError("render_and_print_ticket devolvió False.")
         except Exception as exc:
-            logger.debug("imprimir_ticket_hw: %s", exc)
+            raise RuntimeError(f"Fallo transporte legacy ({cfg.get('tipo', 'desconocido')}): {exc}") from exc
 
     def inicializar_bascula(self):
         self.bascula_conectada = False
         # v13.4: Solo conectar báscula si está activa en configuración de hardware
         if not self._hw_bascula_habilitada:
             if hasattr(self, 'lbl_estado_bascula'):
-                self.lbl_estado_bascula.setText("Báscula: ⚪ Desactivada")
+                self._set_bascula_status("Báscula: ⚪ Desactivada")
             if hasattr(self, 'lbl_peso_bascula'):
                 self.lbl_peso_bascula.setText("Peso: —")
             return
-        self.lbl_estado_bascula.setText("Báscula: ⏳ Conectando...")
+        self._set_bascula_status("Báscula: ⏳ Conectando...")
         self.lbl_peso_bascula.setText("Peso: 0.000 kg")
         self.timer_bascula.start()
-        
+
     def leer_peso(self):
-        """🛠️ FIX ENTERPRISE: Usa el Hardware Service centralizado."""
+        """Lee peso priorizando HAL y mantiene fallback serial legacy."""
         try:
-            if hasattr(self.container, 'hardware_service'):
-                peso = self.container.hardware_service.read_scale()
+            hw = getattr(self.container, 'hardware_service', None)
+            if hw:
+                # API unificada del HAL: intenta báscula y puede sanear fallback manual.
+                # Evita reciclar peso previo cuando no hay lectura nueva.
+                peso = hw.get_weight(0.0)
                 if peso > 0:
                     self.peso_actual = peso
                     self.lbl_peso_bascula.setText(f"Peso: {peso:.3f} kg")
-                    self.lbl_estado_bascula.setText("Báscula: ✅ Conectada (HAL)")
+                    self._set_bascula_status("Báscula: ✅ Conectada (HAL)")
                     if self.producto_pendiente:
                         self.procesar_peso_para_producto(peso)
-                return
+                    return
         except Exception:
             pass
 
         # Legacy Fallback — solo si báscula está habilitada en config hardware
         if not self._hw_bascula_habilitada:
             return
+        if not HAS_SERIAL_MODULE or serial is None:
+            self._set_bascula_status("Báscula: ⚠️ Serial no disponible")
+            return
         try:
             if not self.bascula:
                 puerto = self._hw_bascula_cfg.get("puerto", "COM3")
-                baud   = int(self._hw_bascula_cfg.get("baud", 9600))
+                try:
+                    baud = int(self._hw_bascula_cfg.get("baud", 9600))
+                except Exception:
+                    baud = 9600
                 self.bascula = serial.Serial(puerto, baud, timeout=0.2)
-                self.lbl_estado_bascula.setText("Báscula: ✅ Conectada")
+                self._set_bascula_status("Báscula: ✅ Conectada")
 
             self.bascula.write(b'P\r\n')
             datos = self.bascula.readline().decode('utf-8', errors='ignore').strip()
@@ -2234,7 +3174,7 @@ class ModuloVentas(ModuloBase):
                     self.procesar_peso_para_producto(peso)
         except Exception as e:
             self.bascula = None
-            self.lbl_estado_bascula.setText("Báscula: ❌ Desconectada")
+            self._set_bascula_status("Báscula: ❌ Desconectada")
                 
     def iniciar_monitoreo_peso(self, producto: Dict[str, Any]):
         # BUG FIX: no iniciar si la báscula está deshabilitada en config hardware
@@ -2311,20 +3251,22 @@ class ModuloVentas(ModuloBase):
             )
             
             if respuesta == QMessageBox.Yes:
-                cantidad, ok = QInputDialog.getDouble(
-                    self, "Peso Manual", 
+                from frontend.desktop.components.quantity_input_dialog import QuantityInputDialog
+                cantidad, ok = QuantityInputDialog.get_quantity(
+                    self, "Peso Manual",
                     f"Ingrese el peso para {self.producto_pendiente['nombre']} (kg):",
-                    value=0.100, min=0.001, max=9999.0, decimals=3
+                    decimals=3, maximo=9999.0, unidad="kg"
                 )
                 if ok and cantidad > 0:
                     self.agregar_producto_directo(self.producto_pendiente, cantidad)
             self.finalizar_monitoreo_peso()
             
     def agregar_producto_por_unidad(self, producto: Dict[str, Any]):
-        cantidad, ok = QInputDialog.getDouble(
-            self, "Cantidad", 
+        from frontend.desktop.components.quantity_input_dialog import QuantityInputDialog
+        cantidad, ok = QuantityInputDialog.get_quantity(
+            self, "Cantidad",
             f"Ingrese la cantidad para {producto['nombre']}:",
-            value=1.0, min=0.001, max=9999.0, decimals=3
+            decimals=3, maximo=9999.0, unidad=producto.get('unidad', ''),
         )
         if ok and cantidad > 0:
             self.agregar_producto_directo(producto, cantidad)
@@ -2332,6 +3274,25 @@ class ModuloVentas(ModuloBase):
             self.limpiar_seleccion_producto()
 
     def agregar_producto_directo(self, producto: Dict[str, Any], cantidad: float):
+        def _stock_msg(prod: Dict[str, Any]) -> str:
+            missing = prod.get("missing_components") or []
+            if missing:
+                lines = [f"No se puede vender {prod.get('nombre','este producto')}.\n", "Faltantes:"]
+                for m in missing[:6]:
+                    comp = m.get("component_name") or m.get("nombre") or "Componente"
+                    req = m.get("required_qty")
+                    ava = m.get("available_qty")
+                    und = m.get("unit") or prod.get("unidad") or ""
+                    lines.append(f"- {comp}: necesitas {req} {und}, disponible {ava} {und}")
+                mx = prod.get("max_sellable")
+                if mx is not None:
+                    lines.append(f"\nMáximo vendible: {mx}")
+                return "\n".join(lines)
+            avail_msg = prod.get("availability_message")
+            if avail_msg:
+                return str(avail_msg)
+            return f"Stock insuficiente. Disponible: {prod['existencia']:.2f} {prod['unidad']}"
+
         if cantidad <= 0:
             QMessageBox.warning(self, "Advertencia", "La cantidad debe ser mayor a cero.")
             self.limpiar_seleccion_producto()
@@ -2339,7 +3300,7 @@ class ModuloVentas(ModuloBase):
             
         if cantidad > producto['existencia']:
             QMessageBox.warning(self, "Stock Insuficiente",
-                f"Stock insuficiente. Disponible: {producto['existencia']:.2f} {producto['unidad']}")
+                _stock_msg(producto))
             self.limpiar_seleccion_producto()
             return
             
@@ -2359,36 +3320,47 @@ class ModuloVentas(ModuloBase):
                             if nueva_cantidad > producto['existencia']:
                                 QMessageBox.warning(
                                     self, "Stock Insuficiente",
-                                    f"Stock insuficiente. Disponible: {producto['existencia']:.2f} {producto['unidad']}"
+                                    _stock_msg(producto)
                                 )
                                 break
-                                
+
                             item['cantidad'] = nueva_cantidad
                             item['total'] = round(nueva_cantidad * item['precio_unitario'], 2)
                             self.actualizar_tabla_compra()
+                            logger.info(
+                                "Carrito actualizado desde selección: product_id=%s cantidad=%s items=%d",
+                                producto.get('id'), nueva_cantidad, len(self.compra_actual)
+                            )
                             self.mostrar_mensaje("Éxito", f"Cantidad actualizada: {nueva_cantidad:.3f} {producto['unidad']}")
-                            break
+                            self.limpiar_seleccion_producto()
+                            return
                 else:
                     total_item = round(cantidad * producto['precio'], 2)
+                    import uuid as _uuid_mod
                     item_compra = {
                         'id': producto['id'],
                         'nombre': f"{producto['nombre']} (adicional)",
                         'cantidad': cantidad,
                         'unidad': producto['unidad'],
                         'precio_unitario': producto['precio'],
-                        'total': total_item
+                        'total': total_item,
+                        '_uid': _uuid_mod.uuid4().hex,  # ISSUE 2 FIX
+                        'fulfillment_mode': producto.get('fulfillment_mode'),
+                        'component_movements': producto.get('component_movements'),
+                        'missing_components': producto.get('missing_components'),
+                        'max_sellable': producto.get('max_sellable'),
+                        'availability_message': producto.get('availability_message'),
                     }
                 # Verificar stock antes de agregar al carrito
-                # v13.4: Lee stock de branch_inventory para la sucursal activa
+                # Lectura canónica: InventoryQueryService.get_stock (la API
+                # legacy get_stock_sucursal no existe en el servicio canónico).
                 try:
-                    stock_row = self.container.db.execute(
-                        "SELECT COALESCE(bi.quantity, p.existencia, 0) "
-                        "FROM productos p "
-                        "LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=? "
-                        "WHERE p.id=?",
-                        (self.sucursal_id, producto['id'])
-                    ).fetchone()
-                    stock_actual = float(stock_row[0]) if stock_row and stock_row[0] else 0
+                    _inv_qs = getattr(self.container, 'inventory_query_service', None)
+                    if _inv_qs:
+                        stock_actual = float(_inv_qs.get_stock(
+                            str(producto['id']), str(self.sucursal_id)).quantity or 0)
+                    else:
+                        stock_actual = float(producto.get('existencia', 0))
                     if stock_actual <= 0 and not producto.get('es_compuesto', 0):
                         resp = QMessageBox.question(
                             self, "⚠️ Sin stock",
@@ -2399,29 +3371,46 @@ class ModuloVentas(ModuloBase):
                         if resp != QMessageBox.Yes:
                             return
                 except Exception:
-                    pass  # No bloquea si falla la consulta
+                    logger.exception(
+                        "No se pudo validar stock antes de agregar al carrito: product_id=%s",
+                        producto.get('id')
+                    )
 
                 if not self._tiempo_inicio_venta:
                     import time
                     self._tiempo_inicio_venta = time.time()
                 self.compra_actual.append(item_compra)
                 self.actualizar_tabla_compra()
-                    
+
                 self.limpiar_seleccion_producto()
                 return
                 
         total_item = round(cantidad * producto['precio'], 2)
+        import uuid as _uuid_mod
         item_compra = {
             'id': producto['id'],
             'nombre': producto['nombre'],
             'cantidad': cantidad,
             'unidad': producto['unidad'],
             'precio_unitario': producto['precio'],
-            'total': total_item
+            'total': total_item,
+            'codigo': producto.get('codigo', '') or producto.get('codigo_barras', ''),
+            # ISSUE 2 FIX: Identificador estable para que el descuento pertenezca
+            # al ítem, no al índice de fila. Sobrevive cualquier pop/reordenamiento.
+            '_uid': _uuid_mod.uuid4().hex,
+            'fulfillment_mode': producto.get('fulfillment_mode'),
+            'component_movements': producto.get('component_movements'),
+            'missing_components': producto.get('missing_components'),
+            'max_sellable': producto.get('max_sellable'),
+            'availability_message': producto.get('availability_message'),
         }
-        
+
         self.compra_actual.append(item_compra)
         self.actualizar_tabla_compra()
+        logger.info(
+            "Producto agregado al carrito desde selección: product_id=%s cantidad=%s items=%d",
+            producto.get('id'), cantidad, len(self.compra_actual)
+        )
         self.limpiar_seleccion_producto()
 
     def limpiar_seleccion_producto(self):
@@ -2431,70 +3420,152 @@ class ModuloVentas(ModuloBase):
         self.producto_seleccionado = None
 
     def actualizar_tabla_compra(self):
+        has_items = bool(self.compra_actual)
+        self.tabla_compra.setVisible(has_items)
+        if hasattr(self, '_lbl_cart_empty'):
+            self._lbl_cart_empty.setVisible(not has_items)
+
         self.tabla_compra.setRowCount(len(self.compra_actual))
-        
-        for row, item in enumerate(self.compra_actual): 
-            self.tabla_compra.setItem(row, 0, QTableWidgetItem(item['nombre']))
-            
+
+        for row, item in enumerate(self.compra_actual):
+            # Column 0: 2-line cell — name (bold) + code (muted small)
+            cell_w = QWidget()
+            cell_lay = QVBoxLayout(cell_w)
+            cell_lay.setContentsMargins(6, 4, 4, 4)
+            cell_lay.setSpacing(1)
+            lbl_name = QLabel(item['nombre'])
+            lbl_name.setObjectName("posCartItemName")
+            codigo = (item.get('codigo', '') or item.get('codigo_barras', '')
+                      or str(item.get('id', '')))
+            lbl_code = QLabel(f"Código: {codigo}")
+            lbl_code.setObjectName("posCartItemCode")
+            mode_raw = str(item.get("fulfillment_mode") or "").upper().strip()
+            mode_map = {
+                "DIRECTO": "DIRECTO",
+                "COMBINACION": "COMPUESTO",
+                "COMPUESTO": "COMPUESTO",
+                "VIRTUAL": "VIRTUAL",
+            }
+            mode_tag = mode_map.get(mode_raw, "DIRECTO")
+            lbl_mode = QLabel(f"Modo: {mode_tag}")
+            lbl_mode.setObjectName("posCartItemCode")
+            cell_lay.addWidget(lbl_name)
+            cell_lay.addWidget(lbl_code)
+            cell_lay.addWidget(lbl_mode)
+            comp_moves = item.get("component_movements") or []
+            if comp_moves:
+                comp_lines = ["Descontará estos componentes:"]
+                for cm in comp_moves[:6]:
+                    nm = cm.get("component_name") or cm.get("nombre") or "Componente"
+                    qt = cm.get("qty") or cm.get("quantity") or cm.get("cantidad") or 0
+                    un = cm.get("unit") or item.get("unidad") or ""
+                    comp_lines.append(f"- {nm}: -{qt} {un}")
+                cell_w.setToolTip("\n".join(comp_lines))
+            elif item.get("availability_message"):
+                cell_w.setToolTip(str(item.get("availability_message")))
+            self.tabla_compra.setCellWidget(row, 0, cell_w)
+
             cantidad_item = QTableWidgetItem(f"{item['cantidad']:.3f}")
             cantidad_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self.tabla_compra.setItem(row, 1, cantidad_item)
-            
+
             precio_item = QTableWidgetItem(f"${item['precio_unitario']:.2f}")
             precio_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self.tabla_compra.setItem(row, 2, precio_item)
 
-            # v13.4: Columna de descuento con click para quitar
+            # Descuento — clicable via cellClicked (col 3)
+            # ISSUE 2 FIX: Almacenar _uid del ítem en UserRole para que el clic
+            # encuentre el ítem correcto aunque cambie el índice de fila.
             desc_pct = float(item.get('descuento_pct', 0))
             if desc_pct > 0:
-                btn_desc = QPushButton(f"-{desc_pct:.0f}%")
-                btn_desc.setToolTip("Click para quitar descuento")
-                btn_desc.setStyleSheet(
-                    "background:#e74c3c;color:white;font-size:10px;"
-                    "padding:1px 3px;border-radius:3px;")
-                btn_desc.clicked.connect(
-                    lambda _, r=row: self._quitar_descuento_item(r))
-                self.tabla_compra.setCellWidget(row, 3, btn_desc)
+                disc_item = QTableWidgetItem(f"-{desc_pct:.0f}%")
+                disc_item.setForeground(QBrush(QColor(Colors.DANGER_HOVER)))
+                disc_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+                disc_item.setToolTip("Clic para quitar el descuento")
+                disc_item.setData(Qt.UserRole, item.get('_uid', ''))
+                self.tabla_compra.removeCellWidget(row, 3)
+                self.tabla_compra.setItem(row, 3, disc_item)
             else:
-                self.tabla_compra.setItem(row, 3, QTableWidgetItem(""))
-            
+                self.tabla_compra.removeCellWidget(row, 3)
+                self.tabla_compra.setItem(row, 3, QTableWidgetItem("$0.00"))
+
             total_item = QTableWidgetItem(f"${item['total']:.2f}")
             total_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self.tabla_compra.setItem(row, 4, total_item)
-            
-            btn_modificar = QPushButton("✏️")
+
+            # Col 5: edit button
+            btn_modificar = QPushButton("✏")
             btn_modificar.setToolTip("Modificar cantidad")
-            btn_modificar.setFixedSize(26, 26)
+            btn_modificar.setFixedSize(28, 28)
+            btn_modificar.setObjectName("cartEditBtn")
             btn_modificar.clicked.connect(lambda checked, r=row: self.modificar_cantidad_producto(r))
             self.tabla_compra.setCellWidget(row, 5, btn_modificar)
-            
-            btn_eliminar = QPushButton("❌")
+
+            # Col 6: delete ×
+            btn_eliminar = QPushButton("×")
             btn_eliminar.setToolTip("Eliminar producto")
-            btn_eliminar.setFixedSize(26, 26)
+            btn_eliminar.setFixedSize(28, 28)
+            btn_eliminar.setObjectName("cartDeleteBtn")
             btn_eliminar.clicked.connect(lambda checked, r=row: self.eliminar_producto_carrito(r))
             self.tabla_compra.setCellWidget(row, 6, btn_eliminar)
-            
+
+        # ISSUE 1 FIX: Desplazar al último ítem para que siempre sea visible
+        if self.compra_actual:
+            self.tabla_compra.scrollToBottom()
+
         self.calcular_totales()
-        n = len(self.compra_actual)
-        self.lbl_info_carrito.setText(f"{n} producto{'s' if n != 1 else ''}" if n else "")
+
+    def _on_cart_cell_clicked(self, row: int, col: int) -> None:
+        """Handles click on cart table cells. Column 3 = discount badge (remove on click).
+        ISSUE 2 FIX: Usa _uid almacenado en UserRole para identificar el ítem de forma
+        estable, independientemente de su posición actual en la tabla."""
+        if col != 3:
+            return
+        # Recuperar el _uid del ítem desde la celda (immune a reordenamiento)
+        cell = self.tabla_compra.item(row, 3)
+        uid = cell.data(Qt.UserRole) if cell else None
+        if uid:
+            self._quitar_descuento_por_uid(uid)
+        elif 0 <= row < len(self.compra_actual):
+            # Fallback para ítems legacy sin _uid
+            if float(self.compra_actual[row].get('descuento_pct', 0)) > 0:
+                self._quitar_descuento_item(row)
+
+    def _quitar_descuento_por_uid(self, uid: str) -> None:
+        """ISSUE 2 FIX: Quita el descuento buscando por _uid, no por índice de fila."""
+        for item in self.compra_actual:
+            if item.get('_uid') == uid:
+                precio_original = item.get('precio_original', item['precio_unitario'])
+                item['precio_unitario'] = precio_original
+                item['descuento_pct'] = 0
+                item['total'] = round(item['cantidad'] * precio_original, 2)
+                self.actualizar_tabla_compra()
+                return
 
     def _quitar_descuento_item(self, row: int):
-        """v13.4: Quita el descuento de un item del carrito."""
-        if 0 <= row < len(self.compra_actual):
-            item = self.compra_actual[row]
-            item['descuento_pct'] = 0
-            item['total'] = round(item['cantidad'] * item['precio_unitario'], 2)
-            self.actualizar_tabla_compra()
+        """Quita el descuento de un item del carrito y restaura el precio original."""
+        if not (0 <= row < len(self.compra_actual)):
+            return
+        item = self.compra_actual[row]
+        # Restore the original (pre-discount) price that was saved when the discount was applied
+        precio_original = item.get('precio_original', item['precio_unitario'])
+        item['precio_unitario'] = precio_original
+        item['descuento_pct'] = 0
+        item['total'] = round(item['cantidad'] * precio_original, 2)
+        # cellClicked handler: table is not being destroyed mid-signal, safe to rebuild now
+        self.actualizar_tabla_compra()
 
     def modificar_cantidad_producto(self, row: int):
         if 0 <= row < len(self.compra_actual):
             producto = self.compra_actual[row]
             cantidad_actual = producto['cantidad']
             
-            cantidad, ok = QInputDialog.getDouble(
-                self, "Modificar Cantidad", 
+            from frontend.desktop.components.quantity_input_dialog import QuantityInputDialog
+            cantidad, ok = QuantityInputDialog.get_quantity(
+                self, "Modificar Cantidad",
                 f"Ingrese la nueva cantidad para {producto['nombre']}:",
-                value=cantidad_actual, min=0.001, max=9999.0, decimals=3
+                decimals=3, maximo=9999.0, unidad=producto.get('unidad', ''),
+                inicial=cantidad_actual,
             )
             
             if ok and cantidad > 0:
@@ -2509,17 +3580,9 @@ class ModuloVentas(ModuloBase):
                 self.actualizar_tabla_compra()
 
     def obtener_stock_producto(self, producto_id: int) -> float:
-        """v13.4: Lee stock de branch_inventory para la sucursal activa."""
+        """Stock disponible = físico - reservado activo."""
         try:
-            cursor = self.conexion.cursor()
-            cursor.execute(
-                "SELECT COALESCE(bi.quantity, p.existencia, 0) "
-                "FROM productos p "
-                "LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=? "
-                "WHERE p.id=?",
-                (self.sucursal_id, producto_id))
-            resultado = cursor.fetchone()
-            return float(resultado[0]) if resultado else 0.0
+            return float(self._inventory_availability.disponible_para_venta(producto_id))
         except Exception:
             return 0.0
 
@@ -2527,55 +3590,153 @@ class ModuloVentas(ModuloBase):
         if 0 <= row < len(self.compra_actual):
             producto = self.compra_actual[row]['nombre']
             self.compra_actual.pop(row)
-            self.actualizar_tabla_compra()
+            # Defer table rebuild so the delete button widget is not destroyed while
+            # its own clicked signal is still being dispatched.
+            QTimer.singleShot(0, self.actualizar_tabla_compra)
             self.mostrar_mensaje("Éxito", f"Producto '{producto}' eliminado del carrito.")
 
     def calcular_totales(self):
-        subtotal = sum(item['total'] for item in self.compra_actual)
         # IVA: carnes y alimentos basicos = 0% en Mexico (LIVA Art. 2-A)
-        # Se lee de configuraciones; default 0.0
+        # Delegado a ConfigService — sin SQL directo en UI
         try:
-            _iva_row = self.container.db.execute(
-                "SELECT valor FROM configuraciones WHERE clave='tasa_iva'"
-            ).fetchone()
-            tasa_iva = float(_iva_row[0]) if _iva_row else 0.0
+            tasa_iva = float(self.container.config_service.get('tasa_iva', 0.0) or 0.0)
         except Exception:
             tasa_iva = 0.0
-        impuestos = subtotal * tasa_iva
-        total_final = subtotal + impuestos
-        
+        try:
+            from core.services.sales.cart_calculator import CartCalculator
+            resumen = CartCalculator.calculate(
+                items=self.compra_actual,
+                iva_rate=tasa_iva,
+            )
+        except Exception:
+            resumen = {
+                'precio_base': sum(item['cantidad'] * item['precio_unitario'] for item in self.compra_actual),
+                'descuento_lineas': 0.0,
+                'subtotal': sum(item['total'] for item in self.compra_actual),
+                'impuestos': 0.0,
+                'total_final': sum(item['total'] for item in self.compra_actual),
+                'puntos_preview': 0,
+            }
+
         self.totales = {
-            'subtotal': subtotal,
-            'impuestos': impuestos,
-            'total_final': total_final
+            'subtotal': resumen['subtotal'],
+            'impuestos': resumen['impuestos'],
+            'total_final': resumen['total_final']
         }
-        
-        self.lbl_total.setText(f"TOTAL: ${total_final:.2f}")
-        puntos_venta = int(total_final)
-        self.lbl_puntos_venta.setText(f"Puntos: {puntos_venta}")
+        precio_base = resumen['precio_base']
+        descuento_total = resumen['descuento_lineas']
+        total_final = resumen['total_final']
+
+        # Update breakdown labels
+        if hasattr(self, '_lbl_subtotal_val'):
+            self._lbl_subtotal_val.setText(f"${precio_base:.2f}")
+        if hasattr(self, '_row_discount_widget'):
+            if descuento_total > 0.001:
+                self._lbl_descuento_val.setText(f"-${descuento_total:.2f}")
+                # Build discount description from discounted items
+                desc_items = [
+                    f"{item['nombre'][:12]} {item['descuento_pct']:.0f}%"
+                    for item in self.compra_actual
+                    if item.get('descuento_pct', 0) > 0
+                ]
+                if desc_items:
+                    self._lbl_descuento_label.setText(
+                        f"Descuento ({', '.join(desc_items[:2])})")
+                else:
+                    self._lbl_descuento_label.setText("Descuento")
+                self._row_discount_widget.setVisible(True)
+            else:
+                self._row_discount_widget.setVisible(False)
+
+        # Grand total label — keep backward-compatible "$X.XX" format
+        self.lbl_total.setText(f"${total_final:.2f}")
+
+        # COBRAR button shows amount
+        if hasattr(self, 'btn_cobrar'):
+            if total_final > 0:
+                self.btn_cobrar.setText(f"💰 COBRAR  ${total_final:.2f}")
+            else:
+                self.btn_cobrar.setText("💰 COBRAR")
+
+        puntos_venta = int(resumen.get('puntos_preview', total_final))
+        self.lbl_puntos_venta.setText(f"+ {puntos_venta} pts")
+
+    def _cliente_textchanged(self, text: str) -> None:
+        """Debounce handler: restart the 180ms timer on every keystroke."""
+        if text.strip():
+            self._cliente_debounce.start()
+        else:
+            self._cliente_debounce.stop()
+
+    def _actualizar_sugerencias_cliente(self) -> None:
+        """Query DB for matching customers and populate the QCompleter popup.
+        ISSUE 5 FIX: Funciona desde 1 carácter con MatchContains en cualquier parte
+        del nombre/teléfono. setMinimumContentsLength(1) asegura que el popup
+        aparezca con texto parcial."""
+        from PyQt5.QtWidgets import QCompleter
+        from PyQt5.QtCore import QStringListModel
+        texto = self.txt_cliente.text().strip()
+        # ISSUE 5 FIX: Disparar con 1+ caracteres (antes podía requerir más)
+        if len(texto) < 1:
+            return
+        try:
+            _cli = self._cli_repo
+            rows = _cli.buscar(texto, limit=12) if _cli else []
+        except Exception:
+            return
+        suggestions = [
+            f"{r['nombre']}  ·  {r['telefono']}" if r.get('telefono') else r['nombre']
+            for r in rows
+        ]
+        if self._cliente_completer_model is None:
+            self._cliente_completer_model = QStringListModel(self)
+            self._cliente_completer = QCompleter(self._cliente_completer_model, self)
+            self._cliente_completer.setCaseSensitivity(Qt.CaseInsensitive)
+            # ISSUE 5 FIX: MatchContains → busca en cualquier parte del texto
+            self._cliente_completer.setFilterMode(Qt.MatchContains)
+            self._cliente_completer.setCompletionMode(QCompleter.PopupCompletion)
+            self._cliente_completer.setMaxVisibleItems(10)
+            # ISSUE 5 FIX: Activar popup desde 1 carácter
+            self._cliente_completer.setMinimumContentsLength(1)
+            self.txt_cliente.setCompleter(self._cliente_completer)
+            self._cliente_completer.activated.connect(self._seleccionar_cliente_autocomplete)
+        self._cliente_completer_model.setStringList(suggestions)
+        if suggestions:
+            self._cliente_completer.complete()
+
+    def _seleccionar_cliente_autocomplete(self, text: str) -> None:
+        """Called when user picks a suggestion; extract name and run DB lookup."""
+        nombre = text.split("  ·  ")[0].strip()
+        self.txt_cliente.setText(nombre)
+        # Stop the debounce timer so it doesn't re-trigger search
+        self._cliente_debounce.stop()
+        self.buscar_cliente()
 
     def buscar_cliente(self):
         termino = self.txt_cliente.text().strip()
         if not termino:
             self.limpiar_cliente()
             return
-            
+
         try:
-            cursor = self.conexion.cursor()
-            query = """
-                SELECT id, nombre, telefono, email, direccion, rfc, puntos, codigo_qr, saldo
-                FROM clientes 
-                WHERE (id = ? OR nombre LIKE ? OR telefono LIKE ? OR codigo_qr = ? OR email LIKE ?)
-                AND activo = 1 LIMIT 1
-            """
-            cursor.execute(query, (termino, f'%{termino}%', f'%{termino}%', termino, f'%{termino}%'))
-            cliente = cursor.fetchone()
-            
+            lookup = self._customer_lookup_svc
+            _cli = self._cli_repo
+            if lookup:
+                clientes = lookup.buscar_cliente(termino, limit=1)
+            else:
+                clientes = _cli.buscar(termino, limit=1) if _cli else []
+            cliente = clientes[0] if clientes else None
+
             if cliente:
                 self.cliente_actual = {
-                    'id': cliente[0], 'nombre': cliente[1], 'telefono': cliente[2],
-                    'email': cliente[3], 'direccion': cliente[4], 'rfc': cliente[5],
-                    'puntos': cliente[6], 'codigo_qr': cliente[7], 'saldo': cliente[8]
+                    'id': cliente['id'], 'nombre': cliente['nombre'],
+                    'telefono': cliente.get('telefono', ''),
+                    'email': cliente.get('email', ''),
+                    'direccion': cliente.get('direccion', ''),
+                    'rfc': cliente.get('rfc', ''),
+                    'puntos': cliente.get('puntos', 0),
+                    'codigo_qr': cliente.get('codigo_qr', ''),
+                    'saldo': cliente.get('saldo', 0.0) or 0.0,
                 }
                 self.actualizar_info_cliente()
                 self.txt_cliente.clear()
@@ -2593,10 +3754,34 @@ class ModuloVentas(ModuloBase):
 
     def actualizar_info_cliente(self):
         if self.cliente_actual:
-            self.lbl_nombre_cliente.setText(f"Nombre: {self.cliente_actual['nombre']}")
-            self.lbl_telefono_cliente.setText(f"Teléfono: {self.cliente_actual['telefono'] or '-'}")
-            self.lbl_email_cliente.setText(f"Email: {self.cliente_actual['email'] or '-'}")
-            self.lbl_puntos_cliente.setText(f"Puntos: {self.cliente_actual['puntos']}")
+            self.lbl_nombre_cliente.setText(self.cliente_actual['nombre'])
+            self.lbl_telefono_cliente.setText(f"Tel: {self.cliente_actual['telefono'] or '—'}")
+            self.lbl_email_cliente.setText(self.cliente_actual.get('email') or '')
+            puntos = self.cliente_actual.get('puntos')
+            try:
+                puntos_texto = f"+ {int(puntos)} pts" if puntos not in (None, "") else "Puntos no disponibles"
+            except (TypeError, ValueError):
+                puntos_texto = "Puntos no disponibles"
+            self.lbl_puntos_cliente.setText(puntos_texto)
+            # Update loyalty tier badge
+            if hasattr(self, '_lbl_loyalty_tier'):
+                nivel = (self.cliente_actual.get('nivel_fidelidad', '')
+                         or self.cliente_actual.get('nivel', ''))
+                if nivel:
+                    self._lbl_loyalty_tier.setText(nivel)
+                    self._lbl_loyalty_tier.setProperty("tier", nivel)
+                    self._lbl_loyalty_tier.style().unpolish(self._lbl_loyalty_tier)
+                    self._lbl_loyalty_tier.style().polish(self._lbl_loyalty_tier)
+                    self._lbl_loyalty_tier.show()
+                else:
+                    self._lbl_loyalty_tier.hide()
+            # Switch to display mode (hide search row, show display row)
+            if hasattr(self, '_client_search_row'):
+                self._client_search_row.setVisible(False)
+                self.txt_cliente.setVisible(False)
+                self.txt_cliente.setMaximumHeight(0)
+            if hasattr(self, '_client_display_row'):
+                self._client_display_row.setVisible(True)
         else:
             self.limpiar_cliente()
 
@@ -2615,65 +3800,54 @@ class ModuloVentas(ModuloBase):
 
     def guardar_nuevo_cliente(self, cliente_data: Dict[str, Any]):
         try:
-            cursor = self.conexion.cursor()
             tarjeta_id = cliente_data.get('tarjeta_id', '')
-            
-            # v13.4: Si se proporcionó un ID de tarjeta, verificar si el cliente ya existe
-            if tarjeta_id:
-                # Buscar si la tarjeta ya está asignada a un cliente
-                existing = cursor.execute(
-                    "SELECT c.id, c.nombre FROM clientes c "
-                    "JOIN tarjetas_fidelidad t ON t.id_cliente = c.id "
-                    "WHERE t.codigo = ? AND t.activa = 1 LIMIT 1",
-                    (tarjeta_id,)).fetchone()
-                if existing:
-                    # Tarjeta ya asignada — cargar ese cliente
-                    self.seleccionar_cliente(existing[0] if not hasattr(existing, 'keys') else existing['id'])
-                    self.mostrar_mensaje("Info", f"Tarjeta ya asignada a: {existing[1] if not hasattr(existing, 'keys') else existing['nombre']}")
-                    return
-            
             codigo_qr = tarjeta_id or (
                 f"CLI_{datetime.now().strftime('%Y%m%d%H%M%S')}" if cliente_data['generar_tarjeta'] else None)
-            
-            cursor.execute("""
-                INSERT INTO clientes (nombre, telefono, email, direccion, puntos, codigo_qr, activo)
-                VALUES (?, ?, ?, ?, 0, ?, 1)
-            """, (cliente_data['nombre'], cliente_data['telefono'], cliente_data['email'], 
-                  cliente_data['direccion'], codigo_qr))
-            
-            cliente_id = cursor.lastrowid
-            
-            # v13.4: Si hay tarjeta_id, crear registro en tarjetas_fidelidad
-            if tarjeta_id:
-                try:
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO tarjetas_fidelidad 
-                            (codigo, id_cliente, nivel, activa, fecha_emision)
-                        VALUES (?, ?, 'Bronce', 1, datetime('now'))
-                    """, (tarjeta_id, cliente_id))
-                except Exception:
-                    pass
-            
-            self.conexion.commit()
-            
+
+            result = self._create_customer_uc.execute(
+                CreateCustomerCommand(
+                    name=cliente_data['nombre'],
+                    phone=cliente_data.get('telefono', ''),
+                    email=cliente_data.get('email', ''),
+                    address=cliente_data.get('direccion', ''),
+                    loyalty_code=codigo_qr,
+                    operation_id=f"sales-customer-{new_uuid()}",
+                )
+            )
+            if result.get("existing"):
+                self.seleccionar_cliente(int(result["id"]))
+                self.mostrar_mensaje("Info", f"Tarjeta ya asignada a: {result.get('name', '')}")
+                return
+            cliente_id = int(result["id"])
+
             self.cliente_actual = {
-                'id': cliente_id, 'nombre': cliente_data['nombre'], 'telefono': cliente_data['telefono'],
-                'email': cliente_data['email'], 'direccion': cliente_data['direccion'],
-                'puntos': 0, 'codigo_qr': codigo_qr, 'saldo': 0.0
+                'id': cliente_id, 'nombre': cliente_data['nombre'],
+                'telefono': cliente_data.get('telefono', ''),
+                'email': cliente_data.get('email', ''),
+                'direccion': cliente_data.get('direccion', ''),
+                'puntos': 0, 'codigo_qr': codigo_qr, 'saldo': 0.0,
             }
             self.actualizar_info_cliente()
             self.mostrar_mensaje("Éxito", f"Cliente '{cliente_data['nombre']}' agregado.")
-        except sqlite3.Error as e:
-            self.conexion.rollback()
+        except Exception as e:
             self.mostrar_mensaje("Error", f"Error al guardar cliente: {str(e)}", QMessageBox.Critical)
 
     def limpiar_cliente(self):
         self.cliente_actual = None
-        self.lbl_nombre_cliente.setText("Nombre: Público General")
-        self.lbl_telefono_cliente.setText("Teléfono: -")
-        self.lbl_email_cliente.setText("Email: -")
-        self.lbl_puntos_cliente.setText("Puntos: 0")
+        self.lbl_nombre_cliente.setText("Público General")
+        self.lbl_telefono_cliente.setText("Tel: —")
+        self.lbl_email_cliente.setText("")
+        self.lbl_puntos_cliente.setText("Puntos no disponibles")
         self.txt_cliente.clear()
+        if hasattr(self, '_lbl_loyalty_tier'):
+            self._lbl_loyalty_tier.hide()
+        # Restore display-only mode
+        if hasattr(self, '_client_search_row'):
+            self._client_search_row.setVisible(False)
+            self.txt_cliente.setVisible(False)
+            self.txt_cliente.setMaximumHeight(0)
+        if hasattr(self, '_client_display_row'):
+            self._client_display_row.setVisible(True)
 
     def suspender_venta(self):
         if not self.compra_actual:
@@ -2688,20 +3862,38 @@ class ModuloVentas(ModuloBase):
             else: return
         else:
             nombre_venta = f"Venta - {self.cliente_actual['nombre']}"
+
+        # Reservar stock disponible para evitar sobreventa entre terminales
+        try:
+            reserva_id = self._stock_reservas.reservar(
+                f"SUSP-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                self.compra_actual,
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, "Stock insuficiente", str(exc))
+            return
             
         venta_id = f"venta_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         self.ventas_en_espera[venta_id] = {
             'nombre': nombre_venta, 'cliente': self.cliente_actual,
             'compra': self.compra_actual.copy(), 'totales': self.totales.copy(),
-            'timestamp': datetime.now()
+            'timestamp': datetime.now(),
+            'reserva_id': reserva_id,
         }
+        try:
+            from core.events.event_bus import get_bus
+            from core.events.domain_events import VENTA_SUSPENDIDA, STOCK_RESERVADO
+            get_bus().publish(VENTA_SUSPENDIDA, {"venta_id": venta_id, "reserva_id": reserva_id, "sucursal_id": self.sucursal_id})
+            get_bus().publish(STOCK_RESERVADO, {"venta_id": venta_id, "reserva_id": reserva_id, "sucursal_id": self.sucursal_id})
+        except Exception as exc:
+            logger.warning("Venta suspendida con reserva, pero falló publicación de eventos: %s", exc)
         self.btn_reanudar.setText(f"▶️ Reanudar ({len(self.ventas_en_espera)})")
         self.mostrar_mensaje("Éxito", f"Venta '{nombre_venta}' suspendida.")
         self.cancelar_venta(silent=True)
 
     def mostrar_ventas_espera(self):
         if not self.ventas_en_espera:
-            QMessageBox.information(self, "Ventas en Espera", "No hay ventas suspendidas.")
+            Toast.info(self, "Ventas en Espera", "No hay ventas suspendidas.")
             return
             
         ventas_lista = [f"{v['nombre']} - ${v['totales']['total_final']:.2f}" for v in self.ventas_en_espera.values()]
@@ -2718,6 +3910,7 @@ class ModuloVentas(ModuloBase):
             venta_data = self.ventas_en_espera.pop(venta_id)
             self.cancelar_venta(silent=True)
             self.compra_actual = venta_data['compra'].copy()
+            self._reserva_activa_id = venta_data.get('reserva_id')
             self.cliente_actual = venta_data['cliente']
             self.totales = venta_data['totales'].copy()
             self.actualizar_tabla_compra()
@@ -2725,6 +3918,55 @@ class ModuloVentas(ModuloBase):
             else: self.limpiar_cliente()
             self.btn_reanudar.setText(f"▶️ Reanudar ({len(self.ventas_en_espera)})")
             self.mostrar_mensaje("Éxito", f"Venta '{venta_data['nombre']}' reanudada.")
+
+    def _procesar_venta_via_uc(self, carrito_limpio, datos_pago, usuario, cliente_id):
+        """Ejecuta la venta por la ruta canónica del caso de uso, no desde la UI."""
+        from core.use_cases.venta import ItemCarrito, DatosPago as _DP
+
+        _uc = getattr(self.container, 'uc_venta', None)
+        if _uc is None:
+            raise RuntimeError("ProcesarVentaUC no disponible en AppContainer.")
+
+        _items_uc = [
+            ItemCarrito(
+                producto_id=it['product_id'],
+                cantidad=float(it['qty']),
+                precio_unit=float(it['unit_price']),
+                nombre=it.get('name', ''),
+                es_compuesto=int(it.get('es_compuesto', 0)),
+            )
+            for it in carrito_limpio
+        ]
+        _lineas_pago = dict(datos_pago.get("lineas") or datos_pago.get("breakdown") or {})
+        if datos_pago.get('amount_paid_real') is not None:
+            _monto_pagado_real = float(datos_pago.get('amount_paid_real') or 0.0)
+        elif datos_pago.get('amount_paid') is not None:
+            _monto_pagado_real = float(datos_pago.get('amount_paid') or 0.0)
+        elif _lineas_pago:
+            _monto_pagado_real = float(sum(float(v or 0.0) for v in _lineas_pago.values()))
+        else:
+            from core.services.payment_normalization import is_credit_sale
+            _monto_pagado_real = 0.0 if is_credit_sale(datos_pago.get('forma_pago')) else float(
+                datos_pago.get('total_pagado') or datos_pago.get('efectivo_recibido') or 0.0
+            )
+
+        operation_id = f"sale-ui-{new_uuid()}"
+        _dp = _DP(
+            forma_pago=datos_pago['forma_pago'],
+            monto_pagado=_monto_pagado_real,
+            total_pagado=_monto_pagado_real,
+            pago_mixto=_lineas_pago,
+            cliente_id=cliente_id,
+            descuento_global=float(datos_pago.get('descuento', 0)),
+            puntos_canjeados=int(datos_pago.get('puntos_canjeados', 0) or 0),
+            descuento_puntos=float(datos_pago.get('descuento_puntos', 0.0) or 0.0),
+            notas=f"Venta POS Mostrador. Cajero: {usuario}.",
+            sucursal_id=self.sucursal_id,
+            usuario=usuario,
+            operation_id=operation_id,
+            reserva_id=self._reserva_activa_id,
+        )
+        return _uc.ejecutar(_items_uc, _dp, self.sucursal_id, usuario)
 
     def procesar_pago(self):
         if not self.compra_actual:
@@ -2743,308 +3985,395 @@ class ModuloVentas(ModuloBase):
                         "No hay un turno de caja abierto para este usuario.\n\n"
                         "Ve al módulo de Caja y abre tu turno antes de vender.")
                     return
-        except Exception:
-            pass  # If check fails, allow sale (graceful degradation)
+        except Exception as exc:
+            logger.exception("Validación de turno de caja falló; venta bloqueada: %s", exc)
+            QMessageBox.critical(
+                self,
+                "Caja no validada",
+                "No se pudo validar el turno de caja. La venta fue bloqueada para evitar inconsistencias.",
+            )
+            return
 
-        # ── Validar límite de crédito antes de abrir diálogo ──────────────
-        if self.cliente_actual:
-            try:
-                row = self.container.db.execute(
-                    "SELECT COALESCE(saldo,0) as saldo, COALESCE(limite_credito,0) as limite_credito FROM clientes WHERE id=?",
-                    (self.cliente_actual['id'],)
-                ).fetchone()
-                if row:
-                    saldo_usado   = float(row[0] or 0)
-                    limite        = float(row[1] or 0)
-                    total_venta   = self.totales.get('total_final', 0)
-                    if limite > 0 and (saldo_usado + total_venta) > limite:
-                        disponible = max(0, limite - saldo_usado)
-                        resp = QMessageBox.question(
-                            self, "⚠️ Límite de crédito",
-                            f"El cliente {self.cliente_actual['nombre']} tiene:\n"
-                            f"  Saldo en uso: ${saldo_usado:.2f}\n"
-                            f"  Límite: ${limite:.2f}\n"
-                            f"  Disponible: ${disponible:.2f}\n\n"
-                            f"Esta venta (${total_venta:.2f}) excede el límite.\n"
-                            "¿Continuar de todas formas?",
-                            QMessageBox.Yes | QMessageBox.No
-                        )
-                        if resp != QMessageBox.Yes:
-                            return
-            except Exception:
-                pass  # Si falla la consulta, continuar normalmente
-
-        # ── v13.4 Fase 2: Ofrecer canje de estrellas ──────────────────────
-        descuento_canje = 0.0
         total_a_pagar = self.totales['total_final']
-        if self.cliente_actual:
+        loyalty_preview = {}
+        loyalty_svc = getattr(self.container, 'loyalty_service', None)
+        cliente_id = self.cliente_actual['id'] if self.cliente_actual else None
+        if cliente_id and loyalty_svc and getattr(loyalty_svc, "enabled", False):
             try:
-                loyalty = getattr(self.container, 'loyalty_service', None)
-                if loyalty and loyalty.enabled:
-                    saldo_pts = loyalty.saldo(self.cliente_actual['id'])
-                    if saldo_pts > 0:
-                        # Cap: máximo 50% del subtotal
-                        max_canje = min(saldo_pts, int(total_a_pagar * 0.5))
-                        if max_canje > 0:
-                            resp = QMessageBox.question(
-                                self, "⭐ Canjear estrellas",
-                                f"{self.cliente_actual['nombre']} tiene *{saldo_pts} estrellas*.\n\n"
-                                f"¿Canjear hasta {max_canje} estrellas "
-                                f"(= ${max_canje:.2f} de descuento)?\n\n"
-                                f"Total actual: ${total_a_pagar:.2f}\n"
-                                f"Total con canje: ${total_a_pagar - max_canje:.2f}",
-                                QMessageBox.Yes | QMessageBox.No)
-                            if resp == QMessageBox.Yes:
-                                # Pedir cantidad exacta
-                                from PyQt5.QtWidgets import QInputDialog
-                                cant, ok = QInputDialog.getInt(
-                                    self, "Estrellas a canjear",
-                                    f"¿Cuántas estrellas? (máx {max_canje}):",
-                                    value=max_canje, min=1, max=max_canje)
-                                if ok and cant > 0:
-                                    cajero_id = loyalty._get_cajero_id(
-                                        self.obtener_usuario_actual())
-                                    canje_r = loyalty.canjear(
-                                        cliente_id=self.cliente_actual['id'],
-                                        cajero_id=cajero_id,
-                                        subtotal=total_a_pagar,
-                                        estrellas=cant)
-                                    if canje_r.get("ok"):
-                                        descuento_canje = float(
-                                            canje_r.get("descuento_aplicado", 0))
-                                        total_a_pagar -= descuento_canje
-                                        self.lbl_puntos_venta.setText(
-                                            f"⭐ Canje: -{descuento_canje:.0f} | "
-                                            f"Restante: {canje_r.get('saldo_restante', 0)}")
-                                    else:
-                                        QMessageBox.warning(self, "Canje",
-                                            canje_r.get("error", "Error en canje"))
-            except Exception as _canje_e:
-                logger.debug("Canje pre-pago: %s", _canje_e)
+                loyalty_preview = loyalty_svc.preview_redemption(
+                    cliente_id=cliente_id,
+                    subtotal=float(total_a_pagar),
+                ) or {}
+            except Exception as _lp_e:
+                logger.debug("preview_redemption: %s", _lp_e)
 
-        dialogo = DialogoPago(total_a_pagar, self)
+        def _preview_provider(puntos: int, subtotal: float):
+            if not (cliente_id and loyalty_svc and getattr(loyalty_svc, "enabled", False)):
+                return {}
+            return loyalty_svc.preview_redemption(
+                cliente_id=cliente_id,
+                subtotal=float(subtotal),
+                puntos_solicitados=int(max(0, puntos)),
+            )
+
+        from presentation.sales.dialogs.payment_dialog import DialogoPago as PaymentDialog
+        dialogo = PaymentDialog(
+            total_a_pagar,
+            self,
+            loyalty_balance=loyalty_preview,
+            loyalty_preview_provider=_preview_provider,
+        )
         if dialogo.exec_() == QDialog.Accepted:
             datos_pago = dialogo.get_datos_pago()
-            datos_pago['descuento_canje'] = descuento_canje
+
+            # ── POST-DIALOG: validate credit only when credit payment chosen ──
+            # This runs AFTER the user selects the payment method, so we only
+            # block credit sales — cash/card/transfer flow through unrestricted.
+            from core.services.payment_normalization import is_credit_sale, is_mercado_pago
+            if is_credit_sale(datos_pago.get('forma_pago')):
+                if not self.cliente_actual:
+                    QMessageBox.critical(
+                        self, "Cliente requerido",
+                        "Debe seleccionar un cliente para procesar una venta a crédito.\n\n"
+                        "Asigne un cliente y vuelva a intentarlo, o elija otro método de pago."
+                    )
+                    return
+                _ccs = getattr(self.container, 'customer_credit_service', None)
+                _financed = float(datos_pago.get('saldo_credito') or datos_pago.get('total_pagado', 0))
+                if _ccs and _financed > 0:
+                    try:
+                        _ok, _msg = _ccs.validate_credit(self.cliente_actual['id'], _financed)
+                        if not _ok:
+                            QMessageBox.critical(
+                                self, "Crédito insuficiente",
+                                f"{_msg}\n\nLa venta a crédito no puede procesarse.\n"
+                                "Puede elegir otro método de pago."
+                            )
+                            return
+                    except Exception as _cv_e:
+                        logger.exception("Validación de crédito falló; venta a crédito bloqueada: %s", _cv_e)
+                        QMessageBox.critical(
+                            self,
+                            "Crédito no validado",
+                            "No se pudo validar el crédito del cliente. La venta a crédito fue bloqueada.",
+                        )
+                        return
+                elif not _ccs:
+                    # Fallback: read credit fields via ClienteRepository
+                    try:
+                        _cli = self._cli_repo
+                        _cdata = _cli.get_by_id(self.cliente_actual['id']) if _cli else None
+                        if _cdata:
+                            _used = float(_cdata.get('credit_balance', 0) or 0)
+                            _limit = float(_cdata.get('credit_limit', 0) or 0)
+                            if _limit > 0 and (_used + _financed) > _limit:
+                                _disp = max(0.0, _limit - _used)
+                                QMessageBox.critical(
+                                    self, "Crédito insuficiente",
+                                    f"Crédito insuficiente para '{self.cliente_actual['nombre']}':\n"
+                                    f"  Disponible: ${_disp:,.2f}  |  Requerido: ${_financed:,.2f}\n\n"
+                                    "Puede elegir otro método de pago."
+                                )
+                                return
+                    except Exception as _fbe:
+                        logger.exception("Validación de crédito fallback falló; venta a crédito bloqueada: %s", _fbe)
+                        QMessageBox.critical(
+                            self,
+                            "Crédito no validado",
+                            "No se pudo validar el crédito del cliente. La venta a crédito fue bloqueada.",
+                        )
+                        return
+
             self.finalizar_venta(datos_pago)
 
     def finalizar_venta(self, datos_pago: Dict[str, Any]):
-        """🚀 LÓGICA ENTERPRISE: Delegación total de cálculos y auditorías al Contenedor Central."""
+        """Procesa la venta en hilo principal; solo ticket/PDF queda asíncrono."""
+        if getattr(self, "_venta_checkout_running", False):
+            return
+        self._venta_checkout_running = True
+        self._venta_timing = {"t_dialog_done": time.perf_counter()}
+        if hasattr(self, "btn_cobrar"):
+            self.btn_cobrar.setEnabled(False)
+            self.btn_cobrar.setText("Procesando venta...")
         try:
             usuario = self.obtener_usuario_actual()
             cliente_id = self.cliente_actual['id'] if self.cliente_actual else None
+            from core.services.payment_normalization import is_credit_sale, is_mercado_pago
 
             carrito_limpio = [
                 {
                     'product_id': item['id'],
                     'qty': item['cantidad'],
                     'unit_price': item['precio_unitario'],
+                    'name': item.get('nombre', ''),   # nombre del producto para el ticket
                     'es_compuesto': item.get('es_compuesto', 0)
                 }
                 for item in self.compra_actual
             ]
 
-            # ── Guardrail: detectar ítems por debajo del costo ──────────────
-            try:
-                items_bajo_costo = []
-                for item in self.compra_actual:
-                    costo_row = self.container.db.execute(
-                        "SELECT precio_compra FROM productos WHERE id=?",
-                        (item['id'],)
-                    ).fetchone()
-                    costo = float(costo_row[0]) if costo_row and costo_row[0] else 0
-                    if costo > 0 and float(item['precio_unitario']) < costo:
-                        items_bajo_costo.append(
-                            f"• {item['nombre']}: ${item['precio_unitario']:.2f} "
-                            f"(costo ${costo:.2f})"
-                        )
-                if items_bajo_costo:
-                    resp = QMessageBox.warning(
-                        self, "⚠️ Venta por debajo del costo",
-                        "Los siguientes productos se venden con pérdida:\n\n"
-                        + "\n".join(items_bajo_costo)
-                        + "\n\n¿Continuar de todas formas?",
-                        QMessageBox.Yes | QMessageBox.No
-                    )
-                    if resp != QMessageBox.Yes:
-                        return
-            except Exception:
-                pass  # No bloquea la venta si la validación falla
+            # Fase 7: MercadoPago pendiente NO ejecuta venta definitiva.
+            if is_mercado_pago(datos_pago.get('forma_pago')):
+                mp = getattr(self.container, 'mercado_pago_service', None)
+                sales_svc = getattr(self.container, 'sales_service', None)
+                if not mp or not sales_svc:
+                    raise RuntimeError("Servicio de MercadoPago no disponible.")
 
-            # v13.1: use ProcesarVentaUC (orquestador) when available
-            _uc = getattr(self.container, 'uc_venta', None)
-            if _uc:
-                from core.use_cases.venta import ItemCarrito, DatosPago as _DP
-                _items_uc = [ItemCarrito(
-                    producto_id  = it['product_id'],
-                    cantidad     = float(it['qty']),
-                    precio_unit  = float(it['unit_price']),
-                    nombre       = it.get('name', ''),
-                    es_compuesto = int(it.get('es_compuesto', 0)),
-                ) for it in carrito_limpio]
-                _dp = _DP(
-                    forma_pago       = datos_pago['forma_pago'],
-                    monto_pagado     = datos_pago['efectivo_recibido'] if datos_pago['forma_pago'] == 'Efectivo' else self.totales['total_final'],
-                    cliente_id       = cliente_id,
-                    descuento_global = float(datos_pago.get('descuento', 0)),
-                    notas            = f"Venta POS Mostrador. Cajero: {usuario}.",
-                )
-                _r = _uc.ejecutar(_items_uc, _dp, self.sucursal_id, usuario)
-                if not _r.ok:
-                    raise RuntimeError(_r.error)
-                folio = _r.folio
-                self._ultima_venta_id = _r.venta_id
-                self.btn_factura.setEnabled(bool(_r.venta_id))
-                self.btn_reimprimir.setEnabled(bool(_r.venta_id))
-                if _r.ticket_html:
-                    self._ticket_html_cache = _r.ticket_html
-            else:
-                # Fallback directo (sin UC — compatibilidad)
-                folio, _ticket_html = self.container.sales_service.execute_sale(
+                pending = sales_svc.create_pending_payment_sale(
                     branch_id=self.sucursal_id,
                     user=usuario,
                     items=carrito_limpio,
-                    payment_method=datos_pago['forma_pago'],
-                    amount_paid=datos_pago['efectivo_recibido'] if datos_pago['forma_pago'] == 'Efectivo' else self.totales['total_final'],
                     client_id=cliente_id,
-                    notes=f"Venta POS Mostrador. Cajero: {usuario}.",
+                    notes=f"Venta pendiente MP. Cajero: {usuario}.",
+                    total=float(self.totales.get('total_final', 0.0)),
                 )
-                row = self.container.db.execute(
-                    "SELECT id FROM ventas WHERE folio=? ORDER BY id DESC LIMIT 1", (folio,)
-                ).fetchone()
-                self._ultima_venta_id = row[0] if row else None
-                if hasattr(self,'btn_reimprimir'):
-                    self.btn_reimprimir.setEnabled(bool(self._ultima_venta_id))
+                folio_pend = pending.get("folio", "")
+                result = mp.crear_link(
+                    total=float(self.totales.get('total_final', 0.0)),
+                    pedido_id=folio_pend or int(datetime.now().timestamp()),
+                    descripcion=f"Venta pendiente {folio_pend} — {self.container.config_service.get('nombre_empresa','SPJ POS') if hasattr(self.container,'config_service') else 'SPJ POS'}"
+                )
+                link = result.get('link') if isinstance(result, dict) else result
+                link = link or (result.get('url', '') if isinstance(result, dict) else "")
+                if not link:
+                    sales_svc.cancel_pending_payment_sale(folio_pend, motivo="link_failed")
+                    raise RuntimeError("No se pudo generar link de pago MercadoPago.")
+                if hasattr(sales_svc, "attach_pending_payment_link"):
+                    sales_svc.attach_pending_payment_link(folio_pend, link)
 
-            # MercadoPago: generar y enviar link de pago
-            if datos_pago.get('forma_pago') == 'Mercado Pago':
-                try:
-                    mp = getattr(self.container, 'mercado_pago_service', None)
-                    if mp:
-                        result = mp.crear_link(
-                            total=self.totales['total_final'],
-                            pedido_id=folio,
-                            descripcion=f"Venta {folio} — {self.container.config_service.get('nombre_empresa','SPJ POS') if hasattr(self.container,'config_service') else 'SPJ POS'}"
+                self._ultimo_mp_pending = {
+                    "estado": "pendiente_pago",
+                    "folio": folio_pend,
+                    "reservation_id": pending.get("reservation_id"),
+                    "url_pago": link,
+                    "cliente_id": cliente_id,
+                    "cliente": dict(self.cliente_actual or {}),
+                    "compra": list(self.compra_actual),
+                    "totales": dict(self.totales),
+                    "datos_pago": dict(datos_pago or {}),
+                }
+                QMessageBox.information(
+                    self,
+                    "Mercado Pago pendiente",
+                    "Link de pago generado y stock reservado. "
+                    "La venta se confirmará automáticamente al aprobarse el pago.\n\n"
+                    f"Folio pendiente: {folio_pend}\n{link}",
+                )
+                self._reserva_activa_id = None
+                self.cancelar_venta(silent=True)
+                return
+
+            # ── Guardrail: detectar ítems por debajo del costo (delegado al UC) ─
+            try:
+                _uc_check = getattr(self.container, 'uc_venta', None)
+                if _uc_check:
+                    from core.use_cases.venta import ItemCarrito as _IC
+                    _ic_items = [_IC(
+                        producto_id=it['id'], cantidad=float(it['cantidad']),
+                        precio_unit=float(it['precio_unitario']),
+                        nombre=it.get('nombre', ''),
+                    ) for it in self.compra_actual]
+                    alertas = _uc_check.validar_precios_bajo_costo(_ic_items)
+                    if alertas:
+                        lines = [
+                            f"• {a['nombre']}: ${a['precio_venta']:.2f} (costo ${a['costo']:.2f})"
+                            for a in alertas
+                        ]
+                        resp = QMessageBox.warning(
+                            self, "⚠️ Venta por debajo del costo",
+                            "Los siguientes productos se venden con pérdida:\n\n"
+                            + "\n".join(lines)
+                            + "\n\n¿Continuar de todas formas?",
+                            QMessageBox.Yes | QMessageBox.No
                         )
-                        link = result.get('link') or result.get('url','')
-                        if link and self.cliente_actual and self.cliente_actual.get('telefono'):
-                            wa = getattr(self.container, 'whatsapp_service', None)
-                            if wa:
-                                msg = (f"Hola {self.cliente_actual.get('nombre','cliente')}, "
-                                       f"aqui esta tu link de pago por ${self.totales['total_final']:.2f}:\n{link}")
-                                wa.send_message(phone_number=self.cliente_actual['telefono'], message=msg)
-                except Exception as _mp_e:
-                    import logging; logging.getLogger(__name__).debug("MP link: %s", _mp_e)
+                        if resp != QMessageBox.Yes:
+                            return
+            except Exception as exc:
+                logger.warning("Validación bajo costo no disponible: %s", exc)
+                QMessageBox.warning(
+                    self,
+                    "Validación no disponible",
+                    "No se pudo validar venta bajo costo. Revise configuración antes de continuar."
+                )
+                return
 
-            self._abrir_cajon()
-
-            # ── v13.4 Fase 2: Acreditar puntos de fidelización ───────────────
-            puntos_resultado = {"estrellas_ganadas": 0, "saldo_actual": 0,
-                                "mensaje_gamificacion": ""}
-            try:
-                loyalty = getattr(self.container, 'loyalty_service', None)
-                if loyalty and cliente_id:
-                    cli_tel = self.cliente_actual.get('telefono', '') if self.cliente_actual else ''
-                    cli_nom = self.cliente_actual.get('nombre', '') if self.cliente_actual else ''
-                    puntos_resultado = loyalty.acreditar_venta(
-                        cliente_id=cliente_id,
-                        venta_id=folio,
-                        cajero=usuario,
-                        total=self.totales['total_final'],
-                        telefono=cli_tel,
-                        nombre=cli_nom)
-                    # Actualizar display de puntos en UI
-                    saldo = puntos_resultado.get("saldo_actual", 0)
-                    self.lbl_puntos_venta.setText(
-                        f"⭐ +{puntos_resultado.get('estrellas_ganadas', 0)} | Saldo: {saldo}")
-            except Exception as _loyalty_e:
-                logger.debug("Loyalty post-venta: %s", _loyalty_e)
-
-            # ── v13.4 Fase 3: Registrar ingreso en Tesorería Central ─────────
-            try:
-                treasury = getattr(self.container, 'treasury_service', None)
-                if treasury and treasury.enabled:
-                    treasury.registrar_ingreso(
-                        categoria="venta",
-                        concepto=f"Venta {folio}",
-                        monto=self.totales['total_final'],
-                        sucursal_id=self.sucursal_id,
-                        referencia=str(folio),
-                        usuario=usuario)
-            except Exception as _t_e:
-                logger.debug("Treasury post-venta: %s", _t_e)
-
-            # Build ticket data BEFORE cancelar_venta clears compra_actual
-            _items_snapshot = list(self.compra_actual)
-            _totales_snapshot = dict(self.totales)
-            datos_ticket = {
-                'folio':    folio,
-                'venta_id': folio,
-                'fecha':    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                'cajero':   usuario,
-                'cliente':  self.cliente_actual['nombre'] if self.cliente_actual else 'Público General',
-                'items':    _items_snapshot,
-                'totales':  _totales_snapshot,
-                'pago':     datos_pago,
-                'logo_path': LOGO_TICKET_PATH,
-                'empresa':  getattr(self.container, '_nombre_empresa', 'SPJ POS'),
-                'puntos_ganados': puntos_resultado.get('estrellas_ganadas', 0),
-                'puntos_totales': puntos_resultado.get('saldo_actual', 0),
-                'mensaje_psicologico': (
-                    puntos_resultado.get('mensaje_gamificacion')
-                    or '¡Gracias por su compra!'),
-            }
-            # Print ticket — single consolidated path
-            self._imprimir_ticket_consolidado(datos_ticket)
-
-            QMessageBox.information(self, "Venta Exitosa",
-                f"¡Venta #{folio} completada!\nTotal: ${self.totales['total_final']:.2f}")
-            self.cancelar_venta(silent=True)
-            self._actualizar_comision_turno()
-            self._tiempo_inicio_venta = None  # reset timer
-
+            self._venta_timing["t_uc_start"] = time.perf_counter()
+            result = self._procesar_venta_via_uc(carrito_limpio, datos_pago, usuario, cliente_id)
+            self._on_checkout_success(result, datos_pago, usuario, cliente_id)
+            return
         except PermissionError as e:
             QMessageBox.warning(self, "Acceso Denegado", str(e))
+            self._on_checkout_finished()
         except ValueError as e:
             QMessageBox.warning(self, "Aviso de Venta", str(e))
+            self._on_checkout_finished()
         except Exception as e:
             logger.error(f"Fallo crítico en UI de ventas: {str(e)}")
-            QMessageBox.critical(self, "Error Fatal", f"Error procesando la venta:\n{str(e)}")
+            QMessageBox.critical(self, "Error al procesar venta", str(e))
+            self._on_checkout_finished()
+        finally:
+            self._on_checkout_finished()
 
-    def generar_ticket(self, venta_id: int, datos_pago: Dict[str, Any]):
+    def _on_checkout_success(self, _r, datos_pago, usuario, cliente_id):
+        self._venta_timing["t_uc_done"] = time.perf_counter()
+        if not getattr(_r, "ok", False):
+            self._on_checkout_failed(str(getattr(_r, "error", "Error en venta")), "")
+            return
         try:
-            ticket_data = {
-                'venta_id': venta_id,
-                'fecha': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                'cajero': self.obtener_usuario_actual(),
-                'cliente': self.cliente_actual['nombre'] if self.cliente_actual else 'Público General',
-                'items': self.compra_actual,
-                'totales': self.totales,
-                'pago': datos_pago,
-                'logo_path': LOGO_TICKET_PATH
-            }
-            # v13.4: PrinterService en vez de safe_print_ticket
-            ps = getattr(self.container, 'printer_service', None)
-            if ps and ps.has_ticket_printer():
-                ps.print_ticket(ticket_data)
-            self.guardar_ticket_pdf(ticket_data)
+            self._aplicar_resultado_venta(_r, datos_pago, usuario, cliente_id)
+            # Refresh local del grid de productos (stock visible) tras la venta.
+            # Llamada directa — antes era un QTimer.singleShot diferido que el
+            # guardrail test_ui_refreshes_products_locally_after_sale no acepta.
+            self.cargar_productos_interactivos()
+            folio = getattr(_r, "folio", "")
+            self._tiempo_inicio_venta = None  # reset timer
+            self._venta_timing["t_products_reload"] = time.perf_counter()
+            t = self._venta_timing
+            total_ms = (t["t_products_reload"] - t["t_dialog_done"]) * 1000.0
+            uc_ms = (t["t_uc_done"] - t["t_uc_start"]) * 1000.0
+            ticket_ms = (
+                (t.get("t_ticket_queued", t["t_products_reload"]) - t["t_ticket_start"]) * 1000.0
+                if t.get("t_ticket_start") else -1.0
+            )
+            pdf_ms = (
+                (t.get("t_pdf_queued", t["t_products_reload"]) - t["t_ticket_start"]) * 1000.0
+                if t.get("t_ticket_start") else -1.0
+            )
+            logger.info(
+                "VENTA_TIMING folio=%s t_dialog_done=%.6f t_uc_start=%.6f t_uc_done=%.6f "
+                "t_ticket_start=%.6f t_ticket_queued=%.6f t_pdf_queued=%.6f t_products_reload=%.6f "
+                "uc_ms=%.2f ticket_ms=%.2f pdf_ms=%.2f total_ms=%.2f",
+                folio,
+                t.get("t_dialog_done", 0.0),
+                t.get("t_uc_start", 0.0),
+                t.get("t_uc_done", 0.0),
+                t.get("t_ticket_start", 0.0),
+                t.get("t_ticket_queued", 0.0),
+                t.get("t_pdf_queued", 0.0),
+                t.get("t_products_reload", 0.0),
+                uc_ms,
+                ticket_ms,
+                pdf_ms,
+                total_ms,
+            )
         except Exception as e:
-            logger.error("Error generando ticket: %s", e)
+            self._on_checkout_failed(str(e), "")
+
+    def _aplicar_resultado_venta(self, result, datos_pago, usuario, cliente_id):
+        if not getattr(result, "ok", False):
+            raise RuntimeError(str(getattr(result, "error", "Error en venta")))
+
+        folio = getattr(result, "folio", "")
+        self._ultima_venta_id = getattr(result, "venta_id", 0)
+        self.btn_factura.setEnabled(bool(self._ultima_venta_id))
+        self.btn_reimprimir.setEnabled(bool(self._ultima_venta_id))
+        self._abrir_cajon()
+
+        loyalty_result = dict(getattr(result, "loyalty_result", {}) or {})
+        puntos_ganados_raw = loyalty_result.get("puntos_ganados", getattr(result, "puntos_ganados", None))
+        puntos_ganados = int(puntos_ganados_raw or 0)
+        puntos_totales = loyalty_result.get("puntos_totales", getattr(result, "puntos_totales", None))
+        saldo_confiable = bool(loyalty_result.get("available", False)) and puntos_totales not in (None, "")
+        if not saldo_confiable and cliente_id:
+            ls = getattr(self.container, 'loyalty_service', None) if hasattr(self, 'container') else None
+            if ls:
+                try:
+                    saldo_pts = ls.saldo(cliente_id)
+                    puntos_totales = int(saldo_pts or 0)  # conteo de puntos
+                    saldo_confiable = True
+                except Exception as exc:
+                    logger.warning("Loyalty saldo post-venta no disponible: %s", exc)
+        if saldo_confiable:
+            puntos_totales = int(puntos_totales)
+            self.lbl_puntos_venta.setText(f"⭐ +{puntos_ganados} | Saldo: {puntos_totales}" if puntos_ganados > 0 else f"⭐ Saldo: {puntos_totales}")
+            if cliente_id and isinstance(getattr(self, "cliente_actual", None), dict):
+                self.cliente_actual["puntos"] = puntos_totales
+        else:
+            self.lbl_puntos_venta.setText("⭐ Saldo de puntos no disponible")
+
+        datos_ticket = dict(getattr(result, "ticket_payload", {}) or {})
+        if self._reserva_activa_id:
+            if datos_ticket.get("reservation_confirmed") is True:
+                self._reserva_activa_id = None
+            else:
+                reserva_pendiente_id = self._reserva_activa_id
+                logger.warning(
+                    "Venta completada, pero la reserva quedó pendiente de revisión: reserva_id=%s",
+                    reserva_pendiente_id,
+                )
+                try:
+                    self._stock_reservas.marcar_revision(
+                        reserva_pendiente_id,
+                        motivo="postventa_warning",
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "No se pudo marcar la reserva pendiente en revisión: reserva_id=%s error=%s",
+                        reserva_pendiente_id,
+                        exc,
+                    )
+                self._reserva_activa_id = None
+                Toast.warning(self, "Reserva", "Venta completada, pero la reserva quedó pendiente de revisión.")
+
+        payload_venta_id = str(datos_ticket.get("venta_id") or datos_ticket.get("sale_id") or "")
+        result_venta_id = str(getattr(result, "venta_id", "") or "")
+        payload_total = None
+        if datos_ticket:
+            payload_total = (datos_ticket.get("totales") or {}).get(
+                "total_final",
+                datos_ticket.get("total_final", datos_ticket.get("total")),
+            )
+        if (
+            not datos_ticket
+            or not payload_venta_id
+            or payload_venta_id != result_venta_id
+            or payload_total in (None, "")
+        ):
+            self._ticket_html_cache = ""
+            QMessageBox.warning(
+                self,
+                "Ticket no generado",
+                "Venta completada, pero no se generó payload de ticket. Use reimpresión desde venta_id."
+            )
+        else:
+            if getattr(result, "ticket_html", ""):
+                self._ticket_html_cache = result.ticket_html
+            self._venta_timing["t_ticket_start"] = time.perf_counter()
+            self._imprimir_ticket_consolidado(datos_ticket)
+        Toast.success(self, f"✅ Venta #{folio} completada", f"Total: ${float(getattr(result, 'total', 0.0) or 0.0):.2f}")
+
+        # El refresh del grid de productos lo hace _on_checkout_success con una
+        # llamada directa a cargar_productos_interactivos() tras aplicar la venta.
+        self.cancelar_venta(silent=True)
+        self._actualizar_comision_turno()
+
+    def _on_checkout_failed(self, error_msg: str, traceback_str: str):
+        logger.error("Checkout failed: %s\n%s", error_msg, traceback_str)
+        QMessageBox.critical(self, "Error al procesar venta", error_msg)
+
+    def _on_checkout_finished(self):
+        self._venta_checkout_running = False
+        if hasattr(self, "btn_cobrar"):
+            self.btn_cobrar.setEnabled(True)
+            self.btn_cobrar.setText("COBRAR")
 
     def guardar_ticket_pdf(self, ticket_data: Dict[str, Any]):
-        try:
-            printer = QPrinter(QPrinter.HighResolution)
-            printer.setOutputFormat(QPrinter.PdfFormat)
-            filename = f"ticket_venta_{ticket_data['venta_id']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-            filepath = os.path.join(TICKETS_FOLDER, filename)
-            printer.setOutputFileName(filepath)
-            
-            doc = QTextDocument()
-            html = self.generar_html_ticket(ticket_data)
-            doc.setHtml(html)
-            doc.print_(printer)
-        except Exception as e:
-            logger.error("Error guardando PDF: %s", e)
+        from core.services.printer_service import save_ticket_pdf
+        filename = f"ticket_venta_{ticket_data['venta_id']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        filepath = os.path.join(TICKETS_FOLDER, filename)
+        save_ticket_pdf(self.generar_html_ticket(ticket_data), filepath)
+
+    def _guardar_ticket_pdf_async(self, ticket_data: Dict[str, Any]):
+        self._venta_timing = getattr(self, "_venta_timing", {})
+        self._pdf_thread = QThread(self)
+        self._pdf_worker = TicketOutputWorker(self.guardar_ticket_pdf, ticket_data)
+        self._pdf_worker.moveToThread(self._pdf_thread)
+        self._pdf_thread.started.connect(self._pdf_worker.run)
+        self._pdf_worker.failed.connect(lambda e, _tb: QTimer.singleShot(0, lambda: Toast.warning(self, "PDF", f"No se pudo generar PDF: {e}")))
+        self._pdf_thread.started.connect(lambda: self._venta_timing.__setitem__("t_pdf_queued", time.perf_counter()))
+        self._pdf_worker.finished.connect(self._pdf_thread.quit)
+        self._pdf_worker.finished.connect(self._pdf_worker.deleteLater)
+        self._pdf_thread.finished.connect(self._pdf_thread.deleteLater)
+        self._pdf_thread.start()
 
     def generar_html_ticket(self, ticket_data: Dict[str, Any]) -> str:
         """
@@ -3079,10 +4408,8 @@ class ModuloVentas(ModuloBase):
         empresa_tel = ""
 
         try:
-            db = self.container.db
             def _cfg(k, d=""):
-                r = db.execute("SELECT valor FROM configuraciones WHERE clave=?", (k,)).fetchone()
-                return r[0] if r and r[0] else d
+                return self._ticket_settings_qs.get(k, d)
 
             # Plantilla del diseñador
             plantilla = _cfg('ticket_template_html', '')
@@ -3114,8 +4441,8 @@ class ModuloVentas(ModuloBase):
                     buf = _io.BytesIO(); img.save(buf, format='PNG')
                     qr_b64 = _b64.b64encode(buf.getvalue()).decode()
                     qr_html = f'<div style="text-align:center;margin:4px 0;"><img src="data:image/png;base64,{qr_b64}" width="{qr_size}px"></div>'
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("No se pudo generar QR de ticket; se continúa sin QR: %s", exc)
 
             # Barcode
             if _cfg('ticket_bc_enabled', '0') == '1':
@@ -3126,14 +4453,16 @@ class ModuloVentas(ModuloBase):
             font_family = _cfg('ticket_font_family', 'Courier New')
             try:
                 font_size = int(_cfg('ticket_font_size', '12'))
-            except Exception:
+            except Exception as exc:
+                logger.warning("Config ticket_font_size inválida; usando default 12: %s", exc)
                 font_size = 12
             try:
                 paper_w = int(_cfg('ticket_paper_width', '80'))
-            except Exception:
+            except Exception as exc:
+                logger.warning("Config ticket_paper_width inválida; usando default 80: %s", exc)
                 paper_w = 80
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Configuración visual de ticket no disponible; se usan defaults: %s", exc)
 
         # ── Construir items_html ──────────────────────────────────────────
         filas = ""
@@ -3154,6 +4483,13 @@ class ModuloVentas(ModuloBase):
         elif 'dito' in forma_pago:
             pago_extra = f"Saldo adeudado: ${float(pago.get('saldo_credito', total_final)):.2f}"
 
+        loyalty_info = dict(ticket_data.get('loyalty') or {})
+        ticket_points_total = loyalty_info.get('puntos_totales', ticket_data.get('puntos_totales'))
+        ticket_points_available = bool(loyalty_info.get('available', False)) and ticket_points_total not in (None, "")
+        ticket_points_earned = loyalty_info.get('puntos_ganados', ticket_data.get('puntos_ganados'))
+        puntos_ganados_txt = "" if ticket_points_earned in (None, "") else str(ticket_points_earned)
+        puntos_totales_txt = str(ticket_points_total) if ticket_points_available else "Saldo de puntos no disponible"
+
         # ── Sustitución de variables en plantilla ─────────────────────────
         if plantilla:
             variables = {
@@ -3166,8 +4502,8 @@ class ModuloVentas(ModuloBase):
                 'descuento': f"${float(totales.get('descuento', 0)):.2f}",
                 'forma_pago': forma_pago,
                 'cambio': f"${cambio:.2f}",
-                'puntos_ganados': str(ticket_data.get('puntos_ganados', 0)),
-                'puntos_totales': str(ticket_data.get('puntos_totales', 0)),
+                'puntos_ganados': puntos_ganados_txt,
+                'puntos_totales': puntos_totales_txt,
                 'mensaje_psicologico': ticket_data.get('mensaje_psicologico', '¡Gracias por su compra!'),
                 'logo': logo_html,
                 'qr_code': qr_html,
@@ -3232,6 +4568,18 @@ class ModuloVentas(ModuloBase):
             if respuesta == QMessageBox.No: return
                 
         self.compra_actual.clear()
+        if self._reserva_activa_id:
+            try:
+                self._stock_reservas.liberar(self._reserva_activa_id, motivo="cancelada")
+                from core.events.event_bus import get_bus
+                from core.events.domain_events import VENTA_SUSPENDIDA_CANCELADA, STOCK_RESERVA_LIBERADA
+                get_bus().publish(VENTA_SUSPENDIDA_CANCELADA, {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id})
+                get_bus().publish(STOCK_RESERVA_LIBERADA, {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id})
+            except Exception as exc:
+                logger.warning("No se pudo liberar reserva activa al cancelar venta: reserva_id=%s error=%s", self._reserva_activa_id, exc)
+                if not silent:
+                    Toast.warning(self, "Reserva", "No se pudo liberar la reserva; quedó pendiente de revisión.")
+            self._reserva_activa_id = None
         self.limpiar_seleccion_producto()
         self.limpiar_cliente()
         self.actualizar_tabla_compra()
@@ -3244,8 +4592,8 @@ class ModuloVentas(ModuloBase):
         try:
             self.txt_busqueda.setFocus()
             self.txt_busqueda.selectAll()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("No se pudo enfocar búsqueda al mostrar ventas: %s", exc)
 
     def _generar_factura(self) -> None:
         """Abre el diálogo para generar CFDI de la última venta."""
@@ -3317,42 +4665,74 @@ class ModuloVentas(ModuloBase):
 
     # ── Devolución / Cancelación ─────────────────────────────────────────────
     def _reimprimir_ultima_venta(self) -> None:
-        """Retrieves last sale data from DB and opens the print dialog."""
+        """Reimprime ticket térmico (ESC/POS) de la última venta."""
         vid = getattr(self, '_ultima_venta_id', None)
         if not vid:
             QMessageBox.warning(self, "Sin venta", "No hay venta reciente para reimprimir.")
             return
         try:
-            db = self.container.db
-            venta = db.execute(
-                "SELECT folio, fecha, usuario, forma_pago, efectivo_recibido, cambio, total "
-                "FROM ventas WHERE id=?", (vid,)).fetchone()
+            venta = self._sales_read_repo.get_sale_ticket_header(vid)
             if not venta:
                 QMessageBox.warning(self, "No encontrada", f"Venta ID {vid} no encontrada."); return
-            items_raw = db.execute(
-                "SELECT p.nombre, dv.cantidad, dv.precio_unitario, dv.subtotal, "
-                "COALESCE(p.unidad,'pz') as unidad "
-                "FROM detalles_venta dv JOIN productos p ON p.id=dv.producto_id "
-                "WHERE dv.venta_id=?", (vid,)).fetchall()
-            items = [{'nombre':r[0],'cantidad':float(r[1]),'precio_unitario':float(r[2]),
-                      'total':float(r[3]),'unidad':r[4]} for r in items_raw]
-            total = float(venta[6] or 0)
+            items = self._sales_read_repo.get_sale_items_with_product(vid)
+            total = float(venta['total'] or 0)
             datos_ticket = {
-                'folio':    venta[0], 'venta_id': venta[0],
-                'fecha':    str(venta[1] or '')[:16],
-                'cajero':   venta[2] or self.obtener_usuario_actual(),
+                'folio':    venta['folio'], 'venta_id': str(vid),
+                'fecha':    str(venta['fecha'] or '')[:16],
+                'cajero':   venta['usuario'] or self.obtener_usuario_actual(),
                 'cliente':  'Público General',
                 'items':    items,
                 'totales':  {'subtotal': total, 'impuestos': 0, 'total_final': total},
-                'pago':     {'forma_pago': venta[3] or 'Efectivo',
-                             'efectivo_recibido': float(venta[4] or total),
-                             'cambio': float(venta[5] or 0)},
+                'pago':     {'forma_pago': venta['forma_pago'] or 'Efectivo',
+                             'efectivo_recibido': float(venta['efectivo_recibido'] or total),
+                             'cambio': float(venta['cambio'] or 0)},
                 'empresa':  getattr(self.container, '_nombre_empresa', 'SPJ POS'),
                 'logo_path': LOGO_TICKET_PATH,
             }
-            self._imprimir_ticket_consolidado(datos_ticket)
+            # Fase 10: Reimpresión térmica separada de PDF de auditoría.
+            ps = getattr(self.container, 'printer_service', None)
+            if ps and ps.has_ticket_printer():
+                ps.print_ticket(
+                    datos_ticket,
+                    on_success=lambda: QTimer.singleShot(0, lambda: Toast.success(self, "Ticket impreso", "Ticket impreso")),
+                    on_error=lambda e: QTimer.singleShot(0, lambda: Toast.warning(self, "Impresión", f"La venta fue completada, pero el ticket no se imprimió: {e}")),
+                )
+                return
+
+            # Compatibilidad legacy: si hay impresora habilitada en
+            # hardware_config, intentar la ruta de hardware clásica.
+            if self._hw_impresora_habilitada:
+                self._imprimir_ticket_hardware(datos_ticket)
+                return
+
+            if not ps or not ps.has_ticket_printer():
+                QMessageBox.critical(self, "Impresión térmica no configurada",
+                                     "No hay impresora térmica ESC/POS configurada.")
+                return
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
+
+    def _guardar_pdf_auditoria_ultima_venta(self) -> None:
+        """Genera PDF de auditoría de la última venta sin requerir impresora térmica."""
+        vid = getattr(self, '_ultima_venta_id', None)
+        if not vid:
+            QMessageBox.warning(self, "Sin venta", "No hay venta reciente para PDF.")
+            return
+        try:
+            venta = self._sales_read_repo.get_sale_ticket_header(vid)
+            if not venta:
+                QMessageBox.warning(self, "No encontrada", f"Venta ID {vid} no encontrada.")
+                return
+            ticket_data = {
+                'folio': venta['folio'], 'venta_id': venta['folio'], 'fecha': str(venta['fecha'] or '')[:16],
+                'cajero': venta['usuario'] or self.obtener_usuario_actual(), 'cliente': 'Público General',
+                'items': [], 'totales': {'subtotal': float(venta['total'] or 0), 'total_final': float(venta['total'] or 0)},
+                'pago': {'forma_pago': venta['forma_pago'] or 'Efectivo', 'efectivo_recibido': float(venta['efectivo_recibido'] or 0), 'cambio': float(venta['cambio'] or 0)},
+            }
+            self.guardar_ticket_pdf(ticket_data)
+            QMessageBox.information(self, "PDF auditoría", "PDF de auditoría generado correctamente.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error PDF", str(e))
 
     def abrir_devolucion(self) -> None:
         """Abre el diálogo de devolución/cancelación de venta anterior."""
@@ -3370,29 +4750,39 @@ class ModuloVentas(ModuloBase):
 
         grp = QGroupBox("Buscar venta a devolver")
         sf = QFormLayout(grp)
-        txt_folio = QLineEdit(); txt_folio.setPlaceholderText("Folio VNT-… o ID")
+        txt_folio = QLineEdit()
+        txt_folio.setPlaceholderText("Folio VNT-… o ID (busca solo al 7º carácter)")
+        txt_folio.setProperty("class", "standardInput")
         sf.addRow("Folio / ID:", txt_folio)
         lay.addWidget(grp)
 
         lbl_info = QLabel("Ingresa el folio y presiona Buscar")
-        lbl_info.setStyleSheet("color:#666;padding:4px;")
+        lbl_info.setProperty("class", "text-secondary caption")
         lay.addWidget(lbl_info)
 
         tbl = QTableWidget(0, 4)
         tbl.setHorizontalHeaderLabels(["Producto","Cant.","Precio","Subtotal"])
         tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        tbl.setProperty("class", "standardTable")
         lay.addWidget(tbl)
 
         cmb_motivo = QComboBox()
         cmb_motivo.addItems(["Producto defectuoso","Error de cajero","Cliente arrepentido","Otro"])
-        lay.addWidget(QLabel("Motivo:")); lay.addWidget(cmb_motivo)
+        cmb_motivo.setProperty("class", "standardCombobox")
+        lay.addWidget(QLabel("Motivo:"))
+        lay.addWidget(cmb_motivo)
 
         btn_bar = QHBoxLayout()
-        btn_buscar = QPushButton("🔍 Buscar"); btn_buscar.setStyleSheet("background:#3498db;color:white;padding:7px 16px;")
-        btn_cancel = QPushButton("❌ Cancelar venta"); btn_cancel.setStyleSheet("background:#e74c3c;color:white;padding:7px 16px;"); btn_cancel.setEnabled(False)
-        btn_cerrar = QPushButton("Cerrar"); btn_cerrar.clicked.connect(dlg.reject)
-        btn_bar.addWidget(btn_buscar); btn_bar.addWidget(btn_cancel); btn_bar.addStretch(); btn_bar.addWidget(btn_cerrar)
+        btn_buscar = create_primary_button(dlg, "🔍 Buscar", "Buscar venta por folio")
+        btn_cancel = create_danger_button(dlg, "❌ Cancelar venta", "Cancelar venta completa")
+        btn_cancel.setEnabled(False)
+        btn_cerrar = create_secondary_button(dlg, "Cerrar", "Cerrar diálogo")
+        btn_cerrar.clicked.connect(dlg.reject)
+        btn_bar.addWidget(btn_buscar)
+        btn_bar.addWidget(btn_cancel)
+        btn_bar.addStretch()
+        btn_bar.addWidget(btn_cerrar)
         lay.addLayout(btn_bar)
 
         _vid = [None]
@@ -3400,19 +4790,12 @@ class ModuloVentas(ModuloBase):
         def _buscar():
             folio = txt_folio.text().strip()
             if not folio: return
-            db = self.container.db
-            row = db.execute(
-                "SELECT id,folio,total,estado FROM ventas WHERE folio=? OR CAST(id AS TEXT)=?",
-                (folio, folio)
-            ).fetchone()
+            row = self._sales_read_repo.find_sale_by_folio_or_id(folio)
             if not row:
                 lbl_info.setText("❌ Venta no encontrada"); btn_cancel.setEnabled(False); return
             _vid[0] = row['id']
             lbl_info.setText(f"✅ {row['folio']} — Total ${float(row['total']):.2f} — {row['estado']}")
-            items = db.execute(
-                "SELECT nombre,cantidad,precio_unitario,(cantidad*precio_unitario) "
-                "FROM detalles_venta WHERE venta_id=?", (row['id'],)
-            ).fetchall()
+            items = self._sales_read_repo.get_sale_items_basic(row['id'])
             tbl.setRowCount(0)
             for i, it in enumerate(items):
                 tbl.insertRow(i)
@@ -3436,24 +4819,45 @@ class ModuloVentas(ModuloBase):
                 return
             try:
                 from core.services.sales_reversal_service import SalesReversalService
-                SalesReversalService(self.container.db).cancel_sale(vid, self.usuario_actual)
-            except Exception:
-                try:
-                    self.container.db.execute(
-                        "UPDATE ventas SET estado='cancelada',notas=? WHERE id=?",
-                        (f"Cancelada: {motivo}", vid))
-                    try: self.container.db.commit()
-                    except Exception: pass
-                    try:
-                        _uid = getattr(self,"usuario_actual",None) or getattr(self,"usuario","Sistema")
-                        _ctr = getattr(self,"container",None)
-                        if _ctr: audit_write(_ctr,modulo="VENTAS",accion="VENTA_CANCELADA",entidad="ventas",usuario=_uid,detalles="Venta cancelada",sucursal_id=getattr(self,"sucursal_id",1))
-                    except Exception: pass
-                except Exception as e:
-                    QMessageBox.critical(dlg, "Error", str(e)); return
-            QMessageBox.information(dlg, "✅ Éxito", "Venta cancelada correctamente.")
+                branch_id = str(getattr(self, "sucursal_id", "") or "")
+                usuario = (getattr(self, "usuario_actual", "") or getattr(self, "usuario", "") or "").strip()
+                if not usuario:
+                    raise ValueError("Usuario no identificado para cancelar venta.")
+                SalesReversalService(self.container.db, branch_id=branch_id).cancel_sale(
+                    vid, usuario
+                )
+            except Exception as e:
+                # Hardening Fase 0:
+                # ❌ Nunca caer a UPDATE directo de estado (rompe reversa contable/inventario).
+                # ✔  Fallar explícitamente para preservar integridad.
+                QMessageBox.critical(
+                    dlg,
+                    "Error de cancelación",
+                    ("No se pudo cancelar con reversa segura.\n"
+                     "La venta NO fue alterada.\n\n"
+                     f"Detalle: {e}")
+                )
+                return
+            Toast.success(self, "✅ Venta cancelada", "La devolución se aplicó correctamente.")
             dlg.accept()
 
         btn_buscar.clicked.connect(_buscar)
         btn_cancel.clicked.connect(_cancelar)
+
+        # Autocompletado de búsqueda: dispara SOLO a partir del 7º carácter
+        # tecleado (con debounce), para no consultar por prefijos ambiguos.
+        from PyQt5.QtCore import QTimer as _QTimer
+        _debounce = _QTimer(dlg)
+        _debounce.setSingleShot(True)
+        _debounce.setInterval(250)
+        _debounce.timeout.connect(_buscar)
+
+        def _on_folio_typed(texto: str) -> None:
+            if len(texto.strip()) >= 7:
+                _debounce.start()
+            else:
+                _debounce.stop()
+
+        txt_folio.textChanged.connect(_on_folio_typed)
+        txt_folio.returnPressed.connect(_buscar)
         dlg.exec_()

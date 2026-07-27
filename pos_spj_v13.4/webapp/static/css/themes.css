@@ -1,0 +1,149 @@
+/*
+ * themes.css — SPJ POS Web UI
+ * Sistema de temas Claro / Oscuro via [data-theme] en <html>.
+ * Persistido en localStorage bajo la clave "spj-theme".
+ * Solo sobreescribe semantic tokens — nunca los primitivos de tokens.css.
+ */
+
+/* ─── TEMA CLARO (por defecto) ───────────────────────────────────────────── */
+:root,
+[data-theme="light"] {
+  --bg-page:        var(--neutral-50);
+  --bg-surface:     var(--neutral-white);
+  --bg-surface-2:   var(--neutral-100);
+  --bg-surface-3:   var(--neutral-200);
+  --bg-input:       var(--neutral-white);
+  --bg-hover:       var(--neutral-50);
+  --bg-active:      var(--color-primary-light);
+
+  --text-primary:   var(--neutral-900);
+  --text-secondary: var(--neutral-600);
+  --text-muted:     var(--neutral-400);
+  --text-inverted:  var(--neutral-white);
+  --text-link:      var(--color-primary);
+
+  --border-color:   var(--neutral-200);
+  --border-input:   var(--neutral-300);
+  --border-focus:   var(--color-primary);
+
+  --shadow-card:    var(--shadow-sm);
+  --shadow-hover:   var(--shadow-md);
+  --shadow-modal:   var(--shadow-xl);
+
+  /* Tabla */
+  --table-header-bg:   var(--neutral-50);
+  --table-border:      var(--neutral-200);
+  --table-row-hover:   var(--neutral-50);
+  --table-row-stripe:  var(--neutral-50);
+
+  /* KPI Cards */
+  --kpi-bg:         var(--neutral-white);
+  --kpi-border:     var(--neutral-200);
+
+  /* Input */
+  --input-bg:       var(--neutral-white);
+  --input-border:   var(--neutral-300);
+  --input-text:     var(--neutral-900);
+
+  /* Badge */
+  --badge-default-bg:   var(--neutral-100);
+  --badge-default-text: var(--neutral-700);
+
+  /* Tooltip */
+  --tooltip-bg:     var(--neutral-900);
+  --tooltip-text:   var(--neutral-50);
+
+  /* Scrollbar */
+  --scrollbar-track: var(--neutral-100);
+  --scrollbar-thumb: var(--neutral-300);
+  --scrollbar-thumb-hover: var(--neutral-400);
+
+  /* Charts */
+  --chart-bg:       var(--neutral-white);
+  --chart-grid:     var(--neutral-200);
+  --chart-text:     var(--neutral-500);
+
+  /* Modal */
+  --modal-bg:       var(--neutral-white);
+  --modal-backdrop: rgba(15, 23, 42, 0.5);
+}
+
+/* ─── TEMA OSCURO ────────────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --bg-page:        #0F172A;
+  --bg-surface:     #1E293B;
+  --bg-surface-2:   #243044;
+  --bg-surface-3:   #2D3E55;
+  --bg-input:       #1E293B;
+  --bg-hover:       #243044;
+  --bg-active:      rgba(37, 99, 235, 0.2);
+
+  --text-primary:   #F1F5F9;
+  --text-secondary: #94A3B8;
+  --text-muted:     #64748B;
+  --text-inverted:  #0F172A;
+  --text-link:      #60A5FA;
+
+  --border-color:   #334155;
+  --border-input:   #475569;
+  --border-focus:   #3B82F6;
+
+  --shadow-card:    0 1px 2px rgba(0,0,0,0.3);
+  --shadow-hover:   0 4px 6px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.3);
+  --shadow-modal:   0 20px 25px rgba(0,0,0,0.5), 0 10px 10px rgba(0,0,0,0.4);
+
+  /* Tabla */
+  --table-header-bg:   #1E293B;
+  --table-border:      #334155;
+  --table-row-hover:   #243044;
+  --table-row-stripe:  rgba(255,255,255,0.02);
+
+  /* KPI Cards */
+  --kpi-bg:         #1E293B;
+  --kpi-border:     #334155;
+
+  /* Input */
+  --input-bg:       #1E293B;
+  --input-border:   #475569;
+  --input-text:     #F1F5F9;
+
+  /* Badge */
+  --badge-default-bg:   #334155;
+  --badge-default-text: #CBD5E1;
+
+  /* Tooltip */
+  --tooltip-bg:     #0F172A;
+  --tooltip-text:   #F1F5F9;
+
+  /* Scrollbar */
+  --scrollbar-track: #1E293B;
+  --scrollbar-thumb: #334155;
+  --scrollbar-thumb-hover: #475569;
+
+  /* Charts */
+  --chart-bg:       #1E293B;
+  --chart-grid:     #334155;
+  --chart-text:     #94A3B8;
+
+  /* Modal */
+  --modal-bg:       #1E293B;
+  --modal-backdrop: rgba(2, 6, 23, 0.7);
+}
+
+/* ─── Transición suave entre temas ──────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  transition:
+    background-color var(--transition-normal),
+    border-color     var(--transition-normal),
+    color            var(--transition-fast),
+    box-shadow       var(--transition-normal);
+}
+
+/* Excluir transición en elementos que se animan por otros motivos */
+.chart-container *,
+.no-theme-transition,
+.no-theme-transition * {
+  transition: none !important;
+}

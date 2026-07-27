@@ -16,6 +16,7 @@
 #
 # REGLA: Toda modificación de stock pasa por InventoryEngine.
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 
 import logging
 import sqlite3
@@ -131,7 +132,7 @@ class DistributionEngine:
 
         # InventoryEngine maneja FIFO y crea el traspaso
         from core.database import Connection
-        from core.services.inventory_engine import InventoryEngine
+        from core.services.inventory.unified_inventory_service import UnifiedInventoryService as InventoryEngine
 
         inv = InventoryEngine(
             Connection(self.conn),
@@ -154,7 +155,7 @@ class DistributionEngine:
 
         result = TraspasoResult(
             traspaso_id=traspaso_id,
-            op_uuid=str(uuid.uuid4()),
+            op_uuid=new_uuid(),
             producto_id=producto_id,
             cantidad=cantidad,
             sucursal_origen=self.sucursal_id,
@@ -207,7 +208,7 @@ class DistributionEngine:
         # Obtener costo unitario del lote original para mantener trazabilidad
         costo_unitario = self._obtener_costo_origen(producto_id, sucursal_origen)
 
-        op_uuid = str(uuid.uuid4())
+        op_uuid = new_uuid()
 
         with self.conn:
             # Buscar/crear BIB de destino para este producto
@@ -345,7 +346,7 @@ class DistributionEngine:
                     producto_id, "ENTRADA", "cancelacion_traspaso", cantidad,
                     f"Cancelación traspaso #{traspaso_id}: {motivo}",
                     self.usuario, sucursal_origen, traspaso_id, "traspaso",
-                    str(uuid.uuid4()),
+                    new_uuid(),
                 ),
             )
             self.conn.execute(
@@ -392,7 +393,7 @@ class DistributionEngine:
         tipo_mov = "entrada_ajuste" if cantidad > 0 else "salida_ajuste"
         tipo_main = "ENTRADA" if cantidad > 0 else "SALIDA"
 
-        op_uuid = str(uuid.uuid4())
+        op_uuid = new_uuid()
 
         with self.conn:
             # Actualizar existencia directamente en productos (simplificado para ajustes)
@@ -514,12 +515,12 @@ class DistributionEngine:
             self.conn.execute(
                 """
                 INSERT INTO conciliation_runs
-                    (branch_id, usuario, tolerancia_kg,
+                    (id, branch_id, usuario, tolerancia_kg,
                      diferencia_kg, detalle_json, estado)
-                VALUES (?,?,?,?,?,'completado')
+                VALUES (?,?,?,?,?,?,'completado')
                 """,
                 (
-                    branch, self.usuario, umbral,
+                    new_uuid(), branch, self.usuario, umbral,
                     abs(total_diff),
                     json.dumps(productos_diff, ensure_ascii=False, default=str),
                 ),
@@ -564,7 +565,7 @@ class DistributionEngine:
             )
             try:
                 self.conn.execute("""
-                    INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad)
+                    INSERT INTO inventory_stock (product_id, branch_id, quantity)
                     VALUES (?,?,?)
                     ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET
                         cantidad = excluded.cantidad,
@@ -584,7 +585,7 @@ class DistributionEngine:
         )
         try:
             self.conn.execute("""
-                INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad)
+                INSERT INTO inventory_stock (product_id, branch_id, quantity)
                 VALUES (?,?,?)
                 ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET
                     cantidad = cantidad + excluded.cantidad,
@@ -614,7 +615,7 @@ class DistributionEngine:
         traspaso_id:   int,
     ) -> int:
         """Crea un chicken_batch derivado para el traspaso."""
-        batch_uuid = str(uuid.uuid4())
+        batch_uuid = new_uuid()
         self.conn.execute(
             """
             INSERT INTO chicken_batches

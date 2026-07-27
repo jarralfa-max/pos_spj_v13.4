@@ -86,41 +86,25 @@ _ROLE_PERMISSIONS: dict[str, Set[str]] = {
 
 def inicializar_rbac(conn=None) -> None:
     """Crea tablas RBAC y siembra roles/permisos si no existen."""
+    from backend.shared.ids import new_uuid, role_uuid
+
     c = conn or get_connection()
-    c.executescript("""
-        CREATE TABLE IF NOT EXISTS roles (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre      TEXT UNIQUE NOT NULL,
-            descripcion TEXT,
-            activo      INTEGER DEFAULT 1
-        );
-        CREATE TABLE IF NOT EXISTS permisos (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            codigo      TEXT UNIQUE NOT NULL,
-            modulo      TEXT NOT NULL,
-            descripcion TEXT
-        );
-        CREATE TABLE IF NOT EXISTS roles_permisos (
-            rol_id     INTEGER REFERENCES roles(id) ON DELETE CASCADE,
-            permiso_id INTEGER REFERENCES permisos(id) ON DELETE CASCADE,
-            PRIMARY KEY (rol_id, permiso_id)
-        );
-        CREATE TABLE IF NOT EXISTS usuarios_roles (
-            usuario_id  INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
-            rol_id      INTEGER REFERENCES roles(id) ON DELETE CASCADE,
-            sucursal_id INTEGER DEFAULT 1,
-            PRIMARY KEY (usuario_id, rol_id, sucursal_id)
-        );
-    """)
-    # Seed roles
+    # Schema canónico en migrations/ (born-clean): este seed no crea tablas.
+    # Seed roles — identidad UUIDv7 canónica (nunca enteros): el nombre es UNIQUE
+    # y el id es el UUIDv7 estable del rol de sistema (SYSTEM_ROLE_UUIDS).
     for nombre, desc in ROLES.items():
-        c.execute("INSERT OR IGNORE INTO roles (nombre, descripcion) VALUES (?,?)", (nombre, desc))
-    # Seed permisos
+        c.execute(
+            "INSERT OR IGNORE INTO roles (id, nombre, descripcion) VALUES (?,?,?)",
+            (role_uuid(nombre), nombre, desc),
+        )
+    # Seed permisos — identidad UUIDv7.
     for codigo, desc in PERMISOS.items():
         modulo = codigo.split(".")[0]
-        c.execute("INSERT OR IGNORE INTO permisos (codigo, modulo, descripcion) VALUES (?,?,?)",
-                  (codigo, modulo, desc))
-    # Seed roles_permisos
+        c.execute(
+            "INSERT OR IGNORE INTO permisos (id, codigo, modulo, descripcion) VALUES (?,?,?,?)",
+            (new_uuid(), codigo, modulo, desc),
+        )
+    # Seed roles_permisos (tabla puente rol_id/permiso_id, ambos UUIDv7).
     for rol_nombre, perms in _ROLE_PERMISSIONS.items():
         rol_row = c.execute("SELECT id FROM roles WHERE nombre=?", (rol_nombre,)).fetchone()
         if not rol_row:
@@ -199,14 +183,29 @@ def get_permisos(usuario_id: int, sucursal_id: int = 1) -> Set[str]:
     return set()
 
 
+def _bi_permissions() -> Set[str]:
+    """Permisos completos del módulo BI, derivados del catálogo canónico."""
+    try:
+        from core.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
+        acciones = CANONICAL_MODULE_PERMISSIONS.get("INTELIGENCIA_BI", ["ver"])
+    except Exception:
+        acciones = ["ver"]
+    return {f"INTELIGENCIA_BI.{a}" for a in acciones}
+
+
 def _get_default_permisos(rol: str) -> Set[str]:
     """Permisos mínimos garantizados por rol cuando la BD no tiene datos."""
+    bi_full = _bi_permissions()
     defaults = {
         "admin":    {"*"},  # all
         "gerente":  {"POS.ver","POS.crear","INVENTARIO.ver","REPORTES_BI.ver",
-                     "CLIENTES.ver","CLIENTES.editar","CAJA.ver","USUARIOS.ver"},
-        "cajero":   {"POS.ver","POS.crear","CLIENTES.ver","CAJA.ver"},
-        "almacen":  {"INVENTARIO.ver","INVENTARIO.editar","PRODUCTOS.ver"},
+                     "CLIENTES.ver","CLIENTES.editar","CAJA.ver","USUARIOS.ver"}
+                    | bi_full,  # BI completo para gerencia/dueño
+        # Cajero: sólo resumen + ventas del BI.
+        "cajero":   {"POS.ver","POS.crear","CLIENTES.ver","CAJA.ver",
+                     "INTELIGENCIA_BI.ver","INTELIGENCIA_BI.ver_ventas"},
+        "almacen":  {"INVENTARIO.ver","INVENTARIO.editar","PRODUCTOS.ver",
+                     "INTELIGENCIA_BI.ver","INTELIGENCIA_BI.ver_inventario"},
         "repartidor":{"DELIVERY.ver","DELIVERY.editar"},
         "solo_lectura": {"POS.ver","INVENTARIO.ver","PRODUCTOS.ver"},
     }

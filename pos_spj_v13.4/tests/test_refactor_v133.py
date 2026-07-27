@@ -79,6 +79,8 @@ class TestDomainEvent:
         from core.domain.events import DomainEvent
         e = DomainEvent(event_type="TEST", data={"x": 1})
         assert len(e.event_id) == 36  # UUID format
+        assert e.event_id[14] == "7"
+        assert e.operation_id[14] == "7"
         assert e.event_type == "TEST"
 
     def test_event_is_frozen(self):
@@ -371,7 +373,7 @@ class TestEventBusSmoke:
         bus = EventBus.__new__(EventBus)
         bus._handlers = {}
         bus._lock = __import__("threading").RLock()
-        bus._executor = __import__("concurrent.futures").ThreadPoolExecutor(
+        bus._executor = __import__("concurrent.futures", fromlist=["ThreadPoolExecutor"]).ThreadPoolExecutor(
             max_workers=1
         )
 
@@ -386,7 +388,7 @@ class TestEventBusSmoke:
         bus = EventBus.__new__(EventBus)
         bus._handlers = {}
         bus._lock = __import__("threading").RLock()
-        bus._executor = __import__("concurrent.futures").ThreadPoolExecutor(
+        bus._executor = __import__("concurrent.futures", fromlist=["ThreadPoolExecutor"]).ThreadPoolExecutor(
             max_workers=1
         )
 
@@ -401,7 +403,7 @@ class TestEventBusSmoke:
         bus = EventBus.__new__(EventBus)
         bus._handlers = {}
         bus._lock = __import__("threading").RLock()
-        bus._executor = __import__("concurrent.futures").ThreadPoolExecutor(
+        bus._executor = __import__("concurrent.futures", fromlist=["ThreadPoolExecutor"]).ThreadPoolExecutor(
             max_workers=1
         )
 

@@ -1,48 +1,47 @@
-<<<<<<< HEAD
+```
 # Python
 __pycache__/
-*.py[cod]
+*.pyc
 *.pyo
 *.pyd
-.Python
 
-# Virtual environments
+# Dependencies
 .venv/
 venv/
 env/
+.env
+.env.local
+.env.*
 
-# IDEs
-.idea/
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Logs
+*.log
+
+# Editors
 .vscode/
+.idea/
 *.swp
+*.swo
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
-
-# SQLite
-*.db-shm
-*.db-wal
-=======
-# Base de datos
+# SQLite runtime databases
 *.db
-*.db-shm
+data/
+*.db-journal
 *.db-wal
-
-# Logs
-logs/
-*.log
-
-# Backups
-backups/
-
-# Python
-__pycache__/
-*.pyc
-
-# Entorno virtual
-.venv/
->>>>>>> 88c42a0 (Cambios locales antes de actualizar)
+*.db-shm
+*.sqlite
+*.sqlite3
+.claude/worktrees/

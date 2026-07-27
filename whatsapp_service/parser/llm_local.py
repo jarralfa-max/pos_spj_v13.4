@@ -12,11 +12,14 @@ El modelo recibe SOLO el mensaje + catálogo reducido.
 Responde SOLO JSON — sin explicaciones, sin markdown.
 """
 from __future__ import annotations
-import httpx
+
 import json
 import logging
-from typing import Optional, Dict, List
-from config.settings import OLLAMA_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT
+from typing import Dict, List, Optional
+
+import httpx
+
+from whatsapp_service.config.settings import OLLAMA_MODEL, OLLAMA_TIMEOUT, OLLAMA_URL
 
 logger = logging.getLogger("wa.llm")
 

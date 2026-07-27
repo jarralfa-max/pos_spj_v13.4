@@ -7,8 +7,15 @@ Corte Z: cierre formal de turno/día.
   - Genera discrepancia
   - Bloquea nuevas ventas hasta apertura del siguiente turno
   - Imprime resumen via PrinterService
+
+DEPRECADO (Remediación D1): opera sobre el tracker legacy `turno_actual`, que en
+producción nadie abre. El auto-cierre del scheduler ya NO usa esta clase (paso 2c);
+usa la ruta canónica de corte Z (GenerateZCutUseCase → finance_service.generar_corte_z,
+sobre `turnos_caja`). Esta clase se conserva sólo por compatibilidad y se retirará
+al unificar los trackers de turno (paso 2d). No usar en código nuevo.
 """
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 import logging, uuid
 from datetime import datetime
 from core.db.connection import get_connection, transaction
@@ -18,51 +25,16 @@ logger = logging.getLogger("spj.caja.cierre")
 
 
 class CierreCajaService:
-    def __init__(self, conn=None, sucursal_id: int = 1, usuario: str = "admin"):
-        self.conn        = conn or get_connection()
-        self.sucursal_id = sucursal_id
-        self.usuario     = usuario
+    def __init__(self, conn=None, sucursal_id: int = 1, usuario: str = "admin",
+                 finance_service=None):
+        self.conn            = conn or get_connection()
+        self.sucursal_id     = sucursal_id
+        self.usuario         = usuario
+        self._finance        = finance_service
         self._init_tables()
 
     def _init_tables(self):
-        self.conn.executescript("""
-            CREATE TABLE IF NOT EXISTS cierres_caja (
-                id               INTEGER PRIMARY KEY AUTOINCREMENT,
-                uuid             TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
-                tipo             TEXT DEFAULT 'Z',        -- Z o X
-                sucursal_id      INTEGER DEFAULT 1,
-                usuario          TEXT,
-                turno            TEXT,
-                fecha_apertura   DATETIME,
-                fecha_cierre     DATETIME DEFAULT (datetime('now')),
-                -- Calculado por sistema
-                total_ventas     DECIMAL(12,2) DEFAULT 0,
-                num_ventas       INTEGER DEFAULT 0,
-                total_efectivo   DECIMAL(12,2) DEFAULT 0,
-                total_tarjeta    DECIMAL(12,2) DEFAULT 0,
-                total_transferencia DECIMAL(12,2) DEFAULT 0,
-                total_otros      DECIMAL(12,2) DEFAULT 0,
-                total_anulaciones DECIMAL(12,2) DEFAULT 0,
-                num_anulaciones  INTEGER DEFAULT 0,
-                -- Conteo físico
-                efectivo_contado DECIMAL(12,2) DEFAULT 0,
-                fondo_inicial    DECIMAL(12,2) DEFAULT 0,
-                -- Discrepancia
-                diferencia       DECIMAL(12,2) DEFAULT 0,
-                comentarios      TEXT,
-                estado           TEXT DEFAULT 'cerrado'
-            );
-            CREATE TABLE IF NOT EXISTS turno_actual (
-                sucursal_id    INTEGER PRIMARY KEY,
-                usuario        TEXT,
-                turno          TEXT,
-                fondo_inicial  DECIMAL(12,2) DEFAULT 0,
-                fecha_apertura DATETIME,
-                abierto        INTEGER DEFAULT 0
-            );
-            CREATE INDEX IF NOT EXISTS idx_cierres_fecha
-                ON cierres_caja(fecha_cierre, sucursal_id);
-        """)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         try: self.conn.commit()
         except Exception: pass
 
@@ -215,20 +187,21 @@ class CierreCajaService:
             sp_263cda = f"sp_{_u_sp_263cda.uuid4().hex[:6]}"
             self.conn.execute(f"SAVEPOINT {sp_263cda}")
             try:
-                cid = self.conn.execute("""INSERT INTO cierres_caja
-                    (uuid,tipo,sucursal_id,usuario,turno,fecha_apertura,
+                cid = new_uuid()  # identidad UUIDv7 del cierre (id canónico)
+                self.conn.execute("""INSERT INTO cierres_caja
+                    (id,tipo,sucursal_id,usuario,turno,fecha_apertura,
                      total_ventas,num_ventas,total_efectivo,total_tarjeta,
                      total_transferencia,total_otros,total_anulaciones,
                      num_anulaciones,efectivo_contado,fondo_inicial,
                      diferencia,comentarios)
                     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (str(uuid.uuid4()), tipo, self.sucursal_id, self.usuario,
+                    (cid, tipo, self.sucursal_id, self.usuario,
                      turno["turno"] if turno else "N/A", fecha_desde,
                      resumen["total_ventas"], resumen["num_ventas"],
                      resumen["total_efectivo"], resumen["total_tarjeta"],
                      resumen["total_transferencia"], resumen["total_otros"],
                      resumen["total_anulaciones"], resumen["num_anulaciones"],
-                     efectivo_contado, fondo, diferencia, comentarios)).lastrowid
+                     efectivo_contado, fondo, diferencia, comentarios))
                 self.conn.execute("UPDATE turno_actual SET abierto=0 WHERE sucursal_id=?",
                           (self.sucursal_id,))
                 self.conn.commit()
@@ -238,6 +211,34 @@ class CierreCajaService:
             resumen["cierre_id"] = cid
             logger.info("Corte Z generado #%d — ventas=%d total=$%.2f diff=$%.2f",
                         cid, resumen["num_ventas"], resumen["total_ventas"], diferencia)
+
+            # Asiento contable para discrepancia de caja (regla 11 CLAUDE.md)
+            if diferencia != 0 and self._finance and hasattr(self._finance, "registrar_asiento"):
+                try:
+                    if diferencia > 0:
+                        # Sobrante: caja tiene más efectivo del esperado
+                        debe, haber = "110-caja", "999-diferencias-caja"
+                    else:
+                        # Faltante: caja tiene menos efectivo del esperado
+                        debe, haber = "999-diferencias-caja", "110-caja"
+                    self._finance.registrar_asiento(
+                        debe          = debe,
+                        haber         = haber,
+                        concepto      = (f"Diferencia Corte Z #{cid} — cajero: {self.usuario} "
+                                         f"({'sobrante' if diferencia > 0 else 'faltante'})"),
+                        monto         = abs(diferencia),
+                        modulo        = "caja",
+                        referencia_id = cid,
+                        sucursal_id   = self.sucursal_id,
+                        evento        = "CORTE_Z",
+                        metadata      = {
+                            "efectivo_contado": efectivo_contado,
+                            "efectivo_esperado": resumen["total_efectivo"] + resumen["fondo_inicial"],
+                            "cajero": self.usuario,
+                        },
+                    )
+                except Exception as exc:
+                    logger.warning("Corte Z asiento diferencia: %s", exc)
         return resumen
 
     def get_historial(self, limit: int = 30) -> list:

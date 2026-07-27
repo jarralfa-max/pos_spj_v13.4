@@ -2,28 +2,31 @@
 """
 Diseñador y generador de tarjetas de fidelidad físicas.
 
-Layout CR80 (85.6 × 54mm):
-  ┌──────────┬────────────────────────┬──────────┐
-  │  [QR]    │  NOMBRE NEGOCIO        │  [LOGO]  │
-  │          │  Tarjeta de Fidelidad  │          │
-  │  ID:...  │  "Eslogan del negocio" │          │
-  └──────────┴────────────────────────┴──────────┘
-
+Layout: 24 tarjetas por hoja (12×18 pulgadas), grid 6×4
+  
 Pestañas:
   🎨 Diseñador — plantilla con vista previa en tiempo real
   ⚙️  QR Config — qué datos codifica cada QR
-  🖨️  Generar Lote — PDF para imprenta (8 tarjetas/página A4)
+  🖨️  Generar Lote — PDF para imprenta (24 tarjetas/hoja 12×18")
   📋 Emitidas — gestión de tarjetas asignadas
   📦 Historial Lotes — registro de PDFs generados
 """
 from __future__ import annotations
 from core.services.auto_audit import audit_write
 from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.design_tokens import Colors, Spacing, Typography, Borders, Shadows
+from modulos.ui_components import (
+    create_primary_button, create_secondary_button, create_success_button, 
+    create_danger_button, create_input, create_combo, create_card,
+    create_heading, create_subheading, create_caption, apply_tooltip
+)
 import json
 import logging
 import os
 import uuid
 from datetime import date
+
+from backend.shared.ids import new_uuid
 
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QColor, QFont, QLinearGradient, QBrush, QPainter, QPen, QPixmap
@@ -53,7 +56,7 @@ PLANTILLA_DEFAULT = {
     "nombre_empresa": "CARNICERÍA SPJ",
     "eslogan": "Tu fidelidad, tu premio",
     "color_fondo": "#1a1a2e",
-    "color_texto": "#ffffff",
+    "color_texto": "#ffc72c",
     "color_acento": "#e94560",
     "logo_path": "",
     "qr_incluir_id": True,
@@ -221,18 +224,22 @@ class BatchPDFWorker(QThread):
     def run(self):
         try:
             from reportlab.pdfgen import canvas as rl_canvas
-            from reportlab.lib.pagesizes import A4
+            from reportlab.lib.pagesizes import inch
             from reportlab.lib.units import mm
             from reportlab.graphics.barcode.qr import QrCodeWidget
             from reportlab.graphics.shapes import Drawing
             from reportlab.graphics import renderPDF
             from reportlab.lib.colors import HexColor, white
 
-            A4_W, A4_H = A4
-            CW = 85.6 * mm; CH = 54.0 * mm
-            GAP = 5 * mm; MARGIN = 10 * mm
-            cols = int((A4_W - 2 * MARGIN + GAP) / (CW + GAP))
-            rows = int((A4_H - 2 * MARGIN + GAP) / (CH + GAP))
+            # Tamaño de papel: 12 x 18 pulgadas
+            pagesize = (12 * inch, 18 * inch)
+            PAGE_W, PAGE_H = pagesize
+            # Grid: 6 columnas x 4 filas = 24 tarjetas por hoja
+            cols, rows = 6, 4
+            MARGIN = 5 * mm
+            GAP = 3 * mm
+            CW = (PAGE_W - 2 * MARGIN - (cols - 1) * GAP) / cols
+            CH = (PAGE_H - 2 * MARGIN - (rows - 1) * GAP) / rows
 
             p = self.plantilla
 
@@ -245,7 +252,7 @@ class BatchPDFWorker(QThread):
                 if p.get("qr_tiktok"):    parts.append(f"TT:{p['qr_tiktok']}")
                 return (p.get("qr_separador", "|")).join(parts) or card_id
 
-            c = rl_canvas.Canvas(self.output_path, pagesize=A4)
+            c = rl_canvas.Canvas(self.output_path, pagesize=pagesize)
             total = len(self.cards)
 
             def draw_card(x, y, card):
@@ -312,18 +319,18 @@ class BatchPDFWorker(QThread):
                     for col in range(cols):
                         if card_idx >= total: break
                         px2 = MARGIN + col * (CW + GAP)
-                        py2 = A4_H - MARGIN - (row + 1) * CH - row * GAP
+                        py2 = PAGE_H - MARGIN - (row + 1) * CH - row * GAP
                         draw_card(px2, py2, self.cards[card_idx])
                         card_idx += 1
                         self.progress.emit(card_idx, total)
                     if card_idx >= total: break
                 c.setStrokeColor(HexColor("#aaaaaa")); c.setLineWidth(0.2)
                 for rr in range(rows + 1):
-                    yc = A4_H - MARGIN - rr * (CH + GAP) + GAP / 2
-                    c.line(MARGIN - 3*mm, yc, A4_W - MARGIN + 3*mm, yc)
+                    yc = PAGE_H - MARGIN - rr * (CH + GAP) + GAP / 2
+                    c.line(MARGIN - 3*mm, yc, PAGE_W - MARGIN + 3*mm, yc)
                 for cc in range(cols + 1):
                     xc = MARGIN + cc * (CW + GAP) - GAP / 2
-                    c.line(xc, MARGIN - 3*mm, xc, A4_H - MARGIN + 3*mm)
+                    c.line(xc, MARGIN - 3*mm, xc, PAGE_H - MARGIN + 3*mm)
                 if card_idx < total: c.showPage()
 
             c.save()
@@ -358,12 +365,12 @@ class ModuloLoyaltyCardDesigner(QWidget):
 
     def _load_plantilla(self) -> dict:
         try:
-            row = self.conexion.execute(
-                "SELECT valor FROM configuraciones WHERE clave='loyalty_card_plantilla'"
-            ).fetchone()
+            from core.services.loyalty_card_designer_service import LoyaltyCardDesignerService
+            row = LoyaltyCardDesignerService(self.conexion).obtener_plantilla()
             if row and row[0]:
                 d = dict(PLANTILLA_DEFAULT)
-                d.update(json.loads(row[0]))
+                for _k, _v in json.loads(row[0]).items():
+                    d[_k] = _v
                 return d
         except Exception:
             pass
@@ -371,74 +378,20 @@ class ModuloLoyaltyCardDesigner(QWidget):
 
     def _save_plantilla(self):
         try:
-            self.conexion.execute(
-                "INSERT OR REPLACE INTO configuraciones(clave,valor) VALUES(?,?)",
-                ("loyalty_card_plantilla", json.dumps(self.plantilla)))
-            try: self.conexion.commit()
-            except Exception: pass
+            from core.services.loyalty_card_designer_service import LoyaltyCardDesignerService
+            LoyaltyCardDesignerService(self.conexion).guardar_plantilla(json.dumps(self.plantilla))
         except Exception as e:
             logger.warning("_save_plantilla: %s", e)
 
     def _init_tables(self):
-        """Ensure tarjetas_fidelidad has all needed columns regardless of original schema."""
-        try:
-            # Create table only if doesn't exist at all
-            self.conexion.execute("""
-                CREATE TABLE IF NOT EXISTS tarjetas_fidelidad(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    id_cliente INTEGER REFERENCES clientes(id),
-                    codigo_qr TEXT UNIQUE,
-                    nivel TEXT DEFAULT 'Bronce',
-                    estado TEXT DEFAULT 'disponible',
-                    puntos_actuales INTEGER DEFAULT 0,
-                    es_pregenerada INTEGER DEFAULT 0,
-                    fecha_creacion DATETIME DEFAULT (datetime('now')),
-                    fecha_asignacion DATETIME,
-                    observaciones TEXT
-                )
-            """)
-            # Add columns that might be missing from either schema variant
-            for col in [
-                "codigo_qr TEXT", "codigo TEXT", "estado TEXT DEFAULT 'disponible'",
-                "activa INTEGER DEFAULT 1", "puntos INTEGER DEFAULT 0",
-                "puntos_actuales INTEGER DEFAULT 0", "es_pregenerada INTEGER DEFAULT 0",
-                "nivel TEXT DEFAULT 'Bronce'", "notas TEXT", "observaciones TEXT",
-                "fecha_emision DATE", "fecha_creacion DATETIME",
-                "fecha_asignacion DATETIME", "fecha_vencimiento DATE",
-                "numero TEXT",
-            ]:
-                try:
-                    self.conexion.execute(f"ALTER TABLE tarjetas_fidelidad ADD COLUMN {col}")
-                except Exception:
-                    pass  # Column already exists
-            # Ensure lotes PDF table exists
-            self.conexion.execute("""
-                CREATE TABLE IF NOT EXISTS lotes_tarjetas_pdf(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    cantidad INTEGER, nivel TEXT, ruta_pdf TEXT,
-                    plantilla TEXT, usuario TEXT,
-                    fecha DATETIME DEFAULT (datetime('now'))
-                )
-            """)
-            try:
-                self.conexion.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_tarjetas_cliente "
-                    "ON tarjetas_fidelidad(id_cliente)")
-            except Exception:
-                pass
-            try:
-                self.conexion.commit()
-            except Exception:
-                pass
-        except Exception as e:
-            logger.debug("_init_tables: %s", e)
+        # Plan B born-clean: schema canónico en migrations/ (DDL y commit removidos).
+        pass
 
     def _build_ui(self):
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(8, 8, 8, 8)
+        lay.setContentsMargins(Spacing.MD, Spacing.MD, Spacing.MD, Spacing.MD)
         hdr = QHBoxLayout()
-        t = QLabel("💳 Diseñador de Tarjetas de Fidelidad")
-        t.setStyleSheet("font-size:17px;font-weight:bold;")
+        t = create_heading("💳 Diseñador de Tarjetas de Fidelidad")
         hdr.addWidget(t); hdr.addStretch()
         lay.addLayout(hdr)
 
@@ -474,7 +427,8 @@ class ModuloLoyaltyCardDesigner(QWidget):
         fl = QFormLayout(grp_logo)
         self.txt_logo_path = QLineEdit(self.plantilla.get("logo_path", ""))
         self.txt_logo_path.setReadOnly(True)
-        btn_logo = QPushButton("📁 Seleccionar...")
+        btn_logo = create_secondary_button(self, "📁 Seleccionar logo")
+        apply_tooltip(btn_logo, "Seleccionar archivo de imagen para el logo")
         btn_logo.clicked.connect(self._seleccionar_logo)
         logo_row = QHBoxLayout(); logo_row.addWidget(self.txt_logo_path, 1); logo_row.addWidget(btn_logo)
         fl.addRow("Archivo:", logo_row)
@@ -485,21 +439,19 @@ class ModuloLoyaltyCardDesigner(QWidget):
         fbg = QFormLayout(grp_bg)
         self.txt_bg_path = QLineEdit(self.plantilla.get("bg_image_path", ""))
         self.txt_bg_path.setReadOnly(True)
-        btn_bg = QPushButton("📁 Cargar fondo...")
+        btn_bg = create_secondary_button(self, "📁 Cargar imagen de fondo")
+        apply_tooltip(btn_bg, "Seleccionar archivo de imagen para el fondo de la tarjeta")
         btn_bg.clicked.connect(self._seleccionar_fondo)
-        btn_bg_clear = QPushButton("🗑️")
-        btn_bg_clear.setFixedWidth(36)
-        btn_bg_clear.clicked.connect(lambda: (
-            self.txt_bg_path.clear(),
-            self.plantilla.update({"bg_image_path": ""}),
-            self._on_plantilla_change()))
+        btn_bg_clear = create_danger_button(self, "🗑️ Limpiar fondo")
+        apply_tooltip(btn_bg_clear, "Quitar imagen de fondo")
+        btn_bg_clear.setFixedWidth(120)
+        btn_bg_clear.clicked.connect(self._limpiar_fondo)
         bg_row = QHBoxLayout()
         bg_row.addWidget(self.txt_bg_path, 1)
         bg_row.addWidget(btn_bg)
         bg_row.addWidget(btn_bg_clear)
         fbg.addRow("Imagen:", bg_row)
-        lbl_bg_tip = QLabel("Usa una imagen PNG/JPG de 856×540px (tarjeta CR80 a 100dpi)")
-        lbl_bg_tip.setStyleSheet("color:#888;font-size:9px;")
+        lbl_bg_tip = create_caption("Usa una imagen PNG/JPG de 856×540px (tarjeta CR80 a 100dpi)")
         fbg.addRow("", lbl_bg_tip)
         ll.addWidget(grp_bg)
 
@@ -515,13 +467,13 @@ class ModuloLoyaltyCardDesigner(QWidget):
 
         grp_prev = QGroupBox("Vista previa — nivel")
         gp = QVBoxLayout(grp_prev)
-        self.cmb_nivel_prev = QComboBox(); self.cmb_nivel_prev.addItems(list(NIVELES.keys()))
+        self.cmb_nivel_prev = create_combo(); self.cmb_nivel_prev.addItems(list(NIVELES.keys()))
         self.cmb_nivel_prev.currentTextChanged.connect(self._update_preview)
         gp.addWidget(self.cmb_nivel_prev)
         ll.addWidget(grp_prev)
 
-        btn_save = QPushButton("💾 Guardar plantilla")
-        btn_save.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:7px;border-radius:5px;")
+        btn_save = create_success_button("💾 Guardar plantilla")
+        apply_tooltip(btn_save, "Guardar configuración de la plantilla actual")
         btn_save.clicked.connect(self._guardar_plantilla)
         ll.addWidget(btn_save); ll.addStretch()
         lay.addWidget(left)
@@ -538,8 +490,10 @@ class ModuloLoyaltyCardDesigner(QWidget):
         return w
 
     def _mk_color_btn(self, color: str, campo: str) -> QPushButton:
-        btn = QPushButton(color)
-        btn.setStyleSheet(f"background:{color};color:{'white' if color.startswith('#') and color[1:3] < '80' else 'black'};")
+        btn = QPushButton(f"🎨 {campo.replace('color_', '').capitalize()}")
+        spj_btn(btn, "secondary")
+        btn.setStyleSheet(f"background:{color};color:{'white' if color.startswith('#') and len(color) > 1 and color[1:3] < '80' else 'black'};font-weight:bold;")
+        btn.setToolTip(f"Seleccionar color para {campo.replace('_', ' ')}")
         btn.clicked.connect(lambda _, c=campo, b=btn: self._pick_color(c, b))
         return btn
 
@@ -548,8 +502,9 @@ class ModuloLoyaltyCardDesigner(QWidget):
         if col.isValid():
             hex_col = col.name()
             self.plantilla[campo] = hex_col
-            btn.setText(hex_col)
-            btn.setStyleSheet(f"background:{hex_col};color:white;")
+            label = f"🎨 {campo.replace('color_', '').capitalize()}"
+            btn.setText(label)
+            btn.setStyleSheet(f"background:{hex_col};color:{'white' if hex_col.startswith('#') and len(hex_col) > 1 and hex_col[1:3] < '80' else 'black'};font-weight:bold;")
             self._update_preview()
 
     def _seleccionar_logo(self):
@@ -589,24 +544,25 @@ class ModuloLoyaltyCardDesigner(QWidget):
 
     def _build_tab_qr(self) -> QWidget:
         w = QWidget(); lay = QVBoxLayout(w)
-        lay.setContentsMargins(12, 10, 12, 10)
+        lay.setContentsMargins(Spacing.LG, Spacing.SM, Spacing.LG, Spacing.SM)
 
         info = QLabel(
             "Define qué información se codifica en el QR de cada tarjeta.\n"
             "El cajero escanea el QR para identificar al cliente en el POS.\n"
             "El cliente puede escanear el QR para ver el contenido.")
-        info.setWordWrap(True); info.setStyleSheet("color:#666;font-size:11px;padding:4px;")
+        info.setWordWrap(True)
+        info.setObjectName("caption")
         lay.addWidget(info)
 
         grp = QGroupBox("Campos del QR")
         form = QFormLayout(grp)
         chk_id = QCheckBox("Incluir ID de tarjeta (siempre activo)"); chk_id.setChecked(True); chk_id.setEnabled(False)
-        self.qr_website   = QLineEdit(self.plantilla.get("qr_website",""));   self.qr_website.setPlaceholderText("https://www.tunegocio.mx")
-        self.qr_whatsapp  = QLineEdit(self.plantilla.get("qr_whatsapp","")); self.qr_whatsapp.setPlaceholderText("+52 999 123 4567")
-        self.qr_facebook  = QLineEdit(self.plantilla.get("qr_facebook",""));  self.qr_facebook.setPlaceholderText("facebook.com/tunegocio")
-        self.qr_instagram = QLineEdit(self.plantilla.get("qr_instagram",""));self.qr_instagram.setPlaceholderText("@tunegocio")
-        self.qr_tiktok    = QLineEdit(self.plantilla.get("qr_tiktok",""));    self.qr_tiktok.setPlaceholderText("@tunegocio")
-        self.cmb_sep      = QComboBox(); self.cmb_sep.addItems(["|", ";", ",", " "])
+        self.qr_website   = create_input();   self.qr_website.setPlaceholderText("https://www.tunegocio.mx")
+        self.qr_whatsapp  = create_input(); self.qr_whatsapp.setPlaceholderText("+52 999 123 4567")
+        self.qr_facebook  = create_input();  self.qr_facebook.setPlaceholderText("facebook.com/tunegocio")
+        self.qr_instagram = create_input();self.qr_instagram.setPlaceholderText("@tunegocio")
+        self.qr_tiktok    = create_input();    self.qr_tiktok.setPlaceholderText("@tunegocio")
+        self.cmb_sep      = create_combo(); self.cmb_sep.addItems(["|", ";", ",", " "])
         form.addRow("", chk_id)
         form.addRow("🌐 Página web:", self.qr_website)
         form.addRow("📱 WhatsApp:", self.qr_whatsapp)
@@ -619,8 +575,7 @@ class ModuloLoyaltyCardDesigner(QWidget):
         grp_prev = QGroupBox("Vista previa del contenido QR")
         gpl = QVBoxLayout(grp_prev)
         self.lbl_qr_preview = QLabel()
-        self.lbl_qr_preview.setStyleSheet(
-            "font-family:Courier New;font-size:10px;background:#f5f5f5;padding:8px;border-radius:4px;")
+        self.lbl_qr_preview.setObjectName("codeBlock")
         self.lbl_qr_preview.setWordWrap(True)
         gpl.addWidget(self.lbl_qr_preview)
         for field in [self.qr_website, self.qr_whatsapp, self.qr_facebook,
@@ -630,8 +585,8 @@ class ModuloLoyaltyCardDesigner(QWidget):
         lay.addWidget(grp_prev)
         self._update_qr_preview()
 
-        btn = QPushButton("💾 Guardar configuración QR")
-        btn.setStyleSheet("background:#3498db;color:white;font-weight:bold;padding:7px;border-radius:5px;")
+        btn = create_primary_button("💾 Guardar configuración QR")
+        apply_tooltip(btn, "Guardar configuración de campos QR")
         btn.clicked.connect(self._guardar_qr_config)
         lay.addWidget(btn, 0, Qt.AlignRight)
         lay.addStretch()
@@ -648,15 +603,19 @@ class ModuloLoyaltyCardDesigner(QWidget):
         preview = sep.join(parts)
         self.lbl_qr_preview.setText(f"Ejemplo: {preview}")
 
+    def _limpiar_fondo(self):
+        """Quita la imagen de fondo de la plantilla."""
+        self.txt_bg_path.clear()
+        self.plantilla["bg_image_path"] = ""
+        self._on_plantilla_change()
+
     def _guardar_qr_config(self):
-        self.plantilla.update({
-            "qr_website": self.qr_website.text().strip(),
-            "qr_whatsapp": self.qr_whatsapp.text().strip(),
-            "qr_facebook": self.qr_facebook.text().strip(),
-            "qr_instagram": self.qr_instagram.text().strip(),
-            "qr_tiktok": self.qr_tiktok.text().strip(),
-            "qr_separador": self.cmb_sep.currentText(),
-        })
+        self.plantilla["qr_website"] = self.qr_website.text().strip()
+        self.plantilla["qr_whatsapp"] = self.qr_whatsapp.text().strip()
+        self.plantilla["qr_facebook"] = self.qr_facebook.text().strip()
+        self.plantilla["qr_instagram"] = self.qr_instagram.text().strip()
+        self.plantilla["qr_tiktok"] = self.qr_tiktok.text().strip()
+        self.plantilla["qr_separador"] = self.cmb_sep.currentText()
         self._save_plantilla()
         QMessageBox.information(self, "✅", "Configuración QR guardada.")
 
@@ -669,7 +628,7 @@ class ModuloLoyaltyCardDesigner(QWidget):
         grp_filt = QGroupBox("Parámetros del lote")
         form = QFormLayout(grp_filt)
         self.spin_cantidad  = QSpinBox(); self.spin_cantidad.setRange(1, 10000); self.spin_cantidad.setValue(100)
-        self.cmb_nivel_lote = QComboBox(); self.cmb_nivel_lote.addItem("Todos"); self.cmb_nivel_lote.addItems(list(NIVELES.keys()))
+        self.cmb_nivel_lote = create_combo(); self.cmb_nivel_lote.addItem("Todos"); self.cmb_nivel_lote.addItems(list(NIVELES.keys()))
         self.chk_sin_asignar = QCheckBox("Solo tarjetas sin cliente asignado")
         form.addRow("Cantidad:", self.spin_cantidad)
         form.addRow("Nivel:", self.cmb_nivel_lote)
@@ -681,16 +640,17 @@ class ModuloLoyaltyCardDesigner(QWidget):
         lay.addWidget(self.progress_lote); lay.addWidget(self.lbl_progreso)
 
         btn_row = QHBoxLayout()
-        self.btn_generar = QPushButton("🖨️ Generar PDF para imprenta")
-        self.btn_generar.setStyleSheet("background:#e74c3c;color:white;font-weight:bold;padding:8px 18px;border-radius:5px;")
+        self.btn_generar = create_danger_button("🖨️ Generar PDF para imprenta")
+        apply_tooltip(self.btn_generar, "Generar lote de tarjetas en PDF para impresión")
         self.btn_generar.clicked.connect(self._generar_lote)
         btn_row.addStretch(); btn_row.addWidget(self.btn_generar)
         lay.addLayout(btn_row)
 
         info = QLabel(
-            "💡 El PDF contiene 8 tarjetas CR80 (85.6×54mm) por hoja A4 con marcas de corte.\n"
+            "💡 El PDF contiene 24 tarjetas por hoja (12×18 pulgadas) en grid 6×4 con marcas de corte.\n"
             "Envíalo a la imprenta en cartulina 350gr para obtener tarjetas de calidad.")
-        info.setWordWrap(True); info.setStyleSheet("color:#666;font-size:11px;padding:8px;")
+        info.setWordWrap(True)
+        info.setObjectName("caption")
         lay.addWidget(info); lay.addStretch()
         return w
 
@@ -725,73 +685,30 @@ class ModuloLoyaltyCardDesigner(QWidget):
 
     def _build_card_list(self, cant: int, nivel: str) -> list:
         """Builds card list from existing cards or generates new ones."""
+        from core.services.loyalty_card_designer_service import LoyaltyCardDesignerService
+        svc = LoyaltyCardDesignerService(self.conexion)
         try:
             # v13.30: Use COALESCE to support both schema variants
             # (codigo_qr from m000 or codigo from legacy)
-            query = """SELECT COALESCE(codigo_qr, codigo, numero) as card_code, nivel
-                       FROM tarjetas_fidelidad
-                       WHERE COALESCE(activa, CASE estado WHEN 'disponible' THEN 1
-                             WHEN 'activa' THEN 1 ELSE 0 END, 1) = 1"""
-            params = []
-            if nivel != "Todos":
-                query += " AND nivel=?"; params.append(nivel)
-            if self.chk_sin_asignar.isChecked():
-                query += " AND (id_cliente IS NULL OR id_cliente=0)"
-            query += f" LIMIT {cant}"
-            rows = self.conexion.execute(query, params).fetchall()
+            rows = svc.listar_tarjetas_pregeneradas(
+                nivel, self.chk_sin_asignar.isChecked(), cant)
             if rows:
                 return [{"codigo": r[0], "nivel": r[1]} for r in rows if r[0]]
         except Exception as e:
             logger.debug("_build_card_list query: %s", e)
 
         # Generate new codes if none exist
-        n = min(cant, 500)
         nivel_real = nivel if nivel != "Todos" else "Bronce"
-        cards = []
-        try:
-            for _ in range(n):
-                codigo = f"SPJ{uuid.uuid4().hex[:8].upper()}"
-                # Insert with both column names for compatibility
-                try:
-                    self.conexion.execute(
-                        "INSERT OR IGNORE INTO tarjetas_fidelidad"
-                        "(codigo_qr, codigo, nivel, estado, activa, es_pregenerada) "
-                        "VALUES(?,?,?,?,1,1)",
-                        (codigo, codigo, nivel_real, 'disponible'))
-                except Exception:
-                    # Fallback: try with just one column variant
-                    try:
-                        self.conexion.execute(
-                            "INSERT OR IGNORE INTO tarjetas_fidelidad"
-                            "(codigo_qr, nivel, estado, es_pregenerada) "
-                            "VALUES(?,?,?,1)",
-                            (codigo, nivel_real, 'disponible'))
-                    except Exception:
-                        self.conexion.execute(
-                            "INSERT OR IGNORE INTO tarjetas_fidelidad"
-                            "(codigo, nivel, activa, es_pregenerada) "
-                            "VALUES(?,?,1,1)",
-                            (codigo, nivel_real))
-                cards.append({"codigo": codigo, "nivel": nivel_real})
-            try:
-                self.conexion.commit()
-            except Exception:
-                pass
-        except Exception as e:
-            logger.warning("generate cards: %s", e)
-        return cards
+        return svc.generar_tarjetas_pregeneradas(cant, nivel_real)
 
     def _on_pdf_done(self, path: str, count: int, nivel: str):
         self.btn_generar.setEnabled(True)
         self.progress_lote.setVisible(False); self.lbl_progreso.setVisible(False)
         # Save lote record
         try:
-            self.conexion.execute(
-                "INSERT INTO lotes_tarjetas_pdf(cantidad,nivel,ruta_pdf,plantilla,usuario) "
-                "VALUES(?,?,?,?,?)",
-                (count, nivel, path, json.dumps(self.plantilla), self.usuario))
-            try: self.conexion.commit()
-            except Exception: pass
+            from core.services.loyalty_card_designer_service import LoyaltyCardDesignerService
+            LoyaltyCardDesignerService(self.conexion).registrar_lote(
+                count, nivel, path, json.dumps(self.plantilla), self.usuario)
         except Exception as e:
             logger.debug("_on_pdf_done: %s", e)
 
@@ -834,31 +751,22 @@ class ModuloLoyaltyCardDesigner(QWidget):
         lay.addWidget(self.tbl_tarj)
 
         acc = QHBoxLayout()
-        for label, slot in [("💰 Ajustar puntos", self._ajustar_puntos),
-                             ("⬆ Subir nivel", self._subir_nivel),
-                             ("🔒 Bloquear", self._bloquear),
-                             ("+ Asignar nueva", self._asignar_nueva)]:
-            btn = QPushButton(label); btn.clicked.connect(slot); acc.addWidget(btn)
+        for label, slot in [
+            ("💰 Ajustar puntos", self._ajustar_puntos),
+            ("⬆ Subir nivel", self._subir_nivel),
+            ("🔒 Bloquear", self._bloquear),
+            ("+ Asignar nueva", self._asignar_nueva)
+        ]:
+            btn = create_secondary_button(self, label)
+            btn.clicked.connect(slot)
+            acc.addWidget(btn)
         lay.addLayout(acc)
         return w
 
     def _cargar_tarjetas(self):
         try:
-            rows = self.conexion.execute("""
-                SELECT COALESCE(t.codigo_qr, t.codigo, t.numero) as card_code,
-                       t.nivel,
-                       COALESCE(c.nombre,'Sin asignar'),
-                       COALESCE(t.puntos_actuales, t.puntos, 0),
-                       CASE
-                         WHEN t.activa=1 OR t.estado IN ('disponible','activa') THEN 'Activa'
-                         WHEN t.activa=0 OR t.estado='bloqueada' THEN 'Bloqueada'
-                         ELSE COALESCE(t.estado, 'Activa')
-                       END,
-                       COALESCE(t.fecha_emision, t.fecha_creacion, '')
-                FROM tarjetas_fidelidad t
-                LEFT JOIN clientes c ON c.id=t.id_cliente
-                ORDER BY COALESCE(t.puntos_actuales, t.puntos, 0) DESC LIMIT 300
-            """).fetchall()
+            from core.services.loyalty_card_designer_service import LoyaltyCardDesignerService
+            rows = LoyaltyCardDesignerService(self.conexion).listar_tarjetas()
         except Exception as e:
             logger.debug("_cargar_tarjetas: %s", e)
             rows = []
@@ -893,9 +801,8 @@ class ModuloLoyaltyCardDesigner(QWidget):
         pts, ok = QInputDialog.getInt(self, "Ajustar puntos", "Nuevos puntos totales:", 0, 0, 999999)
         if ok:
             try:
-                self.conexion.execute("UPDATE tarjetas_fidelidad SET puntos=? WHERE codigo=?", (pts, cod))
-                try: self.conexion.commit()
-                except Exception: pass
+                from core.services.loyalty_card_designer_service import LoyaltyCardDesignerService
+                LoyaltyCardDesignerService(self.conexion).ajustar_puntos(cod, pts)
                 self._cargar_tarjetas()
             except Exception as e: QMessageBox.critical(self, "Error", str(e))
 
@@ -909,9 +816,8 @@ class ModuloLoyaltyCardDesigner(QWidget):
             QMessageBox.information(self, "Máximo", "Ya está en el nivel máximo."); return
         nuevo = niveles[idx + 1]
         try:
-            self.conexion.execute("UPDATE tarjetas_fidelidad SET nivel=? WHERE codigo=?", (nuevo, cod))
-            try: self.conexion.commit()
-            except Exception: pass
+            from core.services.loyalty_card_designer_service import LoyaltyCardDesignerService
+            LoyaltyCardDesignerService(self.conexion).cambiar_nivel(cod, nuevo)
             self._cargar_tarjetas()
         except Exception as e: QMessageBox.critical(self, "Error", str(e))
 
@@ -920,9 +826,8 @@ class ModuloLoyaltyCardDesigner(QWidget):
         if not cod: return
         if QMessageBox.question(self, "Bloquear", "¿Bloquear esta tarjeta?") != QMessageBox.Yes: return
         try:
-            self.conexion.execute("UPDATE tarjetas_fidelidad SET activa=0 WHERE codigo=?", (cod,))
-            try: self.conexion.commit()
-            except Exception: pass
+            from core.services.loyalty_card_designer_service import LoyaltyCardDesignerService
+            LoyaltyCardDesignerService(self.conexion).bloquear_tarjeta(cod)
             self._cargar_tarjetas()
         except Exception as e: QMessageBox.critical(self, "Error", str(e))
 
@@ -933,10 +838,10 @@ class ModuloLoyaltyCardDesigner(QWidget):
         form = QFormLayout()
         cmb_cli   = QComboBox()
         cmb_nivel = QComboBox(); cmb_nivel.addItems(list(NIVELES.keys()))
+        from core.services.loyalty_card_designer_service import LoyaltyCardDesignerService
+        _svc = LoyaltyCardDesignerService(self.conexion)
         try:
-            rows = self.conexion.execute(
-                "SELECT id,nombre FROM clientes WHERE activo=1 ORDER BY nombre LIMIT 300"
-            ).fetchall()
+            rows = _svc.listar_clientes_lookup()
             for r in rows: cmb_cli.addItem(r[1], r[0])
         except Exception: cmb_cli.addItem("Sin clientes", None)
         form.addRow("Cliente:", cmb_cli); form.addRow("Nivel:", cmb_nivel)
@@ -949,11 +854,7 @@ class ModuloLoyaltyCardDesigner(QWidget):
         if not cid: return
         codigo = f"SPJ{uuid.uuid4().hex[:8].upper()}"
         try:
-            self.conexion.execute(
-                "INSERT OR IGNORE INTO tarjetas_fidelidad(id_cliente,codigo,nivel,activa) "
-                "VALUES(?,?,?,1)", (cid, codigo, cmb_nivel.currentText()))
-            try: self.conexion.commit()
-            except Exception: pass
+            _svc.asignar_tarjeta_nueva(cid, codigo, cmb_nivel.currentText())
             self._cargar_tarjetas()
             QMessageBox.information(self, "✅", f"Tarjeta {codigo} asignada.")
         except Exception as e: QMessageBox.critical(self, "Error", str(e))
@@ -975,10 +876,8 @@ class ModuloLoyaltyCardDesigner(QWidget):
 
     def _cargar_historial(self):
         try:
-            rows = self.conexion.execute(
-                "SELECT created_at,cantidad,nivel,ruta_pdf,id FROM lotes_tarjetas_pdf "
-                "ORDER BY created_at DESC LIMIT 100"
-            ).fetchall()
+            from core.services.loyalty_card_designer_service import LoyaltyCardDesignerService
+            rows = LoyaltyCardDesignerService(self.conexion).listar_historial_lotes()
         except Exception: rows = []
         self.tbl_hist_lotes.setRowCount(len(rows))
         for ri, r in enumerate(rows):
@@ -988,7 +887,9 @@ class ModuloLoyaltyCardDesigner(QWidget):
                 self.tbl_hist_lotes.setItem(ri, ci, it)
             ruta = r[3] or ""
             btn_w = QWidget(); bl = QHBoxLayout(btn_w); bl.setContentsMargins(2,2,2,2)
-            btn_abr = QPushButton("📄 Abrir"); btn_abr.setStyleSheet("font-size:11px;padding:2px 6px;")
+            btn_abr = create_secondary_button(self, "📄 Abrir PDF")
+            apply_tooltip(btn_abr, "Abrir archivo PDF generado")
+            btn_abr.setObjectName("smallBtn")
             btn_abr.setEnabled(bool(ruta and os.path.exists(ruta)))
             btn_abr.clicked.connect(lambda _, p=ruta: self._abrir_pdf(p))
             bl.addWidget(btn_abr)

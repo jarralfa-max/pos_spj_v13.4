@@ -40,7 +40,7 @@ class FlowState(str, Enum):
 @dataclass
 class PedidoItem:
     """Un item dentro del pedido en curso."""
-    producto_id: int
+    producto_id: str
     nombre: str
     cantidad: float
     unidad: str = "kg"
@@ -83,9 +83,14 @@ class ConversationContext:
 
     # Cotización en curso
     cotizacion_items: List[PedidoItem] = field(default_factory=list)
+    current_quote_id: Optional[int] = None
+    current_quote_folio: str = ""
 
     # Temporal: producto seleccionado esperando cantidad
     _producto_temp: Optional[Dict] = field(default_factory=lambda: None)
+
+    # Pedido confirmado (venta registrada en ERP)
+    last_venta_id: Optional[int] = None   # ID de la venta para pagos/webhook MP
 
     # Control
     failed_intents: int = 0
@@ -101,6 +106,8 @@ class ConversationContext:
         self.pedido_fecha_entrega = ""
         self.pedido_programado = False
         self.cotizacion_items = []
+        self.current_quote_id = None
+        self.current_quote_folio = ""
         self._producto_temp = None
         self.failed_intents = 0
 

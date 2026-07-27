@@ -20,6 +20,7 @@
 #
 # Versión: 1.0 — Fase 3 hardening
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 
 import logging
 import uuid
@@ -28,8 +29,8 @@ from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Optional
 
-from core.services.inventory_engine import (
-    InventoryEngine,
+from core.services.inventory.unified_inventory_service import (
+    UnifiedInventoryService as InventoryEngine,
     StockInsuficienteError,
 )
 
@@ -126,13 +127,18 @@ class SalesReversalService:
         ✔ La auditoría puede reconstruir el estado exacto en cualquier punto del tiempo
     """
 
-    def __init__(self, db, branch_id: int):
+    def __init__(self, db, branch_id: int = 1, finance_service=None):
         """
-        db        — instancia de core.database.Database
-        branch_id — sucursal activa
+        db              — sqlite3.Connection o DatabaseWrapper
+        branch_id       — sucursal activa
+        finance_service — FinanceService para asientos GL (opcional)
         """
-        self.db = db
-        self.branch_id = branch_id
+        from core.db.connection import wrap
+        # Compatibilidad con wrappers legacy que exponen .conn (tests/legacy adapters)
+        raw_conn = getattr(db, "conn", db)
+        self.db = wrap(raw_conn)
+        self.branch_id = str(branch_id or "")
+        self._finance = finance_service
 
     # ── Helpers internos ─────────────────────────────────────────────────────
 
@@ -152,24 +158,33 @@ class SalesReversalService:
         return [dict(r) for r in rows]
 
     def _get_caja_abierta(self, conn, branch_id: int) -> Optional[int]:
-        row = conn.execute("""
-            SELECT id FROM cajas
-            WHERE sucursal_id = ? AND estado = 'ABIERTA'
-            ORDER BY fecha_apertura DESC LIMIT 1
-        """, (branch_id,)).fetchone()
-        return row["id"] if row else None
+        try:
+            row = conn.execute("""
+                SELECT id FROM cajas
+                WHERE sucursal_id = ? AND estado = 'ABIERTA'
+                ORDER BY fecha_apertura DESC LIMIT 1
+            """, (branch_id,)).fetchone()
+            return row["id"] if row else None
+        except Exception:
+            return None
 
     def _get_payment_method(self, conn, sale_id: int) -> str:
         """Obtiene el método de pago principal de la venta."""
-        row = conn.execute(
-            "SELECT method FROM payments WHERE venta_id = ? ORDER BY id ASC LIMIT 1",
-            (sale_id,)
-        ).fetchone()
-        if row:
-            return row["method"]
+        try:
+            row = conn.execute(
+                "SELECT method FROM payments WHERE venta_id = ? ORDER BY id ASC LIMIT 1",
+                (sale_id,)
+            ).fetchone()
+            if row:
+                return row["method"]
+        except Exception:
+            pass
         # Fallback a forma_pago en ventas
-        row2 = conn.execute("SELECT forma_pago FROM ventas WHERE id = ?", (sale_id,)).fetchone()
-        return row2["forma_pago"] if row2 else "Efectivo"
+        try:
+            row2 = conn.execute("SELECT forma_pago FROM ventas WHERE id = ?", (sale_id,)).fetchone()
+            return row2["forma_pago"] if row2 else "Efectivo"
+        except Exception:
+            return "Efectivo"
 
     def _insertar_movimiento_caja(self, conn, tipo: str, monto: float,
                                    descripcion: str, usuario: str,
@@ -230,7 +245,7 @@ class SalesReversalService:
         if not usuario or not usuario.strip():
             raise UsuarioRequeridoError("usuario es obligatorio")
 
-        operation_id = f"CANCEL-{sale_id}-{uuid.uuid4().hex[:8]}"
+        operation_id = f"CANCEL-{sale_id}-{new_uuid().replace('-', '')[:8]}"
 
         with self.db.transaction("SALE_CANCEL") as _:
             conn = self.db.conn
@@ -300,21 +315,32 @@ class SalesReversalService:
             cliente_id = venta.get("cliente_id")
             puntos = int(venta.get("puntos_ganados") or 0)
             if cliente_id and puntos > 0:
-                conn.execute(
-                    "UPDATE clientes SET puntos = MAX(0, puntos - ?) WHERE id = ?",
-                    (puntos, cliente_id)
-                )
-                conn.execute("""
-                    INSERT INTO historico_puntos
-                        (cliente_id, tipo, puntos, descripcion, saldo_actual, usuario, venta_id)
-                    SELECT ?, 'CANCELACION', ?, ?,
-                           MAX(0, puntos - ?), ?, ?
-                    FROM clientes WHERE id = ?
-                """, (
-                    cliente_id, -puntos,
-                    f"Cancelación venta {venta['folio']}",
-                    puntos, usuario, sale_id, cliente_id,
-                ))
+                try:
+                    from core.services.sales.sale_loyalty_policy import SaleLoyaltyPolicy
+                    _lp = SaleLoyaltyPolicy(conn, loyalty_service=getattr(self, "loyalty_service", None))
+                    _lp.reverse_points(
+                        cliente_id=str(cliente_id),
+                        venta_id=str(sale_id),
+                        puntos=int(puntos),
+                        operation_id=f"{operation_id}:reverse_loyalty",
+                        usuario=str(usuario),
+                    )
+                except Exception:
+                    conn.execute(
+                        "UPDATE clientes SET puntos = MAX(0, puntos - ?) WHERE id = ?",
+                        (puntos, cliente_id)
+                    )
+                    conn.execute("""
+                        INSERT INTO historico_puntos
+                            (id, cliente_id, tipo, puntos, descripcion, saldo_actual, usuario, venta_id)
+                        SELECT ?, ?, 'CANCELACION', ?, ?,
+                               MAX(0, puntos - ?), ?, ?
+                        FROM clientes WHERE id = ?
+                    """, (
+                        new_uuid(), cliente_id, -puntos,
+                        f"Cancelación venta {venta['folio']}",
+                        puntos, usuario, sale_id, cliente_id,
+                    ))
 
             # ── PASO 6: Marcar cancelada (fin de transacción) ─────────────────
             conn.execute(
@@ -330,9 +356,35 @@ class SalesReversalService:
         )
 
         self._fire_event("VENTA_CANCELADA", {
+            "sale_id":        sale_id,
+            "folio":          venta["folio"],
+            "total":          total,
+            "operation_id":   operation_id,
+            "payment_method": forma_pago,
+            "cliente_id":     venta.get("cliente_id"),
+            "sucursal_id":    venta.get("sucursal_id", self.branch_id),
+        })
+        self._fire_event("SALE_CANCELLED", {
             "sale_id": sale_id,
             "folio": venta["folio"],
-            "total": total,
+            "operation_id": operation_id,
+            "sucursal_id": venta.get("sucursal_id", self.branch_id),
+        })
+        self._fire_event("SALE_LOYALTY_REVERSED", {
+            "sale_id": sale_id,
+            "cliente_id": venta.get("cliente_id"),
+            "puntos": int(venta.get("puntos_ganados") or 0),
+            "operation_id": f"{operation_id}:reverse_loyalty",
+        })
+        self._fire_event("SALE_CASH_COMPENSATED", {
+            "sale_id": sale_id,
+            "amount": -total,
+            "payment_method": forma_pago,
+            "operation_id": operation_id,
+        })
+        self._fire_event("SALE_INVENTORY_RESTORED", {
+            "sale_id": sale_id,
+            "items_restored": items_restaurados,
             "operation_id": operation_id,
         })
 
@@ -378,7 +430,7 @@ class SalesReversalService:
         if not items:
             raise OperacionSinItemsError("La lista de ítems para devolución está vacía")
 
-        operation_id = f"REFUND-{sale_id}-{uuid.uuid4().hex[:8]}"
+        operation_id = f"REFUND-{sale_id}-{new_uuid().replace('-', '')[:8]}"
 
         with self.db.transaction("SALE_REFUND") as _:
             conn = self.db.conn
@@ -506,6 +558,46 @@ class SalesReversalService:
             sale_id, len(refund_ids), total_f, operation_id,
         )
 
+        # GL: reversión de ingreso por devolución (post-commit, non-fatal)
+        if self._finance and total_f > 0:
+            try:
+                cuenta_haber = (
+                    "112-banco" if method in ("Tarjeta", "Transferencia", "Débito")
+                    else "110-caja"
+                )
+                self._finance.registrar_asiento(
+                    debe        = "401.0-ingresos-ventas",
+                    haber       = cuenta_haber,
+                    concepto    = f"Devolución parcial venta #{venta.get('folio', sale_id)}",
+                    monto       = total_f,
+                    modulo      = "ventas",
+                    referencia_id = operation_id,
+                    sucursal_id = venta.get("sucursal_id", self.branch_id),
+                    evento      = "DEVOLUCION_PARCIAL",
+                    metadata    = {"sale_id": sale_id, "metodo": method,
+                                   "items": len(refund_ids)},
+                )
+            except Exception as exc:
+                logger.warning("refund_items GL: %s", exc)
+        self._fire_event("SALE_REFUNDED", {
+            "sale_id": sale_id,
+            "refund_ids": refund_ids,
+            "amount": total_f,
+            "method": method,
+            "operation_id": operation_id,
+        })
+        self._fire_event("SALE_CASH_COMPENSATED", {
+            "sale_id": sale_id,
+            "amount": -total_f if method == "Efectivo" else 0.0,
+            "payment_method": method,
+            "operation_id": operation_id,
+        })
+        self._fire_event("SALE_INVENTORY_RESTORED", {
+            "sale_id": sale_id,
+            "items_restored": len(refund_ids),
+            "operation_id": operation_id,
+        })
+
         return RefundResultDTO(
             sale_id=sale_id,
             operation_id=operation_id,
@@ -548,7 +640,7 @@ class SalesReversalService:
         if amount <= 0:
             raise ReversalError(f"MONTO_INVALIDO: amount={amount} debe ser positivo")
 
-        operation_id = f"CREDIT-{sale_id}-{uuid.uuid4().hex[:8]}"
+        operation_id = f"CREDIT-{sale_id}-{new_uuid().replace('-', '')[:8]}"
 
         with self.db.transaction("CREDIT_NOTE") as _:
             conn = self.db.conn
@@ -621,6 +713,44 @@ class SalesReversalService:
             "NOTA_CREDITO id=%d credit_note_id=%d amount=%.2f reason=%s op=%s",
             sale_id, credit_note_id, amount, reason[:40], operation_id,
         )
+
+        # GL: nota de crédito reduce ingreso reconocido (post-commit, non-fatal)
+        if self._finance and amount > 0:
+            try:
+                # Efectivo: el dinero sale de caja; Tarjeta: se crea obligación pendiente
+                cuenta_haber = (
+                    "219-notas-de-credito-por-aplicar"
+                    if method not in ("Efectivo",)
+                    else "110-caja"
+                )
+                self._finance.registrar_asiento(
+                    debe        = "401.0-ingresos-ventas",
+                    haber       = cuenta_haber,
+                    concepto    = f"Nota de crédito venta #{venta.get('folio', sale_id)}: {reason[:60]}",
+                    monto       = amount,
+                    modulo      = "ventas",
+                    referencia_id = operation_id,
+                    sucursal_id = venta.get("sucursal_id", self.branch_id),
+                    evento      = "NOTA_CREDITO",
+                    metadata    = {"sale_id": sale_id, "credit_note_id": credit_note_id,
+                                   "metodo": method, "reason": reason[:80]},
+                )
+            except Exception as exc:
+                logger.warning("issue_credit_note GL: %s", exc)
+        self._fire_event("SALE_CREDIT_NOTE_ISSUED", {
+            "sale_id": sale_id,
+            "credit_note_id": credit_note_id,
+            "amount": amount,
+            "reason": reason,
+            "method": method,
+            "operation_id": operation_id,
+        })
+        self._fire_event("SALE_CASH_COMPENSATED", {
+            "sale_id": sale_id,
+            "amount": -amount if method == "Efectivo" else 0.0,
+            "payment_method": method,
+            "operation_id": operation_id,
+        })
 
         return CreditNoteResultDTO(
             sale_id=sale_id,

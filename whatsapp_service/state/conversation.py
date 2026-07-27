@@ -10,7 +10,11 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 from models.context import ConversationContext, FlowState, PedidoItem
-from config.settings import CONTEXT_DB_PATH, CONVERSATION_TIMEOUT_MINUTES
+try:
+    from config.settings import CONTEXT_DB_PATH, CONVERSATION_TIMEOUT_MINUTES
+except (ImportError, AttributeError):
+    CONTEXT_DB_PATH = "/tmp/wa_context.db"
+    CONVERSATION_TIMEOUT_MINUTES = 30
 
 logger = logging.getLogger("wa.state")
 
@@ -88,6 +92,8 @@ class ConversationStore:
             ctx.pedido_fecha_entrega = data.get("pedido_fecha_entrega", "")
             ctx.pedido_programado = data.get("pedido_programado", False)
             ctx.cotizacion_items = [PedidoItem.from_dict(d) for d in data.get("cotizacion_items", [])]
+            ctx.current_quote_id = data.get("current_quote_id")
+            ctx.current_quote_folio = data.get("current_quote_folio", "")
             ctx._producto_temp = data.get("_producto_temp")
             ctx.failed_intents = data.get("failed_intents", 0)
             ctx.numero_tipo = data.get("numero_tipo", "")
@@ -106,6 +112,8 @@ class ConversationStore:
             "pedido_fecha_entrega": ctx.pedido_fecha_entrega,
             "pedido_programado": ctx.pedido_programado,
             "cotizacion_items": [i.to_dict() for i in ctx.cotizacion_items],
+            "current_quote_id": ctx.current_quote_id,
+            "current_quote_folio": ctx.current_quote_folio,
             "_producto_temp": ctx._producto_temp,
             "failed_intents": ctx.failed_intents,
             "numero_tipo": ctx.numero_tipo,

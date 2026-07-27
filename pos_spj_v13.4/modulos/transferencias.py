@@ -15,7 +15,13 @@
 from __future__ import annotations
 from core.events.event_bus import get_bus
 from modulos.spj_styles import spj_btn, apply_btn_styles
-
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_secondary_button,
+    create_danger_button, create_input, create_combo, create_card, apply_tooltip,
+    FilterBar, LoadingIndicator, EmptyStateWidget, confirm_action,
+    Toast,
+)
 import logging
 from typing import Dict, List, Optional
 
@@ -46,8 +52,8 @@ TRANSFER_DISPATCHED = "TRASPASO_INICIADO"
 TRANSFER_RECEIVED   = "TRASPASO_CONFIRMADO"
 TRANSFER_CANCELLED  = "TRASPASO_CANCELADO"
 
-_C1 = "#1a252f"; _C3 = "#2980b9"; _C4 = "#27ae60"
-_C5 = "#e74c3c"; _C6 = "#f39c12"; _C7 = "#8e44ad"
+_C1 = Colors.NEUTRAL.SLATE_900; _C3 = Colors.PRIMARY_BASE; _C4 = Colors.SUCCESS_BASE
+_C5 = Colors.DANGER_HOVER; _C6 = Colors.WARNING_HOVER; _C7 = Colors.ACCENT_BASE
 
 _STATUS_COLORS = {
     "DISPATCHED": _C6,
@@ -56,28 +62,6 @@ _STATUS_COLORS = {
     "PENDING":    _C3,
 }
 
-class _DBWrapper:
-    def __init__(self, conexion):
-        self.conn = conexion
-    def fetchone(self, sql, params=()):
-        r = self.conn.execute(sql, params).fetchone()
-        if r is None: return None
-        if hasattr(r, 'keys'): return r
-        return r
-    def fetchall(self, sql, params=()):
-        return self.conn.execute(sql, params).fetchall()
-    def fetchscalar(self, sql, params=(), default=None):
-        r = self.conn.execute(sql, params).fetchone()
-        return r[0] if r else default
-    def execute(self, sql, params=()):
-        return self.conn.execute(sql, params)
-    def commit(self):
-        try: self.conn.commit()
-        except Exception: pass
-    def rollback(self):
-        try: self.conn.rollback()
-        except Exception: pass
-    
 class ModuloTransferencias(ModuloBase):
     def __init__(self, container, parent=None):
         # 1. Extraer la base de datos del contenedor
@@ -94,15 +78,19 @@ class ModuloTransferencias(ModuloBase):
         # 3. Guardar referencias
         self.container       = container
         self.main_window     = parent
-        self.sucursal_id     = 1
+        # Sucursal desde la sesión; sin default arbitrario (regla 23).
+        self.sucursal_id     = getattr(container, "sucursal_id", "") or ""
         self.sucursal_nombre = "Principal"
         self.usuario_actual  = "Sistema"
         self.rol_usuario     = ""
         
         # 4. Envolver la conexión y crear repositorios
-        self.conexion = _DBWrapper(db_conn)
+        from core.db.connection import wrap
+        self.conexion = wrap(db_conn)
         self._repo    = TransferRepository(self.conexion)
         self._prepo   = ProductoRepository(self.conexion)
+        from backend.infrastructure.db.repositories.transfers_stats_repository import TransfersStatsRepository
+        self._stats_repo = TransfersStatsRepository(self.conexion)
         
         # 5. Inicializar UI y Eventos
         self._init_ui()
@@ -130,11 +118,28 @@ class ModuloTransferencias(ModuloBase):
             _bus = get_bus()
             for evt in (TRANSFER_DISPATCHED, TRANSFER_RECEIVED, TRANSFER_CANCELLED):
                 _bus.subscribe(evt, self._on_data_changed)
-        except Exception:
-            pass
+        except Exception as _exc:
+            logger.debug("event subscription error: %s", _exc)
 
     def _on_data_changed(self, _data: dict) -> None:
         QTimer.singleShot(0, self._refresh_all)
+
+    # ── Contrato de refresh en caliente (Remediación B) ───────────────────────
+    # MainWindow hace fan-out de BRANCHES_CHANGED / PRODUCTS_CHANGED aquí. Los
+    # diálogos ya re-consultan sucursales/productos frescos al abrir
+    # (_get_sucursales / ProductoRepository), así que basta con refrescar la
+    # lista y stats para que el módulo participe del refresh global.
+    def refresh_branches(self) -> None:
+        QTimer.singleShot(0, self._refresh_all)
+
+    def on_branches_changed(self, payload: dict) -> None:
+        self.refresh_branches()
+
+    def refresh_products(self) -> None:
+        QTimer.singleShot(0, self._refresh_all)
+
+    def on_products_changed(self, payload: dict) -> None:
+        self.refresh_products()
 
     def _refresh_all(self) -> None:
         self._load_transfers()
@@ -143,25 +148,58 @@ class ModuloTransferencias(ModuloBase):
         for evt in (TRANSFER_DISPATCHED, TRANSFER_RECEIVED, TRANSFER_CANCELLED):
             try:
                 EventBus.unsubscribe(evt, self._on_data_changed)
-            except Exception:
-                pass
+            except Exception as _exc:
+                logger.debug("event unsubscription error: %s", _exc)
 
     # ── UI construction ───────────────────────────────────────────────────────
 
     def _init_ui(self) -> None:
         root = QVBoxLayout(self)
-        root.setContentsMargins(16, 12, 16, 12); root.setSpacing(10)
+        root.setContentsMargins(16, 12, 16, 12); root.setSpacing(Spacing.MD)
 
         hdr = QHBoxLayout()
         title = QLabel("Transferencias entre Sucursales")
         f = title.font(); f.setPointSize(15); f.setBold(True); title.setFont(f)
-        title.setObjectName("tituloPrincipal"); hdr.addWidget(title); hdr.addStretch()
+        title.setObjectName("heading"); hdr.addWidget(title); hdr.addStretch()
         self._lbl_suc = QLabel()
-        self._lbl_suc.setStyleSheet("color:#7f8c8d;"); hdr.addWidget(self._lbl_suc)
+        self._lbl_suc.setObjectName("textSecondary"); hdr.addWidget(self._lbl_suc)
         root.addLayout(hdr)
+
+        # ── Stats bar ─────────────────────────────────────────────────────────
+        root.addWidget(self._crear_stats_transferencias())
 
         # ── Pestañas principales ──────────────────────────────────────────────
         self._tabs = QTabWidget()
+
+    def _crear_stats_transferencias(self) -> 'QFrame':
+        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
+        from modulos.design_tokens import Colors as _C, Spacing as _S
+        bar=_F();bar.setObjectName("statsBarTrf")
+        bar.setFixedHeight(64)
+        bar.setStyleSheet("QFrame#statsBarTrf{background:#1E293B;border-radius:8px;border:1px solid #334155;}")
+        lay=_H(bar);lay.setContentsMargins(20,8,20,8);lay.setSpacing(0)
+        kpis=[("Pendientes recepción","—",_C.WARNING_BASE),("Recibidas este mes","—",_C.SUCCESS_BASE),
+              ("En tránsito","—",_C.PRIMARY_BASE),("Canceladas","—",_C.DANGER_BASE),
+              ("Tiempo promedio","—",_C.INFO_BASE)]
+        try:
+            c = self._stats_repo.get_status_counts()
+            kpis[0]=("Pendientes recepción",str(c["dispatched"]),_C.WARNING_BASE)
+            kpis[1]=("Recibidas este mes",str(c["received_this_month"]),_C.SUCCESS_BASE)
+            kpis[2]=("En tránsito",str(c["pending"]),_C.PRIMARY_BASE)
+            kpis[3]=("Canceladas",str(c["cancelled_this_month"]),_C.DANGER_BASE)
+        except Exception: pass
+        for i,(lbl,val,col) in enumerate(kpis):
+            if i>0:
+                s=_F();s.setFrameShape(_F.VLine);s.setFixedWidth(1)
+                s.setStyleSheet("background:#334155;border:none;")
+                lay.addWidget(s);lay.addSpacing(20)
+            c=_V();c.setSpacing(1)
+            v=_L(val);v.setStyleSheet(f"color:{col};font-size:18px;font-weight:700;background:transparent;")
+            l=_L(lbl.upper());l.setStyleSheet("color:#64748B;font-size:9px;font-weight:700;letter-spacing:0.5px;background:transparent;")
+            c.addWidget(v);c.addWidget(l);lay.addLayout(c)
+            if i<4:lay.addSpacing(20)
+        lay.addStretch()
+        return bar
         self._tab_transfers   = QWidget()
         self._tab_sugerencias = QWidget()
         self._tab_recepcion = QWidget()
@@ -189,20 +227,22 @@ class ModuloTransferencias(ModuloBase):
 
         # Filter bar
         fb = QHBoxLayout()
-        self._filter_status = QComboBox()
-        self._filter_status.addItems(["Todos", "DISPATCHED", "RECEIVED", "CANCELLED", "PENDING"])
-        self._filter_status.currentIndexChanged.connect(lambda _: self._load_transfers())
-        fb.addWidget(QLabel("Estado:")); fb.addWidget(self._filter_status)
-        self._filter_search = QLineEdit()
-        self._filter_search.setPlaceholderText("Buscar por ID o sucursal…")
-        self._filter_search.textChanged.connect(lambda _: self._load_transfers())
-        fb.addWidget(QLabel("Buscar:")); fb.addWidget(self._filter_search)
+        self._filter_bar = FilterBar(
+            self,
+            placeholder="Buscar por ID o sucursal…",
+            combo_filters={"estado": ["DISPATCHED", "RECEIVED", "CANCELLED", "PENDING"]},
+        )
+        self._filter_bar.filters_changed.connect(lambda _v: self._load_transfers())
+        fb.addWidget(self._filter_bar, 1)
         fb.addStretch()
-        btn_nueva = QPushButton("📤 Nueva Transferencia")
-        btn_nueva.setStyleSheet(f"background:{_C3};color:white;font-weight:bold;padding:6px 12px;border-radius:4px;")
+        btn_nueva = create_primary_button(self, "📤 Nueva Transferencia", "Crear nueva transferencia de stock")
         btn_nueva.clicked.connect(self._nueva_transferencia)
         fb.addWidget(btn_nueva)
         root.addLayout(fb)
+
+        self._loading = LoadingIndicator("Cargando transferencias…", self)
+        self._loading.hide()
+        root.addWidget(self._loading)
 
         # Main table
         self._tbl = QTableWidget()
@@ -221,27 +261,33 @@ class ModuloTransferencias(ModuloBase):
         hdr_.setSectionResizeMode(0, QHeaderView.Stretch)
         self._tbl.itemSelectionChanged.connect(self._on_sel_changed)
         root.addWidget(self._tbl)
+        self._empty_state = EmptyStateWidget(
+            "Sin transferencias",
+            "No hay transferencias para los filtros actuales.",
+            "📭",
+            self,
+        )
+        self._empty_state.hide()
+        root.addWidget(self._empty_state)
 
         # Action buttons
         ab = QHBoxLayout()
-        self._btn_recv   = QPushButton("📥 Recepcionar")
-        self._btn_detail = QPushButton("🔍 Ver Detalle")
-        self._btn_cancel = QPushButton("❌ Cancelar")
+        self._btn_recv   = create_success_button(self, "📥 Recepcionar", "Confirmar recepción de transferencia")
+        self._btn_detail = create_secondary_button(self, "🔍 Ver Detalle", "Ver detalles de la transferencia")
+        self._btn_cancel = create_danger_button(self, "❌ Cancelar", "Cancelar transferencia pendiente")
         for b in (self._btn_recv, self._btn_detail, self._btn_cancel):
             b.setEnabled(False); ab.addWidget(b)
         ab.addStretch()
         self._btn_recv.clicked.connect(self._recepcionar)
         self._btn_detail.clicked.connect(self._ver_detalle)
         self._btn_cancel.clicked.connect(self._cancelar)
-        self._btn_recv.setStyleSheet(f"background:{_C4};color:white;font-weight:bold;padding:5px 10px;")
         root.addLayout(ab)
 
     def _make_kpi(self, title: str, value: str, color: str) -> QFrame:
-        card = QFrame()
-        card.setStyleSheet(f"QFrame{{background:white;border:none;border-left:4px solid {color};border-radius:6px;}}")
+        card = create_card(self, padding=Spacing.SM, with_layout=False)
         card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed); card.setFixedHeight(72)
         lay = QVBoxLayout(card); lay.setContentsMargins(10, 6, 10, 6)
-        lt = QLabel(title); lt.setStyleSheet("color:#7f8c8d;font-size:11px;")
+        lt = QLabel(title); lt.setObjectName("caption")
         lv = QLabel(value); lv.setStyleSheet(f"color:{color};font-size:18px;font-weight:bold;")
         lay.addWidget(lt); lay.addWidget(lv); card._val_label = lv; return card
 
@@ -254,68 +300,76 @@ class ModuloTransferencias(ModuloBase):
 
     def _load_transfers(self, *args):
         """Carga las transferencias desde la base de datos con blindaje de errores."""
-        # 1. Obtener filtros de forma segura (con hasattr por si la UI aún no carga)
-        status_filter = self.cmb_status.currentData() if hasattr(self, 'cmb_status') else None
-        
-        # ¡CORRECCIÓN! Capturar el texto de búsqueda antes de usarlo
-        search = self.txt_busqueda.text().strip() if hasattr(self, 'txt_busqueda') else ""
-        
-        # 2. Consultar al Repositorio
+        if hasattr(self, "_loading"):
+            self._loading.show()
         try:
-            rows = self._repo.get_all(
-                branch_id=self.sucursal_id if self.sucursal_id else None,
-                status=status_filter,
-            )
-        except Exception as exc:
-            logger.exception("Error al cargar transferencias: %s", exc)
-            rows = []
+            # 1. Obtener filtros de forma segura (con hasattr por si la UI aún no carga)
+            filtros = self._filter_bar.values() if hasattr(self, "_filter_bar") else {}
+            status_filter = filtros.get("estado", "")
+            status_filter = status_filter or None
+            search = (filtros.get("search", "") or "").strip()
 
-        # 3. Aplicar Búsqueda Textual Local
-        if search:
-            s = search.lower()
-            rows = [r for r in rows if
-                    s in str(r.get("id","")).lower() or
-                    s in str(r.get("origin_name","")).lower() or
-                    s in str(r.get("dest_name","")).lower()]
+            # 2. Consultar al Repositorio
+            try:
+                rows = self._repo.get_all(
+                    branch_id=self.sucursal_id if self.sucursal_id else None,
+                    status=status_filter,
+                )
+            except Exception as exc:
+                logger.exception("Error al cargar transferencias: %s", exc)
+                rows = []
 
-        # 4. Volcar datos a la Tabla
-        if not hasattr(self, '_tbl'):
-            return # Seguridad por si la tabla no existe aún
+            # 3. Aplicar Búsqueda Textual Local
+            if search:
+                s = search.lower()
+                rows = [r for r in rows if
+                        s in str(r.get("id","")).lower() or
+                        s in str(r.get("origin_name","")).lower() or
+                        s in str(r.get("dest_name","")).lower()]
 
-        self._tbl.setRowCount(len(rows))
-        pend = rec = can = 0
-        
-        for ri, r in enumerate(rows):
-            st = r.get("status", "")
-            if st == "DISPATCHED": pend += 1
-            elif st == "RECEIVED": rec += 1
-            elif st == "CANCELLED": can += 1
-            
-            vals = [
-                str(r.get("id", ""))[:8] + "…" if len(str(r.get("id",""))) > 8 else str(r.get("id","")),
-                r.get("origin_name", str(r.get("branch_origin_id","?"))),
-                r.get("dest_name",   str(r.get("branch_dest_id","?"))),
-                st,
-                r.get("delivered_by", "—") or "—",
-                r.get("received_by",  "—") or "—",
-                str(r.get("created_at",""))[:16],
-                str(r.get("received_at",""))[:16] if r.get("received_at") else "—",
-                f"{float(r.get('difference_kg',0)):.3f} kg",
-            ]
-            
-            for ci, v in enumerate(vals):
-                it = QTableWidgetItem(str(v))
-                it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                if ci == 3: # Columna de Estado
-                    it.setForeground(QColor(_STATUS_COLORS.get(st, "#000")))
-                    it.setTextAlignment(Qt.AlignCenter)
-                self._tbl.setItem(ri, ci, it)
+            # 4. Volcar datos a la Tabla
+            if not hasattr(self, '_tbl'):
+                return # Seguridad por si la tabla no existe aún
 
-        # 5. Actualizar los KPI (Indicadores Superiores) de forma segura
-        if hasattr(self, '_kpi_pend'): self._kpi_pend._val_label.setText(str(pend))
-        if hasattr(self, '_kpi_rec'): self._kpi_rec._val_label.setText(str(rec))
-        if hasattr(self, '_kpi_can'): self._kpi_can._val_label.setText(str(can))
-        if hasattr(self, '_lbl_suc'): self._lbl_suc.setText(f"Sucursal: {self.sucursal_nombre}")
+            self._tbl.setRowCount(len(rows))
+            if hasattr(self, "_empty_state"):
+                self._empty_state.setVisible(len(rows) == 0)
+            pend = rec = can = 0
+
+            for ri, r in enumerate(rows):
+                st = r.get("status", "")
+                if st == "DISPATCHED": pend += 1
+                elif st == "RECEIVED": rec += 1
+                elif st == "CANCELLED": can += 1
+
+                vals = [
+                    str(r.get("id", ""))[:8] + "…" if len(str(r.get("id",""))) > 8 else str(r.get("id","")),
+                    r.get("origin_name", str(r.get("branch_origin_id","?"))),
+                    r.get("dest_name",   str(r.get("branch_dest_id","?"))),
+                    st,
+                    r.get("delivered_by", "—") or "—",
+                    r.get("received_by",  "—") or "—",
+                    str(r.get("created_at",""))[:16],
+                    str(r.get("received_at",""))[:16] if r.get("received_at") else "—",
+                    f"{float(r.get('difference_kg',0)):.3f} kg",
+                ]
+
+                for ci, v in enumerate(vals):
+                    it = QTableWidgetItem(str(v))
+                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    if ci == 3: # Columna de Estado
+                        it.setForeground(QColor(_STATUS_COLORS.get(st, Colors.NEUTRAL.SLATE_900)))
+                        it.setTextAlignment(Qt.AlignCenter)
+                    self._tbl.setItem(ri, ci, it)
+
+            # 5. Actualizar los KPI (Indicadores Superiores) de forma segura
+            if hasattr(self, '_kpi_pend'): self._kpi_pend._val_label.setText(str(pend))
+            if hasattr(self, '_kpi_rec'): self._kpi_rec._val_label.setText(str(rec))
+            if hasattr(self, '_kpi_can'): self._kpi_can._val_label.setText(str(can))
+            if hasattr(self, '_lbl_suc'): self._lbl_suc.setText(f"Sucursal: {self.sucursal_nombre}")
+        finally:
+            if hasattr(self, "_loading"):
+                self._loading.hide()
         
     def _on_sel_changed(self) -> None:
         row = self._tbl.currentRow()
@@ -388,16 +442,16 @@ class ModuloTransferencias(ModuloBase):
     def _cancelar(self) -> None:
         tid = self._get_selected_id()
         if not tid: return
-        motivo, ok = "", True
-        if QMessageBox.question(
+        if not confirm_action(
             self, "Confirmar Cancelación",
             "¿Cancelar esta transferencia? Se restaurará el stock en origen.",
-            QMessageBox.Yes | QMessageBox.No
-        ) != QMessageBox.Yes:
+            confirm_text="Cancelar transferencia",
+            cancel_text="Volver",
+        ):
             return
         try:
             self._repo.cancel(tid, self.usuario_actual)
-            QMessageBox.information(self, "Éxito", "Transferencia cancelada. Stock restaurado.")
+            Toast.success(self, "Transferencia cancelada", "Stock restaurado.")
             self._refresh_all()
         except TransferAlreadyReceivedError:
             QMessageBox.warning(self, "Error",
@@ -413,7 +467,8 @@ class ModuloTransferencias(ModuloBase):
         lay.setContentsMargins(0, 8, 0, 0); lay.setSpacing(10)
 
         # ── Header con descripción del método ────────────────────────────────
-        info_box = QFrame()
+        # CORRECCIÓN: Usar create_card en lugar de QFrame() directo para consistencia
+        info_box = create_card(self, padding=Spacing.SM, with_layout=False)
         info_box.setStyleSheet(
             "QFrame{background:#eaf4fb;border:none;border-left:4px solid #3498db;"
             "border-radius:4px;padding:6px;}"
@@ -621,13 +676,11 @@ class ModuloTransferencias(ModuloBase):
         lay.addWidget(widget)
 
     def _get_sucursales(self) -> List[Dict]:
+        # SQL vive en el repo (regla 8); sin default arbitrario id=1 (regla 23).
         try:
-            rows = self._repo.db.fetchall(
-                "SELECT id, nombre FROM sucursales WHERE activa = 1 ORDER BY nombre"
-            )
-            return [dict(r) for r in rows]
+            return self._repo.list_active_branches()
         except Exception:
-            return [{"id": 1, "nombre": "Principal"}]
+            return []
 
 
 # ── Dialogo Nueva Transferencia ───────────────────────────────────────────────
@@ -734,8 +787,8 @@ class DialogoNuevaTransferencia(QDialog):
 
         bl = QHBoxLayout()
         btn_ok = QPushButton("📤 Despachar Transferencia"); btn_ok.clicked.connect(self._despachar)
-        btn_ok.setStyleSheet(f"background:{_C4};color:white;font-weight:bold;padding:6px 14px;border-radius:4px;")
-        btn_no = QPushButton("Cancelar"); btn_no.clicked.connect(self.reject)
+        btn_ok.setObjectName("primaryBtn")
+        btn_no = QPushButton("Cancelar"); btn_no.setObjectName("secondaryBtn"); btn_no.clicked.connect(self.reject)
         bl.addStretch(); bl.addWidget(btn_ok); bl.addWidget(btn_no)
         lay.addLayout(bl)
 
@@ -804,9 +857,11 @@ class DialogoNuevaTransferencia(QDialog):
                 destination_type=self._combo_dest_type.currentText(),
                 observations=self._e_obs.toPlainText().strip(),
             )
-            QMessageBox.information(self, "Éxito",
-                                    f"Transferencia {str(transfer_id)[:8]}… despachada.\n"
-                                    "En espera de recepción en sucursal destino.")
+            Toast.success(
+                self.parent() or self,
+                f"Transferencia {str(transfer_id)[:8]}… despachada",
+                "En espera de recepción en sucursal destino.",
+            )
             self.accept()
         except TransferStockError as exc:
             QMessageBox.warning(self, "Stock Insuficiente", str(exc))
@@ -909,8 +964,8 @@ class DialogoRecepcion(QDialog):
 
         bl = QHBoxLayout()
         btn_ok = QPushButton("✅ Confirmar Recepción"); btn_ok.clicked.connect(self._confirmar)
-        btn_ok.setStyleSheet(f"background:{_C4};color:white;font-weight:bold;padding:6px 14px;border-radius:4px;")
-        btn_no = QPushButton("Cancelar"); btn_no.clicked.connect(self.reject)
+        btn_ok.setObjectName("successBtn")
+        btn_no = QPushButton("Cancelar"); btn_no.setObjectName("secondaryBtn"); btn_no.clicked.connect(self.reject)
         bl.addStretch(); bl.addWidget(btn_ok); bl.addWidget(btn_no)
         lay.addLayout(bl)
 
@@ -963,12 +1018,8 @@ class DialogoRecepcion(QDialog):
                 observations=observations,
             )
             diff = result.get("total_difference", 0)
-            msg = f"Recepción confirmada.\n"
-            if diff > 0.001:
-                msg += f"Diferencia registrada: {diff:.3f} kg"
-            else:
-                msg += "Sin diferencias."
-            QMessageBox.information(self, "Éxito", msg)
+            detail = f"Diferencia registrada: {diff:.3f} kg" if diff > 0.001 else "Sin diferencias."
+            Toast.success(self.parent() or self, "Recepción confirmada", detail)
             self.accept()
         except TransferAlreadyReceivedError:
             QMessageBox.warning(self, "Error", "Esta transferencia ya fue recibida.")
@@ -1029,5 +1080,5 @@ class DialogoDetalleTransfer(QDialog):
                 tbl.setItem(ri, ci, it)
         gl.addWidget(tbl); lay.addWidget(grp)
 
-        btn_close = QPushButton("Cerrar"); btn_close.clicked.connect(self.accept)
+        btn_close = QPushButton("Cerrar"); btn_close.setObjectName("secondaryBtn"); btn_close.clicked.connect(self.accept)
         lay.addWidget(btn_close)

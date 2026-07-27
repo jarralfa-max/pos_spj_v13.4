@@ -16,14 +16,14 @@ class SessionManager(QObject):
         super().__init__(parent)
         self.usuario: Optional[str] = None
         self.rol: Optional[str]     = None
-        self.sucursal_id: int       = 1
-        self.sucursal_nombre: str   = "Principal"
+        self.sucursal_id: str       = ""
+        self.sucursal_nombre: str   = ""
         self._modulos: List[QWidget]= []
 
     def registrar_modulo(self, w):
         self._modulos.append(w)
 
-    def iniciar(self, usuario, rol, sucursal_id=1, sucursal_nombre="Principal", nombre_completo=""):
+    def iniciar(self, usuario, rol, sucursal_id="", sucursal_nombre="", nombre_completo=""):
         self.usuario         = usuario
         self.rol             = rol
         self.sucursal_id     = sucursal_id

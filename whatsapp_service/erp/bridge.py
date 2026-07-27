@@ -5,22 +5,180 @@ sin modificar ningún archivo existente.
 
 IMPORTANTE: Todo acceso al ERP pasa por aquí.
 No se importa nada del ERP directamente en los flows.
+
+Modo de operación:
+  - Si api_url + api_key están configurados, las operaciones de escritura
+    (crear_pedido_wa, create_cliente_minimo, actualizar_estado_pedido) usan
+    el REST API Gateway.
+  - Las consultas sin endpoint REST todavía usan conexión directa a SQLite
+    (fallback modo desarrollo — ver WHATSAPP_AUDIT.md §Fallback SQLite).
+  - Configura ERP_API_URL y ERP_API_KEY en el entorno del microservicio WA.
+
+GATEWAY INTERFACES:
+  CustomerGateway  — clientes (find, create)
+  OrderGateway     — ventas/pedidos (crear, estado, último)
+  QuoteGateway     — cotizaciones
+  PaymentGateway   — anticipos y pagos
+  InventoryGateway — stock y órdenes de compra
+  DeliveryGateway  — programación de entregas
 """
 from __future__ import annotations
+import os
 import sqlite3
 import logging
+from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from config.settings import is_production
+from phone_number import possible_match_key
+from erp.gateways.api_client import ERPApiClient
+from erp.gateways.sqlite_connection import ERPSqliteConnection
+from erp.gateways.customer_gateway import CustomerGateway as CustomerWriteGateway
+from erp.gateways.order_gateway import OrderGateway as OrderWriteGateway
+from erp.gateways.quote_gateway import QuoteGateway as QuoteWriteGateway
+from erp.gateways.payment_gateway import PaymentGateway as PaymentWriteGateway
+from erp.gateways.inventory_gateway import InventoryGateway as InventoryWriteGateway
+from erp.gateways.delivery_gateway import DeliveryGateway as DeliveryWriteGateway
 
 logger = logging.getLogger("wa.erp")
 
 
-class ERPBridge:
-    """Puente al ERP — acceso read/write a la BD y servicios."""
+# ── Gateway interfaces ────────────────────────────────────────────────────────
 
-    def __init__(self, db_path: str):
+class CustomerGateway(ABC):
+    @abstractmethod
+    def find_by_phone(self, phone: str) -> Optional[Dict]: ...
+    @abstractmethod
+    def create_minimal(self, nombre: str, telefono: str) -> int: ...
+    @abstractmethod
+    def get_credit(self, cliente_id: str) -> float: ...
+
+
+class OrderGateway(ABC):
+    @abstractmethod
+    def create(self, items: List[Dict], cliente_id: str, sucursal_id: str,
+               tipo_entrega: str, **kwargs) -> Dict: ...
+    @abstractmethod
+    def update_status(self, pedido_id: str, estado: str, notas: str = "") -> bool: ...
+    @abstractmethod
+    def get_last(self, cliente_id: str) -> Optional[Dict]: ...
+    @abstractmethod
+    def get_by_folio(self, folio: str) -> Optional[Dict]: ...
+
+
+class QuoteGateway(ABC):
+    @abstractmethod
+    def create(self, items: List[Dict], cliente_id: str,
+               sucursal_id: str, usuario: str = "whatsapp") -> Dict: ...
+    @abstractmethod
+    def convert_to_order(self, cotizacion_id: str,
+                         usuario: str = "whatsapp") -> Optional[Dict]: ...
+
+
+class PaymentGateway(ABC):
+    @abstractmethod
+    def needs_advance(self, cliente_id: str, total: float,
+                      programado: bool = False) -> bool: ...
+    @abstractmethod
+    def register_advance(self, venta_id: str, monto: float,
+                         metodo: str = "mercadopago") -> int: ...
+    @abstractmethod
+    def confirm_payment(self, venta_id: str, monto: float,
+                        referencia: str = "", metodo: str = "mercadopago") -> bool: ...
+    @abstractmethod
+    def get_advance_rules(self, cliente_id: str, total: float,
+                          items: Optional[List[Dict]] = None) -> Dict: ...
+
+
+class InventoryGateway(ABC):
+    @abstractmethod
+    def check_stock(self, items: List[Dict], sucursal_id: str) -> List[Dict]: ...
+    @abstractmethod
+    def create_purchase_order(self, producto_id: str, cantidad: float,
+                              sucursal_id: str, notas: str = "") -> Optional[int]: ...
+
+
+class DeliveryGateway(ABC):
+    @abstractmethod
+    def schedule(self, venta_id: str, direccion: str,
+                 fecha_entrega: str = "", telefono_cliente: str = "") -> bool: ...
+
+
+class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
+                PaymentGateway, InventoryGateway, DeliveryGateway):
+    """
+    Puente al ERP — implementa todos los gateways.
+    Writes van por REST API cuando ERP_API_URL está configurado;
+    fallback a SQLite directo solo en modo desarrollo (marcado con TODO abajo).
+    """
+
+    def __init__(self, db_path: str,
+                 api_url: str = "",
+                 api_key: str = ""):
         self.db_path = db_path
         self._conn: Optional[sqlite3.Connection] = None
+
+        # REST API settings (override with env vars)
+        self._api_url = (api_url or os.environ.get("ERP_API_URL", "")).rstrip("/")
+        self._api_key = api_key or os.environ.get("ERP_API_KEY", "")
+        self._http: Any = None  # httpx.Client, lazy
+        self.api_client = ERPApiClient(self)
+        self.sqlite = ERPSqliteConnection(self)
+        self.customer_gateway = CustomerWriteGateway(self)
+        self.order_gateway = OrderWriteGateway(self)
+        self.quote_gateway = QuoteWriteGateway(self)
+        self.payment_gateway = PaymentWriteGateway(self)
+        self.inventory_gateway = InventoryWriteGateway(self)
+        self.delivery_gateway = DeliveryWriteGateway(self)
+
+    # ── HTTP client ───────────────────────────────────────────────────────────
+
+    @property
+    def _use_api(self) -> bool:
+        return bool(self._api_url and self._api_key)
+
+    @property
+    def _client(self):
+        """Lazy httpx.Client with auth header."""
+        if self._http is None:
+            import httpx
+            self._http = httpx.Client(
+                base_url=self._api_url,
+                headers={"X-API-Key": self._api_key},
+                timeout=10.0,
+            )
+        return self._http
+
+    def _api_get(self, path: str, **params) -> Any:
+        resp = self._client.get(path, params=params)
+        resp.raise_for_status()
+        return resp.json()
+
+    def _api_post(self, path: str, body: dict) -> Any:
+        resp = self._client.post(path, json=body)
+        resp.raise_for_status()
+        return resp.json()
+
+    def _api_patch(self, path: str, **params) -> Any:
+        resp = self._client.patch(path, params=params)
+        resp.raise_for_status()
+        return resp.json()
+
+    def _assert_sqlite_write_allowed(self, operation_name: str) -> None:
+        if is_production() and not self._use_api:
+            raise RuntimeError(
+                f"[{operation_name}] SQLite write blocked in production. "
+                "Configure ERP_API_URL + ERP_API_KEY."
+            )
+
+    def _handle_api_write_failure(self, operation_name: str, exc: Exception) -> None:
+        if is_production():
+            raise RuntimeError(
+                f"[{operation_name}] ERP API write failed in production; "
+                "SQLite fallback is disabled."
+            ) from exc
+        logger.warning("%s via API failed: %s — fallback to DB", operation_name, exc)
+
+    # ── Direct SQLite connection (read-only fallback) ─────────────────────────
 
     @property
     def db(self) -> sqlite3.Connection:
@@ -40,7 +198,7 @@ class ERPBridge:
         ).fetchall()
         return [dict(r) for r in rows]
 
-    def get_sucursal(self, sucursal_id: int) -> Optional[Dict]:
+    def get_sucursal(self, sucursal_id: str) -> Optional[Dict]:
         row = self.db.execute(
             "SELECT id, nombre FROM sucursales WHERE id=? AND activa=1",
             (sucursal_id,)
@@ -49,8 +207,35 @@ class ERPBridge:
 
     # ── Clientes ──────────────────────────────────────────────────────────────
 
+    # CustomerGateway impl
+    def find_by_phone(self, phone: str) -> Optional[Dict]:
+        return self.find_cliente_by_phone(phone)
+
+    def create_minimal(self, nombre: str, telefono: str) -> int:
+        return self.create_cliente_minimo(nombre, telefono)
+
+    def get_credit(self, cliente_id: str) -> float:
+        return self.get_credito_disponible(cliente_id)
+
     def find_cliente_by_phone(self, phone: str) -> Optional[Dict]:
-        phone_clean = phone[-10:] if len(phone) > 10 else phone
+        return self.customer_gateway.find_by_phone(phone)
+
+    def _find_cliente_by_phone_impl(self, phone: str) -> Optional[Dict]:
+        phone_clean = possible_match_key(phone)
+
+        if self._use_api:
+            try:
+                data = self._api_get("/api/v1/clientes", q=phone_clean, limit=1)
+                clientes = data.get("clientes", [])
+                if not clientes:
+                    return None
+                cliente = clientes[0]
+                cliente["credito_disponible"] = (
+                    cliente.get("credit_limit", 0) - cliente.get("credit_balance", 0)
+                )
+                return cliente
+            except Exception as exc:
+                logger.warning("find_cliente_by_phone via API failed: %s — fallback to DB", exc)
 
         row = self.db.execute("""
             SELECT *
@@ -63,34 +248,44 @@ class ERPBridge:
             return None
 
         cliente = dict(row)
-
-        # Normalización para el bot
         cliente["credito_disponible"] = (
             cliente.get("credit_limit", 0) - cliente.get("credit_balance", 0)
         )
-
         return cliente
 
     def create_cliente_minimo(self, nombre: str, telefono: str) -> int:
+        return self.customer_gateway.create_minimal(nombre, telefono)
+
+    def _create_cliente_minimo_impl(self, nombre: str, telefono: str) -> int:
         """Crea un cliente con datos mínimos (registro rápido por WA)."""
+        if self._use_api:
+            try:
+                data = self._api_post("/api/v1/clientes", {
+                    "nombre": nombre,
+                    "telefono": telefono,
+                })
+                return data["cliente_id"]
+            except Exception as exc:
+                self._handle_api_write_failure("create_cliente_minimo", exc)
+
+        self._assert_sqlite_write_allowed("create_cliente_minimo")
         cursor = self.db.execute(
             "INSERT INTO clientes (nombre, telefono, activo) VALUES (?, ?, 1)",
             (nombre, telefono))
         self.db.commit()
         return cursor.lastrowid
 
-    def get_credito_disponible(self, cliente_id: int) -> float:
+    def get_credito_disponible(self, cliente_id: str) -> float:
         row = self.db.execute("""
             SELECT COALESCE(credit_limit,0) - COALESCE(credit_balance,0)
             FROM clientes WHERE id=?
         """, (cliente_id,)).fetchone()
-
         return float(row[0]) if row else 0.0
 
     # ── Productos ─────────────────────────────────────────────────────────────
 
     def get_productos_by_category(self, categoria: str,
-                                  sucursal_id: int) -> List[Dict]:
+                                  sucursal_id: str) -> List[Dict]:
         rows = self.db.execute("""
             SELECT p.id, p.nombre, p.precio,
                    COALESCE(bi.quantity, p.existencia, 0) as stock,
@@ -103,7 +298,7 @@ class ERPBridge:
         """, (sucursal_id, categoria)).fetchall()
         return [dict(r) for r in rows]
 
-    def get_categorias(self, sucursal_id: int) -> List[str]:
+    def get_categorias(self, sucursal_id: str) -> List[str]:
         rows = self.db.execute("""
             SELECT DISTINCT p.categoria
             FROM productos p
@@ -113,8 +308,8 @@ class ERPBridge:
         """).fetchall()
         return [r[0] for r in rows]
 
-    def get_producto(self, producto_id: int,
-                     sucursal_id: int) -> Optional[Dict]:
+    def get_producto(self, producto_id: str,
+                     sucursal_id: str) -> Optional[Dict]:
         row = self.db.execute("""
             SELECT p.id, p.nombre, p.precio,
                    COALESCE(bi.quantity, p.existencia, 0) as stock,
@@ -127,31 +322,109 @@ class ERPBridge:
 
     # ── Ventas / Pedidos ──────────────────────────────────────────────────────
 
-    def crear_pedido_wa(self, items: List[Dict], cliente_id: int,
-                        sucursal_id: int, tipo_entrega: str,
+    # OrderGateway impl
+    def create(self, items: List[Dict], cliente_id: str, sucursal_id: str,
+               tipo_entrega: str, **kwargs) -> Dict:
+        return self.crear_pedido_wa(items, cliente_id, sucursal_id, tipo_entrega,
+                                    direccion=kwargs.get("direccion",""),
+                                    fecha_entrega=kwargs.get("fecha_entrega",""),
+                                    notas=kwargs.get("notas",""))
+
+    def update_status(self, pedido_id: str, estado: str, notas: str = "") -> bool:
+        return self.actualizar_estado_pedido(pedido_id, estado, notas)
+
+    def get_last(self, cliente_id: str) -> Optional[Dict]:
+        return self.get_ultimo_pedido(cliente_id)
+
+    def get_by_folio(self, folio: str) -> Optional[Dict]:
+        return self.get_estado_pedido(folio)
+
+    def crear_pedido_wa(self, items: List[Dict], cliente_id: str,
+                        sucursal_id: str, tipo_entrega: str,
                         direccion: str = "", fecha_entrega: str = "",
                         notas: str = "") -> Dict:
+        return self.order_gateway.create(
+            items=items, cliente_id=cliente_id, sucursal_id=sucursal_id,
+            tipo_entrega=tipo_entrega, direccion=direccion,
+            fecha_entrega=fecha_entrega, notas=notas,
+        )
+
+    def _crear_pedido_wa_impl(self, items: List[Dict], cliente_id: str,
+                              sucursal_id: str, tipo_entrega: str,
+                              direccion: str = "", fecha_entrega: str = "",
+                              notas: str = "") -> Dict:
         """
         Crea un pedido desde WhatsApp.
-        Inserta en la tabla ventas con estado 'pendiente_wa'.
+        Usa el API Gateway cuando está disponible; cae a SQLite como fallback.
+        Además registra evento/notificación persistente para que el ERP desktop
+        se entere aunque corra en otro proceso.
         """
+        if self._use_api:
+            try:
+                api_items = [
+                    {
+                        "producto_id": it["producto_id"],
+                        "nombre":      it.get("nombre", ""),
+                        "cantidad":    float(it["cantidad"]),
+                        "precio_unitario": float(it["precio_unitario"]),
+                    }
+                    for it in items
+                ]
+                data = self._api_post("/api/v1/pedidos", {
+                    "cliente_id":    cliente_id,
+                    "items":         api_items,
+                    "tipo_entrega":  tipo_entrega,
+                    "direccion":     direccion,
+                    "fecha_entrega": fecha_entrega,
+                    "notas":         notas,
+                    "sucursal_id":   sucursal_id,
+                    "canal":         "whatsapp",
+                })
+                self._notify_pos_new_order(
+                    venta_id=data["venta_id"], folio=data["folio"], total=data["total"],
+                    cliente_id=cliente_id, sucursal_id=sucursal_id, tipo_entrega=tipo_entrega,
+                    direccion=direccion, items=api_items, fecha_entrega=fecha_entrega,
+                )
+                return {
+                    "venta_id": data["venta_id"],
+                    "folio":    data["folio"],
+                    "total":    data["total"],
+                }
+            except Exception as exc:
+                self._handle_api_write_failure("crear_pedido_wa", exc)
+
+        self._assert_sqlite_write_allowed("crear_pedido_wa")
+        # Fallback SQLite — usado cuando ERP_API_URL no está configurado.
+        # Endpoint REST disponible: POST /api/v1/pedidos
         import uuid
         folio = f"WA-{uuid.uuid4().hex[:8].upper()}"
         total = sum(it["cantidad"] * it["precio_unitario"] for it in items)
 
-        cursor = self.db.execute("""
-            INSERT INTO ventas (folio, cliente_id, total, estado,
-                               sucursal_id, tipo_entrega, direccion_entrega,
-                               fecha_entrega_programada, notas, canal, fecha)
-            VALUES (?, ?, ?, 'pendiente_wa', ?, ?, ?, ?, ?, 'whatsapp',
-                    datetime('now'))
-        """, (folio, cliente_id, total, sucursal_id, tipo_entrega,
-              direccion, fecha_entrega, notas))
+        workflow_type = "scheduled" if fecha_entrega else ("counter" if tipo_entrega == "sucursal" else "delivery")
+        try:
+            cursor = self.db.execute("""
+                INSERT INTO ventas (folio, cliente_id, total, estado,
+                                   sucursal_id, tipo_entrega, direccion_entrega,
+                                   fecha_entrega_programada, scheduled_at, workflow_type,
+                                   source_channel, notas, canal, fecha)
+                VALUES (?, ?, ?, 'pendiente_wa', ?, ?, ?, ?, ?, ?,
+                        'whatsapp', ?, 'whatsapp', datetime('now'))
+            """, (folio, cliente_id, total, sucursal_id, tipo_entrega,
+                  direccion, fecha_entrega, fecha_entrega, workflow_type, notas))
+        except Exception:
+            cursor = self.db.execute("""
+                INSERT INTO ventas (folio, cliente_id, total, estado,
+                                   sucursal_id, tipo_entrega, direccion_entrega,
+                                   fecha_entrega_programada, notas, canal, fecha)
+                VALUES (?, ?, ?, 'pendiente_wa', ?, ?, ?, ?, ?, 'whatsapp',
+                        datetime('now'))
+            """, (folio, cliente_id, total, sucursal_id, tipo_entrega,
+                  direccion, fecha_entrega, notas))
         venta_id = cursor.lastrowid
 
         for it in items:
             self.db.execute("""
-                INSERT INTO detalle_ventas (venta_id, producto_id, nombre,
+                INSERT INTO detalles_venta (venta_id, producto_id, nombre,
                     cantidad, precio_unitario, subtotal)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (venta_id, it["producto_id"], it["nombre"],
@@ -159,9 +432,124 @@ class ERPBridge:
                   it["cantidad"] * it["precio_unitario"]))
 
         self.db.commit()
+        if fecha_entrega:
+            try:
+                from core.services.scheduled_demand_service import ScheduledDemandService
+                ScheduledDemandService(self.db).register_scheduled_sale(
+                    # REGLA CERO: IDs UUIDv7 (str). El servicio los inserta tal
+                    # cual en columnas TEXT; el int() anterior rompía con UUID.
+                    sale_id=venta_id,
+                    branch_id=sucursal_id,
+                    customer_id=cliente_id or None,
+                    folio=folio,
+                    scheduled_at=str(fecha_entrega),
+                    items=items,
+                    source_channel="whatsapp",
+                )
+            except Exception as exc:
+                logger.warning("No se pudo registrar demanda programada para forecast: %s", exc)
+        self._notify_pos_new_order(
+            venta_id=venta_id, folio=folio, total=total,
+            cliente_id=cliente_id, sucursal_id=sucursal_id,
+            tipo_entrega=tipo_entrega, direccion=direccion, items=items, fecha_entrega=fecha_entrega,
+        )
         return {"venta_id": venta_id, "folio": folio, "total": total}
 
-    def get_ultimo_pedido(self, cliente_id: int) -> Optional[Dict]:
+    def _notify_pos_new_order(self, *, venta_id: str, folio: str, total: float,
+                              cliente_id: str, sucursal_id: str, tipo_entrega: str,
+                              direccion: str = "", items: Optional[List[Dict]] = None,
+                              fecha_entrega: str = "") -> None:
+        """Puente persistente WA → ERP desktop: evento + inbox POS."""
+        try:
+            cliente = self.db.execute(
+                "SELECT COALESCE(nombre, '') AS nombre FROM clientes WHERE id=?",
+                (cliente_id,)
+            ).fetchone()
+            cliente_nombre = cliente["nombre"] if cliente and cliente["nombre"] else "Cliente WhatsApp"
+        except Exception:
+            cliente_nombre = "Cliente WhatsApp"
+        try:
+            from erp.pos_notifier import POSNotifier
+            notifier = POSNotifier(self.db)
+            if fecha_entrega:
+                notifier.notify_scheduled_whatsapp_order(
+                    venta_id=venta_id,
+                    folio=folio,
+                    cliente_id=cliente_id,
+                    cliente_nombre=cliente_nombre,
+                    total=total,
+                    sucursal_id=sucursal_id,
+                    tipo_entrega=tipo_entrega,
+                    scheduled_at=fecha_entrega,
+                    direccion=direccion,
+                    items=items or [],
+                )
+            else:
+                notifier.notify_new_whatsapp_order(
+                    venta_id=venta_id,
+                    folio=folio,
+                    cliente_id=cliente_id,
+                    cliente_nombre=cliente_nombre,
+                    total=total,
+                    sucursal_id=sucursal_id,
+                    tipo_entrega=tipo_entrega,
+                    direccion=direccion,
+                    items=items or [],
+                )
+            # Optional desktop-notification service (ERP process friendly)
+            try:
+                from core.services.desktop_notification_service import DesktopNotificationService
+                dns = DesktopNotificationService(self.db)
+                if fecha_entrega:
+                    dns.notify_scheduled_order(
+                        branch_id=int(sucursal_id),
+                        sale_id=int(venta_id),
+                        folio=folio,
+                        scheduled_at=fecha_entrega,
+                    )
+                else:
+                    dns.notify_new_order(
+                        branch_id=int(sucursal_id),
+                        sale_id=int(venta_id),
+                        folio=folio,
+                        total=float(total or 0),
+                    )
+            except Exception:
+                pass
+        except Exception as exc:
+            logger.warning("No se pudo notificar pedido WA al ERP: %s", exc)
+
+    def actualizar_estado_pedido(self, pedido_id: str, estado: str,
+                                  notas: str = "") -> bool:
+        return self.order_gateway.update_status(pedido_id, estado, notas)
+
+    def _actualizar_estado_pedido_impl(self, pedido_id: str, estado: str,
+                                       notas: str = "") -> bool:
+        """Actualiza el estado de un pedido vía API o DB directa."""
+        if self._use_api:
+            try:
+                self._api_patch(
+                    f"/api/v1/pedidos/{pedido_id}/estado",
+                    estado=estado,
+                    notas=notas,
+                )
+                return True
+            except Exception as exc:
+                self._handle_api_write_failure("actualizar_estado_pedido", exc)
+
+        self._assert_sqlite_write_allowed("actualizar_estado_pedido")
+        try:
+            self.db.execute(
+                "UPDATE ventas SET estado=? WHERE id=?",
+                (estado, pedido_id)
+            )
+            self.db.commit()
+            return True
+        except Exception as exc:
+            logger.warning("actualizar_estado_pedido DB fallback failed: %s", exc)
+            return False
+
+    def get_ultimo_pedido(self, cliente_id: str) -> Optional[Dict]:
         """Obtiene el último pedido del cliente para "repetir"."""
         row = self.db.execute("""
             SELECT v.id, v.folio, v.total, v.fecha
@@ -175,8 +563,8 @@ class ERPBridge:
         items = self.db.execute("""
             SELECT producto_id, nombre, cantidad,
                    precio_unitario, COALESCE(unidad, 'kg') as unidad
-            FROM detalle_ventas WHERE venta_id=?
-        """, (row["id"],)).fetchall()
+            FROM detalles_venta WHERE venta_id=?
+        """, (row["id"] ,)).fetchall()
 
         return {
             "venta_id": row["id"], "folio": row["folio"],
@@ -193,8 +581,49 @@ class ERPBridge:
 
     # ── Cotizaciones ──────────────────────────────────────────────────────────
 
-    def crear_cotizacion_wa(self, items: List[Dict], cliente_id: int,
-                            sucursal_id: int, usuario: str = "whatsapp") -> Dict:
+    # QuoteGateway impl
+    def create(self, items: List[Dict], cliente_id: str,  # type: ignore[override]
+               sucursal_id: str, usuario: str = "whatsapp") -> Dict:
+        return self.crear_cotizacion_wa(items, cliente_id, sucursal_id, usuario)
+
+    def convert_to_order(self, cotizacion_id: str,
+                         usuario: str = "whatsapp") -> Optional[Dict]:
+        return self.convertir_cotizacion_a_venta(cotizacion_id, usuario)
+
+    def crear_cotizacion_wa(self, items: List[Dict], cliente_id: str,
+                            sucursal_id: str, usuario: str = "whatsapp") -> Dict:
+        return self.quote_gateway.create(
+            items=items, cliente_id=cliente_id, sucursal_id=sucursal_id, usuario=usuario
+        )
+
+    def _crear_cotizacion_wa_impl(self, items: List[Dict], cliente_id: str,
+                                  sucursal_id: str, usuario: str = "whatsapp") -> Dict:
+        if self._use_api:
+            try:
+                api_items = [
+                    {"producto_id": it["producto_id"],
+                     "nombre":      it.get("nombre", ""),
+                     "cantidad":    float(it["cantidad"]),
+                     "precio_unitario": float(it["precio_unitario"])}
+                    for it in items
+                ]
+                data = self._api_post("/api/v1/cotizaciones", {
+                    "cliente_id":  cliente_id,
+                    "items":       api_items,
+                    "sucursal_id": sucursal_id,
+                    "usuario":     usuario,
+                })
+                return {
+                    "cotizacion_id": data["cotizacion_id"],
+                    "folio":         data["folio"],
+                    "total":         data["total"],
+                }
+            except Exception as exc:
+                self._handle_api_write_failure("crear_cotizacion_wa", exc)
+
+        self._assert_sqlite_write_allowed("crear_cotizacion_wa")
+        # Fallback SQLite — usado cuando ERP_API_URL no está configurado.
+        # Endpoint REST disponible: POST /api/v1/cotizaciones
         import uuid
         folio = f"CWA-{uuid.uuid4().hex[:6].upper()}"
         total = sum(it["cantidad"] * it["precio_unitario"] for it in items)
@@ -221,19 +650,50 @@ class ERPBridge:
 
     # ── Anticipos ─────────────────────────────────────────────────────────────
 
-    def requiere_anticipo(self, cliente_id: int, total: float,
+    def requiere_anticipo(self, cliente_id: str, total: float,
                           programado: bool = False) -> bool:
-        """Determina si el pedido requiere anticipo."""
         credito = self.get_credito_disponible(cliente_id)
-        # Requiere anticipo si:
         if credito < total:
-            return True    # Sin crédito suficiente
+            return True
         if programado:
-            return True    # Pedido programado siempre requiere anticipo
+            return True
         return False
 
-    def registrar_anticipo(self, venta_id: int, monto: float,
+    # PaymentGateway impl
+    def needs_advance(self, cliente_id: str, total: float,
+                      programado: bool = False) -> bool:
+        return self.requiere_anticipo(cliente_id, total, programado)
+
+    def register_advance(self, venta_id: str, monto: float,
+                         metodo: str = "mercadopago") -> int:
+        return self.registrar_anticipo(venta_id, monto, metodo)
+
+    def confirm_payment(self, venta_id: str, monto: float,
+                        referencia: str = "", metodo: str = "mercadopago") -> bool:
+        return self.confirmar_pago_anticipo(venta_id, monto, referencia, metodo)
+
+    def get_advance_rules(self, cliente_id: str, total: float,
+                          items: Optional[List[Dict]] = None) -> Dict:
+        return self.calcular_anticipo_rules(cliente_id, total, items)
+
+    def registrar_anticipo(self, venta_id: str, monto: float,
                            metodo: str = "mercadopago") -> int:
+        return self.payment_gateway.register_advance(venta_id, monto, metodo)
+
+    def _registrar_anticipo_impl(self, venta_id: str, monto: float,
+                                 metodo: str = "mercadopago") -> int:
+        if self._use_api:
+            try:
+                data = self._api_post("/api/v1/anticipos", {
+                    "venta_id": venta_id, "monto": monto, "metodo": metodo,
+                })
+                return data["anticipo_id"]
+            except Exception as exc:
+                self._handle_api_write_failure("registrar_anticipo", exc)
+
+        self._assert_sqlite_write_allowed("registrar_anticipo")
+        # Fallback SQLite — usado cuando ERP_API_URL no está configurado.
+        # Endpoint REST disponible: POST /api/v1/anticipos
         cursor = self.db.execute("""
             INSERT INTO anticipos (venta_id, monto, metodo, estado, fecha)
             VALUES (?, ?, ?, 'pendiente', datetime('now'))
@@ -243,12 +703,11 @@ class ERPBridge:
 
     # ── Staff / RRHH ──────────────────────────────────────────────────────────
 
-    def get_staff_phones(self, sucursal_id: int,
+    def get_staff_phones(self, sucursal_id: str,
                          rol: str = "") -> List[str]:
-        """Obtiene teléfonos del staff de una sucursal."""
         q = ("SELECT telefono FROM empleados "
              "WHERE sucursal_id=? AND activo=1 AND telefono IS NOT NULL")
-        params = [sucursal_id]
+        params: list = [sucursal_id]
         if rol:
             q += " AND rol=?"
             params.append(rol)
@@ -256,18 +715,39 @@ class ERPBridge:
         return [r[0] for r in rows if r[0]]
 
     def close(self):
+        if self._http:
+            self._http.close()
+            self._http = None
         if self._conn:
             self._conn.close()
             self._conn = None
 
     # ── Conversión Cotización → Venta ─────────────────────────────────────────
 
-    def convertir_cotizacion_a_venta(self, cotizacion_id: int,
+    def convertir_cotizacion_a_venta(self, cotizacion_id: str,
                                      usuario: str = "whatsapp") -> Optional[Dict]:
-        """
-        Convierte una cotización existente en venta real (estado pendiente_wa).
-        NO duplica lógica de ventas — solo crea la venta y vincula la cotización.
-        """
+        return self.quote_gateway.convert_to_order(cotizacion_id, usuario)
+
+    def _convertir_cotizacion_a_venta_impl(self, cotizacion_id: str,
+                                           usuario: str = "whatsapp") -> Optional[Dict]:
+        if self._use_api:
+            try:
+                data = self._api_patch(
+                    f"/api/v1/cotizaciones/{cotizacion_id}/convertir",
+                    usuario=usuario,
+                )
+                return {
+                    "venta_id":      data["venta_id"],
+                    "folio":         data.get("folio", ""),
+                    "total":         data.get("total", 0),
+                    "cotizacion_id": cotizacion_id,
+                }
+            except Exception as exc:
+                self._handle_api_write_failure("convertir_cotizacion_a_venta", exc)
+
+        self._assert_sqlite_write_allowed("convertir_cotizacion_a_venta")
+        # Fallback SQLite — usado cuando ERP_API_URL no está configurado.
+        # Endpoint REST disponible: PATCH /api/v1/cotizaciones/{id}/convertir
         cot = self.db.execute(
             "SELECT * FROM cotizaciones WHERE id=? AND estado='pendiente'",
             (cotizacion_id,)
@@ -285,48 +765,32 @@ class ERPBridge:
         if not items:
             return None
 
-        import uuid
-        folio = f"WA-{uuid.uuid4().hex[:8].upper()}"
-        total = float(cot.get("total", 0))
+        result = self.crear_pedido_wa(
+            items=[{
+                "producto_id":    it["producto_id"],
+                "nombre":         it["nombre"],
+                "cantidad":       it["cantidad"],
+                "precio_unitario": it["precio_unitario"],
+            } for it in items],
+            cliente_id=cot["cliente_id"],
+            sucursal_id=cot.get("sucursal_id", 1),
+            tipo_entrega="sucursal",
+        )
 
-        cursor = self.db.execute("""
-            INSERT INTO ventas (folio, cliente_id, total, estado,
-                               sucursal_id, tipo_entrega, canal, fecha)
-            VALUES (?, ?, ?, 'pendiente_wa', ?, 'sucursal', 'whatsapp', datetime('now'))
-        """, (folio, cot["cliente_id"], total, cot.get("sucursal_id", 1)))
-        venta_id = cursor.lastrowid
-
-        for it in items:
-            self.db.execute("""
-                INSERT INTO detalle_ventas (venta_id, producto_id, nombre,
-                    cantidad, precio_unitario, subtotal)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (venta_id, it["producto_id"], it["nombre"],
-                  it["cantidad"], it["precio_unitario"],
-                  it.get("subtotal", it["cantidad"] * it["precio_unitario"])))
-
-        # Actualizar cotización
         self.db.execute(
             "UPDATE cotizaciones SET estado='convertida', venta_ref_id=? WHERE id=?",
-            (venta_id, cotizacion_id)
+            (result["venta_id"], cotizacion_id)
         )
         self.db.commit()
-        return {"venta_id": venta_id, "folio": folio, "total": total,
-                "cotizacion_id": cotizacion_id}
+        return {**result, "cotizacion_id": cotizacion_id}
 
     # ── Calcular anticipo según reglas del ERP ────────────────────────────────
 
-    def calcular_anticipo_rules(self, cliente_id: int, total: float,
+    def calcular_anticipo_rules(self, cliente_id: str, total: float,
                                  items: Optional[List[Dict]] = None) -> Dict:
-        """
-        Calcula anticipo usando anticipo_reglas + anticipo_config del ERP.
-        Retorna: {requiere: bool, monto: float, razon: str}
-        """
         credito = self.get_credito_disponible(cliente_id)
 
-        # Verificar exenciones: crédito suficiente
         if credito >= total:
-            # Revisar si algún producto es categoría especial
             if items:
                 for it in items:
                     prod_id = it.get("producto_id")
@@ -344,7 +808,6 @@ class ERPBridge:
                                     "razon": "producto_especial"}
             return {"requiere": False, "monto": 0.0, "razon": "credito_suficiente"}
 
-        # Sin crédito suficiente — aplicar regla por monto
         regla_monto = self.db.execute("""
             SELECT porcentaje FROM anticipo_reglas
             WHERE tipo='monto' AND activo=1
@@ -352,10 +815,7 @@ class ERPBridge:
             ORDER BY porcentaje DESC LIMIT 1
         """, (total,)).fetchone()
 
-        if regla_monto:
-            pct = float(regla_monto[0]) / 100.0
-        else:
-            pct = 0.5  # Default 50% si no hay regla configurada
+        pct = float(regla_monto[0]) / 100.0 if regla_monto else 0.5
 
         return {"requiere": True,
                 "monto": round(total * pct, 2),
@@ -363,10 +823,30 @@ class ERPBridge:
 
     # ── Confirmar pago de anticipo ────────────────────────────────────────────
 
-    def confirmar_pago_anticipo(self, venta_id: int, monto: float,
+    def confirmar_pago_anticipo(self, venta_id: str, monto: float,
                                  referencia: str = "",
                                  metodo: str = "mercadopago") -> bool:
-        """Marca anticipo como pagado y actualiza la venta."""
+        return self.payment_gateway.confirm_payment(venta_id, monto, referencia, metodo)
+
+    def _confirmar_pago_anticipo_impl(self, venta_id: str, monto: float,
+                                      referencia: str = "",
+                                      metodo: str = "mercadopago") -> bool:
+        if self._use_api:
+            try:
+                # Obtener anticipo_id del venta_id
+                row = self.db.execute(
+                    "SELECT id FROM anticipos WHERE venta_id=? AND estado='pendiente' LIMIT 1",
+                    (venta_id,)
+                ).fetchone()
+                if row:
+                    self._api_post(f"/api/v1/anticipos/{row[0]}/confirmar", {
+                        "monto": monto, "referencia": referencia, "metodo": metodo,
+                    })
+                    return True
+            except Exception as exc:
+                self._handle_api_write_failure("confirmar_pago_anticipo", exc)
+
+        self._assert_sqlite_write_allowed("confirmar_pago_anticipo")
         try:
             self.db.execute("""
                 UPDATE anticipos SET estado='pagado', fecha_pago=datetime('now'),
@@ -385,11 +865,11 @@ class ERPBridge:
     # ── Verificar stock y generar OC ──────────────────────────────────────────
 
     def verificar_stock_items(self, items: List[Dict],
-                               sucursal_id: int) -> List[Dict]:
-        """
-        Verifica stock para cada item.
-        Retorna lista de items con campo 'falta' (cantidad que no hay en stock).
-        """
+                               sucursal_id: str) -> List[Dict]:
+        return self.inventory_gateway.check_stock(items, sucursal_id)
+
+    def _verificar_stock_items_impl(self, items: List[Dict],
+                                    sucursal_id: str) -> List[Dict]:
         resultado = []
         for it in items:
             prod_id = it.get("producto_id")
@@ -407,10 +887,35 @@ class ERPBridge:
             resultado.append({**it, "stock_actual": stock_actual, "falta": falta})
         return resultado
 
-    def generar_orden_compra(self, producto_id: int, cantidad: float,
-                              sucursal_id: int,
+    # InventoryGateway impl
+    def check_stock(self, items: List[Dict], sucursal_id: str) -> List[Dict]:
+        return self.verificar_stock_items(items, sucursal_id)
+
+    def create_purchase_order(self, producto_id: str, cantidad: float,
+                              sucursal_id: str, notas: str = "") -> Optional[int]:
+        return self.generar_orden_compra(producto_id, cantidad, sucursal_id, notas)
+
+    def generar_orden_compra(self, producto_id: str, cantidad: float,
+                              sucursal_id: str,
                               notas: str = "OC automática desde WA") -> Optional[int]:
-        """Genera una Orden de Compra cuando falta stock."""
+        return self.inventory_gateway.create_purchase_order(producto_id, cantidad, sucursal_id, notas)
+
+    def _generar_orden_compra_impl(self, producto_id: str, cantidad: float,
+                                   sucursal_id: str,
+                                   notas: str = "OC automática desde WA") -> Optional[int]:
+        if self._use_api:
+            try:
+                data = self._api_post("/api/v1/ordenes-compra", {
+                    "producto_id": producto_id, "cantidad": cantidad,
+                    "sucursal_id": sucursal_id, "notas": notas,
+                })
+                return data["orden_id"]
+            except Exception as exc:
+                self._handle_api_write_failure("generar_orden_compra", exc)
+
+        self._assert_sqlite_write_allowed("generar_orden_compra")
+        # Fallback SQLite — usado cuando ERP_API_URL no está configurado.
+        # Endpoint REST disponible: POST /api/v1/ordenes-compra
         try:
             prod = self.db.execute(
                 "SELECT nombre, proveedor_id FROM productos WHERE id=?",
@@ -434,12 +939,33 @@ class ERPBridge:
 
     # ── Programar delivery ────────────────────────────────────────────────────
 
-    def programar_delivery(self, venta_id: int, direccion: str,
+    # DeliveryGateway impl
+    def schedule(self, venta_id: str, direccion: str,
+                 fecha_entrega: str = "", telefono_cliente: str = "") -> bool:
+        return self.programar_delivery(venta_id, direccion,
+                                       fecha_entrega, telefono_cliente)
+
+    def programar_delivery(self, venta_id: str, direccion: str,
                             fecha_entrega: str = "",
                             telefono_cliente: str = "") -> bool:
-        """Registra el delivery en pedidos_whatsapp (flujo existente) sin modificarlo."""
+        return self.delivery_gateway.schedule(venta_id, direccion, fecha_entrega, telefono_cliente)
+
+    def _programar_delivery_impl(self, venta_id: str, direccion: str,
+                                 fecha_entrega: str = "",
+                                 telefono_cliente: str = "") -> bool:
+        if self._use_api:
+            try:
+                self._api_patch(
+                    f"/api/v1/pedidos/{venta_id}/estado",
+                    estado="confirmado",
+                    notas=f"delivery:{direccion}",
+                )
+                # Fallthrough to also update delivery fields via DB
+            except Exception as exc:
+                self._handle_api_write_failure("programar_delivery", exc)
+
+        self._assert_sqlite_write_allowed("programar_delivery")
         try:
-            # Solo actualiza el tipo_entrega y datos en ventas — NO toca programar_delivery()
             self.db.execute("""
                 UPDATE ventas SET tipo_entrega='domicilio',
                     direccion_entrega=?,
@@ -454,8 +980,7 @@ class ERPBridge:
 
     # ── Compras / OC staff phones ─────────────────────────────────────────────
 
-    def get_compras_phones(self, sucursal_id: int) -> List[str]:
-        """Obtiene teléfonos del personal de compras."""
+    def get_compras_phones(self, sucursal_id: str) -> List[str]:
         rows = self.db.execute("""
             SELECT COALESCE(telefono, '') as tel
             FROM configuraciones
@@ -463,6 +988,4 @@ class ERPBridge:
         """).fetchall()
         if rows:
             return [r[0] for r in rows if r[0]]
-
-        # Fallback: empleados con rol compras
         return self.get_staff_phones(sucursal_id, rol="compras")

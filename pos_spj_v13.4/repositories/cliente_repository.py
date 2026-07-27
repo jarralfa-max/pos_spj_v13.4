@@ -14,6 +14,21 @@ logger = logging.getLogger("spj.repo.clientes")
 class ClienteRepository:
     def __init__(self, db_conn):
         self.db = db_conn
+        self._clientes_columns_cache: set[str] | None = None
+
+    def _get_clientes_columns(self) -> set[str]:
+        if self._clientes_columns_cache is not None:
+            return self._clientes_columns_cache
+        try:
+            rows = self.db.execute("PRAGMA table_info(clientes)").fetchall()
+            cols = {str(r[1]) for r in rows}
+        except Exception:
+            cols = set()
+        self._clientes_columns_cache = cols
+        return cols
+
+    def _has_clientes_column(self, column_name: str) -> bool:
+        return column_name in self._get_clientes_columns()
 
     # ── Consultas ────────────────────────────────────────────────────────────
 
@@ -24,24 +39,51 @@ class ClienteRepository:
         return dict(row) if row else None
 
     def get_by_codigo(self, codigo: str) -> Optional[dict]:
-        row = self.db.execute(
-            "SELECT * FROM clientes WHERE codigo_fidelidad=? OR telefono=?",
-            (codigo, codigo)
-        ).fetchone()
+        if self._has_clientes_column("codigo_fidelidad"):
+            query = "SELECT * FROM clientes WHERE codigo_fidelidad=? OR telefono=?"
+            params = (codigo, codigo)
+        else:
+            query = "SELECT * FROM clientes WHERE telefono=?"
+            params = (codigo,)
+        row = self.db.execute(query, params).fetchone()
         return dict(row) if row else None
 
     def buscar(self, termino: str, limit: int = 50) -> list:
+        """Busca clientes activos por nombre, teléfono, email, qr o fidelidad."""
         q = f"%{termino}%"
-        rows = self.db.execute("""
-            SELECT id, nombre, telefono, email, puntos, codigo_fidelidad,
-                   activo, fecha_registro
+        has_codigo_fidelidad = self._has_clientes_column("codigo_fidelidad")
+        fidelidad_clause = " OR COALESCE(codigo_fidelidad,'') LIKE ?" if has_codigo_fidelidad else ""
+        query = f"""
+            SELECT *
             FROM clientes
             WHERE (nombre LIKE ? OR telefono LIKE ? OR email LIKE ?
-                   OR codigo_fidelidad LIKE ?)
+                   OR COALESCE(codigo_qr,'') LIKE ?
+                   {fidelidad_clause}
+                   OR CAST(id AS TEXT) = ?)
               AND activo = 1
             ORDER BY nombre LIMIT ?
-        """, (q, q, q, q, limit)).fetchall()
+        """
+        params = [q, q, q, q]
+        if has_codigo_fidelidad:
+            params.append(q)
+        params.extend([termino, limit])
+        rows = self.db.execute(query, tuple(params)).fetchall()
         return [dict(r) for r in rows]
+
+    def get_by_scanner(self, codigo: str) -> Optional[dict]:
+        """Busca cliente activo por ID numérico, teléfono, código QR o código de fidelidad."""
+        if self._has_clientes_column("codigo_fidelidad"):
+            query = """SELECT * FROM clientes
+               WHERE (CAST(id AS TEXT)=? OR telefono=? OR codigo_qr=? OR codigo_fidelidad=?)
+                 AND activo=1 LIMIT 1"""
+            params = (codigo, codigo, codigo, codigo)
+        else:
+            query = """SELECT * FROM clientes
+               WHERE (CAST(id AS TEXT)=? OR telefono=? OR codigo_qr=?)
+                 AND activo=1 LIMIT 1"""
+            params = (codigo, codigo, codigo)
+        row = self.db.execute(query, params).fetchone()
+        return dict(row) if row else None
 
     def get_all(self, solo_activos: bool = True, limit: int = 200) -> list:
         sql = "SELECT * FROM clientes"
@@ -50,11 +92,52 @@ class ClienteRepository:
         sql += " ORDER BY nombre LIMIT ?"
         return [dict(r) for r in self.db.execute(sql, (limit,)).fetchall()]
 
+    def get_filtered(self, filtro: str = "todos", limit: int = 500) -> list:
+        """Get clientes with state filter: 'activos', 'inactivos', or 'todos'."""
+        if filtro == "activos":
+            sql = "WHERE activo=1"
+        elif filtro == "inactivos":
+            sql = "WHERE activo=0"
+        else:
+            sql = ""
+        query = f"SELECT id, nombre, COALESCE(apellido,'') as apellido, telefono, puntos, nivel_fidelidad, COALESCE(saldo,0) as saldo, COALESCE(limite_credito,0) as limite_credito, COALESCE(activo,1) as activo FROM clientes {sql} ORDER BY nombre LIMIT ?"
+        return [dict(r) for r in self.db.execute(query, (limit,)).fetchall()]
+
+    def buscar_por_termino(self, termino: str, filtro: str = "todos", limit: int = 500) -> list:
+        """Search clientes by name, phone, id or QR with state filter."""
+        if filtro == "activos":
+            estado_sql = "AND activo=1"
+        elif filtro == "inactivos":
+            estado_sql = "AND activo=0"
+        else:
+            estado_sql = ""
+
+        if termino.startswith("CLI-") or termino.startswith("QR-"):
+            codigo = termino.split('-')[-1] if '-' in termino else termino
+            query = f"SELECT id, nombre, COALESCE(apellido,'') as apellido, telefono, puntos, nivel_fidelidad, COALESCE(saldo,0) as saldo, COALESCE(limite_credito,0) as limite_credito, COALESCE(activo,1) as activo FROM clientes WHERE (codigo_qr=? OR id=?) {estado_sql} ORDER BY nombre LIMIT ?"
+            return [dict(r) for r in self.db.execute(query, (termino, codigo, limit)).fetchall()]
+        else:
+            like_param = f"%{termino}%"
+            query = f"SELECT id, nombre, COALESCE(apellido,'') as apellido, telefono, puntos, nivel_fidelidad, COALESCE(saldo,0) as saldo, COALESCE(limite_credito,0) as limite_credito, COALESCE(activo,1) as activo FROM clientes WHERE (nombre LIKE ? OR COALESCE(apellido,'') LIKE ? OR telefono LIKE ? OR id=?) {estado_sql} ORDER BY nombre LIMIT ?"
+            return [dict(r) for r in self.db.execute(query, (like_param, like_param, like_param, termino, limit)).fetchall()]
+
     def contar(self, solo_activos: bool = True) -> int:
         sql = "SELECT COUNT(*) FROM clientes"
         if solo_activos:
             sql += " WHERE activo=1"
         return self.db.execute(sql).fetchone()[0]
+
+    def get_stats_aggregate(self) -> dict:
+        """Devuelve estadísticas agregadas: total, activos, con tarjeta, puntos totales."""
+        row = self.db.execute("""
+            SELECT
+                COUNT(*) AS total,
+                COUNT(CASE WHEN activo=1 THEN 1 END) AS activos,
+                COUNT(CASE WHEN codigo_qr IS NOT NULL AND activo=1 THEN 1 END) AS con_tarjeta,
+                COALESCE(SUM(CASE WHEN activo=1 THEN puntos ELSE 0 END), 0) AS puntos_totales
+            FROM clientes
+        """).fetchone()
+        return dict(row) if row else {"total": 0, "activos": 0, "con_tarjeta": 0, "puntos_totales": 0}
 
     def existe(self, cliente_id: int) -> bool:
         r = self.db.execute(
@@ -111,19 +194,21 @@ class ClienteRepository:
 
     def crear(self, nombre: str, telefono: str = "", email: str = "",
               direccion: str = "", notas: str = "",
-              codigo_fidelidad: str = None) -> int:
+              codigo_fidelidad: str = None) -> str:
         if not nombre.strip():
             raise ValueError("nombre es obligatorio")
-        cur = self.db.execute("""
+        from backend.shared.ids import new_uuid
+        cliente_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute("""
             INSERT INTO clientes
-                (nombre, telefono, email, direccion, notas,
+                (id, nombre, telefono, email, direccion, notas,
                  codigo_qr, activo, fecha_alta)
-            VALUES (?,?,?,?,?,?,1,datetime('now'))
-        """, (nombre.strip(), telefono, email, direccion, notas, codigo_fidelidad))
+            VALUES (?,?,?,?,?,?,?,1,datetime('now'))
+        """, (cliente_id, nombre.strip(), telefono, email, direccion, notas, codigo_fidelidad))
         try: self.db.commit()
         except Exception: pass
-        logger.info("Cliente creado id=%d nombre=%s", cur.lastrowid, nombre)
-        return cur.lastrowid
+        logger.info("Cliente creado id=%s nombre=%s", cliente_id, nombre)
+        return cliente_id
 
     def actualizar(self, cliente_id: int, **campos) -> bool:
         if not campos:

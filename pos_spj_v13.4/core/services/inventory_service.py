@@ -12,9 +12,16 @@ class InventoryService:
     Toda entrada o salida registra un movimiento inmutable y actualiza el caché de stock.
     """
 
-    def __init__(self, db_conn, inventory_repo):
+    def __init__(self, db_conn, inventory_repo=None):
         self.db = db_conn
+        if inventory_repo is None:
+            from repositories.inventory_repository import InventoryRepository
+            inventory_repo = InventoryRepository(db_conn)
         self.repo = inventory_repo
+        logger.warning(
+            "DEPRECATED: InventoryService is deprecated. "
+            "Use core.services.inventory.unified_inventory_service.UnifiedInventoryService instead."
+        )
         
     # ¡BAM! Un muro de seguridad de una sola línea
     @require_permission('adjust_inventory')
@@ -118,6 +125,43 @@ class InventoryService:
         Lectura ultrarrápida para el POS. Lee del caché, no suma movimientos.
         """
         return self.repo.get_current_stock(product_id, branch_id)
+
+    # ── v13.4: aliases en español para EventBus wiring ────────────────────────
+
+    def descontar_stock(self, producto_id: int, cantidad: float,
+                        branch_id: int = 1, referencia_id: str = "EVT",
+                        usuario: str = "sistema", **kwargs) -> None:
+        """Alias de deduct_stock() para uso desde EventBus."""
+        self.deduct_stock(
+            product_id=producto_id, branch_id=branch_id, qty=cantidad,
+            reference_type="SALE_EVENT", reference_id=str(referencia_id),
+            operation_id=kwargs.get("operation_id", str(producto_id)),
+            user=usuario, notes=kwargs.get("notes", ""),
+        )
+
+    def incrementar_stock(self, producto_id: int, cantidad: float,
+                          unit_cost: float = 0.0, branch_id: int = 1,
+                          referencia_id: str = "EVT",
+                          usuario: str = "sistema", **kwargs) -> None:
+        """Alias de add_stock() para uso desde EventBus."""
+        self.add_stock(
+            product_id=producto_id, branch_id=branch_id, qty=cantidad,
+            unit_cost=unit_cost,
+            reference_type="PURCHASE_EVENT", reference_id=str(referencia_id),
+            operation_id=kwargs.get("operation_id", str(producto_id)),
+            user=usuario, notes=kwargs.get("notes", ""),
+        )
+
+    def ajustar_merma(self, producto_id: int, cantidad: float,
+                      branch_id: int = 1, referencia_id: str = "MERMA",
+                      usuario: str = "sistema", **kwargs) -> None:
+        """Descuenta merma del inventario. Alias para EventBus."""
+        self.deduct_stock(
+            product_id=producto_id, branch_id=branch_id, qty=cantidad,
+            reference_type="WASTE", reference_id=str(referencia_id),
+            operation_id=kwargs.get("operation_id", str(producto_id)),
+            user=usuario, notes=kwargs.get("notes", "merma"),
+        )
 
     def conciliate_stock(self, product_id: int, branch_id: int):
         """

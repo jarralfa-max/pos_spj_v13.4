@@ -24,7 +24,7 @@ def up(conn):
         # ── sync_conflicts table ───────────────────────────────────────────────
         conn.execute("""
             CREATE TABLE IF NOT EXISTS sync_conflicts(
-                id             TEXT PRIMARY KEY,
+                id             TEXT NOT NULL PRIMARY KEY,
                 event_id       TEXT NOT NULL,
                 conflict_type  TEXT NOT NULL,
                 local_version  INTEGER,
@@ -75,7 +75,7 @@ def up(conn):
         # ── system_integrity_reports table ─────────────────────────────────────
         conn.execute("""
             CREATE TABLE IF NOT EXISTS system_integrity_reports(
-                id          TEXT PRIMARY KEY,
+                id          TEXT NOT NULL PRIMARY KEY,
                 report_type TEXT NOT NULL,
                 passed      INTEGER NOT NULL DEFAULT 0,
                 details     TEXT,

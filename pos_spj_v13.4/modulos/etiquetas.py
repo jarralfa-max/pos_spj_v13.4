@@ -13,6 +13,12 @@ Campos en la etiqueta:
 """
 from __future__ import annotations
 from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_secondary_button,
+    create_input, create_combo, apply_tooltip,
+    PageHeader, Toast,
+)
 import logging
 import os
 from datetime import date, timedelta
@@ -27,6 +33,7 @@ from PyQt5.QtWidgets import (
     QScrollArea, QFrame, QCompleter, QTabWidget
 )
 from PyQt5.QtCore import QDate, QStringListModel
+from core.events.event_bus import get_bus, AJUSTE_INVENTARIO, VENTA_COMPLETADA
 
 logger = logging.getLogger("spj.etiquetas")
 
@@ -57,7 +64,8 @@ class EtiquetaPreview(QLabel):
         self._render()
 
     def set_opciones(self, opciones: dict):
-        self.opciones.update(opciones)
+        for _k, _v in (opciones or {}).items():
+            self.opciones[_k] = _v
         self._render()
 
     def actualizar(self, datos: dict):
@@ -219,13 +227,19 @@ class ModuloEtiquetas(QWidget):
         self.container   = container
         self.db          = container.db
         self.usuario     = ""
-        self.sucursal_id = getattr(container, 'sucursal_id', 1)
+        self.sucursal_id = getattr(container, 'sucursal_id', '') or ''
         self._nombre_negocio = "SPJ"
         self._productos_cache = []   # [(id, nombre, precio, unidad)]
         self._selected_product_id = None
         self._build_ui()
         self._cargar_config()
         self._cargar_productos()
+        try:
+            bus = get_bus()
+            bus.subscribe(AJUSTE_INVENTARIO, self._on_stock_actualizado, label="etiquetas.stock.ajuste")
+            bus.subscribe(VENTA_COMPLETADA, self._on_stock_actualizado, label="etiquetas.stock.venta")
+        except Exception as exc:
+            logger.debug("No se pudo suscribir a eventos de stock: %s", exc)
 
     def set_usuario_actual(self, usuario: str, rol: str = "cajero") -> None:
         self.usuario = usuario
@@ -233,12 +247,20 @@ class ModuloEtiquetas(QWidget):
     def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
         self.sucursal_id = sucursal_id
 
+    def _on_stock_actualizado(self, _payload: dict):
+        """Refresca catálogo y vista previa cuando cambia inventario sin reiniciar app."""
+        try:
+            self._cargar_productos()
+            self._actualizar_preview()
+        except Exception as exc:
+            logger.debug("refresh etiquetas por stock: %s", exc)
+
     def _build_ui(self):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(12, 10, 12, 10)
 
         titulo = QLabel("🏷️ Diseño e Impresión de Etiquetas")
-        titulo.setStyleSheet("font-size:17px;font-weight:bold;color:#2C3E50;")
+        titulo.setObjectName("heading")
         lay.addWidget(titulo)
 
         splitter = QSplitter(Qt.Horizontal)
@@ -250,11 +272,7 @@ class ModuloEtiquetas(QWidget):
         ll = QVBoxLayout(left); ll.setSpacing(6)
 
         tabs = QTabWidget()
-        tabs.setStyleSheet("""
-            QTabWidget::pane { border:1px solid #ddd; border-radius:4px; background:white; }
-            QTabBar::tab { padding:6px 14px; font-size:12px; }
-            QTabBar::tab:selected { background:#3498db; color:white; font-weight:bold; border-radius:3px 3px 0 0; }
-        """)
+        tabs.setObjectName("tabWidget")
 
         # ── Tab 1: Producto ──────────────────────────────────────────────
         tab_prod = QWidget()
@@ -263,9 +281,7 @@ class ModuloEtiquetas(QWidget):
         # Búsqueda con autocompletado (reemplaza ComboBox)
         self.txt_buscar_producto = QLineEdit()
         self.txt_buscar_producto.setPlaceholderText("🔍 Buscar producto por nombre o código...")
-        self.txt_buscar_producto.setStyleSheet(
-            "padding:8px 12px; border:2px solid #3498db; border-radius:6px; "
-            "font-size:13px; background:white;")
+        self.txt_buscar_producto.setObjectName("inputField")
 
         self._completer_model = QStringListModel()
         self._completer = QCompleter()
@@ -283,14 +299,14 @@ class ModuloEtiquetas(QWidget):
         self.spin_precio = QDoubleSpinBox()
         self.spin_precio.setRange(0, 99999); self.spin_precio.setDecimals(2)
         self.spin_precio.setPrefix("$ ")
-        self.spin_precio.setStyleSheet("padding:4px;")
+        self.spin_precio.setObjectName("inputField")
         self.spin_precio.valueChanged.connect(self._actualizar_preview)
         pf.addRow("Precio:", self.spin_precio)
 
         # Unidad de medida (reemplaza peso fijo)
         self.cmb_unidad = QComboBox()
         self.cmb_unidad.addItems(["kg", "g", "pz", "lt", "ml", "m", "cm", "oz", "lb"])
-        self.cmb_unidad.setStyleSheet("padding:4px;")
+        self.cmb_unidad.setObjectName("inputField")
         self.cmb_unidad.currentIndexChanged.connect(self._on_unidad_change)
         pf.addRow("Unidad:", self.cmb_unidad)
 
@@ -298,7 +314,7 @@ class ModuloEtiquetas(QWidget):
         self.spin_cantidad = QDoubleSpinBox()
         self.spin_cantidad.setRange(0.001, 99999); self.spin_cantidad.setDecimals(3)
         self.spin_cantidad.setValue(1.0)
-        self.spin_cantidad.setStyleSheet("padding:4px;")
+        self.spin_cantidad.setObjectName("inputField")
         self.spin_cantidad.valueChanged.connect(self._actualizar_preview)
         self.lbl_cantidad = QLabel("Cantidad:")
         pf.addRow(self.lbl_cantidad, self.spin_cantidad)
@@ -393,17 +409,15 @@ class ModuloEtiquetas(QWidget):
         ll.addWidget(grp_imp)
 
         btn_row = QHBoxLayout()
-        btn_pdf = QPushButton("📄 PDF")
-        btn_pdf.setStyleSheet("padding:8px 12px;border-radius:4px;")
+        btn_pdf = create_secondary_button(self, "📄 PDF", "Guardar etiqueta como PDF")
         btn_pdf.clicked.connect(self._guardar_pdf)
-        btn_test = QPushButton("🧪 Muestra")
-        btn_test.setStyleSheet(
-            "background:#8e44ad;color:white;font-weight:bold;padding:8px 16px;border-radius:4px;")
+        
+        btn_test = create_primary_button(self, "🧪 Muestra", "Imprimir etiqueta de prueba")
         btn_test.clicked.connect(self._imprimir_muestra)
-        btn_imp = QPushButton("🖨️ Imprimir")
-        btn_imp.setStyleSheet(
-            "background:#2980b9;color:white;font-weight:bold;padding:8px 16px;border-radius:4px;")
+        
+        btn_imp = create_success_button(self, "🖨️ Imprimir", "Enviar a impresora de etiquetas")
         btn_imp.clicked.connect(self._imprimir)
+        
         btn_row.addWidget(btn_pdf); btn_row.addWidget(btn_test); btn_row.addWidget(btn_imp)
         ll.addLayout(btn_row)
         ll.addStretch()
@@ -414,7 +428,7 @@ class ModuloEtiquetas(QWidget):
         # ══════════════════════════════════════════════════════════════════
         right = QWidget(); rl = QVBoxLayout(right)
         lbl_prev = QLabel("Vista previa de etiqueta:")
-        lbl_prev.setStyleSheet("font-weight:bold;color:#555;")
+        lbl_prev.setObjectName("subheading")
         rl.addWidget(lbl_prev)
         self.preview = EtiquetaPreview()
         rl.addWidget(self.preview, 0, Qt.AlignHCenter | Qt.AlignTop)
@@ -429,10 +443,8 @@ class ModuloEtiquetas(QWidget):
     def _cargar_productos(self):
         """Carga productos de la BD y configura el autocompletado."""
         try:
-            rows = self.db.execute(
-                "SELECT id, nombre, COALESCE(precio,0), COALESCE(unidad,'pz') "
-                "FROM productos WHERE activo=1 ORDER BY nombre LIMIT 2000"
-            ).fetchall()
+            from repositories.productos import ProductoRepository
+            rows = ProductoRepository(self.db).listar_para_etiquetas()
             self._productos_cache = [
                 (r[0], r[1], float(r[2]), str(r[3])) for r in rows
             ]
@@ -478,10 +490,8 @@ class ModuloEtiquetas(QWidget):
 
     def _cargar_config(self):
         try:
-            row = self.db.execute(
-                "SELECT valor FROM configuraciones WHERE clave='nombre_empresa'"
-            ).fetchone()
-            self._nombre_negocio = row[0] if row else "SPJ"
+            cfg = getattr(self.container, "config_service", None)
+            self._nombre_negocio = (cfg.get("nombre_empresa") if cfg else None) or "SPJ"
         except Exception:
             self._nombre_negocio = "SPJ"
 
@@ -534,18 +544,14 @@ class ModuloEtiquetas(QWidget):
 
     def _get_printer_config(self) -> dict:
         """Lee configuración de impresora de etiquetas desde hardware_config."""
-        import json as _json
+        from core.repositories.hardware_config_repository import HardwareConfigRepository
+        repo = HardwareConfigRepository(self.db)
         # Intentar ambas claves posibles
         for tipo_key in ('etiquetas', 'impresora_etiquetas'):
             try:
-                row = self.db.execute(
-                    "SELECT configuraciones FROM hardware_config WHERE tipo=?",
-                    (tipo_key,)
-                ).fetchone()
-                if row and row[0]:
-                    cfg = _json.loads(row[0])
-                    if cfg.get("ubicacion") or cfg.get("ip") or cfg.get("puerto_serial"):
-                        return cfg
+                cfg = repo.get_config(tipo_key)
+                if cfg and (cfg.get("ubicacion") or cfg.get("ip") or cfg.get("puerto_serial")):
+                    return cfg
             except Exception:
                 pass
         return {}
@@ -620,8 +626,7 @@ class ModuloEtiquetas(QWidget):
                 comandos = gen.etiqueta_producto(lote_data)
                 raw = comandos.encode("utf-8") if isinstance(comandos, str) else comandos
                 self._send_to_printer(raw, cfg)
-                QMessageBox.information(self, "✅ Muestra",
-                    f"Etiqueta de prueba enviada a: {cfg.get('ubicacion','impresora')}")
+                Toast.success(self, "✅ Muestra enviada", cfg.get('ubicacion','impresora'))
                 return
             except Exception as e:
                 logger.warning("_imprimir_muestra HW: %s", e)
@@ -671,8 +676,10 @@ class ModuloEtiquetas(QWidget):
                 comandos = gen.etiqueta_producto(lote_data)
                 raw = comandos.encode("utf-8") if isinstance(comandos, str) else comandos
                 self._send_to_printer(raw, cfg)
-            QMessageBox.information(self, "✅ Impreso",
-                f"{copias} etiqueta(s) enviadas a: {cfg.get('ubicacion','impresora')}")
+            Toast.success(
+                self, "✅ Impreso",
+                f"{copias} etiqueta(s) enviadas a {cfg.get('ubicacion','impresora')}",
+            )
         except Exception as e:
             logger.warning("_imprimir: %s", e)
             QMessageBox.warning(self, "⚠️ Error de impresora",
@@ -734,7 +741,6 @@ class ModuloEtiquetas(QWidget):
                     pass
                 c.showPage()
             c.save()
-            QMessageBox.information(self, "✅ PDF guardado",
-                f"Etiquetas guardadas en:\n{os.path.basename(ruta)}")
+            Toast.success(self, "✅ PDF guardado", os.path.basename(ruta))
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))

@@ -53,7 +53,7 @@ def up(conn):
     add_col("sucursales", "logo_path TEXT")
 
     # ── 2. Pedidos WhatsApp — ampliación v13 ──────────────────────────────────
-    add_col("pedidos_whatsapp", "sucursal_id INTEGER DEFAULT 1")
+    add_col("pedidos_whatsapp", "sucursal_id TEXT")
     add_col("pedidos_whatsapp", "hora_deseada TEXT")
     add_col("pedidos_whatsapp", "prioridad TEXT DEFAULT 'normal'")
     add_col("pedidos_whatsapp", "notificado_gerente INTEGER DEFAULT 0")
@@ -63,11 +63,11 @@ def up(conn):
     # ── 3. Órdenes de cotización ──────────────────────────────────────────────
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS ordenes_cotizacion (
-            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                      TEXT NOT NULL PRIMARY KEY,
             numero_orden            TEXT UNIQUE NOT NULL,
-            cotizacion_id           INTEGER REFERENCES cotizaciones(id),
-            cliente_id              INTEGER REFERENCES clientes(id),
-            sucursal_id             INTEGER DEFAULT 1,
+            cotizacion_id           TEXT REFERENCES cotizaciones(id),
+            cliente_id              TEXT REFERENCES clientes(id),
+            sucursal_id             TEXT,
             estado                  TEXT DEFAULT 'pendiente',
             -- pendiente | anticipo_pendiente | anticipo_pagado |
             -- en_preparacion | listo | entregado | cancelado
@@ -103,7 +103,7 @@ def up(conn):
     # ── 4. Reglas de anticipo ─────────────────────────────────────────────────
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS anticipo_reglas (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            id           TEXT NOT NULL PRIMARY KEY,
             tipo         TEXT NOT NULL CHECK(tipo IN ('categoria','monto')),
             categoria    TEXT,
             monto_desde  REAL DEFAULT 0,
@@ -111,13 +111,13 @@ def up(conn):
             pct_anticipo REAL NOT NULL DEFAULT 30.0
                          CHECK(pct_anticipo >= 0 AND pct_anticipo <= 100),
             activo       INTEGER DEFAULT 1,
-            sucursal_id  INTEGER DEFAULT 0,
+            sucursal_id  TEXT DEFAULT 0,
             notas        TEXT,
             created_at   DATETIME DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS anticipo_config (
-            clave TEXT PRIMARY KEY,
+            clave TEXT NOT NULL PRIMARY KEY,
             valor TEXT NOT NULL
         );
 
@@ -151,8 +151,7 @@ def up(conn):
     # ── 5. Lotes PDF de tarjetas ──────────────────────────────────────────────
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS lotes_tarjetas_pdf (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            uuid         TEXT UNIQUE DEFAULT (lower(hex(randomblob(8)))),
+            id           TEXT NOT NULL PRIMARY KEY,
             nombre       TEXT,
             cantidad     INTEGER NOT NULL DEFAULT 0,
             nivel        TEXT DEFAULT 'todos',
@@ -160,7 +159,7 @@ def up(conn):
             ruta_pdf     TEXT,
             plantilla    TEXT,
             usuario      TEXT,
-            sucursal_id  INTEGER DEFAULT 1,
+            sucursal_id  TEXT,
             created_at   DATETIME DEFAULT (datetime('now'))
         );
     """)
@@ -168,8 +167,8 @@ def up(conn):
     # ── 6. Permisos granulares ────────────────────────────────────────────────
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS rol_permisos (
-            id       INTEGER PRIMARY KEY AUTOINCREMENT,
-            rol_id   INTEGER NOT NULL,
+            id       TEXT NOT NULL PRIMARY KEY,
+            rol_id   TEXT NOT NULL,
             modulo   TEXT NOT NULL,
             accion   TEXT NOT NULL,
             -- ver | crear | editar | eliminar | exportar | aprobar
@@ -180,8 +179,8 @@ def up(conn):
             ON rol_permisos(rol_id, modulo);
 
         CREATE TABLE IF NOT EXISTS usuarios_sucursales (
-            usuario_id   INTEGER NOT NULL,
-            sucursal_id  INTEGER NOT NULL,
+            usuario_id   TEXT NOT NULL,
+            sucursal_id  TEXT NOT NULL,
             es_principal INTEGER DEFAULT 0,
             fecha_asign  DATETIME DEFAULT (datetime('now')),
             PRIMARY KEY(usuario_id, sucursal_id)
@@ -190,9 +189,9 @@ def up(conn):
 
     # ── 7. Columnas en usuarios ───────────────────────────────────────────────
     for col in [
-        "empleado_id INTEGER",
+        "empleado_id TEXT",
         "foto_path TEXT",
-        "sucursal_principal_id INTEGER DEFAULT 1",
+        "sucursal_principal_id TEXT",
         "intentos_fallidos INTEGER DEFAULT 0",
         "bloqueado_hasta DATETIME",
         "ultimo_acceso DATETIME",
@@ -201,11 +200,11 @@ def up(conn):
         add_col("usuarios", col)
 
     # ── 8. Columna usuario_id en personal (RRHH) ──────────────────────────────
-    add_col("personal", "usuario_id INTEGER")
+    add_col("personal", "usuario_id TEXT")
     add_col("personal", "foto_path TEXT")
 
     # ── 9. Bot sessions — sucursal elegida ────────────────────────────────────
-    add_col("bot_sessions", "sucursal_id INTEGER DEFAULT 1")
+    add_col("bot_sessions", "sucursal_id TEXT")
     add_col("bot_sessions", "contexto TEXT")  # JSON extra state
 
     # ── 10. Configuración WhatsApp — escalación pedidos ──────────────────────
@@ -228,106 +227,29 @@ def up(conn):
                 'Respuesta automática al cliente por pedido sin atender');
     """)
 
-    # ── 11. Roles predefinidos de sistema ─────────────────────────────────────
-    conn.executescript("""
-        INSERT OR IGNORE INTO roles(id,nombre,descripcion,activo)
-            VALUES(1,'admin','Acceso total al sistema',1);
-        INSERT OR IGNORE INTO roles(id,nombre,descripcion,activo)
-            VALUES(2,'gerente','Acceso a reportes, RRHH y configuración',1);
-        INSERT OR IGNORE INTO roles(id,nombre,descripcion,activo)
-            VALUES(3,'cajero','Solo ventas y caja',1);
-        INSERT OR IGNORE INTO roles(id,nombre,descripcion,activo)
-            VALUES(4,'almacen','Inventario, compras y recepción',1);
-        INSERT OR IGNORE INTO roles(id,nombre,descripcion,activo)
-            VALUES(5,'repartidor','Solo módulo delivery',1);
-        INSERT OR IGNORE INTO roles(id,nombre,descripcion,activo)
-            VALUES(6,'solo_lectura','Solo consulta sin modificaciones',1);
-    """)
-
-    # Permisos predefinidos para cada rol
-    MODULOS = [
-        'POS','INVENTARIO','PRODUCTOS','CLIENTES','COMPRAS','CAJA',
-        'REPORTES_BI','TESORERIA','RRHH','CONFIGURACION','USUARIOS',
-        'DELIVERY','COTIZACIONES','MERMA','PROVEEDORES','PRODUCCION',
-    ]
-    ACCIONES = ['ver','crear','editar','eliminar','exportar']
-
-    # Admin: todo
-    for mod in MODULOS:
-        for acc in ACCIONES:
-            conn.execute(
-                "INSERT OR IGNORE INTO rol_permisos(rol_id,modulo,accion,permitido) VALUES(1,?,?,1)",
-                (mod, acc))
-
-    # Gerente: todo excepto configuracion avanzada y eliminar usuarios
-    gerente_negar = {('CONFIGURACION','eliminar'), ('USUARIOS','eliminar')}
-    for mod in MODULOS:
-        for acc in ACCIONES:
-            perm = 0 if (mod, acc) in gerente_negar else 1
-            conn.execute(
-                "INSERT OR IGNORE INTO rol_permisos(rol_id,modulo,accion,permitido) VALUES(2,?,?,?)",
-                (mod, acc, perm))
-
-    # Cajero: POS, CAJA, CLIENTES ver/crear, COTIZACIONES ver/crear
-    cajero_perms = {
-        'POS': ['ver','crear','editar'],
-        'CAJA': ['ver','crear'],
-        'CLIENTES': ['ver','crear'],
-        'COTIZACIONES': ['ver','crear'],
-        'INVENTARIO': ['ver'],
-        'PRODUCTOS': ['ver'],
-    }
-    for mod, accs in cajero_perms.items():
-        for acc in accs:
-            conn.execute(
-                "INSERT OR IGNORE INTO rol_permisos(rol_id,modulo,accion,permitido) VALUES(3,?,?,1)",
-                (mod, acc))
-
-    # Almacén
-    almacen_perms = {
-        'INVENTARIO': ACCIONES,
-        'COMPRAS': ACCIONES,
-        'PRODUCTOS': ['ver','crear','editar'],
-        'MERMA': ACCIONES,
-        'PROVEEDORES': ACCIONES,
-        'PRODUCCION': ACCIONES,
-    }
-    for mod, accs in almacen_perms.items():
-        for acc in accs:
-            conn.execute(
-                "INSERT OR IGNORE INTO rol_permisos(rol_id,modulo,accion,permitido) VALUES(4,?,?,1)",
-                (mod, acc))
-
-    # Repartidor: solo delivery
-    conn.execute(
-        "INSERT OR IGNORE INTO rol_permisos(rol_id,modulo,accion,permitido) VALUES(5,'DELIVERY','ver',1)")
-    conn.execute(
-        "INSERT OR IGNORE INTO rol_permisos(rol_id,modulo,accion,permitido) VALUES(5,'DELIVERY','editar',1)")
-
-    # Solo lectura: ver todo
-    for mod in MODULOS:
-        conn.execute(
-            "INSERT OR IGNORE INTO rol_permisos(rol_id,modulo,accion,permitido) VALUES(6,?,?,1)",
-            (mod, 'ver'))
+    # ── 11. Roles y permisos: seed canónico UUIDv7 en m000 ────────────────────
+    # Los roles del sistema y su matriz rol_permisos se siembran born-clean con
+    # identidad UUIDv7 en migrations/m000_base_schema.py (_seed_system_roles).
+    # Aquí NO se siembran enteros 1..6 (identidad legacy prohibida — REGLA CERO).
 
     # Ensure ventas has sucursal_id (critical for multi-branch)
-    add_col("ventas", "sucursal_id INTEGER NOT NULL DEFAULT 1")
-    add_col("ventas", "uuid TEXT")
+    add_col("ventas", "sucursal_id TEXT NOT NULL")
+    # (Plan B) ventas.id ES el UUID; sin columna uuid dual.
 
     # Ensure compras has sucursal_id
-    add_col("compras", "sucursal_id INTEGER NOT NULL DEFAULT 1")
+    add_col("compras", "sucursal_id TEXT NOT NULL")
 
     # Ensure lotes has sucursal_id
-    add_col("lotes", "sucursal_id INTEGER NOT NULL DEFAULT 1")
+    add_col("lotes", "sucursal_id TEXT NOT NULL")
 
     # Ensure caja_operations has sucursal_id
-    add_col("caja_operations", "sucursal_id INTEGER NOT NULL DEFAULT 1")
+    add_col("caja_operations", "sucursal_id TEXT NOT NULL")
 
     # Ensure pedidos_whatsapp has sucursal_id
-    add_col("pedidos_whatsapp", "sucursal_id INTEGER NOT NULL DEFAULT 1")
+    add_col("pedidos_whatsapp", "sucursal_id TEXT NOT NULL")
 
     # Ensure delivery_orders has sucursal_id
-    add_col("delivery_orders", "sucursal_id INTEGER NOT NULL DEFAULT 1")
+    add_col("delivery_orders", "sucursal_id TEXT NOT NULL")
 
     # Ensure proveedores has all expected columns
     for col in [
@@ -346,18 +268,20 @@ def up(conn):
             pass
 
     # Ensure personal has usuario_id
-    add_col("personal", "usuario_id INTEGER")
+    add_col("personal", "usuario_id TEXT")
     add_col("personal", "foto_path TEXT")
 
-    # Crear usuario demo si no existe
+    # Crear usuario demo si no existe (identidad UUIDv7; sucursal = matriz de
+    # instalación, nunca el entero '1').
     try:
         import hashlib
+        from backend.shared.ids import new_uuid, INSTALL_BRANCH_UUID
         demo_hash = hashlib.sha256("demo".encode()).hexdigest()
         conn.execute(
             "INSERT OR IGNORE INTO usuarios "
-            "(nombre,usuario,password_hash,rol,sucursal_id,activo) "
-            "VALUES('Usuario Demo','demo',?,?  ,1,1)",
-            (demo_hash, 'cajero'))
+            "(id,nombre,usuario,password_hash,rol,sucursal_id,activo) "
+            "VALUES(?,'Usuario Demo','demo',?,?,?,1)",
+            (new_uuid(), demo_hash, 'cajero', INSTALL_BRANCH_UUID))
     except Exception: pass
 
     conn.execute("INSERT OR IGNORE INTO configuraciones(clave,valor) VALUES('app_version','13.0.0')")

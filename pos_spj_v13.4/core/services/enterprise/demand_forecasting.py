@@ -77,7 +77,8 @@ DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Doming
 class DemandForecastingEngine:
 
     def __init__(self, db):
-        self.db = db
+        from core.db.connection import wrap
+        self.db = wrap(db)
         self._bus = None
         try:
             from core.events.event_bus import get_bus
@@ -335,11 +336,11 @@ class DemandForecastingEngine:
         if branch_id:
             rows = self.db.fetchall("""
                 SELECT p.id, p.nombre, p.unidad,
-                       COALESCE(ia.cantidad, p.existencia, 0) AS stock,
+                       COALESCE(ia.quantity, p.existencia, 0) AS stock,
                        COALESCE(p.stock_minimo, 0) AS stock_min
                 FROM productos p
-                LEFT JOIN inventario_actual ia
-                    ON ia.producto_id = p.id AND ia.sucursal_id = ?
+                LEFT JOIN inventory_stock ia
+                    ON ia.product_id = p.id AND ia.branch_id = ?
                 WHERE p.activo = 1
             """, (branch_id,))
         else:

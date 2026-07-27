@@ -22,9 +22,9 @@ CADA operación:
 USO:
     app = container.app_service
     app.registrar_compra(producto_id=1, cantidad=50, costo=85.50, ...)
-    app.registrar_merma(producto_id=1, cantidad=2, motivo="Caducidad", ...)
 """
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 import logging
 import uuid
 from datetime import datetime
@@ -44,8 +44,6 @@ class ERPApplicationService:
         self.treasury = treasury_service
         self.loyalty = loyalty_service
         self.sucursal_id = sucursal_id
-        # inventory_service.add_stock() tiene bug de schema —
-        # usamos escritura directa con transacciones hasta que se corrija
         self._inv_svc = inventory_service
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -63,11 +61,10 @@ class ERPApplicationService:
         3. Registra egreso en tesorería
         """
         sid = sucursal_id or self.sucursal_id
-        op_id = str(uuid.uuid4())[:8]
+        op_id = new_uuid().replace('-', '')[-8:]
         ref = referencia or f"COMPRA-{op_id}"
 
         try:
-            # Siempre usar ruta directa con transacciones (inventory_service tiene bug de schema)
             self._entrada_directa(producto_id, cantidad, costo_unitario,
                                    "COMPRA", ref, usuario, sid)
 
@@ -89,46 +86,12 @@ class ERPApplicationService:
             logger.error("registrar_compra FALLÓ: %s", e)
             return {"ok": False, "error": str(e)}
 
-    def registrar_merma(self, producto_id: int, cantidad: float,
-                        motivo: str = "", usuario: str = "",
-                        sucursal_id: int = 0) -> Dict:
-        """
-        Registra salida de inventario por merma.
-        1. Movimiento de inventario (salida)
-        2. Actualiza stock
-        3. Registra pérdida en tesorería
-        """
-        sid = sucursal_id or self.sucursal_id
-        op_id = str(uuid.uuid4())[:8]
-        ref = f"MERMA-{op_id}"
-
-        try:
-            costo_unit = self._get_costo_producto(producto_id)
-            self._salida_directa(producto_id, cantidad, "MERMA", ref, usuario, sid)
-
-            # Registrar pérdida financiera
-            costo_total = round(cantidad * costo_unit, 2)
-            if self.treasury:
-                try:
-                    self.treasury.registrar_egreso(
-                        "merma", f"Merma prod #{producto_id}: {motivo}",
-                        costo_total, sid, ref, usuario)
-                except Exception:
-                    pass
-
-            logger.info("MERMA: prod=%d qty=%.3f motivo=%s", producto_id, cantidad, motivo)
-            return {"ok": True, "referencia": ref, "costo_perdido": costo_total}
-
-        except Exception as e:
-            logger.error("registrar_merma FALLÓ: %s", e)
-            return {"ok": False, "error": str(e)}
-
     def registrar_entrada_produccion(self, producto_id: int, cantidad: float,
                                       usuario: str = "", referencia: str = "",
                                       sucursal_id: int = 0) -> Dict:
         """Registra entrada por producción (producto terminado)."""
         sid = sucursal_id or self.sucursal_id
-        ref = referencia or f"PROD-{str(uuid.uuid4())[:8]}"
+        ref = referencia or f"PROD-{new_uuid().replace('-', '')[-8:]}"
         try:
             costo = self._get_costo_producto(producto_id)
             self._entrada_directa(producto_id, cantidad, costo,
@@ -142,7 +105,7 @@ class ERPApplicationService:
                                      sucursal_id: int = 0) -> Dict:
         """Registra salida por consumo en producción (materia prima)."""
         sid = sucursal_id or self.sucursal_id
-        ref = referencia or f"CONSUMO-{str(uuid.uuid4())[:8]}"
+        ref = referencia or f"CONSUMO-{new_uuid().replace('-', '')[-8:]}"
         try:
             self._salida_directa(producto_id, cantidad,
                                   "CONSUMO", ref, usuario, sid)
@@ -165,7 +128,7 @@ class ERPApplicationService:
             if abs(diff) < 0.001:
                 return {"ok": True, "sin_cambio": True}
 
-            ref = f"AJUSTE-{str(uuid.uuid4())[:8]}"
+            ref = f"AJUSTE-{new_uuid().replace('-', '')[-8:]}"
             if diff > 0:
                 self._entrada_directa(producto_id, diff, 0,
                                        "AJUSTE", ref, usuario, sid)
@@ -200,34 +163,27 @@ class ERPApplicationService:
     # ══════════════════════════════════════════════════════════════════════════
 
     def _entrada_directa(self, prod_id, qty, costo, tipo, ref, usuario, sid):
-        """Fallback: escribe directo con transacción si no hay inventory_service."""
-        with transaction(self.db) as c:
-            c.execute("""
-                INSERT INTO movimientos_inventario
-                    (uuid, producto_id, tipo, tipo_movimiento, cantidad,
-                     costo_unitario, costo_total, descripcion, referencia,
-                     usuario, sucursal_id, fecha)
-                VALUES (?,?,'ENTRADA',?,?,?,?,?,?,?,?,datetime('now'))
-            """, (str(uuid.uuid4()), prod_id, tipo, qty,
-                  costo, round(qty * costo, 2), tipo, ref, usuario, sid))
-            c.execute(
-                "UPDATE productos SET existencia = existencia + ?, "
-                "precio_compra = CASE WHEN ? > 0 THEN ? ELSE precio_compra END "
-                "WHERE id = ?",
-                (qty, costo, costo, prod_id))
+        """Registra entrada via UnifiedInventoryService (canonical apply_movement)."""
+        from core.services.inventory.unified_inventory_service import UnifiedInventoryService
+        UnifiedInventoryService(self.db, sucursal_id=sid, usuario=usuario).process_movement(
+            product_id=prod_id,
+            quantity=qty,
+            movement_type=tipo,
+            reference=ref,
+            metadata={"unit_cost": costo},
+        )
 
     def _salida_directa(self, prod_id, qty, tipo, ref, usuario, sid):
-        """Fallback: descuenta directo con transacción."""
-        with transaction(self.db) as c:
-            c.execute("""
-                INSERT INTO movimientos_inventario
-                    (uuid, producto_id, tipo, tipo_movimiento, cantidad,
-                     descripcion, referencia, usuario, sucursal_id, fecha)
-                VALUES (?,?,'SALIDA',?,?,?,?,?,?,datetime('now'))
-            """, (str(uuid.uuid4()), prod_id, tipo, qty, tipo, ref, usuario, sid))
-            c.execute(
-                "UPDATE productos SET existencia = MAX(0, existencia - ?) WHERE id = ?",
-                (qty, prod_id))
+        """Registra salida via UnifiedInventoryService; caps at available stock (legacy MAX(0,...) behavior)."""
+        from core.services.inventory.unified_inventory_service import UnifiedInventoryService, StockInsuficienteError
+        svc = UnifiedInventoryService(self.db, sucursal_id=sid, usuario=usuario)
+        try:
+            svc.process_movement(product_id=prod_id, quantity=-qty, movement_type=tipo, reference=ref)
+        except StockInsuficienteError:
+            row = self.db.execute("SELECT COALESCE(existencia, 0) FROM productos WHERE id=?", (prod_id,)).fetchone()
+            available = float(row[0]) if row else 0.0
+            if available > 1e-9:
+                svc.process_movement(product_id=prod_id, quantity=-available, movement_type=tipo, reference=ref)
 
     def _get_costo_producto(self, producto_id: int) -> float:
         try:

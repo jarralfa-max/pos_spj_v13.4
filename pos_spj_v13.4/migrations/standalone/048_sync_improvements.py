@@ -1,4 +1,7 @@
 # migrations/standalone/048_sync_improvements.py — SPJ POS v13.2
+# FUSIONADO en 054_sync_improvements_orphan.py (v13.4 audit)
+# Este archivo NO está registrado en engine.py. Sus cambios se aplican via 054.
+# NO ELIMINAR — referencia histórica para git blame.
 """
 Migración 048 — Mejoras al sistema de sync (v13.2).
 
@@ -29,14 +32,8 @@ def up(conn):
     add_col("event_log",   "operation_id TEXT")
     add_col("sync_outbox", "operation_id TEXT")
 
-    # Asegurar uuid en sync_outbox para idempotencia
-    add_col("sync_outbox", "uuid TEXT")
-    try:
-        conn.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_outbox_uuid "
-            "ON sync_outbox(uuid) WHERE uuid IS NOT NULL"
-        )
-    except Exception: pass
+    # Identidad UUIDv7 TEXT (REGLA CERO): sync_outbox.id ES la identidad
+    # (born-clean, sin columna uuid dual). Ya no se añade uuid.
 
     # Índices de performance para sync
     for idx in [

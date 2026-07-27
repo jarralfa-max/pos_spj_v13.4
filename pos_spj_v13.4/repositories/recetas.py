@@ -10,6 +10,7 @@ import sqlite3
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, List, Optional, Set
 
+from backend.shared.ids import new_uuid
 from core.events.event_bus import EventBus
 
 logger = logging.getLogger("spj.repositories.recetas")
@@ -41,54 +42,19 @@ class RecetaDuplicadaError(RecetaError):
     pass
 
 
-class _SQLiteTransaction:
-    """Context manager for SQLite transactions."""
-    def __init__(self, conn):
-        self.conn = conn
-
-    def __enter__(self):
-        self.conn.execute("BEGIN")
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is None:
-            self.conn.commit()
-        else:
-            self.conn.rollback()
-
-
-class SQLiteConnectionWrapper:
-    """Wrapper for sqlite3.Connection that adds a transaction method."""
-    def __init__(self, conn: sqlite3.Connection):
-        self._conn = conn
-
-    def transaction(self, name=None):
-        """Return a transaction context manager."""
-        return _SQLiteTransaction(self._conn)
-
-    def execute(self, sql, parameters=None):
-        """Delegate execute to the underlying connection."""
-        if parameters is None:
-            return self._conn.execute(sql)
-        return self._conn.execute(sql, parameters)
-
-    def __getattr__(self, name):
-        """Delegate any other attribute to the underlying connection."""
-        return getattr(self._conn, name)
-
-
 class RecetaRepository:
 
     def __init__(self, db):
-        # Wrap db if it doesn't have a transaction method
-        if not hasattr(db, 'transaction'):
-            db = SQLiteConnectionWrapper(db)
-        self.db = db
+        # Usar DatabaseWrapper para garantizar fetchall/fetchone/transaction
+        from core.db.connection import wrap
+        self.db = wrap(db)
 
         # Detect all columns in product_recipes
         self._product_columns = self._get_table_columns('product_recipes')
+        self._component_columns = self._get_table_columns('product_recipe_components')
         # Determine which column to use for product reference (prefer product_id if exists)
         self._product_col = self._detect_product_column()
+        self._ensure_component_columns()
 
     def _get_table_columns(self, table_name: str) -> Set[str]:
         """Return a set of column names for the given table."""
@@ -106,7 +72,9 @@ class RecetaRepository:
         elif 'base_product_id' in self._product_columns:
             return 'base_product_id'
         else:
-            raise RecetaError("No product column found in product_recipes")
+            # Fallback: use base_product_id as it was just added by _ensure_product_recipes_columns
+            logger.warning("product_recipes missing product columns — using base_product_id fallback")
+            return 'base_product_id'
 
     # ── Read ─────────────────────────────────────────────────────────────────
 
@@ -136,9 +104,16 @@ class RecetaRepository:
         return dict(row) if row else None
 
     def get_components(self, receta_id: int) -> List[Dict]:
-        rows = self.db.execute("""
+        unidad_expr = "COALESCE(rc.unidad, p.unidad, 'kg')" if "unidad" in self._component_columns else "COALESCE(p.unidad, 'kg')"
+        cantidad_expr = "COALESCE(rc.cantidad, 0)" if "cantidad" in self._component_columns else "0"
+        role_expr = "COALESCE(rc.component_role, '')" if "component_role" in self._component_columns else "''"
+        factor_expr = "COALESCE(rc.factor_costo, 1.0)" if "factor_costo" in self._component_columns else "1.0"
+        rows = self.db.execute(f"""
             SELECT rc.id, rc.recipe_id, rc.component_product_id,
-                   p.nombre AS component_nombre, p.unidad,
+                   p.nombre AS component_nombre, {unidad_expr} AS unidad,
+                   {cantidad_expr} AS cantidad,
+                   {role_expr} AS component_role,
+                   {factor_expr} AS factor_costo,
                    rc.rendimiento_pct, rc.merma_pct, rc.orden, rc.descripcion
             FROM product_recipe_components rc
             LEFT JOIN productos p ON p.id = rc.component_product_id
@@ -197,26 +172,40 @@ class RecetaRepository:
                 if r["component_product_id"] not in visited:
                     queue.append(r["component_product_id"])
 
-    def validate_percentages(self, components: List[Dict]) -> None:
-        """Validates sum(rendimiento_pct + merma_pct) <= 100.00 per component,
-        and total rendimiento does not exceed 100%."""
+    def validate_percentages(self, components: List[Dict], tipo_receta: str = "SUBPRODUCTO") -> None:
+        """Validación por tipo de receta (FASE 3)."""
+        tipo = (tipo_receta or "SUBPRODUCTO").upper().strip()
+        if tipo not in {"SUBPRODUCTO", "COMBINACION", "PRODUCCION"}:
+            raise RecetaPercentageError(f"TIPO_RECETA_INVALIDO: {tipo_receta}")
+
         total = Decimal("0")
         for comp in components:
             rend = Decimal(str(comp.get("rendimiento_pct", 0)))
             merma = Decimal(str(comp.get("merma_pct", 0)))
-            if rend < 0 or merma < 0:
-                raise RecetaPercentageError("NEGATIVE_PERCENTAGE")
-            row_total = rend + merma
-            if row_total > MAX_TOTAL:
-                raise RecetaPercentageError(
-                    f"COMPONENT_EXCEEDS_100: rend={rend} merma={merma}"
-                )
-            total += rend
+            cantidad = Decimal(str(comp.get("cantidad", 0)))
 
-        if total > MAX_TOTAL + TOLERANCE:
-            raise RecetaPercentageError(
-                f"TOTAL_RENDIMIENTO_EXCEEDS_100: {total}"
-            )
+            if tipo == "SUBPRODUCTO":
+                if rend < 0 or merma < 0:
+                    raise RecetaPercentageError("NEGATIVE_PERCENTAGE")
+                row_total = rend + merma
+                if row_total > MAX_TOTAL:
+                    raise RecetaPercentageError(
+                        f"COMPONENT_EXCEEDS_100: rend={rend} merma={merma}"
+                    )
+                total += row_total
+            else:
+                if cantidad <= 0:
+                    raise RecetaPercentageError(f"{tipo}_CANTIDAD_DEBE_SER_POSITIVA")
+
+        if tipo == "SUBPRODUCTO":
+            if total > MAX_TOTAL + TOLERANCE:
+                raise RecetaPercentageError(
+                    f"TOTAL_RENDIMIENTO_EXCEEDS_100: {total}"
+                )
+            if abs(total - MAX_TOTAL) > TOLERANCE:
+                raise RecetaPercentageError(
+                    f"TOTAL_RENDIMIENTO_MUST_BE_100: {total}"
+                )
 
     def check_unique_base_product(self, base_product_id: int,
                                    exclude_id: Optional[int] = None) -> None:
@@ -236,28 +225,65 @@ class RecetaRepository:
             )
 
     def validate_component_products_exist(self, component_ids: List[int]) -> None:
+        prod_cols = self._get_table_columns('productos')
+        active_col = "is_active" if "is_active" in prod_cols else ("activo" if "activo" in prod_cols else None)
         for cid in component_ids:
-            row = self.db.execute(
-                "SELECT id FROM productos WHERE id = ? AND is_active = 1", (cid,)
-            ).fetchone()
+            if active_col:
+                row = self.db.execute(
+                    f"SELECT id FROM productos WHERE id = ? AND COALESCE({active_col},1)=1", (cid,)
+                ).fetchone()
+            else:
+                row = self.db.execute(
+                    "SELECT id FROM productos WHERE id = ?", (cid,)
+                ).fetchone()
             if not row:
                 raise RecetaError(f"COMPONENT_NOT_FOUND: {cid}")
+
+    def _ensure_component_columns(self) -> None:
+        # Plan B born-clean: las columnas de product_recipe_components
+        # (cantidad/unidad/component_role/factor_costo) viven en migrations/.
+        # El repositorio no emite DDL.
+        return None
 
     # ── Write ────────────────────────────────────────────────────────────────
 
     def create(self, nombre: str, base_product_id: int,
-               components: List[Dict], usuario: str) -> int:
+               components: List[Dict], usuario: str,
+               tipo_receta: str = "SUBPRODUCTO") -> int:
         """
         components: list of dicts with keys:
             component_product_id, rendimiento_pct, merma_pct, orden, descripcion
+
+        tipo_receta must match the producto's tipo_producto:
+            COMBINACION → tipo_producto 'compuesto'
+            SUBPRODUCTO → tipo_producto 'procesable'
+            PRODUCCION  → tipo_producto 'producido'
         """
+        from core.services.recipes.recipe_validation_service import (
+            RecipeValidationService, RecetaTypeError as _RTE,
+        )
+
         component_ids = [c["component_product_id"] for c in components]
+
+        # Validate tipo_receta ↔ tipo_producto compatibility
+        prod_row = self.db.execute(
+            "SELECT tipo_producto FROM productos WHERE id = ?",
+            (base_product_id,)
+        ).fetchone()
+        if prod_row is None:
+            raise RecetaError(f"PRODUCT_NOT_FOUND: {base_product_id}")
+        tipo_producto = (dict(prod_row) if hasattr(prod_row, 'keys') else
+                         {"tipo_producto": prod_row[0]})["tipo_producto"] or "simple"
+        try:
+            RecipeValidationService.validate_tipo_receta_producto(tipo_receta, tipo_producto)
+        except _RTE as exc:
+            raise RecetaError(str(exc)) from exc
 
         # Validate
         self.check_unique_base_product(base_product_id)
         self.validate_no_cycle(base_product_id, component_ids)
         self.validate_component_products_exist(component_ids)
-        self.validate_percentages(components)
+        self.validate_percentages(components, tipo_receta)
 
         total_rend = sum(
             Decimal(str(c.get("rendimiento_pct", 0))) for c in components
@@ -281,7 +307,11 @@ class RecetaRepository:
                 placeholders.append('?')
                 parameters.append(val)
 
+        # Identidad UUIDv7 (REGLA CERO): mintar el id explícito (no autoincrement).
+        receta_id = new_uuid()
+        _add('id',               receta_id)
         _add('nombre_receta',    nombre.strip())
+        _add('tipo_receta',      tipo_receta.upper())
         _add('total_rendimiento', float(total_rend))
         _add('total_merma',      float(total_merma))
         _add('is_active',        1)
@@ -289,43 +319,40 @@ class RecetaRepository:
         _add('created_at',       now)
         _add('validates_at',     now)         # columna opcional (legacy)
         # Columnas de referencia al producto base (detectadas dinámicamente)
+        # FASE 0: Forzar piece_product_id = base_product_id para evitar IntegrityError
+        _add('piece_product_id', base_product_id)
         _add('product_id',       base_product_id)
         _add('base_product_id',  base_product_id)
+        # piece_product_id: NOT NULL — usar base_product_id como valor por defecto
+        # evita IntegrityError cuando el llamador no provee este campo (Fase 0 hotfix)
+        _add('piece_product_id', base_product_id)
 
         if not columns:
             raise RecetaError("No se encontraron columnas válidas en product_recipes")
 
         with self.db.transaction("RECETA_CREATE"):
-            # Insert the recipe
+            # Insert the recipe (id UUIDv7 explícito, ya incluido en columns)
             sql = f"INSERT INTO product_recipes ({', '.join(columns)}) VALUES ({', '.join(placeholders)})"
-            cur = self.db.execute(sql, parameters)
+            self.db.execute(sql, parameters)
 
-            # Usar lastrowid — no depende de row_factory
-            receta_id = cur.lastrowid
-            if not receta_id:
-                # Fallback: buscar por producto base (index[0] — no depende de row_factory)
-                row = self.db.execute(f"""
-                    SELECT id FROM product_recipes
-                    WHERE {self._product_col} = ?
-                    ORDER BY id DESC LIMIT 1
-                """, (base_product_id,)).fetchone()
-                if not row:
-                    raise RecetaError("No se pudo obtener el ID de la receta creada")
-                receta_id = row[0]
-
-            # Insert components
+            # Insert components (cada línea con su propio id UUIDv7)
             for i, comp in enumerate(components):
                 self.db.execute("""
                     INSERT INTO product_recipe_components (
-                        recipe_id, component_product_id,
-                        rendimiento_pct, merma_pct,
+                        id, recipe_id, component_product_id,
+                        rendimiento_pct, merma_pct, cantidad, unidad, component_role, factor_costo,
                         tolerancia_pct, orden, descripcion
-                    ) VALUES (?,?,?,?,?,?,?)
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (
+                    new_uuid(),
                     receta_id,
                     comp["component_product_id"],
                     float(Decimal(str(comp.get("rendimiento_pct", 0)))),
                     float(Decimal(str(comp.get("merma_pct", 0)))),
+                    float(Decimal(str(comp.get("cantidad", 0)))),
+                    (comp.get("unidad") or "kg"),
+                    (comp.get("component_role") or ""),
+                    float(Decimal(str(comp.get("factor_costo", 1.0)))),
                     float(comp.get("tolerancia_pct", 2.0)),
                     comp.get("orden", i),
                     comp.get("descripcion", ""),
@@ -333,9 +360,10 @@ class RecetaRepository:
 
             self._rebuild_dependency_graph(receta_id, base_product_id, component_ids)
 
-        EventBus.publish(RECETA_CREADA, {
-            "receta_id": receta_id,
-            "base_product_id": base_product_id
+        EventBus().publish(RECETA_CREADA, {
+            "receta_id":       receta_id,
+            "base_product_id": base_product_id,
+            "tipo_receta":     tipo_receta.upper(),
         })
         return receta_id
 
@@ -348,9 +376,24 @@ class RecetaRepository:
         base_product_id = existing["base_product_id"]
         component_ids = [c["component_product_id"] for c in components]
 
+        from core.services.recipes.recipe_validation_service import (
+            RecipeValidationService, RecetaTypeError as _RTE,
+        )
+
+        tipo_receta = (existing.get("tipo_receta") or "SUBPRODUCTO").upper().strip()
+        prod_row = self.db.execute(
+            "SELECT tipo_producto FROM productos WHERE id = ?",
+            (base_product_id,)
+        ).fetchone()
+        tipo_producto = (dict(prod_row) if hasattr(prod_row, "keys") else {"tipo_producto": prod_row[0]})["tipo_producto"] if prod_row else "simple"
+        try:
+            RecipeValidationService.validate_tipo_receta_producto(tipo_receta, tipo_producto)
+        except _RTE as exc:
+            raise RecetaError(str(exc)) from exc
+
         self.validate_no_cycle(base_product_id, component_ids)
         self.validate_component_products_exist(component_ids)
-        self.validate_percentages(components)
+        self.validate_percentages(components, tipo_receta)
 
         total_rend = sum(
             Decimal(str(c.get("rendimiento_pct", 0))) for c in components
@@ -382,17 +425,23 @@ class RecetaRepository:
                 (receta_id,)
             )
             for i, comp in enumerate(components):
+                # Identidad UUIDv7 por línea (REGLA CERO): la PK TEXT es NOT NULL.
                 self.db.execute("""
                     INSERT INTO product_recipe_components (
-                        recipe_id, component_product_id,
-                        rendimiento_pct, merma_pct,
+                        id, recipe_id, component_product_id,
+                        rendimiento_pct, merma_pct, cantidad, unidad, component_role, factor_costo,
                         tolerancia_pct, orden, descripcion
-                    ) VALUES (?,?,?,?,?,?,?)
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (
+                    new_uuid(),
                     receta_id,
                     comp["component_product_id"],
                     float(Decimal(str(comp.get("rendimiento_pct", 0)))),
                     float(Decimal(str(comp.get("merma_pct", 0)))),
+                    float(Decimal(str(comp.get("cantidad", 0)))),
+                    (comp.get("unidad") or "kg"),
+                    (comp.get("component_role") or ""),
+                    float(Decimal(str(comp.get("factor_costo", 1.0)))),
                     float(comp.get("tolerancia_pct", 2.0)),
                     comp.get("orden", i),
                     comp.get("descripcion", ""),
@@ -400,7 +449,7 @@ class RecetaRepository:
 
             self._rebuild_dependency_graph(receta_id, base_product_id, component_ids)
 
-        EventBus.publish(RECETA_ACTUALIZADA, {
+        EventBus().publish(RECETA_ACTUALIZADA, {
             "receta_id": receta_id,
             "base_product_id": base_product_id
         })
@@ -478,3 +527,55 @@ class RecetaRepository:
             (combo_product_id,)
         ).fetchall()
         return [dict(r) for r in rows2]
+
+    def get_ids_con_receta(self, product_ids: list) -> set:
+        """Batch check: returns set of product IDs that have at least one active recipe."""
+        if not product_ids:
+            return set()
+        ph = ",".join("?" * len(product_ids))
+        ids = list(product_ids)
+        try:
+            rows = self.db.execute(
+                f"""SELECT DISTINCT c FROM (
+                        SELECT producto_id      AS c FROM recetas
+                        WHERE  producto_id      IN ({ph}) AND (activa=1 OR activo=1)
+                        UNION
+                        SELECT producto_base_id AS c FROM recetas
+                        WHERE  producto_base_id IN ({ph}) AND (activa=1 OR activo=1)
+                    )""",
+                ids + ids,
+            ).fetchall()
+            return {r[0] for r in rows}
+        except Exception:
+            return set()
+
+    def get_componentes_insumo(self, producto_id: int) -> list:
+        """Return recipe components for a product (tries legacy receta_componentes first)."""
+        try:
+            rows = self.db.execute("""
+                SELECT rc.producto_id AS insumo_id,
+                       COALESCE(rc.cantidad, 0) AS cantidad_insumo,
+                       p.nombre AS insumo_nombre
+                FROM receta_componentes rc
+                JOIN recetas r ON r.id = rc.receta_id
+                JOIN productos p ON p.id = rc.producto_id
+                WHERE (r.producto_base_id=? OR r.producto_id=?)
+                  AND (r.activo=1 OR r.activa=1)
+            """, (producto_id, producto_id)).fetchall()
+            if rows:
+                return [dict(r) for r in rows]
+        except Exception:
+            pass
+        try:
+            rows = self.db.execute("""
+                SELECT rc.component_product_id AS insumo_id,
+                       COALESCE(rc.cantidad, 0) AS cantidad_insumo,
+                       p.nombre AS insumo_nombre
+                FROM product_recipe_components rc
+                JOIN product_recipes r ON r.id = rc.recipe_id
+                JOIN productos p ON p.id = rc.component_product_id
+                WHERE r.base_product_id=? AND r.is_active=1
+            """, (producto_id,)).fetchall()
+            return [dict(r) for r in rows]
+        except Exception:
+            return []

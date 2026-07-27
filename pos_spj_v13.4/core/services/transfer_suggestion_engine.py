@@ -33,7 +33,7 @@
 #      Cuanto más cerca de cero esté el stock del destino, mayor urgencia.
 #
 # FUENTES DE DATOS:
-#   stock   → inventario_actual (producto_id, sucursal_id, cantidad)
+#   stock   → inventory_stock (producto_id, sucursal_id, cantidad)
 #             fallback: branch_inventory (branch_id, product_id, quantity)
 #   ventas  → detalles_venta JOIN ventas (últimos 30 días, por sucursal)
 #   sucursales → tabla sucursales (activa=1)
@@ -329,14 +329,14 @@ class TransferSuggestionEngine:
 
     def _get_stock(self, product_id: int, branch_id: int) -> float:
         """
-        Lee stock actual. Prioriza inventario_actual (caché calculado),
+        Lee stock actual. Prioriza inventory_stock (caché calculado),
         luego branch_inventory (batches), luego productos.existencia como fallback.
         """
-        # Fuente 1: inventario_actual (más confiable post-migración 031)
+        # Fuente 1: inventory_stock (más confiable post-migración 031)
         try:
             row = self.db.execute(
-                "SELECT cantidad FROM inventario_actual "
-                "WHERE producto_id=? AND sucursal_id=?",
+                "SELECT quantity FROM inventory_stock "
+                "WHERE product_id=? AND branch_id=?",
                 (product_id, branch_id)
             ).fetchone()
             if row and row[0] is not None:
@@ -379,11 +379,11 @@ class TransferSuggestionEngine:
         try:
             rows = self.db.execute(
                 """
-                SELECT date(v.fecha) AS dia, SUM(CAST(dv.cantidad AS REAL)) AS qty
+                SELECT date(v.fecha) AS dia, SUM(CAST(dv.quantity AS REAL)) AS qty
                 FROM detalles_venta dv
                 JOIN ventas v ON v.id = dv.venta_id
-                WHERE dv.producto_id = ?
-                  AND v.sucursal_id  = ?
+                WHERE dv.product_id = ?
+                  AND v.branch_id  = ?
                   AND v.estado NOT IN ('cancelada','anulada')
                   AND date(v.fecha)  >= ?
                 GROUP BY date(v.fecha)

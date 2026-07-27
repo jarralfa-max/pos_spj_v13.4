@@ -114,8 +114,21 @@ class InventoryRepository:
                    ultima_actualizacion = datetime('now')
         """, (product_id, branch_id, new_qty, new_avg_cost))
 
+        # Sync branch_inventory — manual upsert: ON CONFLICT(product_id, branch_id)
+        # no puede usar UNIQUE(branch_id, product_id, batch_id) cuando batch_id IS NULL.
+        _bi_rows = self.db.execute("""
+            UPDATE branch_inventory
+            SET quantity = ?, updated_at = datetime('now')
+            WHERE product_id = ? AND branch_id = ? AND batch_id IS NULL
+        """, (new_qty, product_id, branch_id)).rowcount
+        if not _bi_rows:
+            self.db.execute("""
+                INSERT OR IGNORE INTO branch_inventory
+                    (product_id, branch_id, quantity, batch_id, updated_at)
+                VALUES (?, ?, ?, NULL, datetime('now'))
+            """, (product_id, branch_id, new_qty))
+
         # Sync productos.existencia = sum across all branches
-        # This is what POS, search, and all modules read for stock levels
         self.db.execute("""
             UPDATE productos
             SET existencia   = (SELECT COALESCE(SUM(cantidad),0)

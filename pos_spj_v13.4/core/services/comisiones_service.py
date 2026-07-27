@@ -16,8 +16,9 @@ logger = logging.getLogger("spj.comisiones")
 class ComisionesService:
     """Gestión de comisiones por venta para cajeros y vendedores."""
 
-    def __init__(self, db_conn):
-        self.db = db_conn
+    def __init__(self, db_conn, finance_service=None):
+        self.db       = db_conn
+        self._finance = finance_service
 
     # ── Config ──────────────────────────────────────────────────────────────
 
@@ -89,6 +90,24 @@ class ComisionesService:
                     (usuario, venta_id, total_venta, pct, monto, sucursal_id)
                 VALUES (?,?,?,?,?,?)
             """, (usuario, venta_id, total_venta, pct, monto, sucursal_id))
+
+            # Asiento de devengamiento: Gasto-Comisiones / Comisiones-por-Pagar (regla 11)
+            if self._finance and hasattr(self._finance, "registrar_asiento"):
+                try:
+                    self._finance.registrar_asiento(
+                        debe          = "6103-comisiones-por-venta",
+                        haber         = "2301-comisiones-por-pagar",
+                        concepto      = f"Comisión devengada: usuario={usuario} venta={venta_id} {pct:.1f}%",
+                        monto         = monto,
+                        modulo        = "comisiones",
+                        referencia_id = venta_id,
+                        sucursal_id   = sucursal_id,
+                        evento        = "COMISION_DEVENGADA",
+                        metadata      = {"usuario": usuario, "pct": pct, "total_venta": total_venta},
+                    )
+                except Exception as exc:
+                    logger.warning("registrar_comision asiento: %s", exc)
+
             try: self.db.commit()
             except Exception: pass
             logger.debug("Comisión: usuario=%s venta=%d monto=$%.2f", usuario, venta_id, monto)
@@ -131,12 +150,47 @@ class ComisionesService:
             return {}
 
     def marcar_pagadas(self, usuario: str, fecha_ini: str,
-                       fecha_fin: str) -> int:
-        """Marca las comisiones como pagadas al procesar nómina."""
+                       fecha_fin: str, sucursal_id: int = 1) -> int:
+        """
+        Marca las comisiones como pagadas al procesar nómina.
+        Registra asiento de pago: Comisiones-por-Pagar / Caja (regla 11).
+        """
+        # Calcular monto total antes de marcar pagadas
+        monto_total = 0.0
+        if self._finance and hasattr(self._finance, "registrar_asiento"):
+            try:
+                row = self.db.execute("""
+                    SELECT COALESCE(SUM(monto), 0)
+                    FROM comisiones_acumuladas
+                    WHERE usuario=? AND turno_fecha BETWEEN ? AND ? AND pagado=0
+                """, (usuario, fecha_ini, fecha_fin)).fetchone()
+                monto_total = float(row[0]) if row else 0.0
+            except Exception:
+                pass
+
         n = self.db.execute("""
             UPDATE comisiones_acumuladas SET pagado=1
             WHERE usuario=? AND turno_fecha BETWEEN ? AND ? AND pagado=0
         """, (usuario, fecha_ini, fecha_fin)).rowcount
+
+        # Asiento de pago: cancela el pasivo, sale de caja
+        if n > 0 and monto_total > 0 and self._finance and hasattr(self._finance, "registrar_asiento"):
+            try:
+                self._finance.registrar_asiento(
+                    debe          = "2301-comisiones-por-pagar",
+                    haber         = "110-caja",
+                    concepto      = f"Pago comisiones {usuario} período {fecha_ini}/{fecha_fin}",
+                    monto         = monto_total,
+                    modulo        = "comisiones",
+                    referencia_id = f"{usuario}:{fecha_ini}:{fecha_fin}",
+                    sucursal_id   = sucursal_id,
+                    evento        = "COMISION_PAGADA",
+                    metadata      = {"usuario": usuario, "fecha_ini": fecha_ini,
+                                     "fecha_fin": fecha_fin, "num_comisiones": n},
+                )
+            except Exception as exc:
+                logger.warning("marcar_pagadas asiento: %s", exc)
+
         try: self.db.commit()
         except Exception: pass
         return n

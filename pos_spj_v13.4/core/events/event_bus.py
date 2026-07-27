@@ -25,7 +25,7 @@ Eventos de dominio (v13.1):
   Simulación: SIMULACION_EJECUTADA
   IA:         AI_CONSULTA_REALIZADA
   Franquicia: FRANQUICIA_RANKING_GENERADO, FRANQUICIA_TRANSFERENCIA_SUGERIDA
-  RRHH:       EMPLOYEE_OVERWORK, EMPLOYEE_REST_DAY, PAYROLL_GENERATED, PAYROLL_DUE
+  HR:         PAYROLL_RUN_GENERATED, PAYROLL_PAID
   Spec (FASE 12): SALE_CREATED (=VENTA_COMPLETADA), STOCK_LOW (=STOCK_BAJO_MINIMO),
                   PRICE_BELOW_MARGIN
 """
@@ -49,6 +49,9 @@ AJUSTE_INVENTARIO       = "AJUSTE_INVENTARIO"
 PRODUCTO_ACTUALIZADO    = "PRODUCTO_ACTUALIZADO"
 PRODUCTO_CREADO         = "PRODUCTO_CREADO"
 PRODUCTO_ELIMINADO      = "PRODUCTO_ELIMINADO"
+# Evento canónico de cambio de stock — publicado por TODOS los escritores de inventario.
+# Payload obligatorio: sucursal_id, producto_ids, origen, referencia_id, timestamp
+INVENTARIO_ACTUALIZADO  = "INVENTARIO_ACTUALIZADO"
 # Pedidos WhatsApp / Delivery
 PEDIDO_NUEVO            = "PEDIDO_NUEVO"
 PEDIDO_ACTUALIZADO      = "PEDIDO_ACTUALIZADO"
@@ -66,6 +69,26 @@ PRODUCCION_INICIADA     = "PRODUCCION_INICIADA"
 TARJETA_ESCANEADA       = "TARJETA_ESCANEADA"
 PUNTOS_ACUMULADOS       = "PUNTOS_ACUMULADOS"
 NIVEL_CAMBIADO          = "NIVEL_CAMBIADO"
+# Fidelidad v13.4 (eventos auditables/idempotentes)
+LOYALTY_POINTS_EARNED = "LOYALTY_POINTS_EARNED"
+LOYALTY_POINTS_REDEEMED = "LOYALTY_POINTS_REDEEMED"
+LOYALTY_POINTS_REVERSED = "LOYALTY_POINTS_REVERSED"
+LOYALTY_POINTS_EXPIRED = "LOYALTY_POINTS_EXPIRED"
+LOYALTY_CARD_ASSIGNED = "LOYALTY_CARD_ASSIGNED"
+LOYALTY_CARD_BLOCKED = "LOYALTY_CARD_BLOCKED"
+LOYALTY_REFERRAL_REWARDED = "LOYALTY_REFERRAL_REWARDED"
+LOYALTY_BIRTHDAY_REWARD_ISSUED = "LOYALTY_BIRTHDAY_REWARD_ISSUED"
+LOYALTY_FRAUD_BLOCKED = "LOYALTY_FRAUD_BLOCKED"
+RAFFLE_CREATED = "RAFFLE_CREATED"
+RAFFLE_BUDGET_RESERVED = "RAFFLE_BUDGET_RESERVED"
+RAFFLE_ACTIVATED = "RAFFLE_ACTIVATED"
+RAFFLE_TICKET_GRANTED = "RAFFLE_TICKET_GRANTED"
+RAFFLE_TICKET_CANCELLED = "RAFFLE_TICKET_CANCELLED"
+RAFFLE_CLOSED = "RAFFLE_CLOSED"
+RAFFLE_WINNER_SELECTED = "RAFFLE_WINNER_SELECTED"
+RAFFLE_PRIZE_DELIVERED = "RAFFLE_PRIZE_DELIVERED"
+RAFFLE_BUDGET_RELEASED = "RAFFLE_BUDGET_RELEASED"
+
 # Proveedores
 PROVEEDOR_CREADO        = "PROVEEDOR_CREADO"
 PROVEEDOR_ACTUALIZADO   = "PROVEEDOR_ACTUALIZADO"
@@ -81,9 +104,6 @@ COTIZACION_ACTUALIZADA      = "COTIZACION_ACTUALIZADA"
 
 # Producción
 PRODUCCION_REGISTRADA       = "PRODUCCION_REGISTRADA"
-
-# RRHH
-EMPLEADO_ACTUALIZADO        = "EMPLEADO_ACTUALIZADO"
 
 # Clientes
 CLIENTE_ACTUALIZADO     = "CLIENTE_ACTUALIZADO"
@@ -108,6 +128,12 @@ AI_CONSULTA_REALIZADA   = "AI_CONSULTA_REALIZADA"  # tipo, pregunta, disponible,
 # Ventas — alias English spec (FASE 12)
 SALE_CREATED            = VENTA_COMPLETADA          # alias: spec requires SALE_CREATED
 
+# v13.4 spec aliases — aditivos, no cambian el core
+SALE_COMPLETED          = VENTA_COMPLETADA          # alias v13.4 spec
+STOCK_UPDATED           = AJUSTE_INVENTARIO         # alias v13.4 spec
+PURCHASE_CREATED        = COMPRA_REGISTRADA         # alias v13.4 spec
+MERMA_CREATED           = "MERMA_REGISTRADA"        # evento específico de merma v13.4
+
 # Inventario — alias English spec (FASE 12)
 STOCK_LOW               = STOCK_BAJO_MINIMO         # alias: spec requires STOCK_LOW
 
@@ -118,11 +144,9 @@ PRICE_BELOW_MARGIN      = "PRICE_BELOW_MARGIN"      # producto_id, precio_venta,
 FRANQUICIA_RANKING_GENERADO = "FRANQUICIA_RANKING_GENERADO"  # sucursales_count, top_sucursal, top_utilidad, fecha_desde, fecha_hasta
 FRANQUICIA_TRANSFERENCIA_SUGERIDA = "FRANQUICIA_TRANSFERENCIA_SUGERIDA"  # producto, desde_sucursal, hacia_sucursal, cantidad_sugerida
 
-# RRHH — FASE 11
-EMPLOYEE_OVERWORK       = "EMPLOYEE_OVERWORK"    # empleado_id, nombre, dias_consecutivos, sucursal_id
-EMPLOYEE_REST_DAY       = "EMPLOYEE_REST_DAY"    # empleado_id, nombre, fecha_descanso, sucursal_id
-PAYROLL_GENERATED       = "PAYROLL_GENERATED"    # empleado_id, nombre, periodo, total, sucursal_id
-PAYROLL_DUE             = "PAYROLL_DUE"          # empleado_id, nombre, dias_vencimiento, sucursal_id
+# HR payroll canonical event aliases
+PAYROLL_RUN_GENERATED   = "PAYROLL_RUN_GENERATED"
+PAYROLL_PAID            = "PAYROLL_PAID"
 
 # Sistema
 SESION_INICIADA         = "SESION_INICIADA"
@@ -130,6 +154,40 @@ SESION_CERRADA          = "SESION_CERRADA"
 FORECAST_GENERADO       = "FORECAST_GENERADO"
 # BI
 CONCILIACION_DIFERENCIA = "CONCILIACION_DIFERENCIA"
+
+# v13.5: ERP Use Cases — additive constants only
+CLIENTE_REGISTRADO      = CLIENTE_CREADO        # alias v13.5 backward compat
+COMPRA_PROCESADA        = COMPRA_REGISTRADA     # alias v13.5 backward compat
+
+# Delivery extended — variable-weight & reservations (v13.5)
+# payload shapes documented inline in DeliveryService
+DELIVERY_ORDER_RESERVED       = "DELIVERY_ORDER_RESERVED"         # order_id, items[], branch_id, operation_id
+DELIVERY_RESERVATION_RELEASED = "DELIVERY_RESERVATION_RELEASED"   # order_id, operation_id, released_count
+DELIVERY_ITEM_WEIGHT_ADJUSTED = "DELIVERY_ITEM_WEIGHT_ADJUSTED"   # order_id, item_id, requested_qty, prepared_qty, new_total, cliente_tel, folio
+DELIVERY_TOTAL_UPDATED        = "DELIVERY_TOTAL_UPDATED"          # order_id, old_total, new_total, folio, cliente_tel, cliente_email
+DELIVERY_TOTAL_FINALIZED      = "DELIVERY_TOTAL_FINALIZED"        # order_id, delivery_id, customer_id, branch_id, final_total, balance_due, payment_method
+DELIVERY_PAYMENT_UPDATED      = "DELIVERY_PAYMENT_UPDATED"        # order_id, payment_url, preference_id, new_total
+
+# Delivery lifecycle — full flow state machine (v13.30)
+DELIVERY_ORDER_CREATED        = "DELIVERY_ORDER_CREATED"          # order_id, folio, direccion, total, sucursal_id, usuario
+DELIVERY_ORDER_CONFIRMED      = "DELIVERY_ORDER_CONFIRMED"        # order_id, folio, cliente_tel, total
+DELIVERY_ORDER_PREPARING      = "DELIVERY_ORDER_PREPARING"        # order_id, folio, usuario
+DELIVERY_DRIVER_ASSIGNED      = "DELIVERY_DRIVER_ASSIGNED"        # order_id, driver_id, driver_nombre, tiempo_estimado
+DELIVERY_OUT_FOR_DELIVERY     = "DELIVERY_OUT_FOR_DELIVERY"       # order_id, driver_id, folio, cliente_tel
+DELIVERY_ORDER_DELIVERED      = "DELIVERY_ORDER_DELIVERED"        # order_id, folio, driver_id, total, sucursal_id
+DELIVERY_ORDER_CANCELLED      = "DELIVERY_ORDER_CANCELLED"        # order_id, folio, usuario, motivo
+INVENTORY_COMMIT_REQUIRED     = "INVENTORY_COMMIT_REQUIRED"       # order_id, items[], sucursal_id, operation_id
+INVENTORY_RELEASE_REQUIRED    = "INVENTORY_RELEASE_REQUIRED"      # order_id, operation_id, reason
+CUSTOMER_NOTIFICATION_REQUESTED = "CUSTOMER_NOTIFICATION_REQUESTED"  # order_id, canal, template, params, cliente_tel
+DRIVER_SETTLEMENT_CREATED     = "DRIVER_SETTLEMENT_CREATED"       # cut_id, driver_id, driver_nombre, efectivo, diferencia, fecha
+PURCHASE_SUGGESTION_CREATED   = "PURCHASE_SUGGESTION_CREATED"     # producto_id, cantidad_sugerida, motivo, sucursal_id
+
+# Caja (módulo de caja registradora)
+CAJA_MOVIMIENTO           = "CAJA_MOVIMIENTO"
+CAJA_TURNO_ABIERTO        = "CAJA_TURNO_ABIERTO"
+CAJA_TURNO_CERRADO        = "CAJA_TURNO_CERRADO"
+CAJA_CORTE_Z_GENERADO     = "CAJA_CORTE_Z_GENERADO"
+CAJA_DIFERENCIA_DETECTADA = "CAJA_DIFERENCIA_DETECTADA"
 
 
 class EventBus:
@@ -187,18 +245,35 @@ class EventBus:
         event_type: str,
         payload:    dict,
         async_:     bool = False,
+        strict:     bool = False,
     ) -> None:
+        """Publica un evento a todos los handlers registrados.
+
+        strict=True — modo transaccional crítico:
+            Si cualquier handler lanza una excepción, se relanza al llamador
+            para que la transacción activa pueda hacer rollback.
+            No debe usarse con async_=True.
+
+        strict=False (default) — modo leniente:
+            Los errores de handlers se loguean pero no se propagan.
+            Comportamiento original — no rompe flujos no críticos.
+        """
+        if strict and async_:
+            raise ValueError("publish(strict=True) no es compatible con async_=True")
+
         with self._lock:
             handlers = list(self._handlers.get(event_type, []))
 
         if not handlers:
+            if strict:
+                raise RuntimeError(f"Handlers críticos no registrados para evento '{event_type}'.")
             logger.debug("Evento '%s' sin handlers registrados.", event_type)
             return
 
         if async_:
-            self._executor.submit(self._dispatch, event_type, payload, handlers)
+            self._executor.submit(self._dispatch, event_type, payload, handlers, False)
         else:
-            self._dispatch(event_type, payload, handlers)
+            self._dispatch(event_type, payload, handlers, strict)
 
     def clear_handlers(self, event_type: Optional[str] = None) -> None:
         with self._lock:
@@ -211,6 +286,10 @@ class EventBus:
         with self._lock:
             return len(self._handlers.get(event_type, []))
 
+    def handler_labels(self, event_type: str) -> List[str]:
+        with self._lock:
+            return [label for _, label, _ in self._handlers.get(event_type, [])]
+
     def registered_events(self) -> List[str]:
         with self._lock:
             return [e for e, hs in self._handlers.items() if hs]
@@ -220,10 +299,10 @@ class EventBus:
         event_type: str,
         payload:    dict,
         handlers:   List[Tuple[int, str, Handler]],
+        strict:     bool = False,
     ) -> None:
         for priority, label, handler in handlers:
             try:
-                # Inject event_type into payload so handlers can identify the event
                 enriched = dict(payload) if payload else {}
                 if "event_type" not in enriched:
                     enriched["event_type"] = event_type
@@ -234,6 +313,8 @@ class EventBus:
                     "Handler FALLÓ [%s] → %s: %s",
                     event_type, label, exc, exc_info=True,
                 )
+                if strict:
+                    raise
 
 
 # ── Acceso global (singleton) ─────────────────────────────────────────────────

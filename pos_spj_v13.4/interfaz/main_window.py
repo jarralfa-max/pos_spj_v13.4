@@ -3,13 +3,16 @@
 # ── Ventana Principal / Orquestador Visual ────────────────────────────────────
 # Conecta TODOS los módulos disponibles mediante try/except por seguridad.
 # Un módulo con error de sintaxis NO derrumba el sistema completo.
+import logging
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QStackedWidget,
                              QLabel, QDialog, QVBoxLayout, QLineEdit, QPushButton,
-                             QMessageBox, QFrame, QMenuBar)
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QPixmap
+                             QMessageBox, QFrame, QSizePolicy)
+from PyQt5.QtCore import Qt, QTimer, pyqtSlot
+
+logger = logging.getLogger("spj.main_window")
 
 from interfaz.menu_lateral import MenuLateral
+from core.services.order_badge_service import OrderBadgeService
 
 # ─────────────────────────────────────────────────────────────────────────────
 # IMPORTACIÓN SEGURA DE TODOS LOS MÓDULOS
@@ -19,150 +22,171 @@ from interfaz.menu_lateral import MenuLateral
 # ── Operaciones ──────────────────────────────────────────────────────────────
 try:
     from modulos.ventas import ModuloVentas
-except Exception:
+except Exception as e:
     ModuloVentas = None
+    logger.error("Error cargando ModuloVentas: %s", e)
 
 try:
     from modulos.caja import ModuloCaja
-except Exception:
+except Exception as e:
     ModuloCaja = None
+    logger.error("Error cargando ModuloCaja: %s", e)
 
 try:
     from modulos.inventario_local import ModuloInventarioLocal
-except Exception:
+except Exception as e:
     ModuloInventarioLocal = None
+    logger.error("Error cargando ModuloInventarioLocal: %s", e)
 
 try:
     from modulos.productos import ModuloProductos
-except Exception:
+except Exception as e:
     ModuloProductos = None
+    logger.error("Error cargando ModuloProductos: %s", e)
 
 try:
     from modulos.clientes import ModuloClientes
-except Exception:
+except Exception as e:
     ModuloClientes = None
+    logger.error("Error cargando ModuloClientes: %s", e)
 
 try:
     from modulos.delivery import ModuloDelivery
-except Exception:
+except Exception as e:
     ModuloDelivery = None
+    logger.error("Error cargando ModuloDelivery: %s", e)
 
 try:
     from modulos.compras_pro import ModuloComprasPro
-except Exception:
+except Exception as e:
     ModuloComprasPro = None
+    logger.error("Error cargando ModuloComprasPro: %s", e)
 
 try:
     from modulos.cotizaciones import ModuloCotizaciones
-except Exception:
+except Exception as e:
     ModuloCotizaciones = None
+    logger.error("Error cargando ModuloCotizaciones: %s", e)
 
 try:
     from modulos.merma import ModuloMerma
-except Exception:
+except Exception as e:
     ModuloMerma = None
+    logger.error("Error cargando ModuloMerma: %s", e)
 
-try:
-    from modulos.proveedores import ModuloProveedores
-except Exception:
-    ModuloProveedores = None
+# ELIMINADO: Módulo Proveedores independiente — ahora integrado en FINANZAS_UNIFICADAS
+# La gestión de proveedores se accede desde la pestaña "Proveedores" dentro de Finanzas Unificadas
+ModuloProveedores = None
 
 try:
     from modulos.etiquetas import ModuloEtiquetas
-except Exception:
+except Exception as e:
     ModuloEtiquetas = None
+    logger.error("Error cargando ModuloEtiquetas: %s", e)
 
 try:
     from modulos.config_modules import ModuloConfigModulos
-except Exception:
+except Exception as e:
     ModuloConfigModulos = None
+    logger.error("Error cargando ModuloConfigModulos: %s", e)
 
-# ── Finanzas & Admin ──────────────────────────────────────────────────────────
+# ── Finanzas & Admin (UNIFICADOS) ───────────────────────────────────────────
+# Finanzas: bounded context nuevo (frontend/desktop/modules/finance).
+# Tesorería y Proveedores son páginas del mismo módulo.
 try:
     from modulos.finanzas import ModuloFinanzas
-except Exception:
+except Exception as e:
     ModuloFinanzas = None
+    logger.error("Error cargando ModuloFinanzas: %s", e)
+
+# ELIMINADO: Módulo Tesorería independiente — ahora integrado en FINANZAS_UNIFICADAS
+ModuloTesoreria = None
 
 try:
-    from modulos.tesoreria import ModuloTesoreria
-except Exception:
-    ModuloTesoreria = None
-
-try:
-    from modulos.rrhh import ModuloRRHH
-except Exception:
-    ModuloRRHH = None
+    from core.ui.hr_module_factory import CanonicalHRModule
+except Exception as e:
+    CanonicalHRModule = None
+    logger.error("Error cargando CanonicalHRModule: %s", e)
 
 try:
     from modulos.activos import ModuloActivos
-except Exception:
+except Exception as e:
     ModuloActivos = None
+    logger.error("Error cargando ModuloActivos: %s", e)
 
 # ── Marketing & Fidelidad ─────────────────────────────────────────────────────
 try:
     from modulos.tarjetas import ModuloTarjetas
-except Exception:
+except Exception as e:
     ModuloTarjetas = None
+    logger.error("Error cargando ModuloTarjetas: %s", e)
 
 try:
     from modulos.fidelidad_config import ModuloFidelidadConfig
-except Exception:
+except Exception as e:
     ModuloFidelidadConfig = None
+    logger.error("Error cargando ModuloFidelidadConfig: %s", e)
 
 try:
     from modulos.loyalty_card_designer import ModuloLoyaltyCardDesigner
-except Exception:
+except Exception as e:
     ModuloLoyaltyCardDesigner = None
+    logger.error("Error cargando ModuloLoyaltyCardDesigner: %s", e)
 
 try:
     from modulos.reportes_bi_v2 import ModuloReportesBIv2
-except Exception:
+except Exception as e:
     ModuloReportesBIv2 = None
+    logger.error("Error cargando ModuloReportesBIv2: %s", e)
 
 try:
     from modulos.planeacion_compras import ModuloPlaneacionCompras
-except Exception:
+except Exception as e:
     ModuloPlaneacionCompras = None
+    logger.error("Error cargando ModuloPlaneacionCompras: %s", e)
 
 # ── Producción & Recetas ──────────────────────────────────────────────────────
 try:
     from modulos.produccion import ModuloProduccion
-except Exception:
+except Exception as e:
     ModuloProduccion = None
+    logger.error("Error cargando ModuloProduccion: %s", e)
 
 # produccion_carnica unificada en ModuloProduccion (tabs Cárnica + Recetas)
 
 try:
-    from modulos.recetas import ModuloRecetas
-except Exception:
-    ModuloRecetas = None
-
-try:
     from modulos.whatsapp_module import ModuloWhatsApp
-except Exception:
+except Exception as e:
     ModuloWhatsApp = None
+    logger.error("Error cargando ModuloWhatsApp: %s", e)
 
 
 # ── Configuración & Herramientas ──────────────────────────────────────────────
 try:
     from modulos.configuracion import ModuloConfiguracion
-except Exception:
+except Exception as e:
     ModuloConfiguracion = None
+    logger.error("Error cargando ModuloConfiguracion: %s", e)
 
 try:
     from modulos.config_hardware import ModuloConfigHardware
-except Exception:
+except Exception as e:
     ModuloConfigHardware = None
+    logger.error("Error cargando ModuloConfigHardware: %s", e)
 
 try:
     from modulos.ticket_designer import ModuloTicketDesigner
-except Exception:
+except Exception as e:
     ModuloTicketDesigner = None
+    logger.error("Error cargando ModuloTicketDesigner: %s", e)
 
 try:
     from modulos.transferencias import ModuloTransferencias
-except Exception:
+except Exception as e:
     ModuloTransferencias = None
+    logger.error("Error cargando ModuloTransferencias: %s", e)
+
+# BI/Analytics UNIFICADO: único módulo visible = INTELIGENCIA_BI
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -176,112 +200,331 @@ class DialogoLogin(QDialog):
         self._sucursal_instalacion = self._leer_sucursal_instalacion()
 
         self.setWindowTitle("SPJ POS — Iniciar Sesión")
-        self.setFixedSize(340, 280)
-        self.setStyleSheet("""
-            QDialog    { background-color: #1E1E1E; color: #E8E8E8; }
-            QLabel     { color: #E8E8E8; }
-            QLineEdit  { padding: 10px; border: 1px solid #4A5568;
-                         border-radius: 4px; background: #2D3748; color: white; }
-            QPushButton{ background: #3498DB; color: white; font-weight: bold;
-                         padding: 10px; border-radius: 4px; }
-            QPushButton:hover { background: #2980B9; }
-        """)
+        self.setFixedSize(380, 500)
+        self.setObjectName("loginDialog")
+        # Sin bordes de sistema para look moderno
+        self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
         self._configurar_ui()
 
+    def paintEvent(self, event):
+        """Fondo oscuro con glow radial azul en la parte superior."""
+        from PyQt5.QtGui import QPainter, QRadialGradient, QColor as _QC, QBrush
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+
+        # Fondo base
+        p.fillRect(self.rect(), _QC("#09090f"))
+
+        # Glow radial centrado en la parte superior
+        W, H = self.width(), self.height()
+        grad = QRadialGradient(W / 2, H * 0.25, W * 0.55)
+        grad.setColorAt(0, _QC(37, 99, 235, 38))   # azul semitransparente
+        grad.setColorAt(1, _QC(9, 9, 15, 0))        # transparente al borde
+        p.fillRect(self.rect(), QBrush(grad))
+
+        # Borde redondeado exterior
+        from PyQt5.QtGui import QPen
+        p.setPen(QPen(_QC("#2a2a4a"), 1))
+        p.setBrush(Qt.NoBrush)
+        p.drawRoundedRect(self.rect().adjusted(0, 0, -1, -1), 14, 14)
+        p.end()
+        super().paintEvent(event)
+
+    def mousePressEvent(self, event):
+        """Permite arrastrar el diálogo (sin barra de título)."""
+        if event.button() == Qt.LeftButton:
+            self._drag_pos = event.globalPos() - self.frameGeometry().topLeft()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if hasattr(self, '_drag_pos') and event.buttons() & Qt.LeftButton:
+            self.move(event.globalPos() - self._drag_pos)
+        super().mouseMoveEvent(event)
+
     def _leer_sucursal_instalacion(self) -> dict:
-        """Lee la sucursal configurada para ESTA instalación."""
+        """Resuelve la sucursal de ESTA terminal desde configuraciones.
+
+        Estados (sin fallback silencioso a Principal):
+        - configurada y válida → {'id', 'nombre', 'configured': True};
+        - clave presente pero INVÁLIDA ("None"/""/null o sucursal inexistente/
+          inactiva) → configured False + error (el badge muestra advertencia);
+        - clave AUSENTE (bootstrap inicial) → se usa la primera sucursal activa
+          y se registra como instalación pendiente de configurar.
+        """
+        import logging as _log
+        _logger = _log.getLogger(__name__)
+        invalido = {'id': None, 'nombre': '', 'configured': False, 'pending': False,
+                    'error': 'Sucursal de instalación no configurada o inválida'}
         try:
             db = getattr(getattr(self.auth_service, 'repo', None), 'db', None)
             if not db:
-                return {'id': 1, 'nombre': 'Principal'}
-            # Leer sucursal de la instalación (configurada por admin)
-            row = db.execute(
-                "SELECT valor FROM configuraciones WHERE clave='sucursal_instalacion_id'"
-            ).fetchone()
-            suc_id = int(row[0]) if row and row[0] else 1
-            # Obtener nombre
-            suc_row = db.execute(
-                "SELECT nombre FROM sucursales WHERE id=?", (suc_id,)
-            ).fetchone()
-            nombre = suc_row[0] if suc_row else 'Principal'
-            return {'id': suc_id, 'nombre': nombre}
-        except Exception:
-            return {'id': 1, 'nombre': 'Principal'}
+                _logger.warning("_leer_sucursal_instalacion: no db connection available")
+                return dict(invalido)
+            from core.services.branch_resolution import resolve_installation_branch
+            resultado = resolve_installation_branch(db)
+            if resultado.get('pending') and resultado.get('id'):
+                # Bootstrap inicial: sucursal provisional utilizable en el
+                # login, aunque la instalación siga pendiente de configurar.
+                resultado = dict(resultado)
+                resultado['configured'] = True
+            return resultado
+        except Exception as exc:
+            _logger.error("_leer_sucursal_instalacion error: %s", exc)
+            return dict(invalido)
 
     def _configurar_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(12)
+        layout.setSpacing(0)
+        layout.setContentsMargins(36, 32, 36, 28)
 
-        # Logo empresa
-        lbl_logo = QLabel()
-        lbl_logo.setAlignment(Qt.AlignCenter)
+        # ── Barra de título minimalista (cerrar) ─────────────────────────
+        title_bar = QHBoxLayout()
+        title_bar.setContentsMargins(0, 0, 0, 0)
+        lbl_app = QLabel("SPJ POS")
+        lbl_app.setStyleSheet(
+            "color: #475569; font-size: 11px; font-weight: 600;"
+            " background: transparent;")
+        btn_close = QPushButton("✕")
+        btn_close.setFixedSize(24, 24)
+        # El ✕ NUNCA debe ser el botón por defecto: si lo fuera, pulsar Enter
+        # (p. ej. con el usuario escrito y sin contraseña) cerraría el diálogo
+        # y la app en vez de validar el login.
+        btn_close.setAutoDefault(False)
+        btn_close.setDefault(False)
+        btn_close.setStyleSheet(
+            "QPushButton { background: transparent; color: #475569;"
+            " border: none; font-size: 13px; border-radius: 12px; }"
+            " QPushButton:hover { background: #dc2626; color: white; }")
+        btn_close.clicked.connect(self.reject)
+        title_bar.addWidget(lbl_app)
+        title_bar.addStretch()
+        title_bar.addWidget(btn_close)
+        layout.addLayout(title_bar)
+        layout.addSpacing(16)
+
+        # ── Logo circular ────────────────────────────────────────────────
+        logo_container = QFrame()
+        logo_container.setFixedSize(80, 80)
+        logo_container.setStyleSheet(
+            "QFrame { border: 2px solid #2563EB; border-radius: 40px;"
+            " background: rgba(37,99,235,0.12); }")
+        logo_lay = QVBoxLayout(logo_container)
+        logo_lay.setContentsMargins(0, 0, 0, 0)
+
+        self.lbl_logo = QLabel()
+        self.lbl_logo.setAlignment(Qt.AlignCenter)
+        self.lbl_logo.setObjectName("loginLogo")
+        self.lbl_logo.setFixedSize(76, 76)
+        self.lbl_logo.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.lbl_logo.setScaledContents(False)
+
         try:
             from PyQt5.QtGui import QPixmap as _QP
             import os
             _db = getattr(getattr(self.auth_service, 'repo', None), 'db', None)
+            _logo = ""
             if _db:
-                _r = _db.execute("SELECT valor FROM configuraciones WHERE clave='logo_path'").fetchone()
-                if _r and _r[0] and os.path.exists(_r[0]):
-                    _pix = _QP(_r[0])
-                    if not _pix.isNull():
-                        lbl_logo.setPixmap(_pix.scaled(70, 70, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-                    else:
-                        raise Exception()
+                # Lectura vía repositorio (sin SQL en el diálogo — Remediación D).
+                from repositories.config_repository import ConfigRepository
+                _logo = ConfigRepository(_db).get_setting('logo_path', '')
+            if _logo and os.path.exists(_logo):
+                _pix = _QP(_logo)
+                if not _pix.isNull():
+                    _scaled = _pix.scaled(
+                        64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    self.lbl_logo.setPixmap(_scaled)
                 else:
                     raise Exception()
             else:
                 raise Exception()
         except Exception:
-            lbl_logo.setText("🏢"); lbl_logo.setStyleSheet("font-size:32px;")
-        layout.addWidget(lbl_logo)
+            self.lbl_logo.setText("SPJ")
+            self.lbl_logo.setStyleSheet(
+                "font-size: 20px; font-weight: 700; color: #ffffff;"
+                " background: transparent; border: none;")
 
-        titulo = QLabel("🏪 Iniciar Sesión")
-        titulo.setStyleSheet("font-size: 16px; font-weight: bold;")
+        logo_lay.addWidget(self.lbl_logo, alignment=Qt.AlignCenter)
+
+        logo_row = QHBoxLayout()
+        logo_row.addStretch()
+        logo_row.addWidget(logo_container)
+        logo_row.addStretch()
+        layout.addLayout(logo_row)
+        layout.addSpacing(16)
+
+        # ── Título ───────────────────────────────────────────────────────
+        titulo = QLabel("Iniciar sesión")
+        titulo.setObjectName("loginTitle")
         titulo.setAlignment(Qt.AlignCenter)
+        titulo.setStyleSheet(
+            "color: #f1f5f9; font-size: 22px; font-weight: 700;"
+            " background: transparent; border: none; letter-spacing: -0.3px;")
         layout.addWidget(titulo)
+        layout.addSpacing(4)
 
-        # Mostrar sucursal de esta instalación (solo info, no editable)
-        suc_nombre = self._sucursal_instalacion.get('nombre', 'Principal')
-        lbl_suc = QLabel(f"📍 Sucursal: {suc_nombre}")
+        lbl_sub = QLabel("Enterprise Edition · SPJ v13.4")
+        lbl_sub.setAlignment(Qt.AlignCenter)
+        lbl_sub.setStyleSheet(
+            "color: #475569; font-size: 11px; background: transparent; border: none;")
+        layout.addWidget(lbl_sub)
+        layout.addSpacing(12)
+
+        # ── Badge sucursal (la efectiva de esta terminal) ────────────────
+        _configurada = bool(self._sucursal_instalacion.get('configured')
+                            and self._sucursal_instalacion.get('id'))
+        if _configurada:
+            suc_nombre = self._sucursal_instalacion.get('nombre') or ""
+            lbl_suc = QLabel(f"📍  {suc_nombre}")
+            _badge_css = (
+                "color: #0891b2; background: rgba(8,145,178,0.12);"
+                " border: 1px solid rgba(8,145,178,0.35);")
+        else:
+            lbl_suc = QLabel("⚠️  Sucursal no configurada")
+            _badge_css = (
+                "color: #d97706; background: rgba(217,119,6,0.12);"
+                " border: 1px solid rgba(217,119,6,0.4);")
         lbl_suc.setAlignment(Qt.AlignCenter)
-        lbl_suc.setStyleSheet("font-size:11px; color:#0FB9B1;")
-        layout.addWidget(lbl_suc)
+        lbl_suc.setObjectName("loginSucursal")
+        lbl_suc.setWordWrap(True)
+        lbl_suc.setStyleSheet(
+            _badge_css +
+            " border-radius: 10px; font-size: 11px; font-weight: 600;"
+            " padding: 4px 14px;")
+        suc_row = QHBoxLayout()
+        suc_row.addStretch()
+        suc_row.addWidget(lbl_suc)
+        suc_row.addStretch()
+        layout.addLayout(suc_row)
+        layout.addSpacing(20)
 
-        self.txt_usuario  = QLineEdit(); self.txt_usuario.setPlaceholderText("Usuario o PIN")
-        self.txt_password = QLineEdit(); self.txt_password.setPlaceholderText("Contraseña")
-        self.txt_password.setEchoMode(QLineEdit.Password)
+        # ── Inputs ───────────────────────────────────────────────────────
+        _input_qss = (
+            "QLineEdit {"
+            "  background: #1a1a2e; border: 1.5px solid #2a2a4a;"
+            "  border-radius: 8px; color: #e2e8f0;"
+            "  font-size: 13px; padding: 8px 12px;"
+            "}"
+            "QLineEdit:focus {"
+            "  border-color: #2563EB;"
+            "  background: #1e2040;"
+            "}"
+            "QLineEdit::placeholder { color: #475569; }"
+        )
+
+        lbl_u = QLabel("Usuario o PIN")
+        lbl_u.setStyleSheet(
+            "color: #64748b; font-size: 11px; font-weight: 600;"
+            " background: transparent; border: none;")
+        layout.addWidget(lbl_u)
+        layout.addSpacing(4)
+
+        self.txt_usuario = QLineEdit()
+        self.txt_usuario.setPlaceholderText("usuario@spj.com  ·  ó PIN numérico")
+        self.txt_usuario.setObjectName("inputField")
+        self.txt_usuario.setMinimumHeight(42)
+        self.txt_usuario.setStyleSheet(_input_qss)
+        self.txt_usuario.returnPressed.connect(self.intentar_login)
         layout.addWidget(self.txt_usuario)
-        layout.addWidget(self.txt_password)
+        layout.addSpacing(12)
 
-        self.btn_login = QPushButton("Entrar al Sistema")
-        self.btn_login.clicked.connect(self.intentar_login)
+        lbl_p = QLabel("Contraseña")
+        lbl_p.setStyleSheet(
+            "color: #64748b; font-size: 11px; font-weight: 600;"
+            " background: transparent; border: none;")
+        layout.addWidget(lbl_p)
+        layout.addSpacing(4)
+
+        self.txt_password = QLineEdit()
+        self.txt_password.setPlaceholderText("••••••••")
+        self.txt_password.setEchoMode(QLineEdit.Password)
+        self.txt_password.setObjectName("inputField")
+        self.txt_password.setMinimumHeight(42)
+        self.txt_password.setStyleSheet(_input_qss)
         self.txt_password.returnPressed.connect(self.intentar_login)
+        layout.addWidget(self.txt_password)
+        layout.addSpacing(20)
+
+        # ── Botón principal ──────────────────────────────────────────────
+        self.btn_login = QPushButton("ENTRAR AL SISTEMA")
+        self.btn_login.setObjectName("primaryBtn")
+        self.btn_login.setCursor(Qt.PointingHandCursor)
+        self.btn_login.setMinimumHeight(46)
+        self.btn_login.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.btn_login.setStyleSheet(
+            "QPushButton {"
+            "  background: #2563EB; color: white; border: none;"
+            "  border-radius: 8px; font-size: 13px; font-weight: 700;"
+            "  letter-spacing: 0.5px;"
+            "}"
+            "QPushButton:hover {"
+            "  background: #1d4ed8;"
+            "}"
+            "QPushButton:pressed { background: #1e40af; }"
+            "QPushButton:disabled { background: #1e293b; color: #475569; }"
+        )
+        # ENTRAR es la acción por defecto: pulsar Enter siempre valida el login
+        # (mostrando el error si falta usuario o contraseña), nunca cierra la app.
+        self.btn_login.setAutoDefault(True)
+        self.btn_login.setDefault(True)
+        self.btn_login.clicked.connect(self.intentar_login)
         layout.addWidget(self.btn_login)
+
+        # ── Error ────────────────────────────────────────────────────────
+        self.lbl_error = QLabel("")
+        self.lbl_error.setObjectName("errorMsg")
+        self.lbl_error.setAlignment(Qt.AlignCenter)
+        self.lbl_error.setWordWrap(True)
+        self.lbl_error.setStyleSheet(
+            "color: #ef4444; font-size: 11px; background: transparent;"
+            " border: none; padding: 4px 0;")
+        layout.addWidget(self.lbl_error)
+
+        layout.addStretch()
+
+        # ── Footer ───────────────────────────────────────────────────────
+        from datetime import datetime as _dt
+        lbl_ver = QLabel(f"v13.4.0  ·  © {_dt.now().year} SPJ Systems")
+        lbl_ver.setAlignment(Qt.AlignCenter)
+        lbl_ver.setStyleSheet(
+            "color: #334155; font-size: 10px; background: transparent; border: none;")
+        layout.addWidget(lbl_ver)
 
     def intentar_login(self):
         usuario  = self.txt_usuario.text().strip()
         password = self.txt_password.text()
 
         if not usuario or not password:
-            QMessageBox.warning(self, "Aviso", "Por favor ingresa tu usuario y contraseña.")
+            self.lbl_error.setText("⚠️  Por favor ingresa usuario y contraseña.")
             return
+
+        self.btn_login.setEnabled(False)
+        self.btn_login.setText("Verificando...")
 
         try:
             resultado = self.auth_service.authenticate(usuario, password)
             if not resultado:
+                self.lbl_error.setText("❌  Usuario o contraseña incorrectos.")
                 return
 
-            # v13.4: Forzar la sucursal de ESTA instalación (no la del usuario)
-            resultado['sucursal_id'] = self._sucursal_instalacion['id']
-            resultado['sucursal_nombre'] = self._sucursal_instalacion['nombre']
-
+            # Inject the installation's configured branch.
+            # _sucursal_instalacion['id'] may be None if not configured yet.
+            inst = self._sucursal_instalacion
+            if inst.get('id') is not None:
+                resultado['sucursal_id'] = inst['id']
+            if inst.get('nombre'):
+                resultado['sucursal_nombre'] = inst['nombre']
+            if inst.get('id') is not None:
+                resultado['active_branch_id'] = str(inst['id'])
             self.usuario_autenticado = resultado
             self.accept()
 
         except PermissionError as e:
-            QMessageBox.warning(self, "Acceso Denegado", str(e))
+            self.lbl_error.setText(f"🔒  {str(e)}")
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Error al iniciar sesión:\n{str(e)}")
+            self.lbl_error.setText(f"❌  Error al iniciar sesión:\n{str(e)}")
+        finally:
+            self.btn_login.setEnabled(True)
+            self.btn_login.setText("ENTRAR AL SISTEMA")
 
 
 try:
@@ -307,6 +550,7 @@ class MainWindow(QMainWindow):
         self._configurar_busqueda_global()
         self._cargar_tema_inicial()
         self._cargar_logo_empresa()
+        self._suscribir_eventos_catalogo()
 
     # ── Menú superior ────────────────────────────────────────────────────────
     def _configurar_menu_superior(self):
@@ -333,7 +577,12 @@ class MainWindow(QMainWindow):
         m_hw.addAction("⚙️ Configurar Dispositivos").triggered.connect(
             lambda: self.manejar_navegacion("CONFIG_HARDWARE"))
 
-        mb.addMenu("❓ Ayuda")
+        # ── Menú Ayuda con Diagnóstico ────────────────────────────────────────
+        m_ayuda = mb.addMenu("❓ Ayuda")
+        m_ayuda.addAction("🔧 Diagnóstico del Sistema").triggered.connect(
+            self._mostrar_diagnostico)
+        m_ayuda.addAction("ℹ️ Acerca de SPJ POS").triggered.connect(
+            self._mostrar_acerca_de)
 
         # ── Badge de pedidos WhatsApp ─────────────────────────────────────────
         self._btn_pedidos = mb.addMenu("📦 Pedidos (0)")
@@ -397,27 +646,30 @@ class MainWindow(QMainWindow):
         self._conectar("DELIVERY",       ModuloDelivery,       "🛵 Delivery")
         self._conectar("COMPRAS",        ModuloComprasPro,     "🛒 Compras")
         self._conectar("COTIZACIONES",   ModuloCotizaciones,   "📋 Cotizaciones")
-        self._conectar("PROVEEDORES",    ModuloProveedores,    "🏭 Proveedores")
+        # ELIMINADO: _conectar("PROVEEDORES", ...) — módulo integrado en FINANZAS_UNIFICADAS
 
         # ── Producción ───────────────────────────────────────────────────────
         self._conectar("PRODUCCION",       ModuloProduccion,       "🔪 Procesamiento Cárnico")
         self._conectar("ETIQUETAS",        ModuloEtiquetas,        "🏷️ Etiquetas")
-        self._conectar("RECETAS",          ModuloRecetas,          "📖 Recetas Industriales")
         self._conectar("PLANEACION_COMPRAS", ModuloPlaneacionCompras, "📈 Planeación de Compras")
 
         # ── Administración ───────────────────────────────────────────────────
-        self._conectar("TESORERIA",      ModuloTesoreria,      "🏦 Tesorería")
-        self._conectar("FINANZAS",       ModuloFinanzas,       "📊 Finanzas")
-        self._conectar("ACTIVOS",        ModuloActivos,        "🏗️ Activos")
-        self._conectar("RRHH",           ModuloRRHH,           "👔 Recursos Humanos")
-        self._conectar("GROWTH_ENGINE",      ModuloFidelidadConfig,  "⭐ Fidelización")
-        self._conectar("TARJETAS_FIDELIDAD", ModuloTarjetas,         "💳 Tarjetas Fidelidad")
-        self._conectar("INTELIGENCIA_BI",    ModuloReportesBIv2,     "📈 Inteligencia BI")
-        self._conectar("WHATSAPP",           ModuloWhatsApp,         "📱 Pedidos WhatsApp")
+        # FINANZAS UNIFICADAS: Unifica Tesorería, Finanzas y Proveedores en un solo módulo UI
+        # Todos consumen core/services/finance/* (single source of truth)
+        self._conectar("FINANZAS_UNIFICADAS", ModuloFinanzas, "💰 Finanzas")
+        self._conectar("ACTIVOS",             ModuloActivos,        "🏗️ Activos")
+        self._conectar("RRHH",                CanonicalHRModule,    "👔 Recursos Humanos")
+        self._conectar("GROWTH_ENGINE",       ModuloFidelidadConfig,  "⭐ Fidelización")
+        self._conectar("TARJETAS_FIDELIDAD",  ModuloTarjetas,         "💳 Tarjetas Fidelidad")
+        # INTELIGENCIA DE NEGOCIOS UNIFICADA: Unifica BI, BI Pro, Decisiones y Planeación
+        # Todos consumen core/services/analytics/analytics_engine.py
+        self._conectar("INTELIGENCIA_BI",     ModuloReportesBIv2,     "📈 Inteligencia de Negocios")
+        self._conectar("WHATSAPP",            ModuloWhatsApp,         "📱 Pedidos WhatsApp")
 
         # ── Sistema ──────────────────────────────────────────────────────────
         self._conectar("DISEÑADOR_TICKETS", ModuloTicketDesigner, "🎨 Diseñador Tickets")
         self._conectar("CONFIG_HARDWARE",   ModuloConfigHardware, "🖨️ Hardware")
+        self._conectar("CONFIG_MODULOS",    ModuloConfigModulos,  "🔌 Configuración Módulos")
         self._conectar("CONFIG_SEGURIDAD",  ModuloConfiguracion,  "🛡️ Configuración")
 
     def _conectar(self, codigo, clase_widget, titulo_fallback):
@@ -428,13 +680,34 @@ class MainWindow(QMainWindow):
                 pantalla = clase_widget(self.container)
                 # v13.4: Auto-aplicar colores estándar a botones del módulo
                 try:
-                    from modulos.spj_styles import apply_spj_buttons
+                    from modulos.spj_styles import apply_spj_buttons, apply_spj_tooltips
                     apply_spj_buttons(pantalla)
+                    apply_spj_tooltips(pantalla)
                 except Exception:
                     pass
                 self.indices_pantallas[codigo] = self.stack.addWidget(pantalla)
+                # Wire dashboard navigation signal → manejar_navegacion
+                if hasattr(pantalla, 'abrir_modulo'):
+                    _DASH_NAV = {
+                        "ventas":           "POS",
+                        "inventario":       "INVENTARIO",
+                        "caja":             "CAJA",
+                        "clientes":         "CLIENTES",
+                        "pedidos_whatsapp": "WHATSAPP",
+                        "delivery":         "DELIVERY",
+                        "reportes":         "INTELIGENCIA_BI",
+                        "finanzas":         "FINANZAS_UNIFICADAS",
+                        "rrhh":             "RRHH",
+                        "productos":        "PRODUCTOS",
+                        "compras":          "COMPRAS",
+                    }
+                    pantalla.abrir_modulo.connect(
+                        lambda k: self.manejar_navegacion(_DASH_NAV.get(k, k.upper()))
+                    )
                 return
             except Exception as e:
+                import traceback as _tb
+                logger.error("Error cargando módulo %s:\n%s", codigo, _tb.format_exc())
                 desc = f"Error al cargar módulo:\n{e}"
         else:
             desc = "Módulo en integración..."
@@ -467,6 +740,15 @@ class MainWindow(QMainWindow):
 
     # ── Login ─────────────────────────────────────────────────────────────────
     def mostrar_login(self):
+        """Muestra el login modal.
+
+        Las credenciales inválidas NO cierran la app: el diálogo permanece
+        abierto mostrando el error inline ("Usuario o contraseña incorrectos.")
+        y permite reintentar. Si el usuario CIERRA el diálogo (Escape/✕) sin
+        autenticar, el login es obligatorio, así que la app se cierra de forma
+        limpia — sin diálogos extra de confirmación.
+        """
+        from PyQt5.QtWidgets import QApplication
         self.hide()
         dlg = DialogoLogin(self.container.auth_service, self)
         if dlg.exec_() == QDialog.Accepted:
@@ -479,8 +761,13 @@ class MainWindow(QMainWindow):
             self._propagar_usuario()
             self.stack.setCurrentIndex(self.indices_pantallas["BIENVENIDA"])
             self.show()
-        else:
-            self.stack.setCurrentIndex(self.indices_pantallas.get('BIENVENIDA', 0))
+            return
+
+        # Login cancelado: salida limpia y explícita (login obligatorio).
+        self.usuario_actual = None
+        app = QApplication.instance()
+        if app:
+            app.quit()
 
     def _propagar_usuario(self):
         """Notifica a todos los módulos cargados el usuario y sucursal actual."""
@@ -493,18 +780,51 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-        usuario     = self.usuario_actual.get("username", "")
-        nombre      = self.usuario_actual.get("nombre", usuario)
-        rol         = self.usuario_actual.get("rol", "cajero")
-        sucursal_id = self.usuario_actual.get("sucursal_id", 1)
-        nombre_suc  = self.usuario_actual.get("sucursal_nombre", "Principal")
+        usuario          = self.usuario_actual.get("username", "")
+        nombre           = self.usuario_actual.get("nombre", usuario)
+        rol              = self.usuario_actual.get("rol", "cajero")
+        # Identidad UUIDv7: la sucursal circula como UUID string. La fuente de
+        # verdad de la terminal es la sucursal de instalación (inyectada por el
+        # login) y, en su defecto, la resuelta por AppContainer bajo la
+        # semántica de 3 estados. NO se resuelve aquí una "primera activa":
+        # una configuración inválida debe quedar visible, no ocultarse.
+        def _inv(v) -> bool:
+            return v is None or str(v).strip().lower() in ("", "none", "null")
+
+        sucursal_id = self.usuario_actual.get("sucursal_id")
+        nombre_suc  = self.usuario_actual.get("sucursal_nombre") or ""
+        if _inv(sucursal_id):
+            sucursal_id = getattr(self.container, "sucursal_id", "") or ""
+            nombre_suc  = getattr(self.container, "sucursal_nombre", "") or ""
+            if _inv(sucursal_id):
+                sucursal_id = ""
+                nombre_suc = ""
+                import logging
+                logging.getLogger(__name__).warning(
+                    "_propagar_usuario: sucursal de instalación no configurada "
+                    "o inválida; la sesión queda SIN sucursal activa. Configura "
+                    "la terminal en Configuración → Empresa.")
+        sucursal_id = str(sucursal_id or "")
+        if sucursal_id and not nombre_suc:
+            try:
+                from repositories.main_window_repository import MainWindowReadRepository
+                nombre_suc = MainWindowReadRepository(self.container.db).nombre_sucursal(sucursal_id)
+            except Exception:
+                pass
+        self.usuario_actual["sucursal_id"] = sucursal_id
+        self.usuario_actual["sucursal_nombre"] = nombre_suc
+        active_branch_id = self.usuario_actual.get("active_branch_id") or sucursal_id
+        self.usuario_actual["active_branch_id"] = active_branch_id
 
         # v13.4: Actualizar barra de sesión
         if hasattr(self, '_session_bar'):
             rol_display = rol.capitalize().replace("_", " ")
+            if sucursal_id:
+                _suc_display = f"📍 {nombre_suc}  —  Sucursal ID: {sucursal_id}"
+            else:
+                _suc_display = "⚠️ Sucursal no configurada"
             self._session_bar.setText(
-                f"  📍 {nombre_suc}  —  👤 {nombre} ({rol_display})  —  "
-                f"Sucursal ID: {sucursal_id}")
+                f"  {_suc_display}  —  👤 {nombre} ({rol_display})")
             # Color según rol
             if rol in ('admin', 'superadmin'):
                 self._session_bar.setStyleSheet(
@@ -518,20 +838,23 @@ class MainWindow(QMainWindow):
                 self._session_bar.setStyleSheet(
                     "background:#2C3E50; color:#ecf0f1; font-size:11px; padding:0 12px;")
 
-        # Filtrar menú según rol (RBAC)
         try:
-            from security.rbac import get_permisos
-            uid = self.usuario_actual.get('id', 0)
-            permisos = get_permisos(uid, sucursal_id)
+            from core.services.configuration_settings_service import PermissionQueryService
+            from repositories.config_repository import ConfigRepository
+
+            permission_query = PermissionQueryService(ConfigRepository(self.container.db))
+            user_id = str(self.usuario_actual.get("id") or self.usuario_actual.get("user_id") or "")
+            permisos = permission_query.permission_codes_for_user(user_id, sucursal_id)
             if hasattr(self.menu, 'set_permisos'):
                 self.menu.set_permisos(permisos, rol)
-            # v13.4: Guardar permisos en SessionContext
             try:
                 self.container.session.set_permisos(permisos)
-            except Exception:
-                pass
-        except Exception:
-            pass
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).debug("session permisos: %s", exc)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning("No se pudieron cargar permisos configurados: %s", exc)
 
         # v13.4 FASES 1-13: Aplicar feature flags al menú tras login
         try:
@@ -556,11 +879,157 @@ class MainWindow(QMainWindow):
         except Exception as _e:
             import logging; logging.getLogger(__name__).debug("set_sucursal_activa: %s", _e)
 
+        # Publicar ACTIVE_BRANCH_CHANGED post-login (post-commit)
+        try:
+            from core.events.domain_events import ACTIVE_BRANCH_CHANGED
+            from core.events.event_bus import EventBus
+            from backend.shared.ids import new_uuid
+            from datetime import datetime, timezone
+            EventBus().publish(ACTIVE_BRANCH_CHANGED, {
+                "event_id":          new_uuid(),
+                "operation_id":      new_uuid(),
+                "user_id":           str(self.usuario_actual.get("id") or ""),
+                "previous_branch_id": "",
+                "active_branch_id":  active_branch_id,
+                "active_branch_name": nombre_suc,
+                "timestamp":         datetime.now(timezone.utc).isoformat(),
+                "source_module":     "main_window._propagar_usuario",
+            })
+        except Exception as _e:
+            import logging; logging.getLogger(__name__).debug("ACTIVE_BRANCH_CHANGED publish: %s", _e)
+
         # ── Session timeout: cierra sesión por inactividad ────────────────────
         self._arrancar_session_timeout()
 
-        # ── Inbox POS: mostrar mensajes no leídos tras login ──────────────────
+        # ── Inbox POS + badges de pedidos: arrancan tras CADA login ──────────
+        # (Antes vivían al final de aplicar_sucursal_activa(), que solo corre
+        # al re-anclar la sucursal desde Configuración — tras un login normal
+        # el inbox y el timer de badges nunca arrancaban.)
         QTimer.singleShot(800, self._mostrar_inbox_login)
+        QTimer.singleShot(500, self._start_badge_refresh)
+
+    def aplicar_sucursal_activa(self, sucursal_id: str, nombre: str = "") -> None:
+        """Propaga EN VIVO un cambio de sucursal activa a toda la sesión.
+
+        Lo invoca Configuración al re-anclar la sucursal de la instalación:
+        actualiza usuario_actual, la barra de sesión, los módulos cargados,
+        el AppContainer y publica ACTIVE_BRANCH_CHANGED. El login la leerá de
+        la clave persistida en el próximo arranque.
+        """
+        sucursal_id = str(sucursal_id or "")
+        if not sucursal_id:
+            return
+        previous = ""
+        if self.usuario_actual:
+            previous = str(self.usuario_actual.get("active_branch_id") or "")
+            self.usuario_actual["sucursal_id"] = sucursal_id
+            self.usuario_actual["sucursal_nombre"] = nombre
+            self.usuario_actual["active_branch_id"] = sucursal_id
+        if hasattr(self, "_session_bar") and self.usuario_actual:
+            nombre_u = self.usuario_actual.get("nombre", self.usuario_actual.get("username", ""))
+            rol = str(self.usuario_actual.get("rol", "")).capitalize().replace("_", " ")
+            self._session_bar.setText(
+                f"  📍 {nombre}  —  👤 {nombre_u} ({rol})  —  Sucursal ID: {sucursal_id}")
+        for idx in range(self.stack.count()):
+            widget = self.stack.widget(idx)
+            if hasattr(widget, "set_sucursal"):
+                try: widget.set_sucursal(sucursal_id, nombre)
+                except Exception: continue
+        try:
+            self.container.set_sucursal_activa(sucursal_id, nombre)
+        except Exception as _e:
+            import logging; logging.getLogger(__name__).debug("set_sucursal_activa: %s", _e)
+        try:
+            from core.events.domain_events import ACTIVE_BRANCH_CHANGED
+            from core.events.event_bus import EventBus
+            from backend.shared.ids import new_uuid
+            from datetime import datetime, timezone
+            EventBus().publish(ACTIVE_BRANCH_CHANGED, {
+                "event_id":           new_uuid(),
+                "operation_id":       new_uuid(),
+                "user_id":            str((self.usuario_actual or {}).get("id") or ""),
+                "previous_branch_id": previous,
+                "active_branch_id":   sucursal_id,
+                "active_branch_name": nombre,
+                "timestamp":          datetime.now(timezone.utc).isoformat(),
+                "source_module":      "main_window.aplicar_sucursal_activa",
+            })
+        except Exception as _e:
+            import logging; logging.getLogger(__name__).debug("ACTIVE_BRANCH_CHANGED publish: %s", _e)
+
+    def refresh_module_access(self) -> None:
+        """Reaplica permisos del usuario activo sobre el menú lateral."""
+        self._propagar_usuario()
+
+    # ── Propagación en caliente de catálogos (sucursales / productos) ────────
+    def _suscribir_eventos_catalogo(self) -> None:
+        """Suscribe la ventana a los eventos de catálogo del EventBus.
+
+        BRANCHES_CHANGED / PRODUCTS_CHANGED (y sus granulares + canales legacy
+        de producto) refrescan los módulos cargados SIN reiniciar la app.
+        Los handlers saltan al hilo Qt con QTimer.singleShot(0, ...) porque el
+        bus puede despachar desde hilos de background.
+        """
+        try:
+            from core.events.event_bus import get_bus
+            from core.events.domain_events import (
+                BRANCH_CREATED, BRANCH_UPDATED, BRANCH_DEACTIVATED,
+                BRANCHES_CHANGED, PRODUCT_CREATED, PRODUCT_UPDATED,
+                PRODUCT_DEACTIVATED, PRODUCTS_CHANGED,
+            )
+            bus = get_bus()
+            # El evento agregado siempre acompaña a los granulares (misma ruta
+            # canónica), así que el fan-out se engancha SOLO al agregado para
+            # no refrescar 2-3 veces por operación.
+            bus.subscribe(BRANCHES_CHANGED, self._on_branches_changed_bus,
+                          label="main_window_catalogo_sucursales")
+            bus.subscribe(PRODUCTS_CHANGED, self._on_products_changed_bus,
+                          label="main_window_catalogo_productos")
+            # Compatibilidad: emisores legacy que aún no pasan por la ruta
+            # canónica (publican solo PRODUCTO_* sin products_changed).
+            for legacy in ("PRODUCTO_CREADO", "PRODUCTO_ACTUALIZADO",
+                           "PRODUCTO_ELIMINADO"):
+                bus.subscribe(legacy, self._on_products_changed_bus,
+                              label=f"main_window_catalogo_{legacy.lower()}")
+            # Los granulares BRANCH_*/PRODUCT_* quedan disponibles para módulos
+            # que quieran reaccionar fino; MainWindow no los duplica.
+            _ = (BRANCH_CREATED, BRANCH_UPDATED, BRANCH_DEACTIVATED,
+                 PRODUCT_CREATED, PRODUCT_UPDATED, PRODUCT_DEACTIVATED)
+        except Exception as _e:
+            import logging
+            logging.getLogger(__name__).warning(
+                "No se pudieron suscribir los eventos de catálogo: %s", _e)
+
+    def _on_branches_changed_bus(self, payload: dict) -> None:
+        """Handler del bus (posible hilo background) → hilo Qt."""
+        data = dict(payload or {})
+        QTimer.singleShot(0, lambda: self._on_branches_changed(data))
+
+    def _on_products_changed_bus(self, payload: dict) -> None:
+        data = dict(payload or {})
+        # Debounce corto: una ráfaga (granular+agregado+legacy) = 1 refresh.
+        if getattr(self, "_products_refresh_pending", False):
+            return
+        self._products_refresh_pending = True
+
+        def _run():
+            self._products_refresh_pending = False
+            self._on_products_changed(data)
+
+        QTimer.singleShot(150, _run)
+
+    def _stack_widgets(self) -> list:
+        return [self.stack.widget(idx) for idx in range(self.stack.count())]
+
+    def _on_branches_changed(self, payload: dict) -> None:
+        """Refresca en caliente los selectores de sucursal de TODOS los módulos."""
+        from core.events.catalog_events import fan_out_branches_changed
+        fan_out_branches_changed(self._stack_widgets(), payload)
+
+    def _on_products_changed(self, payload: dict) -> None:
+        """Refresca en caliente el catálogo de productos en TODOS los módulos."""
+        from core.events.catalog_events import fan_out_products_changed
+        fan_out_products_changed(self._stack_widgets(), payload)
 
     def _arrancar_session_timeout(self) -> None:
         """Activa el monitor de inactividad (se resetea con mouse/teclado)."""
@@ -602,14 +1071,20 @@ class MainWindow(QMainWindow):
             usuario_id = self.usuario_actual.get('id') if self.usuario_actual else None
             if not usuario_id:
                 return
-            # Buscar empleado_id asociado al usuario
-            row = self.container.db.execute(
-                "SELECT id FROM personal WHERE activo=1 LIMIT 1"
-            ).fetchone()
-            if not row:
+            # Buscar el empleado vinculado AL USUARIO LOGUEADO. (El código
+            # anterior tomaba el primer empleado activo de la tabla, mostrando
+            # y marcando como leído el inbox de OTRO empleado.)
+            # Dos rutas de vínculo: personal.usuario_id (legacy) y
+            # usuarios.personal_id (canónica — la escribe
+            # SQLiteEmployeeIdentityRepository.link_user_to_employee).
+            from repositories.main_window_repository import MainWindowReadRepository
+            personal_id = MainWindowReadRepository(
+                self.container.db).personal_id_de_usuario(usuario_id)
+            if not personal_id:
+                # Usuario sin empleado vinculado: no hay inbox que mostrar.
                 return
             notifs = self.container.notification_service.get_inbox_empleado(
-                row[0], solo_no_leidos=True
+                personal_id, solo_no_leidos=True
             )
             if not notifs:
                 return
@@ -688,20 +1163,60 @@ class MainWindow(QMainWindow):
             )
         except Exception:
             pass  # fallback silencioso si la ventana ya cerró
-    def _on_pedido_nuevo(self, pedido: dict) -> None:
-        """Actualiza el badge y muestra notificación cuando llega pedido WA."""
+    @pyqtSlot()
+    @pyqtSlot(dict)
+    def _on_pedido_nuevo(self, pedido: dict = None) -> None:
+        """Actualiza el badge y muestra notificación cuando llega pedido WA.
+
+        Decorado con @pyqtSlot para que QMetaObject.invokeMethod (usado por
+        _on_pedido_nuevo_bus desde el hilo del EventBus) lo encuentre: sin el
+        decorador la invocación fallaba en silencio y el badge solo se
+        actualizaba por el polling de 7s/30s.
+        """
         try:
-            # Contar pedidos sin atender
-            n = self.container.db.execute(
-                "SELECT COUNT(*) FROM pedidos_whatsapp "
-                "WHERE estado IN ('nuevo','confirmado') AND leido=1"
-            ).fetchone()[0]
-            if n > 0:
-                self._btn_pedidos.setTitle(f"📦 Pedidos ({n}) 🔴")
-            else:
-                self._btn_pedidos.setTitle("📦 Pedidos")
+            self._refresh_order_badges()
         except Exception:
             pass
+
+    def _start_badge_refresh(self) -> None:
+        if getattr(self, "_badge_timer", None) is None:
+            self._badge_timer = QTimer(self)
+            self._badge_timer.setInterval(7000)
+            self._badge_timer.timeout.connect(self._refresh_order_badges)
+        self._badge_timer.start()
+        self._refresh_order_badges()
+
+    def _refresh_order_badges(self) -> None:
+        if not self.usuario_actual:
+            return
+        # Identidad UUIDv7 (REGLA CERO): la sucursal es un UUID string. Sin cast a
+        # int y sin default arbitrario; si la sesión no fijó sucursal, no refresca.
+        branch_id = (
+            self.usuario_actual.get("active_branch_id")
+            or self.usuario_actual.get("sucursal_id")
+            or self.usuario_actual.get("branch_id")
+            or self.usuario_actual.get("sucursal_uuid")
+        )
+        if not branch_id:
+            return
+        counts = OrderBadgeService(self.container.db).get_badge_counts(branch_id=str(branch_id))
+
+        active = int(counts.get("orders_active", 0))
+        scheduled = int(counts.get("orders_scheduled", 0))
+        adjustments = int(counts.get("adjustments_pending", 0))
+        unread = int(counts.get("notifications_unread", 0))
+
+        self._btn_pedidos.setTitle(f"📦 Pedidos: {active} · Programados: {scheduled}")
+        if hasattr(self, "menu") and self.menu:
+            try:
+                self.menu.set_status_badges(
+                    pedidos=active,
+                    programados=scheduled,
+                    ajustes=adjustments,
+                    notificaciones=unread,
+                )
+            except Exception:
+                pass
 
     def _on_pago_confirmado(self, pago: dict) -> None:
         """Notifica pago confirmado."""
@@ -719,6 +1234,34 @@ class MainWindow(QMainWindow):
     def _abrir_panel_pedidos(self) -> None:
         """Navega al módulo de pedidos WA o muestra panel lateral."""
         self.manejar_navegacion("DELIVERY")
+
+    def _mostrar_diagnostico(self):
+        """Muestra el diálogo de diagnóstico del sistema"""
+        try:
+            from interfaz.diagnostico import mostrar_diagnostico
+            mostrar_diagnostico(self)
+        except Exception as e:
+            logger.error(f"Error al mostrar diagnóstico: {e}")
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"No se pudo abrir el diagnóstico del sistema:\n{str(e)}"
+            )
+
+    def _mostrar_acerca_de(self):
+        """Muestra información sobre la aplicación"""
+        from datetime import datetime
+        mensaje = (
+            "<h2>SPJ POS v13.4</h2>"
+            "<p><b>Sistema de Punto de Venta Profesional</b></p>"
+            "<hr>"
+            f"<p><b>Versión:</b> 13.4.0</p>"
+            f"<p><b>Fecha de compilación:</b> {datetime.now().strftime('%Y-%m-%d')}</p>"
+            "<p><b>Desarrollado con:</b> Python + PyQt5</p>"
+            "<hr>"
+            "<p>© 2024-2025 SPJ Systems</p>"
+        )
+        QMessageBox.information(self, "Acerca de SPJ POS", mensaje)
 
     def manejar_navegacion(self, modulo: str):
         if modulo == "LOGOUT":
@@ -743,6 +1286,15 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass  # Si falla el check, permitir (compat)
             self.stack.setCurrentIndex(self.indices_pantallas[modulo])
+            # Sincroniza el indicador del sidebar para flujos programáticos
+            # (atajos, menú superior, dashboard.abrir_modulo, etc.). El clic
+            # directo en el sidebar ya marca por su cuenta — esta llamada
+            # adicional es idempotente.
+            if hasattr(self, "menu") and hasattr(self.menu, "set_modulo_activo"):
+                try:
+                    self.menu.set_modulo_activo(modulo)
+                except Exception:
+                    pass
         else:
             QMessageBox.information(
                 self, "Módulo no disponible",
@@ -765,7 +1317,11 @@ class MainWindow(QMainWindow):
                 font_size="12", icon_size="24",
             )
             qss = theme_svc.generate_qss()
-            QApplication.instance().setStyleSheet(qss)
+            from PyQt5.QtCore import QTimer
+            QTimer.singleShot(0, lambda: QApplication.instance().setStyleSheet(qss))
+            # Sidebar siempre oscuro (regla de diseño) — run after stylesheet is applied
+            if hasattr(self, "menu") and hasattr(self.menu, "enforce_dark_mode"):
+                QTimer.singleShot(10, self.menu.enforce_dark_mode)
         except Exception as e:
             import logging
             logging.getLogger(__name__).warning("_aplicar_tema: %s", e)
@@ -815,7 +1371,7 @@ class MainWindow(QMainWindow):
     def _abrir_busqueda_global(self):
         """Búsqueda rápida de productos/clientes (Ctrl+F)."""
         from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QLineEdit,
-            QListWidget, QListWidgetItem, QLabel, QHBoxLayout)
+            QListWidget, QListWidgetItem, QLabel)
         from PyQt5.QtCore import Qt, QTimer
         try:
             db = self.container.db
@@ -843,32 +1399,22 @@ class MainWindow(QMainWindow):
             lst.clear()
             if len(texto) < 2: return
             try:
+                from repositories.main_window_repository import MainWindowReadRepository
+                repo = MainWindowReadRepository(db)
                 # Productos
-                rows = db.execute(
-                    "SELECT nombre, precio, existencia FROM productos "
-                    "WHERE (nombre LIKE ? OR codigo LIKE ?) AND activo=1 LIMIT 8",
-                    (f"%{texto}%", f"%{texto}%")
-                ).fetchall()
+                rows = repo.buscar_productos(texto)
                 for r in rows:
                     it = QListWidgetItem(f"📦 {r[0]}  —  ${float(r[1]):.2f}  |  stock: {float(r[2]):.1f}")
                     it.setData(Qt.UserRole, ("PRODUCTOS", None))
                     lst.addItem(it)
                 # Clientes
-                rows2 = db.execute(
-                    "SELECT nombre, COALESCE(apellido,''), COALESCE(telefono,'') "
-                    "FROM clientes WHERE nombre LIKE ? LIMIT 5",
-                    (f"%{texto}%",)
-                ).fetchall()
+                rows2 = repo.buscar_clientes(texto)
                 for r in rows2:
                     it = QListWidgetItem(f"👤 {r[0]} {r[1]}  —  {r[2]}")
                     it.setData(Qt.UserRole, ("CLIENTES", None))
                     lst.addItem(it)
                 # Ventas por folio
-                rows3 = db.execute(
-                    "SELECT folio, total, fecha FROM ventas "
-                    "WHERE folio LIKE ? ORDER BY fecha DESC LIMIT 4",
-                    (f"%{texto}%",)
-                ).fetchall()
+                rows3 = repo.buscar_ventas_por_folio(texto)
                 for r in rows3:
                     it = QListWidgetItem(f"🧾 Folio {r[0]}  —  ${float(r[1]):.2f}")
                     it.setData(Qt.UserRole, ("POS", None))
@@ -896,14 +1442,10 @@ class MainWindow(QMainWindow):
     def _cargar_logo_empresa(self) -> None:
         """Carga el logo de la empresa desde BD y lo aplica en sidebar y titlebar."""
         try:
-            row = self.container.db.execute(
-                "SELECT valor FROM configuraciones WHERE clave='logo_path'"
-            ).fetchone()
-            logo_path = row[0] if row and row[0] else ""
-            nombre_row = self.container.db.execute(
-                "SELECT valor FROM configuraciones WHERE clave='nombre_empresa'"
-            ).fetchone()
-            nombre = nombre_row[0] if nombre_row and nombre_row[0] else "SPJ POS"
+            from repositories.config_repository import ConfigRepository
+            _cfg = ConfigRepository(self.container.db)
+            logo_path = _cfg.get_setting("logo_path", "") or ""
+            nombre = _cfg.get_setting("nombre_empresa", "") or "SPJ POS"
             if hasattr(self, 'menu') and hasattr(self.menu, 'actualizar_logo'):
                 self.menu.actualizar_logo(logo_path, nombre)
             self.setWindowTitle(f"{nombre} — ERP SPJ POS v13.4")
@@ -923,20 +1465,17 @@ class MainWindow(QMainWindow):
             from modulos.spj_styles import apply_global_theme
             apply_global_theme(self.container.db)
             # Sync menu toggle
-            row = self.container.db.execute(
-                "SELECT valor FROM configuraciones WHERE clave='tema'"
-            ).fetchone()
-            is_dark = row and row[0] and 'dark' in str(row[0]).lower()
+            from repositories.config_repository import ConfigRepository
+            _tema = ConfigRepository(self.container.db).get_setting("tema", "")
+            is_dark = bool(_tema) and 'dark' in str(_tema).lower()
             if hasattr(self, '_action_dark'):
                 self._action_dark.setChecked(is_dark)
+            if hasattr(self, "menu") and hasattr(self.menu, "enforce_dark_mode"):
+                self.menu.enforce_dark_mode()
         except Exception as e:
             import logging
             logging.getLogger(__name__).debug("_cargar_tema_inicial: %s", e)
 
-try:
-    from modulos.rrhh_turnos import ModuloRRHHTurnos
-except Exception:
-    ModuloRRHHTurnos = None
 try:
     from modulos.modulo_growth_engine import ModuloGrowthEngine
 except Exception:

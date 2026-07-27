@@ -1,8 +1,25 @@
 
 # modulos/planeacion_compras.py
 from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_secondary_button,
+    create_heading, create_subheading, create_card, apply_tooltip,
+    PageHeader, Toast,
+)
 import sys
-from PyQt5.QtWidgets import *
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
+    QComboBox, QMessageBox, QFormLayout, QDoubleSpinBox, QGroupBox,
+    QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QHeaderView,
+    QAbstractItemView, QFrame, QSplitter, QGridLayout, QListWidget,
+    QListWidgetItem, QCompleter, QDateEdit, QTimeEdit, QTabWidget,
+    QRadioButton, QButtonGroup, QCheckBox, QSpinBox, QTextEdit, QMenu,
+    QAction, QToolBar, QStatusBar, QProgressBar, QSlider, QDial,
+    QCalendarWidget, QColorDialog, QFontDialog, QFileDialog, QInputDialog,
+    QErrorMessage, QProgressDialog, QSplashScreen, QSystemTrayIcon,
+    QStyleFactory, QApplication, QSizePolicy, QStackedWidget, QScrollArea
+)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor
 import matplotlib
@@ -21,7 +38,7 @@ class ModuloPlaneacionCompras(QWidget):
     def __init__(self, container, parent=None):
         super().__init__(parent)
         self.container = container # 🧠 Inyectamos el Ecosistema
-        self.sucursal_id = 1
+        self.sucursal_id = getattr(container, "sucursal_id", "") or ""
         self.init_ui()
 
     def set_usuario_actual(self, usuario: str, rol: str = "cajero") -> None:
@@ -29,11 +46,8 @@ class ModuloPlaneacionCompras(QWidget):
         self.usuario_actual = usuario
         self.rol_actual = rol
 
-    def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
-        """Recibe la sucursal activa."""
-        self.sucursal_id = sucursal_id
-
-    def set_sucursal(self, sucursal_id: int, nombre_sucursal: str):
+    def set_sucursal(self, sucursal_id: int, nombre_sucursal: str = "") -> None:
+        """Recibe la sucursal activa y recarga la lista de productos."""
         self.sucursal_id = sucursal_id
         self.cargar_productos()
 
@@ -42,7 +56,7 @@ class ModuloPlaneacionCompras(QWidget):
 
         # Título
         lbl_titulo = QLabel("🧠 Planeación Inteligente de Compras (Machine Learning)")
-        lbl_titulo.setStyleSheet("font-size: 20px; font-weight: bold; color: #2980b9;")
+        lbl_titulo.setObjectName("heading")
         layout.addWidget(lbl_titulo)
 
         # --- PANEL DE CONFIGURACIÓN ---
@@ -51,27 +65,30 @@ class ModuloPlaneacionCompras(QWidget):
 
         self.cmb_producto = QComboBox()
         self.cmb_producto.setMinimumWidth(200)
+        self.cmb_producto.setObjectName("inputField")
 
         self.spin_historial = QSpinBox()
         self.spin_historial.setRange(7, 365)
         self.spin_historial.setValue(30)
         self.spin_historial.setSuffix(" días")
         self.spin_historial.setToolTip("Días de historia a analizar")
+        self.spin_historial.setObjectName("inputField")
 
         self.spin_pronostico = QSpinBox()
         self.spin_pronostico.setRange(1, 30)
         self.spin_pronostico.setValue(7)
         self.spin_pronostico.setSuffix(" días")
         self.spin_pronostico.setToolTip("Días al futuro a predecir")
+        self.spin_pronostico.setObjectName("inputField")
 
         self.spin_seguridad = QDoubleSpinBox()
         self.spin_seguridad.setRange(0, 9999)
         self.spin_seguridad.setValue(10.0)
         self.spin_seguridad.setSuffix(" kg/pza")
         self.spin_seguridad.setToolTip("Inventario base que nunca debe faltar")
+        self.spin_seguridad.setObjectName("inputField")
 
-        btn_generar = QPushButton("🔮 Generar Pronóstico")
-        btn_generar.setStyleSheet("background:#8e44ad;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+        btn_generar = create_primary_button(self, "🔮 Generar Pronóstico", "Ejecutar modelo predictivo de compras")
         btn_generar.clicked.connect(self.ejecutar_pronostico)
 
         config_layout.addWidget(QLabel("Producto:"))
@@ -96,23 +113,24 @@ class ModuloPlaneacionCompras(QWidget):
         h_layout.addWidget(self.canvas, stretch=3)
 
         # 2. Panel de Resultados y Recomendación
-        panel_resultados = QFrame()
-        panel_resultados.setStyleSheet("background-color: #f8f9fa; border-radius: 8px; border: 1px solid #dcdde1;")
+        panel_resultados = create_card(self, padding=Spacing.MD, with_layout=False)
         res_layout = QVBoxLayout(panel_resultados)
 
         lbl_res_titulo = QLabel("📊 Recomendación de Compra")
         lbl_res_titulo.setAlignment(Qt.AlignCenter)
-        lbl_res_titulo.setStyleSheet("font-size: 16px; font-weight: bold; border: none;")
+        lbl_res_titulo.setObjectName("subheading")
         
         self.lbl_stock_actual = QLabel("Stock Actual: 0.00")
+        self.lbl_stock_actual.setObjectName("textSecondary")
         self.lbl_venta_proyectada = QLabel("Demanda Proyectada: 0.00")
+        self.lbl_venta_proyectada.setObjectName("textSecondary")
         
         self.lbl_recomendacion = QLabel("COMPRAR: 0.00")
         self.lbl_recomendacion.setAlignment(Qt.AlignCenter)
-        self.lbl_recomendacion.setStyleSheet("font-size: 22px; font-weight: bold; color: #27ae60; border: none; padding: 15px;")
+        self.lbl_recomendacion.setObjectName("heading")
+        # El padding se maneja vía CSS global, no se necesita setStyleSheet inline
 
-        btn_enviar_compras = QPushButton("🛒 Generar Orden de Compra")
-        btn_enviar_compras.setStyleSheet("background-color: #e67e22; color: white; font-weight: bold; padding: 10px;")
+        btn_enviar_compras = create_success_button(self, "🛒 Generar Orden de Compra", "Crear orden de compra automática")
         btn_enviar_compras.clicked.connect(self.enviar_a_modulo_compras)
 
         res_layout.addWidget(lbl_res_titulo)
@@ -125,34 +143,45 @@ class ModuloPlaneacionCompras(QWidget):
         h_layout.addWidget(panel_resultados, stretch=1)
         layout.addLayout(h_layout)
 
+    @property
+    def _planning_reads(self):
+        """QueryService canónico de planeación (la UI no ejecuta SQL)."""
+        if not hasattr(self, '_planning_reads_instance'):
+            from backend.application.queries.purchase_planning_query_service import (
+                PurchasePlanningReadService,
+            )
+            self._planning_reads_instance = PurchasePlanningReadService(self.container.db)
+        return self._planning_reads_instance
+
     def cargar_productos(self):
         self.cmb_producto.clear()
         try:
-            cursor = self.container.db.cursor()
-            # Cargar productos que tengan ventas previas para evitar modelos vacíos
-            rows = cursor.execute("SELECT id, nombre FROM productos WHERE activo = 1 ORDER BY nombre").fetchall()
-            for row in rows:
-                self.cmb_producto.addItem(row['nombre'], row['id'])
+            for prod in self._planning_reads.list_forecastable_products(str(self.sucursal_id)):
+                self.cmb_producto.addItem(prod['nombre'], prod['id'])
         except Exception as e:
             logger.error(f"Error cargando productos para pronóstico: {e}")
 
     def ejecutar_pronostico(self):
         producto_id = self.cmb_producto.currentData()
-        if not producto_id: return
+        if not producto_id:
+            Toast.info(self, "Sin producto", "Selecciona un producto para generar la gráfica.")
+            return
 
         try:
             # 🚀 MAGIA ENTERPRISE: El servicio de IA hace los cálculos de Pandas y Statsmodels
             if hasattr(self.container, 'forecast_service'):
                 resultado = self.container.forecast_service.generar_plan_compras(
-                    producto_id=producto_id,
-                    sucursal_id=self.sucursal_id,
+                    producto_id=str(producto_id),
+                    sucursal_id=str(self.sucursal_id),
                     dias_historial=self.spin_historial.value(),
                     dias_pronostico=self.spin_pronostico.value(),
                     stock_seguridad=self.spin_seguridad.value()
                 )
                 
+                if not resultado:
+                    raise ValueError("No hay datos suficientes para calcular pronóstico.")
                 self.dibujar_grafica(resultado)
-                self.actualizar_recomendacion(resultado['metricas'])
+                self.actualizar_recomendacion(resultado.get('metricas', {}))
             else:
                 QMessageBox.warning(self, "Servicio Inactivo", "El motor de pronósticos no está disponible.")
 
@@ -178,6 +207,15 @@ class ModuloPlaneacionCompras(QWidget):
         x_pred = data['pronostico_fechas']
         y_pred = data['pronostico_valores']
 
+        if not x_hist and not x_pred:
+            ax.text(
+                0.5, 0.5, "No hay información suficiente para graficar.",
+                ha='center', va='center', transform=ax.transAxes
+            )
+            ax.set_axis_off()
+            self.canvas.draw()
+            return
+
         # Dibujar
         ax.plot(x_hist, y_hist, label='Ventas Históricas', color='#2980b9', marker='o')
         
@@ -201,23 +239,78 @@ class ModuloPlaneacionCompras(QWidget):
 
     def actualizar_recomendacion(self, metricas: dict):
         """Actualiza el panel lateral con la decisión del algoritmo."""
-        self.lbl_stock_actual.setText(f"Stock Actual en Bodega: <b>{metricas['stock_actual']:.2f}</b>")
-        self.lbl_venta_proyectada.setText(f"Demanda Proyectada ({self.spin_pronostico.value()} días): <b>{metricas['venta_proyectada']:.2f}</b>")
+        stock_actual = float(metricas.get('stock_actual', 0) or 0)
+        venta_proyectada = float(metricas.get('venta_proyectada', 0) or 0)
+        compra = float(metricas.get('compra_recomendada', 0) or 0)
+        self.lbl_stock_actual.setText(f"Stock Actual en Bodega: <b>{stock_actual:.2f}</b>")
+        self.lbl_venta_proyectada.setText(f"Demanda Proyectada ({self.spin_pronostico.value()} días): <b>{venta_proyectada:.2f}</b>")
         
-        compra = metricas['compra_recomendada']
         self.lbl_recomendacion.setText(f"COMPRAR:\n{compra:.2f}")
         
+        # Actualizar color dinámicamente según el resultado usando objectName en lugar de setStyleSheet
         if compra <= 0:
-            self.lbl_recomendacion.setStyleSheet("font-size: 22px; font-weight: bold; color: #7f8c8d; border: none; padding: 15px;")
+            self.lbl_recomendacion.setObjectName("textSecondary")
             self.lbl_recomendacion.setText("STOCK\nSUFICIENTE")
         else:
-            self.lbl_recomendacion.setStyleSheet("font-size: 22px; font-weight: bold; color: #27ae60; border: none; padding: 15px;")
+            self.lbl_recomendacion.setObjectName("textSuccess")
+        
+        # Forzar actualización de estilo
+        self.lbl_recomendacion.style().unpolish(self.lbl_recomendacion)
+        self.lbl_recomendacion.style().polish(self.lbl_recomendacion)
 
     def enviar_a_modulo_compras(self):
-        """Crea un puente entre la predicción y la acción real de comprar."""
+        """Puente predicción → módulo de Compras: pre-rellena el carrito."""
         compra_texto = self.lbl_recomendacion.text().replace("COMPRAR:\n", "")
         if "SUFICIENTE" in compra_texto:
-            QMessageBox.information(self, "Aviso", "No necesitas comprar este producto actualmente.")
+            Toast.info(self, "Aviso", "No necesitas comprar este producto actualmente.")
             return
-            
-        QMessageBox.information(self, "Redirección", f"En un flujo completo, esto enviaría {compra_texto} de {self.cmb_producto.currentText()} directamente al Módulo de Compras (compras_pro.py).")
+
+        try:
+            qty = float(compra_texto.replace(",", "").strip())
+        except (ValueError, AttributeError):
+            Toast.info(self, "Redirección",
+                       f"Lleva {compra_texto} de "
+                       f"{self.cmb_producto.currentText()} al módulo de Compras.")
+            return
+
+        producto_id   = self.cmb_producto.currentData()
+        producto_nom  = self.cmb_producto.currentText()
+
+        # Look up last purchase cost for this product as a price hint (via repo)
+        unit_cost = 0.0
+        try:
+            unit_cost = self._planning_reads.last_purchase_cost(str(producto_id))
+        except Exception:
+            pass
+
+        suggested_items = [{
+            "product_id": producto_id,
+            "nombre":     producto_nom,
+            "qty":        qty,
+            "unit_cost":  unit_cost,
+        }]
+
+        # Navigate to the Compras module via the container (if available)
+        compras_mod = None
+        for attr in ('compras_module', 'modulo_compras', 'compras'):
+            compras_mod = getattr(self.container, attr, None)
+            if compras_mod is not None:
+                break
+
+        if compras_mod and hasattr(compras_mod, 'set_suggested_order'):
+            compras_mod.set_suggested_order(suggested_items)
+            # Try to switch the main window to the Compras tab
+            try:
+                mw = self.window()
+                if hasattr(mw, 'mostrar_modulo'):
+                    mw.mostrar_modulo('compras')
+                elif hasattr(mw, 'switch_to'):
+                    mw.switch_to('compras')
+            except Exception:
+                pass
+        else:
+            Toast.info(
+                self, "🛒 Orden sugerida",
+                f"Comprar {qty:,.2f} de {producto_nom}\n"
+                "Ve al módulo de Compras y usa 'Recuperar' o añade manualmente.",
+            )

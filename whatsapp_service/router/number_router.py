@@ -5,7 +5,6 @@ Determina el tipo de flujo basándose en qué número recibió el mensaje.
 from __future__ import annotations
 from config.numbers import NumberRegistry, NumeroTipo, NumeroConfig
 from models.message import IncomingMessage
-from typing import Optional
 
 
 class NumberRouter:
@@ -16,11 +15,13 @@ class NumberRouter:
         """Retorna la configuración del número que recibió el mensaje."""
         cfg = self.registry.get(msg.phone_number_id)
         if not cfg:
-            # Número no configurado — tratar como ventas por defecto
+            # Número no configurado: no inventar sucursal.
+            # Tratarlo como global para forzar selección antes de crear pedidos.
             return NumeroConfig(
                 phone_number_id=msg.phone_number_id,
-                tipo=NumeroTipo.VENTAS,
-                sucursal_id=1,
-                sucursal_nombre="Principal",
+                tipo=NumeroTipo.GLOBAL,
+                sucursal_id=None,
+                sucursal_nombre="",
+                display_name="Número no configurado",
             )
         return cfg

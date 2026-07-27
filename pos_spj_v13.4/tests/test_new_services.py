@@ -60,7 +60,7 @@ def db():
             fecha_apertura DATETIME DEFAULT (datetime('now')));
         INSERT INTO turno_actual(sucursal_id,abierto,turno,fondo_inicial) VALUES(1,1,'M',500);
         CREATE TABLE notification_inbox(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             usuario TEXT, tipo TEXT, titulo TEXT, cuerpo TEXT,
             leido INTEGER DEFAULT 0, prioridad INTEGER DEFAULT 0,
             sucursal_id INTEGER, accion_url TEXT,
@@ -68,18 +68,17 @@ def db():
         CREATE TABLE configuraciones(clave TEXT PRIMARY KEY, valor TEXT);
         INSERT INTO configuraciones VALUES('nombre_empresa','SPJ TEST');
         CREATE TABLE cotizaciones(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            uuid TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
-            folio TEXT UNIQUE, cliente_id INTEGER, cliente_nombre TEXT,
+            id TEXT PRIMARY KEY,
+            folio TEXT UNIQUE, cliente_id TEXT, cliente_nombre TEXT,
             subtotal REAL DEFAULT 0, descuento REAL DEFAULT 0, total REAL DEFAULT 0,
             estado TEXT DEFAULT 'pendiente', notas TEXT,
             vigencia_dias INTEGER DEFAULT 7, fecha_vencimiento DATE,
-            venta_id INTEGER, usuario TEXT, sucursal_id INTEGER DEFAULT 1,
+            venta_id TEXT, usuario TEXT, sucursal_id TEXT,
             fecha DATETIME DEFAULT (datetime('now')));
         CREATE TABLE cotizaciones_detalle(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            cotizacion_id INTEGER REFERENCES cotizaciones(id) ON DELETE CASCADE,
-            producto_id INTEGER, nombre TEXT, cantidad REAL,
+            id TEXT PRIMARY KEY,
+            cotizacion_id TEXT REFERENCES cotizaciones(id) ON DELETE CASCADE,
+            producto_id TEXT, nombre TEXT, cantidad REAL,
             unidad TEXT DEFAULT 'kg', precio_unitario REAL,
             descuento_pct REAL DEFAULT 0, subtotal REAL);
         CREATE TABLE whatsapp_queue(
@@ -92,6 +91,24 @@ def db():
             cliente_id INTEGER, puntos REAL DEFAULT 0, venta_id INTEGER,
             operacion TEXT, fecha DATETIME DEFAULT (datetime('now')));
         CREATE TABLE clientes(id INTEGER PRIMARY KEY, nombre TEXT, puntos REAL DEFAULT 0);
+        CREATE TABLE inventario_actual(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            producto_id INTEGER, sucursal_id INTEGER DEFAULT 1,
+            cantidad REAL DEFAULT 0, costo_promedio REAL DEFAULT 0,
+            ultima_actualizacion DATETIME DEFAULT (datetime('now')),
+            UNIQUE(producto_id, sucursal_id));
+        INSERT INTO inventario_actual(producto_id,sucursal_id,cantidad) VALUES(1,1,50),(2,1,30);
+        CREATE TABLE movimientos_caja(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT, monto REAL, descripcion TEXT, usuario TEXT,
+            venta_id INTEGER, forma_pago TEXT, caja_id INTEGER DEFAULT 1,
+            reference_id INTEGER, reference_type TEXT, operation_id TEXT,
+            fecha DATETIME DEFAULT (datetime('now')));
+        CREATE TABLE financial_event_log(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT, monto REAL, descripcion TEXT, cuenta_debe TEXT,
+            cuenta_haber TEXT, referencia_id INTEGER, usuario TEXT,
+            sucursal_id INTEGER DEFAULT 1, fecha DATETIME DEFAULT (datetime('now')));
     """)
     yield conn
     conn.close()
@@ -132,11 +149,12 @@ class TestNotificationService:
         assert "adm2" in users and "inv" not in users
 
 
-class TestBIService:
+class TestAnalyticsEngine:
     def _svc(self, db):
-        from repositories.bi_repository import BIRepository
-        from core.services.bi_service import BIService
-        return BIService(BIRepository(db), feature_flag_svc=None)
+        # Nota: bi_repository y bi_service fueron eliminados en v13.4
+        # Tests ahora usan analytics_engine directamente
+        from core.services.analytics.analytics_engine import AnalyticsEngine
+        return AnalyticsEngine(db)
 
     def _ventas(self, db):
         db.executescript("""

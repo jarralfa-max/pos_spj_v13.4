@@ -26,25 +26,7 @@ class LoginGuard:
         self._init_tables()
 
     def _init_tables(self):
-        self.conn.executescript("""
-            CREATE TABLE IF NOT EXISTS login_attempts (
-                id       INTEGER PRIMARY KEY AUTOINCREMENT,
-                usuario  TEXT NOT NULL,
-                terminal TEXT DEFAULT 'local',
-                exitoso  INTEGER DEFAULT 0,
-                ip       TEXT,
-                fecha    REAL DEFAULT (unixepoch())
-            );
-            CREATE TABLE IF NOT EXISTS login_blocks (
-                usuario         TEXT NOT NULL,
-                terminal        TEXT DEFAULT 'local',
-                bloqueado_hasta REAL NOT NULL,
-                intentos        INTEGER DEFAULT 0,
-                PRIMARY KEY (usuario, terminal)
-            );
-            CREATE INDEX IF NOT EXISTS idx_la_usr
-                ON login_attempts(usuario, fecha);
-        """)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         try: self.conn.commit()
         except Exception: pass
 

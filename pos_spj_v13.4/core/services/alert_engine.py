@@ -109,19 +109,7 @@ class AlertEngine:
 
     def _ensure_table(self):
         try:
-            self.db.execute("""
-                CREATE TABLE IF NOT EXISTS alert_engine_log (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    category TEXT NOT NULL,
-                    severity TEXT NOT NULL,
-                    title TEXT NOT NULL,
-                    message TEXT,
-                    data_json TEXT DEFAULT '{}',
-                    leida INTEGER DEFAULT 0,
-                    sucursal_id INTEGER DEFAULT 1,
-                    fecha TEXT DEFAULT (datetime('now'))
-                )
-            """)
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try:
                 self.db.commit()
             except Exception:

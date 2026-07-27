@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SPJ POS — Panel de Control</title>
+  <meta name="description" content="Sistema de Punto de Venta SPJ — Panel Web">
+  <meta name="theme-color" content="#020617">
+
+  <!-- Fuente Inter desde Google Fonts (opcional — funciona sin internet con fallback) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Apache ECharts 5 desde CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+
+  <!-- Sistema de estilos SPJ -->
+  <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/themes.css">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  <link rel="stylesheet" href="/static/css/layout.css">
+
+  <!-- Theme init (antes del body para evitar flash) -->
+  <script>
+    (function() {
+      const t = localStorage.getItem('spj-theme')
+        || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  APP SHELL                                                              -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="app-shell">
+
+  <!-- ── SIDEBAR ─────────────────────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar" aria-label="Navegación principal">
+
+    <!-- Marca -->
+    <a class="sidebar-brand" href="#dashboard">
+      <div class="brand-logo">🐔</div>
+      <div>
+        <div class="brand-name">SPJ POS</div>
+        <div class="brand-version">v13.4 ERP</div>
+      </div>
+    </a>
+
+    <!-- Navegación -->
+    <nav class="sidebar-nav">
+
+      <!-- Principal -->
+      <div class="nav-section">
+        <div class="nav-section-label">Principal</div>
+
+        <button class="nav-item active" data-view="dashboard" data-label="Dashboard">
+          <span class="nav-icon">📊</span>
+          <span class="nav-label">Dashboard</span>
+        </button>
+
+        <button class="nav-item" data-view="ventas" data-label="Punto de Venta">
+          <span class="nav-icon">🛒</span>
+          <span class="nav-label">Punto de Venta</span>
+          <span class="nav-badge" id="badge-pedidos" style="display:none">0</span>
+        </button>
+
+        <button class="nav-item" data-view="pedidos" data-label="Pedidos">
+          <span class="nav-icon">📋</span>
+          <span class="nav-label">Pedidos</span>
+        </button>
+
+        <button class="nav-item" data-view="clientes" data-label="Clientes">
+          <span class="nav-icon">👥</span>
+          <span class="nav-label">Clientes</span>
+        </button>
+      </div>
+
+      <!-- Inventario -->
+      <div class="nav-section">
+        <div class="nav-section-label">Inventario</div>
+
+        <button class="nav-item" data-view="productos" data-label="Productos">
+          <span class="nav-icon">🥩</span>
+          <span class="nav-label">Productos</span>
+        </button>
+
+        <button class="nav-item" data-view="inventario" data-label="Inventario">
+          <span class="nav-icon">📦</span>
+          <span class="nav-label">Inventario</span>
+        </button>
+
+        <button class="nav-item" data-view="compras" data-label="Compras">
+          <span class="nav-icon">🏭</span>
+          <span class="nav-label">Compras</span>
+        </button>
+
+        <button class="nav-item" data-view="produccion" data-label="Producción">
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-label">Producción</span>
+        </button>
+      </div>
+
+      <!-- Gestión -->
+      <div class="nav-section">
+        <div class="nav-section-label">Gestión</div>
+
+        <button class="nav-item" data-view="finanzas" data-label="Finanzas">
+          <span class="nav-icon">💰</span>
+          <span class="nav-label">Finanzas</span>
+        </button>
+
+        <button class="nav-item" data-view="rrhh" data-label="RRHH">
+          <span class="nav-icon">👤</span>
+          <span class="nav-label">RRHH</span>
+        </button>
+
+        <button class="nav-item" data-view="reportes" data-label="Reportes BI">
+          <span class="nav-icon">📈</span>
+          <span class="nav-label">Reportes BI</span>
+        </button>
+
+        <button class="nav-item" data-view="whatsapp" data-label="WhatsApp">
+          <span class="nav-icon">💬</span>
+          <span class="nav-label">WhatsApp</span>
+        </button>
+      </div>
+
+      <!-- Sistema -->
+      <div class="nav-section">
+        <div class="nav-section-label">Sistema</div>
+
+        <button class="nav-item" data-view="sucursales" data-label="Sucursales">
+          <span class="nav-icon">🏪</span>
+          <span class="nav-label">Sucursales</span>
+        </button>
+
+        <button class="nav-item" data-view="configuracion" data-label="Configuración">
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-label">Configuración</span>
+        </button>
+      </div>
+
+    </nav>
+
+    <!-- Footer usuario -->
+    <div class="sidebar-footer">
+      <div class="sidebar-user" id="sidebar-user">
+        <div class="avatar" id="user-avatar">A</div>
+        <div class="user-info">
+          <div class="user-name" id="user-name">Admin</div>
+          <div class="user-role" id="user-role">Administrador</div>
+        </div>
+      </div>
+    </div>
+
+  </aside><!-- /sidebar -->
+
+
+  <!-- ── MAIN CONTENT ─────────────────────────────────────────────────────── -->
+  <div class="main-content" id="main-content">
+
+    <!-- TopBar -->
+    <header class="topbar">
+      <button class="sidebar-toggle" aria-label="Colapsar menú">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="2" y1="4.5" x2="16" y2="4.5"/>
+          <line x1="2" y1="9"   x2="16" y2="9"/>
+          <line x1="2" y1="13.5" x2="16" y2="13.5"/>
+        </svg>
+      </button>
+
+      <span class="topbar-title" id="topbar-title">Dashboard</span>
+
+      <div class="topbar-actions">
+
+        <!-- Buscador global -->
+        <div class="input-wrapper" style="width:220px">
+          <span class="input-icon">🔍</span>
+          <input type="search" class="form-input" id="global-search"
+                 placeholder="Buscar producto, cliente..." autocomplete="off">
+        </div>
+
+        <!-- Notificaciones -->
+        <button class="btn btn-ghost btn-icon-only" id="btn-notif"
+                data-tooltip="Notificaciones" style="position:relative">
+          🔔
+          <span class="status-dot online" id="notif-dot"
+                style="position:absolute;top:6px;right:6px;width:6px;height:6px"></span>
+        </button>
+
+        <!-- Theme toggle -->
+        <button class="theme-toggle" id="theme-toggle"
+                onclick="Theme.toggle()" title="Cambiar tema" aria-label="Cambiar tema">
+          🌙
+        </button>
+
+        <!-- Usuario dropdown -->
+        <div class="dropdown">
+          <button class="btn btn-ghost" id="user-menu-btn" style="gap:var(--space-2)">
+            <div class="avatar avatar-sm">A</div>
+            <span class="text-sm font-medium" id="topbar-username">Admin</span>
+          </button>
+          <div class="dropdown-menu" id="user-dropdown" style="display:none">
+            <button class="dropdown-item" onclick="Router.navigate('configuracion')">
+              ⚙️ Configuración
+            </button>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item danger" id="btn-logout">
+              🚪 Cerrar sesión
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </header><!-- /topbar -->
+
+    <!-- Contenido de vistas -->
+    <main class="page-content" id="view-container">
+      <div class="page-loading">
+        <div class="spinner"></div>
+        <span>Iniciando...</span>
+      </div>
+    </main>
+
+  </div><!-- /main-content -->
+
+</div><!-- /app-shell -->
+
+
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!--  SCRIPTS                                                                 -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+
+<!-- Configuración (se puede sobreescribir por el servidor) -->
+<script>
+  window.SPJ_CONFIG = {
+    version:    '13.4',
+    api_base:   'http://' + window.location.hostname + ':8769',
+  };
+  window.SPJ_API_TOKEN = '';  /* El servidor inyecta esto si hay auth */
+</script>
+
+<!-- Core JS -->
+<script src="/static/js/theme.js"></script>
+<script src="/static/js/api.js"></script>
+<script src="/static/js/components.js"></script>
+<script src="/static/js/dashboard.js"></script>
+
+<!-- Views inline (vistas de cada módulo) -->
+<script>
+/* ──────────────────────────────────────────────────────────────────────────
+   REGISTRO DE VISTAS
+   Cada vista recibe `container` (el <main>) y devuelve su HTML + lógica.
+   ────────────────────────────────────────────────────────────────────────── */
+
+Router.register('dashboard', {
+  title: 'Dashboard',
+  load: async (container) => {
+    await loadDashboard(container, 'hoy');
+  },
+});
+
+Router.register('productos', {
+  title: 'Productos',
+  load: async (container) => {
+    showLoader(container);
+    let items = [];
+    try { items = await API.productos.list(); } catch (e) { /* sin datos */ }
+    container.innerHTML = `
+      <div class="fade-in">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">🥩 Productos</h1>
+            <p class="page-subtitle">Catálogo de productos activos</p>
+          </div>
+        </div>
+        <div id="productos-table"></div>
+      </div>`;
+    DataTable({
+      container: document.getElementById('productos-table'),
+      columns: [
+        { key:'id',          label:'ID',         align:'right' },
+        { key:'nombre',      label:'Producto',   class:'font-medium' },
+        { key:'categoria',   label:'Categoría',  render: v => `<span class="badge badge-default">${v||'—'}</span>` },
+        { key:'precio',      label:'Precio',     align:'right', render: v => Fmt.money(v) },
+        { key:'existencia',  label:'Stock',      align:'right',
+          render: (v) => {
+            const cls = v <= 0 ? 'danger' : v < 5 ? 'warning' : 'success';
+            return `<span class="badge badge-${cls}">${Fmt.number(v)} ${''}</span>`;
+          }},
+        { key:'unidad',      label:'Unidad' },
+      ],
+      rows: Array.isArray(items) ? items : [],
+    });
+  },
+});
+
+Router.register('ventas', {
+  title: 'Punto de Venta',
+  load: async (container) => {
+    container.innerHTML = `
+      <div class="fade-in">
+        <div class="page-header">
+          <h1 class="page-title">🛒 Punto de Venta</h1>
+        </div>
+        <div class="alert alert-info">
+          <div>
+            <div class="alert-title">Módulo en transición</div>
+            <div class="alert-body">
+              El POS activo es la aplicación PyQt5. Esta vista web está siendo desarrollada
+              como parte de la Fase 4 del roadmap ERP.
+            </div>
+          </div>
+        </div>
+      </div>`;
+  },
+});
+
+/* Vistas placeholder para módulos en desarrollo */
+['pedidos','clientes','inventario','compras','produccion',
+ 'finanzas','rrhh','reportes','whatsapp','sucursales'].forEach(view => {
+  const labels = {
+    pedidos:       ['📋 Pedidos',          'Gestión de pedidos y órdenes'],
+    clientes:      ['👥 Clientes',         'Base de datos de clientes y fidelización'],
+    inventario:    ['📦 Inventario',       'Control de existencias y movimientos'],
+    compras:       ['🏭 Compras',          'Órdenes de compra a proveedores'],
+    produccion:    ['⚙️ Producción',       'Órdenes de producción y merma'],
+    finanzas:      ['💰 Finanzas',         'Contabilidad de doble entrada y tesorería'],
+    rrhh:          ['👤 RRHH',            'Nómina, turnos y empleados'],
+    reportes:      ['📈 Reportes BI',      'Inteligencia de negocio y analytics'],
+    whatsapp:      ['💬 WhatsApp',         'Microservicio de pedidos y notificaciones'],
+    sucursales:    ['🏪 Sucursales',       'Gestión multisucursal'],
+  };
+  Router.register(view, {
+    title: (labels[view]||[view,''])[0],
+    load: async (container) => {
+      const [icon, desc] = labels[view] || [view, ''];
+      container.innerHTML = `
+        <div class="fade-in">
+          <div class="page-header">
+            <h1 class="page-title">${icon}</h1>
+            <p class="page-subtitle">${desc}</p>
+          </div>
+          <div class="empty-state" style="min-height:320px">
+            <div class="empty-icon">🚧</div>
+            <div class="empty-title">Módulo en desarrollo</div>
+            <div class="empty-msg">
+              Este módulo web está planificado en la Fase 4 del pipeline ERP.<br>
+              Usa la aplicación PyQt5 para acceder a esta funcionalidad.
+            </div>
+          </div>
+        </div>`;
+    },
+  });
+});
+
+Router.register('configuracion', {
+  title: 'Configuración',
+  load: async (container) => {
+    container.innerHTML = `
+      <div class="fade-in">
+        <div class="page-header">
+          <h1 class="page-title">⚙️ Configuración</h1>
+        </div>
+
+        <div class="card" style="max-width:560px">
+          <div class="card-header">
+            <div class="card-title">Apariencia</div>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label">Tema de interfaz</label>
+              <div class="btn-group">
+                <button class="btn btn-secondary" id="theme-light-btn" onclick="Theme.set('light')">
+                  ☀️ Claro
+                </button>
+                <button class="btn btn-secondary" id="theme-dark-btn" onclick="Theme.set('dark')">
+                  🌙 Oscuro
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card mt-4" style="max-width:560px">
+          <div class="card-header">
+            <div class="card-title">Sistema</div>
+          </div>
+          <div class="card-body">
+            <div class="flex items-center justify-between py-2">
+              <div>
+                <div class="text-sm font-medium">Versión</div>
+                <div class="text-xs text-muted">SPJ POS Web UI</div>
+              </div>
+              <span class="badge badge-primary">v13.4</span>
+            </div>
+            <hr>
+            <div class="flex items-center justify-between py-2">
+              <div>
+                <div class="text-sm font-medium">Estado del servidor</div>
+                <div class="text-xs text-muted">API Backend Python</div>
+              </div>
+              <span class="conn-status" id="config-conn-status">
+                <span class="status-dot"></span> Verificando...
+              </span>
+            </div>
+          </div>
+        </div>
+
+      </div>`;
+
+    /* Verificar conexión al servidor */
+    const statusEl = document.getElementById('config-conn-status');
+    try {
+      await API.get('/api/sucursales');
+      statusEl.innerHTML = '<span class="status-dot online"></span> Conectado';
+    } catch {
+      statusEl.innerHTML = '<span class="status-dot offline"></span> Sin conexión';
+    }
+
+    /* Marcar tema activo */
+    const theme = Theme.get();
+    document.getElementById('theme-light-btn').classList.toggle('btn-primary', theme === 'light');
+    document.getElementById('theme-dark-btn').classList.toggle('btn-primary', theme === 'dark');
+  },
+});
+
+
+/* ──────────────────────────────────────────────────────────────────────────
+   INICIALIZACIÓN
+   ────────────────────────────────────────────────────────────────────────── */
+
+document.addEventListener('DOMContentLoaded', () => {
+
+  /* Sidebar */
+  Sidebar.init();
+
+  /* User dropdown */
+  const menuBtn = document.getElementById('user-menu-btn');
+  const dropdown = document.getElementById('user-dropdown');
+  if (menuBtn && dropdown) {
+    menuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+    });
+    document.addEventListener('click', () => {
+      dropdown.style.display = 'none';
+    });
+  }
+
+  /* Global search (placeholder) */
+  document.getElementById('global-search')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const q = e.target.value.trim();
+      if (q) Toast.info('Búsqueda', `Buscando: "${q}"...`);
+    }
+  });
+
+  /* Routing inicial */
+  Router.initFromHash();
+
+  /* Sondeo de conectividad cada 30s */
+  setInterval(async () => {
+    try {
+      await API.get('/api/sucursales');
+      document.querySelector('#conn-status .status-dot')?.classList.replace('offline','online');
+    } catch {
+      document.querySelector('#conn-status .status-dot')?.classList.replace('online','offline');
+    }
+  }, 30_000);
+
+  /* Escuchar cambio de tema para actualizar botones de configuración */
+  document.addEventListener('spj:theme-changed', () => {
+    const cfg = document.getElementById('theme-light-btn');
+    if (!cfg) return;
+    const t = Theme.get();
+    document.getElementById('theme-light-btn')?.classList.toggle('btn-primary', t === 'light');
+    document.getElementById('theme-dark-btn')?.classList.toggle('btn-primary', t === 'dark');
+  });
+
+});
+</script>
+
+</body>
+</html>

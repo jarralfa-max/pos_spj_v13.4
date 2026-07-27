@@ -5,8 +5,10 @@ Wrappea la conexión SQLite y expone insert_audit_log()
 que es lo que AuditService espera.
 """
 import logging
+import os
 
 logger = logging.getLogger("spj.audit_repo")
+_STRICT_AUDIT = os.getenv("SPJ_AUDIT_STRICT", "0") == "1"
 
 
 class AuditRepository:
@@ -24,22 +26,25 @@ class AuditRepository:
         entidad_id: str,
         valor_antes: str = "{}",
         valor_despues: str = "{}",
-        sucursal_id: int = 1,
+        sucursal_id: str = "",
         detalles: str = "",
     ) -> None:
-        """Inserta un registro en audit_logs. Falla silenciosamente."""
+        """Inserta un registro en audit_logs (id UUIDv7 acuñado — REGLA CERO)."""
+        from backend.shared.ids import new_uuid
         try:
             self.db.execute(
                 """INSERT INTO audit_logs
-                   (usuario, accion, modulo, entidad, entidad_id,
+                   (id, usuario, accion, modulo, entidad, entidad_id,
                     valor_antes, valor_despues, sucursal_id, detalles)
-                   VALUES (?,?,?,?,?,?,?,?,?)""",
-                (usuario, accion, modulo, entidad, str(entidad_id),
-                 valor_antes, valor_despues, sucursal_id, detalles),
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                (new_uuid(), usuario, accion, modulo, entidad, str(entidad_id),
+                 valor_antes, valor_despues, str(sucursal_id or ""), detalles),
             )
             try:
                 self.db.commit()
             except Exception:
                 pass
         except Exception as e:
-            logger.debug("audit insert_audit_log: %s", e)
+            logger.error("audit insert_audit_log failed: %s", e)
+            if _STRICT_AUDIT:
+                raise

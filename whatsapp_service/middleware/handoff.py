@@ -8,7 +8,6 @@ import logging
 from typing import Optional
 from erp.bridge import ERPBridge
 from messaging.sender import send_text
-from notifications.staff import notificar_nuevo_pedido_wa
 
 logger = logging.getLogger("wa.handoff")
 

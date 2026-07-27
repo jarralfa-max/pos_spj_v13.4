@@ -9,6 +9,7 @@ Motor de Happy Hour y promociones programadas.
 """
 from __future__ import annotations
 import logging
+from backend.shared.ids import new_uuid
 from datetime import datetime, time as dtime
 from typing import Optional
 
@@ -179,14 +180,15 @@ class HappyHourService:
                     dias: str, tipo: str, valor: float,
                     aplica_a: str = "todos", aplica_valor: str = None,
                     mensaje_wa: str = None) -> int:
-        rid = self.db.execute("""
+        rid = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+        self.db.execute("""
             INSERT INTO happy_hour_rules
-                (nombre, hora_inicio, hora_fin, dias_semana,
+                (id, nombre, hora_inicio, hora_fin, dias_semana,
                  tipo_descuento, valor, aplica_a, aplica_valor,
                  mensaje_wa, sucursal_id)
-            VALUES (?,?,?,?,?,?,?,?,?,?)
-        """, (nombre, hora_inicio, hora_fin, dias, tipo, valor,
-              aplica_a, aplica_valor, mensaje_wa, self.sucursal_id)).lastrowid
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)
+        """, (rid, nombre, hora_inicio, hora_fin, dias, tipo, valor,
+              aplica_a, aplica_valor, mensaje_wa, self.sucursal_id))
         try: self.db.commit()
         except Exception: pass
         self._cache_minuto = -1   # invalida caché

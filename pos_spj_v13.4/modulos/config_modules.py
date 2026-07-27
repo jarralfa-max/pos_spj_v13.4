@@ -4,7 +4,10 @@ Gestión de Feature Flags — habilitar/deshabilitar módulos por sucursal.
 Al desactivar un módulo desaparece del menú lateral inmediatamente.
 """
 from __future__ import annotations
+from backend.application.queries.module_settings_query_service import ModuleSettingsQueryService
+from core.services.feature_flag_service import FeatureFlagService
 from modulos.spj_styles import spj_btn, apply_btn_styles
+from repositories.feature_flag_repository import FeatureFlagRepository
 import logging
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
@@ -12,6 +15,9 @@ from PyQt5.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QComboBox, QMessageBox, QCheckBox
 )
+
+from core.services.configuration_settings_service import CompanyProfileService
+from repositories.config_repository import ConfigRepository
 
 logger = logging.getLogger("spj.config_modules")
 
@@ -25,10 +31,10 @@ MODULOS_SISTEMA = [
     ("COMPRAS",          "🛒 Compras a Prov.",       True),
     ("COTIZACIONES",     "📋 Cotizaciones",          True),
     ("MERMA",            "🗑️ Merma",                True),
-    ("PROVEEDORES",      "🏭 Proveedores",           True),
+    # ("PROVEEDORES",      "🏭 Proveedores",           True),  # ELIMINADO: Integrado en FINANZAS_UNIFICADAS
     ("ETIQUETAS",        "🏷️ Etiquetas",            True),
+    ("FINANZAS_UNIFICADAS", "💰 Finanzas",          True),
     ("CUENTAS_XC_XP",   "⚖️ CxC y CxP",            True),
-    ("TESORERIA",        "🏦 Tesorería",             True),
     ("RRHH",             "👔 Recursos Humanos",      True),
     ("ACTIVOS",          "🏢 Activos Fijos",         True),
     ("TARJETAS_FIDELIDAD","💳 Tarjetas Fidelidad",  True),
@@ -36,7 +42,6 @@ MODULOS_SISTEMA = [
     ("INTELIGENCIA_BI",  "📊 Inteligencia BI",       True),
     ("PREDICCIONES",     "🔮 Predicciones",          True),
     ("PRODUCCION",       "🏭 Producción",            True),
-    ("RECETAS",          "📖 Recetas",               True),
     ("DELIVERY_AUTO",    "🤖 Auto-asign Delivery",   True),
 ]
 
@@ -48,13 +53,17 @@ class ModuloConfigModulos(QWidget):
         self.container   = container
         self.db          = container.db
         self.sucursal_id = getattr(container, 'sucursal_id', 1)
+        self.module_settings_query_service = ModuleSettingsQueryService(self.db)
+        self.feature_flag_service = getattr(container, 'feature_flag_service', None)
+        if self.feature_flag_service is None:
+            self.feature_flag_service = FeatureFlagService(FeatureFlagRepository(self.db))
         self._build_ui()
         self._cargar()
 
     def set_usuario_actual(self, usuario: str, rol: str = "cajero") -> None:
         pass
 
-    def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
+    def set_sucursal(self, sucursal_id, nombre: str = "") -> None:
         self.sucursal_id = sucursal_id
         self._cargar()
 
@@ -104,29 +113,21 @@ class ModuloConfigModulos(QWidget):
         lay.addLayout(btn_row)
 
     def _cargar_sucursales(self):
+        self.cmb_sucursal.blockSignals(True)
+        self.cmb_sucursal.clear()
         try:
-            rows = self.db.execute(
-                "SELECT id, nombre FROM sucursales WHERE activa=1 ORDER BY nombre"
-            ).fetchall()
+            rows = self.module_settings_query_service.list_active_branch_options()
             self.cmb_sucursal.blockSignals(True)
             self.cmb_sucursal.clear()
             for r in rows:
                 self.cmb_sucursal.addItem(r[1], r[0])
             self.cmb_sucursal.blockSignals(False)
         except Exception:
-            self.cmb_sucursal.addItem("Principal", 1)
+            logger.warning("No se pudieron cargar las sucursales activas")
 
     def _cargar(self):
         suc_id = self.cmb_sucursal.currentData() or self.sucursal_id
-        # Load current flags from DB
-        flags = {}
-        try:
-            rows = self.db.execute(
-                "SELECT clave, activo FROM feature_flags"
-            ).fetchall()
-            flags = {r[0]: bool(r[1]) for r in rows}
-        except Exception:
-            pass
+        flags = self.module_settings_query_service.get_branch_feature_flags(suc_id)
 
         self.tbl.setRowCount(len(MODULOS_SISTEMA))
         for ri, (codigo, nombre, default) in enumerate(MODULOS_SISTEMA):
@@ -159,20 +160,11 @@ class ModuloConfigModulos(QWidget):
 
     def _toggle(self, codigo: str, activo: bool):
         suc_id = self.cmb_sucursal.currentData() or self.sucursal_id
+        if self.feature_flag_service is None or suc_id is None:
+            logger.warning("_toggle %s: feature_flag_service/sucursal no disponible", codigo)
+            return
         try:
-            ffs = getattr(self.container, 'feature_flag_service', None)
-            if ffs and hasattr(ffs, 'repo') and hasattr(ffs.repo, 'set_flag'):
-                ffs.repo.set_flag(codigo, suc_id, activo)
-                ffs._cache.pop(suc_id, None)  # invalidate cache
-            else:
-                # Fallback: direct DB
-                self.db.execute("""
-                    INSERT INTO feature_flags(clave, activo, descripcion)
-                    VALUES(?,?,?)
-                    ON CONFLICT(clave) DO UPDATE SET activo=excluded.activo
-                """, (codigo, int(activo), codigo))
-                try: self.db.commit()
-                except Exception: pass
+            self.feature_flag_service.set_flag(codigo, suc_id, activo)
         except Exception as e:
             logger.warning("_toggle %s: %s", codigo, e)
 

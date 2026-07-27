@@ -1,0 +1,1 @@
+"""HR event handlers."""

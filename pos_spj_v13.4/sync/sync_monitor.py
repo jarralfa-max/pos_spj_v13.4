@@ -22,7 +22,8 @@ class SyncMonitor:
     """
 
     def __init__(self, db):
-        self.db = db
+        from core.db.connection import wrap
+        self.db = wrap(db)
 
     def _now(self) -> str:
         return datetime.utcnow().isoformat()

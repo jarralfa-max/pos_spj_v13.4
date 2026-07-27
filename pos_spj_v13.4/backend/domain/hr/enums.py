@@ -1,0 +1,113 @@
+"""Enumerations for the canonical HR domain."""
+
+from __future__ import annotations
+
+from enum import StrEnum
+
+
+class EmploymentStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+    TERMINATED = "TERMINATED"
+
+
+class ContractType(StrEnum):
+    FULL_TIME = "FULL_TIME"
+    PART_TIME = "PART_TIME"
+    TEMPORARY = "TEMPORARY"
+    CONTRACTOR = "CONTRACTOR"
+
+
+class PaymentFrequency(StrEnum):
+    WEEKLY = "WEEKLY"
+    BIWEEKLY = "BIWEEKLY"
+    MONTHLY = "MONTHLY"
+
+
+class PunchType(StrEnum):
+    ENTRY = "ENTRY"
+    EXIT = "EXIT"
+
+
+class AttendanceSource(StrEnum):
+    CASH_REGISTER = "CASH_REGISTER"
+    MANUAL = "MANUAL"
+    TIME_CLOCK = "TIME_CLOCK"
+    MOBILE = "MOBILE"
+    SYSTEM = "SYSTEM"
+
+
+class WorkdayStatus(StrEnum):
+    OPEN = "OPEN"
+    COMPLETE = "COMPLETE"
+    MISSING_ENTRY = "MISSING_ENTRY"
+    MISSING_EXIT = "MISSING_EXIT"
+    ABSENT = "ABSENT"
+    JUSTIFIED = "JUSTIFIED"
+
+
+class AdjustmentStatus(StrEnum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
+class AttendanceIncidentType(StrEnum):
+    MISSING_ENTRY = "MISSING_ENTRY"
+    MISSING_EXIT = "MISSING_EXIT"
+    INVALID_SEQUENCE = "INVALID_SEQUENCE"
+    DUPLICATE_IGNORED = "DUPLICATE_IGNORED"
+
+
+class AttendanceIncidentStatus(StrEnum):
+    PENDING = "PENDING"
+    RESOLVED = "RESOLVED"
+
+
+class LeaveType(StrEnum):
+    VACATION = "VACATION"
+    PAID_LEAVE = "PAID_LEAVE"
+    UNPAID_LEAVE = "UNPAID_LEAVE"
+    SICK_LEAVE = "SICK_LEAVE"
+    ABSENCE_JUSTIFICATION = "ABSENCE_JUSTIFICATION"
+
+
+class LeaveStatus(StrEnum):
+    DRAFT = "DRAFT"
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    CANCELLED = "CANCELLED"
+
+
+class PayrollRunStatus(StrEnum):
+    DRAFT = "DRAFT"
+    CALCULATED = "CALCULATED"
+    UNDER_REVIEW = "UNDER_REVIEW"
+    AUTHORIZED = "AUTHORIZED"
+    PAID = "PAID"
+    CANCELLED = "CANCELLED"
+
+
+class PayrollConceptCode(StrEnum):
+    BASE_SALARY = "BASE_SALARY"
+    OVERTIME = "OVERTIME"
+    BONUS = "BONUS"
+    COMMISSION = "COMMISSION"
+    VACATION = "VACATION"
+    PAID_LEAVE = "PAID_LEAVE"
+    ABSENCE_DEDUCTION = "ABSENCE_DEDUCTION"
+    LATE_DEDUCTION = "LATE_DEDUCTION"
+    LOAN_DEDUCTION = "LOAN_DEDUCTION"
+    ADVANCE_DEDUCTION = "ADVANCE_DEDUCTION"
+    ADJUSTMENT = "ADJUSTMENT"
+
+
+class Weekday(StrEnum):
+    MONDAY = "MONDAY"
+    TUESDAY = "TUESDAY"
+    WEDNESDAY = "WEDNESDAY"
+    THURSDAY = "THURSDAY"
+    FRIDAY = "FRIDAY"
+    SATURDAY = "SATURDAY"
+    SUNDAY = "SUNDAY"

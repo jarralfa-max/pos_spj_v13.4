@@ -1,0 +1,38 @@
+{"ts": "2026-06-13T02:17:52.314614", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-13T02:17:52.348431", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-13T02:17:52.348898", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-13T02:18:05.313379", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-13T02:18:06.424278", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-13T02:18:06.428148", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-13T02:18:11.033284", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-13T02:18:11.033553", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-13T02:18:26.322149", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-13T02:18:26.462981", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-13T02:18:26.463701", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Cadenas (id=1)", "module": "ventas", "line": 1334}
+{"ts": "2026-06-13T02:18:31.941831", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-13T02:18:32.047821", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=2", "module": "ventas", "line": 2257}
+{"ts": "2026-06-13T02:18:35.401308", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-13T02:18:35.507658", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-13T02:44:19.999043", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-13T02:44:20.090189", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-13T02:44:20.102334", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-13T02:44:34.232036", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-13T02:44:37.016315", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-13T02:44:37.016585", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-13T02:44:41.935315", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-13T02:44:41.935568", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1274}
+{"ts": "2026-06-13T02:45:41.440773", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-13T02:45:41.613814", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-13T02:45:41.614649", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Cadenas (id=1)", "module": "ventas", "line": 1334}
+{"ts": "2026-06-13T02:46:01.195704", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-13T02:46:01.276195", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=2", "module": "ventas", "line": 2257}
+{"ts": "2026-06-13T02:46:03.101614", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-13T02:46:03.231295", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=2", "module": "ventas", "line": 2257}
+{"ts": "2026-06-13T02:46:05.824680", "level": "INFO", "logger": "spj.ventas", "msg": "Búsqueda de productos: filtro='' categoria='' resultados=11", "module": "ventas", "line": 2170}
+{"ts": "2026-06-13T02:46:05.946737", "level": "INFO", "logger": "spj.ventas", "msg": "Resultados de productos pintados en UI: cards=11 columnas=3", "module": "ventas", "line": 2257}
+{"ts": "2026-06-13T02:46:50.327053", "level": "INFO", "logger": "spj.ventas", "msg": "Producto clickeado en grid: event_type=2 product_id=5 nombre=Korn Pops", "module": "ventas", "line": 308}
+{"ts": "2026-06-13T02:46:50.328413", "level": "INFO", "logger": "spj.ventas", "msg": "Producto seleccionado: product_id=5 nombre=Korn Pops sender=ProductCard", "module": "ventas", "line": 2274}
+{"ts": "2026-06-13T02:46:50.329943", "level": "INFO", "logger": "spj.ventas", "msg": "Producto cargado para agregar por unidad: product_id=5 unidad=pza", "module": "ventas", "line": 2296}
+{"ts": "2026-06-13T02:46:58.979425", "level": "INFO", "logger": "spj.ventas", "msg": "Producto clickeado en grid: event_type=2 product_id=5 nombre=Korn Pops", "module": "ventas", "line": 308}
+{"ts": "2026-06-13T02:46:58.979637", "level": "INFO", "logger": "spj.ventas", "msg": "Producto seleccionado: product_id=5 nombre=Korn Pops sender=ProductCard", "module": "ventas", "line": 2274}
+{"ts": "2026-06-13T02:46:58.982714", "level": "INFO", "logger": "spj.ventas", "msg": "Producto cargado para agregar por unidad: product_id=5 unidad=pza", "module": "ventas", "line": 2296}

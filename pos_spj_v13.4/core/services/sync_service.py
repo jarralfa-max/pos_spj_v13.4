@@ -20,6 +20,9 @@ class SyncService:
         self.api_url   = api_url   or self._cfg("sync_url",     "")
         self.api_token = api_token or self._cfg("sync_api_key", "")
         self.sucursal_id = 1
+        # Hilo de fondo (Demonio) que no bloquea la interfaz de PyQt5
+        self.is_running = False
+        self._thread = None
 
     def _cfg(self, key: str, default: str = "") -> str:
         try:
@@ -29,10 +32,14 @@ class SyncService:
             return row[0] if row and row[0] else default
         except Exception:
             return default
-        
-        # Hilo de fondo (Demonio) que no bloquea la interfaz de PyQt5
-        self.is_running = False
-        self._thread = None
+    
+    def _cursor(self):
+        """Obtiene cursor compatible para sqlite3.Connection o wrappers custom."""
+        if hasattr(self.db, "cursor"):
+            return self.db.cursor()
+        if hasattr(self.db, "conn") and hasattr(self.db.conn, "cursor"):
+            return self.db.conn.cursor()
+        raise AttributeError("DB object has no cursor()")
 
     def iniciar_demonio(self):
         """Inicia el trabajador en segundo plano que vigilará la bandeja de salida."""
@@ -61,14 +68,15 @@ class SyncService:
         """
         _sucursal = sucursal_id or getattr(self, 'sucursal_id', 1)
         try:
+            from backend.shared.ids import new_uuid
             payload_json = json.dumps(payload, ensure_ascii=False, default=str)
-            _cur = cursor if cursor is not None else self.db.cursor()
+            _cur = cursor if cursor is not None else self._cursor()
             _cur.execute("""
                 INSERT INTO sync_outbox
-                    (tabla, operacion, registro_id, payload, sucursal_id,
+                    (id, tabla, operacion, registro_id, payload, sucursal_id,
                      enviado, intentos, fecha)
-                VALUES (?, ?, ?, ?, ?, 0, 0, datetime('now'))
-            """, (tabla, operacion, registro_id, payload_json, _sucursal))
+                VALUES (?, ?, ?, ?, ?, ?, 0, 0, datetime('now'))
+            """, (new_uuid(), tabla, operacion, registro_id, payload_json, _sucursal))
 
             # Increment Lamport clock (best-effort, never blocks the sale)
             try:
@@ -97,12 +105,13 @@ class SyncService:
 
     def _procesar_bandeja_salida(self):
         """Toma los registros no enviados y los manda a la API de la Matriz."""
-        cursor = self.db.cursor()
+        cursor = self._cursor()
         
         # Tomamos hasta 50 eventos pendientes por lote
+        # id es la identidad UUIDv7 (time-ordered); se expone como uuid del evento.
         pendientes = cursor.execute("""
-            SELECT id, uuid, tabla, operacion, registro_id, payload 
-            FROM sync_outbox 
+            SELECT id, id AS uuid, tabla, operacion, registro_id, payload
+            FROM sync_outbox
             WHERE enviado = 0 AND intentos < 10
             ORDER BY id ASC LIMIT 50
         """).fetchall()
@@ -175,4 +184,3 @@ class SyncService:
             return new_val
         except Exception:
             return 0
-

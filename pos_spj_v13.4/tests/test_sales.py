@@ -33,7 +33,7 @@ class TestProcesarVenta:
             sales_svc.procesar_venta([_item(prod_id=4, qty=1.0)], _pago())
 
     def test_stock_se_descuenta(self, sales_svc, mem_db):
-        sales_svc.procesar_venta([_item(qty=3.0)], _pago())
+        sales_svc.procesar_venta([_item(qty=3.0)], _pago(recibido=500.0))
         stock = mem_db.execute("SELECT existencia FROM productos WHERE id=1").fetchone()[0]
         assert float(stock) == 47.0
 
@@ -84,7 +84,7 @@ class TestProcesarVenta:
 
 class TestAnularVenta:
     def test_anular_restaura_stock(self, sales_svc, mem_db):
-        result = sales_svc.procesar_venta([_item(qty=5.0)], _pago())
+        result = sales_svc.procesar_venta([_item(qty=5.0)], _pago(recibido=1000.0))
         stock_after_sale = float(mem_db.execute("SELECT existencia FROM productos WHERE id=1").fetchone()[0])
         sales_svc.anular_venta(result.venta_id, "test")
         stock_after_cancel = float(mem_db.execute("SELECT existencia FROM productos WHERE id=1").fetchone()[0])

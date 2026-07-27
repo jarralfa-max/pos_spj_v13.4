@@ -11,8 +11,10 @@ USO desde cualquier módulo:
 """
 from __future__ import annotations
 import logging
+import os
 
 logger = logging.getLogger("spj.auto_audit")
+_CRITICAL_FAIL_CLOSED = os.getenv("SPJ_AUDIT_CRITICAL_FAILCLOSED", "1") == "1"
 
 
 def audit_write(
@@ -61,4 +63,6 @@ def audit_write(
                 try: db.commit()
                 except Exception: pass
     except Exception as e:
-        logger.debug("auto_audit: %s", e)
+        logger.error("auto_audit: %s", e)
+        if _CRITICAL_FAIL_CLOSED:
+            raise

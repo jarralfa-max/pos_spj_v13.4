@@ -1,31 +1,68 @@
-# modulos/merma.py — SPJ POS v13.30
-"""
-Módulo de registro de merma con:
-  - Autocompletado de productos desde la BD
-  - Protección financiera (muestra valor de pérdida, confirmación en altos montos)
-  - Auditoría completa (audit_logs + EventBus)
-  - Historial con datos financieros y filtros
-"""
+# modulos/merma.py — SPJ POS v13.4
+"""Módulo de registro de merma usando la ruta canónica backend."""
 from __future__ import annotations
-from modulos.spj_styles import spj_btn, apply_btn_styles
-import logging
-import uuid
-from datetime import date, datetime
 
-from PyQt5.QtCore import Qt, QDate, QStringListModel
+import logging
+
+from PyQt5.QtCore import Qt, QDate
 from PyQt5.QtGui import QColor, QFont
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
-    QLabel, QLineEdit, QPushButton, QDoubleSpinBox,
-    QComboBox, QTableWidget, QTableWidgetItem, QHeaderView,
+    QLabel, QLineEdit, QDoubleSpinBox,
+    QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView, QGroupBox, QDateEdit, QMessageBox,
-    QCompleter, QTabWidget, QFrame, QSpinBox,
+    QInputDialog, QTabWidget,
+)
+
+from backend.application.commands.waste_commands import RegisterWasteCommand
+from backend.shared.ids import new_uuid
+from backend.application.queries.inventory_query_service import InventoryQueryService
+from backend.application.queries.waste_query_service import WasteQueryService
+from backend.application.services.inventory_application_service import InventoryApplicationService
+from backend.application.services.waste_application_service import WasteApplicationService, WasteFinanceHandler
+from backend.application.use_cases.register_waste_use_case import RegisterWasteUseCase
+from backend.infrastructure.db.repositories.inventory_repository import InventoryRepository
+from backend.infrastructure.db.repositories.waste_repository import WasteRepository
+from frontend.desktop.components.search_selector import SearchOption, SearchSelector
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.ui_components import (
+    create_primary_button, create_secondary_button, create_input, create_combo,
+    FilterBar, LoadingIndicator, EmptyStateWidget, Toast,
 )
 
 logger = logging.getLogger("spj.modulo.merma")
 
-# Umbral de protección financiera (pedir confirmación)
-UMBRAL_VALOR_ALTO = 500.0  # pesos
+UMBRAL_VALOR_ALTO = 500.0
+_MAX_QTY = 99_999.0
+_DEFAULT_UNIT = "kg"
+_ZERO_DISPLAY = "$0.00"
+
+
+class CoreEventBusAdapter:
+    """Publishes typed backend events into the legacy/global core EventBus."""
+
+    def __init__(self, core_bus) -> None:
+        self._core_bus = core_bus
+
+    def publish(self, event) -> None:
+        event_data = event.to_dict()
+        payload = {**dict(event_data.get("payload") or {}), **event_data}
+        payload.pop("payload", None)
+        event_name = str(event_data.get("event_name") or getattr(event.event_name, "value", event.event_name))
+        self._core_bus.publish(event_name, payload)
+        if event_name == "WASTE_REGISTERED":
+            self._core_bus.publish("MERMA_REGISTRADA", payload)
+            self._core_bus.publish("AJUSTE_INVENTARIO", payload)
+
+
+def _safe_float(value, default: float = 0.0) -> float:
+    if value in (None, ""):
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        logger.warning("[MERMA] valor numérico inválido value=%r", value)
+        return default
 
 
 class ModuloMerma(QWidget):
@@ -45,15 +82,48 @@ class ModuloMerma(QWidget):
 
     def __init__(self, container, parent=None):
         super().__init__(parent)
-        self.container   = container
-        self.sucursal_id = getattr(container, 'sucursal_id', 1)
-        self.usuario     = ""
-        self._productos_cache = []  # [(id, nombre, precio_compra, unidad, existencia)]
-        self._selected_product = None
-        self._ensure_schema()
+        self.container = container
+        # Sucursal proviene del contexto de sesión; sin default arbitrario (regla 23).
+        self.sucursal_id = getattr(container, "sucursal_id", "") or ""
+        self.usuario = ""
+        self._selected_product: dict | None = None
+        self._product_search_cache: dict[str, dict] = {}
+        self._build_backend_services(container)
         self._build_ui()
-        self._cargar_productos()
+        logger.info("[MERMA] módulo inicializado sucursal_id=%s", self.sucursal_id)
         self._cargar_historial()
+
+    def _build_backend_services(self, container) -> None:
+        repository = WasteRepository(container.db)
+        inventory_repository = InventoryRepository(container.db)
+        self._waste_repository = repository
+        self._inventory_query_service = InventoryQueryService(inventory_repository)
+        event_bus = self._resolve_event_bus(container)
+        inventory_service = InventoryApplicationService(
+            repository=inventory_repository,
+            event_bus=event_bus,
+        )
+        finance_service = getattr(container, "finance_service", None) or getattr(container, "treasury_service", None)
+        finance_handler = WasteFinanceHandler(finance_service)
+        self._waste_query_service = WasteQueryService(repository)
+        self._register_waste_use_case = RegisterWasteUseCase(
+            app_service=WasteApplicationService(
+                repository=repository,
+                inventory_service=inventory_service,
+                event_bus=event_bus,
+                finance_handler=finance_handler,
+            )
+        )
+
+    def _resolve_event_bus(self, container):
+        event_bus = getattr(container, "waste_event_bus", None)
+        if event_bus is not None:
+            return event_bus
+        core_bus = getattr(container, "event_bus", None)
+        if core_bus is None:
+            from core.events.event_bus import get_bus
+            core_bus = get_bus()
+        return CoreEventBusAdapter(core_bus)
 
     def set_usuario_actual(self, usuario: str, rol: str = "cajero") -> None:
         self.usuario = usuario
@@ -62,60 +132,30 @@ class ModuloMerma(QWidget):
         self.sucursal_id = sucursal_id
         self._cargar_historial()
 
-    # ── Schema migration ──────────────────────────────────────────────────────
-    def _ensure_schema(self):
-        """Agrega columnas faltantes a la tabla mermas para BDs existentes."""
-        db = self.container.db
-        for col in ["costo_unitario REAL DEFAULT 0",
-                     "valor_perdida REAL DEFAULT 0",
-                     "notas TEXT DEFAULT ''",
-                     "fecha TEXT"]:
-            try:
-                db.execute(f"ALTER TABLE mermas ADD COLUMN {col}")
-            except Exception:
-                pass  # Column already exists
-        try:
-            db.commit()
-        except Exception:
-            pass
-
-    # ── UI ────────────────────────────────────────────────────────────────────
     def _build_ui(self):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(14, 12, 14, 12)
         lay.setSpacing(10)
 
-        # Header
         hdr = QHBoxLayout()
         titulo = QLabel("🗑️ Control de Merma")
-        titulo.setStyleSheet("font-size:17px;font-weight:bold;color:#2c3e50;")
+        titulo.setObjectName("heading")
         hdr.addWidget(titulo)
         hdr.addStretch()
-        # Resumen financiero del día
         self.lbl_resumen = QLabel()
-        self.lbl_resumen.setStyleSheet(
-            "font-size:12px;color:#e74c3c;font-weight:bold;"
-            "background:#fdf2f2;padding:6px 12px;border-radius:4px;")
+        self.lbl_resumen.setObjectName("caption")
+        self.lbl_resumen.setStyleSheet(f"color: {Colors.DANGER_BASE}; font-weight: bold;")
         hdr.addWidget(self.lbl_resumen)
         lay.addLayout(hdr)
 
         tabs = QTabWidget()
-        tabs.setStyleSheet("""
-            QTabWidget::pane { border:1px solid #ddd; background:white; border-radius:4px; }
-            QTabBar::tab { padding:7px 16px; font-size:12px; }
-            QTabBar::tab:selected { background:#e74c3c; color:white; font-weight:bold; }
-        """)
-
-        # ── Tab 1: Registro ───────────────────────────────────────────────
+        tabs.setObjectName("tabWidget")
         tab_reg = QWidget()
         self._build_tab_registro(tab_reg)
         tabs.addTab(tab_reg, "📝 Registrar Merma")
-
-        # ── Tab 2: Historial ──────────────────────────────────────────────
         tab_hist = QWidget()
         self._build_tab_historial(tab_hist)
         tabs.addTab(tab_hist, "📋 Historial")
-
         lay.addWidget(tabs)
 
     def _build_tab_registro(self, parent):
@@ -123,73 +163,53 @@ class ModuloMerma(QWidget):
         lay.setSpacing(10)
 
         grp = QGroupBox("Datos de la merma")
-        grp.setStyleSheet("QGroupBox{font-weight:bold;}")
+        grp.setObjectName("styledGroup")
         form = QFormLayout(grp)
         form.setSpacing(8)
 
-        # ── Búsqueda con autocompletado ───────────────────────────────────
-        self.txt_producto = QLineEdit()
-        self.txt_producto.setPlaceholderText("🔍 Buscar producto por nombre...")
-        self.txt_producto.setStyleSheet(
-            "padding:8px 12px;border:2px solid #e74c3c;border-radius:6px;"
-            "font-size:13px;background:white;")
-        self._completer_model = QStringListModel()
-        self._completer = QCompleter()
-        self._completer.setModel(self._completer_model)
-        self._completer.setCaseSensitivity(Qt.CaseInsensitive)
-        self._completer.setFilterMode(Qt.MatchContains)
-        self._completer.setMaxVisibleItems(12)
-        self._completer.setCompletionMode(QCompleter.PopupCompletion)
-        self._completer.activated.connect(self._on_producto_selected)
-        self.txt_producto.setCompleter(self._completer)
-        form.addRow("Producto:", self.txt_producto)
+        self.product_selector = SearchSelector(
+            self,
+            provider=self._buscar_productos,
+            placeholder="🔍 Buscar producto por nombre...",
+        )
+        # Ruta canónica de selección: SearchSelector emite selected.
+        # No conectar señales privadas de _results; al limpiar resultados tras
+        # seleccionar se puede invalidar el QListWidgetItem y cerrar PyQt.
+        self.product_selector.selected.connect(self._on_producto_selected)
+        form.addRow("Producto:", self.product_selector)
 
-        # ── Info del producto (feedback visual) ───────────────────────────
         self.lbl_producto_info = QLabel("")
-        self.lbl_producto_info.setStyleSheet(
-            "color:#666;font-size:11px;padding:2px 4px;background:#f8f8f8;border-radius:3px;")
+        self.lbl_producto_info.setObjectName("caption")
         form.addRow("", self.lbl_producto_info)
 
-        # ── Cantidad ──────────────────────────────────────────────────────
         self.spin_cantidad = QDoubleSpinBox()
-        self.spin_cantidad.setRange(0.001, 99999)
-        self.spin_cantidad.setDecimals(3)
-        self.spin_cantidad.setStyleSheet("padding:6px;font-size:13px;")
+        self.spin_cantidad.setRange(0.00, _MAX_QTY)
+        self.spin_cantidad.setDecimals(2)
+        self.spin_cantidad.setValue(0.00)
+        self.spin_cantidad.setStyleSheet(f"padding: {Spacing.XS}; font-size: {Typography.SIZE_SM};")
         self.spin_cantidad.valueChanged.connect(self._actualizar_valor_perdida)
         form.addRow("Cantidad:", self.spin_cantidad)
 
-        # ── Valor estimado de pérdida (protección financiera) ─────────────
-        self.lbl_valor_perdida = QLabel("$0.00")
-        self.lbl_valor_perdida.setStyleSheet(
-            "font-size:16px;font-weight:bold;color:#e74c3c;"
-            "padding:4px 8px;background:#fff5f5;border-radius:4px;")
+        self.lbl_valor_perdida = QLabel(_ZERO_DISPLAY)
+        self.lbl_valor_perdida.setObjectName("heading")
+        self.lbl_valor_perdida.setStyleSheet(f"color: {Colors.DANGER_BASE};")
         form.addRow("Valor pérdida:", self.lbl_valor_perdida)
 
-        # ── Motivo ────────────────────────────────────────────────────────
-        self.cmb_motivo = QComboBox()
-        self.cmb_motivo.addItems(self.MOTIVOS)
-        self.cmb_motivo.setStyleSheet("padding:4px;")
+        self.cmb_motivo = create_combo(self, self.MOTIVOS)
         form.addRow("Motivo:", self.cmb_motivo)
 
-        # ── Notas ─────────────────────────────────────────────────────────
-        self.txt_notas = QLineEdit()
-        self.txt_notas.setPlaceholderText("Observaciones (opcional)")
+        self.txt_notas = create_input(self, "Observaciones (opcional)")
         form.addRow("Notas:", self.txt_notas)
 
-        # ── Fecha ─────────────────────────────────────────────────────────
         self.date_edit = QDateEdit(QDate.currentDate())
         self.date_edit.setCalendarPopup(True)
+        self.date_edit.setObjectName("inputField")
         form.addRow("Fecha:", self.date_edit)
 
         lay.addWidget(grp)
-
-        # Botón registrar
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        btn_guardar = QPushButton("🗑️ Registrar Merma")
-        btn_guardar.setStyleSheet(
-            "background:#e74c3c;color:white;font-weight:bold;"
-            "padding:10px 28px;border-radius:5px;font-size:14px;")
+        btn_guardar = create_primary_button(self, "🗑️ Registrar Merma", "Confirmar el registro de la merma seleccionada")
         btn_guardar.clicked.connect(self._registrar)
         btn_row.addWidget(btn_guardar)
         lay.addLayout(btn_row)
@@ -197,26 +217,35 @@ class ModuloMerma(QWidget):
 
     def _build_tab_historial(self, parent):
         lay = QVBoxLayout(parent)
-
-        # Filtros
         filt = QHBoxLayout()
-        filt.addWidget(QLabel("Período:"))
-        self.cmb_periodo = QComboBox()
-        self.cmb_periodo.addItems(["Hoy", "Última semana", "Último mes", "Todo"])
+        lbl_periodo = QLabel("Período:")
+        lbl_periodo.setObjectName("caption")
+        filt.addWidget(lbl_periodo)
+        self.cmb_periodo = create_combo(self, ["Hoy", "Última semana", "Último mes", "Todo"])
         self.cmb_periodo.currentIndexChanged.connect(self._cargar_historial)
         filt.addWidget(self.cmb_periodo)
         filt.addStretch()
-        btn_refresh = QPushButton("🔄 Actualizar")
+        btn_refresh = create_secondary_button(self, "🔄 Actualizar", "Recargar el historial de mermas")
         btn_refresh.clicked.connect(self._cargar_historial)
         filt.addWidget(btn_refresh)
         lay.addLayout(filt)
+        self._hist_filter = FilterBar(
+            self,
+            placeholder="Buscar producto, motivo o usuario…",
+            combo_filters={"periodo": ["Hoy", "Última semana", "Último mes", "Todo"]},
+        )
+        self._hist_filter.filters_changed.connect(lambda _v: self._cargar_historial())
+        lay.addWidget(self._hist_filter)
+        self._hist_loading = LoadingIndicator("Cargando historial de merma…", self)
+        self._hist_loading.hide()
+        lay.addWidget(self._hist_loading)
 
-        # Tabla con columnas financieras
         self.tbl = QTableWidget()
+        self.tbl.setObjectName("tableView")
         self.tbl.setColumnCount(9)
         self.tbl.setHorizontalHeaderLabels([
             "Fecha", "Producto", "Cantidad", "Unidad",
-            "Costo/u", "Valor Pérdida", "Motivo", "Usuario", "Notas"
+            "Costo/u", "Valor Pérdida", "Motivo", "Usuario", "Notas",
         ])
         self.tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -226,276 +255,354 @@ class ModuloMerma(QWidget):
         hh.setSectionResizeMode(1, QHeaderView.Stretch)
         hh.setSectionResizeMode(6, QHeaderView.Stretch)
         lay.addWidget(self.tbl, 1)
-
-        # Totales
+        self._hist_empty = EmptyStateWidget(
+            "Sin registros de merma",
+            "No hay registros para el período o filtros seleccionados.",
+            "📭",
+            self,
+        )
+        self._hist_empty.hide()
+        lay.addWidget(self._hist_empty)
         self.lbl_total_hist = QLabel()
-        self.lbl_total_hist.setStyleSheet(
-            "font-weight:bold;font-size:13px;color:#c0392b;"
-            "padding:6px;background:#fdf2f2;border-radius:4px;")
+        self.lbl_total_hist.setObjectName("caption")
+        self.lbl_total_hist.setStyleSheet(f"font-weight: bold; color: {Colors.DANGER_BASE};")
         lay.addWidget(self.lbl_total_hist)
 
-    # ── Productos y autocompletado ────────────────────────────────────────────
-
-    def _cargar_productos(self):
+    def _buscar_productos(self, query: str):
+        logger.info("[MERMA] búsqueda ejecutada query=%r", query)
         try:
-            rows = self.container.db.execute(
-                "SELECT id, nombre, COALESCE(precio_compra,0), COALESCE(unidad,'kg'), "
-                "COALESCE(existencia,0) FROM productos WHERE activo=1 ORDER BY nombre LIMIT 2000"
-            ).fetchall()
-            self._productos_cache = [
-                (r[0], r[1], float(r[2]), str(r[3]), float(r[4])) for r in rows
-            ]
-            nombres = [r[1] for r in self._productos_cache]
-            self._completer_model.setStringList(nombres)
-        except Exception as e:
-            logger.warning("_cargar_productos: %s", e)
+            results = self._waste_query_service.search_products(query, {"branch_id": str(self.sucursal_id)})
+        except Exception:
+            logger.exception("[MERMA] error al buscar productos query=%r", query)
+            self._product_search_cache = {}
+            return []
 
-    def _on_producto_selected(self, nombre: str):
-        for pid, nom, costo, unidad, stock in self._productos_cache:
-            if nom == nombre:
-                self._selected_product = (pid, nom, costo, unidad, stock)
-                self.spin_cantidad.setSuffix(f" {unidad}")
-                self.lbl_producto_info.setText(
-                    f"Stock actual: {stock:.3f} {unidad}  |  "
-                    f"Costo: ${costo:.2f}/{unidad}")
-                self._actualizar_valor_perdida()
-                return
-        self._selected_product = None
-        self.lbl_producto_info.setText("")
+        self._product_search_cache = {}
+        options = []
+        for result in results:
+            metadata = dict(result.metadata or {})
+            metadata["stock"] = self._canonical_stock_quantity(result.id)
+            self._product_search_cache[str(result.id)] = metadata
+            unit = str(metadata.get("unit") or _DEFAULT_UNIT)
+            unit_cost = _safe_float(metadata.get("unit_cost"))
+            subtitle = f"Stock: {metadata['stock']:.2f} {unit} | Costo: ${unit_cost:.2f}"
+            options.append(SearchOption(id=result.id, label=result.label, subtitle=subtitle))
+        logger.info("[MERMA] productos encontrados count=%d query=%r", len(results), query)
+        logger.info("[MERMA] resultados renderizados count=%d", len(options))
+        return options
+
+    def _on_producto_selected(self, option: SearchOption):
+        try:
+            self._aplicar_producto_seleccionado(option)
+        except Exception:
+            logger.exception("[MERMA] error seleccionando producto")
+            QMessageBox.critical(self, "Error", "No se pudo seleccionar el producto. Revisa el log.")
+
+    def _aplicar_producto_seleccionado(self, option: SearchOption):
+        if option is None:
+            logger.warning("[MERMA] selección recibida sin opción")
+            return
+
+        product_id = str(option.id) if option.id is not None else ""
+        logger.info(
+            "[MERMA] producto seleccionado desde SearchSelector product_id=%s label=%s",
+            product_id, option.label,
+        )
+        if not product_id:
+            logger.warning("[MERMA] selección sin producto_id option=%r", option)
+            return
+
+        metadata = self._product_search_cache.get(product_id)
+        if metadata is None:
+            logger.warning("[MERMA] producto_id no encontrado en caché; consultando por id product_id=%s", product_id)
+            metadata = self._waste_repository.get_product_for_waste(product_id, branch_id=str(self.sucursal_id))
+
+        if metadata is None:
+            self._selected_product = None
+            self.lbl_producto_info.setText("")
+            self._actualizar_valor_perdida()
+            logger.warning("[MERMA] producto no encontrado product_id=%s", product_id)
+            return
+
+        metadata = dict(metadata)
+        metadata["id"] = metadata.get("id", product_id)
+        metadata["name"] = str(metadata.get("name") or option.label or f"Producto #{product_id}")
+        metadata["unit"] = str(metadata.get("unit") or _DEFAULT_UNIT)
+        metadata["stock"] = self._canonical_stock_quantity(product_id)
+        metadata["unit_cost"] = _safe_float(metadata.get("unit_cost"))
+        self._selected_product = metadata
+        logger.info(
+            "[MERMA] metadata seleccionada id=%s stock=%.2f unit=%s cost=%.2f",
+            metadata.get("id"), metadata["stock"], metadata["unit"], metadata["unit_cost"],
+        )
+
+        self.product_selector.set_selected_label(option.label)
+
+        unidad = metadata["unit"]
+        stock = metadata["stock"]
+        costo = metadata["unit_cost"]
+        self.spin_cantidad.setSuffix(f" {unidad}")
+        self.lbl_producto_info.setText(f"Stock actual: {stock:.2f} {unidad}  |  Costo: ${costo:.2f}/{unidad}")
+        self._actualizar_valor_perdida()
+        logger.info(
+            "[MERMA] UI actualizada product_id=%s unidad=%s stock=%.2f costo=%.2f",
+            metadata.get("id"), unidad, stock, costo,
+        )
+
+    def _canonical_stock_quantity(self, product_id: str) -> float:
+        stock = self._inventory_query_service.get_stock(product_id, str(self.sucursal_id))
+        return _safe_float(stock.quantity)
 
     def _actualizar_valor_perdida(self):
         if self._selected_product:
-            costo = self._selected_product[2]
+            costo = _safe_float(self._selected_product.get("unit_cost"))
             cantidad = self.spin_cantidad.value()
             valor = round(cantidad * costo, 2)
             self.lbl_valor_perdida.setText(f"${valor:.2f}")
             if valor >= UMBRAL_VALOR_ALTO:
                 self.lbl_valor_perdida.setStyleSheet(
-                    "font-size:16px;font-weight:bold;color:#fff;background:#e74c3c;"
-                    "padding:4px 8px;border-radius:4px;")
+                    f"font-size: {Typography.SIZE_LG}; font-weight: bold; color: {Colors.TEXT_INVERTED}; "
+                    f"background-color: {Colors.DANGER_BASE}; padding: {Spacing.XS} {Spacing.SM}; border-radius: {Borders.RADIUS_MD};")
             else:
                 self.lbl_valor_perdida.setStyleSheet(
-                    "font-size:16px;font-weight:bold;color:#e74c3c;"
-                    "padding:4px 8px;background:#fff5f5;border-radius:4px;")
+                    f"font-size: {Typography.SIZE_LG}; font-weight: bold; color: {Colors.DANGER_BASE}; "
+                    f"padding: {Spacing.XS} {Spacing.SM}; background-color: {Colors.DANGER.BG_SOFT}; border-radius: {Borders.RADIUS_MD};")
         else:
-            self.lbl_valor_perdida.setText("$0.00")
-
-    # ── Registrar merma ───────────────────────────────────────────────────────
+            self.lbl_valor_perdida.setText(_ZERO_DISPLAY)
 
     def _registrar(self) -> None:
-        # v13.30: Verificar permiso
         try:
-            from core.permissions import verificar_permiso
-            if not verificar_permiso(self.container, "inventario.ajustar", self):
+            self._registrar_seguro()
+        except Exception:
+            logger.exception("[MERMA] error registrando merma")
+            QMessageBox.critical(self, "Error", "No se pudo registrar la merma. Revisa el log.")
+
+    def _registrar_seguro(self) -> None:
+        from core.permissions import verificar_permiso
+        try:
+            if not verificar_permiso(self.container, "MERMA.crear", self):
+                logger.warning("[MERMA] Permiso denegado para registrar merma: MERMA.crear")
                 return
-        except Exception: pass
-        nombre   = self.txt_producto.text().strip()
+        except Exception:
+            logger.exception("[MERMA] No se pudo validar el permiso MERMA.crear")
+            QMessageBox.critical(self, "Error", "No se pudo validar el permiso para registrar merma.")
+            return
+
+        if not self._selected_product:
+            QMessageBox.warning(self, "Aviso", "Selecciona un producto.")
+            return
         cantidad = self.spin_cantidad.value()
-        motivo   = self.cmb_motivo.currentText()
-        notas    = self.txt_notas.text().strip()
-        fecha    = self.date_edit.date().toString("yyyy-MM-dd")
-
-        if not nombre:
-            QMessageBox.warning(self, "Aviso", "Selecciona un producto."); return
         if cantidad <= 0:
-            QMessageBox.warning(self, "Aviso", "La cantidad debe ser > 0."); return
+            QMessageBox.warning(self, "Aviso", "La cantidad debe ser > 0.")
+            return
 
-        # Buscar producto
-        prod = self._selected_product
-        if not prod or prod[1] != nombre:
-            # Buscar en BD directamente
-            try:
-                row = self.container.db.execute(
-                    "SELECT id, nombre, COALESCE(precio_compra,0), COALESCE(unidad,'kg'), "
-                    "COALESCE(existencia,0) FROM productos WHERE nombre=? AND activo=1",
-                    (nombre,)
-                ).fetchone()
-                if not row:
-                    QMessageBox.warning(self, "Aviso", f"Producto '{nombre}' no encontrado.")
-                    return
-                prod = (row[0], row[1], float(row[2]), str(row[3]), float(row[4]))
-            except Exception as e:
-                QMessageBox.critical(self, "Error", str(e)); return
-
-        prod_id, _, costo_unitario, unidad, stock_actual = prod
+        product = self._selected_product
+        product_id = product.get("id")
+        if product_id in (None, ""):
+            logger.warning("[MERMA] registro de merma sin product_id product=%r", product)
+            QMessageBox.warning(self, "Aviso", "El producto seleccionado no tiene un ID válido.")
+            return
+        nombre = str(product.get("name", ""))
+        unidad = str(product.get("unit", _DEFAULT_UNIT))
+        stock_actual = _safe_float(product.get("stock"))
+        costo_unitario = _safe_float(product.get("unit_cost"))
+        motivo = self.cmb_motivo.currentText()
+        notas = self.txt_notas.text().strip()
+        fecha = self.date_edit.date().toString("yyyy-MM-dd")
         valor_perdida = round(cantidad * costo_unitario, 2)
+        logger.info(
+            "[MERMA] registro de merma iniciado product_id=%s quantity=%.2f",
+            product_id, cantidad,
+        )
+        logger.info(
+            "[MERMA] validación stock actual=%.2f cantidad=%.2f",
+            stock_actual, cantidad,
+        )
 
-        # ── Protección financiera: validar stock ──────────────────────────
         if cantidad > stock_actual:
-            resp = QMessageBox.warning(
+            QMessageBox.warning(
                 self, "⚠️ Stock insuficiente",
-                f"La merma ({cantidad:.3f} {unidad}) es mayor al stock actual "
-                f"({stock_actual:.3f} {unidad}).\n\n"
-                "Esto dejará el inventario en negativo.\n"
-                "¿Registrar de todas formas?",
-                QMessageBox.Yes | QMessageBox.No)
-            if resp != QMessageBox.Yes:
-                return
+                f"La merma ({cantidad:.2f} {unidad}) es mayor al stock actual "
+                f"({stock_actual:.2f} {unidad}).\n\n"
+                "No se puede registrar una merma que deje inventario en negativo.",
+            )
+            return
 
-        # ── Protección financiera: confirmación para altos montos ─────────
         if valor_perdida >= UMBRAL_VALOR_ALTO:
             resp = QMessageBox.warning(
                 self, "⚠️ Merma de alto valor",
                 f"Esta merma tiene un valor de ${valor_perdida:.2f}\n"
-                f"({cantidad:.3f} {unidad} × ${costo_unitario:.2f}/{unidad})\n\n"
+                f"({cantidad:.2f} {unidad} × ${costo_unitario:.2f}/{unidad})\n\n"
                 f"Producto: {nombre}\n"
                 f"Motivo: {motivo}\n\n"
                 "¿Confirmar el registro?",
                 QMessageBox.Yes | QMessageBox.No)
             if resp != QMessageBox.Yes:
                 return
+            if not self._validar_pin_alto_valor(nombre, valor_perdida):
+                return
 
+        operation_id = new_uuid()
+        result = self._register_waste_use_case.execute(RegisterWasteCommand(
+            operation_id=operation_id,
+            branch_id=str(self.sucursal_id),
+            user_name=self.usuario or "usuario",
+            product_id=product_id,
+            quantity=cantidad,
+            reason=motivo,
+            notes=notas,
+            date=fecha,
+            unit=unidad,
+            manager_pin_authorized=valor_perdida >= UMBRAL_VALOR_ALTO,
+        ))
+        logger.info(
+            "[MERMA] use_case result success=%s entity_id=%s message=%s",
+            result.success, result.entity_id, result.message,
+        )
+        if not result.success:
+            QMessageBox.critical(self, "Error", result.message or "No se pudo registrar la merma.")
+            return
+
+        result_data = dict(result.data or {})
+        result_unit_cost = _safe_float(result_data.get("unit_cost"))
+        result_loss_value = _safe_float(result_data.get("loss_value"))
+        if result_unit_cost > 0:
+            costo_unitario = result_unit_cost
+        if result_loss_value > 0 or valor_perdida <= 0:
+            valor_perdida = result_loss_value
+        if result_data.get("product_name"):
+            nombre = str(result_data.get("product_name"))
+
+        self._registrar_auditoria(result.entity_id or operation_id, nombre, cantidad, unidad, costo_unitario, valor_perdida, motivo)
+        Toast.success(
+            self, "✅ Merma registrada",
+            f"{cantidad:.2f} {unidad} '{nombre}' · ${valor_perdida:.2f} · {motivo}",
+        )
+        self._limpiar_formulario()
+        self._cargar_historial()
+
+    def _validar_pin_alto_valor(self, nombre: str, valor_perdida: float) -> bool:
+        pin, ok_pin = QInputDialog.getText(
+            self,
+            "Autorización requerida",
+            "Ingresa PIN de gerente/admin para autorizar la merma:",
+            QLineEdit.Password,
+        )
+        if not ok_pin or not pin:
+            QMessageBox.warning(self, "Autorización", "Operación cancelada: PIN requerido.")
+            return False
+        from core.permissions import verificar_permiso
+        if not verificar_permiso(self.container, "MERMA.autorizar", self):
+            return False
+        from core.services.discount_guard import DiscountGuard
         try:
-            from core.db.connection import transaction
-            op_id = str(uuid.uuid4())[:12]
+            guard = DiscountGuard(self.container.db)
+            if guard.solicitar_pin_gerente(self.container.db, pin):
+                return True
+            QMessageBox.critical(self, "Autorización rechazada", "PIN inválido o sin permisos de gerente/admin.")
+            self._registrar_denegacion_pin(nombre, valor_perdida)
+            return False
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"No se pudo validar PIN: {exc}")
+            return False
 
-            with transaction(self.container.db):
-                # Insertar en mermas
-                self.container.db.execute("""
-                    INSERT INTO mermas
-                    (producto_id, sucursal_id, cantidad, unidad, motivo,
-                     costo_unitario, valor_perdida, notas, usuario, operation_id, created_at, fecha)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-                """, (
-                    prod_id, self.sucursal_id, cantidad, unidad, motivo,
-                    costo_unitario, valor_perdida, notas,
-                    self.usuario, op_id, datetime.now().isoformat(), fecha
-                ))
+    def _registrar_denegacion_pin(self, nombre: str, valor_perdida: float) -> None:
+        from core.services.auto_audit import audit_write
+        try:
+            audit_write(
+                self.container, modulo="MERMA", accion="MERMA_DENEGADA_PIN",
+                entidad="mermas", entidad_id="", usuario=self.usuario,
+                sucursal_id=self.sucursal_id,
+                detalles=f"Intento de merma alta sin PIN válido. Producto={nombre} Valor={valor_perdida:.2f}",
+            )
+        except Exception:
+            logger.exception("[MERMA] No se pudo registrar auditoría de PIN denegado")
 
-                # Descontar inventario via ApplicationService
-                app_svc = getattr(self.container, 'app_service', None)
-                if app_svc:
-                    app_svc.registrar_merma(
-                        producto_id=prod_id, cantidad=cantidad,
-                        motivo=motivo, usuario=self.usuario,
-                        sucursal_id=self.sucursal_id)
-                else:
-                    self.container.db.execute(
-                        "UPDATE productos SET existencia=MAX(0,existencia-?) WHERE id=?",
-                        (cantidad, prod_id))
+    def _registrar_auditoria(self, waste_id: str, nombre: str, cantidad: float, unidad: str,
+                             costo_unitario: float, valor_perdida: float, motivo: str) -> None:
+        from core.services.auto_audit import audit_write
+        try:
+            audit_write(
+                self.container, modulo="MERMA", accion="REGISTRAR_MERMA",
+                entidad="mermas", entidad_id=waste_id, usuario=self.usuario,
+                sucursal_id=self.sucursal_id,
+                detalles=(f"Producto: {nombre} | Cant: {cantidad:.2f} {unidad} | "
+                          f"Costo: ${costo_unitario:.2f}/u | "
+                          f"Pérdida: ${valor_perdida:.2f} | Motivo: {motivo}"),
+            )
+        except Exception:
+            logger.exception("[MERMA] No se pudo registrar auditoría de merma")
 
-            # ── Auditoría ─────────────────────────────────────────────────
-            try:
-                from core.services.auto_audit import audit_write
-                audit_write(
-                    self.container, modulo="MERMA", accion="REGISTRAR_MERMA",
-                    entidad="mermas", entidad_id=op_id, usuario=self.usuario,
-                    sucursal_id=self.sucursal_id,
-                    detalles=(f"Producto: {nombre} | Cant: {cantidad:.3f} {unidad} | "
-                              f"Costo: ${costo_unitario:.2f}/u | "
-                              f"Pérdida: ${valor_perdida:.2f} | Motivo: {motivo}"))
-            except Exception:
-                pass
-
-            # ── EventBus ──────────────────────────────────────────────────
-            try:
-                from core.events.event_bus import get_bus, AJUSTE_INVENTARIO
-                get_bus().publish(AJUSTE_INVENTARIO, {
-                    "producto_id": prod_id, "sucursal_id": self.sucursal_id,
-                    "tipo": "merma", "cantidad": -cantidad,
-                    "valor": -valor_perdida, "usuario": self.usuario,
-                })
-            except Exception:
-                pass
-
-            # Mensaje de éxito
-            QMessageBox.information(
-                self, "✅ Merma registrada",
-                f"Registrado: {cantidad:.3f} {unidad} de '{nombre}'\n"
-                f"Valor pérdida: ${valor_perdida:.2f}\n"
-                f"Motivo: {motivo}")
-
-            # Limpiar form
-            self.txt_producto.clear()
-            self.spin_cantidad.setValue(0)
-            self.txt_notas.clear()
-            self._selected_product = None
-            self.lbl_producto_info.setText("")
-            self.lbl_valor_perdida.setText("$0.00")
-            self._cargar_productos()  # Refrescar stock
-            self._cargar_historial()
-
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
-
-    # ── Historial ─────────────────────────────────────────────────────────────
+    def _limpiar_formulario(self) -> None:
+        self.spin_cantidad.setValue(0.00)
+        self.txt_notas.clear()
+        self._selected_product = None
+        self._product_search_cache = {}
+        self.lbl_producto_info.setText("")
+        self.lbl_valor_perdida.setText(_ZERO_DISPLAY)
+        self.product_selector.clear()
 
     def _cargar_historial(self):
-        periodo = self.cmb_periodo.currentText() if hasattr(self, 'cmb_periodo') else "Hoy"
-        where_fecha = ""
-        if periodo == "Hoy":
-            where_fecha = "AND COALESCE(m.fecha, m.created_at) >= date('now')"
-        elif periodo == "Última semana":
-            where_fecha = "AND COALESCE(m.fecha, m.created_at) >= date('now','-7 days')"
-        elif periodo == "Último mes":
-            where_fecha = "AND COALESCE(m.fecha, m.created_at) >= date('now','-30 days')"
-
+        if hasattr(self, "_hist_loading"):
+            self._hist_loading.show()
         try:
-            rows = self.container.db.execute(f"""
-                SELECT COALESCE(m.fecha, substr(m.created_at,1,10)) as fecha,
-                       p.nombre, m.cantidad, m.unidad,
-                       COALESCE(m.costo_unitario,0), COALESCE(m.valor_perdida,0),
-                       m.motivo, m.usuario, COALESCE(m.notas,'')
-                FROM mermas m
-                JOIN productos p ON p.id = m.producto_id
-                WHERE m.sucursal_id = ? {where_fecha}
-                ORDER BY COALESCE(m.fecha, m.created_at) DESC, m.id DESC
-                LIMIT 500
-            """, (self.sucursal_id,)).fetchall()
-        except Exception as e:
-            logger.debug("_cargar_historial: %s", e)
-            rows = []
+            periodo = self.cmb_periodo.currentText() if hasattr(self, "cmb_periodo") else "Hoy"
+            if hasattr(self, "_hist_filter"):
+                periodo = self._hist_filter.values().get("periodo") or periodo
+            search = ""
+            if hasattr(self, "_hist_filter"):
+                search = (self._hist_filter.values().get("search") or "").strip()
+            rows = self._waste_query_service.list_for_table({
+                "branch_id": str(self.sucursal_id),
+                "period": periodo,
+                "search": search,
+            })
+            self.tbl.setRowCount(len(rows))
+            total_valor = 0.0
+            total_cantidad = 0.0
+            for ri, row in enumerate(rows):
+                values = row.values
+                cant = _safe_float(values.get("quantity"))
+                valor = _safe_float(values.get("loss_value"))
+                vals = [
+                    values.get("date", ""),
+                    values.get("product_name", ""),
+                    f"{cant:.2f}",
+                    values.get("unit", _DEFAULT_UNIT),
+                    f"${_safe_float(values.get('unit_cost')):.2f}",
+                    f"${valor:.2f}",
+                    values.get("reason", ""),
+                    values.get("user_name", ""),
+                    values.get("notes", ""),
+                ]
+                for ci, value in enumerate(vals):
+                    item = QTableWidgetItem(str(value))
+                    item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    if ci in (2, 4, 5):
+                        item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    if ci == 5 and valor >= UMBRAL_VALOR_ALTO:
+                        item.setForeground(QColor(Colors.DANGER_HOVER))
+                        item.setFont(QFont("Arial", -1, QFont.Bold))
+                    self.tbl.setItem(ri, ci, item)
+                total_valor += valor
+                total_cantidad += cant
 
-        self.tbl.setRowCount(len(rows))
-        total_valor = 0.0
-        total_cantidad = 0.0
-        for ri, r in enumerate(rows):
-            fecha_str = str(r[0] or "")[:10]
-            nombre = str(r[1] or "")
-            cant = float(r[2] or 0)
-            unidad = str(r[3] or "kg")
-            costo = float(r[4] or 0)
-            valor = float(r[5] or 0)
-            motivo = str(r[6] or "")
-            usuario = str(r[7] or "")
-            notas = str(r[8] or "")
-
-            vals = [
-                fecha_str, nombre, f"{cant:.3f}", unidad,
-                f"${costo:.2f}", f"${valor:.2f}",
-                motivo, usuario, notas
-            ]
-            for ci, v in enumerate(vals):
-                it = QTableWidgetItem(v)
-                it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                if ci in (2, 4, 5):
-                    it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                if ci == 5 and valor >= UMBRAL_VALOR_ALTO:
-                    it.setForeground(QColor("#e74c3c"))
-                    it.setFont(QFont("Arial", -1, QFont.Bold))
-                self.tbl.setItem(ri, ci, it)
-
-            total_valor += valor
-            total_cantidad += cant
-
-        # Actualizar resúmenes
-        n_registros = len(rows)
-        if hasattr(self, 'lbl_total_hist'):
-            self.lbl_total_hist.setText(
-                f"Total período: {n_registros} registros  |  "
-                f"Cantidad: {total_cantidad:.3f}  |  "
-                f"Valor pérdida: ${total_valor:.2f}")
-
-        # Resumen del día en header
-        try:
-            hoy_row = self.container.db.execute("""
-                SELECT COUNT(*), COALESCE(SUM(COALESCE(valor_perdida,0)),0)
-                FROM mermas
-                WHERE sucursal_id=? AND COALESCE(fecha, substr(created_at,1,10)) = date('now')
-            """, (self.sucursal_id,)).fetchone()
-            n_hoy = int(hoy_row[0]) if hoy_row else 0
-            v_hoy = float(hoy_row[1]) if hoy_row else 0.0
+            n_registros = len(rows)
+            if hasattr(self, "lbl_total_hist"):
+                self.lbl_total_hist.setText(
+                    f"Total período: {n_registros} registros  |  "
+                    f"Cantidad: {total_cantidad:.2f}  |  "
+                    f"Valor pérdida: ${total_valor:.2f}")
+            if hasattr(self, "_hist_empty"):
+                self._hist_empty.setVisible(n_registros == 0)
+            summary = self._waste_query_service.get_daily_summary({"branch_id": str(self.sucursal_id)}).value
             self.lbl_resumen.setText(
-                f"Hoy: {n_hoy} mermas  —  Pérdida: ${v_hoy:.2f}")
+                f"Hoy: {summary.get('records', 0)} mermas  —  "
+                f"Pérdida: ${_safe_float(summary.get('loss_value')):.2f}")
+            logger.info("[MERMA] historial cargado count=%d", n_registros)
         except Exception:
+            logger.exception("[MERMA] _cargar_historial falló")
             self.lbl_resumen.setText("Hoy: —")
+        finally:
+            if hasattr(self, "_hist_loading"):
+                self._hist_loading.hide()

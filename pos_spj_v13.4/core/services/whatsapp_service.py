@@ -102,55 +102,158 @@ class WhatsAppConfig:
         return cls(conn=conn, canal="clientes", sucursal_id=sucursal_id)
 
 # ─────────────────────────────────────────────────────────────────────────────
+_WA_MAX_RETRIES  = 5
+_WA_BASE_DELAY_S = 60   # segundos — intento 1: 60s, 2: 120s, 3: 240s, 4: 480s, 5: 960s
+
+
+def _backoff_seconds(intentos: int) -> int:
+    """Calcula segundos hasta el próximo reintento: 60 * 2^intentos, máx 960s (16 min)."""
+    return min(_WA_BASE_DELAY_S * (2 ** intentos), 960)
+
+
 class MessageQueue:
-    """Cola persistente SQLite — offline-first, reintentos automaticos."""
+    """
+    Cola persistente SQLite — offline-first con backoff exponencial.
+
+    Backoff:  intento 1 → +60s | 2 → +120s | 3 → +240s | 4 → +480s | 5 → fallido
+    Columnas: id, to_number, message, template, payload,
+              estado, intentos, error, fecha, enviado_en, proxima_revision
+    """
+
     def __init__(self, conn=None):
         self.conn = conn or get_connection()
         self._init_table()
 
     def _init_table(self):
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS whatsapp_queue (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                to_number TEXT NOT NULL, message TEXT NOT NULL,
-                template TEXT, payload TEXT,
-                estado TEXT DEFAULT 'pendiente',
-                intentos INTEGER DEFAULT 0, error TEXT,
-                fecha TEXT DEFAULT (datetime('now')),
-                enviado_en TEXT)""")
-        self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_wa_queue_estado ON whatsapp_queue(estado,fecha)")
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
+        # Columna de backoff para tablas creadas antes de migración 081
+        try:
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
+            self.conn.execute(
+                "UPDATE whatsapp_queue SET proxima_revision=fecha "
+                "WHERE proxima_revision IS NULL")
+        except Exception:
+            pass
         try: self.conn.commit()
         except Exception: pass
 
-    def enqueue(self, to_number, message, template=None, payload=None):
+    # ── Escritura ─────────────────────────────────────────────────────────────
+
+    def enqueue(self, to_number: str, message: str,
+                template: str = None, payload: dict = None) -> str:
+        from backend.shared.ids import new_uuid
+        msg_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
         self.conn.execute(
-            "INSERT INTO whatsapp_queue(to_number,message,template,payload) VALUES(?,?,?,?)",
-            (to_number, message, template, json.dumps(payload) if payload else None))
+            "INSERT INTO whatsapp_queue"
+            "(id, to_number, message, template, payload, proxima_revision) "
+            "VALUES(?, ?, ?, ?, ?, datetime('now'))",
+            (msg_id, to_number, message, template,
+             json.dumps(payload) if payload else None))
         try: self.conn.commit()
         except Exception: pass
+        return msg_id
 
-    def get_pending(self, limit=20):
-        return [dict(r) for r in self.conn.execute(
-            "SELECT * FROM whatsapp_queue WHERE estado='pendiente' AND intentos<5 ORDER BY fecha LIMIT ?",
-            (limit,)).fetchall()]
-
-    def mark_sent(self, msg_id):
+    def mark_sent(self, msg_id: int) -> None:
         self.conn.execute(
-            "UPDATE whatsapp_queue SET estado='enviado',enviado_en=datetime('now') WHERE id=?",
+            "UPDATE whatsapp_queue "
+            "SET estado='enviado', enviado_en=datetime('now') WHERE id=?",
             (msg_id,))
         try: self.conn.commit()
         except Exception: pass
 
-    def mark_error(self, msg_id, error):
-        self.conn.execute(
-            "UPDATE whatsapp_queue SET intentos=intentos+1,error=?,"
-            "estado=CASE WHEN intentos+1>=5 THEN 'fallido' ELSE 'pendiente' END WHERE id=?",
-            (error, msg_id))
+    def mark_error(self, msg_id: int, error: str) -> None:
+        """
+        Incrementa intentos y calcula proxima_revision con backoff exponencial.
+        Si alcanza _WA_MAX_RETRIES → estado='fallido' (dead-letter).
+        """
+        row = self.conn.execute(
+            "SELECT intentos FROM whatsapp_queue WHERE id=?", (msg_id,)
+        ).fetchone()
+        intentos_actuales = (row[0] if row else 0)
+        nuevo_intento = intentos_actuales + 1
+
+        if nuevo_intento >= _WA_MAX_RETRIES:
+            self.conn.execute(
+                "UPDATE whatsapp_queue "
+                "SET intentos=?, error=?, estado='fallido' WHERE id=?",
+                (nuevo_intento, error[:500], msg_id))
+            logger.warning(
+                "[WA dead-letter] msg_id=%d to=%s — agotados %d intentos. "
+                "Último error: %s",
+                msg_id,
+                self._get_number(msg_id),
+                nuevo_intento,
+                error[:120],
+            )
+        else:
+            delay = _backoff_seconds(intentos_actuales)
+            self.conn.execute(
+                "UPDATE whatsapp_queue "
+                "SET intentos=?, error=?, estado='pendiente', "
+                "proxima_revision=datetime('now', ? || ' seconds') WHERE id=?",
+                (nuevo_intento, error[:500], str(delay), msg_id))
+            logger.debug(
+                "[WA backoff] msg_id=%d intento %d/%d — próximo en %ds",
+                msg_id, nuevo_intento, _WA_MAX_RETRIES, delay)
+
         try: self.conn.commit()
         except Exception: pass
 
-        # S39: notificacion de fallidos implementada via scheduler check
+    # ── Lectura ───────────────────────────────────────────────────────────────
+
+    def get_pending(self, limit: int = 20) -> list:
+        """Devuelve mensajes pendientes cuyo proxima_revision ya pasó."""
+        return [dict(r) for r in self.conn.execute(
+            "SELECT * FROM whatsapp_queue "
+            "WHERE estado='pendiente' AND intentos<? "
+            "AND (proxima_revision IS NULL OR proxima_revision <= datetime('now')) "
+            "ORDER BY proxima_revision, fecha LIMIT ?",
+            (_WA_MAX_RETRIES, limit)).fetchall()]
+
+    def get_failed(self, limit: int = 50) -> list:
+        """Mensajes en dead-letter (fallido)."""
+        return [dict(r) for r in self.conn.execute(
+            "SELECT id, to_number, message, intentos, error, fecha "
+            "FROM whatsapp_queue WHERE estado='fallido' "
+            "ORDER BY fecha DESC LIMIT ?",
+            (limit,)).fetchall()]
+
+    def retry_failed(self, msg_id: int) -> bool:
+        """Reinicia un mensaje fallido para reintentarlo."""
+        self.conn.execute(
+            "UPDATE whatsapp_queue "
+            "SET estado='pendiente', intentos=0, error=NULL, "
+            "proxima_revision=datetime('now') WHERE id=? AND estado='fallido'",
+            (msg_id,))
+        try: self.conn.commit()
+        except Exception: pass
+        return True
+
+    def seconds_until_next(self) -> float:
+        """Segundos hasta el próximo mensaje a procesar. 0 si hay pendientes ahora."""
+        row = self.conn.execute(
+            "SELECT proxima_revision FROM whatsapp_queue "
+            "WHERE estado='pendiente' AND intentos<? "
+            "ORDER BY proxima_revision LIMIT 1",
+            (_WA_MAX_RETRIES,)
+        ).fetchone()
+        if not row or not row[0]:
+            return 300.0  # nada pendiente → dormir máx 5 min
+        from datetime import datetime as _dt
+        try:
+            proxima = _dt.fromisoformat(row[0])
+            delta = (proxima - _dt.now()).total_seconds()
+            return max(0.0, min(delta, 300.0))
+        except Exception:
+            return 60.0
+
+    def _get_number(self, msg_id: int) -> str:
+        row = self.conn.execute(
+            "SELECT to_number FROM whatsapp_queue WHERE id=?", (msg_id,)
+        ).fetchone()
+        return row[0] if row else "?"
 
 # ─────────────────────────────────────────────────────────────────────────────
 class WhatsAppService:
@@ -180,6 +283,7 @@ class WhatsAppService:
         self.queue = MessageQueue(self.conn)
         self.feature_service = feature_service
         self._worker_thread = None
+        self._stop_event = threading.Event()
         if api_url: self.config.api_url = api_url
         if api_token: self.config.api_token = api_token
 
@@ -279,21 +383,48 @@ class WhatsAppService:
 
     # ── Worker ────────────────────────────────────────────────────────────────
     def _ensure_worker(self):
-        if self._worker_thread and self._worker_thread.is_alive(): return
-        self._worker_thread = threading.Thread(target=self._worker_loop, daemon=True, name="WA-Worker")
+        if self._stop_event.is_set():
+            return
+        if self._worker_thread and self._worker_thread.is_alive():
+            return
+        self._worker_thread = threading.Thread(
+            target=self._worker_loop, daemon=True, name="WA-Worker")
         self._worker_thread.start()
 
     def start_worker(self): self._ensure_worker()
 
+    def stop(self):
+        """Signal the worker to stop and wait for it to finish."""
+        self._stop_event.set()
+        if self._worker_thread and self._worker_thread.is_alive():
+            self._worker_thread.join(timeout=5)
+
     def _worker_loop(self):
-        while True:
+        while not self._stop_event.is_set():
             try:
                 for msg in self.queue.get_pending():
+                    if self._stop_event.is_set():
+                        return
                     ok, err = self._send_api(msg["to_number"], msg["message"])
-                    if ok: self.queue.mark_sent(msg["id"])
-                    else: self.queue.mark_error(msg["id"], err)
-            except Exception as e: logger.warning("WA worker: %s", e)
-            time.sleep(60)
+                    if ok:
+                        self.queue.mark_sent(msg["id"])
+                    else:
+                        self.queue.mark_error(msg["id"], err)
+                dead = self.queue.get_failed(limit=50)
+                if dead:
+                    logger.warning("[WA dead-letter] %d mensajes sin entregar en cola muerta.", len(dead))
+            except Exception as e:
+                if "closed database" in str(e).lower():
+                    logger.debug("WA worker: DB cerrada, terminando")
+                    return
+                logger.warning("WA worker: %s", e)
+            try:
+                sleep_s = self.queue.seconds_until_next()
+            except Exception as e:
+                if "closed database" in str(e).lower():
+                    return
+                sleep_s = 60.0
+            self._stop_event.wait(sleep_s)
 
     # ── API providers ─────────────────────────────────────────────────────────
     def _send_api(self, to, message):

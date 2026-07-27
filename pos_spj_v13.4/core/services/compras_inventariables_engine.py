@@ -1,4 +1,3 @@
-
 # core/services/compras_inventariables_engine.py — SPJ POS v12
 """
 Motor de compras de activos inventariables (equipos, herramientas, vehiculos).
@@ -6,6 +5,7 @@ Crea el registro en compras_inventariables y opcionalmente en activos_fijos.
 """
 from __future__ import annotations
 import logging, uuid
+from backend.shared.ids import new_uuid
 from datetime import datetime
 
 logger = logging.getLogger("spj.compras_inventariables")
@@ -25,22 +25,7 @@ class ComprasInventariablesEngine:
 
     def _init_tables(self):
         try:
-            self.conn.executescript("""
-                CREATE TABLE IF NOT EXISTS compras_inventariables (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    uuid TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
-                    descripcion TEXT NOT NULL,
-                    proveedor TEXT,
-                    monto REAL NOT NULL,
-                    metodo_pago TEXT DEFAULT 'Efectivo',
-                    categoria TEXT DEFAULT 'equipamiento',
-                    sucursal_id INTEGER DEFAULT 1,
-                    usuario TEXT,
-                    activo_fijo_id INTEGER,
-                    notas TEXT,
-                    fecha DATETIME DEFAULT (datetime('now'))
-                );
-            """)
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try: self.conn.commit()
             except Exception: pass
         except Exception as e:
@@ -63,18 +48,19 @@ class ComprasInventariablesEngine:
         if crear_activo_fijo:
             activo_fijo_id = self._crear_activo_fijo(descripcion, monto, categoria, proveedor)
 
-        cid = self.conn.execute("""
+        cid = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+        self.conn.execute("""
             INSERT INTO compras_inventariables
-                (descripcion, proveedor, monto, metodo_pago, categoria,
+                (id, descripcion, proveedor, monto, metodo_pago, categoria,
                  sucursal_id, usuario, activo_fijo_id, notas)
-            VALUES (?,?,?,?,?,?,?,?,?)
-        """, (descripcion, proveedor, monto, metodo_pago, categoria,
-              self.sucursal_id, self.usuario, activo_fijo_id, notas)).lastrowid
+            VALUES (?,?,?,?,?,?,?,?,?,?)
+        """, (cid, descripcion, proveedor, monto, metodo_pago, categoria,
+              self.sucursal_id, self.usuario, activo_fijo_id, notas))
 
         try: self.conn.commit()
         except Exception: pass
 
-        logger.info("Compra inventariable #%d: %s $%.2f", cid, descripcion, monto)
+        logger.info("Compra inventariable %s: %s $%.2f", cid, descripcion, monto)
         return {
             "id": cid,
             "descripcion": descripcion,
@@ -102,14 +88,15 @@ class ComprasInventariablesEngine:
     def _crear_activo_fijo(self, nombre: str, valor: float,
                             categoria: str, proveedor: str) -> int:
         try:
-            row = self.conn.execute("""
+            afid = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+            self.conn.execute("""
                 INSERT INTO activos_fijos
-                    (nombre, categoria, valor_adquisicion, proveedor,
+                    (id, nombre, categoria, valor_adquisicion, proveedor,
                      sucursal_id, fecha_adquisicion, estado, usuario)
-                VALUES (?,?,?,?,?,DATE('now'),'activo',?)
-            """, (nombre, categoria, valor, proveedor,
-                  self.sucursal_id, self.usuario)).lastrowid
-            return row
+                VALUES (?,?,?,?,?,?,DATE('now'),'activo',?)
+            """, (afid, nombre, categoria, valor, proveedor,
+                  self.sucursal_id, self.usuario))
+            return afid
         except Exception as e:
             logger.debug("_crear_activo_fijo: %s — tabla puede no existir", e)
             return None

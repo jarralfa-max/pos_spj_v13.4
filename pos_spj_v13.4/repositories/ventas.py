@@ -1,18 +1,32 @@
 
 # repositories/ventas.py
-# ── VentaRepository — Enterprise Repository Layer ────────────────────────────
-# Enforces: operation_id idempotency, credit validation,
-#           immediate caja accumulator update, no orphan sales.
+# ── VentaRepository — LEGACY (conservado para compatibilidad) ─────────────────
+#
+# ⚠️  RUTA OFICIAL: AppContainer → SalesService → SalesRepository
+#
+# Esta clase YA NO ES la ruta principal de ventas en producción.
+# AppContainer (core/app_container.py) inyecta SalesRepository, no VentaRepository.
+#
+# VentaRepository duplicaría inventario (_update_inventario), caja (_update_caja)
+# y eventos (VENTA_COMPLETADA) si se usara junto con SalesService.
+#
+# Mantener únicamente para:
+#   - Tests de regresión legacy (tests/test_sales_no_duplication.py)
+#   - Migraciones/scripts de datos históricos
+#   - Referencia de lógica old-style durante fase de transición ERP
+#
+# TODO (FASE 6): eliminar cuando todos los módulos usen SalesService exclusivamente.
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from datetime import datetime
 from decimal import Decimal
 from typing import Dict, List, Optional
 
 from core.events.event_bus import EventBus
-from core.services.inventory_engine import InventoryEngine, StockInsuficienteError
+from core.services.inventory.unified_inventory_service import UnifiedInventoryService as InventoryEngine, StockInsuficienteError
 
 logger = logging.getLogger("spj.repositories.ventas")
 
@@ -34,7 +48,8 @@ class VentaDuplicadaError(VentaError):
 class VentaRepository:
 
     def __init__(self, db):
-        self.db = db
+        from core.db.connection import wrap
+        self.db = wrap(db)
 
     def _now(self) -> str:
         return datetime.utcnow().isoformat()
@@ -109,6 +124,14 @@ class VentaRepository:
         items: [{producto_id, cantidad, precio_unitario, costo_unitario}]
         Returns: {venta_id, folio, total}
         """
+        if str(os.getenv("ALLOW_LEGACY_VENTA_REPOSITORY_WRITES", "0")).strip() != "1":
+            raise RuntimeError(
+                "VentaRepository.create_sale() está bloqueado por seguridad. "
+                "Ruta oficial: ProcesarVentaUC.ejecutar() -> SalesService.execute_sale_result(). "
+                "Eliminación planificada: 2026-06-30. Habilita explícitamente "
+                "ALLOW_LEGACY_VENTA_REPOSITORY_WRITES=1 solo para flujos legacy controlados."
+            )
+
         operation_id = sale_data.get("operation_id") or str(uuid.uuid4())
 
         # Idempotency guard
@@ -197,7 +220,11 @@ class VentaRepository:
                     ) VALUES (?,?,?,?,?,?,?)
                 """, (venta_id, p_id, qty, price, sub, cost, margin))
 
-                # Deduct inventory — EXCLUSIVAMENTE a través de InventoryEngine
+                # Deduct inventory — EXCLUSIVAMENTE a través de InventoryEngine.
+                # LEGACY PATH: Solo se ejecuta si se llama VentaRepository.create_sale()
+                # directamente (no a través de SalesService.execute_sale()).
+                # La ruta oficial descuenta inventario vía SaleInventoryHandler
+                # (SALE_ITEMS_PROCESS, priority=100, dentro del SAVEPOINT).
                 _engine_venta = InventoryEngine(self.db, branch_id, usuario)
                 _engine_venta.process_movement(
                     product_id=p_id,
@@ -226,7 +253,7 @@ class VentaRepository:
             "operation_id": operation_id,
         }
 
-        EventBus.publish(VENTA_COMPLETADA, {
+        EventBus().publish(VENTA_COMPLETADA, {
             "venta_id": venta_id,
             "folio": folio,
             "branch_id": branch_id,
@@ -284,6 +311,12 @@ class VentaRepository:
                 """, (float(venta["total"]), venta["cliente_id"]))
 
     # ── Caja sync ─────────────────────────────────────────────────────────────
+    # LEGACY PATH: _update_caja es llamado solo por VentaRepository.create_sale(),
+    # que es la ruta del módulo de ventas legacy (directo sin pasar por SalesService).
+    # La ruta oficial es: SalesService.execute_sale() → SALE_ITEMS_PROCESS →
+    #   SaleFinanceHandler.handle() → finance_service.register_income()
+    # Si la venta pasa por SalesService, _update_caja NUNCA es llamado.
+    # NO eliminar: VentaRepository puede ser usado por integraciones externas.
 
     def _update_caja(self, branch_id: int, usuario: str,
                      amount: float, forma_pago: str,

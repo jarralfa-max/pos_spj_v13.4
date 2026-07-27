@@ -13,21 +13,7 @@ class ReporteEmailService:
     def __init__(self, conn=None):
         self.conn = conn or get_connection(); self._init_tables()
     def _init_tables(self):
-        self.conn.executescript("""
-            CREATE TABLE IF NOT EXISTS email_config (
-                id INTEGER PRIMARY KEY DEFAULT 1,
-                smtp_host TEXT, smtp_port INTEGER DEFAULT 587,
-                smtp_user TEXT, smtp_pass TEXT,
-                remitente TEXT, destinatarios TEXT,
-                activo INTEGER DEFAULT 0
-            );
-            CREATE TABLE IF NOT EXISTS email_schedule (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                tipo TEXT,  -- diario|semanal|mensual
-                hora TEXT DEFAULT '08:00', activo INTEGER DEFAULT 1,
-                ultimo_envio DATE
-            );
-        """)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         for tipo in ("diario","semanal","mensual"):
             try:
                 self.conn.execute("INSERT OR IGNORE INTO email_schedule(tipo) VALUES(?)", (tipo,))

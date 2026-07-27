@@ -30,6 +30,8 @@ class VentanaPedidos(QWidget):
         super().__init__(parent)
         self.conn    = conn or get_connection()
         self.wa_svc  = whatsapp_svc
+        from core.services.pedidos_whatsapp_service import PedidosWhatsappService
+        self._pedidos_svc = PedidosWhatsappService(self.conn)
         self._setup_ui()
         self._timer  = QTimer(self)
         self._timer.setInterval(5000)
@@ -141,8 +143,10 @@ class VentanaPedidos(QWidget):
     def _ajustar_peso(self):
         pid = self._get_pedido_seleccionado()
         if not pid: return
-        dlg = DialogAjustePeso(pid, self.conn, self)
+        items = self._pedidos_svc.listar_items(pid)
+        dlg = DialogAjustePeso(pid, items, self)
         if dlg.exec_() == QDialog.Accepted:
+            self._pedidos_svc.ajustar_pesos(pid, dlg.get_pesos())
             self._notificar_cliente_ajuste(pid)
             self.cargar_pedidos()
 
@@ -161,9 +165,12 @@ class VentanaPedidos(QWidget):
     def _asignar_reparto(self):
         pid = self._get_pedido_seleccionado()
         if not pid: return
-        dlg = DialogAsignarRepartidor(pid, self.conn, self)
+        repartidores = self._pedidos_svc.listar_repartidores()
+        dlg = DialogAsignarRepartidor(pid, repartidores, self)
         if dlg.exec_() == QDialog.Accepted:
-            self._notificar_cliente_en_camino(pid, dlg.repartidor_nombre)
+            rep_id, rep_name = dlg.get_repartidor()
+            self._pedidos_svc.asignar_repartidor(pid, rep_id)
+            self._notificar_cliente_en_camino(pid, rep_name)
             self.cargar_pedidos()
 
     def _cancelar_pedido(self):
@@ -181,7 +188,8 @@ class VentanaPedidos(QWidget):
     def _abrir_detalle(self, item):
         row = item.row()
         pid = int(self.tabla.item(row, 0).text())
-        dlg = DialogDetallePedido(pid, self.conn, self)
+        detalle = self._pedidos_svc.get_detalle(pid)
+        dlg = DialogDetallePedido(pid, detalle, self)
         dlg.exec_()
 
     # ── Notificaciones WA ──────────────────────────────────────────
@@ -250,20 +258,17 @@ class VentanaPedidos(QWidget):
 
 
 class DialogAjustePeso(QDialog):
-    """Permite al cajero ajustar el peso real pesado de cada ítem."""
-    def __init__(self, pedido_id: int, conn, parent=None):
+    """Captura-only: ajusta el peso pesado por ítem. La persistencia vive en
+    PedidosWhatsappService; el diálogo sólo expone get_pesos()."""
+    def __init__(self, pedido_id, items, parent=None):
         super().__init__(parent)
         self.pedido_id = pedido_id
-        self.conn      = conn
         self.setWindowTitle(f"⚖️ Ajustar Peso — Pedido #{pedido_id}")
         self.setMinimumWidth(560)
-        self._setup()
+        self._setup(items or [])
 
-    def _setup(self):
+    def _setup(self, items):
         lyt   = QVBoxLayout(self)
-        items = self.conn.execute(
-            "SELECT * FROM pedidos_whatsapp_items WHERE pedido_id=?",
-            (self.pedido_id,)).fetchall()
         self._spins = {}
         form = QFormLayout()
         for item in items:
@@ -273,86 +278,69 @@ class DialogAjustePeso(QDialog):
             spin.setDecimals(3)
             spin.setSuffix(" kg")
             spin.setValue(float(item.get("cantidad_pesada") or item.get("cantidad_pedida") or 0))
-            self._spins[item["id"]] = (spin, float(item["precio_unitario"]))
+            self._spins[item["id"]] = spin
             form.addRow(item["nombre_producto"], spin)
         lyt.addLayout(form)
         row = QHBoxLayout()
         for text, result in [("✅ Guardar", QDialog.Accepted), ("Cancelar", QDialog.Rejected)]:
             btn = QPushButton(text)
-            btn.clicked.connect(lambda _, r=result: self.done(r) if r == QDialog.Rejected else self._guardar())
+            btn.clicked.connect(lambda _, r=result: self.done(r) if r == QDialog.Rejected else self.accept())
             row.addWidget(btn)
         lyt.addLayout(row)
 
-    def _guardar(self):
-        total_nuevo = 0.0
-        for item_id, (spin, precio) in self._spins.items():
-            peso    = spin.value()
-            subtotal = round(peso * precio, 2)
-            total_nuevo += subtotal
-            self.conn.execute("""UPDATE pedidos_whatsapp_items
-                SET cantidad_pesada=?, subtotal=? WHERE id=?""",
-                (peso, subtotal, item_id))
-        self.conn.execute(
-            "UPDATE pedidos_whatsapp SET total=?, estado='pesando' WHERE id=?",
-            (total_nuevo, self.pedido_id))
-        try: self.conn.commit()
-        except Exception: pass
-        self.accept()
+    def get_pesos(self) -> dict:
+        """DTO capturado: {item_id: peso}. El módulo persiste vía servicio."""
+        return {item_id: spin.value() for item_id, spin in self._spins.items()}
 
 
 class DialogAsignarRepartidor(QDialog):
-    def __init__(self, pedido_id: int, conn, parent=None):
+    """Captura-only: selecciona repartidor. La asignación la ejecuta el servicio."""
+    def __init__(self, pedido_id, repartidores, parent=None):
         super().__init__(parent)
         self.pedido_id = pedido_id
-        self.conn      = conn
         self.repartidor_nombre = ""
         self.setWindowTitle(f"🚚 Asignar Repartidor — Pedido #{pedido_id}")
-        self._setup()
+        self._setup(repartidores or [])
 
-    def _setup(self):
+    def _setup(self, repartidores):
         lyt  = QVBoxLayout(self)
-        rows = self.conn.execute(
-            "SELECT id, nombre FROM drivers WHERE activo=1").fetchall()
         self.combo = QComboBox()
-        for r in rows:
-            self.combo.addItem(r[1], r[0])
+        for r in repartidores:
+            r = dict(r)
+            self.combo.addItem(r["nombre"], r["id"])
         lyt.addWidget(QLabel("Selecciona el repartidor:"))
         lyt.addWidget(self.combo)
         row = QHBoxLayout()
         for text, result in [("Asignar", QDialog.Accepted), ("Cancelar", QDialog.Rejected)]:
             btn = QPushButton(text)
-            btn.clicked.connect(lambda _, r=result: self._asignar() if r == QDialog.Accepted else self.reject())
+            btn.clicked.connect(lambda _, r=result: self._on_asignar() if r == QDialog.Accepted else self.reject())
             row.addWidget(btn)
         lyt.addLayout(row)
 
-    def _asignar(self):
-        rep_id   = self.combo.currentData()
-        rep_name = self.combo.currentText()
-        if rep_id:
-            self.conn.execute("""UPDATE pedidos_whatsapp
-                SET repartidor_id=?, estado='listo' WHERE id=?""",
-                (rep_id, self.pedido_id))
-            try: self.conn.commit()
-            except Exception: pass
-            self.repartidor_nombre = rep_name
+    def _on_asignar(self):
+        if self.combo.currentData():
+            self.repartidor_nombre = self.combo.currentText()
             self.accept()
+
+    def get_repartidor(self):
+        """DTO capturado: (repartidor_id, nombre)."""
+        return self.combo.currentData(), self.combo.currentText()
 
 
 class DialogDetallePedido(QDialog):
-    def __init__(self, pedido_id: int, conn, parent=None):
+    """Captura-only: sólo renderiza el detalle provisto por el servicio."""
+    def __init__(self, pedido_id, detalle, parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"Detalle Pedido #{pedido_id}")
         self.setMinimumSize(500, 400)
         lyt = QVBoxLayout(self)
-        pedido = conn.execute(
-            "SELECT * FROM pedidos_whatsapp WHERE id=?", (pedido_id,)).fetchone()
+        detalle = detalle or {}
+        pedido = detalle.get("pedido")
         if pedido:
             pedido = dict(pedido)
             info = QTextEdit()
             info.setReadOnly(True)
-            items = conn.execute(
-                "SELECT * FROM pedidos_whatsapp_items WHERE pedido_id=?",
-                (pedido_id,)).fetchall()
+            items = detalle.get("items", [])
             txt = f"Pedido #{pedido_id}\nCliente: {pedido.get('cliente_nombre','—')}\n"
             txt += f"Tel: {pedido.get('numero_whatsapp','')}\n"
             txt += f"Estado: {pedido.get('estado','')}\n"

@@ -1,4 +1,3 @@
-
 # core/logging_setup.py — SPJ POS v10
 """
 Logging estructurado con rotacion automatica.
@@ -14,19 +13,50 @@ from datetime import datetime
 
 
 class JsonFormatter(logging.Formatter):
-    """Formatea cada log como una linea JSON."""
+    """Formatea cada log como una linea JSON.
+
+    El logging no debe romper la operación si un caller usa un especificador
+    incompatible, por ejemplo ``%d`` con ``None``. En ese caso se conserva el
+    mensaje base y los argumentos crudos para auditoría.
+    """
+    def _safe_message(self, record: logging.LogRecord) -> str:
+        try:
+            return record.getMessage()
+        except Exception as exc:
+            try:
+                return f"{record.msg} | args={record.args!r} | format_error={exc}"
+            except Exception:
+                return f"<log message unavailable: {exc}>"
+
     def format(self, record: logging.LogRecord) -> str:
         obj = {
             "ts":      datetime.utcnow().isoformat(),
             "level":   record.levelname,
             "logger":  record.name,
-            "msg":     record.getMessage(),
+            "msg":     self._safe_message(record),
             "module":  record.module,
             "line":    record.lineno,
         }
         if record.exc_info:
             obj["exc"] = self.formatException(record.exc_info)
         return json.dumps(obj, ensure_ascii=False)
+
+
+class SafeTextFormatter(logging.Formatter):
+    """Text formatter that also survives malformed log format arguments."""
+    def format(self, record: logging.LogRecord) -> str:
+        try:
+            return super().format(record)
+        except Exception as exc:
+            original_msg = record.msg
+            original_args = record.args
+            try:
+                record.msg = f"{original_msg} | args={original_args!r} | format_error={exc}"
+                record.args = ()
+                return super().format(record)
+            finally:
+                record.msg = original_msg
+                record.args = original_args
 
 
 def setup_logging(log_dir: str = "logs",
@@ -41,7 +71,7 @@ def setup_logging(log_dir: str = "logs",
     root.setLevel(getattr(logging, level.upper(), logging.INFO))
 
     fmt_cls  = JsonFormatter if json_format else None
-    text_fmt = logging.Formatter(
+    text_fmt = SafeTextFormatter(
         "%(asctime)s %(levelname)-8s %(name)-30s %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S")
 

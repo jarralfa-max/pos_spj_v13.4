@@ -1,6 +1,10 @@
 # main.py — SPJ POS v13
 import sys, os, logging, traceback
 from PyQt5.QtWidgets import QApplication, QMessageBox
+from PyQt5.QtCore import Qt
+
+# Must be set before QApplication is constructed when QtWebEngine is loaded
+QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
 
 # Asegurar que el directorio del proyecto esté PRIMERO en el path
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -43,8 +47,38 @@ sys.excepthook = _crash_handler
 from core.app_container import AppContainer
 from migrations import engine as migrator
 from interfaz.main_window import MainWindow
+from scripts.bootstrap_db import bootstrap_database
 
-DB_PATH = "spj_pos_database.db"
+
+def _bootstrap_db(db_path: str) -> None:
+    """
+    Ejecuta bootstrap DB con fallback seguro para layouts donde /scripts no existe.
+    """
+    try:
+        from scripts.bootstrap_db import bootstrap_database
+        bootstrap_database(db_path)
+        return
+    except Exception as e:
+        logger.warning("bootstrap_db externo no disponible (%s). Usando fallback interno.", e)
+
+    # Fallback interno: migrar + validar sin depender del módulo scripts
+    import sqlite3
+    from core.db.connection import migrate_db, verificar_tablas
+
+    conn = sqlite3.connect(db_path)
+    try:
+        migrator.up(conn)
+        migrate_db(conn)
+        verificar_tablas(conn)
+    finally:
+        conn.close()
+
+_DATA_DIR = os.path.join(_BASE_DIR, "data")
+os.makedirs(_DATA_DIR, exist_ok=True)
+DB_PATH = os.path.join(_DATA_DIR, "spj_pos_database.db")
+# Align connection pool to same DB as bootstrap — prevents "no such table" on fresh start
+from core.db.connection import set_db_path as _set_db_path
+_set_db_path(DB_PATH)
 _LOCAL_SERVER = None
 
 def _instancia_unica(app) -> bool:
@@ -112,6 +146,22 @@ def inicializar_sistema():
     app.setApplicationName(__app_name__)
     app.setApplicationVersion(__version__)
 
+    # ── Aplicar tema guardado ANTES de mostrar cualquier ventana ─────────────
+    try:
+        from ui.themes.theme_engine import load_saved_theme
+        load_saved_theme(None)   # None → aplica solo a QApplication
+        logger.info("✅ Tema aplicado al arranque")
+    except Exception as _te:
+        logger.warning("Tema no aplicado al arranque: %s", _te)
+
+    # Normalización global de botones en TODOS los diálogos (evita full-width).
+    try:
+        from modulos.ui_components import install_dialog_button_normalizer
+        install_dialog_button_normalizer(app)
+        logger.info("✅ Normalizador global de diálogos activo")
+    except Exception as _dn:
+        logger.warning("Normalizador de diálogos no aplicado: %s", _dn)
+
     if not _instancia_unica(app):
         QMessageBox.information(None, "Ya está ejecutándose",
             "SPJ POS ya está abierto en esta computadora.")
@@ -121,12 +171,50 @@ def inicializar_sistema():
         sys.exit(1)
 
     try:
-        import sqlite3
-        conn = sqlite3.connect(DB_PATH)
-        migrator.up(conn); conn.close()
-        logger.info("✅ Migraciones OK")
+        _bootstrap_db(DB_PATH)
+        bootstrap_database(DB_PATH)
+        logger.info("✅ Bootstrap DB OK")
     except Exception as e:
-        logger.warning("Migraciones (continuando): %s", e)
+        logger.critical("Bootstrap DB falló: %s", e)
+        QMessageBox.critical(None, "Error Fatal — Bootstrap DB", str(e))
+        sys.exit(1)
+
+    _mig_conn = None
+    try:
+        import sqlite3
+        from core.db.connection import migrate_db, verificar_tablas
+        from backend.infrastructure.db.uuid_cutover import (
+            assert_uuid_identity, IntegerIdentityError,
+        )
+        _mig_conn = sqlite3.connect(DB_PATH)
+        migrator.up(_mig_conn)
+        migrate_db(_mig_conn)
+        verificar_tablas(_mig_conn)
+        # REGLA CERO paso 13: rechazar el arranque si la DB sigue sin cortar
+        # (PK enteras). El runtime asume identidad UUIDv7 post-corte.
+        assert_uuid_identity(_mig_conn)
+        _mig_conn.close()
+        _mig_conn = None
+        logger.info("✅ Migraciones OK")
+    except IntegerIdentityError as e:
+        if _mig_conn:
+            try: _mig_conn.close()
+            except Exception: pass
+        logger.critical("DB sin identidad UUIDv7 born-clean — en desarrollo resetea la BD (docs/runbooks/dev_db_reset.md); NO uses la migración 200 como solución normal: %s", e)
+        QMessageBox.critical(None, "Error Fatal — Identidad UUIDv7 requerida", str(e))
+        sys.exit(1)
+    except RuntimeError as e:
+        if _mig_conn:
+            try: _mig_conn.close()
+            except Exception: pass
+        logger.critical("DB incompleta post-migraciones: %s", e)
+        QMessageBox.critical(None, "Error Fatal — DB incompleta", str(e))
+        sys.exit(1)
+    except Exception as e:
+        if _mig_conn:
+            try: _mig_conn.close()
+            except Exception: pass
+        logger.error("Migraciones fallaron (continuando con repositorios como fallback): %s", e)
 
     try:
         container = AppContainer(db_path=DB_PATH)
@@ -136,6 +224,16 @@ def inicializar_sistema():
         QMessageBox.critical(None, "Error Fatal",
             f"No se pudo inicializar el sistema:\n\n{e}")
         sys.exit(1)
+
+    # Intenta arrancar el microservicio WhatsApp en segundo plano
+    try:
+        from core.services.microservice_launcher import launch_microservice_async
+        from pathlib import Path
+        app_root = Path(__file__).parent.parent
+        launch_microservice_async(app_root)
+        logger.info("Verificando microservicio WhatsApp...")
+    except Exception as e:
+        logger.debug("Launcher de microservicio no disponible: %s", e)
 
     try:
         if hasattr(container, "whatsapp_webhook"):
