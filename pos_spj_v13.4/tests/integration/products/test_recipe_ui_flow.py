@@ -42,7 +42,7 @@ def presenter():
         recipes_read_factory=lambda: ProductRecipeQueryService(conn),
         recipes_write_factory=lambda: {
             "create": CreateProductRecipeUseCase(conn),
-            "update": UpdateDraftVersionUseCase(conn),
+            "edit": UpdateDraftVersionUseCase(conn),
             "submit": SubmitRecipeVersionUseCase(conn),
             "approve": ApproveRecipeVersionUseCase(conn),
             "activate": ActivateRecipeVersionUseCase(conn),

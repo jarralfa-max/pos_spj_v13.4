@@ -42,7 +42,7 @@ def presenter():
         bundles_read_factory=lambda: ProductBundleQueryService(conn),
         bundles_write_factory=lambda: {
             "create": CreateProductBundleUseCase(conn),
-            "update": UpdateBundleVersionUseCase(conn),
+            "edit": UpdateBundleVersionUseCase(conn),
             "submit": SubmitBundleVersionUseCase(conn),
             "approve": ApproveBundleVersionUseCase(conn),
             "activate": ActivateBundleVersionUseCase(conn),

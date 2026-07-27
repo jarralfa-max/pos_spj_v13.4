@@ -159,7 +159,7 @@ class ProductsPresenter:
         user_id = getattr(self._session, "user_id", None)
         try:
             if category_id:
-                res = ucs["update"].execute(UpdateCategoryCommand(
+                res = ucs["edit"].execute(UpdateCategoryCommand(
                     operation_id=new_uuid(), category_id=category_id, code=code,
                     name=name, sort_order=sort_order, user_id=user_id))
             else:
@@ -254,7 +254,7 @@ class ProductsPresenter:
         user_id = getattr(self._session, "user_id", None)
         try:
             if brand_id:
-                res = ucs["update"].execute(UpdateBrandCommand(
+                res = ucs["edit"].execute(UpdateBrandCommand(
                     operation_id=new_uuid(), brand_id=brand_id, code=code, name=name,
                     description=description, user_id=user_id))
             else:
@@ -334,7 +334,7 @@ class ProductsPresenter:
         user_id = getattr(self._session, "user_id", None)
         try:
             if attribute_id:
-                res = ucs["update"].execute(UpdateAttributeCommand(
+                res = ucs["edit"].execute(UpdateAttributeCommand(
                     operation_id=new_uuid(), attribute_id=attribute_id, code=code,
                     name=name, user_id=user_id))
             else:
@@ -546,7 +546,7 @@ class ProductsPresenter:
 
     def update_draft_version(self, *, version_id: str, components: list[dict],
                              outputs: list[dict] | None = None) -> tuple[bool, str]:
-        return self._run_recipe("update", version_id=version_id,
+        return self._run_recipe("edit", version_id=version_id,
                                 components=components, outputs=outputs or [])
 
     def submit_recipe_version(self, version_id: str) -> tuple[bool, str]:
@@ -576,7 +576,7 @@ class ProductsPresenter:
                     recipe_type=kw["recipe_type"], name=kw["name"],
                     components=kw["components"], outputs=kw["outputs"],
                     user_id=user_id)
-            elif action == "update":
+            elif action == "edit":
                 cmd = UpdateDraftVersionCommand(
                     operation_id=new_uuid(), version_id=kw["version_id"],
                     components=kw["components"], outputs=kw["outputs"],
@@ -637,7 +637,7 @@ class ProductsPresenter:
 
     def update_yield_version(self, *, version_id: str, tolerance_pct: str,
                              outputs: list[dict]) -> tuple[bool, str]:
-        return self._run_yield("update", version_id=version_id,
+        return self._run_yield("edit", version_id=version_id,
                                tolerance_pct=tolerance_pct, outputs=outputs)
 
     def submit_yield_version(self, version_id: str) -> tuple[bool, str]:
@@ -666,7 +666,7 @@ class ProductsPresenter:
                     operation_id=new_uuid(), input_product_id=kw["input_product_id"],
                     name=kw["name"], tolerance_pct=kw["tolerance_pct"],
                     outputs=kw["outputs"], user_id=user_id)
-            elif action == "update":
+            elif action == "edit":
                 cmd = UpdateYieldVersionCommand(
                     operation_id=new_uuid(), version_id=kw["version_id"],
                     tolerance_pct=kw["tolerance_pct"], outputs=kw["outputs"],
@@ -727,7 +727,7 @@ class ProductsPresenter:
 
     def update_cutting_version(self, *, version_id: str,
                                outputs: list[dict]) -> tuple[bool, str]:
-        return self._run_cutting("update", version_id=version_id, outputs=outputs)
+        return self._run_cutting("edit", version_id=version_id, outputs=outputs)
 
     def submit_cutting_version(self, version_id: str) -> tuple[bool, str]:
         return self._run_cutting("submit", version_id=version_id)
@@ -755,7 +755,7 @@ class ProductsPresenter:
                     operation_id=new_uuid(), input_product_id=kw["input_product_id"],
                     species_id=kw["species_id"], name=kw["name"],
                     cut_level=kw["cut_level"], outputs=kw["outputs"], user_id=user_id)
-            elif action == "update":
+            elif action == "edit":
                 cmd = UpdateCuttingVersionCommand(
                     operation_id=new_uuid(), version_id=kw["version_id"],
                     outputs=kw["outputs"], user_id=user_id)
@@ -814,7 +814,7 @@ class ProductsPresenter:
 
     def update_bundle_version(self, *, version_id: str,
                               components: list[dict]) -> tuple[bool, str]:
-        return self._run_bundle("update", version_id=version_id,
+        return self._run_bundle("edit", version_id=version_id,
                                 components=components)
 
     def submit_bundle_version(self, version_id: str) -> tuple[bool, str]:
@@ -843,7 +843,7 @@ class ProductsPresenter:
                     operation_id=new_uuid(), product_id=kw["product_id"],
                     bundle_type=kw["bundle_type"], name=kw["name"],
                     components=kw["components"], user_id=user_id)
-            elif action == "update":
+            elif action == "edit":
                 cmd = UpdateBundleVersionCommand(
                     operation_id=new_uuid(), version_id=kw["version_id"],
                     components=kw["components"], user_id=user_id)

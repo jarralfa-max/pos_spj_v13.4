@@ -15,6 +15,7 @@ from frontend.desktop.components.phone_input import PhoneInput
 from frontend.desktop.components.product_search_box import ProductSearchBox
 from frontend.desktop.components.quantity_input import QuantityInput
 from frontend.desktop.components.search_selector import SearchOption, SearchSelector
+from frontend.desktop.components.side_nav import SideNav
 from frontend.desktop.components.status_badge import StatusBadge
 from frontend.desktop.components.supplier_search_box import SupplierSearchBox
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
@@ -97,6 +98,7 @@ __all__ = [
     "QuantityInput",
     "SearchOption",
     "SearchSelector",
+    "SideNav",
     "StatusBadge",
     "SupplierSearchBox",
     "ColumnSpec",

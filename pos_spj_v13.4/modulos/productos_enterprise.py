@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 
-from PyQt5.QtWidgets import QLabel, QTabWidget, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QVBoxLayout, QWidget
 
 logger = logging.getLogger("spj.ui.productos_enterprise")
 
@@ -43,12 +43,11 @@ class ModuloProductosEnterprise(QWidget):
                               or getattr(container, "sesion", None))
 
         presenter = self._build_presenter(conn, session)
-        self._tabs = QTabWidget()
-        self._add_pages(presenter)
+        self._view = self._build_view(presenter)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self._tabs)
+        layout.addWidget(self._view)
 
     def _build_presenter(self, conn, session):
         from backend.application.products.queries.catalog_read_service import (
@@ -193,7 +192,7 @@ class ModuloProductosEnterprise(QWidget):
         def categories_write_factory():
             return {
                 "create": CreateProductCategoryUseCase(conn, authorization),
-                "update": UpdateProductCategoryUseCase(conn, authorization),
+                "edit": UpdateProductCategoryUseCase(conn, authorization),
                 "move": MoveProductCategoryUseCase(conn, authorization),
                 "set_active": SetProductCategoryActiveUseCase(conn, authorization),
             }
@@ -201,14 +200,14 @@ class ModuloProductosEnterprise(QWidget):
         def brands_write_factory():
             return {
                 "create": CreateProductBrandUseCase(conn, authorization),
-                "update": UpdateProductBrandUseCase(conn, authorization),
+                "edit": UpdateProductBrandUseCase(conn, authorization),
                 "set_active": SetProductBrandActiveUseCase(conn, authorization),
             }
 
         def attributes_write_factory():
             return {
                 "create": CreateProductAttributeUseCase(conn, authorization),
-                "update": UpdateProductAttributeUseCase(conn, authorization),
+                "edit": UpdateProductAttributeUseCase(conn, authorization),
                 "set_active": SetProductAttributeActiveUseCase(conn, authorization),
                 "add_option": AddAttributeOptionUseCase(conn, authorization),
                 "update_option": UpdateAttributeOptionUseCase(conn, authorization),
@@ -240,7 +239,7 @@ class ModuloProductosEnterprise(QWidget):
             recipes_read_factory=lambda: ProductRecipeQueryService(conn),
             recipes_write_factory=lambda: {
                 "create": CreateProductRecipeUseCase(conn, authorization),
-                "update": UpdateDraftVersionUseCase(conn, authorization),
+                "edit": UpdateDraftVersionUseCase(conn, authorization),
                 "submit": SubmitRecipeVersionUseCase(conn, authorization),
                 "approve": ApproveRecipeVersionUseCase(conn, authorization),
                 "activate": ActivateRecipeVersionUseCase(conn, authorization),
@@ -248,7 +247,7 @@ class ModuloProductosEnterprise(QWidget):
             yields_read_factory=lambda: ProductYieldQueryService(conn),
             yields_write_factory=lambda: {
                 "create": CreateYieldProfileUseCase(conn, authorization),
-                "update": UpdateYieldVersionUseCase(conn, authorization),
+                "edit": UpdateYieldVersionUseCase(conn, authorization),
                 "submit": SubmitYieldVersionUseCase(conn, authorization),
                 "approve": ApproveYieldVersionUseCase(conn, authorization),
                 "activate": ActivateYieldVersionUseCase(conn, authorization),
@@ -256,7 +255,7 @@ class ModuloProductosEnterprise(QWidget):
             cutting_read_factory=lambda: ProductCuttingQueryService(conn),
             cutting_write_factory=lambda: {
                 "create": CreateCuttingSchemeUseCase(conn, authorization),
-                "update": UpdateCuttingVersionUseCase(conn, authorization),
+                "edit": UpdateCuttingVersionUseCase(conn, authorization),
                 "submit": SubmitCuttingVersionUseCase(conn, authorization),
                 "approve": ApproveCuttingVersionUseCase(conn, authorization),
                 "activate": ActivateCuttingVersionUseCase(conn, authorization),
@@ -264,7 +263,7 @@ class ModuloProductosEnterprise(QWidget):
             bundles_read_factory=lambda: ProductBundleQueryService(conn),
             bundles_write_factory=lambda: {
                 "create": CreateProductBundleUseCase(conn, authorization),
-                "update": UpdateBundleVersionUseCase(conn, authorization),
+                "edit": UpdateBundleVersionUseCase(conn, authorization),
                 "submit": SubmitBundleVersionUseCase(conn, authorization),
                 "approve": ApproveBundleVersionUseCase(conn, authorization),
                 "activate": ActivateBundleVersionUseCase(conn, authorization),
@@ -278,7 +277,11 @@ class ModuloProductosEnterprise(QWidget):
             permission_checker=checker,
             session_context=session)
 
-    def _add_pages(self, presenter):
+    def _build_view(self, presenter):
+        """Shell enterprise con navegación lateral (SideNav + páginas apiladas).
+
+        Las páginas se construyen de forma perezosa al navegar (arranque liviano) y
+        cada sección es resiliente a fallos de su propia página (ver ProductsView)."""
         from frontend.desktop.modules.products.pages.overview_page import (
             ProductsOverviewPage,
         )
@@ -297,6 +300,8 @@ class ModuloProductosEnterprise(QWidget):
         from frontend.desktop.modules.products.pages.import_page import (
             ProductImportPage,
         )
+        from frontend.desktop.modules.products.products_view import ProductsView
+
         specs = (
             (ProductsOverviewPage, "Resumen"),
             (ProductCatalogPage, "Catálogo"),
@@ -305,9 +310,4 @@ class ModuloProductosEnterprise(QWidget):
             (ProductAttributesPage, "Atributos"),
             (ProductImportPage, "Importar"),
         )
-        for cls, title in specs:
-            try:
-                self._tabs.addTab(cls(presenter), title)
-            except Exception as exc:  # noqa: BLE001 — una página no debe tumbar el módulo
-                logger.error("Productos enterprise: falló página %s: %s", title, exc)
-                self._tabs.addTab(QLabel(f"No disponible: {exc}"), title)
+        return ProductsView(presenter, specs)

@@ -37,7 +37,7 @@ def presenter():
     def categories_write_factory():
         return {
             "create": CreateProductCategoryUseCase(conn),
-            "update": UpdateProductCategoryUseCase(conn),
+            "edit": UpdateProductCategoryUseCase(conn),
             "move": MoveProductCategoryUseCase(conn),
             "set_active": SetProductCategoryActiveUseCase(conn),
         }

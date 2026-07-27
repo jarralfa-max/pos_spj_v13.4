@@ -42,7 +42,7 @@ def presenter():
         yields_read_factory=lambda: ProductYieldQueryService(conn),
         yields_write_factory=lambda: {
             "create": CreateYieldProfileUseCase(conn),
-            "update": UpdateYieldVersionUseCase(conn),
+            "edit": UpdateYieldVersionUseCase(conn),
             "submit": SubmitYieldVersionUseCase(conn),
             "approve": ApproveYieldVersionUseCase(conn),
             "activate": ActivateYieldVersionUseCase(conn),

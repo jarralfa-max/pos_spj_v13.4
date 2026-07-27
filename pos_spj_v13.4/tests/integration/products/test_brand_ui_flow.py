@@ -36,7 +36,7 @@ def presenter():
     def brands_write_factory():
         return {
             "create": CreateProductBrandUseCase(conn),
-            "update": UpdateProductBrandUseCase(conn),
+            "edit": UpdateProductBrandUseCase(conn),
             "set_active": SetProductBrandActiveUseCase(conn),
         }
 

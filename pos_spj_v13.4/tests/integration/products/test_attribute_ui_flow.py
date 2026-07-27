@@ -38,7 +38,7 @@ def presenter():
     def attributes_write_factory():
         return {
             "create": CreateProductAttributeUseCase(conn),
-            "update": UpdateProductAttributeUseCase(conn),
+            "edit": UpdateProductAttributeUseCase(conn),
             "set_active": SetProductAttributeActiveUseCase(conn),
             "add_option": AddAttributeOptionUseCase(conn),
             "update_option": UpdateAttributeOptionUseCase(conn),

@@ -42,7 +42,7 @@ def presenter():
         cutting_read_factory=lambda: ProductCuttingQueryService(conn),
         cutting_write_factory=lambda: {
             "create": CreateCuttingSchemeUseCase(conn),
-            "update": UpdateCuttingVersionUseCase(conn),
+            "edit": UpdateCuttingVersionUseCase(conn),
             "submit": SubmitCuttingVersionUseCase(conn),
             "approve": ApproveCuttingVersionUseCase(conn),
             "activate": ActivateCuttingVersionUseCase(conn),
