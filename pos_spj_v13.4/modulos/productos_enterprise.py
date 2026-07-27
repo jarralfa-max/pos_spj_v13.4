@@ -142,6 +142,16 @@ class ModuloProductosEnterprise(QWidget):
             SubmitYieldVersionUseCase,
             UpdateYieldVersionUseCase,
         )
+        from backend.application.products.queries.product_cutting_query_service import (
+            ProductCuttingQueryService,
+        )
+        from backend.application.products.use_cases.product_cutting_use_cases import (
+            ActivateCuttingVersionUseCase,
+            ApproveCuttingVersionUseCase,
+            CreateCuttingSchemeUseCase,
+            SubmitCuttingVersionUseCase,
+            UpdateCuttingVersionUseCase,
+        )
         from frontend.desktop.modules.products.presenter import ProductsPresenter
 
         # P0-02: en producción la política SIEMPRE lleva un checker real (fail-closed);
@@ -224,6 +234,14 @@ class ModuloProductosEnterprise(QWidget):
                 "submit": SubmitYieldVersionUseCase(conn, authorization),
                 "approve": ApproveYieldVersionUseCase(conn, authorization),
                 "activate": ActivateYieldVersionUseCase(conn, authorization),
+            },
+            cutting_read_factory=lambda: ProductCuttingQueryService(conn),
+            cutting_write_factory=lambda: {
+                "create": CreateCuttingSchemeUseCase(conn, authorization),
+                "update": UpdateCuttingVersionUseCase(conn, authorization),
+                "submit": SubmitCuttingVersionUseCase(conn, authorization),
+                "approve": ApproveCuttingVersionUseCase(conn, authorization),
+                "activate": ActivateCuttingVersionUseCase(conn, authorization),
             },
             permission_checker=checker,
             session_context=session)

@@ -97,3 +97,16 @@ class CuttingSchemeRepository:
                WHERE s.input_product_id=? AND v.status='ACTIVE'
                ORDER BY v.version_number DESC LIMIT 1""", (input_product_id,)).fetchone()
         return self.get_version(row["id"]) if row else None
+
+    def next_version_number(self, scheme_id: str) -> int:
+        row = self._conn.execute(
+            "SELECT COALESCE(MAX(version_number), 0) AS n FROM cutting_scheme_versions "
+            "WHERE cutting_scheme_id=?", (scheme_id,)).fetchone()
+        return int(row["n"]) + 1
+
+    def active_version_for_scheme(self, scheme_id: str) -> CuttingSchemeVersion | None:
+        row = self._conn.execute(
+            "SELECT id FROM cutting_scheme_versions WHERE cutting_scheme_id=? "
+            "AND status='ACTIVE' ORDER BY version_number DESC LIMIT 1",
+            (scheme_id,)).fetchone()
+        return self.get_version(row["id"]) if row else None

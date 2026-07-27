@@ -31,7 +31,8 @@ class ProductsPresenter:
                  variants_write_factory=None, images_read_factory=None,
                  images_write_factory=None, recipes_read_factory=None,
                  recipes_write_factory=None, yields_read_factory=None,
-                 yields_write_factory=None,
+                 yields_write_factory=None, cutting_read_factory=None,
+                 cutting_write_factory=None,
                  permission_checker=None, session_context=None) -> None:
         self._read_factory = read_service_factory
         self._write_factory = write_service_factory
@@ -52,6 +53,8 @@ class ProductsPresenter:
         self._recipes_write = recipes_write_factory
         self._yields_read = yields_read_factory
         self._yields_write = yields_write_factory
+        self._cutting_read = cutting_read_factory
+        self._cutting_write = cutting_write_factory
         self._has_permission = permission_checker
         self._session = session_context
 
@@ -669,6 +672,94 @@ class ProductsPresenter:
             res = ucs[action].execute(cmd)
         except Exception as exc:  # noqa: BLE001 — mostrado en la UI
             logger.exception("Acción de rendimiento %s falló", action)
+            return False, f"Error: {exc}"
+        return res.success, res.message
+
+    # ── esquemas de despiece (cutting) ─────────────────────────────────────
+    @property
+    def can_manage_cutting(self) -> bool:
+        from backend.application.products.permissions import ProductPermissions
+        if self._cutting_write is None:
+            return False
+        if self._has_permission is None:
+            return True
+        return bool(self._has_permission(ProductPermissions.CUTTING_SCHEME_MANAGE))
+
+    def list_cutting_schemes(self, input_product_id: str) -> list[dict]:
+        if self._cutting_read is None:
+            return []
+        try:
+            return self._cutting_read().list_schemes(input_product_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudieron listar esquemas de despiece")
+            return []
+
+    def list_cutting_versions(self, scheme_id: str) -> list[dict]:
+        if self._cutting_read is None:
+            return []
+        try:
+            return self._cutting_read().list_versions(scheme_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudieron listar versiones de despiece")
+            return []
+
+    def cutting_version_detail(self, version_id: str) -> dict | None:
+        if self._cutting_read is None:
+            return None
+        try:
+            return self._cutting_read().version_detail(version_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudo obtener el detalle de la versión")
+            return None
+
+    def create_cutting_scheme(self, *, input_product_id: str, species_id: str,
+                              name: str, cut_level: str, outputs: list[dict]
+                              ) -> tuple[bool, str]:
+        return self._run_cutting("create", input_product_id=input_product_id,
+                                 species_id=species_id, name=name,
+                                 cut_level=cut_level, outputs=outputs)
+
+    def update_cutting_version(self, *, version_id: str,
+                               outputs: list[dict]) -> tuple[bool, str]:
+        return self._run_cutting("update", version_id=version_id, outputs=outputs)
+
+    def submit_cutting_version(self, version_id: str) -> tuple[bool, str]:
+        return self._run_cutting("submit", version_id=version_id)
+
+    def approve_cutting_version(self, version_id: str) -> tuple[bool, str]:
+        return self._run_cutting("approve", version_id=version_id)
+
+    def activate_cutting_version(self, version_id: str) -> tuple[bool, str]:
+        return self._run_cutting("activate", version_id=version_id)
+
+    def _run_cutting(self, action: str, **kw) -> tuple[bool, str]:
+        if self._cutting_write is None:
+            return False, "Sin permisos de gestión de despiece"
+        from backend.application.products.commands.product_cutting_commands import (
+            CreateCuttingSchemeCommand,
+            CuttingVersionTransitionCommand,
+            UpdateCuttingVersionCommand,
+        )
+        from backend.shared.ids import new_uuid
+        ucs = self._cutting_write()
+        user_id = getattr(self._session, "user_id", None)
+        try:
+            if action == "create":
+                cmd = CreateCuttingSchemeCommand(
+                    operation_id=new_uuid(), input_product_id=kw["input_product_id"],
+                    species_id=kw["species_id"], name=kw["name"],
+                    cut_level=kw["cut_level"], outputs=kw["outputs"], user_id=user_id)
+            elif action == "update":
+                cmd = UpdateCuttingVersionCommand(
+                    operation_id=new_uuid(), version_id=kw["version_id"],
+                    outputs=kw["outputs"], user_id=user_id)
+            else:
+                cmd = CuttingVersionTransitionCommand(
+                    operation_id=new_uuid(), version_id=kw["version_id"],
+                    user_id=user_id)
+            res = ucs[action].execute(cmd)
+        except Exception as exc:  # noqa: BLE001 — mostrado en la UI
+            logger.exception("Acción de despiece %s falló", action)
             return False, f"Error: {exc}"
         return res.success, res.message
 
