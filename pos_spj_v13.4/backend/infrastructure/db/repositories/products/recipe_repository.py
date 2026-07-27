@@ -46,15 +46,15 @@ class RecipeRepository:
         self._conn.execute(
             """INSERT INTO recipe_versions
                (id, recipe_id, version_number, status, effective_from, effective_to,
-                approved_by_user_id, reason)
-               VALUES (?,?,?,?,?,?,?,?)
+                approved_by_user_id, created_by, reason)
+               VALUES (?,?,?,?,?,?,?,?,?)
                ON CONFLICT(id) DO UPDATE SET
                  status=excluded.status, effective_from=excluded.effective_from,
                  effective_to=excluded.effective_to,
                  approved_by_user_id=excluded.approved_by_user_id, reason=excluded.reason""",
             (version.id, version.recipe_id, version.version_number, version.status.value,
              version.effective_from, version.effective_to,
-             version.approved_by_user_id, version.reason))
+             version.approved_by_user_id, version.created_by, version.reason))
         self._conn.execute("DELETE FROM recipe_components WHERE version_id=?", (version.id,))
         self._conn.execute("DELETE FROM recipe_outputs WHERE version_id=?", (version.id,))
         for c in version.components:
@@ -84,7 +84,8 @@ class RecipeRepository:
             version_number=row["version_number"],
             status=RecipeVersionStatus(row["status"]),
             effective_from=row["effective_from"], effective_to=row["effective_to"],
-            approved_by_user_id=row["approved_by_user_id"], reason=row["reason"])
+            approved_by_user_id=row["approved_by_user_id"],
+            created_by=row["created_by"], reason=row["reason"])
         version.components = [
             RecipeComponent(id=r["id"], version_id=r["version_id"],
                             component_product_id=r["component_product_id"],
@@ -112,6 +113,18 @@ class RecipeRepository:
                WHERE r.product_id=? AND rv.status='ACTIVE'
                ORDER BY rv.version_number DESC LIMIT 1""", (product_id,)).fetchone()
         return self.get_version(row["id"]) if row else None
+
+    def active_version_for_recipe(self, recipe_id: str) -> RecipeVersion | None:
+        row = self._conn.execute(
+            "SELECT id FROM recipe_versions WHERE recipe_id=? AND status='ACTIVE' "
+            "ORDER BY version_number DESC LIMIT 1", (recipe_id,)).fetchone()
+        return self.get_version(row["id"]) if row else None
+
+    def next_version_number(self, recipe_id: str) -> int:
+        row = self._conn.execute(
+            "SELECT COALESCE(MAX(version_number), 0) AS n FROM recipe_versions "
+            "WHERE recipe_id=?", (recipe_id,)).fetchone()
+        return int(row["n"]) + 1
 
     def component_resolver(self):
         """Resolver for cycle detection over ACTIVE versions."""

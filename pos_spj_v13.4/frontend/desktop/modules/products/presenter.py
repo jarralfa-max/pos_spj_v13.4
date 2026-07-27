@@ -29,7 +29,8 @@ class ProductsPresenter:
                  brands_write_factory=None, attributes_read_factory=None,
                  attributes_write_factory=None, variants_read_factory=None,
                  variants_write_factory=None, images_read_factory=None,
-                 images_write_factory=None,
+                 images_write_factory=None, recipes_read_factory=None,
+                 recipes_write_factory=None,
                  permission_checker=None, session_context=None) -> None:
         self._read_factory = read_service_factory
         self._write_factory = write_service_factory
@@ -46,6 +47,8 @@ class ProductsPresenter:
         self._variants_write = variants_write_factory
         self._images_read = images_read_factory
         self._images_write = images_write_factory
+        self._recipes_read = recipes_read_factory
+        self._recipes_write = recipes_write_factory
         self._has_permission = permission_checker
         self._session = session_context
 
@@ -481,6 +484,98 @@ class ProductsPresenter:
             res = ucs[action].execute(cmd)
         except Exception as exc:  # noqa: BLE001 — mostrado en la UI
             logger.exception("Acción de imagen %s falló", action)
+            return False, f"Error: {exc}"
+        return res.success, res.message
+
+    # ── recetas (capa de aplicación) ───────────────────────────────────────
+    @property
+    def can_manage_recipes(self) -> bool:
+        from backend.application.products.permissions import ProductPermissions
+        if self._recipes_write is None:
+            return False
+        if self._has_permission is None:
+            return True
+        return bool(self._has_permission(ProductPermissions.RECIPE_CREATE)
+                    or self._has_permission(ProductPermissions.RECIPE_EDIT))
+
+    def list_recipes(self, product_id: str) -> list[dict]:
+        if self._recipes_read is None:
+            return []
+        try:
+            return self._recipes_read().list_recipes(product_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudieron listar recetas")
+            return []
+
+    def list_recipe_versions(self, recipe_id: str) -> list[dict]:
+        if self._recipes_read is None:
+            return []
+        try:
+            return self._recipes_read().list_versions(recipe_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudieron listar versiones de receta")
+            return []
+
+    def recipe_version_detail(self, version_id: str) -> dict | None:
+        if self._recipes_read is None:
+            return None
+        try:
+            return self._recipes_read().version_detail(version_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudo obtener el detalle de la versión")
+            return None
+
+    def create_recipe(self, *, product_id: str, recipe_type: str, name: str,
+                       components: list[dict], outputs: list[dict] | None = None
+                       ) -> tuple[bool, str]:
+        return self._run_recipe(
+            "create", product_id=product_id, recipe_type=recipe_type, name=name,
+            components=components, outputs=outputs or [])
+
+    def update_draft_version(self, *, version_id: str, components: list[dict],
+                             outputs: list[dict] | None = None) -> tuple[bool, str]:
+        return self._run_recipe("update", version_id=version_id,
+                                components=components, outputs=outputs or [])
+
+    def submit_recipe_version(self, version_id: str) -> tuple[bool, str]:
+        return self._run_recipe("submit", version_id=version_id)
+
+    def approve_recipe_version(self, version_id: str) -> tuple[bool, str]:
+        return self._run_recipe("approve", version_id=version_id)
+
+    def activate_recipe_version(self, version_id: str) -> tuple[bool, str]:
+        return self._run_recipe("activate", version_id=version_id)
+
+    def _run_recipe(self, action: str, **kw) -> tuple[bool, str]:
+        if self._recipes_write is None:
+            return False, "Sin permisos de gestión de recetas"
+        from backend.application.products.commands.product_recipe_commands import (
+            CreateRecipeCommand,
+            RecipeVersionTransitionCommand,
+            UpdateDraftVersionCommand,
+        )
+        from backend.shared.ids import new_uuid
+        ucs = self._recipes_write()
+        user_id = getattr(self._session, "user_id", None)
+        try:
+            if action == "create":
+                cmd = CreateRecipeCommand(
+                    operation_id=new_uuid(), product_id=kw["product_id"],
+                    recipe_type=kw["recipe_type"], name=kw["name"],
+                    components=kw["components"], outputs=kw["outputs"],
+                    user_id=user_id)
+            elif action == "update":
+                cmd = UpdateDraftVersionCommand(
+                    operation_id=new_uuid(), version_id=kw["version_id"],
+                    components=kw["components"], outputs=kw["outputs"],
+                    user_id=user_id)
+            else:
+                cmd = RecipeVersionTransitionCommand(
+                    operation_id=new_uuid(), version_id=kw["version_id"],
+                    user_id=user_id)
+            res = ucs[action].execute(cmd)
+        except Exception as exc:  # noqa: BLE001 — mostrado en la UI
+            logger.exception("Acción de receta %s falló", action)
             return False, f"Error: {exc}"
         return res.success, res.message
 

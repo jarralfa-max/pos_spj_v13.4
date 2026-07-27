@@ -41,16 +41,20 @@ class ProductCatalogPage(QWidget):
         self.btn_new = QPushButton("Nuevo")
         self.btn_edit = QPushButton("Editar")
         self.btn_variants = QPushButton("Variantes")
+        self.btn_recipes = QPushButton("Recetas")
         self.btn_new.clicked.connect(lambda: self._open_form(None))
         self.btn_edit.clicked.connect(self._edit_selected)
         self.btn_variants.clicked.connect(self._open_variants)
+        self.btn_recipes.clicked.connect(self._open_recipes)
         # PROD-19 paso 8: gating granular por permiso canónico PRODUCTS_CREATE/EDIT.
         self.btn_new.setEnabled(getattr(self._presenter, "can_create", False))
         self.btn_edit.setEnabled(getattr(self._presenter, "can_edit", False))
         # P1-03: generación de variantes gateada por PRODUCTS_VARIANTS_GENERATE.
         self.btn_variants.setEnabled(
             getattr(self._presenter, "can_generate_variants", False))
-        for b in (self.btn_new, self.btn_edit, self.btn_variants):
+        self.btn_recipes.setEnabled(
+            getattr(self._presenter, "can_manage_recipes", False))
+        for b in (self.btn_new, self.btn_edit, self.btn_variants, self.btn_recipes):
             toolbar.addWidget(b)
         layout.addLayout(toolbar)
 
@@ -84,6 +88,18 @@ class ProductCatalogPage(QWidget):
                                product_name=row.get("name") or "Producto",
                                parent=self).exec_()
         self.refresh(query=self.search.text() or None)
+
+    def _open_recipes(self) -> None:
+        product_id = self.table.selected_row_id()
+        if not product_id:
+            return
+        from frontend.desktop.modules.products.dialogs.recipes_dialog import (
+            RecipesDialog,
+        )
+        row = self._presenter.get_product(product_id) or {}
+        RecipesDialog(self._presenter, product_id=product_id,
+                      product_name=row.get("name") or "Producto",
+                      parent=self).exec_()
 
     def _open_form(self, product_id) -> None:
         from frontend.desktop.modules.products.dialogs.product_form_dialog import (

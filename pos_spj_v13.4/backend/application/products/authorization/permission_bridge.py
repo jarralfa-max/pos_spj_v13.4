@@ -52,6 +52,13 @@ CANONICAL_TO_LEGACY: dict[str, tuple[str, ...]] = {
     ProductPermissions.VARIANTS_GENERATE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
     # P1: gestionar imágenes es un privilegio de edición del maestro.
     ProductPermissions.IMAGES_MANAGE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
+    # Recetas: ver con la vista; crear/editar/aprobar/activar con edición (nunca
+    # se conceden con la sola vista — la segregación exige además dos usuarios).
+    ProductPermissions.RECIPE_VIEW: ("PRODUCTOS.ver",),
+    ProductPermissions.RECIPE_CREATE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
+    ProductPermissions.RECIPE_EDIT: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
+    ProductPermissions.RECIPE_APPROVE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
+    ProductPermissions.RECIPE_ACTIVATE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
 }
 
 #: Cuando un permiso canónico no está mapeado arriba, se concede con la vista.

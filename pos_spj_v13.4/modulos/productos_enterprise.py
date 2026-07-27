@@ -122,6 +122,16 @@ class ModuloProductosEnterprise(QWidget):
             RemoveProductImageUseCase,
             SetPrimaryImageUseCase,
         )
+        from backend.application.products.queries.product_recipe_query_service import (
+            ProductRecipeQueryService,
+        )
+        from backend.application.products.use_cases.product_recipe_use_cases import (
+            ActivateRecipeVersionUseCase,
+            ApproveRecipeVersionUseCase,
+            CreateProductRecipeUseCase,
+            SubmitRecipeVersionUseCase,
+            UpdateDraftVersionUseCase,
+        )
         from frontend.desktop.modules.products.presenter import ProductsPresenter
 
         # P0-02: en producción la política SIEMPRE lleva un checker real (fail-closed);
@@ -188,6 +198,14 @@ class ModuloProductosEnterprise(QWidget):
                 "add": AddProductImageUseCase(conn, authorization),
                 "set_primary": SetPrimaryImageUseCase(conn, authorization),
                 "remove": RemoveProductImageUseCase(conn, authorization),
+            },
+            recipes_read_factory=lambda: ProductRecipeQueryService(conn),
+            recipes_write_factory=lambda: {
+                "create": CreateProductRecipeUseCase(conn, authorization),
+                "update": UpdateDraftVersionUseCase(conn, authorization),
+                "submit": SubmitRecipeVersionUseCase(conn, authorization),
+                "approve": ApproveRecipeVersionUseCase(conn, authorization),
+                "activate": ActivateRecipeVersionUseCase(conn, authorization),
             },
             permission_checker=checker,
             session_context=session)
