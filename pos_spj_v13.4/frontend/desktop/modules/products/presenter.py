@@ -30,7 +30,8 @@ class ProductsPresenter:
                  attributes_write_factory=None, variants_read_factory=None,
                  variants_write_factory=None, images_read_factory=None,
                  images_write_factory=None, recipes_read_factory=None,
-                 recipes_write_factory=None,
+                 recipes_write_factory=None, yields_read_factory=None,
+                 yields_write_factory=None,
                  permission_checker=None, session_context=None) -> None:
         self._read_factory = read_service_factory
         self._write_factory = write_service_factory
@@ -49,6 +50,8 @@ class ProductsPresenter:
         self._images_write = images_write_factory
         self._recipes_read = recipes_read_factory
         self._recipes_write = recipes_write_factory
+        self._yields_read = yields_read_factory
+        self._yields_write = yields_write_factory
         self._has_permission = permission_checker
         self._session = session_context
 
@@ -576,6 +579,96 @@ class ProductsPresenter:
             res = ucs[action].execute(cmd)
         except Exception as exc:  # noqa: BLE001 — mostrado en la UI
             logger.exception("Acción de receta %s falló", action)
+            return False, f"Error: {exc}"
+        return res.success, res.message
+
+    # ── rendimientos (yields) ──────────────────────────────────────────────
+    @property
+    def can_manage_yields(self) -> bool:
+        from backend.application.products.permissions import ProductPermissions
+        if self._yields_write is None:
+            return False
+        if self._has_permission is None:
+            return True
+        return bool(self._has_permission(ProductPermissions.YIELD_CREATE)
+                    or self._has_permission(ProductPermissions.YIELD_EDIT))
+
+    def list_yield_profiles(self, input_product_id: str) -> list[dict]:
+        if self._yields_read is None:
+            return []
+        try:
+            return self._yields_read().list_profiles(input_product_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudieron listar rendimientos")
+            return []
+
+    def list_yield_versions(self, profile_id: str) -> list[dict]:
+        if self._yields_read is None:
+            return []
+        try:
+            return self._yields_read().list_versions(profile_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudieron listar versiones de rendimiento")
+            return []
+
+    def yield_version_detail(self, version_id: str) -> dict | None:
+        if self._yields_read is None:
+            return None
+        try:
+            return self._yields_read().version_detail(version_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudo obtener el detalle de la versión")
+            return None
+
+    def create_yield_profile(self, *, input_product_id: str, name: str,
+                             tolerance_pct: str, outputs: list[dict]
+                             ) -> tuple[bool, str]:
+        return self._run_yield("create", input_product_id=input_product_id, name=name,
+                               tolerance_pct=tolerance_pct, outputs=outputs)
+
+    def update_yield_version(self, *, version_id: str, tolerance_pct: str,
+                             outputs: list[dict]) -> tuple[bool, str]:
+        return self._run_yield("update", version_id=version_id,
+                               tolerance_pct=tolerance_pct, outputs=outputs)
+
+    def submit_yield_version(self, version_id: str) -> tuple[bool, str]:
+        return self._run_yield("submit", version_id=version_id)
+
+    def approve_yield_version(self, version_id: str) -> tuple[bool, str]:
+        return self._run_yield("approve", version_id=version_id)
+
+    def activate_yield_version(self, version_id: str) -> tuple[bool, str]:
+        return self._run_yield("activate", version_id=version_id)
+
+    def _run_yield(self, action: str, **kw) -> tuple[bool, str]:
+        if self._yields_write is None:
+            return False, "Sin permisos de gestión de rendimientos"
+        from backend.application.products.commands.product_yield_commands import (
+            CreateYieldProfileCommand,
+            UpdateYieldVersionCommand,
+            YieldVersionTransitionCommand,
+        )
+        from backend.shared.ids import new_uuid
+        ucs = self._yields_write()
+        user_id = getattr(self._session, "user_id", None)
+        try:
+            if action == "create":
+                cmd = CreateYieldProfileCommand(
+                    operation_id=new_uuid(), input_product_id=kw["input_product_id"],
+                    name=kw["name"], tolerance_pct=kw["tolerance_pct"],
+                    outputs=kw["outputs"], user_id=user_id)
+            elif action == "update":
+                cmd = UpdateYieldVersionCommand(
+                    operation_id=new_uuid(), version_id=kw["version_id"],
+                    tolerance_pct=kw["tolerance_pct"], outputs=kw["outputs"],
+                    user_id=user_id)
+            else:
+                cmd = YieldVersionTransitionCommand(
+                    operation_id=new_uuid(), version_id=kw["version_id"],
+                    user_id=user_id)
+            res = ucs[action].execute(cmd)
+        except Exception as exc:  # noqa: BLE001 — mostrado en la UI
+            logger.exception("Acción de rendimiento %s falló", action)
             return False, f"Error: {exc}"
         return res.success, res.message
 

@@ -59,6 +59,15 @@ CANONICAL_TO_LEGACY: dict[str, tuple[str, ...]] = {
     ProductPermissions.RECIPE_EDIT: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
     ProductPermissions.RECIPE_APPROVE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
     ProductPermissions.RECIPE_ACTIVATE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
+    # Rendimientos (yields): ver con la vista; el resto con edición.
+    ProductPermissions.YIELD_VIEW: ("PRODUCTOS.ver",),
+    ProductPermissions.YIELD_CREATE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
+    ProductPermissions.YIELD_EDIT: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
+    ProductPermissions.YIELD_APPROVE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
+    ProductPermissions.YIELD_ACTIVATE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
+    # Esquemas de despiece (cutting): ver con la vista; gestionar con edición.
+    ProductPermissions.CUTTING_SCHEME_VIEW: ("PRODUCTOS.ver",),
+    ProductPermissions.CUTTING_SCHEME_MANAGE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
 }
 
 #: Cuando un permiso canónico no está mapeado arriba, se concede con la vista.

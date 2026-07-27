@@ -44,8 +44,8 @@ class YieldRepository:
         self._conn.execute(
             """INSERT INTO yield_profile_versions
                (id, yield_profile_id, version_number, status, tolerance_pct,
-                effective_from, effective_to, approved_by_user_id, reason)
-               VALUES (?,?,?,?,?,?,?,?,?)
+                effective_from, effective_to, approved_by_user_id, created_by, reason)
+               VALUES (?,?,?,?,?,?,?,?,?,?)
                ON CONFLICT(id) DO UPDATE SET
                  status=excluded.status, tolerance_pct=excluded.tolerance_pct,
                  effective_from=excluded.effective_from, effective_to=excluded.effective_to,
@@ -53,7 +53,7 @@ class YieldRepository:
             (version.id, version.yield_profile_id, version.version_number,
              version.status.value, str(version.tolerance_pct),
              version.effective_from, version.effective_to,
-             version.approved_by_user_id, version.reason))
+             version.approved_by_user_id, version.created_by, version.reason))
         self._conn.execute("DELETE FROM yield_outputs WHERE version_id=?", (version.id,))
         for o in version.outputs:
             self._conn.execute(
@@ -79,7 +79,8 @@ class YieldRepository:
             status=RecipeVersionStatus(row["status"]),
             tolerance_pct=Decimal(row["tolerance_pct"]),
             effective_from=row["effective_from"], effective_to=row["effective_to"],
-            approved_by_user_id=row["approved_by_user_id"], reason=row["reason"])
+            approved_by_user_id=row["approved_by_user_id"],
+            created_by=row["created_by"], reason=row["reason"])
         version.outputs = [
             YieldOutput(id=r["id"], version_id=r["version_id"], product_id=r["product_id"],
                         output_type=OutputType(r["output_type"]),
@@ -94,6 +95,19 @@ class YieldRepository:
                 "SELECT * FROM yield_outputs WHERE version_id=? ORDER BY sequence",
                 (version_id,)).fetchall()]
         return version
+
+    def next_version_number(self, profile_id: str) -> int:
+        row = self._conn.execute(
+            "SELECT COALESCE(MAX(version_number), 0) AS n FROM yield_profile_versions "
+            "WHERE yield_profile_id=?", (profile_id,)).fetchone()
+        return int(row["n"]) + 1
+
+    def active_version_for_profile(self, profile_id: str) -> YieldProfileVersion | None:
+        row = self._conn.execute(
+            "SELECT id FROM yield_profile_versions WHERE yield_profile_id=? "
+            "AND status='ACTIVE' ORDER BY version_number DESC LIMIT 1",
+            (profile_id,)).fetchone()
+        return self.get_version(row["id"]) if row else None
 
     def active_version_for_input(self, input_product_id: str) -> YieldProfileVersion | None:
         row = self._conn.execute(

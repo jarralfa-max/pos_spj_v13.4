@@ -409,6 +409,7 @@ _DDL = (
         effective_from TEXT,
         effective_to TEXT,
         approved_by_user_id TEXT,
+        created_by TEXT,
         reason TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         UNIQUE(yield_profile_id, version_number),

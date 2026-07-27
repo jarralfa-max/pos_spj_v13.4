@@ -132,6 +132,16 @@ class ModuloProductosEnterprise(QWidget):
             SubmitRecipeVersionUseCase,
             UpdateDraftVersionUseCase,
         )
+        from backend.application.products.queries.product_yield_query_service import (
+            ProductYieldQueryService,
+        )
+        from backend.application.products.use_cases.product_yield_use_cases import (
+            ActivateYieldVersionUseCase,
+            ApproveYieldVersionUseCase,
+            CreateYieldProfileUseCase,
+            SubmitYieldVersionUseCase,
+            UpdateYieldVersionUseCase,
+        )
         from frontend.desktop.modules.products.presenter import ProductsPresenter
 
         # P0-02: en producción la política SIEMPRE lleva un checker real (fail-closed);
@@ -206,6 +216,14 @@ class ModuloProductosEnterprise(QWidget):
                 "submit": SubmitRecipeVersionUseCase(conn, authorization),
                 "approve": ApproveRecipeVersionUseCase(conn, authorization),
                 "activate": ActivateRecipeVersionUseCase(conn, authorization),
+            },
+            yields_read_factory=lambda: ProductYieldQueryService(conn),
+            yields_write_factory=lambda: {
+                "create": CreateYieldProfileUseCase(conn, authorization),
+                "update": UpdateYieldVersionUseCase(conn, authorization),
+                "submit": SubmitYieldVersionUseCase(conn, authorization),
+                "approve": ApproveYieldVersionUseCase(conn, authorization),
+                "activate": ActivateYieldVersionUseCase(conn, authorization),
             },
             permission_checker=checker,
             session_context=session)
