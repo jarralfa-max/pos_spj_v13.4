@@ -32,7 +32,8 @@ class ProductsPresenter:
                  images_write_factory=None, recipes_read_factory=None,
                  recipes_write_factory=None, yields_read_factory=None,
                  yields_write_factory=None, cutting_read_factory=None,
-                 cutting_write_factory=None,
+                 cutting_write_factory=None, bundles_read_factory=None,
+                 bundles_write_factory=None,
                  permission_checker=None, session_context=None) -> None:
         self._read_factory = read_service_factory
         self._write_factory = write_service_factory
@@ -55,6 +56,8 @@ class ProductsPresenter:
         self._yields_write = yields_write_factory
         self._cutting_read = cutting_read_factory
         self._cutting_write = cutting_write_factory
+        self._bundles_read = bundles_read_factory
+        self._bundles_write = bundles_write_factory
         self._has_permission = permission_checker
         self._session = session_context
 
@@ -760,6 +763,94 @@ class ProductsPresenter:
             res = ucs[action].execute(cmd)
         except Exception as exc:  # noqa: BLE001 — mostrado en la UI
             logger.exception("Acción de despiece %s falló", action)
+            return False, f"Error: {exc}"
+        return res.success, res.message
+
+    # ── combos / kits (§28) ─────────────────────────────────────────────────
+    @property
+    def can_manage_bundles(self) -> bool:
+        from backend.application.products.permissions import ProductPermissions
+        if self._bundles_write is None:
+            return False
+        if self._has_permission is None:
+            return True
+        return bool(self._has_permission(ProductPermissions.BUNDLES_MANAGE))
+
+    def list_bundles(self, product_id: str) -> list[dict]:
+        if self._bundles_read is None:
+            return []
+        try:
+            return self._bundles_read().list_bundles(product_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudieron listar combos")
+            return []
+
+    def list_bundle_versions(self, bundle_id: str) -> list[dict]:
+        if self._bundles_read is None:
+            return []
+        try:
+            return self._bundles_read().list_versions(bundle_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudieron listar versiones de combo")
+            return []
+
+    def bundle_version_detail(self, version_id: str) -> dict | None:
+        if self._bundles_read is None:
+            return None
+        try:
+            return self._bundles_read().version_detail(version_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudo obtener el detalle de la versión")
+            return None
+
+    def create_bundle(self, *, product_id: str, bundle_type: str, name: str,
+                      components: list[dict]) -> tuple[bool, str]:
+        return self._run_bundle("create", product_id=product_id,
+                                bundle_type=bundle_type, name=name,
+                                components=components)
+
+    def update_bundle_version(self, *, version_id: str,
+                              components: list[dict]) -> tuple[bool, str]:
+        return self._run_bundle("update", version_id=version_id,
+                                components=components)
+
+    def submit_bundle_version(self, version_id: str) -> tuple[bool, str]:
+        return self._run_bundle("submit", version_id=version_id)
+
+    def approve_bundle_version(self, version_id: str) -> tuple[bool, str]:
+        return self._run_bundle("approve", version_id=version_id)
+
+    def activate_bundle_version(self, version_id: str) -> tuple[bool, str]:
+        return self._run_bundle("activate", version_id=version_id)
+
+    def _run_bundle(self, action: str, **kw) -> tuple[bool, str]:
+        if self._bundles_write is None:
+            return False, "Sin permisos de gestión de combos"
+        from backend.application.products.commands.product_bundle_commands import (
+            BundleVersionTransitionCommand,
+            CreateBundleCommand,
+            UpdateBundleVersionCommand,
+        )
+        from backend.shared.ids import new_uuid
+        ucs = self._bundles_write()
+        user_id = getattr(self._session, "user_id", None)
+        try:
+            if action == "create":
+                cmd = CreateBundleCommand(
+                    operation_id=new_uuid(), product_id=kw["product_id"],
+                    bundle_type=kw["bundle_type"], name=kw["name"],
+                    components=kw["components"], user_id=user_id)
+            elif action == "update":
+                cmd = UpdateBundleVersionCommand(
+                    operation_id=new_uuid(), version_id=kw["version_id"],
+                    components=kw["components"], user_id=user_id)
+            else:
+                cmd = BundleVersionTransitionCommand(
+                    operation_id=new_uuid(), version_id=kw["version_id"],
+                    user_id=user_id)
+            res = ucs[action].execute(cmd)
+        except Exception as exc:  # noqa: BLE001 — mostrado en la UI
+            logger.exception("Acción de combo %s falló", action)
             return False, f"Error: {exc}"
         return res.success, res.message
 

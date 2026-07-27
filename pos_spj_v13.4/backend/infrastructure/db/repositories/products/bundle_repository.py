@@ -88,6 +88,18 @@ class BundleRepository:
                ORDER BY v.version_number DESC LIMIT 1""", (product_id,)).fetchone()
         return self.get_version(row["id"]) if row else None
 
+    def next_version_number(self, bundle_id: str) -> int:
+        row = self._conn.execute(
+            "SELECT COALESCE(MAX(version_number), 0) AS n FROM bundle_versions "
+            "WHERE bundle_id=?", (bundle_id,)).fetchone()
+        return int(row["n"]) + 1
+
+    def active_version_for_bundle(self, bundle_id: str) -> BundleVersion | None:
+        row = self._conn.execute(
+            "SELECT id FROM bundle_versions WHERE bundle_id=? AND status='ACTIVE' "
+            "ORDER BY version_number DESC LIMIT 1", (bundle_id,)).fetchone()
+        return self.get_version(row["id"]) if row else None
+
     def component_resolver(self):
         def resolve(product_id: str) -> list[str]:
             version = self.active_version_for_product(product_id)

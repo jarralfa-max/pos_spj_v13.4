@@ -68,6 +68,9 @@ CANONICAL_TO_LEGACY: dict[str, tuple[str, ...]] = {
     # Esquemas de despiece (cutting): ver con la vista; gestionar con edición.
     ProductPermissions.CUTTING_SCHEME_VIEW: ("PRODUCTOS.ver",),
     ProductPermissions.CUTTING_SCHEME_MANAGE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
+    # Combos / kits: ver con la vista; gestionar con edición.
+    ProductPermissions.BUNDLES_VIEW: ("PRODUCTOS.ver",),
+    ProductPermissions.BUNDLES_MANAGE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
 }
 
 #: Cuando un permiso canónico no está mapeado arriba, se concede con la vista.

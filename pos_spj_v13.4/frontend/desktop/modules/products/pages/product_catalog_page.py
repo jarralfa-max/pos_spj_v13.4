@@ -44,12 +44,14 @@ class ProductCatalogPage(QWidget):
         self.btn_recipes = QPushButton("Recetas")
         self.btn_yields = QPushButton("Rendimientos")
         self.btn_cutting = QPushButton("Despiece")
+        self.btn_bundles = QPushButton("Combos")
         self.btn_new.clicked.connect(lambda: self._open_form(None))
         self.btn_edit.clicked.connect(self._edit_selected)
         self.btn_variants.clicked.connect(self._open_variants)
         self.btn_recipes.clicked.connect(self._open_recipes)
         self.btn_yields.clicked.connect(self._open_yields)
         self.btn_cutting.clicked.connect(self._open_cutting)
+        self.btn_bundles.clicked.connect(self._open_bundles)
         # PROD-19 paso 8: gating granular por permiso canónico PRODUCTS_CREATE/EDIT.
         self.btn_new.setEnabled(getattr(self._presenter, "can_create", False))
         self.btn_edit.setEnabled(getattr(self._presenter, "can_edit", False))
@@ -62,8 +64,10 @@ class ProductCatalogPage(QWidget):
             getattr(self._presenter, "can_manage_yields", False))
         self.btn_cutting.setEnabled(
             getattr(self._presenter, "can_manage_cutting", False))
+        self.btn_bundles.setEnabled(
+            getattr(self._presenter, "can_manage_bundles", False))
         for b in (self.btn_new, self.btn_edit, self.btn_variants, self.btn_recipes,
-                  self.btn_yields, self.btn_cutting):
+                  self.btn_yields, self.btn_cutting, self.btn_bundles):
             toolbar.addWidget(b)
         layout.addLayout(toolbar)
 
@@ -134,6 +138,18 @@ class ProductCatalogPage(QWidget):
                              product_name=row.get("name") or "Producto",
                              species_id=row.get("species_id") or "",
                              parent=self).exec_()
+
+    def _open_bundles(self) -> None:
+        product_id = self.table.selected_row_id()
+        if not product_id:
+            return
+        from frontend.desktop.modules.products.dialogs.bundles_dialog import (
+            BundlesDialog,
+        )
+        row = self._presenter.get_product(product_id) or {}
+        BundlesDialog(self._presenter, product_id=product_id,
+                      product_name=row.get("name") or "Producto",
+                      parent=self).exec_()
 
     def _open_form(self, product_id) -> None:
         from frontend.desktop.modules.products.dialogs.product_form_dialog import (

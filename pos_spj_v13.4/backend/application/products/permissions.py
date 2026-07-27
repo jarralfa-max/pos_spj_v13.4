@@ -50,6 +50,10 @@ class ProductPermissions:
     # ── imágenes (P1) ──────────────────────────────────────────────────────
     IMAGES_MANAGE = "PRODUCTS_IMAGES_MANAGE"
 
+    # ── combos / kits (§28) ────────────────────────────────────────────────
+    BUNDLES_VIEW = "PRODUCTS_BUNDLES_VIEW"
+    BUNDLES_MANAGE = "PRODUCTS_BUNDLES_MANAGE"
+
     # ── clasificación cárnica (§38) ───────────────────────────────────────
     SPECIES_VIEW = "PRODUCTS_SPECIES_VIEW"
     SPECIES_MANAGE = "PRODUCTS_SPECIES_MANAGE"
