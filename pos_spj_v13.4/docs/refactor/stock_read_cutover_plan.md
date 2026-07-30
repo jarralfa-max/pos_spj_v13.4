@@ -89,7 +89,7 @@ regresivo.
 
 | Fase | Alcance | Riesgo | Salida |
 | ---- | ------- | ------ | ------ |
-| **G0** | Matriz de paridad de escritura + reconciliación (§2) | — (auditoría) | Doc de paridad + drift ≈ 0 |
+| **G0** ✅ | Matriz de paridad de escritura + reconciliación (§2) | — (auditoría) | `stock_write_path_parity_audit.md` — **A/B desbloqueadas** (canónico dual-fed/fresco); gate duro sólo para C/E |
 | **G1** ✅ | `InventoryStockAggregateQueryService` canónico (`available_by_product`, `total_available`, `low_stock_items/count`) + tests | Bajo | `backend/application/inventory/queries/stock_aggregate_query_service.py` |
 | **A** | Repunte de **lectores escalares** al adapter, por lotes de 4–6, con tests de equivalencia sembrando `inventory_balances`; delistar cada uno | Bajo–Medio (gated + fallback) | −N lectores del ratchet |
 | **B** | Repunte de **lectores agregados** a G1, por lotes; delistar | Medio | −M lectores |
