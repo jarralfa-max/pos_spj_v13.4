@@ -84,7 +84,6 @@ _ALLOWLIST: frozenset[str] = frozenset({
     "core/services/alertas_service.py",
     "core/services/analytics/analytics_engine.py",
     # Repoint batch 2: cfdi_service (core) lee el nombre de línea de products.
-    "core/services/cotizacion_service.py",
     "core/services/decision_engine.py",
     "core/services/delivery_service.py",
     # PROD-19 repunte batch 1: discount_guard → ProductCostQueryService (Pricing).
@@ -116,7 +115,6 @@ _ALLOWLIST: frozenset[str] = frozenset({
     "core/use_cases/venta.py",
     "integrations/pos_adapter.py",
     "repositories/bi_repository.py",
-    "repositories/config_repository.py",
     "repositories/inventory_repository.py",
     "repositories/main_window_repository.py",
     "repositories/productos.py",

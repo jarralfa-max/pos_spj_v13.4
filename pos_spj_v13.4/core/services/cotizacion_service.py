@@ -20,7 +20,13 @@ class CotizacionService:
         """Catálogo de productos activos para armar cotizaciones (id, nombre, precio, unidad).
         Ruta canónica: el diálogo delega esta lectura aquí (Remediación D)."""
         return self.conn.execute(
-            "SELECT id, nombre, precio, unidad FROM productos WHERE activo=1 ORDER BY nombre"
+            "SELECT p.id, p.name AS nombre, "
+            "CAST(COALESCE(pp.sale_price,'0') AS REAL) AS precio, "
+            "p.base_unit_id AS unidad "
+            "FROM products p "
+            "LEFT JOIN product_price pp ON pp.product_id=p.id AND pp.branch_id='' "
+            "  AND pp.price_list_id=(SELECT id FROM price_list WHERE code='BASE') "
+            "WHERE p.lifecycle_status='ACTIVE' ORDER BY p.name"
         ).fetchall()
 
     def crear(self, items: list, cliente_id: str = None, cliente_nombre: str = "",

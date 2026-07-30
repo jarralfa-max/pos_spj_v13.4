@@ -505,9 +505,11 @@ class ConfigRepository:
         ).fetchone()
         waste = self.db.execute(
             """
-            SELECT COALESCE(SUM(m.cantidad * COALESCE(p.precio_compra, 0)), 0)
+            SELECT COALESCE(SUM(
+                       m.cantidad * CAST(COALESCE(pc.average_cost, '0') AS REAL)), 0)
             FROM mermas m
-            LEFT JOIN productos p ON p.id = m.producto_id
+            LEFT JOIN product_cost pc
+                   ON pc.product_id = m.producto_id AND pc.branch_id = ''
             WHERE m.created_at >= ? AND m.created_at < ?
             """,
             (start_date, end_date),
