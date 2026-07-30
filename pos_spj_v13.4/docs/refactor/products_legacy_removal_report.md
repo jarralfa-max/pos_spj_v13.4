@@ -89,9 +89,19 @@ guardrails de Productos verdes. Se corrigió una regresión born-clean (PK NOT N
 en 3 perfiles de producto, migración **165** + `test_products_pk_not_null`).
 
 El corte de legacy queda con **escritura ya flipada** (paso 7b) y **backfills
-hechos** (152/153); el ratchet congela **74 consumidores** de `productos` cuyo
-repunte de lecturas es incremental (74 → 0) y previo al DROP. El DROP sigue
-bloqueado hasta allowlist vacía.
+hechos** (152/153); el ratchet congela los consumidores de `productos` cuyo
+repunte de lecturas es incremental y previo al DROP. El DROP sigue bloqueado
+hasta allowlist vacía.
+
+### Repunte incremental — lotes
+
+| Lote | Archivos repuntados | Objetivo | Allowlist |
+| ---- | ------------------- | -------- | --------- |
+| 1 | `repositories/ventas.py::get_items`, `repositories/sales_repository.py::get_sale_by_folio` | Nombre de línea de venta: `JOIN productos p.nombre` → `JOIN products p.name AS <clave>` (backfill 148 preserva ids UUID y `name`) | 74 → **72** |
+
+Cada lote: alias que preserva las claves de salida (cero cambio de contrato),
+regresión canónica nueva (`tests/integration/products/test_legacy_repoint_sales_lines.py`)
+y verificación de 0 fallas nuevas contra la baseline.
 
 ## Métricas (se completan al cerrar el corte)
 

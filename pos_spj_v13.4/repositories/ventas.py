@@ -103,11 +103,11 @@ class VentaRepository:
 
     def get_items(self, venta_id: int) -> List[Dict]:
         rows = self.db.fetchall("""
-            SELECT dv.id, dv.producto_id, p.nombre AS producto_nombre,
+            SELECT dv.id, dv.producto_id, p.name AS producto_nombre,
                    dv.cantidad, dv.precio_unitario, dv.subtotal,
                    dv.costo_unitario, dv.margen_real
             FROM detalles_venta dv
-            JOIN productos p ON p.id = dv.producto_id
+            JOIN products p ON p.id = dv.producto_id
             WHERE dv.venta_id = ?
         """, (venta_id,))
         return [dict(r) for r in rows]

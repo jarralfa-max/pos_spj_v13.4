@@ -88,9 +88,9 @@ class SalesRepository:
         
         # Traer también los detalles
         detalles = cursor.execute("""
-            SELECT d.*, p.nombre 
+            SELECT d.*, p.name AS nombre
             FROM detalles_venta d
-            JOIN productos p ON d.producto_id = p.id
+            JOIN products p ON d.producto_id = p.id
             WHERE d.venta_id = ?
         """, (venta['id'],)).fetchall()
         
