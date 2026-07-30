@@ -57,7 +57,6 @@ def _current_consumers() -> set[str]:
 # maestro canónico y borrarlo de aquí. Objetivo del paso 10: conjunto vacío.
 _ALLOWLIST: frozenset[str] = frozenset({
     "backend/application/event_handlers/inventory/purchase_stock_entry_handler.py",
-    "backend/application/procurement/queries/purchase_template_read_service.py",
     "backend/application/procurement/queries/qr_traceability_read_service.py",
     "backend/application/queries/bi_inventory_query_service.py",
     "backend/application/queries/bi_sales_query_service.py",
@@ -112,7 +111,6 @@ _ALLOWLIST: frozenset[str] = frozenset({
     "core/services/sales/product_catalog_query_service.py",
     "core/services/sales_fulfillment_service.py",
     "core/services/sales_service.py",
-    "core/use_cases/venta.py",
     "integrations/pos_adapter.py",
     "repositories/bi_repository.py",
     "repositories/inventory_repository.py",

@@ -60,13 +60,14 @@ class PurchaseTemplateReadService(_Base):
 class ProductPurchaseCostReadService(_Base):
     """Historical purchase cost of a product for the variance check.
 
-    Priority mirrors the legacy `_costo_compra_producto`:
-    precio_compra → inventario_actual.costo_promedio → 0.
+    Priority: canonical `product_cost.average_cost` (global branch) →
+    inventario_actual.costo_promedio (legacy stock fallback) → 0.
     """
 
     def historical_cost(self, product_id: str, *, branch_id: str | None = None) -> str:
         precio = self._scalar(
-            "SELECT precio_compra FROM productos WHERE id=?", (product_id,))
+            "SELECT average_cost FROM product_cost WHERE product_id=? AND branch_id=''",
+            (product_id,))
         if precio and float(precio) > 0:
             return str(precio)
         if branch_id is not None:

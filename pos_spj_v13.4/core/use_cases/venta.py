@@ -413,7 +413,8 @@ class ProcesarVentaUC:
         for item in items:
             try:
                 row = self._sales.db.execute(
-                    "SELECT COALESCE(precio_compra, 0) FROM productos WHERE id=?",
+                    "SELECT COALESCE(average_cost, '0') FROM product_cost "
+                    "WHERE product_id=? AND branch_id=''",
                     (item.producto_id,)
                 ).fetchone()
                 costo = float(row[0]) if row and row[0] else 0.0

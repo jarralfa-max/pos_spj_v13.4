@@ -29,12 +29,16 @@ def tpl_conn(proc_conn):
     proc_conn.execute(
         "CREATE TABLE plantillas_compra_items (id TEXT PRIMARY KEY, plantilla_id TEXT,"
         " producto_id TEXT, cantidad REAL, costo_unitario REAL)")
+    # El costo histórico canónico vive en `product_cost.average_cost` (no en la
+    # tabla legacy `productos`).
     proc_conn.execute(
-        "CREATE TABLE productos (id TEXT PRIMARY KEY, precio_compra REAL)")
+        "CREATE TABLE IF NOT EXISTS product_cost (id TEXT PRIMARY KEY,"
+        " product_id TEXT NOT NULL, branch_id TEXT NOT NULL DEFAULT '',"
+        " average_cost TEXT NOT NULL)")
     proc_conn.execute("INSERT INTO plantillas_compra (id, nombre) VALUES ('t1','Semanal')")
     proc_conn.execute("INSERT INTO plantillas_compra_items VALUES ('i1','t1','p1',10,30)")
     proc_conn.execute("INSERT INTO plantillas_compra_items VALUES ('i2','t1','p2',5,8)")
-    proc_conn.execute("INSERT INTO productos VALUES ('p1', 30)")
+    proc_conn.execute("INSERT INTO product_cost VALUES ('pc1','p1','','30.0')")
     proc_conn.commit()
     return proc_conn
 
@@ -56,9 +60,9 @@ def test_templates_tolerate_missing_tables(proc_conn):
 
 
 # ── historical cost ──────────────────────────────────────────────────────────
-def test_historical_cost_prefers_precio_compra(tpl_conn):
-    # precio_compra is a legacy REAL column → "30.0"; the domain policy parses it
-    # via Decimal, so the string form is inconsequential.
+def test_historical_cost_reads_canonical_product_cost(tpl_conn):
+    # El costo histórico proviene de `product_cost.average_cost` (canónico);
+    # la política de dominio lo parsea vía Decimal.
     assert ProductPurchaseCostReadService(tpl_conn).historical_cost("p1") == "30.0"
     assert ProductPurchaseCostReadService(tpl_conn).historical_cost("nope") == "0"
 
