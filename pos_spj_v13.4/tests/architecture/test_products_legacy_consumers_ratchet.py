@@ -122,7 +122,6 @@ _ALLOWLIST: frozenset[str] = frozenset({
     "repositories/inventory_repository.py",
     "repositories/main_window_repository.py",
     "repositories/productos.py",
-    "repositories/proveedor_repository.py",
     "repositories/purchase_repository.py",
     "repositories/recetas.py",
     # Repoint batch 1: sales-line name reads → JOIN products (p.name).

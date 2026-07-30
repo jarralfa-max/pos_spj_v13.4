@@ -100,10 +100,13 @@ class ProveedorRepository:
         """Return items of a template joined with product name and cost."""
         try:
             rows = self.db.execute(
-                """SELECT ti.producto_id, p.nombre, ti.cantidad,
-                          ti.costo_unitario, p.precio_compra
+                """SELECT ti.producto_id, p.name AS nombre, ti.cantidad,
+                          ti.costo_unitario,
+                          CAST(COALESCE(pc.average_cost, '0') AS REAL) AS precio_compra
                    FROM plantillas_compra_items ti
-                   JOIN productos p ON p.id = ti.producto_id
+                   JOIN products p ON p.id = ti.producto_id
+                   LEFT JOIN product_cost pc
+                          ON pc.product_id = ti.producto_id AND pc.branch_id = ''
                    WHERE ti.plantilla_id = ?""",
                 (plantilla_id,),
             ).fetchall()
