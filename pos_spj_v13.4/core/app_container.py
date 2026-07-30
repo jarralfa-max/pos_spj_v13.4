@@ -756,14 +756,26 @@ class AppContainer:
         def _run_alertas():
             try:
                 alertas_svc.run_checks()
-                # Propagar alertas de stock al NotificationService
-                productos_bajo = self.db.execute(
-                    "SELECT nombre, existencia, stock_minimo, unidad "
-                    "FROM productos WHERE activo=1 AND existencia<=COALESCE(stock_minimo,5)"
-                ).fetchall()
+                # Propagar alertas de stock (canónico: disponible ≤ umbral de
+                # reposición global, con nombre/unidad de `products`).
+                from backend.application.inventory.queries import (
+                    InventoryStockAggregateQueryService,
+                )
+                productos_bajo = []
+                for it in InventoryStockAggregateQueryService(
+                        self.db).low_stock_products():
+                    prow = self.db.execute(
+                        "SELECT name, base_unit_id FROM products WHERE id=?",
+                        (it.product_id,)).fetchone()
+                    productos_bajo.append({
+                        "nombre": (prow[0] if prow else None) or it.product_id,
+                        "existencia": float(it.available),
+                        "stock_minimo": float(it.reorder_point),
+                        "unidad": (prow[1] if prow else "") or "",
+                    })
                 if productos_bajo:
                     self.notification_service.notificar_stock_bajo(
-                        [dict(p) for p in productos_bajo], sucursal_id=self.sucursal_id
+                        productos_bajo, sucursal_id=self.sucursal_id
                     )
             except Exception as e:
                 _log.getLogger("spj.scheduler").warning("alertas: %s", e)

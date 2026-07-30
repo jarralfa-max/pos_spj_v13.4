@@ -124,6 +124,7 @@ listos: G0 (paridad de escritura → canónico dual-fed/fresco), G1
 | ------ | ------- | ------- | --------- |
 | A.1 | `core/services/forecast_service.py::generar_plan_compras` | `SELECT existencia FROM productos WHERE id=?` → `CanonicalStockReadAdapter.available_float` (disponible canónico, gated). Test funcional bajo `importorskip('pandas')` | 60 → **59** |
 | A.2 | `core/services/reporte_email_service.py`, `core/health/health_server.py`, `core/services/alertas_service.py` | Stock bajo: `COUNT/SELECT ... WHERE existencia<=stock_minimo` → `InventoryStockAggregateQueryService.low_stock_products[_count]` (nivel producto, disponible total ≤ umbral). Habilitado por **migración 168** (regla de reposición global `branch_id=''` respaldada desde `stock_minimo`); alertas toma el nombre de `products` | 59 → **56** |
+| A.3 | `repositories/main_window_repository.py::buscar_productos`, `core/app_container.py` (notificación de stock bajo) | Búsqueda global: `productos(nombre,precio,existencia)` → `products` + `product_price` BASE + subquery de disponible en `inventory_balances`. Notificación de stock bajo → `low_stock_products` + nombre/unidad de `products` | 56 → **54** |
 
 Cada lote: alias que preserva las claves de salida (cero cambio de contrato),
 regresión canónica nueva (`tests/integration/products/test_legacy_repoint_sales_lines.py`)

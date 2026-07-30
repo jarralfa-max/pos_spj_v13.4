@@ -51,9 +51,20 @@ class MainWindowReadRepository:
 
     def buscar_productos(self, texto: str, limit: int = 8) -> list:
         try:
+            # Canónico: nombre/código de `products`, precio de la lista BASE
+            # (`product_price`) y existencia = disponible de `inventory_balances`.
             return self.db.execute(
-                "SELECT nombre, precio, existencia FROM productos "
-                "WHERE (nombre LIKE ? OR codigo LIKE ?) AND activo=1 LIMIT ?",
+                "SELECT p.name AS nombre, "
+                "CAST(COALESCE(pp.sale_price,'0') AS REAL) AS precio, "
+                "(SELECT COALESCE(SUM(CAST(b.quantity AS REAL) - "
+                "        CAST(b.reserved_quantity AS REAL)),0) "
+                " FROM inventory_balances b WHERE b.product_id=p.id "
+                "   AND b.inventory_status='AVAILABLE') AS existencia "
+                "FROM products p "
+                "LEFT JOIN product_price pp ON pp.product_id=p.id AND pp.branch_id='' "
+                "  AND pp.price_list_id=(SELECT id FROM price_list WHERE code='BASE') "
+                "WHERE (p.name LIKE ? OR COALESCE(p.code,'') LIKE ?) "
+                "  AND p.lifecycle_status='ACTIVE' LIMIT ?",
                 (f"%{texto}%", f"%{texto}%", int(limit)),
             ).fetchall()
         except Exception as e:

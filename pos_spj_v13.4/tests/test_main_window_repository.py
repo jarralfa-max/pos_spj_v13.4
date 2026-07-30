@@ -50,8 +50,11 @@ def test_personal_id_de_usuario_ambas_rutas(db):
 
 def test_busqueda_global(db):
     pid = new_uuid()
-    db.execute("INSERT INTO productos (id,nombre,codigo,precio,existencia,activo) "
-               "VALUES (?,?,?,?,?,1)", (pid, "Pollo entero", "P001", 95.0, 10))
+    # La búsqueda de productos es canónica (`products`).
+    db.execute("INSERT INTO products (id,code,name,name_normalized,product_type,"
+               "lifecycle_status,base_unit_id) VALUES (?,?,?,?,?,?,?)",
+               (pid, "P001", "Pollo entero", "pollo entero", "RESALE_PRODUCT",
+                "ACTIVE", "kg"))
     db.execute("INSERT INTO clientes (id,nombre,apellido,telefono,activo) "
                "VALUES (?,?,?,?,1)", (new_uuid(), "Mariana", "Ruiz", "555"))
     db.execute("INSERT INTO ventas (id,folio,total,estado,fecha,usuario) "
