@@ -90,7 +90,7 @@ regresivo.
 | Fase | Alcance | Riesgo | Salida |
 | ---- | ------- | ------ | ------ |
 | **G0** | Matriz de paridad de escritura + reconciliación (§2) | — (auditoría) | Doc de paridad + drift ≈ 0 |
-| **G1** | `InventoryStockAggregateQueryService` canónico (SUM disponible por producto/sucursal, stock-bajo) + tests | Bajo | Servicio agregado reutilizable |
+| **G1** ✅ | `InventoryStockAggregateQueryService` canónico (`available_by_product`, `total_available`, `low_stock_items/count`) + tests | Bajo | `backend/application/inventory/queries/stock_aggregate_query_service.py` |
 | **A** | Repunte de **lectores escalares** al adapter, por lotes de 4–6, con tests de equivalencia sembrando `inventory_balances`; delistar cada uno | Bajo–Medio (gated + fallback) | −N lectores del ratchet |
 | **B** | Repunte de **lectores agregados** a G1, por lotes; delistar | Medio | −M lectores |
 | **C** | **Neutralización de escritores legacy** (quitar `UPDATE productos SET existencia`) una vez confirmado (G0.2) que cada flujo postea canónico; por lotes de 1–3, del más simple (`qr_service`, `lote_service`) al más crítico (`sales_service`) | **Alto** (toca checkout/producción) | −9 escritores |
