@@ -47,10 +47,16 @@ def test_get_kpis_dia_agrega_ventas_y_clientes(db):
 def test_get_kpis_dia_margen(db):
     from repositories.bi_repository import BIRepository
     pid = new_uuid()
+    # Nombre/identidad en el maestro canónico; costo en product_cost (canónico).
     db.execute(
-        "INSERT INTO productos (id, nombre, precio, precio_compra, activo) "
-        "VALUES (?,?,?,?,1)",
-        (pid, "Prod", 50.0, 20.0),
+        "INSERT INTO products (id, code, name, name_normalized, product_type, "
+        "lifecycle_status, base_unit_id) VALUES (?,?,?,?,?,?,?)",
+        (pid, "P-1", "Prod", "prod", "RESALE_PRODUCT", "ACTIVE", "pza"),
+    )
+    db.execute(
+        "INSERT INTO product_cost (id, product_id, branch_id, average_cost, "
+        "average_cost_currency, cost_method) VALUES (?,?,?,?,?,?)",
+        (new_uuid(), pid, "", "20.0", "MXN", "AVERAGE"),
     )
     vid = _venta_hoy(db, 100.0, "cli-1")
     db.execute(

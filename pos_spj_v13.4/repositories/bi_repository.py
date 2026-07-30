@@ -64,10 +64,12 @@ class BIRepository:
             r2 = self.db.execute("""
                 SELECT
                     COALESCE(SUM(vd.cantidad*vd.precio_unitario),0),
-                    COALESCE(SUM(vd.cantidad*COALESCE(p.precio_compra,0)),0)
+                    COALESCE(SUM(vd.cantidad*CAST(COALESCE(pc.average_cost,'0') AS REAL)),0)
                 FROM ventas v
                 JOIN detalles_venta vd ON vd.venta_id = v.id
-                JOIN productos p ON p.id = vd.producto_id
+                JOIN products p ON p.id = vd.producto_id
+                LEFT JOIN product_cost pc
+                       ON pc.product_id = vd.producto_id AND pc.branch_id = ''
                 WHERE DATE(v.fecha)=DATE('now')
                 AND v.estado='completada'
             """).fetchone()

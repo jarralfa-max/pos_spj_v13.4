@@ -114,11 +114,12 @@ class FinancialSimulator:
         total_mensual = nomina + gastos_fijos
         margen_neto_actual = self._q(
             "SELECT COALESCE(AVG(margen),25) FROM ("
-            "  SELECT (SUM(v.total) - SUM(dv.cantidad*COALESCE(p.precio_compra,p.costo,0))) "
+            "  SELECT (SUM(v.total) - SUM(dv.cantidad*CAST(COALESCE(pc.average_cost,'0') AS REAL))) "
             "  / NULLIF(SUM(v.total),0) * 100 as margen "
             "  FROM ventas v "
             "  JOIN detalles_venta dv ON dv.venta_id=v.id "
-            "  JOIN productos p ON p.id=dv.producto_id "
+            "  JOIN products p ON p.id=dv.producto_id "
+            "  LEFT JOIN product_cost pc ON pc.product_id=dv.producto_id AND pc.branch_id='' "
             "  WHERE v.estado='completada' AND v.fecha > datetime('now','-90 days'))") or 25
 
         proyeccion = []
