@@ -85,10 +85,10 @@ class CFDIService:
 
             venta_d = dict(venta)
             items = self.db.execute("""
-                SELECT dv.producto_id, p.nombre, dv.cantidad, dv.precio_unitario,
+                SELECT dv.producto_id, p.name AS nombre, dv.cantidad, dv.precio_unitario,
                        dv.subtotal, dv.descuento
                 FROM detalles_venta dv
-                JOIN productos p ON p.id=dv.producto_id
+                JOIN products p ON p.id=dv.producto_id
                 WHERE dv.venta_id=?
             """, (venta_id,)).fetchall()
 

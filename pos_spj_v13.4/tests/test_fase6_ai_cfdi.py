@@ -32,6 +32,12 @@ def _make_db(with_cfdi_data: bool = False) -> sqlite3.Connection:
             id INTEGER PRIMARY KEY, nombre TEXT,
             precio REAL DEFAULT 100.0, activo INTEGER DEFAULT 1
         );
+        -- Maestro canónico (CFDIService lee el nombre de `products`, no de `productos`).
+        CREATE TABLE IF NOT EXISTS products (
+            id TEXT NOT NULL PRIMARY KEY, code TEXT, name TEXT,
+            name_normalized TEXT, product_type TEXT, lifecycle_status TEXT,
+            base_unit_id TEXT
+        );
         CREATE TABLE IF NOT EXISTS cfdi_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             venta_id INTEGER, uuid_cfdi TEXT, xml TEXT,
@@ -45,6 +51,10 @@ def _make_db(with_cfdi_data: bool = False) -> sqlite3.Connection:
             INSERT INTO configuraciones VALUES ('regimen_fiscal', '616');
             INSERT INTO configuraciones VALUES ('cfdi_serie', 'A');
             INSERT INTO productos VALUES (1, 'Pollo 1kg', 120.0, 1);
+            INSERT INTO products (id, code, name, name_normalized, product_type,
+                lifecycle_status, base_unit_id)
+                VALUES ('1', 'P1', 'Pollo 1kg', 'pollo 1kg', 'RESALE_PRODUCT',
+                        'ACTIVE', 'kg');
             INSERT INTO ventas VALUES (1, datetime('now'), 120.0, 120.0, 0.0,
                 'Efectivo', 'F001', 1, 'completada');
             INSERT INTO detalles_venta VALUES (1, 1, 1, 1.0, 120.0, 120.0, 0.0);

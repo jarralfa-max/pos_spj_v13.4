@@ -30,6 +30,10 @@ def born_clean_db():
     conn.row_factory = sqlite3.Row
     from migrations import m000_base_schema as m000
     m000.up(conn)
+    # Maestro canónico: CfdiService lee el nombre de línea desde `products`.
+    from backend.infrastructure.db.schema.products_schema import create_products_schema
+    create_products_schema(conn)
+    conn.commit()
     return conn
 
 
@@ -45,6 +49,11 @@ def test_cfdi_insert_usa_uuid_y_timbrado_matchea(born_clean_db):
     conn.execute(
         "INSERT INTO detalles_venta(id, venta_id, producto_id, cantidad, precio_unitario, subtotal) "
         "VALUES ('d1',1,'p1',1,100.0,100.0)"
+    )
+    conn.execute(
+        "INSERT INTO products(id, code, name, name_normalized, product_type, "
+        "lifecycle_status, base_unit_id) "
+        "VALUES ('p1','P1','Producto 1','producto 1','RESALE_PRODUCT','ACTIVE','pza')"
     )
     conn.commit()
 

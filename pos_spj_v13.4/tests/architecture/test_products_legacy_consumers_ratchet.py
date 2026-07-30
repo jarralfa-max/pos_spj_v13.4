@@ -85,7 +85,7 @@ _ALLOWLIST: frozenset[str] = frozenset({
     "core/services/alert_engine.py",
     "core/services/alertas_service.py",
     "core/services/analytics/analytics_engine.py",
-    "core/services/cfdi_service.py",
+    # Repoint batch 2: cfdi_service (core) lee el nombre de línea de products.
     "core/services/cotizacion_service.py",
     "core/services/decision_engine.py",
     "core/services/delivery_service.py",
@@ -117,7 +117,6 @@ _ALLOWLIST: frozenset[str] = frozenset({
     "core/services/sales_fulfillment_service.py",
     "core/services/sales_service.py",
     "core/use_cases/venta.py",
-    "integrations/cfdi/cfdi_service.py",
     "integrations/pos_adapter.py",
     "repositories/bi_repository.py",
     "repositories/config_repository.py",

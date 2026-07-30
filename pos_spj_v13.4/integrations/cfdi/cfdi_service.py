@@ -180,8 +180,8 @@ class CfdiService:
             raise ValueError(f"Venta {venta_id} no encontrada")
         venta = dict(venta)
         items = [dict(r) for r in self.conn.execute(
-            "SELECT dv.*, p.nombre FROM detalles_venta dv "
-            "LEFT JOIN productos p ON p.id=dv.producto_id WHERE dv.venta_id=?",
+            "SELECT dv.*, p.name AS nombre FROM detalles_venta dv "
+            "LEFT JOIN products p ON p.id=dv.producto_id WHERE dv.venta_id=?",
             (venta_id,)).fetchall()]
 
         folio_cfdi = f"F{venta_id:06d}"
