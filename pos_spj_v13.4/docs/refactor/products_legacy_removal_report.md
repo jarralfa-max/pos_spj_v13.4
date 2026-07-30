@@ -106,6 +106,16 @@ hasta allowlist vacía.
 | 7 | `backend/application/procurement/queries/purchase_template_read_service.py::historical_cost`, `core/use_cases/venta.py::validar_precios_bajo_costo` | Costo unitario: `SELECT precio_compra FROM productos WHERE id=?` → `product_cost.average_cost` (sucursal `''`). El costo histórico de variance y la alerta de venta bajo costo leen el costo canónico. Backfill 150 dio equivalencia. Regresiones canónicas nuevas; test de variance actualizado a `product_cost` | 64 → **62** |
 | 8 | `repositories/bi_repository.py::get_kpis_dia`, `core/services/financial_simulator.py::simular_nueva_sucursal` | COGS/margen: `JOIN productos (precio_compra)` → `JOIN products` (filtro de existencia ahora completo, incluye productos canónicos nuevos) + `LEFT JOIN product_cost.average_cost`. Equivalente para datos con backfill 150 y corrige un subconteo de productos canónicos. Regresión nueva; test de KPIs BI actualizado a `products`+`product_cost` | 62 → **60** |
 
+**Desacople parcial de `product_query_service`** (no delista aún): la búsqueda de
+catálogo (`search`), el conteo de KPIs (`metrics`), el listado de categorías y la
+detección de nombre duplicado se repuntaron a canónico (`products` +
+`product_categories` + `product_price` BASE + `base_unit_id`). Habilitado por la
+**migración 167** (backfill de `products.category_id` desde la `categoria` legacy).
+Las lecturas de tabla completa (`list_rows`/`list_catalog_rows`) y `get_product`
+(`SELECT *`) siguen en `productos` porque devuelven `existencia`, cuyo repunte
+depende del cutover de stock diferido por INV-27 — por eso el archivo permanece en
+la allowlist hasta ese flip.
+
 Cada lote: alias que preserva las claves de salida (cero cambio de contrato),
 regresión canónica nueva (`tests/integration/products/test_legacy_repoint_sales_lines.py`)
 y verificación de 0 fallas nuevas contra la baseline.

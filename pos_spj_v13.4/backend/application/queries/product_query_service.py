@@ -28,11 +28,22 @@ class SQLiteProductQueryDataSource:
         like = f"%{query}%"
         rows = self._connection.execute(
             """
-            SELECT id, nombre, codigo, categoria, unidad, precio, tipo_producto
-            FROM productos
-            WHERE COALESCE(activo,1)=1
-              AND (? = '' OR nombre LIKE ? OR COALESCE(codigo,'') LIKE ? OR COALESCE(codigo_barras,'') LIKE ?)
-            ORDER BY nombre ASC
+            SELECT p.id AS id, p.name AS nombre, p.code AS codigo,
+                   COALESCE(cat.name,'') AS categoria,
+                   COALESCE(p.base_unit_id,'') AS unidad,
+                   CAST(COALESCE(pp.sale_price,'0') AS REAL) AS precio,
+                   p.product_type AS tipo_producto
+            FROM products p
+            LEFT JOIN product_categories cat ON cat.id = p.category_id
+            LEFT JOIN product_price pp
+                   ON pp.product_id = p.id AND pp.branch_id = ''
+                  AND pp.price_list_id = (SELECT id FROM price_list WHERE code='BASE')
+            WHERE p.lifecycle_status = 'ACTIVE'
+              AND (? = '' OR p.name LIKE ? OR COALESCE(p.code,'') LIKE ?
+                   OR EXISTS (SELECT 1 FROM product_barcodes b
+                              WHERE b.product_id = p.id AND b.active = 1
+                                AND b.barcode_value LIKE ?))
+            ORDER BY p.name ASC
             LIMIT 50
             """,
             (query, like, like, like),
@@ -83,8 +94,8 @@ class SQLiteProductQueryDataSource:
     def metrics(self, scope: str, filters: QueryFilters | None = None) -> Sequence[KpiMetric]:
         if scope != "products":
             return []
-        active = self._count("COALESCE(activo,1)=1")
-        inactive = self._count("COALESCE(activo,1)=0")
+        active = self._count("lifecycle_status='ACTIVE'")
+        inactive = self._count("lifecycle_status<>'ACTIVE'")
         return [
             KpiMetric("activos", "Productos activos", active),
             KpiMetric("inactivos", "Inactivos", inactive),
@@ -92,7 +103,8 @@ class SQLiteProductQueryDataSource:
 
     def list_categories(self) -> list[str]:
         rows = self._connection.execute(
-            "SELECT DISTINCT categoria FROM productos WHERE categoria IS NOT NULL AND categoria!='' ORDER BY categoria"
+            "SELECT name AS categoria FROM product_categories "
+            "WHERE COALESCE(active,1)=1 ORDER BY name"
         ).fetchall()
         return [str(self._value(row, "categoria", 0)) for row in rows]
 
@@ -102,7 +114,8 @@ class SQLiteProductQueryDataSource:
 
     def find_duplicate_name(self, name: str, *, exclude_product_id: str | None = None) -> dict[str, Any] | None:
         params: list[Any] = [name]
-        query = "SELECT id, codigo FROM productos WHERE LOWER(TRIM(nombre))=LOWER(TRIM(?)) AND COALESCE(activo,1)=1"
+        query = ("SELECT id, code AS codigo FROM products "
+                 "WHERE name_normalized=LOWER(TRIM(?)) AND lifecycle_status='ACTIVE'")
         if exclude_product_id:
             query += " AND id!=?"
             params.append(exclude_product_id)
@@ -110,7 +123,7 @@ class SQLiteProductQueryDataSource:
         return self._row_dict(row) if row is not None else None
 
     def _count(self, where: str) -> int:
-        return int(self._connection.execute(f"SELECT COUNT(*) FROM productos WHERE {where}").fetchone()[0])
+        return int(self._connection.execute(f"SELECT COUNT(*) FROM products WHERE {where}").fetchone()[0])
 
     @staticmethod
     def _value(row: Any, key: str, index: int) -> Any:
@@ -205,8 +218,8 @@ class ProductQueryService(BaseQueryService):
         try:
             params: list[Any] = [name]
             query = (
-                "SELECT id, codigo FROM productos "
-                "WHERE LOWER(TRIM(nombre))=LOWER(TRIM(?)) AND COALESCE(activo,1)=1"
+                "SELECT id, code AS codigo FROM products "
+                "WHERE name_normalized=LOWER(TRIM(?)) AND lifecycle_status='ACTIVE'"
             )
             if exclude_product_id is not None:
                 query += " AND id!=?"
@@ -242,7 +255,8 @@ class ProductQueryService(BaseQueryService):
             return []
         try:
             rows = self._db.execute(
-                "SELECT DISTINCT categoria FROM productos WHERE categoria IS NOT NULL ORDER BY categoria"
+                "SELECT name AS categoria FROM product_categories "
+                "WHERE COALESCE(active,1)=1 ORDER BY name"
             ).fetchall()
         except Exception:
             logger.exception("Error listing product categories")

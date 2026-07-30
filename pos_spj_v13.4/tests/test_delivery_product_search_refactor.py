@@ -117,27 +117,32 @@ from backend.application.queries.product_query_service import ProductQueryServic
 
 @pytest.fixture()
 def product_db():
+    # La búsqueda de catálogo es canónica: lee de `products` + `product_price`
+    # (lista BASE) + `base_unit_id`, no de la tabla legacy `productos`.
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
-    conn.execute(
-        """
-        CREATE TABLE productos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT NOT NULL,
-            codigo TEXT,
-            codigo_barras TEXT,
-            categoria TEXT,
-            precio REAL DEFAULT 0,
-            existencia REAL DEFAULT 0,
-            unidad TEXT DEFAULT 'u',
-            tipo_producto TEXT DEFAULT 'simple',
-            activo INTEGER DEFAULT 1
-        )
-        """
-    )
-    conn.execute("INSERT INTO productos (nombre, codigo, precio, unidad, tipo_producto) VALUES ('Pollo asado', 'PA001', 89.5, 'kg', 'simple')")
-    conn.execute("INSERT INTO productos (nombre, codigo, precio, unidad, tipo_producto) VALUES ('Jugo naranja', 'JN001', 25.0, 'L', 'simple')")
-    conn.execute("INSERT INTO productos (nombre, codigo, precio, unidad, tipo_producto, activo) VALUES ('Inactivo', 'XX', 0, 'u', 'simple', 0)")
+    from migrations import engine
+    engine.up(conn)
+    conn.execute("PRAGMA foreign_keys=OFF")
+    row = conn.execute("SELECT id FROM price_list WHERE code='BASE'").fetchone()
+    blid = row["id"] if row else "bl-base"
+    if row is None:
+        conn.execute("INSERT INTO price_list (id, code, name, kind, status) "
+                     "VALUES (?, 'BASE', 'Base', 'BASE', 'ACTIVE')", (blid,))
+
+    def _prod(pid, name, code, unit, price, status="ACTIVE"):
+        conn.execute(
+            "INSERT INTO products (id, code, name, name_normalized, product_type, "
+            "lifecycle_status, base_unit_id) VALUES (?,?,?,?,?,?,?)",
+            (pid, code, name, name.lower(), "RESALE_PRODUCT", status, unit))
+        conn.execute(
+            "INSERT INTO product_price (id, price_list_id, product_id, branch_id, "
+            "sale_price) VALUES (?,?,?,?,?)",
+            (f"pp-{pid}", blid, pid, "", str(price)))
+
+    _prod("1", "Pollo asado", "PA001", "kg", 89.5)
+    _prod("2", "Jugo naranja", "JN001", "L", 25.0)
+    _prod("3", "Inactivo", "XX", "u", 0, status="DISCONTINUED")
     conn.commit()
     return conn
 

@@ -161,6 +161,7 @@ MIGRATIONS = [
     _Migration("164",  "migrations.standalone.164_product_import_staging"),
     _Migration("165",  "migrations.standalone.165_products_profile_pk_notnull"),
     _Migration("166",  "migrations.standalone.166_product_categories_backfill_from_legacy"),
+    _Migration("167",  "migrations.standalone.167_products_category_id_backfill"),
 ]
 
 def _ensure_tracking_table(conn):

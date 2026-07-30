@@ -146,10 +146,30 @@ def test_update_product_use_case_keeps_inventory_untouched() -> None:
 
 
 def test_product_query_service_supplies_search_and_categories_for_ui() -> None:
-    conn = _db()
-    conn.execute(
-        "INSERT INTO productos(nombre, codigo, categoria, precio, unidad, tipo_producto, activo) VALUES ('Arrachera', 'ARR', 'Carnes', 150, 'kg', 'simple', 1)"
+    # La búsqueda y el catálogo de categorías son canónicos: `products`,
+    # `product_categories` y `product_price` (lista BASE).
+    import sqlite3
+
+    from backend.infrastructure.db.schema.products_schema import (
+        create_products_schema,
     )
+
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    create_products_schema(conn)
+    conn.execute("CREATE TABLE price_list (id TEXT PRIMARY KEY, code TEXT, name TEXT,"
+                 " kind TEXT, status TEXT)")
+    conn.execute("CREATE TABLE product_price (id TEXT PRIMARY KEY, price_list_id TEXT,"
+                 " product_id TEXT, branch_id TEXT, sale_price TEXT)")
+    conn.execute("INSERT INTO price_list VALUES ('bl','BASE','Base','BASE','ACTIVE')")
+    conn.execute("INSERT INTO product_categories (id, code, name, name_normalized) "
+                 "VALUES ('c-carnes','CARNES','Carnes','carnes')")
+    conn.execute(
+        "INSERT INTO products (id, code, name, name_normalized, product_type, "
+        "lifecycle_status, base_unit_id, category_id) "
+        "VALUES ('1','ARR','Arrachera','arrachera','RESALE_PRODUCT','ACTIVE','kg',"
+        "'c-carnes')")
+    conn.execute("INSERT INTO product_price VALUES ('pp1','bl','1','','150')")
     conn.commit()
 
     service = ProductQueryService.from_connection(conn)
