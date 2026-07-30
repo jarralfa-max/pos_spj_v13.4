@@ -65,8 +65,8 @@ class BiDashboardQueryService:
         branches = [{"id": str(r[0]), "nombre": r[1]} for r in _q(
             "SELECT id, nombre FROM sucursales WHERE COALESCE(activa,1)=1 ORDER BY nombre")]
         categories = [r[0] for r in _q(
-            "SELECT DISTINCT categoria FROM productos "
-            "WHERE COALESCE(categoria,'')<>'' ORDER BY categoria")]
+            "SELECT name FROM product_categories "
+            "WHERE COALESCE(active,1)=1 ORDER BY name")]
         payments = [r[0] for r in _q(
             "SELECT DISTINCT forma_pago FROM ventas "
             "WHERE COALESCE(forma_pago,'')<>'' ORDER BY forma_pago")]

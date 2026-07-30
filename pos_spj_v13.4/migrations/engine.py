@@ -160,6 +160,7 @@ MIGRATIONS = [
     _Migration("163",  "migrations.standalone.163_yield_version_creator"),
     _Migration("164",  "migrations.standalone.164_product_import_staging"),
     _Migration("165",  "migrations.standalone.165_products_profile_pk_notnull"),
+    _Migration("166",  "migrations.standalone.166_product_categories_backfill_from_legacy"),
 ]
 
 def _ensure_tracking_table(conn):

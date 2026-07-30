@@ -99,6 +99,7 @@ hasta allowlist vacía.
 | ---- | ------------------- | -------- | --------- |
 | 1 | `repositories/ventas.py::get_items`, `repositories/sales_repository.py::get_sale_by_folio` | Nombre de línea de venta: `JOIN productos p.nombre` → `JOIN products p.name AS <clave>` (backfill 148 preserva ids UUID y `name`) | 74 → **72** |
 | 2 | `core/services/cfdi_service.py`, `integrations/cfdi/cfdi_service.py` | Nombre de concepto CFDI: `(LEFT) JOIN productos p.nombre` → `(LEFT) JOIN products p.name AS nombre`; fixtures de test (`test_fase6_ai_cfdi`, `test_remediacion_c`) crean `products` aditivamente | 72 → **70** |
+| 3 | `backend/application/queries/bi_dashboard_query_service.py` | Catálogo de categorías del filtro BI: `SELECT DISTINCT categoria FROM productos` → `SELECT name FROM product_categories`. Requirió **backfill 166** (categorías canónicas desde `DISTINCT productos.categoria`, idempotente) para equivalencia. `bi_seed.add_product` refleja la categoría en `product_categories` | 70 → **69** |
 
 Cada lote: alias que preserva las claves de salida (cero cambio de contrato),
 regresión canónica nueva (`tests/integration/products/test_legacy_repoint_sales_lines.py`)

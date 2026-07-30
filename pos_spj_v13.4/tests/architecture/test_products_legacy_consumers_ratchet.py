@@ -59,7 +59,6 @@ _ALLOWLIST: frozenset[str] = frozenset({
     "backend/application/event_handlers/inventory/purchase_stock_entry_handler.py",
     "backend/application/procurement/queries/purchase_template_read_service.py",
     "backend/application/procurement/queries/qr_traceability_read_service.py",
-    "backend/application/queries/bi_dashboard_query_service.py",
     "backend/application/queries/bi_inventory_query_service.py",
     "backend/application/queries/bi_sales_query_service.py",
     "backend/application/queries/inventory_balance_service.py",

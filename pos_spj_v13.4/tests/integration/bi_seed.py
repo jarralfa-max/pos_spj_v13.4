@@ -30,6 +30,18 @@ def add_product(conn, nombre, categoria, costo, precio=None, branch_id=None,
         "INSERT INTO productos (id,nombre,categoria,precio,precio_compra,existencia,"
         "stock_minimo,unidad,activo) VALUES (?,?,?,?,?,?,?,?,1)",
         (pid, nombre, categoria, precio, costo, existencia, stock_minimo, "kg"))
+    # El catálogo de categorías es canónico (`product_categories`); reflejamos ahí
+    # la categoría del producto para que los lectores canónicos la vean.
+    if categoria and categoria.strip():
+        norm = categoria.strip().lower()
+        if not conn.execute("SELECT 1 FROM product_categories WHERE name_normalized=?",
+                            (norm,)).fetchone():
+            cid = new_uuid()
+            conn.execute(
+                "INSERT INTO product_categories (id,code,name,name_normalized,path) "
+                "VALUES (?,?,?,?,?)",
+                (cid, categoria.strip().upper()[:40], categoria.strip(), norm,
+                 f"/{cid}/"))
     if branch_id:
         conn.execute("INSERT INTO inventory_stock (product_id,branch_id,quantity,unit) "
                      "VALUES (?,?,?,?)", (pid, branch_id, existencia, "kg"))
