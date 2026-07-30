@@ -89,7 +89,13 @@ class HealthHandler(BaseHTTPRequestHandler):
                 except Exception: return 0
             ventas = q("SELECT COUNT(*) FROM ventas WHERE DATE(fecha)=DATE('now') AND estado='completada'")
             total  = float(q("SELECT COALESCE(SUM(total),0) FROM ventas WHERE DATE(fecha)=DATE('now') AND estado='completada'"))
-            bajo   = q("SELECT COUNT(*) FROM productos WHERE existencia<=stock_minimo AND activo=1")
+            from backend.application.inventory.queries import (
+                InventoryStockAggregateQueryService,
+            )
+            try:
+                bajo = InventoryStockAggregateQueryService(c).low_stock_products_count()
+            except Exception:
+                bajo = 0
             outbox_pending = q("SELECT COUNT(*) FROM event_outbox WHERE status='PENDING'")
             outbox_error = q("SELECT COUNT(*) FROM event_outbox WHERE status='ERROR'")
             wa_auth_denied = q("SELECT COUNT(*) FROM audit_logs WHERE accion LIKE 'WEBAPP_AUTH_DENIED_%'")

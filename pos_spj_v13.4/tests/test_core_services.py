@@ -53,6 +53,20 @@ def db():
             producto_id INTEGER, sucursal_id INTEGER DEFAULT 1,
             existencia REAL DEFAULT 0, UNIQUE(producto_id,sucursal_id));
         INSERT INTO inventario(producto_id,sucursal_id,existencia) VALUES(1,1,50),(2,1,2);
+        -- Modelo canónico de stock (el chequeo de stock bajo es canónico):
+        CREATE TABLE products(id TEXT PRIMARY KEY, name TEXT);
+        INSERT INTO products VALUES('1','Pollo kg'),('2','Res kg');
+        CREATE TABLE inventory_balances(id TEXT PRIMARY KEY, product_id TEXT,
+            branch_id TEXT, warehouse_id TEXT, inventory_status TEXT, quantity TEXT,
+            reserved_quantity TEXT DEFAULT '0', updated_at TEXT);
+        INSERT INTO inventory_balances VALUES
+            ('ib1','1','1','w1','AVAILABLE','50','0','now'),
+            ('ib2','2','1','w1','AVAILABLE','2','0','now');
+        CREATE TABLE inventory_replenishment_rule(id TEXT PRIMARY KEY, product_id TEXT,
+            branch_id TEXT, warehouse_id TEXT, reorder_point TEXT,
+            min_quantity TEXT DEFAULT '0', active INTEGER DEFAULT 1);
+        INSERT INTO inventory_replenishment_rule VALUES
+            ('rr1','1','','','5','5',1),('rr2','2','','','5','5',1);
         CREATE TABLE ventas(
             id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT, folio TEXT,
             sucursal_id INTEGER DEFAULT 1, usuario TEXT, cliente_id INTEGER,

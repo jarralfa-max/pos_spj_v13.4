@@ -39,6 +39,14 @@ class LowStockItemDTO:
     min_quantity: Decimal
 
 
+@dataclass(frozen=True, slots=True)
+class LowStockProductDTO:
+    product_id: str
+    available: Decimal
+    reorder_point: Decimal
+    min_quantity: Decimal
+
+
 class InventoryStockAggregateQueryService(InventoryRepositoryBase):
     # ── disponible por producto ───────────────────────────────────────────────
     def available_by_product(self, *, branch_id: str | None = None) -> dict[str, Decimal]:
@@ -118,3 +126,35 @@ class InventoryStockAggregateQueryService(InventoryRepositoryBase):
 
     def low_stock_count(self, *, branch_id: str | None = None) -> int:
         return len(self.low_stock_items(branch_id=branch_id))
+
+    # ── stock bajo a nivel producto (regla global, equiv. legacy stock_minimo) ─
+    def low_stock_products(
+            self, *, positive_threshold_only: bool = False) -> list[LowStockProductDTO]:
+        """Productos cuyo disponible **total** (entre sucursales) es ≤ su umbral
+        de reposición global (regla `branch_id=''`, respaldada desde el
+        `stock_minimo` legacy por la migración 168). Equivalente canónico de
+        ``existencia <= stock_minimo``.
+
+        ``positive_threshold_only`` filtra a umbrales > 0 (equivalente al filtro
+        legacy ``stock_minimo > 0`` que usa el motor de alertas).
+        """
+        rules = self._query(
+            "SELECT product_id, reorder_point, min_quantity"
+            " FROM inventory_replenishment_rule"
+            " WHERE active=1 AND branch_id='' AND warehouse_id=''")
+        available = self.available_by_product()
+        out: list[LowStockProductDTO] = []
+        for r in rules:
+            reorder = to_decimal(r["reorder_point"])
+            if positive_threshold_only and reorder <= 0:
+                continue
+            avail = available.get(r["product_id"], Decimal("0"))
+            if avail <= reorder:
+                out.append(LowStockProductDTO(
+                    product_id=r["product_id"], available=avail,
+                    reorder_point=reorder, min_quantity=to_decimal(r["min_quantity"])))
+        out.sort(key=lambda it: it.product_id)
+        return out
+
+    def low_stock_products_count(self, *, positive_threshold_only: bool = False) -> int:
+        return len(self.low_stock_products(positive_threshold_only=positive_threshold_only))

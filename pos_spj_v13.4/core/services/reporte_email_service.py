@@ -34,7 +34,16 @@ class ReporteEmailService:
         total    = _q("SELECT COALESCE(SUM(total),0) FROM ventas WHERE DATE(fecha)=? AND estado='completada'", hoy)
         devs     = _q("SELECT COUNT(*) FROM devoluciones WHERE DATE(fecha)=?", hoy)
         lotes    = _q("SELECT COUNT(*) FROM lotes WHERE DATE(fecha_caducidad)<=? AND estado='activo'", hoy)
-        stock_bajo = _q("SELECT COUNT(*) FROM productos WHERE existencia<=stock_minimo AND activo=1")
+        # Stock bajo canónico: disponible total ≤ umbral de reposición global
+        # (migración 168, respaldado desde stock_minimo).
+        from backend.application.inventory.queries import (
+            InventoryStockAggregateQueryService,
+        )
+        try:
+            stock_bajo = InventoryStockAggregateQueryService(
+                self.conn).low_stock_products_count()
+        except Exception:
+            stock_bajo = 0
         return f"""<html><body style='font-family:Arial;'>
 <h2 style='color:#0F4C81;'>📊 Reporte Diario SPJ POS — {hoy}</h2>
 <table style='border-collapse:collapse;width:400px;'>

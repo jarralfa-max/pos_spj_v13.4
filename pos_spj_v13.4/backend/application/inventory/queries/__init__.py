@@ -9,6 +9,7 @@ from backend.application.inventory.queries.replenishment_query_service import (
 from backend.application.inventory.queries.stock_aggregate_query_service import (
     InventoryStockAggregateQueryService,
     LowStockItemDTO,
+    LowStockProductDTO,
 )
 from backend.application.inventory.queries.warehouse_query_service import (
     LocationNode,
@@ -29,6 +30,7 @@ __all__ = [
     "LocationNode",
     "LotTraceDTO",
     "LowStockItemDTO",
+    "LowStockProductDTO",
     "RecallReportDTO",
     "ReplenishmentQueryService",
     "TraceEvent",

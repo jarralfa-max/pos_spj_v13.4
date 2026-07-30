@@ -157,14 +157,22 @@ class AlertasService:
 
     def _check_stock_bajo(self):
         try:
-            rows = self.conn.execute("""
-                SELECT nombre, existencia, stock_minimo FROM productos
-                WHERE activo=1 AND existencia <= stock_minimo AND stock_minimo > 0
-            """).fetchall()
-            for r in rows:
+            # Stock bajo canónico: disponible total ≤ umbral de reposición global
+            # (migración 168, respaldado desde stock_minimo). El nombre viene del
+            # maestro canónico `products`.
+            from backend.application.inventory.queries import (
+                InventoryStockAggregateQueryService,
+            )
+            items = InventoryStockAggregateQueryService(self.conn).low_stock_products(
+                positive_threshold_only=True)
+            for it in items:
+                row = self.conn.execute(
+                    "SELECT name FROM products WHERE id=?", (it.product_id,)).fetchone()
+                nombre = row[0] if row else it.product_id
+                avail = float(it.available)
                 self.disparar("stock_bajo",
-                    f"Stock bajo: {r[0]} — {float(r[1]):.2f} (min: {float(r[2]):.2f})",
-                    {"producto": r[0], "existencia": float(r[1])})
+                    f"Stock bajo: {nombre} — {avail:.2f} (min: {float(it.reorder_point):.2f})",
+                    {"producto": nombre, "existencia": avail})
         except Exception as e: logger.debug("check_stock: %s", e)
 
     def _check_caducidades(self):
