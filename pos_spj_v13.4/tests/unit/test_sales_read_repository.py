@@ -23,14 +23,17 @@ def db():
             id INTEGER PRIMARY KEY, folio TEXT, fecha TEXT, usuario TEXT,
             forma_pago TEXT, efectivo_recibido REAL, cambio REAL, total REAL, estado TEXT
         );
-        CREATE TABLE productos (id INTEGER PRIMARY KEY, nombre TEXT, unidad TEXT);
+        CREATE TABLE products (id TEXT PRIMARY KEY, code TEXT, name TEXT,
+            name_normalized TEXT, product_type TEXT, lifecycle_status TEXT,
+            base_unit_id TEXT);
         CREATE TABLE detalles_venta (
             venta_id INTEGER, producto_id INTEGER, nombre TEXT,
             cantidad REAL, precio_unitario REAL, subtotal REAL
         );
         CREATE TABLE trazabilidad_qr (uuid_qr TEXT, descripcion TEXT);
         INSERT INTO ventas VALUES (10,'F-001','2026-06-01 10:00','ana','Efectivo',100.0,5.0,95.0,'completada');
-        INSERT INTO productos VALUES (1,'Pechuga','kg');
+        INSERT INTO products (id,code,name,name_normalized,product_type,lifecycle_status,base_unit_id)
+            VALUES ('1','P1','Pechuga','pechuga','RESALE_PRODUCT','ACTIVE','kg');
         INSERT INTO detalles_venta VALUES (10,1,'Pechuga',2.0,40.0,80.0);
         INSERT INTO detalles_venta VALUES (10,1,'Pierna',1.0,15.0,15.0);
         INSERT INTO trazabilidad_qr VALUES ('abc-uuid','Caja 5kg');

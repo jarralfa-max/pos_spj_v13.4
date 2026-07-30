@@ -44,10 +44,10 @@ class SalesReadRepository:
 
     def get_sale_items_with_product(self, sale_id: str) -> list[dict[str, Any]]:
         rows = self._connection.execute(
-            "SELECT p.nombre, dv.cantidad, dv.precio_unitario, dv.subtotal, "
-            "COALESCE(p.unidad,'pz') as unidad "
-            "FROM detalles_venta dv JOIN productos p ON p.id=dv.producto_id "
-            "WHERE dv.venta_id=?",
+            "SELECT p.name AS nombre, dv.cantidad, dv.precio_unitario, dv.subtotal, "
+            "COALESCE(p.base_unit_id,'pz') as unidad "
+            "FROM detalles_venta dv JOIN products p ON p.id=dv.producto_id "
+            "WHERE dv.venta_id=? ORDER BY dv.rowid",
             (sale_id,),
         ).fetchall()
         return [

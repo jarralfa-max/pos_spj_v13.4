@@ -72,7 +72,8 @@ class RecipeService:
     def get_products_for_ui(self) -> List[Dict]:
         """List of active products for combo boxes in recipe dialogs."""
         rows = self._db.execute(
-            "SELECT id, nombre, unidad FROM productos WHERE activo=1 ORDER BY nombre"
+            "SELECT id, name AS nombre, base_unit_id AS unidad FROM products "
+            "WHERE lifecycle_status='ACTIVE' ORDER BY name"
         ).fetchall()
         return [
             {"id": r[0] if not hasattr(r, "keys") else r["id"],

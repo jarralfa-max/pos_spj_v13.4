@@ -70,9 +70,17 @@ def db():
             depth INTEGER DEFAULT 1,
             PRIMARY KEY (parent_recipe_id, child_product_id)
         );
+
+        -- Maestro canónico: get_products_for_ui lee de `products` (name/base_unit_id).
+        CREATE TABLE products (
+            id TEXT NOT NULL PRIMARY KEY, code TEXT, name TEXT,
+            name_normalized TEXT, product_type TEXT, lifecycle_status TEXT,
+            base_unit_id TEXT
+        );
     """)
 
-    # Seed products
+    # Seed products (legacy `productos` mantiene continuidad de ids para las
+    # recetas; el maestro canónico `products` alimenta get_products_for_ui).
     conn.execute(
         "INSERT INTO productos (nombre, tipo_producto) VALUES (?, ?)",
         ("Pollo Entero", "procesable"),
@@ -85,6 +93,11 @@ def db():
         "INSERT INTO productos (nombre, tipo_producto) VALUES (?, ?)",
         ("Pierna", "simple"),
     )
+    for pid, name in (("1", "Pollo Entero"), ("2", "Pechuga"), ("3", "Pierna")):
+        conn.execute(
+            "INSERT INTO products (id, code, name, name_normalized, product_type, "
+            "lifecycle_status, base_unit_id) VALUES (?,?,?,?,?,?,?)",
+            (pid, f"P{pid}", name, name.lower(), "RESALE_PRODUCT", "ACTIVE", "kg"))
     conn.commit()
     yield conn
     conn.close()
@@ -123,14 +136,18 @@ class TestGetProductsForUi:
             assert "unidad" in p
 
     def test_unidad_nunca_es_none(self, svc, db):
-        db.execute("INSERT INTO productos (nombre, unidad, activo) VALUES ('X', NULL, 1)")
+        db.execute("INSERT INTO products (id,code,name,name_normalized,product_type,"
+                   "lifecycle_status,base_unit_id) VALUES "
+                   "('9','P9','X','x','RESALE_PRODUCT','ACTIVE',NULL)")
         db.commit()
         prods = svc.get_products_for_ui()
         for p in prods:
             assert p["unidad"] is not None
 
     def test_solo_activos(self, svc, db):
-        db.execute("INSERT INTO productos (nombre, activo) VALUES ('Inactivo', 0)")
+        db.execute("INSERT INTO products (id,code,name,name_normalized,product_type,"
+                   "lifecycle_status,base_unit_id) VALUES "
+                   "('8','P8','Inactivo','inactivo','RESALE_PRODUCT','INACTIVE','kg')")
         db.commit()
         prods = svc.get_products_for_ui()
         nombres = [p["nombre"] for p in prods]
