@@ -105,9 +105,15 @@ class ForecastService:
         total_proyectado = predicciones.sum()
 
         # 5. Calcular la Compra Recomendada
-        cursor = self.db.cursor()
-        stock_actual_row = cursor.execute("SELECT existencia FROM productos WHERE id = ?", (producto_id,)).fetchone()
-        stock_actual = stock_actual_row['existencia'] if stock_actual_row else 0.0
+        # Stock actual desde la proyección canónica (inventory_balances) vía el
+        # adapter gated del cutover (INV-27). `available` = on-hand − reservado,
+        # total entre sucursales (branch_id=None), equivalente a la `existencia`
+        # legacy que sumaba por sucursal.
+        from core.services.inventory.canonical_stock_read_adapter import (
+            CanonicalStockReadAdapter,
+        )
+        stock_actual = CanonicalStockReadAdapter(lambda: self.db).available_float(
+            producto_id)
 
         # Fórmula Maestra: (Lo que voy a vender) - (Lo que ya tengo) + (Mi colchón de seguridad)
         cantidad_a_comprar = max(0.0, (total_proyectado - stock_actual) + stock_seguridad)

@@ -95,7 +95,6 @@ _ALLOWLIST: frozenset[str] = frozenset({
     "core/services/finance/production_cost_service.py",
     "core/services/finance/treasury_service.py",
     "core/services/forecast_engine.py",
-    "core/services/forecast_service.py",
     "core/services/franchise_manager.py",
     "core/services/inventory/unified_inventory_service.py",
     "core/services/inventory_balance_service.py",

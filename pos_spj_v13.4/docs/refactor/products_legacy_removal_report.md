@@ -116,6 +116,14 @@ Las lecturas de tabla completa (`list_rows`/`list_catalog_rows`) y `get_product`
 depende del cutover de stock diferido por INV-27 — por eso el archivo permanece en
 la allowlist hasta ese flip.
 
+**Cutover de stock — Fase A (lectores escalares de `existencia`)**. Prerequisitos
+listos: G0 (paridad de escritura → canónico dual-fed/fresco), G1
+(`InventoryStockAggregateQueryService`), adapter gated `CanonicalStockReadAdapter`.
+
+| Lote A | Archivo | Repunte | Allowlist |
+| ------ | ------- | ------- | --------- |
+| A.1 | `core/services/forecast_service.py::generar_plan_compras` | `SELECT existencia FROM productos WHERE id=?` → `CanonicalStockReadAdapter.available_float` (disponible canónico, gated). Test funcional bajo `importorskip('pandas')` | 60 → **59** |
+
 Cada lote: alias que preserva las claves de salida (cero cambio de contrato),
 regresión canónica nueva (`tests/integration/products/test_legacy_repoint_sales_lines.py`)
 y verificación de 0 fallas nuevas contra la baseline.
