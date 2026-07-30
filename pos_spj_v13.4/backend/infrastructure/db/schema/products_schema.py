@@ -262,7 +262,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS product_catch_weight_config (
-        product_id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL PRIMARY KEY,
         enabled INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN (0,1)),
         nominal_unit_id TEXT,
         weight_unit_id TEXT,
@@ -330,7 +330,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS product_quality_profiles (
-        product_id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL PRIMARY KEY,
         inspection_required INTEGER NOT NULL DEFAULT 0,
         temperature_required INTEGER NOT NULL DEFAULT 0,
         weight_check_required INTEGER NOT NULL DEFAULT 0,
@@ -347,7 +347,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS product_logistics_profiles (
-        product_id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL PRIMARY KEY,
         gross_weight TEXT, net_weight TEXT, weight_unit TEXT NOT NULL DEFAULT 'KG',
         dimensions TEXT,
         storage_temp_min TEXT, storage_temp_max TEXT, storage_temp_unit TEXT,

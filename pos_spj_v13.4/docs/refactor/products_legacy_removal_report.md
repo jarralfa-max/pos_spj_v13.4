@@ -80,6 +80,19 @@ Cada paso mide node-ids de tests antes/después (0 fallas nuevas) y bootstrap
 limpio, como en INV-27/INV-28. El DROP (paso 10) es irreversible y sólo se ejecuta
 tras confirmar cero consumidores legacy.
 
+## Fase 11 — cierre y aceptación (2026-07-30)
+
+El reporte de aceptación del contexto está en
+`docs/refactor/products_acceptance_report.md`: 575 tests de Productos verdes,
+bootstrap limpio (147 migraciones), `foreign_key_check` sin violaciones y
+guardrails de Productos verdes. Se corrigió una regresión born-clean (PK NOT NULL
+en 3 perfiles de producto, migración **165** + `test_products_pk_not_null`).
+
+El corte de legacy queda con **escritura ya flipada** (paso 7b) y **backfills
+hechos** (152/153); el ratchet congela **74 consumidores** de `productos` cuyo
+repunte de lecturas es incremental (74 → 0) y previo al DROP. El DROP sigue
+bloqueado hasta allowlist vacía.
+
 ## Métricas (se completan al cerrar el corte)
 
 - Allowlist inicial: **78** archivos con SQL sobre `productos` (congelados en
