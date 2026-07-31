@@ -55,8 +55,23 @@ class ProductsView(QWidget):
 
     def _on_nav(self, index: int) -> None:
         if not self._built.get(index):
-            self._build_page(index)
+            self._build_page(index)  # su __init__ ya hace el primer refresh
+        else:
+            self._refresh_page(index)  # §3.3/§8.3: revisitar re-lee los datos (KPIs)
         self.stack.setCurrentIndex(index)
+
+    def _refresh_page(self, index: int) -> None:
+        """Refresca la página ya construida al re-navegar, para que los KPIs y
+        tablas reflejen mutaciones hechas en otras páginas (sin reiniciar la app).
+        Una falla de refresco no debe tumbar la navegación."""
+        container = self.stack.widget(index)
+        page = container.layout().itemAt(0).widget() if container.layout().count() else None
+        refresh = getattr(page, "refresh", None)
+        if callable(refresh):
+            try:
+                refresh()
+            except Exception as exc:  # noqa: BLE001 — resiliencia como el host
+                logger.error("Productos: refresco de sección %d falló: %s", index, exc)
 
     def _build_page(self, index: int) -> None:
         factory, title = self._specs[index]

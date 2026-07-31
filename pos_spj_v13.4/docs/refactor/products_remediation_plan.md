@@ -11,7 +11,7 @@ prioridad P0 → P2 en commits acotados (no un commit gigante).
 |---|-----------|-------------------------------------|--------|
 | 1 | Crear CARCASS sin poder elegir especie | `product_creation_policy.validate_creation` exige `species_id` para `MEAT_PRODUCT_TYPES` (`SpeciesRequiredError`); `ProductFormDialog` **no tenía campo de especie** y `_fields()` nunca enviaba `species_id`. La tabla `species` existía **vacía**, sin read service ni seed. → el alta cárnica siempre fallaba. | ✅ Corregido (slice 1) |
 | 2 | Elegir ACTIVE y que se guarde DRAFT | `CreateProductMasterUseCase.execute` fuerza `lifecycle=LifecycleStatus.DRAFT` e **ignora** el estado enviado (correcto), pero el formulario mostraba un `QComboBox` "Estado" con ACTIVE/UNDER_REVIEW → selector engañoso; sin acciones de workflow en la ficha. | ✅ Corregido (slice 2) |
-| 3 | Crear producto y KPI no cambia | `ProductsView` construye páginas **una sola vez** (`self._built[index]`) y `_on_nav` no llama `refresh()`; no existe señal central `product_data_changed`. El Resumen sólo lee KPIs en su `__init__`. | ⏳ Slice 3 |
+| 3 | Crear producto y KPI no cambia | `ProductsView` construye páginas **una sola vez** (`self._built[index]`) y `_on_nav` no llama `refresh()`; no existe señal central `product_data_changed`. El Resumen sólo lee KPIs en su `__init__`. | ✅ Corregido (slice 3, refresh en navegación); señal central `product_data_changed` → P1-A |
 | 4 | Producto canónico no aparece en POS | El POS lee `productos` legacy (`core/services/sales/product_catalog_query_service.py`, etc.); no hay `PosProductCatalogFacade` que componga Productos+Pricing+Inventario. | ⏳ P0-B |
 | 5 | Recetas/Rendimientos piden UUIDs a mano | `recipe_form_dialog`/`yield_form_dialog`/`cutting_form_dialog` usan `QLineEdit` "Producto (id)"/"Unidad (id)" y `QLineEdit` para %/tolerancia. | ⏳ P1-C |
 
@@ -70,3 +70,20 @@ Guardrail `test_productos_guardrails` con 2 fallas **pre-existentes** (drift de
 
 Verificación: suite de Productos 603 passed / 1 skipped; guardrail con las mismas
 2 fallas pre-existentes (ajenas).
+
+## 5. Slice 3 — Refresco de KPIs al navegar (P0-A) — HECHO
+
+- `ProductsView._on_nav`: al re-navegar a una página ya construida se invoca su
+  `refresh()` (guardado ante excepción, resiliencia como el host). Así, tras
+  crear/activar un producto y volver al Resumen, los KPIs se re-leen **sin
+  reiniciar la app** (acceptance 27.4). El Catálogo y el Resumen ya exponen
+  `refresh()`.
+- Tests: `tests/integration/products/test_products_view_refresh.py` — re-visitar
+  dispara `refresh()`; un fallo de refresco no rompe la navegación.
+- Pendiente (P1-A): señal central `product_data_changed` para refrescar sin
+  navegar y actualización de `KPICard` por `key`.
+
+Verificación: suite de Productos 605 passed / 1 skipped.
+
+Con esto **P0-A queda completo** (especie · lifecycle/badge/acciones/readiness ·
+refresco de KPIs). Sigue P0-B (catálogos consumidores + POS canónico).
