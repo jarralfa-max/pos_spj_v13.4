@@ -163,6 +163,7 @@ MIGRATIONS = [
     _Migration("166",  "migrations.standalone.166_product_categories_backfill_from_legacy"),
     _Migration("167",  "migrations.standalone.167_products_category_id_backfill"),
     _Migration("168",  "migrations.standalone.168_replenishment_reorder_from_stock_minimo"),
+    _Migration("169",  "migrations.standalone.169_species_catalog_seed"),
 ]
 
 def _ensure_tracking_table(conn):

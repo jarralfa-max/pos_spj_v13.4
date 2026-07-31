@@ -164,6 +164,9 @@ class ModuloProductosEnterprise(QWidget):
         from backend.application.products.queries.product_import_query_service import (
             ProductImportQueryService,
         )
+        from backend.application.products.queries.species_catalog_query_service import (
+            SpeciesCatalogQueryService,
+        )
         from backend.application.products.use_cases.product_import_use_cases import (
             ApproveImportBatchUseCase,
             CreateImportBatchUseCase,
@@ -274,6 +277,7 @@ class ModuloProductosEnterprise(QWidget):
                 "approve": ApproveImportBatchUseCase(conn, authorization),
                 "execute": ExecuteImportBatchUseCase(conn, authorization),
             },
+            species_read_factory=lambda: SpeciesCatalogQueryService(conn),
             permission_checker=checker,
             session_context=session)
 

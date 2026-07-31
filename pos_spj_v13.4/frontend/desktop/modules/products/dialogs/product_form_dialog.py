@@ -25,11 +25,15 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from backend.domain.products.enums import MEAT_PRODUCT_TYPES
 from frontend.desktop.modules.products.view_models import (
     LIFECYCLE_ES,
     PRODUCT_TYPE_ES,
 )
 
+# Códigos de tipo cárnico que exigen especie (§5.3/§11). Sólo valores del enum de
+# dominio — el formulario decide con esto cuándo mostrar la clasificación cárnica.
+_MEAT_TYPE_CODES = frozenset(t.value for t in MEAT_PRODUCT_TYPES)
 _LIFECYCLE_CHOICES = ("DRAFT", "UNDER_REVIEW", "ACTIVE", "INACTIVE")
 _FLAGS = (
     ("sellable", "Vendible"),
@@ -85,6 +89,13 @@ class ProductFormDialog(QDialog):
         self.brand.addItem("(Sin marca)", None)
         for br in self._presenter.list_brands():
             self.brand.addItem(br["label"], br["id"])
+        # §5.2: especie por catálogo canónico (guarda species.id, nunca texto/UUID
+        # a mano). Sólo aplica a tipos cárnicos → la sección se muestra/oculta según
+        # el tipo. El primer item es un placeholder sin valor (obliga a elegir).
+        self.species = QComboBox()
+        self.species.addItem("(Selecciona especie)", None)
+        for sp in self._presenter.list_species():
+            self.species.addItem(sp["label"], sp["id"])
         self.lifecycle = QComboBox()
         for code in _LIFECYCLE_CHOICES:
             self.lifecycle.addItem(LIFECYCLE_ES.get(code, code), code)
@@ -114,9 +125,16 @@ class ProductFormDialog(QDialog):
         form.addRow("Estado", self.lifecycle)
         layout.addLayout(form)
 
-        # El tipo determina el prefijo → refrescar la vista previa al cambiarlo.
+        # §5.1/§5.2: clasificación cárnica — visible sólo para tipos cárnicos.
+        self._meat_box = QGroupBox("Clasificación cárnica")
+        meat_form = QFormLayout(self._meat_box)
+        meat_form.addRow("Especie *", self.species)
+        layout.addWidget(self._meat_box)
+
+        # El tipo determina el prefijo del código y si aplica la sección cárnica.
         self.product_type.currentIndexChanged.connect(self._on_type_changed)
         self._apply_code_mode()
+        self._apply_meat_visibility()
 
         flags_box = QGroupBox("Capacidades")
         grid = QGridLayout(flags_box)
@@ -166,9 +184,11 @@ class ProductFormDialog(QDialog):
         self._select(self.product_type, row.get("product_type"))
         self._select(self.category, row.get("category_id"))
         self._select(self.brand, row.get("brand_id"))
+        self._select(self.species, row.get("species_id"))
         self._select(self.lifecycle, row.get("lifecycle_status"))
         for key, cb in self._flag_boxes.items():
             cb.setChecked(bool(row.get(key)))
+        self._apply_meat_visibility()
 
     @staticmethod
     def _select(combo: QComboBox, value) -> None:
@@ -204,6 +224,15 @@ class ProductFormDialog(QDialog):
     def _on_type_changed(self, _index: int) -> None:
         if self._auto_code:
             self._refresh_preview()
+        self._apply_meat_visibility()
+
+    # ── clasificación cárnica (§5.1/§5.2) ─────────────────────────────────────
+    def _is_meat_type(self) -> bool:
+        return self.product_type.currentData() in _MEAT_TYPE_CODES
+
+    def _apply_meat_visibility(self) -> None:
+        """Muestra la sección cárnica sólo para tipos que exigen especie."""
+        self._meat_box.setVisible(self._is_meat_type())
 
     def _refresh_preview(self) -> None:
         preview = self._presenter.preview_code(
@@ -221,6 +250,9 @@ class ProductFormDialog(QDialog):
             "brand_id": self.brand.currentData(),
             "base_unit_id": self.base_unit.currentData(),
             "lifecycle_status": self.lifecycle.currentData(),
+            # §5.2: sólo se envía especie para tipos cárnicos (None en otros → el
+            # dominio no la exige y no se ensucia el maestro).
+            "species_id": self.species.currentData() if self._is_meat_type() else None,
         }
         if self._auto_code:
             # El código lo reserva el caso de uso dentro de su transacción.
@@ -238,6 +270,9 @@ class ProductFormDialog(QDialog):
         if (needs_code and not fields["code"]) or not fields["name"] \
                 or not fields["base_unit_id"]:
             self._error.setText("Código, Nombre y Unidad base son obligatorios.")
+            return
+        if self._is_meat_type() and not fields.get("species_id"):
+            self._error.setText("Los productos cárnicos requieren especie.")
             return
         ok, message, _pid = self._presenter.save_product(
             product_id=self._product_id, fields=fields)

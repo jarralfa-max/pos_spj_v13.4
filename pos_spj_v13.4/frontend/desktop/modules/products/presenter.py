@@ -34,7 +34,7 @@ class ProductsPresenter:
                  yields_write_factory=None, cutting_read_factory=None,
                  cutting_write_factory=None, bundles_read_factory=None,
                  bundles_write_factory=None, import_read_factory=None,
-                 import_write_factory=None,
+                 import_write_factory=None, species_read_factory=None,
                  permission_checker=None, session_context=None) -> None:
         self._read_factory = read_service_factory
         self._write_factory = write_service_factory
@@ -61,6 +61,7 @@ class ProductsPresenter:
         self._bundles_write = bundles_write_factory
         self._import_read = import_read_factory
         self._import_write = import_write_factory
+        self._species_read = species_read_factory
         self._has_permission = permission_checker
         self._session = session_context
 
@@ -934,6 +935,19 @@ class ProductsPresenter:
             return self._units_factory().list_units()
         except Exception:  # pragma: no cover - defensive
             logger.exception("No se pudieron listar unidades")
+            return []
+
+    def list_species(self) -> list[dict]:
+        """Especies del catálogo para el selector cárnico del formulario (§5.2).
+
+        Devuelve ``[{id, code, label}]`` (guarda `species.id`, nunca texto libre
+        ni UUID escrito a mano)."""
+        if self._species_read is None:
+            return []
+        try:
+            return self._species_read().options(active_only=True)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudieron listar especies")
             return []
 
     # ── alta / edición del maestro (PROD-19 7b) ───────────────────────────
