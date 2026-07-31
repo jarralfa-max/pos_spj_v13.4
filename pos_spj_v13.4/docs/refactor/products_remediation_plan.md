@@ -125,9 +125,23 @@ refresco de KPIs). Sigue P0-B (catálogos consumidores + POS canónico).
   habilitar/deshabilitar por sucursal, incluir/quitar de surtidos por canal, crear
   surtido). Cableada al composition root y añadida al shell (ahora **7 secciones**,
   la ruta ya no devuelve None — §9). Tests: use cases + query + smoke de la página.
-- **Pendiente P0-B**:
-  - repunte de Compras/Inventario/Transferencias a las búsquedas del slice 4
-    (los servicios existen; falta que esas UIs los consuman).
+- **Repunte de consumidores a las búsquedas del slice 4** (P0-B):
+  - **Compras ✅** — `PurchasePlanningReadService` (`backend/application/queries/
+    purchase_planning_query_service.py`) repuntado: `list_forecastable_products` →
+    `SearchPurchasableProductsQueryService`; `current_stock` →
+    `CanonicalStockReadAdapter`. Delistado del ratchet; fixture del flujo
+    forecast→sugerencia migrado a canónico.
+  - **Transferencias ✅** — verificado: el módulo **no lee** la tabla legacy
+    `productos` (opera con `product_id` UUID; `transfer_query_repository` sin reads
+    de producto). Nada que repuntar.
+  - **Inventario ⏳** — `inventory_query_service` (6 variantes de query sobre el
+    legacy `inventory_stock`) e `inventory_balance_service` son lectores
+    multi-query de tamaño *slice-6* (products + inventory_balances + categorías +
+    regla de reposición + unidad). Requieren un slice dedicado con migración de
+    fixtures y verificación de no-regresión; pendientes.
+  - Otros repos de Compras (`compras_read/write_repository`, `purchase_repository`)
+    leen `productos` para nombres de línea — repunte análogo al batch 1 (JOIN
+    products), pendiente.
 
 ## 7. P0-C — Seguridad fail-closed (§21) — HECHO
 
