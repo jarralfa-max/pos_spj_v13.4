@@ -29,6 +29,7 @@ class ProductCatalogPage(QWidget):
         super().__init__(parent)
         self.setObjectName("productCatalogPage")
         self._presenter = presenter
+        self._data_changed = None  # señal central (§8.3), cableada por el host
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(Spacing.LG, Spacing.MD, Spacing.LG, Spacing.MD)
@@ -96,6 +97,14 @@ class ProductCatalogPage(QWidget):
         layout.addWidget(self.table, 1)
         self.refresh()
 
+    def set_data_changed_signal(self, signal) -> None:
+        """§8.3: guarda la señal central para emitirla tras mutaciones."""
+        self._data_changed = signal
+
+    def _emit_changed(self) -> None:
+        if self._data_changed is not None:
+            self._data_changed.emit()
+
     def _on_search(self, text) -> None:
         self.refresh(query=text)
 
@@ -113,6 +122,7 @@ class ProductCatalogPage(QWidget):
         self._notify(ok, message, "Enviar a revisión")
         if ok:
             self.refresh(query=self.search.text() or None)
+            self._emit_changed()
 
     def _activate_selected(self) -> None:
         product_id = self.table.selected_row_id()
@@ -130,6 +140,7 @@ class ProductCatalogPage(QWidget):
         self._notify(ok, message, "Activar")
         if ok:
             self.refresh(query=self.search.text() or None)
+            self._emit_changed()
 
     def _notify(self, ok: bool, message: str, title: str) -> None:
         if ok:
@@ -206,6 +217,7 @@ class ProductCatalogPage(QWidget):
         dialog = ProductFormDialog(self._presenter, product_id=product_id, parent=self)
         if dialog.exec_():
             self.refresh(query=self.search.text() or None)
+            self._emit_changed()
 
     def refresh(self, *, query=None) -> None:
         table = self._presenter.catalog(query=query)

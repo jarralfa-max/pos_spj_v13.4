@@ -48,9 +48,14 @@ class ProductsOverviewPage(QWidget):
         layout.addWidget(self.alerts, 1)
         self.refresh()
 
+    def set_data_changed_signal(self, signal) -> None:
+        """§8.3: refresca los KPIs cuando cualquier página muta productos."""
+        signal.connect(self.refresh)
+
     def refresh(self) -> None:
         self.kpi_bar.set_cards([
-            KPIDTO(key=k.key, title=k.title, value=k.value, variant=k.variant)
+            KPIDTO(key=k.key, title=k.title, value=k.value, variant=k.variant,
+                   subtitle=k.subtitle, tooltip=k.tooltip)
             for k in self._presenter.overview_kpis()])
         table = self._presenter.recent_alerts()
         self.alerts.load_rows(table.rows, row_ids=table.row_ids)

@@ -11,7 +11,7 @@ prioridad P0 → P2 en commits acotados (no un commit gigante).
 |---|-----------|-------------------------------------|--------|
 | 1 | Crear CARCASS sin poder elegir especie | `product_creation_policy.validate_creation` exige `species_id` para `MEAT_PRODUCT_TYPES` (`SpeciesRequiredError`); `ProductFormDialog` **no tenía campo de especie** y `_fields()` nunca enviaba `species_id`. La tabla `species` existía **vacía**, sin read service ni seed. → el alta cárnica siempre fallaba. | ✅ Corregido (slice 1) |
 | 2 | Elegir ACTIVE y que se guarde DRAFT | `CreateProductMasterUseCase.execute` fuerza `lifecycle=LifecycleStatus.DRAFT` e **ignora** el estado enviado (correcto), pero el formulario mostraba un `QComboBox` "Estado" con ACTIVE/UNDER_REVIEW → selector engañoso; sin acciones de workflow en la ficha. | ✅ Corregido (slice 2) |
-| 3 | Crear producto y KPI no cambia | `ProductsView` construye páginas **una sola vez** (`self._built[index]`) y `_on_nav` no llama `refresh()`; no existe señal central `product_data_changed`. El Resumen sólo lee KPIs en su `__init__`. | ✅ Corregido (slice 3, refresh en navegación); señal central `product_data_changed` → P1-A |
+| 3 | Crear producto y KPI no cambia | `ProductsView` construye páginas **una sola vez** (`self._built[index]`) y `_on_nav` no llama `refresh()`; no existe señal central `product_data_changed`. El Resumen sólo lee KPIs en su `__init__`. | ✅ Corregido (slice 3 refresh en navegación + P1-A señal central `product_data_changed` + KPIs enriquecidos + KPIBar update-by-key) |
 | 4 | Producto canónico no aparece en POS | El POS lee `productos` legacy (`core/services/sales/product_catalog_query_service.py`, etc.); no hay `PosProductCatalogFacade` que componga Productos+Pricing+Inventario. | ✅ Corregido (slice 5 facade + slice 6 repunte del lector POS a canónico) |
 | 5 | Recetas/Rendimientos piden UUIDs a mano | `recipe_form_dialog`/`yield_form_dialog`/`cutting_form_dialog` usan `QLineEdit` "Producto (id)"/"Unidad (id)" y `QLineEdit` para %/tolerancia. | ✅ Corregido (P1-C: selectores canónicos + outputs + totales/simulación) |
 
@@ -183,3 +183,25 @@ refresco de KPIs). Sigue P0-B (catálogos consumidores + POS canónico).
 - Pendiente §17 (doble medida kg/pza real en rendimientos): la entidad `YieldOutput`
   no lleva aún `expected_piece_ratio`/`weight_unit_id`/`count_unit_id` — requiere
   extensión de dominio + migración (fuera de este slice de UI).
+
+## 9. P1-A — KPIs completos + refresco en vivo (§8) — HECHO
+
+- **§8.3 señal central `product_data_changed`**: `ProductsView` expone la señal;
+  al construir cada página la cablea (`set_data_changed_signal`). El Catálogo la
+  **emite** tras crear/editar/enviar/activar; el Resumen la **conecta** a su
+  `refresh` → los KPIs se actualizan **sin navegar** (además del refresco en
+  navegación del slice 3).
+- **§8.4 KPIBar update-by-key**: `KPICard.update(dto)` refresca en sitio (título/
+  valor/subtítulo/variante) y `KPIBar.set_cards` actualiza las tarjetas existentes
+  cuando el conjunto de `key` no cambia (sólo reconstruye si cambia) — evita ciclos
+  de `deleteLater` en cada refresco.
+- **§8.1/§8.2 KPIs enriquecidos**: 8 tarjetas (activos, borrador, pendientes de
+  revisión, cárnicos, internos, incompletos, recetas sin aprobar, rendimientos
+  pendientes) con `subtitle`/`tooltip`/`variant` y estados canónicos del `KPIDTO`
+  (LOADING/READY/EMPTY/…); `overview_counts` agrega `draft`/`under_review`.
+- Tests: `test_kpi_refresh_signal` (update-by-key mantiene los mismos widgets;
+  rebuild al cambiar keys; placeholder por estado; la señal central refresca la
+  página display). Suite Productos 642 passed; 46 tests que usan KPIBar/KPICard/
+  KPIDTO (products+inventory+procurement) verdes.
+- Pendiente: `raw_value`/`trend`/`freshness` con datos reales (hoy sólo texto) y
+  KPIs adicionales de §8.1 (sin sucursal / sin precio / sin código de barras).

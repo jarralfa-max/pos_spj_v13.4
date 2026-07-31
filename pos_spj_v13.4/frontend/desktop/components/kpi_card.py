@@ -56,11 +56,28 @@ class KPIDTO:
 _ARROW = {"up": "▲", "down": "▼", "flat": "→"}
 
 
+def _value_text(dto: KPIDTO) -> str:
+    if dto.state in (KPIState.READY, KPIState.STALE):
+        return dto.value
+    return _STATE_PLACEHOLDER.get(dto.state, dto.value)
+
+
+def _subtitle_text(dto: KPIDTO) -> str:
+    sub_bits = []
+    if dto.trend_value and dto.trend_direction:
+        sub_bits.append(f"{_ARROW.get(dto.trend_direction, '')} {dto.trend_value}"
+                        + (f" {dto.trend_label}" if dto.trend_label else ""))
+    if dto.subtitle:
+        sub_bits.append(dto.subtitle)
+    if dto.state == KPIState.STALE and dto.freshness:
+        sub_bits.append(dto.freshness)
+    return "  ·  ".join(sub_bits)
+
+
 class KPICard(QFrame):
     def __init__(self, dto: KPIDTO, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("kpiCard")
-        self.setProperty("variant", dto.variant)
         self.setMinimumHeight(KpiMetrics.MIN_HEIGHT)
         self.setMaximumHeight(KpiMetrics.MAX_HEIGHT)
         self.setMinimumWidth(KpiMetrics.MIN_WIDTH)
@@ -68,31 +85,36 @@ class KPICard(QFrame):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(Spacing.LG, Spacing.MD, Spacing.LG, Spacing.MD)
         layout.setSpacing(Spacing.XXS)
+        self._title = QLabel(self)
+        self._title.setObjectName("kpiTitle")
+        layout.addWidget(self._title)
+        self._value = QLabel(self)
+        self._value.setObjectName("kpiValue")
+        layout.addWidget(self._value)
+        self._subtitle = QLabel(self)
+        self._subtitle.setObjectName("kpiSubtitle")
+        self._subtitle.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        layout.addWidget(self._subtitle)
+        self.update(dto)
 
-        title = QLabel(dto.title, self)
-        title.setObjectName("kpiTitle")
-        layout.addWidget(title)
+    @property
+    def key(self) -> str:
+        return self.dto.key
 
-        value_text = dto.value if dto.state == KPIState.READY or dto.state == KPIState.STALE \
-            else _STATE_PLACEHOLDER.get(dto.state, dto.value)
-        value = QLabel(value_text, self)
-        value.setObjectName("kpiValue")
-        layout.addWidget(value)
-
-        sub_bits = []
-        if dto.trend_value and dto.trend_direction:
-            sub_bits.append(f"{_ARROW.get(dto.trend_direction, '')} {dto.trend_value}"
-                            + (f" {dto.trend_label}" if dto.trend_label else ""))
-        if dto.subtitle:
-            sub_bits.append(dto.subtitle)
-        if dto.state == KPIState.STALE and dto.freshness:
-            sub_bits.append(dto.freshness)
-        if sub_bits:
-            subtitle = QLabel("  ·  ".join(sub_bits), self)
-            subtitle.setObjectName("kpiSubtitle")
-            subtitle.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            layout.addWidget(subtitle)
-
+    def update(self, dto: KPIDTO) -> None:  # noqa: A003 — in-place refresh (§8.4)
+        """Actualiza la tarjeta EN SITIO (sin recrear widgets) para el refresco por
+        `key`; sólo reconstruye la fila si cambia el conjunto de KPIs."""
+        self.dto = dto
+        self.setProperty("variant", dto.variant)
+        self._title.setText(dto.title)
+        value_text = _value_text(dto)
+        self._value.setText(value_text)
+        sub = _subtitle_text(dto)
+        self._subtitle.setText(sub)
+        self._subtitle.setVisible(bool(sub))
         self.setAccessibleName(f"{dto.title}: {value_text}")
         if dto.tooltip:
             apply_tooltip(self, dto.tooltip, title=dto.title)
+        # re-aplicar QSS al cambiar la variante
+        self.style().unpolish(self)
+        self.style().polish(self)

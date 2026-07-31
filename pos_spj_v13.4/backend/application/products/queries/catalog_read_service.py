@@ -38,9 +38,15 @@ class ProductCatalogReadService:
         yield_pending = c.execute(
             "SELECT COUNT(*) FROM yield_profile_versions "
             "WHERE status IN ('DRAFT','UNDER_REVIEW')").fetchone()[0]
+        draft = c.execute(
+            "SELECT COUNT(*) FROM products WHERE lifecycle_status='DRAFT'").fetchone()[0]
+        under_review = c.execute(
+            "SELECT COUNT(*) FROM products "
+            "WHERE lifecycle_status='UNDER_REVIEW'").fetchone()[0]
         return {"active": active, "meat": meat, "internal": internal,
                 "incomplete": incomplete, "recipes_unapproved": recipes_unapproved,
-                "yield_pending": yield_pending}
+                "yield_pending": yield_pending, "draft": draft,
+                "under_review": under_review}
 
     def list_catalog(self, *, query: str | None = None, product_type: str | None = None,
                      limit: int = 200) -> list[dict]:

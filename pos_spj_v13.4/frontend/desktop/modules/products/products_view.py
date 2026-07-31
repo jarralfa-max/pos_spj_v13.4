@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -25,6 +26,11 @@ logger = logging.getLogger("spj.products.view")
 
 
 class ProductsView(QWidget):
+    #: §8.3/§3.3 — señal central: una página que muta productos la emite; las
+    #: páginas que muestran datos (KPIs, catálogo) la conectan a su refresh, para
+    #: reflejar cambios sin navegar.
+    product_data_changed = pyqtSignal()
+
     def __init__(self, presenter, specs, parent=None) -> None:
         """``specs``: lista de ``(page_factory, título)``. ``page_factory`` recibe el
         presenter y devuelve un ``QWidget``."""
@@ -83,3 +89,11 @@ class ProductsView(QWidget):
             page = QLabel(f"No disponible: {exc}")
         container.layout().addWidget(page)
         self._built[index] = True
+        # §8.3: cablea la señal central en la página recién construida.
+        connect = getattr(page, "set_data_changed_signal", None)
+        if callable(connect):
+            try:
+                connect(self.product_data_changed)
+            except Exception as exc:  # noqa: BLE001 — no debe romper la construcción
+                logger.error("Productos: no se pudo cablear la señal en %s: %s",
+                             self._specs[index][1], exc)

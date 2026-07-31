@@ -1110,18 +1110,35 @@ class ProductsPresenter:
         except Exception:  # pragma: no cover - defensive; UI shows empty state
             logger.exception("No se pudieron obtener KPIs de productos")
             return []
+        def g(key):  # tolera claves nuevas ausentes en lecturas viejas
+            return int(counts.get(key, 0) or 0)
         return [
-            KpiViewModel("active", "Productos activos", str(counts["active"]), "success"),
-            KpiViewModel("meat", "Productos cárnicos", str(counts["meat"]), "info"),
-            KpiViewModel("internal", "Productos internos", str(counts["internal"]), "neutral"),
-            KpiViewModel("incomplete", "Incompletos", str(counts["incomplete"]),
-                         "danger" if counts["incomplete"] else "success"),
+            KpiViewModel("active", "Productos activos", str(g("active")), "success",
+                         tooltip="Productos en estado ACTIVE (vendibles/operativos)."),
+            KpiViewModel("draft", "En borrador", str(g("draft")), "neutral",
+                         subtitle="Nacen en DRAFT",
+                         tooltip="Productos recién creados, aún sin enviar a revisión."),
+            KpiViewModel("under_review", "Pendientes de revisión",
+                         str(g("under_review")),
+                         "warning" if g("under_review") else "neutral",
+                         tooltip="Enviados a revisión, esperan activación (segundo usuario)."),
+            KpiViewModel("meat", "Productos cárnicos", str(g("meat")), "info",
+                         tooltip="Productos de tipo cárnico (requieren especie)."),
+            KpiViewModel("internal", "Productos internos", str(g("internal")),
+                         "neutral",
+                         tooltip="Uso interno (no vendibles directamente)."),
+            KpiViewModel("incomplete", "Incompletos", str(g("incomplete")),
+                         "danger" if g("incomplete") else "success",
+                         subtitle="No pueden activarse" if g("incomplete") else None,
+                         tooltip="Falta unidad, categoría o especie (cárnicos)."),
             KpiViewModel("recipes_unapproved", "Recetas sin aprobar",
-                         str(counts["recipes_unapproved"]),
-                         "warning" if counts["recipes_unapproved"] else "success"),
+                         str(g("recipes_unapproved")),
+                         "warning" if g("recipes_unapproved") else "success",
+                         tooltip="Versiones de receta en DRAFT/UNDER_REVIEW."),
             KpiViewModel("yield_pending", "Rendimientos pendientes",
-                         str(counts["yield_pending"]),
-                         "warning" if counts["yield_pending"] else "success"),
+                         str(g("yield_pending")),
+                         "warning" if g("yield_pending") else "success",
+                         tooltip="Versiones de rendimiento en DRAFT/UNDER_REVIEW."),
         ]
 
     # ── catálogo (§43) ────────────────────────────────────────────────────
