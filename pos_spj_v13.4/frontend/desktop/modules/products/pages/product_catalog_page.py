@@ -6,7 +6,13 @@ No SQL, no business logic, no local styles; the presenter formats rows.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QHBoxLayout, QPushButton, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import (
+    QHBoxLayout,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -40,6 +46,9 @@ class ProductCatalogPage(QWidget):
         toolbar.addWidget(self.search, 1)
         self.btn_new = QPushButton("Nuevo")
         self.btn_edit = QPushButton("Editar")
+        # §6.3: acciones de ciclo de vida (el estado no se edita en el formulario).
+        self.btn_submit = QPushButton("Enviar a revisión")
+        self.btn_activate = QPushButton("Activar")
         self.btn_variants = QPushButton("Variantes")
         self.btn_recipes = QPushButton("Recetas")
         self.btn_yields = QPushButton("Rendimientos")
@@ -47,6 +56,8 @@ class ProductCatalogPage(QWidget):
         self.btn_bundles = QPushButton("Combos")
         self.btn_new.clicked.connect(lambda: self._open_form(None))
         self.btn_edit.clicked.connect(self._edit_selected)
+        self.btn_submit.clicked.connect(self._submit_selected)
+        self.btn_activate.clicked.connect(self._activate_selected)
         self.btn_variants.clicked.connect(self._open_variants)
         self.btn_recipes.clicked.connect(self._open_recipes)
         self.btn_yields.clicked.connect(self._open_yields)
@@ -55,6 +66,9 @@ class ProductCatalogPage(QWidget):
         # PROD-19 paso 8: gating granular por permiso canónico PRODUCTS_CREATE/EDIT.
         self.btn_new.setEnabled(getattr(self._presenter, "can_create", False))
         self.btn_edit.setEnabled(getattr(self._presenter, "can_edit", False))
+        _can_lifecycle = getattr(self._presenter, "can_edit", False)
+        self.btn_submit.setEnabled(_can_lifecycle)
+        self.btn_activate.setEnabled(_can_lifecycle)
         # P1-03: generación de variantes gateada por PRODUCTS_VARIANTS_GENERATE.
         self.btn_variants.setEnabled(
             getattr(self._presenter, "can_generate_variants", False))
@@ -66,7 +80,8 @@ class ProductCatalogPage(QWidget):
             getattr(self._presenter, "can_manage_cutting", False))
         self.btn_bundles.setEnabled(
             getattr(self._presenter, "can_manage_bundles", False))
-        for b in (self.btn_new, self.btn_edit, self.btn_variants, self.btn_recipes,
+        for b in (self.btn_new, self.btn_edit, self.btn_submit, self.btn_activate,
+                  self.btn_variants, self.btn_recipes,
                   self.btn_yields, self.btn_cutting, self.btn_bundles):
             toolbar.addWidget(b)
         layout.addLayout(toolbar)
@@ -88,6 +103,39 @@ class ProductCatalogPage(QWidget):
         product_id = self.table.selected_row_id()
         if product_id:
             self._open_form(product_id)
+
+    # ── ciclo de vida (§6.3/§6.4) ─────────────────────────────────────────────
+    def _submit_selected(self) -> None:
+        product_id = self.table.selected_row_id()
+        if not product_id:
+            return
+        ok, message = self._presenter.submit_product(product_id)
+        self._notify(ok, message, "Enviar a revisión")
+        if ok:
+            self.refresh(query=self.search.text() or None)
+
+    def _activate_selected(self) -> None:
+        product_id = self.table.selected_row_id()
+        if not product_id:
+            return
+        # §6.4: preparación para activación — mostrar faltantes antes de activar.
+        readiness = self._presenter.activation_readiness(product_id)
+        if readiness is not None and not readiness.ready:
+            faltantes = "\n".join(f"• {m}" for m in readiness.missing)
+            QMessageBox.information(
+                self, "Preparación para activación",
+                "No se puede activar todavía. Faltan datos:\n\n" + faltantes)
+            return
+        ok, message = self._presenter.activate_product(product_id)
+        self._notify(ok, message, "Activar")
+        if ok:
+            self.refresh(query=self.search.text() or None)
+
+    def _notify(self, ok: bool, message: str, title: str) -> None:
+        if ok:
+            QMessageBox.information(self, title, message or "Operación realizada.")
+        else:
+            QMessageBox.warning(self, title, message or "No se pudo completar.")
 
     def _open_variants(self) -> None:
         product_id = self.table.selected_row_id()

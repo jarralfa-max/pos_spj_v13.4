@@ -34,7 +34,6 @@ from frontend.desktop.modules.products.view_models import (
 # Códigos de tipo cárnico que exigen especie (§5.3/§11). Sólo valores del enum de
 # dominio — el formulario decide con esto cuándo mostrar la clasificación cárnica.
 _MEAT_TYPE_CODES = frozenset(t.value for t in MEAT_PRODUCT_TYPES)
-_LIFECYCLE_CHOICES = ("DRAFT", "UNDER_REVIEW", "ACTIVE", "INACTIVE")
 _FLAGS = (
     ("sellable", "Vendible"),
     ("purchasable", "Comprable"),
@@ -96,9 +95,11 @@ class ProductFormDialog(QDialog):
         self.species.addItem("(Selecciona especie)", None)
         for sp in self._presenter.list_species():
             self.species.addItem(sp["label"], sp["id"])
-        self.lifecycle = QComboBox()
-        for code in _LIFECYCLE_CHOICES:
-            self.lifecycle.addItem(LIFECYCLE_ES.get(code, code), code)
+        # §6.1: el estado NO es editable desde el alta/edición (el alta nace en
+        # DRAFT y sólo los casos de uso de ciclo de vida cambian el estado). Se
+        # muestra como badge informativo, no como selector engañoso.
+        self._state_badge = QLabel(LIFECYCLE_ES.get("DRAFT", "DRAFT"))
+        self._state_badge.setObjectName("statusBadge")
 
         # Fila de código: campo + botón "Regenerar" + checkbox "manual" (si aplica).
         code_row = QWidget()
@@ -122,7 +123,7 @@ class ProductFormDialog(QDialog):
         form.addRow("Categoría", self.category)
         form.addRow("Marca", self.brand)
         form.addRow("Unidad base *", self.base_unit)
-        form.addRow("Estado", self.lifecycle)
+        form.addRow("Estado", self._state_badge)
         layout.addLayout(form)
 
         # §5.1/§5.2: clasificación cárnica — visible sólo para tipos cárnicos.
@@ -185,7 +186,8 @@ class ProductFormDialog(QDialog):
         self._select(self.category, row.get("category_id"))
         self._select(self.brand, row.get("brand_id"))
         self._select(self.species, row.get("species_id"))
-        self._select(self.lifecycle, row.get("lifecycle_status"))
+        state = str(row.get("lifecycle_status") or "DRAFT")
+        self._state_badge.setText(LIFECYCLE_ES.get(state, state))
         for key, cb in self._flag_boxes.items():
             cb.setChecked(bool(row.get(key)))
         self._apply_meat_visibility()
@@ -249,7 +251,8 @@ class ProductFormDialog(QDialog):
             "category_id": self.category.currentData(),
             "brand_id": self.brand.currentData(),
             "base_unit_id": self.base_unit.currentData(),
-            "lifecycle_status": self.lifecycle.currentData(),
+            # §6.1: la UI no dicta el estado — el alta nace DRAFT y el update lo
+            # preserva; el estado sólo cambia por los casos de uso de ciclo de vida.
             # §5.2: sólo se envía especie para tipos cárnicos (None en otros → el
             # dominio no la exige y no se ensucia el maestro).
             "species_id": self.species.currentData() if self._is_meat_type() else None,
