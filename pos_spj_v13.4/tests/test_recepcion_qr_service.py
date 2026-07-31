@@ -1,21 +1,20 @@
 # tests/test_recepcion_qr_service.py
-"""QR reception — regression net, rewritten against the CANONICAL contract (PUR-13).
+"""QR reception — regression net, asserted against the CANONICAL contract.
 
 The legacy `RecepcionQRService.procesar_recepcion` (direct inventory write) was
-removed. The same characterization (weighted-average cost with prior stock, stock
-sync, traceability, receipt) is now asserted through the canonical pipeline:
+removed at PUR-13; the legacy `PurchaseStockEntryHandler` (which wrote
+`inventario_actual` / `productos.existencia`) was removed at the Productos corte
+(Fase C). QR reception now flows entirely canonically:
 CompleteQrReceptionUseCase → procurement outbox → translator →
-PurchaseStockEntryHandler. The service's read/traceability helpers keep coverage.
-
-Note: this test builds a minimal WORKING inventory schema on purpose. The full
-`engine.up` inventory trigger (trg_recalc_inventario_actual) has a pre-existing
-bug — it inserts into inventario_actual without the NOT NULL `id`, so ANY movement
-raises there; that is an inventory-engine issue outside PUR-13's scope.
+CanonicalPurchaseStockEntryHandler → PURCHASE_RECEIPT in the inventory ledger.
+Stock is read from `inventory_balances` (the projection the POS reads); the
+weighted-average cost is carried per ledger line, not as a running average in a
+legacy cache. The service's read/traceability helpers keep coverage.
 """
 import json
 import sqlite3
 
-import pytest
+from decimal import Decimal
 
 from backend.shared.ids import new_uuid
 
@@ -35,44 +34,19 @@ class _Bus:
 def _working_conn():
     conn = sqlite3.connect(":memory:")
     from backend.infrastructure.db.schema.procurement_schema import create_procurement_schema
+    from backend.infrastructure.db.schema.inventory_schema import create_inventory_schema
     create_procurement_schema(conn)
+    create_inventory_schema(conn)
     # traceability tables
     conn.execute("CREATE TABLE trazabilidad_qr (uuid_qr TEXT PRIMARY KEY, estado TEXT,"
                  " datos_extra TEXT, fecha_recepcion TEXT, recepcion_id TEXT)")
     conn.execute("CREATE TABLE contenedores_qr (uuid_qr TEXT PRIMARY KEY, estado TEXT,"
                  " sucursal_destino TEXT, viaje_actual INTEGER DEFAULT 0, updated_at TEXT)")
-    # minimal WORKING inventory schema (id autoincrement + correct trigger)
-    conn.execute("CREATE TABLE inventario_actual (id INTEGER PRIMARY KEY, producto_id TEXT,"
-                 " sucursal_id TEXT, cantidad REAL DEFAULT 0, costo_promedio REAL DEFAULT 0,"
-                 " ultima_actualizacion TEXT, UNIQUE(producto_id, sucursal_id))")
-    conn.execute("CREATE TABLE movimientos_inventario (id TEXT PRIMARY KEY, producto_id TEXT,"
-                 " tipo TEXT, tipo_movimiento TEXT, cantidad REAL, costo_unitario REAL,"
-                 " descripcion TEXT, referencia TEXT, referencia_id TEXT, referencia_tipo TEXT,"
-                 " proveedor_id TEXT, usuario TEXT, sucursal_id TEXT)")
-    conn.execute("CREATE TABLE productos (id TEXT PRIMARY KEY, existencia REAL DEFAULT 0,"
-                 " precio_compra REAL DEFAULT 0)")
-    conn.execute("""
-        CREATE TRIGGER trg_recalc_inventario_actual
-        AFTER INSERT ON movimientos_inventario
-        WHEN NEW.producto_id IS NOT NULL AND NEW.sucursal_id IS NOT NULL
-        BEGIN
-            INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad, ultima_actualizacion)
-            VALUES (NEW.producto_id, NEW.sucursal_id,
-                CASE WHEN NEW.tipo IN ('entrada','COMPRA') THEN NEW.cantidad ELSE -NEW.cantidad END,
-                datetime('now'))
-            ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET
-                cantidad = inventario_actual.cantidad +
-                    CASE WHEN NEW.tipo IN ('entrada','COMPRA') THEN NEW.cantidad ELSE -NEW.cantidad END;
-        END""")
+    conn.commit()
     return conn
 
 
 def _seed(conn):
-    pid = "p1"
-    conn.execute("INSERT INTO productos (id, existencia, precio_compra) VALUES (?,?,?)",
-                 (pid, 5.0, 40.0))
-    conn.execute("INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad,"
-                 " costo_promedio) VALUES (?,?,?,?)", (pid, "1", 5.0, 40.0))
     datos = {"proveedor_id": "prov1", "condicion_pago": "liquidado",
              "metodo_pago": "efectivo", "monto_pagado": 500.0, "monto_total": 500.0}
     conn.execute("INSERT INTO trazabilidad_qr (uuid_qr, estado, datos_extra)"
@@ -80,13 +54,14 @@ def _seed(conn):
     conn.execute("INSERT INTO contenedores_qr (uuid_qr, estado, viaje_actual)"
                  " VALUES ('QR1','en_transito',0)")
     conn.commit()
-    return pid
+    return "p1"
 
 
-def test_qr_reception_canonical_effects_match_legacy():
-    from backend.application.event_handlers.inventory.purchase_stock_entry_handler import (
-        PurchaseStockEntryHandler,
+def test_qr_reception_canonical_effects():
+    from backend.application.event_handlers.inventory.purchase_stock_entry_bridge import (
+        CanonicalPurchaseStockEntryHandler,
     )
+    from backend.application.inventory.queries import InventoryAvailabilityQueryService
     from backend.application.procurement.integrations.downstream_events import (
         PURCHASE_STOCK_ENTRY_REGISTERED,
     )
@@ -100,8 +75,13 @@ def test_qr_reception_canonical_effects_match_legacy():
     conn = _working_conn()
     pid = _seed(conn)
     bus = _Bus()
+    stock_handler = CanonicalPurchaseStockEntryHandler(conn)
+    # opening canonical stock: 5 units @ 40 at branch "1"
+    stock_handler.handle({"event_id": "opening", "warehouse_id": "1", "branch_id": "1",
+                          "goods_receipt_id": "OPEN-1",
+                          "lines": [{"product_id": pid, "quantity": "5", "unit_cost": "40"}]})
     wire_procurement(bus, conn)  # DIRECT_PURCHASE_RECEIVED → PURCHASE_STOCK_ENTRY_REGISTERED
-    bus.subscribe(PURCHASE_STOCK_ENTRY_REGISTERED, PurchaseStockEntryHandler(conn).handle)
+    bus.subscribe(PURCHASE_STOCK_ENTRY_REGISTERED, stock_handler.handle)
 
     result = CompleteQrReceptionUseCase().execute(
         conn, actor_user_id="ana", operation_id=new_uuid(), uuid_qr="QR1",
@@ -110,18 +90,18 @@ def test_qr_reception_canonical_effects_match_legacy():
     assert result.success
     dispatch_procurement_outbox(conn, bus)
 
-    # 5@40 + 10@50 → 15 unidades, costo promedio ponderado 46.666…
-    inv = conn.execute("SELECT cantidad, costo_promedio FROM inventario_actual"
-                       " WHERE producto_id=? AND sucursal_id='1'", (pid,)).fetchone()
-    assert inv[0] == 15.0 and round(inv[1], 2) == 46.67
+    # 5 (opening) + 10 (QR reception) → 15 units available in the canonical projection
+    available = InventoryAvailabilityQueryService(conn).get_availability(
+        product_id=pid, branch_id="1").available
+    assert available == Decimal("15")
 
-    prod = conn.execute("SELECT existencia, precio_compra FROM productos WHERE id=?",
-                        (pid,)).fetchone()
-    assert prod[0] == 15.0 and prod[1] == 50.0
-
-    mov = conn.execute("SELECT tipo, tipo_movimiento, cantidad FROM movimientos_inventario"
-                       " WHERE producto_id=?", (pid,)).fetchone()
-    assert mov[0] == "entrada" and mov[1] == "COMPRA" and mov[2] == 10.0
+    # the QR receipt posted a canonical PURCHASE_RECEIPT carrying the line unit_cost
+    line = conn.execute(
+        "SELECT l.unit_cost FROM inventory_ledger_lines l"
+        " JOIN inventory_ledger m ON m.id = l.movement_id"
+        " WHERE l.product_id=? AND m.source_module='procurement'"
+        " ORDER BY l.unit_cost DESC LIMIT 1", (pid,)).fetchone()
+    assert Decimal(str(line[0])) == Decimal("50")
 
     tqr = conn.execute("SELECT estado, recepcion_id FROM trazabilidad_qr"
                        " WHERE uuid_qr='QR1'").fetchone()

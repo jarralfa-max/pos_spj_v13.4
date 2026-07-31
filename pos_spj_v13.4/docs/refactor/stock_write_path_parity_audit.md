@@ -45,7 +45,7 @@ escritura) y E (DROP).
 
 | # | Escritor (`SET existencia`) | Operación | Canónico equivalente (wired) | Clasificación | Acción (fase) |
 |---|------|-----------|------------------------------|---------------|---------------|
-| 1 | `event_handlers/inventory/purchase_stock_entry_handler.py` | recepción compra | `CanonicalPurchaseStockEntryHandler` (bridge, wiring 313) | **Superseded** — no suscrito en el bus | Eliminar (C) tras confirmar 0 callers vivos |
+| 1 | ~~`event_handlers/inventory/purchase_stock_entry_handler.py`~~ | recepción compra | `CanonicalPurchaseStockEntryHandler` (bridge, wiring 313) | **Eliminado (Fase C lote 1)** — era superseded, 0 callers vivos | ✅ Hecho |
 | 2 | `infrastructure/db/repositories/compras_write_repository.py` | recepción/devolución compra | bridge de compra → `inventory_balances` | Legacy repo; confirmar callers vivos | Neutralizar (C) |
 | 3 | `core/services/inventory/unified_inventory_service.py` | ajuste/movimiento genérico | `AJUSTE_INVENTARIO` / `PostInventoryMovement`; ruta `decrease_stock` ya removida de venta | Legacy vivo (producción, `repositories/ventas.py`) | Neutralizar (C) tras paridad por operación |
 | 4 | `core/services/lote_service.py` | alta de lote añade stock | `PurchaseLotEntryHandler` canónico | Legacy vivo | Neutralizar (C) |
@@ -62,8 +62,14 @@ escritura) y E (DROP).
   `AJUSTE_INVENTARIO`, `PRODUCCION_COMPLETADA`, `PURCHASE_STOCK_ENTRY_REGISTERED`,
   recepción QR). Si alguna ruta escribe legacy sin emitir canónico, neutralizarla
   perdería el movimiento → primero cablear el evento.
-- **G0.b** — Confirmar que #1 (`PurchaseStockEntryHandler`) no tiene callers
-  directos fuera del bus antes de eliminarlo.
+- **G0.b** — ✅ Confirmado y ejecutado (Fase C lote 1): #1
+  (`PurchaseStockEntryHandler`) no tenía callers vivos (no suscrito en
+  `core/events/wiring.py`, ausente de `event_handlers/inventory/__init__.__all__`,
+  sólo instanciado por 3 tests). Eliminado. Los tests e2e (`test_pipeline_end_to_end`,
+  `test_recepcion_qr_service`) se repuntaron a `CanonicalPurchaseStockEntryHandler`
+  y aseveran disponibilidad canónica (`inventory_balances`); el test unitario de
+  caracterización del handler muerto se borró (cobertura canónica equivalente en
+  `test_purchase_stock_entry_flip`).
 - **G0.c** — Ejecutar `InventoryReconciliationService.drifts()` sobre datos
   representativos (no vacíos). En bootstrap vacío el drift es **0** y el flag ON;
   en datos reales el drift debe explicarse (el propio 134 registra drift esperado

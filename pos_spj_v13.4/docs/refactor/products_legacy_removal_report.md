@@ -130,6 +130,14 @@ Cada lote: alias que preserva las claves de salida (cero cambio de contrato),
 regresión canónica nueva (`tests/integration/products/test_legacy_repoint_sales_lines.py`)
 y verificación de 0 fallas nuevas contra la baseline.
 
+**Cutover de stock — Fase C (neutralización de escritores legacy)**. Quita las
+escrituras `UPDATE productos SET existencia`; del escritor muerto al crítico
+(`sales_service` al final). Gate por G0.a/G0.b (paridad por operación).
+
+| Lote C | Archivo | Neutralización | Allowlist |
+| ------ | ------- | -------------- | --------- |
+| C.1 | `backend/application/event_handlers/inventory/purchase_stock_entry_handler.py` | **Eliminado**: escritor #1 (recepción de compra) era *superseded* por `CanonicalPurchaseStockEntryHandler` (único suscrito en `wiring.py`), sin callers vivos (G0.b). Los e2e `test_pipeline_end_to_end` / `test_recepcion_qr_service` se repuntaron al handler canónico (aseveran disponibilidad en `inventory_balances`); el unit-test de caracterización del handler muerto se borró (cobertura canónica en `test_purchase_stock_entry_flip`) | 54 → **53** |
+
 ## Métricas (se completan al cerrar el corte)
 
 - Allowlist inicial: **78** archivos con SQL sobre `productos` (congelados en

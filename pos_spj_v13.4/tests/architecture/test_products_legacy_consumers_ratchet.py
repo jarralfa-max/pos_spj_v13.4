@@ -56,7 +56,6 @@ def _current_consumers() -> set[str]:
 # Allowlist congelada (PROD-19 paso 9). SÓLO puede reducirse: repuntar un archivo al
 # maestro canónico y borrarlo de aquí. Objetivo del paso 10: conjunto vacío.
 _ALLOWLIST: frozenset[str] = frozenset({
-    "backend/application/event_handlers/inventory/purchase_stock_entry_handler.py",
     "backend/application/procurement/queries/qr_traceability_read_service.py",
     "backend/application/queries/bi_inventory_query_service.py",
     "backend/application/queries/bi_sales_query_service.py",
