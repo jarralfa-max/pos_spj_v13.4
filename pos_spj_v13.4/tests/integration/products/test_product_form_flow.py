@@ -136,3 +136,40 @@ def test_dialog_manual_override_captures_code(presenter):
     dlg.name.setText("Producto Z")
     f = dlg._fields()
     assert not f.get("auto_generate_code") and f["code"] == "Z-9"
+
+
+class _ImagesPresenter:
+    """Presenter mínimo con imágenes habilitadas para probar el modo edición."""
+    can_override_code = False
+    can_manage_images = True
+
+    def list_units(self):
+        return [{"id": _UNIT_ID, "code": "KG", "name": "Kilogramo"}]
+
+    def list_categories(self):
+        return []
+
+    def list_brands(self):
+        return []
+
+    def list_species(self):
+        return []
+
+    def get_product(self, product_id):
+        return {"code": "A-1", "name": "Bistec", "product_type": "RAW_MATERIAL",
+                "base_unit_id": _UNIT_ID, "lifecycle_status": "ACTIVE"}
+
+
+def test_edit_dialog_builds_images_button():
+    # Regresión P1-B: en edición con imágenes habilitadas el botón "Imágenes…" se
+    # construye vía create_secondary_button(text=...) — no debe crashear por pasar
+    # el texto como argumento posicional (que create_*_button interpreta como parent).
+    from PyQt5.QtWidgets import QApplication
+
+    from frontend.desktop.modules.products.dialogs.product_form_dialog import (
+        ProductFormDialog,
+    )
+    app = QApplication.instance() or QApplication([])
+    dlg = ProductFormDialog(_ImagesPresenter(), product_id="prod-1")
+    assert dlg._btn_images.text() == "Imágenes…"
+    assert dlg.base_unit.current_id() == _UNIT_ID  # catálogo precargado correctamente

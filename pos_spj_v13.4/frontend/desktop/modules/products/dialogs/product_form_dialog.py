@@ -155,7 +155,7 @@ class ProductFormDialog(QDialog):
         buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
         # P1: galería de imágenes (sólo en edición: requiere product_id existente).
         if not self._is_new and getattr(self._presenter, "can_manage_images", False):
-            self._btn_images = create_secondary_button("Imágenes…")
+            self._btn_images = create_secondary_button(text="Imágenes…")
             self._btn_images.clicked.connect(self._open_gallery)
             buttons.addButton(self._btn_images, QDialogButtonBox.ActionRole)
         buttons.accepted.connect(self._on_save)
