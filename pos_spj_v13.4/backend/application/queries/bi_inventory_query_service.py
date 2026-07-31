@@ -1,7 +1,10 @@
 """Read-only BI query service for inventory metrics: valuation, waste, critical stock.
 
-Inventory quantities come from the branch-specific inventory_stock table (never
-productos.existencia, which is a global sum). Waste comes from the mermas table.
+Inventory quantities come from the branch-specific on-hand source (never a global
+product-level sum). Name, active state, category, unit, cost and minimum stock come
+from the canonical master/catalogs (`products`, `product_categories`,
+`units_of_measure`, `product_cost`, `inventory_replenishment_rule`). Waste value
+comes from the mermas table.
 """
 from __future__ import annotations
 
@@ -9,8 +12,9 @@ import logging
 
 logger = logging.getLogger("spj.bi.inventory")
 
-# Product cost fallback chain (no captured line cost here).
-_PROD_COST = "COALESCE(NULLIF(p.costo,0), NULLIF(p.precio_compra,0), NULLIF(p.costo_promedio,0), 0)"
+# Costo de producto canónico (`product_cost`, sucursal global branch_id=''). El
+# maestro `products` NO guarda costo (§11); el valor promedio vive en product_cost.
+_PROD_COST = "COALESCE(NULLIF(CAST(pcost.average_cost AS REAL),0), 0)"
 
 
 # Canonical on-hand source (INV-27): a subquery exposing ist.product_id/branch_id/
@@ -47,8 +51,9 @@ class BiInventoryQueryService:
     def inventory_valued(self, f) -> float:
         """Inventario valorizado = sum(existencia_sucursal * costo_producto)."""
         sql = (f"SELECT COALESCE(SUM(ist.quantity * {_PROD_COST}),0) "
-               f"FROM {self._stock_source()} ist JOIN productos p ON p.id = ist.product_id "
-               "WHERE COALESCE(p.activo,1)=1")
+               f"FROM {self._stock_source()} ist JOIN products p ON p.id = ist.product_id "
+               "LEFT JOIN product_cost pcost ON pcost.product_id=p.id AND pcost.branch_id='' "
+               "WHERE p.lifecycle_status='ACTIVE'")
         params: list = []
         if f.branch_id:
             sql += " AND ist.branch_id = ?"
@@ -67,15 +72,23 @@ class BiInventoryQueryService:
 
     def critical_stock(self, f, limit: int = 15) -> list[dict]:
         """Productos por debajo o al nivel de su stock mínimo (por sucursal)."""
-        sql = ("SELECT p.nombre, ist.quantity, COALESCE(p.stock_minimo,0), COALESCE(p.unidad,'') "
-               f"FROM {self._stock_source()} ist JOIN productos p ON p.id = ist.product_id "
-               "WHERE COALESCE(p.activo,1)=1 AND COALESCE(p.stock_minimo,0) > 0 "
-               "AND ist.quantity <= p.stock_minimo")
+        # Nombre/unidad canónicos (products/units_of_measure); stock mínimo desde la
+        # regla de reposición global (`inventory_replenishment_rule`, branch/warehouse
+        # vacíos). El maestro `products` no guarda stock_minimo ni unidad como texto.
+        sql = ("SELECT p.name, ist.quantity, COALESCE(CAST(rr.min_quantity AS REAL),0), "
+               "COALESCE(u.code,'') "
+               f"FROM {self._stock_source()} ist JOIN products p ON p.id = ist.product_id "
+               "LEFT JOIN inventory_replenishment_rule rr ON rr.product_id=p.id "
+               "AND rr.branch_id='' AND rr.warehouse_id='' "
+               "LEFT JOIN units_of_measure u ON u.id=p.base_unit_id "
+               "WHERE p.lifecycle_status='ACTIVE' "
+               "AND COALESCE(CAST(rr.min_quantity AS REAL),0) > 0 "
+               "AND ist.quantity <= CAST(rr.min_quantity AS REAL)")
         params: list = []
         if f.branch_id:
             sql += " AND ist.branch_id = ?"
             params.append(str(f.branch_id))
-        sql += " ORDER BY (ist.quantity - p.stock_minimo) ASC LIMIT ?"
+        sql += " ORDER BY (ist.quantity - CAST(rr.min_quantity AS REAL)) ASC LIMIT ?"
         params.append(limit)
         try:
             rows = self._conn.execute(sql, params).fetchall()
@@ -86,9 +99,10 @@ class BiInventoryQueryService:
             return []
 
     def waste_by_category(self, f) -> list[tuple[str, float]]:
-        sql = ("SELECT COALESCE(NULLIF(p.categoria,''),'(sin categoría)') c, "
+        sql = ("SELECT COALESCE(NULLIF(pcat.name,''),'(sin categoría)') c, "
                "COALESCE(SUM(COALESCE(m.valor_perdida, m.cantidad*COALESCE(m.costo_unitario,0))),0) v "
-               "FROM mermas m LEFT JOIN productos p ON p.id=m.producto_id "
+               "FROM mermas m LEFT JOIN products p ON p.id=m.producto_id "
+               "LEFT JOIN product_categories pcat ON pcat.id=p.category_id "
                "WHERE DATE(COALESCE(m.fecha, m.created_at)) BETWEEN ? AND ? ")
         params: list = [f.date_from, f.date_to]
         if f.branch_id:

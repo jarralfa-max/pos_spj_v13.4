@@ -10,9 +10,14 @@ import logging
 
 logger = logging.getLogger("spj.bi.sales")
 
-# Robust per-line cost: captured cost first, then product cost columns.
-COST_LINE = ("COALESCE(NULLIF(dv.costo_unitario_real,0), NULLIF(p.costo,0), "
-             "NULLIF(p.precio_compra,0), NULLIF(p.costo_promedio,0), 0)")
+# Costo robusto por línea: costo capturado primero, luego el costo promedio
+# canónico (`product_cost`, sucursal global branch_id=''). El maestro `products`
+# NO guarda costo (§11); las consultas hacen LEFT JOIN product_cost pcost.
+COST_LINE = ("COALESCE(NULLIF(dv.costo_unitario_real,0), "
+             "NULLIF(CAST(pcost.average_cost AS REAL),0), 0)")
+# Fragmento reutilizable: costo canónico por línea de venta.
+_COST_JOIN = ("LEFT JOIN product_cost pcost "
+              "ON pcost.product_id=dv.producto_id AND pcost.branch_id=''")
 
 
 def _sales_where(f, alias: str = "v") -> tuple[str, list]:
@@ -35,8 +40,10 @@ def _sales_where(f, alias: str = "v") -> tuple[str, list]:
         params.append(str(f.customer_id))
     if f.category:
         clauses.append(
-            f"EXISTS (SELECT 1 FROM detalles_venta dv JOIN productos p "
-            f"ON p.id=dv.producto_id WHERE dv.venta_id={alias}.id AND p.categoria=?)")
+            f"EXISTS (SELECT 1 FROM detalles_venta dv JOIN products p "
+            f"ON p.id=dv.producto_id "
+            f"JOIN product_categories pcat ON pcat.id=p.category_id "
+            f"WHERE dv.venta_id={alias}.id AND pcat.name=?)")
         params.append(f.category)
     return " AND ".join(clauses), params
 
@@ -75,7 +82,7 @@ class BiSalesQueryService:
         row = self._one(
             f"SELECT COALESCE(SUM(dv.cantidad*{COST_LINE}),0) "
             "FROM detalles_venta dv JOIN ventas v ON v.id=dv.venta_id "
-            "LEFT JOIN productos p ON p.id=dv.producto_id "
+            f"{_COST_JOIN} "
             f"WHERE {where}", params)
         return float(row[0]) if row else 0.0
 
@@ -91,18 +98,19 @@ class BiSalesQueryService:
     def top_products(self, f, limit: int = 10) -> list[tuple[str, float]]:
         where, params = _sales_where(f)
         return [(r[0], float(r[1] or 0)) for r in self._q(
-            "SELECT COALESCE(p.nombre, dv.nombre,'—') n, SUM(dv.subtotal) ing "
+            "SELECT COALESCE(p.name, dv.nombre,'—') n, SUM(dv.subtotal) ing "
             "FROM detalles_venta dv JOIN ventas v ON v.id=dv.venta_id "
-            "LEFT JOIN productos p ON p.id=dv.producto_id "
+            "LEFT JOIN products p ON p.id=dv.producto_id "
             f"WHERE {where} GROUP BY dv.producto_id ORDER BY ing DESC LIMIT ?",
             params + [limit])]
 
     def by_category(self, f) -> list[tuple[str, float]]:
         where, params = _sales_where(f)
         return [(r[0], float(r[1] or 0)) for r in self._q(
-            "SELECT COALESCE(NULLIF(p.categoria,''),'(sin categoría)') c, SUM(dv.subtotal) ing "
+            "SELECT COALESCE(NULLIF(pcat.name,''),'(sin categoría)') c, SUM(dv.subtotal) ing "
             "FROM detalles_venta dv JOIN ventas v ON v.id=dv.venta_id "
-            "LEFT JOIN productos p ON p.id=dv.producto_id "
+            "LEFT JOIN products p ON p.id=dv.producto_id "
+            "LEFT JOIN product_categories pcat ON pcat.id=p.category_id "
             f"WHERE {where} GROUP BY c ORDER BY ing DESC LIMIT 10", params)]
 
     def payment_methods(self, f) -> list[tuple[str, float]]:
@@ -121,11 +129,13 @@ class BiSalesQueryService:
         """(categoría, margen $, margen %) del periodo."""
         where, params = _sales_where(f)
         rows = self._q(
-            f"SELECT COALESCE(NULLIF(p.categoria,''),'(sin categoría)') c, "
+            f"SELECT COALESCE(NULLIF(pcat.name,''),'(sin categoría)') c, "
             "COALESCE(SUM(dv.subtotal),0) ing, "
             f"COALESCE(SUM(dv.cantidad*{COST_LINE}),0) cogs "
             "FROM detalles_venta dv JOIN ventas v ON v.id=dv.venta_id "
-            "LEFT JOIN productos p ON p.id=dv.producto_id "
+            "LEFT JOIN products p ON p.id=dv.producto_id "
+            "LEFT JOIN product_categories pcat ON pcat.id=p.category_id "
+            f"{_COST_JOIN} "
             f"WHERE {where} GROUP BY c ORDER BY (ing-cogs) DESC LIMIT 10", params)
         out = []
         for r in rows:
@@ -144,7 +154,7 @@ class BiSalesQueryService:
             "SELECT strftime('%m', v.fecha) mes, COALESCE(SUM(dv.subtotal),0) ing, "
             f"COALESCE(SUM(dv.cantidad*{COST_LINE}),0) cogs "
             "FROM ventas v JOIN detalles_venta dv ON dv.venta_id=v.id "
-            "LEFT JOIN productos p ON p.id=dv.producto_id "
+            f"{_COST_JOIN} "
             f"WHERE v.estado='completada' AND {year_clause} "
             "GROUP BY mes ORDER BY mes", params)
         meses = ["ene", "feb", "mar", "abr", "may", "jun",

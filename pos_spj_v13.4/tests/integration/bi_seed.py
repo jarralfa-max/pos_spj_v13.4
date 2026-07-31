@@ -22,6 +22,34 @@ def add_branch(conn, nombre="San Bartolo") -> str:
     return bid
 
 
+def _ensure_kg_unit(conn) -> str:
+    """Unidad canónica 'kg' compartida (units_of_measure). Idempotente."""
+    row = conn.execute("SELECT id FROM units_of_measure WHERE code='KG'").fetchone()
+    if row:
+        return row[0]
+    uid = new_uuid()
+    conn.execute("INSERT INTO units_of_measure (id,code,name,dimension,active) "
+                 "VALUES (?,'KG','Kilogramo','WEIGHT',1)", (uid,))
+    return uid
+
+
+def _ensure_category(conn, categoria) -> str | None:
+    """Categoría canónica (`product_categories`). Devuelve su id (o None)."""
+    if not categoria or not categoria.strip():
+        return None
+    norm = categoria.strip().lower()
+    row = conn.execute("SELECT id FROM product_categories WHERE name_normalized=?",
+                       (norm,)).fetchone()
+    if row:
+        return row[0]
+    cid = new_uuid()
+    conn.execute(
+        "INSERT INTO product_categories (id,code,name,name_normalized,path) "
+        "VALUES (?,?,?,?,?)",
+        (cid, categoria.strip().upper()[:40], categoria.strip(), norm, f"/{cid}/"))
+    return cid
+
+
 def add_product(conn, nombre, categoria, costo, precio=None, branch_id=None,
                 existencia=5, stock_minimo=10) -> str:
     pid = new_uuid()
@@ -30,21 +58,37 @@ def add_product(conn, nombre, categoria, costo, precio=None, branch_id=None,
         "INSERT INTO productos (id,nombre,categoria,precio,precio_compra,existencia,"
         "stock_minimo,unidad,activo) VALUES (?,?,?,?,?,?,?,?,1)",
         (pid, nombre, categoria, precio, costo, existencia, stock_minimo, "kg"))
-    # El catálogo de categorías es canónico (`product_categories`); reflejamos ahí
-    # la categoría del producto para que los lectores canónicos la vean.
-    if categoria and categoria.strip():
-        norm = categoria.strip().lower()
-        if not conn.execute("SELECT 1 FROM product_categories WHERE name_normalized=?",
-                            (norm,)).fetchone():
-            cid = new_uuid()
-            conn.execute(
-                "INSERT INTO product_categories (id,code,name,name_normalized,path) "
-                "VALUES (?,?,?,?,?)",
-                (cid, categoria.strip().upper()[:40], categoria.strip(), norm,
-                 f"/{cid}/"))
+    # ── Maestro canónico (`products`) + catálogos: los lectores BI ya no leen la
+    # tabla legacy `productos`; el nombre, estado, categoría, unidad, costo y stock
+    # mínimo viven en el maestro/catálogos canónicos con la MISMA identidad (pid).
+    unit_id = _ensure_kg_unit(conn)
+    cat_id = _ensure_category(conn, categoria)
+    conn.execute(
+        "INSERT INTO products (id,code,name,name_normalized,product_type,"
+        "lifecycle_status,base_unit_id,category_id,sellable,purchasable,"
+        "inventory_managed) VALUES (?,?,?,?,?,?,?,?,1,1,1)",
+        (pid, f"P-{pid.replace('-', '')[-12:]}", nombre, nombre.strip().lower(),
+         "FINISHED_GOOD",
+         "ACTIVE", unit_id, cat_id))
+    # Costo promedio canónico (`product_cost`, sucursal global branch_id='').
+    conn.execute(
+        "INSERT INTO product_cost (id,product_id,branch_id,average_cost) "
+        "VALUES (?,?,'',?)", (new_uuid(), pid, str(costo)))
+    # Regla de reposición global (`inventory_replenishment_rule`) → stock mínimo.
+    conn.execute(
+        "INSERT INTO inventory_replenishment_rule (id,product_id,branch_id,"
+        "warehouse_id,min_quantity,created_at) VALUES (?,?,'','',?,datetime('now'))",
+        (new_uuid(), pid, str(stock_minimo)))
     if branch_id:
         conn.execute("INSERT INTO inventory_stock (product_id,branch_id,quantity,unit) "
                      "VALUES (?,?,?,?)", (pid, branch_id, existencia, "kg"))
+        # Balance canónico (`inventory_balances`): bajo el corte de inventario (INV-27,
+        # flag ON) los lectores BI toman la existencia de aquí, no de inventory_stock.
+        conn.execute(
+            "INSERT INTO inventory_balances (id,product_id,branch_id,warehouse_id,"
+            "inventory_status,quantity,updated_at) "
+            "VALUES (?,?,?,'','AVAILABLE',?,datetime('now'))",
+            (new_uuid(), pid, branch_id, str(existencia)))
     return pid
 
 

@@ -84,11 +84,24 @@ class TestBiInventoryRepoint:
         from backend.application.queries.bi_inventory_query_service import (
             BiInventoryQueryService,
         )
-        # add cost + a critical-stock scenario
-        conn.execute("ALTER TABLE productos ADD COLUMN costo REAL")
-        conn.execute("ALTER TABLE productos ADD COLUMN precio_compra REAL")
-        conn.execute("ALTER TABLE productos ADD COLUMN costo_promedio REAL")
-        conn.execute("UPDATE productos SET costo=2.0, stock_minimo=100 WHERE id='p1'")
+        # P2: el lector BI ya NO lee costo/stock_minimo de la tabla legacy
+        # `productos`; el nombre/estado vienen del maestro `products`, el costo de
+        # `product_cost` (sucursal global '') y el stock mínimo de la regla de
+        # reposición global (`inventory_replenishment_rule`). La existencia sigue
+        # siendo flag-gated (inventory_stock ↔ inventory_balances).
+        conn.execute("CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, "
+                     "name TEXT, lifecycle_status TEXT, base_unit_id TEXT, "
+                     "category_id TEXT)")
+        conn.execute("INSERT INTO products (id,name,lifecycle_status) "
+                     "VALUES ('p1','P','ACTIVE')")
+        conn.execute("CREATE TABLE IF NOT EXISTS units_of_measure (id TEXT, code TEXT)")
+        conn.execute("CREATE TABLE IF NOT EXISTS product_cost (product_id TEXT, "
+                     "branch_id TEXT, average_cost TEXT)")
+        conn.execute("INSERT INTO product_cost (product_id,branch_id,average_cost) "
+                     "VALUES ('p1','','2')")
+        conn.execute("INSERT INTO inventory_replenishment_rule (id,product_id,"
+                     "branch_id,warehouse_id,min_quantity,created_at) "
+                     "VALUES ('r1','p1','','','100',datetime('now'))")
         conn.commit()
         return BiInventoryQueryService(conn)
 

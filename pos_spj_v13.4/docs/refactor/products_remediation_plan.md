@@ -229,3 +229,35 @@ refresco de KPIs). Sigue P0-B (catálogos consumidores + POS canónico).
   fallas nuevas por este slice).
 - Pendiente: base `StandardDialog`/`FormField` para el layout del formulario (hoy
   `QDialog` + `QFormLayout` directos) — refactor de contenedor, no de contrato.
+
+## 11. P2 — Retiro de lectores legacy de `productos` (slice BI) — EN CURSO
+
+P2 vacía progresivamente el *ratchet* de consumidores legacy (`productos`) hasta
+llegar a allowlist **vacía**, requisito para el `DROP productos` final. Es
+multi-slice y se avanza en commits acotados.
+
+- **Slice BI (este commit)**: repunte de los dos servicios de lectura BI del
+  dashboard al maestro/catálogos canónicos, eliminando todo SQL sobre `productos`:
+  - `bi_sales_query_service.py`: nombre → `products.name`; categoría (filtro EXISTS,
+    `by_category`, `profitability_by_category`) → `product_categories.name` vía
+    `products.category_id`; costo por línea → `product_cost.average_cost` (sucursal
+    global `branch_id=''`) como *fallback* del costo capturado `costo_unitario_real`.
+  - `bi_inventory_query_service.py`: nombre → `products.name`; estado activo →
+    `lifecycle_status='ACTIVE'`; costo → `product_cost`; unidad → `units_of_measure`;
+    stock mínimo → `inventory_replenishment_rule` (regla global). La existencia sigue
+    siendo *flag-gated* (INV-27: `inventory_stock` ↔ `inventory_balances`).
+- **Fixtures siguen al código**: `bi_seed.add_product` ahora siembra además el
+  maestro `products`, `product_cost`, `inventory_replenishment_rule`,
+  `units_of_measure` e `inventory_balances` (con la MISMA identidad `pid`). Esto
+  además **arregla 4 tests de inventario BI** que fallaban en baseline (el corte de
+  inventario estaba ON pero el seed sólo escribía `inventory_stock`).
+- **Ratchet**: allowlist reducida de 55 → **53** (removidos `bi_sales_query_service`
+  y `bi_inventory_query_service`); `test_no_new_legacy_productos_consumers` y
+  `test_allowlist_has_no_stale_entries` verdes.
+- Evidencia: 36 tests BI verdes (incluye los 4 recuperados) + repuntes de inventario
+  (`test_legacy_reader_repoints`: BiInventoryRepoint OFF/ON verdes); arquitectura
+  global constante **55 failed/366 passed** (mismas fallas pre-existentes de
+  Transferencias; cero fallas nuevas).
+- Pendiente P2 (siguientes slices): repuntar los ~53 lectores restantes (compras,
+  recetas/producción, forecast, delivery, reportes enterprise, repos legacy),
+  luego allowlist vacía → migración `DROP productos`.
