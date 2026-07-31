@@ -3,6 +3,8 @@
 
 from decimal import Decimal
 
+from backend.application.procurement.authorization import PurchaseAuthorizationPolicy
+from backend.application.procurement.permissions import PurchasePermissions
 from backend.application.procurement.use_cases.purchase_order_use_cases import (
     ApprovePurchaseOrderUseCase,
     ChangePurchaseOrderUseCase,
@@ -100,7 +102,13 @@ def test_over_tolerance_receipt_requires_permission(proc_conn):
         proc_conn, approver_user_id="jefe", purchase_order_id=created.entity_id, operation_id="a")
     SendPurchaseOrderUseCase().execute(
         proc_conn, actor_user_id="u1", purchase_order_id=created.entity_id, operation_id="s")
-    uc = ReceivePurchaseOrderUseCase(tolerance=Tolerance(Decimal("5")))
+    class NoOverReceipt:
+        def has_permission(self, user_id, permission_code):
+            return permission_code != PurchasePermissions.RECEIPT_OVER_TOLERANCE
+
+    uc = ReceivePurchaseOrderUseCase(
+        PurchaseAuthorizationPolicy(NoOverReceipt()),
+        tolerance=Tolerance(Decimal("5")))
     blocked = uc.execute(
         proc_conn, actor_user_id="alm", purchase_order_id=created.entity_id, operation_id="r",
         receipt_lines=[{"product_id": "p1", "received_quantity": "20", "accepted_quantity": "20"}],
@@ -163,8 +171,9 @@ def test_rfq_quote_award(proc_conn):
         proc_conn, actor_user_id="u1", operation_id="aw-1", quote_id=quote.entity_id,
         reason="mejor precio")
     assert award.success
-    assert bool(proc_conn.execute("SELECT awarded FROM supplier_quotes WHERE id=?",
-                                  (quote.entity_id,)).fetchone()[0]) is True
+    assert proc_conn.execute(
+        "SELECT COUNT(*) FROM purchase_award_lines WHERE award_id=?",
+        (award.entity_id,)).fetchone()[0] == 1
 
 
 # ── supplier invoice / 3-way ─────────────────────────────────────────────────
@@ -182,41 +191,53 @@ def _received_order(conn, op="oc-inv"):
 
 def test_invoice_capture_match_creates_payable(proc_conn):
     po_id = _received_order(proc_conn)
+    po_line_id = proc_conn.execute(
+        "SELECT id FROM purchase_order_lines WHERE purchase_order_id=?", (po_id,)).fetchone()[0]
     inv = CaptureSupplierInvoiceUseCase().execute(
         proc_conn, actor_user_id="cxp", operation_id="inv-1", supplier_id="sup-1",
-        invoice_number="A-100", total="1000", purchase_order_id=po_id)
+        invoice_number="A-100", total="1000", purchase_order_id=po_id,
+        lines=[{"product_id": "p1", "invoiced_quantity": "10", "unit_price": "100",
+                "purchase_order_line_id": po_line_id}])
     assert inv.success
     matched = MatchSupplierInvoiceUseCase().execute(
         proc_conn, actor_user_id="cxp", operation_id="m-1", invoice_id=inv.entity_id)
     assert matched.data["match_result"] == "MATCHED"
-    assert "PURCHASE_PAYABLE_CREATED" in _pending(proc_conn)
+    assert "ACCOUNT_PAYABLE_CREATE_REQUESTED" in _pending(proc_conn)
 
 
 def test_duplicate_invoice_blocked(proc_conn):
     po_id = _received_order(proc_conn, op="oc-dup")
+    po_line_id = proc_conn.execute(
+        "SELECT id FROM purchase_order_lines WHERE purchase_order_id=?", (po_id,)).fetchone()[0]
+    lines = [{"product_id": "p1", "invoiced_quantity": "10", "unit_price": "100",
+              "purchase_order_line_id": po_line_id}]
     CaptureSupplierInvoiceUseCase().execute(
         proc_conn, actor_user_id="cxp", operation_id="inv-a", supplier_id="sup-1",
-        invoice_number="B-1", total="1000", purchase_order_id=po_id)
+        invoice_number="B-1", total="1000", purchase_order_id=po_id, lines=lines)
     dup = CaptureSupplierInvoiceUseCase().execute(
         proc_conn, actor_user_id="cxp", operation_id="inv-b", supplier_id="sup-1",
-        invoice_number="B-1", total="1000", purchase_order_id=po_id)
+        invoice_number="B-1", total="1000", purchase_order_id=po_id, lines=lines)
     assert not dup.success and dup.error_code == "DUPLICATE_INVOICE"
 
 
 def test_price_variance_then_release_requires_segregation(proc_conn):
     po_id = _received_order(proc_conn, op="oc-var")
+    po_line_id = proc_conn.execute(
+        "SELECT id FROM purchase_order_lines WHERE purchase_order_id=?", (po_id,)).fetchone()[0]
     inv = CaptureSupplierInvoiceUseCase().execute(
         proc_conn, actor_user_id="cxp", operation_id="inv-v", supplier_id="sup-1",
-        invoice_number="C-1", total="1200", purchase_order_id=po_id)
+        invoice_number="C-1", total="1200", purchase_order_id=po_id,
+        lines=[{"product_id": "p1", "invoiced_quantity": "10", "unit_price": "120",
+                "purchase_order_line_id": po_line_id}])
     matched = MatchSupplierInvoiceUseCase().execute(
         proc_conn, actor_user_id="cxp", operation_id="m-v", invoice_id=inv.entity_id)
     assert matched.data["match_result"] == "PRICE_VARIANCE"
     # the capturer cannot release their own variance
     self_rel = ReleaseInvoiceVarianceUseCase().execute(
         proc_conn, releaser_user_id="cxp", operation_id="rel-1", invoice_id=inv.entity_id,
-        captured_by_user_id="cxp", reason="ok")
+        captured_by_user_id="forged-other-user", reason="ok")
     assert not self_rel.success and self_rel.error_code == "SEGREGATION"
     ok = ReleaseInvoiceVarianceUseCase().execute(
         proc_conn, releaser_user_id="jefe", operation_id="rel-2", invoice_id=inv.entity_id,
         captured_by_user_id="cxp", reason="autorizado")
-    assert ok.success and "PURCHASE_PAYABLE_CREATED" in _pending(proc_conn)
+    assert ok.success and "ACCOUNT_PAYABLE_CREATE_REQUESTED" in _pending(proc_conn)

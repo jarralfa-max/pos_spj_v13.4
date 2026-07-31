@@ -1,0 +1,13 @@
+{
+  "name": "SPJ Carga en origen",
+  "short_name": "Carga SPJ",
+  "description": "Compra móvil, carga y despacho con contenedores QR",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f6f8",
+  "theme_color": "#123c69",
+  "icons": [
+    {"src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}
+  ]
+}

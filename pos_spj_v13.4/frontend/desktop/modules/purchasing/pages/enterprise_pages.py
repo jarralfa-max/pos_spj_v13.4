@@ -9,7 +9,7 @@ from __future__ import annotations
 from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
-    QMessageBox,
+    QSplitter,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -36,6 +36,7 @@ from frontend.desktop.modules.purchasing.dialogs.enterprise_dialogs import (
     ReceiveOrderDialog,
     RequisitionFormDialog,
 )
+from frontend.desktop.modules.purchasing.document_detail import OrderDetailPanel
 from frontend.desktop.themes.tokens import Spacing
 
 
@@ -63,6 +64,11 @@ class _ListPageBase(QWidget):
                                  icon=Icons.PURCHASES, compact=True)
         layout.addWidget(self.header)
         self._build_actions()
+        self._notice = QLabel("", self)
+        self._notice.setObjectName("procurementInlineNotice")
+        self._notice.setWordWrap(True)
+        self._notice.hide()
+        layout.addWidget(self._notice)
 
         filters = QHBoxLayout()
         self._search = SearchInput(placeholder="Buscar…")
@@ -82,10 +88,20 @@ class _ListPageBase(QWidget):
         self._empty = create_state_widget(ViewState.EMPTY, self, message=self.empty_message)
         self._stack.addWidget(self._table)
         self._stack.addWidget(self._empty)
-        layout.addWidget(self._stack, stretch=1)
+        self._content = QSplitter(self)
+        self._content.setObjectName("procurementMasterDetail")
+        self._content.addWidget(self._stack)
+        detail = self._create_detail_panel()
+        if detail is not None:
+            self._content.addWidget(detail)
+            self._content.setStretchFactor(0, 3)
+            self._content.setStretchFactor(1, 2)
+        layout.addWidget(self._content, stretch=1)
 
         row = QHBoxLayout()
         self._build_row_actions(row)
+        self._action_buttons = [row.itemAt(index).widget() for index in range(row.count())
+                                if row.itemAt(index).widget() is not None]
         row.addStretch(1)
         self._prev = create_secondary_button(self, "Anterior")
         self._prev.clicked.connect(self._prev_page)
@@ -97,6 +113,8 @@ class _ListPageBase(QWidget):
         row.addWidget(self._prev)
         row.addWidget(self._next)
         layout.addLayout(row)
+        self._table.itemSelectionChanged.connect(self._selection_changed)
+        self._selection_changed()
 
     # hooks -------------------------------------------------------------------
     def _build_actions(self) -> None:
@@ -107,6 +125,18 @@ class _ListPageBase(QWidget):
 
     def _fetch(self):
         raise NotImplementedError
+
+    def _create_detail_panel(self):
+        return None
+
+    def _selection_changed(self):
+        selected = bool(self._selected())
+        allowed = self._allowed_actions()
+        for button in self._action_buttons:
+            button.setEnabled(selected and (allowed is None or button.text() in allowed))
+
+    def _allowed_actions(self):
+        return None
 
     # lifecycle ---------------------------------------------------------------
     def ensure_loaded(self) -> None:
@@ -122,7 +152,9 @@ class _ListPageBase(QWidget):
             self._page_label.setText(self._page_text())
             self._loaded = True
         except Exception as exc:
-            QMessageBox.warning(self, self.title, f"No fue posible cargar:\n{exc}")
+            self._notice.setProperty("state", "ERROR")
+            self._notice.setText(f"No fue posible cargar: {exc}")
+            self._notice.show()
 
     def _on_filter(self) -> None:
         self._page = 0
@@ -150,7 +182,9 @@ class _ListPageBase(QWidget):
         return self._table.selected_row_id()
 
     def _notify(self, ok, message):
-        (QMessageBox.information if ok else QMessageBox.warning)(self, self.title, message)
+        self._notice.setProperty("state", "SUCCESS" if ok else "WARNING")
+        self._notice.setText(message)
+        self._notice.show()
         if ok:
             self.reload()
 
@@ -169,17 +203,30 @@ class RequisitionsPage(_ListPageBase):
                      ("REJECTED", "Rechazada")]
     empty_message = "No hay solicitudes"
 
+    def _allowed_actions(self):
+        row = self._table.currentRow()
+        status = self._table.item(row, 4).text() if row >= 0 and self._table.item(row, 4) else ""
+        return {
+            "Borrador": {"Enviar"},
+            "Pendiente de aprobación": {"Aprobar", "Rechazar"},
+            "Pendiente": {"Aprobar", "Rechazar"},
+        }.get(status, set())
+
     def _build_actions(self):
         new = create_primary_button(self, "Nueva solicitud")
+        new.setVisible(self._presenter.can("procurement.requisition.create"))
         new.clicked.connect(self._create)
         self.header.add_action(new)
 
     def _build_row_actions(self, row):
         submit = create_secondary_button(self, "Enviar")
+        submit.setVisible(self._presenter.can("procurement.requisition.submit"))
         submit.clicked.connect(self._submit)
         approve = create_success_button(self, "Aprobar")
+        approve.setVisible(self._presenter.can("procurement.requisition.approve"))
         approve.clicked.connect(self._approve)
         reject = create_warning_button(self, "Rechazar")
+        reject.setVisible(self._presenter.can("procurement.requisition.approve"))
         reject.clicked.connect(self._reject)
         for b in (submit, approve, reject):
             row.addWidget(b)
@@ -240,19 +287,44 @@ class OrdersPage(_ListPageBase):
                      ("RECEIVED", "Recibida")]
     empty_message = "No hay órdenes de compra"
 
+    def _create_detail_panel(self):
+        self._detail = OrderDetailPanel(self)
+        return self._detail
+
+    def _allowed_actions(self):
+        row = self._table.currentRow()
+        status = self._table.item(row, 2).text() if row >= 0 and self._table.item(row, 2) else ""
+        return {
+            "Pendiente": {"Aprobar"},
+            "Aprobada": {"Enviar", "Nueva versión"},
+            "Enviada": {"Recibir", "Nueva versión"},
+            "Confirmada": {"Recibir", "Nueva versión"},
+            "Recibida parcial": {"Recibir"},
+        }.get(status, set())
+
+    def _selection_changed(self):
+        super()._selection_changed()
+        order_id = self._selected()
+        self._detail.load_detail(self._presenter.order_detail(order_id) if order_id else None)
+
     def _build_actions(self):
         new = create_primary_button(self, "Nueva orden")
+        new.setVisible(self._presenter.can("procurement.purchase_order.create"))
         new.clicked.connect(self._create)
         self.header.add_action(new)
 
     def _build_row_actions(self, row):
         approve = create_success_button(self, "Aprobar")
+        approve.setVisible(self._presenter.can("procurement.purchase_order.approve"))
         approve.clicked.connect(self._approve)
         send = create_secondary_button(self, "Enviar")
+        send.setVisible(self._presenter.can("procurement.purchase_order.send"))
         send.clicked.connect(self._send)
         receive = create_secondary_button(self, "Recibir")
+        receive.setVisible(self._presenter.can("logistics.shipment.receive"))
         receive.clicked.connect(self._receive)
         change = create_warning_button(self, "Nueva versión")
+        change.setVisible(self._presenter.can("procurement.purchase_order.change"))
         change.clicked.connect(self._change)
         for b in (approve, send, receive, change):
             row.addWidget(b)
@@ -328,15 +400,27 @@ class InvoicesPage(_ListPageBase):
                      ("BLOCKED", "Bloqueada")]
     empty_message = "No hay facturas"
 
+    def _allowed_actions(self):
+        row = self._table.currentRow()
+        status = self._table.item(row, 4).text() if row >= 0 and self._table.item(row, 4) else ""
+        return {
+            "Capturada": {"Conciliar"},
+            "Con diferencias": {"Liberar diferencia"},
+            "Bloqueada": {"Liberar diferencia"},
+        }.get(status, set())
+
     def _build_actions(self):
         new = create_primary_button(self, "Capturar factura")
+        new.setVisible(self._presenter.can("procurement.invoice.capture"))
         new.clicked.connect(self._create)
         self.header.add_action(new)
 
     def _build_row_actions(self, row):
         match = create_secondary_button(self, "Conciliar")
+        match.setVisible(self._presenter.can("procurement.invoice.match"))
         match.clicked.connect(self._match)
         release = create_warning_button(self, "Liberar diferencia")
+        release.setVisible(self._presenter.can("procurement.invoice.release_difference"))
         release.clicked.connect(self._release)
         for b in (match, release):
             row.addWidget(b)

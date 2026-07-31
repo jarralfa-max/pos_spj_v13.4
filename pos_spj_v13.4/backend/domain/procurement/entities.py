@@ -23,6 +23,7 @@ from backend.domain.procurement.enums import (
     PaymentCondition,
     PaymentSource,
     PurchaseOrderStatus,
+    PurchaseNature,
     PurchaseType,
     RequisitionStatus,
     SourceChannel,
@@ -55,6 +56,7 @@ class DirectPurchaseLine:
     description: str
     quantity: Decimal
     unit_cost: Money
+    purchase_nature: PurchaseNature = PurchaseNature.INVENTORY
     purchase_unit: str = "PZA"
     inventory_unit: str = "PZA"
     conversion_factor: Decimal = Decimal("1")
@@ -125,6 +127,7 @@ class DirectPurchase:
     authorization_reason: str = ""
     created_at: str = field(default_factory=_utcnow)
     updated_at: str = field(default_factory=_utcnow)
+    source_requisition_id: str | None = None
 
     @classmethod
     def create(cls, document_number: DocumentNumber, supplier_id: str, branch_id: str,
@@ -218,6 +221,7 @@ class RequisitionLine:
     id: str
     product_id: str
     quantity: Decimal
+    purchase_nature: PurchaseNature = PurchaseNature.INVENTORY
     estimated_unit_cost: Money | None = None
     required_date: date | None = None
 
@@ -288,6 +292,13 @@ class PurchaseRequisition:
         self.status = RequisitionStatus.CANCELLED
         self.updated_at = _utcnow()
 
+    def mark_sourced(self, *, partial: bool = False) -> None:
+        if self.status is not RequisitionStatus.APPROVED:
+            raise InvalidPurchaseStateError("Solo se abastece una solicitud aprobada")
+        self.status = (RequisitionStatus.PARTIALLY_SOURCED if partial
+                       else RequisitionStatus.SOURCED)
+        self.updated_at = _utcnow()
+
 
 # ── RFQ / quotes ──────────────────────────────────────────────────────────────
 @dataclass(slots=True)
@@ -296,14 +307,36 @@ class SupplierQuoteLine:
     product_id: str
     quantity: Decimal
     unit_price: Money
+    purchase_nature: PurchaseNature = PurchaseNature.INVENTORY
+    tax: Money | None = None
+    discount: Money | None = None
 
     @classmethod
-    def create(cls, product_id: str, quantity, unit_price: Money) -> "SupplierQuoteLine":
+    def create(cls, product_id: str, quantity, unit_price: Money,
+               **kwargs) -> "SupplierQuoteLine":
         return cls(id=new_uuid(), product_id=product_id, quantity=_dec(quantity),
-                   unit_price=unit_price)
+                   unit_price=unit_price, **kwargs)
 
     def line_total(self) -> Money:
-        return Money(self.quantity * self.unit_price.amount, self.unit_price.currency_code)
+        tax = self.tax.amount if self.tax else Decimal("0")
+        discount = self.discount.amount if self.discount else Decimal("0")
+        return Money(self.quantity * self.unit_price.amount - discount + tax,
+                     self.unit_price.currency_code)
+
+
+@dataclass(slots=True)
+class RfqSupplierInvitation:
+    id: str
+    rfq_id: str
+    supplier_id: str
+    status: str = "INVITED"
+    invited_at: str = field(default_factory=_utcnow)
+
+    @classmethod
+    def create(cls, rfq_id: str, supplier_id: str) -> "RfqSupplierInvitation":
+        if not supplier_id:
+            raise ProcurementDomainError("La invitación requiere proveedor")
+        return cls(id=new_uuid(), rfq_id=rfq_id, supplier_id=supplier_id)
 
 
 @dataclass(slots=True)
@@ -314,7 +347,6 @@ class SupplierQuote:
     currency_code: str = "MXN"
     lead_time_days: int = 0
     lines: list[SupplierQuoteLine] = field(default_factory=list)
-    awarded: bool = False
     created_at: str = field(default_factory=_utcnow)
 
     @classmethod
@@ -325,15 +357,12 @@ class SupplierQuote:
         total = sum((ln.line_total().amount for ln in self.lines), Decimal("0"))
         return Money(total.quantize(_TWO), self.currency_code)
 
-    def award(self) -> None:
-        self.awarded = True
-
-
 @dataclass(slots=True)
 class RequestForQuotation:
     id: str
     document_number: str
-    supplier_ids: tuple[str, ...]
+    invitations: list[RfqSupplierInvitation] = field(default_factory=list)
+    requisition_id: str | None = None
     response_deadline: date | None = None
     status: str = "DRAFT"   # DRAFT / SENT / CLOSED
     created_at: str = field(default_factory=_utcnow)
@@ -343,11 +372,83 @@ class RequestForQuotation:
                **kwargs) -> "RequestForQuotation":
         if not supplier_ids:
             raise ProcurementDomainError("La RFQ requiere al menos un proveedor")
-        return cls(id=new_uuid(), document_number=str(document_number),
-                   supplier_ids=tuple(supplier_ids), **kwargs)
+        rfq = cls(id=new_uuid(), document_number=str(document_number), **kwargs)
+        rfq.invitations = [RfqSupplierInvitation.create(rfq.id, supplier_id)
+                           for supplier_id in dict.fromkeys(supplier_ids)]
+        return rfq
+
+    @property
+    def supplier_ids(self) -> tuple[str, ...]:
+        return tuple(inv.supplier_id for inv in self.invitations)
 
     def mark_sent(self) -> None:
         self.status = "SENT"
+
+
+@dataclass(slots=True)
+class PurchaseAwardLine:
+    id: str
+    award_id: str
+    quote_line_id: str
+    supplier_id: str
+    awarded_quantity: Decimal
+    justification: str
+
+    @classmethod
+    def create(cls, award_id: str, quote_line_id: str, supplier_id: str,
+               awarded_quantity, justification: str) -> "PurchaseAwardLine":
+        quantity = _dec(awarded_quantity)
+        if quantity <= 0 or not justification.strip():
+            raise ProcurementDomainError(
+                "La adjudicación requiere cantidad y justificación")
+        return cls(new_uuid(), award_id, quote_line_id, supplier_id, quantity,
+                   justification.strip())
+
+
+@dataclass(frozen=True, slots=True)
+class QuoteComparisonEntry:
+    quote_id: str
+    quote_line_id: str
+    supplier_id: str
+    product_id: str
+    unit_price: Money
+    lead_time_days: int
+
+
+@dataclass(slots=True)
+class QuoteComparison:
+    id: str
+    rfq_id: str
+    entries: list[QuoteComparisonEntry]
+    created_at: str = field(default_factory=_utcnow)
+
+    @classmethod
+    def build(cls, rfq_id: str, quotes: list[SupplierQuote]) -> "QuoteComparison":
+        entries = [QuoteComparisonEntry(
+            quote_id=quote.id, quote_line_id=line.id, supplier_id=quote.supplier_id,
+            product_id=line.product_id, unit_price=line.unit_price,
+            lead_time_days=quote.lead_time_days)
+            for quote in quotes for line in quote.lines]
+        return cls(new_uuid(), rfq_id, entries)
+
+    def ranked_for_product(self, product_id: str) -> list[QuoteComparisonEntry]:
+        return sorted(
+            (entry for entry in self.entries if entry.product_id == product_id),
+            key=lambda entry: (entry.unit_price.amount, entry.lead_time_days,
+                               entry.supplier_id))
+
+
+@dataclass(slots=True)
+class PurchaseAward:
+    id: str
+    rfq_id: str
+    approved_by_user_id: str
+    lines: list[PurchaseAwardLine] = field(default_factory=list)
+    created_at: str = field(default_factory=_utcnow)
+
+    @classmethod
+    def create(cls, rfq_id: str, approved_by_user_id: str) -> "PurchaseAward":
+        return cls(new_uuid(), rfq_id, approved_by_user_id)
 
 
 # ── purchase order ────────────────────────────────────────────────────────────
@@ -358,6 +459,7 @@ class PurchaseOrderLine:
     description: str
     ordered_quantity: Decimal
     unit_price: Money
+    purchase_nature: PurchaseNature = PurchaseNature.INVENTORY
     conversion_factor: Decimal = Decimal("1")
     received_quantity: Decimal = Decimal("0")
     accepted_quantity: Decimal = Decimal("0")
@@ -398,6 +500,9 @@ class PurchaseOrder:
     approved_by_user_id: str | None = None
     created_at: str = field(default_factory=_utcnow)
     updated_at: str = field(default_factory=_utcnow)
+    source_requisition_id: str | None = None
+    source_rfq_id: str | None = None
+    source_award_id: str | None = None
 
     @classmethod
     def create(cls, document_number: DocumentNumber, supplier_id: str, branch_id: str,
@@ -575,6 +680,12 @@ class SupplierInvoice:
     supplier_id: str
     invoice_number: str
     total: Money
+    subtotal: Money | None = None
+    tax_total: Money | None = None
+    lines: list["SupplierInvoiceLine"] = field(default_factory=list)
+    captured_by_user_id: str | None = None
+    matched_by_user_id: str | None = None
+    released_by_user_id: str | None = None
     purchase_order_id: str | None = None
     direct_purchase_id: str | None = None
     receipt_ids: tuple[str, ...] = ()
@@ -600,6 +711,36 @@ class SupplierInvoice:
 
     def block(self) -> None:
         self.status = "BLOCKED"
+
+
+@dataclass(slots=True)
+class SupplierInvoiceLine:
+    id: str
+    supplier_invoice_id: str
+    product_id: str
+    invoiced_quantity: Decimal
+    unit_price: Money
+    tax: Money
+    purchase_order_line_id: str | None = None
+    direct_purchase_line_id: str | None = None
+    receipt_line_id: str | None = None
+
+    @classmethod
+    def create(cls, supplier_invoice_id: str, product_id: str, invoiced_quantity,
+               unit_price: Money, tax: Money, **kwargs) -> "SupplierInvoiceLine":
+        quantity = _dec(invoiced_quantity)
+        if quantity <= 0:
+            raise ProcurementDomainError("La cantidad facturada debe ser mayor a cero")
+        return cls(new_uuid(), supplier_invoice_id, product_id, quantity, unit_price,
+                   tax, **kwargs)
+
+    def subtotal(self) -> Money:
+        return Money(self.invoiced_quantity * self.unit_price.amount,
+                     self.unit_price.currency_code)
+
+    def total(self) -> Money:
+        return Money(self.subtotal().amount + self.tax.amount,
+                     self.unit_price.currency_code)
 
 
 @dataclass(slots=True)

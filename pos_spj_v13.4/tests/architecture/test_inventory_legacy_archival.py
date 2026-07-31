@@ -8,8 +8,6 @@ ENGINE = PACKAGE_ROOT / "migrations" / "engine.py"
 MIGRATED_OPERATIONAL_FILES = [
     PACKAGE_ROOT / "backend" / "application" / "services" / "waste_application_service.py",
     PACKAGE_ROOT / "backend" / "infrastructure" / "db" / "repositories" / "waste_repository.py",
-    PACKAGE_ROOT / "core" / "services" / "purchase_service.py",
-    PACKAGE_ROOT / "application" / "purchases" / "receive_po_adapter.py",
 ]
 
 

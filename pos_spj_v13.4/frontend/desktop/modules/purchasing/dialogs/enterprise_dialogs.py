@@ -23,14 +23,21 @@ _PURCHASE_TYPES = [
     ("MAINTENANCE", "Mantenimiento"),
 ]
 _PRIORITIES = [("LOW", "Baja"), ("NORMAL", "Normal"), ("HIGH", "Alta"), ("URGENT", "Urgente")]
+_PURCHASE_NATURES = [
+    ("INVENTORY", "Inventario"), ("EXPENSE", "Gasto"), ("ASSET", "Activo"),
+    ("SERVICE", "Servicio"), ("CONSUMABLE", "Consumible"),
+    ("PACKAGING", "Empaque"), ("MAINTENANCE", "Mantenimiento"),
+]
 
 
 class _LinesEditor(QWidget):
     """A compact product-lines editor producing list[dict]. With or without price."""
 
-    def __init__(self, parent=None, *, with_price: bool = False) -> None:
+    def __init__(self, parent=None, *, with_price: bool = False,
+                 invoice: bool = False) -> None:
         super().__init__(parent)
         self._with_price = with_price
+        self._invoice = invoice
         self._lines: list[dict] = []
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -40,18 +47,29 @@ class _LinesEditor(QWidget):
         self._product.setPlaceholderText("Producto (código/ID)")
         self._qty = DecimalInput(self, precision=3, minimum="0")
         self._qty.setPlaceholderText("Cantidad")
+        self._nature = SearchableComboBox(placeholder="Naturaleza")
+        self._nature.set_options(_PURCHASE_NATURES)
         row.addWidget(self._product, stretch=2)
         row.addWidget(self._qty, stretch=1)
+        row.addWidget(self._nature, stretch=1)
         if with_price:
             self._price = DecimalInput(self, precision=2, minimum="0")
             self._price.setPlaceholderText("Precio")
             row.addWidget(self._price, stretch=1)
+        if invoice:
+            self._tax = DecimalInput(self, precision=2, minimum="0")
+            self._tax.setPlaceholderText("Impuestos")
+            self._source_line = StandardLineEdit(self)
+            self._source_line.setPlaceholderText("Línea de OC")
+            row.addWidget(self._tax, stretch=1)
+            row.addWidget(self._source_line, stretch=2)
         add = create_secondary_button(self, "Agregar")
         add.clicked.connect(self._add)
         row.addWidget(add)
         layout.addLayout(row)
 
-        cols = [ColumnSpec("Producto", "text"), ColumnSpec("Cantidad", "text")]
+        cols = [ColumnSpec("Producto", "text"), ColumnSpec("Cantidad", "text"),
+                ColumnSpec("Naturaleza", "text")]
         if with_price:
             cols.append(ColumnSpec("Precio", "text"))
         self._table = StandardTable(cols, self)
@@ -62,8 +80,9 @@ class _LinesEditor(QWidget):
         qty = self._qty.decimal_value()
         if not product or qty is None or qty <= 0:
             return
-        line = {"product_id": product, "quantity": str(qty)}
-        display = [product, str(qty)]
+        line = {"product_id": product, "quantity": str(qty),
+                "purchase_nature": self._nature.current_id() or "INVENTORY"}
+        display = [product, str(qty), line["purchase_nature"]]
         if self._with_price:
             price = self._price.decimal_value()
             if price is None:
@@ -71,6 +90,10 @@ class _LinesEditor(QWidget):
             line["unit_price"] = str(price)
             line["estimated_unit_cost"] = str(price)
             display.append(str(price))
+        if self._invoice:
+            line["invoiced_quantity"] = line.pop("quantity")
+            line["tax"] = str(self._tax.decimal_value() or "0")
+            line["purchase_order_line_id"] = self._source_line.text().strip() or None
         self._lines.append(line)
         self._table.load_rows([[*l_disp] for l_disp in self._display_rows()],
                               row_ids=[str(i) for i in range(len(self._lines))])
@@ -82,7 +105,8 @@ class _LinesEditor(QWidget):
     def _display_rows(self) -> list[list[str]]:
         rows = []
         for ln in self._lines:
-            row = [ln["product_id"], ln["quantity"]]
+            row = [ln["product_id"], ln.get("quantity", ln.get("invoiced_quantity")),
+                   ln["purchase_nature"]]
             if self._with_price:
                 row.append(ln.get("unit_price", ""))
             rows.append(row)
@@ -112,7 +136,7 @@ class RequisitionFormDialog(FormDialog):
         self.add_button_box(ok_text="Crear")
 
     def values(self) -> dict:
-        return {"branch_id": self._branch.text().strip() or "MAIN",
+        return {"branch_id": self._branch.text().strip(),
                 "purchase_type": self._type.current_id() or "INVENTORY",
                 "priority": self._priority.current_id() or "NORMAL",
                 "business_reason": self._reason.text().strip(),
@@ -137,8 +161,8 @@ class OrderFormDialog(FormDialog):
 
     def values(self) -> dict:
         return {"supplier_id": self._supplier.text().strip(),
-                "branch_id": self._branch.text().strip() or "MAIN",
-                "warehouse_id": self._warehouse.text().strip() or "MAIN",
+                "branch_id": self._branch.text().strip(),
+                "warehouse_id": self._warehouse.text().strip(),
                 "lines": self._lines.lines()}
 
 
@@ -154,20 +178,25 @@ class InvoiceFormDialog(FormDialog):
         self._order.setPlaceholderText("Orden de compra (ID, opcional)")
         self._uuid = StandardLineEdit(self)
         self._uuid.setPlaceholderText("UUID fiscal (opcional)")
+        self._lines = _LinesEditor(self, with_price=True, invoice=True)
         self.form.addRow("Proveedor", self._supplier)
         self.form.addRow("Número", self._number)
         self.form.addRow("Total", self._total)
         self.form.addRow("Orden de compra", self._order)
         self.form.addRow("UUID fiscal", self._uuid)
+        self.form.addRow("Líneas", self._lines)
         self.add_button_box(ok_text="Capturar")
 
     def values(self) -> dict:
         total = self._total.decimal_value()
-        return {"supplier_id": self._supplier.text().strip(),
-                "invoice_number": self._number.text().strip(),
-                "total": str(total if total is not None else "0"),
-                "purchase_order_id": self._order.text().strip() or None,
-                "uuid_fiscal": self._uuid.text().strip() or None}
+        return {
+            "supplier_id": self._supplier.text().strip(),
+            "invoice_number": self._number.text().strip(),
+            "total": str(total if total is not None else "0"),
+            "purchase_order_id": self._order.text().strip() or None,
+            "uuid_fiscal": self._uuid.text().strip() or None,
+            "lines": self._lines.lines(),
+        }
 
 
 class ReceiveOrderDialog(FormDialog):

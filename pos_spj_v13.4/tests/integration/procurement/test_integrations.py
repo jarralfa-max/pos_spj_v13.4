@@ -3,10 +3,14 @@ receipts → inventory, payables → CxP, immediate payment → treasury (never 
 cash), receipts → supplier performance, and the outbox → bus dispatch."""
 
 from decimal import Decimal
+from uuid import UUID
+
+import pytest
 
 from backend.application.procurement.integrations.procurement_outbox_dispatcher import (
     dispatch_procurement_outbox,
 )
+from backend.application.procurement.authorization import PurchaseAuthorizationPolicy
 from backend.application.procurement.integrations.replenishment_intake import (
     ReplenishmentIntakeHandler,
 )
@@ -14,6 +18,9 @@ from backend.application.procurement.integrations.wiring import wire_procurement
 from backend.application.procurement.use_cases.direct_purchase_use_cases import (
     ConfirmDirectPurchaseUseCase,
     CreateDirectPurchaseUseCase,
+)
+from backend.application.procurement.use_cases.requisition_use_cases import (
+    CreatePurchaseRequisitionUseCase,
 )
 from backend.domain.procurement.events import ReplenishmentNeedEvents
 
@@ -35,20 +42,32 @@ class FakeBus:
         return [n for n, _ in self.published]
 
 
+class AllowAllPermissions:
+    def has_permission(self, user_id, permission_code):
+        return True
+
+
+def authorized():
+    return PurchaseAuthorizationPolicy(AllowAllPermissions())
+
+
 # ── inbound: needs → requisitions ────────────────────────────────────────────
 def test_replenishment_need_creates_requisition(proc_conn):
-    handler = ReplenishmentIntakeHandler(proc_conn)
+    handler = ReplenishmentIntakeHandler(
+        proc_conn, use_case=CreatePurchaseRequisitionUseCase(authorized()))
     out = handler.handle({
         "event_id": "need-1", "event_name": ReplenishmentNeedEvents.STOCK_REPLENISHMENT_REQUIRED,
-        "branch_id": "br-1", "product_id": "p1", "quantity": "12"})
+        "branch_id": "br-1", "requested_by_user_id": "u1",
+        "product_id": "p1", "quantity": "12"})
     assert out["success"] and out["requisition_id"]
     rows = proc_conn.execute("SELECT COUNT(*) FROM purchase_requisitions").fetchone()[0]
     assert rows == 1
 
 
 def test_replenishment_intake_is_idempotent(proc_conn):
-    handler = ReplenishmentIntakeHandler(proc_conn)
-    payload = {"event_id": "need-x", "branch_id": "br-1",
+    handler = ReplenishmentIntakeHandler(
+        proc_conn, use_case=CreatePurchaseRequisitionUseCase(authorized()))
+    payload = {"event_id": "need-x", "branch_id": "br-1", "requested_by_user_id": "u1",
                "lines": [{"product_id": "p1", "quantity": "5"}]}
     a = handler.handle(payload)
     b = handler.handle(payload)
@@ -70,12 +89,31 @@ def test_receipt_event_translates_to_inventory_and_supplier(proc_conn):
     inv = next(p for n, p in bus.published if n == "PURCHASE_STOCK_ENTRY_REGISTERED")
     assert inv["reason"] == "PURCHASE_RECEIPT"
     assert inv["lines"][0]["quantity"] == "8"
+    assert UUID(inv["event_id"]).version == 7
+    assert inv["causation_id"] == "e1"
+    assert inv["correlation_id"] == "e1"
+
+
+def test_translator_failure_propagates_so_source_is_not_acknowledged(proc_conn):
+    class FailingBus(FakeBus):
+        def publish(self, event_name, payload, async_=False):
+            if event_name == "PURCHASE_STOCK_ENTRY_REGISTERED":
+                raise RuntimeError("inventory unavailable")
+            super().publish(event_name, payload, async_=async_)
+
+    bus = FailingBus()
+    wire_procurement(bus, proc_conn)
+    with pytest.raises(RuntimeError, match="inventory unavailable"):
+        bus.publish("GOODS_RECEIPT_COMPLETED", {
+            "event_id": "e-fail", "operation_id": "op-fail",
+            "inventory_lines": [{"product_id": "p1", "quantity": "1"}],
+        })
 
 
 def test_payable_event_translates_to_cxp(proc_conn):
     bus = FakeBus()
     wire_procurement(bus, proc_conn)
-    bus.publish("PURCHASE_PAYABLE_CREATED", {
+    bus.publish("ACCOUNT_PAYABLE_CREATE_REQUESTED", {
         "event_id": "e2", "operation_id": "op2", "supplier_id": "s1", "amount": "1000"})
     assert "PAYABLE_CREATED" in bus.names()
 
@@ -99,12 +137,12 @@ def test_direct_purchase_outbox_dispatch_reaches_downstream(proc_conn):
     bus = FakeBus()
     wire_procurement(bus, proc_conn)
 
-    created = CreateDirectPurchaseUseCase().execute(
+    created = CreateDirectPurchaseUseCase(authorized()).execute(
         proc_conn, actor_user_id="u1", operation_id="dp-op", supplier_id="s1",
         branch_id="br-1", warehouse_id="wh-1",
         lines=[{"product_id": "p1", "description": "Pollo", "quantity": "3",
                 "unit_cost": "100", "tax": "48"}])
-    ConfirmDirectPurchaseUseCase().execute(
+    ConfirmDirectPurchaseUseCase(authorized()).execute(
         proc_conn, actor_user_id="u1", direct_purchase_id=created.entity_id,
         operation_id="dp-confirm", payment_source="PETTY_CASH")
 
@@ -117,6 +155,28 @@ def test_direct_purchase_outbox_dispatch_reaches_downstream(proc_conn):
     # outbox rows are now marked dispatched (no re-publish on a second pass)
     again = dispatch_procurement_outbox(proc_conn, bus)
     assert again["dispatched"] == 0
+
+
+def test_outbox_failure_is_durable_and_dead_letters(proc_conn):
+    proc_conn.execute(
+        "INSERT INTO procurement_outbox"
+        " (id,event_id,event_name,payload_json,operation_id,status,created_at)"
+        " VALUES (?,?,?,?,?,'PENDING',?)",
+        ("out-1", "event-1", "BROKEN", "{}", "op-1", "2026-01-01T00:00:00+00:00"),
+    )
+    proc_conn.commit()
+
+    class BrokenBus:
+        def publish(self, *args, **kwargs):
+            raise RuntimeError("downstream unavailable")
+
+    result = dispatch_procurement_outbox(proc_conn, BrokenBus(), max_attempts=1)
+    row = proc_conn.execute(
+        "SELECT status,attempt_count,last_error FROM procurement_outbox WHERE id='out-1'"
+    ).fetchone()
+    assert result["failed"] == 1
+    assert row[0] == "DEAD_LETTER" and row[1] == 1
+    assert "downstream unavailable" in row[2]
 
 
 def test_wiring_reports_subscriptions(proc_conn):

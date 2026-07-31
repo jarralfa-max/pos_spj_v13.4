@@ -1,11 +1,10 @@
 """Read services migrated from the legacy monolith: purchase templates and the
-historical purchase cost of a product.
+canonical purchase cost of a product.
 
 - Purchase templates: replaces `ComprasReadRepository.list_purchase_templates /
   get_template_items` used by the sidebar in `compras_pro.py`. The new UI loads a
   template's lines into the cart through the presenter.
-- Historical cost: replaces `_costo_compra_producto` (precio_compra →
-  inventario_actual.costo_promedio). Returned as a Decimal string so the domain
+- Historical cost reads `product_cost.average_cost`. Returned as a Decimal string so the domain
   PriceVariancePolicy can compare without float.
 
 Both tolerate missing tables (fresh dev DB) → empty / "0".
@@ -14,6 +13,7 @@ Both tolerate missing tables (fresh dev DB) → empty / "0".
 from __future__ import annotations
 
 import sqlite3
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 
@@ -60,22 +60,20 @@ class PurchaseTemplateReadService(_Base):
 class ProductPurchaseCostReadService(_Base):
     """Historical purchase cost of a product for the variance check.
 
-    Priority: canonical `product_cost.average_cost` (global branch) →
-    inventario_actual.costo_promedio (legacy stock fallback) → 0.
+    The canonical `product_cost` projection is the only cost source.
     """
 
     def historical_cost(self, product_id: str, *, branch_id: str | None = None) -> str:
-        precio = self._scalar(
-            "SELECT average_cost FROM product_cost WHERE product_id=? AND branch_id=''",
-            (product_id,))
-        if precio and float(precio) > 0:
-            return str(precio)
-        if branch_id is not None:
-            avg = self._scalar(
-                "SELECT costo_promedio FROM inventario_actual"
-                " WHERE producto_id=? AND sucursal_id=?", (product_id, branch_id))
-        else:
-            avg = self._scalar(
-                "SELECT costo_promedio FROM inventario_actual WHERE producto_id=?"
-                " ORDER BY costo_promedio DESC LIMIT 1", (product_id,))
-        return str(avg) if avg and float(avg) > 0 else "0"
+        branch = branch_id or ""
+        value = self._scalar(
+            "SELECT average_cost FROM product_cost WHERE product_id=? AND branch_id=?",
+            (product_id, branch))
+        if value is None and branch:
+            value = self._scalar(
+                "SELECT average_cost FROM product_cost WHERE product_id=? AND branch_id=''",
+                (product_id,))
+        try:
+            amount = Decimal(str(value or "0"))
+        except InvalidOperation:
+            return "0"
+        return str(amount) if amount > Decimal("0") else "0"

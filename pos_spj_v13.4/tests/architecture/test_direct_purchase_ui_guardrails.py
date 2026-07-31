@@ -30,10 +30,9 @@ def test_direct_purchase_ui_exists_in_purchasing():
 
 
 def test_entry_wrapper_is_thin_and_sql_free():
-    src = (REPO / "modulos/compra_directa.py").read_text(encoding="utf-8")
-    assert "create_direct_purchase_view" in src
-    assert _SQL.search(src) is None
-    assert len(src.splitlines()) < 30
+    assert not (REPO / "modulos/compra_directa.py").exists()
+    shell = (PUR_UI / "purchasing_module_shell.py").read_text(encoding="utf-8")
+    assert 'self._route("Compra directa", direct_purchase_view)' in shell
 
 
 def test_direct_purchase_ui_has_no_sql_or_repositories():

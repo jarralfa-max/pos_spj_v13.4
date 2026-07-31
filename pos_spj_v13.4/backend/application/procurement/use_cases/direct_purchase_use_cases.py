@@ -32,6 +32,7 @@ from backend.domain.procurement.enums import (
     DirectPurchaseMode,
     DocumentStatus,
     PaymentCondition,
+    PurchaseNature,
 )
 from backend.domain.procurement.events import ProcurementEvents, build_event_payload
 from backend.domain.procurement.exceptions import (
@@ -72,8 +73,9 @@ class CreateDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
     a second user can authorize it in place before confirmation.
     """
 
-    def __init__(self, authorization=None) -> None:
+    def __init__(self, authorization=None, supplier_directory=None) -> None:
         super().__init__(authorization)
+        self._supplier_directory = supplier_directory
         self._limits = UserPurchaseLimitPolicy()
         self._supplier = SupplierEligibilityPolicy()
 
@@ -83,7 +85,8 @@ class CreateDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
                 payment_condition: str = PaymentCondition.IMMEDIATE_PAYMENT.value,
                 currency_code: str = "MXN", supplier_active: bool = True,
                 supplier_purchasing_blocked: bool = False,
-                terminal_id: str | None = None) -> ProcurementResult:
+                terminal_id: str | None = None,
+                source_requisition_id: str | None = None) -> ProcurementResult:
         try:
             self._auth.require(actor_user_id, PurchasePermissions.DIRECT_CREATE)
         except PurchasePermissionDeniedError as exc:
@@ -96,6 +99,8 @@ class CreateDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
                                             entity_id=existing.id, operation_id=operation_id,
                                             status=existing.status.value)
             try:
+                if self._supplier_directory is not None:
+                    self._supplier_directory.require_eligible(supplier_id)
                 self._supplier.enforce(active=supplier_active,
                                        purchasing_blocked=supplier_purchasing_blocked)
                 if not uow.limits.branch_allows_direct(branch_id, currency_code):
@@ -107,6 +112,13 @@ class CreateDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
                     document_number, supplier_id, branch_id, warehouse_id,
                     DirectPurchaseMode(mode), PaymentCondition(payment_condition),
                     created_by_user_id=actor_user_id, currency_code=currency_code)
+                if source_requisition_id:
+                    requisition = uow.requisitions.get(source_requisition_id)
+                    if requisition is None or requisition.status.value != "APPROVED":
+                        return ProcurementResult.fail(
+                            "La compra directa requiere una solicitud aprobada",
+                            "INVALID_REQUISITION", operation_id=operation_id)
+                    dp.source_requisition_id = source_requisition_id
                 for raw in lines:
                     dp.add_line(_line_from_dict(raw, currency_code))
                 if not dp.lines:
@@ -263,6 +275,11 @@ class ConfirmDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
                 uow.direct_purchases.link_receipt(dp.id, gr.id)
                 receipt_id = gr.id
             uow.direct_purchases.save(dp)
+            if dp.source_requisition_id:
+                source_requisition = uow.requisitions.get(dp.source_requisition_id)
+                if source_requisition is not None:
+                    source_requisition.mark_sourced()
+                    uow.requisitions.save(source_requisition)
 
             uow.audit.record(action=ProcurementEvents.DIRECT_PURCHASE_CONFIRMED,
                              actor_user_id=actor_user_id, document_id=dp.id,
@@ -296,12 +313,8 @@ class ConfirmDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
                            document_id=dp.id, operation_id=operation_id,
                            actor_user_id=actor_user_id, supplier_id=dp.supplier_id,
                            amount=str(dp.total().amount), payment_source=payment_source)
-            else:
-                self._emit(uow, ProcurementEvents.PURCHASE_PAYABLE_CREATED,
-                           document_id=dp.id, operation_id=operation_id,
-                           actor_user_id=actor_user_id, supplier_id=dp.supplier_id,
-                           amount=str(dp.total().amount),
-                           payment_condition=dp.payment_condition.value)
+            # Supplier credit records the commercial commitment only. The final
+            # CxP is requested exclusively after invoice validation and matching.
         return ProcurementResult.ok("Compra directa confirmada", entity_id=dp.id,
                                     operation_id=operation_id, status=dp.status.value,
                                     goods_receipt_id=receipt_id)
@@ -369,6 +382,8 @@ def _line_from_dict(raw: dict, currency_code: str) -> DirectPurchaseLine:
     discount = (Money(str(raw["discount"]), currency_code)
                 if raw.get("discount") is not None else None)
     kwargs = {"purchase_unit": raw.get("purchase_unit", "PZA"),
+              "purchase_nature": PurchaseNature(
+                  raw.get("purchase_nature", PurchaseNature.INVENTORY.value)),
               "inventory_unit": raw.get("inventory_unit", "PZA"),
               "conversion_factor": str(raw.get("conversion_factor", "1")),
               "destination_branch_id": raw.get("destination_branch_id"),

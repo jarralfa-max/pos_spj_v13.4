@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 
 from backend.domain.procurement.entities import PurchaseOrder, PurchaseOrderLine
-from backend.domain.procurement.enums import PurchaseOrderStatus, PurchaseType
+from backend.domain.procurement.enums import PurchaseNature, PurchaseOrderStatus, PurchaseType
 from backend.domain.procurement.value_objects import Money
 from backend.infrastructure.db.repositories.procurement.base import (
     ProcurementRepositoryBase,
@@ -23,25 +23,28 @@ class PurchaseOrderRepository(ProcurementRepositoryBase):
         self._execute(
             "INSERT INTO purchase_orders (id, document_number, supplier_id, branch_id,"
             " warehouse_id, currency_code, purchase_type, status, total, version,"
-            " created_by_user_id, approved_by_user_id, operation_id, created_at, updated_at)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+            " created_by_user_id, approved_by_user_id, source_requisition_id,source_rfq_id,"
+            " source_award_id,operation_id,created_at,updated_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
             " ON CONFLICT(id) DO UPDATE SET status=excluded.status, total=excluded.total,"
             " version=excluded.version, approved_by_user_id=excluded.approved_by_user_id,"
             " updated_at=excluded.updated_at",
             (po.id, po.document_number, po.supplier_id, po.branch_id, po.warehouse_id,
              po.currency_code, po.purchase_type.value, po.status.value,
              dec_str(po.total().amount), po.version, po.created_by_user_id,
-             po.approved_by_user_id, None, po.created_at, po.updated_at))
+             po.approved_by_user_id, po.source_requisition_id, po.source_rfq_id,
+             po.source_award_id, None, po.created_at, po.updated_at))
         self._execute("DELETE FROM purchase_order_lines WHERE purchase_order_id=?", (po.id,))
         for ln in po.lines:
             self._execute(
                 "INSERT INTO purchase_order_lines (id, purchase_order_id, product_id,"
-                " description, ordered_quantity, unit_price, currency_code,"
+                " description, ordered_quantity, unit_price, purchase_nature, currency_code,"
                 " conversion_factor, received_quantity, accepted_quantity,"
                 " rejected_quantity, invoiced_quantity, destination_warehouse_id)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (ln.id, po.id, ln.product_id, ln.description, dec_str(ln.ordered_quantity),
-                 dec_str(ln.unit_price.amount), ln.unit_price.currency_code,
+                 dec_str(ln.unit_price.amount), ln.purchase_nature.value,
+                 ln.unit_price.currency_code,
                  dec_str(ln.conversion_factor), dec_str(ln.received_quantity),
                  dec_str(ln.accepted_quantity), dec_str(ln.rejected_quantity),
                  dec_str(ln.invoiced_quantity), ln.destination_warehouse_id))
@@ -86,6 +89,7 @@ class PurchaseOrderRepository(ProcurementRepositoryBase):
                 id=lr["id"], product_id=lr["product_id"], description=lr["description"] or "",
                 ordered_quantity=to_decimal(lr["ordered_quantity"]),
                 unit_price=Money(to_decimal(lr["unit_price"]), lr["currency_code"]),
+                purchase_nature=PurchaseNature(lr["purchase_nature"]),
                 conversion_factor=to_decimal(lr["conversion_factor"], "1"),
                 received_quantity=to_decimal(lr["received_quantity"]),
                 accepted_quantity=to_decimal(lr["accepted_quantity"]),
@@ -102,4 +106,6 @@ class PurchaseOrderRepository(ProcurementRepositoryBase):
             status=PurchaseOrderStatus(row["status"]), lines=lines, version=row["version"],
             created_by_user_id=row["created_by_user_id"],
             approved_by_user_id=row["approved_by_user_id"],
+            source_requisition_id=row["source_requisition_id"],
+            source_rfq_id=row["source_rfq_id"], source_award_id=row["source_award_id"],
             created_at=row["created_at"], updated_at=row["updated_at"])

@@ -59,9 +59,9 @@ except Exception as e:
 
 try:
     # PUR-13: Compras es el módulo enterprise canónico (el monolito fue eliminado).
-    from modulos.compras_enterprise import ModuloComprasEnterprise as ModuloComprasPro
+    from modulos.compras_enterprise import ModuloComprasEnterprise as ModuloCompras
 except Exception as e:
-    ModuloComprasPro = None
+    ModuloCompras = None
     logger.error("Error cargando ModuloComprasEnterprise: %s", e)
 
 try:
@@ -646,7 +646,7 @@ class MainWindow(QMainWindow):
 
         # ── Comercial ────────────────────────────────────────────────────────
         self._conectar("DELIVERY",       ModuloDelivery,       "🛵 Delivery")
-        self._conectar("COMPRAS",        ModuloComprasPro,     "🛒 Compras")
+        self._conectar("COMPRAS",        ModuloCompras,        "🛒 Compras")
         self._conectar("COTIZACIONES",   ModuloCotizaciones,   "📋 Cotizaciones")
         # ELIMINADO: _conectar("PROVEEDORES", ...) — módulo integrado en FINANZAS_UNIFICADAS
 

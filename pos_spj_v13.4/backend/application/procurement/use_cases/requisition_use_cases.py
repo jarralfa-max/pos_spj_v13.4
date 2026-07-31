@@ -14,7 +14,7 @@ from backend.application.procurement.authorization import PurchaseAuthorizationP
 from backend.application.procurement.permissions import PurchasePermissions
 from backend.application.procurement.result import ProcurementResult
 from backend.domain.procurement.entities import PurchaseRequisition, RequisitionLine
-from backend.domain.procurement.enums import PurchaseType, SourceChannel
+from backend.domain.procurement.enums import PurchaseNature, PurchaseType, SourceChannel
 from backend.domain.procurement.events import ProcurementEvents, build_event_payload
 from backend.domain.procurement.exceptions import (
     ProcurementDomainError,
@@ -70,7 +70,9 @@ class CreatePurchaseRequisitionUseCase:
                     cost = (Money(str(raw["estimated_unit_cost"]))
                             if raw.get("estimated_unit_cost") is not None else None)
                     req.add_line(RequisitionLine.create(
-                        raw["product_id"], str(raw["quantity"]), estimated_unit_cost=cost))
+                        raw["product_id"], str(raw["quantity"]), estimated_unit_cost=cost,
+                        purchase_nature=PurchaseNature(
+                            raw.get("purchase_nature", PurchaseNature.INVENTORY.value))))
                 if not req.lines:
                     return ProcurementResult.fail("La solicitud requiere al menos una línea",
                                                   "EMPTY", operation_id=operation_id)
