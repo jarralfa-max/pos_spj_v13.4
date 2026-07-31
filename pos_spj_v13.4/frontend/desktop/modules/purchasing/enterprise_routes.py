@@ -18,6 +18,7 @@ from backend.application.procurement.queries.purchase_history_read_service impor
     PurchaseHistoryReadService,
 )
 from backend.application.logistics.queries import LogisticsShipmentQueryService
+from backend.application.logistics.warehouse_directory import WarehouseDirectoryQueryService
 from backend.application.procurement.queries.supplier_directory_query_service import (
     SupplierDirectoryQueryService,
 )
@@ -92,6 +93,7 @@ def build_enterprise_presenter(connection, session_context=None) -> EnterprisePu
         },
         session_context=session_context,
         logistics_reads=LogisticsShipmentQueryService(connection),
+        warehouse_directory=WarehouseDirectoryQueryService(connection),
         history_reads=PurchaseHistoryReadService(connection),
     )
 

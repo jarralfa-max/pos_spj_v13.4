@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (
 )
 
 from frontend.desktop.components import (
-    AlertCard, DateRangeFilter, KPIBar, KPIDTO, KPIState, PageHeader, SideNav,
+    AlertCard, DateRangeFilter, KPIBar, KPIDTO, KPIState, PageHeader, SearchableComboBox, SideNav,
     ViewState, create_primary_button, create_state_widget,
 )
 from frontend.desktop.components.icons import Icons
@@ -26,15 +26,19 @@ from frontend.desktop.themes.tokens import SidebarMetrics, Spacing
 class ContextFilters(QFrame):
     """Read-only session scope plus a canonical period filter."""
 
-    def __init__(self, session: dict[str, str], parent=None) -> None:
+    def __init__(self, session: dict[str, str | bool], warehouses, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("purchasingContextFilters")
         row = QHBoxLayout(self)
         row.setContentsMargins(Spacing.MD, Spacing.SM, Spacing.MD, Spacing.SM)
-        for caption, key in (("Sucursal", "branch"), ("Almacén", "warehouse")):
-            label = QLabel(f"{caption}: {session[key]}", self)
-            label.setProperty("role", "muted")
-            row.addWidget(label)
+        label = QLabel(f"Sucursal: {session['branch']}", self)
+        label.setProperty("role", "muted")
+        row.addWidget(label)
+        self.warehouse = SearchableComboBox(self, placeholder="Selecciona almacén…")
+        self.warehouse.set_options(warehouses)
+        if session["warehouse_selected"]:
+            self.warehouse.set_current_id(session["warehouse"])
+        row.addWidget(self.warehouse)
         row.addStretch(1)
         self.period = DateRangeFilter(self)
         row.addWidget(self.period)
@@ -102,9 +106,18 @@ class PurchasingModuleShell(QWidget):
         refresh.clicked.connect(self.reload)
         self.header.add_action(refresh)
         body_layout.addWidget(self.header)
-        self.filters = ContextFilters(session, self)
+        self.filters = ContextFilters(session, presenter.warehouse_options(), self)
         self.filters.period.range_changed.connect(self._period_changed)
+        self.filters.warehouse.selection_changed.connect(self._warehouse_changed)
         body_layout.addWidget(self.filters)
+        self._warehouse_notice = QLabel(
+            "Selecciona un almacén para consultar embarques o ejecutar operaciones logísticas.",
+            self)
+        self._warehouse_notice.setObjectName("purchasingWarehouseNotice")
+        self._warehouse_notice.setProperty("state", "WARNING")
+        self._warehouse_notice.setWordWrap(True)
+        self._warehouse_notice.setVisible(not session["warehouse_selected"])
+        body_layout.addWidget(self._warehouse_notice)
         self.kpis = KPIBar(self, cards=[])
         body_layout.addWidget(self.kpis)
         self.alerts = AlertsBar(self)
@@ -170,6 +183,21 @@ class PurchasingModuleShell(QWidget):
     def _period_changed(self, period) -> None:
         self._presenter.set_period(period.start.toString("yyyy-MM-dd"),
                                    period.end.toString("yyyy-MM-dd"))
+        page = self.content.currentWidget()
+        reloader = getattr(page, "reload", None)
+        if callable(reloader):
+            reloader()
+
+    def _warehouse_changed(self, warehouse_id) -> None:
+        if not warehouse_id:
+            return
+        try:
+            self._presenter.select_warehouse(str(warehouse_id))
+        except PermissionError as exc:
+            self._warehouse_notice.setText(str(exc))
+            self._warehouse_notice.show()
+            return
+        self._warehouse_notice.hide()
         page = self.content.currentWidget()
         reloader = getattr(page, "reload", None)
         if callable(reloader):

@@ -15,6 +15,8 @@ def test_purchasing_root_is_sidebar_shell_not_tab_widget():
     assert "class PurchasingModuleShell" in shell
     assert "SideNav" in shell and "QStackedWidget" in shell
     assert "ContextFilters" in shell and "AlertsBar" in shell and "KPIBar" in shell
+    assert "Sin almacén seleccionado" not in shell
+    assert "purchasingWarehouseNotice" in shell
     assert "QTabWidget" not in shell + compatibility
 
 

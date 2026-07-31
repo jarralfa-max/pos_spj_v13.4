@@ -27,7 +27,7 @@ _PAGE_SIZE = 50
 class EnterprisePurchasingPresenter:
     def __init__(self, *, connection_provider, read_services: dict, analytics,
                  use_cases: dict, session_context=None, event_dispatcher=None,
-                 logistics_reads=None, history_reads=None) -> None:
+                 logistics_reads=None, warehouse_directory=None, history_reads=None) -> None:
         self._conn = connection_provider
         self._reads = read_services
         self._analytics = analytics
@@ -35,6 +35,7 @@ class EnterprisePurchasingPresenter:
         self._session = session_context
         self._dispatch = event_dispatcher
         self._logistics = logistics_reads
+        self._warehouse_directory = warehouse_directory
         self._history = history_reads
         self._period_start = None
         self._period_end = None
@@ -60,12 +61,36 @@ class EnterprisePurchasingPresenter:
             raise PermissionError("La sesión no tiene un almacén activo")
         return str(warehouse_id)
 
-    def session_summary(self) -> dict[str, str]:
+    def selected_warehouse(self) -> str | None:
+        """Return the explicit warehouse selection without inventing a default."""
+        warehouse_id = (getattr(self._session, "active_warehouse_id", None)
+                        or getattr(self._session, "warehouse_id", None))
+        value = str(warehouse_id or "").strip()
+        return value or None
+
+    def warehouse_options(self) -> list[tuple[str, str]]:
+        if self._warehouse_directory is None:
+            return []
+        return self._warehouse_directory.active_for_branch(self.default_branch())
+
+    def select_warehouse(self, warehouse_id: str) -> None:
+        options = dict(self.warehouse_options())
+        if warehouse_id not in options:
+            raise PermissionError("El almacén no pertenece a la sucursal activa")
+        setter = getattr(self._session, "set_warehouse", None)
+        if not callable(setter):
+            raise PermissionError("La sesión no admite contexto de almacén")
+        setter(warehouse_id, options[warehouse_id])
+
+    def session_summary(self) -> dict[str, str | bool]:
         return {
             "user": str(getattr(self._session, "display_name", None)
-                        or getattr(self._session, "username", None) or "Sesión activa"),
+                        or getattr(self._session, "nombre_completo", None)
+                        or getattr(self._session, "username", None)
+                        or getattr(self._session, "usuario", None) or "Sesión activa"),
             "branch": self.default_branch(),
-            "warehouse": self.default_warehouse(),
+            "warehouse": self.selected_warehouse() or "Sin almacén seleccionado",
+            "warehouse_selected": bool(self.selected_warehouse()),
         }
 
     def can(self, permission: str) -> bool:

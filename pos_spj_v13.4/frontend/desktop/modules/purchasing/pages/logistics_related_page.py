@@ -31,11 +31,20 @@ class LogisticsRelatedPage(QWidget):
             self.reload()
 
     def reload(self):
-        rows = self._presenter.related_shipments()
+        try:
+            rows = self._presenter.related_shipments()
+            missing_context = False
+        except PermissionError:
+            rows = []
+            missing_context = True
         self._table.load_rows([
             [row["shipment_number"], row["origin_type"], row["status"],
              row["started_at"] or "—", row["dispatched_at"] or "—"] for row in rows
         ], row_ids=[row["id"] for row in rows])
         self._table.setVisible(bool(rows))
         self._empty.setVisible(not rows)
+        if missing_context:
+            self._empty.setProperty("state", ViewState.NO_PERMISSION)
+            self._empty.setAccessibleName(
+                "Selecciona un almacén antes de consultar embarques relacionados.")
         self._loaded = True

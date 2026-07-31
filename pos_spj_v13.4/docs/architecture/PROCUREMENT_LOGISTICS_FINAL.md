@@ -101,6 +101,8 @@ deduplica CxP por `source_type + source_id`.
 ## Validación manual
 
 1. Abrir Compras con sesión activa, sucursal y almacén UUIDv7.
+   Si la sesión de escritorio aún no tiene almacén, el shell abre en modo seguro,
+   muestra el aviso contextual y exige seleccionar un almacén activo de la sucursal.
 2. Recorrer sidebar, filtros, KPIs, alertas, master-detail y tema claro/oscuro.
 3. Abrir `/mobile/logistics/` en móvil/tablet, iniciar sesión y seleccionar documento.
 4. Escanear raíz e hijos, asignar contenido/fotos, desconectar red y reconectar.
