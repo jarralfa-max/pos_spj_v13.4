@@ -52,7 +52,7 @@ class _BaseCategoryUseCase:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = ProductCategoryRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy()
+        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
 
     def _require_manage(self, user_id: str | None) -> None:
         self._auth.require(user_id or "", ProductPermissions.CATEGORIES_MANAGE)

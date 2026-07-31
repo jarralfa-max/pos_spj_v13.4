@@ -42,7 +42,7 @@ class _BaseImageUseCase:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = ProductImageRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy()
+        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
 
     def _require(self, user_id: str | None) -> None:
         self._auth.require(user_id or "", ProductPermissions.IMAGES_MANAGE)

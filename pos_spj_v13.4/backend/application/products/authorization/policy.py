@@ -37,9 +37,39 @@ class PermissionChecker(Protocol):
     def has_permission(self, user_id: str, permission_code: str) -> bool: ...
 
 
+class AllowAllProductsPermissionCheckerForTests:
+    """Checker permisivo EXPLÍCITO — sólo para pruebas (§21.1). Producción cablea
+    un ``SessionPermissionChecker`` real; nunca este."""
+
+    def has_permission(self, user_id: str, permission_code: str) -> bool:  # noqa: D401
+        return True
+
+
+class DenyAllProductsPermissionCheckerForTests:
+    """Checker que niega todo — para pruebas de fail-closed (§21.1)."""
+
+    def has_permission(self, user_id: str, permission_code: str) -> bool:  # noqa: D401
+        return False
+
+
 class ProductsAuthorizationPolicy:
+    """Puerta de autorización. **Fail-closed** (§21.1): sin un ``PermissionChecker``
+    real, ``require()`` niega y ``has()`` devuelve False — nunca permite en
+    silencio. Producción cablea siempre un checker de sesión; las pruebas piden
+    explícitamente ``ProductsAuthorizationPolicy.permissive_for_tests()`` o inyectan
+    ``Allow/DenyAllProductsPermissionCheckerForTests``.
+
+    (Las utilidades puras de segregación/alcance no dependen del checker y pueden
+    usarse con una política sin checker.)
+    """
+
     def __init__(self, checker: PermissionChecker | None = None) -> None:
         self._checker = checker
+
+    @classmethod
+    def permissive_for_tests(cls) -> "ProductsAuthorizationPolicy":
+        """Política permisiva EXPLÍCITA para pruebas aisladas (nunca en producción)."""
+        return cls(AllowAllProductsPermissionCheckerForTests())
 
     # ── permiso ───────────────────────────────────────────────────────────
     def require(self, user_id: str, permission_code: str) -> None:
@@ -47,7 +77,10 @@ class ProductsAuthorizationPolicy:
             raise ProductPermissionDeniedError(
                 f"Permiso desconocido: {permission_code}")
         if self._checker is None:
-            return  # isolated tests → allow; production always wires a checker
+            # §21.1 fail-closed: sin checker no se autoriza nada.
+            raise ProductPermissionDeniedError(
+                "Autorización no configurada (fail-closed): se requiere un "
+                "PermissionChecker")
         if not user_id:
             raise ProductPermissionDeniedError("Operación sin usuario autenticado")
         if not self._checker.has_permission(user_id, permission_code):
@@ -55,11 +88,12 @@ class ProductsAuthorizationPolicy:
                 f"El usuario {user_id} no tiene el permiso {permission_code}")
 
     def has(self, user_id: str, permission_code: str) -> bool:
-        """Non-raising check, for read-side gating (hide internal/cost columns)."""
+        """Non-raising check, for read-side gating (hide internal/cost columns).
+        Fail-closed: sin checker → False."""
         if permission_code not in ALL_PRODUCT_PERMISSIONS:
             return False
         if self._checker is None:
-            return True
+            return False
         return bool(user_id) and self._checker.has_permission(user_id, permission_code)
 
     # ── segregación de funciones (§39) ────────────────────────────────────

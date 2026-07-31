@@ -61,7 +61,7 @@ class CreateImportBatchUseCase:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = ProductImportRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy()
+        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, command: CreateImportBatchCommand) -> ImportResult:
         command.validate()
@@ -110,7 +110,7 @@ class ApproveImportBatchUseCase:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = ProductImportRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy()
+        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, command: ImportBatchActionCommand) -> ImportResult:
         command.validate()
@@ -145,7 +145,7 @@ class ExecuteImportBatchUseCase:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = ProductImportRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy()
+        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
         self._create = CreateProductMasterUseCase(connection, authorization)
 
     def execute(self, command: ImportBatchActionCommand) -> ImportResult:

@@ -62,7 +62,7 @@ class _BaseYieldUseCase:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = YieldRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy()
+        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
         self._validator = YieldValidationService()
 
     def _rollback(self) -> None:

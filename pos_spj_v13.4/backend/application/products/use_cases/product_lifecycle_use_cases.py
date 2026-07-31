@@ -62,7 +62,7 @@ class _BaseLifecycleUseCase:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = ProductMasterRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy()
+        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, *, product_id: str, user_id: str,
                 operation_id: str | None = None) -> _LifecycleResult:

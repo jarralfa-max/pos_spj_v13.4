@@ -75,7 +75,7 @@ def test_create_persists_category_and_brand(conn):
 def test_update_changes_brand(conn):
     r = _create(conn, brand_id="brand-1")
     cmd = UpdateProductMasterCommand(
-        operation_id="opb", product_id=r.product_id, code="A-1", name="Bistec de Res",
+        operation_id="opb", user_id="u1", product_id=r.product_id, code="A-1", name="Bistec de Res",
         product_type="RAW_MATERIAL", base_unit_id=_UNIT_ID, brand_id="brand-2")
     assert UpdateProductMasterUseCase(conn).execute(cmd).success
     row = conn.execute("SELECT brand_id FROM products WHERE id=?",
@@ -113,7 +113,7 @@ def test_master_has_no_price_or_stock(conn):
 def test_update_changes_fields(conn):
     r = _create(conn)
     cmd = UpdateProductMasterCommand(
-        operation_id="op9", product_id=r.product_id, code="A-1", name="Bistec Premium",
+        operation_id="op9", user_id="u1", product_id=r.product_id, code="A-1", name="Bistec Premium",
         product_type="PRIMARY_CUT", base_unit_id=_UNIT_ID, species_id="sp1",
         sellable=True, purchasable=False, inventory_managed=True)
     r2 = UpdateProductMasterUseCase(conn).execute(cmd)
@@ -127,7 +127,7 @@ def test_update_changes_fields(conn):
 def test_update_meat_without_species_fails(conn):
     r = _create(conn)
     cmd = UpdateProductMasterCommand(
-        operation_id="op9", product_id=r.product_id, code="A-1", name="Corte",
+        operation_id="op9", user_id="u1", product_id=r.product_id, code="A-1", name="Corte",
         product_type="PRIMARY_CUT", base_unit_id=_UNIT_ID)  # sin especie
     r2 = UpdateProductMasterUseCase(conn).execute(cmd)
     assert not r2.success and "especie" in r2.message.lower()
@@ -143,7 +143,7 @@ def test_create_starts_in_draft(conn):
 
 def test_update_unknown_product(conn):
     cmd = UpdateProductMasterCommand(
-        operation_id="op9", product_id="nope", code="X-1", name="X",
+        operation_id="op9", user_id="u1", product_id="nope", code="X-1", name="X",
         product_type="RAW_MATERIAL", base_unit_id=_UNIT_ID)
     r = UpdateProductMasterUseCase(conn).execute(cmd)
     assert not r.success and "no existe" in r.message
@@ -153,7 +153,7 @@ def test_update_rejects_code_collision(conn):
     a = _create(conn)
     b = _create(conn, operation_id="op2", code="B-1", name="Pollo")
     cmd = UpdateProductMasterCommand(
-        operation_id="op9", product_id=b.product_id, code="A-1", name="Pollo",
+        operation_id="op9", user_id="u1", product_id=b.product_id, code="A-1", name="Pollo",
         product_type="RAW_MATERIAL", base_unit_id=_UNIT_ID)
     r = UpdateProductMasterUseCase(conn).execute(cmd)
     assert not r.success and "ya existe" in r.message

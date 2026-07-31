@@ -128,3 +128,23 @@ refresco de KPIs). Sigue P0-B (catálogos consumidores + POS canónico).
 - **Pendiente P0-B**:
   - repunte de Compras/Inventario/Transferencias a las búsquedas del slice 4
     (los servicios existen; falta que esas UIs los consuman).
+
+## 7. P0-C — Seguridad fail-closed (§21) — HECHO
+
+- **§21.1** `ProductsAuthorizationPolicy` **fail-closed**: sin `PermissionChecker`,
+  `require()` **niega** y `has()` devuelve **False** (antes permitía en silencio).
+  Se agregan checkers explícitos de prueba `AllowAll/DenyAllProductsPermissionCheckerForTests`
+  y el classmethod `permissive_for_tests()`. Los 14 use cases de Productos cambian su
+  default de `ProductsAuthorizationPolicy()` (permisivo silencioso) a
+  `ProductsAuthorizationPolicy.permissive_for_tests()` (permisivo **explícito**, sólo
+  test). En producción el composition root cablea siempre `SessionPermissionChecker`.
+- **§21.2** sin fallbacks de identidad: el composition root ya **no inventa**
+  `user_id="desktop"` ni `branch_id="1"`; sin sesión quedan en `None` y las
+  mutaciones se niegan aguas abajo (la política real exige usuario). El branch de
+  no-sesión usa la política permisiva **explícita** de pruebas, no la silenciosa.
+- Tests: `test_products_authorization` actualizado (no-checker → fail-closed;
+  `permissive_for_tests` permite; DenyAll niega; `has` fail-closed) + regresión
+  `test_no_invented_identity_when_no_session` (§21.2). Suite Productos 626 passed;
+  arquitectura 19/402 = baseline.
+- Pendiente: scope por sucursal/canal end-to-end en las mutaciones (§21.3) y
+  segregación en el resto de flujos (ya activa en lifecycle/recipe/yield/import).

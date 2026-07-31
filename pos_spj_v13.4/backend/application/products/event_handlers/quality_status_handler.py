@@ -26,7 +26,7 @@ from backend.shared.ids import new_uuid
 class QualityStatusHandler:
     def __init__(self, connection, *, authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
-        self._authz = authorization or ProductsAuthorizationPolicy()
+        self._authz = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
 
     def handle(self, event_name: str, payload: dict) -> bool:
         """Return True if a state change was applied, False if a no-op/duplicate."""

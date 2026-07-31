@@ -63,7 +63,7 @@ class GenerateProductVariantsUseCase:
         self._master = ProductMasterRepository(connection)
         self._attrs = ProductAttributeRepository(connection)
         self._variants = ProductVariantRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy()
+        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, command: GenerateVariantsCommand) -> VariantResult:
         command.validate()

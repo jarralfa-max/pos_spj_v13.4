@@ -33,11 +33,16 @@ class ModuloProductosEnterprise(QWidget):
     def __init__(self, container, parent=None):
         super().__init__(parent)
         conn = getattr(container, "db", container)
+        # §21.2 fail-closed: NO se inventa identidad (nada de "desktop"/"1"). Sin
+        # sesión autenticada el user/branch quedan en None y las mutaciones se
+        # niegan aguas abajo (la política real exige usuario).
         user_id = (getattr(container, "usuario", None)
-                   or getattr(container, "usuario_actual", None) or "desktop")
-        branch_id = str(getattr(container, "sucursal_id", None)
-                        or getattr(container, "branch_id", None) or "1")
+                   or getattr(container, "usuario_actual", None))
+        _branch = (getattr(container, "sucursal_id", None)
+                   or getattr(container, "branch_id", None))
+        branch_id = str(_branch) if _branch else None
         session = _Session(user_id, branch_id)
+        self._session = session  # expuesto para pruebas de identidad (§21.2)
         # Sesión viva (con tiene_permiso) para el gating granular; None en tests.
         self._live_session = (getattr(container, "session", None)
                               or getattr(container, "sesion", None))
@@ -184,9 +189,13 @@ class ModuloProductosEnterprise(QWidget):
 
         # P0-02: en producción la política SIEMPRE lleva un checker real (fail-closed);
         # sin sesión (tests de arranque) queda permisiva.
+        # §21.1 fail-closed: con sesión viva se cablea el checker real; sin sesión
+        # (arranque/tests o shell de sólo lectura) se usa la política permisiva
+        # EXPLÍCITA de pruebas — nunca el permisivo silencioso.
         authorization = (ProductsAuthorizationPolicy(
             SessionPermissionChecker(self._live_session))
-            if self._live_session is not None else ProductsAuthorizationPolicy())
+            if self._live_session is not None
+            else ProductsAuthorizationPolicy.permissive_for_tests())
 
         def write_factory():
             return (CreateProductMasterUseCase(conn, authorization),

@@ -41,3 +41,25 @@ def test_host_builds_sidebar_shell(app):
     assert labels == ["Resumen", "Catálogo", "Categorías", "Marcas", "Atributos",
                       "Sucursales y canales", "Importar"]
     conn.close()
+
+
+class _BareContainer:
+    """Sin usuario ni sucursal ni sesión (arranque sin login)."""
+
+    def __init__(self, conn):
+        self.db = conn
+
+
+def test_no_invented_identity_when_no_session(app):
+    # §21.2 fail-closed: sin sesión NO se fabrica identidad ("desktop"/"1").
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    create_products_schema(conn)
+    conn.commit()
+    from modulos.productos_enterprise import ModuloProductosEnterprise
+
+    host = ModuloProductosEnterprise(_BareContainer(conn))
+    # el shell se construye (lectura), pero la identidad queda vacía, no inventada
+    assert host._session.user_id is None
+    assert host._session.branch_id is None
+    conn.close()

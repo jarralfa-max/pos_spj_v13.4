@@ -72,15 +72,34 @@ class TestPermissionGate:
         with pytest.raises(ProductPermissionDeniedError):
             pol.require("", ProductPermissions.CREATE)
 
-    def test_no_checker_allows_isolated_tests(self):
+    def test_no_checker_is_fail_closed(self):
+        # §21.1: sin checker la política NIEGA (nunca permite en silencio).
         pol = ProductsAuthorizationPolicy()
-        pol.require("u1", ProductPermissions.CREATE)  # no raise
+        with pytest.raises(ProductPermissionDeniedError):
+            pol.require("u1", ProductPermissions.CREATE)
+
+    def test_permissive_for_tests_allows(self):
+        pol = ProductsAuthorizationPolicy.permissive_for_tests()
+        pol.require("u1", ProductPermissions.CREATE)  # no raise (explícito para tests)
+
+    def test_deny_all_checker_denies(self):
+        from backend.application.products.authorization import (
+            DenyAllProductsPermissionCheckerForTests,
+        )
+        pol = ProductsAuthorizationPolicy(DenyAllProductsPermissionCheckerForTests())
+        with pytest.raises(ProductPermissionDeniedError):
+            pol.require("u1", ProductPermissions.CREATE)
 
     def test_has_is_non_raising(self):
         pol = ProductsAuthorizationPolicy(_Checker({("u1", ProductPermissions.VIEW_COST_REFERENCE)}))
         assert pol.has("u1", ProductPermissions.VIEW_COST_REFERENCE) is True
         assert pol.has("u1", ProductPermissions.VIEW_INTERNAL) is False
         assert pol.has("u1", "PRODUCTS_MADE_UP") is False
+
+    def test_has_fail_closed_without_checker(self):
+        # §21.1: has() sin checker → False (no filtra columnas sensibles por defecto).
+        pol = ProductsAuthorizationPolicy()
+        assert pol.has("u1", ProductPermissions.VIEW_COST_REFERENCE) is False
 
 
 # ── segregación de funciones (§39) ───────────────────────────────────────────

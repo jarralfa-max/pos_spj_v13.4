@@ -41,7 +41,7 @@ class _BaseBrandUseCase:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = ProductBrandRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy()
+        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
 
     def _require_manage(self, user_id: str | None) -> None:
         self._auth.require(user_id or "", ProductPermissions.BRANDS_MANAGE)

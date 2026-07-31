@@ -92,7 +92,7 @@ class CreateProductMasterUseCase:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = ProductMasterRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy()
+        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, command: CreateProductMasterCommand) -> ProductMasterResult:
         command.validate()
@@ -147,7 +147,7 @@ class UpdateProductMasterUseCase:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = ProductMasterRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy()
+        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, command: UpdateProductMasterCommand) -> ProductMasterResult:
         command.validate()

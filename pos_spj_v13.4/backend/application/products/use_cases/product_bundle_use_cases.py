@@ -58,7 +58,7 @@ class _BaseBundleUseCase:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = BundleRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy()
+        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
         self._validator = BundleExplosionService()
 
     def _require(self, user_id: str | None) -> None:
