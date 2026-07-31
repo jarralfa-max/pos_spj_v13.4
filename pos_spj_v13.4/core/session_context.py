@@ -41,6 +41,8 @@ class SessionContext:
         # _active_branch_id. Se eliminó el _sucursal_id entero legacy (identidad
         # dual int/str). La property `sucursal_id` es ahora un alias de esta.
         self._active_branch_id: str = ""   # canonical UUID — single source of truth
+        self._active_warehouse_id: str = ""
+        self._active_warehouse_name: str = ""
         self._permisos: Set[str] = set()
         self._is_active: bool = False
         self._sucursales_disponibles: list = []
@@ -75,6 +77,14 @@ class SessionContext:
     def active_branch_id(self) -> str:
         """Canonical UUID of the active branch — single source of truth."""
         return self._active_branch_id
+
+    @property
+    def active_warehouse_id(self) -> str:
+        return self._active_warehouse_id
+
+    @property
+    def active_warehouse_name(self) -> str:
+        return self._active_warehouse_name
 
     @property
     def permisos(self) -> Set[str]:
@@ -114,6 +124,12 @@ class SessionContext:
             str(user_data.get('active_branch_id') or user_data.get('sucursal_uuid') or "").strip()
             or (str(_suc_legacy) if _suc_legacy else "")
         )
+        self._active_warehouse_id = str(
+            user_data.get('active_warehouse_id') or user_data.get('warehouse_id') or ""
+        ).strip()
+        self._active_warehouse_name = str(
+            user_data.get('warehouse_name') or user_data.get('almacen_nombre') or ""
+        ).strip()
         self._sucursales_disponibles = user_data.get('sucursales_disponibles', [])
         self._is_active = True
         logger.info(
@@ -132,11 +148,22 @@ class SessionContext:
         # (que ya es el UUID canónico). Nunca se degrada a entero.
         branch = str(active_branch_id or sucursal_id or "").strip()
         if branch:
+            if branch != self._active_branch_id:
+                self._active_warehouse_id = ""
+                self._active_warehouse_name = ""
             self._active_branch_id = branch
         logger.info(
             "Sucursal cambiada: '%s' (active_branch_id=%s)",
             nombre, self._active_branch_id,
         )
+
+    def set_warehouse(self, warehouse_id: str, name: str = "") -> None:
+        value = str(warehouse_id or "").strip()
+        if not value:
+            raise ValueError("warehouse_id is required")
+        self._active_warehouse_id = value
+        self._active_warehouse_name = str(name or "").strip()
+        logger.info("Almacén activo: '%s' (%s)", self._active_warehouse_name, value)
 
     def set_permisos(self, permisos: Set[str]) -> None:
         """Carga permisos normalizados del usuario para la sucursal activa."""

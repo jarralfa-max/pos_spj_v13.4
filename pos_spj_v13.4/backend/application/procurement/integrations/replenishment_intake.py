@@ -31,11 +31,9 @@ _CHANNEL_BY_EVENT = {
 class ReplenishmentIntakeHandler:
     """Creates a draft requisition from a replenishment-need event."""
 
-    def __init__(self, connection, *, use_case: CreatePurchaseRequisitionUseCase | None = None,
-                 default_user_id: str = "system") -> None:
+    def __init__(self, connection, *, use_case: CreatePurchaseRequisitionUseCase | None = None) -> None:
         self._connection = connection
         self._use_case = use_case or CreatePurchaseRequisitionUseCase()
-        self._default_user = default_user_id
 
     def handle(self, payload: dict) -> dict | None:
         event_id = str(payload.get("event_id") or "").strip()
@@ -46,8 +44,15 @@ class ReplenishmentIntakeHandler:
         if not lines:
             logger.info("replenishment intake: evento %s sin líneas; se ignora", event_id)
             return None
-        branch_id = str(payload.get("branch_id") or payload.get("source_branch_id") or "MAIN")
-        actor = str(payload.get("requested_by_user_id") or self._default_user)
+        branch_id = str(payload.get("branch_id") or payload.get("source_branch_id") or "").strip()
+        actor = str(payload.get("requested_by_user_id") or "").strip()
+        if not branch_id or not actor:
+            logger.error(
+                "replenishment intake: evento %s sin identidad o sucursal canónica",
+                event_id,
+            )
+            return {"success": False, "requisition_id": None,
+                    "message": "El evento requiere usuario y sucursal canónicos"}
         channel = _CHANNEL_BY_EVENT.get(
             str(payload.get("event_name") or ""), SourceChannel.MINIMUM_STOCK.value)
         result = self._use_case.execute(

@@ -176,8 +176,9 @@ class TestAuthorization:
         with pytest.raises(PurchasePermissionDeniedError):
             PurchaseAuthorizationPolicy().require("u1", "PURCHASES_NOPE")
 
-    def test_no_checker_allows(self):
-        PurchaseAuthorizationPolicy().require("u1", PurchasePermissions.DIRECT_CREATE)
+    def test_no_checker_fails_closed(self):
+        with pytest.raises(PurchasePermissionDeniedError, match="no configurado"):
+            PurchaseAuthorizationPolicy().require("u1", PurchasePermissions.DIRECT_CREATE)
 
     def test_checker_denies(self):
         class Deny:

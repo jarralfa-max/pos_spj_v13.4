@@ -31,6 +31,14 @@ class ProcurementKpisDTO:
     committed_spend: str
 
 
+@dataclass(frozen=True)
+class ProcurementAlertDTO:
+    code: str
+    message: str
+    severity: str
+    count: int
+
+
 def _dec(value) -> Decimal:
     if value in (None, ""):
         return Decimal("0")
@@ -79,6 +87,24 @@ class ProcurementAnalyticsService:
                 "SELECT COUNT(*) FROM direct_purchases WHERE substr(created_at,1,10)=?",
                 (datetime.now(timezone.utc).date().isoformat(),))),
             committed_spend=str(committed.quantize(Decimal("0.01"))))
+
+    def alerts(self) -> tuple[ProcurementAlertDTO, ...]:
+        """Return actionable operational alerts; presentation never derives counts."""
+        candidates = (
+            ProcurementAlertDTO(
+                "PENDING_APPROVAL", "Órdenes esperando autorización", "warning",
+                int(self._scalar("SELECT COUNT(*) FROM purchase_orders"
+                                 " WHERE status='PENDING_APPROVAL'"))),
+            ProcurementAlertDTO(
+                "INVOICE_DIFFERENCE", "Facturas bloqueadas por diferencias", "danger",
+                int(self._scalar("SELECT COUNT(*) FROM supplier_invoices"
+                                 " WHERE status IN ('WITH_DIFFERENCES','BLOCKED')"))),
+            ProcurementAlertDTO(
+                "OVERDUE_ORDER", "Órdenes enviadas sin recepción completa", "info",
+                int(self._scalar("SELECT COUNT(*) FROM purchase_orders"
+                                 " WHERE status IN ('SENT','ACKNOWLEDGED','PARTIALLY_RECEIVED')"))),
+        )
+        return tuple(alert for alert in candidates if alert.count)
 
     # charts ------------------------------------------------------------------
     def orders_by_status_chart(self) -> ChartDataDTO:

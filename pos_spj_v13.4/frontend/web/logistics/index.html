@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#123c69">
+  <meta name="description" content="Carga móvil de compras y contenedores SPJ">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+  <title>SPJ · Carga en origen</title>
+</head>
+<body>
+  <a class="skip-link" href="#main">Saltar al contenido</a>
+  <header class="app-header">
+    <div><span class="eyebrow">SPJ ERP</span><h1>Carga en origen</h1></div>
+    <div class="header-status"><span id="networkBadge" class="badge">Conectando</span><span id="syncBadge" class="badge">0 pendientes</span></div>
+  </header>
+
+  <main id="main">
+    <section id="loginView" class="view auth-card" aria-labelledby="loginTitle">
+      <div class="brand-mark" aria-hidden="true">SPJ</div>
+      <h2 id="loginTitle">Iniciar sesión</h2>
+      <p>Identidad, sucursal y permisos se validan en el servidor.</p>
+      <form id="loginForm">
+        <label>Usuario<input id="username" autocomplete="username" required></label>
+        <label>Contraseña<input id="password" type="password" autocomplete="current-password" required></label>
+        <label>Dispositivo<input id="deviceId" autocomplete="off" required></label>
+        <button class="primary" type="submit">Entrar</button>
+      </form>
+      <div id="loginError" class="inline-state error" hidden role="alert"></div>
+    </section>
+
+    <section id="workspaceView" class="view workspace" hidden>
+      <nav class="stepper" aria-label="Flujo de carga">
+        <button data-step="documents" class="active"><b>1</b><span>Documento</span></button>
+        <button data-step="containers"><b>2</b><span>Contenedores</span></button>
+        <button data-step="contents"><b>3</b><span>Productos</span></button>
+        <button data-step="review"><b>4</b><span>Sellar</span></button>
+      </nav>
+
+      <section class="context-strip" aria-label="Sesión activa">
+        <div><small>Usuario</small><strong id="sessionUser">—</strong></div>
+        <div><small>Sucursal</small><strong id="sessionBranch">—</strong></div>
+        <div><small>Almacén</small><strong id="sessionWarehouse">—</strong></div>
+        <button id="logoutButton" class="ghost">Salir</button>
+      </section>
+
+      <div id="globalMessage" class="inline-state" hidden role="status"></div>
+
+      <section id="documentsStep" class="step-panel">
+        <div class="section-heading"><div><span class="eyebrow">Paso 1</span><h2>Documento comercial</h2></div><button id="refreshDocuments" class="ghost">Actualizar</button></div>
+        <label class="search-field">Buscar documento<input id="documentSearch" type="search" placeholder="Folio o proveedor"></label>
+        <div id="documentList" class="document-grid" aria-live="polite"></div>
+      </section>
+
+      <section id="containersStep" class="step-panel" hidden>
+        <div class="section-heading"><div><span class="eyebrow">Paso 2</span><h2>Árbol de contenedores</h2></div><button id="scanButton" class="primary">Escanear QR</button></div>
+        <div id="scannerPanel" class="scanner" hidden>
+          <video id="scannerVideo" playsinline muted></video>
+          <div class="scan-target" aria-hidden="true"></div>
+          <button id="stopScan" class="ghost">Cerrar cámara</button>
+        </div>
+        <form id="manualScanForm" class="inline-form">
+          <label>Token QR<input id="manualToken" placeholder="Token seguro del contenedor" required></label>
+          <label>Padre<select id="parentNode"><option value="">Contenedor raíz</option></select></label>
+          <button class="secondary" type="submit">Agregar</button>
+        </form>
+        <div id="containerTree" class="tree" role="tree"></div>
+      </section>
+
+      <section id="contentsStep" class="step-panel" hidden>
+        <div class="section-heading"><div><span class="eyebrow">Paso 3</span><h2>Asignar producto</h2></div></div>
+        <form id="contentForm" class="data-form">
+          <label>Contenedor<select id="contentNode" required></select></label>
+          <label>Producto<input id="productSearch" list="productOptions" placeholder="Buscar por nombre o código" required><datalist id="productOptions"></datalist></label>
+          <label>Cantidad<input id="quantity" inputmode="decimal" pattern="[0-9]+([.,][0-9]+)?" required></label>
+          <label>Peso neto<input id="netWeight" inputmode="decimal" pattern="[0-9]+([.,][0-9]+)?" required></label>
+          <label>Costo unitario<input id="unitCost" inputmode="decimal" pattern="[0-9]+([.,][0-9]+)?" required></label>
+          <label>Lote<input id="lotNumber"></label>
+          <label>Caducidad<input id="expirationDate" type="date"></label>
+          <label>Temperatura<input id="temperature" inputmode="decimal"></label>
+          <label class="photo-field">Evidencia fotográfica<input id="photoInput" type="file" accept="image/*" capture="environment" multiple></label>
+          <button class="primary full" type="submit">Guardar asignación</button>
+        </form>
+        <div id="contentList" class="content-list"></div>
+      </section>
+
+      <section id="reviewStep" class="step-panel" hidden>
+        <div class="section-heading"><div><span class="eyebrow">Paso 4</span><h2>Revisión, sellado y despacho</h2></div></div>
+        <div id="reviewSummary" class="summary-grid"></div>
+        <div id="sealList" class="seal-list"></div>
+        <label class="confirm-check"><input id="dispatchConfirm" type="checkbox">Confirmo que los contenedores están físicamente cerrados y la información está sincronizada.</label>
+        <button id="dispatchButton" class="primary full" disabled>Despachar embarque</button>
+      </section>
+
+      <footer class="mobile-actions">
+        <button id="previousStep" class="ghost">Anterior</button>
+        <button id="nextStep" class="primary">Continuar</button>
+      </footer>
+    </section>
+  </main>
+  <div id="toastRegion" class="toasts" aria-live="assertive"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

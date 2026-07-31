@@ -33,14 +33,17 @@ class _Base:
 
 
 class RequisitionReadService(_Base):
-    def count(self, *, status: str | None = None, search: str = "") -> int:
-        where, params = _where(("status",), status, search, ("document_number", "branch_id"))
+    def count(self, *, status: str | None = None, search: str = "", branch_id=None,
+              start_date=None, end_date=None) -> int:
+        where, params = _where(("status",), status, search, ("document_number", "branch_id"),
+                               branch_id, start_date, end_date)
         return int(self._scalar(
             f"SELECT COUNT(*) FROM purchase_requisitions{where}", tuple(params)))
 
     def list(self, *, status: str | None = None, search: str = "", limit: int = 50,
-             offset: int = 0) -> list[dict]:
-        where, params = _where(("status",), status, search, ("document_number", "branch_id"))
+             offset: int = 0, branch_id=None, start_date=None, end_date=None) -> list[dict]:
+        where, params = _where(("status",), status, search, ("document_number", "branch_id"),
+                               branch_id, start_date, end_date)
         return self._query(
             "SELECT id, document_number, branch_id, requested_by_user_id, purchase_type,"
             " priority, status, created_at FROM purchase_requisitions"
@@ -59,13 +62,16 @@ class RequisitionReadService(_Base):
 
 
 class OrderReadService(_Base):
-    def count(self, *, status: str | None = None, search: str = "") -> int:
-        where, params = _where(("status",), status, search, ("document_number", "supplier_id"))
+    def count(self, *, status: str | None = None, search: str = "", branch_id=None,
+              start_date=None, end_date=None) -> int:
+        where, params = _where(("status",), status, search, ("document_number", "supplier_id"),
+                               branch_id, start_date, end_date)
         return int(self._scalar(f"SELECT COUNT(*) FROM purchase_orders{where}", tuple(params)))
 
     def list(self, *, status: str | None = None, search: str = "", limit: int = 50,
-             offset: int = 0) -> list[dict]:
-        where, params = _where(("status",), status, search, ("document_number", "supplier_id"))
+             offset: int = 0, branch_id=None, start_date=None, end_date=None) -> list[dict]:
+        where, params = _where(("status",), status, search, ("document_number", "supplier_id"),
+                               branch_id, start_date, end_date)
         return self._query(
             "SELECT id, document_number, supplier_id, branch_id, status, total, version,"
             " currency_code, created_at FROM purchase_orders"
@@ -87,15 +93,22 @@ class OrderReadService(_Base):
 
 
 class InvoiceReadService(_Base):
-    def count(self, *, status: str | None = None, search: str = "") -> int:
+    def count(self, *, status: str | None = None, search: str = "", branch_id=None,
+              start_date=None, end_date=None) -> int:
         where, params = _where(("status",), status, search,
-                               ("document_number", "supplier_id", "invoice_number"))
+                               ("document_number", "supplier_id", "invoice_number"),
+                               branch_id, start_date, end_date,
+                               "(purchase_order_id IN (SELECT id FROM purchase_orders WHERE branch_id=?)"
+                               " OR direct_purchase_id IN (SELECT id FROM direct_purchases WHERE branch_id=?))")
         return int(self._scalar(f"SELECT COUNT(*) FROM supplier_invoices{where}", tuple(params)))
 
     def list(self, *, status: str | None = None, search: str = "", limit: int = 50,
-             offset: int = 0) -> list[dict]:
+             offset: int = 0, branch_id=None, start_date=None, end_date=None) -> list[dict]:
         where, params = _where(("status",), status, search,
-                               ("document_number", "supplier_id", "invoice_number"))
+                               ("document_number", "supplier_id", "invoice_number"),
+                               branch_id, start_date, end_date,
+                               "(purchase_order_id IN (SELECT id FROM purchase_orders WHERE branch_id=?)"
+                               " OR direct_purchase_id IN (SELECT id FROM direct_purchases WHERE branch_id=?))")
         return self._query(
             "SELECT id, document_number, supplier_id, invoice_number, total, currency_code,"
             " status, match_result, purchase_order_id, created_at FROM supplier_invoices"
@@ -113,7 +126,8 @@ class InvoiceReadService(_Base):
 
 
 def _where(status_cols: tuple[str, ...], status, search: str,
-           search_cols: tuple[str, ...]) -> tuple[str, list]:
+           search_cols: tuple[str, ...], branch_id=None, start_date=None,
+           end_date=None, branch_clause="branch_id = ?") -> tuple[str, list]:
     clauses, params = [], []
     if status:
         clauses.append(f"{status_cols[0]} = ?")
@@ -123,5 +137,14 @@ def _where(status_cols: tuple[str, ...], status, search: str,
         ors = " OR ".join(f"{c} LIKE ?" for c in search_cols)
         clauses.append(f"({ors})")
         params.extend([like] * len(search_cols))
+    if branch_id:
+        clauses.append(branch_clause)
+        params.extend([branch_id] * branch_clause.count("?"))
+    if start_date:
+        clauses.append("substr(created_at,1,10) >= ?")
+        params.append(start_date)
+    if end_date:
+        clauses.append("substr(created_at,1,10) <= ?")
+        params.append(end_date)
     where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
     return where, params

@@ -165,6 +165,7 @@ MIGRATIONS = [
     _Migration("168",  "migrations.standalone.168_replenishment_reorder_from_stock_minimo"),
     _Migration("169",  "migrations.standalone.169_species_catalog_seed"),
     _Migration("170",  "migrations.standalone.170_pos_barcodes_images_backfill_from_legacy"),
+    _Migration("171",  "migrations.standalone.171_logistics_bounded_context_schema"),
 ]
 
 def _ensure_tracking_table(conn):

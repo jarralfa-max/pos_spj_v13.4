@@ -27,26 +27,84 @@ _PAGE_SIZE = 50
 class EnterprisePurchasingPresenter:
     def __init__(self, *, connection_provider, read_services: dict, analytics,
                  use_cases: dict, session_context=None, event_dispatcher=None,
-                 qr_reads=None, history_reads=None) -> None:
+                 logistics_reads=None, warehouse_directory=None, history_reads=None) -> None:
         self._conn = connection_provider
         self._reads = read_services
         self._analytics = analytics
         self._use_cases = use_cases
         self._session = session_context
         self._dispatch = event_dispatcher
-        self._qr = qr_reads
+        self._logistics = logistics_reads
+        self._warehouse_directory = warehouse_directory
         self._history = history_reads
+        self._period_start = None
+        self._period_end = None
 
     # session -----------------------------------------------------------------
     def _actor(self) -> str:
         user_id = getattr(self._session, "user_id", None)
-        return str(user_id) if user_id else "desktop"
+        if not user_id:
+            raise PermissionError("Se requiere una sesión autenticada de Compras")
+        return str(user_id)
 
     def default_branch(self) -> str:
-        return str(getattr(self._session, "branch_id", None) or "MAIN")
+        branch_id = (getattr(self._session, "active_branch_id", None)
+                     or getattr(self._session, "branch_id", None))
+        if not branch_id:
+            raise PermissionError("La sesión no tiene una sucursal activa")
+        return str(branch_id)
 
     def default_warehouse(self) -> str:
-        return str(getattr(self._session, "warehouse_id", None) or self.default_branch())
+        warehouse_id = (getattr(self._session, "active_warehouse_id", None)
+                        or getattr(self._session, "warehouse_id", None))
+        if not warehouse_id:
+            raise PermissionError("La sesión no tiene un almacén activo")
+        return str(warehouse_id)
+
+    def selected_warehouse(self) -> str | None:
+        """Return the explicit warehouse selection without inventing a default."""
+        warehouse_id = (getattr(self._session, "active_warehouse_id", None)
+                        or getattr(self._session, "warehouse_id", None))
+        value = str(warehouse_id or "").strip()
+        return value or None
+
+    def warehouse_options(self) -> list[tuple[str, str]]:
+        if self._warehouse_directory is None:
+            return []
+        return self._warehouse_directory.active_for_branch(self.default_branch())
+
+    def select_warehouse(self, warehouse_id: str) -> None:
+        options = dict(self.warehouse_options())
+        if warehouse_id not in options:
+            raise PermissionError("El almacén no pertenece a la sucursal activa")
+        setter = getattr(self._session, "set_warehouse", None)
+        if not callable(setter):
+            raise PermissionError("La sesión no admite contexto de almacén")
+        setter(warehouse_id, options[warehouse_id])
+
+    def session_summary(self) -> dict[str, str | bool]:
+        return {
+            "user": str(getattr(self._session, "display_name", None)
+                        or getattr(self._session, "nombre_completo", None)
+                        or getattr(self._session, "username", None)
+                        or getattr(self._session, "usuario", None) or "Sesión activa"),
+            "branch": self.default_branch(),
+            "warehouse": self.selected_warehouse() or "Sin almacén seleccionado",
+            "warehouse_selected": bool(self.selected_warehouse()),
+        }
+
+    def can(self, permission: str) -> bool:
+        checker = getattr(self._session, "tiene_permiso", None)
+        return bool(callable(checker) and checker(permission))
+
+    def set_period(self, start_date: str, end_date: str) -> None:
+        if start_date > end_date:
+            raise ValueError("El periodo inicial no puede ser posterior al final")
+        self._period_start, self._period_end = start_date, end_date
+
+    def _scope(self) -> dict:
+        return {"branch_id": self.default_branch(), "start_date": self._period_start,
+                "end_date": self._period_end}
 
     def _run(self, key: str, **kwargs) -> tuple[bool, str, dict]:
         try:
@@ -68,8 +126,9 @@ class EnterprisePurchasingPresenter:
     def requisitions(self, *, status=None, search="", page=0) -> TableViewModel:
         svc = self._reads["requisitions"]
         offset = max(0, page) * _PAGE_SIZE
-        rows = svc.list(status=status, search=search, limit=_PAGE_SIZE, offset=offset)
-        total = svc.count(status=status, search=search)
+        rows = svc.list(status=status, search=search, limit=_PAGE_SIZE, offset=offset,
+                        **self._scope())
+        total = svc.count(status=status, search=search, **self._scope())
         data, ids = [], []
         for r in rows:
             data.append([r["document_number"], r["branch_id"], r["purchase_type"],
@@ -94,8 +153,9 @@ class EnterprisePurchasingPresenter:
     def orders(self, *, status=None, search="", page=0) -> TableViewModel:
         svc = self._reads["orders"]
         offset = max(0, page) * _PAGE_SIZE
-        rows = svc.list(status=status, search=search, limit=_PAGE_SIZE, offset=offset)
-        total = svc.count(status=status, search=search)
+        rows = svc.list(status=status, search=search, limit=_PAGE_SIZE, offset=offset,
+                        **self._scope())
+        total = svc.count(status=status, search=search, **self._scope())
         data, ids = [], []
         for r in rows:
             data.append([r["document_number"], (r["supplier_id"] or "")[:8],
@@ -133,8 +193,9 @@ class EnterprisePurchasingPresenter:
     def invoices(self, *, status=None, search="", page=0) -> TableViewModel:
         svc = self._reads["invoices"]
         offset = max(0, page) * _PAGE_SIZE
-        rows = svc.list(status=status, search=search, limit=_PAGE_SIZE, offset=offset)
-        total = svc.count(status=status, search=search)
+        rows = svc.list(status=status, search=search, limit=_PAGE_SIZE, offset=offset,
+                        **self._scope())
+        total = svc.count(status=status, search=search, **self._scope())
         data, ids = [], []
         for r in rows:
             data.append([r["document_number"], (r["supplier_id"] or "")[:8],
@@ -156,44 +217,11 @@ class EnterprisePurchasingPresenter:
                          invoice_id=invoice_id, captured_by_user_id=captured_by_user_id,
                          reason=reason)
 
-    # ── QR container lifecycle ────────────────────────────────────────────────
-    def qr_available(self) -> TableViewModel:
-        rows = self._qr.available_containers() if self._qr else []
-        data = [[r["code"], r["description"], r["status"]] for r in rows]
-        return TableViewModel(data, [r["uuid_qr"] for r in rows], total=len(rows))
-
-    def qr_pending(self) -> TableViewModel:
-        rows = self._qr.pending_reception() if self._qr else []
-        data = [[r["code"], r["supplier"], r["status"]] for r in rows]
-        return TableViewModel(data, [r["uuid_qr"] for r in rows], total=len(rows))
-
-    def qr_history(self, desde: str, hasta: str) -> TableViewModel:
-        rows = self._qr.history(desde, hasta) if self._qr else []
-        data = [[r["container"], r["supplier"], r["destination"], r["status"],
-                 (r["received_at"] or "—")[:19]] for r in rows]
-        return TableViewModel(data, [r["uuid_qr"] for r in rows], total=len(rows))
-
-    def qr_search_suppliers(self, text: str) -> list[dict]:
-        return self._qr.search_suppliers(text) if (self._qr and text.strip()) else []
-
-    def qr_search_products(self, text: str) -> list[dict]:
-        return self._qr.search_products(text) if (self._qr and text.strip()) else []
-
-    def generate_qr_label(self, *, description: str) -> tuple[bool, str, dict]:
-        return self._run("qr_register", actor_user_id=self._actor(),
-                         description=description, origin_branch_id=self.default_branch())
-
-    def assign_qr(self, *, uuid_qr: str, supplier_id: str, items: list,
-                  payment_condition: str) -> tuple[bool, str, dict]:
-        return self._run("qr_assign", actor_user_id=self._actor(), uuid_qr=uuid_qr,
-                         supplier_id=supplier_id, items=items,
-                         payment_condition=payment_condition,
-                         origin_branch_id=self.default_branch())
-
-    def complete_qr_reception(self, *, uuid_qr: str, items: list) -> tuple[bool, str, dict]:
-        return self._run("qr_receive", actor_user_id=self._actor(), uuid_qr=uuid_qr,
-                         items=items, branch_id=self.default_branch(),
-                         warehouse_id=self.default_warehouse())
+    def related_shipments(self) -> list[dict]:
+        if self._logistics is None:
+            return []
+        return self._logistics.related_to_destination(
+            branch_id=self.default_branch(), warehouse_id=self.default_warehouse())
 
     # ── documental purchase history ───────────────────────────────────────────
     def purchase_history(self) -> TableViewModel:
@@ -210,3 +238,6 @@ class EnterprisePurchasingPresenter:
 
     def analytics_charts(self):
         return self._analytics.all_charts()
+
+    def analytics_alerts(self):
+        return self._analytics.alerts()

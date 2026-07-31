@@ -7,7 +7,7 @@ QtWebEngine is unavailable (headless / accessibility).
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ChartCard,
@@ -39,21 +39,26 @@ class ProcurementDashboardPage(QWidget):
             subtitle="Solicitudes, órdenes, recepción y facturación en un vistazo.",
             icon=Icons.PURCHASES, compact=True)
         layout.addWidget(self.header)
+        self._status = QLabel("", self)
+        self._status.setObjectName("procurementDashboardStatus")
+        self._status.setProperty("state", "ERROR")
+        self._status.setWordWrap(True)
+        self._status.hide()
+        layout.addWidget(self._status)
 
         self._grid = DashboardGrid(self)
         self._kpi_bar = KPIBar(cards=[])
         self._grid.add_kpi_bar(self._kpi_bar)
 
         self._cards: list[ChartCard] = []
-        chart_row = []
         for _ in range(3):
             card = ChartCard(self)
             view = HtmlChartView(card)
             card.add(view)
             self._chart_views.append(view)
             self._cards.append(card)
-            chart_row.append((card, 1))
-        self._grid.add_row(*chart_row)
+        self._grid.add_row((self._cards[0], 2), (self._cards[1], 1))
+        self._grid.add_full_width(self._cards[2])
         self._grid.add_stretch()
         layout.addWidget(self._grid, stretch=1)
 
@@ -62,6 +67,9 @@ class ProcurementDashboardPage(QWidget):
             self.reload()
 
     def reload(self) -> None:
+        self._status.setText("Cargando indicadores de Compras…")
+        self._status.setProperty("state", "LOADING")
+        self._status.show()
         try:
             kpis = self._presenter.analytics_kpis()
             self._kpi_bar.set_cards([
@@ -82,5 +90,7 @@ class ProcurementDashboardPage(QWidget):
             for view, dto in zip(self._chart_views, charts):
                 view.set_chart(dto)
             self._loaded = True
+            self._status.hide()
         except Exception as exc:
-            QMessageBox.warning(self, "Analítica de Compras", f"No fue posible cargar:\n{exc}")
+            self._status.setProperty("state", "ERROR")
+            self._status.setText(f"No fue posible cargar la analítica: {exc}")

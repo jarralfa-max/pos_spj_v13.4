@@ -7,7 +7,9 @@ from __future__ import annotations
 from datetime import date
 
 from backend.domain.procurement.entities import PurchaseRequisition, RequisitionLine
-from backend.domain.procurement.enums import PurchaseType, RequisitionStatus, SourceChannel
+from backend.domain.procurement.enums import (
+    PurchaseNature, PurchaseType, RequisitionStatus, SourceChannel,
+)
 from backend.domain.procurement.value_objects import Money
 from backend.infrastructure.db.repositories.procurement.base import (
     ProcurementRepositoryBase,
@@ -42,9 +44,10 @@ class PurchaseRequisitionRepository(ProcurementRepositoryBase):
         for ln in req.lines:
             self._execute(
                 "INSERT INTO purchase_requisition_lines (id, requisition_id, product_id,"
-                " quantity, estimated_unit_cost, currency_code, required_date)"
-                " VALUES (?,?,?,?,?,?,?)",
+                " quantity, purchase_nature, estimated_unit_cost, currency_code, required_date)"
+                " VALUES (?,?,?,?,?,?,?,?)",
                 (ln.id, req.id, ln.product_id, dec_str(ln.quantity),
+                 ln.purchase_nature.value,
                  dec_str(ln.estimated_unit_cost.amount) if ln.estimated_unit_cost else None,
                  ln.estimated_unit_cost.currency_code if ln.estimated_unit_cost else "MXN",
                  ln.required_date.isoformat() if ln.required_date else None))
@@ -70,6 +73,7 @@ class PurchaseRequisitionRepository(ProcurementRepositoryBase):
         lines = [
             RequisitionLine(
                 id=lr["id"], product_id=lr["product_id"], quantity=to_decimal(lr["quantity"]),
+                purchase_nature=PurchaseNature(lr["purchase_nature"]),
                 estimated_unit_cost=(Money(to_decimal(lr["estimated_unit_cost"]),
                                            lr["currency_code"])
                                      if lr["estimated_unit_cost"] else None),

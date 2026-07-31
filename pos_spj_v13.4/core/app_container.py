@@ -10,7 +10,6 @@ from repositories.auth_repository import AuthRepository
 from repositories.recetas import RecetaRepository as RecipeRepository
 from repositories.finance_repository import FinanceRepository
 from infrastructure.persistence.sqlite_sales_repository import SQLiteSalesRepository
-from repositories.purchase_repository import PurchaseRepository
 from repositories.caja import CajaRepository
 from repositories.productos import ProductoRepository
 # Si tienes estos, descoméntalos; si no, coméntalos para que no den error:
@@ -40,7 +39,6 @@ from core.services.sales_service import SalesService
 # Si tienes estos, descoméntalos; si no, coméntalos:
 from core.engines.promotion_engine import PromotionEngine
 from core.services.sync_service import SyncService
-from core.services.purchase_service import PurchaseService
 
 logger = logging.getLogger(__name__)
 
@@ -108,19 +106,7 @@ class AppContainer:
         self.recipe_repo = RecipeRepository(self.db)
         self.finance_repo = FinanceRepository(self.db)
         self.sales_repo = SQLiteSalesRepository(self.db)
-        self.purchase_repo = PurchaseRepository(self.db)
         self.caja_repo = CajaRepository(self.db)
-
-        # Phase 3: repositorios documentales PR/PO
-        try:
-            from repositories.purchase_request_repository import PurchaseRequestRepository
-            from repositories.purchase_order_repository import PurchaseOrderRepository
-            self.purchase_request_repo = PurchaseRequestRepository(self.db)
-            self.purchase_order_repo   = PurchaseOrderRepository(self.db)
-        except Exception as _pr_repo_err:
-            self.purchase_request_repo = None
-            self.purchase_order_repo   = None
-            logger.debug("purchase_request/order_repo: %s", _pr_repo_err)
 
         # Opcionales (depende de qué tan avanzados vayan tus módulos)
         self.promo_repo = PromotionRepository(self.db)
@@ -286,7 +272,6 @@ class AppContainer:
         # Opcionales
         self.promotion_engine = PromotionEngine(self.promo_repo)
         self.sync_service = SyncService(self.db)
-        self.purchase_service = PurchaseService(self.db, self.purchase_repo, self.inventory_application_service, self.finance_service)
 
         # =========================================================
         # CAPA 4: EL ORQUESTADOR PRINCIPAL (Ventas)
@@ -536,23 +521,6 @@ class AppContainer:
         except Exception as _pqs_err:
             self.production_query_service = None
             logger.debug("production_query_service: %s", _pqs_err)
-
-        # ── Phase 2/3/4: Ruta canónica + UCs documentales + adaptador recepción ─
-        try:
-            from application.purchases.traditional_purchase_uc import TraditionalPurchaseUC
-            from application.purchases.purchase_request_uc import PurchaseRequestUC
-            from application.purchases.purchase_order_uc import PurchaseOrderUC
-            from application.purchases.receive_po_adapter import ReceivePOAdapter
-            self.uc_compra_tradicional = TraditionalPurchaseUC(self)
-            self.uc_purchase_request   = PurchaseRequestUC(self)
-            self.uc_purchase_order     = PurchaseOrderUC(self)
-            self.receive_po_adapter    = ReceivePOAdapter(self)
-        except Exception as _uc_trad:
-            self.uc_compra_tradicional = None
-            self.uc_purchase_request   = None
-            self.uc_purchase_order     = None
-            self.receive_po_adapter    = None
-            logger.debug("uc_compra_tradicional/pr/po/adapter: %s", _uc_trad)
 
         # ── v13.5: ERP Use Cases — compra (deprecated), cliente, finanzas ──
         # Nómina migrada al bounded context RRHH (backend.application.use_cases.hr);
