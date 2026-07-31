@@ -32,11 +32,18 @@ class PurchasePlanningReadService:
         self.db = db_conn
 
     def list_forecastable_products(self, branch_id: str = "") -> list[dict]:
-        """Productos activos candidatos a forecast: [{id, nombre}, ...]."""
-        rows = self.db.execute(
-            "SELECT id, nombre FROM productos WHERE activo = 1 ORDER BY nombre"
-        ).fetchall()
-        return [{"id": str(r[0]), "nombre": str(r[1] or "")} for r in rows]
+        """Productos comprables candidatos a forecast: [{id, nombre}, ...].
+
+        Repunte P0-B: usa la búsqueda canónica de productos comprables
+        (`SearchPurchasableProductsQueryService`) en vez de la tabla legacy
+        `productos`. El backfill 148 fijó `purchasable=1`, así que el conjunto es
+        equivalente para datos existentes."""
+        from backend.application.products.queries.product_selection_query_service import (
+            SearchPurchasableProductsQueryService,
+        )
+        rows = SearchPurchasableProductsQueryService(self.db).search(
+            active_only=True, limit=100000)
+        return [{"id": r.product_id, "nombre": r.name} for r in rows]
 
     def last_purchase_cost(self, product_id: str, branch_id: str = "") -> float:
         """Último costo de compra del producto (0.0 si no hay compras)."""
@@ -70,9 +77,13 @@ class PurchasePlanningReadService:
         return [{"fecha": r[0], "total_vendido": float(r[1] or 0)} for r in rows]
 
     def current_stock(self, product_id: str, branch_id: str = "") -> float:
-        """Existencia actual del producto."""
-        row = self.db.execute(
-            "SELECT COALESCE(existencia, 0) FROM productos WHERE id = ?",
-            (str(product_id),),
-        ).fetchone()
-        return float(row[0] or 0) if row else 0.0
+        """Existencia actual del producto (disponible canónico).
+
+        Repunte P0-B/INV-27: lee `inventory_balances` vía
+        `CanonicalStockReadAdapter` (gated) en vez de `productos.existencia`. Sin
+        sucursal agrega todas las sucursales (equivalente al cache legacy)."""
+        from core.services.inventory.canonical_stock_read_adapter import (
+            CanonicalStockReadAdapter,
+        )
+        return CanonicalStockReadAdapter(lambda: self.db).available_float(
+            str(product_id), str(branch_id) or None)

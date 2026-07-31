@@ -62,7 +62,6 @@ _ALLOWLIST: frozenset[str] = frozenset({
     "backend/application/queries/inventory_balance_service.py",
     "backend/application/queries/inventory_query_service.py",
     "backend/application/queries/product_query_service.py",
-    "backend/application/queries/purchase_planning_query_service.py",
     "backend/application/services/product_catalog_service.py",
     "backend/infrastructure/db/repositories/branch_product_repository.py",
     "backend/infrastructure/db/repositories/compras_read_repository.py",
