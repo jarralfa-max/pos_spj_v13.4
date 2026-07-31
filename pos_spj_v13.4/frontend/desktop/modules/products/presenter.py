@@ -35,6 +35,7 @@ class ProductsPresenter:
                  cutting_write_factory=None, bundles_read_factory=None,
                  bundles_write_factory=None, import_read_factory=None,
                  import_write_factory=None, species_read_factory=None,
+                 branch_read_factory=None, branch_write_factory=None,
                  permission_checker=None, session_context=None) -> None:
         self._read_factory = read_service_factory
         self._write_factory = write_service_factory
@@ -62,6 +63,8 @@ class ProductsPresenter:
         self._import_read = import_read_factory
         self._import_write = import_write_factory
         self._species_read = species_read_factory
+        self._branch_read = branch_read_factory
+        self._branch_write = branch_write_factory
         self._has_permission = permission_checker
         self._session = session_context
 
@@ -949,6 +952,101 @@ class ProductsPresenter:
         except Exception:  # pragma: no cover - defensive
             logger.exception("No se pudieron listar especies")
             return []
+
+    # ── asignación sucursal / canal (§10) ─────────────────────────────────
+    @property
+    def can_manage_branch_assignment(self) -> bool:
+        from backend.application.products.permissions import ProductPermissions
+        if self._branch_write is None:
+            return False
+        if self._has_permission is None:
+            return True
+        return bool(self._has_permission(ProductPermissions.BRANCH_ASSIGNMENT_MANAGE))
+
+    @property
+    def can_manage_assortment(self) -> bool:
+        from backend.application.products.permissions import ProductPermissions
+        if self._branch_write is None:
+            return False
+        if self._has_permission is None:
+            return True
+        return bool(self._has_permission(ProductPermissions.ASSORTMENT_MANAGE))
+
+    def search_products_for_assignment(self, query: str | None = None) -> list[dict]:
+        """Productos para el selector de la página de sucursales/canales."""
+        try:
+            return self._read_factory().list_catalog(query=query)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudieron buscar productos")
+            return []
+
+    def branch_assignments(self, product_id: str) -> list[dict]:
+        if self._branch_read is None:
+            return []
+        try:
+            return self._branch_read().branch_assignments(product_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudieron listar sucursales")
+            return []
+
+    def list_channels(self) -> list[dict]:
+        if self._branch_read is None:
+            return []
+        try:
+            return self._branch_read().channels()
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudieron listar canales")
+            return []
+
+    def assortments(self, product_id: str, *, channel: str | None = None) -> list[dict]:
+        if self._branch_read is None:
+            return []
+        try:
+            return self._branch_read().assortments(product_id, channel=channel)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudieron listar surtidos")
+            return []
+
+    def set_branch_enabled(self, *, product_id: str, branch_id: str,
+                           enabled: bool) -> tuple[bool, str]:
+        if self._branch_write is None:
+            return False, "Sin permisos de asignación por sucursal"
+        user_id = getattr(self._session, "user_id", None)
+        try:
+            res = self._branch_write()["branch"].execute(
+                product_id=product_id, branch_id=branch_id, enabled=enabled,
+                user_id=user_id)
+        except Exception as exc:  # noqa: BLE001 — mostrado en la UI
+            logger.exception("Asignación por sucursal falló")
+            return False, f"Error: {exc}"
+        return res.success, res.message
+
+    def create_assortment(self, *, name: str, channel: str,
+                          branch_id: str | None = None) -> tuple[bool, str]:
+        if self._branch_write is None:
+            return False, "Sin permisos de surtido"
+        user_id = getattr(self._session, "user_id", None)
+        try:
+            res = self._branch_write()["create_assortment"].execute(
+                name=name, channel=channel, branch_id=branch_id, user_id=user_id)
+        except Exception as exc:  # noqa: BLE001 — mostrado en la UI
+            logger.exception("Creación de surtido falló")
+            return False, f"Error: {exc}"
+        return res.success, res.message
+
+    def set_assortment_product(self, *, assortment_id: str, product_id: str,
+                               enabled: bool) -> tuple[bool, str]:
+        if self._branch_write is None:
+            return False, "Sin permisos de surtido"
+        user_id = getattr(self._session, "user_id", None)
+        try:
+            res = self._branch_write()["set_assortment_product"].execute(
+                assortment_id=assortment_id, product_id=product_id, enabled=enabled,
+                user_id=user_id)
+        except Exception as exc:  # noqa: BLE001 — mostrado en la UI
+            logger.exception("Asignación a surtido falló")
+            return False, f"Error: {exc}"
+        return res.success, res.message
 
     # ── alta / edición del maestro (PROD-19 7b) ───────────────────────────
     @property

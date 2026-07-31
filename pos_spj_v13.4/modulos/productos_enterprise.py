@@ -167,6 +167,14 @@ class ModuloProductosEnterprise(QWidget):
         from backend.application.products.queries.species_catalog_query_service import (
             SpeciesCatalogQueryService,
         )
+        from backend.application.products.queries.branch_assortment_query_service import (
+            BranchAssortmentQueryService,
+        )
+        from backend.application.products.use_cases.product_branch_assortment_use_cases import (
+            CreateAssortmentUseCase,
+            SetAssortmentProductUseCase,
+            SetBranchProductUseCase,
+        )
         from backend.application.products.use_cases.product_import_use_cases import (
             ApproveImportBatchUseCase,
             CreateImportBatchUseCase,
@@ -278,6 +286,12 @@ class ModuloProductosEnterprise(QWidget):
                 "execute": ExecuteImportBatchUseCase(conn, authorization),
             },
             species_read_factory=lambda: SpeciesCatalogQueryService(conn),
+            branch_read_factory=lambda: BranchAssortmentQueryService(conn),
+            branch_write_factory=lambda: {
+                "branch": SetBranchProductUseCase(conn, authorization),
+                "create_assortment": CreateAssortmentUseCase(conn, authorization),
+                "set_assortment_product": SetAssortmentProductUseCase(conn, authorization),
+            },
             permission_checker=checker,
             session_context=session)
 
@@ -304,6 +318,9 @@ class ModuloProductosEnterprise(QWidget):
         from frontend.desktop.modules.products.pages.import_page import (
             ProductImportPage,
         )
+        from frontend.desktop.modules.products.pages.branch_channel_page import (
+            BranchChannelPage,
+        )
         from frontend.desktop.modules.products.products_view import ProductsView
 
         specs = (
@@ -312,6 +329,7 @@ class ModuloProductosEnterprise(QWidget):
             (ProductCategoriesPage, "Categorías"),
             (ProductBrandsPage, "Marcas"),
             (ProductAttributesPage, "Atributos"),
+            (BranchChannelPage, "Sucursales y canales"),
             (ProductImportPage, "Importar"),
         )
         return ProductsView(presenter, specs)

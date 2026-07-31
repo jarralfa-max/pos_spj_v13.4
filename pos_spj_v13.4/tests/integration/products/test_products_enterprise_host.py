@@ -33,10 +33,11 @@ def test_host_builds_sidebar_shell(app):
     from modulos.productos_enterprise import ModuloProductosEnterprise
 
     host = ModuloProductosEnterprise(_Container(conn))
-    # El shell expone la navegación lateral con las 6 secciones y la primera activa.
-    assert host._view.nav.count() == 6
+    # El shell expone la navegación lateral con las 7 secciones y la primera activa
+    # (P0-B slice 7 añadió "Sucursales y canales").
+    assert host._view.nav.count() == 7
     assert host._view.stack.currentIndex() == 0
     labels = [host._view.nav.item(i).text() for i in range(host._view.nav.count())]
     assert labels == ["Resumen", "Catálogo", "Categorías", "Marcas", "Atributos",
-                      "Importar"]
+                      "Sucursales y canales", "Importar"]
     conn.close()

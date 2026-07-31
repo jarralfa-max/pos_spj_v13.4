@@ -118,7 +118,13 @@ refresco de KPIs). Sigue P0-B (catálogos consumidores + POS canónico).
   *Nota:* `test_productos_guardrails` sigue con su drift pre-existente
   (`product_query_service`); ahora el lector POS reduce uso legacy (dirección
   correcta), snapshot pendiente de refrescar en housekeeping.
+- **Slice 7 ✅** — asignación por sucursal/canal (§10): `SetBranchProductUseCase`,
+  `CreateAssortmentUseCase`, `SetAssortmentProductUseCase` (autorizados) +
+  `BranchAssortmentQueryService` (`branch_assignments`/`channels`/`assortments`) +
+  métodos en el presenter + **página "Sucursales y canales"** (búsqueda de producto,
+  habilitar/deshabilitar por sucursal, incluir/quitar de surtidos por canal, crear
+  surtido). Cableada al composition root y añadida al shell (ahora **7 secciones**,
+  la ruta ya no devuelve None — §9). Tests: use cases + query + smoke de la página.
 - **Pendiente P0-B**:
-  - *slice 7* — asignación por sucursal/canal (§10): use cases + query service +
-    página UI sobre `branch_product`/`assortments` (el esquema ya existe).
-  - repunte de Compras/Inventario/Transferencias a las búsquedas del slice 4.
+  - repunte de Compras/Inventario/Transferencias a las búsquedas del slice 4
+    (los servicios existen; falta que esas UIs los consuman).
