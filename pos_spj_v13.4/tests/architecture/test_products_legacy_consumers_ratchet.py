@@ -101,7 +101,6 @@ _ALLOWLIST: frozenset[str] = frozenset({
     "core/services/recepcion_qr_service.py",
     "core/services/recipe_engine.py",
     "core/services/recipes/recipe_resolver.py",
-    "core/services/sales/product_catalog_query_service.py",
     "core/services/sales_fulfillment_service.py",
     "core/services/sales_service.py",
     "integrations/pos_adapter.py",

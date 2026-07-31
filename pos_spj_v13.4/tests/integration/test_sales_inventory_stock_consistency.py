@@ -6,8 +6,14 @@ from backend.application.queries.inventory_query_service import InventoryQuerySe
 from backend.application.services.inventory_application_service import InventoryApplicationService
 from backend.infrastructure.db.repositories.inventory_repository import InventoryRepository
 from core.services.recipes.recipe_resolver import RecipeResolver
-from core.services.sales.product_catalog_query_service import ProductCatalogQueryService
 from core.services.stock_reservation_service import StockReservationService
+
+# Nota (P0-B slice 6): el catálogo POS (`ProductCatalogQueryService`) se repuntó al
+# maestro canónico `products` + `inventory_balances` (INV-27), por lo que ya NO
+# comparte la tabla legacy `inventory_stock` con recetas/reservas. Su cobertura vive
+# ahora en tests/integration/products/test_pos_catalog_canonical_repoint.py. Este
+# test conserva la consistencia de los componentes que SÍ siguen en inventory_stock
+# (recetas, reservas, InventoryApplicationService legacy).
 
 
 def _db() -> sqlite3.Connection:
@@ -109,16 +115,10 @@ def _inventory_quantity(conn: sqlite3.Connection, product_id: int = 1) -> float:
     return float(next(row[3] for row in rows if int(row[0]) == product_id))
 
 
-def _catalog_quantity(conn: sqlite3.Connection, product_id: int = 1) -> float:
-    rows = ProductCatalogQueryService(conn).list_visible_products(branch_id=1)
-    return float(next(row["existencia"] for row in rows if int(row["id"]) == product_id))
-
-
 def test_sales_inventory_recipe_and_reservations_share_inventory_stock() -> None:
     conn = _db()
 
     assert _inventory_quantity(conn, 1) == 10.0
-    assert _catalog_quantity(conn, 1) == 10.0
     assert RecipeResolver(conn)._get_stock(1, 1) == 10.0
     assert RecipeResolver(conn).virtual_availability(2, 1) == 5.0
 
@@ -126,16 +126,12 @@ def test_sales_inventory_recipe_and_reservations_share_inventory_stock() -> None
     reserva_id = reservations.reservar("R-1", [{"id": 1, "cantidad": 2}])
     assert reserva_id > 0
     assert reservations.stock_disponible(1) == 8.0
-    # Decision: POS catalog displays physical stock. Sale availability is physical
-    # stock minus active reservations and is exposed by StockReservationService.
-    assert _catalog_quantity(conn, 1) == 10.0
 
 
 def test_missing_inventory_stock_row_is_zero_and_ignores_legacy_stock_columns() -> None:
     conn = _db()
 
     assert _inventory_quantity(conn, 3) == 0.0
-    assert _catalog_quantity(conn, 3) == 0.0
     assert RecipeResolver(conn)._get_stock(3, 1) == 0.0
 
 
@@ -160,7 +156,6 @@ def test_completed_sale_updates_inventory_stock_movements_and_sales_catalog() ->
     assert result.stock_before == 10.0
     assert result.stock_after == 6.0
     assert _inventory_quantity(conn, 1) == 6.0
-    assert _catalog_quantity(conn, 1) == 6.0
     movement = conn.execute(
         """
         SELECT movement_type, quantity, stock_before, stock_after, source_module

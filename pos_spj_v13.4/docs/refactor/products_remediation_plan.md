@@ -12,7 +12,7 @@ prioridad P0 → P2 en commits acotados (no un commit gigante).
 | 1 | Crear CARCASS sin poder elegir especie | `product_creation_policy.validate_creation` exige `species_id` para `MEAT_PRODUCT_TYPES` (`SpeciesRequiredError`); `ProductFormDialog` **no tenía campo de especie** y `_fields()` nunca enviaba `species_id`. La tabla `species` existía **vacía**, sin read service ni seed. → el alta cárnica siempre fallaba. | ✅ Corregido (slice 1) |
 | 2 | Elegir ACTIVE y que se guarde DRAFT | `CreateProductMasterUseCase.execute` fuerza `lifecycle=LifecycleStatus.DRAFT` e **ignora** el estado enviado (correcto), pero el formulario mostraba un `QComboBox` "Estado" con ACTIVE/UNDER_REVIEW → selector engañoso; sin acciones de workflow en la ficha. | ✅ Corregido (slice 2) |
 | 3 | Crear producto y KPI no cambia | `ProductsView` construye páginas **una sola vez** (`self._built[index]`) y `_on_nav` no llama `refresh()`; no existe señal central `product_data_changed`. El Resumen sólo lee KPIs en su `__init__`. | ✅ Corregido (slice 3, refresh en navegación); señal central `product_data_changed` → P1-A |
-| 4 | Producto canónico no aparece en POS | El POS lee `productos` legacy (`core/services/sales/product_catalog_query_service.py`, etc.); no hay `PosProductCatalogFacade` que componga Productos+Pricing+Inventario. | ⏳ P0-B |
+| 4 | Producto canónico no aparece en POS | El POS lee `productos` legacy (`core/services/sales/product_catalog_query_service.py`, etc.); no hay `PosProductCatalogFacade` que componga Productos+Pricing+Inventario. | ✅ Corregido (slice 5 facade + slice 6 repunte del lector POS a canónico) |
 | 5 | Recetas/Rendimientos piden UUIDs a mano | `recipe_form_dialog`/`yield_form_dialog`/`cutting_form_dialog` usan `QLineEdit` "Producto (id)"/"Unidad (id)" y `QLineEdit` para %/tolerancia. | ⏳ P1-C |
 
 Método de reproducción: inspección AST/lectura del formulario, del caso de uso, de
@@ -101,10 +101,24 @@ refresco de KPIs). Sigue P0-B (catálogos consumidores + POS canónico).
   (`get_availability`) en `PosCatalogItemDTO`, sin meter precio/existencia en el
   agregado `Product`. Tests: composición precio+disponible+barcode, exclusión
   DRAFT/interno/otra-sucursal, precio ausente.
+- **Slice 6 ✅** — repunte real del lector POS: `core/services/sales/
+  product_catalog_query_service.py` deja de leer `productos` y compone `products`
+  + `product_price` BASE + `inventory_balances` (existencia) + `product_categories`
+  + `inventory_replenishment_rule` (stock mín.) + `product_images` + `product_barcodes`,
+  preservando el contrato de salida de `modulos/ventas.py`. Mapeos confirmados con
+  el usuario: `es_compuesto = bundle_allowed OR recipe_allowed`, `es_subproducto =
+  product_type ∈ {BY_PRODUCT, CO_PRODUCT}`. Enabler **migración 170** (backfill
+  `productos.codigo_barras → product_barcodes` y `imagen_path → product_images`,
+  idempotente) para no regresar escaneo/imágenes. **Delistado del ratchet.**
+  Tests: `test_pos_catalog_canonical_repoint.py` (contrato dict, flags compuestos/
+  subproducto, exclusión DRAFT/interno, barcode+categorías); el legacy
+  `test_sales_inventory_stock_consistency.py` se acotó a los componentes que aún
+  comparten `inventory_stock` (recetas/reservas). Arquitectura sin nuevas fallas
+  (19/402 = baseline); `foreign_key_check`/`integrity_check` limpios.
+  *Nota:* `test_productos_guardrails` sigue con su drift pre-existente
+  (`product_query_service`); ahora el lector POS reduce uso legacy (dirección
+  correcta), snapshot pendiente de refrescar en housekeeping.
 - **Pendiente P0-B**:
-  - *slice 6* — repunte real del POS: reemplazar los lectores legacy
-    (`core/services/sales/product_catalog_query_service.py`, …) por el facade
-    (cierra el escenario 4 end-to-end y delista del ratchet).
   - *slice 7* — asignación por sucursal/canal (§10): use cases + query service +
     página UI sobre `branch_product`/`assortments` (el esquema ya existe).
   - repunte de Compras/Inventario/Transferencias a las búsquedas del slice 4.
