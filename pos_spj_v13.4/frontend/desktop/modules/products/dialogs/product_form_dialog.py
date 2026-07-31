@@ -20,12 +20,15 @@ from PyQt5.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
-    QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
 from backend.domain.products.enums import MEAT_PRODUCT_TYPES
+from frontend.desktop.components import (
+    SearchableComboBox,
+    create_secondary_button,
+)
 from frontend.desktop.modules.products.view_models import (
     LIFECYCLE_ES,
     PRODUCT_TYPE_ES,
@@ -71,30 +74,26 @@ class ProductFormDialog(QDialog):
         self.code = QLineEdit()
         self.name = QLineEdit()
         self.short_name = QLineEdit()
-        # P0-03: unidad base por catálogo (guarda units_of_measure.id, no texto).
-        self.base_unit = QComboBox()
-        for unit in self._presenter.list_units():
-            self.base_unit.addItem(f"{unit['code']} — {unit['name']}", unit["id"])
+        # §7.1/§20: los catálogos (unidad/categoría/marca/especie) usan
+        # SearchableComboBox (búsqueda + placeholder que obliga a elegir), no listas
+        # QComboBox largas ni texto libre. Guardan siempre el UUID del catálogo.
+        self.base_unit = SearchableComboBox(placeholder="Unidad base…")
+        self.base_unit.set_options(
+            [(u["id"], f"{u['code']} — {u['name']}") for u in self._presenter.list_units()])
+        # El tipo es un enum fijo → QComboBox es aceptable (no es un catálogo grande).
         self.product_type = QComboBox()
         for code, label in sorted(PRODUCT_TYPE_ES.items(), key=lambda kv: kv[1]):
             self.product_type.addItem(label, code)
-        # P1-01: categoría por catálogo jerárquico (guarda product_categories.id).
-        self.category = QComboBox()
-        self.category.addItem("(Sin categoría)", None)
-        for cat in self._presenter.list_categories():
-            self.category.addItem(cat["label"], cat["id"])
-        # P1-02: marca por catálogo (guarda product_brands.id).
-        self.brand = QComboBox()
-        self.brand.addItem("(Sin marca)", None)
-        for br in self._presenter.list_brands():
-            self.brand.addItem(br["label"], br["id"])
-        # §5.2: especie por catálogo canónico (guarda species.id, nunca texto/UUID
-        # a mano). Sólo aplica a tipos cárnicos → la sección se muestra/oculta según
-        # el tipo. El primer item es un placeholder sin valor (obliga a elegir).
-        self.species = QComboBox()
-        self.species.addItem("(Selecciona especie)", None)
-        for sp in self._presenter.list_species():
-            self.species.addItem(sp["label"], sp["id"])
+        self.category = SearchableComboBox(placeholder="(Sin categoría)")
+        self.category.set_options(
+            [(c["id"], c["label"]) for c in self._presenter.list_categories()])
+        self.brand = SearchableComboBox(placeholder="(Sin marca)")
+        self.brand.set_options(
+            [(b["id"], b["label"]) for b in self._presenter.list_brands()])
+        # §5.2: especie por catálogo canónico; sólo aplica a tipos cárnicos.
+        self.species = SearchableComboBox(placeholder="Especie…")
+        self.species.set_options(
+            [(s["id"], s["label"]) for s in self._presenter.list_species()])
         # §6.1: el estado NO es editable desde el alta/edición (el alta nace en
         # DRAFT y sólo los casos de uso de ciclo de vida cambian el estado). Se
         # muestra como badge informativo, no como selector engañoso.
@@ -106,8 +105,7 @@ class ProductFormDialog(QDialog):
         code_layout = QHBoxLayout(code_row)
         code_layout.setContentsMargins(0, 0, 0, 0)
         code_layout.addWidget(self.code)
-        self._regen_btn = QPushButton("Regenerar")
-        self._regen_btn.setObjectName("secondaryButton")
+        self._regen_btn = create_secondary_button(text="Regenerar")
         self._regen_btn.clicked.connect(self._refresh_preview)
         code_layout.addWidget(self._regen_btn)
         self._manual_box = QCheckBox("Manual")
@@ -157,7 +155,7 @@ class ProductFormDialog(QDialog):
         buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
         # P1: galería de imágenes (sólo en edición: requiere product_id existente).
         if not self._is_new and getattr(self._presenter, "can_manage_images", False):
-            self._btn_images = QPushButton("Imágenes…")
+            self._btn_images = create_secondary_button("Imágenes…")
             self._btn_images.clicked.connect(self._open_gallery)
             buttons.addButton(self._btn_images, QDialogButtonBox.ActionRole)
         buttons.accepted.connect(self._on_save)
@@ -181,11 +179,11 @@ class ProductFormDialog(QDialog):
         self.code.setText(str(row.get("code") or ""))
         self.name.setText(str(row.get("name") or ""))
         self.short_name.setText(str(row.get("short_name") or ""))
-        self._select(self.base_unit, row.get("base_unit_id"))
+        self.base_unit.set_current_id(row.get("base_unit_id"))
         self._select(self.product_type, row.get("product_type"))
-        self._select(self.category, row.get("category_id"))
-        self._select(self.brand, row.get("brand_id"))
-        self._select(self.species, row.get("species_id"))
+        self.category.set_current_id(row.get("category_id"))
+        self.brand.set_current_id(row.get("brand_id"))
+        self.species.set_current_id(row.get("species_id"))
         state = str(row.get("lifecycle_status") or "DRAFT")
         self._state_badge.setText(LIFECYCLE_ES.get(state, state))
         for key, cb in self._flag_boxes.items():
@@ -197,6 +195,15 @@ class ProductFormDialog(QDialog):
         idx = combo.findData(value)
         if idx >= 0:
             combo.setCurrentIndex(idx)
+
+    @staticmethod
+    def _combo_value(combo: SearchableComboBox):
+        """UUID del catálogo seleccionado o None cuando está el placeholder.
+
+        SearchableComboBox devuelve un centinela (_PLACEHOLDER_ID) mientras no
+        se elige nada; el maestro debe guardar None, no el centinela.
+        """
+        return combo.current_id() if combo.has_selection() else None
 
     # ── código automático (P0-04) ────────────────────────────────────────────
     @property
@@ -248,14 +255,14 @@ class ProductFormDialog(QDialog):
             "name": self.name.text().strip(),
             "short_name": self.short_name.text().strip() or None,
             "product_type": self.product_type.currentData(),
-            "category_id": self.category.currentData(),
-            "brand_id": self.brand.currentData(),
-            "base_unit_id": self.base_unit.currentData(),
+            "category_id": self._combo_value(self.category),
+            "brand_id": self._combo_value(self.brand),
+            "base_unit_id": self._combo_value(self.base_unit),
             # §6.1: la UI no dicta el estado — el alta nace DRAFT y el update lo
             # preserva; el estado sólo cambia por los casos de uso de ciclo de vida.
             # §5.2: sólo se envía especie para tipos cárnicos (None en otros → el
             # dominio no la exige y no se ensucia el maestro).
-            "species_id": self.species.currentData() if self._is_meat_type() else None,
+            "species_id": self._combo_value(self.species) if self._is_meat_type() else None,
         }
         if self._auto_code:
             # El código lo reserva el caso de uso dentro de su transacción.

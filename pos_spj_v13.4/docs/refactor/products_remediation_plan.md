@@ -205,3 +205,27 @@ refresco de KPIs). Sigue P0-B (catálogos consumidores + POS canónico).
   KPIDTO (products+inventory+procurement) verdes.
 - Pendiente: `raw_value`/`trend`/`freshness` con datos reales (hoy sólo texto) y
   KPIs adicionales de §8.1 (sin sucursal / sin precio / sin código de barras).
+
+## 10. P1-B — Migración del formulario maestro al Design System (§7) — HECHO
+
+- **`ProductFormDialog` (maestro de productos)**: los catálogos de identidad —
+  **unidad base**, **categoría**, **marca** y **especie** — pasan de `QComboBox`
+  crudo a `SearchableComboBox` (§7.1/§20): búsqueda por texto + placeholder que
+  obliga a elegir, sin listas largas ni texto libre. Guardan siempre el UUID del
+  catálogo. El **tipo** se mantiene en `QComboBox` (enum fijo y corto, no catálogo).
+- **Placeholder-safe**: nuevo helper `_combo_value(combo)` devuelve
+  `current_id()` sólo si `has_selection()`; con el placeholder activo devuelve
+  `None` — el maestro nunca guarda el centinela ni una unidad/categoría falsa.
+  `_load()` usa `set_current_id(...)` (que cae al placeholder si el valor es None).
+- **Botones al Design System**: "Regenerar" (código) e "Imágenes…" usan
+  `create_secondary_button(...)` en lugar de `QPushButton` inline.
+- Guardrail `test_products_unit_is_uuid::test_form_unit_is_a_catalog_selector`
+  actualizado: exige `SearchableComboBox` + `_combo_value(self.base_unit)` (antes
+  exigía el `QComboBox` crudo) — el selector de catálogo con búsqueda es ahora el
+  contrato canónico.
+- Tests: Suite Productos **642 passed/1 skipped** (incluye los flujos de
+  categoría/marca/especie/unidad y alta/edición). Arquitectura global constante en
+  **55 failed/366 passed** (mismas fallas pre-existentes de Transferencias; cero
+  fallas nuevas por este slice).
+- Pendiente: base `StandardDialog`/`FormField` para el layout del formulario (hoy
+  `QDialog` + `QFormLayout` directos) — refactor de contenedor, no de contrato.
