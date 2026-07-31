@@ -26,8 +26,11 @@ PROCUREMENT_TABLES: tuple[str, ...] = (
     "purchase_requisitions",
     "purchase_requisition_lines",
     "requests_for_quotation",
+    "rfq_supplier_invitations",
     "supplier_quotes",
     "supplier_quote_lines",
+    "purchase_awards",
+    "purchase_award_lines",
     "purchase_orders",
     "purchase_order_lines",
     "purchase_order_versions",
@@ -35,6 +38,7 @@ PROCUREMENT_TABLES: tuple[str, ...] = (
     "goods_receipt_lines",
     "receipt_discrepancies",
     "supplier_invoices",
+    "supplier_invoice_lines",
     "supplier_invoice_matches",
     "purchase_authorization_log",
     "procurement_audit_log",
@@ -110,6 +114,7 @@ _DDL = (
         goods_receipt_id TEXT,
         payable_id TEXT,
         payment_instruction_id TEXT,
+        source_requisition_id TEXT REFERENCES purchase_requisitions(id),
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
     )
@@ -122,6 +127,8 @@ _DDL = (
         description TEXT NOT NULL DEFAULT '',
         quantity TEXT NOT NULL,
         unit_cost TEXT NOT NULL,
+        purchase_nature TEXT NOT NULL CHECK (purchase_nature IN (
+            'INVENTORY','EXPENSE','ASSET','SERVICE','CONSUMABLE','PACKAGING','MAINTENANCE')),
         currency_code TEXT NOT NULL DEFAULT 'MXN',
         purchase_unit TEXT NOT NULL DEFAULT 'PZA',
         inventory_unit TEXT NOT NULL DEFAULT 'PZA',
@@ -173,6 +180,8 @@ _DDL = (
         requisition_id TEXT NOT NULL REFERENCES purchase_requisitions(id),
         product_id TEXT NOT NULL,
         quantity TEXT NOT NULL,
+        purchase_nature TEXT NOT NULL CHECK (purchase_nature IN (
+            'INVENTORY','EXPENSE','ASSET','SERVICE','CONSUMABLE','PACKAGING','MAINTENANCE')),
         estimated_unit_cost TEXT,
         currency_code TEXT NOT NULL DEFAULT 'MXN',
         required_date TEXT
@@ -183,11 +192,21 @@ _DDL = (
     CREATE TABLE IF NOT EXISTS requests_for_quotation (
         id TEXT PRIMARY KEY,
         document_number TEXT NOT NULL UNIQUE,
-        supplier_ids TEXT NOT NULL,
+        requisition_id TEXT REFERENCES purchase_requisitions(id),
         response_deadline TEXT,
         status TEXT NOT NULL DEFAULT 'DRAFT',
         operation_id TEXT UNIQUE,
         created_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS rfq_supplier_invitations (
+        id TEXT PRIMARY KEY,
+        rfq_id TEXT NOT NULL REFERENCES requests_for_quotation(id),
+        supplier_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'INVITED',
+        invited_at TEXT NOT NULL,
+        UNIQUE (rfq_id, supplier_id)
     )
     """,
     """
@@ -198,7 +217,7 @@ _DDL = (
         currency_code TEXT NOT NULL DEFAULT 'MXN',
         lead_time_days INTEGER NOT NULL DEFAULT 0,
         total TEXT NOT NULL DEFAULT '0',
-        awarded INTEGER NOT NULL DEFAULT 0,
+        operation_id TEXT UNIQUE,
         created_at TEXT NOT NULL
     )
     """,
@@ -209,7 +228,31 @@ _DDL = (
         product_id TEXT NOT NULL,
         quantity TEXT NOT NULL,
         unit_price TEXT NOT NULL,
+        purchase_nature TEXT NOT NULL CHECK (purchase_nature IN (
+            'INVENTORY','EXPENSE','ASSET','SERVICE','CONSUMABLE','PACKAGING','MAINTENANCE')),
+        discount TEXT NOT NULL DEFAULT '0',
+        tax TEXT NOT NULL DEFAULT '0',
         currency_code TEXT NOT NULL DEFAULT 'MXN'
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS purchase_awards (
+        id TEXT PRIMARY KEY,
+        rfq_id TEXT NOT NULL REFERENCES requests_for_quotation(id),
+        approved_by_user_id TEXT NOT NULL,
+        operation_id TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS purchase_award_lines (
+        id TEXT PRIMARY KEY,
+        award_id TEXT NOT NULL REFERENCES purchase_awards(id),
+        quote_line_id TEXT NOT NULL REFERENCES supplier_quote_lines(id),
+        supplier_id TEXT NOT NULL,
+        awarded_quantity TEXT NOT NULL,
+        justification TEXT NOT NULL,
+        UNIQUE (award_id, quote_line_id, supplier_id)
     )
     """,
     # ── purchase orders ───────────────────────────────────────────────────
@@ -227,6 +270,9 @@ _DDL = (
         version INTEGER NOT NULL DEFAULT 1,
         created_by_user_id TEXT,
         approved_by_user_id TEXT,
+        source_requisition_id TEXT REFERENCES purchase_requisitions(id),
+        source_rfq_id TEXT REFERENCES requests_for_quotation(id),
+        source_award_id TEXT REFERENCES purchase_awards(id),
         operation_id TEXT UNIQUE,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -240,6 +286,8 @@ _DDL = (
         description TEXT NOT NULL DEFAULT '',
         ordered_quantity TEXT NOT NULL,
         unit_price TEXT NOT NULL,
+        purchase_nature TEXT NOT NULL CHECK (purchase_nature IN (
+            'INVENTORY','EXPENSE','ASSET','SERVICE','CONSUMABLE','PACKAGING','MAINTENANCE')),
         currency_code TEXT NOT NULL DEFAULT 'MXN',
         conversion_factor TEXT NOT NULL DEFAULT '1',
         received_quantity TEXT NOT NULL DEFAULT '0',
@@ -309,6 +357,8 @@ _DDL = (
         document_number TEXT NOT NULL UNIQUE,
         supplier_id TEXT NOT NULL,
         invoice_number TEXT NOT NULL,
+        subtotal TEXT NOT NULL,
+        tax_total TEXT NOT NULL,
         total TEXT NOT NULL,
         currency_code TEXT NOT NULL DEFAULT 'MXN',
         purchase_order_id TEXT,
@@ -316,10 +366,27 @@ _DDL = (
         uuid_fiscal TEXT,
         status TEXT NOT NULL DEFAULT 'CAPTURED',
         match_result TEXT,
+        captured_by_user_id TEXT NOT NULL,
+        matched_by_user_id TEXT,
+        released_by_user_id TEXT,
         payable_id TEXT,
         operation_id TEXT UNIQUE,
         created_at TEXT NOT NULL,
         UNIQUE (supplier_id, invoice_number)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS supplier_invoice_lines (
+        id TEXT PRIMARY KEY,
+        supplier_invoice_id TEXT NOT NULL REFERENCES supplier_invoices(id),
+        product_id TEXT NOT NULL,
+        invoiced_quantity TEXT NOT NULL,
+        unit_price TEXT NOT NULL,
+        tax TEXT NOT NULL DEFAULT '0',
+        currency_code TEXT NOT NULL,
+        purchase_order_line_id TEXT REFERENCES purchase_order_lines(id),
+        direct_purchase_line_id TEXT REFERENCES direct_purchase_lines(id),
+        receipt_line_id TEXT REFERENCES goods_receipt_lines(id)
     )
     """,
     """
@@ -371,7 +438,11 @@ _DDL = (
         event_name TEXT NOT NULL,
         payload_json TEXT NOT NULL,
         operation_id TEXT NOT NULL,
+        deduplication_key TEXT UNIQUE,
         status TEXT NOT NULL DEFAULT 'PENDING',
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        next_attempt_at TEXT,
+        last_error TEXT,
         created_at TEXT NOT NULL,
         dispatched_at TEXT
     )
@@ -403,6 +474,7 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_invoices_supplier ON supplier_invoices(supplier_id)",
     "CREATE INDEX IF NOT EXISTS idx_user_limits_user ON user_purchase_limits(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_proc_outbox_status ON procurement_outbox(status)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_proc_outbox_event ON procurement_outbox(event_id)",
     "CREATE INDEX IF NOT EXISTS idx_proc_audit_doc ON procurement_audit_log(document_id)",
 )
 

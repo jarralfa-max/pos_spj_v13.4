@@ -17,8 +17,16 @@ from backend.application.procurement.queries.procurement_analytics_service impor
 from backend.application.procurement.queries.purchase_history_read_service import (
     PurchaseHistoryReadService,
 )
-from backend.application.procurement.queries.qr_traceability_read_service import (
-    QrTraceabilityReadService,
+from backend.application.logistics.queries import LogisticsShipmentQueryService
+from backend.application.procurement.queries.supplier_directory_query_service import (
+    SupplierDirectoryQueryService,
+)
+from backend.application.procurement.queries.tolerance_settings_query_service import (
+    ProcurementToleranceSettingsQueryService,
+)
+from backend.application.procurement.authorization import PurchaseAuthorizationPolicy
+from backend.application.procurement.session_authorization import (
+    ProcurementSessionPermissionChecker,
 )
 from backend.application.procurement.use_cases.purchase_order_use_cases import (
     ApprovePurchaseOrderUseCase,
@@ -32,19 +40,11 @@ from backend.application.procurement.use_cases.requisition_use_cases import (
     CreatePurchaseRequisitionUseCase,
     SubmitPurchaseRequisitionUseCase,
 )
-from backend.application.procurement.use_cases.qr_container_use_cases import (
-    AssignQrContainerUseCase,
-    RegisterQrContainerUseCase,
-)
-from backend.application.procurement.use_cases.qr_reception_use_cases import (
-    CompleteQrReceptionUseCase,
-)
 from backend.application.procurement.use_cases.supplier_invoice_use_cases import (
     CaptureSupplierInvoiceUseCase,
     MatchSupplierInvoiceUseCase,
     ReleaseInvoiceVarianceUseCase,
 )
-from backend.infrastructure.db.schema.procurement_schema import create_procurement_schema
 from frontend.desktop.modules.purchasing.enterprise_presenter import (
     EnterprisePurchasingPresenter,
 )
@@ -53,19 +53,19 @@ from frontend.desktop.modules.purchasing.enterprise_presenter import (
 def _post_commit_dispatcher(connection):
     """Publish the procurement outbox to the app bus after a successful mutation."""
     def _dispatch():
-        try:
-            from backend.application.procurement.integrations.procurement_outbox_dispatcher import (
-                dispatch_procurement_outbox,
-            )
-            from core.events.event_bus import get_bus
-            dispatch_procurement_outbox(connection, get_bus())
-        except Exception:
-            pass  # best-effort; a pending outbox row is retried next time
+        from backend.application.procurement.integrations.procurement_outbox_dispatcher import (
+            dispatch_procurement_outbox,
+        )
+        from core.events.event_bus import get_bus
+        dispatch_procurement_outbox(connection, get_bus())
     return _dispatch
 
 
 def build_enterprise_presenter(connection, session_context=None) -> EnterprisePurchasingPresenter:
-    create_procurement_schema(connection)  # idempotent bootstrap
+    authorization = PurchaseAuthorizationPolicy(
+        ProcurementSessionPermissionChecker(session_context))
+    supplier_directory = SupplierDirectoryQueryService(connection)
+    tolerance_settings = ProcurementToleranceSettingsQueryService(connection)
     return EnterprisePurchasingPresenter(
         connection_provider=lambda: connection,
         read_services={
@@ -76,23 +76,22 @@ def build_enterprise_presenter(connection, session_context=None) -> EnterprisePu
         analytics=ProcurementAnalyticsService(connection),
         event_dispatcher=_post_commit_dispatcher(connection),
         use_cases={
-            "req_create": CreatePurchaseRequisitionUseCase(),
-            "req_submit": SubmitPurchaseRequisitionUseCase(),
-            "req_approve": ApprovePurchaseRequisitionUseCase(),
-            "po_create": CreatePurchaseOrderUseCase(),
-            "po_approve": ApprovePurchaseOrderUseCase(),
-            "po_send": SendPurchaseOrderUseCase(),
-            "po_change": ChangePurchaseOrderUseCase(),
-            "po_receive": ReceivePurchaseOrderUseCase(),
-            "inv_capture": CaptureSupplierInvoiceUseCase(),
-            "inv_match": MatchSupplierInvoiceUseCase(),
-            "inv_release": ReleaseInvoiceVarianceUseCase(),
-            "qr_register": RegisterQrContainerUseCase(),
-            "qr_assign": AssignQrContainerUseCase(),
-            "qr_receive": CompleteQrReceptionUseCase(),
+            "req_create": CreatePurchaseRequisitionUseCase(authorization),
+            "req_submit": SubmitPurchaseRequisitionUseCase(authorization),
+            "req_approve": ApprovePurchaseRequisitionUseCase(authorization),
+            "po_create": CreatePurchaseOrderUseCase(authorization, supplier_directory),
+            "po_approve": ApprovePurchaseOrderUseCase(authorization),
+            "po_send": SendPurchaseOrderUseCase(authorization),
+            "po_change": ChangePurchaseOrderUseCase(authorization),
+            "po_receive": ReceivePurchaseOrderUseCase(authorization=authorization),
+            "inv_capture": CaptureSupplierInvoiceUseCase(
+                authorization, supplier_directory),
+            "inv_match": MatchSupplierInvoiceUseCase(
+                authorization, tolerance_settings=tolerance_settings),
+            "inv_release": ReleaseInvoiceVarianceUseCase(authorization),
         },
         session_context=session_context,
-        qr_reads=QrTraceabilityReadService(connection),
+        logistics_reads=LogisticsShipmentQueryService(connection),
         history_reads=PurchaseHistoryReadService(connection),
     )
 
@@ -110,7 +109,7 @@ def create_enterprise_purchasing_view(container, parent=None):
 
     connection = getattr(container, "db", None) or getattr(container, "db_conn", None) \
         or container
-    session_context = getattr(container, "session_context", None)
+    session_context = getattr(container, "session", None)
     presenter = build_enterprise_presenter(connection, session_context)
     direct_view = DirectPurchaseView(
         build_direct_purchase_presenter(connection, session_context))

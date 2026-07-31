@@ -5,6 +5,47 @@ on:
   pull_request:
 
 jobs:
+  procurement-logistics-quality:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONUNBUFFERED: "1"
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install runtime and UI dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1 libegl1 libxkbcommon-x11-0
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pytest PyQt5 fastapi starlette httpx anyio
+      - name: Compile Python sources
+        run: |
+          cd pos_spj_v13.4
+          python -m compileall .
+      - name: Validate architecture
+        run: |
+          cd pos_spj_v13.4
+          python -m pytest tests/architecture -q
+      - name: Validate unit tests
+        run: |
+          cd pos_spj_v13.4
+          python -m pytest tests/unit -q
+      - name: Validate integration tests
+        run: |
+          cd pos_spj_v13.4
+          python -m pytest tests/integration -q
+      - name: Validate Logistics PWA syntax
+        run: |
+          cd pos_spj_v13.4
+          for file in frontend/web/logistics/*.js; do node --check "$file"; done
+
   ventas:
     runs-on: ubuntu-latest
     env:

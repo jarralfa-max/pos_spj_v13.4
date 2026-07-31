@@ -25,6 +25,7 @@ from backend.domain.procurement.entities import (
 from backend.domain.procurement.enums import (
     DiscrepancyType,
     PurchaseOrderStatus,
+    PurchaseNature,
     PurchaseType,
 )
 from backend.domain.procurement.events import ProcurementEvents, build_event_payload
@@ -53,13 +54,16 @@ def _emit(uow, event_name, *, document_id, operation_id, actor_user_id=None, **e
 
 
 class CreatePurchaseOrderUseCase:
-    def __init__(self, authorization: PurchaseAuthorizationPolicy | None = None) -> None:
+    def __init__(self, authorization: PurchaseAuthorizationPolicy | None = None,
+                 supplier_directory=None) -> None:
         self._auth = authorization or PurchaseAuthorizationPolicy()
+        self._supplier_directory = supplier_directory
 
     def execute(self, connection, *, actor_user_id: str, operation_id: str, supplier_id: str,
                 branch_id: str, warehouse_id: str, lines: list[dict],
                 purchase_type: str = PurchaseType.INVENTORY.value, currency_code: str = "MXN",
-                requisition_id: str | None = None) -> ProcurementResult:
+                requisition_id: str | None = None, rfq_id: str | None = None,
+                award_id: str | None = None) -> ProcurementResult:
         try:
             self._auth.require(actor_user_id, PurchasePermissions.ORDER_CREATE)
         except PurchasePermissionDeniedError as exc:
@@ -72,14 +76,21 @@ class CreatePurchaseOrderUseCase:
                                             operation_id=operation_id,
                                             status=existing.status.value)
             try:
+                if self._supplier_directory is not None:
+                    self._supplier_directory.require_eligible(supplier_id)
                 po = PurchaseOrder.create(
                     uow.sequences.next_number("OC", _year()), supplier_id, branch_id,
                     warehouse_id, created_by_user_id=actor_user_id,
                     purchase_type=PurchaseType(purchase_type), currency_code=currency_code)
+                po.source_requisition_id = requisition_id
+                po.source_rfq_id = rfq_id
+                po.source_award_id = award_id
                 for raw in lines:
                     po.lines.append(PurchaseOrderLine.create(
                         raw["product_id"], raw.get("description", ""), str(raw["quantity"]),
                         Money(str(raw["unit_price"]), currency_code),
+                        purchase_nature=PurchaseNature(
+                            raw.get("purchase_nature", PurchaseNature.INVENTORY.value)),
                         conversion_factor=Decimal(str(raw.get("conversion_factor", "1"))),
                         destination_warehouse_id=raw.get("destination_warehouse_id")))
                 if not po.lines:
@@ -261,9 +272,17 @@ class ReceivePurchaseOrderUseCase:
                     ordered = po_line.ordered_quantity if po_line else Decimal("0")
                     received = Decimal(str(raw["received_quantity"]))
                     accepted = Decimal(str(raw.get("accepted_quantity", raw["received_quantity"])))
+                    has_override = False
+                    if received > ordered and not self._tolerance.within(ordered, received):
+                        try:
+                            self._auth.require(
+                                actor_user_id, PurchasePermissions.RECEIPT_OVER_TOLERANCE)
+                            has_override = True
+                        except PurchasePermissionDeniedError:
+                            has_override = False
                     self._tol_policy.enforce_over_receipt(
                         ordered, received, self._tolerance,
-                        has_override_permission=has_over_receive_permission)
+                        has_override_permission=has_override)
                     gr.add_line(GoodsReceiptLine.create(product_id, ordered, received, accepted))
                     if raw.get("discrepancy_type"):
                         gr.add_discrepancy(ReceiptDiscrepancy.create(
@@ -271,6 +290,8 @@ class ReceivePurchaseOrderUseCase:
                             raw.get("discrepancy_reason", "")))
                     if po_line is not None:
                         received_by_line[po_line.id] = received
+                        po_line.accepted_quantity += accepted
+                        po_line.rejected_quantity += received - accepted
                 gr.complete()
                 po.register_receipt(received_by_line)
             except ProcurementDomainError as exc:

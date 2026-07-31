@@ -8,7 +8,7 @@ estilizable por QSS vía ``objectName`` (``sideNav`` / ítems).
 
 from __future__ import annotations
 
-from PyQt5.QtCore import QSize, pyqtSignal
+from PyQt5.QtCore import QSize, Qt, pyqtSignal
 from PyQt5.QtWidgets import QListWidget, QListWidgetItem
 
 
@@ -30,6 +30,16 @@ class SideNav(QListWidget):
         item = QListWidgetItem(label)
         if icon is not None:
             item.setIcon(icon)
+        self.addItem(item)
+
+    def add_group(self, label: str) -> None:
+        """Add a non-interactive semantic heading to a module sidebar."""
+        item = QListWidgetItem(label)
+        item.setFlags(Qt.NoItemFlags)
+        item.setData(Qt.AccessibleTextRole, label)
+        font = item.font()
+        font.setBold(True)
+        item.setFont(font)
         self.addItem(item)
 
     def _on_row_changed(self, row: int) -> None:

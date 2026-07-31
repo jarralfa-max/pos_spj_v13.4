@@ -131,7 +131,7 @@ def test_immediate_payment_cannot_come_from_pos_cash(proc_conn):
     assert row[0] == DocumentStatus.DRAFT.value
 
 
-def test_supplier_credit_creates_payable(proc_conn):
+def test_supplier_credit_waits_for_matched_invoice_before_payable(proc_conn):
     created = _create(proc_conn, payment_condition=PaymentCondition.SUPPLIER_CREDIT.value)
     confirm = ConfirmDirectPurchaseUseCase().execute(
         proc_conn, actor_user_id="u1", direct_purchase_id=created.entity_id,
@@ -139,7 +139,7 @@ def test_supplier_credit_creates_payable(proc_conn):
     assert confirm.success
     with ProcurementUnitOfWork(proc_conn) as uow:
         events = {r["event_name"] for r in uow.outbox.list_pending(50)}
-    assert "PURCHASE_PAYABLE_CREATED" in events
+    assert "ACCOUNT_PAYABLE_CREATE_REQUESTED" not in events
     assert "PURCHASE_PAYMENT_REQUESTED" not in events
 
 

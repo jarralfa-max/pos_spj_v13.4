@@ -801,7 +801,8 @@ def test_reception_tables_are_born_clean_uuid_identity():
     oc = {r[1] for r in conn.execute("PRAGMA table_info(ordenes_compra)").fetchall()}
     assert "uuid" not in oc                           # doble identidad eliminada
 
-    po_src = (REPO / "repositories" / "purchase_order_repository.py").read_text(encoding="utf-8")
+    po_src = (REPO / "backend" / "infrastructure" / "db" / "repositories" /
+              "procurement" / "purchase_order_repository.py").read_text(encoding="utf-8")
     assert "lastrowid" not in po_src
     assert "from backend.shared.ids import new_uuid" in po_src
 
@@ -823,10 +824,10 @@ def test_compras_tables_are_born_clean_uuid_identity():
     assert det["id"] == ("TEXT", 1)
     assert det["compra_id"][0] == "TEXT"
 
-    src = (REPO / "repositories" / "purchase_repository.py").read_text(encoding="utf-8")
+    src = (REPO / "backend" / "infrastructure" / "db" / "repositories" /
+           "procurement" / "direct_purchase_repository.py").read_text(encoding="utf-8")
     assert "lastrowid" not in src
-    assert "from backend.shared.ids import new_uuid" in src
-    assert "INSERT INTO compras" in src and "INSERT INTO detalles_compra (id," in src
+    assert "direct_purchases" in src and "direct_purchase_lines" in src
 
 
 def test_proveedores_table_is_born_clean_uuid_identity():

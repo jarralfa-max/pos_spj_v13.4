@@ -13,7 +13,7 @@ from modulos.design_tokens import Colors, Borders, Typography
 # Inventario explícito de módulos v13.4 (referencia para wiring UI)
 MODULOS = [
     "ventas",
-    "compras_pro",
+    "compras",
     "inventario",
     "productos",
     "clientes",

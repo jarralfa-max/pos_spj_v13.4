@@ -58,9 +58,11 @@ class InvoiceMatchingPolicy:
     """Three-way match (order↔receipt↔invoice) or two-way for direct purchases."""
 
     def __init__(self, *, price_tolerance: Tolerance | None = None,
-                 quantity_tolerance: Tolerance | None = None) -> None:
+                 quantity_tolerance: Tolerance | None = None,
+                 tax_tolerance: Tolerance | None = None) -> None:
         self._price_tol = price_tolerance or Tolerance(Decimal("0"))
         self._qty_tol = quantity_tolerance or Tolerance(Decimal("0"))
+        self._tax_tol = tax_tolerance or Tolerance(Decimal("0"))
 
     def match(self, *, has_purchase_document: bool, has_receipt: bool,
               ordered_total: Money | None, received_quantity: Decimal | None,
@@ -79,6 +81,29 @@ class InvoiceMatchingPolicy:
         if ordered_total is not None:
             if not self._price_tol.within(ordered_total.amount, invoice_total.amount):
                 return MatchResult.PRICE_VARIANCE
+        return MatchResult.MATCHED
+
+    def match_lines(self, *, ordered_lines: dict[str, dict],
+                    invoice_lines: list[dict]) -> MatchResult:
+        """Compare real invoice lines against ordered and accepted quantities."""
+        for invoice_line in invoice_lines:
+            source_line_id = invoice_line.get("purchase_order_line_id")
+            ordered = ordered_lines.get(source_line_id or "")
+            if ordered is None:
+                return MatchResult.MISSING_ORDER
+            accepted = Decimal(str(ordered["accepted_quantity"]))
+            invoiced = Decimal(str(invoice_line["invoiced_quantity"]))
+            # Partial invoices are valid; only cumulative over-invoicing is a variance.
+            if invoiced > accepted and not self._qty_tol.within(accepted, invoiced):
+                return MatchResult.QUANTITY_VARIANCE
+            if not self._price_tol.within(
+                    Decimal(str(ordered["unit_price"])),
+                    Decimal(str(invoice_line["unit_price"]))):
+                return MatchResult.PRICE_VARIANCE
+            expected_tax = Decimal(str(ordered.get("tax", "0")))
+            actual_tax = Decimal(str(invoice_line.get("tax", "0")))
+            if not self._tax_tol.within(expected_tax, actual_tax):
+                return MatchResult.TAX_VARIANCE
         return MatchResult.MATCHED
 
 

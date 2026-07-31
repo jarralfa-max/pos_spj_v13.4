@@ -15,7 +15,7 @@ from decimal import Decimal
 from backend.application.procurement.authorization import PurchaseAuthorizationPolicy
 from backend.application.procurement.permissions import PurchasePermissions
 from backend.application.procurement.result import ProcurementResult
-from backend.domain.procurement.entities import SupplierInvoice
+from backend.domain.procurement.entities import SupplierInvoice, SupplierInvoiceLine
 from backend.domain.procurement.events import ProcurementEvents, build_event_payload
 from backend.domain.procurement.exceptions import (
     ProcurementDomainError,
@@ -38,20 +38,24 @@ def _year() -> int:
     return date.today().year
 
 
-def _emit(uow, event_name, *, document_id, operation_id, actor_user_id=None, **extra):
+def _emit(uow, event_name, *, document_id, operation_id, actor_user_id=None,
+          deduplication_key=None, **extra):
     payload = build_event_payload(event_name, operation_id=operation_id,
                                   document_id=document_id, user_id=actor_user_id, **extra)
     uow.outbox.enqueue(event_id=payload["event_id"], event_name=event_name,
-                       payload_json=json.dumps(payload), operation_id=operation_id)
+                       payload_json=json.dumps(payload), operation_id=operation_id,
+                       deduplication_key=deduplication_key)
 
 
 class CaptureSupplierInvoiceUseCase:
-    def __init__(self, authorization=None) -> None:
+    def __init__(self, authorization=None, supplier_directory=None) -> None:
         self._auth = authorization or PurchaseAuthorizationPolicy()
+        self._supplier_directory = supplier_directory
         self._duplicates = DuplicatePurchasePolicy()
 
     def execute(self, connection, *, actor_user_id: str, operation_id: str, supplier_id: str,
                 invoice_number: str, total: str, currency_code: str = "MXN",
+                lines: list[dict] | None = None,
                 purchase_order_id: str | None = None,
                 direct_purchase_id: str | None = None,
                 uuid_fiscal: str | None = None) -> ProcurementResult:
@@ -69,10 +73,33 @@ class CaptureSupplierInvoiceUseCase:
                 return ProcurementResult.fail("Factura duplicada del proveedor",
                                               "DUPLICATE_INVOICE", operation_id=operation_id)
             try:
+                if self._supplier_directory is not None:
+                    self._supplier_directory.require_eligible(supplier_id)
+                if not lines:
+                    return ProcurementResult.fail(
+                        "La factura requiere líneas reales", "EMPTY_INVOICE_LINES",
+                        operation_id=operation_id)
                 inv = SupplierInvoice.create(
                     uow.sequences.next_number("FPR", _year()), supplier_id, invoice_number,
                     Money(str(total), currency_code), purchase_order_id=purchase_order_id,
-                    direct_purchase_id=direct_purchase_id, uuid_fiscal=uuid_fiscal)
+                    direct_purchase_id=direct_purchase_id, uuid_fiscal=uuid_fiscal,
+                    captured_by_user_id=actor_user_id)
+                for raw in lines:
+                    inv.lines.append(SupplierInvoiceLine.create(
+                        inv.id, raw["product_id"], raw["invoiced_quantity"],
+                        Money(str(raw["unit_price"]), currency_code),
+                        Money(str(raw.get("tax", "0")), currency_code),
+                        purchase_order_line_id=raw.get("purchase_order_line_id"),
+                        direct_purchase_line_id=raw.get("direct_purchase_line_id"),
+                        receipt_line_id=raw.get("receipt_line_id")))
+                subtotal = sum((line.subtotal().amount for line in inv.lines), Decimal("0"))
+                taxes = sum((line.tax.amount for line in inv.lines), Decimal("0"))
+                inv.subtotal = Money(subtotal, currency_code)
+                inv.tax_total = Money(taxes, currency_code)
+                if inv.total.amount != subtotal + taxes:
+                    return ProcurementResult.fail(
+                        "El total no coincide con las líneas de factura", "TOTAL_MISMATCH",
+                        operation_id=operation_id)
             except (ProcurementDomainError, ValueError) as exc:
                 return ProcurementResult.fail(str(exc), "VALIDATION", operation_id=operation_id)
             uow.invoices.save(inv)
@@ -91,9 +118,11 @@ class MatchSupplierInvoiceUseCase:
     """Three-way match against the linked order + its receipts. On MATCHED it
     raises a payable; on a variance it stays WITH_DIFFERENCES pending release."""
 
-    def __init__(self, authorization=None, *, price_tolerance: Tolerance | None = None) -> None:
+    def __init__(self, authorization=None, *, price_tolerance: Tolerance | None = None,
+                 tolerance_settings=None) -> None:
         self._auth = authorization or PurchaseAuthorizationPolicy()
         self._matcher = InvoiceMatchingPolicy(price_tolerance=price_tolerance)
+        self._tolerance_settings = tolerance_settings
 
     def execute(self, connection, *, actor_user_id: str, operation_id: str,
                 invoice_id: str) -> ProcurementResult:
@@ -107,23 +136,54 @@ class MatchSupplierInvoiceUseCase:
             if inv is None:
                 return ProcurementResult.fail("Factura inexistente", "NOT_FOUND",
                                               operation_id=operation_id)
+            matcher = self._matcher
+            if self._tolerance_settings is not None:
+                configured = self._tolerance_settings.invoice_tolerances(
+                    supplier_id=inv.supplier_id)
+                matcher = InvoiceMatchingPolicy(
+                    price_tolerance=configured.price,
+                    quantity_tolerance=configured.quantity,
+                    tax_tolerance=configured.tax)
             has_document = bool(inv.purchase_order_id or inv.direct_purchase_id)
             ordered_total = None
             received_qty = None
             invoiced_qty = None
             has_receipt = inv.direct_purchase_id is not None
+            po = None
             if inv.purchase_order_id:
                 po = uow.orders.get(inv.purchase_order_id)
                 if po is not None:
                     ordered_total = po.total()
                     received_qty = sum((ln.received_quantity for ln in po.lines), Decimal("0"))
-                    invoiced_qty = received_qty
+                    invoiced_qty = sum((ln.invoiced_quantity for ln in inv.lines), Decimal("0"))
                     has_receipt = po.status in ("PARTIALLY_RECEIVED", "RECEIVED") or any(
                         ln.received_quantity > 0 for ln in po.lines)
-            result = self._matcher.match(
-                has_purchase_document=has_document, has_receipt=has_receipt,
-                ordered_total=ordered_total, received_quantity=received_qty,
-                invoiced_quantity=invoiced_qty, invoice_total=inv.total)
+            if inv.purchase_order_id and po is not None and inv.lines:
+                if not has_receipt:
+                    result = MatchResult.MISSING_RECEIPT
+                else:
+                    result = MatchResult.MATCHED
+            else:
+                result = matcher.match(
+                    has_purchase_document=has_document, has_receipt=has_receipt,
+                    ordered_total=ordered_total, received_quantity=received_qty,
+                    invoiced_quantity=invoiced_qty, invoice_total=inv.total)
+            if result is MatchResult.MATCHED and inv.purchase_order_id and po is not None:
+                result = matcher.match_lines(
+                    ordered_lines={line.id: {
+                        "accepted_quantity": line.accepted_quantity,
+                        "unit_price": line.unit_price.amount,
+                        "tax": "0",
+                    } for line in po.lines},
+                    invoice_lines=[{
+                        "purchase_order_line_id": line.purchase_order_line_id,
+                        "invoiced_quantity": line.invoiced_quantity +
+                        uow.invoices.previously_invoiced_quantity(
+                            line.purchase_order_line_id or "", inv.id),
+                        "unit_price": line.unit_price.amount,
+                        "tax": line.tax.amount,
+                    } for line in inv.lines])
+            inv.matched_by_user_id = actor_user_id
             inv.record_match(result.value)
             uow.invoices.save(inv)
             uow.invoices.record_match(invoice_id=inv.id, result=result.value)
@@ -134,9 +194,12 @@ class MatchSupplierInvoiceUseCase:
                   operation_id=operation_id, actor_user_id=actor_user_id,
                   supplier_id=inv.supplier_id, match_result=result.value)
             if result is MatchResult.MATCHED:
-                _emit(uow, ProcurementEvents.PURCHASE_PAYABLE_CREATED, document_id=inv.id,
+                _emit(uow, ProcurementEvents.ACCOUNT_PAYABLE_CREATE_REQUESTED,
+                      document_id=inv.id,
                       operation_id=operation_id, actor_user_id=actor_user_id,
-                      supplier_id=inv.supplier_id, amount=str(inv.total.amount))
+                      supplier_id=inv.supplier_id, amount=str(inv.total.amount),
+                      source_type="SUPPLIER_INVOICE", source_id=inv.id,
+                      deduplication_key=f"SUPPLIER_INVOICE:{inv.id}")
         return ProcurementResult.ok("Factura conciliada", entity_id=inv.id,
                                     operation_id=operation_id, status=inv.status,
                                     match_result=result.value)
@@ -151,7 +214,7 @@ class ReleaseInvoiceVarianceUseCase:
         self._sod = SegregationOfDutiesPolicy()
 
     def execute(self, connection, *, releaser_user_id: str, operation_id: str, invoice_id: str,
-                captured_by_user_id: str, reason: str) -> ProcurementResult:
+                reason: str, captured_by_user_id: str | None = None) -> ProcurementResult:
         try:
             self._auth.require(releaser_user_id, PurchasePermissions.INVOICE_RELEASE_VARIANCE)
         except PurchasePermissionDeniedError as exc:
@@ -167,18 +230,22 @@ class ReleaseInvoiceVarianceUseCase:
                                               operation_id=operation_id)
             try:
                 self._sod.enforce_invoice_clerk_not_variance_releaser(
-                    captured_by_user_id, releaser_user_id)
+                    inv.captured_by_user_id, releaser_user_id)
             except ProcurementDomainError as exc:
                 return ProcurementResult.fail(str(exc), "SEGREGATION", operation_id=operation_id)
             inv.status = "APPROVED"
+            inv.released_by_user_id = releaser_user_id
             uow.invoices.save(inv)
             uow.invoices.record_match(invoice_id=inv.id, result="VARIANCE_RELEASED",
                                       released_by_user_id=releaser_user_id, notes=reason.strip())
             uow.audit.record(action=ProcurementEvents.SUPPLIER_INVOICE_MATCHED,
                              actor_user_id=releaser_user_id, authorized_by=releaser_user_id,
                              document_id=inv.id, reason=reason.strip(), operation_id=operation_id)
-            _emit(uow, ProcurementEvents.PURCHASE_PAYABLE_CREATED, document_id=inv.id,
+            _emit(uow, ProcurementEvents.ACCOUNT_PAYABLE_CREATE_REQUESTED,
+                  document_id=inv.id,
                   operation_id=operation_id, actor_user_id=releaser_user_id,
-                  supplier_id=inv.supplier_id, amount=str(inv.total.amount))
+                  supplier_id=inv.supplier_id, amount=str(inv.total.amount),
+                  source_type="SUPPLIER_INVOICE", source_id=inv.id,
+                  deduplication_key=f"SUPPLIER_INVOICE:{inv.id}")
         return ProcurementResult.ok("Diferencia liberada; CxP generada", entity_id=inv.id,
                                     operation_id=operation_id, status=inv.status)

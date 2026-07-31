@@ -202,16 +202,11 @@ def test_main_window_subscribes_and_fans_out_catalog_events():
 def test_compras_sees_new_branch_after_event(catalog_db, bus_recorder):
     """Simula el ciclo completo: sucursal A visible → se crea B → evento →
     el 'widget' de compras recarga desde el repo y ve A y B."""
-    from backend.infrastructure.db.repositories.compras_read_repository import (
-        ComprasReadRepository,
-    )
     from core.services.configuration_settings_service import CompanyProfileService
     from repositories.config_repository import ConfigRepository
 
     svc = CompanyProfileService(ConfigRepository(catalog_db))
     svc.save_branch(name="Sucursal A", address=None, phone=None, active=True)
-
-    repo = ComprasReadRepository(catalog_db)
 
     class FakeCompras:
         def __init__(self):
@@ -219,7 +214,8 @@ def test_compras_sees_new_branch_after_event(catalog_db, bus_recorder):
             self.refresh_branches()
 
         def refresh_branches(self):
-            self.branch_names = [b["nombre"] for b in repo.list_active_branches()]
+            self.branch_names = [name for _branch_id, name in
+                                 svc.branches_for_company_settings()]
 
         def on_branches_changed(self, payload):
             self.refresh_branches()
@@ -463,9 +459,8 @@ def test_registrar_compra_uc_still_validates_ids_and_quantities():
 # ── Test 8: list_active_branches filtra identidades inválidas ────────────────
 
 def test_list_active_branches_filters_invalid_ids(catalog_db):
-    from backend.infrastructure.db.repositories.compras_read_repository import (
-        ComprasReadRepository,
-    )
+    from core.services.configuration_settings_service import CompanyProfileService
+    from repositories.config_repository import ConfigRepository
 
     valid_id = new_uuid()
     catalog_db.execute(
@@ -479,6 +474,5 @@ def test_list_active_branches_filters_invalid_ids(catalog_db):
         "INSERT INTO sucursales (id, nombre, activa) VALUES (?, 'Inactiva', 0)",
         (new_uuid(),))
 
-    rows = ComprasReadRepository(catalog_db).list_active_branches()
-    assert [r["nombre"] for r in rows] == ["Válida"]
-    assert rows[0]["id"] == valid_id
+    rows = CompanyProfileService(ConfigRepository(catalog_db)).branches_for_company_settings()
+    assert rows == [(valid_id, "Válida")]
