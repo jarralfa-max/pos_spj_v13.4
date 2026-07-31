@@ -87,3 +87,24 @@ Verificación: suite de Productos 605 passed / 1 skipped.
 
 Con esto **P0-A queda completo** (especie · lifecycle/badge/acciones/readiness ·
 refresco de KPIs). Sigue P0-B (catálogos consumidores + POS canónico).
+
+## 6. P0-B — Catálogos consumidores canónicos (en curso)
+
+- **Slice 4 ✅ (`31b80cf`)** — `ProductSelectionDTO` + servicios de búsqueda
+  canónica (§11): `SearchSellable/Purchasable/InventoryManaged/Transferable/
+  ProductionInputs/WasteEligible`, con filtros comunes (query/branch/channel/type/
+  species/category/active/limit/offset). Sólo leen `products` + `branch_product` +
+  `assortments` (nunca `productos` legacy). Tests: capacidad, exclusión
+  DRAFT/interno, sucursal, surtido de canal, query+paginación.
+- **Slice 5 ✅** — `PosProductCatalogFacade` (§12): compone Productos (identidad/
+  flags/barcode/sucursal) + Pricing (`sale_price_amount`) + Inventario
+  (`get_availability`) en `PosCatalogItemDTO`, sin meter precio/existencia en el
+  agregado `Product`. Tests: composición precio+disponible+barcode, exclusión
+  DRAFT/interno/otra-sucursal, precio ausente.
+- **Pendiente P0-B**:
+  - *slice 6* — repunte real del POS: reemplazar los lectores legacy
+    (`core/services/sales/product_catalog_query_service.py`, …) por el facade
+    (cierra el escenario 4 end-to-end y delista del ratchet).
+  - *slice 7* — asignación por sucursal/canal (§10): use cases + query service +
+    página UI sobre `branch_product`/`assortments` (el esquema ya existe).
+  - repunte de Compras/Inventario/Transferencias a las búsquedas del slice 4.
