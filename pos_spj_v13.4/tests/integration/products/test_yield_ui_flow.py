@@ -93,7 +93,7 @@ def test_yield_form_dialog_creates(presenter):
     app = QApplication.instance() or QApplication([])
     dlg = YieldProfileFormDialog(presenter, input_product_id=_PROD)
     dlg.name.setText("Mi rendimiento")
-    dlg.tolerance.setText("0")
+    dlg.tolerance.setValue(0)
     dlg._outputs = list(_OUT)
     dlg._refresh_table()
     dlg._on_save()

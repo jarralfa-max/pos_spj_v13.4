@@ -13,7 +13,7 @@ prioridad P0 → P2 en commits acotados (no un commit gigante).
 | 2 | Elegir ACTIVE y que se guarde DRAFT | `CreateProductMasterUseCase.execute` fuerza `lifecycle=LifecycleStatus.DRAFT` e **ignora** el estado enviado (correcto), pero el formulario mostraba un `QComboBox` "Estado" con ACTIVE/UNDER_REVIEW → selector engañoso; sin acciones de workflow en la ficha. | ✅ Corregido (slice 2) |
 | 3 | Crear producto y KPI no cambia | `ProductsView` construye páginas **una sola vez** (`self._built[index]`) y `_on_nav` no llama `refresh()`; no existe señal central `product_data_changed`. El Resumen sólo lee KPIs en su `__init__`. | ✅ Corregido (slice 3, refresh en navegación); señal central `product_data_changed` → P1-A |
 | 4 | Producto canónico no aparece en POS | El POS lee `productos` legacy (`core/services/sales/product_catalog_query_service.py`, etc.); no hay `PosProductCatalogFacade` que componga Productos+Pricing+Inventario. | ✅ Corregido (slice 5 facade + slice 6 repunte del lector POS a canónico) |
-| 5 | Recetas/Rendimientos piden UUIDs a mano | `recipe_form_dialog`/`yield_form_dialog`/`cutting_form_dialog` usan `QLineEdit` "Producto (id)"/"Unidad (id)" y `QLineEdit` para %/tolerancia. | ⏳ P1-C |
+| 5 | Recetas/Rendimientos piden UUIDs a mano | `recipe_form_dialog`/`yield_form_dialog`/`cutting_form_dialog` usan `QLineEdit` "Producto (id)"/"Unidad (id)" y `QLineEdit` para %/tolerancia. | ✅ Corregido (P1-C: selectores canónicos + outputs + totales/simulación) |
 
 Método de reproducción: inspección AST/lectura del formulario, del caso de uso, de
 la policy de dominio, del host de navegación y de los diálogos; ejecución de la
@@ -148,3 +148,24 @@ refresco de KPIs). Sigue P0-B (catálogos consumidores + POS canónico).
   arquitectura 19/402 = baseline.
 - Pendiente: scope por sucursal/canal end-to-end en las mutaciones (§21.3) y
   segregación en el resto de flujos (ya activa en lifecycle/recipe/yield/import).
+
+## 8. P1-C — Forms cárnicos con selectores (§15/§16/§18) — HECHO (cierra escenario 5)
+
+- **Slice 8 — Recetas** (`recipe_form_dialog`): componentes y **outputs** (§15:
+  MAIN/CO/BY-product, merma, pérdida) con producto por `EntitySearchInput`, unidad
+  por `SearchableComboBox`, cantidad `DecimalInput`, % `PercentInput`. Ya no hay
+  `QLineEdit` de "Producto (id)"/"Unidad (id)".
+- **Slice 9 — Rendimientos** (`yield_form_dialog`): outputs con selectores + % min/
+  máx + cantidad esperada; **panel en vivo** de total esperado + tolerancia + estado
+  (Válido / Fuera de tolerancia con exceso/faltante) y **simulador** informativo
+  (entrada de ejemplo → cantidades por output, no crea inventario) (§16/§16.1).
+- **Slice 10 — Despiece** (`cutting_form_dialog`): **especie por catálogo**
+  (`SearchableComboBox` desde `list_species`, resiliente a preselección fuera de
+  catálogo) + producto/unidad por catálogo + medida peso/pieza (§18).
+- Tests: `test_recipe_form_selectors`, `test_yield_form_selectors`,
+  `test_cutting_form_selectors` (selectores, no UUID; outputs; total/tolerancia/
+  estado en vivo; simulación; especie por catálogo) + flujos UI existentes
+  adaptados. Suite Productos 638 passed/1 skipped; arquitectura 19/402 = baseline.
+- Pendiente §17 (doble medida kg/pza real en rendimientos): la entidad `YieldOutput`
+  no lleva aún `expected_piece_ratio`/`weight_unit_id`/`count_unit_id` — requiere
+  extensión de dominio + migración (fuera de este slice de UI).

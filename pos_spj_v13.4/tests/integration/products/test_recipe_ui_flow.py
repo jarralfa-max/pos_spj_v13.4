@@ -90,6 +90,6 @@ def test_recipe_form_dialog_creates(presenter):
     dlg = RecipeFormDialog(presenter, product_id=_PROD)
     dlg.name.setText("Mi receta")
     dlg._components = [{"component_product_id": "c1", "quantity": "3", "unit_id": "u"}]
-    dlg._refresh_table()
+    dlg._refresh_tables()
     dlg._on_save()
     assert presenter.list_recipes(_PROD)[0]["name"] == "Mi receta"
