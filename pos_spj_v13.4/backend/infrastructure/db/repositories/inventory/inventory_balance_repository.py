@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from backend.domain.inventory.entities.inventory_balance import InventoryBalance
 from backend.domain.inventory.enums import InventoryStatus
+from backend.domain.inventory.exceptions import InventoryConcurrencyError
 from backend.infrastructure.db.repositories.inventory.base import (
     InventoryRepositoryBase,
     dec_str,
@@ -47,7 +48,16 @@ class InventoryBalanceRepository(InventoryRepositoryBase):
         return _to_entity(row) if row else None
 
     def upsert(self, balance: InventoryBalance) -> None:
-        self._execute(
+        """Persist a balance with real optimistic locking (§6.2).
+
+        The domain increments ``version`` on each in-memory mutation, so the stored
+        row must still be at ``version - 1``. A brand-new row inserts cleanly; an
+        existing row updates only when its stored version matches (the DO UPDATE
+        ``WHERE`` guard). A version mismatch (a concurrent writer moved the row)
+        leaves the row untouched (rowcount 0) and raises InventoryConcurrencyError —
+        never a silent last-write-wins overwrite.
+        """
+        cursor = self._conn.execute(
             "INSERT INTO inventory_balances (id, product_id, branch_id, warehouse_id,"
             " location_id, lot_id, serial_id, inventory_status, quantity, weight,"
             " reserved_quantity, reserved_weight, version, updated_at)"
@@ -57,12 +67,19 @@ class InventoryBalanceRepository(InventoryRepositoryBase):
             " quantity=excluded.quantity, weight=excluded.weight,"
             " reserved_quantity=excluded.reserved_quantity,"
             " reserved_weight=excluded.reserved_weight,"
-            " version=excluded.version, updated_at=excluded.updated_at",
+            " version=excluded.version, updated_at=excluded.updated_at"
+            " WHERE inventory_balances.version = excluded.version - 1",
             (balance.id, balance.product_id, balance.branch_id, balance.warehouse_id,
              nz(balance.location_id), nz(balance.lot_id), nz(balance.serial_id),
              enum_value(balance.inventory_status), dec_str(balance.quantity),
              dec_str(balance.weight), dec_str(balance.reserved_quantity),
              dec_str(balance.reserved_weight), balance.version, now_iso()))
+        if cursor.rowcount == 0:
+            raise InventoryConcurrencyError(
+                "Conflicto de concurrencia optimista al actualizar el balance "
+                f"(product_id={balance.product_id}, branch_id={balance.branch_id}, "
+                f"warehouse_id={balance.warehouse_id}); versión esperada "
+                f"{balance.version - 1}")
 
     def list_by_product_branch(self, product_id: str, branch_id: str) -> list[dict]:
         return self._query(

@@ -184,3 +184,30 @@ conteos, merma, cadena de frío, lotes.
 - Transferencias (agregado propio — se abordará junto con P1-B transferencias
   físicas).
 - Cuenta técnica `service_account_id` para procesos automáticos.
+
+## P0-B — Integridad
+
+### Slice 1 — Optimistic locking real de balances (§6.2) — HECHO
+
+- **`InventoryBalanceRepository.upsert`**: el `ON CONFLICT DO UPDATE` ahora lleva
+  guard de versión `WHERE inventory_balances.version = excluded.version - 1`. El
+  dominio incrementa `version` en cada mutación en memoria, así que la fila
+  almacenada debe estar en `version-1`; si un escritor concurrente la movió, la
+  actualización queda en no-op (`rowcount == 0`) y se lanza
+  `InventoryConcurrencyError` (nueva excepción de dominio con `.code`). Se acabó el
+  last-write-wins silencioso. Un alta nueva inserta limpio; una secuencia normal
+  actualiza.
+- **Evidencia**: `test_inventory_optimistic_locking` 3 passed (alta nueva; update
+  secuencial; escritura obsoleta rechazada sin corromper el balance); ledger y
+  reservas verdes salvo el FEFO pre-existente; inventario `4 failed / 454 passed`
+  (4 pre-existentes, cero regresiones); arquitectura 58/387 (sin fallas nuevas).
+
+### Pendiente P0-B
+
+- §6.3 `RebuildInventoryBalancesUseCase` / `ValidateInventoryProjectionUseCase`
+  (reconstrucción desde ledger + detección de drift).
+- §7 Foreign Keys + CHECK + índices + unicidad de operation_id/event_id +
+  `PRAGMA foreign_key_check`/`integrity_check` limpios.
+- §4.1 `validate_uuidv7`/`new_uuidv7` + pruebas de versión real de UUID.
+- §4.3 unidades canónicas (`unit_id` UUID, no texto libre) en líneas del ledger.
+- §8 ubicaciones técnicas reales (no `warehouse_id` como ubicación).

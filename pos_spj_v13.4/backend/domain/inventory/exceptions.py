@@ -40,6 +40,14 @@ class WarehouseConfigurationRequiredError(InventoryDomainError):
     code = "WAREHOUSE_CONFIGURATION_REQUIRED"
 
 
+class InventoryConcurrencyError(InventoryDomainError):
+    """An optimistic-locking conflict: the balance row changed underneath us
+    (its stored version no longer matches the expected one). The caller must
+    re-read and retry — never overwrite blindly (§6.2)."""
+
+    code = "INVENTORY_CONCURRENCY_CONFLICT"
+
+
 class InventoryLimitExceededError(InventoryDomainError):
     """A quantity/weight/variance limit was exceeded beyond any override."""
 
