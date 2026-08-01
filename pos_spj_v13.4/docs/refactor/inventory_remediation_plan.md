@@ -120,10 +120,24 @@ Confirmado contra código real (no sólo auditoría):
   ajuste); ajustes existentes 8 passed; inventario `4 failed / 428 passed` (4
   pre-existentes, cero regresiones); arquitectura 58/386 (sin fallas nuevas).
 
+### Slice 6 — Enforcement de scope en reservas (§5.3) — HECHO
+
+- **`CreateReservationUseCase`**: valida sucursal/almacén de la UI contra el alcance
+  antes de reservar (helper `_scope_fail`); fuera de alcance → `SCOPE_DENIED`, la
+  disponibilidad no se toca.
+- **`ReleaseReservationUseCase`** y **`AllocateReservationUseCase`**: validan contra
+  la sucursal/almacén **reales de la reserva** (leídos del repositorio). `context=None`
+  conserva el comportamiento previo.
+- **Evidencia**: `test_inventory_reservation_scope` 6 passed (crear en/fuera de
+  sucursal y almacén sin tocar disponibilidad; retrocompat; liberar/asignar validan
+  el alcance de la reserva); reservas existentes verdes salvo el FEFO pre-existente;
+  inventario `4 failed / 434 passed` (4 pre-existentes, cero regresiones);
+  arquitectura 58/386 (sin fallas nuevas).
+
 ### Pendiente P0-A (resto)
 
-- Cablear el contexto en el resto de comandos (conteos, reservas, cuarentena,
-  transferencias, merma, temperatura) y en el composition root para que la UI pase
-  siempre el contexto resuelto.
+- Cablear el contexto en el resto de comandos (conteos, cuarentena, transferencias,
+  merma, temperatura) y en el composition root para que la UI pase siempre el
+  contexto resuelto.
 - §5.4 residuos: `warehouse_id = branch_id`, `location_id = warehouse_id`,
   `"MAIN"` donde persistan; cuenta técnica `service_account_id` para automáticos.
