@@ -32,10 +32,7 @@ MODULE_REGISTRY = {
     "ticket_designer":  ("ModuloTicketDesigner",      "modulos.ticket_designer",        ["usuario"]),
     "loyalty_card":     ("ModuloLoyaltyCardDesigner", "modulos.loyalty_card_designer",  ["usuario"]),
     "sistema":          ("ModuleSistema",             "modulos.sistema_dashboard",      ["usuario"]),
-    # PUR-13: "compras_pro" es un alias del módulo enterprise (el monolito fue eliminado).
-    "compras_pro":      ("ModuloComprasEnterprise",   "modulos.compras_enterprise",     []),
-    "compra_directa":   ("ModuloCompraDirecta",       "modulos.compra_directa",         []),
-    "compras_enterprise": ("ModuloComprasEnterprise", "modulos.compras_enterprise",     []),
+    "compras":          ("ModuloComprasEnterprise",   "modulos.compras_enterprise",     []),
     "activos":          ("ModuloActivos",             "modulos.activos",                ["usuario"]),
 }
 

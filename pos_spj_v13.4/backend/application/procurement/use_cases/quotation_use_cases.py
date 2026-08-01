@@ -10,10 +10,13 @@ from backend.application.procurement.authorization import PurchaseAuthorizationP
 from backend.application.procurement.permissions import PurchasePermissions
 from backend.application.procurement.result import ProcurementResult
 from backend.domain.procurement.entities import (
+    PurchaseAward,
+    PurchaseAwardLine,
     RequestForQuotation,
     SupplierQuote,
     SupplierQuoteLine,
 )
+from backend.domain.procurement.enums import PurchaseNature
 from backend.domain.procurement.events import ProcurementEvents, build_event_payload
 from backend.domain.procurement.exceptions import (
     ProcurementDomainError,
@@ -38,11 +41,12 @@ def _emit(uow, event_name, *, document_id, operation_id, actor_user_id=None, **e
 
 
 class CreateRfqUseCase:
-    def __init__(self, authorization=None) -> None:
+    def __init__(self, authorization=None, supplier_directory=None) -> None:
         self._auth = authorization or PurchaseAuthorizationPolicy()
+        self._supplier_directory = supplier_directory
 
     def execute(self, connection, *, actor_user_id: str, operation_id: str,
-                supplier_ids: list[str]) -> ProcurementResult:
+                supplier_ids: list[str], requisition_id: str | None = None) -> ProcurementResult:
         try:
             self._auth.require(actor_user_id, PurchasePermissions.RFQ_CREATE)
         except PurchasePermissionDeniedError as exc:
@@ -50,8 +54,18 @@ class CreateRfqUseCase:
                                           operation_id=operation_id)
         with ProcurementUnitOfWork(connection) as uow:
             try:
+                if requisition_id:
+                    requisition = uow.requisitions.get(requisition_id)
+                    if requisition is None or requisition.status.value != "APPROVED":
+                        return ProcurementResult.fail(
+                            "La RFQ requiere una solicitud aprobada",
+                            "INVALID_REQUISITION", operation_id=operation_id)
+                if self._supplier_directory is not None:
+                    for supplier_id in supplier_ids:
+                        self._supplier_directory.require_eligible(supplier_id)
                 rfq = RequestForQuotation.create(
-                    uow.sequences.next_number("RFQ", _year()), tuple(supplier_ids))
+                    uow.sequences.next_number("RFQ", _year()), tuple(supplier_ids),
+                    requisition_id=requisition_id)
             except ProcurementDomainError as exc:
                 return ProcurementResult.fail(str(exc), "VALIDATION", operation_id=operation_id)
             uow.rfqs.save_rfq(rfq)
@@ -60,14 +74,16 @@ class CreateRfqUseCase:
                              document_id=rfq.id, operation_id=operation_id)
             _emit(uow, ProcurementEvents.RFQ_CREATED, document_id=rfq.id,
                   operation_id=operation_id, actor_user_id=actor_user_id,
-                  document_number=rfq.document_number)
+                  document_number=rfq.document_number,
+                  requisition_id=requisition_id)
         return ProcurementResult.ok("RFQ creada", entity_id=rfq.id, operation_id=operation_id,
                                     document_number=rfq.document_number)
 
 
 class CaptureSupplierQuoteUseCase:
-    def __init__(self, authorization=None) -> None:
+    def __init__(self, authorization=None, supplier_directory=None) -> None:
         self._auth = authorization or PurchaseAuthorizationPolicy()
+        self._supplier_directory = supplier_directory
 
     def execute(self, connection, *, actor_user_id: str, operation_id: str, rfq_id: str,
                 supplier_id: str, lines: list[dict], lead_time_days: int = 0,
@@ -78,20 +94,37 @@ class CaptureSupplierQuoteUseCase:
             return ProcurementResult.fail(str(exc), "PERMISSION_DENIED",
                                           operation_id=operation_id)
         with ProcurementUnitOfWork(connection) as uow:
-            if uow.rfqs.get_rfq(rfq_id) is None:
+            existing = uow.rfqs.get_quote_by_operation(operation_id)
+            if existing is not None:
+                return ProcurementResult.ok(
+                    "Cotización ya capturada", entity_id=existing.id,
+                    operation_id=operation_id, total=str(existing.total().amount))
+            rfq = uow.rfqs.get_rfq(rfq_id)
+            if rfq is None:
                 return ProcurementResult.fail("RFQ inexistente", "NOT_FOUND",
                                               operation_id=operation_id)
+            if supplier_id not in rfq.supplier_ids:
+                return ProcurementResult.fail(
+                    "El proveedor no fue invitado a la RFQ", "SUPPLIER_NOT_INVITED",
+                    operation_id=operation_id)
             try:
+                if self._supplier_directory is not None:
+                    self._supplier_directory.require_eligible(supplier_id)
                 quote = SupplierQuote.create(rfq_id, supplier_id,
                                              lead_time_days=lead_time_days,
                                              currency_code=currency_code)
                 for raw in lines:
                     quote.lines.append(SupplierQuoteLine.create(
                         raw["product_id"], str(raw["quantity"]),
-                        Money(str(raw["unit_price"]), currency_code)))
+                        Money(str(raw["unit_price"]), currency_code),
+                        purchase_nature=PurchaseNature(
+                            raw.get("purchase_nature", PurchaseNature.INVENTORY.value)),
+                        discount=Money(str(raw.get("discount", "0")), currency_code),
+                        tax=Money(str(raw.get("tax", "0")), currency_code)))
             except (ProcurementDomainError, ValueError) as exc:
                 return ProcurementResult.fail(str(exc), "VALIDATION", operation_id=operation_id)
             uow.rfqs.save_quote(quote)
+            uow.rfqs.set_quote_operation_id(quote.id, operation_id)
             uow.audit.record(action=ProcurementEvents.SUPPLIER_QUOTE_RECEIVED,
                              actor_user_id=actor_user_id, document_id=quote.id,
                              operation_id=operation_id)
@@ -106,25 +139,57 @@ class AwardSupplierQuoteUseCase:
     def __init__(self, authorization=None) -> None:
         self._auth = authorization or PurchaseAuthorizationPolicy()
 
-    def execute(self, connection, *, actor_user_id: str, operation_id: str, quote_id: str,
-                reason: str = "") -> ProcurementResult:
+    def execute(self, connection, *, actor_user_id: str, operation_id: str,
+                quote_id: str | None = None, reason: str = "",
+                award_lines: list[dict] | None = None) -> ProcurementResult:
         try:
             self._auth.require(actor_user_id, PurchasePermissions.QUOTE_AWARD)
         except PurchasePermissionDeniedError as exc:
             return ProcurementResult.fail(str(exc), "PERMISSION_DENIED",
                                           operation_id=operation_id)
         with ProcurementUnitOfWork(connection) as uow:
-            quote = uow.rfqs.get_quote(quote_id)
-            if quote is None:
+            existing = uow.rfqs.get_award_by_operation(operation_id)
+            if existing is not None:
+                return ProcurementResult.ok("Adjudicación ya registrada",
+                                            entity_id=existing.id,
+                                            operation_id=operation_id)
+            if award_lines is None and quote_id:
+                quote = uow.rfqs.get_quote(quote_id)
+                award_lines = ([{"quote_line_id": line.id,
+                                 "supplier_id": quote.supplier_id,
+                                 "awarded_quantity": str(line.quantity),
+                                 "justification": reason} for line in quote.lines]
+                               if quote else None)
+            if not award_lines:
+                return ProcurementResult.fail(
+                    "La adjudicación requiere líneas y justificación", "VALIDATION",
+                    operation_id=operation_id)
+            first_quote = uow.rfqs.get_quote(quote_id or "")
+            if first_quote is None:
+                # Resolve RFQ from the first selected quote line.
+                row = uow.connection.execute(
+                    "SELECT q.id FROM supplier_quotes q JOIN supplier_quote_lines l"
+                    " ON l.quote_id=q.id WHERE l.id=?", (award_lines[0]["quote_line_id"],)
+                ).fetchone()
+                first_quote = uow.rfqs.get_quote(row[0]) if row else None
+            if first_quote is None:
                 return ProcurementResult.fail("Cotización inexistente", "NOT_FOUND",
                                               operation_id=operation_id)
-            quote.award()
-            uow.rfqs.save_quote(quote)
+            award = PurchaseAward.create(first_quote.rfq_id, actor_user_id)
+            try:
+                for raw in award_lines:
+                    award.lines.append(PurchaseAwardLine.create(
+                        award.id, raw["quote_line_id"], raw["supplier_id"],
+                        raw["awarded_quantity"], raw.get("justification", reason)))
+            except (ProcurementDomainError, KeyError) as exc:
+                return ProcurementResult.fail(str(exc), "VALIDATION",
+                                              operation_id=operation_id)
+            uow.rfqs.save_award(award, operation_id)
             uow.audit.record(action=ProcurementEvents.SUPPLIER_QUOTE_AWARDED,
-                             actor_user_id=actor_user_id, document_id=quote.id,
+                             actor_user_id=actor_user_id, document_id=award.id,
                              reason=reason, operation_id=operation_id)
-            _emit(uow, ProcurementEvents.SUPPLIER_QUOTE_AWARDED, document_id=quote.id,
+            _emit(uow, ProcurementEvents.SUPPLIER_QUOTE_AWARDED, document_id=award.id,
                   operation_id=operation_id, actor_user_id=actor_user_id,
-                  supplier_id=quote.supplier_id, rfq_id=quote.rfq_id)
-        return ProcurementResult.ok("Cotización adjudicada", entity_id=quote.id,
+                  rfq_id=award.rfq_id)
+        return ProcurementResult.ok("Cotización adjudicada", entity_id=award.id,
                                     operation_id=operation_id)

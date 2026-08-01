@@ -287,6 +287,7 @@ def wire_all(container: "AppContainer") -> None:
     # PUR-11/13: contexto Compras — necesidades→solicitudes, recibo→inventario/
     # proveedor, CxP, tesorería; + consumidor de entrada de stock por compra.
     _wire_procurement_pipeline(bus, container)
+    _wire_logistics_pipeline(bus, container)
 
     logger.info("EventBus wiring completado — %d eventos activos",
                 len(bus.registered_events()))
@@ -295,36 +296,63 @@ def wire_all(container: "AppContainer") -> None:
 def _wire_procurement_pipeline(bus, container) -> None:
     """Subscribe the procurement integration handlers + the inventory stock-entry
     consumer. Additive and idempotent; downstream handlers are idempotent by
-    event_id. Best-effort: a wiring failure never breaks the rest of the bus."""
-    try:
-        from backend.application.procurement.integrations.downstream_events import (
-            PURCHASE_STOCK_ENTRY_REGISTERED,
-        )
-        from backend.application.procurement.integrations.wiring import wire_procurement
+    event_id. Missing security or persistence dependencies fail application startup."""
+    from backend.application.procurement.authorization import PurchaseAuthorizationPolicy
+    from backend.application.procurement.integrations.downstream_events import (
+        PURCHASE_STOCK_ENTRY_REGISTERED,
+    )
+    from backend.application.procurement.integrations.wiring import wire_procurement
+    from backend.application.procurement.session_authorization import (
+        ProcurementSessionPermissionChecker,
+    )
 
-        db = getattr(container, "db", None)
-        if db is None:
-            return
-        wire_procurement(bus, db)
-        # corte INV-27: la recepción de compra postea al ledger canónico
-        # (PURCHASE_RECEIPT + lotes por lot_code + costo en la línea), no a
-        # movimientos_inventario/inventario_actual legacy. Reemplaza a
-        # PurchaseStockEntryHandler + PurchaseLotEntryHandler.
-        from backend.application.event_handlers.inventory.purchase_stock_entry_bridge import (
-            CanonicalPurchaseStockEntryHandler,
-        )
-        stock_handler = CanonicalPurchaseStockEntryHandler(db)
-        bus.subscribe(PURCHASE_STOCK_ENTRY_REGISTERED, stock_handler.handle,
-                      priority=100, label="procurement_inventory_stock_entry")
-        # recipe explosion on purchase (consume components) — canónico (ADJUSTMENT_OUT).
-        from backend.application.event_handlers.inventory.purchase_recipe_explosion_bridge import (
-            CanonicalPurchaseRecipeExplosionHandler,
-        )
-        recipe_handler = CanonicalPurchaseRecipeExplosionHandler(db)
-        bus.subscribe(PURCHASE_STOCK_ENTRY_REGISTERED, recipe_handler.handle,
-                      priority=80, label="procurement_inventory_recipe_explosion")
-    except Exception as exc:  # pragma: no cover - defensive wiring
-        logger.warning("procurement pipeline wiring failed (non-fatal): %s", exc)
+    db = getattr(container, "db", None)
+    if db is None:
+        raise RuntimeError("Procurement requiere una conexión canónica")
+    session = getattr(container, "session", None)
+    authorization = PurchaseAuthorizationPolicy(
+        ProcurementSessionPermissionChecker(session))
+    wire_procurement(bus, db, authorization=authorization)
+    # corte INV-27: la recepción de compra postea al ledger canónico.
+    from backend.application.event_handlers.inventory.purchase_stock_entry_bridge import (
+        CanonicalPurchaseStockEntryHandler,
+    )
+    stock_handler = CanonicalPurchaseStockEntryHandler(db)
+    bus.subscribe(PURCHASE_STOCK_ENTRY_REGISTERED, stock_handler.handle,
+                  priority=100, label="procurement_inventory_stock_entry")
+    # Recipe explosion on purchase — canónico (ADJUSTMENT_OUT).
+    from backend.application.event_handlers.inventory.purchase_recipe_explosion_bridge import (
+        CanonicalPurchaseRecipeExplosionHandler,
+    )
+    recipe_handler = CanonicalPurchaseRecipeExplosionHandler(db)
+    bus.subscribe(PURCHASE_STOCK_ENTRY_REGISTERED, recipe_handler.handle,
+                  priority=80, label="procurement_inventory_recipe_explosion")
+
+
+def _wire_logistics_pipeline(bus, container) -> None:
+    """Compose Logistics with live session RBAC and configured QR signing secret."""
+    from backend.application.logistics.authorization import LogisticsAuthorizationPolicy
+    from backend.application.logistics.service import LogisticsApplicationService
+    from backend.application.logistics.queries import LogisticsShipmentQueryService
+    from backend.application.logistics.wiring import wire_logistics
+    from backend.application.procurement.session_authorization import (
+        ProcurementSessionPermissionChecker,
+    )
+    from backend.domain.logistics.qr_identity import PermanentContainerQrService
+    from backend.infrastructure.db.repositories.logistics_repository import LogisticsRepository
+
+    secret = container.config_service.get("logistics_qr_signing_secret")
+    if not secret:
+        raise RuntimeError("Falta configuración logistics_qr_signing_secret")
+    service = LogisticsApplicationService(
+        container.db,
+        LogisticsAuthorizationPolicy(ProcurementSessionPermissionChecker(container.session)),
+        PermanentContainerQrService(str(secret).encode()),
+        getattr(container, "printer_gateway", None))
+    container.logistics_application_service = service
+    container.logistics_shipment_queries = LogisticsShipmentQueryService(
+        container.db, LogisticsRepository(container.db))
+    wire_logistics(bus, service)
 
 
 def _wire_cash_events(bus, container) -> None:

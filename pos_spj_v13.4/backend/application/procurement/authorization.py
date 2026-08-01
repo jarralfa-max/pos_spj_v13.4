@@ -25,7 +25,9 @@ class PurchaseAuthorizationPolicy:
         if permission_code not in ALL_PURCHASE_PERMISSIONS:
             raise PurchasePermissionDeniedError(f"Permiso desconocido: {permission_code}")
         if self._checker is None:
-            return  # isolated tests → allow; production always wires a checker
+            raise PurchasePermissionDeniedError(
+                "AuthorizationChecker no configurado; autorización denegada"
+            )
         if not user_id:
             raise PurchasePermissionDeniedError("Operación sin usuario autenticado")
         if not self._checker.has_permission(user_id, permission_code):

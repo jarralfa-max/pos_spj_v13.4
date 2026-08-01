@@ -6,6 +6,42 @@ from dataclasses import dataclass, field
 
 from frontend.desktop.formatters import format_money
 
+
+@dataclass(frozen=True)
+class PurchasingCapabilities:
+    """Display-only capabilities resolved from canonical Procurement permissions."""
+
+    module_view: bool = False
+    requisition_view: bool = False
+    requisition_create: bool = False
+    requisition_submit: bool = False
+    requisition_approve: bool = False
+    requisition_reject: bool = False
+    rfq_create: bool = False
+    order_view: bool = False
+    order_create: bool = False
+    order_approve: bool = False
+    order_send: bool = False
+    order_change: bool = False
+    receipt_view: bool = False
+    receipt_complete: bool = False
+    origin_view: bool = False
+    origin_create: bool = False
+    origin_seal: bool = False
+    origin_dispatch: bool = False
+    origin_override: bool = False
+    invoice_view: bool = False
+    invoice_capture: bool = False
+    invoice_match: bool = False
+    invoice_release_variance: bool = False
+    direct_view: bool = False
+    direct_create: bool = False
+    direct_authorize: bool = False
+    direct_confirm: bool = False
+    direct_reverse: bool = False
+    view_costs: bool = False
+    view_analytics: bool = False
+
 REQUISITION_STATUS_ES = {
     "DRAFT": "Borrador", "PENDING_APPROVAL": "Pendiente", "APPROVED": "Aprobada",
     "PARTIALLY_SOURCED": "Abastecida parcial", "SOURCED": "Abastecida",

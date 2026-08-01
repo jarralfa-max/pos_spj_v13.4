@@ -1,0 +1,38 @@
+{
+  "direct_purchase": {
+    "capture_and_history_share_page": true,
+    "page_header_inside_shell_route": true,
+    "simultaneous_document_actions": [
+      "Guardar compra",
+      "Autorizar en caliente",
+      "Confirmar y recibir",
+      "Reversar"
+    ]
+  },
+  "permission_literals": [
+    "logistics.shipment.receive",
+    "procurement.cost.view",
+    "procurement.invoice.capture",
+    "procurement.invoice.match",
+    "procurement.invoice.release_difference",
+    "procurement.purchase_order.approve",
+    "procurement.purchase_order.change",
+    "procurement.purchase_order.create",
+    "procurement.purchase_order.send",
+    "procurement.requisition.approve",
+    "procurement.requisition.create",
+    "procurement.requisition.submit"
+  ],
+  "placeholder_routes": [
+    "Cotizaciones",
+    "Adjudicaciones",
+    "Compras móviles",
+    "Contenedores asignados",
+    "Políticas y tolerancias"
+  ],
+  "runtime_route": {
+    "registry_key": "compras",
+    "registry_target_present": true,
+    "wrapper_calls_enterprise_route": true
+  }
+}

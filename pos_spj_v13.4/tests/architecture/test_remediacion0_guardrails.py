@@ -113,11 +113,7 @@ def test_on_pedido_nuevo_es_pyqtslot():
 # ── B13: recepción QR sin sucursal inventada ─────────────────────────────────
 
 def test_recepcion_qr_sin_fallback_principal():
-    src = _read("modulos/recepcion_qr_widget.py")
-    assert 'addItem("Principal", 1)' not in src and "addItem('Principal', 1)" not in src, (
-        "B13: reapareció el fallback hardcodeado a sucursal 'Principal'/1 en "
-        "el combo de recepción QR."
-    )
+    assert not (PKG_ROOT / "modulos" / "recepcion_qr_widget.py").exists()
 
 
 # ── B14: producción sin sucursal 1 / 'Principal' ─────────────────────────────

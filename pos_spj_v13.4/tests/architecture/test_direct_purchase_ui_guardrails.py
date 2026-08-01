@@ -26,14 +26,17 @@ def _ui_files():
 def test_direct_purchase_ui_exists_in_purchasing():
     assert PUR_UI.is_dir()
     assert (PUR_UI / "direct_purchase_view.py").exists()
-    assert (PUR_UI / "pages" / "direct_purchase_page.py").exists()
+    assert (PUR_UI / "pages" / "direct_purchase_create_page.py").exists()
+    assert (PUR_UI / "pages" / "direct_purchase_history_page.py").exists()
 
 
 def test_entry_wrapper_is_thin_and_sql_free():
-    src = (REPO / "modulos/compra_directa.py").read_text(encoding="utf-8")
-    assert "create_direct_purchase_view" in src
-    assert _SQL.search(src) is None
-    assert len(src.splitlines()) < 30
+    assert not (REPO / "modulos/compra_directa.py").exists()
+    shell = (PUR_UI / "purchasing_module_shell.py").read_text(encoding="utf-8")
+    navigation = (PUR_UI / "navigation.py").read_text(encoding="utf-8")
+    assert "PurchasingRoutes.DIRECT_PURCHASE_CREATE" in shell
+    assert "PurchasingRoutes.DIRECT_PURCHASE_HISTORY" in shell
+    assert '"Nueva compra"' in navigation and '"Historial"' in navigation
 
 
 def test_direct_purchase_ui_has_no_sql_or_repositories():
@@ -57,19 +60,40 @@ def test_direct_purchase_ui_has_no_inline_styles_or_hex():
 
 def test_page_delegates_to_presenter_only():
     """The page imports the presenter/components, not backend use cases/queries."""
-    text = (PUR_UI / "pages" / "direct_purchase_page.py").read_text(encoding="utf-8")
-    assert "backend.application.procurement.use_cases" not in text
-    assert "backend.application.procurement.queries" not in text
-    assert "ProcurementUnitOfWork" not in text
+    for name in ("direct_purchase_create_page.py", "direct_purchase_history_page.py"):
+        text = (PUR_UI / "pages" / name).read_text(encoding="utf-8")
+        assert "backend.application.procurement.use_cases" not in text
+        assert "backend.application.procurement.queries" not in text
+        assert "ProcurementUnitOfWork" not in text
 
 
 def test_page_does_not_do_money_math_or_offer_pos_cash():
-    text = (PUR_UI / "pages" / "direct_purchase_page.py").read_text(encoding="utf-8")
+    text = (PUR_UI / "pages" / "direct_purchase_create_page.py").read_text(encoding="utf-8")
     # totals come from the presenter, not summed in the widget
     assert "self._presenter.totals(" in text
+    assert "Reversar" not in text
+    assert "QSplitter" in text and "setStretchFactor(0, 7)" in text
+    assert "PurchaseProcessStepper" in text and "PurchaseSummaryPanel" in text
+    assert "EntitySearchInput" in (PUR_UI / "dialogs" / "direct_purchase_dialogs.py").read_text(encoding="utf-8")
     # the widget never offers the POS operative cash as a payment source
     vms = (PUR_UI / "direct_purchase_view_models.py").read_text(encoding="utf-8")
     assert "POS_CASH" not in vms and "CAJA_POS" not in vms
+
+
+def test_direct_purchase_presenter_has_no_fictitious_session_defaults():
+    source = (PUR_UI / "direct_purchase_presenter.py").read_text(encoding="utf-8")
+    assert 'else "desktop"' not in source
+    assert 'or "MAIN"' not in source
+    assert "warehouse_id\", None) or self.default_branch()" not in source
+
+
+def test_purchasing_ui_does_not_write_permission_literals():
+    offenders = []
+    for path in _ui_files():
+        source = path.read_text(encoding="utf-8")
+        if '.can("procurement.' in source or '.can("logistics.' in source:
+            offenders.append(str(path.relative_to(REPO)))
+    assert not offenders, f"Purchasing UI writes permission literals: {offenders}"
 
 
 # ── PUR-12 enterprise UI + analytics ─────────────────────────────────────────

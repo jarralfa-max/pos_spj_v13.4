@@ -14,6 +14,7 @@ from backend.domain.procurement.enums import (
     DirectPurchaseMode,
     DocumentStatus,
     PaymentCondition,
+    PurchaseNature,
     PurchaseType,
     SourceChannel,
 )
@@ -33,8 +34,9 @@ class DirectPurchaseRepository(ProcurementRepositoryBase):
             " purchase_type, status, subtotal, tax_total, total, payment_source,"
             " created_by_user_id, authorized_by_user_id, authorization_reason,"
             " operation_id, goods_receipt_id, payable_id, payment_instruction_id,"
+            " source_requisition_id,"
             " created_at, updated_at)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
             " ON CONFLICT(id) DO UPDATE SET"
             " status=excluded.status, subtotal=excluded.subtotal,"
             " tax_total=excluded.tax_total, total=excluded.total,"
@@ -53,6 +55,7 @@ class DirectPurchaseRepository(ProcurementRepositoryBase):
              dp.created_by_user_id, dp.authorized_by_user_id, dp.authorization_reason,
              None, None, None,
              dp.payment_instruction.id if dp.payment_instruction else None,
+             dp.source_requisition_id,
              dp.created_at, dp.updated_at))
         self._replace_lines(dp)
 
@@ -61,12 +64,13 @@ class DirectPurchaseRepository(ProcurementRepositoryBase):
         for ln in dp.lines:
             self._execute(
                 "INSERT INTO direct_purchase_lines (id, direct_purchase_id, product_id,"
-                " description, quantity, unit_cost, currency_code, purchase_unit,"
+                " description, quantity, unit_cost, purchase_nature, currency_code, purchase_unit,"
                 " inventory_unit, conversion_factor, discount, tax, line_total,"
                 " destination_branch_id, destination_warehouse_id)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (ln.id, dp.id, ln.product_id, ln.description, dec_str(ln.quantity),
-                 dec_str(ln.unit_cost.amount), ln.unit_cost.currency_code, ln.purchase_unit,
+                 dec_str(ln.unit_cost.amount), ln.purchase_nature.value,
+                 ln.unit_cost.currency_code, ln.purchase_unit,
                  ln.inventory_unit, dec_str(ln.conversion_factor), dec_str(ln.discount.amount),
                  dec_str(ln.tax.amount), dec_str(ln.line_total().amount),
                  ln.destination_branch_id, ln.destination_warehouse_id))
@@ -100,6 +104,7 @@ class DirectPurchaseRepository(ProcurementRepositoryBase):
                 id=lr["id"], product_id=lr["product_id"], description=lr["description"] or "",
                 quantity=to_decimal(lr["quantity"]),
                 unit_cost=Money(to_decimal(lr["unit_cost"]), lr["currency_code"]),
+                purchase_nature=PurchaseNature(lr["purchase_nature"]),
                 purchase_unit=lr["purchase_unit"], inventory_unit=lr["inventory_unit"],
                 conversion_factor=to_decimal(lr["conversion_factor"], "1"),
                 discount=Money(to_decimal(lr["discount"]), lr["currency_code"]),
@@ -119,6 +124,7 @@ class DirectPurchaseRepository(ProcurementRepositoryBase):
             created_by_user_id=row["created_by_user_id"],
             authorized_by_user_id=row["authorized_by_user_id"],
             authorization_reason=row["authorization_reason"] or "",
+            source_requisition_id=row["source_requisition_id"],
             created_at=row["created_at"], updated_at=row["updated_at"])
 
     def set_operation_id(self, direct_purchase_id: str, operation_id: str) -> None:

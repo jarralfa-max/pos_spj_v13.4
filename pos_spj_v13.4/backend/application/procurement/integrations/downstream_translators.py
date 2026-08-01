@@ -26,16 +26,21 @@ def _publish(bus, event_name: str, payload: dict) -> None:
     publish = getattr(bus, "publish", None)
     if publish is None:
         raise RuntimeError("El bus no expone publish()")
-    try:
-        publish(event_name, payload, async_=False)
-    except TypeError:
-        publish(event_name, payload)
+    publish(event_name, payload, async_=False)
 
 
-def _child_event_id(source: dict, suffix: str) -> str:
-    """Deterministic-ish child id: keep the source event_id as correlation and
-    mint a fresh id so downstream idempotency keys don't collide across fan-out."""
-    return f"{source.get('event_id') or new_uuid()}:{suffix}"
+def _child_event_id() -> str:
+    """Mint an independent canonical UUIDv7 for every derived event."""
+    return new_uuid()
+
+
+def _event_lineage(source: dict) -> dict:
+    """Preserve source lineage without reusing or composing event identities."""
+    source_event_id = source.get("event_id")
+    return {
+        "causation_id": source_event_id,
+        "correlation_id": source.get("correlation_id") or source_event_id,
+    }
 
 
 class ProcurementDownstreamTranslators:
@@ -51,7 +56,8 @@ class ProcurementDownstreamTranslators:
         if not lines:
             return
         self._safe_publish(PURCHASE_STOCK_ENTRY_REGISTERED, {
-            "event_id": _child_event_id(payload, "inv"),
+            "event_id": _child_event_id(),
+            **_event_lineage(payload),
             "operation_id": payload.get("operation_id"),
             "source_module": "procurement",
             "reason": "PURCHASE_RECEIPT",
@@ -75,13 +81,16 @@ class ProcurementDownstreamTranslators:
     # accounts payable --------------------------------------------------------
     def on_payable_created(self, payload: dict) -> None:
         self._safe_publish(PAYABLE_CREATED, {
-            "event_id": _child_event_id(payload, "cxp"),
+            "event_id": _child_event_id(),
+            **_event_lineage(payload),
             "operation_id": payload.get("operation_id"),
             "source_module": "procurement",
             "supplier_id": payload.get("supplier_id"),
             "amount": payload.get("amount"),
             "currency_code": payload.get("currency_code", "MXN"),
             "document_id": payload.get("document_id"),
+            "source_type": payload.get("source_type"),
+            "source_id": payload.get("source_id"),
             "payment_condition": payload.get("payment_condition"),
         })
 
@@ -95,7 +104,8 @@ class ProcurementDownstreamTranslators:
                          payload.get("document_id"))
             return
         self._safe_publish(SUPPLIER_PAYMENT_SCHEDULED, {
-            "event_id": _child_event_id(payload, "pay"),
+            "event_id": _child_event_id(),
+            **_event_lineage(payload),
             "operation_id": payload.get("operation_id"),
             "source_module": "procurement",
             "supplier_id": payload.get("supplier_id"),
@@ -109,7 +119,8 @@ class ProcurementDownstreamTranslators:
     # supplier performance ----------------------------------------------------
     def on_receipt_for_performance(self, payload: dict) -> None:
         self._safe_publish(SUPPLIER_PERFORMANCE_RECORDED, {
-            "event_id": _child_event_id(payload, "perf"),
+            "event_id": _child_event_id(),
+            **_event_lineage(payload),
             "operation_id": payload.get("operation_id"),
             "source_module": "procurement",
             "supplier_id": payload.get("supplier_id"),
@@ -124,3 +135,4 @@ class ProcurementDownstreamTranslators:
             _publish(self._bus, event_name, payload)
         except Exception:
             logger.exception("procurement translator failed for %s", event_name)
+            raise

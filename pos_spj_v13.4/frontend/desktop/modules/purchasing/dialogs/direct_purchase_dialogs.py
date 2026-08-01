@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import QCheckBox, QLabel
 
 from frontend.desktop.components import (
     DecimalInput,
+    EntitySearchInput,
     FormDialog,
     StandardLineEdit,
     StandardTextArea,
@@ -21,13 +22,17 @@ class AddCartLineDialog(FormDialog):
     """Capture one cart line. A weight/poultry line uses 3-decimal quantity in Kg
     and lets the buyer set a conversion factor to inventory units."""
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, *, product_provider=None,
+                 product_profile=None) -> None:
         super().__init__(parent, title="Agregar producto")
-        self._product = StandardLineEdit(self)
-        self._product.setPlaceholderText("Código o ID de producto")
-        self._description = StandardLineEdit(self)
-        self._description.setPlaceholderText("Descripción")
-        self._is_weight = QCheckBox("Producto por peso (pollo, granel)", self)
+        self._profile_provider = product_profile or (lambda _id: {})
+        self._product = EntitySearchInput(
+            self, provider=product_provider,
+            placeholder="Buscar producto por nombre, código o código de barras")
+        self._product.selected.connect(self._product_selected)
+        self._description = QLabel("Selecciona un producto del catálogo", self)
+        self._description.setProperty("role", "muted")
+        self._is_weight = QCheckBox("Producto de peso variable", self)
         self._quantity = DecimalInput(self, precision=2, minimum="0")
         self._qty_label = QLabel("Cantidad", self)
         self._unit_cost = DecimalInput(self, precision=2, minimum="0", suffix="MXN")
@@ -49,15 +54,26 @@ class AddCartLineDialog(FormDialog):
         self._is_weight.toggled.connect(self._on_weight_toggled)
 
     def prefill_product(self, code: str) -> None:
-        self._product.setText(code)
-        self._description.setFocus()
+        self._product._run_search(code)
+
+    def _product_selected(self, product_id) -> None:
+        profile = self._profile_provider(str(product_id))
+        self._description.setText(profile.get("name") or self._product.selected_label())
+        unit = str(profile.get("unit") or "PZA")
+        variable = str(profile.get("product_type") or "").upper() in {
+            "CATCH_WEIGHT", "VARIABLE_WEIGHT", "WEIGHT"}
+        self._is_weight.setChecked(variable)
+        self._is_weight.setEnabled(False)
+        self._conversion.set_decimal(str(profile.get("conversion_factor") or "1"))
+        self._conversion.setEnabled(False)
+        self._qty_label.setText(f"Cantidad ({unit})")
 
     def _on_weight_toggled(self, checked: bool) -> None:
         self._quantity.set_precision(3) if hasattr(self._quantity, "set_precision") else None
         self._qty_label.setText("Peso (Kg)" if checked else "Cantidad")
 
     def line(self) -> CartLineVM | None:
-        product_id = self._product.text().strip()
+        product_id = self._product.selected_id()
         quantity = self._quantity.decimal_value()
         unit_cost = self._unit_cost.decimal_value()
         if not product_id or quantity is None or quantity <= 0 or unit_cost is None:
@@ -65,7 +81,7 @@ class AddCartLineDialog(FormDialog):
         weight = self._is_weight.isChecked()
         return CartLineVM(
             product_id=product_id,
-            description=self._description.text().strip() or product_id,
+            description=self._description.text().strip() or str(product_id),
             quantity=quantity, unit_cost=unit_cost,
             tax=self._tax.decimal_value() or Decimal("0"),
             discount=self._discount.decimal_value() or Decimal("0"),

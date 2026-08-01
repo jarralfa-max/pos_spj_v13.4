@@ -12,11 +12,14 @@ from __future__ import annotations
 import json
 from decimal import Decimal
 
+from backend.application.procurement.authorization import PurchaseAuthorizationPolicy
+from backend.application.procurement.permissions import PurchasePermissions
 from backend.application.procurement.queries.purchase_template_read_service import (
     ProductPurchaseCostReadService,
 )
 from backend.application.procurement.result import ProcurementResult
 from backend.domain.procurement.events import ProcurementEvents, build_event_payload
+from backend.domain.procurement.exceptions import PurchasePermissionDeniedError
 from backend.domain.procurement.pricing_policies import PriceVariancePolicy
 from backend.infrastructure.db.repositories.procurement.unit_of_work import (
     ProcurementUnitOfWork,
@@ -24,7 +27,8 @@ from backend.infrastructure.db.repositories.procurement.unit_of_work import (
 
 
 class RecordPurchasePriceVarianceUseCase:
-    def __init__(self, *, policy: PriceVariancePolicy | None = None) -> None:
+    def __init__(self, authorization=None, *, policy: PriceVariancePolicy | None = None) -> None:
+        self._auth = authorization or PurchaseAuthorizationPolicy()
         self._policy = policy or PriceVariancePolicy()
 
     def execute(self, connection, *, actor_user_id: str, operation_id: str,
@@ -32,6 +36,11 @@ class RecordPurchasePriceVarianceUseCase:
                 ) -> ProcurementResult:
         """lines: [{product_id, captured_cost, historical_cost?}]. When
         historical_cost is absent it is looked up from the read service."""
+        try:
+            self._auth.require(actor_user_id, PurchasePermissions.DIRECT_OVERRIDE_COST)
+        except PurchasePermissionDeniedError as exc:
+            return ProcurementResult.fail(str(exc), "PERMISSION_DENIED",
+                                          operation_id=operation_id)
         costs = ProductPurchaseCostReadService(connection)
         detected: list[dict] = []
         with ProcurementUnitOfWork(connection) as uow:

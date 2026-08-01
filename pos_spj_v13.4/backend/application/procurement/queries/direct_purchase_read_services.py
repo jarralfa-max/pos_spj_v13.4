@@ -38,6 +38,10 @@ class _Base:
 
 
 class DirectPurchaseReadService(_Base):
+    def supplier_name(self, supplier_id: str) -> str:
+        row = self._query_one("SELECT nombre FROM proveedores WHERE id=?", (supplier_id,))
+        return str(row["nombre"]) if row else "Proveedor no disponible"
+
     def count(self, *, status: str | None = None, search: str = "") -> int:
         where, params = self._where(status, search)
         return int(self._scalar(
@@ -97,19 +101,10 @@ class DirectPurchaseReadService(_Base):
 
 
 class SupplierPickerQueryService(_Base):
-    """Feeds the supplier search box from the canonical supplier master, falling
-    back to the legacy table when the master is not present yet."""
+    """Feeds supplier search exclusively from canonical ``proveedores``."""
 
     def search(self, query: str, *, limit: int = 25) -> list[dict]:
         like = f"%{query.strip()}%"
-        rows = self._query(
-            "SELECT id, legal_name AS name, supplier_code AS code, status"
-            " FROM supplier_master"
-            " WHERE legal_name LIKE ? OR trade_name LIKE ? OR supplier_code LIKE ?"
-            " ORDER BY legal_name LIMIT ?", (like, like, like, limit))
-        if rows:
-            return rows
-        # legacy fallback (opaque id/name only)
         return self._query(
-            "SELECT id, nombre AS name, '' AS code, '' AS status FROM proveedores"
+            "SELECT id, nombre AS name, '' AS code, activo AS status FROM proveedores"
             " WHERE nombre LIKE ? ORDER BY nombre LIMIT ?", (like, limit))

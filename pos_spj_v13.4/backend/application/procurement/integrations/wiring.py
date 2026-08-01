@@ -18,6 +18,10 @@ from backend.application.procurement.integrations.downstream_translators import 
 from backend.application.procurement.integrations.replenishment_intake import (
     ReplenishmentIntakeHandler,
 )
+from backend.application.procurement.authorization import PurchaseAuthorizationPolicy
+from backend.application.procurement.use_cases.requisition_use_cases import (
+    CreatePurchaseRequisitionUseCase,
+)
 from backend.domain.procurement.events import ProcurementEvents, ReplenishmentNeedEvents
 
 logger = logging.getLogger("spj.procurement.wiring")
@@ -41,10 +45,18 @@ def _subscribe(bus, event_name: str, handler, *, priority: int = 80, label: str)
         subscribe(event_name, handler)
 
 
-def wire_procurement(bus, connection, *, default_user_id: str = "system") -> dict:
+def wire_procurement(
+    bus,
+    connection,
+    *,
+    authorization: PurchaseAuthorizationPolicy | None = None,
+) -> dict:
     """Wire procurement integrations onto the bus. Returns a summary of what was
     subscribed (useful for diagnostics/tests)."""
-    intake = ReplenishmentIntakeHandler(connection, default_user_id=default_user_id)
+    intake = ReplenishmentIntakeHandler(
+        connection,
+        use_case=CreatePurchaseRequisitionUseCase(authorization),
+    )
     translators = ProcurementDownstreamTranslators(bus)
 
     subscribed: list[str] = []
@@ -70,9 +82,9 @@ def wire_procurement(bus, connection, *, default_user_id: str = "system") -> dic
     subscribed.append("out:GOODS_RECEIPT_COMPLETED->supplier")
 
     # outbound: accounts payable
-    _subscribe(bus, ProcurementEvents.PURCHASE_PAYABLE_CREATED,
+    _subscribe(bus, ProcurementEvents.ACCOUNT_PAYABLE_CREATE_REQUESTED,
                translators.on_payable_created, priority=50, label="procurement_cxp")
-    subscribed.append("out:PURCHASE_PAYABLE_CREATED->cxp")
+    subscribed.append("out:ACCOUNT_PAYABLE_CREATE_REQUESTED->cxp")
 
     # outbound: treasury / petty cash (immediate payment)
     _subscribe(bus, ProcurementEvents.PURCHASE_PAYMENT_REQUESTED,

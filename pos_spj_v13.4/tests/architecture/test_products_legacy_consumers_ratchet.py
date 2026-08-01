@@ -56,14 +56,11 @@ def _current_consumers() -> set[str]:
 # Allowlist congelada (PROD-19 paso 9). SÓLO puede reducirse: repuntar un archivo al
 # maestro canónico y borrarlo de aquí. Objetivo del paso 10: conjunto vacío.
 _ALLOWLIST: frozenset[str] = frozenset({
-    "backend/application/procurement/queries/qr_traceability_read_service.py",
     "backend/application/queries/inventory_balance_service.py",
     "backend/application/queries/inventory_query_service.py",
     "backend/application/queries/product_query_service.py",
     "backend/application/services/product_catalog_service.py",
     "backend/infrastructure/db/repositories/branch_product_repository.py",
-    "backend/infrastructure/db/repositories/compras_read_repository.py",
-    "backend/infrastructure/db/repositories/compras_write_repository.py",
     "backend/infrastructure/db/repositories/product_repository.py",
     "backend/infrastructure/db/repositories/qr_containers_read_repository.py",
     "backend/infrastructure/db/repositories/waste_repository.py",
@@ -95,7 +92,6 @@ _ALLOWLIST: frozenset[str] = frozenset({
     "core/services/printer_service.py",
     "core/services/product_catalog_query_service.py",
     "core/services/production_query_service.py",
-    "core/services/recepcion_qr_service.py",
     "core/services/recipe_engine.py",
     "core/services/recipes/recipe_resolver.py",
     "core/services/sales_fulfillment_service.py",
@@ -103,7 +99,6 @@ _ALLOWLIST: frozenset[str] = frozenset({
     "integrations/pos_adapter.py",
     "repositories/inventory_repository.py",
     "repositories/productos.py",
-    "repositories/purchase_repository.py",
     "repositories/recetas.py",
     # Repoint batch 1: sales-line name reads → JOIN products (p.name).
     "services/bot_pedidos.py",

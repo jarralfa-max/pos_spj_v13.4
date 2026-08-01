@@ -32,60 +32,11 @@ class LegacyEntry:
 LEGACY_ALLOWLIST: tuple[LegacyEntry, ...] = (
     LegacyEntry(
         path="modulos/planeacion_compras.py",
-        reason="Planeación/forecast de compras cableada en main_window.py "
-               "(PLANEACION_COMPRAS); emite necesidades pero aún no usa el intake "
-               "canónico de reabasto.",
+        reason="Planeación pertenece a un alcance separado y aún emite necesidades.",
         owner="procurement-team",
         created_at="2026-07-17",
-        removal_condition="Reconectar su salida al ReplenishmentIntakeHandler "
-                          "(PUR-11) y mover la UI al módulo enterprise; luego borrar.",
+        removal_condition="Reconectar al intake canónico en la fase de Planeación.",
         classification="REWRITE"),
-    LegacyEntry(
-        path="backend/infrastructure/db/repositories/compras_read_repository.py",
-        reason="Repositorio de lectura legacy. El monolito (compras_pro.py) ya se "
-               "borró; sólo lo consumen tests (test_catalog_hot_refresh, "
-               "tests/unit/test_compras_read_repository) que aún cubren catálogo/"
-               "sucursales legacy.",
-        owner="procurement-team",
-        created_at="2026-07-17",
-        removal_condition="Migrar esos tests a los read services canónicos de "
-                          "backend/application/procurement/queries/ y borrar el repo.",
-        classification="WRAP_TEMPORARILY"),
-    LegacyEntry(
-        path="backend/infrastructure/db/repositories/compras_write_repository.py",
-        reason="Repositorio de escritura legacy (mutaciones de compra). El monolito "
-               "(compras_pro.py) ya se borró; sólo lo consume "
-               "tests/unit/test_compras_write_repository.",
-        owner="procurement-team",
-        created_at="2026-07-17",
-        removal_condition="Migrar ese test a los casos de uso canónicos de "
-                          "backend/application/procurement/ y borrar el repo.",
-        classification="WRAP_TEMPORARILY"),
-    LegacyEntry(
-        path="repositories/purchase_repository.py",
-        reason="Repositorio de compras legacy (IDs enteros) consumido por flujos "
-               "antiguos.",
-        owner="procurement-team",
-        created_at="2026-07-17",
-        removal_condition="Verificar cero consumidores fuera del monolito y borrar.",
-        classification="BLOCKED"),
-    LegacyEntry(
-        path="repositories/purchase_order_repository.py",
-        reason="Repositorio de órdenes legacy; reemplazado por "
-               "PurchaseOrderRepository canónico.",
-        owner="procurement-team",
-        created_at="2026-07-17",
-        removal_condition="Verificar cero consumidores y borrar.",
-        classification="BLOCKED"),
-    LegacyEntry(
-        path="repositories/purchase_request_repository.py",
-        reason="Repositorio de solicitudes legacy; reemplazado por "
-               "PurchaseRequisitionRepository canónico.",
-        owner="procurement-team",
-        created_at="2026-07-17",
-        removal_condition="Verificar cero consumidores y borrar.",
-        classification="BLOCKED"),
 )
 
-#: Monotonic ratchet: the allowlist may only shrink. Lower this as entries go.
-MAX_ENTRIES = 6
+MAX_ENTRIES = 1
