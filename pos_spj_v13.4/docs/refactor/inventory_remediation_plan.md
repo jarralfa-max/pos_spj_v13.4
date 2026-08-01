@@ -90,9 +90,26 @@ Confirmado contra código real (no sólo auditoría):
   query (hoy el seam existe en la factoría; falta que cada caso de uso lo reciba y
   llame `enforce_branch/enforce_warehouse`) — slices por familia de operación.
 
+### Slice 4 — Enforcement de scope en la ruta de escritura de stock (§5.3) — HECHO
+
+- `InventoryExecutionContext.has_global_scope` (VIEW_ALL_BRANCHES ⇒ todas las
+  sucursales/almacenes); `enforce_warehouse` usa ese global por defecto.
+- **`PostInventoryMovementUseCase`** y **`ReverseInventoryMovementUseCase`** aceptan
+  un `context: InventoryExecutionContext | None` opcional. Cuando se pasa, validan la
+  sucursal y el almacén **reales del movimiento** (post) o del movimiento original
+  leído del ledger (reverse) contra el alcance del actor; fuera de alcance →
+  `SCOPE_DENIED` sin tocar el balance. `context=None` conserva el comportamiento
+  previo (retrocompatibilidad; wiring por el composition root en slices siguientes).
+- **Evidencia**: `test_inventory_movement_scope` 6 passed (en alcance postea; fuera
+  de sucursal / de almacén niega sin tocar balance; global bypassa allowlist; sin
+  contexto retrocompatible; reverse valida el alcance del original); inventario
+  `4 failed / 423 passed` (4 pre-existentes, cero regresiones); arquitectura 58/386
+  (sin fallas nuevas).
+
 ### Pendiente P0-A (resto)
 
-- Cablear el contexto por comando (movimientos, ajustes, conteos, reservas,
-  cuarentena, transferencias) con enforcement de scope real.
+- Cablear el contexto en el resto de comandos (ajustes, conteos, reservas,
+  cuarentena, transferencias) y en el composition root para que la UI pase siempre
+  el contexto resuelto.
 - §5.4 residuos: `warehouse_id = branch_id`, `location_id = warehouse_id`,
   `"MAIN"` donde persistan; cuenta técnica `service_account_id` para automáticos.

@@ -15,13 +15,16 @@ posts a movement here. Replaces the legacy direct mutations
 from __future__ import annotations
 
 from backend.application.inventory.authorization import InventoryAuthorizationPolicy
+from backend.application.inventory.execution_context import InventoryExecutionContext
 from backend.application.inventory.permissions import InventoryPermissions
 from backend.application.inventory.result import InventoryResult
 from backend.application.inventory.services.movement_posting import post_movement
 from backend.domain.inventory.entities.inventory_movement import InventoryMovement
 from backend.domain.inventory.exceptions import (
+    BranchScopeError,
     InventoryDomainError,
     InventoryPermissionDeniedError,
+    WarehouseScopeError,
 )
 from backend.infrastructure.db.repositories.inventory.unit_of_work import (
     InventoryUnitOfWork,
@@ -36,15 +39,27 @@ class PostInventoryMovementUseCase:
                 actor_user_id: str,
                 permission_code: str = InventoryPermissions.MOVEMENT_CREATE,
                 negative_allowed: bool = False, authorized: bool = False,
-                owns_transaction: bool = True) -> InventoryResult:
+                owns_transaction: bool = True,
+                context: InventoryExecutionContext | None = None) -> InventoryResult:
         """Post a movement. When ``owns_transaction=False`` the stock write joins
         an outer transaction (e.g. a POS sale SAVEPOINT) that owns the commit —
-        the canonical replacement for the legacy ``auto_commit=False`` contract."""
+        the canonical replacement for the legacy ``auto_commit=False`` contract.
+
+        When an ``InventoryExecutionContext`` is supplied (§5.3), the movement's
+        branch and warehouse are validated against the actor's resolved scope — the
+        ids on the movement are never trusted blindly."""
         try:
             self._auth.require(actor_user_id, permission_code)
         except InventoryPermissionDeniedError as exc:
             return InventoryResult.fail(str(exc), "PERMISSION_DENIED",
                                         operation_id=movement.operation_id)
+        if context is not None:
+            try:
+                context.enforce_branch(movement.branch_id)
+                context.enforce_warehouse(movement.warehouse_id)
+            except (BranchScopeError, WarehouseScopeError) as exc:
+                return InventoryResult.fail(str(exc), "SCOPE_DENIED",
+                                            operation_id=movement.operation_id)
         try:
             with InventoryUnitOfWork(connection, owns_transaction=owns_transaction) as uow:
                 movement_id, already = post_movement(

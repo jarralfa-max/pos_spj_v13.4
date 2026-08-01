@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from backend.application.inventory.permissions import InventoryPermissions
 from backend.domain.inventory.exceptions import (
     BranchConfigurationRequiredError,
     InventoryAuthenticationRequiredError,
@@ -32,6 +33,11 @@ class InventoryExecutionContext:
     permissions: frozenset[str] = field(default_factory=frozenset)
     device_id: str | None = None
 
+    @property
+    def has_global_scope(self) -> bool:
+        """A VIEW_ALL_BRANCHES operator reaches every branch and warehouse."""
+        return InventoryPermissions.VIEW_ALL_BRANCHES in self.permissions
+
     def enforce_branch(self, target_branch_id: str) -> None:
         """Raise BranchScopeError if the actor may not operate on that branch."""
         _SCOPE.enforce_branch_access(
@@ -42,16 +48,22 @@ class InventoryExecutionContext:
         )
 
     def enforce_warehouse(self, target_warehouse_id: str, *,
-                          has_all_warehouses: bool = False) -> None:
-        """Raise WarehouseScopeError if the warehouse is outside the actor's reach."""
+                          has_all_warehouses: bool | None = None) -> None:
+        """Raise WarehouseScopeError if the warehouse is outside the actor's reach.
+
+        A global-scope operator (VIEW_ALL_BRANCHES) bypasses the allowed set unless
+        the caller explicitly overrides ``has_all_warehouses``.
+        """
         target = str(target_warehouse_id or "")
         if not target:
             raise WarehouseConfigurationRequiredError(
                 "La operación requiere un almacén válido")
+        allow_all = self.has_global_scope if has_all_warehouses is None \
+            else has_all_warehouses
         _SCOPE.enforce_warehouse_access(
             allowed_warehouse_ids=self.allowed_warehouse_ids,
             target_warehouse_id=target,
-            has_all_warehouses=has_all_warehouses,
+            has_all_warehouses=allow_all,
         )
 
 
