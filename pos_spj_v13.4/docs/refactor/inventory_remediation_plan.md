@@ -145,9 +145,25 @@ Confirmado contra código real (no sólo auditoría):
   existentes verdes; inventario `4 failed / 442 passed` (4 pre-existentes, cero
   regresiones); arquitectura 58/386 (sin fallas nuevas).
 
+### Slice 8 — Enforcement de scope en merma, cadena de frío y lotes (§5.3) — HECHO
+
+- **Merma** (`RegisterWaste`): valida sucursal+almacén de la UI antes de registrar.
+- **Cadena de frío** (`RecordTemperatureReading`): valida **solo almacén** (la
+  lectura no lleva sucursal).
+- **Lotes** (`RegisterInventoryLot`/`SetLotQualityStatus`): validan la **sucursal**
+  del lote (create desde `lot_fields["branch_id"]`; quality-status contra el lote
+  real). Fuera de alcance → `SCOPE_DENIED`; `context=None` retrocompatible.
+- **Evidencia**: `test_inventory_waste_temp_lot_scope` 9 passed; suites existentes
+  verdes; inventario `4 failed / 451 passed` (4 pre-existentes, cero regresiones);
+  arquitectura 58/386 (sin fallas nuevas).
+
+**Scope wiring cubierto (P0-A):** movimientos, ajustes, reservas, cuarentena,
+conteos, merma, cadena de frío, lotes.
+
 ### Pendiente P0-A (resto)
 
-- Cablear el contexto en el resto de comandos (transferencias, merma, temperatura,
-  lotes) y en el composition root para que la UI pase siempre el contexto resuelto.
+- Transferencias (agregado propio — se abordará junto con P1-B transferencias
+  físicas) + composition root: que la UI resuelva el `InventoryExecutionContext` y
+  lo pase a cada llamada del presenter.
 - §5.4 residuos: `warehouse_id = branch_id`, `location_id = warehouse_id`,
   `"MAIN"` donde persistan; cuenta técnica `service_account_id` para automáticos.
