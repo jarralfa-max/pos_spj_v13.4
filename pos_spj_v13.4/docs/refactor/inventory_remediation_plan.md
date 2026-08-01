@@ -221,10 +221,23 @@ conteos, merma, cadena de frío, lotes.
   passed` (4 pre-existentes, cero regresiones); arquitectura 58/387 (sin fallas
   nuevas).
 
+### Slice 3 — Validación real de UUIDv7 (§4.1) — HECHO
+
+- **`backend/shared/ids.py`**: API nombrada §4.1 — `new_uuidv7()` (alias de
+  `new_uuid`), `is_uuidv7(value)` (probe no-lanzante) y `validate_uuidv7(value)`
+  (lanza `ValueError`). La validación comprueba la **versión real** (`parsed.version
+  == 7`), la variante RFC-4122 y la forma canónica en minúsculas con guiones
+  (`str(parsed) == value`) — no un patrón regex. Rechaza int-like ("1"), uuid4,
+  mayúsculas, urn, vacío y no-str.
+- **Evidencia**: `test_ids_uuidv7` 6 passed (v7 real; equivalencia new_uuid; rechazo
+  de uuid4/"1"/mayúsculas/urn); `test_inventory_identity_is_uuidv7` 3 passed
+  (runtime: ids de movimiento/línea/lote y el id persistido del ledger validan como
+  UUIDv7 real — no un chequeo de patrón). Inventario `4 failed / 467 passed`
+  (4 pre-existentes, cero regresiones); arquitectura 58/387 (sin fallas nuevas).
+
 ### Pendiente P0-B
 
 - §7 Foreign Keys + CHECK + índices + unicidad de operation_id/event_id +
   `PRAGMA foreign_key_check`/`integrity_check` limpios.
-- §4.1 `validate_uuidv7`/`new_uuidv7` + pruebas de versión real de UUID.
 - §4.3 unidades canónicas (`unit_id` UUID, no texto libre) en líneas del ledger.
 - §8 ubicaciones técnicas reales (no `warehouse_id` como ubicación).

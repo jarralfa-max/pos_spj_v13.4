@@ -56,6 +56,40 @@ def new_uuid() -> str:
     return str(_uuid7())
 
 
+# §4.1 named API — explicit UUIDv7 generation + validation.
+def new_uuidv7() -> str:
+    """Alias of :func:`new_uuid`: a canonical lowercase UUIDv7 string."""
+    return new_uuid()
+
+
+def is_uuidv7(value) -> bool:
+    """True iff *value* is a canonical lowercase UUIDv7 string (version 7,
+    RFC-4122 variant, hyphenated, lowercase). Non-raising probe."""
+    if not isinstance(value, str) or not value:
+        return False
+    try:
+        parsed = uuid.UUID(value)
+    except (ValueError, AttributeError, TypeError):
+        return False
+    # Real version check (not just a pattern): must be v7, RFC-4122 variant,
+    # and the exact canonical lowercase hyphenated form.
+    return (parsed.version == 7
+            and parsed.variant == uuid.RFC_4122
+            and str(parsed) == value)
+
+
+def validate_uuidv7(value: str) -> str:
+    """Return *value* if it is a canonical lowercase UUIDv7, else raise ValueError.
+
+    Rejects int-like ids ("1"), uuid4, uppercase/urn forms and any non-v7 value —
+    identity must be a real UUIDv7 (REGLA CERO / §4.1), never merely TEXT."""
+    if not is_uuidv7(value):
+        raise ValueError(
+            f"Identidad no válida: se requiere un UUIDv7 canónico en minúsculas, "
+            f"recibido {value!r}")
+    return value
+
+
 # ── Centinelas de instalación (Plan B born-clean) ────────────────────────────
 # Identidad ESTABLE de los registros semilla que toda instalación nueva crea
 # (sucursal matriz y caja principal). Son UUIDs constantes con layout v7 y
