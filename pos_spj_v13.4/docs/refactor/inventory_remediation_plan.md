@@ -41,13 +41,33 @@ Confirmado contra código real (no sólo auditoría):
   +3 tests nuevos, cero regresiones); arquitectura `55 failed / 371 passed`
   (mismo baseline de fallas, +5 guardrails nuevos, cero fallas nuevas).
 
+### Slice 2 — Composition root + checker RBAC real (§5.2) — HECHO
+
+- **`InventoryUseCaseFactory`** (`backend/application/inventory/composition.py`):
+  factoría central productiva. **Exige** un `PermissionChecker` real (sin checker →
+  `InventoryConfigurationError`), construye los casos de uso sensibles cableados con
+  la política respaldada por el checker (`build()` genérico + builders nombrados:
+  movimiento, reverso, ajustes, conteos, reservas, cuarentena, merma, temperatura,
+  reposición). Constructores: `from_session(session)` (producción) y `for_tests()`.
+- **`InventorySessionPermissionChecker`** (`session_authorization.py`): checker RBAC
+  **real** sobre la sesión viva (`tiene_permiso`), con puente canónico→legacy
+  (`INVENTORY_*` → `inventario.ver/editar/ajustar/transferir`). Sin sesión / usuario
+  no coincidente → deniega. No es un mock (§23).
+- **Wiring** `modulos/inventario_enterprise.py`: con sesión viva construye el caso
+  de uso de reposición vía la factoría (checker real), no el default permisivo; sin
+  sesión (tests) cae al default explícito. Además **elimina los fallbacks ficticios**
+  `"desktop"`/`"1"` de identidad (§5.4/§21.2): sin sesión, user/branch quedan None y
+  las mutaciones se niegan aguas abajo.
+- **Evidencia**: `test_inventory_composition` 10 passed (factoría exige checker;
+  builders cablean el checker; el checker de sesión concede por legacy y deniega sin
+  sesión / por usuario distinto / lectura no concede mutación); inventario
+  `4 failed / 408 passed` (mismas 4 pre-existentes, +10 nuevos, cero regresiones);
+  arquitectura sin fallas nuevas (58 = baseline tras el merge remoto).
+
 ### Pendiente P0-A (próximos slices)
 
-- **§5.2 composition root** `InventoryUseCaseFactory` con checker/SessionContext/
-  scope resolver reales; UI/handlers dejan de instanciar con constructores vacíos
-  (esto cierra el residuo: hoy el default de pruebas es permisivo si producción no
-  inyecta checker).
 - **§5.3 `InventoryExecutionContext`** + aplicar `InventoryScopePolicy` en todos
-  los commands/queries.
-- **§5.4** eliminar fallbacks ficticios (`"desktop"`, `"system"`, `"1"`, `"MAIN"`,
-  `warehouse_id = branch_id`, `location_id = warehouse_id`).
+  los commands/queries (sucursal activa, almacenes autorizados, pertenencia).
+- **§5.4 (resto)** eliminar fallbacks `warehouse_id = branch_id`,
+  `location_id = warehouse_id`, `"system"`/`"MAIN"` donde persistan; cuenta técnica
+  `service_account_id` para procesos automáticos.
