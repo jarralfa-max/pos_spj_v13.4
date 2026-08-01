@@ -235,9 +235,29 @@ conteos, merma, cadena de frío, lotes.
   UUIDv7 real — no un chequeo de patrón). Inventario `4 failed / 467 passed`
   (4 pre-existentes, cero regresiones); arquitectura 58/387 (sin fallas nuevas).
 
+### Slice 4 — Integridad referencial verificable + scripts CI (§7/§20) — HECHO
+
+- **Auditoría**: el esquema born-clean ya declara FKs (`inventory_ledger_lines →
+  inventory_ledger`, reservas/conteos/ajustes/reposición → su cabecera) y
+  `UNIQUE(operation_id)` en movimientos + `UNIQUE(event_id)` en outbox; la conexión
+  productiva (`core/db/connection.py`) ya activa `PRAGMA foreign_keys=ON`. Sobre un
+  esquema canónico fresco `PRAGMA foreign_key_check` e `integrity_check` salen
+  limpios.
+- **Scripts CI (§20)**: `scripts/check_inventory_foreign_keys.py`
+  (foreign_key_check + integrity_check; exit≠0 ante violación) y
+  `scripts/check_inventory_projection_drift.py` (rebuild vs balances; exit≠0 ante
+  drift). Ambos aceptan `--db` o bootstrapean el esquema en memoria.
+- **Enforcement real** (FK activadas, nunca desactivadas en tests):
+  `test_inventory_referential_integrity` prueba que foreign_key_check/integrity_check
+  están limpios, que una línea de ledger con `movement_id` inexistente es rechazada
+  por la FK, que `operation_id` es único, y que el script de FK pasa en un esquema
+  fresco.
+- **Evidencia**: scripts imprimen `INVENTORY_FK_CHECK_OK` /
+  `INVENTORY_PROJECTION_OK`; `test_inventory_referential_integrity` 4 passed;
+  inventario `4 failed / 465 passed` (4 pre-existentes, cero regresiones);
+  arquitectura 58/387 (sin fallas nuevas).
+
 ### Pendiente P0-B
 
-- §7 Foreign Keys + CHECK + índices + unicidad de operation_id/event_id +
-  `PRAGMA foreign_key_check`/`integrity_check` limpios.
 - §4.3 unidades canónicas (`unit_id` UUID, no texto libre) en líneas del ledger.
 - §8 ubicaciones técnicas reales (no `warehouse_id` como ubicación).
