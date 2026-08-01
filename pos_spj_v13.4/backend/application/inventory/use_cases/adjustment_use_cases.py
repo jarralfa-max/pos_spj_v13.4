@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 
 from backend.application.inventory.authorization import InventoryAuthorizationPolicy
+from backend.application.inventory.execution_context import InventoryExecutionContext
 from backend.application.inventory.permissions import InventoryPermissions
 from backend.application.inventory.result import InventoryResult
 from backend.application.inventory.services.movement_posting import post_movement
@@ -33,9 +34,11 @@ from backend.domain.inventory.enums import (
 )
 from backend.domain.inventory.events import InventoryEvents, build_event_payload
 from backend.domain.inventory.exceptions import (
+    BranchScopeError,
     InventoryDomainError,
     InventoryPermissionDeniedError,
     SegregationOfDutiesError,
+    WarehouseScopeError,
 )
 from backend.domain.inventory.policies.inventory_limit_policy import InventoryLimitPolicy
 from backend.domain.inventory.policies.segregation_of_duties_policy import (
@@ -50,8 +53,23 @@ from backend.infrastructure.db.repositories.inventory.unit_of_work import (
 def _fail(exc, operation_id):
     code = ("PERMISSION_DENIED" if isinstance(exc, InventoryPermissionDeniedError)
             else "SEGREGATION_OF_DUTIES" if isinstance(exc, SegregationOfDutiesError)
+            else "SCOPE_DENIED" if isinstance(exc, (BranchScopeError, WarehouseScopeError))
             else "INVENTORY_RULE_VIOLATION")
     return InventoryResult.fail(str(exc), code, operation_id=operation_id)
+
+
+def _scope_fail(context, branch_id, warehouse_id, operation_id):
+    """§5.3: valida sucursal/almacén contra el alcance del actor. Devuelve un
+    InventoryResult de fallo (SCOPE_DENIED) o None si el alcance es válido / no hay
+    contexto que aplicar."""
+    if context is None:
+        return None
+    try:
+        context.enforce_branch(branch_id)
+        context.enforce_warehouse(warehouse_id)
+    except (BranchScopeError, WarehouseScopeError) as exc:
+        return _fail(exc, operation_id)
+    return None
 
 
 def _evaluate(uow, adjustment, actor_user_id) -> LimitDecision:
@@ -96,11 +114,16 @@ class CreateAdjustmentUseCase:
     def execute(self, connection, *, folio: str, branch_id: str, warehouse_id: str,
                 reason: AdjustmentReason, lines: list[dict], operation_id: str,
                 actor_user_id: str, reason_note: str = "",
-                source_count_id: str | None = None) -> InventoryResult:
+                source_count_id: str | None = None,
+                context: InventoryExecutionContext | None = None) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, InventoryPermissions.ADJUSTMENT_CREATE)
         except InventoryPermissionDeniedError as exc:
             return _fail(exc, operation_id)
+        # §5.3: la sucursal/almacén enviados por la UI se validan contra el alcance.
+        denied = _scope_fail(context, branch_id, warehouse_id, operation_id)
+        if denied is not None:
+            return denied
         try:
             adjustment = InventoryAdjustment.create(
                 folio=folio, branch_id=branch_id, warehouse_id=warehouse_id, reason=reason,
@@ -132,7 +155,8 @@ class ApproveAdjustmentUseCase:
         self._segregation = SegregationOfDutiesPolicy()
 
     def execute(self, connection, *, adjustment_id: str, operation_id: str,
-                actor_user_id: str, reason: str = "") -> InventoryResult:
+                actor_user_id: str, reason: str = "",
+                context: InventoryExecutionContext | None = None) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, InventoryPermissions.ADJUSTMENT_APPROVE)
         except InventoryPermissionDeniedError as exc:
@@ -144,6 +168,11 @@ class ApproveAdjustmentUseCase:
                     return InventoryResult.fail("Ajuste no encontrado",
                                                 "ADJUSTMENT_NOT_FOUND",
                                                 operation_id=operation_id)
+                # §5.3: el alcance se valida contra la sucursal/almacén reales del ajuste.
+                denied = _scope_fail(context, adjustment.branch_id,
+                                     adjustment.warehouse_id, operation_id)
+                if denied is not None:
+                    return denied
                 # §5.4 fail-closed: sin usuario creador registrado NO se inventa una
                 # identidad ("system"); el ajuste es inválido para aprobar.
                 if not adjustment.created_by_user_id:
@@ -172,7 +201,8 @@ class PostAdjustmentUseCase:
         self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, adjustment_id: str, operation_id: str,
-                actor_user_id: str) -> InventoryResult:
+                actor_user_id: str,
+                context: InventoryExecutionContext | None = None) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, InventoryPermissions.ADJUSTMENT_POST)
         except InventoryPermissionDeniedError as exc:
@@ -184,6 +214,11 @@ class PostAdjustmentUseCase:
                     return InventoryResult.fail("Ajuste no encontrado",
                                                 "ADJUSTMENT_NOT_FOUND",
                                                 operation_id=operation_id)
+                # §5.3: el alcance se valida contra la sucursal/almacén reales del ajuste.
+                denied = _scope_fail(context, adjustment.branch_id,
+                                     adjustment.warehouse_id, operation_id)
+                if denied is not None:
+                    return denied
                 if adjustment.status is AdjustmentStatus.POSTED:
                     return InventoryResult.ok("Ajuste ya posteado (idempotente)",
                                               entity_id=adjustment_id,

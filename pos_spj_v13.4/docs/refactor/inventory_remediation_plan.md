@@ -106,10 +106,24 @@ Confirmado contra código real (no sólo auditoría):
   `4 failed / 423 passed` (4 pre-existentes, cero regresiones); arquitectura 58/386
   (sin fallas nuevas).
 
+### Slice 5 — Enforcement de scope en ajustes (§5.3) — HECHO
+
+- **`CreateAdjustmentUseCase`**: valida la sucursal/almacén enviados por la UI contra
+  el alcance del actor **antes** de crear (helper `_scope_fail`). Fuera de alcance →
+  `SCOPE_DENIED`, no se crea el ajuste.
+- **`ApproveAdjustmentUseCase`** y **`PostAdjustmentUseCase`**: validan contra la
+  sucursal/almacén **reales del ajuste** (leídos del repositorio), no contra ids de
+  la UI. `context=None` conserva el comportamiento previo.
+- `_fail` mapea `BranchScopeError`/`WarehouseScopeError` a `SCOPE_DENIED`.
+- **Evidencia**: `test_inventory_adjustment_scope` 5 passed (crear en/fuera de
+  sucursal y almacén; retrocompat sin contexto; aprobar/postear validan alcance del
+  ajuste); ajustes existentes 8 passed; inventario `4 failed / 428 passed` (4
+  pre-existentes, cero regresiones); arquitectura 58/386 (sin fallas nuevas).
+
 ### Pendiente P0-A (resto)
 
-- Cablear el contexto en el resto de comandos (ajustes, conteos, reservas,
-  cuarentena, transferencias) y en el composition root para que la UI pase siempre
-  el contexto resuelto.
+- Cablear el contexto en el resto de comandos (conteos, reservas, cuarentena,
+  transferencias, merma, temperatura) y en el composition root para que la UI pase
+  siempre el contexto resuelto.
 - §5.4 residuos: `warehouse_id = branch_id`, `location_id = warehouse_id`,
   `"MAIN"` donde persistan; cuenta técnica `service_account_id` para automáticos.
