@@ -95,6 +95,18 @@ class InventoryUseCaseFactory:
     def session_context(self):
         return self._session
 
+    def execution_context(self, *, require_branch: bool = True):
+        """Resolve the trusted actor/scope context from the live session (§5.3).
+
+        Fails closed when there is no authenticated session/branch — the context is
+        never fabricated from UI-supplied ids.
+        """
+        from backend.application.inventory.execution_context import (
+            resolve_inventory_execution_context,
+        )
+        return resolve_inventory_execution_context(
+            self._session, require_branch=require_branch)
+
     def build(self, use_case_cls, **kwargs):
         """Generic builder: constructs any inventory use case with the wired policy.
 

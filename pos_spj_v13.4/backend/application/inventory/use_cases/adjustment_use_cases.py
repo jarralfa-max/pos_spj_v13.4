@@ -144,14 +144,20 @@ class ApproveAdjustmentUseCase:
                     return InventoryResult.fail("Ajuste no encontrado",
                                                 "ADJUSTMENT_NOT_FOUND",
                                                 operation_id=operation_id)
+                # §5.4 fail-closed: sin usuario creador registrado NO se inventa una
+                # identidad ("system"); el ajuste es inválido para aprobar.
+                if not adjustment.created_by_user_id:
+                    return InventoryResult.fail(
+                        "El ajuste no tiene usuario creador registrado",
+                        "ADJUSTMENT_CREATOR_REQUIRED", operation_id=operation_id)
                 self._segregation.enforce_adjustment_creator_not_self_approving(
-                    adjustment.created_by_user_id or "", actor_user_id,
+                    adjustment.created_by_user_id, actor_user_id,
                     requires_approval=True)
                 adjustment.approve(user_id=actor_user_id)
                 uow.adjustments.save(adjustment)
                 uow.authorization_log.record(AuthorizationGrant(
                     permission_code=InventoryPermissions.ADJUSTMENT_APPROVE,
-                    requested_by=adjustment.created_by_user_id or "system",
+                    requested_by=adjustment.created_by_user_id,
                     authorized_by=actor_user_id, operation_id=operation_id,
                     reason=reason or adjustment.reason.value,
                     quantity=adjustment.total_magnitude))

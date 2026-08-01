@@ -64,10 +64,35 @@ Confirmado contra código real (no sólo auditoría):
   `4 failed / 408 passed` (mismas 4 pre-existentes, +10 nuevos, cero regresiones);
   arquitectura sin fallas nuevas (58 = baseline tras el merge remoto).
 
-### Pendiente P0-A (próximos slices)
+### Slice 3 — Contexto de ejecución + resolver fail-closed (§5.3/§5.4) — HECHO
 
-- **§5.3 `InventoryExecutionContext`** + aplicar `InventoryScopePolicy` en todos
-  los commands/queries (sucursal activa, almacenes autorizados, pertenencia).
-- **§5.4 (resto)** eliminar fallbacks `warehouse_id = branch_id`,
-  `location_id = warehouse_id`, `"system"`/`"MAIN"` donde persistan; cuenta técnica
-  `service_account_id` para procesos automáticos.
+- **`InventoryExecutionContext`** (`backend/application/inventory/execution_context.py`):
+  dataclass inmutable con `actor_user_id`, `active_branch_id`, `assigned_branch_ids`,
+  `allowed_warehouse_ids`, `permissions`, `device_id`. Métodos `enforce_branch()` /
+  `enforce_warehouse()` que delegan en `InventoryScopePolicy` (§5.3: los targets se
+  validan contra el contexto, no contra ids de la UI).
+- **`resolve_inventory_execution_context(session)`**: resolver **fail-closed** (§5.4):
+  sin sesión / sin usuario → `AUTHENTICATION_REQUIRED`; sin sucursal activa →
+  `BRANCH_CONFIGURATION_REQUIRED`. Nunca fabrica identidad. Nuevas excepciones de
+  dominio con `.code` (`InventoryAuthenticationRequiredError`,
+  `BranchConfigurationRequiredError`, `WarehouseConfigurationRequiredError`).
+- **Factoría**: `InventoryUseCaseFactory.execution_context()` resuelve el contexto
+  desde la sesión viva (fail-closed sin sesión).
+- **§5.4**: eliminado el fallback ficticio `requested_by=... or "system"` en
+  `ApproveAdjustmentUseCase` — sin usuario creador registrado el ajuste se rechaza
+  (`ADJUSTMENT_CREATOR_REQUIRED`), no se inventa `"system"`.
+- **Evidencia**: `test_inventory_execution_context` 10 passed (resolver niega sin
+  sesión/usuario/sucursal; construye desde sesión; enforce branch/warehouse;
+  integración con factoría); ajustes 8 passed (fix sin regresión); inventario
+  `4 failed / 417 passed` (4 pre-existentes, cero regresiones); arquitectura 58/386
+  (sin fallas nuevas).
+- **Pendiente**: cablear `InventoryExecutionContext` en la firma de cada command/
+  query (hoy el seam existe en la factoría; falta que cada caso de uso lo reciba y
+  llame `enforce_branch/enforce_warehouse`) — slices por familia de operación.
+
+### Pendiente P0-A (resto)
+
+- Cablear el contexto por comando (movimientos, ajustes, conteos, reservas,
+  cuarentena, transferencias) con enforcement de scope real.
+- §5.4 residuos: `warehouse_id = branch_id`, `location_id = warehouse_id`,
+  `"MAIN"` donde persistan; cuenta técnica `service_account_id` para automáticos.
