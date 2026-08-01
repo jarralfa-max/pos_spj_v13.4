@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 
 from backend.application.inventory.authorization import InventoryAuthorizationPolicy
+from backend.application.inventory.execution_context import InventoryExecutionContext
 from backend.application.inventory.permissions import InventoryPermissions
 from backend.application.inventory.result import InventoryResult
 from backend.domain.inventory.entities.count import (
@@ -21,9 +22,11 @@ from backend.domain.inventory.entities.count import (
 from backend.domain.inventory.enums import CountType, InventoryStatus
 from backend.domain.inventory.events import InventoryEvents, build_event_payload
 from backend.domain.inventory.exceptions import (
+    BranchScopeError,
     InventoryDomainError,
     InventoryPermissionDeniedError,
     SegregationOfDutiesError,
+    WarehouseScopeError,
 )
 from backend.domain.inventory.policies.segregation_of_duties_policy import (
     SegregationOfDutiesPolicy,
@@ -45,8 +48,22 @@ def _emit(uow, event_name, count, *, operation_id, actor_user_id, **extra):
 def _fail(exc, operation_id):
     code = ("PERMISSION_DENIED" if isinstance(exc, InventoryPermissionDeniedError)
             else "SEGREGATION_OF_DUTIES" if isinstance(exc, SegregationOfDutiesError)
+            else "SCOPE_DENIED" if isinstance(exc, (BranchScopeError, WarehouseScopeError))
             else "INVENTORY_RULE_VIOLATION")
     return InventoryResult.fail(str(exc), code, operation_id=operation_id)
+
+
+def _scope_fail(context, branch_id, warehouse_id, operation_id):
+    """§5.3: valida sucursal/almacén contra el alcance del actor. Devuelve un
+    InventoryResult SCOPE_DENIED o None si el alcance es válido / no hay contexto."""
+    if context is None:
+        return None
+    try:
+        context.enforce_branch(branch_id)
+        context.enforce_warehouse(warehouse_id)
+    except (BranchScopeError, WarehouseScopeError) as exc:
+        return _fail(exc, operation_id)
+    return None
 
 
 class CreateCountUseCase:
@@ -55,11 +72,16 @@ class CreateCountUseCase:
 
     def execute(self, connection, *, folio: str, count_type: CountType, branch_id: str,
                 warehouse_id: str, scope_lines: list[dict], operation_id: str,
-                actor_user_id: str, blind: bool = True) -> InventoryResult:
+                actor_user_id: str, blind: bool = True,
+                context: InventoryExecutionContext | None = None) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, InventoryPermissions.COUNT_CREATE)
         except InventoryPermissionDeniedError as exc:
             return _fail(exc, operation_id)
+        # §5.3: la sucursal/almacén enviados por la UI se validan contra el alcance.
+        denied = _scope_fail(context, branch_id, warehouse_id, operation_id)
+        if denied is not None:
+            return denied
         try:
             with InventoryUnitOfWork(connection) as uow:
                 lines = []
@@ -95,7 +117,8 @@ class RecordCountUseCase:
         self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, count_id: str, line_id: str, counted_quantity,
-                operation_id: str, actor_user_id: str, counted_weight=0) -> InventoryResult:
+                operation_id: str, actor_user_id: str, counted_weight=0,
+                context: InventoryExecutionContext | None = None) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, InventoryPermissions.COUNT_EXECUTE)
         except InventoryPermissionDeniedError as exc:
@@ -106,6 +129,10 @@ class RecordCountUseCase:
                 if count is None:
                     return InventoryResult.fail("Conteo no encontrado", "COUNT_NOT_FOUND",
                                                 operation_id=operation_id)
+                denied = _scope_fail(context, count.branch_id, count.warehouse_id,
+                                     operation_id)
+                if denied is not None:
+                    return denied
                 count.record(line_id, counted_quantity=counted_quantity,
                              counted_weight=counted_weight)
                 if not count.counted_by_user_id:
@@ -122,7 +149,8 @@ class ConfirmCountUseCase:
         self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, count_id: str, operation_id: str,
-                actor_user_id: str) -> InventoryResult:
+                actor_user_id: str,
+                context: InventoryExecutionContext | None = None) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, InventoryPermissions.COUNT_CONFIRM)
         except InventoryPermissionDeniedError as exc:
@@ -133,6 +161,10 @@ class ConfirmCountUseCase:
                 if count is None:
                     return InventoryResult.fail("Conteo no encontrado", "COUNT_NOT_FOUND",
                                                 operation_id=operation_id)
+                denied = _scope_fail(context, count.branch_id, count.warehouse_id,
+                                     operation_id)
+                if denied is not None:
+                    return denied
                 count.confirm()
                 _emit(uow, InventoryEvents.INVENTORY_COUNT_CONFIRMED, count,
                       operation_id=operation_id, actor_user_id=actor_user_id)
@@ -154,7 +186,8 @@ class ApproveCountUseCase:
         self._segregation = SegregationOfDutiesPolicy()
 
     def execute(self, connection, *, count_id: str, operation_id: str,
-                actor_user_id: str) -> InventoryResult:
+                actor_user_id: str,
+                context: InventoryExecutionContext | None = None) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, InventoryPermissions.COUNT_APPROVE)
         except InventoryPermissionDeniedError as exc:
@@ -165,6 +198,10 @@ class ApproveCountUseCase:
                 if count is None:
                     return InventoryResult.fail("Conteo no encontrado", "COUNT_NOT_FOUND",
                                                 operation_id=operation_id)
+                denied = _scope_fail(context, count.branch_id, count.warehouse_id,
+                                     operation_id)
+                if denied is not None:
+                    return denied
                 self._segregation.enforce_counter_not_self_approving_critical(
                     count.counted_by_user_id or "", actor_user_id,
                     is_critical=count.has_variance)

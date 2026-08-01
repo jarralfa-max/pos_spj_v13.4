@@ -134,10 +134,20 @@ Confirmado contra código real (no sólo auditoría):
   inventario `4 failed / 434 passed` (4 pre-existentes, cero regresiones);
   arquitectura 58/386 (sin fallas nuevas).
 
+### Slice 7 — Enforcement de scope en cuarentena y conteos (§5.3) — HECHO
+
+- **Cuarentena** (`QuarantineStock`/`ReleaseQuarantine`/`DisposeQuarantine`): create
+  valida la sucursal/almacén de la UI; release/dispose contra la cuarentena real.
+- **Conteos** (`CreateCount`/`RecordCount`/`ConfirmCount`/`ApproveCount`): create
+  valida la UI; record/confirm/approve contra el conteo real. `_fail` mapea
+  scope errors a `SCOPE_DENIED`. `context=None` conserva el comportamiento previo.
+- **Evidencia**: `test_inventory_quarantine_count_scope` 8 passed; cuarentena/conteos
+  existentes verdes; inventario `4 failed / 442 passed` (4 pre-existentes, cero
+  regresiones); arquitectura 58/386 (sin fallas nuevas).
+
 ### Pendiente P0-A (resto)
 
-- Cablear el contexto en el resto de comandos (conteos, cuarentena, transferencias,
-  merma, temperatura) y en el composition root para que la UI pase siempre el
-  contexto resuelto.
+- Cablear el contexto en el resto de comandos (transferencias, merma, temperatura,
+  lotes) y en el composition root para que la UI pase siempre el contexto resuelto.
 - §5.4 residuos: `warehouse_id = branch_id`, `location_id = warehouse_id`,
   `"MAIN"` donde persistan; cuenta técnica `service_account_id` para automáticos.

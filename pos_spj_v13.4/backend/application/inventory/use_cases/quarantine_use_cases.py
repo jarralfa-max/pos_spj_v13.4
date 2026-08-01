@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 
 from backend.application.inventory.authorization import InventoryAuthorizationPolicy
+from backend.application.inventory.execution_context import InventoryExecutionContext
 from backend.application.inventory.permissions import InventoryPermissions
 from backend.application.inventory.result import InventoryResult
 from backend.application.inventory.services.movement_posting import post_movement
@@ -26,9 +27,11 @@ from backend.domain.inventory.enums import (
 )
 from backend.domain.inventory.events import InventoryEvents, build_event_payload
 from backend.domain.inventory.exceptions import (
+    BranchScopeError,
     InventoryDomainError,
     InventoryPermissionDeniedError,
     SegregationOfDutiesError,
+    WarehouseScopeError,
 )
 from backend.domain.inventory.policies.segregation_of_duties_policy import (
     SegregationOfDutiesPolicy,
@@ -41,8 +44,22 @@ from backend.infrastructure.db.repositories.inventory.unit_of_work import (
 def _fail(exc, operation_id):
     code = ("PERMISSION_DENIED" if isinstance(exc, InventoryPermissionDeniedError)
             else "SEGREGATION_OF_DUTIES" if isinstance(exc, SegregationOfDutiesError)
+            else "SCOPE_DENIED" if isinstance(exc, (BranchScopeError, WarehouseScopeError))
             else "INVENTORY_RULE_VIOLATION")
     return InventoryResult.fail(str(exc), code, operation_id=operation_id)
+
+
+def _scope_fail(context, branch_id, warehouse_id, operation_id):
+    """§5.3: valida sucursal/almacén contra el alcance del actor. Devuelve un
+    InventoryResult SCOPE_DENIED o None si el alcance es válido / no hay contexto."""
+    if context is None:
+        return None
+    try:
+        context.enforce_branch(branch_id)
+        context.enforce_warehouse(warehouse_id)
+    except (BranchScopeError, WarehouseScopeError) as exc:
+        return _fail(exc, operation_id)
+    return None
 
 
 def _emit(uow, event_name, q, *, operation_id, actor_user_id):
@@ -75,11 +92,16 @@ class QuarantineStockUseCase:
     def execute(self, connection, *, product_id: str, branch_id: str, warehouse_id: str,
                 reason: QuarantineReason, quantity, operation_id: str, actor_user_id: str,
                 weight=0, location_id: str | None = None, lot_id: str | None = None,
-                reason_note: str = "") -> InventoryResult:
+                reason_note: str = "",
+                context: InventoryExecutionContext | None = None) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, InventoryPermissions.QUARANTINE_CREATE)
         except InventoryPermissionDeniedError as exc:
             return _fail(exc, operation_id)
+        # §5.3: la sucursal/almacén enviados por la UI se validan contra el alcance.
+        denied = _scope_fail(context, branch_id, warehouse_id, operation_id)
+        if denied is not None:
+            return denied
         try:
             q = InventoryQuarantine.create(
                 product_id=product_id, branch_id=branch_id, warehouse_id=warehouse_id,
@@ -110,7 +132,8 @@ class ReleaseQuarantineUseCase:
         self._self_release_forbidden = self_release_forbidden
 
     def execute(self, connection, *, quarantine_id: str, operation_id: str,
-                actor_user_id: str) -> InventoryResult:
+                actor_user_id: str,
+                context: InventoryExecutionContext | None = None) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, InventoryPermissions.QUARANTINE_RELEASE)
         except InventoryPermissionDeniedError as exc:
@@ -122,6 +145,10 @@ class ReleaseQuarantineUseCase:
                     return InventoryResult.fail("Cuarentena no encontrada",
                                                 "QUARANTINE_NOT_FOUND",
                                                 operation_id=operation_id)
+                # §5.3: alcance validado contra la sucursal/almacén reales de la cuarentena.
+                denied = _scope_fail(context, q.branch_id, q.warehouse_id, operation_id)
+                if denied is not None:
+                    return denied
                 self._segregation.enforce_quality_blocker_not_releaser(
                     q.created_by_user_id or "", actor_user_id,
                     self_release_forbidden=self._self_release_forbidden)
@@ -144,7 +171,8 @@ class DisposeQuarantineUseCase:
         self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, quarantine_id: str, operation_id: str,
-                actor_user_id: str, reason: str = "") -> InventoryResult:
+                actor_user_id: str, reason: str = "",
+                context: InventoryExecutionContext | None = None) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, InventoryPermissions.DISPOSAL_AUTHORIZE)
         except InventoryPermissionDeniedError as exc:
@@ -156,6 +184,10 @@ class DisposeQuarantineUseCase:
                     return InventoryResult.fail("Cuarentena no encontrada",
                                                 "QUARANTINE_NOT_FOUND",
                                                 operation_id=operation_id)
+                # §5.3: alcance validado contra la sucursal/almacén reales de la cuarentena.
+                denied = _scope_fail(context, q.branch_id, q.warehouse_id, operation_id)
+                if denied is not None:
+                    return denied
                 loc = q.location_id or q.warehouse_id
                 line = InventoryMovementLine.create(
                     product_id=q.product_id, quantity=q.quantity, weight=q.weight,
