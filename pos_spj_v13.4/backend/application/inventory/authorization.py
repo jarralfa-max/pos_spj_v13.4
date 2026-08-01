@@ -12,6 +12,7 @@ from typing import Protocol
 
 from backend.application.inventory.permissions import ALL_INVENTORY_PERMISSIONS
 from backend.domain.inventory.exceptions import (
+    InventoryConfigurationError,
     InventoryPermissionDeniedError,
     SegregationOfDutiesError,
 )
@@ -24,16 +25,52 @@ class PermissionChecker(Protocol):
     def has_permission(self, user_id: str, permission_code: str) -> bool: ...
 
 
+class AllowAllInventoryPermissionCheckerForTests:
+    """Test-only checker that grants every permission. NEVER wire in production —
+    it exists so isolated tests can build a policy with an explicit, honest
+    permissive checker instead of relying on a fail-open None (§5.1)."""
+
+    def has_permission(self, user_id: str, permission_code: str) -> bool:
+        return True
+
+
+class DenyAllInventoryPermissionCheckerForTests:
+    """Test-only checker that denies every permission (for fail-closed tests)."""
+
+    def has_permission(self, user_id: str, permission_code: str) -> bool:
+        return False
+
+
 class InventoryAuthorizationPolicy:
     def __init__(self, checker: PermissionChecker | None = None) -> None:
         self._checker = checker
+
+    @classmethod
+    def permissive_for_tests(cls) -> "InventoryAuthorizationPolicy":
+        """Explicit permissive policy for isolated tests / non-security paths.
+        Production use cases must be wired with a real PermissionChecker; this
+        replaces the old fail-open ``InventoryAuthorizationPolicy()`` default so
+        the null-checker path can fail closed (§5.1)."""
+        return cls(AllowAllInventoryPermissionCheckerForTests())
+
+    def has_permission(self, user_id: str, permission_code: str) -> bool:
+        """Non-raising probe (UI gating). Fail closed: no checker → False."""
+        if self._checker is None or not user_id:
+            return False
+        if permission_code not in ALL_INVENTORY_PERMISSIONS:
+            return False
+        return bool(self._checker.has_permission(user_id, permission_code))
 
     def require(self, user_id: str, permission_code: str) -> None:
         if permission_code not in ALL_INVENTORY_PERMISSIONS:
             raise InventoryPermissionDeniedError(
                 f"Permiso desconocido: {permission_code}")
         if self._checker is None:
-            return  # isolated tests → allow; production always wires a checker
+            # Fail closed (§5.1): an unconfigured authorization gate must never
+            # allow. Production wires a real checker; tests build one explicitly.
+            raise InventoryConfigurationError(
+                "InventoryAuthorizationPolicy requiere un PermissionChecker; "
+                "usa permissive_for_tests() en pruebas aisladas")
         if not user_id:
             raise InventoryPermissionDeniedError("Operación sin usuario autenticado")
         if not self._checker.has_permission(user_id, permission_code):

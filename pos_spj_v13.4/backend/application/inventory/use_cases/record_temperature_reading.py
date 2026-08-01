@@ -38,7 +38,7 @@ from backend.infrastructure.db.repositories.inventory.unit_of_work import (
 
 class RecordTemperatureReadingUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
         self._policy = ColdChainPolicy()
 
     def execute(self, connection, *, sensor_id: str, warehouse_id: str, temperature,

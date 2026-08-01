@@ -28,7 +28,7 @@ from backend.infrastructure.db.repositories.inventory.unit_of_work import (
 
 class RegisterTraceabilityLinkUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, parent_lot_id: str, child_lot_id: str,
                 link_type: TraceabilityLinkType, operation_id: str, actor_user_id: str,

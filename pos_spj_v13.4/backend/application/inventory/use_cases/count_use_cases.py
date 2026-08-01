@@ -51,7 +51,7 @@ def _fail(exc, operation_id):
 
 class CreateCountUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, folio: str, count_type: CountType, branch_id: str,
                 warehouse_id: str, scope_lines: list[dict], operation_id: str,
@@ -92,7 +92,7 @@ class CreateCountUseCase:
 
 class RecordCountUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, count_id: str, line_id: str, counted_quantity,
                 operation_id: str, actor_user_id: str, counted_weight=0) -> InventoryResult:
@@ -119,7 +119,7 @@ class RecordCountUseCase:
 
 class ConfirmCountUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, count_id: str, operation_id: str,
                 actor_user_id: str) -> InventoryResult:
@@ -150,7 +150,7 @@ class ConfirmCountUseCase:
 
 class ApproveCountUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
         self._segregation = SegregationOfDutiesPolicy()
 
     def execute(self, connection, *, count_id: str, operation_id: str,

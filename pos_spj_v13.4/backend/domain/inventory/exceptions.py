@@ -16,6 +16,12 @@ class InventoryPermissionDeniedError(InventoryDomainError):
     """The user lacks the granular permission the action requires."""
 
 
+class InventoryConfigurationError(InventoryDomainError):
+    """A security-sensitive component was built without its mandatory wiring
+    (e.g. an authorization policy with no PermissionChecker). Fail closed: never
+    allow an operation to proceed on an unconfigured authorization gate (§5.1)."""
+
+
 class InventoryLimitExceededError(InventoryDomainError):
     """A quantity/weight/variance limit was exceeded beyond any override."""
 

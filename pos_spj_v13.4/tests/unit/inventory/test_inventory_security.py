@@ -9,7 +9,10 @@ from decimal import Decimal
 
 import pytest
 
-from backend.application.inventory.authorization import InventoryAuthorizationPolicy
+from backend.application.inventory.authorization import (
+    DenyAllInventoryPermissionCheckerForTests,
+    InventoryAuthorizationPolicy,
+)
 from backend.application.inventory.permissions import (
     ALL_INVENTORY_PERMISSIONS,
     InventoryPermissions,
@@ -19,6 +22,7 @@ from backend.domain.inventory.exceptions import (
     BranchScopeError,
     InvalidInventoryLimitError,
     InventoryAuthorizationRequiredError,
+    InventoryConfigurationError,
     InventoryLimitExceededError,
     InventoryPermissionDeniedError,
     SegregationOfDutiesError,
@@ -76,8 +80,29 @@ class TestAuthorization:
         with pytest.raises(InventoryPermissionDeniedError):
             InventoryAuthorizationPolicy().require("u1", "INVENTORY_NOPE")
 
-    def test_no_checker_allows_known(self):
-        InventoryAuthorizationPolicy().require("u1", InventoryPermissions.MOVEMENT_CREATE)
+    def test_no_checker_is_fail_closed(self):
+        # §5.1: una política sin PermissionChecker debe FALLAR CERRADO, no permitir.
+        with pytest.raises(InventoryConfigurationError):
+            InventoryAuthorizationPolicy().require(
+                "u1", InventoryPermissions.MOVEMENT_CREATE)
+
+    def test_permissive_for_tests_allows_known(self):
+        # Checker de pruebas explícito (AllowAll) → permite el permiso conocido.
+        InventoryAuthorizationPolicy.permissive_for_tests().require(
+            "u1", InventoryPermissions.MOVEMENT_CREATE)
+
+    def test_deny_all_checker_denies(self):
+        with pytest.raises(InventoryPermissionDeniedError):
+            InventoryAuthorizationPolicy(
+                DenyAllInventoryPermissionCheckerForTests()).require(
+                    "u1", InventoryPermissions.MOVEMENT_CREATE)
+
+    def test_has_permission_probe_is_fail_closed(self):
+        # El probe no lanzante también falla cerrado sin checker.
+        assert InventoryAuthorizationPolicy().has_permission(
+            "u1", InventoryPermissions.MOVEMENT_CREATE) is False
+        assert InventoryAuthorizationPolicy.permissive_for_tests().has_permission(
+            "u1", InventoryPermissions.MOVEMENT_CREATE) is True
 
     def test_checker_denies(self):
         class Deny:
@@ -96,7 +121,7 @@ class TestAuthorization:
                 "", InventoryPermissions.MOVEMENT_CREATE)
 
     def test_hot_authorization_returns_audit_grant(self):
-        grant = InventoryAuthorizationPolicy().authorize_exception(
+        grant = InventoryAuthorizationPolicy.permissive_for_tests().authorize_exception(
             authorizer_user_id="boss", requested_by="clerk",
             permission_code=InventoryPermissions.ADJUSTMENT_APPROVE,
             operation_id="op-1", reason="conteo crítico", quantity=Decimal("5"))

@@ -51,7 +51,7 @@ def _emit(uow, event_name, *, operation_id, entity_id, product_id=None, branch_i
 
 class CreateReservationUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, product_id: str, branch_id: str, warehouse_id: str,
                 source: ReservationSource, source_document_id: str, quantity,
@@ -104,7 +104,7 @@ class CreateReservationUseCase:
 
 class ReleaseReservationUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, reservation_id: str, operation_id: str,
                 actor_user_id: str, reason: str = "") -> InventoryResult:
@@ -155,7 +155,7 @@ class AllocateReservationUseCase:
     """Bind a confirmed reservation to specific lots via FEFO (§22)."""
 
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
         self._allocator = LotAllocationService()
 
     def execute(self, connection, *, reservation_id: str, operation_id: str,

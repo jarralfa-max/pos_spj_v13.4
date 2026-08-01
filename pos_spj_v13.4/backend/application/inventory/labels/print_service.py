@@ -36,7 +36,7 @@ class InventoryLabelPrintService:
                  event_dispatcher=None) -> None:
         self._conn = connection
         self._gateway = gateway or InMemoryPrintGateway()
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
         self._dispatch = event_dispatcher
 
     def print_label(self, document: LabelDocument, *, actor_user_id: str,

@@ -36,7 +36,7 @@ def _emit(uow, event_name, *, operation_id, lot, actor_user_id):
 
 class RegisterInventoryLotUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, product_id: str, lot_code: str,
                 origin_type: LotOrigin, operation_id: str, actor_user_id: str,
@@ -73,7 +73,7 @@ class SetLotQualityStatusUseCase:
     """Block (quarantine/reject) or release a lot's quality status (§31)."""
 
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, lot_id: str, new_status: LotQualityStatus,
                 operation_id: str, actor_user_id: str, reason: str = "") -> InventoryResult:

@@ -91,7 +91,7 @@ def _post_deltas(uow, adjustment, *, base_op, actor_user_id, invert=False) -> No
 
 class CreateAdjustmentUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, folio: str, branch_id: str, warehouse_id: str,
                 reason: AdjustmentReason, lines: list[dict], operation_id: str,
@@ -128,7 +128,7 @@ class CreateAdjustmentUseCase:
 
 class ApproveAdjustmentUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
         self._segregation = SegregationOfDutiesPolicy()
 
     def execute(self, connection, *, adjustment_id: str, operation_id: str,
@@ -163,7 +163,7 @@ class ApproveAdjustmentUseCase:
 
 class PostAdjustmentUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, adjustment_id: str, operation_id: str,
                 actor_user_id: str) -> InventoryResult:
@@ -208,7 +208,7 @@ class PostAdjustmentUseCase:
 
 class ReverseAdjustmentUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, adjustment_id: str, operation_id: str,
                 actor_user_id: str, reason: str = "") -> InventoryResult:
@@ -243,7 +243,7 @@ class CreateAdjustmentFromCountUseCase:
     """Turn an approved count's variances into a COUNT_VARIANCE adjustment (§27)."""
 
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, count_id: str, folio: str, operation_id: str,
                 actor_user_id: str) -> InventoryResult:

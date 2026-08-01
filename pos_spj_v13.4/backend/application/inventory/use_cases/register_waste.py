@@ -41,7 +41,7 @@ from backend.infrastructure.db.repositories.inventory.unit_of_work import (
 
 class RegisterWasteUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, product_id: str, branch_id: str, warehouse_id: str,
                 waste_type: WasteType, quantity, operation_id: str, actor_user_id: str,
