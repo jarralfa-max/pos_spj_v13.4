@@ -62,6 +62,12 @@ class InventoryLedgerRepository(InventoryRepositoryBase):
             "UPDATE inventory_ledger SET status='REVERSED', occurred_at=occurred_at"
             " WHERE id=?", (movement_id,))
 
+    def list_all_ordered(self) -> list[dict]:
+        """Every movement in ledger order (occurred_at, id) — the full history to
+        replay when reconstructing balances from the ledger (§6.3)."""
+        return self._query(
+            "SELECT * FROM inventory_ledger ORDER BY occurred_at, id")
+
     def list_for_document(self, source_document_type: str, source_document_id: str) -> list[dict]:
         return self._query(
             "SELECT * FROM inventory_ledger WHERE source_document_type=?"

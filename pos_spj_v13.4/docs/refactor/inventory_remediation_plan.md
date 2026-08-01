@@ -202,10 +202,27 @@ conteos, merma, cadena de frío, lotes.
   reservas verdes salvo el FEFO pre-existente; inventario `4 failed / 454 passed`
   (4 pre-existentes, cero regresiones); arquitectura 58/387 (sin fallas nuevas).
 
+### Slice 2 — Rebuild + validación de proyección desde el ledger (§6.3) — HECHO
+
+- **`RebuildInventoryBalancesUseCase.rebuild(conn)`**: reproduce TODO el ledger
+  (`list_all_ordered`) en una proyección scratch en memoria (nunca toca ledger ni
+  `inventory_balances`), despachando los movimientos `REVERSAL` a `project_reversal`
+  (tipo original vía `reversal_of_id`) y el resto a `project_movement`. Reusa la
+  misma matemática de `InventoryProjectionService` (sin duplicar reglas de signo).
+- **`ValidateInventoryProjectionUseCase.validate()/has_drift()`**: compara la
+  proyección viva contra el rebuild por dimensión completa y reporta `BalanceDriftRow`
+  (cantidad/peso proyectado vs reconstruido + drift). El costo/reservado no es
+  derivable del ledger, así que la validación se limita a cantidad/peso físicos.
+- Nuevo `InventoryLedgerRepository.list_all_ordered()` (histórico ordenado). Ambos
+  casos de uso exportados desde el paquete `use_cases`.
+- **Evidencia**: `test_inventory_rebuild_projection` 4 passed (rebuild = proyección
+  con cero drift; el rebuild contabiliza el reverso; el validador detecta un balance
+  corrompido; el rebuild no muta ledger ni balances); inventario `4 failed / 458
+  passed` (4 pre-existentes, cero regresiones); arquitectura 58/387 (sin fallas
+  nuevas).
+
 ### Pendiente P0-B
 
-- §6.3 `RebuildInventoryBalancesUseCase` / `ValidateInventoryProjectionUseCase`
-  (reconstrucción desde ledger + detección de drift).
 - §7 Foreign Keys + CHECK + índices + unicidad de operation_id/event_id +
   `PRAGMA foreign_key_check`/`integrity_check` limpios.
 - §4.1 `validate_uuidv7`/`new_uuidv7` + pruebas de versión real de UUID.
