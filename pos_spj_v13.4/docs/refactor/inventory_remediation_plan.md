@@ -160,10 +160,27 @@ Confirmado contra código real (no sólo auditoría):
 **Scope wiring cubierto (P0-A):** movimientos, ajustes, reservas, cuarentena,
 conteos, merma, cadena de frío, lotes.
 
+### Slice 9 — Eliminación de identidad/ámbito fabricado en la UI (§5.4) — HECHO
+
+- **`InventoryPresenter`**: `_actor()`, `default_branch()`, `default_warehouse()`
+  dejan de fabricar identidad/ámbito: sin sesión válida devuelven cadena vacía
+  (antes `"desktop"`, `"MAIN"`, y `default_warehouse` reusaba la sucursal como
+  almacén — el anti-patrón `warehouse_id = branch_id`). Sin sesión, las lecturas
+  quedan vacías y las mutaciones se niegan aguas abajo (checker + política reales).
+- Guardrail `test_inventory_authorization_fail_closed::
+  test_inventory_ui_has_no_fabricated_identity_fallback`: prohíbe literales
+  `"desktop"/"MAIN"/"1"/"system"` como fallback y que `default_warehouse` caiga en
+  `default_branch`.
+- **Evidencia**: guardrail + presenter 12 passed; inventario `4 failed / 451 passed`
+  (4 pre-existentes, cero regresiones); arquitectura `58 failed / 387 passed`
+  (+1 guardrail, cero fallas nuevas).
+
 ### Pendiente P0-A (resto)
 
+- **Composition root (wiring UI→contexto)**: que las páginas/el presenter resuelvan
+  el `InventoryExecutionContext` (vía `InventoryUseCaseFactory.execution_context()`)
+  y lo pasen a cada comando, para que el enforcement §5.3 esté activo en producción
+  extremo a extremo (hoy el seam existe y cada caso de uso lo acepta).
 - Transferencias (agregado propio — se abordará junto con P1-B transferencias
-  físicas) + composition root: que la UI resuelva el `InventoryExecutionContext` y
-  lo pase a cada llamada del presenter.
-- §5.4 residuos: `warehouse_id = branch_id`, `location_id = warehouse_id`,
-  `"MAIN"` donde persistan; cuenta técnica `service_account_id` para automáticos.
+  físicas).
+- Cuenta técnica `service_account_id` para procesos automáticos.

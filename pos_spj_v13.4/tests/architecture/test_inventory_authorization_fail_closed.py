@@ -59,6 +59,32 @@ def test_no_use_case_uses_fail_open_empty_default():
         + "\n".join(sorted(offenders)))
 
 
+def test_inventory_ui_has_no_fabricated_identity_fallback():
+    """§5.4: la UI de inventario no fabrica identidad/ámbito con literales
+    ("desktop"/"MAIN"/"1"/"system"), y `default_warehouse` no cae en la sucursal
+    (warehouse_id = branch_id). Sin sesión, los valores quedan vacíos."""
+    import re
+    ui_files = [
+        _ROOT / "frontend/desktop/modules/inventory/presenter.py",
+        _ROOT / "modulos/inventario_enterprise.py",
+    ]
+    literal_fallback = re.compile(r"\bor\s+[\"'](desktop|MAIN|Sistema|system|1)[\"']")
+    offenders: list[str] = []
+    for path in ui_files:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            code = line.split("#", 1)[0]  # ignora comentarios
+            if literal_fallback.search(code):
+                offenders.append(f"{path.relative_to(_ROOT)}: {code.strip()}")
+    # default_warehouse no debe reusar la sucursal como almacén.
+    presenter_src = ui_files[0].read_text(encoding="utf-8")
+    dw_body = presenter_src.split("def default_warehouse(", 1)[1].split("def ", 1)[0]
+    if "default_branch()" in dw_body:
+        offenders.append("presenter.default_warehouse cae en default_branch (§5.4)")
+    assert offenders == [], (
+        "Identidad/ámbito fabricado en la UI de inventario (§5.4):\n"
+        + "\n".join(offenders))
+
+
 def test_authorization_module_has_no_silent_allow_on_null_checker():
     """La rama `self._checker is None` de `require` debe lanzar, no `return`."""
     src = (_USE_CASES_DIR / "authorization.py").read_text(encoding="utf-8")

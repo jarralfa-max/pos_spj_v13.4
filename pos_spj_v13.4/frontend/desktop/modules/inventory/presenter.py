@@ -40,15 +40,18 @@ class InventoryPresenter:
         self._dispatch = event_dispatcher
 
     # session -----------------------------------------------------------------
+    # §5.4 fail-closed: la identidad y el ámbito NO se fabrican ("desktop"/"MAIN",
+    # ni warehouse_id = branch_id). Sin sesión válida quedan vacíos: las lecturas
+    # devuelven vacío y las mutaciones se niegan aguas abajo (la política real exige
+    # usuario y el checker deniega sin identidad).
     def _actor(self) -> str:
-        user_id = getattr(self._session, "user_id", None)
-        return str(user_id) if user_id else "desktop"
+        return str(getattr(self._session, "user_id", None) or "")
 
     def default_branch(self) -> str:
-        return str(getattr(self._session, "branch_id", None) or "MAIN")
+        return str(getattr(self._session, "branch_id", None) or "")
 
     def default_warehouse(self) -> str:
-        return str(getattr(self._session, "warehouse_id", None) or self.default_branch())
+        return str(getattr(self._session, "warehouse_id", None) or "")
 
     # reads -------------------------------------------------------------------
     def availability(self, *, product_ids: list[str], branch_id: str | None = None,
