@@ -439,3 +439,22 @@ caducidad.
   existentes) 6 passed; el conteo permanece no-APROBADO; inventario
   `2 failed / 497 passed` (2 pre-existentes `legacy_reader_repoints`, cero
   regresiones); arquitectura 58/387 (sin fallas nuevas).
+
+### Slice 3 — Idempotencia del reverso de ajuste por operation_id (§6/§15) — HECHO
+
+- **Defecto**: `ReverseAdjustmentUseCase` sólo comprobaba
+  `status is not POSTED → NOT_POSTED`. Tras un reverso exitoso el estado es
+  REVERSED, así que un **reintento con el mismo operation_id** devolvía un fallo
+  `NOT_POSTED` en vez de ok idempotente — rompe el contrato de idempotencia que sí
+  cumplen `PostAdjustment` y `ReverseInventoryMovement`.
+- **Fix**: al inicio (tras cargar el ajuste), si ya existen los movimientos del
+  reverso en el ledger (`{operation_id}:in` / `{operation_id}:out`), devuelve ok
+  idempotente (`already_processed=True`). Un `operation_id` distinto sobre un
+  ajuste ya REVERSED sigue bloqueado con `NOT_POSTED` (no se permite doble
+  reverso). El efecto sobre balances se aplica una sola vez (el guard de estado ya
+  lo garantizaba; el ledger idempotency confirma el contrato).
+- **Evidencia**: `test_reverse_is_idempotent_on_retry`,
+  `test_double_reverse_with_new_op_is_blocked` (+ 9 existentes) 11 passed;
+  disponibilidad restaurada una sola vez (10, no 13); inventario
+  `2 failed / 499 passed` (2 pre-existentes, cero regresiones); arquitectura
+  58/387 (sin fallas nuevas).

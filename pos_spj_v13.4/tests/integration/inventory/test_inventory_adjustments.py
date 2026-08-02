@@ -158,6 +158,33 @@ class TestReverse:
         with InventoryUnitOfWork(conn) as uow:
             assert uow.adjustments.get(r.entity_id).status is AdjustmentStatus.REVERSED
 
+    def test_reverse_is_idempotent_on_retry(self, conn):
+        # Reintento con el MISMO operation_id → ok idempotente, sin doble efecto.
+        _seed(conn, "10")
+        r = _create(conn, "-3")
+        PostAdjustmentUseCase().execute(conn, adjustment_id=r.entity_id,
+                                        operation_id="po-1", actor_user_id="clerk")
+        first = ReverseAdjustmentUseCase().execute(conn, adjustment_id=r.entity_id,
+                                                   operation_id="rv-1", actor_user_id="mgr")
+        second = ReverseAdjustmentUseCase().execute(conn, adjustment_id=r.entity_id,
+                                                    operation_id="rv-1", actor_user_id="mgr")
+        assert first.success and second.success
+        assert second.data.get("already_processed") is True
+        assert _avail(conn) == Decimal("10")  # restaurado una sola vez, no 13
+
+    def test_double_reverse_with_new_op_is_blocked(self, conn):
+        # Un operation_id distinto NO puede reversar dos veces el mismo ajuste.
+        _seed(conn, "10")
+        r = _create(conn, "-3")
+        PostAdjustmentUseCase().execute(conn, adjustment_id=r.entity_id,
+                                        operation_id="po-1", actor_user_id="clerk")
+        ReverseAdjustmentUseCase().execute(conn, adjustment_id=r.entity_id,
+                                           operation_id="rv-1", actor_user_id="mgr")
+        blocked = ReverseAdjustmentUseCase().execute(conn, adjustment_id=r.entity_id,
+                                                     operation_id="rv-2", actor_user_id="mgr")
+        assert not blocked.success and blocked.error_code == "NOT_POSTED"
+        assert _avail(conn) == Decimal("10")
+
 
 class TestCountToAdjustmentLoop:
     def test_approved_count_variance_becomes_adjustment(self, conn):

@@ -264,6 +264,16 @@ class ReverseAdjustmentUseCase:
                     return InventoryResult.fail("Ajuste no encontrado",
                                                 "ADJUSTMENT_NOT_FOUND",
                                                 operation_id=operation_id)
+                # Idempotencia por operation_id: si este reverso ya posteó sus
+                # movimientos (`{op}:in`/`{op}:out`), un reintento devuelve ok
+                # idempotente en vez de NOT_POSTED (el estado ya es REVERSED).
+                if (uow.ledger.find_by_operation_id(f"{operation_id}:in") is not None
+                        or uow.ledger.find_by_operation_id(f"{operation_id}:out")
+                        is not None):
+                    return InventoryResult.ok("Ajuste ya reversado (idempotente)",
+                                              entity_id=adjustment_id,
+                                              operation_id=operation_id,
+                                              already_processed=True)
                 if adjustment.status is not AdjustmentStatus.POSTED:
                     return InventoryResult.fail("Solo un ajuste posteado puede reversarse",
                                                 "NOT_POSTED", operation_id=operation_id)
