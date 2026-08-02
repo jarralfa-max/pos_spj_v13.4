@@ -349,8 +349,25 @@ scripts CI · §4.3 unit_id canónico · §8 ubicaciones técnicas.
   suite cadena de frío 8 passed; inventario `4 failed / 481 passed` (4
   pre-existentes, cero regresiones); arquitectura 58/387 (sin fallas nuevas).
 
+### Slice 3 — "Explain" de disponibilidad por bucket (§9.3) — HECHO
+
+- **Problema**: `AvailabilityDTO` sólo exponía `on_hand`/`reserved`/`available` +
+  un `by_status` genérico; no permitía *explicar* por qué un producto está corto
+  (stock presente pero no disponible: reservado/cuarentena/bloqueado/dañado/…).
+- **`AvailabilityDTO`** ahora desglosa cada bucket físico como campo Decimal:
+  `allocated`, `in_transit`, `pending_inspection`, `quarantined`, `blocked`
+  (QUALITY_BLOCKED), `damaged`, `expired`, `returned`, `production_hold`,
+  `recall_hold`, más `total_on_hand` (suma de todos los buckets físicos, excl.
+  DISPOSED). Se conservan `on_hand`/`reserved`/`available` (compat).
+- **`AvailabilityDTO.explain()`**: dict con el desglose completo para diagnóstico
+  de faltantes.
+- **`InventoryAvailabilityQueryService.get_availability`** acumula por bucket vía
+  `_STATUS_FIELD` + `ON_HAND_STATUSES`; sigue siendo read-only y Decimal.
+- **Evidencia**: `test_inventory_availability_explain` 5 passed (available =
+  on_hand − reserved; cada bucket desglosado; total_on_hand suma físicos; DISPOSED
+  no es on-hand; explain() explica el faltante); inventario `4 failed / 486 passed`
+  (4 pre-existentes, cero regresiones); arquitectura 58/387 (sin fallas nuevas).
+
 ### Pendiente P0-C
 
-- §9.3 "explain" de disponibilidad completo (on_hand/available/reserved/allocated/
-  in_transit/quarantined/blocked/expired/damaged).
 - §9.4 `ExpiryRiskService` / `GenerateExpiryAlertsUseCase` / `ExpireInventoryUseCase`.
