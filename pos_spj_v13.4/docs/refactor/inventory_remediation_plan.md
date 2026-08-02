@@ -478,3 +478,30 @@ caducidad.
 **P0-D cerrado**: §22 FEFO determinista + exclusión de bloqueado · §47/§5.4
 aprobación de conteo fail-closed · §6/§15 reverso de ajuste idempotente · §22/§5.3
 asignación acotada al almacén.
+
+## P1-A — Contratos de ingreso a Inventario
+
+### Slice 1 — Contrato Ventas fail-closed (§5/§5.4) — HECHO
+
+- **Defecto (identidad fabricada + warehouse=branch)**: los handlers de ingreso
+  resolvían el sobre con `warehouse_id = payload.get("warehouse_id") or branch_id`
+  (un almacén no es una sucursal) y `created_by_user_id = ... or "system"` (actor
+  inventado) — ambos prohibidos por el PROMPT MAESTRO.
+- **Helper compartido** `event_handlers/inventory/_ingress.py`
+  (`resolve_ingress`): resuelve/valida el sobre **fail-closed** —
+  `operation_id`/`branch_id`/`warehouse_id`/`actor_user_id` obligatorios; sin
+  fallback de almacén a sucursal ni identidad "system". Devuelve `(None, motivo)`
+  cuando falta un campo, y el handler ignora el evento (log) en vez de postear con
+  datos inventados. Reutilizable por las slices de Compras/Producción/Merma.
+- **Repunte Ventas**: `sale_issue_handler` (SALE_ISSUE) y
+  `customer_return_handler` (SALE_RETURN) usan `resolve_ingress`.
+- **Evidencia**: `test_missing_warehouse_is_not_defaulted_to_branch`,
+  `test_missing_user_is_not_fabricated_as_system` (+ 8 existentes) 10 passed —
+  con warehouse/user ausentes el stock queda intacto (no-op); inventario
+  `2 failed / 502 passed` (2 pre-existentes, cero regresiones); arquitectura
+  58/387 (sin fallas nuevas).
+- **Pendiente P1-A**: repuntar Compras (`purchase_receipt`, `purchase_lot_entry`,
+  `purchase_recipe_explosion`, `supplier_return`, `goods_receipt_reversed`),
+  Producción (`production_execution`) y los bridges al mismo contrato
+  `resolve_ingress`; luego un guardrail de arquitectura que prohíba
+  `or "system"` / `or branch_id` en los handlers.

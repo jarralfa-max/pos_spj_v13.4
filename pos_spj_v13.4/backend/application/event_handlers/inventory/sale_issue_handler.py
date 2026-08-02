@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 
+from backend.application.event_handlers.inventory._ingress import resolve_ingress
 from backend.application.inventory.use_cases.post_inventory_movement import (
     PostInventoryMovementUseCase,
 )
@@ -46,21 +47,20 @@ class SaleIssueHandler:
         self._uc = use_case or PostInventoryMovementUseCase()
 
     def handle(self, payload: dict) -> None:
-        operation_id = str(payload.get("operation_id") or payload.get("event_id") or "").strip()
-        branch_id = str(payload.get("branch_id") or "").strip()
-        warehouse_id = str(payload.get("warehouse_id") or branch_id).strip()
+        ingress, reason = resolve_ingress(payload)
         lines = payload.get("lines") or []
-        if not operation_id or not branch_id or not lines:
-            logger.warning("sale issue: payload incompleto; se ignora")
+        if ingress is None or not lines:
+            logger.warning("sale issue: payload inválido (%s); se ignora",
+                           reason or "sin líneas")
             return
         movement = InventoryMovement.create(
-            movement_type=MovementType.SALE_ISSUE, branch_id=branch_id,
-            warehouse_id=warehouse_id, source_module="sales",
-            source_document_type="SALE", source_document_id=str(payload.get("document_id") or ""),
-            operation_id=operation_id, created_by_user_id=str(payload.get("user_id") or "system"),
-            lines=_build_lines(lines))
+            movement_type=MovementType.SALE_ISSUE, branch_id=ingress.branch_id,
+            warehouse_id=ingress.warehouse_id, source_module="sales",
+            source_document_type="SALE", source_document_id=ingress.document_id,
+            operation_id=ingress.operation_id,
+            created_by_user_id=ingress.actor_user_id, lines=_build_lines(lines))
         result = self._uc.execute(self._conn, movement,
-                                  actor_user_id=str(payload.get("user_id") or "system"))
+                                  actor_user_id=ingress.actor_user_id)
         if not result.success:
-            logger.error("sale issue %s falló: %s", operation_id, result.message)
+            logger.error("sale issue %s falló: %s", ingress.operation_id, result.message)
             raise RuntimeError(result.message)
