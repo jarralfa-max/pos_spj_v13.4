@@ -202,6 +202,14 @@ class ApproveCountUseCase:
                                      operation_id)
                 if denied is not None:
                     return denied
+                # §5.4 / §47 fail-closed: una diferencia crítica sin usuario contador
+                # registrado NO puede aprobarse. La política de segregación se
+                # cortocircuita con counter="" (fail-open), así que aquí se rechaza en
+                # vez de inventar una identidad u omitir la segregación.
+                if count.has_variance and not count.counted_by_user_id:
+                    return InventoryResult.fail(
+                        "El conteo con diferencia no tiene usuario contador registrado",
+                        "COUNT_COUNTER_REQUIRED", operation_id=operation_id)
                 self._segregation.enforce_counter_not_self_approving_critical(
                     count.counted_by_user_id or "", actor_user_id,
                     is_critical=count.has_variance)

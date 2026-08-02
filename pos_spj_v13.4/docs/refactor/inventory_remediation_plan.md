@@ -420,3 +420,22 @@ caducidad.
   passed; inventario baseline mejora de `4 failed` a `2 failed` (los 2 restantes
   son `legacy_reader_repoints`, ajenos a P0-D), `496 passed`; arquitectura 58/387
   (sin fallas nuevas).
+
+### Slice 2 — Aprobación de conteo fail-closed sin contador (§47/§5.4) — HECHO
+
+- **Defecto (fail-open)**: `ApproveCountUseCase` pasaba
+  `count.counted_by_user_id or ""` a
+  `SegregationOfDutiesPolicy.enforce_counter_not_self_approving_critical`, cuyo
+  guard es `if is_critical and counter_id and counter_id == approver_id`. Con
+  `counter_id=""` (conteo sin contador registrado) el guard se cortocircuita, así
+  que una **diferencia crítica sin contador** podía aprobarse sin segregación
+  real — exactamente el tipo de fail-open que la §5.4 prohíbe.
+- **Fix (fail-closed)**: antes de la segregación, si el conteo tiene varianza y no
+  hay `counted_by_user_id`, se rechaza con `COUNT_COUNTER_REQUIRED` (mismo patrón
+  que `ApproveAdjustmentUseCase` con `ADJUSTMENT_CREATOR_REQUIRED`). No se inventa
+  identidad ni se omite la segregación. Los conteos sin varianza (no críticos)
+  siguen aprobables.
+- **Evidencia**: `test_variance_without_counter_cannot_be_approved` (+ 5
+  existentes) 6 passed; el conteo permanece no-APROBADO; inventario
+  `2 failed / 497 passed` (2 pre-existentes `legacy_reader_repoints`, cero
+  regresiones); arquitectura 58/387 (sin fallas nuevas).
