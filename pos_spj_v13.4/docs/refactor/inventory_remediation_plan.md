@@ -368,6 +368,33 @@ scripts CI · §4.3 unit_id canónico · §8 ubicaciones técnicas.
   no es on-hand; explain() explica el faltante); inventario `4 failed / 486 passed`
   (4 pre-existentes, cero regresiones); arquitectura 58/387 (sin fallas nuevas).
 
-### Pendiente P0-C
+### Slice 4 — Gestión de caducidad: alertas + barrido (§9.4) — HECHO
 
-- §9.4 `ExpiryRiskService` / `GenerateExpiryAlertsUseCase` / `ExpireInventoryUseCase`.
+- **`ExpiryRiskService`** (dominio) ya existía (OK/WARNING/CRITICAL/EXPIRED con
+  umbrales de configuración). Esta slice agrega la capa de aplicación.
+- **Enum**: nuevo `MovementType.EXPIRY_STATUS_TRANSFER` con dirección
+  `STATUS_TRANSFER` (mueve stock entre buckets sin cambiar on-hand).
+- **Repositorio**: `InventoryLotRepository.list_available_balances_with_expiry`
+  (join `inventory_balances` AVAILABLE con lote → `expiration_date`).
+- **`GenerateExpiryAlertsUseCase`** (permiso `LOT_VIEW`): clasifica cada lote con
+  stock disponible y encola `INVENTORY_LOT_EXPIRING` (WARNING/CRITICAL) /
+  `INVENTORY_LOT_EXPIRED` (vencido). Sólo lee + outbox, no mueve stock.
+- **`ExpireInventoryUseCase`** (permiso `LOT_BLOCK`): para lotes ya vencidos,
+  postea `EXPIRY_STATUS_TRANSFER` AVAILABLE→EXPIRED por balance (mismo UoW →
+  atómico; idempotente por `operation_id:balance_id`), emite
+  `INVENTORY_LOT_EXPIRED` una vez por lote. La disposición física sigue siendo un
+  WASTE aparte.
+- **Evidencia**: `test_inventory_expiry_use_cases` 7 passed (alertas por riesgo;
+  sin alertas si todo fresco; barrido mueve sólo lo vencido a EXPIRED y saca de
+  disponibilidad; idempotente en segunda corrida; emite evento; permisos
+  denegados en ambos); inventario `4 failed / 493 passed` (4 pre-existentes, cero
+  regresiones); arquitectura 58/387 (sin fallas nuevas).
+
+**P0-C cerrado**: §9.1 proyección calidad→bucket · §9.2 auto-bloqueo cadena de
+frío mueve stock · §9.3 "explain" de disponibilidad · §9.4 alertas + barrido de
+caducidad.
+
+### Pendiente (post P0-C)
+
+- Disposición automática de stock EXPIRED vía WASTE (write-off) — futura.
+- Programar `GenerateExpiryAlerts` / `ExpireInventory` como job (scheduler) — futura.

@@ -58,6 +58,19 @@ class InventoryLotRepository(InventoryRepositoryBase):
             "SELECT * FROM inventory_lots WHERE product_id=? ORDER BY expiration_date",
             (product_id,))
 
+    def list_available_balances_with_expiry(self) -> list[dict]:
+        """Every AVAILABLE balance that carries a lot, joined with the lot's
+        expiration_date (§9.4). Drives expiry alerts and the expire-inventory
+        sweep — only stock that can still be sold is worth expiring."""
+        return self._query(
+            "SELECT b.id AS balance_id, b.product_id, b.branch_id, b.warehouse_id,"
+            " b.location_id, b.lot_id, b.quantity, b.weight, l.lot_code,"
+            " l.expiration_date FROM inventory_balances b"
+            " JOIN inventory_lots l ON l.id = b.lot_id"
+            " WHERE b.inventory_status=? AND b.lot_id IS NOT NULL AND b.lot_id<>''"
+            " ORDER BY l.expiration_date, b.lot_id",
+            ("AVAILABLE",))
+
     def set_quality_status(self, lot_id: str, status: LotQualityStatus) -> None:
         self._execute(
             "UPDATE inventory_lots SET quality_status=? WHERE id=?",
