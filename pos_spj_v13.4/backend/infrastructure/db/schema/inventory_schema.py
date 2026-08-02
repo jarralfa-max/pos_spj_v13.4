@@ -114,6 +114,7 @@ _DDL = (
         name TEXT NOT NULL,
         level INTEGER NOT NULL DEFAULT 0,
         status TEXT NOT NULL DEFAULT 'ACTIVE',
+        location_type TEXT,                        -- §8 technical location kind (NULL = física)
         UNIQUE (warehouse_id, code)
     )
     """,

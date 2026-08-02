@@ -72,6 +72,20 @@ class WarehouseZoneType(str, Enum):
     DISPATCH = "DISPATCH"
 
 
+class TechnicalLocationType(str, Enum):
+    """Canonical technical locations (§8). Each warehouse gets one real location
+    (its own UUID) per type — the stock engine addresses these instead of using the
+    ``warehouse_id`` as if it were a physical location."""
+    RECEIVING = "RECEIVING"
+    AVAILABLE = "AVAILABLE"
+    PICKING = "PICKING"
+    QUARANTINE = "QUARANTINE"
+    DAMAGED = "DAMAGED"
+    TRANSIT = "TRANSIT"
+    RETURNS = "RETURNS"
+    PRODUCTION = "PRODUCTION"
+
+
 class LocationStatus(str, Enum):
     ACTIVE = "ACTIVE"
     BLOCKED = "BLOCKED"

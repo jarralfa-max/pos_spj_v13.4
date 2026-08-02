@@ -276,6 +276,28 @@ conteos, merma, cadena de frío, lotes.
   producto + validación de compatibilidad/conversión + repunte de los call-sites
   productivos para enviar siempre `unit_id`.
 
+### Slice 6 — Ubicaciones técnicas canónicas (§8) — HECHO
+
+- **Enum** `TechnicalLocationType` (RECEIVING/AVAILABLE/PICKING/QUARANTINE/DAMAGED/
+  TRANSIT/RETURNS/PRODUCTION).
+- **Esquema/migración**: `storage_locations.location_type TEXT` (nullable; NULL =
+  ubicación física) en el CREATE born-clean + migración **173** (`ALTER ADD COLUMN`,
+  idempotente), registrada en `engine.py`.
+- **Repositorio**: `get_location_by_code` + `save_technical_location` (UUID propio +
+  tipo).
+- **Caso de uso** `EnsureTechnicalLocationsUseCase.execute(conn, warehouse_id)`:
+  siembra **una ubicación real por tipo** (código estable `TECH:<TYPE>`, UUIDv7
+  propio, `location_type`), idempotente por `(warehouse_id, code)`. Cada almacén
+  tiene sus 8 ubicaciones — nunca se usa `warehouse_id` como ubicación.
+- **Evidencia**: `test_inventory_technical_locations` 5 passed (8 ubicaciones con
+  UUIDv7 real; persistencia con tipo; idempotencia; por-almacén; requiere
+  warehouse_id); migración idempotente; bootstrap con FK check limpio y
+  `location_type` presente; inventario `4 failed / 475 passed` (4 pre-existentes,
+  cero regresiones); arquitectura 58/387 (sin fallas nuevas).
+
+**P0-B cerrado**: §6.2 locking · §6.3 rebuild/drift · §4.1 UUIDv7 real · §7/§20 FK +
+scripts CI · §4.3 unit_id canónico · §8 ubicaciones técnicas.
+
 ### Pendiente P0-B
 
 - §4.3 unidades canónicas (`unit_id` UUID, no texto libre) en líneas del ledger.

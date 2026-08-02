@@ -41,6 +41,9 @@ from backend.application.inventory.use_cases.reservation_use_cases import (
     CreateReservationUseCase,
     ReleaseReservationUseCase,
 )
+from backend.application.inventory.use_cases.ensure_technical_locations import (
+    EnsureTechnicalLocationsUseCase,
+)
 from backend.application.inventory.use_cases.reverse_inventory_movement import (
     ReverseInventoryMovementUseCase,
 )
@@ -84,6 +87,7 @@ __all__ = [
     "RecordTemperatureReadingUseCase",
     "RegisterInventoryLotUseCase",
     "ReleaseReservationUseCase",
+    "EnsureTechnicalLocationsUseCase",
     "RebuildInventoryBalancesUseCase",
     "ReverseInventoryMovementUseCase",
     "ValidateInventoryProjectionUseCase",
