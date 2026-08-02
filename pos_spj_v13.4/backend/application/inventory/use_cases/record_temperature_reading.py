@@ -15,6 +15,9 @@ from backend.application.inventory.authorization import InventoryAuthorizationPo
 from backend.application.inventory.execution_context import InventoryExecutionContext
 from backend.application.inventory.permissions import InventoryPermissions
 from backend.application.inventory.result import InventoryResult
+from backend.application.inventory.services.lot_quality_projection import (
+    project_lot_quality_transition,
+)
 from backend.domain.inventory.entities.cold_chain import (
     TemperatureExcursion,
     TemperatureReading,
@@ -83,6 +86,14 @@ class RecordTemperatureReadingUseCase:
                     uow.cold_chain.save_excursion(excursion)
 
                     if action is ExcursionAction.QUARANTINE and lot_id:
+                        lot = uow.lots.get(lot_id)
+                        if lot is not None:
+                            # §9.2: el auto-bloqueo debe MOVER el stock del lote al
+                            # bucket QUARANTINED (no sólo cambiar el metadato), mismo
+                            # UoW → atómico, para que la disponibilidad lo excluya.
+                            project_lot_quality_transition(
+                                uow, lot, LotQualityStatus.QUARANTINED,
+                                actor_user_id=actor_user_id, base_op=operation_id)
                         uow.lots.set_quality_status(lot_id, LotQualityStatus.QUARANTINED)
                         self._emit(uow, InventoryEvents.INVENTORY_LOT_BLOCKED,
                                    operation_id=operation_id, entity_id=lot_id,

@@ -13,17 +13,13 @@ from backend.application.inventory.authorization import InventoryAuthorizationPo
 from backend.application.inventory.execution_context import InventoryExecutionContext
 from backend.application.inventory.permissions import InventoryPermissions
 from backend.application.inventory.result import InventoryResult
-from backend.application.inventory.services.movement_posting import post_movement
-from backend.domain.inventory.entities.inventory_lot import InventoryLot
-from backend.domain.inventory.entities.inventory_movement import (
-    InventoryMovement,
-    InventoryMovementLine,
+from backend.application.inventory.services.lot_quality_projection import (
+    project_lot_quality_transition,
 )
+from backend.domain.inventory.entities.inventory_lot import InventoryLot
 from backend.domain.inventory.enums import (
-    InventoryStatus,
     LotOrigin,
     LotQualityStatus,
-    MovementType,
 )
 from backend.domain.inventory.events import InventoryEvents, build_event_payload
 from backend.domain.inventory.exceptions import (
@@ -32,53 +28,9 @@ from backend.domain.inventory.exceptions import (
     InventoryPermissionDeniedError,
     LotNotFoundError,
 )
-from backend.infrastructure.db.repositories.inventory.base import to_decimal
 from backend.infrastructure.db.repositories.inventory.unit_of_work import (
     InventoryUnitOfWork,
 )
-
-# §9.1: cada estado de calidad del lote corresponde a un *bucket físico* del
-# balance. Bloquear/liberar un lote debe MOVER el stock entre buckets (no sólo
-# tocar inventory_lots.quality_status), para que la disponibilidad lo excluya.
-_PHYSICAL_BUCKET = {
-    LotQualityStatus.RELEASED: InventoryStatus.AVAILABLE,
-    LotQualityStatus.PENDING_INSPECTION: InventoryStatus.AVAILABLE,
-    LotQualityStatus.BLOCKED: InventoryStatus.QUALITY_BLOCKED,
-    LotQualityStatus.REJECTED: InventoryStatus.QUALITY_BLOCKED,
-    LotQualityStatus.QUARANTINED: InventoryStatus.QUARANTINED,
-}
-
-
-def _project_lot_quality_transfer(uow, lot, *, from_bucket, to_bucket, actor_user_id,
-                                  base_op) -> int:
-    """Mueve todo el stock del lote de `from_bucket` a `to_bucket` con movimientos
-    de transferencia de estado (§9.1). Devuelve el número de líneas movidas."""
-    moved = 0
-    for row in uow.balances.list_by_lot(lot.product_id, lot.id):
-        if row["inventory_status"] != from_bucket.value:
-            continue
-        qty = to_decimal(row["quantity"])
-        wgt = to_decimal(row["weight"])
-        if qty == 0 and wgt == 0:
-            continue
-        loc = row["location_id"] or row["warehouse_id"]
-        mtype = (MovementType.QUALITY_RELEASE
-                 if to_bucket is InventoryStatus.AVAILABLE
-                 else MovementType.QUALITY_BLOCK)
-        line = InventoryMovementLine.create(
-            product_id=lot.product_id, quantity=qty, weight=wgt, lot_id=lot.id,
-            from_location_id=loc, to_location_id=loc,
-            from_status=from_bucket, to_status=to_bucket,
-            reason_code="LOT_QUALITY")
-        movement = InventoryMovement.create(
-            movement_type=mtype, branch_id=row["branch_id"],
-            warehouse_id=row["warehouse_id"], source_module="inventory",
-            source_document_type="LOT_QUALITY", source_document_id=lot.id,
-            operation_id=f"{base_op}:{moved}", created_by_user_id=actor_user_id,
-            lines=[line])
-        post_movement(uow, movement, actor_user_id=actor_user_id)
-        moved += 1
-    return moved
 
 
 def _emit(uow, event_name, *, operation_id, lot, actor_user_id):
@@ -167,14 +119,11 @@ class SetLotQualityStatusUseCase:
                         return InventoryResult.fail(str(exc), "SCOPE_DENIED",
                                                     operation_id=operation_id)
                 # §9.1: mover el stock del lote entre buckets físicos ANTES de cambiar
-                # el estado de calidad (mismo UoW → atómico). from = bucket del estado
-                # actual; to = bucket del nuevo estado. Si coinciden, no hay movimiento.
-                from_bucket = _PHYSICAL_BUCKET[lot.quality_status]
-                to_bucket = _PHYSICAL_BUCKET[new_status]
-                if from_bucket is not to_bucket:
-                    _project_lot_quality_transfer(
-                        uow, lot, from_bucket=from_bucket, to_bucket=to_bucket,
-                        actor_user_id=actor_user_id, base_op=operation_id)
+                # el estado de calidad (mismo UoW → atómico). Si el bucket del estado
+                # actual y el del nuevo coinciden, no hay movimiento.
+                project_lot_quality_transition(
+                    uow, lot, new_status, actor_user_id=actor_user_id,
+                    base_op=operation_id)
                 if releasing:
                     lot.release()
                 else:

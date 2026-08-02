@@ -329,9 +329,28 @@ scripts CI · §4.3 unit_id canónico · §8 ubicaciones técnicas.
   `4 failed / 479 passed` (4 pre-existentes, cero regresiones); arquitectura 58/387
   (sin fallas nuevas).
 
+### Slice 2 — Auto-bloqueo de cadena de frío mueve stock físico (§9.2) — HECHO
+
+- **Problema**: `RecordTemperatureReadingUseCase`, ante una excursión con
+  `auto_block=True`, sólo llamaba `uow.lots.set_quality_status(QUARANTINED)` — el
+  stock del lote seguía en `AVAILABLE`, así que el auto-bloqueo no excluía el lote
+  de la disponibilidad (mismo defecto §9.1 pero en el camino de cadena de frío).
+- **Servicio compartido** `services/lot_quality_projection.py`: se extrajo la
+  proyección §9.1 (`PHYSICAL_BUCKET` + `project_lot_quality_transition(uow, lot,
+  new_status, ...)`) para que **ambos** casos de uso la reutilicen (una sola ruta
+  canónica de proyección calidad→bucket).
+- **`SetLotQualityStatusUseCase`** (§9.1) ahora delega en el servicio compartido
+  (sin lógica duplicada).
+- **`RecordTemperatureReadingUseCase`** (§9.2): antes de `set_quality_status`,
+  obtiene el lote y ejecuta `project_lot_quality_transition(... QUARANTINED)` en el
+  mismo `InventoryUnitOfWork` → atómico. El stock se mueve AVAILABLE→QUARANTINED.
+- **Evidencia**: `test_inventory_cold_chain_use_case` +2 (auto-bloqueo mueve 10 a
+  QUARANTINED y saca de disponibilidad → 0; WARN sin auto_block no toca el stock),
+  suite cadena de frío 8 passed; inventario `4 failed / 481 passed` (4
+  pre-existentes, cero regresiones); arquitectura 58/387 (sin fallas nuevas).
+
 ### Pendiente P0-C
 
-- §9.2 auto-bloqueo de cadena de frío (flujo atómico ante lectura fuera de rango).
 - §9.3 "explain" de disponibilidad completo (on_hand/available/reserved/allocated/
   in_transit/quarantined/blocked/expired/damaged).
 - §9.4 `ExpiryRiskService` / `GenerateExpiryAlertsUseCase` / `ExpireInventoryUseCase`.
