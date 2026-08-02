@@ -542,3 +542,25 @@ Producción (consumo/salidas) — todos fail-closed vía `resolve_ingress` + gua
 de arquitectura. Merma/Transferencias ya postean por casos de uso canónicos
 (`RegisterWasteUseCase` / transferencias INV-12), sin sobre de evento externo.
 Pendiente: bridges legacy → P2.
+
+## P1-C — UI de inventario (presentación pura)
+
+### Slice 1 — Guardrail del contenedor del shell PyQt (§13/§5.4) — HECHO
+
+- **Auditoría**: la UI enterprise (`frontend/desktop/modules/inventory/`
+  presenter + pages) ya es presentación pura (INV-25): sin SQL, sin
+  commit/rollback, sin lógica de negocio, sin combos crudos ni defaults
+  hardcodeados; delega en `InventoryPresenter` → query services / use cases. La
+  identidad/ámbito ya es fail-closed (sin `"desktop"/"1"`, sin
+  `warehouse_id = branch_id`).
+- **Brecha**: el guardrail `test_inventory_ui_guardrails` sólo escaneaba
+  `frontend/desktop/modules/inventory/`, **no** el contenedor PyQt real montado en
+  el shell (`modulos/inventario_enterprise.py`) — el verdadero punto de entrada,
+  que podía regresar a SQL/commit sin ser detectado.
+- **Fix**: `test_no_sql_or_db_access_in_inventory_shell_container` extiende el
+  guardrail al contenedor del shell — sin SQL/sqlite/commit/rollback/cursor y debe
+  cablear `InventoryPresenter` (delegación). La identidad fabricada del contenedor
+  ya la cubre `test_inventory_ui_has_no_fabricated_identity_fallback`.
+- **Evidencia**: `test_inventory_ui_guardrails` 4 passed; inventario
+  `2 failed / 508 passed` (2 pre-existentes, cero regresiones); arquitectura
+  `58 failed / 391 passed` (+1 guardrail, sin fallas nuevas).
