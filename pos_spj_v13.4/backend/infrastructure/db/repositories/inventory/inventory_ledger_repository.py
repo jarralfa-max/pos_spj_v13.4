@@ -47,11 +47,12 @@ class InventoryLedgerRepository(InventoryRepositoryBase):
         for line in movement.lines:
             self._execute(
                 "INSERT INTO inventory_ledger_lines (id, movement_id, product_id, lot_id,"
-                " serial_id, quantity, weight, unit, from_location_id, to_location_id,"
-                " from_status, to_status, unit_cost, reason_code)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " serial_id, quantity, weight, unit, unit_id, from_location_id,"
+                " to_location_id, from_status, to_status, unit_cost, reason_code)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (line.id, movement.id, line.product_id, line.lot_id, line.serial_id,
                  dec_str(line.quantity), dec_str(line.weight), line.unit,
+                 getattr(line, "unit_id", None),
                  line.from_location_id, line.to_location_id,
                  enum_value(line.from_status) if line.from_status else None,
                  enum_value(line.to_status) if line.to_status else None,

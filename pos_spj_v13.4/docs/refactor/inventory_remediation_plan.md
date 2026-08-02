@@ -257,6 +257,25 @@ conteos, merma, cadena de frío, lotes.
   inventario `4 failed / 465 passed` (4 pre-existentes, cero regresiones);
   arquitectura 58/387 (sin fallas nuevas).
 
+### Slice 5 — Unidad canónica (`unit_id` UUIDv7) en líneas del ledger (§4.3) — HECHO
+
+- **Dominio** `InventoryMovementLine`: nuevo campo `unit_id: str | None` (referencia
+  canónica al catálogo de unidades) junto al `unit` de texto libre (compat legacy).
+  `.create()` acepta `unit_id`; si viene, lo valida con `validate_uuidv7` (rechaza
+  texto libre como "KG"); `None` permitido durante la transición.
+- **Esquema/migración**: `inventory_ledger_lines.unit_id TEXT` en el CREATE
+  born-clean + migración **172** (`ALTER ADD COLUMN`, idempotente, maneja DB legacy
+  sin la columna y DB born-clean que ya la trae). Registrada en `engine.py`.
+- **Repositorio**: el ledger persiste/lee `unit_id` (round-trip).
+- **Evidencia**: `test_inventory_canonical_unit_id` 5 passed (acepta UUIDv7; rechaza
+  texto libre; opcional en transición; round-trip por el ledger; columna presente);
+  migración idempotente en legacy y born-clean; bootstrap completo con FK check
+  limpio y `unit_id` presente; inventario `4 failed / 470 passed` (4 pre-existentes,
+  cero regresiones); arquitectura 58/387 (sin fallas nuevas).
+- **Pendiente §4.3 (futuro)**: backfill de `unit_id` desde la unidad base del
+  producto + validación de compatibilidad/conversión + repunte de los call-sites
+  productivos para enviar siempre `unit_id`.
+
 ### Pendiente P0-B
 
 - §4.3 unidades canónicas (`unit_id` UUID, no texto libre) en líneas del ledger.

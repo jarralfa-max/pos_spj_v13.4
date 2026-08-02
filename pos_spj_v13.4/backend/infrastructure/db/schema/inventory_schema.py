@@ -146,7 +146,8 @@ _DDL = (
         serial_id TEXT,
         quantity TEXT NOT NULL DEFAULT '0',
         weight TEXT NOT NULL DEFAULT '0',
-        unit TEXT NOT NULL DEFAULT 'PZA',
+        unit TEXT NOT NULL DEFAULT 'PZA',          -- legacy display code (compat)
+        unit_id TEXT,                              -- §4.3 canonical unit (UUIDv7)
         from_location_id TEXT,
         to_location_id TEXT,
         from_status TEXT,
