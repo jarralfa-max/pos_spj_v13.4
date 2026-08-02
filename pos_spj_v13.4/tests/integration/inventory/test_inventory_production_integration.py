@@ -128,3 +128,31 @@ class TestProduction:
         ProductionExecutionHandler(conn).handle(payload)  # replay
         assert _avail(conn, "flour") == Decimal("70")
         assert _avail(conn, "bread") == Decimal("25")
+
+    def _run_payload(self, **over):
+        base = dict(operation_id="prod-x", branch_id="b1", warehouse_id="w1",
+                    production_id="PO-X", user_id="baker",
+                    consumptions=[{"product_id": "flour", "quantity": "30",
+                                   "from_location_id": "raw-loc"}],
+                    outputs=[{"product_id": "bread", "quantity": "25",
+                              "output_type": "FINISHED", "to_location_id": "fg-loc"}])
+        base.update(over)
+        return base
+
+    def test_missing_warehouse_is_not_defaulted_to_branch(self, conn):
+        # §5: sin warehouse_id la producción no se procesa con warehouse=branch.
+        _seed_stock(conn, product="flour", qty="100", op="s5")
+        payload = self._run_payload()
+        payload.pop("warehouse_id")
+        ProductionExecutionHandler(conn).handle(payload)  # fail-closed → no-op
+        assert _avail(conn, "flour") == Decimal("100")
+        assert _avail(conn, "bread") == Decimal("0")
+
+    def test_missing_user_is_not_fabricated_as_system(self, conn):
+        # §5.4: sin user_id la producción no se procesa con actor "system".
+        _seed_stock(conn, product="flour", qty="100", op="s6")
+        payload = self._run_payload()
+        payload.pop("user_id")
+        ProductionExecutionHandler(conn).handle(payload)  # fail-closed → no-op
+        assert _avail(conn, "flour") == Decimal("100")
+        assert _avail(conn, "bread") == Decimal("0")

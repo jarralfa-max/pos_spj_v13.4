@@ -516,8 +516,29 @@ asignación acotada al almacén.
   passed — con warehouse/user ausentes la recepción/devolución/reverso quedan como
   no-op y el stock/estado se conservan; inventario `2 failed / 506 passed` (2
   pre-existentes, cero regresiones); arquitectura 58/387 (sin fallas nuevas).
-- **Pendiente P1-A**: Producción (`production_execution`) al mismo contrato; luego
-  un guardrail de arquitectura que prohíba `or "system"` / `or branch_id` en los
-  handlers del ledger canónico. Los bridges legacy (`purchase_lot_entry`,
-  `purchase_recipe_explosion`, `*_bridge`) escriben tablas legacy (`lotes`,
-  `movimientos_lote`) con `sucursal_id`; se retiran en P2 (no en P1-A).
+- Los bridges legacy (`purchase_lot_entry`, `purchase_recipe_explosion`,
+  `*_bridge`) escriben tablas legacy (`lotes`, `movimientos_lote`) con
+  `sucursal_id`; se retiran en P2 (no en P1-A).
+
+### Slice 3 — Contrato Producción + guardrail de arquitectura (§5/§5.4) — HECHO
+
+- **Repunte Producción**: `production_execution_handler` (PRODUCTION_CONSUMPTION +
+  PRODUCTION_OUTPUT) usa `resolve_ingress` para el sobre; conserva
+  `document_id = production_id or …` y las colecciones `consumptions`/`outputs`.
+- **Guardrail de arquitectura** `test_inventory_ingress_contract_fail_closed.py`:
+  prohíbe `... or branch_id` y `... or "system"` en los 6 handlers del ledger
+  canónico (Ventas/Compras/Producción) y exige que usen `resolve_ingress`
+  (`goods_receipt_reversed` exento: no lleva almacén, guard propio del actor). Los
+  bridges legacy quedan fuera (se retiran en P2).
+- **Evidencia**: `test_missing_warehouse_is_not_defaulted_to_branch`,
+  `test_missing_user_is_not_fabricated_as_system` (Producción) + guardrail (3) + 4
+  existentes = 9 passed; inventario `2 failed / 508 passed` (2 pre-existentes,
+  cero regresiones); arquitectura `58 failed / 390 passed` (+3 del guardrail, sin
+  fallas nuevas).
+
+**P1-A contratos de ingreso cerrado** (ledger canónico): Ventas
+(SALE_ISSUE/SALE_RETURN) · Compras (PURCHASE_RECEIPT/SUPPLIER_RETURN/reverso) ·
+Producción (consumo/salidas) — todos fail-closed vía `resolve_ingress` + guardrail
+de arquitectura. Merma/Transferencias ya postean por casos de uso canónicos
+(`RegisterWasteUseCase` / transferencias INV-12), sin sobre de evento externo.
+Pendiente: bridges legacy → P2.

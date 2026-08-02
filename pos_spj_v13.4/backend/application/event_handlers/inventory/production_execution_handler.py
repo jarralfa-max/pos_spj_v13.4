@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import logging
 
+from backend.application.event_handlers.inventory._ingress import resolve_ingress
 from backend.application.inventory.use_cases.lot_use_cases import (
     RegisterInventoryLotUseCase,
 )
@@ -61,16 +62,18 @@ class ProductionExecutionHandler:
         self._link = link_use_case or RegisterTraceabilityLinkUseCase()
 
     def handle(self, payload: dict) -> None:
-        operation_id = str(payload.get("operation_id") or payload.get("event_id") or "").strip()
-        branch_id = str(payload.get("branch_id") or "").strip()
-        warehouse_id = str(payload.get("warehouse_id") or branch_id).strip()
+        ingress, reason = resolve_ingress(payload)
         consumptions = payload.get("consumptions") or []
         outputs = payload.get("outputs") or []
-        if not operation_id or not branch_id or (not consumptions and not outputs):
-            logger.warning("production: payload incompleto; se ignora")
+        if ingress is None or (not consumptions and not outputs):
+            logger.warning("production: payload inválido (%s); se ignora",
+                           reason or "sin consumos ni salidas")
             return
-        user = str(payload.get("user_id") or "system")
-        document_id = str(payload.get("production_id") or payload.get("document_id") or "")
+        operation_id = ingress.operation_id
+        branch_id = ingress.branch_id
+        warehouse_id = ingress.warehouse_id
+        user = ingress.actor_user_id
+        document_id = str(payload.get("production_id") or ingress.document_id)
         wip = bool(payload.get("wip"))
 
         input_lot_ids = self._consume(consumptions, operation_id=operation_id,
