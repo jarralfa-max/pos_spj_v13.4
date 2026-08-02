@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 
+from backend.application.event_handlers.inventory._ingress import resolve_ingress
 from backend.application.inventory.use_cases.post_inventory_movement import (
     PostInventoryMovementUseCase,
 )
@@ -33,15 +34,14 @@ class SupplierReturnHandler:
         self._uc = use_case or PostInventoryMovementUseCase()
 
     def handle(self, payload: dict) -> None:
-        operation_id = str(payload.get("operation_id") or payload.get("event_id") or "").strip()
-        branch_id = str(payload.get("branch_id") or "").strip()
-        warehouse_id = str(payload.get("warehouse_id") or branch_id).strip()
+        ingress, reason = resolve_ingress(payload)
         lines = payload.get("lines") or []
-        if not operation_id or not branch_id or not lines:
-            logger.warning("supplier return: payload incompleto; se ignora")
+        if ingress is None or not lines:
+            logger.warning("supplier return: payload inválido (%s); se ignora",
+                           reason or "sin líneas")
             return
-        user = str(payload.get("user_id") or "system")
-        document_id = str(payload.get("return_id") or payload.get("document_id") or "")
+        user = ingress.actor_user_id
+        document_id = str(payload.get("return_id") or ingress.document_id)
 
         built = []
         for ln in lines:
@@ -61,11 +61,12 @@ class SupplierReturnHandler:
             return
 
         movement = InventoryMovement.create(
-            movement_type=MovementType.SUPPLIER_RETURN, branch_id=branch_id,
-            warehouse_id=warehouse_id, source_module="procurement",
+            movement_type=MovementType.SUPPLIER_RETURN, branch_id=ingress.branch_id,
+            warehouse_id=ingress.warehouse_id, source_module="procurement",
             source_document_type="PURCHASE_RETURN", source_document_id=document_id,
-            operation_id=operation_id, created_by_user_id=user, lines=built)
+            operation_id=ingress.operation_id, created_by_user_id=user, lines=built)
         result = self._uc.execute(self._conn, movement, actor_user_id=user)
         if not result.success and result.error_code != "PERMISSION_DENIED":
-            logger.error("supplier return %s falló: %s", operation_id, result.message)
+            logger.error("supplier return %s falló: %s", ingress.operation_id,
+                         result.message)
             raise RuntimeError(result.message)

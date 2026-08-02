@@ -500,8 +500,24 @@ asignación acotada al almacén.
   con warehouse/user ausentes el stock queda intacto (no-op); inventario
   `2 failed / 502 passed` (2 pre-existentes, cero regresiones); arquitectura
   58/387 (sin fallas nuevas).
-- **Pendiente P1-A**: repuntar Compras (`purchase_receipt`, `purchase_lot_entry`,
-  `purchase_recipe_explosion`, `supplier_return`, `goods_receipt_reversed`),
-  Producción (`production_execution`) y los bridges al mismo contrato
-  `resolve_ingress`; luego un guardrail de arquitectura que prohíba
-  `or "system"` / `or branch_id` en los handlers.
+### Slice 2 — Contrato Compras (ledger canónico) fail-closed (§5/§5.4) — HECHO
+
+- **Repunte Compras (ledger canónico)** al helper `resolve_ingress`:
+  - `purchase_receipt_handler` (PURCHASE_RECEIPT) + `DirectPurchaseReceiptHandler`
+    (hereda) — mantiene `document_id = goods_receipt_id or …`.
+  - `supplier_return_handler` (SUPPLIER_RETURN) — mantiene
+    `document_id = return_id or …`.
+  - `goods_receipt_reversed_handler` (no lleva almacén/sucursal/líneas; sólo
+    op/document/actor): guard mínimo fail-closed del actor (sin `"system"`).
+- **Evidencia**: `test_receipt_missing_warehouse_is_not_defaulted_to_branch`,
+  `test_receipt_missing_user_is_not_fabricated_as_system`,
+  `test_reversal_missing_user_is_not_fabricated_as_system`,
+  `test_supplier_return_missing_warehouse_is_not_defaulted` (+ 7 existentes) 11
+  passed — con warehouse/user ausentes la recepción/devolución/reverso quedan como
+  no-op y el stock/estado se conservan; inventario `2 failed / 506 passed` (2
+  pre-existentes, cero regresiones); arquitectura 58/387 (sin fallas nuevas).
+- **Pendiente P1-A**: Producción (`production_execution`) al mismo contrato; luego
+  un guardrail de arquitectura que prohíba `or "system"` / `or branch_id` en los
+  handlers del ledger canónico. Los bridges legacy (`purchase_lot_entry`,
+  `purchase_recipe_explosion`, `*_bridge`) escriben tablas legacy (`lotes`,
+  `movimientos_lote`) con `sucursal_id`; se retiran en P2 (no en P1-A).

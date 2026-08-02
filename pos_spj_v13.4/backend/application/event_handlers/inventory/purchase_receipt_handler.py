@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 
+from backend.application.event_handlers.inventory._ingress import resolve_ingress
 from backend.application.inventory.use_cases.lot_use_cases import (
     RegisterInventoryLotUseCase,
 )
@@ -54,21 +55,20 @@ class PurchaseReceiptHandler:
         self._lot_uc = lot_use_case or RegisterInventoryLotUseCase()
 
     def handle(self, payload: dict) -> None:
-        operation_id = str(payload.get("operation_id") or payload.get("event_id") or "").strip()
-        branch_id = str(payload.get("branch_id") or "").strip()
-        warehouse_id = str(payload.get("warehouse_id") or branch_id).strip()
+        ingress, reason = resolve_ingress(payload)
         lines = payload.get("lines") or []
-        if not operation_id or not branch_id or not lines:
-            logger.warning("purchase receipt: payload incompleto; se ignora")
+        if ingress is None or not lines:
+            logger.warning("purchase receipt: payload inválido (%s); se ignora",
+                           reason or "sin líneas")
             return
-        user = str(payload.get("user_id") or "system")
-        document_id = str(payload.get("goods_receipt_id") or payload.get("document_id") or "")
+        user = ingress.actor_user_id
+        document_id = str(payload.get("goods_receipt_id") or ingress.document_id)
         quality_hold = bool(payload.get("quality_hold"))
 
         built = [
-            self._build_line(ln, operation_id=operation_id, branch_id=branch_id,
-                             document_id=document_id, user=user,
-                             quality_hold=quality_hold)
+            self._build_line(ln, operation_id=ingress.operation_id,
+                             branch_id=ingress.branch_id, document_id=document_id,
+                             user=user, quality_hold=quality_hold)
             for ln in lines
         ]
         built = [ln for ln in built if ln is not None]
@@ -76,13 +76,14 @@ class PurchaseReceiptHandler:
             return
 
         movement = InventoryMovement.create(
-            movement_type=MovementType.PURCHASE_RECEIPT, branch_id=branch_id,
-            warehouse_id=warehouse_id, source_module="procurement",
+            movement_type=MovementType.PURCHASE_RECEIPT, branch_id=ingress.branch_id,
+            warehouse_id=ingress.warehouse_id, source_module="procurement",
             source_document_type=_SOURCE_DOCUMENT_TYPE, source_document_id=document_id,
-            operation_id=operation_id, created_by_user_id=user, lines=built)
+            operation_id=ingress.operation_id, created_by_user_id=user, lines=built)
         result = self._uc.execute(self._conn, movement, actor_user_id=user)
         if not result.success and result.error_code != "PERMISSION_DENIED":
-            logger.error("purchase receipt %s falló: %s", operation_id, result.message)
+            logger.error("purchase receipt %s falló: %s", ingress.operation_id,
+                         result.message)
             raise RuntimeError(result.message)
 
     # ── internals ────────────────────────────────────────────────────────────

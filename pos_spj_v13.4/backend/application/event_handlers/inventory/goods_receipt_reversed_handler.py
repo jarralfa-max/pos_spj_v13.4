@@ -36,8 +36,12 @@ class GoodsReceiptReversedHandler:
     def handle(self, payload: dict) -> None:
         operation_id = str(payload.get("operation_id") or payload.get("event_id") or "").strip()
         document_id = str(payload.get("goods_receipt_id") or payload.get("document_id") or "")
-        if not operation_id or not document_id:
-            logger.warning("goods receipt reversed: payload incompleto; se ignora")
+        # §5.4 fail-closed: el actor viene del evento, nunca se inventa "system".
+        actor = str(payload.get("user_id") or payload.get("user")
+                    or payload.get("usuario") or "").strip()
+        if not operation_id or not document_id or not actor:
+            logger.warning("goods receipt reversed: payload inválido "
+                           "(operation_id/document_id/actor); se ignora")
             return
         with InventoryUnitOfWork(self._conn) as uow:
             movements = uow.ledger.list_for_document(_SOURCE_DOCUMENT_TYPE, document_id)
@@ -50,7 +54,7 @@ class GoodsReceiptReversedHandler:
         reason = str(payload.get("reason") or "Reverso de recepción de compra")
         result = self._uc.execute(
             self._conn, movement_id=target["id"],
-            operation_id=f"{operation_id}:reversal", actor_user_id=str(payload.get("user_id") or "system"),
+            operation_id=f"{operation_id}:reversal", actor_user_id=actor,
             reason=reason)
         if not result.success and result.error_code not in ("PERMISSION_DENIED",
                                                             "ALREADY_REVERSED"):

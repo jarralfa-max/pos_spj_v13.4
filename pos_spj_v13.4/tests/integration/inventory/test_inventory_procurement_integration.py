@@ -93,6 +93,20 @@ class TestPurchaseReceipt:
         PurchaseReceiptHandler(conn).handle(_receipt_payload())  # replay
         assert _avail(conn) == Decimal("10")
 
+    def test_receipt_missing_warehouse_is_not_defaulted_to_branch(self, conn):
+        # §5: sin warehouse_id no se procesa con warehouse=branch.
+        payload = _receipt_payload()
+        payload.pop("warehouse_id")
+        PurchaseReceiptHandler(conn).handle(payload)  # fail-closed → no-op
+        assert _avail(conn) == Decimal("0")
+
+    def test_receipt_missing_user_is_not_fabricated_as_system(self, conn):
+        # §5.4: sin user_id no se procesa con actor "system".
+        payload = _receipt_payload()
+        payload.pop("user_id")
+        PurchaseReceiptHandler(conn).handle(payload)  # fail-closed → no-op
+        assert _avail(conn) == Decimal("0")
+
 
 class TestSupplierReturnAndReversal:
     def test_supplier_return_decrements(self, conn):
@@ -122,3 +136,21 @@ class TestSupplierReturnAndReversal:
         GoodsReceiptReversedHandler(conn).handle(p)
         GoodsReceiptReversedHandler(conn).handle(p)  # replay: no double credit
         assert _avail(conn) == Decimal("0")
+
+    def test_reversal_missing_user_is_not_fabricated_as_system(self, conn):
+        # §5.4: sin actor el reverso no se procesa con "system"; recepción intacta.
+        PurchaseReceiptHandler(conn).handle(_receipt_payload())
+        GoodsReceiptReversedHandler(conn).handle(dict(
+            operation_id="gr-1", goods_receipt_id="GR-1"))  # sin user_id → no-op
+        assert _avail(conn) == Decimal("10")
+        with InventoryUnitOfWork(conn) as uow:
+            orig = uow.ledger.list_for_document("GOODS_RECEIPT", "GR-1")[0]
+            assert orig["status"] == "POSTED"  # no reversado
+
+    def test_supplier_return_missing_warehouse_is_not_defaulted(self, conn):
+        # §5: sin warehouse_id la devolución no se procesa; recepción intacta.
+        PurchaseReceiptHandler(conn).handle(_receipt_payload())
+        SupplierReturnHandler(conn).handle(dict(
+            operation_id="ret-1", branch_id="b1", return_id="RET-1", user_id="recv",
+            lines=[{"product_id": "p1", "quantity": "3", "from_location_id": "loc1"}]))
+        assert _avail(conn) == Decimal("10")
