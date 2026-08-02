@@ -234,6 +234,11 @@ class AllocateReservationUseCase:
                 reservation.product_id, reservation.branch_id):
             if bal["inventory_status"] != InventoryStatus.AVAILABLE.value:
                 continue
+            # §22/§5.3: la reserva se creó contra un almacén concreto y decrementó
+            # SU balance; la asignación debe quedarse en ese mismo almacén — nunca
+            # ligar un lote físicamente en otro almacén (fuga inter-almacén).
+            if bal["warehouse_id"] != reservation.warehouse_id:
+                continue
             if not bal["lot_id"]:
                 continue
             available = (self._to_decimal(bal["quantity"])

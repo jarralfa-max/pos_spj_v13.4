@@ -44,11 +44,11 @@ def conn():
     c.close()
 
 
-def _receipt(conn, qty="10", loc="loc1", lot=None, op="r1", product="p1"):
+def _receipt(conn, qty="10", loc="loc1", lot=None, op="r1", product="p1", wh="w1"):
     line = InventoryMovementLine.create(product_id=product, quantity=Decimal(qty),
                                         to_location_id=loc, lot_id=lot)
     mv = InventoryMovement.create(
-        movement_type=MovementType.PURCHASE_RECEIPT, branch_id="b1", warehouse_id="w1",
+        movement_type=MovementType.PURCHASE_RECEIPT, branch_id="b1", warehouse_id=wh,
         source_module="procurement", source_document_type="GR", source_document_id="gr1",
         operation_id=op, created_by_user_id="u1", lines=[line])
     PostInventoryMovementUseCase().execute(conn, mv, actor_user_id="u1")
@@ -172,6 +172,32 @@ class TestAllocateReservation:
             rows = uow.reservations.list_allocations(r.entity_id)
             assert rows and rows[0]["lot_id"] == soon  # FEFO → SOON first
             assert uow.reservations.get(r.entity_id).status is ReservationStatus.ALLOCATED
+
+    def test_allocation_stays_within_reservation_warehouse(self, conn):
+        # §22/§5.3: la asignación no debe ligar un lote de OTRO almacén aunque su
+        # caducidad sea más próxima (FEFO). La reserva es de w1; el lote de w2 (que
+        # caduca antes) nunca debe elegirse.
+        soon_exp = (date.today() + timedelta(days=10)).isoformat()
+        late_exp = (date.today() + timedelta(days=60)).isoformat()
+        RegisterInventoryLotUseCase().execute(conn, product_id="p1", lot_code="W1LOT",
+            origin_type=LotOrigin.PURCHASE, operation_id="lw1", actor_user_id="u1",
+            branch_id="b1", expiration_date=late_exp)
+        RegisterInventoryLotUseCase().execute(conn, product_id="p1", lot_code="W2LOT",
+            origin_type=LotOrigin.PURCHASE, operation_id="lw2", actor_user_id="u1",
+            branch_id="b1", expiration_date=soon_exp)
+        with InventoryUnitOfWork(conn) as uow:
+            w1lot = uow.lots.get_by_code("p1", "W1LOT").id
+            w2lot = uow.lots.get_by_code("p1", "W2LOT").id
+        _receipt(conn, "3", loc="stage", lot=None, op="r-agg", wh="w1")  # respalda reserva
+        _receipt(conn, "5", loc="loc1", lot=w1lot, op="r-w1", wh="w1")   # candidato w1
+        _receipt(conn, "5", loc="loc2", lot=w2lot, op="r-w2", wh="w2")   # candidato w2 (antes)
+        r = _reserve(conn, "3", loc="stage", lot=None)                    # reserva en w1
+        alloc = AllocateReservationUseCase().execute(
+            conn, reservation_id=r.entity_id, operation_id="al-1", actor_user_id="u1")
+        assert alloc.success
+        with InventoryUnitOfWork(conn) as uow:
+            rows = uow.reservations.list_allocations(r.entity_id)
+        assert rows and all(row["lot_id"] == w1lot for row in rows)  # nunca el de w2
 
     def test_blocked_lot_is_never_allocated(self, conn):
         # §22/§9.1: un lote bloqueado no es candidato de asignación aunque tenga la

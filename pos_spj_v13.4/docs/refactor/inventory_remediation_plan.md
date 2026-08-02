@@ -458,3 +458,23 @@ caducidad.
   disponibilidad restaurada una sola vez (10, no 13); inventario
   `2 failed / 499 passed` (2 pre-existentes, cero regresiones); arquitectura
   58/387 (sin fallas nuevas).
+
+### Slice 4 — Asignación acotada al almacén de la reserva (§22/§5.3) — HECHO
+
+- **Defecto (fuga inter-almacén)**: `AllocateReservationUseCase._lot_candidates`
+  recorría `list_by_product_branch` (TODOS los almacenes de la sucursal) sin
+  filtrar por `reservation.warehouse_id`. La reserva se creó contra un almacén
+  concreto y decrementó SU balance, pero FEFO podía ligar un lote físicamente en
+  OTRO almacén (p. ej. el de w2 por caducar antes) — la reserva de w1 quedaba
+  asignada a stock de w2.
+- **Fix**: se descartan los candidatos cuyo `warehouse_id` no coincide con el de
+  la reserva. La asignación se queda en el mismo almacén.
+- **Evidencia**: `test_allocation_stays_within_reservation_warehouse` (+ 11
+  existentes) 12 passed — con el lote de w2 caducando antes, sin el fix FEFO lo
+  habría elegido; ahora sólo se asigna el lote de w1; inventario
+  `2 failed / 500 passed` (2 pre-existentes, cero regresiones); arquitectura
+  58/387 (sin fallas nuevas).
+
+**P0-D cerrado**: §22 FEFO determinista + exclusión de bloqueado · §47/§5.4
+aprobación de conteo fail-closed · §6/§15 reverso de ajuste idempotente · §22/§5.3
+asignación acotada al almacén.
