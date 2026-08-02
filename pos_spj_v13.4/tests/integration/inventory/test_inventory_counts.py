@@ -109,6 +109,28 @@ class TestCountFlow:
         with InventoryUnitOfWork(conn) as uow:
             assert uow.counts.get(r.entity_id).status is CountStatus.APPROVED
 
+    def test_variance_without_counter_cannot_be_approved(self, conn):
+        # §5.4/§47 fail-closed: una diferencia crítica sin usuario contador
+        # registrado NO puede aprobarse (la segregación se cortocircuita con "").
+        _seed(conn, "10")
+        r = _create(conn)
+        line_id = r.data["line_ids"][0]
+        RecordCountUseCase().execute(conn, count_id=r.entity_id, line_id=line_id,
+                                     counted_quantity=Decimal("8"), operation_id="rec-1",
+                                     actor_user_id="counter")
+        ConfirmCountUseCase().execute(conn, count_id=r.entity_id, operation_id="cf-1",
+                                      actor_user_id="sup")
+        # simula un conteo sin identidad de contador (p. ej. datos legacy)
+        with InventoryUnitOfWork(conn) as uow:
+            count = uow.counts.get(r.entity_id)
+            count.counted_by_user_id = ""
+            uow.counts.save(count)
+        res = ApproveCountUseCase().execute(conn, count_id=r.entity_id,
+                                            operation_id="ap-1", actor_user_id="mgr")
+        assert not res.success and res.error_code == "COUNT_COUNTER_REQUIRED"
+        with InventoryUnitOfWork(conn) as uow:
+            assert uow.counts.get(r.entity_id).status is not CountStatus.APPROVED
+
     def test_record_permission_denied(self, conn):
         _seed(conn, "10")
         r = _create(conn)

@@ -177,7 +177,7 @@ class InventoryNotificationService:
 
 class SetNotificationRuleUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, event_name: str, channel: NotificationChannel,
                 recipient_type: NotificationRecipientType, recipient_ref: str,

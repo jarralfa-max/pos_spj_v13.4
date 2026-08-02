@@ -32,7 +32,10 @@ def dispatch_procurement_outbox(connection, bus, *, limit: int = 100,
             payload = json.loads(row["payload_json"])
             if not isinstance(payload, dict):
                 raise ValueError("outbox payload must be a JSON object")
+<<<<<<< HEAD
             _validate_payload(row, payload)
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
             _publish(bus, row["event_name"], payload)
             outbox.mark_dispatched(row["id"])
             dispatched += 1
@@ -56,6 +59,7 @@ def _publish(bus, event_name: str, payload: dict) -> None:
     if publish is None:
         raise RuntimeError("El bus no expone publish()")
     publish(event_name, payload, async_=False)
+<<<<<<< HEAD
 
 
 def _validate_payload(row: dict, payload: dict) -> None:
@@ -71,3 +75,5 @@ def _validate_payload(row: dict, payload: dict) -> None:
         raise ValueError("outbox event_name does not match payload")
     if payload["operation_id"] != row["operation_id"]:
         raise ValueError("outbox operation_id does not match payload")
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2

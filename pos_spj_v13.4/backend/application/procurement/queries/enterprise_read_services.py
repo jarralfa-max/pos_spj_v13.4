@@ -113,6 +113,7 @@ class OrderReadService(_Base):
 
 
 class InvoiceReadService(_Base):
+<<<<<<< HEAD
     def billable_documents(self, *, branch_id: str, search="", limit=50) -> list[dict]:
         like = f"%{search.strip()}%"
         return self._query(
@@ -145,6 +146,8 @@ class InvoiceReadService(_Base):
             " AND r.product_id=l.product_id),0) accepted_quantity"
             " FROM direct_purchase_lines l WHERE l.direct_purchase_id=?",
             (document_id, document_id))
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
     def count(self, *, status: str | None = None, search: str = "", branch_id=None,
               start_date=None, end_date=None) -> int:
         where, params = _where(("status",), status, search,

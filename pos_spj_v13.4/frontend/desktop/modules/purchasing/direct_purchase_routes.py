@@ -31,7 +31,10 @@ from backend.application.procurement.use_cases.pricing_use_cases import (
     RecordPurchasePriceVarianceUseCase,
 )
 from backend.domain.procurement.pricing_policies import PriceVariancePolicy
+<<<<<<< HEAD
 from backend.application.queries.product_query_service import ProductQueryService
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 from frontend.desktop.modules.purchasing.direct_purchase_presenter import (
     DirectPurchasePresenter,
 )

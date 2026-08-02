@@ -31,11 +31,19 @@ class ModuloInventarioEnterprise(QWidget):
     def __init__(self, container, parent=None):
         super().__init__(parent)
         conn = getattr(container, "db", container)
+        # §5.4/§21.2 fail-closed: NO se inventa identidad ("desktop"/"1"). Sin sesión
+        # autenticada el user/branch quedan en None y las mutaciones se niegan aguas
+        # abajo (la política real exige usuario y checker).
         user_id = (getattr(container, "usuario", None)
-                   or getattr(container, "usuario_actual", None) or "desktop")
-        branch_id = str(getattr(container, "sucursal_id", None)
-                        or getattr(container, "branch_id", None) or "1")
+                   or getattr(container, "usuario_actual", None))
+        _branch = (getattr(container, "sucursal_id", None)
+                   or getattr(container, "branch_id", None))
+        branch_id = str(_branch) if _branch else None
         session = _Session(user_id, branch_id, branch_id)
+        self._session = session  # expuesto para pruebas de identidad
+        # Sesión viva (con tiene_permiso) para el checker granular real; None en tests.
+        self._live_session = (getattr(container, "session", None)
+                              or getattr(container, "sesion", None))
 
         presenter = self._build_presenter(conn, session)
         self._tabs = QTabWidget()
@@ -64,11 +72,23 @@ class ModuloInventarioEnterprise(QWidget):
         )
         from frontend.desktop.modules.inventory.presenter import InventoryPresenter
 
+        # §5.2 composition root: con sesión viva, el caso de uso sensible se
+        # construye desde InventoryUseCaseFactory con el checker RBAC real (no el
+        # default permisivo). Sin sesión viva (pruebas), cae al default explícito.
+        if self._live_session is not None:
+            from backend.application.inventory.composition import (
+                InventoryUseCaseFactory,
+            )
+            factory = InventoryUseCaseFactory.from_session(self._live_session)
+            generate_uc = factory.generate_replenishment_suggestions()
+        else:
+            generate_uc = GenerateReplenishmentSuggestionsUseCase()
+
         return InventoryPresenter(
             connection_provider=lambda: conn,
             availability_service_factory=InventoryAvailabilityQueryService,
             replenishment_query_factory=ReplenishmentQueryService,
-            generate_suggestions_uc=GenerateReplenishmentSuggestionsUseCase(),
+            generate_suggestions_uc=generate_uc,
             warehouse_query_factory=WarehouseQueryService,
             analytics_factory=InventoryAnalyticsService,
             session_context=session,

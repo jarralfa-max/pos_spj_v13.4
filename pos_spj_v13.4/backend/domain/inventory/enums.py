@@ -72,6 +72,20 @@ class WarehouseZoneType(str, Enum):
     DISPATCH = "DISPATCH"
 
 
+class TechnicalLocationType(str, Enum):
+    """Canonical technical locations (§8). Each warehouse gets one real location
+    (its own UUID) per type — the stock engine addresses these instead of using the
+    ``warehouse_id`` as if it were a physical location."""
+    RECEIVING = "RECEIVING"
+    AVAILABLE = "AVAILABLE"
+    PICKING = "PICKING"
+    QUARANTINE = "QUARANTINE"
+    DAMAGED = "DAMAGED"
+    TRANSIT = "TRANSIT"
+    RETURNS = "RETURNS"
+    PRODUCTION = "PRODUCTION"
+
+
 class LocationStatus(str, Enum):
     ACTIVE = "ACTIVE"
     BLOCKED = "BLOCKED"
@@ -126,6 +140,7 @@ class MovementType(str, Enum):
     QUALITY_RELEASE = "QUALITY_RELEASE"
     QUARANTINE_ENTRY = "QUARANTINE_ENTRY"
     QUARANTINE_RELEASE = "QUARANTINE_RELEASE"
+    EXPIRY_STATUS_TRANSFER = "EXPIRY_STATUS_TRANSFER"
     ADJUSTMENT_IN = "ADJUSTMENT_IN"
     ADJUSTMENT_OUT = "ADJUSTMENT_OUT"
     COUNT_VARIANCE = "COUNT_VARIANCE"
@@ -169,6 +184,7 @@ MOVEMENT_DIRECTION: dict[MovementType, MovementDirection] = {
     MovementType.QUALITY_RELEASE: MovementDirection.STATUS_TRANSFER,
     MovementType.QUARANTINE_ENTRY: MovementDirection.STATUS_TRANSFER,
     MovementType.QUARANTINE_RELEASE: MovementDirection.STATUS_TRANSFER,
+    MovementType.EXPIRY_STATUS_TRANSFER: MovementDirection.STATUS_TRANSFER,
     MovementType.COUNT_VARIANCE: MovementDirection.VARIANCE,
     MovementType.KIT_ASSEMBLY: MovementDirection.MIXED,
     MovementType.KIT_DISASSEMBLY: MovementDirection.MIXED,

@@ -32,6 +32,7 @@ jobs:
       - name: Validate architecture
         run: |
           cd pos_spj_v13.4
+<<<<<<< HEAD
           python -m pytest -q \
             tests/architecture/test_procurement*.py \
             tests/architecture/test_logistics*.py \
@@ -65,6 +66,21 @@ jobs:
           cd pos_spj_v13.4
           for file in frontend/web/logistics/*.js; do node --check "$file"; done
           node --test tests/pwa/*.test.mjs
+=======
+          python -m pytest tests/architecture -q
+      - name: Validate unit tests
+        run: |
+          cd pos_spj_v13.4
+          python -m pytest tests/unit -q
+      - name: Validate integration tests
+        run: |
+          cd pos_spj_v13.4
+          python -m pytest tests/integration -q
+      - name: Validate Logistics PWA syntax
+        run: |
+          cd pos_spj_v13.4
+          for file in frontend/web/logistics/*.js; do node --check "$file"; done
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
   ventas:
     runs-on: ubuntu-latest

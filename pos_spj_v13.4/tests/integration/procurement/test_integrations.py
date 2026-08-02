@@ -164,15 +164,22 @@ def test_direct_purchase_outbox_dispatch_reaches_downstream(proc_conn):
 
 
 def test_outbox_failure_is_durable_and_dead_letters(proc_conn):
+<<<<<<< HEAD
     payload = json.dumps({
         "event_id": "event-1", "event_name": "BROKEN", "operation_id": "op-1",
         "schema_version": 1, "correlation_id": "op-1",
     })
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
     proc_conn.execute(
         "INSERT INTO procurement_outbox"
         " (id,event_id,event_name,payload_json,operation_id,status,created_at)"
         " VALUES (?,?,?,?,?,'PENDING',?)",
+<<<<<<< HEAD
         ("out-1", "event-1", "BROKEN", payload, "op-1", "2026-01-01T00:00:00+00:00"),
+=======
+        ("out-1", "event-1", "BROKEN", "{}", "op-1", "2026-01-01T00:00:00+00:00"),
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
     )
     proc_conn.commit()
 
@@ -189,6 +196,7 @@ def test_outbox_failure_is_durable_and_dead_letters(proc_conn):
     assert "downstream unavailable" in row[2]
 
 
+<<<<<<< HEAD
 def test_outbox_dead_letters_malformed_payload_without_publishing(proc_conn):
     proc_conn.execute(
         "INSERT INTO procurement_outbox"
@@ -211,6 +219,8 @@ def test_outbox_dead_letters_malformed_payload_without_publishing(proc_conn):
     assert "missing required fields" in row[1]
 
 
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 def test_wiring_reports_subscriptions(proc_conn):
     bus = FakeBus()
     summary = wire_procurement(bus, proc_conn)

@@ -1,6 +1,7 @@
 """INV-7 — lot persistence + use cases (register, quality block/release) + FEFO
 allocation over the repository."""
 
+from datetime import date, timedelta
 from decimal import Decimal
 
 import sqlite3
@@ -113,11 +114,14 @@ class TestQualityStatus:
 
 class TestFefoOverRepository:
     def test_candidates_feed_fefo(self, conn):
+        # Fechas relativas a hoy: FEFO determinista, ambos lotes vigentes.
+        late_exp = (date.today() + timedelta(days=60)).isoformat()
+        soon_exp = (date.today() + timedelta(days=10)).isoformat()
         uc = RegisterInventoryLotUseCase()
         uc.execute(conn, product_id="p1", lot_code="LATE", origin_type=LotOrigin.PURCHASE,
-                   operation_id="o1", actor_user_id="u1", expiration_date="2026-09-01")
+                   operation_id="o1", actor_user_id="u1", expiration_date=late_exp)
         uc.execute(conn, product_id="p1", lot_code="SOON", origin_type=LotOrigin.PURCHASE,
-                   operation_id="o2", actor_user_id="u1", expiration_date="2026-07-25")
+                   operation_id="o2", actor_user_id="u1", expiration_date=soon_exp)
         with InventoryUnitOfWork(conn) as uow:
             rows = uow.lots.list_for_product("p1")
         candidates = [

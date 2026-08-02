@@ -104,6 +104,22 @@ class TestSaleIssueHandler:
     def test_incomplete_payload_ignored(self, conn):
         SaleIssueHandler(conn).handle({"operation_id": "x"})  # no lines → no-op
 
+    def test_missing_warehouse_is_not_defaulted_to_branch(self, conn):
+        # §5: sin warehouse_id el evento NO se procesa con warehouse=branch.
+        _receipt(conn, "10")
+        payload = self._payload()
+        payload.pop("warehouse_id")
+        SaleIssueHandler(conn).handle(payload)  # fail-closed → no-op
+        assert _avail(conn).available == Decimal("10")  # stock intacto
+
+    def test_missing_user_is_not_fabricated_as_system(self, conn):
+        # §5.4: sin user_id el evento NO se procesa con actor "system".
+        _receipt(conn, "10")
+        payload = self._payload()
+        payload.pop("user_id")
+        SaleIssueHandler(conn).handle(payload)  # fail-closed → no-op
+        assert _avail(conn).available == Decimal("10")
+
 
 class TestCustomerReturnHandler:
     def test_return_enters_pending_inspection(self, conn):

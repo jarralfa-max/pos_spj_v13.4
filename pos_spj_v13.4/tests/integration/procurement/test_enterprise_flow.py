@@ -265,6 +265,7 @@ def test_invoice_capture_match_creates_payable(proc_conn):
         proc_conn, actor_user_id="cxp", operation_id="m-1", invoice_id=inv.entity_id)
     assert matched.data["match_result"] == "MATCHED"
     assert "ACCOUNT_PAYABLE_CREATE_REQUESTED" in _pending(proc_conn)
+<<<<<<< HEAD
     repeated = MatchSupplierInvoiceUseCase().execute(
         proc_conn, actor_user_id="cxp", operation_id="m-2", invoice_id=inv.entity_id)
     assert repeated.success
@@ -298,6 +299,8 @@ def test_invoice_without_completed_receipt_is_blocked(proc_conn):
     assert proc_conn.execute(
         "SELECT COUNT(*) FROM procurement_outbox WHERE event_name='ACCOUNT_PAYABLE_CREATE_REQUESTED'"
         " AND deduplication_key=?", (f"SUPPLIER_INVOICE:{inv.entity_id}",)).fetchone()[0] == 0
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
 
 def test_duplicate_invoice_blocked(proc_conn):

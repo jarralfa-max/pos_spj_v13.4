@@ -41,6 +41,7 @@ def test_logistics_runtime_wiring_is_called_from_composition_root():
     wiring = (ROOT / "core/events/wiring.py").read_text(encoding="utf-8")
     assert "_wire_logistics_pipeline(bus, container)" in wiring
     assert "wire_logistics(bus, service)" in wiring
+<<<<<<< HEAD
     engine = (ROOT / "migrations/engine.py").read_text()
     assert '"172",  "migrations.standalone.172_logistics_loading_authorizations"' in engine
 
@@ -56,3 +57,5 @@ def test_origin_purchase_workspace_is_operational_not_placeholder():
     assert all(value in coordinator for value in (
         "create_shipment", "mobile_handoff", "seal_root", "dispatch"))
     assert "LogisticsApplicationService" not in page
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2

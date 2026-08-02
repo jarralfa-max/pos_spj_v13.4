@@ -41,6 +41,7 @@ from frontend.desktop.modules.purchasing.dialogs.enterprise_dialogs import (
 from frontend.desktop.modules.purchasing.document_detail import (
     OrderDetailPanel, RequisitionDetailPanel,
 )
+from frontend.desktop.modules.purchasing.document_detail import OrderDetailPanel
 from frontend.desktop.themes.tokens import Spacing
 
 
@@ -208,6 +209,7 @@ class RequisitionsPage(_ListPageBase):
                      ("REJECTED", "Rechazada")]
     empty_message = "No hay solicitudes"
 
+<<<<<<< HEAD
     def _create_detail_panel(self):
         self._detail = RequisitionDetailPanel(self)
         return self._detail
@@ -218,6 +220,8 @@ class RequisitionsPage(_ListPageBase):
         detail = self._presenter.requisition_detail(requisition_id) if requisition_id else None
         self._detail.load_detail(detail)
 
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
     def _allowed_actions(self):
         row = self._table.currentRow()
         status = self._table.item(row, 4).text() if row >= 0 and self._table.item(row, 4) else ""
@@ -225,19 +229,27 @@ class RequisitionsPage(_ListPageBase):
             "Borrador": {"Enviar"},
             "Pendiente de aprobación": {"Aprobar", "Rechazar"},
             "Pendiente": {"Aprobar", "Rechazar"},
+<<<<<<< HEAD
             "Aprobada": {"Crear RFQ", "Crear orden", "Compra directa"},
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
         }.get(status, set())
 
     def _build_actions(self):
         capabilities = self._presenter.capabilities()
         new = create_primary_button(self, "Nueva solicitud")
+<<<<<<< HEAD
         new.setVisible(capabilities.requisition_create)
+=======
+        new.setVisible(self._presenter.can("procurement.requisition.create"))
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
         new.clicked.connect(self._create)
         self.header.add_action(new)
 
     def _build_row_actions(self, row):
         capabilities = self._presenter.capabilities()
         submit = create_secondary_button(self, "Enviar")
+<<<<<<< HEAD
         submit.setVisible(capabilities.requisition_submit)
         submit.clicked.connect(self._submit)
         approve = create_success_button(self, "Aprobar")
@@ -245,6 +257,15 @@ class RequisitionsPage(_ListPageBase):
         approve.clicked.connect(self._approve)
         reject = create_warning_button(self, "Rechazar")
         reject.setVisible(capabilities.requisition_reject)
+=======
+        submit.setVisible(self._presenter.can("procurement.requisition.submit"))
+        submit.clicked.connect(self._submit)
+        approve = create_success_button(self, "Aprobar")
+        approve.setVisible(self._presenter.can("procurement.requisition.approve"))
+        approve.clicked.connect(self._approve)
+        reject = create_warning_button(self, "Rechazar")
+        reject.setVisible(self._presenter.can("procurement.requisition.approve"))
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
         reject.clicked.connect(self._reject)
         rfq = create_secondary_button(self, "Crear RFQ")
         rfq.setVisible(capabilities.rfq_create)
@@ -389,13 +410,18 @@ class OrdersPage(_ListPageBase):
     def _build_actions(self):
         capabilities = self._presenter.capabilities()
         new = create_primary_button(self, "Nueva orden")
+<<<<<<< HEAD
         new.setVisible(capabilities.order_create)
+=======
+        new.setVisible(self._presenter.can("procurement.purchase_order.create"))
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
         new.clicked.connect(self._create)
         self.header.add_action(new)
 
     def _build_row_actions(self, row):
         capabilities = self._presenter.capabilities()
         approve = create_success_button(self, "Aprobar")
+<<<<<<< HEAD
         approve.setVisible(capabilities.order_approve)
         approve.clicked.connect(self._approve)
         send = create_secondary_button(self, "Enviar")
@@ -406,6 +432,18 @@ class OrdersPage(_ListPageBase):
         receive.clicked.connect(self._receive)
         change = create_warning_button(self, "Nueva versión")
         change.setVisible(capabilities.order_change)
+=======
+        approve.setVisible(self._presenter.can("procurement.purchase_order.approve"))
+        approve.clicked.connect(self._approve)
+        send = create_secondary_button(self, "Enviar")
+        send.setVisible(self._presenter.can("procurement.purchase_order.send"))
+        send.clicked.connect(self._send)
+        receive = create_secondary_button(self, "Recibir")
+        receive.setVisible(self._presenter.can("logistics.shipment.receive"))
+        receive.clicked.connect(self._receive)
+        change = create_warning_button(self, "Nueva versión")
+        change.setVisible(self._presenter.can("procurement.purchase_order.change"))
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
         change.clicked.connect(self._change)
         for b in (approve, send, receive, change):
             row.addWidget(b)
@@ -492,6 +530,7 @@ class InvoicesPage(_ListPageBase):
                      ("BLOCKED", "Bloqueada")]
     empty_message = "No hay facturas"
 
+<<<<<<< HEAD
     def _create_detail_panel(self):
         panel = QWidget(self); layout = QVBoxLayout(panel)
         self._invoice_summary = QLabel("Selecciona una factura", panel)
@@ -532,6 +571,8 @@ class InvoicesPage(_ListPageBase):
             f"{detail['document_number']} · Factura {detail['invoice_number']} · "
             f"{detail['status']} · {detail.get('match_result') or 'Sin conciliar'}")
 
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
     def _allowed_actions(self):
         row = self._table.currentRow()
         status = self._table.item(row, 4).text() if row >= 0 and self._table.item(row, 4) else ""
@@ -544,17 +585,28 @@ class InvoicesPage(_ListPageBase):
     def _build_actions(self):
         capabilities = self._presenter.capabilities()
         new = create_primary_button(self, "Capturar factura")
+<<<<<<< HEAD
         new.setVisible(capabilities.invoice_capture)
+=======
+        new.setVisible(self._presenter.can("procurement.invoice.capture"))
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
         new.clicked.connect(self._create)
         self.header.add_action(new)
 
     def _build_row_actions(self, row):
         capabilities = self._presenter.capabilities()
         match = create_secondary_button(self, "Conciliar")
+<<<<<<< HEAD
         match.setVisible(capabilities.invoice_match)
         match.clicked.connect(self._match)
         release = create_warning_button(self, "Liberar diferencia")
         release.setVisible(capabilities.invoice_release_variance)
+=======
+        match.setVisible(self._presenter.can("procurement.invoice.match"))
+        match.clicked.connect(self._match)
+        release = create_warning_button(self, "Liberar diferencia")
+        release.setVisible(self._presenter.can("procurement.invoice.release_difference"))
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
         release.clicked.connect(self._release)
         for b in (match, release):
             row.addWidget(b)

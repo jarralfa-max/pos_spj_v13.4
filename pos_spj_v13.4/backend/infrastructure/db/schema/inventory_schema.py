@@ -114,6 +114,7 @@ _DDL = (
         name TEXT NOT NULL,
         level INTEGER NOT NULL DEFAULT 0,
         status TEXT NOT NULL DEFAULT 'ACTIVE',
+        location_type TEXT,                        -- §8 technical location kind (NULL = física)
         UNIQUE (warehouse_id, code)
     )
     """,
@@ -146,7 +147,8 @@ _DDL = (
         serial_id TEXT,
         quantity TEXT NOT NULL DEFAULT '0',
         weight TEXT NOT NULL DEFAULT '0',
-        unit TEXT NOT NULL DEFAULT 'PZA',
+        unit TEXT NOT NULL DEFAULT 'PZA',          -- legacy display code (compat)
+        unit_id TEXT,                              -- §4.3 canonical unit (UUIDv7)
         from_location_id TEXT,
         to_location_id TEXT,
         from_status TEXT,

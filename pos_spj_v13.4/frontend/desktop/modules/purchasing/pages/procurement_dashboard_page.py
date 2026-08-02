@@ -7,8 +7,12 @@ QtWebEngine is unavailable (headless / accessibility).
 
 from __future__ import annotations
 
+<<<<<<< HEAD
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+=======
+from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
 from frontend.desktop.components import (
     ChartCard,
@@ -38,12 +42,20 @@ class ProcurementDashboardPage(QWidget):
         layout.setContentsMargins(Spacing.LG, Spacing.MD, Spacing.LG, Spacing.MD)
         layout.setSpacing(Spacing.MD)
 
+<<<<<<< HEAD
         intro = QLabel("Resumen operativo y siguientes acciones", self)
         intro.setObjectName("procurementDashboardIntro")
         intro.setProperty("role", "sectionTitle")
         layout.addWidget(intro)
         layout.addWidget(self._build_quick_actions())
         layout.addWidget(self._build_process_flow())
+=======
+        self.header = PageHeader(
+            title="Analítica de Compras",
+            subtitle="Solicitudes, órdenes, recepción y facturación en un vistazo.",
+            icon=Icons.PURCHASES, compact=True)
+        layout.addWidget(self.header)
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
         self._status = QLabel("", self)
         self._status.setObjectName("procurementDashboardStatus")
         self._status.setProperty("state", "ERROR")

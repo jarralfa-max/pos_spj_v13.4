@@ -58,6 +58,16 @@ class SideNav(QListWidget):
         item.setFont(font)
         self.addItem(item)
 
+    def add_group(self, label: str) -> None:
+        """Add a non-interactive semantic heading to a module sidebar."""
+        item = QListWidgetItem(label)
+        item.setFlags(Qt.NoItemFlags)
+        item.setData(Qt.AccessibleTextRole, label)
+        font = item.font()
+        font.setBold(True)
+        item.setFont(font)
+        self.addItem(item)
+
     def _on_row_changed(self, row: int) -> None:
         if row >= 0:
             self.navigated.emit(row)

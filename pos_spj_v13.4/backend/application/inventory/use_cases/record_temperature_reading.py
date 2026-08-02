@@ -12,8 +12,12 @@ from __future__ import annotations
 import json
 
 from backend.application.inventory.authorization import InventoryAuthorizationPolicy
+from backend.application.inventory.execution_context import InventoryExecutionContext
 from backend.application.inventory.permissions import InventoryPermissions
 from backend.application.inventory.result import InventoryResult
+from backend.application.inventory.services.lot_quality_projection import (
+    project_lot_quality_transition,
+)
 from backend.domain.inventory.entities.cold_chain import (
     TemperatureExcursion,
     TemperatureReading,
@@ -28,6 +32,7 @@ from backend.domain.inventory.events import InventoryEvents, build_event_payload
 from backend.domain.inventory.exceptions import (
     InventoryDomainError,
     InventoryPermissionDeniedError,
+    WarehouseScopeError,
 )
 from backend.domain.inventory.policies.cold_chain_policy import ColdChainPolicy
 from backend.domain.inventory.value_objects.cold_chain import ColdChainRange
@@ -38,19 +43,28 @@ from backend.infrastructure.db.repositories.inventory.unit_of_work import (
 
 class RecordTemperatureReadingUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
         self._policy = ColdChainPolicy()
 
     def execute(self, connection, *, sensor_id: str, warehouse_id: str, temperature,
                 reading_point: TemperaturePoint, min_temp, max_temp, operation_id: str,
                 actor_user_id: str, warning_margin=0, unit: str = "C",
                 location_id: str | None = None, lot_id: str | None = None,
-                auto_block: bool = False) -> InventoryResult:
+                auto_block: bool = False,
+                context: InventoryExecutionContext | None = None) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, InventoryPermissions.TEMPERATURE_RECORD)
         except InventoryPermissionDeniedError as exc:
             return InventoryResult.fail(str(exc), "PERMISSION_DENIED",
                                         operation_id=operation_id)
+        # §5.3: la cadena de frío es a nivel de almacén — se valida el alcance del
+        # almacén (la lectura no lleva sucursal).
+        if context is not None:
+            try:
+                context.enforce_warehouse(warehouse_id)
+            except WarehouseScopeError as exc:
+                return InventoryResult.fail(str(exc), "SCOPE_DENIED",
+                                            operation_id=operation_id)
         try:
             cold_range = ColdChainRange(min_temp=min_temp, max_temp=max_temp,
                                         warning_margin=warning_margin, unit=unit)
@@ -72,6 +86,14 @@ class RecordTemperatureReadingUseCase:
                     uow.cold_chain.save_excursion(excursion)
 
                     if action is ExcursionAction.QUARANTINE and lot_id:
+                        lot = uow.lots.get(lot_id)
+                        if lot is not None:
+                            # §9.2: el auto-bloqueo debe MOVER el stock del lote al
+                            # bucket QUARANTINED (no sólo cambiar el metadato), mismo
+                            # UoW → atómico, para que la disponibilidad lo excluya.
+                            project_lot_quality_transition(
+                                uow, lot, LotQualityStatus.QUARANTINED,
+                                actor_user_id=actor_user_id, base_op=operation_id)
                         uow.lots.set_quality_status(lot_id, LotQualityStatus.QUARANTINED)
                         self._emit(uow, InventoryEvents.INVENTORY_LOT_BLOCKED,
                                    operation_id=operation_id, entity_id=lot_id,

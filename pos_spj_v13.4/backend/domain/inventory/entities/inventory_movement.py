@@ -39,7 +39,8 @@ class InventoryMovementLine:
     product_id: str
     quantity: Decimal = Decimal("0")
     weight: Decimal = Decimal("0")
-    unit: str = "PZA"
+    unit: str = "PZA"          # legacy display code (compat)
+    unit_id: str | None = None  # §4.3 canonical unit of measure (UUIDv7)
     lot_id: str | None = None
     serial_id: str | None = None
     from_location_id: str | None = None
@@ -51,6 +52,7 @@ class InventoryMovementLine:
 
     @classmethod
     def create(cls, *, product_id: str, quantity=0, weight=0, unit: str = "PZA",
+               unit_id: str | None = None,
                lot_id: str | None = None, serial_id: str | None = None,
                from_location_id: str | None = None, to_location_id: str | None = None,
                from_status: InventoryStatus | None = None,
@@ -64,8 +66,13 @@ class InventoryMovementLine:
         if q == 0 and w == 0:
             raise InventoryDomainError(
                 "La línea debe mover una cantidad o un peso mayor que cero")
+        # §4.3: la unidad canónica es una referencia de catálogo (UUIDv7), no texto
+        # libre. Se acepta None durante la transición; si viene, debe ser UUIDv7.
+        if unit_id is not None:
+            from backend.shared.ids import validate_uuidv7
+            validate_uuidv7(unit_id)
         return cls(id=new_uuid(), product_id=product_id, quantity=q, weight=w,
-                   unit=unit, lot_id=lot_id, serial_id=serial_id,
+                   unit=unit, unit_id=unit_id, lot_id=lot_id, serial_id=serial_id,
                    from_location_id=from_location_id, to_location_id=to_location_id,
                    from_status=from_status, to_status=to_status,
                    unit_cost=(None if unit_cost is None else _dec(unit_cost)),

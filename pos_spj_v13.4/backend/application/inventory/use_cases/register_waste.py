@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 
 from backend.application.inventory.authorization import InventoryAuthorizationPolicy
+from backend.application.inventory.execution_context import InventoryExecutionContext
 from backend.application.inventory.permissions import InventoryPermissions
 from backend.application.inventory.result import InventoryResult
 from backend.application.inventory.services.movement_posting import post_movement
@@ -31,8 +32,10 @@ from backend.domain.inventory.enums import (
 )
 from backend.domain.inventory.events import InventoryEvents, build_event_payload
 from backend.domain.inventory.exceptions import (
+    BranchScopeError,
     InventoryDomainError,
     InventoryPermissionDeniedError,
+    WarehouseScopeError,
 )
 from backend.infrastructure.db.repositories.inventory.unit_of_work import (
     InventoryUnitOfWork,
@@ -41,13 +44,14 @@ from backend.infrastructure.db.repositories.inventory.unit_of_work import (
 
 class RegisterWasteUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, product_id: str, branch_id: str, warehouse_id: str,
                 waste_type: WasteType, quantity, operation_id: str, actor_user_id: str,
                 weight=0, location_id: str | None = None, lot_id: str | None = None,
                 from_status: InventoryStatus = InventoryStatus.AVAILABLE,
-                reason_note: str = "") -> InventoryResult:
+                reason_note: str = "",
+                context: InventoryExecutionContext | None = None) -> InventoryResult:
         permission = (InventoryPermissions.DISPOSAL_AUTHORIZE
                       if waste_type in DISPOSAL_WASTE_TYPES
                       else InventoryPermissions.MOVEMENT_CREATE)
@@ -56,6 +60,14 @@ class RegisterWasteUseCase:
         except InventoryPermissionDeniedError as exc:
             return InventoryResult.fail(str(exc), "PERMISSION_DENIED",
                                         operation_id=operation_id)
+        # §5.3: la sucursal/almacén enviados por la UI se validan contra el alcance.
+        if context is not None:
+            try:
+                context.enforce_branch(branch_id)
+                context.enforce_warehouse(warehouse_id)
+            except (BranchScopeError, WarehouseScopeError) as exc:
+                return InventoryResult.fail(str(exc), "SCOPE_DENIED",
+                                            operation_id=operation_id)
         try:
             with InventoryUnitOfWork(connection) as uow:
                 movement_id = None

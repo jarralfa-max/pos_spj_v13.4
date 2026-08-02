@@ -30,8 +30,12 @@ _PAGE_SIZE = 50
 class EnterprisePurchasingPresenter:
     def __init__(self, *, connection_provider, read_services: dict, analytics,
                  use_cases: dict, session_context=None, event_dispatcher=None,
+<<<<<<< HEAD
                  logistics_reads=None, warehouse_directory=None, history_reads=None,
                  origin_workspace=None) -> None:
+=======
+                 logistics_reads=None, warehouse_directory=None, history_reads=None) -> None:
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
         self._conn = connection_provider
         self._reads = read_services
         self._analytics = analytics
@@ -41,11 +45,16 @@ class EnterprisePurchasingPresenter:
         self._logistics = logistics_reads
         self._warehouse_directory = warehouse_directory
         self._history = history_reads
+<<<<<<< HEAD
         self._origin_workspace = origin_workspace
         self._supplier_directory = read_services.get("suppliers")
         self._period_start = None
         self._period_end = None
         self._invoice_sources = {}
+=======
+        self._period_start = None
+        self._period_end = None
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
     # session -----------------------------------------------------------------
     def _actor(self) -> str:
@@ -104,6 +113,7 @@ class EnterprisePurchasingPresenter:
         checker = getattr(self._session, "tiene_permiso", None)
         return bool(callable(checker) and checker(permission))
 
+<<<<<<< HEAD
     def capabilities(self) -> PurchasingCapabilities:
         """Resolve UI visibility from the same permission constants as use cases."""
         allowed = self.can
@@ -150,6 +160,8 @@ class EnterprisePurchasingPresenter:
             "invoices": int(snapshot.invoices_with_differences),
         }
 
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
     def set_period(self, start_date: str, end_date: str) -> None:
         if start_date > end_date:
             raise ValueError("El periodo inicial no puede ser posterior al final")
@@ -300,6 +312,7 @@ class EnterprisePurchasingPresenter:
         return self._run("inv_release", releaser_user_id=self._actor(),
                          invoice_id=invoice_id, reason=reason)
 
+<<<<<<< HEAD
     def receipts(self):
         return self._reads["receipts"].list(
             branch_id=self.default_branch(), warehouse_id=self.default_warehouse())
@@ -307,11 +320,14 @@ class EnterprisePurchasingPresenter:
     def receipt_detail(self, receipt_id):
         return self._reads["receipts"].detail(receipt_id)
 
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
     def related_shipments(self) -> list[dict]:
         if self._logistics is None:
             return []
         return self._logistics.related_to_destination(
             branch_id=self.default_branch(), warehouse_id=self.default_warehouse())
+<<<<<<< HEAD
 
     # ── origin purchase workspace ────────────────────────────────────────────
     def origin_documents(self, search="") -> list[dict]:
@@ -369,6 +385,8 @@ class EnterprisePurchasingPresenter:
             return True, "Variación autorizada y auditada", detail
         except Exception as exc:
             return False, str(exc), {}
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
     # ── documental purchase history ───────────────────────────────────────────
     def purchase_history(self) -> TableViewModel:

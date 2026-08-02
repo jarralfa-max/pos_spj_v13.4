@@ -12,8 +12,10 @@ from pathlib import Path
 from backend.application.inventory.permissions import ALL_INVENTORY_PERMISSIONS
 from frontend.desktop.modules.inventory.navigation import INVENTORY_NAV
 
-MODULE_DIR = (Path(__file__).resolve().parents[2]
-              / "frontend" / "desktop" / "modules" / "inventory")
+_ROOT = Path(__file__).resolve().parents[2]
+MODULE_DIR = _ROOT / "frontend" / "desktop" / "modules" / "inventory"
+# El contenedor PyQt real montado en el shell del POS (punto de entrada).
+_SHELL_CONTAINER = _ROOT / "modulos" / "inventario_enterprise.py"
 
 # Raw data access — NOT use-case/service ``.execute()`` delegation, which is how
 # the presenter is meant to reach the backend.
@@ -32,6 +34,18 @@ def test_no_sql_or_db_access_in_inventory_ui():
         if _SQL_RE.search(text) or any(tok in text for tok in _FORBIDDEN):
             offenders.append(str(path.name))
     assert not offenders, f"UI de inventario con acceso a datos/SQL: {offenders}"
+
+
+def test_no_sql_or_db_access_in_inventory_shell_container():
+    """El contenedor PyQt del shell (`modulos/inventario_enterprise.py`) es
+    presentación pura: sin SQL, sin sqlite ni commit/rollback/cursor. Delega todo
+    en el InventoryPresenter (que a su vez llama a query services / use cases)."""
+    text = _SHELL_CONTAINER.read_text(encoding="utf-8")
+    assert not _SQL_RE.search(text), "El contenedor del shell contiene SQL"
+    assert not any(tok in text for tok in _FORBIDDEN), (
+        "El contenedor del shell accede a datos (sqlite/commit/rollback/cursor)")
+    # Debe cablear el presenter (delegación), no orquestar backend directamente.
+    assert "InventoryPresenter" in text
 
 
 def test_nav_permissions_are_granular_inventory_codes():

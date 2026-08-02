@@ -41,8 +41,19 @@ from backend.application.inventory.use_cases.reservation_use_cases import (
     CreateReservationUseCase,
     ReleaseReservationUseCase,
 )
+from backend.application.inventory.use_cases.ensure_technical_locations import (
+    EnsureTechnicalLocationsUseCase,
+)
+from backend.application.inventory.use_cases.expiry_use_cases import (
+    ExpireInventoryUseCase,
+    GenerateExpiryAlertsUseCase,
+)
 from backend.application.inventory.use_cases.reverse_inventory_movement import (
     ReverseInventoryMovementUseCase,
+)
+from backend.application.inventory.use_cases.rebuild_inventory_balances import (
+    RebuildInventoryBalancesUseCase,
+    ValidateInventoryProjectionUseCase,
 )
 from backend.application.inventory.use_cases.warehouse_use_cases import (
     CreateLocationUseCase,
@@ -65,6 +76,8 @@ __all__ = [
     "CreateWarehouseUseCase",
     "CreateZoneUseCase",
     "DisposeQuarantineUseCase",
+    "ExpireInventoryUseCase",
+    "GenerateExpiryAlertsUseCase",
     "GenerateReplenishmentSuggestionsUseCase",
     "PostAdjustmentUseCase",
     "PostInventoryMovementUseCase",
@@ -80,6 +93,9 @@ __all__ = [
     "RecordTemperatureReadingUseCase",
     "RegisterInventoryLotUseCase",
     "ReleaseReservationUseCase",
+    "EnsureTechnicalLocationsUseCase",
+    "RebuildInventoryBalancesUseCase",
     "ReverseInventoryMovementUseCase",
+    "ValidateInventoryProjectionUseCase",
     "SetLotQualityStatusUseCase",
 ]

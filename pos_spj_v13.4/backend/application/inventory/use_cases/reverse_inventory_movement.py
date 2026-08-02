@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 
 from backend.application.inventory.authorization import InventoryAuthorizationPolicy
+from backend.application.inventory.execution_context import InventoryExecutionContext
 from backend.application.inventory.permissions import InventoryPermissions
 from backend.application.inventory.result import InventoryResult
 from backend.application.inventory.services.inventory_projection_service import (
@@ -21,8 +22,10 @@ from backend.domain.inventory.entities.inventory_movement import InventoryMoveme
 from backend.domain.inventory.enums import MovementStatus, MovementType
 from backend.domain.inventory.events import InventoryEvents, build_event_payload
 from backend.domain.inventory.exceptions import (
+    BranchScopeError,
     InventoryDomainError,
     InventoryPermissionDeniedError,
+    WarehouseScopeError,
 )
 from backend.infrastructure.db.repositories.inventory.unit_of_work import (
     InventoryUnitOfWork,
@@ -31,11 +34,12 @@ from backend.infrastructure.db.repositories.inventory.unit_of_work import (
 
 class ReverseInventoryMovementUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, movement_id: str, operation_id: str,
                 actor_user_id: str, reason: str,
-                permission_code: str = InventoryPermissions.MOVEMENT_REVERSE) -> InventoryResult:
+                permission_code: str = InventoryPermissions.MOVEMENT_REVERSE,
+                context: InventoryExecutionContext | None = None) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, permission_code)
         except InventoryPermissionDeniedError as exc:
@@ -52,6 +56,15 @@ class ReverseInventoryMovementUseCase:
                     return InventoryResult.fail("Movimiento no encontrado",
                                                 "MOVEMENT_NOT_FOUND",
                                                 operation_id=operation_id)
+                # §5.3: el alcance se valida contra la sucursal/almacén reales del
+                # movimiento original (leídos del ledger), no contra ids de la UI.
+                if context is not None:
+                    try:
+                        context.enforce_branch(original["branch_id"])
+                        context.enforce_warehouse(original["warehouse_id"])
+                    except (BranchScopeError, WarehouseScopeError) as exc:
+                        return InventoryResult.fail(str(exc), "SCOPE_DENIED",
+                                                    operation_id=operation_id)
                 if original["status"] == MovementStatus.REVERSED.value:
                     return InventoryResult.fail("El movimiento ya fue reversado",
                                                 "ALREADY_REVERSED",

@@ -41,6 +41,7 @@ def authenticated():
     return api, workflow, {"Authorization": f"Bearer {response.json()['accessToken']}"}
 
 
+<<<<<<< HEAD
 def metadata(headers, operation_id):
     token = headers["Authorization"].split(" ", 1)[1]
     # Decode only the signed payload for test construction; verification remains server-side.
@@ -53,6 +54,8 @@ def metadata(headers, operation_id):
             "payloadVersion": 1}
 
 
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 def test_mobile_api_requires_session_and_serves_pwa():
     api, _ = client()
     assert api.get("/api/procurement/mobile/documents").status_code == 401
@@ -62,6 +65,7 @@ def test_mobile_api_requires_session_and_serves_pwa():
 
 def test_mutation_requires_uuidv7_idempotency_and_if_match():
     api, workflow, headers = authenticated()
+<<<<<<< HEAD
     operation_id = new_uuid()
     command = {"shipmentId": new_uuid(), "documentType": "PURCHASE_ORDER",
                "documentId": new_uuid(), "supplierId": new_uuid(),
@@ -69,10 +73,19 @@ def test_mutation_requires_uuidv7_idempotency_and_if_match():
     invalid = api.post("/api/logistics/mobile/shipments", json=command,
                        headers={**headers, "Idempotency-Key": "bad", "If-Match": "0"})
     assert invalid.status_code == 422
+=======
+    command = {"shipmentId": new_uuid(), "documentType": "PURCHASE_ORDER",
+               "documentId": new_uuid(), "supplierId": new_uuid()}
+    invalid = api.post("/api/logistics/mobile/shipments", json=command,
+                       headers={**headers, "Idempotency-Key": "bad", "If-Match": "0"})
+    assert invalid.status_code == 422
+    operation_id = new_uuid()
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
     response = api.post("/api/logistics/mobile/shipments", json=command,
                         headers={**headers, "Idempotency-Key": operation_id, "If-Match": "0"})
     assert response.status_code == 200
     assert workflow.calls == [(operation_id, 0, command)]
+<<<<<<< HEAD
 
 
 def test_mobile_command_identity_must_match_signed_session():
@@ -84,3 +97,5 @@ def test_mobile_command_identity_must_match_signed_session():
     response = api.post("/api/logistics/mobile/shipments", json=command,
                         headers={**headers, "Idempotency-Key": operation_id, "If-Match": "0"})
     assert response.status_code == 403
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2

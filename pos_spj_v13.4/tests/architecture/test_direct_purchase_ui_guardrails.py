@@ -33,10 +33,14 @@ def test_direct_purchase_ui_exists_in_purchasing():
 def test_entry_wrapper_is_thin_and_sql_free():
     assert not (REPO / "modulos/compra_directa.py").exists()
     shell = (PUR_UI / "purchasing_module_shell.py").read_text(encoding="utf-8")
+<<<<<<< HEAD
     navigation = (PUR_UI / "navigation.py").read_text(encoding="utf-8")
     assert "PurchasingRoutes.DIRECT_PURCHASE_CREATE" in shell
     assert "PurchasingRoutes.DIRECT_PURCHASE_HISTORY" in shell
     assert '"Nueva compra"' in navigation and '"Historial"' in navigation
+=======
+    assert 'self._route("Compra directa", direct_purchase_view)' in shell
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
 
 def test_direct_purchase_ui_has_no_sql_or_repositories():

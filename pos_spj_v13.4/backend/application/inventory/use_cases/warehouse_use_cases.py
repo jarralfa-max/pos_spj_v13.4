@@ -44,7 +44,7 @@ def _emit(uow, event_name, *, entity_id, actor, **extra):
 
 class CreateWarehouseUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, code: str, name: str, branch_id: str,
                 warehouse_type: WarehouseType, actor_user_id: str,
@@ -74,7 +74,7 @@ class CreateWarehouseUseCase:
 
 class SetWarehouseStatusUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, warehouse_id: str, activate: bool,
                 actor_user_id: str, reason: str = "") -> InventoryResult:
@@ -102,7 +102,7 @@ class SetWarehouseStatusUseCase:
 
 class CreateZoneUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, warehouse_id: str, code: str, name: str,
                 zone_type: WarehouseZoneType, actor_user_id: str) -> InventoryResult:
@@ -128,7 +128,7 @@ class CreateZoneUseCase:
 
 class CreateLocationUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, warehouse_id: str, code: str, name: str,
                 actor_user_id: str, zone_id: str | None = None,
@@ -160,7 +160,7 @@ class CreateLocationUseCase:
 
 class SetLocationStatusUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, location_id: str, activate: bool,
                 actor_user_id: str, reason: str = "") -> InventoryResult:

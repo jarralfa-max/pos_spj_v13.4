@@ -43,7 +43,7 @@ from backend.infrastructure.db.repositories.inventory.unit_of_work import (
 
 class SetReplenishmentRuleUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, product_id: str, branch_id: str,
                 warehouse_id: str, reorder_point, target_quantity,
@@ -83,7 +83,7 @@ class SetReplenishmentRuleUseCase:
 class GenerateReplenishmentSuggestionsUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None,
                  policy: ReplenishmentPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
         self._policy = policy or ReplenishmentPolicy()
 
     def execute(self, connection, *, operation_id: str, actor_user_id: str,

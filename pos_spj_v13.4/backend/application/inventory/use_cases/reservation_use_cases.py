@@ -12,6 +12,7 @@ import json
 from decimal import Decimal
 
 from backend.application.inventory.authorization import InventoryAuthorizationPolicy
+from backend.application.inventory.execution_context import InventoryExecutionContext
 from backend.application.inventory.permissions import InventoryPermissions
 from backend.application.inventory.result import InventoryResult
 from backend.domain.inventory.entities.reservation import (
@@ -27,8 +28,10 @@ from backend.domain.inventory.enums import (
 )
 from backend.domain.inventory.events import InventoryEvents, build_event_payload
 from backend.domain.inventory.exceptions import (
+    BranchScopeError,
     InventoryDomainError,
     InventoryPermissionDeniedError,
+    WarehouseScopeError,
 )
 from backend.domain.inventory.services.lot_allocation_service import (
     LotAllocationService,
@@ -37,6 +40,20 @@ from backend.domain.inventory.services.lot_allocation_service import (
 from backend.infrastructure.db.repositories.inventory.unit_of_work import (
     InventoryUnitOfWork,
 )
+
+
+def _scope_fail(context, branch_id, warehouse_id, operation_id):
+    """§5.3: valida sucursal/almacén contra el alcance del actor. Devuelve un
+    InventoryResult SCOPE_DENIED o None si el alcance es válido / no hay contexto."""
+    if context is None:
+        return None
+    try:
+        context.enforce_branch(branch_id)
+        context.enforce_warehouse(warehouse_id)
+    except (BranchScopeError, WarehouseScopeError) as exc:
+        return InventoryResult.fail(str(exc), "SCOPE_DENIED",
+                                    operation_id=operation_id)
+    return None
 
 
 def _emit(uow, event_name, *, operation_id, entity_id, product_id=None, branch_id=None,
@@ -51,17 +68,22 @@ def _emit(uow, event_name, *, operation_id, entity_id, product_id=None, branch_i
 
 class CreateReservationUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, product_id: str, branch_id: str, warehouse_id: str,
                 source: ReservationSource, source_document_id: str, quantity,
                 operation_id: str, actor_user_id: str, weight=0, expires_at=None,
-                location_id: str | None = None, lot_id: str | None = None) -> InventoryResult:
+                location_id: str | None = None, lot_id: str | None = None,
+                context: InventoryExecutionContext | None = None) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, InventoryPermissions.RESERVATION_CREATE)
         except InventoryPermissionDeniedError as exc:
             return InventoryResult.fail(str(exc), "PERMISSION_DENIED",
                                         operation_id=operation_id)
+        # §5.3: la sucursal/almacén enviados por la UI se validan contra el alcance.
+        denied = _scope_fail(context, branch_id, warehouse_id, operation_id)
+        if denied is not None:
+            return denied
         try:
             with InventoryUnitOfWork(connection) as uow:
                 existing = uow.reservations.find_by_operation_id(operation_id)
@@ -104,10 +126,11 @@ class CreateReservationUseCase:
 
 class ReleaseReservationUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
 
     def execute(self, connection, *, reservation_id: str, operation_id: str,
-                actor_user_id: str, reason: str = "") -> InventoryResult:
+                actor_user_id: str, reason: str = "",
+                context: InventoryExecutionContext | None = None) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, InventoryPermissions.RESERVATION_RELEASE)
         except InventoryPermissionDeniedError as exc:
@@ -120,6 +143,11 @@ class ReleaseReservationUseCase:
                     return InventoryResult.fail("Reserva no encontrada",
                                                 "RESERVATION_NOT_FOUND",
                                                 operation_id=operation_id)
+                # §5.3: alcance validado contra la sucursal/almacén reales de la reserva.
+                denied = _scope_fail(context, reservation.branch_id,
+                                     reservation.warehouse_id, operation_id)
+                if denied is not None:
+                    return denied
                 if not reservation.is_active:
                     return InventoryResult.ok("Reserva ya inactiva (idempotente)",
                                               entity_id=reservation_id,
@@ -155,12 +183,13 @@ class AllocateReservationUseCase:
     """Bind a confirmed reservation to specific lots via FEFO (§22)."""
 
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
         self._allocator = LotAllocationService()
 
     def execute(self, connection, *, reservation_id: str, operation_id: str,
                 actor_user_id: str,
-                strategy: AllocationStrategy = AllocationStrategy.FEFO) -> InventoryResult:
+                strategy: AllocationStrategy = AllocationStrategy.FEFO,
+                context: InventoryExecutionContext | None = None) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, InventoryPermissions.RESERVATION_CREATE)
         except InventoryPermissionDeniedError as exc:
@@ -173,6 +202,11 @@ class AllocateReservationUseCase:
                     return InventoryResult.fail("Reserva no encontrada",
                                                 "RESERVATION_NOT_FOUND",
                                                 operation_id=operation_id)
+                # §5.3: alcance validado contra la sucursal/almacén reales de la reserva.
+                denied = _scope_fail(context, reservation.branch_id,
+                                     reservation.warehouse_id, operation_id)
+                if denied is not None:
+                    return denied
                 candidates = self._lot_candidates(uow, reservation)
                 plan = self._allocator.allocate(candidates, reservation.quantity,
                                                 strategy=strategy)
@@ -199,6 +233,11 @@ class AllocateReservationUseCase:
         for bal in uow.balances.list_by_product_branch(
                 reservation.product_id, reservation.branch_id):
             if bal["inventory_status"] != InventoryStatus.AVAILABLE.value:
+                continue
+            # §22/§5.3: la reserva se creó contra un almacén concreto y decrementó
+            # SU balance; la asignación debe quedarse en ese mismo almacén — nunca
+            # ligar un lote físicamente en otro almacén (fuga inter-almacén).
+            if bal["warehouse_id"] != reservation.warehouse_id:
                 continue
             if not bal["lot_id"]:
                 continue

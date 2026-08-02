@@ -2,7 +2,10 @@ import { LogisticsApi } from "./api.js";
 import { localStore, createQueuedCommand } from "./store.js";
 import { SyncEngine } from "./sync.js";
 import { uuidv7 } from "./uuidv7.js";
+<<<<<<< HEAD
 import { bottomUp, canDispatch, nodeDepth, validateAssignment } from "./workflow_rules.js";
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
 const $ = (id) => document.getElementById(id);
 const token = () => sessionStorage.getItem("spj-mobile-token");
@@ -18,10 +21,13 @@ let state = {
   nodes: [], contents: [], sealedNodeIds: [], photos: [],
 };
 
+<<<<<<< HEAD
 function queued(args) {
   return createQueuedCommand({ ...args, identity: state.session });
 }
 
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 function decimal(value) {
   const normalized = String(value ?? "").trim().replace(",", ".");
   if (!/^\d+(\.\d+)?$/.test(normalized)) throw new Error("Captura un número decimal válido");
@@ -51,11 +57,17 @@ async function updateNetwork() {
   const online = navigator.onLine;
   $("networkBadge").textContent = online ? "En línea" : "Sin conexión";
   $("networkBadge").className = `badge ${online ? "online" : "offline"}`;
+<<<<<<< HEAD
   const pending = await sync.pendingCount(state.shipmentId);
   const conflicts = await sync.conflicts(state.shipmentId);
   $("syncBadge").textContent = `${pending} pendiente${pending === 1 ? "" : "s"}`;
   $("syncBadge").className = `badge ${pending ? "offline" : "online"}`;
   renderSyncIssues(conflicts);
+=======
+  const pending = await sync.pendingCount();
+  $("syncBadge").textContent = `${pending} pendiente${pending === 1 ? "" : "s"}`;
+  $("syncBadge").className = `badge ${pending ? "offline" : "online"}`;
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
   renderReview();
 }
 
@@ -70,6 +82,7 @@ function showWorkspace(session) {
   $("sessionUser").textContent = session.displayName;
   $("sessionBranch").textContent = session.branchName;
   $("sessionWarehouse").textContent = session.warehouseName;
+<<<<<<< HEAD
   void resumeContextShipment();
 }
 
@@ -91,6 +104,9 @@ async function resumeContextShipment() {
   } catch (error) {
     message(error.message, "error"); await loadDocuments();
   }
+=======
+  void loadDocuments();
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 }
 
 async function loadDocuments(query = "") {
@@ -133,7 +149,11 @@ function showStep(name) {
 async function ensureShipment() {
   if (state.shipmentId) return;
   const operationId = uuidv7(); state.shipmentId = uuidv7(); state.shipmentVersion = 0;
+<<<<<<< HEAD
   await sync.enqueue(queued({
+=======
+  await sync.enqueue(createQueuedCommand({
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
     operationId, endpoint: "/logistics/mobile/shipments", aggregateVersion: 0,
     body: { shipmentId: state.shipmentId, documentType: state.selectedDocument.type,
       documentId: state.selectedDocument.id, supplierId: state.selectedDocument.supplierId },
@@ -156,7 +176,11 @@ async function addContainer(tokenValue, parentNodeId = null) {
   const node = { id: uuidv7(), containerId: resolved.containerId, code: resolved.containerCode,
     typeName: resolved.typeName, parentNodeId, status: "SYNC_PENDING" };
   const operationId = uuidv7(); state.nodes.push(node);
+<<<<<<< HEAD
   await sync.enqueue(queued({ operationId,
+=======
+  await sync.enqueue(createQueuedCommand({ operationId,
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
     endpoint: `/logistics/mobile/shipments/${state.shipmentId}/nodes`,
     aggregateVersion: state.shipmentVersion,
     body: { nodeId: node.id, containerToken: tokenValue, parentNodeId },
@@ -192,6 +216,7 @@ async function addContent(event) {
   event.preventDefault();
   const productInput = $("productSearch").value.trim();
   const product = products.find((item) => item.code === productInput || item.id === productInput);
+<<<<<<< HEAD
   const values = { nodeId: $("contentNode").value, quantity: decimal($("quantity").value),
     netWeight: decimal($("netWeight").value), lotNumber: $("lotNumber").value.trim() || null,
     expirationDate: $("expirationDate").value || null };
@@ -206,11 +231,28 @@ async function addContent(event) {
     status: "SYNC_PENDING" };
   const operationId = uuidv7(); state.contents.push(content);
   await sync.enqueue(queued({ operationId,
+=======
+  if (!product) throw new Error("Selecciona un producto del documento");
+  const assignmentId = uuidv7();
+  const photoIds = await savePhotos($("photoInput").files, assignmentId);
+  const content = { id: assignmentId, nodeId: $("contentNode").value, productId: product.id,
+    productName: product.name, sourceLineId: product.sourceLineId, quantity: decimal($("quantity").value),
+    netWeight: decimal($("netWeight").value), unitCost: decimal($("unitCost").value),
+    lotNumber: $("lotNumber").value.trim() || null, expirationDate: $("expirationDate").value || null,
+    temperature: $("temperature").value ? decimal($("temperature").value) : null, photoIds,
+    status: "SYNC_PENDING" };
+  const operationId = uuidv7(); state.contents.push(content);
+  await sync.enqueue(createQueuedCommand({ operationId,
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
     endpoint: `/logistics/mobile/shipments/${state.shipmentId}/contents`,
     aggregateVersion: state.shipmentVersion, body: content,
   }));
   for (const photoId of photoIds) {
+<<<<<<< HEAD
     await sync.enqueue({ ...queued({ operationId: uuidv7(),
+=======
+    await sync.enqueue({ ...createQueuedCommand({ operationId: uuidv7(),
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
       endpoint: `/logistics/mobile/shipments/${state.shipmentId}/photos`,
       aggregateVersion: state.shipmentVersion, body: { assignmentId },
     }), photoId });
@@ -228,14 +270,23 @@ function renderContents() {
   });
 }
 
+<<<<<<< HEAD
 function bottomUpNodes() { return bottomUp(state.nodes); }
 function depth(node) { return nodeDepth(node, state.nodes); }
+=======
+function bottomUpNodes() { return [...state.nodes].sort((a, b) => depth(b) - depth(a)); }
+function depth(node) { let result = 0; let cursor = node; while (cursor?.parentNodeId) { result += 1; cursor = state.nodes.find((item) => item.id === cursor.parentNodeId); } return result; }
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
 async function sealNode(node) {
   if (state.nodes.some((child) => child.parentNodeId === node.id && !state.sealedNodeIds.includes(child.id))) throw new Error("Sella primero los contenedores hijos");
   const sealCode = prompt(`Código de sello para ${node.code}`); if (!sealCode) return;
   const operationId = uuidv7(); state.sealedNodeIds.push(node.id); node.status = "SEAL_PENDING";
+<<<<<<< HEAD
   await sync.enqueue(queued({ operationId,
+=======
+  await sync.enqueue(createQueuedCommand({ operationId,
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
     endpoint: `/logistics/mobile/shipments/${state.shipmentId}/nodes/${node.id}/seal`,
     aggregateVersion: state.shipmentVersion, body: { sealCode, sealType: "MOBILE_CAPTURE" },
   }));
@@ -253,6 +304,7 @@ async function renderReview() {
     const button = document.createElement("button"); button.className = sealed ? "ghost" : "secondary"; button.textContent = sealed ? "Sellado" : "Sellar"; button.disabled = sealed;
     button.addEventListener("click", () => sealNode(node).catch((error) => toast(error.message))); row.append(button); list.append(row);
   });
+<<<<<<< HEAD
   const pending = await sync.pendingCount(state.shipmentId);
   const conflicts = await sync.conflicts(state.shipmentId);
   $("dispatchButton").disabled = !$("dispatchConfirm").checked || !canDispatch({
@@ -262,18 +314,32 @@ async function renderReview() {
 
 async function dispatchShipment() {
   const pending = await sync.pendingCount(state.shipmentId);
+=======
+  const pending = await sync.pendingCount();
+  $("dispatchButton").disabled = !$("dispatchConfirm").checked || !state.nodes.length || state.sealedNodeIds.length !== state.nodes.length || pending > 0 || !navigator.onLine;
+}
+
+async function dispatchShipment() {
+  const pending = await sync.pendingCount();
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
   if (pending) throw new Error("Sincroniza todas las operaciones antes de despachar");
   const serverShipment = await api.shipment(state.shipmentId);
   state.shipmentVersion = serverShipment.version;
   const operationId = uuidv7();
+<<<<<<< HEAD
   const command = queued({ operationId, endpoint: `/logistics/mobile/shipments/${state.shipmentId}/dispatch`,
     aggregateVersion: state.shipmentVersion, body: {} });
   const result = await api.request(`/logistics/mobile/shipments/${state.shipmentId}/dispatch`, {
     method: "POST", body: command.body, operationId, aggregateVersion: state.shipmentVersion,
+=======
+  const result = await api.request(`/logistics/mobile/shipments/${state.shipmentId}/dispatch`, {
+    method: "POST", body: {}, operationId, aggregateVersion: state.shipmentVersion,
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
   });
   state.shipmentVersion = result.version; toast("Embarque despachado correctamente");
 }
 
+<<<<<<< HEAD
 function renderSyncIssues(conflicts) {
   const host = $("syncIssues"); if (!host) return; host.replaceChildren();
   conflicts.forEach((command) => {
@@ -291,6 +357,8 @@ function renderSyncIssues(conflicts) {
   host.hidden = conflicts.length === 0;
 }
 
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 async function startScanner() {
   if (!navigator.mediaDevices?.getUserMedia) throw new Error("La cámara no está disponible");
   scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
@@ -323,11 +391,14 @@ $("nextStep").addEventListener("click", () => { if (!state.selectedDocument) ret
 document.querySelectorAll(".stepper button").forEach((button) => button.addEventListener("click", () => showStep(button.dataset.step)));
 $("dispatchConfirm").addEventListener("change", renderReview); $("dispatchButton").addEventListener("click", () => dispatchShipment().catch((error) => toast(error.message)));
 window.addEventListener("online", () => { updateNetwork(); sync.flush(); }); window.addEventListener("offline", updateNetwork); sync.addEventListener("change", updateNetwork);
+<<<<<<< HEAD
 window.addEventListener("mobile-session-expired", () => {
   sessionStorage.removeItem("spj-mobile-token");
   message("La sesión expiró. Inicia sesión nuevamente; el borrador offline se conserva.", "warning");
   $("workspaceView").hidden = true; $("loginView").hidden = false;
 });
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");
 $("deviceId").value = localStorage.getItem("spj-device-id") || uuidv7(); localStorage.setItem("spj-device-id", $("deviceId").value);

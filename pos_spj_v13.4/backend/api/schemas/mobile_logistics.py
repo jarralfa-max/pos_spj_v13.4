@@ -17,6 +17,7 @@ class LoginRequest(BaseModel):
     deviceId: str = Field(min_length=1, max_length=200)
 
 
+<<<<<<< HEAD
 class MobileCommand(BaseModel):
     clientOperationId: Uuid7
     deviceId: str = Field(min_length=1, max_length=200)
@@ -26,19 +27,30 @@ class MobileCommand(BaseModel):
 
 
 class ShipmentCreateRequest(MobileCommand):
+=======
+class ShipmentCreateRequest(BaseModel):
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
     shipmentId: Uuid7
     documentType: Literal["PURCHASE_ORDER", "DIRECT_PURCHASE", "PURCHASE_REQUISITION"]
     documentId: Uuid7
     supplierId: Uuid7 | None = None
 
 
+<<<<<<< HEAD
 class NodeAttachRequest(MobileCommand):
+=======
+class NodeAttachRequest(BaseModel):
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
     nodeId: Uuid7
     containerToken: str = Field(min_length=20, max_length=1000)
     parentNodeId: Uuid7 | None = None
 
 
+<<<<<<< HEAD
 class ContentAssignmentRequest(MobileCommand):
+=======
+class ContentAssignmentRequest(BaseModel):
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
     id: Uuid7
     nodeId: Uuid7
     productId: Uuid7
@@ -52,13 +64,18 @@ class ContentAssignmentRequest(MobileCommand):
     photoIds: list[Uuid7] = Field(default_factory=list)
 
 
+<<<<<<< HEAD
 class PhotoUploadRequest(MobileCommand):
+=======
+class PhotoUploadRequest(BaseModel):
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
     assignmentId: Uuid7
     contentBase64: str
     fileName: str = Field(max_length=255)
     contentType: str
 
 
+<<<<<<< HEAD
 class SealRequest(MobileCommand):
     sealCode: str = Field(min_length=1, max_length=200)
     sealType: str = Field(min_length=1, max_length=100)
@@ -66,3 +83,8 @@ class SealRequest(MobileCommand):
 
 class DispatchRequest(MobileCommand):
     pass
+=======
+class SealRequest(BaseModel):
+    sealCode: str = Field(min_length=1, max_length=200)
+    sealType: str = Field(min_length=1, max_length=100)
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2

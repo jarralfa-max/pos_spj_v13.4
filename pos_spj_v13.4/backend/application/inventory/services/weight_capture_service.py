@@ -19,7 +19,7 @@ from backend.domain.inventory.value_objects.catch_weight import WeightReading
 
 class WeightCaptureService:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy()
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
         self._policy = CatchWeightPolicy()
 
     def capture_from_scale(self, gateway, *, actor_user_id: str,

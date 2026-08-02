@@ -136,11 +136,14 @@ class MatchSupplierInvoiceUseCase:
             if inv is None:
                 return ProcurementResult.fail("Factura inexistente", "NOT_FOUND",
                                               operation_id=operation_id)
+<<<<<<< HEAD
             if inv.status in ("MATCHED", "APPROVED", "POSTED"):
                 return ProcurementResult.ok(
                     "Factura ya conciliada", entity_id=inv.id,
                     operation_id=operation_id, status=inv.status,
                     match_result=inv.match_result or "MATCHED")
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
             matcher = self._matcher
             if self._tolerance_settings is not None:
                 configured = self._tolerance_settings.invoice_tolerances(
@@ -150,6 +153,7 @@ class MatchSupplierInvoiceUseCase:
                     quantity_tolerance=configured.quantity,
                     tax_tolerance=configured.tax)
             has_document = bool(inv.purchase_order_id or inv.direct_purchase_id)
+<<<<<<< HEAD
             accepted = uow.receipts.accepted_by_product(
                 purchase_order_id=inv.purchase_order_id,
                 direct_purchase_id=inv.direct_purchase_id)
@@ -167,6 +171,35 @@ class MatchSupplierInvoiceUseCase:
                 result = matcher.match_lines(
                     ordered_lines={line.id: {
                         "accepted_quantity": accepted.get(line.product_id, Decimal("0")),
+=======
+            ordered_total = None
+            received_qty = None
+            invoiced_qty = None
+            has_receipt = inv.direct_purchase_id is not None
+            po = None
+            if inv.purchase_order_id:
+                po = uow.orders.get(inv.purchase_order_id)
+                if po is not None:
+                    ordered_total = po.total()
+                    received_qty = sum((ln.received_quantity for ln in po.lines), Decimal("0"))
+                    invoiced_qty = sum((ln.invoiced_quantity for ln in inv.lines), Decimal("0"))
+                    has_receipt = po.status in ("PARTIALLY_RECEIVED", "RECEIVED") or any(
+                        ln.received_quantity > 0 for ln in po.lines)
+            if inv.purchase_order_id and po is not None and inv.lines:
+                if not has_receipt:
+                    result = MatchResult.MISSING_RECEIPT
+                else:
+                    result = MatchResult.MATCHED
+            else:
+                result = matcher.match(
+                    has_purchase_document=has_document, has_receipt=has_receipt,
+                    ordered_total=ordered_total, received_quantity=received_qty,
+                    invoiced_quantity=invoiced_qty, invoice_total=inv.total)
+            if result is MatchResult.MATCHED and inv.purchase_order_id and po is not None:
+                result = matcher.match_lines(
+                    ordered_lines={line.id: {
+                        "accepted_quantity": line.accepted_quantity,
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
                         "unit_price": line.unit_price.amount,
                         "tax": "0",
                     } for line in po.lines},
@@ -178,6 +211,7 @@ class MatchSupplierInvoiceUseCase:
                         "unit_price": line.unit_price.amount,
                         "tax": line.tax.amount,
                     } for line in inv.lines])
+<<<<<<< HEAD
             elif inv.direct_purchase_id and direct is not None:
                 ordered = {line.id: {
                     "accepted_quantity": accepted.get(line.product_id, Decimal("0")),
@@ -192,6 +226,8 @@ class MatchSupplierInvoiceUseCase:
                     } for line in inv.lines])
             else:
                 result = MatchResult.MISSING_PURCHASE_DOCUMENT
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
             inv.matched_by_user_id = actor_user_id
             inv.record_match(result.value)
             uow.invoices.save(inv)

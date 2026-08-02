@@ -76,6 +76,7 @@ class CreatePurchaseOrderUseCase:
                                             operation_id=operation_id,
                                             status=existing.status.value)
             try:
+<<<<<<< HEAD
                 source_requisition = None
                 if requisition_id:
                     source_requisition = uow.requisitions.get(requisition_id)
@@ -84,6 +85,8 @@ class CreatePurchaseOrderUseCase:
                         return ProcurementResult.fail(
                             "La orden requiere una solicitud aprobada",
                             "INVALID_REQUISITION", operation_id=operation_id)
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
                 if self._supplier_directory is not None:
                     self._supplier_directory.require_eligible(supplier_id)
                 po = PurchaseOrder.create(

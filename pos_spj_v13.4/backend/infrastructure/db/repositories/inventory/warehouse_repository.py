@@ -75,6 +75,23 @@ class WarehouseRepository(InventoryRepositoryBase):
         return self._query_one(
             "SELECT * FROM storage_locations WHERE id=?", (location_id,))
 
+    def get_location_by_code(self, warehouse_id: str, code: str) -> dict | None:
+        return self._query_one(
+            "SELECT * FROM storage_locations WHERE warehouse_id=? AND code=?",
+            (warehouse_id, code))
+
+    def save_technical_location(self, *, location_id: str, warehouse_id: str,
+                                code: str, name: str, location_type: str) -> None:
+        """Persist a canonical technical location (§8) with its own UUID + type."""
+        self._execute(
+            "INSERT INTO storage_locations (id, warehouse_id, zone_id,"
+            " parent_location_id, code, name, level, status, location_type)"
+            " VALUES (?,?,?,?,?,?,?,?,?)"
+            " ON CONFLICT(warehouse_id, code) DO UPDATE SET name=excluded.name,"
+            " location_type=excluded.location_type, status=excluded.status",
+            (location_id, warehouse_id, None, None, code, name, 0, "ACTIVE",
+             location_type))
+
     def list_locations(self, warehouse_id: str) -> list[dict]:
         return self._query(
             "SELECT * FROM storage_locations WHERE warehouse_id=? ORDER BY code",

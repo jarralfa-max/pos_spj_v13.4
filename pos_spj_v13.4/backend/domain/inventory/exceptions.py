@@ -16,6 +16,38 @@ class InventoryPermissionDeniedError(InventoryDomainError):
     """The user lacks the granular permission the action requires."""
 
 
+class InventoryConfigurationError(InventoryDomainError):
+    """A security-sensitive component was built without its mandatory wiring
+    (e.g. an authorization policy with no PermissionChecker). Fail closed: never
+    allow an operation to proceed on an unconfigured authorization gate (§5.1)."""
+
+
+class InventoryAuthenticationRequiredError(InventoryDomainError):
+    """No authenticated session — the operation cannot resolve an actor (§5.4)."""
+
+    code = "AUTHENTICATION_REQUIRED"
+
+
+class BranchConfigurationRequiredError(InventoryDomainError):
+    """The session has no active branch — no fabricated fallback is allowed (§5.4)."""
+
+    code = "BRANCH_CONFIGURATION_REQUIRED"
+
+
+class WarehouseConfigurationRequiredError(InventoryDomainError):
+    """No warehouse is configured/authorized for the operation (§5.4)."""
+
+    code = "WAREHOUSE_CONFIGURATION_REQUIRED"
+
+
+class InventoryConcurrencyError(InventoryDomainError):
+    """An optimistic-locking conflict: the balance row changed underneath us
+    (its stored version no longer matches the expected one). The caller must
+    re-read and retry — never overwrite blindly (§6.2)."""
+
+    code = "INVENTORY_CONCURRENCY_CONFLICT"
+
+
 class InventoryLimitExceededError(InventoryDomainError):
     """A quantity/weight/variance limit was exceeded beyond any override."""
 
