@@ -1,5 +1,6 @@
 """INV-10 — reservations + allocations: availability, lifecycle, idempotency, FEFO."""
 
+from datetime import date, timedelta
 from decimal import Decimal
 
 import sqlite3
@@ -13,6 +14,7 @@ from backend.application.inventory.use_cases import (
     PostInventoryMovementUseCase,
     RegisterInventoryLotUseCase,
     ReleaseReservationUseCase,
+    SetLotQualityStatusUseCase,
 )
 from backend.domain.inventory.entities.inventory_movement import (
     InventoryMovement,
@@ -21,6 +23,7 @@ from backend.domain.inventory.entities.inventory_movement import (
 from backend.domain.inventory.enums import (
     InventoryStatus,
     LotOrigin,
+    LotQualityStatus,
     MovementType,
     ReservationSource,
     ReservationStatus,
@@ -145,12 +148,16 @@ class TestAllocateReservation:
     def test_allocates_lots_fefo(self, conn):
         # Aggregate availability at a lot-less location backs the reservation;
         # lot-specific balances feed the FEFO allocation (earliest expiry first).
+        # Fechas relativas a hoy para que FEFO sea determinista sin depender del
+        # calendario: SOON caduca antes que LATE y ninguno está vencido.
+        soon_exp = (date.today() + timedelta(days=10)).isoformat()
+        late_exp = (date.today() + timedelta(days=60)).isoformat()
         RegisterInventoryLotUseCase().execute(conn, product_id="p1", lot_code="SOON",
             origin_type=LotOrigin.PURCHASE, operation_id="l1", actor_user_id="u1",
-            expiration_date="2026-07-25")
+            expiration_date=soon_exp)
         RegisterInventoryLotUseCase().execute(conn, product_id="p1", lot_code="LATE",
             origin_type=LotOrigin.PURCHASE, operation_id="l2", actor_user_id="u1",
-            expiration_date="2026-09-01")
+            expiration_date=late_exp)
         with InventoryUnitOfWork(conn) as uow:
             soon = uow.lots.get_by_code("p1", "SOON").id
             late = uow.lots.get_by_code("p1", "LATE").id
@@ -165,3 +172,31 @@ class TestAllocateReservation:
             rows = uow.reservations.list_allocations(r.entity_id)
             assert rows and rows[0]["lot_id"] == soon  # FEFO → SOON first
             assert uow.reservations.get(r.entity_id).status is ReservationStatus.ALLOCATED
+
+    def test_blocked_lot_is_never_allocated(self, conn):
+        # §22/§9.1: un lote bloqueado no es candidato de asignación aunque tenga la
+        # caducidad más próxima — su stock se movió al bucket QUALITY_BLOCKED.
+        soon_exp = (date.today() + timedelta(days=10)).isoformat()
+        late_exp = (date.today() + timedelta(days=60)).isoformat()
+        RegisterInventoryLotUseCase().execute(conn, product_id="p1", lot_code="SOON",
+            origin_type=LotOrigin.PURCHASE, operation_id="l1", actor_user_id="u1",
+            branch_id="b1", expiration_date=soon_exp)
+        RegisterInventoryLotUseCase().execute(conn, product_id="p1", lot_code="LATE",
+            origin_type=LotOrigin.PURCHASE, operation_id="l2", actor_user_id="u1",
+            branch_id="b1", expiration_date=late_exp)
+        with InventoryUnitOfWork(conn) as uow:
+            soon = uow.lots.get_by_code("p1", "SOON").id
+            late = uow.lots.get_by_code("p1", "LATE").id
+        _receipt(conn, "3", loc="stage", lot=None, op="r-agg")
+        _receipt(conn, "5", loc="loc1", lot=soon, op="r-soon")
+        _receipt(conn, "5", loc="loc2", lot=late, op="r-late")
+        SetLotQualityStatusUseCase().execute(
+            conn, lot_id=soon, new_status=LotQualityStatus.BLOCKED,
+            operation_id="blk-soon", actor_user_id="qa", reason="daño")
+        r = _reserve(conn, "3", loc="stage", lot=None)
+        alloc = AllocateReservationUseCase().execute(
+            conn, reservation_id=r.entity_id, operation_id="al-1", actor_user_id="u1")
+        assert alloc.success
+        with InventoryUnitOfWork(conn) as uow:
+            rows = uow.reservations.list_allocations(r.entity_id)
+        assert rows and all(row["lot_id"] == late for row in rows)  # nunca SOON

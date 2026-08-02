@@ -398,3 +398,25 @@ caducidad.
 
 - Disposición automática de stock EXPIRED vía WASTE (write-off) — futura.
 - Programar `GenerateExpiryAlerts` / `ExpireInventory` como job (scheduler) — futura.
+
+## P0-D — Reservas / asignaciones / conteos / ajustes
+
+### Slice 1 — FEFO determinista + exclusión de lote bloqueado (§22) — HECHO
+
+- **Diagnóstico**: los 2 fallos "pre-existentes" de FEFO
+  (`test_allocates_lots_fefo`, `test_candidates_feed_fefo`) NO eran un defecto de
+  producción: `LotAllocationService` ordena y filtra bien. Las pruebas fijaban
+  `expiration_date="2026-07-25"` (futuro cuando se escribieron, hoy vencido), así
+  que `eligible()` descartaba el lote "SOON" por vencido y FEFO fallaba. Son
+  pruebas dependientes del calendario.
+- **Fix de pruebas**: fechas relativas (`date.today() + timedelta`) → FEFO
+  determinista independientemente de cuándo corran; ambos lotes vigentes.
+- **Prueba nueva** `test_blocked_lot_is_never_allocated`: un lote bloqueado
+  (BLOCKED) nunca se asigna aunque tenga la caducidad más próxima — su stock se
+  movió al bucket QUALITY_BLOCKED (§9.1) y `eligible()` sólo admite
+  RELEASED/PENDING_INSPECTION. Refuerza el invariante de asignación end-to-end
+  por `AllocateReservationUseCase`.
+- **Evidencia**: reservas 11 passed (incl. exclusión de bloqueado); lotes 6
+  passed; inventario baseline mejora de `4 failed` a `2 failed` (los 2 restantes
+  son `legacy_reader_repoints`, ajenos a P0-D), `496 passed`; arquitectura 58/387
+  (sin fallas nuevas).
