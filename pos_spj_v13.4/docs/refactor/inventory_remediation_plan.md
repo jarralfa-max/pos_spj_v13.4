@@ -302,3 +302,36 @@ scripts CI · §4.3 unit_id canónico · §8 ubicaciones técnicas.
 
 - §4.3 unidades canónicas (`unit_id` UUID, no texto libre) en líneas del ledger.
 - §8 ubicaciones técnicas reales (no `warehouse_id` como ubicación).
+
+## P0-C — Stock / calidad
+
+### Slice 1 — Proyección de calidad de lote a buckets físicos (§9.1) — HECHO
+
+- **Problema**: bloquear/liberar un lote sólo tocaba `inventory_lots.quality_status`
+  (metadato); el stock del lote seguía en el bucket `AVAILABLE`, así que la
+  disponibilidad **no** excluía el lote bloqueado.
+- **Mapa `_PHYSICAL_BUCKET`** (`lot_use_cases.py`): cada `LotQualityStatus` mapea a
+  un `InventoryStatus` físico — RELEASED/PENDING_INSPECTION→AVAILABLE,
+  BLOCKED/REJECTED→QUALITY_BLOCKED, QUARANTINED→QUARANTINED.
+- **`_project_lot_quality_transfer`**: enumera `uow.balances.list_by_lot` y, por cada
+  balance con stock en el bucket de origen, postea un movimiento STATUS_TRANSFER
+  (`QUALITY_BLOCK`/`QUALITY_RELEASE`) que mueve la cantidad al bucket destino vía
+  `post_movement` (mismo UoW → atómico con el cambio de estado).
+- **Repositorio**: `InventoryBalanceRepository.list_by_lot(product_id, lot_id)` lista
+  todos los buckets que sostienen stock de un lote (todas las sucursales/almacenes/
+  ubicaciones/estados).
+- **`SetLotQualityStatusUseCase.execute`**: antes de `lot.block()/release()`, si el
+  bucket del estado actual difiere del bucket del nuevo estado, ejecuta la
+  transferencia. Todo dentro del mismo `InventoryUnitOfWork` (atómico).
+- **Evidencia**: `test_inventory_lot_quality_projection` 4 passed (bloquear saca de
+  disponibilidad → 0 y mueve el stock a QUALITY_BLOCKED; liberar restaura;
+  cuarentena mueve a QUARANTINED; el estado persiste); inventario
+  `4 failed / 479 passed` (4 pre-existentes, cero regresiones); arquitectura 58/387
+  (sin fallas nuevas).
+
+### Pendiente P0-C
+
+- §9.2 auto-bloqueo de cadena de frío (flujo atómico ante lectura fuera de rango).
+- §9.3 "explain" de disponibilidad completo (on_hand/available/reserved/allocated/
+  in_transit/quarantined/blocked/expired/damaged).
+- §9.4 `ExpiryRiskService` / `GenerateExpiryAlertsUseCase` / `ExpireInventoryUseCase`.

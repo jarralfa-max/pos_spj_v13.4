@@ -85,3 +85,12 @@ class InventoryBalanceRepository(InventoryRepositoryBase):
         return self._query(
             "SELECT * FROM inventory_balances WHERE product_id=? AND branch_id=?"
             " ORDER BY warehouse_id, inventory_status", (product_id, branch_id))
+
+    def list_by_lot(self, product_id: str, lot_id: str) -> list[dict]:
+        """Every balance bucket holding stock of a specific lot (across branches,
+        warehouses, locations and statuses) — used to move a lot between quality
+        buckets (§9.1)."""
+        return self._query(
+            "SELECT * FROM inventory_balances WHERE product_id=? AND lot_id=?"
+            " ORDER BY branch_id, warehouse_id, inventory_status",
+            (product_id, nz(lot_id)))
