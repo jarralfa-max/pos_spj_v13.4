@@ -763,3 +763,21 @@ Pendiente: bridges legacy → P2.
   `test_cadena_de_frio_wires_the_real_cold_chain_page` + suites UI = 46 passed;
   inventario `2 failed / 540 passed` (2 pre-existentes, cero regresiones);
   arquitectura `58 failed / 391 passed` (sin fallas nuevas).
+
+### Slice 13 — Página real "Auditoría" (§20.3 / §47) — HECHO
+
+- **`AuditQueryService`** (application/queries, read-only): sobre
+  `inventory_audit_log`, `list_recent(branch_id, limit=200)` — bitácora append-only
+  (quién hizo qué a qué entidad, cuándo y quién autorizó), más recientes primero,
+  acotada. Nunca escribe; el rastro lo escriben los casos de uso.
+- **`AuditPage`** (DS): `PageHeader` + `StandardTable`
+  (Fecha/Entidad/Acción/Usuario/Autorizó); refresca al navegar. Presentación pura.
+- **Presenter** `audit(branch_id)` + factory opcional `audit_query_factory`; view
+  model `audit_table` + etiquetas es-MX de entidad (`audit_entity_es`).
+- **Registro**: `inventory_audit` → `AuditPage`. 14 páginas reales; quedan 7 en
+  placeholder (Peso variable, Transferencias, Recepciones, Conteos, Ajustes,
+  Alertas, Configuración).
+- **Evidencia**: `test_audit_view_model`, `test_audit_empty`,
+  `test_auditoria_wires_the_real_audit_page` + suites UI = 49 passed;
+  inventario `2 failed / 543 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `58 failed / 391 passed` (sin fallas nuevas).

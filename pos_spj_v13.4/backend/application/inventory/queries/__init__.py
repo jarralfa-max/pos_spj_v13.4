@@ -3,6 +3,9 @@
 from backend.application.inventory.queries.availability_query_service import (
     InventoryAvailabilityQueryService,
 )
+from backend.application.inventory.queries.audit_query_service import (
+    AuditQueryService,
+)
 from backend.application.inventory.queries.cold_chain_query_service import (
     ColdChainQueryService,
 )
@@ -41,6 +44,7 @@ from backend.application.inventory.queries.traceability_query_service import (
 )
 
 __all__ = [
+    "AuditQueryService",
     "ColdChainQueryService",
     "ExpiryQueryService",
     "GenealogyEdge",

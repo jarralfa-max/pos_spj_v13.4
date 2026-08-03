@@ -59,6 +59,7 @@ class ModuloInventarioEnterprise(QWidget):
     def _build_presenter(self, conn, session):
         from backend.application.inventory.analytics import InventoryAnalyticsService
         from backend.application.inventory.queries import (
+            AuditQueryService,
             ColdChainQueryService,
             ExpiryQueryService,
             InventoryAvailabilityQueryService,
@@ -103,5 +104,6 @@ class ModuloInventarioEnterprise(QWidget):
             quarantine_query_factory=QuarantineQueryService,
             reservation_query_factory=ReservationQueryService,
             cold_chain_query_factory=ColdChainQueryService,
+            audit_query_factory=AuditQueryService,
             session_context=session,
         )

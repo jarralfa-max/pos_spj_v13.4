@@ -15,6 +15,7 @@ from backend.shared.ids import new_uuid
 from frontend.desktop.modules.inventory.view_models import (
     KpiViewModel,
     TableViewModel,
+    audit_table,
     availability_breakdown_table,
     availability_table,
     cold_chain_table,
@@ -42,6 +43,7 @@ class InventoryPresenter:
                  expiry_query_factory=None, traceability_query_factory=None,
                  stock_query_factory=None, quarantine_query_factory=None,
                  reservation_query_factory=None, cold_chain_query_factory=None,
+                 audit_query_factory=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -57,6 +59,7 @@ class InventoryPresenter:
         self._quarantine_factory = quarantine_query_factory
         self._reservation_factory = reservation_query_factory
         self._cold_chain_factory = cold_chain_query_factory
+        self._audit_factory = audit_query_factory
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -107,6 +110,15 @@ class InventoryPresenter:
         rows = self._reservation_factory(self._conn()).list_active_for_product(
             product_id=pid, branch_id=branch or None)
         return reservations_table(rows)
+
+    def audit(self, *, branch_id: str | None = None) -> TableViewModel:
+        """Bitácora de auditoría reciente (fecha, entidad, acción, usuario,
+        autorizó). Sólo lectura; delega en el audit query service."""
+        if self._audit_factory is None:
+            return audit_table([])
+        branch = branch_id or self.default_branch()
+        rows = self._audit_factory(self._conn()).list_recent(branch_id=branch or None)
+        return audit_table(rows)
 
     def cold_chain_excursions(self, *, warehouse_id: str | None = None) -> TableViewModel:
         """Excursiones de temperatura abiertas (almacén, lote, temperatura, rango,

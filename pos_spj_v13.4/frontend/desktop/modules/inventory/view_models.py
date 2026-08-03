@@ -102,6 +102,12 @@ EXCURSION_ACTION_ES = {
     "NONE": "Ninguna", "WARN": "Alerta", "BLOCK_LOT": "Bloqueo de lote",
     "QUARANTINE": "Cuarentena",
 }
+AUDIT_ENTITY_ES = {
+    "MOVEMENT": "Movimiento", "LOT": "Lote", "RESERVATION": "Reserva",
+    "ADJUSTMENT": "Ajuste", "COUNT": "Conteo", "QUARANTINE": "Cuarentena",
+    "TRANSFER": "Transferencia", "WAREHOUSE": "Almacén", "LOCATION": "Ubicación",
+    "TEMPERATURE_EXCURSION": "Excursión de temperatura", "WASTE": "Merma",
+}
 SEVERITY_ES = {"INFO": "Informativo", "WARNING": "Advertencia", "CRITICAL": "Crítico"}
 DIRECTION_ES = {"UPSTREAM": "Origen (ascendente)", "DOWNSTREAM": "Destino (descendente)"}
 MOVEMENT_DIRECTION_ES = {
@@ -172,6 +178,10 @@ def cold_chain_status_es(code) -> str:
 
 def excursion_action_es(code) -> str:
     return EXCURSION_ACTION_ES.get(str(code or ""), str(code or "—"))
+
+
+def audit_entity_es(code) -> str:
+    return AUDIT_ENTITY_ES.get(str(code or ""), str(code or "—"))
 
 
 def warehouse_type_es(code) -> str:
@@ -262,6 +272,22 @@ def warehouses_table(rows: list[dict]) -> TableViewModel:
             str(r.get("name") or "—"),
             warehouse_type_es(r.get("warehouse_type")),
             warehouse_status_es(r.get("status")),
+        ])
+    return TableViewModel(rows=out, row_ids=ids, total=len(out))
+
+
+def audit_table(rows: list[dict]) -> TableViewModel:
+    """rows: audit log rows (list_recent) → display table (fecha, entidad, acción,
+    usuario, autorizó), más recientes primero."""
+    out, ids = [], []
+    for i, r in enumerate(rows):
+        ids.append(f"{r.get('entity_id','')}:{i}")
+        out.append([
+            str(r.get("occurred_at") or "—")[:19],
+            audit_entity_es(r.get("entity_type")),
+            str(r.get("action") or "—"),
+            str(r.get("user_id") or "—"),
+            str(r.get("authorized_by") or "—"),
         ])
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 

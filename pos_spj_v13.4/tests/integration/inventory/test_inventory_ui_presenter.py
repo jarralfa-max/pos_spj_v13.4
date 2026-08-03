@@ -8,6 +8,7 @@ import pytest
 
 from backend.application.inventory.analytics import InventoryAnalyticsService
 from backend.application.inventory.queries import (
+    AuditQueryService,
     ColdChainQueryService,
     ExpiryQueryService,
     InventoryAvailabilityQueryService,
@@ -82,6 +83,7 @@ def _presenter(conn):
         quarantine_query_factory=QuarantineQueryService,
         reservation_query_factory=ReservationQueryService,
         cold_chain_query_factory=ColdChainQueryService,
+        audit_query_factory=AuditQueryService,
         session_context=_Session())
 
 
@@ -254,6 +256,19 @@ class TestPresenter:
 
     def test_cold_chain_empty(self, conn):
         vm = _presenter(conn).cold_chain_excursions()
+        assert vm.total == 0 and vm.rows == []
+
+    def test_audit_view_model(self, conn):
+        _seed(conn)  # postea un MOVEMENT (+regla de reposición) → bitácora en b1
+        vm = _presenter(conn).audit()
+        # la entrada más reciente es el posteo del movimiento
+        assert vm.total >= 1
+        assert vm.rows[0][1] == "Movimiento"  # entidad es-MX
+        assert vm.rows[0][2] == "POSTED"      # acción
+        assert vm.rows[0][3] == "u1"          # usuario
+
+    def test_audit_empty(self, conn):
+        vm = _presenter(conn).audit()
         assert vm.total == 0 and vm.rows == []
 
     def test_generate_then_list_suggestions(self, conn):
