@@ -28,6 +28,7 @@ from frontend.desktop.modules.inventory.view_models import (
     reservations_table,
     stock_table,
     traceability_table,
+    transfers_table,
     urgency_variant,
     warehouses_table,
 )
@@ -43,7 +44,7 @@ class InventoryPresenter:
                  expiry_query_factory=None, traceability_query_factory=None,
                  stock_query_factory=None, quarantine_query_factory=None,
                  reservation_query_factory=None, cold_chain_query_factory=None,
-                 audit_query_factory=None,
+                 audit_query_factory=None, transfer_query_factory=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -60,6 +61,7 @@ class InventoryPresenter:
         self._reservation_factory = reservation_query_factory
         self._cold_chain_factory = cold_chain_query_factory
         self._audit_factory = audit_query_factory
+        self._transfer_factory = transfer_query_factory
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -119,6 +121,17 @@ class InventoryPresenter:
         branch = branch_id or self.default_branch()
         rows = self._audit_factory(self._conn()).list_recent(branch_id=branch or None)
         return audit_table(rows)
+
+    def transfers(self, *, branch_id: str | None = None) -> TableViewModel:
+        """Transferencias físicas recientes que tocan la sucursal (folio, tipo,
+        origen, destino, estado, actualizado). Sólo lectura; ventana al contexto de
+        Transferencias — la gestión completa vive en su módulo dedicado."""
+        if self._transfer_factory is None:
+            return transfers_table([])
+        branch = branch_id or self.default_branch()
+        rows = self._transfer_factory(self._conn()).list_recent(
+            branch_id=branch or None)
+        return transfers_table(rows)
 
     def cold_chain_excursions(self, *, warehouse_id: str | None = None) -> TableViewModel:
         """Excursiones de temperatura abiertas (almacén, lote, temperatura, rango,

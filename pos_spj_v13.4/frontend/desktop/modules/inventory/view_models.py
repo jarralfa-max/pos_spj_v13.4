@@ -292,6 +292,61 @@ def audit_table(rows: list[dict]) -> TableViewModel:
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 
 
+TRANSFER_STATUS_ES = {
+    "DRAFT": "Borrador", "PENDING_APPROVAL": "Por aprobar", "APPROVED": "Aprobada",
+    "RESERVATION_PENDING": "Reserva pendiente", "RESERVED": "Reservada",
+    "PICKING": "En surtido", "PARTIALLY_PICKED": "Surtido parcial",
+    "PICKED": "Surtida", "READY_TO_DISPATCH": "Lista para despacho",
+    "PARTIALLY_DISPATCHED": "Despacho parcial", "IN_TRANSIT": "En tránsito",
+    "PARTIALLY_RECEIVED": "Recepción parcial", "RECEIVED": "Recibida",
+    "WITH_DIFFERENCES": "Con diferencias", "PENDING_RESOLUTION": "Por resolver",
+    "RETURN_IN_PROGRESS": "Devolución en curso", "CLOSED": "Cerrada",
+    "REJECTED": "Rechazada", "CANCELLED": "Cancelada", "REVERSED": "Reversada",
+}
+
+TRANSFER_TYPE_ES = {
+    "BRANCH_TO_BRANCH": "Sucursal → sucursal",
+    "WAREHOUSE_TO_WAREHOUSE": "Almacén → almacén",
+    "LOCATION_TO_LOCATION": "Ubicación → ubicación",
+    "CENTRAL_TO_BRANCH": "Central → sucursal",
+    "BRANCH_TO_CENTRAL": "Sucursal → central",
+    "PLANT_TO_WAREHOUSE": "Planta → almacén",
+    "WAREHOUSE_TO_PLANT": "Almacén → planta",
+    "STORE_TO_STORE": "Tienda → tienda",
+    "QUARANTINE_TRANSFER": "Cuarentena", "RETURN_TO_ORIGIN": "Devolución a origen",
+    "REPLENISHMENT_TRANSFER": "Reposición",
+    "CUSTOMER_ORDER_TRANSFER": "Pedido de cliente",
+    "PRODUCTION_SUPPLY_TRANSFER": "Suministro a producción",
+    "EMERGENCY_TRANSFER": "Emergencia", "CROSS_DOCK_FUTURE": "Cross-dock",
+    "CONSIGNMENT_FUTURE": "Consignación",
+}
+
+
+def transfer_status_es(code) -> str:
+    return TRANSFER_STATUS_ES.get(str(code or ""), str(code or "—"))
+
+
+def transfer_type_es(code) -> str:
+    return TRANSFER_TYPE_ES.get(str(code or ""), str(code or "—"))
+
+
+def transfers_table(rows: list[dict]) -> TableViewModel:
+    """rows: recent transfers (list_recent) → display table (folio, tipo, origen,
+    destino, estado, actualizado), más recientes primero."""
+    out, ids = [], []
+    for i, r in enumerate(rows):
+        ids.append(f"{r.get('transfer_number','')}:{i}")
+        out.append([
+            str(r.get("transfer_number") or "—"),
+            transfer_type_es(r.get("transfer_type")),
+            str(r.get("origin_branch_id") or "—"),
+            str(r.get("destination_branch_id") or "—"),
+            transfer_status_es(r.get("status")),
+            str(r.get("updated_at") or "—")[:19],
+        ])
+    return TableViewModel(rows=out, row_ids=ids, total=len(out))
+
+
 def cold_chain_table(rows: list[dict]) -> TableViewModel:
     """rows: open excursion rows (list_open_excursions) → display table (almacén,
     lote, temperatura, rango, estado, acción)."""

@@ -70,6 +70,7 @@ class ModuloInventarioEnterprise(QWidget):
             ReservationQueryService,
             StockQueryService,
             TraceabilityQueryService,
+            TransferQueryService,
             WarehouseQueryService,
         )
         from backend.application.inventory.use_cases import (
@@ -105,5 +106,6 @@ class ModuloInventarioEnterprise(QWidget):
             reservation_query_factory=ReservationQueryService,
             cold_chain_query_factory=ColdChainQueryService,
             audit_query_factory=AuditQueryService,
+            transfer_query_factory=TransferQueryService,
             session_context=session,
         )

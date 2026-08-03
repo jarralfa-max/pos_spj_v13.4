@@ -42,6 +42,9 @@ from backend.application.inventory.queries.traceability_query_service import (
     TraceabilityQueryService,
     TraceEvent,
 )
+from backend.application.inventory.queries.transfer_query_service import (
+    TransferQueryService,
+)
 
 __all__ = [
     "AuditQueryService",
@@ -63,5 +66,6 @@ __all__ = [
     "StockQueryService",
     "TraceEvent",
     "TraceabilityQueryService",
+    "TransferQueryService",
     "WarehouseQueryService",
 ]

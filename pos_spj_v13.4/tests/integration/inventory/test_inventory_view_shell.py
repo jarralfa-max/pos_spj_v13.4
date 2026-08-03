@@ -26,6 +26,7 @@ from frontend.desktop.modules.inventory.pages import (  # noqa: E402
     ReservationsPage,
     StockPage,
     TraceabilityPage,
+    TransfersPage,
 )
 from frontend.desktop.modules.inventory.view_models import TableViewModel  # noqa: E402
 
@@ -61,6 +62,9 @@ class _StubPresenter:
         return TableViewModel(rows=[], row_ids=[], total=0)
 
     def audit(self, *, branch_id=None):
+        return TableViewModel(rows=[], row_ids=[], total=0)
+
+    def transfers(self, *, branch_id=None):
         return TableViewModel(rows=[], row_ids=[], total=0)
 
 
@@ -192,3 +196,11 @@ def test_auditoria_wires_the_real_audit_page(app):
     view.nav.select(idx)
     page = view.stack.widget(idx).layout().itemAt(0).widget()
     assert isinstance(page, AuditPage)
+
+
+def test_transferencias_wires_the_real_transfers_page(app):
+    view = InventoryView(presenter=_StubPresenter(), specs=build_page_specs())
+    idx = [e.title for e in INVENTORY_NAV].index("Transferencias")
+    view.nav.select(idx)
+    page = view.stack.widget(idx).layout().itemAt(0).widget()
+    assert isinstance(page, TransfersPage)

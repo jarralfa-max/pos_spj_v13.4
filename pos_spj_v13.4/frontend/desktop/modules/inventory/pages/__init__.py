@@ -25,6 +25,7 @@ from frontend.desktop.modules.inventory.pages.stock_page import StockPage
 from frontend.desktop.modules.inventory.pages.traceability_page import (
     TraceabilityPage,
 )
+from frontend.desktop.modules.inventory.pages.transfers_page import TransfersPage
 from frontend.desktop.modules.inventory.pages.warehouses_page import WarehousesPage
 
 __all__ = [
@@ -43,5 +44,6 @@ __all__ = [
     "ReservationsPage",
     "StockPage",
     "TraceabilityPage",
+    "TransfersPage",
     "WarehousesPage",
 ]

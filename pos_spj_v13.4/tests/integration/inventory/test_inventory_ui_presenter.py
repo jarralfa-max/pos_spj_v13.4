@@ -19,6 +19,7 @@ from backend.application.inventory.queries import (
     ReservationQueryService,
     StockQueryService,
     TraceabilityQueryService,
+    TransferQueryService,
     WarehouseQueryService,
 )
 from backend.application.inventory.use_cases import (
@@ -84,7 +85,23 @@ def _presenter(conn):
         reservation_query_factory=ReservationQueryService,
         cold_chain_query_factory=ColdChainQueryService,
         audit_query_factory=AuditQueryService,
+        transfer_query_factory=TransferQueryService,
         session_context=_Session())
+
+
+def _seed_transfer(conn, *, number, ttype, origin, destination, status,
+                   updated_at):
+    from backend.shared.ids import new_uuid
+    conn.execute(
+        "INSERT INTO stock_transfers (id, transfer_number, transfer_type,"
+        " source_channel, source_module, origin_node_type, origin_branch_id,"
+        " destination_node_type, destination_branch_id, requested_by_user_id,"
+        " priority, status, operation_id, created_at, updated_at) VALUES"
+        " (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (new_uuid(), number, ttype, "DESKTOP", "inventory", "BRANCH", origin,
+         "BRANCH", destination, "u1", "NORMAL", status, new_uuid(),
+         updated_at, updated_at))
+    conn.commit()
 
 
 class TestPresenter:
@@ -269,6 +286,37 @@ class TestPresenter:
 
     def test_audit_empty(self, conn):
         vm = _presenter(conn).audit()
+        assert vm.total == 0 and vm.rows == []
+
+    def test_transfers_view_model_scoped_and_localized(self, conn):
+        from backend.infrastructure.db.schema.transfers_schema import (
+            create_transfers_schema,
+        )
+        create_transfers_schema(conn)
+        # b1 como origen (matchea) y como destino (matchea); una ajena (b9→b8).
+        _seed_transfer(conn, number="TR-1", ttype="BRANCH_TO_BRANCH", origin="b1",
+                       destination="b2", status="IN_TRANSIT",
+                       updated_at="2026-08-03T10:00:00")
+        _seed_transfer(conn, number="TR-2", ttype="EMERGENCY_TRANSFER", origin="b3",
+                       destination="b1", status="RECEIVED",
+                       updated_at="2026-08-03T12:00:00")
+        _seed_transfer(conn, number="TR-9", ttype="BRANCH_TO_BRANCH", origin="b9",
+                       destination="b8", status="DRAFT",
+                       updated_at="2026-08-03T13:00:00")
+        vm = _presenter(conn).transfers()  # default_branch = b1
+        assert vm.total == 2                      # sólo las que tocan b1
+        assert vm.rows[0][0] == "TR-2"            # más reciente primero
+        assert vm.rows[0][1] == "Emergencia"      # tipo es-MX
+        assert vm.rows[0][4] == "Recibida"        # estado es-MX
+        assert vm.rows[1][0] == "TR-1"
+        assert vm.rows[1][4] == "En tránsito"
+
+    def test_transfers_empty(self, conn):
+        from backend.infrastructure.db.schema.transfers_schema import (
+            create_transfers_schema,
+        )
+        create_transfers_schema(conn)
+        vm = _presenter(conn).transfers()
         assert vm.total == 0 and vm.rows == []
 
     def test_generate_then_list_suggestions(self, conn):

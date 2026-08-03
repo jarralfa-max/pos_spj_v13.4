@@ -826,3 +826,32 @@ mueven existencias exclusivamente a través del ledger canónico (reserva → de
   `test_auditoria_wires_the_real_audit_page` + suites UI = 49 passed;
   inventario `2 failed / 543 passed` (2 pre-existentes, cero regresiones);
   arquitectura `58 failed / 391 passed` (sin fallas nuevas).
+
+### Slice 14 — Página real "Transferencias" (§24) — HECHO
+
+Cierra el placeholder «Transferencias» del sidebar de Inventario conectándolo, en
+**sólo lectura**, al contexto acotado de Transferencias (P1-B). El inventario no
+gestiona el ciclo de la transferencia (eso vive en su módulo dedicado); sólo abre
+una ventana a la actividad que toca la sucursal.
+
+- **`TransferQueryService`** (application/queries, read-only, `InventoryRepositoryBase`):
+  `list_recent(branch_id, limit=200)` sobre `stock_transfers` canónico — devuelve
+  las transferencias cuyo origen **o** destino es la sucursal, más recientes
+  primero. Sólo `SELECT` (no crea esquema; la tabla es propiedad de la migración
+  `154`).
+- **`TransfersPage`** (DS): `PageHeader` + `StandardTable`
+  (Folio/Tipo/Origen/Destino/Estado/Actualizado); refresca al navegar.
+  Presentación pura.
+- **Presenter** `transfers(branch_id)` + factory opcional `transfer_query_factory`;
+  view model `transfers_table` + etiquetas es-MX (`transfer_type_es`,
+  `transfer_status_es`, cubriendo los 16 tipos y 20 estados del dominio).
+- **Registro**: `inventory_transfers` → `TransfersPage`. 15 páginas reales; quedan
+  6 en placeholder (Peso variable, Recepciones, Conteos, Ajustes, Alertas,
+  Configuración).
+- **Evidencia**: `test_transfers_view_model_scoped_and_localized` (verifica el
+  alcance origen/destino y la localización es-MX), `test_transfers_empty`,
+  `test_transferencias_wires_the_real_transfers_page` + suites UI = 52 passed;
+  inventario `2 failed / 546 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `22 failed / 427 passed` desde la raíz del repo (sin fallas nuevas;
+  guardrails de transferencias/esquema intactos: el servicio sólo lee
+  `stock_transfers`).
