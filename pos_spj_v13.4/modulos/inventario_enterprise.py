@@ -59,19 +59,24 @@ class ModuloInventarioEnterprise(QWidget):
     def _build_presenter(self, conn, session):
         from backend.application.inventory.analytics import InventoryAnalyticsService
         from backend.application.inventory.queries import (
+            AdjustmentQueryService,
+            AlertQueryService,
             AuditQueryService,
             ColdChainQueryService,
+            CountQueryService,
             ExpiryQueryService,
             InventoryAvailabilityQueryService,
             LotQueryService,
             MovementQueryService,
             QuarantineQueryService,
+            ReceiptQueryService,
             ReplenishmentQueryService,
             ReservationQueryService,
             StockQueryService,
             TraceabilityQueryService,
             TransferQueryService,
             WarehouseQueryService,
+            WeightQueryService,
         )
         from backend.application.inventory.use_cases import (
             GenerateReplenishmentSuggestionsUseCase,
@@ -107,5 +112,10 @@ class ModuloInventarioEnterprise(QWidget):
             cold_chain_query_factory=ColdChainQueryService,
             audit_query_factory=AuditQueryService,
             transfer_query_factory=TransferQueryService,
+            weight_query_factory=WeightQueryService,
+            receipt_query_factory=ReceiptQueryService,
+            count_query_factory=CountQueryService,
+            adjustment_query_factory=AdjustmentQueryService,
+            alert_query_factory=AlertQueryService,
             session_context=session,
         )

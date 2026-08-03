@@ -15,18 +15,23 @@ from frontend.desktop.modules.inventory.inventory_view import InventoryView  # n
 from frontend.desktop.modules.inventory.navigation import INVENTORY_NAV  # noqa: E402
 from frontend.desktop.modules.inventory.page_registry import build_page_specs  # noqa: E402
 from frontend.desktop.modules.inventory.pages import (  # noqa: E402
+    AdjustmentsPage,
+    AlertsPage,
     AuditPage,
     AvailabilityPage,
     ColdChainPage,
+    CountsPage,
     ExpiryPage,
     LotsPage,
     MovementsPage,
     PlaceholderPage,
     QuarantinePage,
+    ReceiptsPage,
     ReservationsPage,
     StockPage,
     TraceabilityPage,
     TransfersPage,
+    WeightPage,
 )
 from frontend.desktop.modules.inventory.view_models import TableViewModel  # noqa: E402
 
@@ -65,6 +70,21 @@ class _StubPresenter:
         return TableViewModel(rows=[], row_ids=[], total=0)
 
     def transfers(self, *, branch_id=None):
+        return TableViewModel(rows=[], row_ids=[], total=0)
+
+    def catch_weight(self, *, branch_id=None):
+        return TableViewModel(rows=[], row_ids=[], total=0)
+
+    def receipts(self, *, branch_id=None):
+        return TableViewModel(rows=[], row_ids=[], total=0)
+
+    def counts(self, *, branch_id=None):
+        return TableViewModel(rows=[], row_ids=[], total=0)
+
+    def adjustments(self, *, branch_id=None):
+        return TableViewModel(rows=[], row_ids=[], total=0)
+
+    def alerts(self, *, branch_id=None):
         return TableViewModel(rows=[], row_ids=[], total=0)
 
 
@@ -110,8 +130,8 @@ def test_shell_shows_all_sections_and_lazy_builds(app):
 def test_unbuilt_sections_use_placeholder(app):
     specs = build_page_specs()
     view = InventoryView(presenter=object(), specs=specs)
-    # "Existencias" (índice 1) no tiene página real → placeholder.
-    idx = [e.title for e in INVENTORY_NAV].index("Peso variable")  # aún sin página real
+    # Sección aún sin página real → placeholder.
+    idx = [e.title for e in INVENTORY_NAV].index("Configuración")  # aún sin página real
     view.nav.select(idx)
     container = view.stack.widget(idx)
     page = container.layout().itemAt(0).widget()
@@ -204,3 +224,43 @@ def test_transferencias_wires_the_real_transfers_page(app):
     view.nav.select(idx)
     page = view.stack.widget(idx).layout().itemAt(0).widget()
     assert isinstance(page, TransfersPage)
+
+
+def test_peso_variable_wires_the_real_weight_page(app):
+    view = InventoryView(presenter=_StubPresenter(), specs=build_page_specs())
+    idx = [e.title for e in INVENTORY_NAV].index("Peso variable")
+    view.nav.select(idx)
+    page = view.stack.widget(idx).layout().itemAt(0).widget()
+    assert isinstance(page, WeightPage)
+
+
+def test_recepciones_wires_the_real_receipts_page(app):
+    view = InventoryView(presenter=_StubPresenter(), specs=build_page_specs())
+    idx = [e.title for e in INVENTORY_NAV].index("Recepciones")
+    view.nav.select(idx)
+    page = view.stack.widget(idx).layout().itemAt(0).widget()
+    assert isinstance(page, ReceiptsPage)
+
+
+def test_conteos_wires_the_real_counts_page(app):
+    view = InventoryView(presenter=_StubPresenter(), specs=build_page_specs())
+    idx = [e.title for e in INVENTORY_NAV].index("Conteos")
+    view.nav.select(idx)
+    page = view.stack.widget(idx).layout().itemAt(0).widget()
+    assert isinstance(page, CountsPage)
+
+
+def test_ajustes_wires_the_real_adjustments_page(app):
+    view = InventoryView(presenter=_StubPresenter(), specs=build_page_specs())
+    idx = [e.title for e in INVENTORY_NAV].index("Ajustes")
+    view.nav.select(idx)
+    page = view.stack.widget(idx).layout().itemAt(0).widget()
+    assert isinstance(page, AdjustmentsPage)
+
+
+def test_alertas_wires_the_real_alerts_page(app):
+    view = InventoryView(presenter=_StubPresenter(), specs=build_page_specs())
+    idx = [e.title for e in INVENTORY_NAV].index("Alertas")
+    view.nav.select(idx)
+    page = view.stack.widget(idx).layout().itemAt(0).widget()
+    assert isinstance(page, AlertsPage)

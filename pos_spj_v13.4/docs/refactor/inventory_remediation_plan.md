@@ -827,7 +827,7 @@ mueven existencias exclusivamente a través del ledger canónico (reserva → de
   inventario `2 failed / 543 passed` (2 pre-existentes, cero regresiones);
   arquitectura `58 failed / 391 passed` (sin fallas nuevas).
 
-### Slice 14 — Página real "Transferencias" (§24) — HECHO
+### P1-B UI — Página real "Transferencias" (§24) — HECHO
 
 Cierra el placeholder «Transferencias» del sidebar de Inventario conectándolo, en
 **sólo lectura**, al contexto acotado de Transferencias (P1-B). El inventario no
@@ -855,3 +855,100 @@ una ventana a la actividad que toca la sucursal.
   arquitectura `22 failed / 427 passed` desde la raíz del repo (sin fallas nuevas;
   guardrails de transferencias/esquema intactos: el servicio sólo lee
   `stock_transfers`).
+
+### Slice 14 — Página real "Peso variable" (§18) — HECHO
+
+- **`WeightQueryService`** (application/queries, read-only, `InventoryRepositoryBase`):
+  `list_catch_weight(branch_id, limit=500)` sobre `inventory_balances` filtrando
+  `weight <> '0'` — existencias de peso variable (catch-weight) por
+  producto/almacén/bucket, con piezas, peso y peso reservado. Sólo `SELECT`.
+- **`WeightPage`** (DS): `PageHeader` + `StandardTable`
+  (Producto/Almacén/Estado/Piezas/Peso/Peso reservado); refresca al navegar.
+  Presentación pura.
+- **Presenter** `catch_weight(branch_id)` + factory opcional `weight_query_factory`;
+  view model `weight_table` (reusa `status_es` para el bucket y `qty(..., "kg")`
+  para el peso).
+- **Registro**: `inventory_weight` → `WeightPage`. 16 páginas reales; quedan 5 en
+  placeholder (Recepciones, Conteos, Ajustes, Alertas, Configuración).
+- **Evidencia**: `test_catch_weight_view_model` (recepción de 3 pzas / 7.5 kg),
+  `test_catch_weight_empty_when_no_weight` (stock por piezas no aparece),
+  `test_peso_variable_wires_the_real_weight_page` + suites UI = 55 passed;
+  inventario `2 failed / 549 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `22 failed / 427 passed` desde la raíz del repo (sin fallas nuevas).
+
+### Slice 15 — Página real "Recepciones" (§15) — HECHO
+
+- **`ReceiptQueryService`** (application/queries, read-only, `InventoryRepositoryBase`):
+  `list_recent(branch_id, limit=200)` sobre `inventory_ledger` filtrando los tipos
+  de movimiento entrantes (`PURCHASE_RECEIPT`, `DIRECT_PURCHASE_RECEIPT`,
+  `TRANSFER_RECEIPT`, `PRODUCTION_OUTPUT`) — entradas de mercancía al inventario,
+  más recientes primero. Sólo `SELECT`.
+- **`ReceiptsPage`** (DS): `PageHeader` + `StandardTable`
+  (Fecha/Tipo/Módulo/Documento/Estado); refresca al navegar. Presentación pura.
+- **Presenter** `receipts(branch_id)` + factory opcional `receipt_query_factory`;
+  reusa el view model `movements_table` (mismas etiquetas es-MX de tipo/estado del
+  ledger).
+- **Registro**: `inventory_receipts` → `ReceiptsPage`. 17 páginas reales; quedan 4
+  en placeholder (Conteos, Ajustes, Alertas, Configuración).
+- **Evidencia**: `test_receipts_view_model_lists_inbound_only` (una salida de venta
+  queda excluida), `test_receipts_empty_ledger`,
+  `test_recepciones_wires_the_real_receipts_page` + suites UI = 58 passed;
+  inventario `2 failed / 552 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `22 failed / 427 passed` desde la raíz del repo (sin fallas nuevas).
+
+### Slice 16 — Página real "Conteos" (§17) — HECHO
+
+- **`CountQueryService`** (application/queries, read-only, `InventoryRepositoryBase`):
+  `list_recent(branch_id, limit=200)` sobre `inventory_count` — conteos por
+  sucursal (folio, tipo, almacén, modalidad ciega/abierta, estado), más recientes
+  primero. Sólo `SELECT`.
+- **`CountsPage`** (DS): `PageHeader` + `StandardTable`
+  (Folio/Tipo/Almacén/Modalidad/Estado/Creado); refresca al navegar. Presentación
+  pura.
+- **Presenter** `counts(branch_id)` + factory opcional `count_query_factory`; view
+  model `counts_table` + etiquetas es-MX (`count_type_es` 7 tipos, `count_status_es`
+  9 estados).
+- **Registro**: `inventory_counts` → `CountsPage`. 18 páginas reales; quedan 3 en
+  placeholder (Ajustes, Alertas, Configuración).
+- **Evidencia**: `test_counts_view_model` (conteo cíclico a ciegas → "En proceso"),
+  `test_counts_empty`, `test_conteos_wires_the_real_counts_page` + suites UI = 61
+  passed; inventario `2 failed / 555 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `22 failed / 427 passed` desde la raíz del repo (sin fallas nuevas).
+
+### Slice 17 — Página real "Ajustes" (§14) — HECHO
+
+- **`AdjustmentQueryService`** (application/queries, read-only, `InventoryRepositoryBase`):
+  `list_recent(branch_id, limit=200)` sobre `inventory_adjustment` — ajustes por
+  sucursal (folio, motivo, almacén, estado), más recientes primero. Sólo `SELECT`.
+- **`AdjustmentsPage`** (DS): `PageHeader` + `StandardTable`
+  (Folio/Motivo/Almacén/Estado/Creado); refresca al navegar. Presentación pura.
+- **Presenter** `adjustments(branch_id)` + factory opcional
+  `adjustment_query_factory`; view model `adjustments_table` + etiquetas es-MX
+  (`adjustment_reason_es` 10 motivos, `adjustment_status_es` 6 estados).
+- **Registro**: `inventory_adjustments` → `AdjustmentsPage`. 19 páginas reales;
+  quedan 2 en placeholder (Alertas, Configuración).
+- **Evidencia**: `test_adjustments_view_model` (ajuste por daño), `test_adjustments_empty`,
+  `test_ajustes_wires_the_real_adjustments_page` + suites UI = 64 passed;
+  inventario `2 failed / 558 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `22 failed / 427 passed` desde la raíz del repo (sin fallas nuevas).
+
+### Slice 18 — Página real "Alertas" (§23) — HECHO
+
+- **`AlertQueryService`** (application/queries, read-only, `InventoryRepositoryBase`):
+  `list_recent(branch_id, limit=200)` sobre `inventory_notification_log` — alertas
+  despachadas por el motor de notificaciones (stock bajo, caducidad, cadena de
+  frío) por sucursal (fecha, severidad, evento, canal, estado, mensaje), más
+  recientes primero. Sólo `SELECT`.
+- **`AlertsPage`** (DS): `PageHeader` + `StandardTable`
+  (Fecha/Severidad/Evento/Canal/Estado/Mensaje); refresca al navegar. Presentación
+  pura.
+- **Presenter** `alerts(branch_id)` + factory opcional `alert_query_factory`; view
+  model `alerts_table` + etiquetas es-MX (`alert_severity_es` 3 severidades,
+  `alert_event_es` para los eventos de alerta comunes).
+- **Registro**: `inventory_alerts` → `AlertsPage`. 20 páginas reales; queda 1 en
+  placeholder (Configuración).
+- **Evidencia**: `test_alerts_view_model` (alerta crítica de stock bajo, alcance
+  por sucursal), `test_alerts_empty`, `test_alertas_wires_the_real_alerts_page` +
+  suites UI = 67 passed; inventario `2 failed / 561 passed` (2 pre-existentes, cero
+  regresiones); arquitectura `22 failed / 427 passed` desde la raíz del repo (sin
+  fallas nuevas).

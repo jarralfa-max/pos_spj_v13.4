@@ -11,9 +11,12 @@ from __future__ import annotations
 
 from frontend.desktop.modules.inventory.navigation import INVENTORY_NAV
 from frontend.desktop.modules.inventory.pages import (
+    AdjustmentsPage,
+    AlertsPage,
     AuditPage,
     AvailabilityPage,
     ColdChainPage,
+    CountsPage,
     ExpiryPage,
     InventoryDashboardPage,
     LocationsPage,
@@ -21,12 +24,14 @@ from frontend.desktop.modules.inventory.pages import (
     MovementsPage,
     PlaceholderPage,
     QuarantinePage,
+    ReceiptsPage,
     ReplenishmentPage,
     ReservationsPage,
     StockPage,
     TraceabilityPage,
     TransfersPage,
     WarehousesPage,
+    WeightPage,
 )
 
 # page_id -> factory(presenter) -> QWidget. Sólo secciones con página real.
@@ -37,6 +42,7 @@ _REAL_PAGES = {
     "inventory_warehouses": WarehousesPage,
     "inventory_locations": LocationsPage,
     "inventory_lots": LotsPage,
+    "inventory_weight": WeightPage,
     "inventory_cold_chain": ColdChainPage,
     "inventory_reservations": ReservationsPage,
     "inventory_movements": MovementsPage,
@@ -44,6 +50,10 @@ _REAL_PAGES = {
     "inventory_quarantine": QuarantinePage,
     "inventory_traceability": TraceabilityPage,
     "inventory_transfers": TransfersPage,
+    "inventory_receipts": ReceiptsPage,
+    "inventory_counts": CountsPage,
+    "inventory_adjustments": AdjustmentsPage,
+    "inventory_alerts": AlertsPage,
     "inventory_audit": AuditPage,
     "inventory_replenishment": ReplenishmentPage,
 }

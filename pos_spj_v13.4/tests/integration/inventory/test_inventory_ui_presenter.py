@@ -8,19 +8,24 @@ import pytest
 
 from backend.application.inventory.analytics import InventoryAnalyticsService
 from backend.application.inventory.queries import (
+    AdjustmentQueryService,
+    AlertQueryService,
     AuditQueryService,
     ColdChainQueryService,
+    CountQueryService,
     ExpiryQueryService,
     InventoryAvailabilityQueryService,
     LotQueryService,
     MovementQueryService,
     QuarantineQueryService,
+    ReceiptQueryService,
     ReplenishmentQueryService,
     ReservationQueryService,
     StockQueryService,
     TraceabilityQueryService,
     TransferQueryService,
     WarehouseQueryService,
+    WeightQueryService,
 )
 from backend.application.inventory.use_cases import (
     CreateLocationUseCase,
@@ -86,7 +91,24 @@ def _presenter(conn):
         cold_chain_query_factory=ColdChainQueryService,
         audit_query_factory=AuditQueryService,
         transfer_query_factory=TransferQueryService,
+        weight_query_factory=WeightQueryService,
+        receipt_query_factory=ReceiptQueryService,
+        count_query_factory=CountQueryService,
+        adjustment_query_factory=AdjustmentQueryService,
+        alert_query_factory=AlertQueryService,
         session_context=_Session())
+
+
+def _seed_alert(conn, *, event_name, severity, channel, status, message,
+                branch_id="b1"):
+    from backend.shared.ids import new_uuid
+    conn.execute(
+        "INSERT INTO inventory_notification_log (id, event_id, event_name, channel,"
+        " recipient_ref, severity, status, dedupe_key, message, branch_id,"
+        " created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        (new_uuid(), new_uuid(), event_name, channel, "u1", severity, status,
+         new_uuid(), message, branch_id, "2026-08-03T10:00:00"))
+    conn.commit()
 
 
 def _seed_transfer(conn, *, number, ttype, origin, destination, status,
@@ -317,6 +339,108 @@ class TestPresenter:
         )
         create_transfers_schema(conn)
         vm = _presenter(conn).transfers()
+        assert vm.total == 0 and vm.rows == []
+
+    def test_catch_weight_view_model(self, conn):
+        # recepción de peso variable: 3 piezas, 7.5 kg de p1 en w1/loc1
+        line = InventoryMovementLine.create(product_id="p1", quantity=Decimal("3"),
+                                            weight=Decimal("7.5"),
+                                            to_location_id="loc1")
+        mv = InventoryMovement.create(
+            movement_type=MovementType.PURCHASE_RECEIPT, branch_id="b1",
+            warehouse_id="w1", source_module="procurement",
+            source_document_type="GR", source_document_id="gr-w",
+            operation_id="rcv-w", created_by_user_id="u1", lines=[line])
+        PostInventoryMovementUseCase().execute(conn, mv, actor_user_id="u1")
+        vm = _presenter(conn).catch_weight()
+        assert vm.total == 1
+        assert vm.rows[0][0] == "p1"           # producto
+        assert vm.rows[0][1] == "w1"           # almacén
+        assert vm.rows[0][2] == "Disponible"   # bucket es-MX
+        assert vm.rows[0][3].startswith("3")   # piezas
+        assert "7.5" in vm.rows[0][4]          # peso
+
+    def test_catch_weight_empty_when_no_weight(self, conn):
+        _seed(conn)  # stock por piezas (weight = 0) → no aparece en peso variable
+        vm = _presenter(conn).catch_weight()
+        assert vm.total == 0 and vm.rows == []
+
+    def test_receipts_view_model_lists_inbound_only(self, conn):
+        _seed(conn)  # postea un PURCHASE_RECEIPT (5 pzas de p1 en w1/loc1)
+        # una salida de venta NO es recepción → debe quedar excluida
+        issue = InventoryMovementLine.create(product_id="p1", quantity=Decimal("2"),
+                                             from_location_id="loc1")
+        mv = InventoryMovement.create(
+            movement_type=MovementType.SALE_ISSUE, branch_id="b1", warehouse_id="w1",
+            source_module="pos", source_document_type="TICKET",
+            source_document_id="t-1", operation_id="iss-1",
+            created_by_user_id="u1", lines=[issue])
+        PostInventoryMovementUseCase().execute(conn, mv, actor_user_id="u1")
+        vm = _presenter(conn).receipts()
+        assert vm.total == 1                              # sólo la recepción
+        assert vm.rows[0][1] == "Recepción de compra"    # tipo es-MX
+        assert vm.rows[0][2] == "procurement"            # módulo
+        assert vm.rows[0][4] == "Posteado"               # estado es-MX
+
+    def test_receipts_empty_ledger(self, conn):
+        vm = _presenter(conn).receipts()
+        assert vm.total == 0 and vm.rows == []
+
+    def test_counts_view_model(self, conn):
+        from backend.application.inventory.use_cases import CreateCountUseCase
+        from backend.domain.inventory.enums import CountType
+        _seed(conn)  # 5 pzas de p1 en w1/loc1
+        CreateCountUseCase().execute(
+            conn, folio="CT-1", count_type=CountType.CYCLE_COUNT, branch_id="b1",
+            warehouse_id="w1", scope_lines=[{"product_id": "p1"}],
+            operation_id="cnt-1", actor_user_id="u1", blind=True)
+        vm = _presenter(conn).counts()
+        assert vm.total == 1
+        assert vm.rows[0][0] == "CT-1"        # folio
+        assert vm.rows[0][1] == "Cíclico"     # tipo es-MX
+        assert vm.rows[0][2] == "w1"          # almacén
+        assert vm.rows[0][3] == "A ciegas"    # modalidad
+        assert vm.rows[0][4] == "En proceso"  # estado es-MX (start())
+
+    def test_counts_empty(self, conn):
+        vm = _presenter(conn).counts()
+        assert vm.total == 0 and vm.rows == []
+
+    def test_adjustments_view_model(self, conn):
+        from backend.application.inventory.use_cases import CreateAdjustmentUseCase
+        from backend.domain.inventory.enums import AdjustmentReason
+        _seed(conn)  # 5 pzas de p1 en w1/loc1
+        CreateAdjustmentUseCase().execute(
+            conn, folio="AJ-1", branch_id="b1", warehouse_id="w1",
+            reason=AdjustmentReason.DAMAGE,
+            lines=[{"product_id": "p1", "quantity_delta": -1, "location_id": "loc1"}],
+            operation_id="adj-1", actor_user_id="u1")
+        vm = _presenter(conn).adjustments()
+        assert vm.total == 1
+        assert vm.rows[0][0] == "AJ-1"       # folio
+        assert vm.rows[0][1] == "Daño"       # motivo es-MX
+        assert vm.rows[0][2] == "w1"         # almacén
+        assert vm.rows[0][3] in ("Borrador", "Por aprobar")  # estado es-MX
+
+    def test_adjustments_empty(self, conn):
+        vm = _presenter(conn).adjustments()
+        assert vm.total == 0 and vm.rows == []
+
+    def test_alerts_view_model(self, conn):
+        _seed_alert(conn, event_name="INVENTORY_LOW_STOCK", severity="CRITICAL",
+                    channel="IN_APP", status="SENT", message="p1 bajo mínimo")
+        # una alerta de otra sucursal no debe aparecer (alcance por sucursal)
+        _seed_alert(conn, event_name="INVENTORY_LOT_EXPIRING", severity="WARNING",
+                    channel="WHATSAPP", status="SENT", message="lote ajeno",
+                    branch_id="b9")
+        vm = _presenter(conn).alerts()  # default_branch = b1
+        assert vm.total == 1
+        assert vm.rows[0][1] == "Crítica"     # severidad es-MX
+        assert vm.rows[0][2] == "Stock bajo"  # evento es-MX
+        assert vm.rows[0][5] == "p1 bajo mínimo"
+
+    def test_alerts_empty(self, conn):
+        vm = _presenter(conn).alerts()
         assert vm.total == 0 and vm.rows == []
 
     def test_generate_then_list_suggestions(self, conn):

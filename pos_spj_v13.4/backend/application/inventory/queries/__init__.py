@@ -1,5 +1,11 @@
 """Inventory query services (read side for UI/POS/BI). INV-11+."""
 
+from backend.application.inventory.queries.adjustment_query_service import (
+    AdjustmentQueryService,
+)
+from backend.application.inventory.queries.alert_query_service import (
+    AlertQueryService,
+)
 from backend.application.inventory.queries.availability_query_service import (
     InventoryAvailabilityQueryService,
 )
@@ -8,6 +14,9 @@ from backend.application.inventory.queries.audit_query_service import (
 )
 from backend.application.inventory.queries.cold_chain_query_service import (
     ColdChainQueryService,
+)
+from backend.application.inventory.queries.count_query_service import (
+    CountQueryService,
 )
 from backend.application.inventory.queries.expiry_query_service import (
     ExpiryQueryService,
@@ -18,6 +27,9 @@ from backend.application.inventory.queries.movement_query_service import (
 )
 from backend.application.inventory.queries.quarantine_query_service import (
     QuarantineQueryService,
+)
+from backend.application.inventory.queries.receipt_query_service import (
+    ReceiptQueryService,
 )
 from backend.application.inventory.queries.reservation_query_service import (
     ReservationQueryService,
@@ -45,10 +57,16 @@ from backend.application.inventory.queries.traceability_query_service import (
 from backend.application.inventory.queries.transfer_query_service import (
     TransferQueryService,
 )
+from backend.application.inventory.queries.weight_query_service import (
+    WeightQueryService,
+)
 
 __all__ = [
+    "AdjustmentQueryService",
+    "AlertQueryService",
     "AuditQueryService",
     "ColdChainQueryService",
+    "CountQueryService",
     "ExpiryQueryService",
     "GenealogyEdge",
     "InventoryAvailabilityQueryService",
@@ -61,6 +79,7 @@ __all__ = [
     "LowStockItemDTO",
     "LowStockProductDTO",
     "RecallReportDTO",
+    "ReceiptQueryService",
     "ReplenishmentQueryService",
     "ReservationQueryService",
     "StockQueryService",
@@ -68,4 +87,5 @@ __all__ = [
     "TraceabilityQueryService",
     "TransferQueryService",
     "WarehouseQueryService",
+    "WeightQueryService",
 ]
