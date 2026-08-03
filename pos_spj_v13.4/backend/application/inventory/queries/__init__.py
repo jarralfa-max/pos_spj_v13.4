@@ -3,6 +3,9 @@
 from backend.application.inventory.queries.adjustment_query_service import (
     AdjustmentQueryService,
 )
+from backend.application.inventory.queries.alert_query_service import (
+    AlertQueryService,
+)
 from backend.application.inventory.queries.availability_query_service import (
     InventoryAvailabilityQueryService,
 )
@@ -60,6 +63,7 @@ from backend.application.inventory.queries.weight_query_service import (
 
 __all__ = [
     "AdjustmentQueryService",
+    "AlertQueryService",
     "AuditQueryService",
     "ColdChainQueryService",
     "CountQueryService",

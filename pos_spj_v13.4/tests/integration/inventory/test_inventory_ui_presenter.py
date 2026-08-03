@@ -9,6 +9,7 @@ import pytest
 from backend.application.inventory.analytics import InventoryAnalyticsService
 from backend.application.inventory.queries import (
     AdjustmentQueryService,
+    AlertQueryService,
     AuditQueryService,
     ColdChainQueryService,
     CountQueryService,
@@ -94,7 +95,20 @@ def _presenter(conn):
         receipt_query_factory=ReceiptQueryService,
         count_query_factory=CountQueryService,
         adjustment_query_factory=AdjustmentQueryService,
+        alert_query_factory=AlertQueryService,
         session_context=_Session())
+
+
+def _seed_alert(conn, *, event_name, severity, channel, status, message,
+                branch_id="b1"):
+    from backend.shared.ids import new_uuid
+    conn.execute(
+        "INSERT INTO inventory_notification_log (id, event_id, event_name, channel,"
+        " recipient_ref, severity, status, dedupe_key, message, branch_id,"
+        " created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        (new_uuid(), new_uuid(), event_name, channel, "u1", severity, status,
+         new_uuid(), message, branch_id, "2026-08-03T10:00:00"))
+    conn.commit()
 
 
 def _seed_transfer(conn, *, number, ttype, origin, destination, status,
@@ -410,6 +424,23 @@ class TestPresenter:
 
     def test_adjustments_empty(self, conn):
         vm = _presenter(conn).adjustments()
+        assert vm.total == 0 and vm.rows == []
+
+    def test_alerts_view_model(self, conn):
+        _seed_alert(conn, event_name="INVENTORY_LOW_STOCK", severity="CRITICAL",
+                    channel="IN_APP", status="SENT", message="p1 bajo mínimo")
+        # una alerta de otra sucursal no debe aparecer (alcance por sucursal)
+        _seed_alert(conn, event_name="INVENTORY_LOT_EXPIRING", severity="WARNING",
+                    channel="WHATSAPP", status="SENT", message="lote ajeno",
+                    branch_id="b9")
+        vm = _presenter(conn).alerts()  # default_branch = b1
+        assert vm.total == 1
+        assert vm.rows[0][1] == "Crítica"     # severidad es-MX
+        assert vm.rows[0][2] == "Stock bajo"  # evento es-MX
+        assert vm.rows[0][5] == "p1 bajo mínimo"
+
+    def test_alerts_empty(self, conn):
+        vm = _presenter(conn).alerts()
         assert vm.total == 0 and vm.rows == []
 
     def test_generate_then_list_suggestions(self, conn):

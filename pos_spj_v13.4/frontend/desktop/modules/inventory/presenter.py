@@ -16,6 +16,7 @@ from frontend.desktop.modules.inventory.view_models import (
     KpiViewModel,
     TableViewModel,
     adjustments_table,
+    alerts_table,
     audit_table,
     availability_breakdown_table,
     availability_table,
@@ -50,6 +51,7 @@ class InventoryPresenter:
                  audit_query_factory=None, transfer_query_factory=None,
                  weight_query_factory=None, receipt_query_factory=None,
                  count_query_factory=None, adjustment_query_factory=None,
+                 alert_query_factory=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -71,6 +73,7 @@ class InventoryPresenter:
         self._receipt_factory = receipt_query_factory
         self._count_factory = count_query_factory
         self._adjustment_factory = adjustment_query_factory
+        self._alert_factory = alert_query_factory
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -130,6 +133,15 @@ class InventoryPresenter:
         branch = branch_id or self.default_branch()
         rows = self._audit_factory(self._conn()).list_recent(branch_id=branch or None)
         return audit_table(rows)
+
+    def alerts(self, *, branch_id: str | None = None) -> TableViewModel:
+        """Alertas recientes de inventario (fecha, severidad, evento, canal, estado,
+        mensaje). Sólo lectura; delega en el alert query service."""
+        if self._alert_factory is None:
+            return alerts_table([])
+        branch = branch_id or self.default_branch()
+        rows = self._alert_factory(self._conn()).list_recent(branch_id=branch or None)
+        return alerts_table(rows)
 
     def adjustments(self, *, branch_id: str | None = None) -> TableViewModel:
         """Ajustes recientes (folio, motivo, almacén, estado, creado). Sólo

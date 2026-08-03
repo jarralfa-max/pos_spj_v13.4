@@ -931,3 +931,24 @@ una ventana a la actividad que toca la sucursal.
   `test_ajustes_wires_the_real_adjustments_page` + suites UI = 64 passed;
   inventario `2 failed / 558 passed` (2 pre-existentes, cero regresiones);
   arquitectura `22 failed / 427 passed` desde la raíz del repo (sin fallas nuevas).
+
+### Slice 18 — Página real "Alertas" (§23) — HECHO
+
+- **`AlertQueryService`** (application/queries, read-only, `InventoryRepositoryBase`):
+  `list_recent(branch_id, limit=200)` sobre `inventory_notification_log` — alertas
+  despachadas por el motor de notificaciones (stock bajo, caducidad, cadena de
+  frío) por sucursal (fecha, severidad, evento, canal, estado, mensaje), más
+  recientes primero. Sólo `SELECT`.
+- **`AlertsPage`** (DS): `PageHeader` + `StandardTable`
+  (Fecha/Severidad/Evento/Canal/Estado/Mensaje); refresca al navegar. Presentación
+  pura.
+- **Presenter** `alerts(branch_id)` + factory opcional `alert_query_factory`; view
+  model `alerts_table` + etiquetas es-MX (`alert_severity_es` 3 severidades,
+  `alert_event_es` para los eventos de alerta comunes).
+- **Registro**: `inventory_alerts` → `AlertsPage`. 20 páginas reales; queda 1 en
+  placeholder (Configuración).
+- **Evidencia**: `test_alerts_view_model` (alerta crítica de stock bajo, alcance
+  por sucursal), `test_alerts_empty`, `test_alertas_wires_the_real_alerts_page` +
+  suites UI = 67 passed; inventario `2 failed / 561 passed` (2 pre-existentes, cero
+  regresiones); arquitectura `22 failed / 427 passed` desde la raíz del repo (sin
+  fallas nuevas).

@@ -423,6 +423,47 @@ def adjustments_table(rows: list[dict]) -> TableViewModel:
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 
 
+ALERT_SEVERITY_ES = {
+    "INFO": "Informativa", "WARNING": "Advertencia", "CRITICAL": "Crítica",
+}
+
+ALERT_EVENT_ES = {
+    "INVENTORY_LOW_STOCK": "Stock bajo",
+    "INVENTORY_LOT_EXPIRING": "Lote por vencer",
+    "INVENTORY_LOT_EXPIRED": "Lote vencido",
+    "INVENTORY_TEMPERATURE_EXCURSION": "Excursión de temperatura",
+    "INVENTORY_QUARANTINE_OPENED": "Cuarentena abierta",
+    "INVENTORY_COUNT_VARIANCE_DETECTED": "Varianza de conteo",
+    "INVENTORY_TRANSFER_DIFFERENCE_DETECTED": "Diferencia en transferencia",
+    "INVENTORY_REPLENISHMENT_SUGGESTED": "Reposición sugerida",
+}
+
+
+def alert_severity_es(code) -> str:
+    return ALERT_SEVERITY_ES.get(str(code or ""), str(code or "—"))
+
+
+def alert_event_es(code) -> str:
+    return ALERT_EVENT_ES.get(str(code or ""), str(code or "—"))
+
+
+def alerts_table(rows: list[dict]) -> TableViewModel:
+    """rows: notification-log rows (list_recent) → display table (fecha, severidad,
+    evento, canal, estado, mensaje), más recientes primero."""
+    out, ids = [], []
+    for i, r in enumerate(rows):
+        ids.append(f"{r.get('event_name','')}:{i}")
+        out.append([
+            str(r.get("created_at") or "—")[:19],
+            alert_severity_es(r.get("severity")),
+            alert_event_es(r.get("event_name")),
+            str(r.get("channel") or "—"),
+            str(r.get("status") or "—"),
+            str(r.get("message") or "—"),
+        ])
+    return TableViewModel(rows=out, row_ids=ids, total=len(out))
+
+
 def cold_chain_table(rows: list[dict]) -> TableViewModel:
     """rows: open excursion rows (list_open_excursions) → display table (almacén,
     lote, temperatura, rango, estado, acción)."""
