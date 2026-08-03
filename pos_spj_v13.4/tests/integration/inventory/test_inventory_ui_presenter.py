@@ -8,8 +8,18 @@ import pytest
 
 from backend.application.inventory.analytics import InventoryAnalyticsService
 from backend.application.inventory.queries import (
+    AuditQueryService,
+    ColdChainQueryService,
+    ExpiryQueryService,
     InventoryAvailabilityQueryService,
+    LotQueryService,
+    MovementQueryService,
+    QuarantineQueryService,
     ReplenishmentQueryService,
+    ReservationQueryService,
+    StockQueryService,
+    TraceabilityQueryService,
+    TransferQueryService,
     WarehouseQueryService,
 )
 from backend.application.inventory.use_cases import (
@@ -66,7 +76,32 @@ def _presenter(conn):
         generate_suggestions_uc=GenerateReplenishmentSuggestionsUseCase(),
         warehouse_query_factory=WarehouseQueryService,
         analytics_factory=InventoryAnalyticsService,
+        lot_query_factory=LotQueryService,
+        movement_query_factory=MovementQueryService,
+        expiry_query_factory=ExpiryQueryService,
+        traceability_query_factory=TraceabilityQueryService,
+        stock_query_factory=StockQueryService,
+        quarantine_query_factory=QuarantineQueryService,
+        reservation_query_factory=ReservationQueryService,
+        cold_chain_query_factory=ColdChainQueryService,
+        audit_query_factory=AuditQueryService,
+        transfer_query_factory=TransferQueryService,
         session_context=_Session())
+
+
+def _seed_transfer(conn, *, number, ttype, origin, destination, status,
+                   updated_at):
+    from backend.shared.ids import new_uuid
+    conn.execute(
+        "INSERT INTO stock_transfers (id, transfer_number, transfer_type,"
+        " source_channel, source_module, origin_node_type, origin_branch_id,"
+        " destination_node_type, destination_branch_id, requested_by_user_id,"
+        " priority, status, operation_id, created_at, updated_at) VALUES"
+        " (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (new_uuid(), number, ttype, "DESKTOP", "inventory", "BRANCH", origin,
+         "BRANCH", destination, "u1", "NORMAL", status, new_uuid(),
+         updated_at, updated_at))
+    conn.commit()
 
 
 class TestPresenter:
@@ -75,6 +110,214 @@ class TestPresenter:
         vm = _presenter(conn).availability(product_ids=["p1"])
         assert vm.total == 1 and vm.rows[0][0] == "p1"
         assert vm.rows[0][3].startswith("5")  # available
+
+    def test_availability_breakdown_view_model(self, conn):
+        _seed(conn)  # 5 disponibles de p1 en b1
+        vm = _presenter(conn).availability_breakdown(product_id="p1")
+        by_concept = {row[0]: row[1] for row in vm.rows}
+        assert by_concept["Total en mano"].startswith("5")
+        assert by_concept["Disponible"].startswith("5")
+        assert by_concept["Reservado"].startswith("0")
+        # el desglose incluye todos los buckets físicos (§9.3)
+        assert "En cuarentena" in by_concept and "Bloqueado calidad" in by_concept
+
+    def test_availability_breakdown_empty_without_product(self, conn):
+        vm = _presenter(conn).availability_breakdown(product_id="")
+        assert vm.total == 0 and vm.rows == []
+
+    def test_lots_view_model(self, conn):
+        from backend.application.inventory.use_cases import RegisterInventoryLotUseCase
+        from backend.domain.inventory.enums import LotOrigin
+        RegisterInventoryLotUseCase().execute(
+            conn, product_id="p1", lot_code="L-9", origin_type=LotOrigin.PURCHASE,
+            operation_id="lot-9", actor_user_id="u1", branch_id="b1",
+            expiration_date="2027-01-15")
+        vm = _presenter(conn).lots(product_id="p1")
+        assert vm.total == 1
+        assert vm.rows[0][0] == "L-9"          # código
+        assert vm.rows[0][1] == "Compra"       # origen es-MX
+        assert vm.rows[0][2] == "Por inspección"  # calidad por defecto es-MX
+        assert vm.rows[0][3] == "2027-01-15"
+
+    def test_lots_empty_without_product(self, conn):
+        vm = _presenter(conn).lots(product_id="")
+        assert vm.total == 0 and vm.rows == []
+
+    def test_movements_view_model(self, conn):
+        _seed(conn)  # postea un PURCHASE_RECEIPT
+        vm = _presenter(conn).movements()
+        assert vm.total == 1
+        assert vm.rows[0][1] == "Recepción de compra"  # tipo es-MX
+        assert vm.rows[0][2] == "procurement"          # módulo
+        assert vm.rows[0][4] == "Posteado"             # estado es-MX
+
+    def test_movements_empty_ledger(self, conn):
+        vm = _presenter(conn).movements()
+        assert vm.total == 0 and vm.rows == []
+
+    def test_expiring_view_model(self, conn):
+        from datetime import date, timedelta
+        from backend.application.inventory.use_cases import RegisterInventoryLotUseCase
+        from backend.domain.inventory.enums import LotOrigin
+        soon = (date.today() + timedelta(days=3)).isoformat()  # crítico
+        reg = RegisterInventoryLotUseCase().execute(
+            conn, product_id="p1", lot_code="L-EXP", origin_type=LotOrigin.PURCHASE,
+            operation_id="lot-exp", actor_user_id="u1", branch_id="b1",
+            expiration_date=soon)
+        line = InventoryMovementLine.create(product_id="p1", quantity=Decimal("4"),
+                                            to_location_id="loc1", lot_id=reg.entity_id)
+        mv = InventoryMovement.create(
+            movement_type=MovementType.PURCHASE_RECEIPT, branch_id="b1",
+            warehouse_id="w1", source_module="procurement", source_document_type="GR",
+            source_document_id="gr-exp", operation_id="rcv-exp",
+            created_by_user_id="u1", lines=[line])
+        PostInventoryMovementUseCase().execute(conn, mv, actor_user_id="u1")
+        vm = _presenter(conn).expiring()
+        assert vm.total == 1
+        assert vm.rows[0][1] == "L-EXP"      # lote
+        assert vm.rows[0][2].startswith("4")  # cantidad
+        assert vm.rows[0][4] in ("Crítico", "Próximo a vencer", "Vencido")
+
+    def test_expiring_empty_when_all_fresh(self, conn):
+        _seed(conn)  # stock sin lote / sin caducidad próxima
+        vm = _presenter(conn).expiring()
+        assert vm.total == 0
+
+    def test_traceability_view_model(self, conn):
+        from backend.application.inventory.use_cases import RegisterInventoryLotUseCase
+        from backend.domain.inventory.enums import LotOrigin
+        reg = RegisterInventoryLotUseCase().execute(
+            conn, product_id="p1", lot_code="L-TR", origin_type=LotOrigin.PURCHASE,
+            operation_id="lot-tr", actor_user_id="u1", branch_id="b1")
+        line = InventoryMovementLine.create(product_id="p1", quantity=Decimal("6"),
+                                            to_location_id="loc1", lot_id=reg.entity_id)
+        mv = InventoryMovement.create(
+            movement_type=MovementType.PURCHASE_RECEIPT, branch_id="b1",
+            warehouse_id="w1", source_module="procurement", source_document_type="GR",
+            source_document_id="gr-tr", operation_id="rcv-tr",
+            created_by_user_id="u1", lines=[line])
+        PostInventoryMovementUseCase().execute(conn, mv, actor_user_id="u1")
+        vm = _presenter(conn).traceability(lot_id=reg.entity_id)
+        assert vm.total == 1
+        assert vm.rows[0][1] == "Recepción de compra"  # movimiento es-MX
+        assert vm.rows[0][2] == "Entrada"              # dirección es-MX
+
+    def test_traceability_empty_without_lot(self, conn):
+        vm = _presenter(conn).traceability(lot_id="")
+        assert vm.total == 0 and vm.rows == []
+
+    def test_stock_view_model(self, conn):
+        _seed(conn)  # 5 disponibles de p1 en w1/loc1
+        vm = _presenter(conn).stock()
+        assert vm.total == 1
+        assert vm.rows[0][0] == "p1"          # producto
+        assert vm.rows[0][1] == "w1"          # almacén
+        assert vm.rows[0][2] == "Disponible"  # estado/bucket es-MX
+        assert vm.rows[0][3].startswith("5")  # cantidad
+
+    def test_stock_empty_when_no_balances(self, conn):
+        vm = _presenter(conn).stock()
+        assert vm.total == 0 and vm.rows == []
+
+    def test_quarantines_view_model(self, conn):
+        from backend.application.inventory.use_cases import QuarantineStockUseCase
+        from backend.domain.inventory.enums import QuarantineReason
+        _seed(conn)  # 5 disponibles de p1 en loc1
+        QuarantineStockUseCase().execute(
+            conn, product_id="p1", branch_id="b1", warehouse_id="w1",
+            reason=QuarantineReason.QUALITY_FAILURE, quantity=Decimal("2"),
+            operation_id="q-1", actor_user_id="qa", location_id="loc1")
+        vm = _presenter(conn).quarantines()
+        assert vm.total == 1
+        assert vm.rows[0][0] == "p1"                 # producto
+        assert vm.rows[0][2] == "Falla de calidad"   # motivo es-MX
+        assert vm.rows[0][4] == "Abierta"            # estado es-MX
+
+    def test_quarantines_empty(self, conn):
+        vm = _presenter(conn).quarantines()
+        assert vm.total == 0 and vm.rows == []
+
+    def test_reservations_view_model(self, conn):
+        from backend.application.inventory.use_cases import CreateReservationUseCase
+        from backend.domain.inventory.enums import ReservationSource
+        _seed(conn)  # 5 disponibles de p1 en loc1
+        CreateReservationUseCase().execute(
+            conn, product_id="p1", branch_id="b1", warehouse_id="w1",
+            source=ReservationSource.SALE, source_document_id="S-1",
+            quantity=Decimal("2"), operation_id="res-1", actor_user_id="u1",
+            location_id="loc1")
+        vm = _presenter(conn).reservations(product_id="p1")
+        assert vm.total == 1
+        assert vm.rows[0][0] == "Venta"       # origen es-MX
+        assert vm.rows[0][1] == "S-1"         # documento
+        assert vm.rows[0][3].startswith("2")  # cantidad
+        assert vm.rows[0][4] == "Confirmada"  # estado es-MX
+
+    def test_reservations_empty_without_product(self, conn):
+        vm = _presenter(conn).reservations(product_id="")
+        assert vm.total == 0 and vm.rows == []
+
+    def test_cold_chain_view_model(self, conn):
+        from backend.application.inventory.use_cases import (
+            RecordTemperatureReadingUseCase,
+        )
+        from backend.domain.inventory.enums import TemperaturePoint
+        RecordTemperatureReadingUseCase().execute(
+            conn, sensor_id="s1", warehouse_id="w1", temperature=Decimal("9"),
+            reading_point=TemperaturePoint.STORAGE, min_temp=Decimal("0"),
+            max_temp=Decimal("4"), operation_id="tmp-1", actor_user_id="u1")
+        vm = _presenter(conn).cold_chain_excursions()
+        assert vm.total == 1
+        assert vm.rows[0][0] == "w1"                 # almacén
+        assert vm.rows[0][4] == "Fuera de rango"     # estado es-MX
+
+    def test_cold_chain_empty(self, conn):
+        vm = _presenter(conn).cold_chain_excursions()
+        assert vm.total == 0 and vm.rows == []
+
+    def test_audit_view_model(self, conn):
+        _seed(conn)  # postea un MOVEMENT (+regla de reposición) → bitácora en b1
+        vm = _presenter(conn).audit()
+        # la entrada más reciente es el posteo del movimiento
+        assert vm.total >= 1
+        assert vm.rows[0][1] == "Movimiento"  # entidad es-MX
+        assert vm.rows[0][2] == "POSTED"      # acción
+        assert vm.rows[0][3] == "u1"          # usuario
+
+    def test_audit_empty(self, conn):
+        vm = _presenter(conn).audit()
+        assert vm.total == 0 and vm.rows == []
+
+    def test_transfers_view_model_scoped_and_localized(self, conn):
+        from backend.infrastructure.db.schema.transfers_schema import (
+            create_transfers_schema,
+        )
+        create_transfers_schema(conn)
+        # b1 como origen (matchea) y como destino (matchea); una ajena (b9→b8).
+        _seed_transfer(conn, number="TR-1", ttype="BRANCH_TO_BRANCH", origin="b1",
+                       destination="b2", status="IN_TRANSIT",
+                       updated_at="2026-08-03T10:00:00")
+        _seed_transfer(conn, number="TR-2", ttype="EMERGENCY_TRANSFER", origin="b3",
+                       destination="b1", status="RECEIVED",
+                       updated_at="2026-08-03T12:00:00")
+        _seed_transfer(conn, number="TR-9", ttype="BRANCH_TO_BRANCH", origin="b9",
+                       destination="b8", status="DRAFT",
+                       updated_at="2026-08-03T13:00:00")
+        vm = _presenter(conn).transfers()  # default_branch = b1
+        assert vm.total == 2                      # sólo las que tocan b1
+        assert vm.rows[0][0] == "TR-2"            # más reciente primero
+        assert vm.rows[0][1] == "Emergencia"      # tipo es-MX
+        assert vm.rows[0][4] == "Recibida"        # estado es-MX
+        assert vm.rows[1][0] == "TR-1"
+        assert vm.rows[1][4] == "En tránsito"
+
+    def test_transfers_empty(self, conn):
+        from backend.infrastructure.db.schema.transfers_schema import (
+            create_transfers_schema,
+        )
+        create_transfers_schema(conn)
+        vm = _presenter(conn).transfers()
+        assert vm.total == 0 and vm.rows == []
 
     def test_generate_then_list_suggestions(self, conn):
         _seed(conn)

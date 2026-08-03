@@ -181,8 +181,9 @@ conteos, merma, cadena de frío, lotes.
   el `InventoryExecutionContext` (vía `InventoryUseCaseFactory.execution_context()`)
   y lo pasen a cada comando, para que el enforcement §5.3 esté activo en producción
   extremo a extremo (hoy el seam existe y cada caso de uso lo acepta).
-- Transferencias (agregado propio — se abordará junto con P1-B transferencias
-  físicas).
+- Transferencias: resueltas en **P1-B** como contexto acotado propio
+  (`backend/*/transfers/`), que mueve stock sólo por el ledger canónico vía
+  `InventoryTransferGateway`. Ver sección «P1-B — Transferencias físicas».
 - Cuenta técnica `service_account_id` para procesos automáticos.
 
 ## P0-B — Integridad
@@ -540,8 +541,52 @@ asignación acotada al almacén.
 (SALE_ISSUE/SALE_RETURN) · Compras (PURCHASE_RECEIPT/SUPPLIER_RETURN/reverso) ·
 Producción (consumo/salidas) — todos fail-closed vía `resolve_ingress` + guardrail
 de arquitectura. Merma/Transferencias ya postean por casos de uso canónicos
-(`RegisterWasteUseCase` / transferencias INV-12), sin sobre de evento externo.
+(`RegisterWasteUseCase` / transferencias, ver P1-B), sin sobre de evento externo.
 Pendiente: bridges legacy → P2.
+
+## P1-B — Transferencias físicas (contexto acotado propio) — HECHO
+
+La transferencia física entre sucursales/almacenes se implementó como **contexto
+acotado propio** (`backend/{domain,application,infrastructure}/transfers/` +
+`frontend/desktop/modules/transfers/`), no como agregado dentro de Inventario. El
+inventario sigue siendo la única fuente de verdad del stock: las transferencias
+mueven existencias exclusivamente a través del ledger canónico (reserva → despacho
+→ recepción) vía el `InventoryTransferGateway`.
+
+- **Dominio** `backend/domain/transfers/`: entidades, `enums`, `events`
+  (`TransferEvents.*`, todos `TRANSFER_*`), `policies`, `value_objects` y
+  `services/transfer_suggestion_service` (sugerencias sin SQL, sin `float`).
+- **Aplicación** `backend/application/transfers/`: 10 familias de casos de uso del
+  ciclo completo — solicitud → aprobación (total/parcial/rechazo) → reserva →
+  picking → empaque → despacho → recepción (ciega incluida) → diferencias →
+  devolución → sugerencia. `permissions.TransferPermissions` (20 permisos
+  granulares `TRANSFERS_*`); `authorization`, `offline_sync`
+  (`OfflineTransferOperationExecutor`, `operation_hash`, `local_sequence`,
+  `AGGREGATE_VERSION`), `printing` (gateway), `integrations`
+  (`CanonicalInventoryTransferGateway` → `ReserveInventoryUseCase` /
+  `PostTransferDispatchUseCase` / `PostTransferReceiptUseCase`; perfiles de
+  producto: conversión de unidad, peso variable, calidad, vida útil) y
+  `notification_handlers` (WhatsApp/in-app por gateway, con sink de auditoría).
+- **Infraestructura**: `repositories/transfers` + `infrastructure/printing/*`
+  (renderers + `TransfersPrintGateway`, sin PyQt/impresora directa/SQL; reimpresión
+  con `original_print_id`/`reprint_reason`). Esquema propiedad de migración
+  `154_transfers_bounded_context_schema.py` (UUIDv7 + Decimal).
+- **UI**: workspace `frontend/desktop/modules/transfers/` (Design System:
+  `PageHeader`/`KPIBar`/`StandardTable`/`FormDialog`/`DecimalInput`/`BarcodeInput`/
+  `ChartCard`), montado en navegación por
+  `backend/infrastructure/desktop/transfers_factory.TransfersModuleHost`
+  (`core/ui/module_loader.py` + `interfaz/main_window.py`). El legacy
+  `modulos/transferencias.py` ya no existe (allowlist legacy vacía).
+- **Evidencia**: 78 pruebas verdes (unit `test_transfers_*` + integración de
+  esquema/bootstrap + e2e `test_transfers_clean_workspace`); 25 guardrails de
+  arquitectura `test_transfers_*` / `test_no_legacy_transfer_imports` en verde
+  (resuelven desde la raíz del repo). Sin regresiones en el resto de la suite.
+
+> Nota de CWD: los guardrails de transferencias fijan rutas
+> `pos_spj_v13.4/backend/...`, por lo que sólo resuelven ejecutando pytest desde la
+> **raíz externa** del repo (`/…/pos_spj_v13.4/`). Corridos desde ahí, la línea base
+> real de arquitectura es `22 failed / 427 passed` y ninguno de los 22 es de
+> transferencias.
 
 ## P1-C — UI de inventario (presentación pura)
 
@@ -564,3 +609,249 @@ Pendiente: bridges legacy → P2.
 - **Evidencia**: `test_inventory_ui_guardrails` 4 passed; inventario
   `2 failed / 508 passed` (2 pre-existentes, cero regresiones); arquitectura
   `58 failed / 391 passed` (+1 guardrail, sin fallas nuevas).
+
+### Slice 2 — Navegación lateral canónica: 21 secciones (§54) — HECHO
+
+- **Requisito (Design System SPJ)**: sidebar para las secciones principales (no un
+  `QTabWidget`), 21 secciones, ninguna ventana saturada.
+- **`navigation.py`** `INVENTORY_NAV` expandido a las **21 secciones canónicas** en
+  el orden del DS: Resumen · Existencias · Disponibilidad · Almacenes · Ubicaciones
+  · Lotes · Peso variable · Cadena de frío · Reservas · Movimientos · Transferencias
+  · Recepciones · Reposición · Conteos · Ajustes · Cuarentena · Caducidades ·
+  Trazabilidad · Alertas · Auditoría · Configuración. Cada `NavEntry` mapea a su
+  permiso granular real (`WEIGHT_CAPTURE`, `TEMPERATURE_RECORD`, `VIEW_AUDIT`,
+  `SETTINGS_VIEW`, …), con título es-MX, tooltip e icono. Datos puros (sin Qt).
+- **Evidencia**: `test_sidebar_has_the_21_canonical_sections_in_order`,
+  `test_sidebar_page_ids_are_unique` + guardrail de permisos granulares 10 passed;
+  inventario `2 failed / 510 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `58 failed / 391 passed` (sin fallas nuevas).
+### Slice 3 — Shell con navegación lateral (SideNav + QStackedWidget) (§54) — HECHO
+
+- **`InventoryView`** (`frontend/desktop/modules/inventory/inventory_view.py`):
+  compone `SideNav` (21 secciones) + `QStackedWidget` (una página por sección),
+  construcción **perezosa** al navegar, slot de índice estable, y aviso resiliente
+  si una página falla (no tumba el módulo). Presentación pura. Espejo del patrón
+  enterprise de `ProductsView`.
+- **`PlaceholderPage`** (DS): `PageHeader` + `SectionCard` para las secciones aún
+  sin página interactiva — el sidebar está completo desde el día uno sin una
+  ventana catch-all saturada. Sin acceso a datos ni lógica.
+- **`page_registry.build_page_specs()`**: mapea cada sección de `INVENTORY_NAV` a
+  su fábrica de página real (Resumen→Dashboard, Almacenes, Ubicaciones,
+  Reposición) o a `PlaceholderPage`; devuelve `[(factory, título)]` ordenado.
+- **Contenedor** `modulos/inventario_enterprise.py`: cambia de `QTabWidget` a
+  `InventoryView` con las 21 secciones. Se elimina el armado de pestañas eager y la
+  pestaña perezosa de Analítica.
+- **Evidencia**: `test_inventory_view_shell` 3 passed (21 specs = 21 nav;
+  construcción perezosa; secciones sin página real usan `PlaceholderPage`) +
+  guardrails UI/contenedor; inventario `2 failed / 513 passed` (2 pre-existentes,
+  cero regresiones); arquitectura `58 failed / 391 passed` (+3 shell, sin fallas
+  nuevas). (`merma.py` sigue con un fallo pre-existente ajeno a esta slice.)
+### Slice 4 — Página real "Disponibilidad" (desglose §9.3) — HECHO
+
+- **`AvailabilityPage`** (DS): `PageHeader` + `SearchInput` (producto por ID/código
+  escaneado — sin combo gigante) + `StandardTable` (Concepto/Cantidad). Al buscar,
+  muestra el desglose de disponibilidad del producto por bucket físico: Total en
+  mano, Disponible, Reservado, Asignado, En tránsito, Por inspección, En
+  cuarentena, Bloqueado calidad, Dañado, Caducado, Devuelto, Retenido producción,
+  Retiro (recall). Presentación pura.
+- **Presenter** `availability_breakdown(product_id, …)`: delega en el availability
+  query service y devuelve `AvailabilityDTO.explain()` (§9.3) mapeado por
+  `availability_breakdown_table` (view model, es-MX, orden canónico).
+- **Registro**: `inventory_availability` → `AvailabilityPage` (reemplaza su
+  placeholder). Quedan 16 secciones en placeholder.
+- **Evidencia**: `test_availability_breakdown_view_model`,
+  `test_availability_breakdown_empty_without_product`,
+  `test_disponibilidad_wires_the_real_availability_page` + suites UI = 22 passed;
+  inventario `2 failed / 516 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `58 failed / 391 passed` (sin fallas nuevas).
+### Slice 5 — Página real "Lotes" (§46) — HECHO
+
+- **`LotQueryService`** (application/queries): read-only sobre `inventory_lots`,
+  `list_for_product(product_id, branch_id)` ordenado por caducidad (FEFO); expone
+  código, origen, estado de calidad y fechas. Registrado en el paquete de queries.
+- **`LotsPage`** (DS): `PageHeader` + `SearchInput` (producto por ID/código — sin
+  combo gigante) + `StandardTable` (Lote/Origen/Calidad/Caducidad). Presentación
+  pura.
+- **Presenter** `lots(product_id, …)` + factory opcional `lot_query_factory`
+  (cableado en el contenedor); view models `lots_table` + etiquetas es-MX
+  (`lot_origin_es`, `lot_quality_es`).
+- **Registro**: `inventory_lots` → `LotsPage`. Quedan 15 secciones en placeholder;
+  6 páginas reales (Resumen, Disponibilidad, Almacenes, Ubicaciones, Lotes,
+  Reposición).
+- **Evidencia**: `test_lots_view_model`, `test_lots_empty_without_product`,
+  `test_lotes_wires_the_real_lots_page` + suites UI = 25 passed; inventario
+  `2 failed / 519 passed` (2 pre-existentes, cero regresiones); arquitectura
+  `58 failed / 391 passed` (sin fallas nuevas).
+
+### Slice 6 — Página real "Movimientos" (§15) — HECHO
+
+- **`MovementQueryService`** (application/queries): read-only sobre
+  `inventory_ledger`, `list_recent(branch_id, limit=100)` — más recientes primero,
+  acotado (la UI nunca jala todo el ledger); expone fecha, tipo, módulo, documento
+  y estado.
+- **`MovementsPage`** (DS): `PageHeader` + `StandardTable`
+  (Fecha/Tipo/Módulo/Documento/Estado); refresca al navegar. Presentación pura.
+- **Presenter** `movements(branch_id, limit)` + factory opcional
+  `movement_query_factory`; view model `movements_table` + etiquetas es-MX
+  (`movement_type_es` para 24 tipos, `movement_status_es`).
+- **Registro**: `inventory_movements` → `MovementsPage`. 7 páginas reales; quedan
+  14 en placeholder.
+- **Evidencia**: `test_movements_view_model`, `test_movements_empty_ledger`,
+  `test_movimientos_wires_the_real_movements_page` + suites UI = 28 passed;
+  inventario `2 failed / 522 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `58 failed / 391 passed` (sin fallas nuevas).
+
+### Slice 7 — Página real "Caducidades" (§9.4) — HECHO
+
+- **`ExpiryQueryService`** (application/queries, **read-only**): join de balances
+  AVAILABLE con su lote, clasifica cada uno con el `ExpiryRiskService` puro y
+  devuelve **sólo los lotes en riesgo** (vencido/crítico/próximo), próximos a
+  vencer primero. No emite eventos ni mueve stock (eso es de los casos de uso
+  §9.4).
+- **`ExpiryPage`** (DS): `PageHeader` + `StandardTable`
+  (Producto/Lote/Cantidad/Días/Riesgo); refresca al navegar. Presentación pura.
+- **Presenter** `expiring(branch_id)` + factory opcional `expiry_query_factory`;
+  view model `expiry_table` + etiquetas es-MX (`expiry_risk_es`).
+- **Registro**: `inventory_expiry` → `ExpiryPage`. 8 páginas reales; quedan 13 en
+  placeholder.
+- **Evidencia**: `test_expiring_view_model`, `test_expiring_empty_when_all_fresh`,
+  `test_caducidades_wires_the_real_expiry_page` + suites UI = 31 passed;
+  inventario `2 failed / 525 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `58 failed / 391 passed` (sin fallas nuevas).
+
+### Slice 8 — Página real "Trazabilidad" (§46) — HECHO
+
+- **`TraceabilityPage`** (DS): `PageHeader` + `SearchInput` (lote por ID/código —
+  sin combo gigante) + `StandardTable`
+  (Fecha/Movimiento/Dirección/Módulo/Documento). Al buscar, muestra el rastreo
+  **ascendente** del lote (eventos que lo originaron). Presentación pura.
+- **Presenter** `traceability(lot_id)` + factory opcional
+  `traceability_query_factory` (`TraceabilityQueryService.trace_upstream`); view
+  model `traceability_table` + etiquetas es-MX (`movement_direction_es` +
+  `movement_type_es`).
+- **Registro**: `inventory_traceability` → `TraceabilityPage`. 9 páginas reales;
+  quedan 12 en placeholder.
+- **Evidencia**: `test_traceability_view_model`,
+  `test_traceability_empty_without_lot`,
+  `test_trazabilidad_wires_the_real_traceability_page` + suites UI = 34 passed;
+  inventario `2 failed / 528 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `58 failed / 391 passed` (sin fallas nuevas).
+
+### Slice 9 — Página real "Existencias" (§14) — HECHO
+
+- **`StockQueryService`** (application/queries, read-only): sobre
+  `inventory_balances`, `list_on_hand(branch_id, limit=500)` — balances con
+  cantidad/peso ≠ 0 por producto/almacén/bucket, ordenados y acotados.
+- **`StockPage`** (DS): `PageHeader` + `StandardTable`
+  (Producto/Almacén/Estado/Cantidad/Reservado); refresca al navegar. Presentación
+  pura.
+- **Presenter** `stock(branch_id)` + factory opcional `stock_query_factory`; view
+  model `stock_table` (usa `status_es` para el bucket).
+- **Registro**: `inventory_stock` → `StockPage`. 10 páginas reales; quedan 11 en
+  placeholder.
+- **Evidencia**: `test_stock_view_model`, `test_stock_empty_when_no_balances`,
+  `test_existencias_wires_the_real_stock_page` + suites UI = 37 passed; el test de
+  placeholder se re-apuntó a "Peso variable"; inventario `2 failed / 531 passed`
+  (2 pre-existentes, cero regresiones); arquitectura `58 failed / 391 passed` (sin
+  fallas nuevas).
+
+### Slice 10 — Página real "Cuarentena" (§31) — HECHO
+
+- **`QuarantineQueryService`** (application/queries, read-only): sobre
+  `inventory_quarantine`, `list_open(branch_id)` — cuarentenas abiertas
+  (OPEN/UNDER_REVIEW/PARTIALLY_RELEASED), más antiguas primero.
+- **`QuarantinePage`** (DS): `PageHeader` + `StandardTable`
+  (Producto/Lote/Motivo/Cantidad/Estado); refresca al navegar. Presentación pura.
+- **Presenter** `quarantines(branch_id)` + factory opcional
+  `quarantine_query_factory`; view model `quarantine_table` + etiquetas es-MX
+  (`quarantine_reason_es`, `quarantine_status_es`).
+- **Registro**: `inventory_quarantine` → `QuarantinePage`. 11 páginas reales;
+  quedan 10 en placeholder.
+- **Evidencia**: `test_quarantines_view_model`, `test_quarantines_empty`,
+  `test_cuarentena_wires_the_real_quarantine_page` + suites UI = 40 passed;
+  inventario `2 failed / 534 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `58 failed / 391 passed` (sin fallas nuevas).
+
+### Slice 11 — Página real "Reservas" (§22) — HECHO
+
+- **`ReservationQueryService`** (application/queries, read-only): sobre
+  `inventory_reservation`, `list_active_for_product(product_id, branch_id)` —
+  reservas activas (pendiente/confirmada/asignada/…), más antiguas primero.
+- **`ReservationsPage`** (DS): `PageHeader` + `SearchInput` (producto por ID/código
+  — sin combo gigante) + `StandardTable`
+  (Origen/Documento/Almacén/Cantidad/Estado). Presentación pura.
+- **Presenter** `reservations(product_id, …)` + factory opcional
+  `reservation_query_factory`; view model `reservations_table` + etiquetas es-MX
+  (`reservation_source_es`, `reservation_status_es`).
+- **Registro**: `inventory_reservations` → `ReservationsPage`. 12 páginas reales;
+  quedan 9 en placeholder.
+- **Evidencia**: `test_reservations_view_model`,
+  `test_reservations_empty_without_product`,
+  `test_reservas_wires_the_real_reservations_page` + suites UI = 43 passed;
+  inventario `2 failed / 537 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `58 failed / 391 passed` (sin fallas nuevas).
+
+### Slice 12 — Página real "Cadena de frío" (§21) — HECHO
+
+- **`ColdChainQueryService`** (application/queries, read-only): sobre
+  `inventory_temperature_excursions`, `list_open_excursions(warehouse_id)` —
+  excursiones abiertas (no resueltas), más recientes primero.
+- **`ColdChainPage`** (DS): `PageHeader` + `StandardTable`
+  (Almacén/Lote/Temperatura/Rango/Estado/Acción); refresca al navegar.
+  Presentación pura.
+- **Presenter** `cold_chain_excursions(warehouse_id)` + factory opcional
+  `cold_chain_query_factory`; view model `cold_chain_table` + etiquetas es-MX
+  (`cold_chain_status_es`, `excursion_action_es`).
+- **Registro**: `inventory_cold_chain` → `ColdChainPage`. 13 páginas reales;
+  quedan 8 en placeholder.
+- **Evidencia**: `test_cold_chain_view_model`, `test_cold_chain_empty`,
+  `test_cadena_de_frio_wires_the_real_cold_chain_page` + suites UI = 46 passed;
+  inventario `2 failed / 540 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `58 failed / 391 passed` (sin fallas nuevas).
+
+### Slice 13 — Página real "Auditoría" (§20.3 / §47) — HECHO
+
+- **`AuditQueryService`** (application/queries, read-only): sobre
+  `inventory_audit_log`, `list_recent(branch_id, limit=200)` — bitácora append-only
+  (quién hizo qué a qué entidad, cuándo y quién autorizó), más recientes primero,
+  acotada. Nunca escribe; el rastro lo escriben los casos de uso.
+- **`AuditPage`** (DS): `PageHeader` + `StandardTable`
+  (Fecha/Entidad/Acción/Usuario/Autorizó); refresca al navegar. Presentación pura.
+- **Presenter** `audit(branch_id)` + factory opcional `audit_query_factory`; view
+  model `audit_table` + etiquetas es-MX de entidad (`audit_entity_es`).
+- **Registro**: `inventory_audit` → `AuditPage`. 14 páginas reales; quedan 7 en
+  placeholder (Peso variable, Transferencias, Recepciones, Conteos, Ajustes,
+  Alertas, Configuración).
+- **Evidencia**: `test_audit_view_model`, `test_audit_empty`,
+  `test_auditoria_wires_the_real_audit_page` + suites UI = 49 passed;
+  inventario `2 failed / 543 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `58 failed / 391 passed` (sin fallas nuevas).
+
+### Slice 14 — Página real "Transferencias" (§24) — HECHO
+
+Cierra el placeholder «Transferencias» del sidebar de Inventario conectándolo, en
+**sólo lectura**, al contexto acotado de Transferencias (P1-B). El inventario no
+gestiona el ciclo de la transferencia (eso vive en su módulo dedicado); sólo abre
+una ventana a la actividad que toca la sucursal.
+
+- **`TransferQueryService`** (application/queries, read-only, `InventoryRepositoryBase`):
+  `list_recent(branch_id, limit=200)` sobre `stock_transfers` canónico — devuelve
+  las transferencias cuyo origen **o** destino es la sucursal, más recientes
+  primero. Sólo `SELECT` (no crea esquema; la tabla es propiedad de la migración
+  `154`).
+- **`TransfersPage`** (DS): `PageHeader` + `StandardTable`
+  (Folio/Tipo/Origen/Destino/Estado/Actualizado); refresca al navegar.
+  Presentación pura.
+- **Presenter** `transfers(branch_id)` + factory opcional `transfer_query_factory`;
+  view model `transfers_table` + etiquetas es-MX (`transfer_type_es`,
+  `transfer_status_es`, cubriendo los 16 tipos y 20 estados del dominio).
+- **Registro**: `inventory_transfers` → `TransfersPage`. 15 páginas reales; quedan
+  6 en placeholder (Peso variable, Recepciones, Conteos, Ajustes, Alertas,
+  Configuración).
+- **Evidencia**: `test_transfers_view_model_scoped_and_localized` (verifica el
+  alcance origen/destino y la localización es-MX), `test_transfers_empty`,
+  `test_transferencias_wires_the_real_transfers_page` + suites UI = 52 passed;
+  inventario `2 failed / 546 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `22 failed / 427 passed` desde la raíz del repo (sin fallas nuevas;
+  guardrails de transferencias/esquema intactos: el servicio sólo lee
+  `stock_transfers`).

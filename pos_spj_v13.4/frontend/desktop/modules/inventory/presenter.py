@@ -15,9 +15,20 @@ from backend.shared.ids import new_uuid
 from frontend.desktop.modules.inventory.view_models import (
     KpiViewModel,
     TableViewModel,
+    audit_table,
+    availability_breakdown_table,
     availability_table,
+    cold_chain_table,
+    expiry_table,
     locations_table,
+    lots_table,
+    movements_table,
+    quarantine_table,
     replenishment_table,
+    reservations_table,
+    stock_table,
+    traceability_table,
+    transfers_table,
     urgency_variant,
     warehouses_table,
 )
@@ -29,6 +40,11 @@ class InventoryPresenter:
     def __init__(self, *, connection_provider, availability_service_factory,
                  replenishment_query_factory, generate_suggestions_uc=None,
                  warehouse_query_factory=None, analytics_factory=None,
+                 lot_query_factory=None, movement_query_factory=None,
+                 expiry_query_factory=None, traceability_query_factory=None,
+                 stock_query_factory=None, quarantine_query_factory=None,
+                 reservation_query_factory=None, cold_chain_query_factory=None,
+                 audit_query_factory=None, transfer_query_factory=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -36,6 +52,16 @@ class InventoryPresenter:
         self._generate_uc = generate_suggestions_uc
         self._warehouse_factory = warehouse_query_factory
         self._analytics_factory = analytics_factory
+        self._lot_factory = lot_query_factory
+        self._movement_factory = movement_query_factory
+        self._expiry_factory = expiry_query_factory
+        self._traceability_factory = traceability_query_factory
+        self._stock_factory = stock_query_factory
+        self._quarantine_factory = quarantine_query_factory
+        self._reservation_factory = reservation_query_factory
+        self._cold_chain_factory = cold_chain_query_factory
+        self._audit_factory = audit_query_factory
+        self._transfer_factory = transfer_query_factory
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -65,6 +91,120 @@ class InventoryPresenter:
             rows.append({"product_id": dto.product_id, "on_hand": dto.on_hand,
                          "reserved": dto.reserved, "available": dto.available})
         return availability_table(rows)
+
+    def stock(self, *, branch_id: str | None = None) -> TableViewModel:
+        """Existencias físicas por producto/almacén/bucket (cantidad ≠ 0). Sólo
+        lectura; delega en el stock query service."""
+        if self._stock_factory is None:
+            return stock_table([])
+        branch = branch_id or self.default_branch()
+        rows = self._stock_factory(self._conn()).list_on_hand(branch_id=branch or None)
+        return stock_table(rows)
+
+    def reservations(self, *, product_id: str,
+                     branch_id: str | None = None) -> TableViewModel:
+        """Reservas activas de un producto (origen, documento, almacén, cantidad,
+        estado). Sólo lectura; delega en el reservation query service."""
+        pid = str(product_id or "").strip()
+        if not pid or self._reservation_factory is None:
+            return reservations_table([])
+        branch = branch_id or self.default_branch()
+        rows = self._reservation_factory(self._conn()).list_active_for_product(
+            product_id=pid, branch_id=branch or None)
+        return reservations_table(rows)
+
+    def audit(self, *, branch_id: str | None = None) -> TableViewModel:
+        """Bitácora de auditoría reciente (fecha, entidad, acción, usuario,
+        autorizó). Sólo lectura; delega en el audit query service."""
+        if self._audit_factory is None:
+            return audit_table([])
+        branch = branch_id or self.default_branch()
+        rows = self._audit_factory(self._conn()).list_recent(branch_id=branch or None)
+        return audit_table(rows)
+
+    def transfers(self, *, branch_id: str | None = None) -> TableViewModel:
+        """Transferencias físicas recientes que tocan la sucursal (folio, tipo,
+        origen, destino, estado, actualizado). Sólo lectura; ventana al contexto de
+        Transferencias — la gestión completa vive en su módulo dedicado."""
+        if self._transfer_factory is None:
+            return transfers_table([])
+        branch = branch_id or self.default_branch()
+        rows = self._transfer_factory(self._conn()).list_recent(
+            branch_id=branch or None)
+        return transfers_table(rows)
+
+    def cold_chain_excursions(self, *, warehouse_id: str | None = None) -> TableViewModel:
+        """Excursiones de temperatura abiertas (almacén, lote, temperatura, rango,
+        estado, acción). Sólo lectura; delega en el cold chain query service."""
+        if self._cold_chain_factory is None:
+            return cold_chain_table([])
+        rows = self._cold_chain_factory(self._conn()).list_open_excursions(
+            warehouse_id=warehouse_id or None)
+        return cold_chain_table(rows)
+
+    def quarantines(self, *, branch_id: str | None = None) -> TableViewModel:
+        """Cuarentenas abiertas (producto, lote, motivo, cantidad, estado). Sólo
+        lectura; delega en el quarantine query service."""
+        if self._quarantine_factory is None:
+            return quarantine_table([])
+        branch = branch_id or self.default_branch()
+        rows = self._quarantine_factory(self._conn()).list_open(branch_id=branch or None)
+        return quarantine_table(rows)
+
+    def availability_breakdown(self, *, product_id: str, branch_id: str | None = None,
+                               warehouse_id: str | None = None) -> TableViewModel:
+        """Desglose de disponibilidad de UN producto por bucket físico (§9.3): total
+        en mano, disponible, reservado y cada bucket que explica un faltante. Sólo
+        lectura; delega en el availability query service (.explain())."""
+        pid = str(product_id or "").strip()
+        if not pid:
+            return availability_breakdown_table({})
+        branch = branch_id or self.default_branch()
+        dto = self._availability_factory(self._conn()).get_availability(
+            product_id=pid, branch_id=branch, warehouse_id=warehouse_id)
+        return availability_breakdown_table(dto.explain())
+
+    def lots(self, *, product_id: str, branch_id: str | None = None) -> TableViewModel:
+        """Lotes de un producto (código, origen, calidad, caducidad) por FEFO.
+        Sólo lectura; delega en el lot query service."""
+        pid = str(product_id or "").strip()
+        if not pid or self._lot_factory is None:
+            return lots_table([])
+        branch = branch_id or self.default_branch()
+        rows = self._lot_factory(self._conn()).list_for_product(
+            product_id=pid, branch_id=branch or None)
+        return lots_table(rows)
+
+    def movements(self, *, branch_id: str | None = None,
+                  limit: int = 100) -> TableViewModel:
+        """Movimientos recientes del ledger (fecha, tipo, módulo, documento, estado),
+        más recientes primero. Sólo lectura; delega en el movement query service."""
+        if self._movement_factory is None:
+            return movements_table([])
+        branch = branch_id or self.default_branch()
+        rows = self._movement_factory(self._conn()).list_recent(
+            branch_id=branch or None, limit=limit)
+        return movements_table(rows)
+
+    def expiring(self, *, branch_id: str | None = None) -> TableViewModel:
+        """Lotes disponibles en riesgo de caducidad (vencido/crítico/próximo),
+        próximos a vencer primero. Sólo lectura; delega en el expiry query service
+        (clasifica, no emite eventos ni mueve stock)."""
+        if self._expiry_factory is None:
+            return expiry_table([])
+        branch = branch_id or self.default_branch()
+        rows = self._expiry_factory(self._conn()).list_at_risk(branch_id=branch or None)
+        return expiry_table(rows)
+
+    def traceability(self, *, lot_id: str) -> TableViewModel:
+        """Rastreo ascendente de un lote (eventos que lo originaron): fecha,
+        movimiento, dirección, módulo y documento. Sólo lectura; delega en el
+        traceability query service."""
+        lid = str(lot_id or "").strip()
+        if not lid or self._traceability_factory is None:
+            return traceability_table(())
+        trace = self._traceability_factory(self._conn()).trace_upstream(lid)
+        return traceability_table(trace.events)
 
     def open_suggestions(self, *, branch_id: str | None = None) -> TableViewModel:
         branch = branch_id or self.default_branch()

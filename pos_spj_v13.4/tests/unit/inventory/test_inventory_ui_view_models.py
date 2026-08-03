@@ -81,3 +81,18 @@ class TestNavigation:
         vis = visible_entries(lambda code: code in allowed)
         assert all(e.permission == "INVENTORY_VIEW" for e in vis)
         assert len(vis) < len(INVENTORY_NAV)
+
+    def test_sidebar_has_the_21_canonical_sections_in_order(self):
+        # §54 Design System SPJ — navegación lateral canónica del inventario.
+        expected = [
+            "Resumen", "Existencias", "Disponibilidad", "Almacenes", "Ubicaciones",
+            "Lotes", "Peso variable", "Cadena de frío", "Reservas", "Movimientos",
+            "Transferencias", "Recepciones", "Reposición", "Conteos", "Ajustes",
+            "Cuarentena", "Caducidades", "Trazabilidad", "Alertas", "Auditoría",
+            "Configuración",
+        ]
+        assert [e.title for e in INVENTORY_NAV] == expected
+
+    def test_sidebar_page_ids_are_unique(self):
+        ids = [e.page_id for e in INVENTORY_NAV]
+        assert len(ids) == len(set(ids))
