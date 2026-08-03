@@ -59,6 +59,7 @@ class ModuloInventarioEnterprise(QWidget):
     def _build_presenter(self, conn, session):
         from backend.application.inventory.analytics import InventoryAnalyticsService
         from backend.application.inventory.queries import (
+            AdjustmentQueryService,
             AuditQueryService,
             ColdChainQueryService,
             CountQueryService,
@@ -113,5 +114,6 @@ class ModuloInventarioEnterprise(QWidget):
             weight_query_factory=WeightQueryService,
             receipt_query_factory=ReceiptQueryService,
             count_query_factory=CountQueryService,
+            adjustment_query_factory=AdjustmentQueryService,
             session_context=session,
         )

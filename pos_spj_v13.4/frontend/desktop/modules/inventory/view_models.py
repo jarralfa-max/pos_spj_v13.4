@@ -386,6 +386,43 @@ def counts_table(rows: list[dict]) -> TableViewModel:
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 
 
+ADJUSTMENT_REASON_ES = {
+    "COUNT_VARIANCE": "Varianza de conteo", "DAMAGE": "Daño", "EXPIRY": "Caducidad",
+    "SHRINKAGE": "Merma", "WASTE": "Desperdicio", "THEFT_SUSPECTED": "Robo sospechado",
+    "QUALITY_REJECTION": "Rechazo de calidad", "SYSTEM_CORRECTION": "Corrección de sistema",
+    "WEIGHT_VARIANCE": "Varianza de peso", "MANUAL_AUTHORIZED": "Manual autorizado",
+}
+
+ADJUSTMENT_STATUS_ES = {
+    "DRAFT": "Borrador", "PENDING_APPROVAL": "Por aprobar", "APPROVED": "Aprobado",
+    "POSTED": "Posteado", "REVERSED": "Reversado", "CANCELLED": "Cancelado",
+}
+
+
+def adjustment_reason_es(code) -> str:
+    return ADJUSTMENT_REASON_ES.get(str(code or ""), str(code or "—"))
+
+
+def adjustment_status_es(code) -> str:
+    return ADJUSTMENT_STATUS_ES.get(str(code or ""), str(code or "—"))
+
+
+def adjustments_table(rows: list[dict]) -> TableViewModel:
+    """rows: adjustment rows (list_recent) → display table (folio, motivo, almacén,
+    estado, creado), más recientes primero."""
+    out, ids = [], []
+    for i, r in enumerate(rows):
+        ids.append(f"{r.get('folio','')}:{i}")
+        out.append([
+            str(r.get("folio") or "—"),
+            adjustment_reason_es(r.get("reason")),
+            str(r.get("warehouse_id") or "—"),
+            adjustment_status_es(r.get("status")),
+            str(r.get("created_at") or "—")[:19],
+        ])
+    return TableViewModel(rows=out, row_ids=ids, total=len(out))
+
+
 def cold_chain_table(rows: list[dict]) -> TableViewModel:
     """rows: open excursion rows (list_open_excursions) → display table (almacén,
     lote, temperatura, rango, estado, acción)."""

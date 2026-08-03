@@ -8,6 +8,7 @@ import pytest
 
 from backend.application.inventory.analytics import InventoryAnalyticsService
 from backend.application.inventory.queries import (
+    AdjustmentQueryService,
     AuditQueryService,
     ColdChainQueryService,
     CountQueryService,
@@ -92,6 +93,7 @@ def _presenter(conn):
         weight_query_factory=WeightQueryService,
         receipt_query_factory=ReceiptQueryService,
         count_query_factory=CountQueryService,
+        adjustment_query_factory=AdjustmentQueryService,
         session_context=_Session())
 
 
@@ -388,6 +390,26 @@ class TestPresenter:
 
     def test_counts_empty(self, conn):
         vm = _presenter(conn).counts()
+        assert vm.total == 0 and vm.rows == []
+
+    def test_adjustments_view_model(self, conn):
+        from backend.application.inventory.use_cases import CreateAdjustmentUseCase
+        from backend.domain.inventory.enums import AdjustmentReason
+        _seed(conn)  # 5 pzas de p1 en w1/loc1
+        CreateAdjustmentUseCase().execute(
+            conn, folio="AJ-1", branch_id="b1", warehouse_id="w1",
+            reason=AdjustmentReason.DAMAGE,
+            lines=[{"product_id": "p1", "quantity_delta": -1, "location_id": "loc1"}],
+            operation_id="adj-1", actor_user_id="u1")
+        vm = _presenter(conn).adjustments()
+        assert vm.total == 1
+        assert vm.rows[0][0] == "AJ-1"       # folio
+        assert vm.rows[0][1] == "Daño"       # motivo es-MX
+        assert vm.rows[0][2] == "w1"         # almacén
+        assert vm.rows[0][3] in ("Borrador", "Por aprobar")  # estado es-MX
+
+    def test_adjustments_empty(self, conn):
+        vm = _presenter(conn).adjustments()
         assert vm.total == 0 and vm.rows == []
 
     def test_generate_then_list_suggestions(self, conn):

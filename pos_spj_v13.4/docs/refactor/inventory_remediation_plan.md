@@ -914,3 +914,20 @@ una ventana a la actividad que toca la sucursal.
   `test_counts_empty`, `test_conteos_wires_the_real_counts_page` + suites UI = 61
   passed; inventario `2 failed / 555 passed` (2 pre-existentes, cero regresiones);
   arquitectura `22 failed / 427 passed` desde la raíz del repo (sin fallas nuevas).
+
+### Slice 17 — Página real "Ajustes" (§14) — HECHO
+
+- **`AdjustmentQueryService`** (application/queries, read-only, `InventoryRepositoryBase`):
+  `list_recent(branch_id, limit=200)` sobre `inventory_adjustment` — ajustes por
+  sucursal (folio, motivo, almacén, estado), más recientes primero. Sólo `SELECT`.
+- **`AdjustmentsPage`** (DS): `PageHeader` + `StandardTable`
+  (Folio/Motivo/Almacén/Estado/Creado); refresca al navegar. Presentación pura.
+- **Presenter** `adjustments(branch_id)` + factory opcional
+  `adjustment_query_factory`; view model `adjustments_table` + etiquetas es-MX
+  (`adjustment_reason_es` 10 motivos, `adjustment_status_es` 6 estados).
+- **Registro**: `inventory_adjustments` → `AdjustmentsPage`. 19 páginas reales;
+  quedan 2 en placeholder (Alertas, Configuración).
+- **Evidencia**: `test_adjustments_view_model` (ajuste por daño), `test_adjustments_empty`,
+  `test_ajustes_wires_the_real_adjustments_page` + suites UI = 64 passed;
+  inventario `2 failed / 558 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `22 failed / 427 passed` desde la raíz del repo (sin fallas nuevas).

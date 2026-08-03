@@ -1,5 +1,8 @@
 """Inventory query services (read side for UI/POS/BI). INV-11+."""
 
+from backend.application.inventory.queries.adjustment_query_service import (
+    AdjustmentQueryService,
+)
 from backend.application.inventory.queries.availability_query_service import (
     InventoryAvailabilityQueryService,
 )
@@ -56,6 +59,7 @@ from backend.application.inventory.queries.weight_query_service import (
 )
 
 __all__ = [
+    "AdjustmentQueryService",
     "AuditQueryService",
     "ColdChainQueryService",
     "CountQueryService",

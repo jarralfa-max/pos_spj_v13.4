@@ -1,5 +1,6 @@
 """Enterprise inventory pages (PyQt5, presentation-only). INV-25."""
 
+from frontend.desktop.modules.inventory.pages.adjustments_page import AdjustmentsPage
 from frontend.desktop.modules.inventory.pages.analytics_page import (
     InventoryAnalyticsPage,
 )
@@ -32,6 +33,7 @@ from frontend.desktop.modules.inventory.pages.warehouses_page import WarehousesP
 from frontend.desktop.modules.inventory.pages.weight_page import WeightPage
 
 __all__ = [
+    "AdjustmentsPage",
     "AuditPage",
     "AvailabilityPage",
     "ColdChainPage",

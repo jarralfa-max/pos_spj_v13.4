@@ -15,6 +15,7 @@ from frontend.desktop.modules.inventory.inventory_view import InventoryView  # n
 from frontend.desktop.modules.inventory.navigation import INVENTORY_NAV  # noqa: E402
 from frontend.desktop.modules.inventory.page_registry import build_page_specs  # noqa: E402
 from frontend.desktop.modules.inventory.pages import (  # noqa: E402
+    AdjustmentsPage,
     AuditPage,
     AvailabilityPage,
     ColdChainPage,
@@ -79,6 +80,9 @@ class _StubPresenter:
     def counts(self, *, branch_id=None):
         return TableViewModel(rows=[], row_ids=[], total=0)
 
+    def adjustments(self, *, branch_id=None):
+        return TableViewModel(rows=[], row_ids=[], total=0)
+
 
 @pytest.fixture(scope="module")
 def app():
@@ -123,7 +127,7 @@ def test_unbuilt_sections_use_placeholder(app):
     specs = build_page_specs()
     view = InventoryView(presenter=object(), specs=specs)
     # Sección aún sin página real → placeholder.
-    idx = [e.title for e in INVENTORY_NAV].index("Ajustes")  # aún sin página real
+    idx = [e.title for e in INVENTORY_NAV].index("Alertas")  # aún sin página real
     view.nav.select(idx)
     container = view.stack.widget(idx)
     page = container.layout().itemAt(0).widget()
@@ -240,3 +244,11 @@ def test_conteos_wires_the_real_counts_page(app):
     view.nav.select(idx)
     page = view.stack.widget(idx).layout().itemAt(0).widget()
     assert isinstance(page, CountsPage)
+
+
+def test_ajustes_wires_the_real_adjustments_page(app):
+    view = InventoryView(presenter=_StubPresenter(), specs=build_page_specs())
+    idx = [e.title for e in INVENTORY_NAV].index("Ajustes")
+    view.nav.select(idx)
+    page = view.stack.widget(idx).layout().itemAt(0).widget()
+    assert isinstance(page, AdjustmentsPage)
