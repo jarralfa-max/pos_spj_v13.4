@@ -414,6 +414,24 @@ def stock_table(rows: list[dict]) -> TableViewModel:
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 
 
+def weight_table(rows: list[dict]) -> TableViewModel:
+    """rows: catch-weight balance rows (list_catch_weight) → display table
+    (producto, almacén, estado/bucket, piezas, peso, peso reservado)."""
+    out, ids = [], []
+    for i, r in enumerate(rows):
+        ids.append(f"{r.get('product_id','')}:{r.get('warehouse_id','')}:"
+                   f"{r.get('inventory_status','')}:{i}")
+        out.append([
+            str(r.get("product_id") or "—"),
+            str(r.get("warehouse_id") or "—"),
+            status_es(r.get("inventory_status")),
+            qty(r.get("quantity")),
+            qty(r.get("weight"), "kg"),
+            qty(r.get("reserved_weight"), "kg"),
+        ])
+    return TableViewModel(rows=out, row_ids=ids, total=len(out))
+
+
 def lots_table(rows: list[dict]) -> TableViewModel:
     """rows: lot rows (list_for_product) → display table (código, origen, calidad,
     caducidad), ordenadas por caducidad (FEFO)."""

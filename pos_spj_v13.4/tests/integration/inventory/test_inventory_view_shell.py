@@ -27,6 +27,7 @@ from frontend.desktop.modules.inventory.pages import (  # noqa: E402
     StockPage,
     TraceabilityPage,
     TransfersPage,
+    WeightPage,
 )
 from frontend.desktop.modules.inventory.view_models import TableViewModel  # noqa: E402
 
@@ -65,6 +66,9 @@ class _StubPresenter:
         return TableViewModel(rows=[], row_ids=[], total=0)
 
     def transfers(self, *, branch_id=None):
+        return TableViewModel(rows=[], row_ids=[], total=0)
+
+    def catch_weight(self, *, branch_id=None):
         return TableViewModel(rows=[], row_ids=[], total=0)
 
 
@@ -110,8 +114,8 @@ def test_shell_shows_all_sections_and_lazy_builds(app):
 def test_unbuilt_sections_use_placeholder(app):
     specs = build_page_specs()
     view = InventoryView(presenter=object(), specs=specs)
-    # "Existencias" (índice 1) no tiene página real → placeholder.
-    idx = [e.title for e in INVENTORY_NAV].index("Peso variable")  # aún sin página real
+    # Sección aún sin página real → placeholder.
+    idx = [e.title for e in INVENTORY_NAV].index("Recepciones")  # aún sin página real
     view.nav.select(idx)
     container = view.stack.widget(idx)
     page = container.layout().itemAt(0).widget()
@@ -204,3 +208,11 @@ def test_transferencias_wires_the_real_transfers_page(app):
     view.nav.select(idx)
     page = view.stack.widget(idx).layout().itemAt(0).widget()
     assert isinstance(page, TransfersPage)
+
+
+def test_peso_variable_wires_the_real_weight_page(app):
+    view = InventoryView(presenter=_StubPresenter(), specs=build_page_specs())
+    idx = [e.title for e in INVENTORY_NAV].index("Peso variable")
+    view.nav.select(idx)
+    page = view.stack.widget(idx).layout().itemAt(0).widget()
+    assert isinstance(page, WeightPage)

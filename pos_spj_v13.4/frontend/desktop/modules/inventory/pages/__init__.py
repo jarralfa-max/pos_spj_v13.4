@@ -27,6 +27,7 @@ from frontend.desktop.modules.inventory.pages.traceability_page import (
 )
 from frontend.desktop.modules.inventory.pages.transfers_page import TransfersPage
 from frontend.desktop.modules.inventory.pages.warehouses_page import WarehousesPage
+from frontend.desktop.modules.inventory.pages.weight_page import WeightPage
 
 __all__ = [
     "AuditPage",
@@ -46,4 +47,5 @@ __all__ = [
     "TraceabilityPage",
     "TransfersPage",
     "WarehousesPage",
+    "WeightPage",
 ]

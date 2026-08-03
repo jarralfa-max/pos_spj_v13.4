@@ -31,6 +31,7 @@ from frontend.desktop.modules.inventory.view_models import (
     transfers_table,
     urgency_variant,
     warehouses_table,
+    weight_table,
 )
 
 logger = logging.getLogger("spj.inventory.presenter")
@@ -45,6 +46,7 @@ class InventoryPresenter:
                  stock_query_factory=None, quarantine_query_factory=None,
                  reservation_query_factory=None, cold_chain_query_factory=None,
                  audit_query_factory=None, transfer_query_factory=None,
+                 weight_query_factory=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -62,6 +64,7 @@ class InventoryPresenter:
         self._cold_chain_factory = cold_chain_query_factory
         self._audit_factory = audit_query_factory
         self._transfer_factory = transfer_query_factory
+        self._weight_factory = weight_query_factory
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -121,6 +124,17 @@ class InventoryPresenter:
         branch = branch_id or self.default_branch()
         rows = self._audit_factory(self._conn()).list_recent(branch_id=branch or None)
         return audit_table(rows)
+
+    def catch_weight(self, *, branch_id: str | None = None) -> TableViewModel:
+        """Existencias de peso variable (catch-weight): balances con peso ≠ 0
+        (producto, almacén, bucket, piezas, peso, peso reservado). Sólo lectura;
+        delega en el weight query service."""
+        if self._weight_factory is None:
+            return weight_table([])
+        branch = branch_id or self.default_branch()
+        rows = self._weight_factory(self._conn()).list_catch_weight(
+            branch_id=branch or None)
+        return weight_table(rows)
 
     def transfers(self, *, branch_id: str | None = None) -> TableViewModel:
         """Transferencias físicas recientes que tocan la sucursal (folio, tipo,

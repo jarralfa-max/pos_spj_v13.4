@@ -827,7 +827,7 @@ mueven existencias exclusivamente a través del ledger canónico (reserva → de
   inventario `2 failed / 543 passed` (2 pre-existentes, cero regresiones);
   arquitectura `58 failed / 391 passed` (sin fallas nuevas).
 
-### Slice 14 — Página real "Transferencias" (§24) — HECHO
+### P1-B UI — Página real "Transferencias" (§24) — HECHO
 
 Cierra el placeholder «Transferencias» del sidebar de Inventario conectándolo, en
 **sólo lectura**, al contexto acotado de Transferencias (P1-B). El inventario no
@@ -855,3 +855,23 @@ una ventana a la actividad que toca la sucursal.
   arquitectura `22 failed / 427 passed` desde la raíz del repo (sin fallas nuevas;
   guardrails de transferencias/esquema intactos: el servicio sólo lee
   `stock_transfers`).
+
+### Slice 14 — Página real "Peso variable" (§18) — HECHO
+
+- **`WeightQueryService`** (application/queries, read-only, `InventoryRepositoryBase`):
+  `list_catch_weight(branch_id, limit=500)` sobre `inventory_balances` filtrando
+  `weight <> '0'` — existencias de peso variable (catch-weight) por
+  producto/almacén/bucket, con piezas, peso y peso reservado. Sólo `SELECT`.
+- **`WeightPage`** (DS): `PageHeader` + `StandardTable`
+  (Producto/Almacén/Estado/Piezas/Peso/Peso reservado); refresca al navegar.
+  Presentación pura.
+- **Presenter** `catch_weight(branch_id)` + factory opcional `weight_query_factory`;
+  view model `weight_table` (reusa `status_es` para el bucket y `qty(..., "kg")`
+  para el peso).
+- **Registro**: `inventory_weight` → `WeightPage`. 16 páginas reales; quedan 5 en
+  placeholder (Recepciones, Conteos, Ajustes, Alertas, Configuración).
+- **Evidencia**: `test_catch_weight_view_model` (recepción de 3 pzas / 7.5 kg),
+  `test_catch_weight_empty_when_no_weight` (stock por piezas no aparece),
+  `test_peso_variable_wires_the_real_weight_page` + suites UI = 55 passed;
+  inventario `2 failed / 549 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `22 failed / 427 passed` desde la raíz del repo (sin fallas nuevas).

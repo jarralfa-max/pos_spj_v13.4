@@ -72,6 +72,7 @@ class ModuloInventarioEnterprise(QWidget):
             TraceabilityQueryService,
             TransferQueryService,
             WarehouseQueryService,
+            WeightQueryService,
         )
         from backend.application.inventory.use_cases import (
             GenerateReplenishmentSuggestionsUseCase,
@@ -107,5 +108,6 @@ class ModuloInventarioEnterprise(QWidget):
             cold_chain_query_factory=ColdChainQueryService,
             audit_query_factory=AuditQueryService,
             transfer_query_factory=TransferQueryService,
+            weight_query_factory=WeightQueryService,
             session_context=session,
         )
