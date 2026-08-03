@@ -709,3 +709,20 @@ Pendiente: bridges legacy → P2.
   placeholder se re-apuntó a "Peso variable"; inventario `2 failed / 531 passed`
   (2 pre-existentes, cero regresiones); arquitectura `58 failed / 391 passed` (sin
   fallas nuevas).
+
+### Slice 10 — Página real "Cuarentena" (§31) — HECHO
+
+- **`QuarantineQueryService`** (application/queries, read-only): sobre
+  `inventory_quarantine`, `list_open(branch_id)` — cuarentenas abiertas
+  (OPEN/UNDER_REVIEW/PARTIALLY_RELEASED), más antiguas primero.
+- **`QuarantinePage`** (DS): `PageHeader` + `StandardTable`
+  (Producto/Lote/Motivo/Cantidad/Estado); refresca al navegar. Presentación pura.
+- **Presenter** `quarantines(branch_id)` + factory opcional
+  `quarantine_query_factory`; view model `quarantine_table` + etiquetas es-MX
+  (`quarantine_reason_es`, `quarantine_status_es`).
+- **Registro**: `inventory_quarantine` → `QuarantinePage`. 11 páginas reales;
+  quedan 10 en placeholder.
+- **Evidencia**: `test_quarantines_view_model`, `test_quarantines_empty`,
+  `test_cuarentena_wires_the_real_quarantine_page` + suites UI = 40 passed;
+  inventario `2 failed / 534 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `58 failed / 391 passed` (sin fallas nuevas).

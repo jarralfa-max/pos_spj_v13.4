@@ -10,6 +10,9 @@ from backend.application.inventory.queries.lot_query_service import LotQueryServ
 from backend.application.inventory.queries.movement_query_service import (
     MovementQueryService,
 )
+from backend.application.inventory.queries.quarantine_query_service import (
+    QuarantineQueryService,
+)
 from backend.application.inventory.queries.replenishment_query_service import (
     ReplenishmentQueryService,
 )
@@ -40,6 +43,7 @@ __all__ = [
     "LotQueryService",
     "LotTraceDTO",
     "MovementQueryService",
+    "QuarantineQueryService",
     "LowStockItemDTO",
     "LowStockProductDTO",
     "RecallReportDTO",

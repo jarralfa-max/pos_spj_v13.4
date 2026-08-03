@@ -12,6 +12,7 @@ from frontend.desktop.modules.inventory.pages.locations_page import LocationsPag
 from frontend.desktop.modules.inventory.pages.lots_page import LotsPage
 from frontend.desktop.modules.inventory.pages.movements_page import MovementsPage
 from frontend.desktop.modules.inventory.pages.placeholder_page import PlaceholderPage
+from frontend.desktop.modules.inventory.pages.quarantine_page import QuarantinePage
 from frontend.desktop.modules.inventory.pages.replenishment_page import (
     ReplenishmentPage,
 )
@@ -30,6 +31,7 @@ __all__ = [
     "LotsPage",
     "MovementsPage",
     "PlaceholderPage",
+    "QuarantinePage",
     "ReplenishmentPage",
     "StockPage",
     "TraceabilityPage",

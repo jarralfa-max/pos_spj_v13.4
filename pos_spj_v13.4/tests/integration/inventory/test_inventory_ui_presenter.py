@@ -12,6 +12,7 @@ from backend.application.inventory.queries import (
     InventoryAvailabilityQueryService,
     LotQueryService,
     MovementQueryService,
+    QuarantineQueryService,
     ReplenishmentQueryService,
     StockQueryService,
     TraceabilityQueryService,
@@ -76,6 +77,7 @@ def _presenter(conn):
         expiry_query_factory=ExpiryQueryService,
         traceability_query_factory=TraceabilityQueryService,
         stock_query_factory=StockQueryService,
+        quarantine_query_factory=QuarantineQueryService,
         session_context=_Session())
 
 
@@ -192,6 +194,24 @@ class TestPresenter:
 
     def test_stock_empty_when_no_balances(self, conn):
         vm = _presenter(conn).stock()
+        assert vm.total == 0 and vm.rows == []
+
+    def test_quarantines_view_model(self, conn):
+        from backend.application.inventory.use_cases import QuarantineStockUseCase
+        from backend.domain.inventory.enums import QuarantineReason
+        _seed(conn)  # 5 disponibles de p1 en loc1
+        QuarantineStockUseCase().execute(
+            conn, product_id="p1", branch_id="b1", warehouse_id="w1",
+            reason=QuarantineReason.QUALITY_FAILURE, quantity=Decimal("2"),
+            operation_id="q-1", actor_user_id="qa", location_id="loc1")
+        vm = _presenter(conn).quarantines()
+        assert vm.total == 1
+        assert vm.rows[0][0] == "p1"                 # producto
+        assert vm.rows[0][2] == "Falla de calidad"   # motivo es-MX
+        assert vm.rows[0][4] == "Abierta"            # estado es-MX
+
+    def test_quarantines_empty(self, conn):
+        vm = _presenter(conn).quarantines()
         assert vm.total == 0 and vm.rows == []
 
     def test_generate_then_list_suggestions(self, conn):

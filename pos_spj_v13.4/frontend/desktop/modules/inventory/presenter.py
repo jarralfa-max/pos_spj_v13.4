@@ -21,6 +21,7 @@ from frontend.desktop.modules.inventory.view_models import (
     locations_table,
     lots_table,
     movements_table,
+    quarantine_table,
     replenishment_table,
     stock_table,
     traceability_table,
@@ -37,7 +38,7 @@ class InventoryPresenter:
                  warehouse_query_factory=None, analytics_factory=None,
                  lot_query_factory=None, movement_query_factory=None,
                  expiry_query_factory=None, traceability_query_factory=None,
-                 stock_query_factory=None,
+                 stock_query_factory=None, quarantine_query_factory=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -50,6 +51,7 @@ class InventoryPresenter:
         self._expiry_factory = expiry_query_factory
         self._traceability_factory = traceability_query_factory
         self._stock_factory = stock_query_factory
+        self._quarantine_factory = quarantine_query_factory
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -88,6 +90,15 @@ class InventoryPresenter:
         branch = branch_id or self.default_branch()
         rows = self._stock_factory(self._conn()).list_on_hand(branch_id=branch or None)
         return stock_table(rows)
+
+    def quarantines(self, *, branch_id: str | None = None) -> TableViewModel:
+        """Cuarentenas abiertas (producto, lote, motivo, cantidad, estado). Sólo
+        lectura; delega en el quarantine query service."""
+        if self._quarantine_factory is None:
+            return quarantine_table([])
+        branch = branch_id or self.default_branch()
+        rows = self._quarantine_factory(self._conn()).list_open(branch_id=branch or None)
+        return quarantine_table(rows)
 
     def availability_breakdown(self, *, product_id: str, branch_id: str | None = None,
                                warehouse_id: str | None = None) -> TableViewModel:

@@ -70,6 +70,18 @@ EXPIRY_RISK_ES = {
 EXPIRY_RISK_VARIANT = {
     "OK": "success", "WARNING": "warning", "CRITICAL": "danger", "EXPIRED": "danger",
 }
+QUARANTINE_REASON_ES = {
+    "PENDING_INSPECTION": "Por inspección", "TEMPERATURE_EXCURSION": "Excursión de temperatura",
+    "QUALITY_FAILURE": "Falla de calidad", "DOCUMENTATION_MISSING": "Falta documentación",
+    "RECALL": "Retiro (recall)", "CUSTOMER_RETURN": "Devolución de cliente",
+    "SUPPLIER_DISPUTE": "Disputa con proveedor",
+    "MICROBIOLOGICAL_TEST_FUTURE": "Prueba microbiológica",
+}
+QUARANTINE_STATUS_ES = {
+    "OPEN": "Abierta", "UNDER_REVIEW": "En revisión", "RELEASED": "Liberada",
+    "PARTIALLY_RELEASED": "Liberada parcial", "REJECTED": "Rechazada",
+    "DISPOSED": "Dispuesta",
+}
 SEVERITY_ES = {"INFO": "Informativo", "WARNING": "Advertencia", "CRITICAL": "Crítico"}
 DIRECTION_ES = {"UPSTREAM": "Origen (ascendente)", "DOWNSTREAM": "Destino (descendente)"}
 MOVEMENT_DIRECTION_ES = {
@@ -116,6 +128,14 @@ def expiry_risk_es(code) -> str:
 
 def movement_direction_es(code) -> str:
     return MOVEMENT_DIRECTION_ES.get(str(code or ""), str(code or "—"))
+
+
+def quarantine_reason_es(code) -> str:
+    return QUARANTINE_REASON_ES.get(str(code or ""), str(code or "—"))
+
+
+def quarantine_status_es(code) -> str:
+    return QUARANTINE_STATUS_ES.get(str(code or ""), str(code or "—"))
 
 
 def warehouse_type_es(code) -> str:
@@ -206,6 +226,22 @@ def warehouses_table(rows: list[dict]) -> TableViewModel:
             str(r.get("name") or "—"),
             warehouse_type_es(r.get("warehouse_type")),
             warehouse_status_es(r.get("status")),
+        ])
+    return TableViewModel(rows=out, row_ids=ids, total=len(out))
+
+
+def quarantine_table(rows: list[dict]) -> TableViewModel:
+    """rows: open quarantine rows (list_open) → display table (producto, lote,
+    motivo, cantidad, estado)."""
+    out, ids = [], []
+    for r in rows:
+        ids.append(str(r.get("lot_id") or r.get("product_id") or ""))
+        out.append([
+            str(r.get("product_id") or "—"),
+            str(r.get("lot_id") or "—"),
+            quarantine_reason_es(r.get("reason")),
+            qty(r.get("quantity")),
+            quarantine_status_es(r.get("status")),
         ])
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 
