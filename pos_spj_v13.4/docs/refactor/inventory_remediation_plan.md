@@ -673,3 +673,21 @@ Pendiente: bridges legacy → P2.
   `test_caducidades_wires_the_real_expiry_page` + suites UI = 31 passed;
   inventario `2 failed / 525 passed` (2 pre-existentes, cero regresiones);
   arquitectura `58 failed / 391 passed` (sin fallas nuevas).
+
+### Slice 8 — Página real "Trazabilidad" (§46) — HECHO
+
+- **`TraceabilityPage`** (DS): `PageHeader` + `SearchInput` (lote por ID/código —
+  sin combo gigante) + `StandardTable`
+  (Fecha/Movimiento/Dirección/Módulo/Documento). Al buscar, muestra el rastreo
+  **ascendente** del lote (eventos que lo originaron). Presentación pura.
+- **Presenter** `traceability(lot_id)` + factory opcional
+  `traceability_query_factory` (`TraceabilityQueryService.trace_upstream`); view
+  model `traceability_table` + etiquetas es-MX (`movement_direction_es` +
+  `movement_type_es`).
+- **Registro**: `inventory_traceability` → `TraceabilityPage`. 9 páginas reales;
+  quedan 12 en placeholder.
+- **Evidencia**: `test_traceability_view_model`,
+  `test_traceability_empty_without_lot`,
+  `test_trazabilidad_wires_the_real_traceability_page` + suites UI = 34 passed;
+  inventario `2 failed / 528 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `58 failed / 391 passed` (sin fallas nuevas).

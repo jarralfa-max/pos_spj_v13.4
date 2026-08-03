@@ -20,6 +20,7 @@ from frontend.desktop.modules.inventory.pages import (  # noqa: E402
     LotsPage,
     MovementsPage,
     PlaceholderPage,
+    TraceabilityPage,
 )
 from frontend.desktop.modules.inventory.view_models import TableViewModel  # noqa: E402
 
@@ -37,6 +38,9 @@ class _StubPresenter:
         return TableViewModel(rows=[], row_ids=[], total=0)
 
     def expiring(self, *, branch_id=None):
+        return TableViewModel(rows=[], row_ids=[], total=0)
+
+    def traceability(self, *, lot_id):
         return TableViewModel(rows=[], row_ids=[], total=0)
 
 
@@ -120,3 +124,11 @@ def test_caducidades_wires_the_real_expiry_page(app):
     view.nav.select(idx)
     page = view.stack.widget(idx).layout().itemAt(0).widget()
     assert isinstance(page, ExpiryPage)
+
+
+def test_trazabilidad_wires_the_real_traceability_page(app):
+    view = InventoryView(presenter=_StubPresenter(), specs=build_page_specs())
+    idx = [e.title for e in INVENTORY_NAV].index("Trazabilidad")
+    view.nav.select(idx)
+    page = view.stack.widget(idx).layout().itemAt(0).widget()
+    assert isinstance(page, TraceabilityPage)

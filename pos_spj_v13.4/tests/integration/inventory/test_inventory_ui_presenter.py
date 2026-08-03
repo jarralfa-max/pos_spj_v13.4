@@ -13,6 +13,7 @@ from backend.application.inventory.queries import (
     LotQueryService,
     MovementQueryService,
     ReplenishmentQueryService,
+    TraceabilityQueryService,
     WarehouseQueryService,
 )
 from backend.application.inventory.use_cases import (
@@ -72,6 +73,7 @@ def _presenter(conn):
         lot_query_factory=LotQueryService,
         movement_query_factory=MovementQueryService,
         expiry_query_factory=ExpiryQueryService,
+        traceability_query_factory=TraceabilityQueryService,
         session_context=_Session())
 
 
@@ -153,6 +155,29 @@ class TestPresenter:
         _seed(conn)  # stock sin lote / sin caducidad próxima
         vm = _presenter(conn).expiring()
         assert vm.total == 0
+
+    def test_traceability_view_model(self, conn):
+        from backend.application.inventory.use_cases import RegisterInventoryLotUseCase
+        from backend.domain.inventory.enums import LotOrigin
+        reg = RegisterInventoryLotUseCase().execute(
+            conn, product_id="p1", lot_code="L-TR", origin_type=LotOrigin.PURCHASE,
+            operation_id="lot-tr", actor_user_id="u1", branch_id="b1")
+        line = InventoryMovementLine.create(product_id="p1", quantity=Decimal("6"),
+                                            to_location_id="loc1", lot_id=reg.entity_id)
+        mv = InventoryMovement.create(
+            movement_type=MovementType.PURCHASE_RECEIPT, branch_id="b1",
+            warehouse_id="w1", source_module="procurement", source_document_type="GR",
+            source_document_id="gr-tr", operation_id="rcv-tr",
+            created_by_user_id="u1", lines=[line])
+        PostInventoryMovementUseCase().execute(conn, mv, actor_user_id="u1")
+        vm = _presenter(conn).traceability(lot_id=reg.entity_id)
+        assert vm.total == 1
+        assert vm.rows[0][1] == "Recepción de compra"  # movimiento es-MX
+        assert vm.rows[0][2] == "Entrada"              # dirección es-MX
+
+    def test_traceability_empty_without_lot(self, conn):
+        vm = _presenter(conn).traceability(lot_id="")
+        assert vm.total == 0 and vm.rows == []
 
     def test_generate_then_list_suggestions(self, conn):
         _seed(conn)

@@ -22,6 +22,7 @@ from frontend.desktop.modules.inventory.view_models import (
     lots_table,
     movements_table,
     replenishment_table,
+    traceability_table,
     urgency_variant,
     warehouses_table,
 )
@@ -34,7 +35,7 @@ class InventoryPresenter:
                  replenishment_query_factory, generate_suggestions_uc=None,
                  warehouse_query_factory=None, analytics_factory=None,
                  lot_query_factory=None, movement_query_factory=None,
-                 expiry_query_factory=None,
+                 expiry_query_factory=None, traceability_query_factory=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -45,6 +46,7 @@ class InventoryPresenter:
         self._lot_factory = lot_query_factory
         self._movement_factory = movement_query_factory
         self._expiry_factory = expiry_query_factory
+        self._traceability_factory = traceability_query_factory
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -119,6 +121,16 @@ class InventoryPresenter:
         branch = branch_id or self.default_branch()
         rows = self._expiry_factory(self._conn()).list_at_risk(branch_id=branch or None)
         return expiry_table(rows)
+
+    def traceability(self, *, lot_id: str) -> TableViewModel:
+        """Rastreo ascendente de un lote (eventos que lo originaron): fecha,
+        movimiento, dirección, módulo y documento. Sólo lectura; delega en el
+        traceability query service."""
+        lid = str(lot_id or "").strip()
+        if not lid or self._traceability_factory is None:
+            return traceability_table(())
+        trace = self._traceability_factory(self._conn()).trace_upstream(lid)
+        return traceability_table(trace.events)
 
     def open_suggestions(self, *, branch_id: str | None = None) -> TableViewModel:
         branch = branch_id or self.default_branch()

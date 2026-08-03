@@ -19,6 +19,7 @@ from frontend.desktop.modules.inventory.pages import (
     MovementsPage,
     PlaceholderPage,
     ReplenishmentPage,
+    TraceabilityPage,
     WarehousesPage,
 )
 
@@ -31,6 +32,7 @@ _REAL_PAGES = {
     "inventory_lots": LotsPage,
     "inventory_movements": MovementsPage,
     "inventory_expiry": ExpiryPage,
+    "inventory_traceability": TraceabilityPage,
     "inventory_replenishment": ReplenishmentPage,
 }
 

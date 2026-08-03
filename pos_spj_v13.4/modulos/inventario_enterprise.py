@@ -64,6 +64,7 @@ class ModuloInventarioEnterprise(QWidget):
             LotQueryService,
             MovementQueryService,
             ReplenishmentQueryService,
+            TraceabilityQueryService,
             WarehouseQueryService,
         )
         from backend.application.inventory.use_cases import (
@@ -93,5 +94,6 @@ class ModuloInventarioEnterprise(QWidget):
             lot_query_factory=LotQueryService,
             movement_query_factory=MovementQueryService,
             expiry_query_factory=ExpiryQueryService,
+            traceability_query_factory=TraceabilityQueryService,
             session_context=session,
         )

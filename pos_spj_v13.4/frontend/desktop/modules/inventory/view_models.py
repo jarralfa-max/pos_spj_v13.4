@@ -72,6 +72,10 @@ EXPIRY_RISK_VARIANT = {
 }
 SEVERITY_ES = {"INFO": "Informativo", "WARNING": "Advertencia", "CRITICAL": "Crítico"}
 DIRECTION_ES = {"UPSTREAM": "Origen (ascendente)", "DOWNSTREAM": "Destino (descendente)"}
+MOVEMENT_DIRECTION_ES = {
+    "INCREASE": "Entrada", "DECREASE": "Salida",
+    "STATUS_TRANSFER": "Cambio de estado", "VARIANCE": "Varianza", "MIXED": "Mixto",
+}
 
 
 def status_es(code) -> str:
@@ -108,6 +112,10 @@ def movement_status_es(code) -> str:
 
 def expiry_risk_es(code) -> str:
     return EXPIRY_RISK_ES.get(str(code or ""), str(code or "—"))
+
+
+def movement_direction_es(code) -> str:
+    return MOVEMENT_DIRECTION_ES.get(str(code or ""), str(code or "—"))
 
 
 def warehouse_type_es(code) -> str:
@@ -250,6 +258,24 @@ def expiry_table(rows: list[dict]) -> TableViewModel:
             qty(r.get("quantity")),
             "—" if days is None else str(days),
             expiry_risk_es(r.get("risk")),
+        ])
+    return TableViewModel(rows=out, row_ids=ids, total=len(out))
+
+
+def traceability_table(events) -> TableViewModel:
+    """events: TraceEvent tuple (trace_upstream/downstream) → display table
+    (fecha, movimiento, dirección, módulo, documento)."""
+    out, ids = [], []
+    for e in events:
+        ids.append(str(getattr(e, "movement_id", "") or ""))
+        doc = f"{getattr(e, 'source_document_type', '')} " \
+              f"{getattr(e, 'source_document_id', '')}".strip() or "—"
+        out.append([
+            str(getattr(e, "occurred_at", "") or "—")[:19],
+            movement_type_es(getattr(e, "movement_type", "")),
+            movement_direction_es(getattr(e, "direction", "")),
+            str(getattr(e, "source_module", "") or "—"),
+            doc,
         ])
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 
