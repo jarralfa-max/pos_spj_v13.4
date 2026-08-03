@@ -181,8 +181,9 @@ conteos, merma, cadena de frío, lotes.
   el `InventoryExecutionContext` (vía `InventoryUseCaseFactory.execution_context()`)
   y lo pasen a cada comando, para que el enforcement §5.3 esté activo en producción
   extremo a extremo (hoy el seam existe y cada caso de uso lo acepta).
-- Transferencias (agregado propio — se abordará junto con P1-B transferencias
-  físicas).
+- Transferencias: resueltas en **P1-B** como contexto acotado propio
+  (`backend/*/transfers/`), que mueve stock sólo por el ledger canónico vía
+  `InventoryTransferGateway`. Ver sección «P1-B — Transferencias físicas».
 - Cuenta técnica `service_account_id` para procesos automáticos.
 
 ## P0-B — Integridad
@@ -540,8 +541,52 @@ asignación acotada al almacén.
 (SALE_ISSUE/SALE_RETURN) · Compras (PURCHASE_RECEIPT/SUPPLIER_RETURN/reverso) ·
 Producción (consumo/salidas) — todos fail-closed vía `resolve_ingress` + guardrail
 de arquitectura. Merma/Transferencias ya postean por casos de uso canónicos
-(`RegisterWasteUseCase` / transferencias INV-12), sin sobre de evento externo.
+(`RegisterWasteUseCase` / transferencias, ver P1-B), sin sobre de evento externo.
 Pendiente: bridges legacy → P2.
+
+## P1-B — Transferencias físicas (contexto acotado propio) — HECHO
+
+La transferencia física entre sucursales/almacenes se implementó como **contexto
+acotado propio** (`backend/{domain,application,infrastructure}/transfers/` +
+`frontend/desktop/modules/transfers/`), no como agregado dentro de Inventario. El
+inventario sigue siendo la única fuente de verdad del stock: las transferencias
+mueven existencias exclusivamente a través del ledger canónico (reserva → despacho
+→ recepción) vía el `InventoryTransferGateway`.
+
+- **Dominio** `backend/domain/transfers/`: entidades, `enums`, `events`
+  (`TransferEvents.*`, todos `TRANSFER_*`), `policies`, `value_objects` y
+  `services/transfer_suggestion_service` (sugerencias sin SQL, sin `float`).
+- **Aplicación** `backend/application/transfers/`: 10 familias de casos de uso del
+  ciclo completo — solicitud → aprobación (total/parcial/rechazo) → reserva →
+  picking → empaque → despacho → recepción (ciega incluida) → diferencias →
+  devolución → sugerencia. `permissions.TransferPermissions` (20 permisos
+  granulares `TRANSFERS_*`); `authorization`, `offline_sync`
+  (`OfflineTransferOperationExecutor`, `operation_hash`, `local_sequence`,
+  `AGGREGATE_VERSION`), `printing` (gateway), `integrations`
+  (`CanonicalInventoryTransferGateway` → `ReserveInventoryUseCase` /
+  `PostTransferDispatchUseCase` / `PostTransferReceiptUseCase`; perfiles de
+  producto: conversión de unidad, peso variable, calidad, vida útil) y
+  `notification_handlers` (WhatsApp/in-app por gateway, con sink de auditoría).
+- **Infraestructura**: `repositories/transfers` + `infrastructure/printing/*`
+  (renderers + `TransfersPrintGateway`, sin PyQt/impresora directa/SQL; reimpresión
+  con `original_print_id`/`reprint_reason`). Esquema propiedad de migración
+  `154_transfers_bounded_context_schema.py` (UUIDv7 + Decimal).
+- **UI**: workspace `frontend/desktop/modules/transfers/` (Design System:
+  `PageHeader`/`KPIBar`/`StandardTable`/`FormDialog`/`DecimalInput`/`BarcodeInput`/
+  `ChartCard`), montado en navegación por
+  `backend/infrastructure/desktop/transfers_factory.TransfersModuleHost`
+  (`core/ui/module_loader.py` + `interfaz/main_window.py`). El legacy
+  `modulos/transferencias.py` ya no existe (allowlist legacy vacía).
+- **Evidencia**: 78 pruebas verdes (unit `test_transfers_*` + integración de
+  esquema/bootstrap + e2e `test_transfers_clean_workspace`); 25 guardrails de
+  arquitectura `test_transfers_*` / `test_no_legacy_transfer_imports` en verde
+  (resuelven desde la raíz del repo). Sin regresiones en el resto de la suite.
+
+> Nota de CWD: los guardrails de transferencias fijan rutas
+> `pos_spj_v13.4/backend/...`, por lo que sólo resuelven ejecutando pytest desde la
+> **raíz externa** del repo (`/…/pos_spj_v13.4/`). Corridos desde ahí, la línea base
+> real de arquitectura es `22 failed / 427 passed` y ninguno de los 22 es de
+> transferencias.
 
 ## P1-C — UI de inventario (presentación pura)
 
