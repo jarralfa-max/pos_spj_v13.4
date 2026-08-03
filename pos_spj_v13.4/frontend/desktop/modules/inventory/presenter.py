@@ -17,6 +17,7 @@ from frontend.desktop.modules.inventory.view_models import (
     TableViewModel,
     availability_breakdown_table,
     availability_table,
+    cold_chain_table,
     expiry_table,
     locations_table,
     lots_table,
@@ -40,7 +41,7 @@ class InventoryPresenter:
                  lot_query_factory=None, movement_query_factory=None,
                  expiry_query_factory=None, traceability_query_factory=None,
                  stock_query_factory=None, quarantine_query_factory=None,
-                 reservation_query_factory=None,
+                 reservation_query_factory=None, cold_chain_query_factory=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -55,6 +56,7 @@ class InventoryPresenter:
         self._stock_factory = stock_query_factory
         self._quarantine_factory = quarantine_query_factory
         self._reservation_factory = reservation_query_factory
+        self._cold_chain_factory = cold_chain_query_factory
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -105,6 +107,15 @@ class InventoryPresenter:
         rows = self._reservation_factory(self._conn()).list_active_for_product(
             product_id=pid, branch_id=branch or None)
         return reservations_table(rows)
+
+    def cold_chain_excursions(self, *, warehouse_id: str | None = None) -> TableViewModel:
+        """Excursiones de temperatura abiertas (almacén, lote, temperatura, rango,
+        estado, acción). Sólo lectura; delega en el cold chain query service."""
+        if self._cold_chain_factory is None:
+            return cold_chain_table([])
+        rows = self._cold_chain_factory(self._conn()).list_open_excursions(
+            warehouse_id=warehouse_id or None)
+        return cold_chain_table(rows)
 
     def quarantines(self, *, branch_id: str | None = None) -> TableViewModel:
         """Cuarentenas abiertas (producto, lote, motivo, cantidad, estado). Sólo

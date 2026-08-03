@@ -94,6 +94,14 @@ RESERVATION_STATUS_ES = {
     "PARTIALLY_FULFILLED": "Surtida parcial", "FULFILLED": "Surtida",
     "RELEASED": "Liberada", "EXPIRED": "Vencida", "CANCELLED": "Cancelada",
 }
+COLD_CHAIN_STATUS_ES = {
+    "COMPLIANT": "En rango", "WARNING": "Advertencia", "OUT_OF_RANGE": "Fuera de rango",
+    "PENDING_REVIEW": "En revisión", "BLOCKED": "Bloqueado",
+}
+EXCURSION_ACTION_ES = {
+    "NONE": "Ninguna", "WARN": "Alerta", "BLOCK_LOT": "Bloqueo de lote",
+    "QUARANTINE": "Cuarentena",
+}
 SEVERITY_ES = {"INFO": "Informativo", "WARNING": "Advertencia", "CRITICAL": "Crítico"}
 DIRECTION_ES = {"UPSTREAM": "Origen (ascendente)", "DOWNSTREAM": "Destino (descendente)"}
 MOVEMENT_DIRECTION_ES = {
@@ -156,6 +164,14 @@ def reservation_source_es(code) -> str:
 
 def reservation_status_es(code) -> str:
     return RESERVATION_STATUS_ES.get(str(code or ""), str(code or "—"))
+
+
+def cold_chain_status_es(code) -> str:
+    return COLD_CHAIN_STATUS_ES.get(str(code or ""), str(code or "—"))
+
+
+def excursion_action_es(code) -> str:
+    return EXCURSION_ACTION_ES.get(str(code or ""), str(code or "—"))
 
 
 def warehouse_type_es(code) -> str:
@@ -246,6 +262,24 @@ def warehouses_table(rows: list[dict]) -> TableViewModel:
             str(r.get("name") or "—"),
             warehouse_type_es(r.get("warehouse_type")),
             warehouse_status_es(r.get("status")),
+        ])
+    return TableViewModel(rows=out, row_ids=ids, total=len(out))
+
+
+def cold_chain_table(rows: list[dict]) -> TableViewModel:
+    """rows: open excursion rows (list_open_excursions) → display table (almacén,
+    lote, temperatura, rango, estado, acción)."""
+    out, ids = [], []
+    for i, r in enumerate(rows):
+        ids.append(f"{r.get('warehouse_id','')}:{i}")
+        rango = f"{qty(r.get('min_temp'))}–{qty(r.get('max_temp'))} °C"
+        out.append([
+            str(r.get("warehouse_id") or "—"),
+            str(r.get("lot_id") or "—"),
+            f"{qty(r.get('temperature'))} °C",
+            rango,
+            cold_chain_status_es(r.get("status")),
+            excursion_action_es(r.get("action_taken")),
         ])
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 

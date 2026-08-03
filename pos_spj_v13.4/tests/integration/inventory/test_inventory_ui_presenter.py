@@ -8,6 +8,7 @@ import pytest
 
 from backend.application.inventory.analytics import InventoryAnalyticsService
 from backend.application.inventory.queries import (
+    ColdChainQueryService,
     ExpiryQueryService,
     InventoryAvailabilityQueryService,
     LotQueryService,
@@ -80,6 +81,7 @@ def _presenter(conn):
         stock_query_factory=StockQueryService,
         quarantine_query_factory=QuarantineQueryService,
         reservation_query_factory=ReservationQueryService,
+        cold_chain_query_factory=ColdChainQueryService,
         session_context=_Session())
 
 
@@ -234,6 +236,24 @@ class TestPresenter:
 
     def test_reservations_empty_without_product(self, conn):
         vm = _presenter(conn).reservations(product_id="")
+        assert vm.total == 0 and vm.rows == []
+
+    def test_cold_chain_view_model(self, conn):
+        from backend.application.inventory.use_cases import (
+            RecordTemperatureReadingUseCase,
+        )
+        from backend.domain.inventory.enums import TemperaturePoint
+        RecordTemperatureReadingUseCase().execute(
+            conn, sensor_id="s1", warehouse_id="w1", temperature=Decimal("9"),
+            reading_point=TemperaturePoint.STORAGE, min_temp=Decimal("0"),
+            max_temp=Decimal("4"), operation_id="tmp-1", actor_user_id="u1")
+        vm = _presenter(conn).cold_chain_excursions()
+        assert vm.total == 1
+        assert vm.rows[0][0] == "w1"                 # almacén
+        assert vm.rows[0][4] == "Fuera de rango"     # estado es-MX
+
+    def test_cold_chain_empty(self, conn):
+        vm = _presenter(conn).cold_chain_excursions()
         assert vm.total == 0 and vm.rows == []
 
     def test_generate_then_list_suggestions(self, conn):

@@ -12,6 +12,7 @@ from __future__ import annotations
 from frontend.desktop.modules.inventory.navigation import INVENTORY_NAV
 from frontend.desktop.modules.inventory.pages import (
     AvailabilityPage,
+    ColdChainPage,
     ExpiryPage,
     InventoryDashboardPage,
     LocationsPage,
@@ -34,6 +35,7 @@ _REAL_PAGES = {
     "inventory_warehouses": WarehousesPage,
     "inventory_locations": LocationsPage,
     "inventory_lots": LotsPage,
+    "inventory_cold_chain": ColdChainPage,
     "inventory_reservations": ReservationsPage,
     "inventory_movements": MovementsPage,
     "inventory_expiry": ExpiryPage,

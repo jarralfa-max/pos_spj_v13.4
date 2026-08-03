@@ -745,3 +745,21 @@ Pendiente: bridges legacy → P2.
   `test_reservas_wires_the_real_reservations_page` + suites UI = 43 passed;
   inventario `2 failed / 537 passed` (2 pre-existentes, cero regresiones);
   arquitectura `58 failed / 391 passed` (sin fallas nuevas).
+
+### Slice 12 — Página real "Cadena de frío" (§21) — HECHO
+
+- **`ColdChainQueryService`** (application/queries, read-only): sobre
+  `inventory_temperature_excursions`, `list_open_excursions(warehouse_id)` —
+  excursiones abiertas (no resueltas), más recientes primero.
+- **`ColdChainPage`** (DS): `PageHeader` + `StandardTable`
+  (Almacén/Lote/Temperatura/Rango/Estado/Acción); refresca al navegar.
+  Presentación pura.
+- **Presenter** `cold_chain_excursions(warehouse_id)` + factory opcional
+  `cold_chain_query_factory`; view model `cold_chain_table` + etiquetas es-MX
+  (`cold_chain_status_es`, `excursion_action_es`).
+- **Registro**: `inventory_cold_chain` → `ColdChainPage`. 13 páginas reales;
+  quedan 8 en placeholder.
+- **Evidencia**: `test_cold_chain_view_model`, `test_cold_chain_empty`,
+  `test_cadena_de_frio_wires_the_real_cold_chain_page` + suites UI = 46 passed;
+  inventario `2 failed / 540 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `58 failed / 391 passed` (sin fallas nuevas).
