@@ -637,3 +637,21 @@ Pendiente: bridges legacy → P2.
   `test_lotes_wires_the_real_lots_page` + suites UI = 25 passed; inventario
   `2 failed / 519 passed` (2 pre-existentes, cero regresiones); arquitectura
   `58 failed / 391 passed` (sin fallas nuevas).
+
+### Slice 6 — Página real "Movimientos" (§15) — HECHO
+
+- **`MovementQueryService`** (application/queries): read-only sobre
+  `inventory_ledger`, `list_recent(branch_id, limit=100)` — más recientes primero,
+  acotado (la UI nunca jala todo el ledger); expone fecha, tipo, módulo, documento
+  y estado.
+- **`MovementsPage`** (DS): `PageHeader` + `StandardTable`
+  (Fecha/Tipo/Módulo/Documento/Estado); refresca al navegar. Presentación pura.
+- **Presenter** `movements(branch_id, limit)` + factory opcional
+  `movement_query_factory`; view model `movements_table` + etiquetas es-MX
+  (`movement_type_es` para 24 tipos, `movement_status_es`).
+- **Registro**: `inventory_movements` → `MovementsPage`. 7 páginas reales; quedan
+  14 en placeholder.
+- **Evidencia**: `test_movements_view_model`, `test_movements_empty_ledger`,
+  `test_movimientos_wires_the_real_movements_page` + suites UI = 28 passed;
+  inventario `2 failed / 522 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `58 failed / 391 passed` (sin fallas nuevas).

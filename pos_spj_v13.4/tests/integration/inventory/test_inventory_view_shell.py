@@ -17,6 +17,7 @@ from frontend.desktop.modules.inventory.page_registry import build_page_specs  #
 from frontend.desktop.modules.inventory.pages import (  # noqa: E402
     AvailabilityPage,
     LotsPage,
+    MovementsPage,
     PlaceholderPage,
 )
 from frontend.desktop.modules.inventory.view_models import TableViewModel  # noqa: E402
@@ -29,6 +30,9 @@ class _StubPresenter:
         return TableViewModel(rows=[], row_ids=[], total=0)
 
     def lots(self, *, product_id, branch_id=None):
+        return TableViewModel(rows=[], row_ids=[], total=0)
+
+    def movements(self, *, branch_id=None, limit=100):
         return TableViewModel(rows=[], row_ids=[], total=0)
 
 
@@ -96,3 +100,11 @@ def test_lotes_wires_the_real_lots_page(app):
     view.nav.select(idx)
     page = view.stack.widget(idx).layout().itemAt(0).widget()
     assert isinstance(page, LotsPage)
+
+
+def test_movimientos_wires_the_real_movements_page(app):
+    view = InventoryView(presenter=_StubPresenter(), specs=build_page_specs())
+    idx = [e.title for e in INVENTORY_NAV].index("Movimientos")
+    view.nav.select(idx)
+    page = view.stack.widget(idx).layout().itemAt(0).widget()
+    assert isinstance(page, MovementsPage)

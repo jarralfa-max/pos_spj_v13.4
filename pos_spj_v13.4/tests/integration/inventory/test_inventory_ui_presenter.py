@@ -10,6 +10,7 @@ from backend.application.inventory.analytics import InventoryAnalyticsService
 from backend.application.inventory.queries import (
     InventoryAvailabilityQueryService,
     LotQueryService,
+    MovementQueryService,
     ReplenishmentQueryService,
     WarehouseQueryService,
 )
@@ -68,6 +69,7 @@ def _presenter(conn):
         warehouse_query_factory=WarehouseQueryService,
         analytics_factory=InventoryAnalyticsService,
         lot_query_factory=LotQueryService,
+        movement_query_factory=MovementQueryService,
         session_context=_Session())
 
 
@@ -108,6 +110,18 @@ class TestPresenter:
 
     def test_lots_empty_without_product(self, conn):
         vm = _presenter(conn).lots(product_id="")
+        assert vm.total == 0 and vm.rows == []
+
+    def test_movements_view_model(self, conn):
+        _seed(conn)  # postea un PURCHASE_RECEIPT
+        vm = _presenter(conn).movements()
+        assert vm.total == 1
+        assert vm.rows[0][1] == "Recepción de compra"  # tipo es-MX
+        assert vm.rows[0][2] == "procurement"          # módulo
+        assert vm.rows[0][4] == "Posteado"             # estado es-MX
+
+    def test_movements_empty_ledger(self, conn):
+        vm = _presenter(conn).movements()
         assert vm.total == 0 and vm.rows == []
 
     def test_generate_then_list_suggestions(self, conn):

@@ -46,6 +46,23 @@ LOT_QUALITY_VARIANT = {
     "RELEASED": "success", "PENDING_INSPECTION": "warning", "BLOCKED": "danger",
     "QUARANTINED": "warning", "REJECTED": "danger",
 }
+MOVEMENT_TYPE_ES = {
+    "PURCHASE_RECEIPT": "Recepción de compra",
+    "DIRECT_PURCHASE_RECEIPT": "Recepción directa",
+    "SALE_ISSUE": "Salida por venta", "SALE_RETURN": "Devolución de venta",
+    "TRANSFER_DISPATCH": "Despacho de traslado", "TRANSFER_RECEIPT": "Recepción de traslado",
+    "PRODUCTION_CONSUMPTION": "Consumo de producción",
+    "PRODUCTION_OUTPUT": "Salida de producción",
+    "KIT_ASSEMBLY": "Ensamble de kit", "KIT_DISASSEMBLY": "Desensamble de kit",
+    "QUALITY_BLOCK": "Bloqueo de calidad", "QUALITY_RELEASE": "Liberación de calidad",
+    "QUARANTINE_ENTRY": "Ingreso a cuarentena", "QUARANTINE_RELEASE": "Salida de cuarentena",
+    "EXPIRY_STATUS_TRANSFER": "Caducidad", "ADJUSTMENT_IN": "Ajuste (entrada)",
+    "ADJUSTMENT_OUT": "Ajuste (salida)", "COUNT_VARIANCE": "Varianza de conteo",
+    "WASTE": "Merma", "SHRINKAGE": "Mermas/shrinkage", "EXPIRY_DISPOSAL": "Disposición por caducidad",
+    "SUPPLIER_RETURN": "Devolución a proveedor", "CUSTOMER_RETURN": "Devolución de cliente",
+    "REVERSAL": "Reverso",
+}
+MOVEMENT_STATUS_ES = {"POSTED": "Posteado", "REVERSED": "Reversado", "DRAFT": "Borrador"}
 SEVERITY_ES = {"INFO": "Informativo", "WARNING": "Advertencia", "CRITICAL": "Crítico"}
 DIRECTION_ES = {"UPSTREAM": "Origen (ascendente)", "DOWNSTREAM": "Destino (descendente)"}
 
@@ -72,6 +89,14 @@ def lot_origin_es(code) -> str:
 
 def lot_quality_es(code) -> str:
     return LOT_QUALITY_ES.get(str(code or ""), str(code or "—"))
+
+
+def movement_type_es(code) -> str:
+    return MOVEMENT_TYPE_ES.get(str(code or ""), str(code or "—"))
+
+
+def movement_status_es(code) -> str:
+    return MOVEMENT_STATUS_ES.get(str(code or ""), str(code or "—"))
 
 
 def warehouse_type_es(code) -> str:
@@ -198,6 +223,25 @@ def locations_table(nodes) -> TableViewModel:
 
     for root in nodes:
         _walk(root, 0)
+    return TableViewModel(rows=out, row_ids=ids, total=len(out))
+
+
+def movements_table(rows: list[dict]) -> TableViewModel:
+    """rows: ledger movement rows (list_recent) → display table (fecha, tipo,
+    módulo, documento, estado), más recientes primero."""
+    out, ids = [], []
+    for r in rows:
+        ids.append(str(r.get("id") or ""))
+        doc_type = str(r.get("source_document_type") or "")
+        doc_id = str(r.get("source_document_id") or "")
+        documento = f"{doc_type} {doc_id}".strip() or "—"
+        out.append([
+            str(r.get("occurred_at") or "—")[:19],
+            movement_type_es(r.get("movement_type")),
+            str(r.get("source_module") or "—"),
+            documento,
+            movement_status_es(r.get("status")),
+        ])
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 
 
