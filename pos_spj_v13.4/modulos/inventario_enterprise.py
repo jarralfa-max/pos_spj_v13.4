@@ -60,6 +60,7 @@ class ModuloInventarioEnterprise(QWidget):
         from backend.application.inventory.analytics import InventoryAnalyticsService
         from backend.application.inventory.queries import (
             InventoryAvailabilityQueryService,
+            LotQueryService,
             ReplenishmentQueryService,
             WarehouseQueryService,
         )
@@ -87,5 +88,6 @@ class ModuloInventarioEnterprise(QWidget):
             generate_suggestions_uc=generate_uc,
             warehouse_query_factory=WarehouseQueryService,
             analytics_factory=InventoryAnalyticsService,
+            lot_query_factory=LotQueryService,
             session_context=session,
         )

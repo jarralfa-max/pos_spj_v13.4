@@ -16,8 +16,20 @@ from frontend.desktop.modules.inventory.navigation import INVENTORY_NAV  # noqa:
 from frontend.desktop.modules.inventory.page_registry import build_page_specs  # noqa: E402
 from frontend.desktop.modules.inventory.pages import (  # noqa: E402
     AvailabilityPage,
+    LotsPage,
     PlaceholderPage,
 )
+from frontend.desktop.modules.inventory.view_models import TableViewModel  # noqa: E402
+
+
+class _StubPresenter:
+    """Presenter mínimo para páginas de búsqueda por producto (refresh vacío)."""
+
+    def availability_breakdown(self, *, product_id, branch_id=None, warehouse_id=None):
+        return TableViewModel(rows=[], row_ids=[], total=0)
+
+    def lots(self, *, product_id, branch_id=None):
+        return TableViewModel(rows=[], row_ids=[], total=0)
 
 
 @pytest.fixture(scope="module")
@@ -71,15 +83,16 @@ def test_unbuilt_sections_use_placeholder(app):
 
 
 def test_disponibilidad_wires_the_real_availability_page(app):
-    class _StubPresenter:
-        def availability_breakdown(self, *, product_id, branch_id=None,
-                                   warehouse_id=None):
-            from frontend.desktop.modules.inventory.view_models import TableViewModel
-            return TableViewModel(rows=[], row_ids=[], total=0)
-
-    specs = build_page_specs()
-    view = InventoryView(presenter=_StubPresenter(), specs=specs)
+    view = InventoryView(presenter=_StubPresenter(), specs=build_page_specs())
     idx = [e.title for e in INVENTORY_NAV].index("Disponibilidad")
     view.nav.select(idx)
     page = view.stack.widget(idx).layout().itemAt(0).widget()
     assert isinstance(page, AvailabilityPage)
+
+
+def test_lotes_wires_the_real_lots_page(app):
+    view = InventoryView(presenter=_StubPresenter(), specs=build_page_specs())
+    idx = [e.title for e in INVENTORY_NAV].index("Lotes")
+    view.nav.select(idx)
+    page = view.stack.widget(idx).layout().itemAt(0).widget()
+    assert isinstance(page, LotsPage)

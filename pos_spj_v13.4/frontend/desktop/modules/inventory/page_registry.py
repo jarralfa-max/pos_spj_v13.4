@@ -14,6 +14,7 @@ from frontend.desktop.modules.inventory.pages import (
     AvailabilityPage,
     InventoryDashboardPage,
     LocationsPage,
+    LotsPage,
     PlaceholderPage,
     ReplenishmentPage,
     WarehousesPage,
@@ -25,6 +26,7 @@ _REAL_PAGES = {
     "inventory_availability": AvailabilityPage,
     "inventory_warehouses": WarehousesPage,
     "inventory_locations": LocationsPage,
+    "inventory_lots": LotsPage,
     "inventory_replenishment": ReplenishmentPage,
 }
 

@@ -34,6 +34,18 @@ WAREHOUSE_TYPE_ES = {
 WAREHOUSE_STATUS_ES = {"ACTIVE": "Activo", "BLOCKED": "Bloqueado", "INACTIVE": "Inactivo"}
 LOCATION_STATUS_ES = {"ACTIVE": "Activa", "BLOCKED": "Bloqueada", "INACTIVE": "Inactiva"}
 SOURCE_ES = {"PURCHASE": "Compra", "TRANSFER": "Transferencia"}
+LOT_ORIGIN_ES = {
+    "PURCHASE": "Compra", "PRODUCTION": "Producción", "SLAUGHTER": "Faena",
+    "TRANSFER": "Transferencia", "RETURN": "Devolución", "ADJUSTMENT": "Ajuste",
+}
+LOT_QUALITY_ES = {
+    "RELEASED": "Liberado", "PENDING_INSPECTION": "Por inspección",
+    "BLOCKED": "Bloqueado", "QUARANTINED": "En cuarentena", "REJECTED": "Rechazado",
+}
+LOT_QUALITY_VARIANT = {
+    "RELEASED": "success", "PENDING_INSPECTION": "warning", "BLOCKED": "danger",
+    "QUARANTINED": "warning", "REJECTED": "danger",
+}
 SEVERITY_ES = {"INFO": "Informativo", "WARNING": "Advertencia", "CRITICAL": "Crítico"}
 DIRECTION_ES = {"UPSTREAM": "Origen (ascendente)", "DOWNSTREAM": "Destino (descendente)"}
 
@@ -52,6 +64,14 @@ def urgency_variant(code) -> str:
 
 def source_es(code) -> str:
     return SOURCE_ES.get(str(code or ""), str(code or "—"))
+
+
+def lot_origin_es(code) -> str:
+    return LOT_ORIGIN_ES.get(str(code or ""), str(code or "—"))
+
+
+def lot_quality_es(code) -> str:
+    return LOT_QUALITY_ES.get(str(code or ""), str(code or "—"))
 
 
 def warehouse_type_es(code) -> str:
@@ -142,6 +162,21 @@ def warehouses_table(rows: list[dict]) -> TableViewModel:
             str(r.get("name") or "—"),
             warehouse_type_es(r.get("warehouse_type")),
             warehouse_status_es(r.get("status")),
+        ])
+    return TableViewModel(rows=out, row_ids=ids, total=len(out))
+
+
+def lots_table(rows: list[dict]) -> TableViewModel:
+    """rows: lot rows (list_for_product) → display table (código, origen, calidad,
+    caducidad), ordenadas por caducidad (FEFO)."""
+    out, ids = [], []
+    for r in rows:
+        ids.append(str(r.get("id") or ""))
+        out.append([
+            str(r.get("lot_code") or "—"),
+            lot_origin_es(r.get("origin_type")),
+            lot_quality_es(r.get("quality_status")),
+            str(r.get("expiration_date") or "—"),
         ])
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 

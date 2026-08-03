@@ -9,6 +9,7 @@ import pytest
 from backend.application.inventory.analytics import InventoryAnalyticsService
 from backend.application.inventory.queries import (
     InventoryAvailabilityQueryService,
+    LotQueryService,
     ReplenishmentQueryService,
     WarehouseQueryService,
 )
@@ -66,6 +67,7 @@ def _presenter(conn):
         generate_suggestions_uc=GenerateReplenishmentSuggestionsUseCase(),
         warehouse_query_factory=WarehouseQueryService,
         analytics_factory=InventoryAnalyticsService,
+        lot_query_factory=LotQueryService,
         session_context=_Session())
 
 
@@ -88,6 +90,24 @@ class TestPresenter:
 
     def test_availability_breakdown_empty_without_product(self, conn):
         vm = _presenter(conn).availability_breakdown(product_id="")
+        assert vm.total == 0 and vm.rows == []
+
+    def test_lots_view_model(self, conn):
+        from backend.application.inventory.use_cases import RegisterInventoryLotUseCase
+        from backend.domain.inventory.enums import LotOrigin
+        RegisterInventoryLotUseCase().execute(
+            conn, product_id="p1", lot_code="L-9", origin_type=LotOrigin.PURCHASE,
+            operation_id="lot-9", actor_user_id="u1", branch_id="b1",
+            expiration_date="2027-01-15")
+        vm = _presenter(conn).lots(product_id="p1")
+        assert vm.total == 1
+        assert vm.rows[0][0] == "L-9"          # código
+        assert vm.rows[0][1] == "Compra"       # origen es-MX
+        assert vm.rows[0][2] == "Por inspección"  # calidad por defecto es-MX
+        assert vm.rows[0][3] == "2027-01-15"
+
+    def test_lots_empty_without_product(self, conn):
+        vm = _presenter(conn).lots(product_id="")
         assert vm.total == 0 and vm.rows == []
 
     def test_generate_then_list_suggestions(self, conn):

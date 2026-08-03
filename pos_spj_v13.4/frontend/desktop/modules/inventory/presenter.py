@@ -18,6 +18,7 @@ from frontend.desktop.modules.inventory.view_models import (
     availability_breakdown_table,
     availability_table,
     locations_table,
+    lots_table,
     replenishment_table,
     urgency_variant,
     warehouses_table,
@@ -30,6 +31,7 @@ class InventoryPresenter:
     def __init__(self, *, connection_provider, availability_service_factory,
                  replenishment_query_factory, generate_suggestions_uc=None,
                  warehouse_query_factory=None, analytics_factory=None,
+                 lot_query_factory=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -37,6 +39,7 @@ class InventoryPresenter:
         self._generate_uc = generate_suggestions_uc
         self._warehouse_factory = warehouse_query_factory
         self._analytics_factory = analytics_factory
+        self._lot_factory = lot_query_factory
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -79,6 +82,17 @@ class InventoryPresenter:
         dto = self._availability_factory(self._conn()).get_availability(
             product_id=pid, branch_id=branch, warehouse_id=warehouse_id)
         return availability_breakdown_table(dto.explain())
+
+    def lots(self, *, product_id: str, branch_id: str | None = None) -> TableViewModel:
+        """Lotes de un producto (código, origen, calidad, caducidad) por FEFO.
+        Sólo lectura; delega en el lot query service."""
+        pid = str(product_id or "").strip()
+        if not pid or self._lot_factory is None:
+            return lots_table([])
+        branch = branch_id or self.default_branch()
+        rows = self._lot_factory(self._conn()).list_for_product(
+            product_id=pid, branch_id=branch or None)
+        return lots_table(rows)
 
     def open_suggestions(self, *, branch_id: str | None = None) -> TableViewModel:
         branch = branch_id or self.default_branch()

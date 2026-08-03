@@ -3,6 +3,7 @@
 from backend.application.inventory.queries.availability_query_service import (
     InventoryAvailabilityQueryService,
 )
+from backend.application.inventory.queries.lot_query_service import LotQueryService
 from backend.application.inventory.queries.replenishment_query_service import (
     ReplenishmentQueryService,
 )
@@ -28,6 +29,7 @@ __all__ = [
     "InventoryAvailabilityQueryService",
     "InventoryStockAggregateQueryService",
     "LocationNode",
+    "LotQueryService",
     "LotTraceDTO",
     "LowStockItemDTO",
     "LowStockProductDTO",

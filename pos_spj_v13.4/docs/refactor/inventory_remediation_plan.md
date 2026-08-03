@@ -619,6 +619,21 @@ Pendiente: bridges legacy → P2.
   `test_disponibilidad_wires_the_real_availability_page` + suites UI = 22 passed;
   inventario `2 failed / 516 passed` (2 pre-existentes, cero regresiones);
   arquitectura `58 failed / 391 passed` (sin fallas nuevas).
-- **Siguiente (P1-C)**: seguir reemplazando placeholders por páginas reales del DS
-  (Existencias, Lotes, Movimientos, Reservas, …), una por slice, delegando en el
-  presenter/query services.
+### Slice 5 — Página real "Lotes" (§46) — HECHO
+
+- **`LotQueryService`** (application/queries): read-only sobre `inventory_lots`,
+  `list_for_product(product_id, branch_id)` ordenado por caducidad (FEFO); expone
+  código, origen, estado de calidad y fechas. Registrado en el paquete de queries.
+- **`LotsPage`** (DS): `PageHeader` + `SearchInput` (producto por ID/código — sin
+  combo gigante) + `StandardTable` (Lote/Origen/Calidad/Caducidad). Presentación
+  pura.
+- **Presenter** `lots(product_id, …)` + factory opcional `lot_query_factory`
+  (cableado en el contenedor); view models `lots_table` + etiquetas es-MX
+  (`lot_origin_es`, `lot_quality_es`).
+- **Registro**: `inventory_lots` → `LotsPage`. Quedan 15 secciones en placeholder;
+  6 páginas reales (Resumen, Disponibilidad, Almacenes, Ubicaciones, Lotes,
+  Reposición).
+- **Evidencia**: `test_lots_view_model`, `test_lots_empty_without_product`,
+  `test_lotes_wires_the_real_lots_page` + suites UI = 25 passed; inventario
+  `2 failed / 519 passed` (2 pre-existentes, cero regresiones); arquitectura
+  `58 failed / 391 passed` (sin fallas nuevas).
