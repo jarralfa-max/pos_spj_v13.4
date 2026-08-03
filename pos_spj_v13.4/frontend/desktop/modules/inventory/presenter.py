@@ -15,6 +15,7 @@ from backend.shared.ids import new_uuid
 from frontend.desktop.modules.inventory.view_models import (
     KpiViewModel,
     TableViewModel,
+    availability_breakdown_table,
     availability_table,
     locations_table,
     replenishment_table,
@@ -65,6 +66,19 @@ class InventoryPresenter:
             rows.append({"product_id": dto.product_id, "on_hand": dto.on_hand,
                          "reserved": dto.reserved, "available": dto.available})
         return availability_table(rows)
+
+    def availability_breakdown(self, *, product_id: str, branch_id: str | None = None,
+                               warehouse_id: str | None = None) -> TableViewModel:
+        """Desglose de disponibilidad de UN producto por bucket físico (§9.3): total
+        en mano, disponible, reservado y cada bucket que explica un faltante. Sólo
+        lectura; delega en el availability query service (.explain())."""
+        pid = str(product_id or "").strip()
+        if not pid:
+            return availability_breakdown_table({})
+        branch = branch_id or self.default_branch()
+        dto = self._availability_factory(self._conn()).get_availability(
+            product_id=pid, branch_id=branch, warehouse_id=warehouse_id)
+        return availability_breakdown_table(dto.explain())
 
     def open_suggestions(self, *, branch_id: str | None = None) -> TableViewModel:
         branch = branch_id or self.default_branch()

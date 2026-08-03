@@ -101,6 +101,38 @@ def availability_table(rows: list[dict]) -> TableViewModel:
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 
 
+# §9.3 — orden canónico del desglose de disponibilidad (concepto es-MX → clave del
+# dict .explain()). "Disponible" es lo que Ventas puede prometer; el resto explica
+# por qué el stock existente no está disponible.
+AVAILABILITY_BREAKDOWN_ROWS = (
+    ("Total en mano", "total_on_hand"),
+    ("Disponible", "available"),
+    ("Reservado", "reserved"),
+    ("Asignado", "allocated"),
+    ("En tránsito", "in_transit"),
+    ("Por inspección", "pending_inspection"),
+    ("En cuarentena", "quarantined"),
+    ("Bloqueado calidad", "blocked"),
+    ("Dañado", "damaged"),
+    ("Caducado", "expired"),
+    ("Devuelto", "returned"),
+    ("Retenido producción", "production_hold"),
+    ("Retiro (recall)", "recall_hold"),
+)
+
+
+def availability_breakdown_table(explain: dict) -> TableViewModel:
+    """explain: dict de ``AvailabilityDTO.explain()`` → tabla (Concepto, Cantidad)
+    en el orden canónico. Sin producto (dict vacío) devuelve una tabla vacía."""
+    if not explain:
+        return TableViewModel(rows=[], row_ids=[], total=0)
+    out, ids = [], []
+    for label, key in AVAILABILITY_BREAKDOWN_ROWS:
+        ids.append(key)
+        out.append([label, qty(explain.get(key, 0))])
+    return TableViewModel(rows=out, row_ids=ids, total=len(out))
+
+
 def warehouses_table(rows: list[dict]) -> TableViewModel:
     out, ids = [], []
     for r in rows:

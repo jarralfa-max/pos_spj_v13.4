@@ -601,8 +601,24 @@ Pendiente: bridges legacy → P2.
   guardrails UI/contenedor; inventario `2 failed / 513 passed` (2 pre-existentes,
   cero regresiones); arquitectura `58 failed / 391 passed` (+3 shell, sin fallas
   nuevas). (`merma.py` sigue con un fallo pre-existente ajeno a esta slice.)
-- **Siguiente (P1-C)**: reemplazar los `PlaceholderPage` por páginas reales del DS
-  (Existencias, Disponibilidad, Lotes, Peso variable, Cadena de frío, Reservas,
-  Movimientos, Transferencias, Recepciones, Conteos, Ajustes, Cuarentena,
-  Caducidades, Trazabilidad, Alertas, Auditoría, Configuración), sección por
-  sección (una página por slice), delegando en el presenter/query services.
+### Slice 4 — Página real "Disponibilidad" (desglose §9.3) — HECHO
+
+- **`AvailabilityPage`** (DS): `PageHeader` + `SearchInput` (producto por ID/código
+  escaneado — sin combo gigante) + `StandardTable` (Concepto/Cantidad). Al buscar,
+  muestra el desglose de disponibilidad del producto por bucket físico: Total en
+  mano, Disponible, Reservado, Asignado, En tránsito, Por inspección, En
+  cuarentena, Bloqueado calidad, Dañado, Caducado, Devuelto, Retenido producción,
+  Retiro (recall). Presentación pura.
+- **Presenter** `availability_breakdown(product_id, …)`: delega en el availability
+  query service y devuelve `AvailabilityDTO.explain()` (§9.3) mapeado por
+  `availability_breakdown_table` (view model, es-MX, orden canónico).
+- **Registro**: `inventory_availability` → `AvailabilityPage` (reemplaza su
+  placeholder). Quedan 16 secciones en placeholder.
+- **Evidencia**: `test_availability_breakdown_view_model`,
+  `test_availability_breakdown_empty_without_product`,
+  `test_disponibilidad_wires_the_real_availability_page` + suites UI = 22 passed;
+  inventario `2 failed / 516 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `58 failed / 391 passed` (sin fallas nuevas).
+- **Siguiente (P1-C)**: seguir reemplazando placeholders por páginas reales del DS
+  (Existencias, Lotes, Movimientos, Reservas, …), una por slice, delegando en el
+  presenter/query services.

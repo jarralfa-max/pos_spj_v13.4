@@ -14,7 +14,10 @@ from PyQt5.QtWidgets import QApplication  # noqa: E402
 from frontend.desktop.modules.inventory.inventory_view import InventoryView  # noqa: E402
 from frontend.desktop.modules.inventory.navigation import INVENTORY_NAV  # noqa: E402
 from frontend.desktop.modules.inventory.page_registry import build_page_specs  # noqa: E402
-from frontend.desktop.modules.inventory.pages import PlaceholderPage  # noqa: E402
+from frontend.desktop.modules.inventory.pages import (  # noqa: E402
+    AvailabilityPage,
+    PlaceholderPage,
+)
 
 
 @pytest.fixture(scope="module")
@@ -65,3 +68,18 @@ def test_unbuilt_sections_use_placeholder(app):
     container = view.stack.widget(idx)
     page = container.layout().itemAt(0).widget()
     assert isinstance(page, PlaceholderPage)
+
+
+def test_disponibilidad_wires_the_real_availability_page(app):
+    class _StubPresenter:
+        def availability_breakdown(self, *, product_id, branch_id=None,
+                                   warehouse_id=None):
+            from frontend.desktop.modules.inventory.view_models import TableViewModel
+            return TableViewModel(rows=[], row_ids=[], total=0)
+
+    specs = build_page_specs()
+    view = InventoryView(presenter=_StubPresenter(), specs=specs)
+    idx = [e.title for e in INVENTORY_NAV].index("Disponibilidad")
+    view.nav.select(idx)
+    page = view.stack.widget(idx).layout().itemAt(0).widget()
+    assert isinstance(page, AvailabilityPage)

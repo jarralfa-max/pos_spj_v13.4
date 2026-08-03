@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from frontend.desktop.modules.inventory.navigation import INVENTORY_NAV
 from frontend.desktop.modules.inventory.pages import (
+    AvailabilityPage,
     InventoryDashboardPage,
     LocationsPage,
     PlaceholderPage,
@@ -21,6 +22,7 @@ from frontend.desktop.modules.inventory.pages import (
 # page_id -> factory(presenter) -> QWidget. Sólo secciones con página real.
 _REAL_PAGES = {
     "inventory_summary": InventoryDashboardPage,
+    "inventory_availability": AvailabilityPage,
     "inventory_warehouses": WarehousesPage,
     "inventory_locations": LocationsPage,
     "inventory_replenishment": ReplenishmentPage,

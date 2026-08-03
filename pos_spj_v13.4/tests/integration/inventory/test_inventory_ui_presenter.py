@@ -76,6 +76,20 @@ class TestPresenter:
         assert vm.total == 1 and vm.rows[0][0] == "p1"
         assert vm.rows[0][3].startswith("5")  # available
 
+    def test_availability_breakdown_view_model(self, conn):
+        _seed(conn)  # 5 disponibles de p1 en b1
+        vm = _presenter(conn).availability_breakdown(product_id="p1")
+        by_concept = {row[0]: row[1] for row in vm.rows}
+        assert by_concept["Total en mano"].startswith("5")
+        assert by_concept["Disponible"].startswith("5")
+        assert by_concept["Reservado"].startswith("0")
+        # el desglose incluye todos los buckets físicos (§9.3)
+        assert "En cuarentena" in by_concept and "Bloqueado calidad" in by_concept
+
+    def test_availability_breakdown_empty_without_product(self, conn):
+        vm = _presenter(conn).availability_breakdown(product_id="")
+        assert vm.total == 0 and vm.rows == []
+
     def test_generate_then_list_suggestions(self, conn):
         _seed(conn)
         pres = _presenter(conn)
