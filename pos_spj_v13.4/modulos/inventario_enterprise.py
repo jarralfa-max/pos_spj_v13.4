@@ -59,6 +59,7 @@ class ModuloInventarioEnterprise(QWidget):
     def _build_presenter(self, conn, session):
         from backend.application.inventory.analytics import InventoryAnalyticsService
         from backend.application.inventory.queries import (
+            ExpiryQueryService,
             InventoryAvailabilityQueryService,
             LotQueryService,
             MovementQueryService,
@@ -91,5 +92,6 @@ class ModuloInventarioEnterprise(QWidget):
             analytics_factory=InventoryAnalyticsService,
             lot_query_factory=LotQueryService,
             movement_query_factory=MovementQueryService,
+            expiry_query_factory=ExpiryQueryService,
             session_context=session,
         )

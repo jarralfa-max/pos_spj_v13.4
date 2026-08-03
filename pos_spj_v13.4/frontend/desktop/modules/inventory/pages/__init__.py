@@ -4,6 +4,7 @@ from frontend.desktop.modules.inventory.pages.analytics_page import (
     InventoryAnalyticsPage,
 )
 from frontend.desktop.modules.inventory.pages.availability_page import AvailabilityPage
+from frontend.desktop.modules.inventory.pages.expiry_page import ExpiryPage
 from frontend.desktop.modules.inventory.pages.inventory_dashboard_page import (
     InventoryDashboardPage,
 )
@@ -18,6 +19,7 @@ from frontend.desktop.modules.inventory.pages.warehouses_page import WarehousesP
 
 __all__ = [
     "AvailabilityPage",
+    "ExpiryPage",
     "InventoryAnalyticsPage",
     "InventoryDashboardPage",
     "LocationsPage",

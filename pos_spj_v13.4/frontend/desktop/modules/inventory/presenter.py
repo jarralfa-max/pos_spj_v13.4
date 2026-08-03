@@ -17,6 +17,7 @@ from frontend.desktop.modules.inventory.view_models import (
     TableViewModel,
     availability_breakdown_table,
     availability_table,
+    expiry_table,
     locations_table,
     lots_table,
     movements_table,
@@ -33,6 +34,7 @@ class InventoryPresenter:
                  replenishment_query_factory, generate_suggestions_uc=None,
                  warehouse_query_factory=None, analytics_factory=None,
                  lot_query_factory=None, movement_query_factory=None,
+                 expiry_query_factory=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -42,6 +44,7 @@ class InventoryPresenter:
         self._analytics_factory = analytics_factory
         self._lot_factory = lot_query_factory
         self._movement_factory = movement_query_factory
+        self._expiry_factory = expiry_query_factory
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -106,6 +109,16 @@ class InventoryPresenter:
         rows = self._movement_factory(self._conn()).list_recent(
             branch_id=branch or None, limit=limit)
         return movements_table(rows)
+
+    def expiring(self, *, branch_id: str | None = None) -> TableViewModel:
+        """Lotes disponibles en riesgo de caducidad (vencido/crítico/próximo),
+        próximos a vencer primero. Sólo lectura; delega en el expiry query service
+        (clasifica, no emite eventos ni mueve stock)."""
+        if self._expiry_factory is None:
+            return expiry_table([])
+        branch = branch_id or self.default_branch()
+        rows = self._expiry_factory(self._conn()).list_at_risk(branch_id=branch or None)
+        return expiry_table(rows)
 
     def open_suggestions(self, *, branch_id: str | None = None) -> TableViewModel:
         branch = branch_id or self.default_branch()

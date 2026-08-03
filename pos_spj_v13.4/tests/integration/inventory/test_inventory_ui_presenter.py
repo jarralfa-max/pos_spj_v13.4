@@ -8,6 +8,7 @@ import pytest
 
 from backend.application.inventory.analytics import InventoryAnalyticsService
 from backend.application.inventory.queries import (
+    ExpiryQueryService,
     InventoryAvailabilityQueryService,
     LotQueryService,
     MovementQueryService,
@@ -70,6 +71,7 @@ def _presenter(conn):
         analytics_factory=InventoryAnalyticsService,
         lot_query_factory=LotQueryService,
         movement_query_factory=MovementQueryService,
+        expiry_query_factory=ExpiryQueryService,
         session_context=_Session())
 
 
@@ -123,6 +125,34 @@ class TestPresenter:
     def test_movements_empty_ledger(self, conn):
         vm = _presenter(conn).movements()
         assert vm.total == 0 and vm.rows == []
+
+    def test_expiring_view_model(self, conn):
+        from datetime import date, timedelta
+        from backend.application.inventory.use_cases import RegisterInventoryLotUseCase
+        from backend.domain.inventory.enums import LotOrigin
+        soon = (date.today() + timedelta(days=3)).isoformat()  # crítico
+        reg = RegisterInventoryLotUseCase().execute(
+            conn, product_id="p1", lot_code="L-EXP", origin_type=LotOrigin.PURCHASE,
+            operation_id="lot-exp", actor_user_id="u1", branch_id="b1",
+            expiration_date=soon)
+        line = InventoryMovementLine.create(product_id="p1", quantity=Decimal("4"),
+                                            to_location_id="loc1", lot_id=reg.entity_id)
+        mv = InventoryMovement.create(
+            movement_type=MovementType.PURCHASE_RECEIPT, branch_id="b1",
+            warehouse_id="w1", source_module="procurement", source_document_type="GR",
+            source_document_id="gr-exp", operation_id="rcv-exp",
+            created_by_user_id="u1", lines=[line])
+        PostInventoryMovementUseCase().execute(conn, mv, actor_user_id="u1")
+        vm = _presenter(conn).expiring()
+        assert vm.total == 1
+        assert vm.rows[0][1] == "L-EXP"      # lote
+        assert vm.rows[0][2].startswith("4")  # cantidad
+        assert vm.rows[0][4] in ("Crítico", "Próximo a vencer", "Vencido")
+
+    def test_expiring_empty_when_all_fresh(self, conn):
+        _seed(conn)  # stock sin lote / sin caducidad próxima
+        vm = _presenter(conn).expiring()
+        assert vm.total == 0
 
     def test_generate_then_list_suggestions(self, conn):
         _seed(conn)

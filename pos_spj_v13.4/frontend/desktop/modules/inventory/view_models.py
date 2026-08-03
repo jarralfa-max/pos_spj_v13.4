@@ -63,6 +63,13 @@ MOVEMENT_TYPE_ES = {
     "REVERSAL": "Reverso",
 }
 MOVEMENT_STATUS_ES = {"POSTED": "Posteado", "REVERSED": "Reversado", "DRAFT": "Borrador"}
+EXPIRY_RISK_ES = {
+    "OK": "En rango", "WARNING": "Próximo a vencer", "CRITICAL": "Crítico",
+    "EXPIRED": "Vencido",
+}
+EXPIRY_RISK_VARIANT = {
+    "OK": "success", "WARNING": "warning", "CRITICAL": "danger", "EXPIRED": "danger",
+}
 SEVERITY_ES = {"INFO": "Informativo", "WARNING": "Advertencia", "CRITICAL": "Crítico"}
 DIRECTION_ES = {"UPSTREAM": "Origen (ascendente)", "DOWNSTREAM": "Destino (descendente)"}
 
@@ -97,6 +104,10 @@ def movement_type_es(code) -> str:
 
 def movement_status_es(code) -> str:
     return MOVEMENT_STATUS_ES.get(str(code or ""), str(code or "—"))
+
+
+def expiry_risk_es(code) -> str:
+    return EXPIRY_RISK_ES.get(str(code or ""), str(code or "—"))
 
 
 def warehouse_type_es(code) -> str:
@@ -223,6 +234,23 @@ def locations_table(nodes) -> TableViewModel:
 
     for root in nodes:
         _walk(root, 0)
+    return TableViewModel(rows=out, row_ids=ids, total=len(out))
+
+
+def expiry_table(rows: list[dict]) -> TableViewModel:
+    """rows: at-risk lot rows (list_at_risk) → display table (producto, lote,
+    cantidad, días, riesgo), próximos a vencer primero."""
+    out, ids = [], []
+    for r in rows:
+        ids.append(str(r.get("lot_id") or ""))
+        days = r.get("days_to_expiry")
+        out.append([
+            str(r.get("product_id") or "—"),
+            str(r.get("lot_code") or "—"),
+            qty(r.get("quantity")),
+            "—" if days is None else str(days),
+            expiry_risk_es(r.get("risk")),
+        ])
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 
 

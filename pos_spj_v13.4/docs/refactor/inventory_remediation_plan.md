@@ -655,3 +655,21 @@ Pendiente: bridges legacy → P2.
   `test_movimientos_wires_the_real_movements_page` + suites UI = 28 passed;
   inventario `2 failed / 522 passed` (2 pre-existentes, cero regresiones);
   arquitectura `58 failed / 391 passed` (sin fallas nuevas).
+
+### Slice 7 — Página real "Caducidades" (§9.4) — HECHO
+
+- **`ExpiryQueryService`** (application/queries, **read-only**): join de balances
+  AVAILABLE con su lote, clasifica cada uno con el `ExpiryRiskService` puro y
+  devuelve **sólo los lotes en riesgo** (vencido/crítico/próximo), próximos a
+  vencer primero. No emite eventos ni mueve stock (eso es de los casos de uso
+  §9.4).
+- **`ExpiryPage`** (DS): `PageHeader` + `StandardTable`
+  (Producto/Lote/Cantidad/Días/Riesgo); refresca al navegar. Presentación pura.
+- **Presenter** `expiring(branch_id)` + factory opcional `expiry_query_factory`;
+  view model `expiry_table` + etiquetas es-MX (`expiry_risk_es`).
+- **Registro**: `inventory_expiry` → `ExpiryPage`. 8 páginas reales; quedan 13 en
+  placeholder.
+- **Evidencia**: `test_expiring_view_model`, `test_expiring_empty_when_all_fresh`,
+  `test_caducidades_wires_the_real_expiry_page` + suites UI = 31 passed;
+  inventario `2 failed / 525 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `58 failed / 391 passed` (sin fallas nuevas).
