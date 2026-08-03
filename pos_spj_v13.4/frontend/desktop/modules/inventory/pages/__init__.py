@@ -7,6 +7,7 @@ from frontend.desktop.modules.inventory.pages.inventory_dashboard_page import (
     InventoryDashboardPage,
 )
 from frontend.desktop.modules.inventory.pages.locations_page import LocationsPage
+from frontend.desktop.modules.inventory.pages.placeholder_page import PlaceholderPage
 from frontend.desktop.modules.inventory.pages.replenishment_page import (
     ReplenishmentPage,
 )
@@ -16,6 +17,7 @@ __all__ = [
     "InventoryAnalyticsPage",
     "InventoryDashboardPage",
     "LocationsPage",
+    "PlaceholderPage",
     "ReplenishmentPage",
     "WarehousesPage",
 ]

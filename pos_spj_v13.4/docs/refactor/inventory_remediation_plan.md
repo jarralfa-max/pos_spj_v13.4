@@ -580,7 +580,29 @@ Pendiente: bridges legacy → P2.
   `test_sidebar_page_ids_are_unique` + guardrail de permisos granulares 10 passed;
   inventario `2 failed / 510 passed` (2 pre-existentes, cero regresiones);
   arquitectura `58 failed / 391 passed` (sin fallas nuevas).
-- **Siguiente**: shell `InventoryView` (SideNav + QStackedWidget, páginas
-  perezosas) que renderiza estas 21 secciones — páginas reales donde existen y
-  placeholders del DS (SectionCard) en el resto — y cambiar
-  `modulos/inventario_enterprise.py` de `QTabWidget` al sidebar.
+### Slice 3 — Shell con navegación lateral (SideNav + QStackedWidget) (§54) — HECHO
+
+- **`InventoryView`** (`frontend/desktop/modules/inventory/inventory_view.py`):
+  compone `SideNav` (21 secciones) + `QStackedWidget` (una página por sección),
+  construcción **perezosa** al navegar, slot de índice estable, y aviso resiliente
+  si una página falla (no tumba el módulo). Presentación pura. Espejo del patrón
+  enterprise de `ProductsView`.
+- **`PlaceholderPage`** (DS): `PageHeader` + `SectionCard` para las secciones aún
+  sin página interactiva — el sidebar está completo desde el día uno sin una
+  ventana catch-all saturada. Sin acceso a datos ni lógica.
+- **`page_registry.build_page_specs()`**: mapea cada sección de `INVENTORY_NAV` a
+  su fábrica de página real (Resumen→Dashboard, Almacenes, Ubicaciones,
+  Reposición) o a `PlaceholderPage`; devuelve `[(factory, título)]` ordenado.
+- **Contenedor** `modulos/inventario_enterprise.py`: cambia de `QTabWidget` a
+  `InventoryView` con las 21 secciones. Se elimina el armado de pestañas eager y la
+  pestaña perezosa de Analítica.
+- **Evidencia**: `test_inventory_view_shell` 3 passed (21 specs = 21 nav;
+  construcción perezosa; secciones sin página real usan `PlaceholderPage`) +
+  guardrails UI/contenedor; inventario `2 failed / 513 passed` (2 pre-existentes,
+  cero regresiones); arquitectura `58 failed / 391 passed` (+3 shell, sin fallas
+  nuevas). (`merma.py` sigue con un fallo pre-existente ajeno a esta slice.)
+- **Siguiente (P1-C)**: reemplazar los `PlaceholderPage` por páginas reales del DS
+  (Existencias, Disponibilidad, Lotes, Peso variable, Cadena de frío, Reservas,
+  Movimientos, Transferencias, Recepciones, Conteos, Ajustes, Cuarentena,
+  Caducidades, Trazabilidad, Alertas, Auditoría, Configuración), sección por
+  sección (una página por slice), delegando en el presenter/query services.

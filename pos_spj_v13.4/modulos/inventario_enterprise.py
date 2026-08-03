@@ -1,19 +1,17 @@
 """ModuloInventarioEnterprise — INV-27 corte: reemplazo de la UI legacy de
 inventario (modulos/inventario_local.py) por el módulo enterprise INV-25.
 
-Monta las páginas born-clean (frontend/desktop/modules/inventory) sobre el
-InventoryPresenter, cableado a los query services canónicos (ledger). Sin SQL ni
-lógica de negocio en la UI.
-
-La página de Analítica usa HtmlChartView (QtWebEngine) que se cuelga bajo
-offscreen headless, por eso se construye de forma perezosa al abrir su pestaña.
+Monta el shell ``InventoryView`` (navegación lateral con las 21 secciones
+canónicas del Design System, §54) sobre el ``InventoryPresenter``, cableado a los
+query services canónicos (ledger). Sin SQL ni lógica de negocio en la UI. Las
+páginas se construyen de forma perezosa al navegar (arranque liviano).
 """
 
 from __future__ import annotations
 
 import logging
 
-from PyQt5.QtWidgets import QLabel, QTabWidget, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QVBoxLayout, QWidget
 
 logger = logging.getLogger("spj.ui.inventario_enterprise")
 
@@ -46,18 +44,16 @@ class ModuloInventarioEnterprise(QWidget):
                               or getattr(container, "sesion", None))
 
         presenter = self._build_presenter(conn, session)
-        self._tabs = QTabWidget()
         self._presenter = presenter
-        self._analytics_built = False
 
-        self._add_eager_pages(presenter)
-        # Analítica: pestaña perezosa (QtWebEngine).
-        self._analytics_index = self._tabs.addTab(QWidget(), "Analítica")
-        self._tabs.currentChanged.connect(self._maybe_build_analytics)
+        from frontend.desktop.modules.inventory.inventory_view import InventoryView
+        from frontend.desktop.modules.inventory.page_registry import build_page_specs
+
+        self._view = InventoryView(presenter, build_page_specs())
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self._tabs)
+        layout.addWidget(self._view)
 
     # ── construcción ─────────────────────────────────────────────────────────
     def _build_presenter(self, conn, session):
@@ -93,37 +89,3 @@ class ModuloInventarioEnterprise(QWidget):
             analytics_factory=InventoryAnalyticsService,
             session_context=session,
         )
-
-    def _add_eager_pages(self, presenter):
-        from frontend.desktop.modules.inventory.pages import (
-            InventoryDashboardPage,
-            LocationsPage,
-            ReplenishmentPage,
-            WarehousesPage,
-        )
-        specs = (
-            (InventoryDashboardPage, "Panel", {}),
-            (WarehousesPage, "Almacenes", {}),
-            (LocationsPage, "Ubicaciones", {}),
-            (ReplenishmentPage, "Reposición", {}),
-        )
-        for cls, title, kwargs in specs:
-            try:
-                self._tabs.addTab(cls(presenter, **kwargs), title)
-            except Exception as exc:  # noqa: BLE001 — una página no debe tumbar el módulo
-                logger.error("Inventario enterprise: falló página %s: %s", title, exc)
-                self._tabs.addTab(QLabel(f"No disponible: {exc}"), title)
-
-    def _maybe_build_analytics(self, index):
-        if index != self._analytics_index or self._analytics_built:
-            return
-        self._analytics_built = True
-        try:
-            from frontend.desktop.modules.inventory.pages import InventoryAnalyticsPage
-            page = InventoryAnalyticsPage(self._presenter)
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Inventario enterprise: falló Analítica: %s", exc)
-            page = QLabel(f"Analítica no disponible: {exc}")
-        self._tabs.removeTab(self._analytics_index)
-        self._tabs.insertTab(self._analytics_index, page, "Analítica")
-        self._tabs.setCurrentIndex(self._analytics_index)
