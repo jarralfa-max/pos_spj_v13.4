@@ -64,6 +64,7 @@ class ModuloInventarioEnterprise(QWidget):
             LotQueryService,
             MovementQueryService,
             ReplenishmentQueryService,
+            StockQueryService,
             TraceabilityQueryService,
             WarehouseQueryService,
         )
@@ -95,5 +96,6 @@ class ModuloInventarioEnterprise(QWidget):
             movement_query_factory=MovementQueryService,
             expiry_query_factory=ExpiryQueryService,
             traceability_query_factory=TraceabilityQueryService,
+            stock_query_factory=StockQueryService,
             session_context=session,
         )

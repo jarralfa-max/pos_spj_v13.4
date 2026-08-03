@@ -19,6 +19,7 @@ from frontend.desktop.modules.inventory.pages import (
     MovementsPage,
     PlaceholderPage,
     ReplenishmentPage,
+    StockPage,
     TraceabilityPage,
     WarehousesPage,
 )
@@ -26,6 +27,7 @@ from frontend.desktop.modules.inventory.pages import (
 # page_id -> factory(presenter) -> QWidget. Sólo secciones con página real.
 _REAL_PAGES = {
     "inventory_summary": InventoryDashboardPage,
+    "inventory_stock": StockPage,
     "inventory_availability": AvailabilityPage,
     "inventory_warehouses": WarehousesPage,
     "inventory_locations": LocationsPage,

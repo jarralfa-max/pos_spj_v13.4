@@ -13,6 +13,7 @@ from backend.application.inventory.queries import (
     LotQueryService,
     MovementQueryService,
     ReplenishmentQueryService,
+    StockQueryService,
     TraceabilityQueryService,
     WarehouseQueryService,
 )
@@ -74,6 +75,7 @@ def _presenter(conn):
         movement_query_factory=MovementQueryService,
         expiry_query_factory=ExpiryQueryService,
         traceability_query_factory=TraceabilityQueryService,
+        stock_query_factory=StockQueryService,
         session_context=_Session())
 
 
@@ -177,6 +179,19 @@ class TestPresenter:
 
     def test_traceability_empty_without_lot(self, conn):
         vm = _presenter(conn).traceability(lot_id="")
+        assert vm.total == 0 and vm.rows == []
+
+    def test_stock_view_model(self, conn):
+        _seed(conn)  # 5 disponibles de p1 en w1/loc1
+        vm = _presenter(conn).stock()
+        assert vm.total == 1
+        assert vm.rows[0][0] == "p1"          # producto
+        assert vm.rows[0][1] == "w1"          # almacén
+        assert vm.rows[0][2] == "Disponible"  # estado/bucket es-MX
+        assert vm.rows[0][3].startswith("5")  # cantidad
+
+    def test_stock_empty_when_no_balances(self, conn):
+        vm = _presenter(conn).stock()
         assert vm.total == 0 and vm.rows == []
 
     def test_generate_then_list_suggestions(self, conn):

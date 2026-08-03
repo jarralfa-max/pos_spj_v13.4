@@ -22,6 +22,7 @@ from frontend.desktop.modules.inventory.view_models import (
     lots_table,
     movements_table,
     replenishment_table,
+    stock_table,
     traceability_table,
     urgency_variant,
     warehouses_table,
@@ -36,6 +37,7 @@ class InventoryPresenter:
                  warehouse_query_factory=None, analytics_factory=None,
                  lot_query_factory=None, movement_query_factory=None,
                  expiry_query_factory=None, traceability_query_factory=None,
+                 stock_query_factory=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -47,6 +49,7 @@ class InventoryPresenter:
         self._movement_factory = movement_query_factory
         self._expiry_factory = expiry_query_factory
         self._traceability_factory = traceability_query_factory
+        self._stock_factory = stock_query_factory
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -76,6 +79,15 @@ class InventoryPresenter:
             rows.append({"product_id": dto.product_id, "on_hand": dto.on_hand,
                          "reserved": dto.reserved, "available": dto.available})
         return availability_table(rows)
+
+    def stock(self, *, branch_id: str | None = None) -> TableViewModel:
+        """Existencias físicas por producto/almacén/bucket (cantidad ≠ 0). Sólo
+        lectura; delega en el stock query service."""
+        if self._stock_factory is None:
+            return stock_table([])
+        branch = branch_id or self.default_branch()
+        rows = self._stock_factory(self._conn()).list_on_hand(branch_id=branch or None)
+        return stock_table(rows)
 
     def availability_breakdown(self, *, product_id: str, branch_id: str | None = None,
                                warehouse_id: str | None = None) -> TableViewModel:

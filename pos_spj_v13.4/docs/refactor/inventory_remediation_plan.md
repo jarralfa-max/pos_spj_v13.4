@@ -691,3 +691,21 @@ Pendiente: bridges legacy → P2.
   `test_trazabilidad_wires_the_real_traceability_page` + suites UI = 34 passed;
   inventario `2 failed / 528 passed` (2 pre-existentes, cero regresiones);
   arquitectura `58 failed / 391 passed` (sin fallas nuevas).
+
+### Slice 9 — Página real "Existencias" (§14) — HECHO
+
+- **`StockQueryService`** (application/queries, read-only): sobre
+  `inventory_balances`, `list_on_hand(branch_id, limit=500)` — balances con
+  cantidad/peso ≠ 0 por producto/almacén/bucket, ordenados y acotados.
+- **`StockPage`** (DS): `PageHeader` + `StandardTable`
+  (Producto/Almacén/Estado/Cantidad/Reservado); refresca al navegar. Presentación
+  pura.
+- **Presenter** `stock(branch_id)` + factory opcional `stock_query_factory`; view
+  model `stock_table` (usa `status_es` para el bucket).
+- **Registro**: `inventory_stock` → `StockPage`. 10 páginas reales; quedan 11 en
+  placeholder.
+- **Evidencia**: `test_stock_view_model`, `test_stock_empty_when_no_balances`,
+  `test_existencias_wires_the_real_stock_page` + suites UI = 37 passed; el test de
+  placeholder se re-apuntó a "Peso variable"; inventario `2 failed / 531 passed`
+  (2 pre-existentes, cero regresiones); arquitectura `58 failed / 391 passed` (sin
+  fallas nuevas).
