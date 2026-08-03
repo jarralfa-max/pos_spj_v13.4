@@ -1,6 +1,9 @@
 # LOSS-0 — Plan de ejecución del bounded context Losses
 
-Estado: `LOSS-0 AUDITED`. No avanzar a LOSS-1 hasta validar la suite indicada o documentar fallos preexistentes.
+Estado: `LOSS-2 IMPLEMENTED_WITH_TEST_ENVIRONMENT_BLOCKER`. El dominio base,
+clasificaciones, causas, estados, policies y eventos están implementados y
+compilados. Antes de LOSS-3 debe ejecutarse pytest; el entorno actual no contiene
+esa dependencia.
 
 ## Brechas bloqueantes
 

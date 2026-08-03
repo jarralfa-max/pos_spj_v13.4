@@ -18,18 +18,13 @@ class DocumentTimeline(QWidget):
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
         self._layout.setSpacing(Spacing.XS)
-<<<<<<< HEAD
         self._labels: list[QLabel] = []
-=======
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
         for step in self.STEPS:
             label = QLabel(f"○  {step}", self)
             label.setProperty("role", "muted")
             self._layout.addWidget(label)
-<<<<<<< HEAD
             self._labels.append(label)
 
-    def set_events(self, events) -> None:
         for label in self._labels:
             label.deleteLater()
         self._labels.clear()
@@ -92,11 +87,7 @@ class RequisitionDetailPanel(SectionCard):
              document.get("status", "—")] for document in related],
             row_ids=[document.get("id", "") for document in related])
         self._timeline.set_events(detail.get("timeline", ()))
-=======
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
-
-class OrderDetailPanel(SectionCard):
     def __init__(self, parent=None) -> None:
         super().__init__(parent, title="Detalle y trazabilidad")
         self.setObjectName("procurementOrderDetail")
@@ -109,36 +100,8 @@ class OrderDetailPanel(SectionCard):
         ], self)
         self._lines.setMaximumHeight(220)
         self.add(self._lines)
-<<<<<<< HEAD
         self._timeline = DocumentTimeline(self)
         self.add(self._timeline)
-=======
-        self.add(DocumentTimeline(self))
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
-
     def load_detail(self, detail) -> None:
         if not detail:
-            self._summary.setText("No fue posible resolver el documento seleccionado.")
-            self._lines.load_rows([])
-<<<<<<< HEAD
             self._timeline.set_events([])
-=======
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
-            return
-        get = detail.get if isinstance(detail, dict) else lambda key, default=None: getattr(detail, key, default)
-        number = get("document_number", get("id", "—"))
-        status = get("status", "—")
-        supplier = get("supplier_id", "—")
-        self._summary.setText(f"{number} · {status}\nProveedor: {supplier}")
-        rows = []
-        for line in get("lines", ()) or ():
-            value = line.get if isinstance(line, dict) else lambda key, default=None: getattr(line, key, default)
-            rows.append([
-                value("product_id", "—"), value("ordered_quantity", value("quantity", "0")),
-                value("unit_cost", value("unit_price", "0")), value("status", "—"),
-            ])
-        self._lines.load_rows(rows)
-<<<<<<< HEAD
-        self._timeline.set_events(get("timeline", ()) or ())
-=======
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2

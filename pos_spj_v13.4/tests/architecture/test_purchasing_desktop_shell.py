@@ -20,7 +20,6 @@ def test_purchasing_root_is_sidebar_shell_not_tab_widget():
     assert "QTabWidget" not in shell + compatibility
 
 
-<<<<<<< HEAD
 def test_shell_exposes_only_implemented_permission_gated_routes():
     shell = source("purchasing_module_shell.py")
     navigation = source("navigation.py")
@@ -46,16 +45,6 @@ def test_dashboard_has_quick_actions_and_clickable_implemented_flow():
         "Nueva solicitud", "Nueva orden de compra", "Nueva compra directa",
         "Capturar factura", "Carga en origen", "Recepción",
     ))
-=======
-def test_shell_exposes_enterprise_information_architecture():
-    shell = source("purchasing_module_shell.py")
-    for label in (
-        "Resumen", "Solicitudes", "Cotizaciones", "Adjudicaciones",
-        "Órdenes de compra", "Compra directa", "CARGA EN ORIGEN",
-        "NAVEGACIÓN", "RECEPCIÓN RELACIONADA", "FACTURACIÓN", "ANALÍTICA", "CONFIGURACIÓN",
-    ):
-        assert label in shell
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
 
 def test_dashboard_uses_canonical_charts_with_visual_hierarchy():
@@ -76,7 +65,6 @@ def test_orders_have_master_detail_timeline_and_contextual_actions():
     assert "QMessageBox" not in pages
 
 
-<<<<<<< HEAD
 def test_requisitions_have_master_detail_and_real_sourcing_actions():
     pages = source("pages/enterprise_pages.py")
     detail = source("document_detail.py")
@@ -103,8 +91,6 @@ def test_receipts_and_invoices_are_real_master_detail_workspaces():
     assert "__unknown__" not in invoices
 
 
-=======
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 def test_purchasing_ui_has_no_inline_styles_or_direct_buttons():
     files = [MODULE / "purchasing_module_shell.py", MODULE / "document_detail.py"]
     combined = "\n".join(path.read_text(encoding="utf-8") for path in files)

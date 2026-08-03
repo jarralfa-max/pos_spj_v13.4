@@ -333,19 +333,13 @@ def _wire_logistics_pipeline(bus, container) -> None:
     """Compose Logistics with live session RBAC and configured QR signing secret."""
     from backend.application.logistics.authorization import LogisticsAuthorizationPolicy
     from backend.application.logistics.service import LogisticsApplicationService
-<<<<<<< HEAD
     from backend.application.logistics.queries import LogisticsShipmentQueryService
-=======
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
     from backend.application.logistics.wiring import wire_logistics
     from backend.application.procurement.session_authorization import (
         ProcurementSessionPermissionChecker,
     )
     from backend.domain.logistics.qr_identity import PermanentContainerQrService
-<<<<<<< HEAD
     from backend.infrastructure.db.repositories.logistics_repository import LogisticsRepository
-=======
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
     secret = container.config_service.get("logistics_qr_signing_secret")
     if not secret:
@@ -356,11 +350,8 @@ def _wire_logistics_pipeline(bus, container) -> None:
         PermanentContainerQrService(str(secret).encode()),
         getattr(container, "printer_gateway", None))
     container.logistics_application_service = service
-<<<<<<< HEAD
     container.logistics_shipment_queries = LogisticsShipmentQueryService(
         container.db, LogisticsRepository(container.db))
-=======
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
     wire_logistics(bus, service)
 
 

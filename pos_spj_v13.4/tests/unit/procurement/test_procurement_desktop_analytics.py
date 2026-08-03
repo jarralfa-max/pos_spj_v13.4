@@ -3,12 +3,9 @@ import sqlite3
 from backend.application.procurement.queries.procurement_analytics_service import (
     ProcurementAnalyticsService,
 )
-<<<<<<< HEAD
 from frontend.desktop.modules.purchasing.enterprise_presenter import (
     EnterprisePurchasingPresenter,
 )
-=======
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
 
 def test_alerts_are_calculated_in_query_service_not_ui():
@@ -24,7 +21,6 @@ def test_alerts_are_calculated_in_query_service_not_ui():
     assert [(alert.code, alert.count) for alert in alerts] == [
         ("PENDING_APPROVAL", 1), ("INVOICE_DIFFERENCE", 1), ("OVERDUE_ORDER", 1),
     ]
-<<<<<<< HEAD
 
 
 def test_navigation_badges_are_prepared_by_presenter():
@@ -42,5 +38,3 @@ def test_navigation_badges_are_prepared_by_presenter():
         "requisitions": 4, "orders": 2, "direct_purchase": 3,
         "invoices": 5,
     }
-=======
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2

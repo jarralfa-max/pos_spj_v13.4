@@ -31,10 +31,6 @@ from backend.application.procurement.use_cases.pricing_use_cases import (
     RecordPurchasePriceVarianceUseCase,
 )
 from backend.domain.procurement.pricing_policies import PriceVariancePolicy
-<<<<<<< HEAD
-from backend.application.queries.product_query_service import ProductQueryService
-=======
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 from frontend.desktop.modules.purchasing.direct_purchase_presenter import (
     DirectPurchasePresenter,
 )
@@ -71,18 +67,17 @@ def build_direct_purchase_presenter(connection, session_context=None) -> DirectP
         costs=ProductPurchaseCostReadService(connection),
         variance_policy=PriceVariancePolicy(),
         event_dispatcher=_post_commit_dispatcher(connection),
-        product_catalog=ProductQueryService.from_connection(connection),
     )
 
 
 def create_direct_purchase_view(container, parent=None):
     """Factory: build the DirectPurchaseView from an app container / connection."""
     from frontend.desktop.modules.purchasing.direct_purchase_view import (
-        DirectPurchaseCreateView,
+        DirectPurchaseView,
     )
 
     connection = getattr(container, "db", None) or getattr(container, "db_conn", None) \
         or container
     session_context = getattr(container, "session", None)
     presenter = build_direct_purchase_presenter(connection, session_context)
-    return DirectPurchaseCreateView(presenter, parent)
+    return DirectPurchaseView(presenter, parent)

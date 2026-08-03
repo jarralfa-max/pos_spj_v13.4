@@ -1,16 +1,12 @@
 """Runtime procurement authorization uses the canonical live session."""
 
-<<<<<<< HEAD
 from decimal import Decimal
 
-=======
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 import pytest
 
 from backend.application.procurement.session_authorization import (
     ProcurementSessionPermissionChecker,
 )
-<<<<<<< HEAD
 from backend.application.procurement.permissions import PurchasePermissions
 from frontend.desktop.modules.purchasing.enterprise_presenter import (
     EnterprisePurchasingPresenter,
@@ -19,11 +15,6 @@ from frontend.desktop.modules.purchasing.direct_purchase_presenter import (
     DirectPurchasePresenter,
 )
 from frontend.desktop.modules.purchasing.direct_purchase_view_models import CartLineVM
-=======
-from frontend.desktop.modules.purchasing.enterprise_presenter import (
-    EnterprisePurchasingPresenter,
-)
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
 
 class Session:
@@ -89,7 +80,6 @@ def test_desktop_rejects_warehouse_outside_active_branch():
         use_cases={}, session_context=Session(), warehouse_directory=Warehouses())
     with pytest.raises(PermissionError, match="no pertenece"):
         presenter.select_warehouse("warehouse-other")
-<<<<<<< HEAD
 
 
 def _direct_presenter(session):
@@ -173,5 +163,3 @@ def test_direct_purchase_capabilities_are_fail_closed():
     assert not capabilities.direct_authorize
     assert not capabilities.direct_confirm
     assert not capabilities.direct_reverse
-=======
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2

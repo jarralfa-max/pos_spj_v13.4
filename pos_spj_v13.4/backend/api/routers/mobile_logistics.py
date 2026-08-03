@@ -11,11 +11,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from backend.api.mobile_session import MobileIdentity, bearer
 from backend.api.schemas.mobile_logistics import (
     ContentAssignmentRequest, LoginRequest, NodeAttachRequest, PhotoUploadRequest,
-<<<<<<< HEAD
     SealRequest, ShipmentCreateRequest, DispatchRequest,
-=======
-    SealRequest, ShipmentCreateRequest,
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 )
 
 

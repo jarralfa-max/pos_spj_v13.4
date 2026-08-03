@@ -33,7 +33,6 @@ def test_mobile_token_is_not_persisted_in_durable_browser_storage():
     assert 'localStorage.getItem("spj-mobile-token")' not in app
 
 
-<<<<<<< HEAD
 def test_offline_commands_carry_identity_and_conflicts_are_user_resolvable():
     store = (PWA / "store.js").read_text(encoding="utf-8")
     sync = (PWA / "sync.js").read_text(encoding="utf-8")
@@ -51,8 +50,6 @@ def test_photo_evidence_is_linked_by_registered_migration():
     assert '"173",  "migrations.standalone.173_logistics_shipment_photos"' in engine
 
 
-=======
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 def test_mobile_controller_contains_no_sql_or_repository_imports():
     router = (ROOT / "backend" / "api" / "routers" / "mobile_logistics.py").read_text(
         encoding="utf-8")

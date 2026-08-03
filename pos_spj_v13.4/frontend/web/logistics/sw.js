@@ -1,10 +1,5 @@
-<<<<<<< HEAD
 const CACHE = "spj-logistics-shell-v2";
 const SHELL = ["./", "index.html", "styles.css", "app.js", "api.js", "store.js", "sync.js", "workflow_rules.js", "uuidv7.js", "manifest.webmanifest", "icons/icon.svg"];
-=======
-const CACHE = "spj-logistics-shell-v1";
-const SHELL = ["./", "index.html", "styles.css", "app.js", "api.js", "store.js", "sync.js", "uuidv7.js", "manifest.webmanifest", "icons/icon.svg"];
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));

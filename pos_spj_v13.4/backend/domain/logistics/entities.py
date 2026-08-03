@@ -192,21 +192,13 @@ class ShipmentContentAssignment:
                declared_quantity, declared_net_weight, purchase_unit: str,
                inventory_unit: str, conversion_factor, unit_cost,
                currency_code: str, operation_id: str, lot_number=None,
-<<<<<<< HEAD
                expiration_date=None, temperature=None, notes="",
                assignment_id: str | None = None) -> "ShipmentContentAssignment":
-=======
-               expiration_date=None, temperature=None, notes="") -> "ShipmentContentAssignment":
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
         quantity = decimal(declared_quantity)
         weight = decimal(declared_net_weight)
         if quantity <= 0 or weight < 0:
             raise LogisticsDomainError("Contenido declarado inválido")
-<<<<<<< HEAD
         return cls(assignment_id or new_uuid(), shipment_node_id, source_document_type,
-=======
-        return cls(new_uuid(), shipment_node_id, source_document_type,
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
                    source_document_id, source_line_id, product_id, quantity, weight,
                    purchase_unit, inventory_unit, decimal(conversion_factor),
                    lot_number, expiration_date, decimal(unit_cost), currency_code,

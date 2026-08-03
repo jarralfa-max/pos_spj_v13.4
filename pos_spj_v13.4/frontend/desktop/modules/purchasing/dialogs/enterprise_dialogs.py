@@ -178,11 +178,7 @@ class OrderFormDialog(FormDialog):
         self.add_button_box(ok_text="Crear")
 
     def values(self) -> dict:
-<<<<<<< HEAD
         return {"supplier_id": self._supplier.selected_id() or "",
-=======
-        return {"supplier_id": self._supplier.text().strip(),
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
                 "branch_id": self._branch.text().strip(),
                 "warehouse_id": self._warehouse.text().strip(),
                 "lines": self._lines.lines()}
@@ -239,10 +235,7 @@ class InvoiceFormDialog(FormDialog):
         self._uuid = StandardLineEdit(self)
         self._uuid.setPlaceholderText("UUID fiscal (opcional)")
         self._lines = _LinesEditor(self, with_price=True, invoice=True)
-<<<<<<< HEAD
         self.form.addRow("Documento", self._document)
-=======
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
         self.form.addRow("Proveedor", self._supplier)
         self.form.addRow("Número", self._number)
         self.form.addRow("Total", self._total)
@@ -266,7 +259,6 @@ class InvoiceFormDialog(FormDialog):
     def values(self) -> dict:
         total = self._total.decimal_value()
         return {
-<<<<<<< HEAD
             "supplier_id": self._profile.get("supplier_id") or "",
             "invoice_number": self._number.text().strip(),
             "total": str(total if total is not None else "0"),
@@ -274,12 +266,6 @@ class InvoiceFormDialog(FormDialog):
             if self._profile.get("document_type") == "PURCHASE_ORDER" else None,
             "direct_purchase_id": self._document.selected_id()
             if self._profile.get("document_type") == "DIRECT_PURCHASE" else None,
-=======
-            "supplier_id": self._supplier.text().strip(),
-            "invoice_number": self._number.text().strip(),
-            "total": str(total if total is not None else "0"),
-            "purchase_order_id": self._order.text().strip() or None,
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
             "uuid_fiscal": self._uuid.text().strip() or None,
             "lines": self._lines.lines(),
         }

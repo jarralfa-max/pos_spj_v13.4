@@ -60,15 +60,6 @@ def money(value) -> str:
     return format_money(value)
 
 
-@dataclass(frozen=True)
-class SearchOption:
-    """Qt-independent entity option returned by the purchasing presenter."""
-
-    id: str
-    label: str
-    subtitle: str = ""
-
-
 @dataclass
 class CartLineVM:
     """A mutable cart line captured in the widget before persistence."""
@@ -83,7 +74,6 @@ class CartLineVM:
     inventory_unit: str = "PZA"
     conversion_factor: Decimal = Decimal("1")
     is_weight: bool = False
-    purchase_nature: str = "INVENTORY"
 
     def line_subtotal(self) -> Decimal:
         return self.quantity * self.unit_cost
@@ -98,7 +88,6 @@ class CartLineVM:
             "tax": str(self.tax), "discount": str(self.discount),
             "purchase_unit": self.purchase_unit, "inventory_unit": self.inventory_unit,
             "conversion_factor": str(self.conversion_factor),
-            "purchase_nature": self.purchase_nature,
         }
 
 
