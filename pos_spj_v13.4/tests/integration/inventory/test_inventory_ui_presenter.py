@@ -15,6 +15,7 @@ from backend.application.inventory.queries import (
     LotQueryService,
     MovementQueryService,
     QuarantineQueryService,
+    ReceiptQueryService,
     ReplenishmentQueryService,
     ReservationQueryService,
     StockQueryService,
@@ -88,6 +89,7 @@ def _presenter(conn):
         audit_query_factory=AuditQueryService,
         transfer_query_factory=TransferQueryService,
         weight_query_factory=WeightQueryService,
+        receipt_query_factory=ReceiptQueryService,
         session_context=_Session())
 
 
@@ -343,6 +345,27 @@ class TestPresenter:
     def test_catch_weight_empty_when_no_weight(self, conn):
         _seed(conn)  # stock por piezas (weight = 0) → no aparece en peso variable
         vm = _presenter(conn).catch_weight()
+        assert vm.total == 0 and vm.rows == []
+
+    def test_receipts_view_model_lists_inbound_only(self, conn):
+        _seed(conn)  # postea un PURCHASE_RECEIPT (5 pzas de p1 en w1/loc1)
+        # una salida de venta NO es recepción → debe quedar excluida
+        issue = InventoryMovementLine.create(product_id="p1", quantity=Decimal("2"),
+                                             from_location_id="loc1")
+        mv = InventoryMovement.create(
+            movement_type=MovementType.SALE_ISSUE, branch_id="b1", warehouse_id="w1",
+            source_module="pos", source_document_type="TICKET",
+            source_document_id="t-1", operation_id="iss-1",
+            created_by_user_id="u1", lines=[issue])
+        PostInventoryMovementUseCase().execute(conn, mv, actor_user_id="u1")
+        vm = _presenter(conn).receipts()
+        assert vm.total == 1                              # sólo la recepción
+        assert vm.rows[0][1] == "Recepción de compra"    # tipo es-MX
+        assert vm.rows[0][2] == "procurement"            # módulo
+        assert vm.rows[0][4] == "Posteado"               # estado es-MX
+
+    def test_receipts_empty_ledger(self, conn):
+        vm = _presenter(conn).receipts()
         assert vm.total == 0 and vm.rows == []
 
     def test_generate_then_list_suggestions(self, conn):

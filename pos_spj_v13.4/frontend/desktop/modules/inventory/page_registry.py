@@ -21,6 +21,7 @@ from frontend.desktop.modules.inventory.pages import (
     MovementsPage,
     PlaceholderPage,
     QuarantinePage,
+    ReceiptsPage,
     ReplenishmentPage,
     ReservationsPage,
     StockPage,
@@ -46,6 +47,7 @@ _REAL_PAGES = {
     "inventory_quarantine": QuarantinePage,
     "inventory_traceability": TraceabilityPage,
     "inventory_transfers": TransfersPage,
+    "inventory_receipts": ReceiptsPage,
     "inventory_audit": AuditPage,
     "inventory_replenishment": ReplenishmentPage,
 }

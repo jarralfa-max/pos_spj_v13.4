@@ -46,7 +46,7 @@ class InventoryPresenter:
                  stock_query_factory=None, quarantine_query_factory=None,
                  reservation_query_factory=None, cold_chain_query_factory=None,
                  audit_query_factory=None, transfer_query_factory=None,
-                 weight_query_factory=None,
+                 weight_query_factory=None, receipt_query_factory=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -65,6 +65,7 @@ class InventoryPresenter:
         self._audit_factory = audit_query_factory
         self._transfer_factory = transfer_query_factory
         self._weight_factory = weight_query_factory
+        self._receipt_factory = receipt_query_factory
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -124,6 +125,17 @@ class InventoryPresenter:
         branch = branch_id or self.default_branch()
         rows = self._audit_factory(self._conn()).list_recent(branch_id=branch or None)
         return audit_table(rows)
+
+    def receipts(self, *, branch_id: str | None = None) -> TableViewModel:
+        """Recepciones recientes hacia el inventario (compra, transferencia,
+        producción): fecha, tipo, módulo, documento, estado. Sólo lectura; delega
+        en el receipt query service (subconjunto entrante del ledger)."""
+        if self._receipt_factory is None:
+            return movements_table([])
+        branch = branch_id or self.default_branch()
+        rows = self._receipt_factory(self._conn()).list_recent(
+            branch_id=branch or None)
+        return movements_table(rows)
 
     def catch_weight(self, *, branch_id: str | None = None) -> TableViewModel:
         """Existencias de peso variable (catch-weight): balances con peso ≠ 0

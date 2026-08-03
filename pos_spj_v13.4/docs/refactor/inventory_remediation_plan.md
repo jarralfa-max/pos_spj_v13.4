@@ -875,3 +875,23 @@ una ventana a la actividad que toca la sucursal.
   `test_peso_variable_wires_the_real_weight_page` + suites UI = 55 passed;
   inventario `2 failed / 549 passed` (2 pre-existentes, cero regresiones);
   arquitectura `22 failed / 427 passed` desde la raíz del repo (sin fallas nuevas).
+
+### Slice 15 — Página real "Recepciones" (§15) — HECHO
+
+- **`ReceiptQueryService`** (application/queries, read-only, `InventoryRepositoryBase`):
+  `list_recent(branch_id, limit=200)` sobre `inventory_ledger` filtrando los tipos
+  de movimiento entrantes (`PURCHASE_RECEIPT`, `DIRECT_PURCHASE_RECEIPT`,
+  `TRANSFER_RECEIPT`, `PRODUCTION_OUTPUT`) — entradas de mercancía al inventario,
+  más recientes primero. Sólo `SELECT`.
+- **`ReceiptsPage`** (DS): `PageHeader` + `StandardTable`
+  (Fecha/Tipo/Módulo/Documento/Estado); refresca al navegar. Presentación pura.
+- **Presenter** `receipts(branch_id)` + factory opcional `receipt_query_factory`;
+  reusa el view model `movements_table` (mismas etiquetas es-MX de tipo/estado del
+  ledger).
+- **Registro**: `inventory_receipts` → `ReceiptsPage`. 17 páginas reales; quedan 4
+  en placeholder (Conteos, Ajustes, Alertas, Configuración).
+- **Evidencia**: `test_receipts_view_model_lists_inbound_only` (una salida de venta
+  queda excluida), `test_receipts_empty_ledger`,
+  `test_recepciones_wires_the_real_receipts_page` + suites UI = 58 passed;
+  inventario `2 failed / 552 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `22 failed / 427 passed` desde la raíz del repo (sin fallas nuevas).

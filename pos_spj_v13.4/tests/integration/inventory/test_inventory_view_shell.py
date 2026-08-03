@@ -23,6 +23,7 @@ from frontend.desktop.modules.inventory.pages import (  # noqa: E402
     MovementsPage,
     PlaceholderPage,
     QuarantinePage,
+    ReceiptsPage,
     ReservationsPage,
     StockPage,
     TraceabilityPage,
@@ -71,6 +72,9 @@ class _StubPresenter:
     def catch_weight(self, *, branch_id=None):
         return TableViewModel(rows=[], row_ids=[], total=0)
 
+    def receipts(self, *, branch_id=None):
+        return TableViewModel(rows=[], row_ids=[], total=0)
+
 
 @pytest.fixture(scope="module")
 def app():
@@ -115,7 +119,7 @@ def test_unbuilt_sections_use_placeholder(app):
     specs = build_page_specs()
     view = InventoryView(presenter=object(), specs=specs)
     # Sección aún sin página real → placeholder.
-    idx = [e.title for e in INVENTORY_NAV].index("Recepciones")  # aún sin página real
+    idx = [e.title for e in INVENTORY_NAV].index("Conteos")  # aún sin página real
     view.nav.select(idx)
     container = view.stack.widget(idx)
     page = container.layout().itemAt(0).widget()
@@ -216,3 +220,11 @@ def test_peso_variable_wires_the_real_weight_page(app):
     view.nav.select(idx)
     page = view.stack.widget(idx).layout().itemAt(0).widget()
     assert isinstance(page, WeightPage)
+
+
+def test_recepciones_wires_the_real_receipts_page(app):
+    view = InventoryView(presenter=_StubPresenter(), specs=build_page_specs())
+    idx = [e.title for e in INVENTORY_NAV].index("Recepciones")
+    view.nav.select(idx)
+    page = view.stack.widget(idx).layout().itemAt(0).widget()
+    assert isinstance(page, ReceiptsPage)

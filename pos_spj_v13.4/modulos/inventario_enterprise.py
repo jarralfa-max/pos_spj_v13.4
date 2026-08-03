@@ -66,6 +66,7 @@ class ModuloInventarioEnterprise(QWidget):
             LotQueryService,
             MovementQueryService,
             QuarantineQueryService,
+            ReceiptQueryService,
             ReplenishmentQueryService,
             ReservationQueryService,
             StockQueryService,
@@ -109,5 +110,6 @@ class ModuloInventarioEnterprise(QWidget):
             audit_query_factory=AuditQueryService,
             transfer_query_factory=TransferQueryService,
             weight_query_factory=WeightQueryService,
+            receipt_query_factory=ReceiptQueryService,
             session_context=session,
         )
