@@ -564,3 +564,23 @@ Pendiente: bridges legacy → P2.
 - **Evidencia**: `test_inventory_ui_guardrails` 4 passed; inventario
   `2 failed / 508 passed` (2 pre-existentes, cero regresiones); arquitectura
   `58 failed / 391 passed` (+1 guardrail, sin fallas nuevas).
+
+### Slice 2 — Navegación lateral canónica: 21 secciones (§54) — HECHO
+
+- **Requisito (Design System SPJ)**: sidebar para las secciones principales (no un
+  `QTabWidget`), 21 secciones, ninguna ventana saturada.
+- **`navigation.py`** `INVENTORY_NAV` expandido a las **21 secciones canónicas** en
+  el orden del DS: Resumen · Existencias · Disponibilidad · Almacenes · Ubicaciones
+  · Lotes · Peso variable · Cadena de frío · Reservas · Movimientos · Transferencias
+  · Recepciones · Reposición · Conteos · Ajustes · Cuarentena · Caducidades ·
+  Trazabilidad · Alertas · Auditoría · Configuración. Cada `NavEntry` mapea a su
+  permiso granular real (`WEIGHT_CAPTURE`, `TEMPERATURE_RECORD`, `VIEW_AUDIT`,
+  `SETTINGS_VIEW`, …), con título es-MX, tooltip e icono. Datos puros (sin Qt).
+- **Evidencia**: `test_sidebar_has_the_21_canonical_sections_in_order`,
+  `test_sidebar_page_ids_are_unique` + guardrail de permisos granulares 10 passed;
+  inventario `2 failed / 510 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `58 failed / 391 passed` (sin fallas nuevas).
+- **Siguiente**: shell `InventoryView` (SideNav + QStackedWidget, páginas
+  perezosas) que renderiza estas 21 secciones — páginas reales donde existen y
+  placeholders del DS (SectionCard) en el resto — y cambiar
+  `modulos/inventario_enterprise.py` de `QTabWidget` al sidebar.
