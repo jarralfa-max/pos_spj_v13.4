@@ -6,6 +6,7 @@ from frontend.desktop.modules.inventory.pages.analytics_page import (
 from frontend.desktop.modules.inventory.pages.audit_page import AuditPage
 from frontend.desktop.modules.inventory.pages.availability_page import AvailabilityPage
 from frontend.desktop.modules.inventory.pages.cold_chain_page import ColdChainPage
+from frontend.desktop.modules.inventory.pages.counts_page import CountsPage
 from frontend.desktop.modules.inventory.pages.expiry_page import ExpiryPage
 from frontend.desktop.modules.inventory.pages.inventory_dashboard_page import (
     InventoryDashboardPage,
@@ -34,6 +35,7 @@ __all__ = [
     "AuditPage",
     "AvailabilityPage",
     "ColdChainPage",
+    "CountsPage",
     "ExpiryPage",
     "InventoryAnalyticsPage",
     "InventoryDashboardPage",

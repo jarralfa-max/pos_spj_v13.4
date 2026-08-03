@@ -19,6 +19,7 @@ from frontend.desktop.modules.inventory.view_models import (
     availability_breakdown_table,
     availability_table,
     cold_chain_table,
+    counts_table,
     expiry_table,
     locations_table,
     lots_table,
@@ -47,6 +48,7 @@ class InventoryPresenter:
                  reservation_query_factory=None, cold_chain_query_factory=None,
                  audit_query_factory=None, transfer_query_factory=None,
                  weight_query_factory=None, receipt_query_factory=None,
+                 count_query_factory=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -66,6 +68,7 @@ class InventoryPresenter:
         self._transfer_factory = transfer_query_factory
         self._weight_factory = weight_query_factory
         self._receipt_factory = receipt_query_factory
+        self._count_factory = count_query_factory
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -125,6 +128,15 @@ class InventoryPresenter:
         branch = branch_id or self.default_branch()
         rows = self._audit_factory(self._conn()).list_recent(branch_id=branch or None)
         return audit_table(rows)
+
+    def counts(self, *, branch_id: str | None = None) -> TableViewModel:
+        """Conteos recientes (folio, tipo, almacén, modalidad, estado, creado).
+        Sólo lectura; delega en el count query service."""
+        if self._count_factory is None:
+            return counts_table([])
+        branch = branch_id or self.default_branch()
+        rows = self._count_factory(self._conn()).list_recent(branch_id=branch or None)
+        return counts_table(rows)
 
     def receipts(self, *, branch_id: str | None = None) -> TableViewModel:
         """Recepciones recientes hacia el inventario (compra, transferencia,

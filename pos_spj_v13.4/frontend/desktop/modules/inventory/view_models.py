@@ -347,6 +347,45 @@ def transfers_table(rows: list[dict]) -> TableViewModel:
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 
 
+COUNT_TYPE_ES = {
+    "CYCLE_COUNT": "Cíclico", "FULL_COUNT": "Físico total",
+    "LOCATION_COUNT": "Por ubicación", "PRODUCT_COUNT": "Por producto",
+    "LOT_COUNT": "Por lote", "BLIND_COUNT": "A ciegas", "SPOT_CHECK": "Verificación",
+}
+
+COUNT_STATUS_ES = {
+    "DRAFT": "Borrador", "PLANNED": "Planeado", "IN_PROGRESS": "En proceso",
+    "COUNTED": "Contado", "PENDING_RECOUNT": "Por reconteo",
+    "PENDING_APPROVAL": "Por aprobar", "APPROVED": "Aprobado", "POSTED": "Posteado",
+    "CANCELLED": "Cancelado",
+}
+
+
+def count_type_es(code) -> str:
+    return COUNT_TYPE_ES.get(str(code or ""), str(code or "—"))
+
+
+def count_status_es(code) -> str:
+    return COUNT_STATUS_ES.get(str(code or ""), str(code or "—"))
+
+
+def counts_table(rows: list[dict]) -> TableViewModel:
+    """rows: count rows (list_recent) → display table (folio, tipo, almacén,
+    modalidad, estado, creado), más recientes primero."""
+    out, ids = [], []
+    for i, r in enumerate(rows):
+        ids.append(f"{r.get('folio','')}:{i}")
+        out.append([
+            str(r.get("folio") or "—"),
+            count_type_es(r.get("count_type")),
+            str(r.get("warehouse_id") or "—"),
+            "A ciegas" if r.get("blind") else "Abierto",
+            count_status_es(r.get("status")),
+            str(r.get("created_at") or "—")[:19],
+        ])
+    return TableViewModel(rows=out, row_ids=ids, total=len(out))
+
+
 def cold_chain_table(rows: list[dict]) -> TableViewModel:
     """rows: open excursion rows (list_open_excursions) → display table (almacén,
     lote, temperatura, rango, estado, acción)."""

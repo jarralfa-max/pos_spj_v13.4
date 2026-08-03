@@ -61,6 +61,7 @@ class ModuloInventarioEnterprise(QWidget):
         from backend.application.inventory.queries import (
             AuditQueryService,
             ColdChainQueryService,
+            CountQueryService,
             ExpiryQueryService,
             InventoryAvailabilityQueryService,
             LotQueryService,
@@ -111,5 +112,6 @@ class ModuloInventarioEnterprise(QWidget):
             transfer_query_factory=TransferQueryService,
             weight_query_factory=WeightQueryService,
             receipt_query_factory=ReceiptQueryService,
+            count_query_factory=CountQueryService,
             session_context=session,
         )

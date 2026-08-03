@@ -18,6 +18,7 @@ from frontend.desktop.modules.inventory.pages import (  # noqa: E402
     AuditPage,
     AvailabilityPage,
     ColdChainPage,
+    CountsPage,
     ExpiryPage,
     LotsPage,
     MovementsPage,
@@ -75,6 +76,9 @@ class _StubPresenter:
     def receipts(self, *, branch_id=None):
         return TableViewModel(rows=[], row_ids=[], total=0)
 
+    def counts(self, *, branch_id=None):
+        return TableViewModel(rows=[], row_ids=[], total=0)
+
 
 @pytest.fixture(scope="module")
 def app():
@@ -119,7 +123,7 @@ def test_unbuilt_sections_use_placeholder(app):
     specs = build_page_specs()
     view = InventoryView(presenter=object(), specs=specs)
     # Sección aún sin página real → placeholder.
-    idx = [e.title for e in INVENTORY_NAV].index("Conteos")  # aún sin página real
+    idx = [e.title for e in INVENTORY_NAV].index("Ajustes")  # aún sin página real
     view.nav.select(idx)
     container = view.stack.widget(idx)
     page = container.layout().itemAt(0).widget()
@@ -228,3 +232,11 @@ def test_recepciones_wires_the_real_receipts_page(app):
     view.nav.select(idx)
     page = view.stack.widget(idx).layout().itemAt(0).widget()
     assert isinstance(page, ReceiptsPage)
+
+
+def test_conteos_wires_the_real_counts_page(app):
+    view = InventoryView(presenter=_StubPresenter(), specs=build_page_specs())
+    idx = [e.title for e in INVENTORY_NAV].index("Conteos")
+    view.nav.select(idx)
+    page = view.stack.widget(idx).layout().itemAt(0).widget()
+    assert isinstance(page, CountsPage)

@@ -9,6 +9,9 @@ from backend.application.inventory.queries.audit_query_service import (
 from backend.application.inventory.queries.cold_chain_query_service import (
     ColdChainQueryService,
 )
+from backend.application.inventory.queries.count_query_service import (
+    CountQueryService,
+)
 from backend.application.inventory.queries.expiry_query_service import (
     ExpiryQueryService,
 )
@@ -55,6 +58,7 @@ from backend.application.inventory.queries.weight_query_service import (
 __all__ = [
     "AuditQueryService",
     "ColdChainQueryService",
+    "CountQueryService",
     "ExpiryQueryService",
     "GenealogyEdge",
     "InventoryAvailabilityQueryService",

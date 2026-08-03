@@ -895,3 +895,22 @@ una ventana a la actividad que toca la sucursal.
   `test_recepciones_wires_the_real_receipts_page` + suites UI = 58 passed;
   inventario `2 failed / 552 passed` (2 pre-existentes, cero regresiones);
   arquitectura `22 failed / 427 passed` desde la raíz del repo (sin fallas nuevas).
+
+### Slice 16 — Página real "Conteos" (§17) — HECHO
+
+- **`CountQueryService`** (application/queries, read-only, `InventoryRepositoryBase`):
+  `list_recent(branch_id, limit=200)` sobre `inventory_count` — conteos por
+  sucursal (folio, tipo, almacén, modalidad ciega/abierta, estado), más recientes
+  primero. Sólo `SELECT`.
+- **`CountsPage`** (DS): `PageHeader` + `StandardTable`
+  (Folio/Tipo/Almacén/Modalidad/Estado/Creado); refresca al navegar. Presentación
+  pura.
+- **Presenter** `counts(branch_id)` + factory opcional `count_query_factory`; view
+  model `counts_table` + etiquetas es-MX (`count_type_es` 7 tipos, `count_status_es`
+  9 estados).
+- **Registro**: `inventory_counts` → `CountsPage`. 18 páginas reales; quedan 3 en
+  placeholder (Ajustes, Alertas, Configuración).
+- **Evidencia**: `test_counts_view_model` (conteo cíclico a ciegas → "En proceso"),
+  `test_counts_empty`, `test_conteos_wires_the_real_counts_page` + suites UI = 61
+  passed; inventario `2 failed / 555 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `22 failed / 427 passed` desde la raíz del repo (sin fallas nuevas).

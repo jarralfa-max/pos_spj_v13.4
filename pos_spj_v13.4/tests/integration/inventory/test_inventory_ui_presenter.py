@@ -10,6 +10,7 @@ from backend.application.inventory.analytics import InventoryAnalyticsService
 from backend.application.inventory.queries import (
     AuditQueryService,
     ColdChainQueryService,
+    CountQueryService,
     ExpiryQueryService,
     InventoryAvailabilityQueryService,
     LotQueryService,
@@ -90,6 +91,7 @@ def _presenter(conn):
         transfer_query_factory=TransferQueryService,
         weight_query_factory=WeightQueryService,
         receipt_query_factory=ReceiptQueryService,
+        count_query_factory=CountQueryService,
         session_context=_Session())
 
 
@@ -366,6 +368,26 @@ class TestPresenter:
 
     def test_receipts_empty_ledger(self, conn):
         vm = _presenter(conn).receipts()
+        assert vm.total == 0 and vm.rows == []
+
+    def test_counts_view_model(self, conn):
+        from backend.application.inventory.use_cases import CreateCountUseCase
+        from backend.domain.inventory.enums import CountType
+        _seed(conn)  # 5 pzas de p1 en w1/loc1
+        CreateCountUseCase().execute(
+            conn, folio="CT-1", count_type=CountType.CYCLE_COUNT, branch_id="b1",
+            warehouse_id="w1", scope_lines=[{"product_id": "p1"}],
+            operation_id="cnt-1", actor_user_id="u1", blind=True)
+        vm = _presenter(conn).counts()
+        assert vm.total == 1
+        assert vm.rows[0][0] == "CT-1"        # folio
+        assert vm.rows[0][1] == "Cíclico"     # tipo es-MX
+        assert vm.rows[0][2] == "w1"          # almacén
+        assert vm.rows[0][3] == "A ciegas"    # modalidad
+        assert vm.rows[0][4] == "En proceso"  # estado es-MX (start())
+
+    def test_counts_empty(self, conn):
+        vm = _presenter(conn).counts()
         assert vm.total == 0 and vm.rows == []
 
     def test_generate_then_list_suggestions(self, conn):
