@@ -23,6 +23,7 @@ from frontend.desktop.modules.inventory.view_models import (
     movements_table,
     quarantine_table,
     replenishment_table,
+    reservations_table,
     stock_table,
     traceability_table,
     urgency_variant,
@@ -39,6 +40,7 @@ class InventoryPresenter:
                  lot_query_factory=None, movement_query_factory=None,
                  expiry_query_factory=None, traceability_query_factory=None,
                  stock_query_factory=None, quarantine_query_factory=None,
+                 reservation_query_factory=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -52,6 +54,7 @@ class InventoryPresenter:
         self._traceability_factory = traceability_query_factory
         self._stock_factory = stock_query_factory
         self._quarantine_factory = quarantine_query_factory
+        self._reservation_factory = reservation_query_factory
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -90,6 +93,18 @@ class InventoryPresenter:
         branch = branch_id or self.default_branch()
         rows = self._stock_factory(self._conn()).list_on_hand(branch_id=branch or None)
         return stock_table(rows)
+
+    def reservations(self, *, product_id: str,
+                     branch_id: str | None = None) -> TableViewModel:
+        """Reservas activas de un producto (origen, documento, almacén, cantidad,
+        estado). Sólo lectura; delega en el reservation query service."""
+        pid = str(product_id or "").strip()
+        if not pid or self._reservation_factory is None:
+            return reservations_table([])
+        branch = branch_id or self.default_branch()
+        rows = self._reservation_factory(self._conn()).list_active_for_product(
+            product_id=pid, branch_id=branch or None)
+        return reservations_table(rows)
 
     def quarantines(self, *, branch_id: str | None = None) -> TableViewModel:
         """Cuarentenas abiertas (producto, lote, motivo, cantidad, estado). Sólo

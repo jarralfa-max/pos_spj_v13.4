@@ -13,6 +13,9 @@ from backend.application.inventory.queries.movement_query_service import (
 from backend.application.inventory.queries.quarantine_query_service import (
     QuarantineQueryService,
 )
+from backend.application.inventory.queries.reservation_query_service import (
+    ReservationQueryService,
+)
 from backend.application.inventory.queries.replenishment_query_service import (
     ReplenishmentQueryService,
 )
@@ -48,6 +51,7 @@ __all__ = [
     "LowStockProductDTO",
     "RecallReportDTO",
     "ReplenishmentQueryService",
+    "ReservationQueryService",
     "StockQueryService",
     "TraceEvent",
     "TraceabilityQueryService",

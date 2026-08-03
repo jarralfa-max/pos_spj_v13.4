@@ -14,6 +14,7 @@ from backend.application.inventory.queries import (
     MovementQueryService,
     QuarantineQueryService,
     ReplenishmentQueryService,
+    ReservationQueryService,
     StockQueryService,
     TraceabilityQueryService,
     WarehouseQueryService,
@@ -78,6 +79,7 @@ def _presenter(conn):
         traceability_query_factory=TraceabilityQueryService,
         stock_query_factory=StockQueryService,
         quarantine_query_factory=QuarantineQueryService,
+        reservation_query_factory=ReservationQueryService,
         session_context=_Session())
 
 
@@ -212,6 +214,26 @@ class TestPresenter:
 
     def test_quarantines_empty(self, conn):
         vm = _presenter(conn).quarantines()
+        assert vm.total == 0 and vm.rows == []
+
+    def test_reservations_view_model(self, conn):
+        from backend.application.inventory.use_cases import CreateReservationUseCase
+        from backend.domain.inventory.enums import ReservationSource
+        _seed(conn)  # 5 disponibles de p1 en loc1
+        CreateReservationUseCase().execute(
+            conn, product_id="p1", branch_id="b1", warehouse_id="w1",
+            source=ReservationSource.SALE, source_document_id="S-1",
+            quantity=Decimal("2"), operation_id="res-1", actor_user_id="u1",
+            location_id="loc1")
+        vm = _presenter(conn).reservations(product_id="p1")
+        assert vm.total == 1
+        assert vm.rows[0][0] == "Venta"       # origen es-MX
+        assert vm.rows[0][1] == "S-1"         # documento
+        assert vm.rows[0][3].startswith("2")  # cantidad
+        assert vm.rows[0][4] == "Confirmada"  # estado es-MX
+
+    def test_reservations_empty_without_product(self, conn):
+        vm = _presenter(conn).reservations(product_id="")
         assert vm.total == 0 and vm.rows == []
 
     def test_generate_then_list_suggestions(self, conn):

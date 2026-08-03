@@ -726,3 +726,22 @@ Pendiente: bridges legacy → P2.
   `test_cuarentena_wires_the_real_quarantine_page` + suites UI = 40 passed;
   inventario `2 failed / 534 passed` (2 pre-existentes, cero regresiones);
   arquitectura `58 failed / 391 passed` (sin fallas nuevas).
+
+### Slice 11 — Página real "Reservas" (§22) — HECHO
+
+- **`ReservationQueryService`** (application/queries, read-only): sobre
+  `inventory_reservation`, `list_active_for_product(product_id, branch_id)` —
+  reservas activas (pendiente/confirmada/asignada/…), más antiguas primero.
+- **`ReservationsPage`** (DS): `PageHeader` + `SearchInput` (producto por ID/código
+  — sin combo gigante) + `StandardTable`
+  (Origen/Documento/Almacén/Cantidad/Estado). Presentación pura.
+- **Presenter** `reservations(product_id, …)` + factory opcional
+  `reservation_query_factory`; view model `reservations_table` + etiquetas es-MX
+  (`reservation_source_es`, `reservation_status_es`).
+- **Registro**: `inventory_reservations` → `ReservationsPage`. 12 páginas reales;
+  quedan 9 en placeholder.
+- **Evidencia**: `test_reservations_view_model`,
+  `test_reservations_empty_without_product`,
+  `test_reservas_wires_the_real_reservations_page` + suites UI = 43 passed;
+  inventario `2 failed / 537 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `58 failed / 391 passed` (sin fallas nuevas).

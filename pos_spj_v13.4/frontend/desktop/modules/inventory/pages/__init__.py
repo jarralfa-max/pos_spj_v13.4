@@ -16,6 +16,9 @@ from frontend.desktop.modules.inventory.pages.quarantine_page import QuarantineP
 from frontend.desktop.modules.inventory.pages.replenishment_page import (
     ReplenishmentPage,
 )
+from frontend.desktop.modules.inventory.pages.reservations_page import (
+    ReservationsPage,
+)
 from frontend.desktop.modules.inventory.pages.stock_page import StockPage
 from frontend.desktop.modules.inventory.pages.traceability_page import (
     TraceabilityPage,
@@ -33,6 +36,7 @@ __all__ = [
     "PlaceholderPage",
     "QuarantinePage",
     "ReplenishmentPage",
+    "ReservationsPage",
     "StockPage",
     "TraceabilityPage",
     "WarehousesPage",

@@ -21,6 +21,7 @@ from frontend.desktop.modules.inventory.pages import (  # noqa: E402
     MovementsPage,
     PlaceholderPage,
     QuarantinePage,
+    ReservationsPage,
     StockPage,
     TraceabilityPage,
 )
@@ -49,6 +50,9 @@ class _StubPresenter:
         return TableViewModel(rows=[], row_ids=[], total=0)
 
     def quarantines(self, *, branch_id=None):
+        return TableViewModel(rows=[], row_ids=[], total=0)
+
+    def reservations(self, *, product_id, branch_id=None):
         return TableViewModel(rows=[], row_ids=[], total=0)
 
 
@@ -156,3 +160,11 @@ def test_cuarentena_wires_the_real_quarantine_page(app):
     view.nav.select(idx)
     page = view.stack.widget(idx).layout().itemAt(0).widget()
     assert isinstance(page, QuarantinePage)
+
+
+def test_reservas_wires_the_real_reservations_page(app):
+    view = InventoryView(presenter=_StubPresenter(), specs=build_page_specs())
+    idx = [e.title for e in INVENTORY_NAV].index("Reservas")
+    view.nav.select(idx)
+    page = view.stack.widget(idx).layout().itemAt(0).widget()
+    assert isinstance(page, ReservationsPage)

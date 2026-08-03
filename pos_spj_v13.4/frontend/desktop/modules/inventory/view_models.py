@@ -82,6 +82,18 @@ QUARANTINE_STATUS_ES = {
     "PARTIALLY_RELEASED": "Liberada parcial", "REJECTED": "Rechazada",
     "DISPOSED": "Dispuesta",
 }
+RESERVATION_SOURCE_ES = {
+    "SALE": "Venta", "CUSTOMER_ORDER": "Pedido de cliente",
+    "DELIVERY_ORDER": "Pedido de entrega", "PRODUCTION_ORDER": "Orden de producción",
+    "TRANSFER": "Transferencia", "QUALITY_SAMPLE": "Muestra de calidad",
+    "INTERNAL_REQUEST": "Solicitud interna",
+}
+RESERVATION_STATUS_ES = {
+    "PENDING": "Pendiente", "CONFIRMED": "Confirmada",
+    "PARTIALLY_ALLOCATED": "Asignada parcial", "ALLOCATED": "Asignada",
+    "PARTIALLY_FULFILLED": "Surtida parcial", "FULFILLED": "Surtida",
+    "RELEASED": "Liberada", "EXPIRED": "Vencida", "CANCELLED": "Cancelada",
+}
 SEVERITY_ES = {"INFO": "Informativo", "WARNING": "Advertencia", "CRITICAL": "Crítico"}
 DIRECTION_ES = {"UPSTREAM": "Origen (ascendente)", "DOWNSTREAM": "Destino (descendente)"}
 MOVEMENT_DIRECTION_ES = {
@@ -136,6 +148,14 @@ def quarantine_reason_es(code) -> str:
 
 def quarantine_status_es(code) -> str:
     return QUARANTINE_STATUS_ES.get(str(code or ""), str(code or "—"))
+
+
+def reservation_source_es(code) -> str:
+    return RESERVATION_SOURCE_ES.get(str(code or ""), str(code or "—"))
+
+
+def reservation_status_es(code) -> str:
+    return RESERVATION_STATUS_ES.get(str(code or ""), str(code or "—"))
 
 
 def warehouse_type_es(code) -> str:
@@ -226,6 +246,22 @@ def warehouses_table(rows: list[dict]) -> TableViewModel:
             str(r.get("name") or "—"),
             warehouse_type_es(r.get("warehouse_type")),
             warehouse_status_es(r.get("status")),
+        ])
+    return TableViewModel(rows=out, row_ids=ids, total=len(out))
+
+
+def reservations_table(rows: list[dict]) -> TableViewModel:
+    """rows: active reservation rows (list_active_for_product) → display table
+    (origen, documento, almacén, cantidad, estado)."""
+    out, ids = [], []
+    for i, r in enumerate(rows):
+        ids.append(f"{r.get('source_document_id','')}:{i}")
+        out.append([
+            reservation_source_es(r.get("source")),
+            str(r.get("source_document_id") or "—"),
+            str(r.get("warehouse_id") or "—"),
+            qty(r.get("quantity")),
+            reservation_status_es(r.get("status")),
         ])
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 

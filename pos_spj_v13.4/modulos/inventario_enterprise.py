@@ -65,6 +65,7 @@ class ModuloInventarioEnterprise(QWidget):
             MovementQueryService,
             QuarantineQueryService,
             ReplenishmentQueryService,
+            ReservationQueryService,
             StockQueryService,
             TraceabilityQueryService,
             WarehouseQueryService,
@@ -99,5 +100,6 @@ class ModuloInventarioEnterprise(QWidget):
             traceability_query_factory=TraceabilityQueryService,
             stock_query_factory=StockQueryService,
             quarantine_query_factory=QuarantineQueryService,
+            reservation_query_factory=ReservationQueryService,
             session_context=session,
         )
