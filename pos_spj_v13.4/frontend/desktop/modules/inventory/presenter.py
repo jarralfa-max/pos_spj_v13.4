@@ -29,6 +29,7 @@ from frontend.desktop.modules.inventory.view_models import (
     quarantine_table,
     replenishment_table,
     reservations_table,
+    settings_table,
     stock_table,
     traceability_table,
     transfers_table,
@@ -51,7 +52,7 @@ class InventoryPresenter:
                  audit_query_factory=None, transfer_query_factory=None,
                  weight_query_factory=None, receipt_query_factory=None,
                  count_query_factory=None, adjustment_query_factory=None,
-                 alert_query_factory=None,
+                 alert_query_factory=None, settings_query_factory=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -74,6 +75,7 @@ class InventoryPresenter:
         self._count_factory = count_query_factory
         self._adjustment_factory = adjustment_query_factory
         self._alert_factory = alert_query_factory
+        self._settings_factory = settings_query_factory
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -133,6 +135,15 @@ class InventoryPresenter:
         branch = branch_id or self.default_branch()
         rows = self._audit_factory(self._conn()).list_recent(branch_id=branch or None)
         return audit_table(rows)
+
+    def settings(self) -> TableViewModel:
+        """Parámetros del módulo: reglas de notificación (evento, ámbito, canal,
+        severidad mínima, throttle, activa). Sólo lectura; delega en el settings
+        query service."""
+        if self._settings_factory is None:
+            return settings_table([])
+        rows = self._settings_factory(self._conn()).list_notification_rules()
+        return settings_table(rows)
 
     def alerts(self, *, branch_id: str | None = None) -> TableViewModel:
         """Alertas recientes de inventario (fecha, severidad, evento, canal, estado,

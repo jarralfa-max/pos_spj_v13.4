@@ -21,6 +21,7 @@ from backend.application.inventory.queries import (
     ReceiptQueryService,
     ReplenishmentQueryService,
     ReservationQueryService,
+    SettingsQueryService,
     StockQueryService,
     TraceabilityQueryService,
     TransferQueryService,
@@ -96,6 +97,7 @@ def _presenter(conn):
         count_query_factory=CountQueryService,
         adjustment_query_factory=AdjustmentQueryService,
         alert_query_factory=AlertQueryService,
+        settings_query_factory=SettingsQueryService,
         session_context=_Session())
 
 
@@ -441,6 +443,27 @@ class TestPresenter:
 
     def test_alerts_empty(self, conn):
         vm = _presenter(conn).alerts()
+        assert vm.total == 0 and vm.rows == []
+
+    def test_settings_view_model(self, conn):
+        from backend.shared.ids import new_uuid
+        conn.execute(
+            "INSERT INTO inventory_notification_rule (id, event_name, scope_type,"
+            " scope_id, channel, recipient_type, recipient_ref, min_severity,"
+            " throttle_seconds, active, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (new_uuid(), "INVENTORY_LOW_STOCK", "GLOBAL", "", "IN_APP", "ROLE",
+             "manager", "WARNING", 300, 1, "2026-08-03T10:00:00"))
+        conn.commit()
+        vm = _presenter(conn).settings()
+        assert vm.total == 1
+        assert vm.rows[0][0] == "Stock bajo"    # evento es-MX
+        assert vm.rows[0][1] == "Global"        # ámbito es-MX
+        assert vm.rows[0][3] == "Advertencia"   # severidad mínima es-MX
+        assert vm.rows[0][4] == "300s"          # throttle
+        assert vm.rows[0][5] == "Sí"            # activa
+
+    def test_settings_empty(self, conn):
+        vm = _presenter(conn).settings()
         assert vm.total == 0 and vm.rows == []
 
     def test_generate_then_list_suggestions(self, conn):

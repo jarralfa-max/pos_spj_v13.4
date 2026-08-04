@@ -28,6 +28,7 @@ from frontend.desktop.modules.inventory.pages import (  # noqa: E402
     QuarantinePage,
     ReceiptsPage,
     ReservationsPage,
+    SettingsPage,
     StockPage,
     TraceabilityPage,
     TransfersPage,
@@ -87,6 +88,9 @@ class _StubPresenter:
     def alerts(self, *, branch_id=None):
         return TableViewModel(rows=[], row_ids=[], total=0)
 
+    def settings(self):
+        return TableViewModel(rows=[], row_ids=[], total=0)
+
 
 @pytest.fixture(scope="module")
 def app():
@@ -127,15 +131,13 @@ def test_shell_shows_all_sections_and_lazy_builds(app):
     assert view._built.get(3) is True
 
 
-def test_unbuilt_sections_use_placeholder(app):
-    specs = build_page_specs()
-    view = InventoryView(presenter=object(), specs=specs)
-    # Sección aún sin página real → placeholder.
-    idx = [e.title for e in INVENTORY_NAV].index("Configuración")  # aún sin página real
-    view.nav.select(idx)
-    container = view.stack.widget(idx)
-    page = container.layout().itemAt(0).widget()
-    assert isinstance(page, PlaceholderPage)
+def test_every_section_has_a_real_page_no_placeholder(app):
+    # P1-C completo: las 21 secciones canónicas tienen página real; ninguna cae al
+    # PlaceholderPage. Se verifica en el registro (page_id → página real).
+    from frontend.desktop.modules.inventory.page_registry import _REAL_PAGES
+    missing = [e.page_id for e in INVENTORY_NAV if e.page_id not in _REAL_PAGES]
+    assert missing == []
+    assert PlaceholderPage not in set(_REAL_PAGES.values())
 
 
 def test_disponibilidad_wires_the_real_availability_page(app):
@@ -264,3 +266,11 @@ def test_alertas_wires_the_real_alerts_page(app):
     view.nav.select(idx)
     page = view.stack.widget(idx).layout().itemAt(0).widget()
     assert isinstance(page, AlertsPage)
+
+
+def test_configuracion_wires_the_real_settings_page(app):
+    view = InventoryView(presenter=_StubPresenter(), specs=build_page_specs())
+    idx = [e.title for e in INVENTORY_NAV].index("Configuración")
+    view.nav.select(idx)
+    page = view.stack.widget(idx).layout().itemAt(0).widget()
+    assert isinstance(page, SettingsPage)

@@ -25,6 +25,7 @@ from frontend.desktop.modules.inventory.pages.replenishment_page import (
 from frontend.desktop.modules.inventory.pages.reservations_page import (
     ReservationsPage,
 )
+from frontend.desktop.modules.inventory.pages.settings_page import SettingsPage
 from frontend.desktop.modules.inventory.pages.stock_page import StockPage
 from frontend.desktop.modules.inventory.pages.traceability_page import (
     TraceabilityPage,
@@ -51,6 +52,7 @@ __all__ = [
     "ReceiptsPage",
     "ReplenishmentPage",
     "ReservationsPage",
+    "SettingsPage",
     "StockPage",
     "TraceabilityPage",
     "TransfersPage",

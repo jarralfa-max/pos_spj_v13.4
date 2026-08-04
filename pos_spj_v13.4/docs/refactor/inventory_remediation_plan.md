@@ -952,3 +952,31 @@ una ventana a la actividad que toca la sucursal.
   suites UI = 67 passed; inventario `2 failed / 561 passed` (2 pre-existentes, cero
   regresiones); arquitectura `22 failed / 427 passed` desde la raíz del repo (sin
   fallas nuevas).
+
+### Slice 19 — Página real "Configuración" (§23) — HECHO · **P1-C completo**
+
+- **`SettingsQueryService`** (application/queries, read-only, `InventoryRepositoryBase`):
+  `list_notification_rules(limit=200)` sobre `inventory_notification_rule` — la
+  política de alertas del módulo (evento, ámbito, canal, severidad mínima,
+  throttle, activa), ordenada por evento y canal. Sólo `SELECT`.
+- **`SettingsPage`** (DS): `PageHeader` + `StandardTable`
+  (Evento/Ámbito/Canal/Severidad mínima/Throttle/Activa); refresca al navegar.
+  Presentación pura.
+- **Presenter** `settings()` + factory opcional `settings_query_factory`; view
+  model `settings_table` (reusa `alert_event_es`/`alert_severity_es`, + `settings_scope_es`).
+- **Registro**: `inventory_settings` → `SettingsPage`. **21 páginas reales; 0
+  placeholders** — el sidebar canónico (§54) queda 100% con páginas DS reales.
+- Guardrail del shell: `test_unbuilt_sections_use_placeholder` se reemplaza por
+  `test_every_section_has_a_real_page_no_placeholder` (verifica en el registro que
+  las 21 secciones tienen página real y que `PlaceholderPage` no está mapeado).
+- **Evidencia**: `test_settings_view_model` (regla de stock bajo, ámbito/severidad
+  es-MX, throttle), `test_settings_empty`,
+  `test_configuracion_wires_the_real_settings_page` + suites UI = 70 passed;
+  inventario `2 failed / 564 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `22 failed / 427 passed` desde la raíz del repo (sin fallas nuevas).
+
+**P1-C cerrado:** las 21 secciones canónicas del inventario (§54) son páginas
+enterprise del Design System (PageHeader + StandardTable, es-MX, sólo lectura vía
+query services, fail-closed) montadas en el shell de navegación lateral; se retira
+el último `PlaceholderPage`. Quedan pendientes de fase posterior las acciones de
+escritura desde estas páginas (hoy delegadas a los módulos/flujos dedicados).
