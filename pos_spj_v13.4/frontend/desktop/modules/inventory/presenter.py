@@ -16,6 +16,7 @@ from frontend.desktop.modules.inventory.view_models import (
     KpiViewModel,
     TableViewModel,
     adjustments_table,
+    alert_severity_variant,
     alerts_table,
     audit_table,
     availability_breakdown_table,
@@ -145,14 +146,42 @@ class InventoryPresenter:
         rows = self._settings_factory(self._conn()).list_notification_rules()
         return settings_table(rows)
 
-    def alerts(self, *, branch_id: str | None = None) -> TableViewModel:
+    def alerts(self, *, branch_id: str | None = None,
+               severity: str | None = None) -> TableViewModel:
         """Alertas recientes de inventario (fecha, severidad, evento, canal, estado,
-        mensaje). Sólo lectura; delega en el alert query service."""
+        mensaje), opcionalmente filtradas por severidad. Sólo lectura; delega en el
+        alert query service."""
         if self._alert_factory is None:
             return alerts_table([])
         branch = branch_id or self.default_branch()
-        rows = self._alert_factory(self._conn()).list_recent(branch_id=branch or None)
+        rows = self._alert_factory(self._conn()).list_recent(
+            branch_id=branch or None, severity=severity or None)
         return alerts_table(rows)
+
+    def alert_kpis(self, *, branch_id: str | None = None) -> list[KpiViewModel]:
+        """Resumen de alertas por severidad (total, críticas, advertencias,
+        informativas) para la KPIBar de la página de Alertas."""
+        if self._alert_factory is None:
+            return []
+        branch = branch_id or self.default_branch()
+        rows = self._alert_factory(self._conn()).list_recent(branch_id=branch or None)
+        counts: dict[str, int] = {}
+        for r in rows:
+            key = str(r.get("severity") or "")
+            counts[key] = counts.get(key, 0) + 1
+        return [
+            KpiViewModel(key="total", title="Alertas", value=str(len(rows)),
+                         variant="info"),
+            KpiViewModel(key="critical", title="Críticas",
+                         value=str(counts.get("CRITICAL", 0)),
+                         variant=alert_severity_variant("CRITICAL")),
+            KpiViewModel(key="warning", title="Advertencias",
+                         value=str(counts.get("WARNING", 0)),
+                         variant=alert_severity_variant("WARNING")),
+            KpiViewModel(key="info", title="Informativas",
+                         value=str(counts.get("INFO", 0)),
+                         variant=alert_severity_variant("INFO")),
+        ]
 
     def adjustments(self, *, branch_id: str | None = None) -> TableViewModel:
         """Ajustes recientes (folio, motivo, almacén, estado, creado). Sólo

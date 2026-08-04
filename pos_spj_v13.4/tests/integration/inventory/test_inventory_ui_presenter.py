@@ -445,6 +445,31 @@ class TestPresenter:
         vm = _presenter(conn).alerts()
         assert vm.total == 0 and vm.rows == []
 
+    def test_alerts_severity_filter(self, conn):
+        _seed_alert(conn, event_name="INVENTORY_LOW_STOCK", severity="CRITICAL",
+                    channel="IN_APP", status="SENT", message="crítica p1")
+        _seed_alert(conn, event_name="INVENTORY_LOT_EXPIRING", severity="WARNING",
+                    channel="IN_APP", status="SENT", message="advertencia p2")
+        pres = _presenter(conn)
+        assert pres.alerts().total == 2                       # sin filtro
+        only_crit = pres.alerts(severity="CRITICAL")
+        assert only_crit.total == 1
+        assert only_crit.rows[0][1] == "Crítica"
+        assert pres.alerts(severity="WARNING").total == 1
+
+    def test_alert_kpis(self, conn):
+        _seed_alert(conn, event_name="INVENTORY_LOW_STOCK", severity="CRITICAL",
+                    channel="IN_APP", status="SENT", message="c1")
+        _seed_alert(conn, event_name="INVENTORY_LOW_STOCK", severity="CRITICAL",
+                    channel="IN_APP", status="SENT", message="c2")
+        _seed_alert(conn, event_name="INVENTORY_LOT_EXPIRING", severity="WARNING",
+                    channel="IN_APP", status="SENT", message="w1")
+        kpis = {k.key: k.value for k in _presenter(conn).alert_kpis()}
+        assert kpis["total"] == "3"
+        assert kpis["critical"] == "2"
+        assert kpis["warning"] == "1"
+        assert kpis["info"] == "0"
+
     def test_settings_view_model(self, conn):
         from backend.shared.ids import new_uuid
         conn.execute(

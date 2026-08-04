@@ -980,3 +980,26 @@ enterprise del Design System (PageHeader + StandardTable, es-MX, sólo lectura v
 query services, fail-closed) montadas en el shell de navegación lateral; se retira
 el último `PlaceholderPage`. Quedan pendientes de fase posterior las acciones de
 escritura desde estas páginas (hoy delegadas a los módulos/flujos dedicados).
+
+### Slice 20 — Filtros DS en feeds: KPIBar + filtro de severidad en "Alertas"
+
+Primer enriquecimiento DS sobre las páginas de lectura de alto volumen (patrón
+reutilizable para Movimientos/Recepciones/Auditoría en slices siguientes). No hay
+componente `FilterBar` en el DS; se usa `SearchInput` (filtro por severidad) +
+`KPIBar` (resumen), ambos canónicos. Sólo lectura.
+
+- **`AlertQueryService.list_recent`**: nuevo parámetro opcional `severity` (match
+  exacto sobre `severity`), combinable con `branch_id`. Sigue siendo `SELECT`.
+- **Presenter**: `alerts(branch_id, severity=None)` propaga el filtro; nuevo
+  `alert_kpis(branch_id)` → `KpiViewModel` (Total, Críticas, Advertencias,
+  Informativas) contando el feed de la sucursal.
+- **View models**: `alert_severity_variant` (INFO→info, WARNING→warning,
+  CRITICAL→danger) y `severity_filter_code` (normaliza término libre es-MX/inglés/
+  acentos → código; vacío o no reconocido → None = todas).
+- **`AlertsPage`**: `KPIBar` (arriba) + `SearchInput`
+  ("crítica/advertencia/informativa") que filtra el feed; sin combos ni QSS local.
+- **Evidencia**: `test_alerts_severity_filter`, `test_alert_kpis` (presenter),
+  `test_severity_filter_code_normalization`, `test_alert_severity_variant`
+  (unit) + suites UI = 74 passed; inventario `2 failed / 568 passed` (2
+  pre-existentes, cero regresiones); arquitectura `22 failed / 427 passed` desde la
+  raíz del repo (sin fallas nuevas).
