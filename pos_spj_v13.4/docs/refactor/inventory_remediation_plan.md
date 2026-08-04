@@ -1020,7 +1020,7 @@ Bridges/handlers en `backend/application/event_handlers/inventory/`:
 | `sale_items` (legacy `SaleInventoryHandler`) | engine legacy | `CanonicalSaleInventoryHandler` (`sale_items_bridge`) | ✅ canónico | ya reemplazado (INV-27) |
 | `production` (legacy) | engine legacy | `CanonicalProductionInventoryHandler` (`production_items_bridge`) | ✅ canónico | ya reemplazado (INV-27) |
 | `purchase_recipe_explosion_handler` | `movimientos_inventario` 'salida' | `CanonicalPurchaseRecipeExplosionHandler` (`purchase_recipe_explosion_bridge`) | ✅ canónico | **retirado (Slice 1)** |
-| `purchase_lot_entry_handler` | `lotes` / `movimientos_lote` | `PurchaseReceiptHandler._ensure_lot` → `inventory_lots` (canónico) | ⚠️ receipt handler "NOT wired to live bus" | pendiente — requiere cablear creación de lote canónica en la tubería de compra viva antes de retirar |
+| `purchase_lot_entry_handler` | `lotes` / `movimientos_lote` | `CanonicalPurchaseStockEntryHandler` (hereda `PurchaseReceiptHandler._ensure_lot`) → `inventory_lots` | ✅ canónico (creación de lote viva, Slice 2) | listo para retirar (Slice 3) |
 
 ### Slice 1 — Retiro de `PurchaseRecipeExplosionHandler` legacy — HECHO
 
@@ -1038,11 +1038,33 @@ Bridges/handlers en `backend/application/event_handlers/inventory/`:
   regresiones; −3 del test legacy retirado); arquitectura `22 failed / 430 passed`
   desde la raíz del repo (+3 del guardrail, sin fallas nuevas).
 
+### Slice 2 — Creación de lote canónica en la compra viva — HECHO
+
+Habilitador para retirar `purchase_lot_entry_handler`: el evento vivo
+`PURCHASE_STOCK_ENTRY_REGISTERED` trae por línea `inventory_unit`/`expiration`/`lot`
+(no `lot_code`), así que el handler canónico nunca creaba lote. Descubrimiento: el
+`CanonicalPurchaseStockEntryHandler` **sí** está cableado (prioridad 100) y hereda
+`PurchaseReceiptHandler._ensure_lot` — sólo faltaba el mapeo de campos.
+
+- **`CanonicalPurchaseStockEntryHandler`**: porta la regla legacy `_is_lot_tracked`
+  (unidad de peso KG **o** `expiration`/`lot`) y deriva `lot_code` por línea
+  rastreable — el `lot` explícito si existe, si no `{document}-P{product_id}`
+  determinista. Así `_ensure_lot` crea el `inventory_lots` canónico. Idempotente por
+  código determinista + `operation_id`.
+- Sin tocar semántica de cantidad/peso ni escribir tablas legacy; sólo se cierra la
+  brecha de creación de lote (paridad con el legacy, PRIORIDAD 0).
+- **Evidencia**: `test_weight_tracked_line_creates_deterministic_canonical_lot`,
+  `test_explicit_lot_field_maps_to_canonical_lot_code`,
+  `test_non_tracked_line_creates_no_lot`,
+  `test_weight_tracked_lot_creation_is_idempotent` (+ 4 existentes) = 8 passed;
+  inventario `2 failed / 569 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `22 failed / 430 passed` desde la raíz del repo (sin fallas nuevas).
+
 ### Pendiente P2
 
-- **`purchase_lot_entry_handler`**: cablear la creación de lote canónica
-  (`inventory_lots` vía `PurchaseReceiptHandler`/`RegisterInventoryLotUseCase`) en la
-  tubería de compra viva; recién entonces retirar el handler legacy y su escritura a
-  `lotes`/`movimientos_lote`.
-- **DROP diferido** de tablas legacy de inventario (`migrations/deferred/`), una vez
-  que ningún handler las escriba/lea.
+- **Slice 3 — retirar `purchase_lot_entry_handler`**: ya cubierto por la creación de
+  lote canónica viva (Slice 2); eliminar el handler legacy, sus tests y desacoplar
+  `test_pipeline_end_to_end` de la tabla `lotes`; añadir guardrail.
+- **DROP diferido** de tablas legacy de inventario (`lotes`, `movimientos_lote`,
+  `movimientos_inventario`) en `migrations/deferred/`, una vez que ningún handler las
+  escriba/lea.
