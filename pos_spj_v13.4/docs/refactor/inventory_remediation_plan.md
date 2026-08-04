@@ -1003,3 +1003,46 @@ componente `FilterBar` en el DS; se usa `SearchInput` (filtro por severidad) +
   (unit) + suites UI = 74 passed; inventario `2 failed / 568 passed` (2
   pre-existentes, cero regresiones); arquitectura `22 failed / 427 passed` desde la
   raíz del repo (sin fallas nuevas).
+
+## P2 — Retiro de bridges legacy de inventario
+
+Objetivo: eliminar los handlers legacy que escribían tablas legacy (`lotes`,
+`movimientos_lote`, `movimientos_inventario`) una vez que la ruta canónica los
+cubre, sin perder lógica de negocio (PRIORIDAD 0). Se hace por slices, verificando
+cobertura canónica antes de borrar.
+
+### Auditoría P2 — inventario de superficies legacy
+
+Bridges/handlers en `backend/application/event_handlers/inventory/`:
+
+| Handler legacy | Escribe | Reemplazo canónico | Cableado (wiring) | Estado |
+|---|---|---|---|---|
+| `sale_items` (legacy `SaleInventoryHandler`) | engine legacy | `CanonicalSaleInventoryHandler` (`sale_items_bridge`) | ✅ canónico | ya reemplazado (INV-27) |
+| `production` (legacy) | engine legacy | `CanonicalProductionInventoryHandler` (`production_items_bridge`) | ✅ canónico | ya reemplazado (INV-27) |
+| `purchase_recipe_explosion_handler` | `movimientos_inventario` 'salida' | `CanonicalPurchaseRecipeExplosionHandler` (`purchase_recipe_explosion_bridge`) | ✅ canónico | **retirado (Slice 1)** |
+| `purchase_lot_entry_handler` | `lotes` / `movimientos_lote` | `PurchaseReceiptHandler._ensure_lot` → `inventory_lots` (canónico) | ⚠️ receipt handler "NOT wired to live bus" | pendiente — requiere cablear creación de lote canónica en la tubería de compra viva antes de retirar |
+
+### Slice 1 — Retiro de `PurchaseRecipeExplosionHandler` legacy — HECHO
+
+- **Cobertura canónica verificada**: el bridge `CanonicalPurchaseRecipeExplosionHandler`
+  está cableado en `core/events/wiring.py` (consume `PURCHASE_STOCK_ENTRY_REGISTERED`,
+  postea `ADJUSTMENT_OUT` canónico por componente, idempotente por evento). El flip
+  test `test_purchase_recipe_explosion_flip.py` cubre paridad con el legacy: consumo
+  de componentes, sin-receta = no-op, idempotencia.
+- **Eliminado**: `purchase_recipe_explosion_handler.py` (legacy, sólo lo importaba su
+  propio test) + `test_purchase_recipe_explosion_handler.py` (redundante con el flip).
+- **Guardrail** `test_inventory_legacy_recipe_handler_retired.py`: el archivo legacy
+  no existe, nada lo importa, y el bridge canónico es el handler cableado.
+- **Evidencia**: guardrail (3) + flip (3) = 6 passed; inventario
+  `2 failed / 565 passed` (2 pre-existentes `legacy_reader_repoints`, cero
+  regresiones; −3 del test legacy retirado); arquitectura `22 failed / 430 passed`
+  desde la raíz del repo (+3 del guardrail, sin fallas nuevas).
+
+### Pendiente P2
+
+- **`purchase_lot_entry_handler`**: cablear la creación de lote canónica
+  (`inventory_lots` vía `PurchaseReceiptHandler`/`RegisterInventoryLotUseCase`) en la
+  tubería de compra viva; recién entonces retirar el handler legacy y su escritura a
+  `lotes`/`movimientos_lote`.
+- **DROP diferido** de tablas legacy de inventario (`migrations/deferred/`), una vez
+  que ningún handler las escriba/lea.
