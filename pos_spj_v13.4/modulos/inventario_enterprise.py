@@ -72,6 +72,7 @@ class ModuloInventarioEnterprise(QWidget):
             ReceiptQueryService,
             ReplenishmentQueryService,
             ReservationQueryService,
+            SettingsQueryService,
             StockQueryService,
             TraceabilityQueryService,
             TransferQueryService,
@@ -117,5 +118,6 @@ class ModuloInventarioEnterprise(QWidget):
             count_query_factory=CountQueryService,
             adjustment_query_factory=AdjustmentQueryService,
             alert_query_factory=AlertQueryService,
+            settings_query_factory=SettingsQueryService,
             session_context=session,
         )

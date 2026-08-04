@@ -464,6 +464,37 @@ def alerts_table(rows: list[dict]) -> TableViewModel:
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 
 
+SETTINGS_SCOPE_ES = {
+    "GLOBAL": "Global", "BRANCH": "Sucursal", "WAREHOUSE": "Almacén",
+    "PRODUCT": "Producto", "CATEGORY": "Categoría",
+}
+
+
+def settings_scope_es(code) -> str:
+    return SETTINGS_SCOPE_ES.get(str(code or ""), str(code or "—"))
+
+
+def settings_table(rows: list[dict]) -> TableViewModel:
+    """rows: notification-rule rows (list_notification_rules) → display table
+    (evento, ámbito, canal, severidad mínima, throttle, activa)."""
+    out, ids = [], []
+    for i, r in enumerate(rows):
+        ids.append(f"{r.get('event_name','')}:{r.get('channel','')}:{i}")
+        scope = settings_scope_es(r.get("scope_type"))
+        if r.get("scope_id"):
+            scope = f"{scope}: {r.get('scope_id')}"
+        throttle = int(r.get("throttle_seconds") or 0)
+        out.append([
+            alert_event_es(r.get("event_name")),
+            scope,
+            str(r.get("channel") or "—"),
+            alert_severity_es(r.get("min_severity")),
+            f"{throttle}s" if throttle else "—",
+            "Sí" if r.get("active") else "No",
+        ])
+    return TableViewModel(rows=out, row_ids=ids, total=len(out))
+
+
 def cold_chain_table(rows: list[dict]) -> TableViewModel:
     """rows: open excursion rows (list_open_excursions) → display table (almacén,
     lote, temperatura, rango, estado, acción)."""
