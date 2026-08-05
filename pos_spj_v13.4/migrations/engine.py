@@ -168,6 +168,9 @@ MIGRATIONS = [
     _Migration("171",  "migrations.standalone.171_logistics_bounded_context_schema"),
     _Migration("172",  "migrations.standalone.172_logistics_loading_authorizations"),
     _Migration("173",  "migrations.standalone.173_logistics_shipment_photos"),
+    _Migration("174",  "migrations.standalone.174_losses_bounded_context_schema"),
+    _Migration("175",  "migrations.standalone.175_cash_register_bounded_context_schema"),
+    _Migration("176",  "migrations.standalone.176_cash_register_configuration_schema"),
 ]
 
 def _ensure_tracking_table(conn):

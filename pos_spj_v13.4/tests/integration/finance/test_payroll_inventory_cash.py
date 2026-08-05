@@ -76,7 +76,9 @@ class TestCashShift:
         difference_events = bootstrapped_conn.execute(
             "SELECT COUNT(*) FROM finance_outbox WHERE event_name='CASH_DIFFERENCE_DETECTED'"
         ).fetchone()[0]
-        assert difference_events == 1
+        # Caja already publishes CASH_DIFFERENCE_DETECTED atomically with the Z
+        # cut. Finance must not republish it and create a notification loop.
+        assert difference_events == 0
 
     def test_shift_close_with_overage(self, bootstrapped_conn):
         handler = CashShiftClosedHandler(bootstrapped_conn)

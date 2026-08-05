@@ -1,9 +1,8 @@
 # LOSS-0 — Plan de ejecución del bounded context Losses
 
-Estado: `LOSS-2 IMPLEMENTED_WITH_TEST_ENVIRONMENT_BLOCKER`. El dominio base,
-clasificaciones, causas, estados, policies y eventos están implementados y
-compilados. Antes de LOSS-3 debe ejecutarse pytest; el entorno actual no contiene
-esa dependencia.
+Estado: `LOSS-4 IMPLEMENTED_WITH_PYTEST_ENVIRONMENT_BLOCKER`. La entrada global,
+sidebar, rutas, permisos de sección y badges están implementados. El registro
+legacy queda encapsulado hasta LOSS-5. Pytest continúa ausente en el entorno.
 
 ## Brechas bloqueantes
 

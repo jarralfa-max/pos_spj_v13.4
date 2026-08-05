@@ -1,0 +1,77 @@
+"""Canonical Cash Register event names and payload contract."""
+from datetime import datetime, timezone
+
+from backend.shared.ids import new_uuid, validate_uuidv7
+
+
+class CashEvents:
+    REGISTER_CREATED = "CASH_REGISTER_CREATED"
+    REGISTER_ACTIVATED = "CASH_REGISTER_ACTIVATED"
+    REGISTER_BLOCKED = "CASH_REGISTER_BLOCKED"
+    DRAWER_CREATED = "CASH_DRAWER_CREATED"
+    DRAWER_ACTIVATED = "CASH_DRAWER_ACTIVATED"
+    DRAWER_BLOCKED = "CASH_DRAWER_BLOCKED"
+    DRAWER_ASSIGNED = "CASH_DRAWER_ASSIGNED"
+    TERMINAL_CREATED = "CASH_TERMINAL_CREATED"
+    TERMINAL_ACTIVATED = "CASH_TERMINAL_ACTIVATED"
+    TERMINAL_BLOCKED = "CASH_TERMINAL_BLOCKED"
+    TERMINAL_ASSIGNED = "CASH_TERMINAL_ASSIGNED"
+    HARDWARE_DIAGNOSED = "CASH_HARDWARE_DIAGNOSED"
+    DRAWER_OPENED = "CASH_DRAWER_OPENED"
+    CASH_DOCUMENT_PRINTED = "CASH_DOCUMENT_PRINTED"
+    TERMINAL_PAYMENT_EXECUTED = "CASH_TERMINAL_PAYMENT_EXECUTED"
+    HARDWARE_OPERATION_FAILED = "CASH_HARDWARE_OPERATION_FAILED"
+    SYNC_CONFLICT_RESOLVED = "CASH_SYNC_CONFLICT_RESOLVED"
+    SHIFT_OPENED = "CASH_SHIFT_OPENED"
+    SHIFT_SUSPENDED = "CASH_SHIFT_SUSPENDED"
+    SHIFT_RESUMED = "CASH_SHIFT_RESUMED"
+    SHIFT_CLOSING_STARTED = "CASH_SHIFT_CLOSING_STARTED"
+    SHIFT_CLOSED = "CASH_SHIFT_CLOSED"
+    MOVEMENT_RECORDED = "CASH_MOVEMENT_RECORDED"
+    MOVEMENT_REVERSED = "CASH_MOVEMENT_REVERSED"
+    REFUND_PROCESSED = "CASH_REFUND_PROCESSED"
+    SAFE_DROP_RECORDED = "CASH_SAFE_DROP_RECORDED"
+    BLIND_COUNT_STARTED = "CASH_BLIND_COUNT_STARTED"
+    BLIND_COUNT_UPDATED = "CASH_BLIND_COUNT_UPDATED"
+    BLIND_COUNT_CONFIRMED = "CASH_BLIND_COUNT_CONFIRMED"
+    X_CUT_GENERATED = "CASH_X_CUT_GENERATED"
+    X_CUT_PRINTED = "CASH_X_CUT_PRINTED"
+    Z_CUT_GENERATED = "CASH_Z_CUT_GENERATED"
+    Z_CUT_PRINTED = "CASH_Z_CUT_PRINTED"
+    Z_CUT_NOTIFICATION_SENT = "CASH_Z_CUT_NOTIFICATION_SENT"
+    DIFFERENCE_DETECTED = "CASH_DIFFERENCE_DETECTED"
+    DIFFERENCE_EXPLAINED = "CASH_DIFFERENCE_EXPLAINED"
+    DIFFERENCE_REVIEWED = "CASH_DIFFERENCE_REVIEWED"
+    DIFFERENCE_RESOLVED = "CASH_DIFFERENCE_RESOLVED"
+    HANDOVER_PREPARED = "CASH_HANDOVER_PREPARED"
+    HANDOVER_DELIVERED = "CASH_HANDOVER_DELIVERED"
+    HANDOVER_RECEIVED = "CASH_HANDOVER_RECEIVED"
+    HANDOVER_DISPUTED = "CASH_HANDOVER_DISPUTED"
+
+
+ALL_CASH_EVENTS = frozenset(
+    value for name, value in vars(CashEvents).items()
+    if name.isupper() and isinstance(value, str)
+)
+
+
+def cash_event_payload(event_name: str, *, operation_id: str, entity_id: str,
+                       branch_id: str, user_id: str, **payload: object) -> dict[str, object]:
+    if event_name not in ALL_CASH_EVENTS:
+        raise ValueError(f"Unknown canonical Cash Register event: {event_name}")
+    for value in (operation_id, entity_id, branch_id, user_id):
+        validate_uuidv7(value)
+    event_id = new_uuid()
+    if event_id in {operation_id, entity_id}:
+        raise ValueError("event_id, operation_id and entity_id must be distinct")
+    return {
+        "event_id": event_id,
+        "event_name": event_name,
+        "operation_id": operation_id,
+        "entity_id": entity_id,
+        "branch_id": branch_id,
+        "user_id": user_id,
+        "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "source_module": "cash_register",
+        "payload": payload,
+    }

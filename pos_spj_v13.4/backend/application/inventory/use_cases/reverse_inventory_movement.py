@@ -39,14 +39,15 @@ class ReverseInventoryMovementUseCase:
     def execute(self, connection, *, movement_id: str, operation_id: str,
                 actor_user_id: str, reason: str,
                 permission_code: str = InventoryPermissions.MOVEMENT_REVERSE,
-                context: InventoryExecutionContext | None = None) -> InventoryResult:
+                context: InventoryExecutionContext | None = None,
+                owns_transaction: bool = True) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, permission_code)
         except InventoryPermissionDeniedError as exc:
             return InventoryResult.fail(str(exc), "PERMISSION_DENIED",
                                         operation_id=operation_id)
         try:
-            with InventoryUnitOfWork(connection) as uow:
+            with InventoryUnitOfWork(connection, owns_transaction=owns_transaction) as uow:
                 if uow.ledger.find_by_operation_id(operation_id) is not None:
                     return InventoryResult.ok("Reverso ya registrado (idempotente)",
                                               operation_id=operation_id,

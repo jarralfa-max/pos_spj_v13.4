@@ -93,7 +93,8 @@ class QuarantineStockUseCase:
                 reason: QuarantineReason, quantity, operation_id: str, actor_user_id: str,
                 weight=0, location_id: str | None = None, lot_id: str | None = None,
                 reason_note: str = "",
-                context: InventoryExecutionContext | None = None) -> InventoryResult:
+                context: InventoryExecutionContext | None = None,
+                owns_transaction: bool = True) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, InventoryPermissions.QUARANTINE_CREATE)
         except InventoryPermissionDeniedError as exc:
@@ -107,7 +108,7 @@ class QuarantineStockUseCase:
                 product_id=product_id, branch_id=branch_id, warehouse_id=warehouse_id,
                 reason=reason, quantity=quantity, weight=weight, location_id=location_id,
                 lot_id=lot_id, reason_note=reason_note, created_by_user_id=actor_user_id)
-            with InventoryUnitOfWork(connection) as uow:
+            with InventoryUnitOfWork(connection, owns_transaction=owns_transaction) as uow:
                 _status_transfer(uow, q, mtype=MovementType.QUARANTINE_ENTRY,
                                  from_status=InventoryStatus.AVAILABLE,
                                  to_status=InventoryStatus.QUARANTINED,
@@ -133,13 +134,14 @@ class ReleaseQuarantineUseCase:
 
     def execute(self, connection, *, quarantine_id: str, operation_id: str,
                 actor_user_id: str,
-                context: InventoryExecutionContext | None = None) -> InventoryResult:
+                context: InventoryExecutionContext | None = None,
+                owns_transaction: bool = True) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, InventoryPermissions.QUARANTINE_RELEASE)
         except InventoryPermissionDeniedError as exc:
             return _fail(exc, operation_id)
         try:
-            with InventoryUnitOfWork(connection) as uow:
+            with InventoryUnitOfWork(connection, owns_transaction=owns_transaction) as uow:
                 q = uow.quarantines.get(quarantine_id)
                 if q is None:
                     return InventoryResult.fail("Cuarentena no encontrada",
@@ -172,13 +174,14 @@ class DisposeQuarantineUseCase:
 
     def execute(self, connection, *, quarantine_id: str, operation_id: str,
                 actor_user_id: str, reason: str = "",
-                context: InventoryExecutionContext | None = None) -> InventoryResult:
+                context: InventoryExecutionContext | None = None,
+                owns_transaction: bool = True) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, InventoryPermissions.DISPOSAL_AUTHORIZE)
         except InventoryPermissionDeniedError as exc:
             return _fail(exc, operation_id)
         try:
-            with InventoryUnitOfWork(connection) as uow:
+            with InventoryUnitOfWork(connection, owns_transaction=owns_transaction) as uow:
                 q = uow.quarantines.get(quarantine_id)
                 if q is None:
                     return InventoryResult.fail("Cuarentena no encontrada",

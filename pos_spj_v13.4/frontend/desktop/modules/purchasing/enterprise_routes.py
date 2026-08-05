@@ -41,6 +41,9 @@ from backend.application.procurement.use_cases.requisition_use_cases import (
     CreatePurchaseRequisitionUseCase,
     SubmitPurchaseRequisitionUseCase,
 )
+from backend.application.procurement.use_cases.quotation_use_cases import (
+    CreateRfqUseCase,
+)
 from backend.application.procurement.use_cases.supplier_invoice_use_cases import (
     CaptureSupplierInvoiceUseCase,
     MatchSupplierInvoiceUseCase,
@@ -62,11 +65,23 @@ def _post_commit_dispatcher(connection):
     return _dispatch
 
 
-def build_enterprise_presenter(connection, session_context=None) -> EnterprisePurchasingPresenter:
+def build_enterprise_presenter(connection, session_context=None, *,
+                               logistics_service=None,
+                               logistics_queries=None) -> EnterprisePurchasingPresenter:
     authorization = PurchaseAuthorizationPolicy(
         ProcurementSessionPermissionChecker(session_context))
     supplier_directory = SupplierDirectoryQueryService(connection)
     tolerance_settings = ProcurementToleranceSettingsQueryService(connection)
+    # Reuse the canonical Logistics wiring built once at app startup
+    # (core/events/wiring.py::_wire_logistics_pipeline) instead of constructing a
+    # second, repository-less LogisticsShipmentQueryService here.
+    logistics_reads = logistics_queries or LogisticsShipmentQueryService(connection)
+    origin_workspace = None
+    if logistics_service is not None and logistics_queries is not None:
+        from backend.application.logistics.origin_purchase_workspace import (
+            OriginPurchaseWorkspaceService,
+        )
+        origin_workspace = OriginPurchaseWorkspaceService(logistics_service, logistics_queries)
     return EnterprisePurchasingPresenter(
         connection_provider=lambda: connection,
         read_services={
@@ -80,6 +95,7 @@ def build_enterprise_presenter(connection, session_context=None) -> EnterprisePu
             "req_create": CreatePurchaseRequisitionUseCase(authorization),
             "req_submit": SubmitPurchaseRequisitionUseCase(authorization),
             "req_approve": ApprovePurchaseRequisitionUseCase(authorization),
+            "rfq_create": CreateRfqUseCase(authorization, supplier_directory),
             "po_create": CreatePurchaseOrderUseCase(authorization, supplier_directory),
             "po_approve": ApprovePurchaseOrderUseCase(authorization),
             "po_send": SendPurchaseOrderUseCase(authorization),
@@ -92,9 +108,10 @@ def build_enterprise_presenter(connection, session_context=None) -> EnterprisePu
             "inv_release": ReleaseInvoiceVarianceUseCase(authorization),
         },
         session_context=session_context,
-        logistics_reads=LogisticsShipmentQueryService(connection),
+        logistics_reads=logistics_reads,
         warehouse_directory=WarehouseDirectoryQueryService(connection),
         history_reads=PurchaseHistoryReadService(connection),
+        origin_workspace=origin_workspace,
     )
 
 
@@ -103,7 +120,8 @@ def create_enterprise_purchasing_view(container, parent=None):
         build_direct_purchase_presenter,
     )
     from frontend.desktop.modules.purchasing.direct_purchase_view import (
-        DirectPurchaseView,
+        DirectPurchaseCreateView,
+        DirectPurchaseHistoryView,
     )
     from frontend.desktop.modules.purchasing.enterprise_view import (
         EnterprisePurchasingView,
@@ -112,7 +130,14 @@ def create_enterprise_purchasing_view(container, parent=None):
     connection = getattr(container, "db", None) or getattr(container, "db_conn", None) \
         or container
     session_context = getattr(container, "session", None)
-    presenter = build_enterprise_presenter(connection, session_context)
-    direct_view = DirectPurchaseView(
-        build_direct_purchase_presenter(connection, session_context))
-    return EnterprisePurchasingView(presenter, parent, direct_purchase_view=direct_view)
+    logistics_service = getattr(container, "logistics_application_service", None)
+    logistics_queries = getattr(container, "logistics_shipment_queries", None)
+    presenter = build_enterprise_presenter(
+        connection, session_context,
+        logistics_service=logistics_service, logistics_queries=logistics_queries)
+    direct_presenter = build_direct_purchase_presenter(connection, session_context)
+    direct_views = {
+        "create": DirectPurchaseCreateView(direct_presenter),
+        "history": DirectPurchaseHistoryView(direct_presenter),
+    }
+    return EnterprisePurchasingView(presenter, parent, direct_purchase_views=direct_views)

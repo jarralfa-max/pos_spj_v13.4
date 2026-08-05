@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import logging
 
+from backend.application.logistics.authorization import LogisticsPermissions
+from backend.application.procurement.permissions import PurchasePermissions
 from backend.shared.ids import new_uuid
 from frontend.desktop.modules.purchasing.enterprise_view_models import (
+    PurchasingCapabilities,
     TableViewModel,
     invoice_status_es,
     match_result_es,
@@ -27,7 +30,8 @@ _PAGE_SIZE = 50
 class EnterprisePurchasingPresenter:
     def __init__(self, *, connection_provider, read_services: dict, analytics,
                  use_cases: dict, session_context=None, event_dispatcher=None,
-                 logistics_reads=None, warehouse_directory=None, history_reads=None) -> None:
+                 logistics_reads=None, warehouse_directory=None, history_reads=None,
+                 origin_workspace=None) -> None:
         self._conn = connection_provider
         self._reads = read_services
         self._analytics = analytics
@@ -37,6 +41,7 @@ class EnterprisePurchasingPresenter:
         self._logistics = logistics_reads
         self._warehouse_directory = warehouse_directory
         self._history = history_reads
+        self._origin = origin_workspace
         self._period_start = None
         self._period_end = None
 
@@ -97,6 +102,42 @@ class EnterprisePurchasingPresenter:
         checker = getattr(self._session, "tiene_permiso", None)
         return bool(callable(checker) and checker(permission))
 
+    def capabilities(self) -> PurchasingCapabilities:
+        P = PurchasePermissions
+        L = LogisticsPermissions
+        return PurchasingCapabilities(
+            module_view=self.can(P.VIEW),
+            requisition_view=self.can(P.REQUISITION_VIEW),
+            requisition_create=self.can(P.REQUISITION_CREATE),
+            requisition_submit=self.can(P.REQUISITION_SUBMIT),
+            requisition_approve=self.can(P.REQUISITION_APPROVE),
+            requisition_reject=self.can(P.REQUISITION_REJECT),
+            rfq_create=self.can(P.RFQ_CREATE),
+            order_view=self.can(P.ORDER_VIEW),
+            order_create=self.can(P.ORDER_CREATE),
+            order_approve=self.can(P.ORDER_APPROVE),
+            order_send=self.can(P.ORDER_SEND),
+            order_change=self.can(P.ORDER_CHANGE_APPROVED),
+            receipt_view=self.can(P.RECEIPT_VIEW),
+            receipt_complete=self.can(P.RECEIPT_COMPLETE),
+            origin_view=self.can(L.SHIPMENT_VIEW),
+            origin_create=self.can(L.SHIPMENT_CREATE),
+            origin_seal=self.can(L.CONTAINER_SEAL),
+            origin_dispatch=self.can(L.SHIPMENT_DISPATCH),
+            origin_override=self.can(L.SHIPMENT_OVERRIDE),
+            invoice_view=self.can(P.INVOICE_VIEW),
+            invoice_capture=self.can(P.INVOICE_CAPTURE),
+            invoice_match=self.can(P.INVOICE_MATCH),
+            invoice_release_variance=self.can(P.INVOICE_RELEASE_VARIANCE),
+            direct_view=self.can(P.DIRECT_VIEW),
+            direct_create=self.can(P.DIRECT_CREATE),
+            direct_authorize=self.can(P.OVERRIDE_FINANCIAL_LIMIT),
+            direct_confirm=self.can(P.DIRECT_CONFIRM),
+            direct_reverse=self.can(P.DIRECT_REVERSE),
+            view_costs=self.can(P.VIEW_COSTS),
+            view_analytics=self.can(P.VIEW_ANALYTICS),
+        )
+
     def set_period(self, start_date: str, end_date: str) -> None:
         if start_date > end_date:
             raise ValueError("El periodo inicial no puede ser posterior al final")
@@ -148,6 +189,11 @@ class EnterprisePurchasingPresenter:
                             reason="") -> tuple[bool, str, dict]:
         return self._run("req_approve", approver_user_id=self._actor(),
                          requisition_id=requisition_id, approve=approve, reason=reason)
+
+    def create_rfq_from_requisition(self, requisition_id: str,
+                                    supplier_ids: list[str]) -> tuple[bool, str, dict]:
+        return self._run("rfq_create", actor_user_id=self._actor(),
+                         requisition_id=requisition_id, supplier_ids=supplier_ids)
 
     # ── orders ────────────────────────────────────────────────────────────────
     def orders(self, *, status=None, search="", page=0) -> TableViewModel:
@@ -222,6 +268,61 @@ class EnterprisePurchasingPresenter:
             return []
         return self._logistics.related_to_destination(
             branch_id=self.default_branch(), warehouse_id=self.default_warehouse())
+
+    # ── compra en origen (Logistics workspace) ───────────────────────────────
+    def _origin_run(self, fn, *args, **kwargs) -> tuple[bool, str, dict]:
+        try:
+            detail = fn(*args, **kwargs)
+            return True, "Operación registrada", detail or {}
+        except (ValueError, LookupError) as exc:
+            return False, str(exc), {}
+        except Exception:
+            logger.exception("EnterprisePurchasingPresenter: error en compra en origen")
+            return False, "Error inesperado; revise el log.", {}
+
+    def origin_documents(self, search: str = "") -> list[dict]:
+        if self._origin is None:
+            raise PermissionError("Compra en origen no está configurada en este equipo")
+        return self._origin.documents(branch_id=self.default_branch(),
+                                      warehouse_id=self.default_warehouse(), search=search)
+
+    def origin_workspace(self, shipment_id: str):
+        if self._origin is None:
+            raise PermissionError("Compra en origen no está configurada en este equipo")
+        return self._origin.open(shipment_id)
+
+    def origin_create_shipment(self, document: dict) -> tuple[bool, str, dict]:
+        if self._origin is None:
+            return False, "Compra en origen no está configurada en este equipo", {}
+        return self._origin_run(self._origin.create_shipment, actor_user_id=self._actor(),
+                                branch_id=self.default_branch(),
+                                warehouse_id=self.default_warehouse(), document=document)
+
+    def origin_mobile_handoff(self, shipment_id: str) -> tuple[bool, str, dict]:
+        if self._origin is None:
+            return False, "Compra en origen no está configurada en este equipo", {}
+        return self._origin_run(self._origin.mobile_handoff, shipment_id)
+
+    def origin_seal_root(self, shipment_id: str, node_id: str,
+                         seal_code: str) -> tuple[bool, str, dict]:
+        if self._origin is None:
+            return False, "Compra en origen no está configurada en este equipo", {}
+        return self._origin_run(self._origin.seal_root, actor_user_id=self._actor(),
+                                shipment_id=shipment_id, node_id=node_id, seal_code=seal_code)
+
+    def origin_dispatch(self, shipment_id: str) -> tuple[bool, str, dict]:
+        if self._origin is None:
+            return False, "Compra en origen no está configurada en este equipo", {}
+        return self._origin_run(self._origin.dispatch, actor_user_id=self._actor(),
+                                shipment_id=shipment_id)
+
+    def origin_authorize_variance(self, shipment_id: str, source_line_id: str,
+                                  reason: str) -> tuple[bool, str, dict]:
+        if self._origin is None:
+            return False, "Compra en origen no está configurada en este equipo", {}
+        return self._origin_run(self._origin.authorize_variance, actor_user_id=self._actor(),
+                                shipment_id=shipment_id, source_line_id=source_line_id,
+                                reason=reason)
 
     # ── documental purchase history ───────────────────────────────────────────
     def purchase_history(self) -> TableViewModel:

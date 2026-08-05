@@ -1,0 +1,42 @@
+"""CASH-2 structural guardrails for the canonical domain."""
+import ast
+from pathlib import Path
+import unittest
+
+from backend.domain.cash_register.events import ALL_CASH_EVENTS
+
+
+REPO = Path(__file__).resolve().parents[2]
+DOMAIN = REPO / "backend" / "domain" / "cash_register"
+
+
+class CashRegisterDomainArchitectureTests(unittest.TestCase):
+    def test_domain_has_no_io_ui_or_float_literals(self):
+        offenders = []
+        forbidden_imports = ("sqlite3", "PyQt", "repositories", "infrastructure.db")
+        for path in DOMAIN.rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.Import, ast.ImportFrom)):
+                    names = ([alias.name for alias in node.names] if isinstance(node, ast.Import)
+                             else [node.module or ""])
+                    if any(any(token in name for token in forbidden_imports) for name in names):
+                        offenders.append(f"{path.relative_to(REPO)}:{node.lineno}: import")
+                if isinstance(node, ast.Constant) and isinstance(node.value, float):
+                    offenders.append(f"{path.relative_to(REPO)}:{node.lineno}: float")
+        self.assertFalse(offenders, "\n".join(offenders))
+
+    def test_event_catalog_covers_cash_2_aggregates(self):
+        expected = {
+            "CASH_REGISTER_CREATED", "CASH_DRAWER_ASSIGNED", "CASH_TERMINAL_ASSIGNED",
+            "CASH_SHIFT_OPENED", "CASH_MOVEMENT_RECORDED", "CASH_BLIND_COUNT_CONFIRMED",
+            "CASH_X_CUT_GENERATED", "CASH_Z_CUT_GENERATED", "CASH_DIFFERENCE_DETECTED",
+            "CASH_HANDOVER_RECEIVED",
+        }
+        self.assertTrue(expected <= ALL_CASH_EVENTS)
+        self.assertNotIn("CAJA_CERRADA", ALL_CASH_EVENTS)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
