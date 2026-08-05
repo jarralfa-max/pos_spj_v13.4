@@ -212,10 +212,13 @@ class ProductoRepository:
         return (row[0] if row else 0) > 0
 
     def has_movements(self, producto_id: str) -> bool:
+        # P2 repoint: consulta el ledger canónico (inventory_ledger_lines), no la
+        # tabla legacy movimientos_inventario — avanza hacia el DROP diferido.
         cursor = self.db.cursor()
-        cursor.execute("SELECT COUNT(*) FROM movimientos_inventario WHERE producto_id = ?", (producto_id,))
-        row = cursor.fetchone()
-        return (row[0] if row else 0) > 0
+        cursor.execute(
+            "SELECT 1 FROM inventory_ledger_lines WHERE product_id = ? LIMIT 1",
+            (producto_id,))
+        return cursor.fetchone() is not None
 
     def has_recipes(self, producto_id: str) -> bool:
         cursor = self.db.cursor()

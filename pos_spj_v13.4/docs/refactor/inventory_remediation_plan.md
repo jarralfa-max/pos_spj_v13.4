@@ -1096,7 +1096,7 @@ estas tablas. Auditoría (no-test, no-migration, no-script):
 |---|---|---|
 | `lotes` | `core/services/lote_service.py` (cárnico/FIFO: INSERT/UPDATE/SELECT), `actionable_forecast.py`, `production_query_service.py`, `reporte_email_service.py`, `ui/dashboard.py` | `inventory_lots` (LotQueryService / RegisterInventoryLotUseCase) |
 | `movimientos_lote` | `core/services/lote_service.py` (INSERT) | `inventory_ledger` + `inventory_lots` (trazabilidad canónica) |
-| `movimientos_inventario` | `repositories/inventory_repository.py`, `backend/application/queries/inventory_balance_service.py`, `api/routers/inventario.py`, `core/delivery/infrastructure/inventory_reservation_adapter.py`, `core/services/inventory/unified_inventory_service.py`, `core/services/recipe_engine.py`, `core/services/analytics/analytics_engine.py`, `repositories/productos.py` | `inventory_ledger`/`inventory_ledger_lines` + `InventoryAvailabilityQueryService` |
+| `movimientos_inventario` | `repositories/inventory_repository.py`, `backend/application/queries/inventory_balance_service.py`, `api/routers/inventario.py`, `core/delivery/infrastructure/inventory_reservation_adapter.py`, `core/services/inventory/unified_inventory_service.py`, `core/services/recipe_engine.py`, `core/services/analytics/analytics_engine.py`, ~~`repositories/productos.py`~~ (repuntado, Slice 5) | `inventory_ledger`/`inventory_ledger_lines` + `InventoryAvailabilityQueryService` |
 
 Scripts (`scripts/reconcile_inventory.py`, `scripts/seed_demo.py`) también las usan
 pero son herramientas fuera del runtime — se repuntan al final.
@@ -1107,6 +1107,20 @@ pero son herramientas fuera del runtime — se repuntan al final.
   desprotege por accidente) hasta que los consumidores lleguen a cero.
 - **Evidencia**: guardrail 4 passed; sin cambios de runtime (no se dropea nada; no
   se registra migración); inventario/arquitectura sin fallas nuevas.
+
+### Slice 5 — Repunte `productos.has_movements` al ledger canónico — HECHO
+
+Primer repunte de lector concreto hacia el DROP: `ProductoRepository.has_movements`
+(sonda de "¿el producto tiene movimientos?" para la guarda de borrado) consultaba
+`movimientos_inventario` legacy; ahora consulta `inventory_ledger_lines` canónico.
+Era la **única** referencia a tabla legacy de inventario en `repositories/productos.py`,
+así que ese archivo sale del set de consumidores. Método sin llamadores hoy → cero
+riesgo de runtime; el repunte deja la semántica correcta post-cutover.
+
+- **Evidencia**: `test_productos_has_movements_canonical` (2) passed; inventario
+  `2 failed / 566 passed` (2 pre-existentes, cero regresiones); ratchet de productos
+  legacy intacto (`repositories/productos.py` sigue leyendo la tabla `productos`, no
+  la de inventario).
 
 ### Pendiente P2 (orden de repunte antes del DROP)
 
