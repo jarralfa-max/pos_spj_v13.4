@@ -1083,8 +1083,38 @@ Habilitador para retirar `purchase_lot_entry_handler`: el evento vivo
   (`test_direct_purchase_ui`/`test_enterprise_ui`) son pre-existentes e idénticas
   con/sin este cambio.
 
-### Pendiente P2
+### Slice 4 — DROP diferido: readiness (BLOQUEADO) + protección del mecanismo
 
-- **DROP diferido** de tablas legacy de inventario (`lotes`, `movimientos_lote`,
-  `movimientos_inventario`) en `migrations/deferred/`, una vez confirmado que ningún
-  lector/otro contexto (cárnico/FIFO legacy) las use.
+**Estado: el DROP NO se ejecuta.** La migración diferida ya existe
+(`migrations/deferred/legacy_inventory_drop.py`): env-guarded
+(`INVENTORY_ALLOW_LEGACY_DROP=1`), **no** registrada en `engine.py` (nunca corre
+sola) y ya cubre las tres tablas (+ el resto del mapa de consolidación legacy).
+Ejecutarla ahora violaría PRIORIDAD 0: **quedan consumidores vivos** que leen/escriben
+estas tablas. Auditoría (no-test, no-migration, no-script):
+
+| Tabla | Consumidores vivos | Repunte objetivo |
+|---|---|---|
+| `lotes` | `core/services/lote_service.py` (cárnico/FIFO: INSERT/UPDATE/SELECT), `actionable_forecast.py`, `production_query_service.py`, `reporte_email_service.py`, `ui/dashboard.py` | `inventory_lots` (LotQueryService / RegisterInventoryLotUseCase) |
+| `movimientos_lote` | `core/services/lote_service.py` (INSERT) | `inventory_ledger` + `inventory_lots` (trazabilidad canónica) |
+| `movimientos_inventario` | `repositories/inventory_repository.py`, `backend/application/queries/inventory_balance_service.py`, `api/routers/inventario.py`, `core/delivery/infrastructure/inventory_reservation_adapter.py`, `core/services/inventory/unified_inventory_service.py`, `core/services/recipe_engine.py`, `core/services/analytics/analytics_engine.py`, `repositories/productos.py` | `inventory_ledger`/`inventory_ledger_lines` + `InventoryAvailabilityQueryService` |
+
+Scripts (`scripts/reconcile_inventory.py`, `scripts/seed_demo.py`) también las usan
+pero son herramientas fuera del runtime — se repuntan al final.
+
+- **Guardrail** `test_legacy_inventory_drop_is_parked_and_guarded.py`: la migración
+  existe, **no** está en `engine.py`, está env-guarded (`!= "1"` → `RuntimeError`) y
+  cubre las tres tablas. Protege el mecanismo de seguridad (nadie la registra ni la
+  desprotege por accidente) hasta que los consumidores lleguen a cero.
+- **Evidencia**: guardrail 4 passed; sin cambios de runtime (no se dropea nada; no
+  se registra migración); inventario/arquitectura sin fallas nuevas.
+
+### Pendiente P2 (orden de repunte antes del DROP)
+
+1. **`lote_service` cárnico/FIFO** → migrar lotes/movimientos_lote a `inventory_lots`
+   + ledger (es el mayor consumidor y el de mayor lógica de negocio).
+2. **`movimientos_inventario`**: repuntar lectores canónicos ya existentes
+   (`inventory_balance_service`, `unified_inventory_service`, `api/routers/inventario`,
+   delivery adapter, analytics, `inventory_repository`, `productos`) al ledger canónico.
+3. **Herramientas/scripts** (`reconcile_inventory`, `seed_demo`) y `ui/dashboard`.
+4. Recién con paridad de `InventoryReconciliationService` y cero consumidores,
+   ejecutar la migración diferida con `INVENTORY_ALLOW_LEGACY_DROP=1`.
