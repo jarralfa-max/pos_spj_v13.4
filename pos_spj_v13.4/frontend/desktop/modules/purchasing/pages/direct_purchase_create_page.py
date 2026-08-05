@@ -93,6 +93,7 @@ class DirectPurchaseCreatePage(QWidget):
         self._continue = create_primary_button(self, "Continuar")
         self._cancel = create_secondary_button(self, "Cancelar captura")
         self._confirm = create_success_button(self, "Confirmar compra")
+        self._confirm.setVisible(self._presenter.capabilities().direct_confirm)
         for button, callback in ((self._save, self._save_draft),
                                  (self._continue, self._continue_capture),
                                  (self._cancel, self._clear),
@@ -124,8 +125,7 @@ class DirectPurchaseCreatePage(QWidget):
             self._add_line(code)
 
     def _add_line(self, code=None):
-        dialog = AddCartLineDialog(self, product_provider=self._presenter.product_options,
-                                   product_profile=self._presenter.product_profile)
+        dialog = AddCartLineDialog(self)
         if code:
             dialog.prefill_product(code)
         if dialog.exec_():
@@ -197,6 +197,6 @@ class DirectPurchaseCreatePage(QWidget):
         totals = self._presenter.totals(self._cart)
         self.summary.update_summary(supplier=self._supplier.selected_label(),
                                     destination=self._presenter.session_destination(),
-                                    payment=self._payment.current_text(), **totals)
+                                    payment=self._payment.currentText(), **totals)
         self.stepper.set_current(1 if self._supplier_id and not self._cart else
                                  2 if self._cart else 0)

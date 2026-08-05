@@ -17,7 +17,12 @@ def test_procurement_routes_do_not_import_or_create_schema():
 
 
 def test_procurement_routes_use_canonical_container_session():
-    for name in ("direct_purchase_routes.py", "enterprise_routes.py"):
-        source = (ROUTES / name).read_text(encoding="utf-8")
-        assert 'getattr(container, "session", None)' in source
-        assert "session_context\", None" not in source
+    # enterprise_routes.py is the single composition root that unwraps the
+    # AppContainer (db/session); direct_purchase_routes.py is composed by it and
+    # only ever receives an already-unwrapped connection + session_context.
+    source = (ROUTES / "enterprise_routes.py").read_text(encoding="utf-8")
+    assert 'getattr(container, "session", None)' in source
+    assert "session_context\", None" not in source
+
+    direct_source = (ROUTES / "direct_purchase_routes.py").read_text(encoding="utf-8")
+    assert "container" not in direct_source

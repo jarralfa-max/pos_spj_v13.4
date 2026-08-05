@@ -1,5 +1,4 @@
 from backend.application.procurement.authorization import PurchaseAuthorizationPolicy
-<<<<<<< HEAD
 from backend.shared.ids import new_uuid
 from backend.application.procurement.queries.supplier_directory_query_service import (
     SupplierDirectoryQueryService,
@@ -10,11 +9,6 @@ from backend.application.procurement.queries.enterprise_read_services import (
 from backend.application.procurement.use_cases.purchase_order_use_cases import (
     CreatePurchaseOrderUseCase,
 )
-=======
-from backend.application.procurement.queries.supplier_directory_query_service import (
-    SupplierDirectoryQueryService,
-)
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 from backend.application.procurement.use_cases.direct_purchase_use_cases import (
     CreateDirectPurchaseUseCase,
 )
@@ -36,7 +30,6 @@ def auth():
     return PurchaseAuthorizationPolicy(Allow())
 
 
-<<<<<<< HEAD
 def approved_requisition(proc_conn):
     created = CreatePurchaseRequisitionUseCase(auth()).execute(
         proc_conn, actor_user_id="requester", operation_id=new_uuid(),
@@ -53,8 +46,6 @@ def approved_requisition(proc_conn):
     return created.entity_id
 
 
-=======
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 def test_supplier_directory_reads_only_canonical_proveedores(proc_conn):
     proc_conn.execute("CREATE TABLE proveedores (id TEXT PRIMARY KEY, nombre TEXT, activo INTEGER)")
     proc_conn.execute("INSERT INTO proveedores VALUES ('supplier','Proveedor',1)")
@@ -134,7 +125,6 @@ def test_rfq_invitations_and_split_award_are_normalized(proc_conn):
     assert proc_conn.execute(
         "SELECT COUNT(*) FROM purchase_award_lines WHERE award_id=?",
         (award.entity_id,)).fetchone()[0] == 2
-<<<<<<< HEAD
 
 
 def test_approved_requisition_can_create_rfq_and_exposes_related_timeline(proc_conn):
@@ -170,5 +160,3 @@ def test_purchase_order_from_approved_requisition_marks_source_and_keeps_lineage
     assert requisition["related_documents"][0]["id"] == order.entity_id
     assert order_detail["source_requisition_id"] == requisition_id
     assert order_detail["timeline"][0]["action"] == "PURCHASE_ORDER_CREATED"
-=======
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2

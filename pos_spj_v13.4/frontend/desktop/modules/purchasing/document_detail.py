@@ -25,6 +25,7 @@ class DocumentTimeline(QWidget):
             self._layout.addWidget(label)
             self._labels.append(label)
 
+    def set_events(self, events) -> None:
         for label in self._labels:
             label.deleteLater()
         self._labels.clear()
@@ -88,6 +89,8 @@ class RequisitionDetailPanel(SectionCard):
             row_ids=[document.get("id", "") for document in related])
         self._timeline.set_events(detail.get("timeline", ()))
 
+
+class OrderDetailPanel(SectionCard):
     def __init__(self, parent=None) -> None:
         super().__init__(parent, title="Detalle y trazabilidad")
         self.setObjectName("procurementOrderDetail")
@@ -96,12 +99,37 @@ class RequisitionDetailPanel(SectionCard):
         self.add(self._summary)
         self._lines = StandardTable([
             ColumnSpec("Producto"), ColumnSpec("Cantidad", "numeric"),
-            ColumnSpec("Costo", "numeric"), ColumnSpec("Estado", "status"),
+            ColumnSpec("Costo", "numeric"), ColumnSpec("Recibido", "numeric"),
         ], self)
-        self._lines.setMaximumHeight(220)
+        self._lines.setMaximumHeight(190)
         self.add(self._lines)
+        self._related = StandardTable([
+            ColumnSpec("Documento"), ColumnSpec("Tipo"), ColumnSpec("Estado", "status"),
+        ], self)
+        self._related.setMaximumHeight(130)
+        self.add(self._related)
         self._timeline = DocumentTimeline(self)
         self.add(self._timeline)
+
     def load_detail(self, detail) -> None:
         if not detail:
+            self._summary.setText("Selecciona una orden para consultar líneas y trazabilidad.")
+            self._lines.load_rows([])
+            self._related.load_rows([])
             self._timeline.set_events([])
+            return
+        self._summary.setText(
+            f"{detail.get('document_number', '—')} · {detail.get('status', '—')} · "
+            f"v{detail.get('version', '1')}\n"
+            f"Proveedor: {detail.get('supplier_id', '—')} · "
+            f"Total: {detail.get('total', '0')} {detail.get('currency_code', '')}")
+        self._lines.load_rows([
+            [line.get("product_id", "—"), line.get("ordered_quantity", "0"),
+             line.get("unit_price") or "—", line.get("received_quantity") or "0"]
+            for line in detail.get("lines", ())])
+        related = detail.get("related_documents", ())
+        self._related.load_rows([
+            [document.get("document_number", "—"), document.get("document_type", "—"),
+             document.get("status", "—")] for document in related],
+            row_ids=[document.get("id", "") for document in related])
+        self._timeline.set_events(detail.get("timeline", ()))

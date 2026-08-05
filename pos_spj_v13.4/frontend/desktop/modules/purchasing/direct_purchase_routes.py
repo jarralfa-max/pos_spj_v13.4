@@ -68,16 +68,3 @@ def build_direct_purchase_presenter(connection, session_context=None) -> DirectP
         variance_policy=PriceVariancePolicy(),
         event_dispatcher=_post_commit_dispatcher(connection),
     )
-
-
-def create_direct_purchase_view(container, parent=None):
-    """Factory: build the DirectPurchaseView from an app container / connection."""
-    from frontend.desktop.modules.purchasing.direct_purchase_view import (
-        DirectPurchaseView,
-    )
-
-    connection = getattr(container, "db", None) or getattr(container, "db_conn", None) \
-        or container
-    session_context = getattr(container, "session", None)
-    presenter = build_direct_purchase_presenter(connection, session_context)
-    return DirectPurchaseView(presenter, parent)
