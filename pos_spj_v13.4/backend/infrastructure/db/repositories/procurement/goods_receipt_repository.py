@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from backend.domain.procurement.entities import (
     GoodsReceipt,
     GoodsReceiptLine,
@@ -17,6 +19,26 @@ from backend.infrastructure.db.repositories.procurement.base import (
 
 
 class GoodsReceiptRepository(ProcurementRepositoryBase):
+    def completed_for_document(self, *, purchase_order_id=None,
+                               direct_purchase_id=None) -> list[GoodsReceipt]:
+        field, value = ("purchase_order_id", purchase_order_id) if purchase_order_id else (
+            "direct_purchase_id", direct_purchase_id)
+        if not value:
+            return []
+        rows = self._query(
+            f"SELECT id FROM goods_receipts WHERE {field}=? AND status='COMPLETED'",
+            (value,))
+        return [self.get(row["id"]) for row in rows]
+
+    def accepted_by_product(self, *, purchase_order_id=None,
+                            direct_purchase_id=None) -> dict[str, Decimal]:
+        totals: dict[str, Decimal] = {}
+        for receipt in self.completed_for_document(
+                purchase_order_id=purchase_order_id,
+                direct_purchase_id=direct_purchase_id):
+            for line in receipt.lines:
+                totals[line.product_id] = totals.get(line.product_id, Decimal("0")) + line.accepted_quantity
+        return totals
     def save(self, gr: GoodsReceipt) -> None:
         self._execute(
             "INSERT INTO goods_receipts (id, document_number, supplier_id, branch_id,"

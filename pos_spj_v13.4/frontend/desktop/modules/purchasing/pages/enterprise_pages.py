@@ -6,6 +6,7 @@ view states instead of misleading zeros; Design System components only.
 
 from __future__ import annotations
 
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -35,6 +36,10 @@ from frontend.desktop.modules.purchasing.dialogs.enterprise_dialogs import (
     ReasonDialog,
     ReceiveOrderDialog,
     RequisitionFormDialog,
+    SupplierSelectionDialog,
+)
+from frontend.desktop.modules.purchasing.document_detail import (
+    OrderDetailPanel, RequisitionDetailPanel,
 )
 from frontend.desktop.modules.purchasing.document_detail import OrderDetailPanel
 from frontend.desktop.themes.tokens import Spacing
@@ -193,6 +198,7 @@ class _ListPageBase(QWidget):
 
 
 class RequisitionsPage(_ListPageBase):
+    direct_purchase_requested = pyqtSignal(object)
     title = "Solicitudes de compra"
     subtitle = "Necesidades de reabasto: crear, enviar, aprobar."
     columns = [ColumnSpec("Folio", "text"), ColumnSpec("Sucursal", "text"),
@@ -203,6 +209,16 @@ class RequisitionsPage(_ListPageBase):
                      ("REJECTED", "Rechazada")]
     empty_message = "No hay solicitudes"
 
+    def _create_detail_panel(self):
+        self._detail = RequisitionDetailPanel(self)
+        return self._detail
+
+    def _selection_changed(self):
+        super()._selection_changed()
+        requisition_id = self._selected()
+        detail = self._presenter.requisition_detail(requisition_id) if requisition_id else None
+        self._detail.load_detail(detail)
+
     def _allowed_actions(self):
         row = self._table.currentRow()
         status = self._table.item(row, 4).text() if row >= 0 and self._table.item(row, 4) else ""
@@ -210,25 +226,37 @@ class RequisitionsPage(_ListPageBase):
             "Borrador": {"Enviar"},
             "Pendiente de aprobación": {"Aprobar", "Rechazar"},
             "Pendiente": {"Aprobar", "Rechazar"},
+            "Aprobada": {"Crear RFQ", "Crear orden", "Compra directa"},
         }.get(status, set())
 
     def _build_actions(self):
+        capabilities = self._presenter.capabilities()
         new = create_primary_button(self, "Nueva solicitud")
-        new.setVisible(self._presenter.can("procurement.requisition.create"))
+        new.setVisible(capabilities.requisition_create)
         new.clicked.connect(self._create)
         self.header.add_action(new)
 
     def _build_row_actions(self, row):
+        capabilities = self._presenter.capabilities()
         submit = create_secondary_button(self, "Enviar")
-        submit.setVisible(self._presenter.can("procurement.requisition.submit"))
+        submit.setVisible(capabilities.requisition_submit)
         submit.clicked.connect(self._submit)
         approve = create_success_button(self, "Aprobar")
-        approve.setVisible(self._presenter.can("procurement.requisition.approve"))
+        approve.setVisible(capabilities.requisition_approve)
         approve.clicked.connect(self._approve)
         reject = create_warning_button(self, "Rechazar")
-        reject.setVisible(self._presenter.can("procurement.requisition.approve"))
+        reject.setVisible(capabilities.requisition_reject)
         reject.clicked.connect(self._reject)
-        for b in (submit, approve, reject):
+        rfq = create_secondary_button(self, "Crear RFQ")
+        rfq.setVisible(capabilities.rfq_create)
+        rfq.clicked.connect(self._create_rfq)
+        order = create_secondary_button(self, "Crear orden")
+        order.setVisible(capabilities.order_create)
+        order.clicked.connect(self._create_order)
+        direct = create_secondary_button(self, "Compra directa")
+        direct.setVisible(capabilities.direct_create)
+        direct.clicked.connect(self._create_direct)
+        for b in (submit, approve, reject, rfq, order, direct):
             row.addWidget(b)
 
     def _fetch(self):
@@ -245,6 +273,9 @@ class RequisitionsPage(_ListPageBase):
             return
         ok, msg, _ = self._presenter.create_requisition(**values)
         self._notify(ok, msg)
+
+    def start_create(self):
+        self._create()
 
     def _submit(self):
         rid = self._selected()
@@ -273,6 +304,55 @@ class RequisitionsPage(_ListPageBase):
         ok, msg, _ = self._presenter.approve_requisition(rid, approve=False,
                                                         reason=dialog.reason())
         self._notify(ok, msg)
+
+    def _selected_detail(self):
+        requisition_id = self._selected()
+        return self._presenter.requisition_detail(requisition_id) if requisition_id else None
+
+    def _create_rfq(self):
+        detail = self._selected_detail()
+        if not detail:
+            self._notify(False, "Selecciona una solicitud aprobada.")
+            return
+        dialog = SupplierSelectionDialog(self, provider=self._presenter.supplier_options)
+        if not dialog.exec_():
+            return
+        supplier_ids = dialog.supplier_ids()
+        if not supplier_ids:
+            self._notify(False, "Selecciona al menos un proveedor.")
+            return
+        ok, msg, _ = self._presenter.create_rfq_from_requisition(
+            detail["id"], supplier_ids)
+        self._notify(ok, msg)
+
+    def _create_order(self):
+        detail = self._selected_detail()
+        if not detail:
+            self._notify(False, "Selecciona una solicitud aprobada.")
+            return
+        try:
+            warehouse_id = self._presenter.default_warehouse()
+        except PermissionError as exc:
+            self._notify(False, str(exc))
+            return
+        dialog = OrderFormDialog(
+            self, source_requisition=detail,
+            branch_id=self._presenter.default_branch(), warehouse_id=warehouse_id,
+            supplier_provider=self._presenter.supplier_options)
+        if not dialog.exec_():
+            return
+        values = dialog.values()
+        values["requisition_id"] = detail["id"]
+        if not values["supplier_id"] or not values["lines"]:
+            self._notify(False, "Captura proveedor y líneas con precio.")
+            return
+        ok, msg, _ = self._presenter.create_order(**values)
+        self._notify(ok, msg)
+
+    def _create_direct(self):
+        detail = self._selected_detail()
+        if detail:
+            self.direct_purchase_requested.emit(detail)
 
 
 class OrdersPage(_ListPageBase):
@@ -308,23 +388,25 @@ class OrdersPage(_ListPageBase):
         self._detail.load_detail(self._presenter.order_detail(order_id) if order_id else None)
 
     def _build_actions(self):
+        capabilities = self._presenter.capabilities()
         new = create_primary_button(self, "Nueva orden")
-        new.setVisible(self._presenter.can("procurement.purchase_order.create"))
+        new.setVisible(capabilities.order_create)
         new.clicked.connect(self._create)
         self.header.add_action(new)
 
     def _build_row_actions(self, row):
+        capabilities = self._presenter.capabilities()
         approve = create_success_button(self, "Aprobar")
-        approve.setVisible(self._presenter.can("procurement.purchase_order.approve"))
+        approve.setVisible(capabilities.order_approve)
         approve.clicked.connect(self._approve)
         send = create_secondary_button(self, "Enviar")
-        send.setVisible(self._presenter.can("procurement.purchase_order.send"))
+        send.setVisible(capabilities.order_send)
         send.clicked.connect(self._send)
         receive = create_secondary_button(self, "Recibir")
-        receive.setVisible(self._presenter.can("logistics.shipment.receive"))
+        receive.setVisible(capabilities.receipt_complete)
         receive.clicked.connect(self._receive)
         change = create_warning_button(self, "Nueva versión")
-        change.setVisible(self._presenter.can("procurement.purchase_order.change"))
+        change.setVisible(capabilities.order_change)
         change.clicked.connect(self._change)
         for b in (approve, send, receive, change):
             row.addWidget(b)
@@ -334,7 +416,15 @@ class OrdersPage(_ListPageBase):
                                      search=self._search.text().strip(), page=self._page)
 
     def _create(self):
-        dialog = OrderFormDialog(self)
+        try:
+            warehouse_id = self._presenter.default_warehouse()
+        except PermissionError as exc:
+            self._notify(False, str(exc))
+            return
+        dialog = OrderFormDialog(
+            self, branch_id=self._presenter.default_branch(),
+            warehouse_id=warehouse_id,
+            supplier_provider=self._presenter.supplier_options)
         if not dialog.exec_():
             return
         values = dialog.values()
@@ -343,6 +433,9 @@ class OrdersPage(_ListPageBase):
             return
         ok, msg, _ = self._presenter.create_order(**values)
         self._notify(ok, msg)
+
+    def start_create(self):
+        self._create()
 
     def _approve(self):
         oid = self._selected()
@@ -400,6 +493,46 @@ class InvoicesPage(_ListPageBase):
                      ("BLOCKED", "Bloqueada")]
     empty_message = "No hay facturas"
 
+    def _create_detail_panel(self):
+        panel = QWidget(self); layout = QVBoxLayout(panel)
+        self._invoice_summary = QLabel("Selecciona una factura", panel)
+        self._invoice_summary.setWordWrap(True); layout.addWidget(self._invoice_summary)
+        self._invoice_lines = StandardTable([
+            ColumnSpec("Producto"), ColumnSpec("Aceptado"), ColumnSpec("Facturado"),
+            ColumnSpec("Precio acordado"), ColumnSpec("Precio factura"),
+            ColumnSpec("Impuesto"),
+        ], panel)
+        layout.addWidget(self._invoice_lines)
+        self._match_history = StandardTable([
+            ColumnSpec("Resultado", "status"), ColumnSpec("Liberó"),
+            ColumnSpec("Notas"), ColumnSpec("Fecha")], panel)
+        layout.addWidget(self._match_history)
+        return panel
+
+    def _selection_changed(self):
+        super()._selection_changed()
+        invoice_id = self._selected()
+        if not invoice_id or not hasattr(self, "_invoice_lines"): return
+        detail = self._presenter.invoice_detail(invoice_id)
+        if not detail: return
+        comparisons = {line["source_line_id"]: line for line in detail.get("comparison", ())}
+        rows = []
+        for line in detail.get("lines", ()):
+            source_id = line.get("purchase_order_line_id") or line.get("direct_purchase_line_id")
+            expected = comparisons.get(source_id, {})
+            rows.append([line["product_id"], str(expected.get("accepted_quantity", "0")),
+                         line["invoiced_quantity"], str(expected.get("unit_price", "—")),
+                         line["unit_price"], line["tax"]])
+        self._invoice_lines.load_rows(rows, row_ids=[str(i) for i in range(len(rows))])
+        self._match_history.load_rows([[
+            item["result"], item.get("released_by_user_id") or "—",
+            item.get("notes") or "—", item["created_at"],
+        ] for item in detail.get("matches", ())],
+            row_ids=[str(i) for i, _ in enumerate(detail.get("matches", ()))])
+        self._invoice_summary.setText(
+            f"{detail['document_number']} · Factura {detail['invoice_number']} · "
+            f"{detail['status']} · {detail.get('match_result') or 'Sin conciliar'}")
+
     def _allowed_actions(self):
         row = self._table.currentRow()
         status = self._table.item(row, 4).text() if row >= 0 and self._table.item(row, 4) else ""
@@ -410,17 +543,19 @@ class InvoicesPage(_ListPageBase):
         }.get(status, set())
 
     def _build_actions(self):
+        capabilities = self._presenter.capabilities()
         new = create_primary_button(self, "Capturar factura")
-        new.setVisible(self._presenter.can("procurement.invoice.capture"))
+        new.setVisible(capabilities.invoice_capture)
         new.clicked.connect(self._create)
         self.header.add_action(new)
 
     def _build_row_actions(self, row):
+        capabilities = self._presenter.capabilities()
         match = create_secondary_button(self, "Conciliar")
-        match.setVisible(self._presenter.can("procurement.invoice.match"))
+        match.setVisible(capabilities.invoice_match)
         match.clicked.connect(self._match)
         release = create_warning_button(self, "Liberar diferencia")
-        release.setVisible(self._presenter.can("procurement.invoice.release_difference"))
+        release.setVisible(capabilities.invoice_release_variance)
         release.clicked.connect(self._release)
         for b in (match, release):
             row.addWidget(b)
@@ -430,7 +565,9 @@ class InvoicesPage(_ListPageBase):
                                        search=self._search.text().strip(), page=self._page)
 
     def _create(self):
-        dialog = InvoiceFormDialog(self)
+        dialog = InvoiceFormDialog(
+            self, document_provider=self._presenter.invoice_document_options,
+            document_profile=self._presenter.invoice_document_profile)
         if not dialog.exec_():
             return
         values = dialog.values()
@@ -439,6 +576,9 @@ class InvoicesPage(_ListPageBase):
             return
         ok, msg, _ = self._presenter.capture_invoice(**values)
         self._notify(ok, msg)
+
+    def start_create(self):
+        self._create()
 
     def _match(self):
         iid = self._selected()
@@ -456,10 +596,5 @@ class InvoicesPage(_ListPageBase):
         dialog = ReasonDialog(self, title="Liberar diferencia", ok_text="Liberar")
         if not dialog.exec_():
             return
-        # captured_by is unknown from the list; the backend enforces segregation
-        # against the recorded capturer via the audit trail in a full build. Here
-        # we pass the current actor's own id as a conservative placeholder so a
-        # self-release is blocked by the use case.
-        ok, msg, _ = self._presenter.release_variance(
-            iid, captured_by_user_id="__unknown__", reason=dialog.reason())
+        ok, msg, _ = self._presenter.release_variance(iid, reason=dialog.reason())
         self._notify(ok, msg)

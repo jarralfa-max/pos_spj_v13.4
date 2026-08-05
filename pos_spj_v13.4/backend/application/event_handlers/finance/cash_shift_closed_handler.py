@@ -13,11 +13,11 @@ from backend.domain.finance.enums import JournalType, PostingPurpose
 from backend.domain.finance.exceptions import FinanceDomainError
 from backend.domain.finance.services.journal_posting_service import LineSpec
 from backend.domain.finance.value_objects.posting_reference import PostingReference
-from backend.shared.ids import new_uuid
 
 
 class CashShiftClosedHandler(FinanceEventHandler):
-    event_name = "CASH_SHIFT_CLOSED"
+    """Compatibility class now consuming the canonical Z-cut event."""
+    event_name = "CASH_Z_CUT_GENERATED"
 
     def __init__(self, connection) -> None:
         super().__init__(connection)
@@ -61,13 +61,3 @@ class CashShiftClosedHandler(FinanceEventHandler):
                              str(payload["operation_id"])),
             lines, currency_code=currency, branch_id=branch_id,
         )
-        if not difference.is_zero():
-            uow.outbox.enqueue(
-                event_id=new_uuid(),
-                event_name="CASH_DIFFERENCE_DETECTED",
-                payload_json=(
-                    '{"shift_id": "%s", "difference": "%s", "currency_code": "%s"}'
-                    % (shift_id, difference.to_string(), currency)
-                ),
-                operation_id=str(payload["operation_id"]),
-            )

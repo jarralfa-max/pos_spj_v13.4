@@ -46,24 +46,43 @@ class MobileOriginPurchaseWorkflow:
                 f" WHERE d.branch_id=? AND d.status IN ({placeholders})"
                 f" AND (d.{number} LIKE ? OR p.nombre LIKE ?) ORDER BY d.created_at DESC LIMIT 50",
                 (identity.branch_id, *statuses, like, like)))
+        rows.extend(("PURCHASE_REQUISITION", *row) for row in self._connection.execute(
+            "SELECT d.id,d.document_number,NULL,'Proveedor por confirmar',"
+            " (SELECT COUNT(*) FROM purchase_requisition_lines l WHERE l.requisition_id=d.id)"
+            " FROM purchase_requisitions d WHERE d.branch_id=?"
+            " AND d.status IN ('APPROVED','PARTIALLY_SOURCED')"
+            " AND d.document_number LIKE ? ORDER BY d.created_at DESC LIMIT 50",
+            (identity.branch_id, like)))
         return {"items": [{"type": row[0], "id": row[1], "documentNumber": row[2],
                             "supplierId": row[3], "supplierName": row[4],
                             "lineCount": row[5],
                             "typeLabel": "Orden de compra" if row[0] == "PURCHASE_ORDER"
+                            else "Solicitud aprobada" if row[0] == "PURCHASE_REQUISITION"
                             else "Compra directa"} for row in rows]}
+
 
     def list_products(self, identity: MobileIdentity, document_id: str, query: str) -> dict:
         like = f"%{query.strip()}%"
         rows = self._connection.execute(
-            "SELECT l.id,l.product_id,p.codigo,p.nombre FROM purchase_order_lines l"
+            "SELECT l.id,l.product_id,p.code,p.name,p.base_unit_id,p.catch_weight_enabled,"
+            " p.lot_controlled,p.expiration_controlled FROM purchase_order_lines l"
             " JOIN products p ON p.id=l.product_id WHERE l.purchase_order_id=?"
-            " AND (p.codigo LIKE ? OR p.nombre LIKE ?) UNION ALL"
-            " SELECT l.id,l.product_id,p.codigo,p.nombre FROM direct_purchase_lines l"
+            " AND (p.code LIKE ? OR p.name LIKE ?) UNION ALL"
+            " SELECT l.id,l.product_id,p.code,p.name,p.base_unit_id,p.catch_weight_enabled,"
+            " p.lot_controlled,p.expiration_controlled FROM direct_purchase_lines l"
             " JOIN products p ON p.id=l.product_id WHERE l.direct_purchase_id=?"
-            " AND (p.codigo LIKE ? OR p.nombre LIKE ?) LIMIT 50",
-            (document_id, like, like, document_id, like, like)).fetchall()
+            " AND (p.code LIKE ? OR p.name LIKE ?) UNION ALL"
+            " SELECT l.id,l.product_id,p.code,p.name,p.base_unit_id,p.catch_weight_enabled,"
+            " p.lot_controlled,p.expiration_controlled FROM purchase_requisition_lines l"
+            " JOIN products p ON p.id=l.product_id WHERE l.requisition_id=?"
+            " AND (p.code LIKE ? OR p.name LIKE ?) LIMIT 50",
+            (document_id, like, like, document_id, like, like,
+             document_id, like, like)).fetchall()
         return {"items": [{"sourceLineId": row[0], "id": row[1], "code": row[2],
-                            "name": row[3]} for row in rows]}
+                            "name": row[3], "unitId": row[4],
+                            "catchWeightEnabled": bool(row[5]),
+                            "lotControlled": bool(row[6]),
+                            "expirationControlled": bool(row[7])} for row in rows]}
 
     def resolve_container(self, identity: MobileIdentity, token: str) -> dict:
         self._require(identity, "logistics.container.scan")
@@ -83,6 +102,8 @@ class MobileOriginPurchaseWorkflow:
     def create_shipment(self, identity: MobileIdentity, operation_id: str,
                         expected_version: int, command: dict) -> dict:
         self._require(identity, "logistics.shipment.create")
+        if command["documentType"] == "PURCHASE_REQUISITION" and not command.get("supplierId"):
+            raise ValueError("La solicitud requiere una compra directa con proveedor confirmado")
         if expected_version != 0:
             raise ValueError("La versión inicial debe ser cero")
         shipment = LogisticsShipment.create(
@@ -110,25 +131,57 @@ class MobileOriginPurchaseWorkflow:
                        expected_version: int, command: dict) -> dict:
         self._check_version(identity, shipment_id, expected_version)
         source = self._shipment(identity, shipment_id).sources[0]
+        profile = self._product_for_source(source, command["sourceLineId"], command["productId"])
+        if profile["lot_controlled"] and not command.get("lotNumber"):
+            raise ValueError("El producto requiere lote")
+        if profile["expiration_controlled"] and not command.get("expirationDate"):
+            raise ValueError("El producto requiere caducidad")
+        if profile["catch_weight_enabled"] and Decimal(command["netWeight"]) <= 0:
+            raise ValueError("El producto de peso variable requiere peso neto")
         assignment = ShipmentContentAssignment.create(
             shipment_node_id=command["nodeId"],
             source_document_type=source.source_document_type,
             source_document_id=source.source_document_id,
             source_line_id=command["sourceLineId"], product_id=command["productId"],
             declared_quantity=command["quantity"], declared_net_weight=command["netWeight"],
-            purchase_unit="PZA", inventory_unit="PZA", conversion_factor="1",
+            purchase_unit=profile["base_unit_id"], inventory_unit=profile["base_unit_id"],
+            conversion_factor="1",
             unit_cost=command["unitCost"], currency_code="MXN", operation_id=operation_id,
             lot_number=command.get("lotNumber"),
             expiration_date=date.fromisoformat(command["expirationDate"])
             if command.get("expirationDate") else None,
-            temperature=command.get("temperature"))
+            temperature=command.get("temperature"), assignment_id=command["id"])
         self._logistics.assign_content(actor_user_id=identity.user_id,
                                        shipment_id=shipment_id, assignment=assignment)
         return self._shipment_result(self._shipment(identity, shipment_id))
 
+    def _product_for_source(self, source, source_line_id, product_id):
+        table, foreign_key = {
+            "PURCHASE_ORDER": ("purchase_order_lines", "purchase_order_id"),
+            "DIRECT_PURCHASE": ("direct_purchase_lines", "direct_purchase_id"),
+            "PURCHASE_REQUISITION": ("purchase_requisition_lines", "requisition_id"),
+        }[source.source_document_type.value]
+        row = self._connection.execute(
+            f"SELECT p.base_unit_id,p.catch_weight_enabled,p.lot_controlled,p.expiration_controlled"
+            f" FROM {table} l JOIN products p ON p.id=l.product_id"
+            f" WHERE l.id=? AND l.{foreign_key}=? AND l.product_id=?",
+            (source_line_id, source.source_document_id, product_id)).fetchone()
+        if row is None:
+            raise ValueError("El producto no pertenece al documento comercial")
+        return {"base_unit_id": row[0], "catch_weight_enabled": bool(row[1]),
+                "lot_controlled": bool(row[2]), "expiration_controlled": bool(row[3])}
+
     def attach_photo(self, identity: MobileIdentity, shipment_id: str, operation_id: str,
                      expected_version: int, command: dict) -> dict:
         self._check_version(identity, shipment_id, expected_version)
+        existing = self._connection.execute(
+            "SELECT id FROM logistics_shipment_photos WHERE operation_id=?",
+            (operation_id,)).fetchone()
+        if existing:
+            return {"photoId": existing[0], "version": expected_version}
+        shipment = self._shipment(identity, shipment_id)
+        if not any(item.id == command["assignmentId"] for item in shipment.contents):
+            raise ValueError("La fotografía no pertenece a una asignación del embarque")
         if command["contentType"] not in ("image/jpeg", "image/png", "image/webp"):
             raise ValueError("Tipo de fotografía no permitido")
         content = base64.b64decode(command["contentBase64"], validate=True)
@@ -138,6 +191,13 @@ class MobileOriginPurchaseWorkflow:
             content=content, file_name=command["fileName"],
             content_type=command["contentType"], actor_user_id=identity.user_id,
             operation_id=operation_id)
+        with self._connection:
+            self._connection.execute(
+                "INSERT INTO logistics_shipment_photos"
+                " (id,shipment_id,assignment_id,file_name,content_type,actor_user_id,operation_id,created_at)"
+                " VALUES (?,?,?,?,?,?,?,datetime('now'))",
+                (photo_id, shipment_id, command["assignmentId"], command["fileName"],
+                 command["contentType"], identity.user_id, operation_id))
         return {"photoId": photo_id, "version": expected_version}
 
     def seal_node(self, identity: MobileIdentity, shipment_id: str, node_id: str,
@@ -171,11 +231,17 @@ class MobileOriginPurchaseWorkflow:
             raise LookupError("Embarque inexistente en la sesión activa")
         return shipment
 
-    @staticmethod
-    def _shipment_result(shipment):
+    def _shipment_result(self, shipment):
+        containers = {node.container_id: self._repo.get_container(node.container_id)
+                      for node in shipment.nodes}
         return {"shipmentId": shipment.id, "status": shipment.status.value,
                 "version": shipment.version,
+                "sources": [{"type": item.source_document_type.value,
+                             "id": item.source_document_id} for item in shipment.sources],
                 "nodes": [{"id": node.id, "containerId": node.container_id,
+                           "containerCode": containers[node.container_id].container_code,
+                           "typeName": self._repo.get_type(
+                               containers[node.container_id].container_type_id).name,
                            "parentNodeId": node.parent_node_id, "status": node.status.value}
                           for node in shipment.nodes]}
 

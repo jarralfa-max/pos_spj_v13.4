@@ -32,6 +32,41 @@ jobs:
       - name: Validate architecture
         run: |
           cd pos_spj_v13.4
+<<<<<<< HEAD
+          python -m pytest -q \
+            tests/architecture/test_procurement*.py \
+            tests/architecture/test_logistics*.py \
+            tests/architecture/test_purchasing*.py \
+            tests/architecture/test_direct_purchase_ui_guardrails.py \
+            tests/architecture/test_purchase_inventory_canonical_route.py
+      - name: Validate role and domain unit tests
+        run: |
+          cd pos_spj_v13.4
+          python -m pytest tests/unit/procurement tests/unit/logistics -q
+      - name: Validate Procurement and Logistics integration / E2E
+        run: |
+          cd pos_spj_v13.4
+          python -m pytest tests/integration/procurement tests/integration/logistics -q
+      - name: Validate Purchasing visual contracts
+        env:
+          PURCHASING_VISUAL_ARTIFACTS: ${{ github.workspace }}/visual-artifacts
+        run: |
+          cd pos_spj_v13.4
+          python -m pytest tests/ui/test_purchasing_visual_closure.py -q
+      - name: Upload Purchasing visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: purchasing-visual-${{ github.run_id }}
+          path: visual-artifacts/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Validate Logistics PWA syntax and workflow rules
+        run: |
+          cd pos_spj_v13.4
+          for file in frontend/web/logistics/*.js; do node --check "$file"; done
+          node --test tests/pwa/*.test.mjs
+=======
           python -m pytest tests/architecture -q
       - name: Validate unit tests
         run: |
@@ -45,6 +80,7 @@ jobs:
         run: |
           cd pos_spj_v13.4
           for file in frontend/web/logistics/*.js; do node --check "$file"; done
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
   ventas:
     runs-on: ubuntu-latest

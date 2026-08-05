@@ -26,10 +26,36 @@ class SideNav(QListWidget):
         self.setMaximumWidth(240)
         self.currentRowChanged.connect(self._on_row_changed)
 
-    def add_section(self, label: str, icon=None) -> None:
-        item = QListWidgetItem(label)
+    _BASE_LABEL_ROLE = Qt.UserRole + 20
+    _BADGE_ROLE = Qt.UserRole + 21
+
+    def add_section(self, label: str, icon=None, *, badge: int = 0) -> None:
+        item = QListWidgetItem()
+        item.setData(self._BASE_LABEL_ROLE, label)
         if icon is not None:
             item.setIcon(icon)
+        self.addItem(item)
+        self.set_badge(self.count() - 1, badge)
+
+    def set_badge(self, row: int, count: int) -> None:
+        item = self.item(row)
+        if item is None or not bool(item.flags() & Qt.ItemIsEnabled):
+            return
+        count = max(0, int(count or 0))
+        label = str(item.data(self._BASE_LABEL_ROLE) or item.text())
+        item.setData(self._BADGE_ROLE, count)
+        item.setText(f"{label}  ·  {count}" if count else label)
+        item.setData(Qt.AccessibleTextRole,
+                     f"{label}, {count} pendientes" if count else label)
+
+    def add_group(self, label: str) -> None:
+        """Add a non-interactive semantic heading to a module sidebar."""
+        item = QListWidgetItem(label)
+        item.setFlags(Qt.NoItemFlags)
+        item.setData(Qt.AccessibleTextRole, label)
+        font = item.font()
+        font.setBold(True)
+        item.setFont(font)
         self.addItem(item)
 
     def add_group(self, label: str) -> None:

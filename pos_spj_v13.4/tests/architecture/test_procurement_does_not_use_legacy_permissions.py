@@ -7,7 +7,7 @@ PURCHASES_* granular permission validated in the backend.
 
 from __future__ import annotations
 
-import re
+import ast
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -18,10 +18,11 @@ PROCUREMENT_ROOTS = [
     REPO / "frontend" / "desktop" / "modules" / "purchasing",
 ]
 
-_LEGACY_PERM = re.compile(
-    r"[\"'](?:ADMIN_COMPRAS|PUEDE_COMPRAR|COMPRAS_ADMIN)[\"']"
-    r"|[\"']COMPRAS[\"']"
-    r"|[\"'](?:ver_compras|realizar_compras)[\"']")
+_LEGACY_PERMISSIONS = {
+    "ADMIN_COMPRAS", "PUEDE_COMPRAR", "COMPRAS_ADMIN", "COMPRAS",
+    "ver_compras", "realizar_compras",
+}
+_PERMISSION_CALLS = {"require", "can", "tiene_permiso", "has_permission"}
 
 
 def _files():
@@ -35,8 +36,17 @@ def _files():
 def test_procurement_does_not_use_legacy_permissions():
     offenders = []
     for path in _files():
-        for m in _LEGACY_PERM.finditer(path.read_text(encoding="utf-8")):
-            offenders.append(f"{path.relative_to(REPO)}: {m.group(0)}")
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
+            name = (call.func.attr if isinstance(call.func, ast.Attribute)
+                    else call.func.id if isinstance(call.func, ast.Name) else "")
+            if name not in _PERMISSION_CALLS:
+                continue
+            for argument in (*call.args, *(kw.value for kw in call.keywords)):
+                if (isinstance(argument, ast.Constant)
+                        and argument.value in _LEGACY_PERMISSIONS):
+                    offenders.append(
+                        f"{path.relative_to(REPO)}:{call.lineno}: {argument.value}")
     assert not offenders, (
         "Compras usa permisos granulares PURCHASES_*, no permisos generales:\n"
         + "\n".join(offenders))

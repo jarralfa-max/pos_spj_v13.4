@@ -12,7 +12,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-pytest.importorskip("PyQt5.QtWidgets")
+pytest.importorskip("PyQt5.QtWidgets", exc_type=ImportError)
 
 from PyQt5.QtWidgets import QApplication  # noqa: E402
 
@@ -25,6 +25,17 @@ from frontend.desktop.modules.purchasing.direct_purchase_routes import (  # noqa
 from frontend.desktop.modules.purchasing.direct_purchase_view_models import (  # noqa: E402
     CartLineVM,
 )
+from backend.application.procurement.permissions import ALL_PURCHASE_PERMISSIONS  # noqa: E402
+
+
+class Session:
+    is_active = True
+    user_id = "user-1"
+    active_branch_id = "br-1"
+    active_warehouse_id = "wh-1"
+
+    def tiene_permiso(self, code):
+        return code in ALL_PURCHASE_PERMISSIONS
 
 
 @pytest.fixture(scope="module")
@@ -41,16 +52,19 @@ def conn():
 
 
 def test_page_builds_and_lists(app, conn):
-    from frontend.desktop.modules.purchasing.direct_purchase_view import DirectPurchaseView
+    from frontend.desktop.modules.purchasing.direct_purchase_view import (
+        DirectPurchaseCreateView, DirectPurchaseHistoryView,
+    )
 
-    presenter = build_direct_purchase_presenter(conn)
-    view = DirectPurchaseView(presenter)
-    view.ensure_loaded()  # empty state, no crash
-    assert view is not None
+    presenter = build_direct_purchase_presenter(conn, Session())
+    create = DirectPurchaseCreateView(presenter)
+    history = DirectPurchaseHistoryView(presenter)
+    history.ensure_loaded()
+    assert create is not None and history is not None
 
 
 def test_presenter_totals_are_decimal_backed(app, conn):
-    presenter = build_direct_purchase_presenter(conn)
+    presenter = build_direct_purchase_presenter(conn, Session())
     lines = [CartLineVM("p1", "Pollo", Decimal("3"), Decimal("100"), tax=Decimal("48")),
              CartLineVM("p2", "Caja", Decimal("2"), Decimal("50"))]
     totals = presenter.totals(lines)
@@ -58,7 +72,7 @@ def test_presenter_totals_are_decimal_backed(app, conn):
 
 
 def test_presenter_full_flow(app, conn):
-    presenter = build_direct_purchase_presenter(conn)
+    presenter = build_direct_purchase_presenter(conn, Session())
     lines = [CartLineVM("p1", "Pollo", Decimal("3"), Decimal("100"), tax=Decimal("48"))]
     ok, _msg, data = presenter.create(
         supplier_id="sup-1", lines=lines, mode="DIRECT_WITH_IMMEDIATE_RECEIPT",
@@ -72,7 +86,7 @@ def test_presenter_full_flow(app, conn):
 
 
 def test_presenter_blocks_pos_cash(app, conn):
-    presenter = build_direct_purchase_presenter(conn)
+    presenter = build_direct_purchase_presenter(conn, Session())
     lines = [CartLineVM("p1", "x", Decimal("1"), Decimal("10"))]
     _ok, _m, data = presenter.create(
         supplier_id="sup-1", lines=lines, mode="DIRECT_WITH_IMMEDIATE_RECEIPT",

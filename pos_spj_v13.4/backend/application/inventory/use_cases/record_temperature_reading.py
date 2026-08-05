@@ -51,7 +51,8 @@ class RecordTemperatureReadingUseCase:
                 actor_user_id: str, warning_margin=0, unit: str = "C",
                 location_id: str | None = None, lot_id: str | None = None,
                 auto_block: bool = False,
-                context: InventoryExecutionContext | None = None) -> InventoryResult:
+                context: InventoryExecutionContext | None = None,
+                owns_transaction: bool = True) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, InventoryPermissions.TEMPERATURE_RECORD)
         except InventoryPermissionDeniedError as exc:
@@ -71,7 +72,7 @@ class RecordTemperatureReadingUseCase:
             status = self._policy.classify(temperature, cold_range)
             action = self._policy.decide_action(status, auto_block=auto_block)
 
-            with InventoryUnitOfWork(connection) as uow:
+            with InventoryUnitOfWork(connection, owns_transaction=owns_transaction) as uow:
                 reading = TemperatureReading.create(
                     sensor_id=sensor_id, warehouse_id=warehouse_id, temperature=temperature,
                     reading_point=reading_point, status=status, unit=unit,

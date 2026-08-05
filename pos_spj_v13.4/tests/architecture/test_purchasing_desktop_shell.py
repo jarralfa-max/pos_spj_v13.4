@@ -20,14 +20,31 @@ def test_purchasing_root_is_sidebar_shell_not_tab_widget():
     assert "QTabWidget" not in shell + compatibility
 
 
-def test_shell_exposes_enterprise_information_architecture():
+def test_shell_exposes_only_implemented_permission_gated_routes():
     shell = source("purchasing_module_shell.py")
+    navigation = source("navigation.py")
     for label in (
-        "Resumen", "Solicitudes", "Cotizaciones", "Adjudicaciones",
-        "Órdenes de compra", "Compra directa", "CARGA EN ORIGEN",
-        "NAVEGACIÓN", "RECEPCIÓN RELACIONADA", "FACTURACIÓN", "ANALÍTICA", "CONFIGURACIÓN",
+        "Resumen", "Solicitudes", "Órdenes de compra", "Nueva compra", "Historial",
+        "COMPRA EN ORIGEN", "RECEPCIONES", "FACTURACIÓN",
     ):
-        assert label in shell
+        assert label in navigation
+    for unfinished in (
+        "Cotizaciones", "Adjudicaciones", "Compras móviles",
+        "Contenedores asignados", "Políticas y tolerancias",
+    ):
+        assert unfinished not in shell + navigation
+    assert "visible_routes(capabilities)" in shell
+
+
+def test_dashboard_has_quick_actions_and_clickable_implemented_flow():
+    dashboard = source("pages/procurement_dashboard_page.py")
+    assert "procurementQuickActions" in dashboard
+    assert "procurementProcessFlow" in dashboard
+    assert "route_requested" in dashboard
+    assert all(label in dashboard for label in (
+        "Nueva solicitud", "Nueva orden de compra", "Nueva compra directa",
+        "Capturar factura", "Carga en origen", "Recepción",
+    ))
 
 
 def test_dashboard_uses_canonical_charts_with_visual_hierarchy():
@@ -46,6 +63,32 @@ def test_orders_have_master_detail_timeline_and_contextual_actions():
     assert "class DocumentTimeline" in detail
     assert all(step in detail for step in ("PR", "RFQ", "Embarque", "Recepción", "Factura", "CxP", "Pago"))
     assert "QMessageBox" not in pages
+
+
+def test_requisitions_have_master_detail_and_real_sourcing_actions():
+    pages = source("pages/enterprise_pages.py")
+    detail = source("document_detail.py")
+    routes = (ROOT / "frontend/desktop/modules/purchasing/enterprise_routes.py").read_text(
+        encoding="utf-8")
+    assert "RequisitionDetailPanel" in pages + detail
+    assert all(action in pages for action in (
+        "Crear RFQ", "Crear orden", "Compra directa"))
+    assert "CreateRfqUseCase" in routes
+    assert "direct_purchase_requested" in pages
+    assert "set_events" in detail
+
+
+def test_receipts_and_invoices_are_real_master_detail_workspaces():
+    receipts = source("pages/purchase_history_page.py")
+    invoices = source("pages/enterprise_pages.py")
+    dialogs = source("dialogs/enterprise_dialogs.py")
+    assert all(label in receipts for label in (
+        "Recepciones relacionadas", "Aceptado", "Rechazado", "Diferencias",
+        "Conciliación"))
+    assert all(label in invoices for label in (
+        "Aceptado", "Facturado", "Precio acordado", "Precio factura", "Impuesto"))
+    assert "document_provider" in dialogs and "direct_purchase_line_id" in dialogs
+    assert "__unknown__" not in invoices
 
 
 def test_purchasing_ui_has_no_inline_styles_or_direct_buttons():

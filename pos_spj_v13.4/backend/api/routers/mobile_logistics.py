@@ -11,7 +11,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from backend.api.mobile_session import MobileIdentity, bearer
 from backend.api.schemas.mobile_logistics import (
     ContentAssignmentRequest, LoginRequest, NodeAttachRequest, PhotoUploadRequest,
-    SealRequest, ShipmentCreateRequest,
+    SealRequest, ShipmentCreateRequest, DispatchRequest,
 )
 
 
@@ -72,6 +72,18 @@ def mutation_headers(idempotency_key: str = Header(alias="Idempotency-Key"),
     return idempotency_key, version
 
 
+<<<<<<< HEAD
+def command_payload(command, user: MobileIdentity, operation_id: str) -> dict:
+    payload = command.model_dump()
+    if payload["clientOperationId"] != operation_id:
+        raise HTTPException(422, "clientOperationId no coincide con Idempotency-Key")
+    if payload["userId"] != user.user_id or payload["deviceId"] != user.device_id:
+        raise HTTPException(403, "El comando no pertenece a la sesión móvil")
+    return payload
+
+
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 @router.post("/mobile/session")
 def login(command: LoginRequest, request: Request) -> dict:
     service = getattr(request.app.state, "mobile_session_service", None)
@@ -81,6 +93,10 @@ def login(command: LoginRequest, request: Request) -> dict:
     return {"accessToken": token, "userId": user.user_id, "displayName": user.display_name,
             "branchId": user.branch_id, "branchName": user.branch_name,
             "warehouseId": user.warehouse_id, "warehouseName": user.warehouse_name,
+<<<<<<< HEAD
+            "deviceId": user.device_id,
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
             "permissions": user.permissions}
 
 
@@ -89,6 +105,10 @@ def current_session(user: MobileIdentity = Depends(identity)) -> dict:
     return {"userId": user.user_id, "displayName": user.display_name,
             "branchId": user.branch_id, "branchName": user.branch_name,
             "warehouseId": user.warehouse_id, "warehouseName": user.warehouse_name,
+<<<<<<< HEAD
+            "deviceId": user.device_id,
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
             "permissions": user.permissions}
 
 
@@ -123,7 +143,12 @@ def create_shipment(command: ShipmentCreateRequest,
                     headers: tuple[str, int] = Depends(mutation_headers),
                     user: MobileIdentity = Depends(identity),
                     service: OriginPurchaseWorkflow = Depends(workflow)) -> dict:
+<<<<<<< HEAD
+    return service.create_shipment(user, headers[0], headers[1],
+                                   command_payload(command, user, headers[0]))
+=======
     return service.create_shipment(user, headers[0], headers[1], command.model_dump())
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
 
 @router.post("/logistics/mobile/shipments/{shipment_id}/nodes")
@@ -131,7 +156,12 @@ def attach_node(shipment_id: str, command: NodeAttachRequest,
                 headers: tuple[str, int] = Depends(mutation_headers),
                 user: MobileIdentity = Depends(identity),
                 service: OriginPurchaseWorkflow = Depends(workflow)) -> dict:
+<<<<<<< HEAD
+    return service.attach_node(user, shipment_id, headers[0], headers[1],
+                               command_payload(command, user, headers[0]))
+=======
     return service.attach_node(user, shipment_id, headers[0], headers[1], command.model_dump())
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
 
 @router.post("/logistics/mobile/shipments/{shipment_id}/contents")
@@ -139,7 +169,12 @@ def assign_content(shipment_id: str, command: ContentAssignmentRequest,
                    headers: tuple[str, int] = Depends(mutation_headers),
                    user: MobileIdentity = Depends(identity),
                    service: OriginPurchaseWorkflow = Depends(workflow)) -> dict:
+<<<<<<< HEAD
+    return service.assign_content(user, shipment_id, headers[0], headers[1],
+                                  command_payload(command, user, headers[0]))
+=======
     return service.assign_content(user, shipment_id, headers[0], headers[1], command.model_dump())
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
 
 @router.post("/logistics/mobile/shipments/{shipment_id}/photos")
@@ -147,7 +182,12 @@ def attach_photo(shipment_id: str, command: PhotoUploadRequest,
                  headers: tuple[str, int] = Depends(mutation_headers),
                  user: MobileIdentity = Depends(identity),
                  service: OriginPurchaseWorkflow = Depends(workflow)) -> dict:
+<<<<<<< HEAD
+    return service.attach_photo(user, shipment_id, headers[0], headers[1],
+                                command_payload(command, user, headers[0]))
+=======
     return service.attach_photo(user, shipment_id, headers[0], headers[1], command.model_dump())
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
 
 @router.post("/logistics/mobile/shipments/{shipment_id}/nodes/{node_id}/seal")
@@ -156,6 +196,17 @@ def seal_node(shipment_id: str, node_id: str, command: SealRequest,
               user: MobileIdentity = Depends(identity),
               service: OriginPurchaseWorkflow = Depends(workflow)) -> dict:
     return service.seal_node(user, shipment_id, node_id, headers[0], headers[1],
+<<<<<<< HEAD
+                             command_payload(command, user, headers[0]))
+
+
+@router.post("/logistics/mobile/shipments/{shipment_id}/dispatch")
+def dispatch(shipment_id: str, command: DispatchRequest,
+             headers: tuple[str, int] = Depends(mutation_headers),
+             user: MobileIdentity = Depends(identity),
+             service: OriginPurchaseWorkflow = Depends(workflow)) -> dict:
+    command_payload(command, user, headers[0])
+=======
                              command.model_dump())
 
 
@@ -163,4 +214,5 @@ def seal_node(shipment_id: str, node_id: str, command: SealRequest,
 def dispatch(shipment_id: str, headers: tuple[str, int] = Depends(mutation_headers),
              user: MobileIdentity = Depends(identity),
              service: OriginPurchaseWorkflow = Depends(workflow)) -> dict:
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
     return service.dispatch(user, shipment_id, headers[0], headers[1])

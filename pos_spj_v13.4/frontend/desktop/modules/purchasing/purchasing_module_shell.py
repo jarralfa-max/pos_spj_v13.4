@@ -12,6 +12,9 @@ from frontend.desktop.components import (
 )
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.purchasing.enterprise_view_models import money
+from frontend.desktop.modules.purchasing.navigation import (
+    PurchasingRoutes, visible_routes,
+)
 from frontend.desktop.modules.purchasing.pages.enterprise_pages import (
     InvoicesPage, OrdersPage, RequisitionsPage,
 )
@@ -66,25 +69,18 @@ class AlertsBar(QFrame):
         self.setVisible(bool(alerts))
 
 
-class _PendingPage(QWidget):
-    def __init__(self, title: str, message: str, parent=None) -> None:
-        super().__init__(parent)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(Spacing.LG, Spacing.MD, Spacing.LG, Spacing.MD)
-        layout.addWidget(PageHeader(title=title, subtitle=message, icon=Icons.PURCHASES,
-                                    compact=True))
-        layout.addWidget(create_state_widget(ViewState.EMPTY, self, message=message), stretch=1)
-
-
 class PurchasingModuleShell(QWidget):
     """Single stacked-navigation root for the Procurement desktop experience."""
 
-    def __init__(self, presenter, parent=None, *, direct_purchase_view=None) -> None:
+    def __init__(self, presenter, parent=None, *, direct_purchase_views=None) -> None:
         super().__init__(parent)
         self.setObjectName("purchasingModuleShell")
         self._presenter = presenter
         self._loaded = False
         self._row_to_page: dict[int, int] = {}
+        self._route_to_page: dict[str, int] = {}
+        self._route_to_row: dict[str, int] = {}
+        self._route_badges: dict[str, str] = {}
         self._pages: list[QWidget] = []
 
         root = QHBoxLayout(self)
@@ -126,49 +122,88 @@ class PurchasingModuleShell(QWidget):
         body_layout.addWidget(self.content, stretch=1)
         root.addWidget(body, stretch=1)
 
-        self._build_navigation(direct_purchase_view)
+        self._build_navigation(direct_purchase_views or {})
         self.sidebar.currentRowChanged.connect(self._navigate_row)
         self.sidebar.setCurrentRow(next(iter(self._row_to_page)))
 
     def _group(self, label: str) -> None:
         self.sidebar.add_group(label)
 
-    def _route(self, label: str, page: QWidget) -> None:
+    def _route(self, key: str, label: str, page: QWidget,
+               *, badge_key: str | None = None) -> None:
         self.sidebar.add_section(label)
+        row = self.sidebar.count() - 1
         page_index = self.content.addWidget(page)
         self._pages.append(page)
-        self._row_to_page[self.sidebar.count() - 1] = page_index
+        self._row_to_page[row] = page_index
+        self._route_to_page[key] = page_index
+        self._route_to_row[key] = row
+        if badge_key:
+            self._route_badges[key] = badge_key
 
-    def _placeholder(self, title: str, message: str) -> QWidget:
-        return _PendingPage(title, message, self)
+    def _build_navigation(self, direct_purchase_views) -> None:
+        capabilities = self._presenter.capabilities()
+        if not capabilities.module_view:
+            self._group("COMPRAS")
+            self._route("no_access", "Sin acceso", create_state_widget(
+                ViewState.NO_PERMISSION, self,
+                message="No tienes permiso para consultar el módulo de Compras."))
+            return
+        page_factories = {
+            PurchasingRoutes.DASHBOARD: lambda: ProcurementDashboardPage(
+                self._presenter, self),
+            PurchasingRoutes.REQUISITIONS: self._create_requisitions_page,
+            PurchasingRoutes.ORDERS: lambda: OrdersPage(self._presenter, self),
+            PurchasingRoutes.DIRECT_PURCHASE_CREATE: lambda: direct_purchase_views.get("create"),
+            PurchasingRoutes.DIRECT_PURCHASE_HISTORY: lambda: direct_purchase_views.get("history"),
+            PurchasingRoutes.ORIGIN_LOADING: lambda: LogisticsRelatedPage(
+                self._presenter, self, capabilities=capabilities),
+            PurchasingRoutes.RECEIPTS: lambda: PurchaseHistoryPage(
+                self._presenter, self),
+            PurchasingRoutes.INVOICES: lambda: InvoicesPage(self._presenter, self),
+        }
+        current_group = None
+        for definition in visible_routes(capabilities):
+            factory = page_factories.get(definition.key)
+            if factory is None:
+                continue
+            page = factory()
+            if page is None:
+                continue
+            if definition.key == PurchasingRoutes.DASHBOARD:
+                page.route_requested.connect(self.navigate_to)
+            if definition.group != current_group:
+                self._group(definition.group)
+                current_group = definition.group
+            self._route(definition.key, definition.label, page,
+                        badge_key=definition.badge_key)
 
-    def _build_navigation(self, direct_purchase_view) -> None:
-        self._group("NAVEGACIÓN")
-        self._route("Resumen", ProcurementDashboardPage(self._presenter, self))
-        self._group("OPERACIÓN")
-        self._route("Solicitudes", RequisitionsPage(self._presenter, self))
-        self._route("Cotizaciones", self._placeholder(
-            "Cotizaciones", "RFQ, invitaciones y cotizaciones relacionadas."))
-        self._route("Adjudicaciones", self._placeholder(
-            "Adjudicaciones", "Comparación comercial y decisiones auditadas."))
-        self._route("Órdenes de compra", OrdersPage(self._presenter, self))
-        if direct_purchase_view is not None:
-            self._route("Compra directa", direct_purchase_view)
-        self._group("CARGA EN ORIGEN")
-        self._route("Embarques relacionados", LogisticsRelatedPage(self._presenter, self))
-        self._route("Compras móviles", self._placeholder(
-            "Compras móviles", "La PWA está disponible en /mobile/logistics/."))
-        self._route("Contenedores asignados", self._placeholder(
-            "Contenedores asignados", "Custodia y árbol logístico por embarque."))
-        self._group("RECEPCIÓN RELACIONADA")
-        self._route("Pendientes y calidad", PurchaseHistoryPage(self._presenter, self))
-        self._group("FACTURACIÓN")
-        self._route("Facturas y conciliación", InvoicesPage(self._presenter, self))
-        self._group("ANALÍTICA")
-        self._route("Gasto y desempeño", ProcurementDashboardPage(self._presenter, self))
-        self._group("CONFIGURACIÓN")
-        self._route("Políticas y tolerancias", self._placeholder(
-            "Políticas y tolerancias", "Configuración central de routing, límites y tolerancias."))
+    def _create_requisitions_page(self):
+        page = RequisitionsPage(self._presenter, self)
+        page.direct_purchase_requested.connect(self._start_direct_from_requisition)
+        return page
+
+    def _start_direct_from_requisition(self, detail: dict) -> None:
+        page_index = self._route_to_page.get(PurchasingRoutes.DIRECT_PURCHASE_CREATE)
+        if page_index is None:
+            return
+        self.navigate_to(PurchasingRoutes.DIRECT_PURCHASE_CREATE)
+        page = self.content.widget(page_index)
+        handler = getattr(page, "start_from_requisition", None)
+        if callable(handler):
+            handler(detail)
+
+    def navigate_to(self, route_key: str, action: str = "") -> None:
+        row = self._route_to_row.get(route_key)
+        if row is None:
+            return
+        self.sidebar.setCurrentRow(row)
+        page_index = self._route_to_page[route_key]
+        page = self.content.widget(page_index)
+        if action:
+            handler = getattr(page, f"start_{action}", None)
+            if callable(handler):
+                handler()
 
     def _navigate_row(self, row: int) -> None:
         page_index = self._row_to_page.get(row)
@@ -208,7 +243,14 @@ class PurchasingModuleShell(QWidget):
             self.reload()
 
     def reload(self) -> None:
+        capabilities = self._presenter.capabilities()
+        if not capabilities.module_view:
+            self._loaded = True
+            return
         kpis = self._presenter.analytics_kpis()
+        badges = self._presenter.navigation_badges(kpis)
+        for route_key, badge_key in self._route_badges.items():
+            self.sidebar.set_badge(self._route_to_row[route_key], badges.get(badge_key, 0))
         self.kpis.set_cards([
             KPIDTO("req", "Solicitudes abiertas", str(kpis.open_requisitions), variant="primary"),
             KPIDTO("approval", "Órdenes por aprobar", str(kpis.pending_order_approvals), variant="warning"),
@@ -216,9 +258,9 @@ class PurchasingModuleShell(QWidget):
             KPIDTO("direct", "Compra directa hoy", str(kpis.direct_purchases_today), variant="primary"),
             KPIDTO("difference", "Facturas con diferencias", str(kpis.invoices_with_differences), variant="danger"),
             KPIDTO("spend", "Gasto comprometido",
-                   money(kpis.committed_spend) if self._presenter.can("procurement.cost.view") else "—",
+                   money(kpis.committed_spend) if capabilities.view_costs else "—",
                    variant="primary",
-                   state=KPIState.READY if self._presenter.can("procurement.cost.view")
+                   state=KPIState.READY if capabilities.view_costs
                    else KPIState.NO_PERMISSION),
         ])
         self.alerts.set_alerts(self._presenter.analytics_alerts())

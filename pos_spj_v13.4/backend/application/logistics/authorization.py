@@ -12,11 +12,13 @@ class LogisticsAuthorizationPolicy:
 
 
 class LogisticsPermissions:
+    SHIPMENT_VIEW = "logistics.shipment.view"
     SHIPMENT_CREATE = "logistics.shipment.create"
     CONTAINER_MANAGE = "logistics.container.manage"
     CONTAINER_ATTACH = "logistics.container.attach"
     CONTAINER_MOVE = "logistics.container.move"
     CONTAINER_SEAL = "logistics.container.seal"
     SHIPMENT_DISPATCH = "logistics.shipment.dispatch"
+    SHIPMENT_OVERRIDE = "logistics.shipment.override"
     CONTAINER_RELEASE = "logistics.container.release"
     LABEL_PRINT = "logistics.label.print"

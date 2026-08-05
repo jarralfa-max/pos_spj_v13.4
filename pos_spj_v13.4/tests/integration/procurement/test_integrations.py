@@ -2,6 +2,7 @@
 receipts → inventory, payables → CxP, immediate payment → treasury (never POS
 cash), receipts → supplier performance, and the outbox → bus dispatch."""
 
+import json
 from decimal import Decimal
 from uuid import UUID
 
@@ -149,6 +150,11 @@ def test_direct_purchase_outbox_dispatch_reaches_downstream(proc_conn):
     summary = dispatch_procurement_outbox(proc_conn, bus)
     assert summary["dispatched"] >= 1
     names = bus.names()
+    drafted = next(payload for name, payload in bus.published
+                   if name == "DIRECT_PURCHASE_DRAFTED")
+    assert drafted["schema_version"] == 1
+    assert drafted["correlation_id"] == drafted["operation_id"]
+    assert drafted["causation_id"] is None
     # received → inventory; immediate payment → treasury
     assert "PURCHASE_STOCK_ENTRY_REGISTERED" in names
     assert "SUPPLIER_PAYMENT_SCHEDULED" in names
@@ -158,11 +164,22 @@ def test_direct_purchase_outbox_dispatch_reaches_downstream(proc_conn):
 
 
 def test_outbox_failure_is_durable_and_dead_letters(proc_conn):
+<<<<<<< HEAD
+    payload = json.dumps({
+        "event_id": "event-1", "event_name": "BROKEN", "operation_id": "op-1",
+        "schema_version": 1, "correlation_id": "op-1",
+    })
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
     proc_conn.execute(
         "INSERT INTO procurement_outbox"
         " (id,event_id,event_name,payload_json,operation_id,status,created_at)"
         " VALUES (?,?,?,?,?,'PENDING',?)",
+<<<<<<< HEAD
+        ("out-1", "event-1", "BROKEN", payload, "op-1", "2026-01-01T00:00:00+00:00"),
+=======
         ("out-1", "event-1", "BROKEN", "{}", "op-1", "2026-01-01T00:00:00+00:00"),
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
     )
     proc_conn.commit()
 
@@ -179,6 +196,31 @@ def test_outbox_failure_is_durable_and_dead_letters(proc_conn):
     assert "downstream unavailable" in row[2]
 
 
+<<<<<<< HEAD
+def test_outbox_dead_letters_malformed_payload_without_publishing(proc_conn):
+    proc_conn.execute(
+        "INSERT INTO procurement_outbox"
+        " (id,event_id,event_name,payload_json,operation_id,status,created_at)"
+        " VALUES (?,?,?,?,?,'PENDING',?)",
+        ("out-malformed", "event-x", "BROKEN", "{}", "op-x",
+         "2026-01-01T00:00:00+00:00"),
+    )
+    proc_conn.commit()
+    bus = FakeBus()
+
+    result = dispatch_procurement_outbox(proc_conn, bus, max_attempts=1)
+    row = proc_conn.execute(
+        "SELECT status,last_error FROM procurement_outbox WHERE id='out-malformed'"
+    ).fetchone()
+
+    assert result["failed"] == 1
+    assert bus.published == []
+    assert row[0] == "DEAD_LETTER"
+    assert "missing required fields" in row[1]
+
+
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 def test_wiring_reports_subscriptions(proc_conn):
     bus = FakeBus()
     summary = wire_procurement(bus, proc_conn)

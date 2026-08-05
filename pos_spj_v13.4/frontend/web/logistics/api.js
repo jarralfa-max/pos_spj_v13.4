@@ -23,7 +23,10 @@ export class LogisticsApi {
       throw new ApiError("Sin conexión con el servidor", 0, error);
     }
     const payload = response.status === 204 ? null : await response.json().catch(() => null);
-    if (!response.ok) throw new ApiError(payload?.detail || "Error del servidor", response.status, payload);
+    if (!response.ok) {
+      if (response.status === 401) window.dispatchEvent(new CustomEvent("mobile-session-expired"));
+      throw new ApiError(payload?.detail || "Error del servidor", response.status, payload);
+    }
     return payload;
   }
 

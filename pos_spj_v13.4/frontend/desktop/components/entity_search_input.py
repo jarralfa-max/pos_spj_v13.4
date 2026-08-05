@@ -34,6 +34,7 @@ class EntitySearchInput(QWidget):
         self._provider = provider or (lambda _q: [])
         self._max_results = max_results
         self._selected_id = None
+        self._selected_label = ""
 
         self._search = SearchInput(self, placeholder=placeholder, debounce_ms=debounce_ms)
         self._results = QListWidget(self)
@@ -55,8 +56,12 @@ class EntitySearchInput(QWidget):
     def selected_id(self):
         return self._selected_id
 
+    def selected_label(self) -> str:
+        return self._selected_label
+
     def set_selected_label(self, entity_id, label: str) -> None:
         self._selected_id = entity_id
+        self._selected_label = str(label or "")
         self._search.blockSignals(True)
         self._search.setText(label)
         self._search.blockSignals(False)
@@ -64,6 +69,7 @@ class EntitySearchInput(QWidget):
 
     def clear(self) -> None:
         self._selected_id = None
+        self._selected_label = ""
         self._search.clear()
         self._results.clear()
         self._results.setVisible(False)
@@ -90,6 +96,7 @@ class EntitySearchInput(QWidget):
         if option is None:
             return
         self._selected_id = option.id
+        self._selected_label = option.label
         self._search.blockSignals(True)
         self._search.setText(option.label)
         self._search.blockSignals(False)

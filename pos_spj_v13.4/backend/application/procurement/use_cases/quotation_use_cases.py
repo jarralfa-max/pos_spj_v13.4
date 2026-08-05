@@ -54,6 +54,12 @@ class CreateRfqUseCase:
                                           operation_id=operation_id)
         with ProcurementUnitOfWork(connection) as uow:
             try:
+                if requisition_id:
+                    requisition = uow.requisitions.get(requisition_id)
+                    if requisition is None or requisition.status.value != "APPROVED":
+                        return ProcurementResult.fail(
+                            "La RFQ requiere una solicitud aprobada",
+                            "INVALID_REQUISITION", operation_id=operation_id)
                 if self._supplier_directory is not None:
                     for supplier_id in supplier_ids:
                         self._supplier_directory.require_eligible(supplier_id)
@@ -68,7 +74,8 @@ class CreateRfqUseCase:
                              document_id=rfq.id, operation_id=operation_id)
             _emit(uow, ProcurementEvents.RFQ_CREATED, document_id=rfq.id,
                   operation_id=operation_id, actor_user_id=actor_user_id,
-                  document_number=rfq.document_number)
+                  document_number=rfq.document_number,
+                  requisition_id=requisition_id)
         return ProcurementResult.ok("RFQ creada", entity_id=rfq.id, operation_id=operation_id,
                                     document_number=rfq.document_number)
 

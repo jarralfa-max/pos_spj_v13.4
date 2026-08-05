@@ -4,3 +4,4 @@
 @media(orientation:landscape) and (max-height:600px){.app-header{min-height:60px;padding-block:8px}.step-panel{min-height:280px}.data-form{grid-template-columns:repeat(3,1fr)}.data-form .full{grid-column:1/-1}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto!important}}
 .tree-depth-1{margin-left:18px}.tree-depth-2{margin-left:36px}.tree-depth-3{margin-left:54px}.tree-depth-4{margin-left:72px}.tree-depth-5{margin-left:90px}
+.sync-issues{display:grid;gap:8px;margin:12px 0}.sync-issue{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--danger);background:#feeceb;padding:12px;border-radius:10px}.sync-issue small{display:block;color:var(--danger);margin-top:4px}

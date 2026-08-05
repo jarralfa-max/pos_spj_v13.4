@@ -3,8 +3,23 @@ import { ApiError } from "./api.js";
 export class SyncEngine extends EventTarget {
   constructor(api, store) { super(); this.api = api; this.store = store; this.running = false; }
 
-  async pendingCount() {
-    return (await this.store.listCommands()).filter((item) => ["PENDING", "RETRY"].includes(item.status)).length;
+  async pendingCount(shipmentId = null) {
+    return (await this.store.listCommands()).filter((item) =>
+      ["PENDING", "RETRY"].includes(item.status) && (!shipmentId || commandAggregate(item) === shipmentId)).length;
+  }
+
+  async conflicts(shipmentId = null) {
+    return (await this.store.listCommands()).filter((item) =>
+      item.status === "CONFLICT" && (!shipmentId || commandAggregate(item) === shipmentId));
+  }
+
+  async retryConflict(operationId, serverVersion) {
+    const command = await this.store.getCommand(operationId);
+    if (!command || command.status !== "CONFLICT") throw new Error("Conflicto inexistente");
+    await this.store.putCommand({ ...command, status: "RETRY", aggregateVersion: serverVersion,
+      lastError: null });
+    this.dispatchEvent(new CustomEvent("change"));
+    return this.flush();
   }
 
   async enqueue(command) {
@@ -33,17 +48,24 @@ export class SyncEngine extends EventTarget {
             body = { ...body, contentBase64: await blobToBase64(photo.blob),
               fileName: photo.name, contentType: photo.type };
           }
-          const aggregateKey = command.endpoint.match(/\/shipments\/([^/]+)/)?.[1] || command.body?.shipmentId;
-          const expectedVersion = serverVersions.get(aggregateKey) ?? command.aggregateVersion;
+          const aggregateKey = commandAggregate(command);
+          const storedAggregate = aggregateKey ? await this.store.getAggregate(aggregateKey) : null;
+          const expectedVersion = serverVersions.get(aggregateKey) ?? storedAggregate?.version ?? command.aggregateVersion;
           const result = await this.api.request(command.endpoint, {
             method: command.method, body, operationId: command.operationId,
             aggregateVersion: expectedVersion,
           });
-          if (aggregateKey && result?.version !== undefined) serverVersions.set(aggregateKey, result.version);
+          if (aggregateKey && result?.version !== undefined) {
+            serverVersions.set(aggregateKey, result.version);
+            await this.store.putAggregate({ id: aggregateKey, version: result.version,
+              updatedAt: new Date().toISOString() });
+          }
           await this.store.putCommand({ ...command, status: "SYNCED", result, syncedAt: new Date().toISOString() });
         } catch (error) {
           const conflict = error instanceof ApiError && [409, 412].includes(error.status);
-          const permanent = error instanceof ApiError && error.status >= 400 && error.status < 500 && !conflict;
+          const authentication = error instanceof ApiError && error.status === 401;
+          const permanent = error instanceof ApiError && error.status >= 400 && error.status < 500 &&
+            !conflict && !authentication;
           await this.store.putCommand({
             ...command, attempts: command.attempts + 1,
             status: conflict ? "CONFLICT" : permanent ? "REJECTED" : "RETRY",
@@ -59,6 +81,10 @@ export class SyncEngine extends EventTarget {
       this.dispatchEvent(new CustomEvent("change"));
     }
   }
+}
+
+function commandAggregate(command) {
+  return command.endpoint.match(/\/shipments\/([^/]+)/)?.[1] || command.body?.shipmentId || null;
 }
 
 function blobToBase64(blob) {

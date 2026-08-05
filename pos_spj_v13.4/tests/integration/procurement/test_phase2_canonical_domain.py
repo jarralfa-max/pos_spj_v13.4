@@ -1,7 +1,20 @@
 from backend.application.procurement.authorization import PurchaseAuthorizationPolicy
+<<<<<<< HEAD
+from backend.shared.ids import new_uuid
 from backend.application.procurement.queries.supplier_directory_query_service import (
     SupplierDirectoryQueryService,
 )
+from backend.application.procurement.queries.enterprise_read_services import (
+    OrderReadService, RequisitionReadService,
+)
+from backend.application.procurement.use_cases.purchase_order_use_cases import (
+    CreatePurchaseOrderUseCase,
+)
+=======
+from backend.application.procurement.queries.supplier_directory_query_service import (
+    SupplierDirectoryQueryService,
+)
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 from backend.application.procurement.use_cases.direct_purchase_use_cases import (
     CreateDirectPurchaseUseCase,
 )
@@ -23,6 +36,25 @@ def auth():
     return PurchaseAuthorizationPolicy(Allow())
 
 
+<<<<<<< HEAD
+def approved_requisition(proc_conn):
+    created = CreatePurchaseRequisitionUseCase(auth()).execute(
+        proc_conn, actor_user_id="requester", operation_id=new_uuid(),
+        branch_id="branch", purchase_type="INVENTORY",
+        lines=[{"product_id": "p1", "quantity": "2",
+                "estimated_unit_cost": "10", "purchase_nature": "INVENTORY"}])
+    SubmitPurchaseRequisitionUseCase(auth()).execute(
+        proc_conn, actor_user_id="requester", requisition_id=created.entity_id,
+        operation_id=new_uuid())
+    approved = ApprovePurchaseRequisitionUseCase(auth()).execute(
+        proc_conn, approver_user_id="approver", requisition_id=created.entity_id,
+        operation_id=new_uuid(), approve=True)
+    assert approved.success
+    return created.entity_id
+
+
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 def test_supplier_directory_reads_only_canonical_proveedores(proc_conn):
     proc_conn.execute("CREATE TABLE proveedores (id TEXT PRIMARY KEY, nombre TEXT, activo INTEGER)")
     proc_conn.execute("INSERT INTO proveedores VALUES ('supplier','Proveedor',1)")
@@ -102,3 +134,41 @@ def test_rfq_invitations_and_split_award_are_normalized(proc_conn):
     assert proc_conn.execute(
         "SELECT COUNT(*) FROM purchase_award_lines WHERE award_id=?",
         (award.entity_id,)).fetchone()[0] == 2
+<<<<<<< HEAD
+
+
+def test_approved_requisition_can_create_rfq_and_exposes_related_timeline(proc_conn):
+    requisition_id = approved_requisition(proc_conn)
+
+    rfq = CreateRfqUseCase(auth()).execute(
+        proc_conn, actor_user_id="buyer", operation_id=new_uuid(),
+        supplier_ids=["supplier-a", "supplier-b"], requisition_id=requisition_id)
+    detail = RequisitionReadService(proc_conn).detail(requisition_id)
+
+    assert rfq.success
+    assert [(doc["document_type"], doc["id"]) for doc in detail["related_documents"]] == [
+        ("RFQ", rfq.entity_id)]
+    assert [event["action"] for event in detail["timeline"]] == [
+        "PURCHASE_REQUISITION_CREATED", "PURCHASE_REQUISITION_SUBMITTED",
+        "PURCHASE_REQUISITION_APPROVED",
+    ]
+
+
+def test_purchase_order_from_approved_requisition_marks_source_and_keeps_lineage(proc_conn):
+    requisition_id = approved_requisition(proc_conn)
+
+    order = CreatePurchaseOrderUseCase(auth()).execute(
+        proc_conn, actor_user_id="buyer", operation_id=new_uuid(),
+        supplier_id="supplier", branch_id="branch", warehouse_id="warehouse",
+        requisition_id=requisition_id,
+        lines=[{"product_id": "p1", "quantity": "2", "unit_price": "10"}])
+    requisition = RequisitionReadService(proc_conn).detail(requisition_id)
+    order_detail = OrderReadService(proc_conn).detail(order.entity_id)
+
+    assert order.success
+    assert requisition["status"] == "SOURCED"
+    assert requisition["related_documents"][0]["id"] == order.entity_id
+    assert order_detail["source_requisition_id"] == requisition_id
+    assert order_detail["timeline"][0]["action"] == "PURCHASE_ORDER_CREATED"
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2

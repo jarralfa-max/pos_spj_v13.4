@@ -33,6 +33,23 @@ def test_mobile_token_is_not_persisted_in_durable_browser_storage():
     assert 'localStorage.getItem("spj-mobile-token")' not in app
 
 
+def test_offline_commands_carry_identity_and_conflicts_are_user_resolvable():
+    store = (PWA / "store.js").read_text(encoding="utf-8")
+    sync = (PWA / "sync.js").read_text(encoding="utf-8")
+    page = (PWA / "index.html").read_text(encoding="utf-8")
+    for field in ("clientOperationId", "deviceId", "userId", "createdAt", "payloadVersion"):
+        assert field in store
+    assert "retryConflict" in sync and "getAggregate" in sync
+    assert 'id="syncIssues"' in page
+
+
+def test_photo_evidence_is_linked_by_registered_migration():
+    migration = ROOT / "migrations/standalone/173_logistics_shipment_photos.py"
+    assert migration.exists() and "logistics_shipment_photos" in migration.read_text()
+    engine = (ROOT / "migrations/engine.py").read_text()
+    assert '"173",  "migrations.standalone.173_logistics_shipment_photos"' in engine
+
+
 def test_mobile_controller_contains_no_sql_or_repository_imports():
     router = (ROOT / "backend" / "api" / "routers" / "mobile_logistics.py").read_text(
         encoding="utf-8")

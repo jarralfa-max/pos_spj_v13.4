@@ -38,6 +38,10 @@ class _Base:
 
 
 class DirectPurchaseReadService(_Base):
+    def supplier_name(self, supplier_id: str) -> str:
+        row = self._query_one("SELECT nombre FROM proveedores WHERE id=?", (supplier_id,))
+        return str(row["nombre"]) if row else "Proveedor no disponible"
+
     def count(self, *, status: str | None = None, search: str = "") -> int:
         where, params = self._where(status, search)
         return int(self._scalar(

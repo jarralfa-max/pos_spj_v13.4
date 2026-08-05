@@ -1,13 +1,20 @@
 """Runtime procurement authorization uses the canonical live session."""
 
+from decimal import Decimal
+
 import pytest
 
 from backend.application.procurement.session_authorization import (
     ProcurementSessionPermissionChecker,
 )
+from backend.application.procurement.permissions import PurchasePermissions
 from frontend.desktop.modules.purchasing.enterprise_presenter import (
     EnterprisePurchasingPresenter,
 )
+from frontend.desktop.modules.purchasing.direct_purchase_presenter import (
+    DirectPurchasePresenter,
+)
+from frontend.desktop.modules.purchasing.direct_purchase_view_models import CartLineVM
 
 
 class Session:
@@ -73,3 +80,86 @@ def test_desktop_rejects_warehouse_outside_active_branch():
         use_cases={}, session_context=Session(), warehouse_directory=Warehouses())
     with pytest.raises(PermissionError, match="no pertenece"):
         presenter.select_warehouse("warehouse-other")
+
+
+def _direct_presenter(session):
+    return DirectPurchasePresenter(
+        connection_provider=lambda: None, read_service=None, supplier_picker=None,
+        use_cases={}, session_context=session)
+
+
+def test_direct_purchase_requires_canonical_session_scope():
+    session = Session()
+    presenter = _direct_presenter(session)
+
+    assert presenter._actor() == "user-1"
+    assert presenter.default_branch() == "branch-1"
+    with pytest.raises(PermissionError, match="almacén activo"):
+        presenter.default_warehouse()
+
+    session.set_warehouse("warehouse-1", "Principal")
+    assert presenter.default_warehouse() == "warehouse-1"
+
+
+@pytest.mark.parametrize(
+    ("attribute", "message"),
+    [("user_id", "sesión autenticada"), ("active_branch_id", "sucursal activa")],
+)
+def test_direct_purchase_never_invents_missing_identity(attribute, message):
+    session = Session()
+    setattr(session, attribute, "")
+    presenter = _direct_presenter(session)
+    accessor = presenter._actor if attribute == "user_id" else presenter.default_branch
+
+    with pytest.raises(PermissionError, match=message):
+        accessor()
+
+
+def test_direct_purchase_create_returns_actionable_block_when_warehouse_missing():
+    presenter = _direct_presenter(Session())
+    line = CartLineVM(
+        product_id="product-1", description="Producto",
+        quantity=Decimal("1"), unit_cost=Decimal("10"))
+
+    ok, message, data = presenter.create(
+        supplier_id="supplier-1", lines=[line], mode="IMMEDIATE",
+        payment_condition="CASH")
+
+    assert not ok
+    assert message == "La sesión no tiene un almacén activo"
+    assert data == {"error_code": "SESSION_CONTEXT_REQUIRED"}
+
+
+def test_enterprise_capabilities_use_canonical_permission_constants():
+    session = Session()
+    session.tiene_permiso = lambda code: code in {
+        PurchasePermissions.VIEW,
+        PurchasePermissions.REQUISITION_VIEW,
+        PurchasePermissions.REQUISITION_CREATE,
+        PurchasePermissions.ORDER_VIEW,
+    }
+    presenter = EnterprisePurchasingPresenter(
+        connection_provider=lambda: None, read_services={}, analytics=None,
+        use_cases={}, session_context=session)
+
+    capabilities = presenter.capabilities()
+
+    assert capabilities.requisition_view
+    assert capabilities.module_view
+    assert capabilities.requisition_create
+    assert capabilities.order_view
+    assert not capabilities.order_create
+    assert not capabilities.invoice_view
+
+
+def test_direct_purchase_capabilities_are_fail_closed():
+    session = Session()
+    session.tiene_permiso = lambda code: code == PurchasePermissions.DIRECT_VIEW
+
+    capabilities = _direct_presenter(session).capabilities()
+
+    assert capabilities.direct_view
+    assert not capabilities.direct_create
+    assert not capabilities.direct_authorize
+    assert not capabilities.direct_confirm
+    assert not capabilities.direct_reverse

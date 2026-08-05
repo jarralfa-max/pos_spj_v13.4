@@ -32,6 +32,7 @@ def dispatch_procurement_outbox(connection, bus, *, limit: int = 100,
             payload = json.loads(row["payload_json"])
             if not isinstance(payload, dict):
                 raise ValueError("outbox payload must be a JSON object")
+            _validate_payload(row, payload)
             _publish(bus, row["event_name"], payload)
             outbox.mark_dispatched(row["id"])
             dispatched += 1
@@ -55,3 +56,18 @@ def _publish(bus, event_name: str, payload: dict) -> None:
     if publish is None:
         raise RuntimeError("El bus no expone publish()")
     publish(event_name, payload, async_=False)
+
+
+def _validate_payload(row: dict, payload: dict) -> None:
+    """Fail malformed rows into retry/dead-letter instead of publishing them."""
+    required = ("event_id", "event_name", "operation_id", "schema_version",
+                "correlation_id")
+    missing = [key for key in required if payload.get(key) in (None, "")]
+    if missing:
+        raise ValueError(f"outbox payload missing required fields: {', '.join(missing)}")
+    if payload["event_id"] != row["event_id"]:
+        raise ValueError("outbox event_id does not match payload")
+    if payload["event_name"] != row["event_name"]:
+        raise ValueError("outbox event_name does not match payload")
+    if payload["operation_id"] != row["operation_id"]:
+        raise ValueError("outbox operation_id does not match payload")

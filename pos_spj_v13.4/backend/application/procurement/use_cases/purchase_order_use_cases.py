@@ -76,6 +76,14 @@ class CreatePurchaseOrderUseCase:
                                             operation_id=operation_id,
                                             status=existing.status.value)
             try:
+                source_requisition = None
+                if requisition_id:
+                    source_requisition = uow.requisitions.get(requisition_id)
+                    if (source_requisition is None
+                            or source_requisition.status.value != "APPROVED"):
+                        return ProcurementResult.fail(
+                            "La orden requiere una solicitud aprobada",
+                            "INVALID_REQUISITION", operation_id=operation_id)
                 if self._supplier_directory is not None:
                     self._supplier_directory.require_eligible(supplier_id)
                 po = PurchaseOrder.create(
@@ -101,13 +109,17 @@ class CreatePurchaseOrderUseCase:
             uow.orders.save(po)
             uow.orders.set_operation_id(po.id, operation_id)
             uow.orders.record_version(po, before=None, reason="alta", changed_by_user_id=actor_user_id)
+            if source_requisition is not None:
+                source_requisition.mark_sourced()
+                uow.requisitions.save(source_requisition)
             uow.audit.record(action=ProcurementEvents.PURCHASE_ORDER_CREATED,
                              actor_user_id=actor_user_id, document_id=po.id,
                              reason="alta orden", operation_id=operation_id, branch_id=branch_id)
             _emit(uow, ProcurementEvents.PURCHASE_ORDER_CREATED, document_id=po.id,
                   operation_id=operation_id, actor_user_id=actor_user_id, supplier_id=supplier_id,
                   branch_id=branch_id, document_number=po.document_number,
-                  total=str(po.total().amount))
+                  total=str(po.total().amount), requisition_id=requisition_id,
+                  rfq_id=rfq_id, award_id=award_id)
         return ProcurementResult.ok("Orden creada", entity_id=po.id, operation_id=operation_id,
                                     status=po.status.value, document_number=po.document_number,
                                     total=str(po.total().amount))

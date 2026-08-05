@@ -2,6 +2,7 @@ import { LogisticsApi } from "./api.js";
 import { localStore, createQueuedCommand } from "./store.js";
 import { SyncEngine } from "./sync.js";
 import { uuidv7 } from "./uuidv7.js";
+import { bottomUp, canDispatch, nodeDepth, validateAssignment } from "./workflow_rules.js";
 
 const $ = (id) => document.getElementById(id);
 const token = () => sessionStorage.getItem("spj-mobile-token");
@@ -16,6 +17,10 @@ let state = {
   session: null, selectedDocument: null, shipmentId: null, shipmentVersion: 0,
   nodes: [], contents: [], sealedNodeIds: [], photos: [],
 };
+
+function queued(args) {
+  return createQueuedCommand({ ...args, identity: state.session });
+}
 
 function decimal(value) {
   const normalized = String(value ?? "").trim().replace(",", ".");
@@ -46,9 +51,11 @@ async function updateNetwork() {
   const online = navigator.onLine;
   $("networkBadge").textContent = online ? "En línea" : "Sin conexión";
   $("networkBadge").className = `badge ${online ? "online" : "offline"}`;
-  const pending = await sync.pendingCount();
+  const pending = await sync.pendingCount(state.shipmentId);
+  const conflicts = await sync.conflicts(state.shipmentId);
   $("syncBadge").textContent = `${pending} pendiente${pending === 1 ? "" : "s"}`;
   $("syncBadge").className = `badge ${pending ? "offline" : "online"}`;
+  renderSyncIssues(conflicts);
   renderReview();
 }
 
@@ -63,7 +70,27 @@ function showWorkspace(session) {
   $("sessionUser").textContent = session.displayName;
   $("sessionBranch").textContent = session.branchName;
   $("sessionWarehouse").textContent = session.warehouseName;
-  void loadDocuments();
+  void resumeContextShipment();
+}
+
+async function resumeContextShipment() {
+  const shipmentId = new URLSearchParams(location.search).get("shipment");
+  if (!shipmentId) { await loadDocuments(); return; }
+  try {
+    const shipment = await api.shipment(shipmentId);
+    const source = shipment.sources?.[0];
+    const response = await api.documents("");
+    const documentItem = (response.items || []).find((item) => item.id === source?.id);
+    if (!documentItem) throw new Error("El documento contextual no está disponible para esta sesión");
+    state.selectedDocument = documentItem; state.shipmentId = shipment.shipmentId;
+    state.shipmentVersion = shipment.version; state.nodes = shipment.nodes || [];
+    products = (await api.products(documentItem.id)).items || [];
+    $("productOptions").innerHTML = products.map((item) => `<option value="${item.code}">${item.name}</option>`).join("");
+    renderDocuments([documentItem]); renderTree(); renderContents();
+    toast(`Embarque ${shipment.shipmentId.slice(0, 8)} abierto`);
+  } catch (error) {
+    message(error.message, "error"); await loadDocuments();
+  }
 }
 
 async function loadDocuments(query = "") {
@@ -106,7 +133,7 @@ function showStep(name) {
 async function ensureShipment() {
   if (state.shipmentId) return;
   const operationId = uuidv7(); state.shipmentId = uuidv7(); state.shipmentVersion = 0;
-  await sync.enqueue(createQueuedCommand({
+  await sync.enqueue(queued({
     operationId, endpoint: "/logistics/mobile/shipments", aggregateVersion: 0,
     body: { shipmentId: state.shipmentId, documentType: state.selectedDocument.type,
       documentId: state.selectedDocument.id, supplierId: state.selectedDocument.supplierId },
@@ -129,7 +156,7 @@ async function addContainer(tokenValue, parentNodeId = null) {
   const node = { id: uuidv7(), containerId: resolved.containerId, code: resolved.containerCode,
     typeName: resolved.typeName, parentNodeId, status: "SYNC_PENDING" };
   const operationId = uuidv7(); state.nodes.push(node);
-  await sync.enqueue(createQueuedCommand({ operationId,
+  await sync.enqueue(queued({ operationId,
     endpoint: `/logistics/mobile/shipments/${state.shipmentId}/nodes`,
     aggregateVersion: state.shipmentVersion,
     body: { nodeId: node.id, containerToken: tokenValue, parentNodeId },
@@ -165,22 +192,25 @@ async function addContent(event) {
   event.preventDefault();
   const productInput = $("productSearch").value.trim();
   const product = products.find((item) => item.code === productInput || item.id === productInput);
-  if (!product) throw new Error("Selecciona un producto del documento");
+  const values = { nodeId: $("contentNode").value, quantity: decimal($("quantity").value),
+    netWeight: decimal($("netWeight").value), lotNumber: $("lotNumber").value.trim() || null,
+    expirationDate: $("expirationDate").value || null };
+  validateAssignment(product, values);
   const assignmentId = uuidv7();
   const photoIds = await savePhotos($("photoInput").files, assignmentId);
-  const content = { id: assignmentId, nodeId: $("contentNode").value, productId: product.id,
-    productName: product.name, sourceLineId: product.sourceLineId, quantity: decimal($("quantity").value),
-    netWeight: decimal($("netWeight").value), unitCost: decimal($("unitCost").value),
-    lotNumber: $("lotNumber").value.trim() || null, expirationDate: $("expirationDate").value || null,
+  const content = { id: assignmentId, nodeId: values.nodeId, productId: product.id,
+    productName: product.name, sourceLineId: product.sourceLineId, quantity: values.quantity,
+    netWeight: values.netWeight, unitCost: decimal($("unitCost").value),
+    lotNumber: values.lotNumber, expirationDate: values.expirationDate,
     temperature: $("temperature").value ? decimal($("temperature").value) : null, photoIds,
     status: "SYNC_PENDING" };
   const operationId = uuidv7(); state.contents.push(content);
-  await sync.enqueue(createQueuedCommand({ operationId,
+  await sync.enqueue(queued({ operationId,
     endpoint: `/logistics/mobile/shipments/${state.shipmentId}/contents`,
     aggregateVersion: state.shipmentVersion, body: content,
   }));
   for (const photoId of photoIds) {
-    await sync.enqueue({ ...createQueuedCommand({ operationId: uuidv7(),
+    await sync.enqueue({ ...queued({ operationId: uuidv7(),
       endpoint: `/logistics/mobile/shipments/${state.shipmentId}/photos`,
       aggregateVersion: state.shipmentVersion, body: { assignmentId },
     }), photoId });
@@ -198,14 +228,14 @@ function renderContents() {
   });
 }
 
-function bottomUpNodes() { return [...state.nodes].sort((a, b) => depth(b) - depth(a)); }
-function depth(node) { let result = 0; let cursor = node; while (cursor?.parentNodeId) { result += 1; cursor = state.nodes.find((item) => item.id === cursor.parentNodeId); } return result; }
+function bottomUpNodes() { return bottomUp(state.nodes); }
+function depth(node) { return nodeDepth(node, state.nodes); }
 
 async function sealNode(node) {
   if (state.nodes.some((child) => child.parentNodeId === node.id && !state.sealedNodeIds.includes(child.id))) throw new Error("Sella primero los contenedores hijos");
   const sealCode = prompt(`Código de sello para ${node.code}`); if (!sealCode) return;
   const operationId = uuidv7(); state.sealedNodeIds.push(node.id); node.status = "SEAL_PENDING";
-  await sync.enqueue(createQueuedCommand({ operationId,
+  await sync.enqueue(queued({ operationId,
     endpoint: `/logistics/mobile/shipments/${state.shipmentId}/nodes/${node.id}/seal`,
     aggregateVersion: state.shipmentVersion, body: { sealCode, sealType: "MOBILE_CAPTURE" },
   }));
@@ -223,20 +253,42 @@ async function renderReview() {
     const button = document.createElement("button"); button.className = sealed ? "ghost" : "secondary"; button.textContent = sealed ? "Sellado" : "Sellar"; button.disabled = sealed;
     button.addEventListener("click", () => sealNode(node).catch((error) => toast(error.message))); row.append(button); list.append(row);
   });
-  const pending = await sync.pendingCount();
-  $("dispatchButton").disabled = !$("dispatchConfirm").checked || !state.nodes.length || state.sealedNodeIds.length !== state.nodes.length || pending > 0 || !navigator.onLine;
+  const pending = await sync.pendingCount(state.shipmentId);
+  const conflicts = await sync.conflicts(state.shipmentId);
+  $("dispatchButton").disabled = !$("dispatchConfirm").checked || !canDispatch({
+    nodes: state.nodes, sealedNodeIds: state.sealedNodeIds, pending,
+    conflicts: conflicts.length, online: navigator.onLine });
 }
 
 async function dispatchShipment() {
-  const pending = await sync.pendingCount();
+  const pending = await sync.pendingCount(state.shipmentId);
   if (pending) throw new Error("Sincroniza todas las operaciones antes de despachar");
   const serverShipment = await api.shipment(state.shipmentId);
   state.shipmentVersion = serverShipment.version;
   const operationId = uuidv7();
+  const command = queued({ operationId, endpoint: `/logistics/mobile/shipments/${state.shipmentId}/dispatch`,
+    aggregateVersion: state.shipmentVersion, body: {} });
   const result = await api.request(`/logistics/mobile/shipments/${state.shipmentId}/dispatch`, {
-    method: "POST", body: {}, operationId, aggregateVersion: state.shipmentVersion,
+    method: "POST", body: command.body, operationId, aggregateVersion: state.shipmentVersion,
   });
   state.shipmentVersion = result.version; toast("Embarque despachado correctamente");
+}
+
+function renderSyncIssues(conflicts) {
+  const host = $("syncIssues"); if (!host) return; host.replaceChildren();
+  conflicts.forEach((command) => {
+    const row = document.createElement("div"); row.className = "sync-issue";
+    row.innerHTML = `<div><strong>Conflicto de sincronización</strong><small>${command.lastError || "Versión desactualizada"}</small></div>`;
+    const button = document.createElement("button"); button.className = "secondary";
+    button.textContent = "Revisar y reintentar";
+    button.addEventListener("click", async () => {
+      const server = await api.shipment(state.shipmentId);
+      state.shipmentVersion = server.version;
+      await sync.retryConflict(command.operationId, server.version);
+    });
+    row.append(button); host.append(row);
+  });
+  host.hidden = conflicts.length === 0;
 }
 
 async function startScanner() {
@@ -271,6 +323,11 @@ $("nextStep").addEventListener("click", () => { if (!state.selectedDocument) ret
 document.querySelectorAll(".stepper button").forEach((button) => button.addEventListener("click", () => showStep(button.dataset.step)));
 $("dispatchConfirm").addEventListener("change", renderReview); $("dispatchButton").addEventListener("click", () => dispatchShipment().catch((error) => toast(error.message)));
 window.addEventListener("online", () => { updateNetwork(); sync.flush(); }); window.addEventListener("offline", updateNetwork); sync.addEventListener("change", updateNetwork);
+window.addEventListener("mobile-session-expired", () => {
+  sessionStorage.removeItem("spj-mobile-token");
+  message("La sesión expiró. Inicia sesión nuevamente; el borrador offline se conserva.", "warning");
+  $("workspaceView").hidden = true; $("loginView").hidden = false;
+});
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");
 $("deviceId").value = localStorage.getItem("spj-device-id") || uuidv7(); localStorage.setItem("spj-device-id", $("deviceId").value);

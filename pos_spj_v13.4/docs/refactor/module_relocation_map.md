@@ -4,6 +4,17 @@ Mapa obligatorio de reubicación estructural (SPJ_UI_UX_ARCHITECTURE_SKILL.md §
 
 Estados permitidos: `NOT_STARTED | IN_PROGRESS | WRAPPED | MIGRATED | LEGACY_REMOVED | BLOCKED`
 
+Estado LOSS-0 (2026-08-01): Mermas/Losses está `IN_PROGRESS`. La UI activa sigue en
+`modulos/merma.py`; el objetivo es `frontend/desktop/modules/losses/`,
+`backend/domain/losses/`, `backend/application/losses/` y repositorios Losses.
+Actualmente conviven `mermas` e `inventory_waste_event`; LOSS-1 debe comenzar por
+seguridad y la consolidación funcional posterior debe impedir doble escritura.
+
+Estado LOSS-4 (2026-08-03): existe `frontend/desktop/modules/losses/`, la navegación
+global usa únicamente `MERMAS` y el sidebar interno es canónico. Estado `IN_PROGRESS`:
+Desde LOSS-5, Registro usa `LossRegistrationPage`; el bridge temporal hacia
+`modulos/merma.py` fue eliminado.
+
 | Módulo | Legacy actual | Frontend nuevo | Backend nuevo | Estado | Wrapper legacy | Pendiente |
 | ------ | ------------- | -------------- | ------------- | ------ | -------------- | --------- |
 | finanzas | `modulos/finanzas_unificadas.py`, `modulos/finanzas.py`, `modulos/tesoreria.py`, `core/services/finance/*`, `core/services/enterprise/finance_service.py`, `application/services/accounts_receivable_service.py`, `backend/infrastructure/db/repositories/finance_read_repository.py` | `frontend/desktop/modules/finance/` | `backend/domain/finance/`, `backend/application/{commands,dto,queries,use_cases/finance,event_handlers/finance}`, `backend/infrastructure/db/{schema/finance_schema.py,repositories/finance/}` | MIGRATED | Sí (wrappers delgados: finanzas.py, tesoreria.py, proveedores.py) | Plomería operativa remanente documentada en §6 del plan (migra con Caja/Compras/Producción/Clientes) |

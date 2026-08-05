@@ -1,0 +1,4 @@
+PURCHASES_REQUISITION_CREATE=True
+procurement.requisition.create=False
+PURCHASES_ORDER_CREATE=True
+procurement.purchase_order.create=False

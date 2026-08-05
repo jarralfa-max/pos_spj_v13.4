@@ -27,6 +27,9 @@ from backend.application.procurement.use_cases.supplier_invoice_use_cases import
     MatchSupplierInvoiceUseCase,
     ReleaseInvoiceVarianceUseCase,
 )
+from backend.application.procurement.queries.enterprise_read_services import (
+    InvoiceReadService, ReceiptReadService,
+)
 from backend.domain.procurement.enums import PurchaseOrderStatus, RequisitionStatus
 from backend.domain.procurement.value_objects import Tolerance
 from backend.infrastructure.db.repositories.procurement.unit_of_work import (
@@ -37,6 +40,65 @@ from backend.infrastructure.db.repositories.procurement.unit_of_work import (
 def _pending(conn):
     with ProcurementUnitOfWork(conn) as uow:
         return {r["event_name"] for r in uow.outbox.list_pending(100)}
+
+
+def test_e2e_requisition_to_single_finance_handoff(proc_conn):
+    """One executable acceptance path across every Procurement document boundary."""
+    requisition = CreatePurchaseRequisitionUseCase().execute(
+        proc_conn, actor_user_id="requester", operation_id="e2e-pr-create",
+        branch_id="br-1", purchase_type="INVENTORY",
+        lines=[{"product_id": "p-e2e", "quantity": "3"}],
+    )
+    assert requisition.success
+    assert SubmitPurchaseRequisitionUseCase().execute(
+        proc_conn, actor_user_id="requester", requisition_id=requisition.entity_id,
+        operation_id="e2e-pr-submit").success
+    assert ApprovePurchaseRequisitionUseCase().execute(
+        proc_conn, approver_user_id="approver", requisition_id=requisition.entity_id,
+        operation_id="e2e-pr-approve").success
+
+    order = CreatePurchaseOrderUseCase().execute(
+        proc_conn, actor_user_id="buyer", operation_id="e2e-po-create",
+        supplier_id="sup-e2e", branch_id="br-1", warehouse_id="wh-1",
+        requisition_id=requisition.entity_id,
+        lines=[{"product_id": "p-e2e", "description": "Producto E2E",
+                "quantity": "3", "unit_price": "25"}],
+    )
+    assert order.success
+    assert ApprovePurchaseOrderUseCase().execute(
+        proc_conn, approver_user_id="approver", purchase_order_id=order.entity_id,
+        operation_id="e2e-po-approve").success
+    assert SendPurchaseOrderUseCase().execute(
+        proc_conn, actor_user_id="buyer", purchase_order_id=order.entity_id,
+        operation_id="e2e-po-send").success
+    assert ReceivePurchaseOrderUseCase().execute(
+        proc_conn, actor_user_id="receiver", purchase_order_id=order.entity_id,
+        operation_id="e2e-receipt",
+        receipt_lines=[{"product_id": "p-e2e", "received_quantity": "3",
+                        "accepted_quantity": "3"}]).success
+
+    order_line_id = proc_conn.execute(
+        "SELECT id FROM purchase_order_lines WHERE purchase_order_id=?",
+        (order.entity_id,)).fetchone()[0]
+    invoice = CaptureSupplierInvoiceUseCase().execute(
+        proc_conn, actor_user_id="payables", operation_id="e2e-invoice",
+        supplier_id="sup-e2e", invoice_number="E2E-001", total="75",
+        purchase_order_id=order.entity_id,
+        lines=[{"product_id": "p-e2e", "invoiced_quantity": "3",
+                "unit_price": "25", "purchase_order_line_id": order_line_id}],
+    )
+    assert invoice.success
+    match = MatchSupplierInvoiceUseCase().execute(
+        proc_conn, actor_user_id="payables", operation_id="e2e-match",
+        invoice_id=invoice.entity_id)
+    assert match.success and match.data["match_result"] == "MATCHED"
+
+    assert proc_conn.execute(
+        "SELECT COUNT(*) FROM procurement_outbox "
+        "WHERE event_name='ACCOUNT_PAYABLE_CREATE_REQUESTED' "
+        "AND deduplication_key=?",
+        (f"SUPPLIER_INVOICE:{invoice.entity_id}",),
+    ).fetchone()[0] == 1
 
 
 # ── requisition ──────────────────────────────────────────────────────────────
@@ -203,6 +265,42 @@ def test_invoice_capture_match_creates_payable(proc_conn):
         proc_conn, actor_user_id="cxp", operation_id="m-1", invoice_id=inv.entity_id)
     assert matched.data["match_result"] == "MATCHED"
     assert "ACCOUNT_PAYABLE_CREATE_REQUESTED" in _pending(proc_conn)
+<<<<<<< HEAD
+    repeated = MatchSupplierInvoiceUseCase().execute(
+        proc_conn, actor_user_id="cxp", operation_id="m-2", invoice_id=inv.entity_id)
+    assert repeated.success
+    assert proc_conn.execute(
+        "SELECT COUNT(*) FROM procurement_outbox WHERE event_name='ACCOUNT_PAYABLE_CREATE_REQUESTED'"
+        " AND deduplication_key=?", (f"SUPPLIER_INVOICE:{inv.entity_id}",)).fetchone()[0] == 1
+    receipt_scope = proc_conn.execute(
+        "SELECT branch_id,warehouse_id FROM goods_receipts WHERE purchase_order_id=?",
+        (po_id,)).fetchone()
+    receipt_rows = ReceiptReadService(proc_conn).list(
+        branch_id=receipt_scope[0], warehouse_id=receipt_scope[1])
+    assert receipt_rows[0]["accepted"] == 10 and receipt_rows[0]["rejected"] == 0
+    invoice_detail = InvoiceReadService(proc_conn).detail(inv.entity_id)
+    assert invoice_detail["lines"][0]["invoiced_quantity"] == "10"
+    assert invoice_detail["comparison"][0]["accepted_quantity"] == 10
+
+
+def test_invoice_without_completed_receipt_is_blocked(proc_conn):
+    po = _make_order(proc_conn, op="oc-no-receipt")
+    line_id = proc_conn.execute(
+        "SELECT id FROM purchase_order_lines WHERE purchase_order_id=?", (po.entity_id,)).fetchone()[0]
+    inv = CaptureSupplierInvoiceUseCase().execute(
+        proc_conn, actor_user_id="cxp", operation_id="inv-no-receipt",
+        supplier_id="sup-1", invoice_number="NO-R-1", total="1000",
+        purchase_order_id=po.entity_id,
+        lines=[{"product_id": "p1", "invoiced_quantity": "10", "unit_price": "100",
+                "purchase_order_line_id": line_id}])
+    matched = MatchSupplierInvoiceUseCase().execute(
+        proc_conn, actor_user_id="cxp", operation_id="match-no-receipt", invoice_id=inv.entity_id)
+    assert matched.data["match_result"] == "MISSING_RECEIPT"
+    assert proc_conn.execute(
+        "SELECT COUNT(*) FROM procurement_outbox WHERE event_name='ACCOUNT_PAYABLE_CREATE_REQUESTED'"
+        " AND deduplication_key=?", (f"SUPPLIER_INVOICE:{inv.entity_id}",)).fetchone()[0] == 0
+=======
+>>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
 
 def test_duplicate_invoice_blocked(proc_conn):

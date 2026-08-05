@@ -70,12 +70,6 @@ except Exception as e:
     ModuloCotizaciones = None
     logger.error("Error cargando ModuloCotizaciones: %s", e)
 
-try:
-    from modulos.merma import ModuloMerma
-except Exception as e:
-    ModuloMerma = None
-    logger.error("Error cargando ModuloMerma: %s", e)
-
 # ELIMINADO: Módulo Proveedores independiente — ahora integrado en FINANZAS_UNIFICADAS
 # La gestión de proveedores se accede desde la pestaña "Proveedores" dentro de Finanzas Unificadas
 ModuloProveedores = None
@@ -187,6 +181,12 @@ try:
 except Exception as e:
     TransfersModuleHost = None
     logger.error("Error cargando TransfersModuleHost: %s", e)
+
+try:
+    from backend.infrastructure.desktop.losses_factory import LossesModuleHost
+except Exception as e:
+    LossesModuleHost = None
+    logger.error("Error cargando LossesModuleHost: %s", e)
 
 # BI/Analytics UNIFICADO: único módulo visible = INTELIGENCIA_BI
 
@@ -642,7 +642,7 @@ class MainWindow(QMainWindow):
         self._conectar("TRANSFERENCIAS", TransfersModuleHost, "Transferencias")
         self._conectar("PRODUCTOS",      ModuloProductos,      "🏷️ Productos")
         self._conectar("CLIENTES",       ModuloClientes,       "👥 Clientes")
-        self._conectar("MERMA",          ModuloMerma,          "🗑️ Merma")
+        self._conectar("MERMAS",         LossesModuleHost,     "Mermas")
 
         # ── Comercial ────────────────────────────────────────────────────────
         self._conectar("DELIVERY",       ModuloDelivery,       "🛵 Delivery")

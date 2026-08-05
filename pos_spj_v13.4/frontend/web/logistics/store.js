@@ -1,5 +1,5 @@
 const DB_NAME = "spj-logistics-pwa";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 function openDatabase() {
   return new Promise((resolve, reject) => {
@@ -14,6 +14,7 @@ function openDatabase() {
       }
       if (!db.objectStoreNames.contains("photos")) db.createObjectStore("photos", { keyPath: "id" });
       if (!db.objectStoreNames.contains("containers")) db.createObjectStore("containers", { keyPath: "token" });
+      if (!db.objectStoreNames.contains("aggregates")) db.createObjectStore("aggregates", { keyPath: "id" });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -42,12 +43,19 @@ export const localStore = {
   getPhoto: (id) => transact("photos", "readonly", (store) => store.get(id)),
   putContainer: (item) => transact("containers", "readwrite", (store) => store.put(item)),
   getContainer: (token) => transact("containers", "readonly", (store) => store.get(token)),
+  putAggregate: (item) => transact("aggregates", "readwrite", (store) => store.put(item)),
+  getAggregate: (id) => transact("aggregates", "readonly", (store) => store.get(id)),
 };
 
-export function createQueuedCommand({ operationId, endpoint, method = "POST", body, aggregateVersion }) {
-  if (!operationId || aggregateVersion === undefined) throw new Error("Comando offline sin identidad o versión");
+export function createQueuedCommand({ operationId, endpoint, method = "POST", body,
+  aggregateVersion, identity }) {
+  if (!operationId || aggregateVersion === undefined || !identity?.userId || !identity?.deviceId)
+    throw new Error("Comando offline sin identidad, dispositivo o versión");
+  const createdAt = new Date().toISOString();
   return {
-    operationId, endpoint, method, body, aggregateVersion,
-    status: "PENDING", attempts: 0, createdAt: new Date().toISOString(), lastError: null,
+    operationId, endpoint, method,
+    body: { ...body, clientOperationId: operationId, deviceId: identity.deviceId,
+      userId: identity.userId, createdAt, payloadVersion: 1 }, aggregateVersion,
+    status: "PENDING", attempts: 0, createdAt, lastError: null,
   };
 }

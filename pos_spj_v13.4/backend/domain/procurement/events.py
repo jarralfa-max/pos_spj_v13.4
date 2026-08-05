@@ -78,7 +78,9 @@ def build_event_payload(event_name: str, *, operation_id: str, document_id: str,
                         source_channel: str | None = None, supplier_id: str | None = None,
                         branch_id: str | None = None, user_id: str | None = None,
                         authorized_by: str | None = None, terminal_id: str | None = None,
-                        source_module: str = "procurement", **extra) -> dict:
+                        source_module: str = "procurement", schema_version: int = 1,
+                        correlation_id: str | None = None,
+                        causation_id: str | None = None, **extra) -> dict:
     payload = {
         "event_id": new_uuid(),
         "event_name": event_name,
@@ -93,6 +95,9 @@ def build_event_payload(event_name: str, *, operation_id: str, document_id: str,
         "terminal_id": terminal_id,
         "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "source_module": source_module,
+        "schema_version": schema_version,
+        "correlation_id": correlation_id or operation_id,
+        "causation_id": causation_id,
     }
     payload.update(extra)
     return payload

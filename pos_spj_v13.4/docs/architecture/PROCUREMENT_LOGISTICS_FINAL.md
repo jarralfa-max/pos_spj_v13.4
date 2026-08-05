@@ -1,5 +1,9 @@
 # Procurement and Logistics — cierre técnico
 
+> El informe verificable de Fase 8, la matriz por rol, el E2E, el contrato visual,
+> la evidencia local y los criterios de salida están en
+> [`PROCUREMENT_PHASE8_CLOSURE.md`](PROCUREMENT_PHASE8_CLOSURE.md).
+
 ## Resumen ejecutivo
 
 Procurement y Logistics tienen rutas canónicas únicas. Procurement administra el
@@ -71,10 +75,10 @@ Contenedor maestro
 
 | Área | Permisos |
 |---|---|
-| PR/RFQ | `procurement.requisition.*`, `procurement.rfq.create`, `procurement.quote.capture` |
-| OC/directa | `procurement.purchase_order.*`, `procurement.direct_purchase.*` |
-| Factura/costos | `procurement.invoice.*`, `procurement.cost.view`, `procurement.cost.edit` |
-| Embarques | `logistics.shipment.create`, `logistics.shipment.dispatch`, `logistics.shipment.receive` |
+| PR/RFQ | `PURCHASES_REQUISITION_*`, `PURCHASES_RFQ_CREATE`, `PURCHASES_QUOTE_*` |
+| OC/directa | `PURCHASES_ORDER_*`, `PURCHASES_DIRECT_*` |
+| Factura/costos | `PURCHASES_INVOICE_*`, `PURCHASES_VIEW_COSTS` |
+| Embarques | `logistics.shipment.view`, `logistics.shipment.create`, `logistics.shipment.dispatch`, `logistics.shipment.override` |
 | Contenedores | `logistics.container.scan`, `attach`, `move`, `seal`, `release`, `manage` |
 
 ## Estados y eventos

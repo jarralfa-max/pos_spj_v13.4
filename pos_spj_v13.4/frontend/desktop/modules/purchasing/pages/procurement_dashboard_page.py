@@ -7,7 +7,8 @@ QtWebEngine is unavailable (headless / accessibility).
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ChartCard,
@@ -15,14 +16,17 @@ from frontend.desktop.components import (
     HtmlChartView,
     KPIBar,
     KPIDTO,
-    PageHeader,
+    create_primary_button,
+    create_secondary_button,
 )
-from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.purchasing.enterprise_view_models import money
+from frontend.desktop.modules.purchasing.navigation import PurchasingRoutes
 from frontend.desktop.themes.tokens import Spacing
 
 
 class ProcurementDashboardPage(QWidget):
+    route_requested = pyqtSignal(str, str)
+
     def __init__(self, presenter, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("procurementDashboardPage")
@@ -34,11 +38,12 @@ class ProcurementDashboardPage(QWidget):
         layout.setContentsMargins(Spacing.LG, Spacing.MD, Spacing.LG, Spacing.MD)
         layout.setSpacing(Spacing.MD)
 
-        self.header = PageHeader(
-            title="Analítica de Compras",
-            subtitle="Solicitudes, órdenes, recepción y facturación en un vistazo.",
-            icon=Icons.PURCHASES, compact=True)
-        layout.addWidget(self.header)
+        intro = QLabel("Resumen operativo y siguientes acciones", self)
+        intro.setObjectName("procurementDashboardIntro")
+        intro.setProperty("role", "sectionTitle")
+        layout.addWidget(intro)
+        layout.addWidget(self._build_quick_actions())
+        layout.addWidget(self._build_process_flow())
         self._status = QLabel("", self)
         self._status.setObjectName("procurementDashboardStatus")
         self._status.setProperty("state", "ERROR")
@@ -61,6 +66,68 @@ class ProcurementDashboardPage(QWidget):
         self._grid.add_full_width(self._cards[2])
         self._grid.add_stretch()
         layout.addWidget(self._grid, stretch=1)
+
+    def _request_route(self, route: str, action: str = "") -> None:
+        self.route_requested.emit(route, action)
+
+    def _build_quick_actions(self) -> QWidget:
+        frame = QFrame(self)
+        frame.setObjectName("procurementQuickActions")
+        row = QHBoxLayout(frame)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(Spacing.SM)
+        capabilities = self._presenter.capabilities()
+        actions = (
+            ("Nueva solicitud", PurchasingRoutes.REQUISITIONS, "create",
+             capabilities.requisition_create),
+            ("Nueva orden de compra", PurchasingRoutes.ORDERS, "create",
+             capabilities.order_create),
+            ("Nueva compra directa", PurchasingRoutes.DIRECT_PURCHASE_CREATE, "create",
+             capabilities.direct_create),
+            ("Capturar factura", PurchasingRoutes.INVOICES, "create",
+             capabilities.invoice_capture),
+        )
+        first = True
+        for label, route, action, visible in actions:
+            if not visible:
+                continue
+            factory = create_primary_button if first else create_secondary_button
+            button = factory(self, label)
+            button.clicked.connect(
+                lambda _checked=False, r=route, a=action: self._request_route(r, a))
+            row.addWidget(button)
+            first = False
+        row.addStretch(1)
+        frame.setVisible(not first)
+        return frame
+
+    def _build_process_flow(self) -> QWidget:
+        frame = QFrame(self)
+        frame.setObjectName("procurementProcessFlow")
+        row = QHBoxLayout(frame)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(Spacing.SM)
+        capabilities = self._presenter.capabilities()
+        stages = (
+            ("PR", PurchasingRoutes.REQUISITIONS, capabilities.requisition_view),
+            ("PO", PurchasingRoutes.ORDERS, capabilities.order_view),
+            ("Carga en origen", PurchasingRoutes.ORIGIN_LOADING, capabilities.origin_view),
+            ("Recepción", PurchasingRoutes.RECEIPTS, capabilities.receipt_view),
+            ("Factura", PurchasingRoutes.INVOICES, capabilities.invoice_view),
+        )
+        visible_stages = [(label, route) for label, route, visible in stages if visible]
+        for index, (label, route) in enumerate(visible_stages):
+            if index:
+                arrow = QLabel("→", frame)
+                arrow.setProperty("role", "muted")
+                row.addWidget(arrow)
+            button = create_secondary_button(self, label)
+            button.clicked.connect(
+                lambda _checked=False, r=route: self._request_route(r))
+            row.addWidget(button)
+        row.addStretch(1)
+        frame.setVisible(bool(visible_stages))
+        return frame
 
     def ensure_loaded(self) -> None:
         if not self._loaded:

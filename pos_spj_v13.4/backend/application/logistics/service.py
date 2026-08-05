@@ -186,6 +186,23 @@ class LogisticsApplicationService:
                                    {"shipment_id": shipment.id})
         return shipment
 
+    def authorize_loading_variance(self, *, actor_user_id: str, shipment_id: str,
+                                   source_line_id: str, reason: str,
+                                   operation_id: str) -> None:
+        self._auth.require(actor_user_id, LogisticsPermissions.SHIPMENT_OVERRIDE)
+        if not reason.strip():
+            raise ValueError("La autorización requiere motivo")
+        self._required_shipment(shipment_id)
+        with self._connection:
+            self._connection.execute(
+                "INSERT INTO logistics_loading_authorizations"
+                " (id,shipment_id,source_line_id,authorized_by_user_id,reason,operation_id,created_at)"
+                " VALUES (?,?,?,?,?,?,?) ON CONFLICT(shipment_id,source_line_id) DO NOTHING",
+                (new_uuid(), shipment_id, source_line_id, actor_user_id, reason.strip(),
+                 operation_id, utcnow()))
+            self._audit(actor_user_id, operation_id, "LoadingVariance", source_line_id,
+                        "AUTHORIZED", reason.strip())
+
     def break_seal(self, *, actor_user_id: str, shipment_id: str, seal_id: str,
                    operation_id: str, reason: str) -> None:
         self._auth.require(actor_user_id, LogisticsPermissions.CONTAINER_SEAL)

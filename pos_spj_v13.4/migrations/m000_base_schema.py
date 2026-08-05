@@ -85,7 +85,8 @@ def up(conn: sqlite3.Connection) -> None:
     _safe(conn, _create_productos,         "productos")
     _safe(conn, _create_inventario,        "inventario")
     _safe(conn, _create_ventas,            "ventas")
-    _safe(conn, _create_caja,              "caja")
+    # CASH-3: clean installations use only the canonical cash_register schema.
+    # The inert legacy definition is removed with its runtime consumers in CASH-25.
     _safe(conn, _create_compras,           "compras")
     _safe(conn, _create_pedidos_whatsapp,  "pedidos_whatsapp")
     _safe(conn, _create_delivery,          "delivery")
@@ -99,6 +100,9 @@ def up(conn: sqlite3.Connection) -> None:
     _safe(conn, _create_recetas_produccion,"recetas_produccion")
     _safe(conn, _create_batch_fifo,        "batch_fifo")
     _safe(conn, _create_mermas_ajustes,    "mermas_ajustes")
+    _safe(conn, _create_losses_bounded_context, "losses_bounded_context")
+    _safe(conn, _create_cash_register_bounded_context, "cash_register_bounded_context")
+    _safe(conn, _create_cash_register_configuration, "cash_register_configuration")
     _safe(conn, _create_sync,              "sync")
     _safe(conn, _create_forecast,          "forecast")
     _safe(conn, _create_reportes,          "reportes")
@@ -2152,6 +2156,30 @@ def _create_batch_fifo(conn):
 
 def _create_mermas_ajustes(conn):
     pass  # ya creadas en _create_inventario
+
+
+def _create_losses_bounded_context(conn):
+    """Born-clean Losses schema; one DDL source, also versioned as migration 174."""
+    import importlib
+
+    module = importlib.import_module(
+        "migrations.standalone.174_losses_bounded_context_schema")
+    module.run(conn)
+
+
+def _create_cash_register_bounded_context(conn):
+    """Born-clean Cash Register schema; never reads or rescues legacy cash tables."""
+    import importlib
+
+    module = importlib.import_module(
+        "migrations.standalone.175_cash_register_bounded_context_schema")
+    module.run(conn)
+
+
+def _create_cash_register_configuration(conn):
+    import importlib
+    importlib.import_module(
+        "migrations.standalone.176_cash_register_configuration_schema").run(conn)
 
 
 def _create_sync(conn):
