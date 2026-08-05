@@ -1020,7 +1020,7 @@ Bridges/handlers en `backend/application/event_handlers/inventory/`:
 | `sale_items` (legacy `SaleInventoryHandler`) | engine legacy | `CanonicalSaleInventoryHandler` (`sale_items_bridge`) | ✅ canónico | ya reemplazado (INV-27) |
 | `production` (legacy) | engine legacy | `CanonicalProductionInventoryHandler` (`production_items_bridge`) | ✅ canónico | ya reemplazado (INV-27) |
 | `purchase_recipe_explosion_handler` | `movimientos_inventario` 'salida' | `CanonicalPurchaseRecipeExplosionHandler` (`purchase_recipe_explosion_bridge`) | ✅ canónico | **retirado (Slice 1)** |
-| `purchase_lot_entry_handler` | `lotes` / `movimientos_lote` | `CanonicalPurchaseStockEntryHandler` (hereda `PurchaseReceiptHandler._ensure_lot`) → `inventory_lots` | ✅ canónico (creación de lote viva, Slice 2) | listo para retirar (Slice 3) |
+| `purchase_lot_entry_handler` | `lotes` / `movimientos_lote` | `CanonicalPurchaseStockEntryHandler` (hereda `PurchaseReceiptHandler._ensure_lot`) → `inventory_lots` | ✅ canónico (creación de lote viva, Slice 2) | **retirado (Slice 3)** |
 
 ### Slice 1 — Retiro de `PurchaseRecipeExplosionHandler` legacy — HECHO
 
@@ -1060,11 +1060,31 @@ Habilitador para retirar `purchase_lot_entry_handler`: el evento vivo
   inventario `2 failed / 569 passed` (2 pre-existentes, cero regresiones);
   arquitectura `22 failed / 430 passed` desde la raíz del repo (sin fallas nuevas).
 
+### Slice 3 — Retiro de `purchase_lot_entry_handler` legacy — HECHO
+
+- **Eliminado**: `purchase_lot_entry_handler.py` + `test_purchase_lot_entry_handler.py`.
+- **`test_pipeline_end_to_end`** desacoplado de la tabla legacy `lotes`: ahora afirma
+  el lote **canónico** (`inventory_lots`, `origin_type='PURCHASE'`) creado por la
+  tubería viva completa (direct-purchase → outbox → dispatch →
+  `CanonicalPurchaseStockEntryHandler`).
+- **Defecto pre-existente corregido**: el evento vivo `PURCHASE_STOCK_ENTRY_REGISTERED`
+  no propagaba el actor, así que el `resolve_ingress` fail-closed (P1-A) **descartaba
+  silenciosamente** toda recepción de compra canónica (stock comprado nunca aterrizaba).
+  `on_receipt_completed` ahora incluye `user_id` (del `actor_user_id` del evento
+  fuente). Esto revive las 2 pruebas e2e de la tubería (antes en rojo) y valida la
+  creación de lote de Slice 2 extremo a extremo.
+- **Guardrail** `test_inventory_legacy_lot_writes_retired.py`: el handler legacy no
+  existe, nada lo importa, y ningún handler de inventario escribe `lotes`/
+  `movimientos_lote`/`movimientos_inventario`.
+- **Evidencia**: guardrail (3) + `test_pipeline_end_to_end` (2, ahora verdes) +
+  `test_purchase_stock_entry_flip` (8) = 13 passed; inventario `2 failed / 564 passed`
+  (2 pre-existentes, cero regresiones); arquitectura `22 failed / 433 passed` desde la
+  raíz del repo (+3 del guardrail, sin fallas nuevas). Las 6 fallas UI de procurement
+  (`test_direct_purchase_ui`/`test_enterprise_ui`) son pre-existentes e idénticas
+  con/sin este cambio.
+
 ### Pendiente P2
 
-- **Slice 3 — retirar `purchase_lot_entry_handler`**: ya cubierto por la creación de
-  lote canónica viva (Slice 2); eliminar el handler legacy, sus tests y desacoplar
-  `test_pipeline_end_to_end` de la tabla `lotes`; añadir guardrail.
 - **DROP diferido** de tablas legacy de inventario (`lotes`, `movimientos_lote`,
-  `movimientos_inventario`) en `migrations/deferred/`, una vez que ningún handler las
-  escriba/lea.
+  `movimientos_inventario`) en `migrations/deferred/`, una vez confirmado que ningún
+  lector/otro contexto (cárnico/FIFO legacy) las use.

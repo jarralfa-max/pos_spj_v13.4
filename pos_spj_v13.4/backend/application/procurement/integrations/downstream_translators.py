@@ -59,6 +59,10 @@ class ProcurementDownstreamTranslators:
             "event_id": _child_event_id(),
             **_event_lineage(payload),
             "operation_id": payload.get("operation_id"),
+            # the receiving actor must travel so the canonical receipt handler's
+            # fail-closed ingress (resolve_ingress) accepts it — otherwise the
+            # PURCHASE_RECEIPT is silently dropped and purchased stock never lands.
+            "user_id": payload.get("actor_user_id") or payload.get("user_id"),
             "source_module": "procurement",
             "reason": "PURCHASE_RECEIPT",
             "document_id": payload.get("document_id"),
