@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import logging
 
-from backend.application.logistics.authorization import LogisticsPermissions
-from backend.application.procurement.permissions import PurchasePermissions
 from backend.shared.ids import new_uuid
+from frontend.desktop.modules.purchasing.capability_resolver import (
+    resolve_purchasing_capabilities,
+)
 from frontend.desktop.modules.purchasing.enterprise_view_models import (
     PurchasingCapabilities,
     TableViewModel,
@@ -103,40 +104,7 @@ class EnterprisePurchasingPresenter:
         return bool(callable(checker) and checker(permission))
 
     def capabilities(self) -> PurchasingCapabilities:
-        P = PurchasePermissions
-        L = LogisticsPermissions
-        return PurchasingCapabilities(
-            module_view=self.can(P.VIEW),
-            requisition_view=self.can(P.REQUISITION_VIEW),
-            requisition_create=self.can(P.REQUISITION_CREATE),
-            requisition_submit=self.can(P.REQUISITION_SUBMIT),
-            requisition_approve=self.can(P.REQUISITION_APPROVE),
-            requisition_reject=self.can(P.REQUISITION_REJECT),
-            rfq_create=self.can(P.RFQ_CREATE),
-            order_view=self.can(P.ORDER_VIEW),
-            order_create=self.can(P.ORDER_CREATE),
-            order_approve=self.can(P.ORDER_APPROVE),
-            order_send=self.can(P.ORDER_SEND),
-            order_change=self.can(P.ORDER_CHANGE_APPROVED),
-            receipt_view=self.can(P.RECEIPT_VIEW),
-            receipt_complete=self.can(P.RECEIPT_COMPLETE),
-            origin_view=self.can(L.SHIPMENT_VIEW),
-            origin_create=self.can(L.SHIPMENT_CREATE),
-            origin_seal=self.can(L.CONTAINER_SEAL),
-            origin_dispatch=self.can(L.SHIPMENT_DISPATCH),
-            origin_override=self.can(L.SHIPMENT_OVERRIDE),
-            invoice_view=self.can(P.INVOICE_VIEW),
-            invoice_capture=self.can(P.INVOICE_CAPTURE),
-            invoice_match=self.can(P.INVOICE_MATCH),
-            invoice_release_variance=self.can(P.INVOICE_RELEASE_VARIANCE),
-            direct_view=self.can(P.DIRECT_VIEW),
-            direct_create=self.can(P.DIRECT_CREATE),
-            direct_authorize=self.can(P.OVERRIDE_FINANCIAL_LIMIT),
-            direct_confirm=self.can(P.DIRECT_CONFIRM),
-            direct_reverse=self.can(P.DIRECT_REVERSE),
-            view_costs=self.can(P.VIEW_COSTS),
-            view_analytics=self.can(P.VIEW_ANALYTICS),
-        )
+        return resolve_purchasing_capabilities(self.can)
 
     def set_period(self, start_date: str, end_date: str) -> None:
         if start_date > end_date:
@@ -342,3 +310,11 @@ class EnterprisePurchasingPresenter:
 
     def analytics_alerts(self):
         return self._analytics.alerts()
+
+    def navigation_badges(self, kpis) -> dict[str, int]:
+        return {
+            "requisitions": kpis.open_requisitions,
+            "orders": kpis.pending_order_approvals,
+            "direct_purchase": kpis.direct_purchases_today,
+            "invoices": kpis.invoices_with_differences,
+        }

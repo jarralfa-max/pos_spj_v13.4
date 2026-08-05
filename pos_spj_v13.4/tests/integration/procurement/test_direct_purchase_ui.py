@@ -47,6 +47,8 @@ def app():
 def conn():
     c = sqlite3.connect(":memory:")
     create_procurement_schema(c)
+    c.execute("CREATE TABLE proveedores(id TEXT PRIMARY KEY, nombre TEXT, activo INTEGER)")
+    c.execute("INSERT INTO proveedores VALUES ('sup-1','Proveedor Uno',1)")
     yield c
     c.close()
 

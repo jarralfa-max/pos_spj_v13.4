@@ -12,6 +12,9 @@ from decimal import Decimal
 
 from backend.shared.ids import new_uuid
 from frontend.desktop.components.search_selector import SearchOption
+from frontend.desktop.modules.purchasing.capability_resolver import (
+    resolve_purchasing_capabilities,
+)
 from frontend.desktop.modules.purchasing.direct_purchase_view_models import (
     CartLineVM,
     TableViewModel,
@@ -19,6 +22,7 @@ from frontend.desktop.modules.purchasing.direct_purchase_view_models import (
     payment_condition_es,
     status_es,
 )
+from frontend.desktop.modules.purchasing.enterprise_view_models import PurchasingCapabilities
 
 logger = logging.getLogger("spj.purchasing.direct_presenter")
 
@@ -42,13 +46,30 @@ class DirectPurchasePresenter:
     # session helpers ---------------------------------------------------------
     def _actor(self) -> str:
         user_id = getattr(self._session, "user_id", None)
-        return str(user_id) if user_id else "desktop"
+        if not user_id:
+            raise PermissionError("Se requiere una sesión autenticada de Compras")
+        return str(user_id)
 
     def default_branch(self) -> str:
-        return str(getattr(self._session, "branch_id", None) or "MAIN")
+        branch_id = (getattr(self._session, "active_branch_id", None)
+                     or getattr(self._session, "branch_id", None))
+        if not branch_id:
+            raise PermissionError("La sesión no tiene una sucursal activa")
+        return str(branch_id)
 
     def default_warehouse(self) -> str:
-        return str(getattr(self._session, "warehouse_id", None) or self.default_branch())
+        warehouse_id = (getattr(self._session, "active_warehouse_id", None)
+                        or getattr(self._session, "warehouse_id", None))
+        if not warehouse_id:
+            raise PermissionError("La sesión no tiene un almacén activo")
+        return str(warehouse_id)
+
+    def can(self, permission: str) -> bool:
+        checker = getattr(self._session, "tiene_permiso", None)
+        return bool(callable(checker) and checker(permission))
+
+    def capabilities(self) -> PurchasingCapabilities:
+        return resolve_purchasing_capabilities(self.can)
 
     def _run(self, key: str, **kwargs) -> tuple[bool, str, dict]:
         try:
@@ -93,6 +114,15 @@ class DirectPurchasePresenter:
     def detail(self, direct_purchase_id: str):
         return self._reads.get_detail(direct_purchase_id)
 
+    def supplier_name(self, supplier_id: str) -> str:
+        return self._reads.supplier_name(supplier_id)
+
+    def session_destination(self) -> str:
+        try:
+            return f"{self.default_branch()} / {self.default_warehouse()}"
+        except PermissionError:
+            return "Selecciona sucursal y almacén"
+
     # cart totals (Decimal, in the presenter) ---------------------------------
     def totals(self, lines: list[CartLineVM]) -> dict:
         subtotal = sum((ln.line_subtotal() for ln in lines), Decimal("0"))
@@ -105,13 +135,20 @@ class DirectPurchasePresenter:
     # actions -----------------------------------------------------------------
     def create(self, *, supplier_id: str, lines: list[CartLineVM], mode: str,
                payment_condition: str, branch_id: str | None = None,
-               warehouse_id: str | None = None) -> tuple[bool, str, dict]:
+               warehouse_id: str | None = None,
+               source_requisition_id: str | None = None) -> tuple[bool, str, dict]:
+        try:
+            actor_user_id = self._actor()
+            resolved_branch_id = branch_id or self.default_branch()
+            resolved_warehouse_id = warehouse_id or self.default_warehouse()
+        except PermissionError as exc:
+            return False, str(exc), {"error_code": "SESSION_CONTEXT_REQUIRED"}
         return self._run(
-            "create", actor_user_id=self._actor(), supplier_id=supplier_id,
-            branch_id=branch_id or self.default_branch(),
-            warehouse_id=warehouse_id or self.default_warehouse(),
+            "create", actor_user_id=actor_user_id, supplier_id=supplier_id,
+            branch_id=resolved_branch_id, warehouse_id=resolved_warehouse_id,
             lines=[ln.as_payload() for ln in lines], mode=mode,
-            payment_condition=payment_condition)
+            payment_condition=payment_condition,
+            source_requisition_id=source_requisition_id)
 
     def authorize(self, direct_purchase_id: str, reason: str) -> tuple[bool, str, dict]:
         return self._run("authorize", authorizer_user_id=self._actor(),
