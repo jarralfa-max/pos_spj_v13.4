@@ -439,8 +439,37 @@ ALERT_EVENT_ES = {
 }
 
 
+ALERT_SEVERITY_VARIANT = {
+    "INFO": "info", "WARNING": "warning", "CRITICAL": "danger",
+}
+
+# free-text term (es-MX or English, acento/caso indiferente) → severity code
+_SEVERITY_ALIASES = {
+    "info": "INFO", "informativa": "INFO", "informativo": "INFO",
+    "warning": "WARNING", "advertencia": "WARNING", "aviso": "WARNING",
+    "critical": "CRITICAL", "critica": "CRITICAL", "crítica": "CRITICAL",
+    "critico": "CRITICAL", "crítico": "CRITICAL",
+}
+
+
 def alert_severity_es(code) -> str:
     return ALERT_SEVERITY_ES.get(str(code or ""), str(code or "—"))
+
+
+def alert_severity_variant(code) -> str:
+    return ALERT_SEVERITY_VARIANT.get(str(code or ""), "neutral")
+
+
+def severity_filter_code(term) -> str | None:
+    """Normaliza un término libre de búsqueda a un código de severidad
+    (INFO/WARNING/CRITICAL) o None si no corresponde a ninguno (mostrar todas)."""
+    key = str(term or "").strip().lower()
+    if not key:
+        return None
+    if key in ("INFO", "WARNING", "CRITICAL") or key.upper() in (
+            "INFO", "WARNING", "CRITICAL"):
+        return key.upper()
+    return _SEVERITY_ALIASES.get(key)
 
 
 def alert_event_es(code) -> str:

@@ -85,8 +85,11 @@ class _StubPresenter:
     def adjustments(self, *, branch_id=None):
         return TableViewModel(rows=[], row_ids=[], total=0)
 
-    def alerts(self, *, branch_id=None):
+    def alerts(self, *, branch_id=None, severity=None):
         return TableViewModel(rows=[], row_ids=[], total=0)
+
+    def alert_kpis(self, *, branch_id=None):
+        return []
 
     def settings(self):
         return TableViewModel(rows=[], row_ids=[], total=0)

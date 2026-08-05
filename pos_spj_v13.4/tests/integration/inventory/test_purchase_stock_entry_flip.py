@@ -68,3 +68,38 @@ def test_lot_coded_receipt_creates_canonical_lot(conn):
     assert _available(conn) == Decimal("6")
     lot = conn.execute("SELECT lot_code FROM inventory_lots WHERE lot_code='LOTE-A'").fetchone()
     assert lot is not None
+
+
+# ── P2 slice 2: canonical lots for lot-tracked live lines (legacy parity) ──────
+def test_weight_tracked_line_creates_deterministic_canonical_lot(conn):
+    # línea de peso (KG) sin lot_code explícito → lote canónico {document}-P{pid}
+    payload = _payload(qty="7")
+    payload["lines"][0]["inventory_unit"] = "KG"
+    CanonicalPurchaseStockEntryHandler(conn).handle(payload)
+    lot = conn.execute(
+        "SELECT lot_code FROM inventory_lots WHERE product_id='p1'").fetchone()
+    assert lot is not None and lot["lot_code"] == "GR-1-Pp1"
+
+
+def test_explicit_lot_field_maps_to_canonical_lot_code(conn):
+    payload = _payload(qty="3")
+    payload["lines"][0]["lot"] = "L-EXP"
+    CanonicalPurchaseStockEntryHandler(conn).handle(payload)
+    lot = conn.execute(
+        "SELECT lot_code FROM inventory_lots WHERE product_id='p1'").fetchone()
+    assert lot is not None and lot["lot_code"] == "L-EXP"
+
+
+def test_non_tracked_line_creates_no_lot(conn):
+    # sin unidad de peso, sin expiration, sin lot → no se crea lote
+    CanonicalPurchaseStockEntryHandler(conn).handle(_payload(qty="5"))
+    assert conn.execute("SELECT COUNT(*) c FROM inventory_lots").fetchone()["c"] == 0
+
+
+def test_weight_tracked_lot_creation_is_idempotent(conn):
+    payload = _payload(event_id="gr-1", qty="7")
+    payload["lines"][0]["inventory_unit"] = "KG"
+    CanonicalPurchaseStockEntryHandler(conn).handle(payload)
+    CanonicalPurchaseStockEntryHandler(conn).handle(payload)  # replay
+    assert conn.execute("SELECT COUNT(*) c FROM inventory_lots"
+                        " WHERE product_id='p1'").fetchone()["c"] == 1

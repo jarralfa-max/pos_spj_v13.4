@@ -980,3 +980,155 @@ enterprise del Design System (PageHeader + StandardTable, es-MX, sólo lectura v
 query services, fail-closed) montadas en el shell de navegación lateral; se retira
 el último `PlaceholderPage`. Quedan pendientes de fase posterior las acciones de
 escritura desde estas páginas (hoy delegadas a los módulos/flujos dedicados).
+
+### Slice 20 — Filtros DS en feeds: KPIBar + filtro de severidad en "Alertas"
+
+Primer enriquecimiento DS sobre las páginas de lectura de alto volumen (patrón
+reutilizable para Movimientos/Recepciones/Auditoría en slices siguientes). No hay
+componente `FilterBar` en el DS; se usa `SearchInput` (filtro por severidad) +
+`KPIBar` (resumen), ambos canónicos. Sólo lectura.
+
+- **`AlertQueryService.list_recent`**: nuevo parámetro opcional `severity` (match
+  exacto sobre `severity`), combinable con `branch_id`. Sigue siendo `SELECT`.
+- **Presenter**: `alerts(branch_id, severity=None)` propaga el filtro; nuevo
+  `alert_kpis(branch_id)` → `KpiViewModel` (Total, Críticas, Advertencias,
+  Informativas) contando el feed de la sucursal.
+- **View models**: `alert_severity_variant` (INFO→info, WARNING→warning,
+  CRITICAL→danger) y `severity_filter_code` (normaliza término libre es-MX/inglés/
+  acentos → código; vacío o no reconocido → None = todas).
+- **`AlertsPage`**: `KPIBar` (arriba) + `SearchInput`
+  ("crítica/advertencia/informativa") que filtra el feed; sin combos ni QSS local.
+- **Evidencia**: `test_alerts_severity_filter`, `test_alert_kpis` (presenter),
+  `test_severity_filter_code_normalization`, `test_alert_severity_variant`
+  (unit) + suites UI = 74 passed; inventario `2 failed / 568 passed` (2
+  pre-existentes, cero regresiones); arquitectura `22 failed / 427 passed` desde la
+  raíz del repo (sin fallas nuevas).
+
+## P2 — Retiro de bridges legacy de inventario
+
+Objetivo: eliminar los handlers legacy que escribían tablas legacy (`lotes`,
+`movimientos_lote`, `movimientos_inventario`) una vez que la ruta canónica los
+cubre, sin perder lógica de negocio (PRIORIDAD 0). Se hace por slices, verificando
+cobertura canónica antes de borrar.
+
+### Auditoría P2 — inventario de superficies legacy
+
+Bridges/handlers en `backend/application/event_handlers/inventory/`:
+
+| Handler legacy | Escribe | Reemplazo canónico | Cableado (wiring) | Estado |
+|---|---|---|---|---|
+| `sale_items` (legacy `SaleInventoryHandler`) | engine legacy | `CanonicalSaleInventoryHandler` (`sale_items_bridge`) | ✅ canónico | ya reemplazado (INV-27) |
+| `production` (legacy) | engine legacy | `CanonicalProductionInventoryHandler` (`production_items_bridge`) | ✅ canónico | ya reemplazado (INV-27) |
+| `purchase_recipe_explosion_handler` | `movimientos_inventario` 'salida' | `CanonicalPurchaseRecipeExplosionHandler` (`purchase_recipe_explosion_bridge`) | ✅ canónico | **retirado (Slice 1)** |
+| `purchase_lot_entry_handler` | `lotes` / `movimientos_lote` | `CanonicalPurchaseStockEntryHandler` (hereda `PurchaseReceiptHandler._ensure_lot`) → `inventory_lots` | ✅ canónico (creación de lote viva, Slice 2) | **retirado (Slice 3)** |
+
+### Slice 1 — Retiro de `PurchaseRecipeExplosionHandler` legacy — HECHO
+
+- **Cobertura canónica verificada**: el bridge `CanonicalPurchaseRecipeExplosionHandler`
+  está cableado en `core/events/wiring.py` (consume `PURCHASE_STOCK_ENTRY_REGISTERED`,
+  postea `ADJUSTMENT_OUT` canónico por componente, idempotente por evento). El flip
+  test `test_purchase_recipe_explosion_flip.py` cubre paridad con el legacy: consumo
+  de componentes, sin-receta = no-op, idempotencia.
+- **Eliminado**: `purchase_recipe_explosion_handler.py` (legacy, sólo lo importaba su
+  propio test) + `test_purchase_recipe_explosion_handler.py` (redundante con el flip).
+- **Guardrail** `test_inventory_legacy_recipe_handler_retired.py`: el archivo legacy
+  no existe, nada lo importa, y el bridge canónico es el handler cableado.
+- **Evidencia**: guardrail (3) + flip (3) = 6 passed; inventario
+  `2 failed / 565 passed` (2 pre-existentes `legacy_reader_repoints`, cero
+  regresiones; −3 del test legacy retirado); arquitectura `22 failed / 430 passed`
+  desde la raíz del repo (+3 del guardrail, sin fallas nuevas).
+
+### Slice 2 — Creación de lote canónica en la compra viva — HECHO
+
+Habilitador para retirar `purchase_lot_entry_handler`: el evento vivo
+`PURCHASE_STOCK_ENTRY_REGISTERED` trae por línea `inventory_unit`/`expiration`/`lot`
+(no `lot_code`), así que el handler canónico nunca creaba lote. Descubrimiento: el
+`CanonicalPurchaseStockEntryHandler` **sí** está cableado (prioridad 100) y hereda
+`PurchaseReceiptHandler._ensure_lot` — sólo faltaba el mapeo de campos.
+
+- **`CanonicalPurchaseStockEntryHandler`**: porta la regla legacy `_is_lot_tracked`
+  (unidad de peso KG **o** `expiration`/`lot`) y deriva `lot_code` por línea
+  rastreable — el `lot` explícito si existe, si no `{document}-P{product_id}`
+  determinista. Así `_ensure_lot` crea el `inventory_lots` canónico. Idempotente por
+  código determinista + `operation_id`.
+- Sin tocar semántica de cantidad/peso ni escribir tablas legacy; sólo se cierra la
+  brecha de creación de lote (paridad con el legacy, PRIORIDAD 0).
+- **Evidencia**: `test_weight_tracked_line_creates_deterministic_canonical_lot`,
+  `test_explicit_lot_field_maps_to_canonical_lot_code`,
+  `test_non_tracked_line_creates_no_lot`,
+  `test_weight_tracked_lot_creation_is_idempotent` (+ 4 existentes) = 8 passed;
+  inventario `2 failed / 569 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `22 failed / 430 passed` desde la raíz del repo (sin fallas nuevas).
+
+### Slice 3 — Retiro de `purchase_lot_entry_handler` legacy — HECHO
+
+- **Eliminado**: `purchase_lot_entry_handler.py` + `test_purchase_lot_entry_handler.py`.
+- **`test_pipeline_end_to_end`** desacoplado de la tabla legacy `lotes`: ahora afirma
+  el lote **canónico** (`inventory_lots`, `origin_type='PURCHASE'`) creado por la
+  tubería viva completa (direct-purchase → outbox → dispatch →
+  `CanonicalPurchaseStockEntryHandler`).
+- **Defecto pre-existente corregido**: el evento vivo `PURCHASE_STOCK_ENTRY_REGISTERED`
+  no propagaba el actor, así que el `resolve_ingress` fail-closed (P1-A) **descartaba
+  silenciosamente** toda recepción de compra canónica (stock comprado nunca aterrizaba).
+  `on_receipt_completed` ahora incluye `user_id` (del `actor_user_id` del evento
+  fuente). Esto revive las 2 pruebas e2e de la tubería (antes en rojo) y valida la
+  creación de lote de Slice 2 extremo a extremo.
+- **Guardrail** `test_inventory_legacy_lot_writes_retired.py`: el handler legacy no
+  existe, nada lo importa, y ningún handler de inventario escribe `lotes`/
+  `movimientos_lote`/`movimientos_inventario`.
+- **Evidencia**: guardrail (3) + `test_pipeline_end_to_end` (2, ahora verdes) +
+  `test_purchase_stock_entry_flip` (8) = 13 passed; inventario `2 failed / 564 passed`
+  (2 pre-existentes, cero regresiones); arquitectura `22 failed / 433 passed` desde la
+  raíz del repo (+3 del guardrail, sin fallas nuevas). Las 6 fallas UI de procurement
+  (`test_direct_purchase_ui`/`test_enterprise_ui`) son pre-existentes e idénticas
+  con/sin este cambio.
+
+### Slice 4 — DROP diferido: readiness (BLOQUEADO) + protección del mecanismo
+
+**Estado: el DROP NO se ejecuta.** La migración diferida ya existe
+(`migrations/deferred/legacy_inventory_drop.py`): env-guarded
+(`INVENTORY_ALLOW_LEGACY_DROP=1`), **no** registrada en `engine.py` (nunca corre
+sola) y ya cubre las tres tablas (+ el resto del mapa de consolidación legacy).
+Ejecutarla ahora violaría PRIORIDAD 0: **quedan consumidores vivos** que leen/escriben
+estas tablas. Auditoría (no-test, no-migration, no-script):
+
+| Tabla | Consumidores vivos | Repunte objetivo |
+|---|---|---|
+| `lotes` | `core/services/lote_service.py` (cárnico/FIFO: INSERT/UPDATE/SELECT), `actionable_forecast.py`, `production_query_service.py`, `reporte_email_service.py`, `ui/dashboard.py` | `inventory_lots` (LotQueryService / RegisterInventoryLotUseCase) |
+| `movimientos_lote` | `core/services/lote_service.py` (INSERT) | `inventory_ledger` + `inventory_lots` (trazabilidad canónica) |
+| `movimientos_inventario` | `repositories/inventory_repository.py`, `backend/application/queries/inventory_balance_service.py`, `api/routers/inventario.py`, `core/delivery/infrastructure/inventory_reservation_adapter.py`, `core/services/inventory/unified_inventory_service.py`, `core/services/recipe_engine.py`, `core/services/analytics/analytics_engine.py`, ~~`repositories/productos.py`~~ (repuntado, Slice 5) | `inventory_ledger`/`inventory_ledger_lines` + `InventoryAvailabilityQueryService` |
+
+Scripts (`scripts/reconcile_inventory.py`, `scripts/seed_demo.py`) también las usan
+pero son herramientas fuera del runtime — se repuntan al final.
+
+- **Guardrail** `test_legacy_inventory_drop_is_parked_and_guarded.py`: la migración
+  existe, **no** está en `engine.py`, está env-guarded (`!= "1"` → `RuntimeError`) y
+  cubre las tres tablas. Protege el mecanismo de seguridad (nadie la registra ni la
+  desprotege por accidente) hasta que los consumidores lleguen a cero.
+- **Evidencia**: guardrail 4 passed; sin cambios de runtime (no se dropea nada; no
+  se registra migración); inventario/arquitectura sin fallas nuevas.
+
+### Slice 5 — Repunte `productos.has_movements` al ledger canónico — HECHO
+
+Primer repunte de lector concreto hacia el DROP: `ProductoRepository.has_movements`
+(sonda de "¿el producto tiene movimientos?" para la guarda de borrado) consultaba
+`movimientos_inventario` legacy; ahora consulta `inventory_ledger_lines` canónico.
+Era la **única** referencia a tabla legacy de inventario en `repositories/productos.py`,
+así que ese archivo sale del set de consumidores. Método sin llamadores hoy → cero
+riesgo de runtime; el repunte deja la semántica correcta post-cutover.
+
+- **Evidencia**: `test_productos_has_movements_canonical` (2) passed; inventario
+  `2 failed / 566 passed` (2 pre-existentes, cero regresiones); ratchet de productos
+  legacy intacto (`repositories/productos.py` sigue leyendo la tabla `productos`, no
+  la de inventario).
+
+### Pendiente P2 (orden de repunte antes del DROP)
+
+1. **`lote_service` cárnico/FIFO** → migrar lotes/movimientos_lote a `inventory_lots`
+   + ledger (es el mayor consumidor y el de mayor lógica de negocio).
+2. **`movimientos_inventario`**: repuntar lectores canónicos ya existentes
+   (`inventory_balance_service`, `unified_inventory_service`, `api/routers/inventario`,
+   delivery adapter, analytics, `inventory_repository`, `productos`) al ledger canónico.
+3. **Herramientas/scripts** (`reconcile_inventory`, `seed_demo`) y `ui/dashboard`.
+4. Recién con paridad de `InventoryReconciliationService` y cero consumidores,
+   ejecutar la migración diferida con `INVENTORY_ALLOW_LEGACY_DROP=1`.

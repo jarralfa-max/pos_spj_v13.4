@@ -6,8 +6,10 @@ from frontend.desktop.modules.inventory.navigation import (
     visible_entries,
 )
 from frontend.desktop.modules.inventory.view_models import (
+    alert_severity_variant,
     availability_table,
     locations_table,
+    severity_filter_code,
     replenishment_table,
     source_es,
     status_es,
@@ -30,6 +32,25 @@ class TestLabels:
         assert status_es("AVAILABLE") == "Disponible"
         assert status_es("PENDING_INSPECTION") == "Por inspección"
         assert urgency_es("STOCKOUT") == "Sin existencia"
+
+    def test_severity_filter_code_normalization(self):
+        # es-MX, inglés, acentos y caso, todos normalizan al código canónico
+        assert severity_filter_code("crítica") == "CRITICAL"
+        assert severity_filter_code("critica") == "CRITICAL"
+        assert severity_filter_code("CRITICAL") == "CRITICAL"
+        assert severity_filter_code("advertencia") == "WARNING"
+        assert severity_filter_code("info") == "INFO"
+        assert severity_filter_code("informativa") == "INFO"
+        # término vacío o no reconocido → None (sin filtro)
+        assert severity_filter_code("") is None
+        assert severity_filter_code("   ") is None
+        assert severity_filter_code("xyz") is None
+
+    def test_alert_severity_variant(self):
+        assert alert_severity_variant("CRITICAL") == "danger"
+        assert alert_severity_variant("WARNING") == "warning"
+        assert alert_severity_variant("INFO") == "info"
+        assert alert_severity_variant("???") == "neutral"
         assert source_es("TRANSFER") == "Transferencia"
         assert urgency_variant("CRITICAL") == "danger"
 

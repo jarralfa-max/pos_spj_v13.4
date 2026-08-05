@@ -5,18 +5,15 @@ dispatch → PURCHASE_STOCK_ENTRY_REGISTERED → the CANONICAL stock handler pos
 PURCHASE_RECEIPT to the inventory ledger. This is the guarantee that makes the QR
 repoint non-regressing (canonical receipts move the real, POS-read projection).
 
-Post-cutover contract (Fase C): the legacy ``PurchaseStockEntryHandler`` (which
-wrote ``inventario_actual`` / ``productos.existencia``) was removed. Stock now
-lands in ``inventory_balances`` via ``CanonicalPurchaseStockEntryHandler``; the
-traceability lot (weight products) is still written by ``PurchaseLotEntryHandler``
-to the legacy ``lotes`` tables (out of the Productos corte scope).
+Post-cutover contract: stock lands in ``inventory_balances`` and the traceability
+lot (weight products) lands in the canonical ``inventory_lots`` — both via
+``CanonicalPurchaseStockEntryHandler``. The legacy ``PurchaseStockEntryHandler``
+and ``PurchaseLotEntryHandler`` (legacy ``inventario_actual`` / ``lotes`` writes)
+are removed (P2).
 """
 
 from decimal import Decimal
 
-from backend.application.event_handlers.inventory.purchase_lot_entry_handler import (
-    PurchaseLotEntryHandler,
-)
 from backend.application.event_handlers.inventory.purchase_stock_entry_bridge import (
     CanonicalPurchaseStockEntryHandler,
 )
@@ -52,16 +49,6 @@ def _available(conn, product_id, branch_id="br-1"):
         product_id=product_id, branch_id=branch_id).available
 
 
-def _legacy_lot_schema(conn):
-    conn.execute(
-        "CREATE TABLE lotes (id TEXT PRIMARY KEY, producto_id TEXT, numero_lote TEXT,"
-        " proveedor_id TEXT, fecha_recepcion DATE, fecha_caducidad DATE, peso_inicial_kg REAL,"
-        " peso_actual_kg REAL, costo_kg REAL, sucursal_id TEXT, estado TEXT, temperatura_c REAL,"
-        " observaciones TEXT, tipo_origen TEXT, UNIQUE(numero_lote, producto_id))")
-    conn.execute("CREATE TABLE movimientos_lote (id TEXT PRIMARY KEY, lote_id TEXT, tipo TEXT,"
-                 " cantidad_kg REAL, referencia TEXT, usuario TEXT)")
-
-
 def test_confirmed_purchase_updates_physical_stock(proc_conn):
     create_inventory_schema(proc_conn)
     proc_conn.commit()
@@ -92,16 +79,13 @@ def test_confirmed_purchase_updates_physical_stock(proc_conn):
     assert mov[0] == "PURCHASE_RECEIPT"
 
 
-def test_confirmed_weight_purchase_creates_lot(proc_conn):
+def test_confirmed_weight_purchase_creates_canonical_lot(proc_conn):
     create_inventory_schema(proc_conn)
-    _legacy_lot_schema(proc_conn)
     proc_conn.commit()
     bus = Bus()
     wire_procurement(bus, proc_conn)
     bus.subscribe(PURCHASE_STOCK_ENTRY_REGISTERED,
                   CanonicalPurchaseStockEntryHandler(proc_conn).handle)
-    bus.subscribe(PURCHASE_STOCK_ENTRY_REGISTERED,
-                  PurchaseLotEntryHandler(proc_conn).handle)
 
     created = CreateDirectPurchaseUseCase().execute(
         proc_conn, actor_user_id="u1", operation_id="e2e-lot", supplier_id="prov1",
@@ -113,10 +97,10 @@ def test_confirmed_weight_purchase_creates_lot(proc_conn):
         operation_id="e2e-lot-c", payment_source="PETTY_CASH")
     dispatch_procurement_outbox(proc_conn, bus)
 
-    # canonical stock AND a traceability lot (FIFO by lot) exist for the weight product
+    # canonical stock AND a canonical traceability lot (FIFO by lot) for the weight
+    # product — the whole pipeline creates the lot in inventory_lots (no legacy tables)
     assert _available(proc_conn, "pollo") == Decimal("20")
     lot = proc_conn.execute(
-        "SELECT peso_actual_kg, costo_kg, proveedor_id, estado FROM lotes"
-        " WHERE producto_id='pollo'").fetchone()
-    assert Decimal(str(lot[0])) == Decimal("20") and Decimal(str(lot[1])) == Decimal("55")
-    assert lot[2] == "prov1" and lot[3] == "activo"
+        "SELECT lot_code, origin_type FROM inventory_lots"
+        " WHERE product_id='pollo'").fetchone()
+    assert lot is not None and lot[0] and lot[1] == "PURCHASE"

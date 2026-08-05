@@ -16,19 +16,24 @@ from backend.infrastructure.db.repositories.inventory.base import (
 
 class AlertQueryService(InventoryRepositoryBase):
     def list_recent(self, *, branch_id: str | None = None,
+                    severity: str | None = None,
                     limit: int = 200) -> list[dict]:
         """Recent alerts (most recent first, bounded), optionally scoped to a
-        branch. Rows carry date, severity, event, channel, status and message."""
+        branch and to an exact severity. Rows carry date, severity, event,
+        channel, status and message."""
         cols = ("created_at, severity, event_name, channel, status, message")
         lim = max(1, int(limit))
+        where, params = [], []
         if branch_id:
-            rows = self._query(
-                f"SELECT {cols} FROM inventory_notification_log WHERE branch_id=?"
-                " ORDER BY created_at DESC, id DESC LIMIT ?", (branch_id, lim))
-        else:
-            rows = self._query(
-                f"SELECT {cols} FROM inventory_notification_log"
-                " ORDER BY created_at DESC, id DESC LIMIT ?", (lim,))
+            where.append("branch_id=?")
+            params.append(branch_id)
+        if severity:
+            where.append("severity=?")
+            params.append(severity)
+        clause = (" WHERE " + " AND ".join(where)) if where else ""
+        rows = self._query(
+            f"SELECT {cols} FROM inventory_notification_log{clause}"
+            " ORDER BY created_at DESC, id DESC LIMIT ?", tuple(params) + (lim,))
         return [{
             "created_at": r["created_at"], "severity": r["severity"],
             "event_name": r["event_name"], "channel": r["channel"],
