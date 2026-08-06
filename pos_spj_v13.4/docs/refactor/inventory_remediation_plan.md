@@ -1160,16 +1160,44 @@ Segundo repunte hacia el DROP. Al investigar `repositories/inventory_repository.
   pre-existentes); arquitectura `22 failed / 440 passed` desde la raíz del repo
   (+3 del guardrail, sin fallas nuevas).
 
+### Slice 7 — Repunte del chequeo de idempotencia del adaptador de delivery — HECHO
+
+Tercer repunte hacia el DROP. `ReservationServiceInventoryAdapter.commit_for_order`
+(delivery) ya posteaba la deducción de stock vía `InventoryService.deduct_stock`
+(shim canónico INV-27) — esa parte ya era correcta. Pero su chequeo de
+idempotencia previo (`_movement_exists`) seguía consultando la tabla legacy
+`movimientos_inventario`, que el shim **ya no escribe** — así que el chequeo
+siempre devolvía `False` (letra muerta: nunca detectaba un reintento ya
+procesado). El ledger canónico ya es idempotente por `operation_id` (una repetición
+no duplica el movimiento), pero el adaptador no podía distinguir "recién
+comprometido" de "ya comprometido" para sus contadores `committed`/`skipped`.
+
+- **`_movement_exists`** ahora consulta `inventory_ledger` con la clave
+  `{operation_id}:DECREASE` — el sufijo interno que `CanonicalInventoryRepository`
+  usa para namespacing de `decrease_stock` (única operación que este adaptador
+  ejecuta). Acoplamiento intencional y documentado: si ese sufijo cambia, el
+  chequeo debe romperse ruidosamente, no volver a fallar en silencio (`False`
+  constante).
+- **Auditoría de regresión**: `tests/test_delivery_inventory_projection.py` (4
+  tests) y `tests/test_delivery_phase12_required.py` (5 de 7 tests) ya fallaban en
+  el commit padre por motivos no relacionados (tabla `inventory_reservations`
+  faltante; `int(event["id"])` sobre un UUID) — confirmado diffeando el conjunto
+  exacto de fallas antes/después (idéntico).
+- **Evidencia**: `test_delivery_movement_exists_canonical.py` (3, nuevo — valida
+  contra el flujo real `InventoryService.deduct_stock`, no SQL arbitrario) = 3
+  passed; inventario `2 failed / 569 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `29 failed / 534 passed` desde la raíz del repo (línea base sin
+  cambios tras el merge externo de merma/caja+compras; ninguna de las 29 toca este
+  cambio).
+
 ### Pendiente P2 (orden de repunte antes del DROP)
 
 1. **`lote_service` cárnico/FIFO** → migrar lotes/movimientos_lote a `inventory_lots`
    + ledger (es el mayor consumidor y el de mayor lógica de negocio).
 2. **`movimientos_inventario`**: repuntar lectores/escritores restantes
    (`inventory_balance_service` [reconciliación legacy↔legacy],
-   `unified_inventory_service`, `api/routers/inventario`, delivery adapter
-   [ya escribe canónico vía `InventoryService`; sólo su chequeo de idempotencia
-   sigue mirando la tabla legacy — repuntarlo, aunque el ledger ya es idempotente
-   por `operation_id`], `recipe_engine`, `analytics_engine`) al ledger canónico.
+   `unified_inventory_service`, `api/routers/inventario`, `recipe_engine`,
+   `analytics_engine`) al ledger canónico.
 3. **Herramientas/scripts** (`reconcile_inventory`, `seed_demo`) y `ui/dashboard`.
 4. Recién con paridad de `InventoryReconciliationService` y cero consumidores,
    ejecutar la migración diferida con `INVENTORY_ALLOW_LEGACY_DROP=1`.

@@ -111,10 +111,19 @@ class ReservationServiceInventoryAdapter:
         return row is not None
 
     def _movement_exists(self, operation_id: str) -> bool:
+        # P2 repoint: commit_for_order posts through InventoryService.deduct_stock,
+        # which is a canonical shim (INV-27) — it has not written the legacy
+        # movimientos_inventario table for a long time, so a check against it
+        # always returned False (stale, dead check). The real write lands in the
+        # canonical inventory_ledger, keyed by CanonicalInventoryRepository's
+        # `{operation_id}:DECREASE` (decrease_stock's movement_type), since this
+        # adapter only ever deducts. Coupled to that internal suffix on purpose:
+        # if it drifts, this check should break loudly rather than silently
+        # under-count (always-False) again.
         try:
             row = self.db.execute(
-                "SELECT 1 FROM movimientos_inventario WHERE operation_id=? LIMIT 1",
-                (operation_id,),
+                "SELECT 1 FROM inventory_ledger WHERE operation_id=? LIMIT 1",
+                (f"{operation_id}:DECREASE",),
             ).fetchone()
             return row is not None
         except Exception as exc:
