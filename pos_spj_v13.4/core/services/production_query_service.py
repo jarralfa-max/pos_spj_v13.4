@@ -64,6 +64,27 @@ def _fetchall(db, sql: str, params=()):
         return []
 
 
+# ── Active lots (canonical) ───────────────────────────────────────────────────
+
+def _count_active_lots(db) -> int:
+    """Count lots with remaining stock, per the canonical ledger projection.
+
+    Equivalent to the legacy ``lotes WHERE estado='activo'`` (which also implied
+    ``peso_actual_kg>0``): a lot counts as active when it still has a balance
+    row with quantity or weight greater than zero.
+    """
+    try:
+        rows = _fetchall(
+            db,
+            "SELECT COUNT(DISTINCT lot_id) FROM inventory_balances "
+            "WHERE lot_id != '' "
+            "AND (CAST(quantity AS REAL) > 0 OR CAST(weight AS REAL) > 0)",
+        )
+        return int(rows[0][0] or 0) if rows else 0
+    except Exception:
+        return 0
+
+
 # ── Schema detection ──────────────────────────────────────────────────────────
 
 def _product_recipes_product_expr(db) -> str:
@@ -152,23 +173,14 @@ def get_daily_kpis(db, branch_id: int = 0, date: Optional[str] = None) -> Dict[s
             pass
 
     # Active lotes (applies to both schemas)
-    try:
-        row4 = _fetchall(db, "SELECT COUNT(*) FROM lotes WHERE estado='activo'")
-        if row4:
-            vals["lotes_activos"] = int(row4[0][0] or 0)
-    except Exception:
-        pass
+    vals["lotes_activos"] = _count_active_lots(db)
 
     return vals
 
 
 def get_active_lotes_count(db) -> int:
     """Return the number of active lotes."""
-    try:
-        rows = _fetchall(db, "SELECT COUNT(*) FROM lotes WHERE estado='activo'")
-        return int(rows[0][0] or 0) if rows else 0
-    except Exception:
-        return 0
+    return _count_active_lots(db)
 
 
 def get_recetas_list(db) -> List[Dict[str, Any]]:

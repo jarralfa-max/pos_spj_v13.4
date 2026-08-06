@@ -11,7 +11,6 @@
 # GARANTÍAS:
 #   ✔ BEGIN IMMEDIATE única transacción (with self.db.transaction() as conn)
 #   ✔ Movimientos canónicos al ledger (bus PRODUCTION_ITEMS_PROCESS / bridge)
-#   ✔ Registro en movimientos_inventario (legacy) + inventory_movements (Fase 1)
 #   ✔ ROLLBACK total si falla cualquier paso
 #   ✔ Merma registrada como movimiento MERMA explícito
 #   ✔ Sin doble-actualización de existencia (process_movement es la fuente de verdad)
@@ -22,6 +21,10 @@
 #   - FALLA-1: merma ignorada → movimiento MERMA_PRODUCCION por componente
 #   - FALLA-2: costo por piezas → costo por kg total
 #   - FALLA-7: doble update existencia → eliminado de _registrar_movimiento_legacy
+#
+# P2 (retiro legacy inventario): el insert de auditoría en movimientos_inventario
+# se eliminó — era puramente informativo (nunca mutó existencia) y duplicaba lo
+# que ya registran produccion_detalle (mismo loop) y el ledger canónico (paso 6).
 from __future__ import annotations
 from backend.shared.ids import new_uuid
 
@@ -315,8 +318,6 @@ class RecipeEngine:
                     mov.get("rendimiento", 0.0), tipo_det,
                 ))
 
-                self._registrar_movimiento_legacy_audit_only(conn, mov, produccion_id, usuario, suc_id)
-
                 if mov["delta"] > 0:
                     total_generado += mov["delta"]
                 elif mov_type == "MERMA_PRODUCCION":
@@ -519,29 +520,6 @@ class RecipeEngine:
                 })
 
         return movimientos
-
-    def _registrar_movimiento_legacy_audit_only(self, conn, mov, produccion_id, usuario, sucursal_id):
-        """
-        FIX FALLA-7: Solo inserta en movimientos_inventario para auditoría.
-        NO actualiza productos.existencia — process_movement ya lo hizo.
-        """
-        try:
-            tipo_mov = "entrada" if mov["delta"] > 0 else "salida"
-            tipo_desc = mov.get("movement_type", "PRODUCCION")
-            conn.execute("""
-                INSERT OR IGNORE INTO movimientos_inventario (
-                    uuid, producto_id, tipo, tipo_movimiento,
-                    cantidad, descripcion, referencia_id, referencia_tipo,
-                    usuario, sucursal_id, fecha
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))
-            """, (
-                new_uuid(), mov["product_id"], tipo_mov, tipo_desc,
-                abs(mov["delta"]),
-                f"Produccion #{produccion_id} — {mov['nombre']}",
-                produccion_id, "PRODUCCION", usuario, sucursal_id,
-            ))
-        except Exception as e:
-            logger.warning("movimiento_legacy_audit falló (no crítico): %s", e)
 
     def preview_produccion(self, receta_id: str, cantidad_base: float) -> list:
         receta = self.db.fetchone(

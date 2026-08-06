@@ -161,11 +161,9 @@ def sales_svc(mem_db):
     from core.services.sales_service import SalesService
     from core.services.inventory_service import InventoryService
     from core.services.loyalty_service import LoyaltyService
-    from repositories.inventory_repository import InventoryRepository
     from repositories.sales_repository import SalesRepository
     from repositories.recetas import RecetaRepository as RecipeRepository
 
-    inv_repo   = InventoryRepository(mem_db)
     sales_repo = SalesRepository(mem_db)
     recipe_repo = RecipeRepository(mem_db)
 
@@ -184,7 +182,9 @@ def sales_svc(mem_db):
     class _FakeTicket:
         def generar_ticket(self, *a, **kw): return ""
 
-    inv_svc    = InventoryService(inv_repo, _FakeAudit())
+    # InventoryService (corte INV-27) es un shim canónico: sólo toma la conexión
+    # real; el legacy InventoryRepository que recibía aquí ya no existe (P2).
+    inv_svc    = InventoryService(mem_db)
     loyalty    = LoyaltyService(mem_db)
 
     return SalesService(

@@ -1122,13 +1122,185 @@ riesgo de runtime; el repunte deja la semántica correcta post-cutover.
   legacy intacto (`repositories/productos.py` sigue leyendo la tabla `productos`, no
   la de inventario).
 
+### Slice 6 — Retiro de `repositories/inventory_repository.py` (legacy, IDs int) — HECHO
+
+Segundo repunte hacia el DROP. Al investigar `repositories/inventory_repository.py`
+(el `InventoryRepository` legacy de nivel superior — IDs `int`, escribía
+`movimientos_inventario`/`inventario_actual`/`branch_inventory`) se confirmó que:
+
+- **Cero importadores de producción.** `core/app_container.py` y todo caller real
+  usan el módulo canónico-adyacente `backend.infrastructure.db.repositories.
+  inventory_repository` (archivo distinto, mismo nombre corto) — ya protegido por
+  `test_app_container_inventory_canonical_route.py`.
+- El shim `InventoryService` (`core/services/inventory_service.py`, INV-27)
+  **ignora por completo** el parámetro `inventory_repo`: siempre delega en
+  `CanonicalInventoryRepository` (ledger). El `InventoryRepository` legacy que
+  recibía era letra muerta incluso donde se construía.
+- Sólo dos *fixtures* de test lo construían (`tests/conftest.py::sales_svc`,
+  `tests/test_sales_customer_loyalty.py::sales_svc_checkout`) — uno de ellos
+  incluso lo pasaba en la posición equivocada (bug preexistente de fixture, fuera
+  de alcance; **no se tocó** esa semántica: se comprobó bit a bit que el conjunto
+  de tests que fallan antes/después es idéntico).
+
+**Cambios:**
+- Eliminado `repositories/inventory_repository.py`.
+- Ambas fixtures ya no importan/construyen el repo legacy; `InventoryService(...)`
+  se llama con la firma real del shim (sólo la conexión).
+- **Ratchet de `productos` actualizado**: se quita `repositories/inventory_repository.py`
+  de la allowlist (el archivo también hacía `UPDATE productos`; al desaparecer, deja
+  de ser consumidor de esa tabla también).
+- **Guardrail** `test_legacy_top_level_inventory_repository_retired.py`: el archivo
+  no existe, ningún import real lo referencia (se excluyen coincidencias dentro de
+  literales de otros guardrails), y `app_container.py` usa sólo el módulo canónico.
+- **Evidencia**: guardrail (3) + ratchet (2) + `test_app_container_inventory_canonical_route`
+  (2) = 7 passed; `tests/test_sales.py` + `tests/test_sales_customer_loyalty.py`
+  → mismo conjunto de fallas antes/después (diff vacío, cero regresión, cero
+  arreglo colateral de bugs preexistentes); `tests/unit/` → mismo conjunto de
+  fallas antes/después (diff vacío); inventario `2 failed / 566 passed` (2
+  pre-existentes); arquitectura `22 failed / 440 passed` desde la raíz del repo
+  (+3 del guardrail, sin fallas nuevas).
+
+### Slice 7 — Repunte del chequeo de idempotencia del adaptador de delivery — HECHO
+
+Tercer repunte hacia el DROP. `ReservationServiceInventoryAdapter.commit_for_order`
+(delivery) ya posteaba la deducción de stock vía `InventoryService.deduct_stock`
+(shim canónico INV-27) — esa parte ya era correcta. Pero su chequeo de
+idempotencia previo (`_movement_exists`) seguía consultando la tabla legacy
+`movimientos_inventario`, que el shim **ya no escribe** — así que el chequeo
+siempre devolvía `False` (letra muerta: nunca detectaba un reintento ya
+procesado). El ledger canónico ya es idempotente por `operation_id` (una repetición
+no duplica el movimiento), pero el adaptador no podía distinguir "recién
+comprometido" de "ya comprometido" para sus contadores `committed`/`skipped`.
+
+- **`_movement_exists`** ahora consulta `inventory_ledger` con la clave
+  `{operation_id}:DECREASE` — el sufijo interno que `CanonicalInventoryRepository`
+  usa para namespacing de `decrease_stock` (única operación que este adaptador
+  ejecuta). Acoplamiento intencional y documentado: si ese sufijo cambia, el
+  chequeo debe romperse ruidosamente, no volver a fallar en silencio (`False`
+  constante).
+- **Auditoría de regresión**: `tests/test_delivery_inventory_projection.py` (4
+  tests) y `tests/test_delivery_phase12_required.py` (5 de 7 tests) ya fallaban en
+  el commit padre por motivos no relacionados (tabla `inventory_reservations`
+  faltante; `int(event["id"])` sobre un UUID) — confirmado diffeando el conjunto
+  exacto de fallas antes/después (idéntico).
+- **Evidencia**: `test_delivery_movement_exists_canonical.py` (3, nuevo — valida
+  contra el flujo real `InventoryService.deduct_stock`, no SQL arbitrario) = 3
+  passed; inventario `2 failed / 569 passed` (2 pre-existentes, cero regresiones);
+  arquitectura `29 failed / 534 passed` desde la raíz del repo (línea base sin
+  cambios tras el merge externo de merma/caja+compras; ninguna de las 29 toca este
+  cambio).
+
+### Slice 8 — Repunte de `AnalyticsEngine.inventory_intelligence.top_consumed` — HECHO
+
+Cuarto repunte hacia el DROP. `top_consumed` (métrica BI "productos más consumidos
+en 30 días") consultaba `movimientos_inventario` (`tipo='SALIDA'`). Auditoría: el
+método tiene **cero llamadores** en todo el repositorio (incl. tests) — pero la
+clase `AnalyticsEngine` sí está viva (`core/app_container.py`,
+`modulos/reportes_bi_v2.py`, wired a eventos), así que se repuntó la query en vez
+de eliminar el método público (cambio más chico, preserva el contrato de una
+clase activa).
+
+- La query ahora suma `inventory_ledger_lines.quantity` uniendo `inventory_ledger`,
+  filtrando por los tipos canónicos con dirección `DECREASE` (§ `MOVEMENT_DIRECTION`):
+  `SALE_ISSUE`, `TRANSFER_DISPATCH`, `PRODUCTION_CONSUMPTION`,
+  `SLAUGHTER_INPUT_FUTURE`, `ADJUSTMENT_OUT`, `WASTE`, `SHRINKAGE`,
+  `EXPIRY_DISPOSAL`, `SUPPLIER_RETURN` — el equivalente canónico exacto de
+  "SALIDA" — acotado por `branch_id` y los últimos 30 días de `occurred_at`.
+  El bloque `low_stock` (que sí lee `productos`, ajeno a esta slice) no se tocó.
+- **Evidencia**: `test_analytics_top_consumed_canonical.py` (2, nuevo — prueba
+  contra el flujo real `PostInventoryMovementUseCase`, confirma que una
+  `PURCHASE_RECEIPT` [INCREASE] no cuenta y que el alcance por sucursal es
+  correcto); `tests/test_bi_rentabilidad_franchise_bugs.py` +
+  `tests/test_analytics_profitability_fallback.py` + `tests/test_new_services.py`
+  → mismo conjunto de fallas antes/después (diff vacío, las 4 de
+  `test_new_services.py` son pre-existentes y ajenas); ratchet de `productos`
+  intacto (`analytics_engine.py` sigue en la allowlist por su lectura de
+  `productos`, no tocada); inventario `2 failed / 571 passed` (2 pre-existentes,
+  cero regresiones); arquitectura `29 failed / 534 passed` desde la raíz del repo
+  (línea base sin cambios).
+
+### Slice 9 — Retiro del insert de auditoría legacy en `recipe_engine` — HECHO
+
+Quinto repunte hacia el DROP. Se evaluaron dos candidatos: el endpoint REST
+`api/routers/inventario.py` (`/movimientos/{producto_id}`) y el insert de
+auditoría de `core/services/recipe_engine.py`. El primero quedó descartado para
+esta slice: su única cobertura (`tests/test_fase_g_api_gateway.py`) falla en
+la totalidad de sus 28 casos en el setup de fixtures por
+`ModuleNotFoundError: No module named 'fastapi'` — una limitación de entorno
+preexistente y ajena a este trabajo — por lo que no puede verificarse
+localmente; queda pendiente para cuando el entorno tenga `fastapi` instalado.
+
+`RecipeEngine._registrar_movimiento_legacy_audit_only` insertaba en
+`movimientos_inventario` tras cada corrida de producción. Su propio docstring
+("FIX FALLA-7") ya documentaba que era puramente informativo: **nunca
+actualizó existencia** — eso lo hace el paso 6 de `ejecutar_produccion`
+(bus `PRODUCTION_ITEMS_PROCESS` → `CanonicalProductionInventoryHandler`, que
+postea al ledger canónico). Además, el mismo loop del paso 6b ya inserta en
+`produccion_detalle` con el detalle exacto de cada movimiento (producto,
+cantidad, unidad, rendimiento, tipo) — el insert legacy era estrictamente
+redundante con datos ya cubiertos por dos fuentes canónicas. Confirmado sin
+lectores: ningún módulo de producción consulta `movimientos_inventario`
+filtrando por `referencia_tipo='PRODUCCION'`; los tests que crean esa tabla en
+sus fixtures de `recipe_engine` (`test_recipe_engine_costing_phase6.py`,
+`test_recipe_components_quantities_phase4.py`,
+`test_recipe_engine_tipo_receta_normalization.py`,
+`test_recipe_engine_uuid_identity.py`, `test_traceability_phase9.py`,
+`test_bloque1_p0_fixes.py`) nunca aseveran su contenido — la crean solo de
+forma defensiva (el insert estaba envuelto en `try/except` que ya lo hacía
+"no crítico" si la tabla faltaba). Se eliminó el método y su única llamada;
+se actualizó el comentario de cabecera del archivo.
+
+- **Evidencia**: `tests/integration/test_recipe_engine_uuid_identity.py` +
+  `tests/test_traceability_phase9.py` + `tests/test_flujo_completo.py` +
+  `tests/test_bloque1_p0_fixes.py` + `tests/test_recipe_components_quantities_phase4.py`
+  + `tests/test_recipe_engine_tipo_receta_normalization.py` +
+  `tests/test_recipe_engine_costing_phase6.py` → mismo resultado antes/después
+  (`3 failed, 53 passed, 12 errors`, todas preexistentes y ajenas —
+  `sync_outbox`/`ProcesarVentaUC` deprecado/etc.); inventario
+  `2 failed / 571 passed` (2 pre-existentes, cero regresiones); arquitectura
+  `29 failed / 534 passed` desde la raíz del repo (línea base sin cambios).
+
+### Slice 10 — Repunte de `production_query_service.get_active_lotes_count` — HECHO
+
+Sexto repunte hacia el DROP, primer consumidor de la tabla legacy `lotes`
+(distinta de `movimientos_inventario`). Auditoría de los 6 archivos que leen
+`lotes` directamente (`lote_service.py` [el más grande, FIFO cárnico —
+pendiente, ítem 1 abajo], `ui/dashboard.py`, `actionable_forecast.py`,
+`reporte_email_service.py`, `seed_demo.py`, `production_query_service.py`):
+se eligió `production_query_service.py` por ser el más chico y acotado —
+un `SELECT COUNT(*) FROM lotes WHERE estado='activo'`, usado por el KPI
+"lotes activos" del dashboard de Producción (`get_daily_kpis` +
+`get_active_lotes_count`, ambos wireados en vivo vía `core/app_container.py`
+y llamados directo por `modulos/produccion.py:227`).
+
+- El equivalente canónico de `estado='activo'` (que en la tabla legacy
+  implicaba además `peso_actual_kg>0`, ver `lote_service.py`) es: un lote con
+  saldo restante en `inventory_balances` — `COUNT(DISTINCT lot_id)` con
+  `quantity>0 OR weight>0`. Se extrajo a un helper `_count_active_lots(db)`
+  compartido por ambas funciones públicas (antes duplicaban la misma query).
+- **Evidencia**: `tests/test_production_query_service.py` (fixtures migradas de
+  `CREATE TABLE lotes` a `CREATE TABLE inventory_balances`; se agregó
+  `test_same_lot_split_across_locations_counts_once` para cubrir el `DISTINCT`)
+  + `tests/test_bloque2_query_service.py` → `62 passed` (línea base `61
+  passed`, +1 test nuevo, cero regresiones); `tests/test_recipe_events.py` +
+  `tests/integration/test_meat_production_use_case.py` +
+  `tests/architecture/test_remediacion0_guardrails.py` → `24 passed` sin
+  cambios; inventario `2 failed / 571 passed` (2 pre-existentes); arquitectura
+  `29 failed / 534 passed` desde la raíz del repo (línea base sin cambios).
+
 ### Pendiente P2 (orden de repunte antes del DROP)
 
 1. **`lote_service` cárnico/FIFO** → migrar lotes/movimientos_lote a `inventory_lots`
    + ledger (es el mayor consumidor y el de mayor lógica de negocio).
-2. **`movimientos_inventario`**: repuntar lectores canónicos ya existentes
-   (`inventory_balance_service`, `unified_inventory_service`, `api/routers/inventario`,
-   delivery adapter, analytics, `inventory_repository`, `productos`) al ledger canónico.
-3. **Herramientas/scripts** (`reconcile_inventory`, `seed_demo`) y `ui/dashboard`.
-4. Recién con paridad de `InventoryReconciliationService` y cero consumidores,
+2. **Lectores restantes de `lotes`**: `ui/dashboard.py`, `actionable_forecast.py`,
+   `reporte_email_service.py` (repuntar a `inventory_lots`/`inventory_balances`);
+   `seed_demo.py` (repuntar la creación de lotes demo a `inventory_lots`).
+3. **`movimientos_inventario`**: repuntar lectores/escritores restantes
+   (`inventory_balance_service` [reconciliación legacy↔legacy],
+   `unified_inventory_service`, `api/routers/inventario` [bloqueado por falta
+   de `fastapi` en este entorno]) al ledger canónico.
+4. **Herramientas/scripts** (`reconcile_inventory`) — su propósito es
+   reconciliar tablas legacy entre sí; probablemente se retira junto con el
+   DROP en vez de repuntarse.
+5. Recién con paridad de `InventoryReconciliationService` y cero consumidores,
    ejecutar la migración diferida con `INVENTORY_ALLOW_LEGACY_DROP=1`.
