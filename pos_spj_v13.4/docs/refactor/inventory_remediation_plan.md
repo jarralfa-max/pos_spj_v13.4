@@ -1219,14 +1219,55 @@ clase activa).
   cero regresiones); arquitectura `29 failed / 534 passed` desde la raíz del repo
   (línea base sin cambios).
 
+### Slice 9 — Retiro del insert de auditoría legacy en `recipe_engine` — HECHO
+
+Quinto repunte hacia el DROP. Se evaluaron dos candidatos: el endpoint REST
+`api/routers/inventario.py` (`/movimientos/{producto_id}`) y el insert de
+auditoría de `core/services/recipe_engine.py`. El primero quedó descartado para
+esta slice: su única cobertura (`tests/test_fase_g_api_gateway.py`) falla en
+la totalidad de sus 28 casos en el setup de fixtures por
+`ModuleNotFoundError: No module named 'fastapi'` — una limitación de entorno
+preexistente y ajena a este trabajo — por lo que no puede verificarse
+localmente; queda pendiente para cuando el entorno tenga `fastapi` instalado.
+
+`RecipeEngine._registrar_movimiento_legacy_audit_only` insertaba en
+`movimientos_inventario` tras cada corrida de producción. Su propio docstring
+("FIX FALLA-7") ya documentaba que era puramente informativo: **nunca
+actualizó existencia** — eso lo hace el paso 6 de `ejecutar_produccion`
+(bus `PRODUCTION_ITEMS_PROCESS` → `CanonicalProductionInventoryHandler`, que
+postea al ledger canónico). Además, el mismo loop del paso 6b ya inserta en
+`produccion_detalle` con el detalle exacto de cada movimiento (producto,
+cantidad, unidad, rendimiento, tipo) — el insert legacy era estrictamente
+redundante con datos ya cubiertos por dos fuentes canónicas. Confirmado sin
+lectores: ningún módulo de producción consulta `movimientos_inventario`
+filtrando por `referencia_tipo='PRODUCCION'`; los tests que crean esa tabla en
+sus fixtures de `recipe_engine` (`test_recipe_engine_costing_phase6.py`,
+`test_recipe_components_quantities_phase4.py`,
+`test_recipe_engine_tipo_receta_normalization.py`,
+`test_recipe_engine_uuid_identity.py`, `test_traceability_phase9.py`,
+`test_bloque1_p0_fixes.py`) nunca aseveran su contenido — la crean solo de
+forma defensiva (el insert estaba envuelto en `try/except` que ya lo hacía
+"no crítico" si la tabla faltaba). Se eliminó el método y su única llamada;
+se actualizó el comentario de cabecera del archivo.
+
+- **Evidencia**: `tests/integration/test_recipe_engine_uuid_identity.py` +
+  `tests/test_traceability_phase9.py` + `tests/test_flujo_completo.py` +
+  `tests/test_bloque1_p0_fixes.py` + `tests/test_recipe_components_quantities_phase4.py`
+  + `tests/test_recipe_engine_tipo_receta_normalization.py` +
+  `tests/test_recipe_engine_costing_phase6.py` → mismo resultado antes/después
+  (`3 failed, 53 passed, 12 errors`, todas preexistentes y ajenas —
+  `sync_outbox`/`ProcesarVentaUC` deprecado/etc.); inventario
+  `2 failed / 571 passed` (2 pre-existentes, cero regresiones); arquitectura
+  `29 failed / 534 passed` desde la raíz del repo (línea base sin cambios).
+
 ### Pendiente P2 (orden de repunte antes del DROP)
 
 1. **`lote_service` cárnico/FIFO** → migrar lotes/movimientos_lote a `inventory_lots`
    + ledger (es el mayor consumidor y el de mayor lógica de negocio).
 2. **`movimientos_inventario`**: repuntar lectores/escritores restantes
    (`inventory_balance_service` [reconciliación legacy↔legacy],
-   `unified_inventory_service`, `api/routers/inventario`, `recipe_engine`)
-   al ledger canónico.
+   `unified_inventory_service`, `api/routers/inventario` [bloqueado por falta
+   de `fastapi` en este entorno]) al ledger canónico.
 3. **Herramientas/scripts** (`reconcile_inventory`, `seed_demo`) y `ui/dashboard`.
 4. Recién con paridad de `InventoryReconciliationService` y cero consumidores,
    ejecutar la migración diferida con `INVENTORY_ALLOW_LEGACY_DROP=1`.
