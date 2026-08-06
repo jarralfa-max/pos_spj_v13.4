@@ -395,15 +395,23 @@ class AnalyticsEngine:
         except Exception as e:
             logger.warning("inventory_intelligence low_stock: %s", e)
         try:
+            # P2 repoint: lee el ledger canónico (inventory_ledger/_lines) en vez
+            # de la tabla legacy movimientos_inventario. "SALIDA" = los tipos de
+            # movimiento canónicos con dirección DECREASE (§ MOVEMENT_DIRECTION).
             result["top_consumed"] = [
                 {"producto_id": r[0], "total_consumido": float(r[1] or 0)}
                 for r in self._db.execute(
-                    "SELECT producto_id, SUM(cantidad) AS total "
-                    "FROM movimientos_inventario "
-                    "WHERE tipo='SALIDA' AND DATE(fecha) >= DATE('now','-30 days') "
-                    "AND sucursal_id=? "
-                    "GROUP BY producto_id ORDER BY total DESC LIMIT ?",
-                    (sucursal_id, top)
+                    "SELECT l.product_id, SUM(CAST(l.quantity AS REAL)) AS total "
+                    "FROM inventory_ledger_lines l "
+                    "JOIN inventory_ledger m ON m.id = l.movement_id "
+                    "WHERE m.movement_type IN ('SALE_ISSUE','TRANSFER_DISPATCH',"
+                    "'PRODUCTION_CONSUMPTION','SLAUGHTER_INPUT_FUTURE',"
+                    "'ADJUSTMENT_OUT','WASTE','SHRINKAGE','EXPIRY_DISPOSAL',"
+                    "'SUPPLIER_RETURN') "
+                    "AND DATE(m.occurred_at) >= DATE('now','-30 days') "
+                    "AND m.branch_id=? "
+                    "GROUP BY l.product_id ORDER BY total DESC LIMIT ?",
+                    (str(sucursal_id), top)
                 ).fetchall()
             ]
         except Exception as e:

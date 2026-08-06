@@ -1190,14 +1190,43 @@ comprometido" de "ya comprometido" para sus contadores `committed`/`skipped`.
   cambios tras el merge externo de merma/caja+compras; ninguna de las 29 toca este
   cambio).
 
+### Slice 8 — Repunte de `AnalyticsEngine.inventory_intelligence.top_consumed` — HECHO
+
+Cuarto repunte hacia el DROP. `top_consumed` (métrica BI "productos más consumidos
+en 30 días") consultaba `movimientos_inventario` (`tipo='SALIDA'`). Auditoría: el
+método tiene **cero llamadores** en todo el repositorio (incl. tests) — pero la
+clase `AnalyticsEngine` sí está viva (`core/app_container.py`,
+`modulos/reportes_bi_v2.py`, wired a eventos), así que se repuntó la query en vez
+de eliminar el método público (cambio más chico, preserva el contrato de una
+clase activa).
+
+- La query ahora suma `inventory_ledger_lines.quantity` uniendo `inventory_ledger`,
+  filtrando por los tipos canónicos con dirección `DECREASE` (§ `MOVEMENT_DIRECTION`):
+  `SALE_ISSUE`, `TRANSFER_DISPATCH`, `PRODUCTION_CONSUMPTION`,
+  `SLAUGHTER_INPUT_FUTURE`, `ADJUSTMENT_OUT`, `WASTE`, `SHRINKAGE`,
+  `EXPIRY_DISPOSAL`, `SUPPLIER_RETURN` — el equivalente canónico exacto de
+  "SALIDA" — acotado por `branch_id` y los últimos 30 días de `occurred_at`.
+  El bloque `low_stock` (que sí lee `productos`, ajeno a esta slice) no se tocó.
+- **Evidencia**: `test_analytics_top_consumed_canonical.py` (2, nuevo — prueba
+  contra el flujo real `PostInventoryMovementUseCase`, confirma que una
+  `PURCHASE_RECEIPT` [INCREASE] no cuenta y que el alcance por sucursal es
+  correcto); `tests/test_bi_rentabilidad_franchise_bugs.py` +
+  `tests/test_analytics_profitability_fallback.py` + `tests/test_new_services.py`
+  → mismo conjunto de fallas antes/después (diff vacío, las 4 de
+  `test_new_services.py` son pre-existentes y ajenas); ratchet de `productos`
+  intacto (`analytics_engine.py` sigue en la allowlist por su lectura de
+  `productos`, no tocada); inventario `2 failed / 571 passed` (2 pre-existentes,
+  cero regresiones); arquitectura `29 failed / 534 passed` desde la raíz del repo
+  (línea base sin cambios).
+
 ### Pendiente P2 (orden de repunte antes del DROP)
 
 1. **`lote_service` cárnico/FIFO** → migrar lotes/movimientos_lote a `inventory_lots`
    + ledger (es el mayor consumidor y el de mayor lógica de negocio).
 2. **`movimientos_inventario`**: repuntar lectores/escritores restantes
    (`inventory_balance_service` [reconciliación legacy↔legacy],
-   `unified_inventory_service`, `api/routers/inventario`, `recipe_engine`,
-   `analytics_engine`) al ledger canónico.
+   `unified_inventory_service`, `api/routers/inventario`, `recipe_engine`)
+   al ledger canónico.
 3. **Herramientas/scripts** (`reconcile_inventory`, `seed_demo`) y `ui/dashboard`.
 4. Recién con paridad de `InventoryReconciliationService` y cero consumidores,
    ejecutar la migración diferida con `INVENTORY_ALLOW_LEGACY_DROP=1`.
