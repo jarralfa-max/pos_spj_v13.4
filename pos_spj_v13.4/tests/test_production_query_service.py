@@ -2,7 +2,7 @@
 tests/test_production_query_service.py — FASE 9
 
 Verifies ProductionQueryService functions:
-  - get_daily_kpis: primary schema, legacy fallback, active lotes
+  - get_daily_kpis: primary schema, legacy fallback, active lots (canonical inventory_balances)
   - get_recetas_list: product_recipes primary, recetas legacy fallback
   - get_recipe_components
   - get_historial_carnica
@@ -63,7 +63,7 @@ def _setup_modern_schema(conn: sqlite3.Connection):
             batch_id TEXT,
             real_yield REAL DEFAULT 0
         );
-        CREATE TABLE lotes (id INTEGER PRIMARY KEY, estado TEXT DEFAULT 'activo');
+        CREATE TABLE inventory_balances (lot_id TEXT DEFAULT '', quantity TEXT DEFAULT '0', weight TEXT DEFAULT '0');
 
         CREATE TABLE product_recipes (
             id INTEGER PRIMARY KEY,
@@ -106,7 +106,7 @@ def _setup_legacy_schema(conn: sqlite3.Connection):
         CREATE TABLE productos (id INTEGER PRIMARY KEY, nombre TEXT, unidad TEXT, existencia REAL DEFAULT 0);
         CREATE TABLE inventario_actual (producto_id INTEGER, sucursal_id INTEGER, cantidad REAL DEFAULT 0);
         CREATE TABLE IF NOT EXISTS inventory_stock (id TEXT PRIMARY KEY, product_id TEXT, branch_id TEXT, quantity REAL DEFAULT 0, costo_promedio REAL DEFAULT 0, UNIQUE(product_id, branch_id));
-        CREATE TABLE lotes (id INTEGER PRIMARY KEY, estado TEXT DEFAULT 'activo');
+        CREATE TABLE inventory_balances (lot_id TEXT DEFAULT '', quantity TEXT DEFAULT '0', weight TEXT DEFAULT '0');
 
         CREATE TABLE producciones (
             id INTEGER PRIMARY KEY,
@@ -196,9 +196,9 @@ class TestGetDailyKpis:
 
     def test_lotes_activos_counted(self, db):
         _setup_modern_schema(db)
-        db.execute("INSERT INTO lotes (estado) VALUES ('activo')")
-        db.execute("INSERT INTO lotes (estado) VALUES ('activo')")
-        db.execute("INSERT INTO lotes (estado) VALUES ('cerrado')")
+        db.execute("INSERT INTO inventory_balances (lot_id, quantity) VALUES ('lot-1', '5')")
+        db.execute("INSERT INTO inventory_balances (lot_id, weight) VALUES ('lot-2', '3.5')")
+        db.execute("INSERT INTO inventory_balances (lot_id, quantity) VALUES ('lot-3', '0')")
         db.commit()
         result = get_daily_kpis(db)
         assert result["lotes_activos"] == 2
@@ -218,8 +218,15 @@ class TestGetActiveLotesCount:
 
     def test_counts_active_only(self, db):
         _setup_modern_schema(db)
-        db.execute("INSERT INTO lotes (estado) VALUES ('activo')")
-        db.execute("INSERT INTO lotes (estado) VALUES ('cerrado')")
+        db.execute("INSERT INTO inventory_balances (lot_id, quantity) VALUES ('lot-1', '5')")
+        db.execute("INSERT INTO inventory_balances (lot_id, quantity) VALUES ('lot-2', '0')")
+        db.commit()
+        assert get_active_lotes_count(db) == 1
+
+    def test_same_lot_split_across_locations_counts_once(self, db):
+        _setup_modern_schema(db)
+        db.execute("INSERT INTO inventory_balances (lot_id, quantity) VALUES ('lot-1', '5')")
+        db.execute("INSERT INTO inventory_balances (lot_id, quantity) VALUES ('lot-1', '2')")
         db.commit()
         assert get_active_lotes_count(db) == 1
 

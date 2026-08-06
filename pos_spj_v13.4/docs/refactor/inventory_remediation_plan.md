@@ -1260,14 +1260,47 @@ se actualizó el comentario de cabecera del archivo.
   `2 failed / 571 passed` (2 pre-existentes, cero regresiones); arquitectura
   `29 failed / 534 passed` desde la raíz del repo (línea base sin cambios).
 
+### Slice 10 — Repunte de `production_query_service.get_active_lotes_count` — HECHO
+
+Sexto repunte hacia el DROP, primer consumidor de la tabla legacy `lotes`
+(distinta de `movimientos_inventario`). Auditoría de los 6 archivos que leen
+`lotes` directamente (`lote_service.py` [el más grande, FIFO cárnico —
+pendiente, ítem 1 abajo], `ui/dashboard.py`, `actionable_forecast.py`,
+`reporte_email_service.py`, `seed_demo.py`, `production_query_service.py`):
+se eligió `production_query_service.py` por ser el más chico y acotado —
+un `SELECT COUNT(*) FROM lotes WHERE estado='activo'`, usado por el KPI
+"lotes activos" del dashboard de Producción (`get_daily_kpis` +
+`get_active_lotes_count`, ambos wireados en vivo vía `core/app_container.py`
+y llamados directo por `modulos/produccion.py:227`).
+
+- El equivalente canónico de `estado='activo'` (que en la tabla legacy
+  implicaba además `peso_actual_kg>0`, ver `lote_service.py`) es: un lote con
+  saldo restante en `inventory_balances` — `COUNT(DISTINCT lot_id)` con
+  `quantity>0 OR weight>0`. Se extrajo a un helper `_count_active_lots(db)`
+  compartido por ambas funciones públicas (antes duplicaban la misma query).
+- **Evidencia**: `tests/test_production_query_service.py` (fixtures migradas de
+  `CREATE TABLE lotes` a `CREATE TABLE inventory_balances`; se agregó
+  `test_same_lot_split_across_locations_counts_once` para cubrir el `DISTINCT`)
+  + `tests/test_bloque2_query_service.py` → `62 passed` (línea base `61
+  passed`, +1 test nuevo, cero regresiones); `tests/test_recipe_events.py` +
+  `tests/integration/test_meat_production_use_case.py` +
+  `tests/architecture/test_remediacion0_guardrails.py` → `24 passed` sin
+  cambios; inventario `2 failed / 571 passed` (2 pre-existentes); arquitectura
+  `29 failed / 534 passed` desde la raíz del repo (línea base sin cambios).
+
 ### Pendiente P2 (orden de repunte antes del DROP)
 
 1. **`lote_service` cárnico/FIFO** → migrar lotes/movimientos_lote a `inventory_lots`
    + ledger (es el mayor consumidor y el de mayor lógica de negocio).
-2. **`movimientos_inventario`**: repuntar lectores/escritores restantes
+2. **Lectores restantes de `lotes`**: `ui/dashboard.py`, `actionable_forecast.py`,
+   `reporte_email_service.py` (repuntar a `inventory_lots`/`inventory_balances`);
+   `seed_demo.py` (repuntar la creación de lotes demo a `inventory_lots`).
+3. **`movimientos_inventario`**: repuntar lectores/escritores restantes
    (`inventory_balance_service` [reconciliación legacy↔legacy],
    `unified_inventory_service`, `api/routers/inventario` [bloqueado por falta
    de `fastapi` en este entorno]) al ledger canónico.
-3. **Herramientas/scripts** (`reconcile_inventory`, `seed_demo`) y `ui/dashboard`.
-4. Recién con paridad de `InventoryReconciliationService` y cero consumidores,
+4. **Herramientas/scripts** (`reconcile_inventory`) — su propósito es
+   reconciliar tablas legacy entre sí; probablemente se retira junto con el
+   DROP en vez de repuntarse.
+5. Recién con paridad de `InventoryReconciliationService` y cero consumidores,
    ejecutar la migración diferida con `INVENTORY_ALLOW_LEGACY_DROP=1`.
