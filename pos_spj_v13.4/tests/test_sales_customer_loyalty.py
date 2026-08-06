@@ -203,12 +203,10 @@ def sales_svc_checkout(db_checkout):
     """SalesService completo para tests de checkout (cliente + crédito + lealtad)."""
     from core.services.sales_service import SalesService
     from core.services.inventory_service import InventoryService
-    from repositories.inventory_repository import InventoryRepository
     from repositories.sales_repository import SalesRepository
     from repositories.recetas import RecetaRepository as RecipeRepository
     from application.services.customer_credit_service import CustomerCreditService
 
-    inv_repo    = InventoryRepository(db_checkout)
     sales_repo  = SalesRepository(db_checkout)
     recipe_repo = RecipeRepository(db_checkout)
 
@@ -229,7 +227,9 @@ def sales_svc_checkout(db_checkout):
     class _FakeTicket:
         def generar_ticket(self, *a, **kw): return ""
 
-    inv_svc         = InventoryService(db_checkout, inv_repo)
+    # InventoryService (corte INV-27) es un shim canónico: sólo toma la conexión
+    # real; el legacy InventoryRepository que recibía aquí ya no existe (P2).
+    inv_svc         = InventoryService(db_checkout)
     loyalty_svc     = MockLoyaltyService()
     finance_svc     = _FakeFinance()
     customer_svc    = CustomerCreditService(db_checkout, finance_service=finance_svc)

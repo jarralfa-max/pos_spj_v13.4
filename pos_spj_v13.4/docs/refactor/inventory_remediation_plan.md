@@ -1122,13 +1122,54 @@ riesgo de runtime; el repunte deja la semántica correcta post-cutover.
   legacy intacto (`repositories/productos.py` sigue leyendo la tabla `productos`, no
   la de inventario).
 
+### Slice 6 — Retiro de `repositories/inventory_repository.py` (legacy, IDs int) — HECHO
+
+Segundo repunte hacia el DROP. Al investigar `repositories/inventory_repository.py`
+(el `InventoryRepository` legacy de nivel superior — IDs `int`, escribía
+`movimientos_inventario`/`inventario_actual`/`branch_inventory`) se confirmó que:
+
+- **Cero importadores de producción.** `core/app_container.py` y todo caller real
+  usan el módulo canónico-adyacente `backend.infrastructure.db.repositories.
+  inventory_repository` (archivo distinto, mismo nombre corto) — ya protegido por
+  `test_app_container_inventory_canonical_route.py`.
+- El shim `InventoryService` (`core/services/inventory_service.py`, INV-27)
+  **ignora por completo** el parámetro `inventory_repo`: siempre delega en
+  `CanonicalInventoryRepository` (ledger). El `InventoryRepository` legacy que
+  recibía era letra muerta incluso donde se construía.
+- Sólo dos *fixtures* de test lo construían (`tests/conftest.py::sales_svc`,
+  `tests/test_sales_customer_loyalty.py::sales_svc_checkout`) — uno de ellos
+  incluso lo pasaba en la posición equivocada (bug preexistente de fixture, fuera
+  de alcance; **no se tocó** esa semántica: se comprobó bit a bit que el conjunto
+  de tests que fallan antes/después es idéntico).
+
+**Cambios:**
+- Eliminado `repositories/inventory_repository.py`.
+- Ambas fixtures ya no importan/construyen el repo legacy; `InventoryService(...)`
+  se llama con la firma real del shim (sólo la conexión).
+- **Ratchet de `productos` actualizado**: se quita `repositories/inventory_repository.py`
+  de la allowlist (el archivo también hacía `UPDATE productos`; al desaparecer, deja
+  de ser consumidor de esa tabla también).
+- **Guardrail** `test_legacy_top_level_inventory_repository_retired.py`: el archivo
+  no existe, ningún import real lo referencia (se excluyen coincidencias dentro de
+  literales de otros guardrails), y `app_container.py` usa sólo el módulo canónico.
+- **Evidencia**: guardrail (3) + ratchet (2) + `test_app_container_inventory_canonical_route`
+  (2) = 7 passed; `tests/test_sales.py` + `tests/test_sales_customer_loyalty.py`
+  → mismo conjunto de fallas antes/después (diff vacío, cero regresión, cero
+  arreglo colateral de bugs preexistentes); `tests/unit/` → mismo conjunto de
+  fallas antes/después (diff vacío); inventario `2 failed / 566 passed` (2
+  pre-existentes); arquitectura `22 failed / 440 passed` desde la raíz del repo
+  (+3 del guardrail, sin fallas nuevas).
+
 ### Pendiente P2 (orden de repunte antes del DROP)
 
 1. **`lote_service` cárnico/FIFO** → migrar lotes/movimientos_lote a `inventory_lots`
    + ledger (es el mayor consumidor y el de mayor lógica de negocio).
-2. **`movimientos_inventario`**: repuntar lectores canónicos ya existentes
-   (`inventory_balance_service`, `unified_inventory_service`, `api/routers/inventario`,
-   delivery adapter, analytics, `inventory_repository`, `productos`) al ledger canónico.
+2. **`movimientos_inventario`**: repuntar lectores/escritores restantes
+   (`inventory_balance_service` [reconciliación legacy↔legacy],
+   `unified_inventory_service`, `api/routers/inventario`, delivery adapter
+   [ya escribe canónico vía `InventoryService`; sólo su chequeo de idempotencia
+   sigue mirando la tabla legacy — repuntarlo, aunque el ledger ya es idempotente
+   por `operation_id`], `recipe_engine`, `analytics_engine`) al ledger canónico.
 3. **Herramientas/scripts** (`reconcile_inventory`, `seed_demo`) y `ui/dashboard`.
 4. Recién con paridad de `InventoryReconciliationService` y cero consumidores,
    ejecutar la migración diferida con `INVENTORY_ALLOW_LEGACY_DROP=1`.
