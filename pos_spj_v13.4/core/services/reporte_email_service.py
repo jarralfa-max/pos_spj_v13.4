@@ -33,7 +33,16 @@ class ReporteEmailService:
         ventas   = _q("SELECT COUNT(*) FROM ventas WHERE DATE(fecha)=? AND estado='completada'", hoy)
         total    = _q("SELECT COALESCE(SUM(total),0) FROM ventas WHERE DATE(fecha)=? AND estado='completada'", hoy)
         devs     = _q("SELECT COUNT(*) FROM devoluciones WHERE DATE(fecha)=?", hoy)
-        lotes    = _q("SELECT COUNT(*) FROM lotes WHERE DATE(fecha_caducidad)<=? AND estado='activo'", hoy)
+        # Lotes por vencer canónico: lotes con riesgo EXPIRED/CRITICAL/WARNING
+        # sobre inventory_balances + inventory_lots (INV-7), misma definición
+        # que consulta la página "Cadena de frío"/alertas del módulo Inventario.
+        from backend.application.inventory.queries.expiry_query_service import (
+            ExpiryQueryService,
+        )
+        try:
+            lotes = len(ExpiryQueryService(self.conn).list_at_risk())
+        except Exception:
+            lotes = 0
         # Stock bajo canónico: disponible total ≤ umbral de reposición global
         # (migración 168, respaldado desde stock_minimo).
         from backend.application.inventory.queries import (
