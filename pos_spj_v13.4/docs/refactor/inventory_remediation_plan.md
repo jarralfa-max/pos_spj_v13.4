@@ -1288,13 +1288,43 @@ y llamados directo por `modulos/produccion.py:227`).
   cambios; inventario `2 failed / 571 passed` (2 pre-existentes); arquitectura
   `29 failed / 534 passed` desde la raíz del repo (línea base sin cambios).
 
+### Slice 11 — Repunte de `reporte_email_service` ("Lotes por vencer") — HECHO
+
+Séptimo repunte hacia el DROP, segundo lector de `lotes` retirado. El reporte
+diario por email contaba `SELECT COUNT(*) FROM lotes WHERE
+DATE(fecha_caducidad)<=? AND estado='activo'`. Se repuntó a
+`ExpiryQueryService.list_at_risk()` (INV-7, `backend/application/inventory/
+queries/expiry_query_service.py`) — la misma lectura canónica que ya usa la
+página de alertas/cadena de frío del módulo Inventario — sobre
+`inventory_balances` ⋈ `inventory_lots`, filtrando por clasificación
+EXPIRED/CRITICAL/WARNING de `ExpiryRiskService`.
+
+- **Cambio de semántica documentado (no regresión, mejora deliberada)**: la
+  query legacy solo contaba lotes con `fecha_caducidad<=hoy` (vencidos o que
+  vencen hoy). El canónico `list_at_risk()` también incluye WARNING (≤7 días,
+  configurable) y CRITICAL (≤2 días) — la misma definición de "at risk" que ya
+  ve el usuario en el módulo Inventario. Se prefirió una sola definición de
+  "lote en riesgo" en todo el sistema en vez de preservar el corte exacto de
+  la query legacy retirada.
+- Justo al lado, en el mismo método, `stock_bajo` ya usaba
+  `InventoryStockAggregateQueryService` canónico — se siguió el mismo patrón
+  (import inline + try/except a 0) para consistencia dentro del archivo.
+- **Evidencia**: `tests/integration/inventory/test_reporte_email_lotes_canonical.py`
+  (2, nuevo — sin cobertura previa de `_build_reporte_diario`; siembra lotes
+  EXPIRED/CRITICAL/OK vía el flujo real de esquema canónico y confirma el
+  conteo en el HTML generado); `tests/test_uuid_only_guard_rails.py` sin
+  cambios (9 passed); inventario `2 failed / 573 passed` (2 pre-existentes,
+  +2 tests nuevos); arquitectura `29 failed / 534 passed` desde la raíz del
+  repo (línea base sin cambios).
+
 ### Pendiente P2 (orden de repunte antes del DROP)
 
 1. **`lote_service` cárnico/FIFO** → migrar lotes/movimientos_lote a `inventory_lots`
    + ledger (es el mayor consumidor y el de mayor lógica de negocio).
-2. **Lectores restantes de `lotes`**: `ui/dashboard.py`, `actionable_forecast.py`,
-   `reporte_email_service.py` (repuntar a `inventory_lots`/`inventory_balances`);
-   `seed_demo.py` (repuntar la creación de lotes demo a `inventory_lots`).
+2. **Lectores restantes de `lotes`**: `ui/dashboard.py`, `actionable_forecast.py`
+   (repuntar a `inventory_lots`/`inventory_balances`, mismo patrón de
+   `ExpiryQueryService`); `seed_demo.py` (repuntar la creación de lotes demo a
+   `inventory_lots`).
 3. **`movimientos_inventario`**: repuntar lectores/escritores restantes
    (`inventory_balance_service` [reconciliación legacy↔legacy],
    `unified_inventory_service`, `api/routers/inventario` [bloqueado por falta
