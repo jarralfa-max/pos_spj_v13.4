@@ -419,7 +419,7 @@ class TestPresenter:
         from backend.application.inventory.use_cases import CreateAdjustmentUseCase
         from backend.domain.inventory.enums import AdjustmentReason
         _seed(conn)  # 5 pzas de p1 en w1/loc1
-        CreateAdjustmentUseCase().execute(
+        result = CreateAdjustmentUseCase().execute(
             conn, folio="AJ-1", branch_id="b1", warehouse_id="w1",
             reason=AdjustmentReason.DAMAGE,
             lines=[{"product_id": "p1", "quantity_delta": -1, "location_id": "loc1"}],
@@ -430,6 +430,9 @@ class TestPresenter:
         assert vm.rows[0][1] == "Daño"       # motivo es-MX
         assert vm.rows[0][2] == "w1"         # almacén
         assert vm.rows[0][3] in ("Borrador", "Por aprobar")  # estado es-MX
+        # row_ids llevan el id del ajuste (approve/post/reverse actúan sobre
+        # él), no el folio — necesario para que la UI pueda operar la fila.
+        assert vm.row_ids[0] == result.entity_id
 
     def test_adjustments_empty(self, conn):
         vm = _presenter(conn).adjustments()

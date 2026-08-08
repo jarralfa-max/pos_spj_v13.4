@@ -38,6 +38,7 @@ from backend.application.inventory.use_cases import (
     RegisterWasteUseCase,
     ReleaseQuarantineUseCase,
     ReleaseReservationUseCase,
+    ReverseAdjustmentUseCase,
     ReverseInventoryMovementUseCase,
 )
 from backend.domain.inventory.exceptions import InventoryConfigurationError
@@ -130,6 +131,9 @@ class InventoryUseCaseFactory:
 
     def post_adjustment(self, **kw):
         return self.build(PostAdjustmentUseCase, **kw)
+
+    def reverse_adjustment(self, **kw):
+        return self.build(ReverseAdjustmentUseCase, **kw)
 
     def create_count(self, **kw):
         return self.build(CreateCountUseCase, **kw)

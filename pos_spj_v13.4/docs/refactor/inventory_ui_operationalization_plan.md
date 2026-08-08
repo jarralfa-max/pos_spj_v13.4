@@ -47,10 +47,18 @@ un botón nuevo mutaría con identidad o alcance incorrectos).
    Lotes y Conteos — pendiente cablearlos ahí (mismo patrón, otro use case).
    Pendiente explícito: selector de ubicación (hoy `open_quarantine` asume la
    ubicación por defecto del almacén; sin selector de ubicación real).
-4. P0-E: integración entre módulos (refresco por eventos tras venta/compra/
+4. **P0-C (Ajustes) — EN CURSO, pausado en un punto seguro (slice 4, abajo).**
+   Se corrigió el mismo bug de `row_ids` que Cuarentena tenía (folio en vez de
+   id real) y se expuso `InventoryUseCaseFactory.reverse_adjustment()` (existía
+   el caso de uso, faltaba el builder). **Falta**: comandos en el presenter
+   (`create_/approve_/post_/reverse_adjustment`), diálogos y botones en
+   `AdjustmentsPage` — el mismo patrón que Cuarentena, retomar cuando se
+   continúe P0-C.
+5. P0-E: integración entre módulos (refresco por eventos tras venta/compra/
    producción; auditar y corregir `warehouse_id=branch_id` en los bridges de
    Ventas/Compras/Producción — el propio audit señala que ahí también existe).
-5. P1: `InventoryUiEventBridge` (refresco reactivo) + pruebas de workflow por
+   **← siguiente, en curso.**
+6. P1: `InventoryUiEventBridge` (refresco reactivo) + pruebas de workflow por
    página (no solo de tablas).
 
 ## 2. Slices ejecutados
@@ -298,3 +306,51 @@ independientemente de qué rama se espere ejercitar.
 - Inventario completo: `2 failed / 593 passed` (2 pre-existentes, +10 nuevos).
 - Arquitectura completa desde la raíz del repo: `29 failed / 534 passed`
   (línea base sin cambios).
+
+### Slice 4 — P0-C (Ajustes) — fixes de fondo, pausado antes de la UI — HECHO (parcial)
+
+Se empezó a repetir el patrón de Cuarentena en la página de Ajustes
+("Aprobar/Postear/Reversar" según §7.15 del audit) y, al llegar al mismo punto
+donde la fila necesita un id real para operar sobre ella, se encontró el
+**mismo bug exacto de Cuarentena (slice 2)**: `AdjustmentQueryService
+.list_recent()` no seleccionaba `id`, y `adjustments_table()` usaba
+`f"{folio}:{índice}"` como `row_id` — inútil para llamar a
+`ApproveAdjustmentUseCase`/`PostAdjustmentUseCase`/`ReverseAdjustmentUseCase`,
+que requieren el UUID real del ajuste. Se corrigió igual que en Cuarentena.
+
+También se encontró que `InventoryUseCaseFactory` (el composition root)
+**importaba pero nunca exponía** `ReverseAdjustmentUseCase` como builder —
+`create_adjustment`, `approve_adjustment` y `post_adjustment` sí tenían su
+método, `reverse_adjustment` no. Sin ese builder, la UI no podría construir el
+caso de uso de reverso con el checker RBAC real (tendría que usar el
+constructor permisivo, justo lo que P0-A prohíbe). Se agregó el import y el
+builder que faltaba.
+
+El usuario interrumpió con "P0-E" antes de completar el resto (comandos del
+presenter, diálogos, botones de la página) — se dejaron esos dos fixes de
+backend confirmados y probados como una mejora autónoma y segura, y el resto
+de P0-C (Ajustes) queda pendiente explícito para retomar.
+
+**Archivos:**
+- `backend/application/inventory/queries/adjustment_query_service.py` — `id`
+  agregado al SELECT/dict de `list_recent`.
+- `frontend/desktop/modules/inventory/view_models.py` — `adjustments_table`
+  usa `r["id"]` como `row_ids`.
+- `backend/application/inventory/composition.py` — import de
+  `ReverseAdjustmentUseCase` + builder `reverse_adjustment()`.
+- `tests/unit/inventory/test_inventory_composition.py` — nuevo
+  `test_factory_builds_reverse_adjustment`.
+- `tests/integration/inventory/test_inventory_ui_presenter.py` —
+  `test_adjustments_view_model` ahora confirma `row_ids[0] ==
+  result.entity_id`.
+
+**Evidencia:** inventario `2 failed / 594 passed` (2 pre-existentes, +1
+nuevo); arquitectura `29 failed / 534 passed` (línea base sin cambios).
+
+**Pendiente explícito para retomar P0-C (Ajustes):** presenter —
+`create_adjustment` (folio + producto vía `product_options` + motivo +
+cantidad con signo, una sola línea por envío como en Cuarentena),
+`approve_adjustment`, `post_adjustment`, `reverse_adjustment` (con motivo);
+composition root — wireado vía `factory.create_adjustment()` etc.; página —
+botones "Nuevo ajuste"/"Aprobar"/"Postear"/"Reversar" con diálogos
+(reutilizando `OpenQuarantineDialog`/`DisposeQuarantineDialog` como plantilla).

@@ -409,10 +409,11 @@ def adjustment_status_es(code) -> str:
 
 def adjustments_table(rows: list[dict]) -> TableViewModel:
     """rows: adjustment rows (list_recent) → display table (folio, motivo, almacén,
-    estado, creado), más recientes primero."""
+    estado, creado), más recientes primero. row_ids carry the adjustment id
+    (approve/post/reverse act on it), not the folio."""
     out, ids = [], []
-    for i, r in enumerate(rows):
-        ids.append(f"{r.get('folio','')}:{i}")
+    for r in rows:
+        ids.append(str(r.get("id") or ""))
         out.append([
             str(r.get("folio") or "—"),
             adjustment_reason_es(r.get("reason")),
