@@ -47,6 +47,13 @@ un botón nuevo mutaría con identidad o alcance incorrectos).
    Lotes y Conteos — pendiente cablearlos ahí (mismo patrón, otro use case).
    Pendiente explícito: selector de ubicación (hoy `open_quarantine` asume la
    ubicación por defecto del almacén; sin selector de ubicación real).
+3b. ~~P0-D rollout — Disponibilidad/Lotes/Reservas~~ — **HECHO (slice 6,
+   abajo)**. Las tres páginas que el audit señala explícitamente (§7.3, §7.6,
+   §7.9, hallazgo P0-04) escribían el texto tecleado directamente como
+   `product_id` — se repuntaron al mismo `EntitySearchInput` +
+   `product_options` de la slice 3. Pendiente: Trazabilidad (§7.18, también
+   señalada por el audit) y Conteos/Ajustes cuando lleguen sus formularios de
+   creación.
 4. **P0-C (Ajustes) — EN CURSO, pausado en un punto seguro (slice 4, abajo).**
    Se corrigió el mismo bug de `row_ids` que Cuarentena tenía (folio en vez de
    id real) y se expuso `InventoryUseCaseFactory.reverse_adjustment()` (existía
@@ -434,3 +441,58 @@ bloqueada hasta correr el script contra la base real o decidir un
 auto-aprovisionamiento in-bridge); UI de Almacenes con acción de alta
 (compartiría estos mismos builders del factory, pero es una página P0-C
 aparte).
+
+### Slice 6 — P0-D rollout: Disponibilidad/Lotes/Reservas — HECHO
+
+Continuación directa de la slice 3: llevar `EntitySearchInput` +
+`InventoryPresenter.product_options()` (ya construidos, sin tocar backend) a
+las tres páginas que el propio audit nombra en su hallazgo P0-04 como el
+ejemplo más claro del problema — "el usuario no debería conocer ni escribir
+UUIDs" — y que hasta esta slice hacían exactamente eso:
+
+```python
+self._search = SearchInput(placeholder="Producto (ID o código escaneado)…")
+self._search.search_submitted.connect(self._on_search)
+...
+def _on_search(self, text: str) -> None:
+    self._product_id = str(text or "").strip()   # el texto tecleado, tal cual
+```
+
+Las tres páginas (`availability_page.py`, `lots_page.py`,
+`reservations_page.py`) compartían línea por línea el mismo patrón, así que
+el cambio fue idéntico en las tres: `SearchInput` → `EntitySearchInput`
+(`provider=self._presenter.product_options`), conectado a su señal
+`selected` (emite el id real del producto elegido) en vez de
+`search_submitted` (el texto crudo). Cero cambios de backend — el presenter y
+`ProductQueryService` ya existían desde la slice 3.
+
+**Regresión atrapada por los tests existentes, no por inspección manual:**
+`tests/integration/inventory/test_inventory_view_shell.py` construye estas
+tres páginas con un `_StubPresenter` mínimo; como `EntitySearchInput` lee
+`provider=self._presenter.product_options` en el `__init__` (no de forma
+perezosa), las 3 pruebas de wiring de esas páginas fallaron de inmediato con
+`AttributeError` hasta agregar `product_options` al stub. Buena señal: el
+test suite atrapó la integración rota antes de necesitar una corrida manual.
+
+**Evidencia:**
+- `tests/integration/inventory/test_inventory_view_shell.py` — se agregó
+  `product_options` al `_StubPresenter`; **20 passed** (antes 3 fallaban por
+  la razón de arriba).
+- `tests/integration/inventory/test_inventory_ui_presenter.py` — nueva clase
+  `TestProductSearchPages` (4 tests): Lotes/Disponibilidad refrescan con
+  datos reales tras `search.selected.emit("p1")` (flujo real, sin mocks:
+  `RegisterInventoryLotUseCase`/`_seed` seedean datos verdaderos); Reservas
+  no truena sin reservas pero sí fija `_product_id`; las tres páginas usan
+  `EntitySearchInput`, no `SearchInput` (guardrail de regresión explícito
+  para que nadie reintroduzca el campo de texto crudo). **54 passed** (antes
+  50, +4 nuevos).
+- Inventario completo: `2 failed / 606 passed` (2 pre-existentes, +4 nuevos).
+- Arquitectura completa desde la raíz del repo: `29 failed / 534 passed`
+  (línea base sin cambios); `test_inventory_ui_guardrails.py` (SQL/db-access
+  scan de las páginas modificadas) sigue en verde.
+
+**Pendiente explícito:** Trazabilidad (§7.18) tiene el mismo problema pero
+para lote/documento, no producto — necesita un provider distinto (`lot`/
+`document` search), fuera del alcance de esta slice. Conteos y Ajustes
+recibirán este mismo patrón cuando se construyan sus diálogos de creación
+(P0-C, ya iniciado para Ajustes en la slice 4).

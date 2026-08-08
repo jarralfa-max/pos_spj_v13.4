@@ -692,3 +692,79 @@ class TestPagesSmoke:
         info.assert_called_once()
         release.assert_not_called()
         del app
+
+
+class TestProductSearchPages:
+    """P0-D rollout — Disponibilidad/Lotes/Reservas resolve the product via
+    the canonical search (EntitySearchInput + product_options), never a
+    hand-typed UUID (§P0-04)."""
+
+    def test_lots_page_refreshes_on_product_selection(self, conn):
+        pytest.importorskip("PyQt5")
+        from PyQt5.QtWidgets import QApplication
+
+        from backend.application.inventory.use_cases import RegisterInventoryLotUseCase
+        from backend.domain.inventory.enums import LotOrigin
+        from frontend.desktop.modules.inventory.pages import LotsPage
+
+        RegisterInventoryLotUseCase().execute(
+            conn, product_id="p1", lot_code="L-9", origin_type=LotOrigin.PURCHASE,
+            operation_id="lot-9", actor_user_id="u1", branch_id="b1",
+            expiration_date="2027-01-15")
+
+        app = QApplication.instance() or QApplication([])
+        page = LotsPage(_presenter(conn))
+        assert page._table.rowCount() == 0  # sin producto seleccionado aún
+
+        page._search.selected.emit("p1")
+        assert page._table.rowCount() == 1
+        assert page._table.item(0, 0).text() == "L-9"
+        del app
+
+    def test_reservations_page_refreshes_on_product_selection(self, conn):
+        pytest.importorskip("PyQt5")
+        from PyQt5.QtWidgets import QApplication
+
+        from frontend.desktop.modules.inventory.pages import ReservationsPage
+
+        app = QApplication.instance() or QApplication([])
+        page = ReservationsPage(_presenter(conn))
+        page._search.selected.emit("p1")
+        assert page._table.rowCount() == 0  # sin reservas para p1, pero no truena
+        assert page._product_id == "p1"
+        del app
+
+    def test_availability_page_refreshes_on_product_selection(self, conn):
+        pytest.importorskip("PyQt5")
+        from PyQt5.QtWidgets import QApplication
+
+        _seed(conn)  # 5 disponibles de p1
+        from frontend.desktop.modules.inventory.pages import AvailabilityPage
+
+        app = QApplication.instance() or QApplication([])
+        page = AvailabilityPage(_presenter(conn))
+        page._search.selected.emit("p1")
+        assert page._table.rowCount() > 0
+        assert page._product_id == "p1"
+        del app
+
+    def test_search_widgets_are_entity_search_not_raw_text(self, conn):
+        """§P0-04: Disponibilidad/Lotes/Reservas must resolve the product via
+        EntitySearchInput (a real catalog lookup), never a plain SearchInput
+        that hands the typed text straight through as product_id."""
+        pytest.importorskip("PyQt5")
+        from PyQt5.QtWidgets import QApplication
+
+        from frontend.desktop.components.entity_search_input import EntitySearchInput
+        from frontend.desktop.modules.inventory.pages import (
+            AvailabilityPage,
+            LotsPage,
+            ReservationsPage,
+        )
+
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn)
+        for page_cls in (AvailabilityPage, LotsPage, ReservationsPage):
+            page = page_cls(pres)
+            assert isinstance(page._search, EntitySearchInput)
+        del app

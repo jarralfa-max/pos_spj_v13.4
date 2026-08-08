@@ -40,6 +40,9 @@ from frontend.desktop.modules.inventory.view_models import TableViewModel  # noq
 class _StubPresenter:
     """Presenter mínimo para páginas de búsqueda por producto (refresh vacío)."""
 
+    def product_options(self, query):
+        return []
+
     def availability_breakdown(self, *, product_id, branch_id=None, warehouse_id=None):
         return TableViewModel(rows=[], row_ids=[], total=0)
 
