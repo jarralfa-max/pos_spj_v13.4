@@ -56,6 +56,8 @@ class InventoryPresenter:
                  alert_query_factory=None, settings_query_factory=None,
                  release_quarantine_uc=None, dispose_quarantine_uc=None,
                  open_quarantine_uc=None, product_query_factory=None,
+                 create_adjustment_uc=None, approve_adjustment_uc=None,
+                 post_adjustment_uc=None, reverse_adjustment_uc=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -83,6 +85,10 @@ class InventoryPresenter:
         self._dispose_quarantine_uc = dispose_quarantine_uc
         self._open_quarantine_uc = open_quarantine_uc
         self._product_factory = product_query_factory
+        self._create_adjustment_uc = create_adjustment_uc
+        self._approve_adjustment_uc = approve_adjustment_uc
+        self._post_adjustment_uc = post_adjustment_uc
+        self._reverse_adjustment_uc = reverse_adjustment_uc
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -496,4 +502,115 @@ class InventoryPresenter:
             return bool(result.success), result.message, self._result_data(result)
         except Exception:
             logger.exception("InventoryPresenter.open_quarantine failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def create_adjustment(self, *, product_id: str, reason: str, quantity_delta,
+                          weight_delta=0, reason_note: str = "",
+                          branch_id: str | None = None,
+                          warehouse_id: str | None = None) -> tuple[bool, str, dict]:
+        """Crea un ajuste de una sola línea (§29): cantidad con signo — positivo
+        entrada, negativo salida. Queda en borrador o pendiente de aprobación
+        según el límite configurado; el use case decide, no la UI."""
+        if self._create_adjustment_uc is None:
+            return False, "Creación de ajustes no disponible.", {}
+        pid = str(product_id or "").strip()
+        if not pid:
+            return False, "Selecciona un producto.", {}
+        try:
+            from backend.domain.inventory.enums import AdjustmentReason
+            reason_enum = AdjustmentReason(str(reason))
+        except ValueError:
+            return False, "Motivo de ajuste inválido.", {}
+        if not quantity_delta and not weight_delta:
+            return False, "Captura una cantidad o peso distinto de cero.", {}
+        branch = branch_id or self.default_branch()
+        warehouse = warehouse_id or self.default_warehouse()
+        folio = f"AJ-{new_uuid()[:8].upper()}"
+        try:
+            result = self._create_adjustment_uc.execute(
+                self._conn(), folio=folio, branch_id=branch, warehouse_id=warehouse,
+                reason=reason_enum, operation_id=new_uuid(), actor_user_id=self._actor(),
+                reason_note=str(reason_note or "").strip(),
+                lines=[{"product_id": pid, "quantity_delta": quantity_delta,
+                       "weight_delta": weight_delta}])
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            data = self._result_data(result)
+            message = result.message
+            if result.success and data.get("requires_approval"):
+                message = f"{message} (folio {folio}) — requiere aprobación"
+            elif result.success:
+                message = f"{message} (folio {folio})"
+            return bool(result.success), message, data
+        except Exception:
+            logger.exception("InventoryPresenter.create_adjustment failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def approve_adjustment(self, *, adjustment_id: str) -> tuple[bool, str, dict]:
+        """Aprueba un ajuste pendiente (§29): quien lo creó no puede aprobarlo
+        (segregación de funciones, resuelta aguas abajo, nunca en la UI)."""
+        if self._approve_adjustment_uc is None:
+            return False, "Aprobación de ajustes no disponible.", {}
+        aid = str(adjustment_id or "").strip()
+        if not aid:
+            return False, "Selecciona un ajuste.", {}
+        try:
+            result = self._approve_adjustment_uc.execute(
+                self._conn(), adjustment_id=aid, operation_id=new_uuid(),
+                actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.approve_adjustment failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def post_adjustment(self, *, adjustment_id: str) -> tuple[bool, str, dict]:
+        """Postea un ajuste aprobado (§29): mueve el ledger. Un ajuste pendiente
+        de aprobación es rechazado por el use case, no simulado aquí."""
+        if self._post_adjustment_uc is None:
+            return False, "Posteo de ajustes no disponible.", {}
+        aid = str(adjustment_id or "").strip()
+        if not aid:
+            return False, "Selecciona un ajuste.", {}
+        try:
+            result = self._post_adjustment_uc.execute(
+                self._conn(), adjustment_id=aid, operation_id=new_uuid(),
+                actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.post_adjustment failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def reverse_adjustment(self, *, adjustment_id: str,
+                           reason: str = "") -> tuple[bool, str, dict]:
+        """Reversa un ajuste posteado (§29): movimiento inverso, irreversible."""
+        if self._reverse_adjustment_uc is None:
+            return False, "Reverso de ajustes no disponible.", {}
+        aid = str(adjustment_id or "").strip()
+        if not aid:
+            return False, "Selecciona un ajuste.", {}
+        try:
+            result = self._reverse_adjustment_uc.execute(
+                self._conn(), adjustment_id=aid, operation_id=new_uuid(),
+                actor_user_id=self._actor(), reason=str(reason or "").strip())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.reverse_adjustment failed")
             return False, "Error inesperado; revise el log.", {}

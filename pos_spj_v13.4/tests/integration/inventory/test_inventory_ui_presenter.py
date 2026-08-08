@@ -29,13 +29,17 @@ from backend.application.inventory.queries import (
     WeightQueryService,
 )
 from backend.application.inventory.use_cases import (
+    ApproveAdjustmentUseCase,
+    CreateAdjustmentUseCase,
     CreateLocationUseCase,
     CreateWarehouseUseCase,
     DisposeQuarantineUseCase,
     GenerateReplenishmentSuggestionsUseCase,
+    PostAdjustmentUseCase,
     PostInventoryMovementUseCase,
     QuarantineStockUseCase,
     ReleaseQuarantineUseCase,
+    ReverseAdjustmentUseCase,
     SetReplenishmentRuleUseCase,
 )
 from backend.domain.inventory.enums import WarehouseType
@@ -103,6 +107,10 @@ def _presenter(conn):
         settings_query_factory=SettingsQueryService,
         release_quarantine_uc=ReleaseQuarantineUseCase(),
         dispose_quarantine_uc=DisposeQuarantineUseCase(),
+        create_adjustment_uc=CreateAdjustmentUseCase(),
+        approve_adjustment_uc=ApproveAdjustmentUseCase(),
+        post_adjustment_uc=PostAdjustmentUseCase(),
+        reverse_adjustment_uc=ReverseAdjustmentUseCase(),
         session_context=_Session())
 
 
@@ -602,6 +610,137 @@ class TestQuarantineCommands:
         assert "no disponible" in message
 
 
+class TestAdjustmentCommands:
+    """P0-C resumption — create/approve/post/reverse are real authorized
+    commands, not reads. Segregation of duties (creator != approver) is
+    enforced by the domain, so setup adjustments are created by a different
+    actor ("qa") than the presenter's session user ("u1")."""
+
+    def _created_adjustment(self, conn, *, operation_id="adj-1"):
+        from backend.domain.inventory.enums import AdjustmentReason
+        result = CreateAdjustmentUseCase().execute(
+            conn, folio=f"AJ-{operation_id}", branch_id="b1", warehouse_id="w1",
+            reason=AdjustmentReason.SYSTEM_CORRECTION, operation_id=operation_id,
+            actor_user_id="qa",
+            lines=[{"product_id": "p1", "quantity_delta": Decimal("3")}])
+        assert result.success, result.message
+        return result.entity_id
+
+    def test_create_adjustment_via_presenter_creates_draft(self, conn):
+        pres = _presenter(conn)
+        ok, message, data = pres.create_adjustment(
+            product_id="p1", reason="SYSTEM_CORRECTION", quantity_delta=Decimal("3"))
+        assert ok, message
+        assert data.get("entity_id")
+        assert pres.adjustments().total == 1
+
+    def test_create_adjustment_without_product_does_not_call_backend(self, conn):
+        pres = _presenter(conn)
+        ok, message, _ = pres.create_adjustment(
+            product_id="", reason="SYSTEM_CORRECTION", quantity_delta=Decimal("3"))
+        assert not ok
+        assert "Selecciona" in message
+
+    def test_create_adjustment_with_invalid_reason_fails(self, conn):
+        pres = _presenter(conn)
+        ok, message, _ = pres.create_adjustment(
+            product_id="p1", reason="NOT_A_REASON", quantity_delta=Decimal("3"))
+        assert not ok
+        assert "Motivo" in message
+
+    def test_create_adjustment_without_quantity_fails(self, conn):
+        pres = _presenter(conn)
+        ok, message, _ = pres.create_adjustment(
+            product_id="p1", reason="SYSTEM_CORRECTION", quantity_delta=0)
+        assert not ok
+        assert "Captura" in message
+
+    def test_approve_adjustment_transitions_to_approved(self, conn):
+        aid = self._created_adjustment(conn)
+        pres = _presenter(conn)
+        ok, message, _ = pres.approve_adjustment(adjustment_id=aid)
+        assert ok, message
+
+    def test_post_adjustment_applies_movement_and_marks_posted(self, conn):
+        aid = self._created_adjustment(conn, operation_id="adj-2")
+        pres = _presenter(conn)
+        ok, message, _ = pres.post_adjustment(adjustment_id=aid)
+        assert ok, message
+        dto = InventoryAvailabilityQueryService(conn).get_availability(
+            product_id="p1", branch_id="b1", warehouse_id="w1")
+        assert dto.on_hand == Decimal("3")
+
+    def test_reverse_adjustment_undoes_posted_movement(self, conn):
+        aid = self._created_adjustment(conn, operation_id="adj-3")
+        pres = _presenter(conn)
+        ok, message, _ = pres.post_adjustment(adjustment_id=aid)
+        assert ok, message
+        ok, message, _ = pres.reverse_adjustment(adjustment_id=aid, reason="Error de captura")
+        assert ok, message
+        dto = InventoryAvailabilityQueryService(conn).get_availability(
+            product_id="p1", branch_id="b1", warehouse_id="w1")
+        assert dto.on_hand == Decimal("0")
+
+    def test_approve_adjustment_without_selection_does_not_call_backend(self, conn):
+        pres = _presenter(conn)
+        ok, message, _ = pres.approve_adjustment(adjustment_id="")
+        assert not ok
+        assert "Selecciona" in message
+
+    def test_post_adjustment_without_selection_does_not_call_backend(self, conn):
+        pres = _presenter(conn)
+        ok, message, _ = pres.post_adjustment(adjustment_id="")
+        assert not ok
+        assert "Selecciona" in message
+
+    def test_reverse_adjustment_without_selection_does_not_call_backend(self, conn):
+        pres = _presenter(conn)
+        ok, message, _ = pres.reverse_adjustment(adjustment_id="")
+        assert not ok
+        assert "Selecciona" in message
+
+    def test_create_adjustment_unavailable_when_not_wired(self, conn):
+        pres = InventoryPresenter(
+            connection_provider=lambda: conn,
+            availability_service_factory=InventoryAvailabilityQueryService,
+            replenishment_query_factory=ReplenishmentQueryService,
+            adjustment_query_factory=AdjustmentQueryService)
+        ok, message, _ = pres.create_adjustment(
+            product_id="p1", reason="SYSTEM_CORRECTION", quantity_delta=Decimal("3"))
+        assert not ok
+        assert "no disponible" in message
+
+    def test_approve_adjustment_unavailable_when_not_wired(self, conn):
+        pres = InventoryPresenter(
+            connection_provider=lambda: conn,
+            availability_service_factory=InventoryAvailabilityQueryService,
+            replenishment_query_factory=ReplenishmentQueryService,
+            adjustment_query_factory=AdjustmentQueryService)
+        ok, message, _ = pres.approve_adjustment(adjustment_id="a-1")
+        assert not ok
+        assert "no disponible" in message
+
+    def test_post_adjustment_unavailable_when_not_wired(self, conn):
+        pres = InventoryPresenter(
+            connection_provider=lambda: conn,
+            availability_service_factory=InventoryAvailabilityQueryService,
+            replenishment_query_factory=ReplenishmentQueryService,
+            adjustment_query_factory=AdjustmentQueryService)
+        ok, message, _ = pres.post_adjustment(adjustment_id="a-1")
+        assert not ok
+        assert "no disponible" in message
+
+    def test_reverse_adjustment_unavailable_when_not_wired(self, conn):
+        pres = InventoryPresenter(
+            connection_provider=lambda: conn,
+            availability_service_factory=InventoryAvailabilityQueryService,
+            replenishment_query_factory=ReplenishmentQueryService,
+            adjustment_query_factory=AdjustmentQueryService)
+        ok, message, _ = pres.reverse_adjustment(adjustment_id="a-1")
+        assert not ok
+        assert "no disponible" in message
+
+
 class TestPagesSmoke:
     def test_pages_build_and_refresh(self, conn):
         pytest.importorskip("PyQt5")
@@ -691,6 +830,133 @@ class TestPagesSmoke:
             page._on_release()
         info.assert_called_once()
         release.assert_not_called()
+        del app
+
+    def test_adjustments_page_approve_action_calls_presenter_and_refreshes(self, conn):
+        """P0-C: clicking Aprobar with a row selected posts the real command
+        and the table reflects the posted status after refresh."""
+        pytest.importorskip("PyQt5")
+        from unittest.mock import patch
+
+        from PyQt5.QtWidgets import QApplication, QDialog
+
+        from backend.domain.inventory.enums import AdjustmentReason
+        from frontend.desktop.modules.inventory.pages import AdjustmentsPage
+
+        result = CreateAdjustmentUseCase().execute(
+            conn, folio="AJ-PAGE-1", branch_id="b1", warehouse_id="w1",
+            reason=AdjustmentReason.SYSTEM_CORRECTION, operation_id="adj-page-1",
+            actor_user_id="qa",
+            lines=[{"product_id": "p1", "quantity_delta": Decimal("3")}])
+        assert result.success, result.message
+
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn)
+        page = AdjustmentsPage(pres)
+        page.refresh()
+        assert page._table.rowCount() == 1
+        page._table.selectRow(0)
+
+        with patch("frontend.desktop.modules.inventory.pages.adjustments_page"
+                   ".ConfirmationDialog.exec_", return_value=QDialog.Accepted), \
+             patch("frontend.desktop.modules.inventory.pages.adjustments_page"
+                   ".QMessageBox.information"):
+            page._on_approve()
+
+        rows = AdjustmentQueryService(conn).list_recent(branch_id="b1")
+        assert rows[0]["status"] == "APPROVED"
+
+    def test_adjustments_page_requires_selection_before_acting(self, conn):
+        """No row selected → the page warns and never calls the presenter."""
+        pytest.importorskip("PyQt5")
+        from unittest.mock import patch
+
+        from PyQt5.QtWidgets import QApplication
+
+        from frontend.desktop.modules.inventory.pages import AdjustmentsPage
+
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn)
+        page = AdjustmentsPage(pres)
+        page.refresh()
+
+        with patch("frontend.desktop.modules.inventory.pages.adjustments_page"
+                   ".QMessageBox.information") as info, \
+             patch.object(pres, "approve_adjustment") as approve:
+            page._on_approve()
+        info.assert_called_once()
+        approve.assert_not_called()
+        del app
+
+    def test_adjustments_page_create_action_calls_presenter_and_refreshes(self, conn):
+        """P0-C: Nuevo ajuste captures product/reason/direction/quantity via
+        the dialog and hands the signed delta to the presenter."""
+        pytest.importorskip("PyQt5")
+        from unittest.mock import MagicMock, patch
+
+        from PyQt5.QtWidgets import QApplication, QDialog
+
+        from frontend.desktop.modules.inventory.pages import AdjustmentsPage
+
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn)
+        page = AdjustmentsPage(pres)
+        page.refresh()
+
+        dlg = MagicMock()
+        dlg.exec_.return_value = QDialog.Accepted
+        dlg.product_id.return_value = "p1"
+        dlg.reason_code.return_value = "SYSTEM_CORRECTION"
+        dlg.quantity_delta.return_value = Decimal("4")
+        dlg.note.return_value = ""
+
+        with patch("frontend.desktop.modules.inventory.pages.adjustments_page"
+                   ".CreateAdjustmentDialog", return_value=dlg), \
+             patch("frontend.desktop.modules.inventory.pages.adjustments_page"
+                   ".QMessageBox.information"):
+            page._on_create()
+
+        assert page._table.rowCount() == 1
+
+    def test_adjustments_page_reverse_action_calls_presenter(self, conn):
+        pytest.importorskip("PyQt5")
+        from unittest.mock import MagicMock, patch
+
+        from PyQt5.QtWidgets import QApplication, QDialog
+
+        from backend.domain.inventory.enums import AdjustmentReason
+        from frontend.desktop.modules.inventory.pages import AdjustmentsPage
+
+        result = CreateAdjustmentUseCase().execute(
+            conn, folio="AJ-PAGE-2", branch_id="b1", warehouse_id="w1",
+            reason=AdjustmentReason.SYSTEM_CORRECTION, operation_id="adj-page-2",
+            actor_user_id="qa",
+            lines=[{"product_id": "p1", "quantity_delta": Decimal("3")}])
+        assert result.success, result.message
+        post = PostAdjustmentUseCase().execute(
+            conn, adjustment_id=result.entity_id, operation_id="adj-page-2-post",
+            actor_user_id="qa")
+        assert post.success, post.message
+
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn)
+        page = AdjustmentsPage(pres)
+        page.refresh()
+        page._table.selectRow(0)
+
+        dlg = MagicMock()
+        dlg.exec_.return_value = QDialog.Accepted
+        dlg.reason.return_value = "Error de captura"
+
+        with patch("frontend.desktop.modules.inventory.pages.adjustments_page"
+                   ".ReverseAdjustmentDialog", return_value=dlg), \
+             patch("frontend.desktop.modules.inventory.pages.adjustments_page"
+                   ".QMessageBox.information"):
+            page._on_reverse()
+
+        dto = InventoryAvailabilityQueryService(conn).get_availability(
+            product_id="p1", branch_id="b1", warehouse_id="w1")
+        assert dto.on_hand == Decimal("0")
         del app
 
 

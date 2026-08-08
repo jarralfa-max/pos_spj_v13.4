@@ -70,10 +70,14 @@ class ModuloInventarioEnterprise(QWidget):
             WeightQueryService,
         )
         from backend.application.inventory.use_cases import (
+            ApproveAdjustmentUseCase,
+            CreateAdjustmentUseCase,
             DisposeQuarantineUseCase,
             GenerateReplenishmentSuggestionsUseCase,
+            PostAdjustmentUseCase,
             QuarantineStockUseCase,
             ReleaseQuarantineUseCase,
+            ReverseAdjustmentUseCase,
         )
         from backend.application.queries.product_query_service import (
             ProductQueryService,
@@ -92,11 +96,19 @@ class ModuloInventarioEnterprise(QWidget):
             release_quarantine_uc = factory.release_quarantine()
             dispose_quarantine_uc = factory.dispose_quarantine()
             open_quarantine_uc = factory.quarantine_stock()
+            create_adjustment_uc = factory.create_adjustment()
+            approve_adjustment_uc = factory.approve_adjustment()
+            post_adjustment_uc = factory.post_adjustment()
+            reverse_adjustment_uc = factory.reverse_adjustment()
         else:
             generate_uc = GenerateReplenishmentSuggestionsUseCase()
             release_quarantine_uc = ReleaseQuarantineUseCase()
             dispose_quarantine_uc = DisposeQuarantineUseCase()
             open_quarantine_uc = QuarantineStockUseCase()
+            create_adjustment_uc = CreateAdjustmentUseCase()
+            approve_adjustment_uc = ApproveAdjustmentUseCase()
+            post_adjustment_uc = PostAdjustmentUseCase()
+            reverse_adjustment_uc = ReverseAdjustmentUseCase()
 
         return InventoryPresenter(
             connection_provider=lambda: conn,
@@ -125,5 +137,9 @@ class ModuloInventarioEnterprise(QWidget):
             dispose_quarantine_uc=dispose_quarantine_uc,
             open_quarantine_uc=open_quarantine_uc,
             product_query_factory=ProductQueryService.from_connection,
+            create_adjustment_uc=create_adjustment_uc,
+            approve_adjustment_uc=approve_adjustment_uc,
+            post_adjustment_uc=post_adjustment_uc,
+            reverse_adjustment_uc=reverse_adjustment_uc,
             session_context=session,
         )

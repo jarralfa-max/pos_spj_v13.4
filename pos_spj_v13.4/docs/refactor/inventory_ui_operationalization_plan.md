@@ -496,3 +496,81 @@ para lote/documento, no producto — necesita un provider distinto (`lot`/
 `document` search), fuera del alcance de esta slice. Conteos y Ajustes
 recibirán este mismo patrón cuando se construyan sus diálogos de creación
 (P0-C, ya iniciado para Ajustes en la slice 4).
+
+### Slice 7 — P0-C (Ajustes) resumido: crear/aprobar/postear/reversar — HECHO
+
+Retoma la slice 4 (pausada por la interrupción "P0-E") y termina la página de
+Ajustes con el mismo patrón que Cuarentena (slice 2/3): comandos reales en el
+presenter, wireado vía el composition root con el checker RBAC real, diálogos
+del Design System y botones en la página — sin SQL ni lógica de negocio en la
+UI.
+
+**Presenter** (`frontend/desktop/modules/inventory/presenter.py`):
+- 4 parámetros nuevos (`create_adjustment_uc`, `approve_adjustment_uc`,
+  `post_adjustment_uc`, `reverse_adjustment_uc`) y 4 comandos nuevos:
+  - `create_adjustment(*, product_id, reason, quantity_delta, weight_delta=0,
+    reason_note="", branch_id=None, warehouse_id=None)` — valida producto
+    seleccionado y motivo (`AdjustmentReason` real, no texto libre) antes de
+    llamar al use case; genera el folio (`AJ-{uuid[:8]}`) porque no existe
+    servicio de folios en backend; el signo de la cantidad se decide en el
+    diálogo (dirección entrada/salida), nunca lo teclea el usuario como
+    número negativo.
+  - `approve_adjustment(*, adjustment_id)`, `post_adjustment(*,
+    adjustment_id)`, `reverse_adjustment(*, adjustment_id, reason="")` —
+    mismo patrón de validación/try-except/dispatch que Cuarentena.
+  - `_result_data()` (ya existente desde la slice 3) reutilizado en los 4
+    comandos nuevos para que `entity_id` viaje en el dict de datos.
+
+**Composition root** (`modulos/inventario_enterprise.py`): las 4 use cases se
+construyen vía `factory.create_adjustment()` / `.approve_adjustment()` /
+`.post_adjustment()` / `.reverse_adjustment()` cuando hay sesión viva (checker
+RBAC real), con fallback a instanciación directa (política permisiva) sólo en
+el arnés mínimo sin `.session`; se agregan como kwargs al `InventoryPresenter`
+final.
+
+**Diálogos nuevos** (`frontend/desktop/modules/inventory/dialogs.py`):
+- `CreateAdjustmentDialog` — producto vía `EntitySearchInput`
+  (`product_provider`), motivo (`QComboBox` con `ADJUSTMENT_REASON_ES`),
+  dirección (`QComboBox` "Entrada (+)"/"Salida (-)") + cantidad no-negativa
+  (`DecimalInput`); `quantity_delta()` arma el signo combinando dirección y
+  magnitud — el usuario nunca teclea un menos. Nota opcional.
+- `ReverseAdjustmentDialog` — motivo de reverso (`StandardTextArea`), igual
+  que `DisposeQuarantineDialog`.
+
+**Página** (`frontend/desktop/modules/inventory/pages/adjustments_page.py`):
+botones "Nuevo ajuste" (primario), "Aprobar"/"Postear" (secundarios),
+"Reversar" (peligro) — mismo patrón que `quarantine_page.py`:
+`_selected_adjustment_id()` avisa si no hay fila seleccionada;
+`ConfirmationDialog` para aprobar/postear; refresco sólo si la operación tuvo
+éxito; feedback con `QMessageBox` (información/advertencia).
+
+**Evidencia:**
+- `tests/integration/inventory/test_inventory_ui_presenter.py` — nueva clase
+  `TestAdjustmentCommands` (14 tests): crear ajuste real (queda en `DRAFT` sin
+  límite configurado — `InventoryLimitPolicy.classify` devuelve `WITHIN` sin
+  límite, y `DRAFT→APPROVED` es una transición válida directa, igual que
+  `DRAFT→PENDING_APPROVAL`); guardas sin producto/motivo inválido/cantidad
+  cero; aprobar/postear/reversar con segregación real (el ajuste de prueba se
+  crea con actor `"qa"`, el presenter opera con `"u1"` — igual que el patrón
+  ya usado en `TestQuarantineCommands._open_quarantine`); postear aplica el
+  movimiento (`on_hand` verificado vía
+  `InventoryAvailabilityQueryService`, no vía la tabla formateada del
+  presenter); reversar lo deshace; comandos sin selección y con use case no
+  wireado. 6 tests nuevos de página (`TestPagesSmoke`): aprobar desde la
+  página cambia el estado real (`AdjustmentQueryService.list_recent`), crear
+  desde el diálogo (mockeado) agrega la fila, reversar desde la página
+  deshace el movimiento posteado, guardia de selección vacía. **72 passed**
+  en el archivo completo (antes 54, +18 nuevos).
+- Inventario completo: `2 failed / 624 passed` (2 pre-existentes de
+  `test_legacy_reader_repoints.py`, sin relación con este cambio, +18
+  nuevos).
+- Arquitectura completa desde la raíz del repo: `29 failed / 534 passed`
+  (línea base sin cambios); `test_inventory_ui_guardrails.py` sigue en verde
+  (4 passed).
+
+**Cierra P0-C (Ajustes) del audit** — crear/aprobar/postear/reversar son
+ahora comandos reales de la UI, no sólo lectura. Cuarentena (P0-B/C) y
+Ajustes (P0-C) quedan con el mismo nivel de operacionalización; Conteos
+queda pendiente para un patrón equivalente (crear conteo → capturar líneas →
+aprobar → generar ajuste vía `CreateAdjustmentFromCountUseCase`, ya existente
+en backend).
