@@ -6,16 +6,9 @@ container, SQL or business rules.
 
 from __future__ import annotations
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (
-    QHBoxLayout,
-    QListWidget,
-    QListWidgetItem,
-    QStackedWidget,
-    QVBoxLayout,
-    QWidget,
-)
+from PyQt5.QtWidgets import QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
 
+from frontend.desktop.components.side_nav import SideNav
 from frontend.desktop.modules.hr.pages.adjustments_page import AdjustmentsPage
 from frontend.desktop.modules.hr.pages.attendance_page import AttendancePage
 from frontend.desktop.modules.hr.pages.employees_page import EmployeesPage
@@ -50,7 +43,7 @@ class HRView(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        self._nav = QListWidget(self)
+        self._nav = SideNav(self)
         self._nav.setObjectName("hrNav")
         self._nav.setMaximumWidth(260)
         self._nav.setMinimumWidth(220)
@@ -66,7 +59,7 @@ class HRView(QWidget):
         content_layout.addWidget(self._stack)
         layout.addWidget(content, stretch=1)
 
-        self._nav.currentRowChanged.connect(self._on_nav_changed)
+        self._nav.navigated.connect(self._on_nav_changed)
         self._nav.setCurrentRow(self._first_page_row)
 
     def _build_navigation(self) -> None:
@@ -76,12 +69,9 @@ class HRView(QWidget):
         first_set = False
         for section, label, page_class in _NAVIGATION:
             if section is not None and section != current_section:
-                header_item = QListWidgetItem(section.upper())
-                header_item.setFlags(Qt.NoItemFlags)
-                self._nav.addItem(header_item)
+                self._nav.add_group(section.upper())
             current_section = section if section is not None else current_section
-            item = QListWidgetItem(f"  {label}")
-            self._nav.addItem(item)
+            self._nav.add_section(label.strip())
             page = page_class(self._presenter, self)
             self._stack.addWidget(page)
             self._pages.append(page)

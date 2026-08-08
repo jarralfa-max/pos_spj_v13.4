@@ -58,8 +58,12 @@ def test_dashboard_uses_canonical_charts_with_visual_hierarchy():
 def test_orders_have_master_detail_timeline_and_contextual_actions():
     pages = source("pages/enterprise_pages.py")
     detail = source("document_detail.py")
-    assert "QSplitter" in pages and "OrderDetailPanel" in pages
-    assert "itemSelectionChanged" in pages
+    # master-detail mechanics live in the shared WorklistPage scaffold now
+    # (extracted so Finanzas/RRHH can reuse it — see MIGRATION_LOG.md).
+    worklist = (ROOT / "frontend/desktop/components/worklist_page.py").read_text(
+        encoding="utf-8")
+    assert "QSplitter" in worklist and "OrderDetailPanel" in pages
+    assert "itemSelectionChanged" in worklist
     assert "class DocumentTimeline" in detail
     assert all(step in detail for step in ("PR", "RFQ", "Embarque", "Recepción", "Factura", "CxP", "Pago"))
     assert "QMessageBox" not in pages
