@@ -89,10 +89,14 @@ class InventoryPresenter:
         return str(getattr(self._session, "user_id", None) or "")
 
     def default_branch(self) -> str:
-        return str(getattr(self._session, "branch_id", None) or "")
+        session = self._session
+        return str(getattr(session, "active_branch_id", None)
+                   or getattr(session, "branch_id", None) or "")
 
     def default_warehouse(self) -> str:
-        return str(getattr(self._session, "warehouse_id", None) or "")
+        session = self._session
+        return str(getattr(session, "active_warehouse_id", None)
+                   or getattr(session, "warehouse_id", None) or "")
 
     # reads -------------------------------------------------------------------
     def availability(self, *, product_ids: list[str], branch_id: str | None = None,

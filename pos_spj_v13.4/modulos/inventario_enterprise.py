@@ -16,32 +16,22 @@ from PyQt5.QtWidgets import QVBoxLayout, QWidget
 logger = logging.getLogger("spj.ui.inventario_enterprise")
 
 
-class _Session:
-    def __init__(self, user_id, branch_id, warehouse_id):
-        self.user_id = user_id
-        self.branch_id = branch_id
-        self.warehouse_id = warehouse_id
-
-
 class ModuloInventarioEnterprise(QWidget):
     """Contenedor PyQt5 del inventario enterprise (INV-25) para el shell del POS."""
 
     def __init__(self, container, parent=None):
         super().__init__(parent)
         conn = getattr(container, "db", container)
-        # §5.4/§21.2 fail-closed: NO se inventa identidad ("desktop"/"1"). Sin sesión
-        # autenticada el user/branch quedan en None y las mutaciones se niegan aguas
-        # abajo (la política real exige usuario y checker).
-        user_id = (getattr(container, "usuario", None)
-                   or getattr(container, "usuario_actual", None))
-        _branch = (getattr(container, "sucursal_id", None)
-                   or getattr(container, "branch_id", None))
-        branch_id = str(_branch) if _branch else None
-        session = _Session(user_id, branch_id, branch_id)
-        self._session = session  # expuesto para pruebas de identidad
-        # Sesión viva (con tiene_permiso) para el checker granular real; None en tests.
-        self._live_session = (getattr(container, "session", None)
-                              or getattr(container, "sesion", None))
+        # §5.4/§21.2 fail-closed: se usa la sesión VIVA del sistema (SessionContext),
+        # NUNCA una copia congelada ni identidad fabricada ("desktop"/"1", ni
+        # warehouse_id = branch_id). Antes de completar el login (o en arneses de
+        # prueba mínimos sin `.session`), queda en None: las lecturas devuelven vacío
+        # y las mutaciones se niegan aguas abajo (la política real exige usuario y
+        # checker). Al ser la misma instancia que ve el resto del sistema, el login
+        # posterior la actualiza in-place — no hace falta reconstruir el módulo.
+        session = (getattr(container, "session", None)
+                   or getattr(container, "sesion", None))
+        self._session = session  # expuesta para pruebas/diagnóstico
 
         presenter = self._build_presenter(conn, session)
         self._presenter = presenter
@@ -87,11 +77,11 @@ class ModuloInventarioEnterprise(QWidget):
         # §5.2 composition root: con sesión viva, el caso de uso sensible se
         # construye desde InventoryUseCaseFactory con el checker RBAC real (no el
         # default permisivo). Sin sesión viva (pruebas), cae al default explícito.
-        if self._live_session is not None:
+        if session is not None:
             from backend.application.inventory.composition import (
                 InventoryUseCaseFactory,
             )
-            factory = InventoryUseCaseFactory.from_session(self._live_session)
+            factory = InventoryUseCaseFactory.from_session(session)
             generate_uc = factory.generate_replenishment_suggestions()
         else:
             generate_uc = GenerateReplenishmentSuggestionsUseCase()
