@@ -661,3 +661,69 @@ multi-línea (hoy una sola línea por conteo, como Ajustes); reconteo
 (`request_recount`, existe en el dominio, sin UI); selector de ubicación
 real en la captura (usa la ubicación por defecto del almacén, mismo
 pendiente ya documentado para Cuarentena en la slice 3).
+
+### Slice 9 — P0-C (Cuarentena): selector de ubicación real en "Nueva cuarentena" — HECHO
+
+Cierra el único pendiente explícito que le quedaba a Cuarentena desde la
+slice 3: `open_quarantine` no tenía forma de indicar `location_id`, así que
+`QuarantineStockUseCase` caía siempre a `warehouse_id` como ubicación
+implícita — sólo funcionaba si el stock vivía exactamente ahí (el caso común
+en almacenes sin desglose real de ubicaciones, pero no el caso general).
+Mismo principio del audit (§P0-04, "el usuario no debería conocer ni
+escribir UUIDs") aplicado esta vez a ubicaciones, no a productos.
+
+**Sin componente nuevo ni wiring de composition root:** a diferencia de
+`EntitySearchInput` (pensado para catálogos grandes, "nunca cargar miles de
+filas en un QComboBox" según su propio docstring), una lista de ubicaciones
+por almacén es chica y acotada — un `QComboBox` poblado una vez al abrir el
+diálogo es el componente correcto, no una búsqueda con debounce.
+`WarehouseQueryService.list_locations()` ya existía (lo usa `LocationsPage`
+desde INV-5); sólo hacía falta un método del presenter que lo expusiera como
+opciones de picker.
+
+**Archivos:**
+- `frontend/desktop/modules/inventory/presenter.py` — nuevo método de
+  lectura `location_options(warehouse_id=None)`: resuelve el almacén de la
+  sesión si no se especifica, delega en `warehouse_query_factory` (ya
+  wireado, sin cambios en `modulos/inventario_enterprise.py`), filtra a
+  ubicaciones `ACTIVE` y devuelve `SearchOption` (mismo tipo que
+  `product_options`, reutilizado por consistencia aunque el widget que lo
+  consume sea distinto). `open_quarantine` gana el parámetro `location_id`
+  y lo reenvía al use case (que ya lo aceptaba desde INV-15 — estaba huérfano
+  de interfaz, no ausente, el mismo patrón visto en Ajustes/Conteos con sus
+  builders).
+- `frontend/desktop/modules/inventory/dialogs.py` — `OpenQuarantineDialog`
+  gana `location_options` (parámetro opcional, compatibilidad con cualquier
+  caller que no lo pase) y un `QComboBox` "Ubicación:" con una opción
+  "Automática (todo el almacén)" primero (valor `""` → `None`, preserva el
+  comportamiento anterior) seguida de las ubicaciones reales.
+- `frontend/desktop/modules/inventory/pages/quarantine_page.py` — `_on_open`
+  construye el diálogo con `location_options=self._presenter.location_options()`
+  y reenvía `dlg.location_id()` al comando.
+
+**Evidencia:**
+- `tests/integration/inventory/test_inventory_quarantine_open.py` — 9 tests
+  nuevos: `TestLocationOptions` (lista ubicaciones activas de un almacén
+  real; sin almacén provisto usa el de la sesión, que en el arnés de prueba
+  no tiene ubicaciones reales — vacío, no fabricado; vacío sin
+  `warehouse_query_factory`; vacío en un almacén sin ubicaciones);
+  `TestOpenQuarantineWithRealLocation` — demuestra el antes/después: mismo
+  stock sembrado en una ubicación real distinta del almacén, **sin**
+  `location_id` sigue fallando ("inventario negativo", confirmando que la
+  limitación de la slice 3 seguía viva hasta este cambio) y **con**
+  `location_id` real la cuarentena se abre con éxito; un test de página
+  (`TestQuarantinePageOpenAction`) hace clic real en "Nueva cuarentena",
+  selecciona la ubicación real del combo (`findData`/`setCurrentIndex`, no
+  un mock del diálogo completo) y confirma que la cuarentena se abre.
+  **17 passed** en el archivo (antes 10, +9 — dos tests indirectamente
+  reforzados también quedaron en verde, no se cuentan doble).
+- Inventario completo: `2 failed / 654 passed` (2 pre-existentes de
+  `test_legacy_reader_repoints.py`, sin relación con este cambio).
+- Arquitectura completa desde la raíz del repo: `29 failed / 534 passed`
+  (línea base sin cambios); `test_inventory_ui_guardrails.py` sigue en verde.
+
+**Cierra P0-C (Cuarentena) sin pendientes** — de los tres pilotos de P0-C
+(Cuarentena, Ajustes, Conteos), Cuarentena es ahora el único con selector de
+ubicación real; queda documentado como follow-up natural para Ajustes y
+Conteos si sus flujos lo necesitan (ninguno de los dos lo pidió
+explícitamente en el audit).

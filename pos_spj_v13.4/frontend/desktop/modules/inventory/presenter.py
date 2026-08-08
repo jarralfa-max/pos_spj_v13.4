@@ -132,6 +132,27 @@ class InventoryPresenter:
         return [SearchOption(id=r.id, label=r.label, subtitle=r.subtitle)
                 for r in results]
 
+    def location_options(self, *, warehouse_id: str | None = None):
+        """Ubicaciones reales (activas) del almacén, para selects acotados
+        (§P0-04 corolario): una lista chica por almacén no amerita
+        EntitySearchInput — pero tampoco debe quedar ausente, forzando a la
+        acción a asumir el almacén completo como ubicación implícita."""
+        from frontend.desktop.components.search_selector import SearchOption
+        if self._warehouse_factory is None:
+            return []
+        warehouse = warehouse_id or self.default_warehouse()
+        if not warehouse:
+            return []
+        try:
+            rows = self._warehouse_factory(self._conn()).list_locations(
+                warehouse_id=warehouse)
+        except Exception:
+            logger.exception("InventoryPresenter.location_options failed")
+            return []
+        return [SearchOption(id=r.get("id"), label=f"{r.get('code')} — {r.get('name')}",
+                             subtitle=str(r.get("status") or ""))
+                for r in rows if str(r.get("status") or "ACTIVE") == "ACTIVE"]
+
     # reads -------------------------------------------------------------------
     def availability(self, *, product_ids: list[str], branch_id: str | None = None,
                      warehouse_id: str | None = None) -> TableViewModel:
@@ -482,9 +503,13 @@ class InventoryPresenter:
     def open_quarantine(self, *, product_id: str, reason: str, quantity,
                         branch_id: str | None = None,
                         warehouse_id: str | None = None,
+                        location_id: str | None = None,
                         reason_note: str = "") -> tuple[bool, str, dict]:
         """Pone stock en cuarentena (§31): AVAILABLE → QUARANTINED. El producto
-        se resuelve por búsqueda canónica (§P0-D), nunca por UUID escrito a mano."""
+        se resuelve por búsqueda canónica (§P0-D), nunca por UUID escrito a
+        mano. Con ``location_id`` real (§P0-04 corolario) encuentra el saldo
+        donde vive de verdad; sin él, el use case cae al almacén completo
+        como ubicación implícita — sólo funciona si el stock vive ahí."""
         if self._open_quarantine_uc is None:
             return False, "Apertura de cuarentena no disponible.", {}
         pid = str(product_id or "").strip()
@@ -497,11 +522,13 @@ class InventoryPresenter:
             return False, "Motivo de cuarentena inválido.", {}
         branch = branch_id or self.default_branch()
         warehouse = warehouse_id or self.default_warehouse()
+        loc = str(location_id or "").strip() or None
         try:
             result = self._open_quarantine_uc.execute(
                 self._conn(), product_id=pid, branch_id=branch, warehouse_id=warehouse,
                 reason=reason_enum, quantity=quantity, operation_id=new_uuid(),
-                actor_user_id=self._actor(), reason_note=str(reason_note or "").strip())
+                actor_user_id=self._actor(), location_id=loc,
+                reason_note=str(reason_note or "").strip())
             if result.success and self._dispatch is not None:
                 try:
                     self._dispatch()

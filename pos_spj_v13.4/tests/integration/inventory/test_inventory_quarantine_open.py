@@ -38,6 +38,8 @@ from backend.application.inventory.queries import (
     WeightQueryService,
 )
 from backend.application.inventory.use_cases import (
+    CreateLocationUseCase,
+    CreateWarehouseUseCase,
     DisposeQuarantineUseCase,
     GenerateReplenishmentSuggestionsUseCase,
     PostInventoryMovementUseCase,
@@ -50,7 +52,7 @@ from backend.domain.inventory.entities.inventory_movement import (
     InventoryMovement,
     InventoryMovementLine,
 )
-from backend.domain.inventory.enums import MovementType
+from backend.domain.inventory.enums import MovementType, WarehouseType
 from backend.infrastructure.db.schema.inventory_schema import create_inventory_schema
 from frontend.desktop.modules.inventory.presenter import InventoryPresenter
 
@@ -91,10 +93,11 @@ def conn():
 
 
 def _seed_stock(conn):
-    # to_location_id="w1": open_quarantine() doesn't take a location yet (no
-    # location picker in this slice), so QuarantineStockUseCase defaults
-    # location_id to warehouse_id — stock must live there for the status
-    # transfer to find an available balance.
+    # to_location_id="w1": without an explicit location_id, open_quarantine()
+    # leaves QuarantineStockUseCase to default location_id to warehouse_id —
+    # stock must live there for the status transfer to find an available
+    # balance. A real location selector was added in the Cuarentena P0-C
+    # follow-up (see TestOpenQuarantineWithRealLocation below).
     line = InventoryMovementLine.create(product_id="p1", quantity=Decimal("10"),
                                         to_location_id="w1")
     mv = InventoryMovement.create(
@@ -205,6 +208,84 @@ class TestOpenQuarantine:
         assert "no disponible" in message
 
 
+class TestLocationOptions:
+    """P0-C (Cuarentena) follow-up: a real, bounded location picker — the
+    audit's §P0-04 principle ('the user shouldn't have to know or type
+    UUIDs') applies just as much to locations as to products."""
+
+    def _provisioned_warehouse(self, conn):
+        wid = CreateWarehouseUseCase().execute(
+            conn, code="WH1", name="Central", branch_id="b1",
+            warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1").entity_id
+        lid = CreateLocationUseCase().execute(
+            conn, warehouse_id=wid, code="A1", name="Anaquel 1",
+            actor_user_id="u1").entity_id
+        return wid, lid
+
+    def test_lists_active_locations_of_the_warehouse(self, conn):
+        wid, lid = self._provisioned_warehouse(conn)
+        options = _presenter(conn).location_options(warehouse_id=wid)
+        assert len(options) == 1
+        assert options[0].id == lid
+        assert "A1" in options[0].label
+
+    def test_defaults_to_session_warehouse_when_not_given(self, conn):
+        # La sesión de prueba usa warehouse_id="w1" — sin almacén provisto,
+        # ninguna ubicación real existe ahí (es un id fabricado de prueba).
+        assert _presenter(conn).location_options() == []
+
+    def test_empty_without_warehouse_factory(self, conn):
+        pres = _presenter(conn, warehouse_query_factory=None)
+        wid, _ = self._provisioned_warehouse(conn)
+        assert pres.location_options(warehouse_id=wid) == []
+
+    def test_empty_when_warehouse_has_no_locations(self, conn):
+        wid = CreateWarehouseUseCase().execute(
+            conn, code="WH2", name="Vacío", branch_id="b1",
+            warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1").entity_id
+        assert _presenter(conn).location_options(warehouse_id=wid) == []
+
+
+class TestOpenQuarantineWithRealLocation:
+    """Demuestra el cierre de la limitación documentada en la slice 3: con
+    un ``location_id`` real, la cuarentena encuentra el saldo donde vive de
+    verdad, no sólo cuando coincide por casualidad con el almacén completo."""
+
+    def _stock_at_real_location(self, conn):
+        wid = CreateWarehouseUseCase().execute(
+            conn, code="WH1", name="Central", branch_id="b1",
+            warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1").entity_id
+        lid = CreateLocationUseCase().execute(
+            conn, warehouse_id=wid, code="A1", name="Anaquel 1",
+            actor_user_id="u1").entity_id
+        line = InventoryMovementLine.create(product_id="p1", quantity=Decimal("10"),
+                                            to_location_id=lid)
+        mv = InventoryMovement.create(
+            movement_type=MovementType.PURCHASE_RECEIPT, branch_id="b1", warehouse_id=wid,
+            source_module="procurement", source_document_type="GR", source_document_id="g1",
+            operation_id="g1", created_by_user_id="u1", lines=[line])
+        PostInventoryMovementUseCase().execute(conn, mv, actor_user_id="u1")
+        return wid, lid
+
+    def test_without_location_id_fails_when_stock_lives_elsewhere(self, conn):
+        wid, _lid = self._stock_at_real_location(conn)
+        pres = _presenter(conn)
+        ok, message, _ = pres.open_quarantine(
+            product_id="p1", reason="QUALITY_FAILURE", quantity=Decimal("2"),
+            warehouse_id=wid)  # sin location_id: cae al almacén completo, no ahí
+        assert not ok
+        assert "negativo" in message.lower()
+
+    def test_with_location_id_finds_the_real_balance(self, conn):
+        wid, lid = self._stock_at_real_location(conn)
+        pres = _presenter(conn)
+        ok, message, _ = pres.open_quarantine(
+            product_id="p1", reason="QUALITY_FAILURE", quantity=Decimal("2"),
+            warehouse_id=wid, location_id=lid)
+        assert ok, message
+        assert pres.quarantines().total == 1
+
+
 class TestQuarantinePageOpenAction:
     def test_page_open_dialog_creates_quarantine_and_refreshes(self, conn):
         pytest.importorskip("PyQt5")
@@ -239,3 +320,61 @@ class TestQuarantinePageOpenAction:
         assert info_mock.called
         assert page._table.rowCount() == 1
         assert pres.quarantines().total == 1
+
+    def test_page_open_dialog_lists_real_locations_and_uses_the_selected_one(self, conn):
+        """P0-C (Cuarentena) follow-up: eligiendo una ubicación real del
+        combo, la cuarentena encuentra el saldo aunque no viva en el
+        almacén completo (el caso que la slice 3 dejó documentado como
+        limitación explícita)."""
+        pytest.importorskip("PyQt5")
+        from decimal import Decimal as D
+        from unittest.mock import patch
+
+        from PyQt5.QtWidgets import QApplication, QDialog
+
+        from frontend.desktop.modules.inventory.pages import QuarantinePage
+
+        wid = CreateWarehouseUseCase().execute(
+            conn, code="WH1", name="Central", branch_id="b1",
+            warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1").entity_id
+        lid = CreateLocationUseCase().execute(
+            conn, warehouse_id=wid, code="A1", name="Anaquel 1",
+            actor_user_id="u1").entity_id
+        line = InventoryMovementLine.create(product_id="p1", quantity=Decimal("10"),
+                                            to_location_id=lid)
+        mv = InventoryMovement.create(
+            movement_type=MovementType.PURCHASE_RECEIPT, branch_id="b1", warehouse_id=wid,
+            source_module="procurement", source_document_type="GR", source_document_id="g1",
+            operation_id="g1", created_by_user_id="u1", lines=[line])
+        PostInventoryMovementUseCase().execute(conn, mv, actor_user_id="u1")
+
+        class _RealWarehouseSession:
+            user_id = "u1"
+            branch_id = "b1"
+            warehouse_id = wid
+
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn, session_context=_RealWarehouseSession())
+        page = QuarantinePage(pres)
+        page.refresh()
+
+        def _fake_exec(self):
+            self.product.set_selected_label("p1", "Pechuga de pollo")
+            self.quantity.set_decimal(D("3"))
+            idx = self.location_combo.findData(lid)
+            assert idx >= 0, "la ubicación real debe aparecer en el combo"
+            self.location_combo.setCurrentIndex(idx)
+            return QDialog.Accepted
+
+        with patch("frontend.desktop.modules.inventory.dialogs.OpenQuarantineDialog.exec_",
+                   _fake_exec, create=True), \
+             patch("frontend.desktop.modules.inventory.pages.quarantine_page"
+                   ".QMessageBox.information") as info_mock, \
+             patch("frontend.desktop.modules.inventory.pages.quarantine_page"
+                   ".QMessageBox.warning") as warn_mock:
+            page._on_open()
+
+        assert not warn_mock.called, "open_quarantine failed: revisar ubicación seleccionada"
+        assert info_mock.called
+        assert pres.quarantines().total == 1
+        del app

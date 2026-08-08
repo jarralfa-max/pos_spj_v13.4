@@ -37,9 +37,11 @@ class DisposeQuarantineDialog(FormDialog):
 
 
 class OpenQuarantineDialog(FormDialog):
-    """Poner stock en cuarentena: producto (búsqueda canónica), motivo, cantidad."""
+    """Poner stock en cuarentena: producto (búsqueda canónica), motivo,
+    ubicación real (opcional — lista acotada del almacén, §P0-04 corolario) y
+    cantidad."""
 
-    def __init__(self, parent=None, *, product_provider) -> None:
+    def __init__(self, parent=None, *, product_provider, location_options=None) -> None:
         super().__init__(parent, title="Nueva cuarentena")
         self.product = EntitySearchInput(
             self, provider=product_provider,
@@ -47,11 +49,16 @@ class OpenQuarantineDialog(FormDialog):
         self.reason_combo = QComboBox(self)
         for code, label in QUARANTINE_REASON_ES.items():
             self.reason_combo.addItem(label, code)
+        self.location_combo = QComboBox(self)
+        self.location_combo.addItem("Automática (todo el almacén)", "")
+        for option in (location_options or []):
+            self.location_combo.addItem(option.label, option.id)
         self.quantity = DecimalInput(self, precision=3, minimum="0.001")
         self.note_input = StandardTextArea(self, placeholder="Nota (opcional)…")
         self.note_input.setMaximumHeight(70)
         self.form.addRow("Producto:", self.product)
         self.form.addRow("Motivo:", self.reason_combo)
+        self.form.addRow("Ubicación:", self.location_combo)
         self.form.addRow("Cantidad:", self.quantity)
         self.form.addRow("Nota:", self.note_input)
         self.add_button_box(ok_text="Poner en cuarentena")
@@ -61,6 +68,9 @@ class OpenQuarantineDialog(FormDialog):
 
     def reason_code(self) -> str:
         return str(self.reason_combo.currentData() or "")
+
+    def location_id(self) -> str | None:
+        return str(self.location_combo.currentData() or "") or None
 
     def quantity_value(self):
         return self.quantity.decimal_value()
