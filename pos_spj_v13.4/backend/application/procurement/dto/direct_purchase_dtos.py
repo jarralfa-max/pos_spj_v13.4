@@ -16,6 +16,7 @@ class DirectPurchaseRowDTO:
     currency_code: str
     payment_condition: str
     created_at: str
+    supplier_name: str = "—"
 
 
 @dataclass(frozen=True)

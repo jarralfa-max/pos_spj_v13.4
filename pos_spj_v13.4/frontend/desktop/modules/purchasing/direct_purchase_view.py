@@ -31,8 +31,11 @@ class DirectPurchaseCreateView(QWidget):
     def start_create(self) -> None:
         self._page.start_create()
 
-    def start_from_requisition(self, detail: dict) -> None:
+    def start_from_requisition(self, detail) -> None:
         self._page.start_from_requisition(detail)
+
+    def refresh_permissions(self) -> None:
+        self._page.refresh_permissions()
 
 
 class DirectPurchaseHistoryView(QWidget):

@@ -10,7 +10,7 @@ class Verifier:
         if password != "secret": return None
         return MobileIdentity(
             new_uuid(), username, new_uuid(), "Centro", new_uuid(), "Almacén", device_id,
-            ("logistics.shipment.create", "logistics.container.scan"))
+            ("LOGISTICA.embarque.crear", "LOGISTICA.contenedor.escanear"))
 
 
 class Workflow:

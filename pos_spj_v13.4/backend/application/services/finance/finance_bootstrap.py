@@ -166,6 +166,8 @@ def _seed_posting_profiles(uow: FinanceUnitOfWork, ids: dict[str, str], today: d
         }, effective),
         _profile("PURCHASE", "Compras e inventario", {
             "inventory_account_id": ids["1150"],
+            "expense_account_id": ids["6130"],
+            "asset_account_id": ids["1201"],
             "payable_account_id": ids["2101"],
             "tax_account_id": ids["1170"],
             "bank_account_id": ids["1110"],

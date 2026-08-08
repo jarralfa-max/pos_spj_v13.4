@@ -6,6 +6,10 @@ use cases. The view/pages never see the connection nor the AppContainer.
 
 from __future__ import annotations
 
+from backend.application.procurement.adapters.product_catalog_adapter import (
+    ProcurementProductCatalogAdapter,
+)
+from backend.application.procurement.queries import SupplierPickerQueryService
 from backend.application.procurement.queries.enterprise_read_services import (
     InvoiceReadService,
     OrderReadService,
@@ -16,6 +20,9 @@ from backend.application.procurement.queries.procurement_analytics_service impor
 )
 from backend.application.procurement.queries.purchase_history_read_service import (
     PurchaseHistoryReadService,
+)
+from backend.application.procurement.queries.quotation_read_services import (
+    RfqReadService,
 )
 from backend.application.logistics.queries import LogisticsShipmentQueryService
 from backend.application.logistics.warehouse_directory import WarehouseDirectoryQueryService
@@ -42,6 +49,8 @@ from backend.application.procurement.use_cases.requisition_use_cases import (
     SubmitPurchaseRequisitionUseCase,
 )
 from backend.application.procurement.use_cases.quotation_use_cases import (
+    AwardSupplierQuoteUseCase,
+    CaptureSupplierQuoteUseCase,
     CreateRfqUseCase,
 )
 from backend.application.procurement.use_cases.supplier_invoice_use_cases import (
@@ -88,6 +97,7 @@ def build_enterprise_presenter(connection, session_context=None, *,
             "requisitions": RequisitionReadService(connection),
             "orders": OrderReadService(connection),
             "invoices": InvoiceReadService(connection),
+            "rfqs": RfqReadService(connection),
         },
         analytics=ProcurementAnalyticsService(connection),
         event_dispatcher=_post_commit_dispatcher(connection),
@@ -96,6 +106,8 @@ def build_enterprise_presenter(connection, session_context=None, *,
             "req_submit": SubmitPurchaseRequisitionUseCase(authorization),
             "req_approve": ApprovePurchaseRequisitionUseCase(authorization),
             "rfq_create": CreateRfqUseCase(authorization, supplier_directory),
+            "quote_capture": CaptureSupplierQuoteUseCase(authorization, supplier_directory),
+            "quote_award": AwardSupplierQuoteUseCase(authorization),
             "po_create": CreatePurchaseOrderUseCase(authorization, supplier_directory),
             "po_approve": ApprovePurchaseOrderUseCase(authorization),
             "po_send": SendPurchaseOrderUseCase(authorization),
@@ -112,6 +124,8 @@ def build_enterprise_presenter(connection, session_context=None, *,
         warehouse_directory=WarehouseDirectoryQueryService(connection),
         history_reads=PurchaseHistoryReadService(connection),
         origin_workspace=origin_workspace,
+        supplier_picker=SupplierPickerQueryService(connection),
+        product_catalog=ProcurementProductCatalogAdapter(connection),
     )
 
 

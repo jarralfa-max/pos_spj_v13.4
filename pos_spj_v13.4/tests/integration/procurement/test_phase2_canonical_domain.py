@@ -1,3 +1,5 @@
+import pytest
+
 from backend.application.procurement.authorization import PurchaseAuthorizationPolicy
 from backend.shared.ids import new_uuid
 from backend.application.procurement.queries.supplier_directory_query_service import (
@@ -52,6 +54,42 @@ def test_supplier_directory_reads_only_canonical_proveedores(proc_conn):
     directory = SupplierDirectoryQueryService(proc_conn)
     assert directory.get_eligibility("supplier").active
     assert directory.get_eligibility("missing") is None
+    # sin la migración 178 (columnas de bloqueo), degrada al comportamiento
+    # previo en vez de fallar — nunca inventa un bloqueo que no puede leer
+    assert not directory.get_eligibility("supplier").financially_blocked
+
+
+def test_supplier_directory_reads_real_financial_block_when_migrated(proc_conn):
+    import importlib
+
+    from backend.domain.procurement.exceptions import SupplierNotEligibleError
+    migration_178 = importlib.import_module(
+        "migrations.standalone.178_proveedores_bloqueo_financiero")
+
+    proc_conn.execute("CREATE TABLE proveedores (id TEXT PRIMARY KEY, nombre TEXT, activo INTEGER)")
+    proc_conn.execute("INSERT INTO proveedores VALUES "
+                      "('ok','Proveedor Habilitado',1),"
+                      "('blocked','Proveedor Bloqueado',1),"
+                      "('disabled','Proveedor Sin Compras',1)")
+    migration_178.run(proc_conn)
+    proc_conn.execute(
+        "UPDATE proveedores SET bloqueado_financiero=1, motivo_bloqueo='Adeudo vencido'"
+        " WHERE id='blocked'")
+    proc_conn.execute(
+        "UPDATE proveedores SET compras_habilitadas=0 WHERE id='disabled'")
+
+    directory = SupplierDirectoryQueryService(proc_conn)
+    assert not directory.get_eligibility("ok").financially_blocked
+    assert directory.get_eligibility("ok").purchasing_enabled
+    directory.require_eligible("ok")  # no lanza
+
+    assert directory.get_eligibility("blocked").financially_blocked
+    with pytest.raises(SupplierNotEligibleError):
+        directory.require_eligible("blocked")
+
+    assert not directory.get_eligibility("disabled").purchasing_enabled
+    with pytest.raises(SupplierNotEligibleError):
+        directory.require_eligible("disabled")
 
 
 def test_purchase_nature_is_persisted_per_line(proc_conn):
@@ -136,9 +174,9 @@ def test_approved_requisition_can_create_rfq_and_exposes_related_timeline(proc_c
     detail = RequisitionReadService(proc_conn).detail(requisition_id)
 
     assert rfq.success
-    assert [(doc["document_type"], doc["id"]) for doc in detail["related_documents"]] == [
+    assert [(doc["document_type"], doc["id"]) for doc in detail.related_documents] == [
         ("RFQ", rfq.entity_id)]
-    assert [event["action"] for event in detail["timeline"]] == [
+    assert [event["action"] for event in detail.timeline] == [
         "PURCHASE_REQUISITION_CREATED", "PURCHASE_REQUISITION_SUBMITTED",
         "PURCHASE_REQUISITION_APPROVED",
     ]
@@ -156,7 +194,7 @@ def test_purchase_order_from_approved_requisition_marks_source_and_keeps_lineage
     order_detail = OrderReadService(proc_conn).detail(order.entity_id)
 
     assert order.success
-    assert requisition["status"] == "SOURCED"
-    assert requisition["related_documents"][0]["id"] == order.entity_id
-    assert order_detail["source_requisition_id"] == requisition_id
-    assert order_detail["timeline"][0]["action"] == "PURCHASE_ORDER_CREATED"
+    assert requisition.status == "SOURCED"
+    assert requisition.related_documents[0]["id"] == order.entity_id
+    assert order_detail.source_requisition_id == requisition_id
+    assert order_detail.timeline[0]["action"] == "PURCHASE_ORDER_CREATED"

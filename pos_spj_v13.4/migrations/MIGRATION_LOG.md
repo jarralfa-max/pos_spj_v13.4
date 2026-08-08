@@ -444,3 +444,312 @@ lotes/movimientos_lote con `id` UUIDv7 (sin columna `uuid` ni randomblob);
   necesidades (STOCK_REPLENISHMENT_REQUIRED / PURCHASE_NEED_DETECTED /
   CUSTOMER_ORDER_REQUIRES_PURCHASE) creando solicitudes idempotentes. El pago
   inmediato jamás sale de la caja operativa del POS.
+
+## Compras / Logística — permisos canónicos `MODULO.accion` (migración 177)
+
+- **Problema**: `PurchasePermissions` (`backend/application/procurement/permissions.py`)
+  usaba códigos planos (`PURCHASES_REQUISITION_CREATE`) y `LogisticsPermissions`
+  (`backend/application/logistics/authorization.py`) usaba
+  `logistics.shipment.view` — ninguno con el formato `MODULO.accion` que usa el
+  resto del sistema (Ventas, Caja, Mermas, Finanzas) vía
+  `core/security/permission_catalog.py::CANONICAL_MODULE_PERMISSIONS` y
+  `SessionContext.tiene_permiso()`. Como `rol_permisos`/`usuario_permisos`
+  guardan `(modulo, accion)` y jamás sembraron filas con esa forma legacy,
+  **todo permiso granular de Compras/Logística fallaba cerrado para cualquier
+  rol no-admin** — el bypass `es_admin` era la única vía funcional.
+- **Cambio**: se renombraron los *valores* de ambas clases (los nombres de
+  atributo Python no cambiaron, así que ningún call site necesitó edición) a
+  `COMPRAS.solicitud.crear`, `COMPRAS.orden.aprobar`, `COMPRAS.recepcion.completar`,
+  `COMPRAS.factura.conciliar`, `LOGISTICA.embarque.ver`,
+  `LOGISTICA.contenedor.sellar`, etc. (77 códigos de Compras, 11 de Logística,
+  incluye nuevo `LogisticsPermissions.CONTAINER_SCAN` que antes era un literal
+  suelto `"logistics.container.scan"` en `mobile_workflow.py`, sin constante).
+  `CANONICAL_MODULE_PERMISSIONS["COMPRAS"]` se amplió con las ~77 acciones
+  granulares (antes solo `ver/crear/recibir`) y se agregó
+  `CANONICAL_MODULE_PERMISSIONS["LOGISTICA"]`, así Configuración → Seguridad
+  puede otorgarlas (`ConfigRepository.permission_matrix()` lee directo del
+  catálogo).
+- **Migración 177** (`177_compras_logistica_canonical_permissions.py`): NO
+  otorga ningún permiso nuevo — no hay filas legacy que preservar (confirmado:
+  ningún seed insertó jamás `modulo='PURCHASES'`/`'LOGISTICS'`). Solo normaliza
+  defensivamente `modulo` en `rol_permisos`/`usuario_permisos`/
+  `usuario_sucursal_permisos` por si algún ajuste manual usó los nombres
+  legacy. Un administrador debe otorgar las nuevas acciones granulares
+  explícitamente vía Configuración.
+- **Refresh de sesión en vivo**: Compras (como todo módulo) se construye en
+  `MainWindow._construir_todas_las_pantallas()` ANTES del login, con
+  `capabilities()` vacío. Se agregó `PurchasingModuleShell.refresh_permissions()`
+  (reconstruye sidebar/rutas/botones desde `capabilities()` sin recrear el
+  widget) y se conectó al bucle genérico ya existente en
+  `MainWindow._propagar_usuario()` (el mismo que llama
+  `set_usuario_actual`/`set_sucursal` en cada widget cargado), que ya se
+  re-invoca tanto tras login como tras guardar permisos en Configuración
+  (`refresh_module_access()`). `DirectPurchaseCreatePage`/`DirectPurchaseCreateView`
+  ganaron su propio `refresh_permissions()` porque son singletons reutilizados
+  entre reconstrucciones del shell (no se recrean como las demás páginas).
+
+## Compras — Fase 2 (contratos): sesión, UUID visibles y bloqueo de proveedor
+
+- **UUID mostrado como texto principal (§4C del prompt de remediación)**:
+  `EnterprisePurchasingPresenter.session_summary()` mostraba
+  `"Sucursal: <uuid>"` (leía `default_branch()`, el id) y la tabla de
+  Solicitudes mostraba `branch_id` crudo en la columna "Sucursal". Corregido:
+  `session_summary()` ahora usa `session.sucursal_nombre`/`active_warehouse_name`
+  reales (con mensaje controlado "Sucursal sin nombre configurado" si faltan,
+  nunca el id); `RequisitionReadService.list()` agregó
+  `LEFT JOIN sucursales` — mismo patrón ya usado para nombres de proveedor.
+  El id sigue siendo la única fuente de verdad para persistencia/auditoría
+  (`default_branch()` sin cambios); solo la presentación cambió.
+- **Migración `178_proveedores_bloqueo_financiero.py`**: `proveedores` no
+  tenía ninguna columna para bloqueo financiero o habilitación de compra —
+  `SupplierDirectoryQueryService.get_eligibility()` devolvía
+  `purchasing_enabled=True`/`financially_blocked=False` fijos, así que un
+  proveedor bloqueado por Finanzas igual pasaba la validación de elegibilidad.
+  La migración agrega `bloqueado_financiero`, `motivo_bloqueo` y
+  `compras_habilitadas` (idempotente, `DEFAULT 0`/`NULL`/`DEFAULT 1` — ningún
+  proveedor existente cambia de estado). `get_eligibility()` ahora lee las
+  columnas reales; si una base no ha corrido la migración (schemas de prueba
+  mínimos, instalaciones no migradas), degrada al comportamiento anterior en
+  vez de fallar. Pendiente de diseño: quién puede bloquear/desbloquear un
+  proveedor y desde qué módulo (no se construyó UI para esto todavía).
+
+---
+
+## Compras — Fase 2 (contratos): DTOs del read-model enterprise — 2026-08-05
+
+- **Sin migración de esquema; solo tipos y wiring de aplicación/UI.**
+- `backend/application/procurement/dto/enterprise_dtos.py` (nuevo): dataclasses
+  `frozen` para las filas y detalles que ya devolvían `dict`/`sqlite3.Row` sin
+  contrato — `RequisitionRowDTO`/`RequisitionDetailDTO`,
+  `OrderRowDTO`/`OrderDetailDTO`, `InvoiceRowDTO`/`InvoiceDetailDTO`,
+  `ReceiptRowDTO`/`ReceiptDetailDTO`, `PurchaseHistoryRowDTO` — mismo patrón
+  que `DirectPurchaseRowDTO`/`DirectPurchaseDetailDTO` (Fase 1). Las
+  colecciones secundarias de un detalle (`related_documents`, `timeline`,
+  `matches`/`comparison` de facturas, `invoices` de una recepción) se dejaron
+  como `list[dict]` a propósito — son proyecciones heterogéneas tipo
+  bitácora, no la entidad documental en sí; tipar cada una habría sido
+  alcance no pedido sin beneficio de contrato real.
+- `enterprise_read_services.py` y `purchase_history_read_service.py` — `.list()`
+  y `.detail()` ahora construyen y devuelven estos DTOs en vez de `dict`.
+- **Bug real encontrado y corregido de paso (no cosmético):**
+  `OrderDetailPanel` mostraba `Proveedor: <uuid>` (leía `supplier_id` crudo,
+  nunca se unía contra `proveedores`) y `RequisitionDetailPanel` mostraba
+  `Solicitante: <uuid>` (`requested_by_user_id` crudo, nunca contra
+  `usuarios`). Corregido con el mismo patrón tolerante ya usado para
+  proveedor en otras vistas (`_supplier_name()`/`_requester_name()`: lookup
+  aparte con `_query_one`, nunca falla el detalle completo si la tabla de
+  nombres no existe en un fixture de prueba — degrada a "Proveedor no
+  disponible"/"Usuario no disponible", nunca revienta ni inventa un nombre).
+- **Bug real encontrado y corregido de paso (crash):**
+  `InvoicesPage._selection_changed()` (`enterprise_pages.py`) llamaba
+  `self._presenter.invoice_detail(invoice_id)`, método que no existía en
+  `EnterprisePurchasingPresenter` — `AttributeError` garantizado al
+  seleccionar cualquier factura en la pantalla de Facturas. Se agregó
+  `invoice_detail()` (mismo patrón que `order_detail()`, delega a
+  `InvoiceReadService.detail()`).
+- Consumidores actualizados de acceso por `dict`/`.get()` a atributos de
+  dataclass: `document_detail.py` (`RequisitionDetailPanel`,
+  `OrderDetailPanel`), `enterprise_pages.py` (`InvoicesPage`),
+  `enterprise_dialogs.py` (`ReceiveOrderDialog`).
+- Tests actualizados: `test_phase2_canonical_domain.py`,
+  `test_enterprise_flow.py` (acceso por atributo donde el tipo cambió;
+  `related_documents`/`timeline`/`comparison` internos siguen siendo `dict`,
+  sin cambio). `test_enterprise_ui.py` no requirió cambios — solo consume
+  `TableViewModel`, no las filas crudas.
+- **Verificación:** `pytest tests/unit/procurement tests/integration/procurement`
+  `tests/unit/logistics tests/integration/logistics` → 229/229; `pytest
+  tests/architecture -k "procurement or purchasing or purchase"` → 43/47
+  (los 4 fallos son preexistentes y no relacionados: directorio no
+  rastreado `application/purchases`, `EntitySearchInput` ausente en
+  `direct_purchase_dialogs.py`, y un bug de encoding en un test bajo
+  Windows — ninguno tocado por este cambio); `compileall` limpio.
+- **Pendiente del checklist de Fase 2:** "Crear puertos" (arquitectura de
+  puertos § 22 del prompt maestro: `ProcurementProductCatalogPort`,
+  `SupplierProcurementProfilePort`, `InventoryReceiptPort`,
+  `ProcurementFinancePort`, `BranchWarehouseContextPort` — integración con
+  Productos/Inventario/Finanzas, no construida todavía) y una auditoría
+  fresca de "Corregir firmas" más allá de la que este cambio cubrió de paso.
+
+---
+
+## Compras — Fase 2 (puertos) — 2026-08-06
+
+- **Bug real: una factura conciliada nunca generaba CxP en producción.**
+  `MatchSupplierInvoiceUseCase`/`ReleaseInvoiceVarianceUseCase` emitían
+  correctamente `ACCOUNT_PAYABLE_CREATE_REQUESTED` → `PAYABLE_CREATED`, y
+  `CreatePayableUseCase` existía y tenía tests — pero nada lo suscribía en
+  `core/events/wiring.py`. Nuevo `ProcurementPayableBridgeHandler`
+  (`backend/application/event_handlers/finance/procurement_payable_bridge.py`)
+  suscrito con prioridad 50 (contabilidad/ledger). Se agregó
+  `document_number`/`branch_id`/`currency_code` al evento (faltaban para
+  poder invocar `CreatePayableUseCase`). Pendiente documentado: el handler
+  solo crea la obligación (Payable), no el asiento contable debe/haber —
+  no hay enrutamiento de cuenta por `purchase_nature` implementado.
+- **`ports.py` + `adapters/product_catalog_adapter.py`**: `ProcurementProductCatalogPort`
+  (búsqueda + resolución contra el catálogo canónico `products`, nunca
+  `productos`) y `BranchWarehouseContextPort` (tipado sobre
+  `WarehouseDirectoryQueryService`, ya existente). Reemplaza el campo de
+  texto libre "Código o ID de producto" por `EntitySearchInput` en compra
+  directa, solicitudes, órdenes y facturas — cierra el gap de "captura
+  manual de ID" señalado en el prompt maestro.
+- **Bugs reales encontrados de paso al conectar el picker**: `EnterprisePurchasingPresenter`
+  no tenía `supplier_options`, `requisition_detail`, `invoice_document_options`
+  ni `invoice_document_profile` — la UI ya los llamaba (crear RFQ, crear
+  orden desde solicitud, ver detalle, capturar factura) y siempre fallaba
+  con `AttributeError` antes de llegar a la lógica de esos flujos. Al
+  agregarlos se destapó una segunda capa: `OrderFormDialog` y
+  `DirectPurchaseCreatePage.start_from_requisition` esperaban un `dict`
+  donde ahora llega un `RequisitionDetailDTO` (Fase 2 anterior) — corregido
+  a acceso por atributo. `CartLineVM` tampoco acepta `purchase_nature`
+  (nunca lo aceptó); se quitó ese kwarg inválido.
+
+---
+
+## Compras — Fase 3 (acotada): proveedores y costos — 2026-08-07
+
+Alcance acordado con el usuario: solo los 4 puntos sin migración de
+esquema (Unidades y Condiciones de pago en Órdenes quedan pendientes —
+`purchase_orders`/`purchase_order_lines` no tienen esas columnas hoy).
+
+- **Bloqueo financiero visible en el picker de proveedores**:
+  `SupplierPickerQueryService.search()` ahora expone
+  `bloqueado_financiero`/`compras_habilitadas` (migración 178) y los
+  presenters muestran "Bloqueado financieramente"/"Compras deshabilitadas"
+  como subtítulo — antes el usuario solo se enteraba al fallar el envío.
+  **Bug real encontrado al implementarlo**: el primer intento envolvió
+  `self._query(...)` en un `try/except OperationalError`, pero `_query()`
+  ya atrapa esa excepción internamente y devuelve `[]` — el except nunca
+  se ejecutaba y una base sin la migración 178 devolvía **cero
+  proveedores** en vez de degradar. Corregido llamando `execute()`
+  directo (mismo patrón que `SupplierDirectoryQueryService`).
+- **Costo de referencia visible al capturar línea**: `AddCartLineDialog`
+  ahora muestra `presenter.price_variance(product_id, costo)` (ya existía
+  y tenía tests, pero ninguna pantalla lo invocaba) al seleccionar
+  producto o escribir el costo.
+- **Conversión de unidades en Órdenes**: `_LinesEditor` gana
+  `with_conversion` (solo `OrderFormDialog` — `purchase_order_lines.conversion_factor`
+  ya existe y `CreatePurchaseOrderUseCase` ya la lee; Solicitudes y
+  Facturas no tienen esa columna, no se agregó ahí).
+- **Verificación**: 227 (procurement) + 3 (bloqueo proveedor) + 2 (nuevos,
+  UI) tests en verde; regresión cubierta con test explícito para el bug
+  del `try/except` muerto.
+
+---
+
+## Compras — Fase 4: flujo documental — Cotizaciones y Adjudicación — 2026-08-07
+
+Auditoría previa contra el checklist "Solicitudes → RFQ → Cotizaciones →
+Adjudicación → Órdenes → Compra directa → Documentos relacionados" encontró
+que **Cotizaciones y Adjudicación no tenían ninguna pantalla**:
+`CaptureSupplierQuoteUseCase`/`AwardSupplierQuoteUseCase` estaban completos
+y probados en el backend desde antes, con permisos
+`COMPRAS.cotizacion.capturar/comparar/adjudicar` ya en el catálogo, pero
+nunca conectados a nada — un comprador podía crear y enviar una RFQ y ahí
+se acababa el flujo en la app de escritorio.
+
+- **Nuevo read-model** (`backend/application/procurement/queries/quotation_read_services.py`,
+  `.../dto/quotation_dtos.py`): `RfqReadService.list/detail/comparison()`,
+  proyecciones SQL puras (nunca reutiliza el `ProcurementUnitOfWork` de
+  escritura). `comparison()` rankea por precio unitario dentro de cada
+  producto y marca `is_best`; es una ayuda de presentación, no la fuente de
+  verdad de qué se adjudica — eso lo sigue decidiendo
+  `AwardSupplierQuoteUseCase`/el dominio.
+- **`QuotationsPage`** (`frontend/desktop/modules/purchasing/pages/enterprise_pages.py`):
+  lista de RFQ (invitados/cotizados/adjudicada) con panel de detalle
+  (`RfqDetailPanel` en `document_detail.py`) mostrando invitaciones y
+  resumen de cotizaciones por proveedor.
+- **`QuoteCaptureDialog`**: captura lo que respondió un proveedor —
+  restringido a los proveedores realmente invitados a esa RFQ (nunca
+  búsqueda libre), plazo de entrega y líneas (reutiliza `_LinesEditor`).
+- **`AwardDialog`**: tabla de comparación producto×proveedor con ★ para el
+  mejor precio; un clic por producto elige la línea ganadora — permite
+  adjudicación dividida (proveedores distintos por producto), tal como lo
+  soporta el dominio (`PurchaseAward`/`PurchaseAwardLine`), no solo "todo
+  a un proveedor".
+- **Capacidades nuevas**: `quotation_view`/`quote_capture`/`quote_compare`/
+  `quote_award` en `PurchasingCapabilities` + `capability_resolver.py`;
+  ruta `PurchasingRoutes.QUOTATIONS` en `navigation.py`, gateada por
+  `quotation_view` (verdadero si el usuario puede crear RFQ, capturar,
+  comparar o adjudicar — no hay un permiso "ver" dedicado en el catálogo
+  para RFQ, así que se compone de las acciones).
+- **Efecto colateral esperado, ya corregido**: el rol "comprador" en
+  `test_purchasing_role_matrix.py` gana la ruta `quotations` (tiene
+  `RFQ_CREATE`) — se actualizó el set esperado. El guardarraíl de
+  arquitectura `test_shell_exposes_only_implemented_permission_gated_routes`
+  tenía "Cotizaciones" en su lista de *labels que no deben existir todavía*
+  — se movió a la lista de labels implementados; "Adjudicaciones" se dejó
+  en la lista de pendientes porque no es una pantalla propia (es una acción
+  dentro de Cotizaciones).
+- **Checklist "Documentos relacionados"**: sigue parcial — el panel de
+  detalle de Solicitud/Orden ya muestra una lista de documentos
+  relacionados, pero no es clicable/navegable. No se tocó en esta vuelta
+  (alcance acordado fue solo Cotizaciones/Adjudicación).
+- **Verificación**: suite completa de procurement + logistics (256 tests) y
+  arquitectura de purchasing (8 tests) en verde; `compileall` limpio sobre
+  `backend/`, `frontend/desktop/modules/purchasing/` y los tests tocados.
+  Nuevos tests: `tests/integration/procurement/test_quotation_read_services.py`
+  (5), más 4 en `test_enterprise_ui.py` cubriendo el flujo RFQ→captura→
+  comparación→adjudicación de punta a punta a través del presenter, la
+  página headless, y el `AwardDialog`.
+
+---
+
+## Fase 5 (Inventario y finanzas) — auditoría + CxP sin asiento contable — 2026-08-07
+
+Auditoría contra "Recepciones → Movimientos → Facturas → Conciliación →
+Cuentas por pagar → Pagos → Estados de integración": **Recepciones,
+Movimientos, Facturas, Conciliación y Pagos ya estaban completos** — en
+particular, Movimientos ya tiene un handler real
+(`CanonicalPurchaseStockEntryHandler`) que entra a inventario con costo
+promedio ponderado, y "Cuentas por pagar"/"Pagos" ya tenían pantalla
+completa (`AccountsPayablePage`, `PaymentsPage`) con el ciclo Programar →
+Autorizar → Ejecutar segregado. Un solo hallazgo real:
+
+- **Bug de integridad financiera: `CreatePayableUseCase` reconocía el pasivo
+  (CxP) sin ningún asiento contable.** El único asiento balanceado del ciclo
+  de pago ocurría hasta *ejecutar* el pago (Debe CxP / Haber Tesorería) — el
+  reconocimiento del pasivo en sí (al conciliar la factura) no generaba
+  Debe Inventario/Gasto/Activo, violando la regla #11 de CLAUDE.md. El
+  propio código ya documentaba el hueco (`procurement_payable_bridge.py`
+  decía explícitamente: "routing it correctly requires the line's
+  purchase_nature... which this event does not carry").
+- **Causa raíz**: `SupplierInvoiceLine` no tenía `purchase_nature` (a
+  diferencia de `PurchaseOrderLine`/`RequisitionLine`/`DirectPurchaseLine`,
+  que sí lo tienen) — se perdía en el primer eslabón de la cadena.
+- **Fix, en 5 capas**:
+  1. `SupplierInvoiceLine.purchase_nature` (default `INVENTORY`, mismo
+     patrón que el resto del dominio); `CaptureSupplierInvoiceUseCase` lo
+     acepta por línea.
+  2. `MatchSupplierInvoiceUseCase`/`ReleaseInvoiceVarianceUseCase` agregan
+     subtotales pre-impuesto por naturaleza (`nature_subtotals`) al emitir
+     `ACCOUNT_PAYABLE_CREATE_REQUESTED`.
+  3. `downstream_translators.on_payable_created` reenvía `nature_subtotals`
+     + `tax_total` en `PAYABLE_CREATED` (antes se perdían ahí).
+  4. `ProcurementPayableBridgeHandler` postea el asiento de reconocimiento
+     (Debe Inventario/Gasto/Activo por naturaleza + Debe IVA acreditable /
+     Haber CxP) vía `PostingEngine`, usando `PostingPurpose.SUPPLIER_INVOICE`
+     (ya existía en el enum, nunca se usaba). Payloads sin `nature_subtotals`
+     (legacy) solo crean el `Payable`, nunca inventan una cuenta.
+  5. `finance_bootstrap.py`: el perfil contable `PURCHASE` no tenía
+     `expense_account_id` ni `asset_account_id` configurados — se agregaron
+     (6130 "Gastos operativos", 1201 "Activo fijo"; `SERVICE` se enruta a
+     `expense_account_id`, no tiene cuenta propia).
+- **Regresión real encontrada al verificar**: el test existente
+  `test_payable_created_reaches_finance_and_creates_real_payable` seguía
+  pasando con el fix roto (perfil `PURCHASE` no sembrado → `FinanceDomainError`
+  silenciada por el retry-on-failure del outbox dispatcher, que no
+  propaga la excepción). Se corrigió sembrando `bootstrap_finance()` en el
+  test y agregando `assert summary["failed"] == 0` — sin eso, un fallo de
+  posteo queda enmascarado indefinidamente.
+- **Entorno**: el `.venv` del proyecto apareció vacío a mitad de esta vuelta
+  (solo `pip`) — se reinstalaron `pytest`, `PyQt5`, `cryptography`, `fastapi`,
+  `fpdf2`, `matplotlib`, `pillow`, `pydantic`, `requests`, `pyOpenSSL`
+  (inferidos de los imports reales del repo; no hay `requirements.txt`).
+- **Verificación**: 397 tests de procurement + finance en verde; nuevo test
+  de asiento mixto (`test_payable_recognition_entry_routes_by_purchase_nature_and_splits_tax`)
+  prueba que una factura con líneas INVENTORY + EXPENSE debita dos cuentas
+  distintas, no todo a Inventario.
+- **Pendiente explícito**: "Estados de integración" del checklist se dio
+  por cubierto con esta auditoría (las integraciones evento-driven
+  Compras→Inventario/CxP/Tesorería ya estaban bien cableadas) — no se
+  construyó ninguna pantalla nueva de monitoreo.

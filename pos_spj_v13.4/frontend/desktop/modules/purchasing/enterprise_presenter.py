@@ -9,7 +9,12 @@ from __future__ import annotations
 
 import logging
 
+from backend.application.procurement.ports import (
+    BranchWarehouseContextPort,
+    ProcurementProductCatalogPort,
+)
 from backend.shared.ids import new_uuid
+from frontend.desktop.components.search_selector import SearchOption
 from frontend.desktop.modules.purchasing.capability_resolver import (
     resolve_purchasing_capabilities,
 )
@@ -21,6 +26,7 @@ from frontend.desktop.modules.purchasing.enterprise_view_models import (
     money,
     order_status_es,
     requisition_status_es,
+    rfq_status_es,
 )
 
 logger = logging.getLogger("spj.purchasing.enterprise_presenter")
@@ -28,11 +34,23 @@ logger = logging.getLogger("spj.purchasing.enterprise_presenter")
 _PAGE_SIZE = 50
 
 
+def _supplier_subtitle(row: dict) -> str:
+    """Surface a financial block in the picker itself — never let the buyer
+    choose a blocked supplier only to find out from a rejected submission."""
+    if row.get("bloqueado_financiero"):
+        return "Bloqueado financieramente"
+    if not row.get("compras_habilitadas", True):
+        return "Compras deshabilitadas"
+    return row.get("code") or ""
+
+
 class EnterprisePurchasingPresenter:
     def __init__(self, *, connection_provider, read_services: dict, analytics,
                  use_cases: dict, session_context=None, event_dispatcher=None,
-                 logistics_reads=None, warehouse_directory=None, history_reads=None,
-                 origin_workspace=None) -> None:
+                 logistics_reads=None,
+                 warehouse_directory: BranchWarehouseContextPort | None = None,
+                 history_reads=None, origin_workspace=None, supplier_picker=None,
+                 product_catalog: ProcurementProductCatalogPort | None = None) -> None:
         self._conn = connection_provider
         self._reads = read_services
         self._analytics = analytics
@@ -43,6 +61,8 @@ class EnterprisePurchasingPresenter:
         self._warehouse_directory = warehouse_directory
         self._history = history_reads
         self._origin = origin_workspace
+        self._suppliers = supplier_picker
+        self._product_catalog = product_catalog
         self._period_start = None
         self._period_end = None
 
@@ -89,13 +109,17 @@ class EnterprisePurchasingPresenter:
         setter(warehouse_id, options[warehouse_id])
 
     def session_summary(self) -> dict[str, str | bool]:
+        branch_name = str(getattr(self._session, "sucursal_nombre", None)
+                          or getattr(self._session, "active_branch_name", None) or "").strip()
+        warehouse_name = str(getattr(self._session, "active_warehouse_name", None) or "").strip()
         return {
             "user": str(getattr(self._session, "display_name", None)
                         or getattr(self._session, "nombre_completo", None)
                         or getattr(self._session, "username", None)
                         or getattr(self._session, "usuario", None) or "Sesión activa"),
-            "branch": self.default_branch(),
-            "warehouse": self.selected_warehouse() or "Sin almacén seleccionado",
+            "branch": branch_name or "Sucursal sin nombre configurado",
+            "warehouse": (warehouse_name if self.selected_warehouse() else
+                         "Sin almacén seleccionado"),
             "warehouse_selected": bool(self.selected_warehouse()),
         }
 
@@ -140,11 +164,14 @@ class EnterprisePurchasingPresenter:
         total = svc.count(status=status, search=search, **self._scope())
         data, ids = [], []
         for r in rows:
-            data.append([r["document_number"], r["branch_id"], r["purchase_type"],
-                         r["priority"], requisition_status_es(r["status"]),
-                         (r["created_at"] or "")[:10]])
-            ids.append(r["id"])
+            data.append([r.document_number, r.branch_name, r.purchase_type,
+                         r.priority, requisition_status_es(r.status),
+                         (r.created_at or "")[:10]])
+            ids.append(r.id)
         return TableViewModel(data, ids, total=int(total))
+
+    def requisition_detail(self, requisition_id: str):
+        return self._reads["requisitions"].detail(requisition_id)
 
     def create_requisition(self, **fields) -> tuple[bool, str, dict]:
         return self._run("req_create", actor_user_id=self._actor(), **fields)
@@ -163,6 +190,55 @@ class EnterprisePurchasingPresenter:
         return self._run("rfq_create", actor_user_id=self._actor(),
                          requisition_id=requisition_id, supplier_ids=supplier_ids)
 
+    # ── quotations (RFQ → cotizaciones → adjudicación) ────────────────────────
+    def rfqs(self, *, status=None, search="", page=0) -> TableViewModel:
+        svc = self._reads["rfqs"]
+        offset = max(0, page) * _PAGE_SIZE
+        rows = svc.list(status=status, search=search, limit=_PAGE_SIZE, offset=offset)
+        total = svc.count(status=status, search=search)
+        data, ids = [], []
+        for r in rows:
+            data.append([r.document_number, rfq_status_es(r.status), str(r.invited_count),
+                         str(r.quoted_count), "Sí" if r.awarded else "No",
+                         (r.created_at or "")[:10]])
+            ids.append(r.id)
+        return TableViewModel(data, ids, total=int(total))
+
+    def rfq_detail(self, rfq_id: str):
+        return self._reads["rfqs"].detail(rfq_id)
+
+    def quote_comparison(self, rfq_id: str):
+        return self._reads["rfqs"].comparison(rfq_id)
+
+    def capture_quote(self, **fields) -> tuple[bool, str, dict]:
+        return self._run("quote_capture", actor_user_id=self._actor(), **fields)
+
+    def award_quote(self, **fields) -> tuple[bool, str, dict]:
+        return self._run("quote_award", actor_user_id=self._actor(), **fields)
+
+    # ── catalog lookups (search-and-pick, never manual id capture) ───────────
+    def supplier_options(self, query: str) -> list[SearchOption]:
+        if self._suppliers is None:
+            return []
+        try:
+            rows = self._suppliers.search(query)
+        except Exception:
+            logger.exception("supplier search failed")
+            return []
+        return [SearchOption(id=r["id"], label=r["name"], subtitle=_supplier_subtitle(r))
+                for r in rows]
+
+    def product_options(self, query: str) -> list[SearchOption]:
+        if self._product_catalog is None:
+            return []
+        try:
+            options = self._product_catalog.search(query, branch_id=self.default_branch())
+        except Exception:
+            logger.exception("product search failed")
+            return []
+        return [SearchOption(id=o.product_id, label=o.name, subtitle=o.code)
+                for o in options]
+
     # ── orders ────────────────────────────────────────────────────────────────
     def orders(self, *, status=None, search="", page=0) -> TableViewModel:
         svc = self._reads["orders"]
@@ -172,14 +248,17 @@ class EnterprisePurchasingPresenter:
         total = svc.count(status=status, search=search, **self._scope())
         data, ids = [], []
         for r in rows:
-            data.append([r["document_number"], (r["supplier_id"] or "")[:8],
-                         order_status_es(r["status"]), f"v{r['version']}",
-                         money(r["total"]), (r["created_at"] or "")[:10]])
-            ids.append(r["id"])
+            data.append([r.document_number, r.supplier_name,
+                         order_status_es(r.status), f"v{r.version}",
+                         money(r.total), (r.created_at or "")[:10]])
+            ids.append(r.id)
         return TableViewModel(data, ids, total=int(total))
 
     def order_detail(self, order_id: str):
         return self._reads["orders"].detail(order_id)
+
+    def invoice_detail(self, invoice_id: str):
+        return self._reads["invoices"].detail(invoice_id)
 
     def create_order(self, **fields) -> tuple[bool, str, dict]:
         return self._run("po_create", actor_user_id=self._actor(), **fields)
@@ -204,6 +283,26 @@ class EnterprisePurchasingPresenter:
                          has_over_receive_permission=has_over_receive_permission)
 
     # ── invoices ─────────────────────────────────────────────────────────────
+    def invoice_document_options(self, query: str) -> list[SearchOption]:
+        svc = self._reads["invoices"]
+        try:
+            rows = svc.billable_documents(branch_id=self.default_branch(), search=query)
+        except Exception:
+            logger.exception("invoice document search failed")
+            return []
+        return [SearchOption(id=r["id"], label=r["document_number"],
+                             subtitle=r.get("nombre") or "") for r in rows]
+
+    def invoice_document_profile(self, document_id: str) -> dict:
+        svc = self._reads["invoices"]
+        resolved = svc.resolve_billable_document(document_id)
+        if resolved is None:
+            return {}
+        lines = svc.billable_lines(resolved["document_type"], document_id)
+        return {"supplier_id": resolved["supplier_id"],
+                "supplier_name": resolved["supplier_name"],
+                "document_type": resolved["document_type"], "lines": lines}
+
     def invoices(self, *, status=None, search="", page=0) -> TableViewModel:
         svc = self._reads["invoices"]
         offset = max(0, page) * _PAGE_SIZE
@@ -212,11 +311,11 @@ class EnterprisePurchasingPresenter:
         total = svc.count(status=status, search=search, **self._scope())
         data, ids = [], []
         for r in rows:
-            data.append([r["document_number"], (r["supplier_id"] or "")[:8],
-                         r["invoice_number"], money(r["total"]),
-                         invoice_status_es(r["status"]), match_result_es(r["match_result"]),
-                         (r["created_at"] or "")[:10]])
-            ids.append(r["id"])
+            data.append([r.document_number, r.supplier_name,
+                         r.invoice_number, money(r.total),
+                         invoice_status_es(r.status), match_result_es(r.match_result),
+                         (r.created_at or "")[:10]])
+            ids.append(r.id)
         return TableViewModel(data, ids, total=int(total))
 
     def capture_invoice(self, **fields) -> tuple[bool, str, dict]:
@@ -297,9 +396,9 @@ class EnterprisePurchasingPresenter:
         if self._history is None:
             return TableViewModel([], [], 0)
         rows = self._history.canonical_receipts(limit=100)
-        data = [[r["document_number"], (r["supplier_id"] or "")[:8], r["status"],
-                 (r["created_at"] or "")[:19]] for r in rows]
-        return TableViewModel(data, [r["document_number"] for r in rows], total=len(rows))
+        data = [[r.document_number, r.supplier_name, r.status,
+                 (r.created_at or "")[:19]] for r in rows]
+        return TableViewModel(data, [r.document_number for r in rows], total=len(rows))
 
     # ── analytics ─────────────────────────────────────────────────────────────
     def analytics_kpis(self):

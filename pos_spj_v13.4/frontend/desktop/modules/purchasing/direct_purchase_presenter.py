@@ -29,10 +29,20 @@ logger = logging.getLogger("spj.purchasing.direct_presenter")
 _PAGE_SIZE = 50
 
 
+def _supplier_subtitle(row: dict) -> str:
+    """Surface a financial block in the picker itself — never let the buyer
+    choose a blocked supplier only to find out from a rejected submission."""
+    if row.get("bloqueado_financiero"):
+        return "Bloqueado financieramente"
+    if not row.get("compras_habilitadas", True):
+        return "Compras deshabilitadas"
+    return row.get("code") or ""
+
+
 class DirectPurchasePresenter:
     def __init__(self, *, connection_provider, read_service, supplier_picker,
                  use_cases: dict, session_context=None, templates=None, costs=None,
-                 variance_policy=None, event_dispatcher=None) -> None:
+                 variance_policy=None, event_dispatcher=None, product_catalog=None) -> None:
         self._conn = connection_provider
         self._reads = read_service
         self._suppliers = supplier_picker
@@ -42,6 +52,7 @@ class DirectPurchasePresenter:
         self._costs = costs
         self._variance = variance_policy
         self._dispatch = event_dispatcher
+        self._product_catalog = product_catalog
 
     # session helpers ---------------------------------------------------------
     def _actor(self) -> str:
@@ -94,8 +105,19 @@ class DirectPurchasePresenter:
         except Exception:
             logger.exception("supplier search failed")
             return []
-        return [SearchOption(id=r["id"], label=r["name"],
-                             subtitle=r.get("code") or "") for r in rows]
+        return [SearchOption(id=r["id"], label=r["name"], subtitle=_supplier_subtitle(r))
+                for r in rows]
+
+    def product_options(self, query: str) -> list[SearchOption]:
+        if self._product_catalog is None:
+            return []
+        try:
+            options = self._product_catalog.search(query, branch_id=self.default_branch())
+        except Exception:
+            logger.exception("product search failed")
+            return []
+        return [SearchOption(id=o.product_id, label=o.name, subtitle=o.code)
+                for o in options]
 
     def purchases(self, *, status: str | None = None, search: str = "",
                   page: int = 0) -> TableViewModel:
@@ -105,7 +127,7 @@ class DirectPurchasePresenter:
         total = self._reads.count(status=status, search=search)
         rows, ids = [], []
         for r in rows_data:
-            rows.append([r.document_number, r.supplier_id[:8], status_es(r.status),
+            rows.append([r.document_number, r.supplier_name, status_es(r.status),
                          payment_condition_es(r.payment_condition), money(r.total),
                          (r.created_at or "")[:10]])
             ids.append(r.id)

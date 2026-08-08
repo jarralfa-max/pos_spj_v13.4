@@ -21,9 +21,10 @@ class Session:
     is_active = True
     user_id = "user-1"
     active_branch_id = "branch-1"
+    sucursal_nombre = "Sucursal Centro"
 
     def tiene_permiso(self, code):
-        return code == "PURCHASES_DIRECT_CREATE"
+        return code == PurchasePermissions.DIRECT_CREATE
 
     def set_warehouse(self, warehouse_id, name=""):
         self.active_warehouse_id = warehouse_id
@@ -38,20 +39,20 @@ class Warehouses:
 
 def test_live_session_requires_matching_actor_branch_and_permission():
     checker = ProcurementSessionPermissionChecker(Session())
-    assert checker.has_permission("user-1", "PURCHASES_DIRECT_CREATE")
-    assert not checker.has_permission("other", "PURCHASES_DIRECT_CREATE")
-    assert not checker.has_permission("user-1", "PURCHASES_ORDER_APPROVE")
+    assert checker.has_permission("user-1", PurchasePermissions.DIRECT_CREATE)
+    assert not checker.has_permission("other", PurchasePermissions.DIRECT_CREATE)
+    assert not checker.has_permission("user-1", PurchasePermissions.ORDER_APPROVE)
 
 
 def test_inactive_or_branchless_session_denies():
     inactive = Session()
     inactive.is_active = False
     assert not ProcurementSessionPermissionChecker(inactive).has_permission(
-        "user-1", "PURCHASES_DIRECT_CREATE")
+        "user-1", PurchasePermissions.DIRECT_CREATE)
     branchless = Session()
     branchless.active_branch_id = ""
     assert not ProcurementSessionPermissionChecker(branchless).has_permission(
-        "user-1", "PURCHASES_DIRECT_CREATE")
+        "user-1", PurchasePermissions.DIRECT_CREATE)
 
 
 def test_desktop_shell_can_render_without_inventing_a_warehouse():
@@ -64,14 +65,29 @@ def test_desktop_shell_can_render_without_inventing_a_warehouse():
     summary = presenter.session_summary()
 
     assert summary == {
-        "user": "Comprador Uno", "branch": "branch-1",
+        "user": "Comprador Uno", "branch": "Sucursal Centro",
         "warehouse": "Sin almacén seleccionado", "warehouse_selected": False,
     }
+    assert "branch-1" not in summary["branch"]  # never the raw UUID/id
     with pytest.raises(PermissionError, match="almacén activo"):
         presenter.default_warehouse()
 
     presenter.select_warehouse("warehouse-1")
     assert presenter.default_warehouse() == "warehouse-1"
+    # once a warehouse is selected, the summary shows its name, not the id
+    assert presenter.session_summary()["warehouse"] == "Principal"
+
+
+def test_session_summary_degrades_gracefully_without_crashing_when_branch_unnamed():
+    class UnnamedBranchSession(Session):
+        sucursal_nombre = ""
+
+    presenter = EnterprisePurchasingPresenter(
+        connection_provider=lambda: None, read_services={}, analytics=None,
+        use_cases={}, session_context=UnnamedBranchSession(), warehouse_directory=Warehouses())
+    summary = presenter.session_summary()
+    assert summary["branch"] == "Sucursal sin nombre configurado"
+    assert "branch-1" not in summary["branch"]
 
 
 def test_desktop_rejects_warehouse_outside_active_branch():

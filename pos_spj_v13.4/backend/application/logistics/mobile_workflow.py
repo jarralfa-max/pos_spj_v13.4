@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Protocol
 
 from backend.api.mobile_session import MobileIdentity
+from backend.application.logistics.authorization import LogisticsPermissions
 from backend.domain.logistics.entities import LogisticsShipment, ShipmentContentAssignment
 from backend.domain.logistics.enums import SourceDocumentType
 from backend.domain.logistics.qr_identity import PermanentContainerQrService
@@ -29,7 +30,7 @@ class MobileOriginPurchaseWorkflow:
         self._photos = photo_gateway
 
     def list_documents(self, identity: MobileIdentity, query: str) -> dict:
-        self._require(identity, "logistics.shipment.create")
+        self._require(identity, LogisticsPermissions.SHIPMENT_CREATE)
         like = f"%{query.strip()}%"
         rows = []
         for table, doc_type, number, statuses in (
@@ -85,7 +86,7 @@ class MobileOriginPurchaseWorkflow:
                             "expirationControlled": bool(row[7])} for row in rows]}
 
     def resolve_container(self, identity: MobileIdentity, token: str) -> dict:
-        self._require(identity, "logistics.container.scan")
+        self._require(identity, LogisticsPermissions.CONTAINER_SCAN)
         container_id, _ = self._qr.resolve(token)
         container = self._repo.get_container(container_id)
         if container is None or not self._qr.validate(token, container):
@@ -101,7 +102,7 @@ class MobileOriginPurchaseWorkflow:
 
     def create_shipment(self, identity: MobileIdentity, operation_id: str,
                         expected_version: int, command: dict) -> dict:
-        self._require(identity, "logistics.shipment.create")
+        self._require(identity, LogisticsPermissions.SHIPMENT_CREATE)
         if command["documentType"] == "PURCHASE_REQUISITION" and not command.get("supplierId"):
             raise ValueError("La solicitud requiere una compra directa con proveedor confirmado")
         if expected_version != 0:

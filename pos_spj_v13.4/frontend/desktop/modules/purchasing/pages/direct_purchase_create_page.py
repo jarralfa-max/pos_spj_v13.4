@@ -101,18 +101,23 @@ class DirectPurchaseCreatePage(QWidget):
             button.clicked.connect(callback)
             self.summary.actions.addWidget(button)
 
+    def refresh_permissions(self) -> None:
+        """Re-evalúa la visibilidad de acciones sensibles tras login o cambio de permisos."""
+        if hasattr(self, "_confirm"):
+            self._confirm.setVisible(self._presenter.capabilities().direct_confirm)
+
     def start_create(self):
         self._supplier.setFocus()
 
-    def start_from_requisition(self, detail: dict):
+    def start_from_requisition(self, detail):
+        """``detail`` is a RequisitionDetailDTO (enterprise_presenter.py::requisition_detail),
+        never a dict."""
         self._clear()
-        self._source_requisition_id = str(detail["id"])
-        self._cart = [CartLineVM(str(line["product_id"]),
-                                 str(line.get("description") or line["product_id"]),
-                                 Decimal(str(line["quantity"])),
-                                 Decimal(str(line.get("estimated_unit_cost") or "0")),
-                                 purchase_nature=str(line.get("purchase_nature") or "INVENTORY"))
-                      for line in detail.get("lines", ())]
+        self._source_requisition_id = str(detail.id)
+        self._cart = [CartLineVM(str(line.product_id), str(line.product_id),
+                                 Decimal(str(line.quantity)),
+                                 Decimal(str(line.estimated_unit_cost or "0")))
+                      for line in detail.lines]
         self._show(False, "Origen: solicitud aprobada. Confirma proveedor y condiciones.")
         self._render()
 
@@ -125,7 +130,8 @@ class DirectPurchaseCreatePage(QWidget):
             self._add_line(code)
 
     def _add_line(self, code=None):
-        dialog = AddCartLineDialog(self)
+        dialog = AddCartLineDialog(self, product_provider=self._presenter.product_options,
+                                   cost_variance=self._presenter.price_variance)
         if code:
             dialog.prefill_product(code)
         if dialog.exec_():

@@ -299,6 +299,7 @@ def _wire_procurement_pipeline(bus, container) -> None:
     event_id. Missing security or persistence dependencies fail application startup."""
     from backend.application.procurement.authorization import PurchaseAuthorizationPolicy
     from backend.application.procurement.integrations.downstream_events import (
+        PAYABLE_CREATED,
         PURCHASE_STOCK_ENTRY_REGISTERED,
     )
     from backend.application.procurement.integrations.wiring import wire_procurement
@@ -327,6 +328,14 @@ def _wire_procurement_pipeline(bus, container) -> None:
     recipe_handler = CanonicalPurchaseRecipeExplosionHandler(db)
     bus.subscribe(PURCHASE_STOCK_ENTRY_REGISTERED, recipe_handler.handle,
                   priority=80, label="procurement_inventory_recipe_explosion")
+    # PUR-14: matched/released supplier invoices raise a real CxP obligation
+    # (previously PAYABLE_CREATED had no subscriber — see MIGRATION_LOG.md).
+    from backend.application.event_handlers.finance.procurement_payable_bridge import (
+        ProcurementPayableBridgeHandler,
+    )
+    payable_handler = ProcurementPayableBridgeHandler(db)
+    bus.subscribe(PAYABLE_CREATED, payable_handler.handle,
+                  priority=50, label="procurement_finance_payable_bridge")
 
 
 def _wire_logistics_pipeline(bus, container) -> None:

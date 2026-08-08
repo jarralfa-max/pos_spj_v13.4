@@ -137,4 +137,4 @@ def test_permanent_qr_signature_rotation_and_no_commercial_payload():
 
 def test_logistics_authorization_fails_closed():
     with pytest.raises(LogisticsPermissionDeniedError):
-        LogisticsAuthorizationPolicy().require("user", "logistics.shipment.create")
+        LogisticsAuthorizationPolicy().require("user", "LOGISTICA.embarque.crear")

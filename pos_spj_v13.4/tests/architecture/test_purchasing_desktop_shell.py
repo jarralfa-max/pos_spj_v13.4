@@ -24,12 +24,12 @@ def test_shell_exposes_only_implemented_permission_gated_routes():
     shell = source("purchasing_module_shell.py")
     navigation = source("navigation.py")
     for label in (
-        "Resumen", "Solicitudes", "Órdenes de compra", "Nueva compra", "Historial",
-        "COMPRA EN ORIGEN", "RECEPCIONES", "FACTURACIÓN",
+        "Resumen", "Solicitudes", "Cotizaciones", "Órdenes de compra", "Nueva compra",
+        "Historial", "COMPRA EN ORIGEN", "RECEPCIONES", "FACTURACIÓN",
     ):
         assert label in navigation
     for unfinished in (
-        "Cotizaciones", "Adjudicaciones", "Compras móviles",
+        "Adjudicaciones", "Compras móviles",
         "Contenedores asignados", "Políticas y tolerancias",
     ):
         assert unfinished not in shell + navigation

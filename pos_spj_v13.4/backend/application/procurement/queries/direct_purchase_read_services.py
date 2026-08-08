@@ -51,15 +51,17 @@ class DirectPurchaseReadService(_Base):
              offset: int = 0) -> list[DirectPurchaseRowDTO]:
         where, params = self._where(status, search)
         rows = self._query(
-            "SELECT id, document_number, supplier_id, branch_id, status, total,"
-            " currency_code, payment_condition, created_at"
-            f" FROM direct_purchases{where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            "SELECT direct_purchases.id, document_number, supplier_id, branch_id, status, total,"
+            " currency_code, payment_condition, direct_purchases.created_at,"
+            " COALESCE(p.nombre, '—') AS supplier_name FROM direct_purchases"
+            " LEFT JOIN proveedores p ON p.id = direct_purchases.supplier_id"
+            f"{where} ORDER BY direct_purchases.created_at DESC LIMIT ? OFFSET ?",
             (*params, limit, offset))
         return [DirectPurchaseRowDTO(
             id=r["id"], document_number=r["document_number"], supplier_id=r["supplier_id"],
             branch_id=r["branch_id"], status=r["status"], total=r["total"],
             currency_code=r["currency_code"], payment_condition=r["payment_condition"],
-            created_at=r["created_at"]) for r in rows]
+            created_at=r["created_at"], supplier_name=r["supplier_name"]) for r in rows]
 
     def get_detail(self, direct_purchase_id: str) -> DirectPurchaseDetailDTO | None:
         row = self._query_one("SELECT * FROM direct_purchases WHERE id=?",
@@ -105,6 +107,21 @@ class SupplierPickerQueryService(_Base):
 
     def search(self, query: str, *, limit: int = 25) -> list[dict]:
         like = f"%{query.strip()}%"
-        return self._query(
-            "SELECT id, nombre AS name, '' AS code, activo AS status FROM proveedores"
-            " WHERE nombre LIKE ? ORDER BY nombre LIMIT ?", (like, limit))
+        try:
+            # _query() itself swallows OperationalError (returns []), which
+            # would hide a missing-column error instead of letting us fall
+            # back — call execute() directly so the except below actually runs.
+            cur = self._conn.execute(
+                "SELECT id, nombre AS name, '' AS code, activo AS status,"
+                " COALESCE(bloqueado_financiero, 0) AS bloqueado_financiero,"
+                " COALESCE(compras_habilitadas, 1) AS compras_habilitadas"
+                " FROM proveedores WHERE nombre LIKE ? ORDER BY nombre LIMIT ?",
+                (like, limit))
+        except sqlite3.OperationalError:
+            # migración 178 (bloqueo financiero) aún no corrió en esta base —
+            # degrada a la lista sin la marca de bloqueo, nunca inventa un estado.
+            return self._query(
+                "SELECT id, nombre AS name, '' AS code, activo AS status FROM proveedores"
+                " WHERE nombre LIKE ? ORDER BY nombre LIMIT ?", (like, limit))
+        cols = [c[0] for c in cur.description]
+        return [dict(zip(cols, row)) for row in cur.fetchall()]

@@ -16,6 +16,7 @@ from backend.application.procurement.authorization import PurchaseAuthorizationP
 from backend.application.procurement.permissions import PurchasePermissions
 from backend.application.procurement.result import ProcurementResult
 from backend.domain.procurement.entities import SupplierInvoice, SupplierInvoiceLine
+from backend.domain.procurement.enums import PurchaseNature
 from backend.domain.procurement.events import ProcurementEvents, build_event_payload
 from backend.domain.procurement.exceptions import (
     ProcurementDomainError,
@@ -45,6 +46,17 @@ def _emit(uow, event_name, *, document_id, operation_id, actor_user_id=None,
     uow.outbox.enqueue(event_id=payload["event_id"], event_name=event_name,
                        payload_json=json.dumps(payload), operation_id=operation_id,
                        deduplication_key=deduplication_key)
+
+
+def _nature_subtotals(lines) -> dict[str, str]:
+    """Pre-tax subtotal per purchase_nature — lets the finance side recognize
+    the payable's debit side (Inventario/Gasto/Activo) against the right
+    account instead of dumping every purchase into Inventario."""
+    totals: dict[str, Decimal] = {}
+    for line in lines:
+        nature = line.purchase_nature.value
+        totals[nature] = totals.get(nature, Decimal("0")) + line.subtotal().amount
+    return {nature: str(amount) for nature, amount in totals.items()}
 
 
 class CaptureSupplierInvoiceUseCase:
@@ -89,6 +101,8 @@ class CaptureSupplierInvoiceUseCase:
                         inv.id, raw["product_id"], raw["invoiced_quantity"],
                         Money(str(raw["unit_price"]), currency_code),
                         Money(str(raw.get("tax", "0")), currency_code),
+                        purchase_nature=PurchaseNature(
+                            raw.get("purchase_nature", PurchaseNature.INVENTORY.value)),
                         purchase_order_line_id=raw.get("purchase_order_line_id"),
                         direct_purchase_line_id=raw.get("direct_purchase_line_id"),
                         receipt_line_id=raw.get("receipt_line_id")))
@@ -203,10 +217,16 @@ class MatchSupplierInvoiceUseCase:
                   operation_id=operation_id, actor_user_id=actor_user_id,
                   supplier_id=inv.supplier_id, match_result=result.value)
             if result is MatchResult.MATCHED:
+                branch_id = (po.branch_id if po is not None
+                            else direct.branch_id if direct is not None else None)
                 _emit(uow, ProcurementEvents.ACCOUNT_PAYABLE_CREATE_REQUESTED,
-                      document_id=inv.id,
+                      document_id=inv.id, document_number=inv.document_number,
+                      branch_id=branch_id,
                       operation_id=operation_id, actor_user_id=actor_user_id,
                       supplier_id=inv.supplier_id, amount=str(inv.total.amount),
+                      currency_code=inv.total.currency_code,
+                      nature_subtotals=_nature_subtotals(inv.lines),
+                      tax_total=str(inv.tax_total.amount if inv.tax_total else "0"),
                       source_type="SUPPLIER_INVOICE", source_id=inv.id,
                       deduplication_key=f"SUPPLIER_INVOICE:{inv.id}")
         return ProcurementResult.ok("Factura conciliada", entity_id=inv.id,
@@ -253,10 +273,19 @@ class ReleaseInvoiceVarianceUseCase:
             uow.audit.record(action=ProcurementEvents.SUPPLIER_INVOICE_MATCHED,
                              actor_user_id=releaser_user_id, authorized_by=releaser_user_id,
                              document_id=inv.id, reason=reason.strip(), operation_id=operation_id)
+            po = uow.orders.get(inv.purchase_order_id) if inv.purchase_order_id else None
+            direct = (uow.direct_purchases.get(inv.direct_purchase_id)
+                     if inv.direct_purchase_id else None)
+            branch_id = (po.branch_id if po is not None
+                        else direct.branch_id if direct is not None else None)
             _emit(uow, ProcurementEvents.ACCOUNT_PAYABLE_CREATE_REQUESTED,
-                  document_id=inv.id,
+                  document_id=inv.id, document_number=inv.document_number,
+                  branch_id=branch_id,
                   operation_id=operation_id, actor_user_id=releaser_user_id,
                   supplier_id=inv.supplier_id, amount=str(inv.total.amount),
+                  currency_code=inv.total.currency_code,
+                  nature_subtotals=_nature_subtotals(inv.lines),
+                  tax_total=str(inv.tax_total.amount if inv.tax_total else "0"),
                   source_type="SUPPLIER_INVOICE", source_id=inv.id,
                   deduplication_key=f"SUPPLIER_INVOICE:{inv.id}")
         return ProcurementResult.ok("Diferencia liberada; CxP generada", entity_id=inv.id,

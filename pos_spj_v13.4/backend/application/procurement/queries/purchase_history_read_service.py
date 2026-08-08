@@ -8,6 +8,8 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
+from backend.application.procurement.dto.enterprise_dtos import PurchaseHistoryRowDTO
+
 
 class PurchaseHistoryReadService:
     def __init__(self, connection: Any) -> None:
@@ -22,15 +24,22 @@ class PurchaseHistoryReadService:
         return [dict(zip(cols, r)) for r in cur.fetchall()]
 
     def canonical_receipts(self, *, branch_id: str | None = None,
-                           limit: int = 100) -> list[dict]:
+                           limit: int = 100) -> list[PurchaseHistoryRowDTO]:
         where, params = "", []
         if branch_id:
             where = " WHERE branch_id=?"
             params.append(branch_id)
-        return self._rows(
-            "SELECT document_number, supplier_id, status, direct_purchase_id,"
-            " purchase_order_id, created_at FROM goods_receipts"
-            f"{where} ORDER BY created_at DESC LIMIT ?", (*params, int(limit)))
+        rows = self._rows(
+            "SELECT document_number, goods_receipts.supplier_id, status, direct_purchase_id,"
+            " purchase_order_id, goods_receipts.created_at,"
+            " COALESCE(p.nombre, '—') AS supplier_name FROM goods_receipts"
+            " LEFT JOIN proveedores p ON p.id = goods_receipts.supplier_id"
+            f"{where} ORDER BY goods_receipts.created_at DESC LIMIT ?", (*params, int(limit)))
+        return [PurchaseHistoryRowDTO(
+            document_number=r["document_number"], supplier_id=r["supplier_id"],
+            supplier_name=r["supplier_name"], status=r["status"],
+            created_at=r["created_at"], direct_purchase_id=r["direct_purchase_id"],
+            purchase_order_id=r["purchase_order_id"]) for r in rows]
 
     def legacy_receptions(self, *, branch_id: str | None = None,
                           limit: int = 100) -> list[dict]:

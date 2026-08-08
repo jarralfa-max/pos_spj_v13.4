@@ -721,6 +721,7 @@ class SupplierInvoiceLine:
     invoiced_quantity: Decimal
     unit_price: Money
     tax: Money
+    purchase_nature: PurchaseNature = PurchaseNature.INVENTORY
     purchase_order_line_id: str | None = None
     direct_purchase_line_id: str | None = None
     receipt_line_id: str | None = None

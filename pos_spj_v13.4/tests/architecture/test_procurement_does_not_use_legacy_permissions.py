@@ -2,7 +2,7 @@
 
 Legacy general permissions (COMPRAS, ADMIN_COMPRAS, PUEDE_COMPRAR) must not be
 referenced by the new bounded context; every sensitive action is gated by a
-PURCHASES_* granular permission validated in the backend.
+granular `COMPRAS.accion` permission validated in the backend.
 """
 
 from __future__ import annotations
@@ -48,13 +48,14 @@ def test_procurement_does_not_use_legacy_permissions():
                     offenders.append(
                         f"{path.relative_to(REPO)}:{call.lineno}: {argument.value}")
     assert not offenders, (
-        "Compras usa permisos granulares PURCHASES_*, no permisos generales:\n"
+        "Compras usa permisos granulares COMPRAS.accion, no permisos generales:\n"
         + "\n".join(offenders))
 
 
 def test_procurement_permissions_are_granular():
     perms = (REPO / "backend/application/procurement/permissions.py").read_text(encoding="utf-8")
-    # a representative sample of the granular vocabulary must exist
-    for code in ("PURCHASES_DIRECT_CREATE", "PURCHASES_ORDER_APPROVE",
-                 "PURCHASES_RECEIPT_COMPLETE", "PURCHASES_INVOICE_MATCH"):
+    # a representative sample of the granular vocabulary must exist, in the
+    # canonical MODULO.accion format shared with the rest of the app
+    for code in ("COMPRAS.directa.crear", "COMPRAS.orden.aprobar",
+                 "COMPRAS.recepcion.completar", "COMPRAS.factura.conciliar"):
         assert code in perms, f"falta permiso granular {code}"
