@@ -32,7 +32,6 @@ from backend.application.inventory.use_cases.replenishment_use_cases import (
     GenerateReplenishmentSuggestionsUseCase,
     SetReplenishmentRuleUseCase,
 )
-from backend.application.inventory.use_cases.register_waste import RegisterWasteUseCase
 from backend.application.inventory.use_cases.record_temperature_reading import (
     RecordTemperatureReadingUseCase,
 )
@@ -92,7 +91,6 @@ __all__ = [
     "QuarantineStockUseCase",
     "RecordCountUseCase",
     "RegisterTraceabilityLinkUseCase",
-    "RegisterWasteUseCase",
     "SetLocationStatusUseCase",
     "SetReplenishmentRuleUseCase",
     "SetWarehouseStatusUseCase",

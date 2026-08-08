@@ -121,8 +121,12 @@ class InventoryAnalyticsService(InventoryRepositoryBase):
 
     def waste_by_type_chart(self, *, branch_id: str) -> ChartDataDTO:
         rows = self._query(
-            "SELECT waste_type, COALESCE(SUM(CAST(quantity AS REAL)),0) AS q"
-            " FROM inventory_waste_event WHERE branch_id=? GROUP BY waste_type"
+            "SELECT c.code AS waste_type, "
+            "COALESCE(SUM(CAST(l.quantity AS REAL)),0) AS q "
+            "FROM loss_cases lc "
+            "JOIN loss_classifications c ON c.id=lc.classification_id "
+            "JOIN loss_lines l ON l.loss_case_id=lc.id "
+            "WHERE lc.branch_id=? GROUP BY c.code "
             " ORDER BY q DESC", (branch_id,))
         if not rows:
             return ChartDataDTO.empty("inv_waste", ChartType.BAR, "Merma por tipo")

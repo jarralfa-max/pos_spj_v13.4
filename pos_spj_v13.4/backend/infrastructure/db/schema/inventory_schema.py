@@ -41,7 +41,6 @@ INVENTORY_TABLES: tuple[str, ...] = (
     "inventory_adjustment",
     "inventory_adjustment_line",
     "inventory_quarantine",
-    "inventory_waste_event",
     "inventory_traceability_link",
     "inventory_replenishment_rule",
     "inventory_replenishment_suggestion",
@@ -318,25 +317,6 @@ _DDL = (
         reason_note TEXT,
         created_by_user_id TEXT,
         resolved_by_user_id TEXT,
-        created_at TEXT NOT NULL
-    )
-    """,
-    # ── waste / disposal (§30, INV-16) ─────────────────────────────────────
-    """
-    CREATE TABLE IF NOT EXISTS inventory_waste_event (
-        id TEXT PRIMARY KEY,
-        product_id TEXT NOT NULL,
-        branch_id TEXT NOT NULL,
-        warehouse_id TEXT NOT NULL,
-        location_id TEXT,
-        lot_id TEXT,
-        waste_type TEXT NOT NULL,
-        quantity TEXT NOT NULL DEFAULT '0',
-        weight TEXT NOT NULL DEFAULT '0',
-        movement_id TEXT,
-        is_theoretical INTEGER NOT NULL DEFAULT 0,
-        reason_note TEXT,
-        created_by_user_id TEXT,
         created_at TEXT NOT NULL
     )
     """,
@@ -633,8 +613,6 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_inv_quarantine_status ON inventory_quarantine(status)",
     "CREATE INDEX IF NOT EXISTS idx_inv_quarantine_lot ON inventory_quarantine(lot_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_quarantine_prod ON inventory_quarantine(product_id, branch_id)",
-    "CREATE INDEX IF NOT EXISTS idx_inv_waste_type ON inventory_waste_event(waste_type)",
-    "CREATE INDEX IF NOT EXISTS idx_inv_waste_prod ON inventory_waste_event(product_id, branch_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_trace_parent ON inventory_traceability_link(parent_lot_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_trace_child ON inventory_traceability_link(child_lot_id)",
     "CREATE INDEX IF NOT EXISTS idx_inv_replen_rule_scope ON inventory_replenishment_rule(branch_id, warehouse_id)",

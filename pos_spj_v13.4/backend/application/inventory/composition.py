@@ -41,7 +41,6 @@ from backend.application.inventory.use_cases import (
     QuarantineStockUseCase,
     RecordCountUseCase,
     RecordTemperatureReadingUseCase,
-    RegisterWasteUseCase,
     ReleaseQuarantineUseCase,
     ReleaseReservationUseCase,
     ReverseAdjustmentUseCase,
@@ -175,9 +174,6 @@ class InventoryUseCaseFactory:
 
     def dispose_quarantine(self, **kw):
         return self.build(DisposeQuarantineUseCase, **kw)
-
-    def register_waste(self, **kw):
-        return self.build(RegisterWasteUseCase, **kw)
 
     def record_temperature_reading(self, **kw):
         return self.build(RecordTemperatureReadingUseCase, **kw)

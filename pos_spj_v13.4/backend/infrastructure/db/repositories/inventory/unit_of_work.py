@@ -51,9 +51,6 @@ from backend.infrastructure.db.repositories.inventory.reservation_repository imp
 from backend.infrastructure.db.repositories.inventory.traceability_repository import (
     TraceabilityRepository,
 )
-from backend.infrastructure.db.repositories.inventory.waste_repository import (
-    WasteRepository,
-)
 from backend.infrastructure.db.repositories.inventory.notification_repositories import (
     NotificationLogRepository,
     NotificationRuleRepository,
@@ -85,7 +82,6 @@ class InventoryUnitOfWork:
         self.counts = CountRepository(connection)
         self.adjustments = AdjustmentRepository(connection)
         self.quarantines = QuarantineRepository(connection)
-        self.waste = WasteRepository(connection)
         self.traceability = TraceabilityRepository(connection)
         self.replenishment_rules = ReplenishmentRuleRepository(connection)
         self.replenishment_suggestions = ReplenishmentSuggestionRepository(connection)

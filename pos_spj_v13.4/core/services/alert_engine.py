@@ -431,8 +431,8 @@ class AlertEngine:
         # ── Ajustes de inventario sospechosos ─────────────────────────
         try:
             ajustes = self._q(
-                "SELECT COUNT(*) FROM ajustes_inventario "
-                "WHERE DATE(fecha)=DATE('now')")
+                "SELECT COUNT(*) FROM inventory_adjustment "
+                "WHERE DATE(created_at)=DATE('now')")
             if ajustes > 5:
                 self._emit(AlertCategory.OPERATIONS, Severity.MEDIUM,
                     f"{int(ajustes)} ajustes de inventario hoy",

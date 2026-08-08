@@ -613,35 +613,6 @@ def _create_inventario(conn):
             UNIQUE(branch_id, product_id, batch_id)
         )
     """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS mermas (
-            id             TEXT NOT NULL PRIMARY KEY,
-            producto_id    TEXT NOT NULL,
-            sucursal_id    TEXT NOT NULL,
-            cantidad       REAL    NOT NULL CHECK(cantidad > 0),
-            unidad         TEXT    NOT NULL DEFAULT 'kg',
-            motivo         TEXT    NOT NULL,
-            usuario        TEXT    NOT NULL,
-            operation_id   TEXT    NOT NULL,
-            autorizado_por TEXT,
-            created_at     TEXT    DEFAULT (datetime('now'))
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS ajustes_inventario (
-            id             TEXT NOT NULL PRIMARY KEY,
-            producto_id    TEXT NOT NULL,
-            sucursal_id    TEXT NOT NULL,
-            tipo           TEXT    NOT NULL,
-            cantidad       REAL    NOT NULL CHECK(cantidad > 0),
-            unidad         TEXT    NOT NULL DEFAULT 'kg',
-            motivo         TEXT    NOT NULL,
-            usuario        TEXT    NOT NULL,
-            autorizado_por TEXT,
-            operation_id   TEXT    NOT NULL,
-            created_at     TEXT    DEFAULT (datetime('now'))
-        )
-    """)
 
 
 def _create_ventas(conn):
@@ -2950,11 +2921,6 @@ def _ensure_extra_columns(conn):
     ensure_column(conn, "usuarios", "bloqueado_hasta DATETIME")
     ensure_column(conn, "usuarios", "locked_reason TEXT")
     ensure_column(conn, "usuarios", "updated_at DATETIME")
-
-    # mermas — impacto financiero
-    ensure_column(conn, "mermas", "costo_unitario REAL DEFAULT 0")
-    ensure_column(conn, "mermas", "valor_perdida REAL DEFAULT 0")
-    ensure_column(conn, "mermas", "notas TEXT")
 
     # recepciones_pollo — columnas de costo (producción cárnica)
     ensure_column(conn, "recepciones_pollo", "costo_unitario_kg REAL DEFAULT 0")

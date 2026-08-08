@@ -220,16 +220,17 @@ QLabel#pageHeaderSubtitle {{ color: {c.TEXT_SECONDARY}; font-size: {Typography.S
 def _sidebar(c) -> str:
     return f"""
 /* ── sidebar / nav ────────────────────────────────────────────────────── */
-QListWidget#financeNav, QListWidget#hrNav, QListWidget[role="nav"] {{
+QListWidget#sideNav, QListWidget#financeNav, QListWidget#hrNav, QListWidget[role="nav"] {{
     background-color: {c.SURFACE_MUTED};
     border: none;
     border-right: {Borders.WIDTH_THIN}px solid {c.BORDER_DEFAULT};
     outline: none;
 }}
-QListWidget#financeNav::item, QListWidget#hrNav::item, QListWidget[role="nav"]::item {{
+QListWidget#sideNav::item, QListWidget#financeNav::item, QListWidget#hrNav::item,
+QListWidget[role="nav"]::item {{
     padding: 8px 12px; color: {c.TEXT_SECONDARY}; border-radius: {Radii.SM}px;
 }}
-QListWidget#financeNav::item:selected, QListWidget#hrNav::item:selected,
+QListWidget#sideNav::item:selected, QListWidget#financeNav::item:selected, QListWidget#hrNav::item:selected,
 QListWidget[role="nav"]::item:selected {{
     background-color: {c.PRIMARY_SUBTLE}; color: {c.PRIMARY_DEFAULT};
     border-left: 3px solid {c.PRIMARY_DEFAULT};

@@ -6,8 +6,8 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 ARCHIVE_MIGRATION = PACKAGE_ROOT / "migrations" / "standalone" / "099_archive_legacy_inventory_sources.py"
 ENGINE = PACKAGE_ROOT / "migrations" / "engine.py"
 MIGRATED_OPERATIONAL_FILES = [
-    PACKAGE_ROOT / "backend" / "application" / "services" / "waste_application_service.py",
-    PACKAGE_ROOT / "backend" / "infrastructure" / "db" / "repositories" / "waste_repository.py",
+    PACKAGE_ROOT / "backend" / "application" / "losses" / "loss_inventory_integration.py",
+    PACKAGE_ROOT / "backend" / "infrastructure" / "persistence" / "loss_inventory_repository.py",
 ]
 
 
