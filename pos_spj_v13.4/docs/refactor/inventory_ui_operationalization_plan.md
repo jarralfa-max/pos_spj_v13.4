@@ -39,10 +39,13 @@ un botón nuevo mutaría con identidad o alcance incorrectos).
 ## 1. Pendiente (orden del audit, seguirá con P0-B/C/D/E)
 
 1. ~~P0-A: sesión y composition root~~ — **HECHO (slice 1, abajo)**.
-2. P0-B/C: conectar backend↔presenter↔UI para una página piloto (candidatas:
-   Ajustes o Cuarentena — ya tienen query service + use cases completos).
+2. ~~P0-B/C: página piloto (Cuarentena) — liberar/disponer~~ — **HECHO (slice 2,
+   abajo)**. Pendiente en esa misma página: "Poner en cuarentena" (crear), que
+   se difiere a P0-D porque necesita búsqueda canónica de producto.
 3. P0-D: integración con Productos (búsqueda canónica, resolución de código de
-   barras, nombres en vez de UUID en las tablas).
+   barras, nombres en vez de UUID en las tablas) — desbloquea "Poner en
+   cuarentena" y el resto de las páginas con creación (Ajustes, Reservas,
+   Lotes, Conteos).
 4. P0-E: integración entre módulos (refresco por eventos tras venta/compra/
    producción; auditar y corregir `warehouse_id=branch_id` en los bridges de
    Ventas/Compras/Producción — el propio audit señala que ahí también existe).
@@ -132,3 +135,83 @@ cuando hay sesión viva; el resto de los `handlers` de Ventas/Producción/Compra
 que instancian casos de uso directamente (P0-07) es un hallazgo aparte, fuera
 del alcance de "sesión y composition root del shell de Inventario" — se
 abordará junto con P0-E (integración entre módulos) o en una slice dedicada.
+
+### Slice 2 — P0-B/C: página piloto Cuarentena — liberar/disponer — HECHO
+
+**Por qué Cuarentena y no Ajustes:** `ReleaseQuarantineUseCase`/
+`DisposeQuarantineUseCase` solo necesitan el `id` de una cuarentena ya
+existente (visible en la fila seleccionada) — cero dependencia de búsqueda de
+producto. `CreateAdjustmentUseCase` (y "Poner en cuarentena", la otra mitad de
+esta misma página) sí la necesitan, y el propio audit marca la búsqueda
+canónica de producto como P0-D, una fase posterior. Empezar por lo que no
+tiene esa dependencia evita construir un formulario con un campo de texto para
+`product_id` (el defecto P0-04 que el audit señala) que P0-D tendría que
+rehacer.
+
+**Bug descubierto al conectar la fila con el comando:** `QuarantineQueryService
+.list_open()` nunca seleccionaba `id` — el `row_ids` de `quarantine_table` usaba
+`lot_id or product_id`, que se repiten entre cuarentenas del mismo lote/producto.
+Sin el id real, ninguna acción por fila es posible (no hay forma de saber cuál
+cuarentena actuar). Se agregó `id` al SELECT y al dict devuelto, y `row_ids`
+ahora usa ese id.
+
+**Archivos:**
+- `backend/application/inventory/queries/quarantine_query_service.py` — `id`
+  agregado al SELECT/dict de `list_open`.
+- `frontend/desktop/modules/inventory/view_models.py` — `quarantine_table`
+  usa `r["id"]` como `row_ids` en vez de `lot_id or product_id`.
+- `frontend/desktop/modules/inventory/presenter.py` — nuevos comandos
+  `release_quarantine(quarantine_id)` y `dispose_quarantine(quarantine_id,
+  reason="")`, y los parámetros `release_quarantine_uc`/`dispose_quarantine_uc`
+  en el constructor (mismo patrón que `generate_suggestions_uc`: si no se
+  inyectan, el comando responde "no disponible" en vez de fallar).
+- `modulos/inventario_enterprise.py::_build_presenter` — con sesión viva,
+  construye `factory.release_quarantine()`/`factory.dispose_quarantine()`
+  (autorización RBAC real); sin sesión, cae a los use cases con su default
+  `permissive_for_tests()` (mismo patrón que `generate_uc`).
+- `frontend/desktop/modules/inventory/dialogs.py` (nuevo) —
+  `DisposeQuarantineDialog(FormDialog)`: un campo de motivo (auditado por
+  `DisposeQuarantineUseCase`), siguiendo el mismo patrón que
+  `ReversalDialog` en Finanzas.
+- `frontend/desktop/modules/inventory/pages/quarantine_page.py` — dos botones
+  ("Liberar" / "Disponer", `create_secondary_button`/`create_danger_button`)
+  gateados por `StandardTable.selected_row_id()`; "Liberar" confirma con
+  `ConfirmationDialog`, "Disponer" abre `DisposeQuarantineDialog` (irreversible,
+  requiere motivo); ambos llaman al presenter, muestran el resultado con
+  `QMessageBox` y refrescan la tabla solo si la operación tuvo éxito.
+
+**El patrón que queda de plantilla para las demás páginas** (tal como pide el
+audit): Página (botón + selección de fila) → Diálogo de confirmación/formulario
+→ Presenter (comando) → Caso de uso autorizado (`InventoryUseCaseFactory`) →
+UoW → Ledger/movimiento de estado + Outbox → (evento — el refresco reactivo
+por evento es P1, aquí el refresco es manual post-éxito) → tabla actualizada.
+
+**Evidencia:**
+- `tests/integration/inventory/test_inventory_ui_presenter.py`: 8 tests nuevos
+  — `TestQuarantineCommands` (release/dispose exitosos con flujo real
+  `QuarantineStockUseCase` → presenter → `quarantines()` vacío después;
+  ambos comandos rechazan sin selección sin tocar el backend; ambos responden
+  "no disponible" si no se inyectó el use case) + `TestPagesSmoke` (clic en
+  "Liberar" con fila seleccionada llama al presenter real y la tabla queda en
+  0 filas sin necesidad de refresh() manual; sin selección, advierte y NUNCA
+  llama al presenter — verificado con `unittest.mock.patch.object`). Además
+  `test_quarantines_view_model` ahora confirma que `row_ids[0]` es el id de la
+  cuarentena, no el lote. **50 passed** (era 42; +8 nuevos, cero regresiones).
+- `tests/integration/inventory/test_inventory_enterprise_session_wiring.py`
+  (de la slice P0-A) sigue en verde con los dos use cases nuevos en el
+  composition root.
+- Guardrails de inventario sin cambios: `test_inventory_ui_guardrails.py`
+  (incluye el nuevo `dialogs.py` en el escaneo de SQL/db-access — limpio),
+  `test_inventory_authorization_fail_closed.py`,
+  `test_app_container_inventory_canonical_route.py`,
+  `test_inventory_no_silent_pass.py`, `test_inventory_no_legacy_permissions.py`,
+  `test_fase_a_identity_clean_modules.py` → **16 passed**.
+- Inventario completo: `2 failed / 583 passed` (2 pre-existentes, +8 nuevos).
+- Arquitectura completa desde la raíz del repo: `29 failed / 534 passed`
+  (línea base sin cambios).
+
+**Pendiente explícito de esta página** (no ítems perdidos, decisiones
+documentadas): "Poner en cuarentena" (crear) difiere a P0-D por la búsqueda de
+producto; el refresco reactivo por evento (`INVENTORY_QUARANTINE_RELEASED`, ya
+emitido por el use case) es P1 — hoy el refresco es manual post-éxito, que es
+correcto pero no reactivo ante cambios de otras pantallas/usuarios.

@@ -54,6 +54,7 @@ class InventoryPresenter:
                  weight_query_factory=None, receipt_query_factory=None,
                  count_query_factory=None, adjustment_query_factory=None,
                  alert_query_factory=None, settings_query_factory=None,
+                 release_quarantine_uc=None, dispose_quarantine_uc=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -77,6 +78,8 @@ class InventoryPresenter:
         self._adjustment_factory = adjustment_query_factory
         self._alert_factory = alert_query_factory
         self._settings_factory = settings_query_factory
+        self._release_quarantine_uc = release_quarantine_uc
+        self._dispose_quarantine_uc = dispose_quarantine_uc
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -388,4 +391,50 @@ class InventoryPresenter:
             return bool(result.success), result.message, dict(result.data)
         except Exception:
             logger.exception("InventoryPresenter.generate_suggestions failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def release_quarantine(self, *, quarantine_id: str) -> tuple[bool, str, dict]:
+        """Libera una cuarentena abierta (§31): el stock vuelve a AVAILABLE.
+        Denegado aguas abajo si el actor es quien la abrió (segregación) o no
+        tiene el permiso — nunca se resuelve en la UI."""
+        if self._release_quarantine_uc is None:
+            return False, "Liberación de cuarentena no disponible.", {}
+        qid = str(quarantine_id or "").strip()
+        if not qid:
+            return False, "Selecciona una cuarentena.", {}
+        try:
+            result = self._release_quarantine_uc.execute(
+                self._conn(), quarantine_id=qid, operation_id=new_uuid(),
+                actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, dict(result.data)
+        except Exception:
+            logger.exception("InventoryPresenter.release_quarantine failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def dispose_quarantine(self, *, quarantine_id: str,
+                           reason: str = "") -> tuple[bool, str, dict]:
+        """Dispone (da de baja) el stock de una cuarentena abierta (§31):
+        movimiento de salida definitivo, irreversible."""
+        if self._dispose_quarantine_uc is None:
+            return False, "Disposición de cuarentena no disponible.", {}
+        qid = str(quarantine_id or "").strip()
+        if not qid:
+            return False, "Selecciona una cuarentena.", {}
+        try:
+            result = self._dispose_quarantine_uc.execute(
+                self._conn(), quarantine_id=qid, operation_id=new_uuid(),
+                actor_user_id=self._actor(), reason=str(reason or "").strip())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, dict(result.data)
+        except Exception:
+            logger.exception("InventoryPresenter.dispose_quarantine failed")
             return False, "Error inesperado; revise el log.", {}

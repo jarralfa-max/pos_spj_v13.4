@@ -21,7 +21,7 @@ class QuarantineQueryService(InventoryRepositoryBase):
         """Open quarantines (oldest first). Rows carry product, lot, reason,
         quantity and status for display."""
         placeholders = ",".join("?" for _ in _OPEN_STATES)
-        sql = ("SELECT product_id, lot_id, reason, quantity, status, created_at"
+        sql = ("SELECT id, product_id, lot_id, reason, quantity, status, created_at"
                f" FROM inventory_quarantine WHERE status IN ({placeholders})")
         params: tuple = tuple(_OPEN_STATES)
         if branch_id:
@@ -29,7 +29,7 @@ class QuarantineQueryService(InventoryRepositoryBase):
             params += (branch_id,)
         sql += " ORDER BY created_at"
         return [{
-            "product_id": r["product_id"], "lot_id": zn(r["lot_id"]),
+            "id": r["id"], "product_id": r["product_id"], "lot_id": zn(r["lot_id"]),
             "reason": r["reason"], "quantity": to_decimal(r["quantity"]),
             "status": r["status"], "created_at": zn(r["created_at"]),
         } for r in self._query(sql, params)]

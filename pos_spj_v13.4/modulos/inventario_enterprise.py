@@ -70,21 +70,27 @@ class ModuloInventarioEnterprise(QWidget):
             WeightQueryService,
         )
         from backend.application.inventory.use_cases import (
+            DisposeQuarantineUseCase,
             GenerateReplenishmentSuggestionsUseCase,
+            ReleaseQuarantineUseCase,
         )
         from frontend.desktop.modules.inventory.presenter import InventoryPresenter
 
-        # §5.2 composition root: con sesión viva, el caso de uso sensible se
-        # construye desde InventoryUseCaseFactory con el checker RBAC real (no el
-        # default permisivo). Sin sesión viva (pruebas), cae al default explícito.
+        # §5.2 composition root: con sesión viva, los casos de uso sensibles se
+        # construyen desde InventoryUseCaseFactory con el checker RBAC real (no el
+        # default permisivo). Sin sesión viva (pruebas), caen al default explícito.
         if session is not None:
             from backend.application.inventory.composition import (
                 InventoryUseCaseFactory,
             )
             factory = InventoryUseCaseFactory.from_session(session)
             generate_uc = factory.generate_replenishment_suggestions()
+            release_quarantine_uc = factory.release_quarantine()
+            dispose_quarantine_uc = factory.dispose_quarantine()
         else:
             generate_uc = GenerateReplenishmentSuggestionsUseCase()
+            release_quarantine_uc = ReleaseQuarantineUseCase()
+            dispose_quarantine_uc = DisposeQuarantineUseCase()
 
         return InventoryPresenter(
             connection_provider=lambda: conn,
@@ -109,5 +115,7 @@ class ModuloInventarioEnterprise(QWidget):
             adjustment_query_factory=AdjustmentQueryService,
             alert_query_factory=AlertQueryService,
             settings_query_factory=SettingsQueryService,
+            release_quarantine_uc=release_quarantine_uc,
+            dispose_quarantine_uc=dispose_quarantine_uc,
             session_context=session,
         )

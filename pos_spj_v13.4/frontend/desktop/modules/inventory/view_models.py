@@ -560,10 +560,11 @@ def reservations_table(rows: list[dict]) -> TableViewModel:
 
 def quarantine_table(rows: list[dict]) -> TableViewModel:
     """rows: open quarantine rows (list_open) → display table (producto, lote,
-    motivo, cantidad, estado)."""
+    motivo, cantidad, estado). row_ids carry the quarantine id (release/dispose
+    act on it), not the product/lot — those repeat across rows."""
     out, ids = [], []
     for r in rows:
-        ids.append(str(r.get("lot_id") or r.get("product_id") or ""))
+        ids.append(str(r.get("id") or ""))
         out.append([
             str(r.get("product_id") or "—"),
             str(r.get("lot_id") or "—"),

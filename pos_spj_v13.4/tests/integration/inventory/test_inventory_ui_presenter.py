@@ -31,8 +31,11 @@ from backend.application.inventory.queries import (
 from backend.application.inventory.use_cases import (
     CreateLocationUseCase,
     CreateWarehouseUseCase,
+    DisposeQuarantineUseCase,
     GenerateReplenishmentSuggestionsUseCase,
     PostInventoryMovementUseCase,
+    QuarantineStockUseCase,
+    ReleaseQuarantineUseCase,
     SetReplenishmentRuleUseCase,
 )
 from backend.domain.inventory.enums import WarehouseType
@@ -98,6 +101,8 @@ def _presenter(conn):
         adjustment_query_factory=AdjustmentQueryService,
         alert_query_factory=AlertQueryService,
         settings_query_factory=SettingsQueryService,
+        release_quarantine_uc=ReleaseQuarantineUseCase(),
+        dispose_quarantine_uc=DisposeQuarantineUseCase(),
         session_context=_Session())
 
 
@@ -244,10 +249,9 @@ class TestPresenter:
         assert vm.total == 0 and vm.rows == []
 
     def test_quarantines_view_model(self, conn):
-        from backend.application.inventory.use_cases import QuarantineStockUseCase
         from backend.domain.inventory.enums import QuarantineReason
         _seed(conn)  # 5 disponibles de p1 en loc1
-        QuarantineStockUseCase().execute(
+        result = QuarantineStockUseCase().execute(
             conn, product_id="p1", branch_id="b1", warehouse_id="w1",
             reason=QuarantineReason.QUALITY_FAILURE, quantity=Decimal("2"),
             operation_id="q-1", actor_user_id="qa", location_id="loc1")
@@ -256,6 +260,9 @@ class TestPresenter:
         assert vm.rows[0][0] == "p1"                 # producto
         assert vm.rows[0][2] == "Falla de calidad"   # motivo es-MX
         assert vm.rows[0][4] == "Abierta"            # estado es-MX
+        # row_ids llevan el id de la cuarentena (release/dispose actúan sobre
+        # él), no producto/lote — esos se repiten entre filas.
+        assert vm.row_ids[0] == result.entity_id
 
     def test_quarantines_empty(self, conn):
         vm = _presenter(conn).quarantines()
@@ -531,6 +538,67 @@ class TestPresenter:
         assert tree.total == 2 and tree.rows[1][0].startswith("· ")
 
 
+class TestQuarantineCommands:
+    """P0-B pilot — release/dispose are real authorized commands, not reads."""
+
+    def _open_quarantine(self, conn, *, operation_id="q-1"):
+        from backend.domain.inventory.enums import QuarantineReason
+        _seed(conn)  # 5 disponibles de p1 en loc1
+        result = QuarantineStockUseCase().execute(
+            conn, product_id="p1", branch_id="b1", warehouse_id="w1",
+            reason=QuarantineReason.QUALITY_FAILURE, quantity=Decimal("2"),
+            operation_id=operation_id, actor_user_id="qa", location_id="loc1")
+        assert result.success, result.message
+        return result.entity_id
+
+    def test_release_quarantine_returns_stock_and_closes_it(self, conn):
+        qid = self._open_quarantine(conn)
+        pres = _presenter(conn)
+        ok, message, _ = pres.release_quarantine(quarantine_id=qid)
+        assert ok, message
+        assert pres.quarantines().total == 0
+
+    def test_dispose_quarantine_issues_stock_and_closes_it(self, conn):
+        qid = self._open_quarantine(conn, operation_id="q-2")
+        pres = _presenter(conn)
+        ok, message, _ = pres.dispose_quarantine(
+            quarantine_id=qid, reason="Producto contaminado")
+        assert ok, message
+        assert pres.quarantines().total == 0
+
+    def test_release_quarantine_without_selection_does_not_call_backend(self, conn):
+        pres = _presenter(conn)
+        ok, message, _ = pres.release_quarantine(quarantine_id="")
+        assert not ok
+        assert "Selecciona" in message
+
+    def test_dispose_quarantine_without_selection_does_not_call_backend(self, conn):
+        pres = _presenter(conn)
+        ok, message, _ = pres.dispose_quarantine(quarantine_id="")
+        assert not ok
+        assert "Selecciona" in message
+
+    def test_release_quarantine_unavailable_when_not_wired(self, conn):
+        pres = InventoryPresenter(
+            connection_provider=lambda: conn,
+            availability_service_factory=InventoryAvailabilityQueryService,
+            replenishment_query_factory=ReplenishmentQueryService,
+            quarantine_query_factory=QuarantineQueryService)
+        ok, message, _ = pres.release_quarantine(quarantine_id="q-1")
+        assert not ok
+        assert "no disponible" in message
+
+    def test_dispose_quarantine_unavailable_when_not_wired(self, conn):
+        pres = InventoryPresenter(
+            connection_provider=lambda: conn,
+            availability_service_factory=InventoryAvailabilityQueryService,
+            replenishment_query_factory=ReplenishmentQueryService,
+            quarantine_query_factory=QuarantineQueryService)
+        ok, message, _ = pres.dispose_quarantine(quarantine_id="q-1")
+        assert not ok
+        assert "no disponible" in message
+
+
 class TestPagesSmoke:
     def test_pages_build_and_refresh(self, conn):
         pytest.importorskip("PyQt5")
@@ -565,4 +633,59 @@ class TestPagesSmoke:
         loc_page = LocationsPage(pres, warehouse_id=wid)
         loc_page.refresh()
         assert loc_page._table.rowCount() == 1
+
+    def test_quarantine_page_release_action_calls_presenter_and_refreshes(self, conn):
+        """P0-B: clicking Liberar with a row selected posts the real command
+        and the table drops the row — no manual refresh() call needed after."""
+        pytest.importorskip("PyQt5")
+        from unittest.mock import patch
+
+        from PyQt5.QtWidgets import QApplication, QDialog
+
+        from backend.domain.inventory.enums import QuarantineReason
+        from frontend.desktop.modules.inventory.pages import QuarantinePage
+
+        _seed(conn)
+        result = QuarantineStockUseCase().execute(
+            conn, product_id="p1", branch_id="b1", warehouse_id="w1",
+            reason=QuarantineReason.QUALITY_FAILURE, quantity=Decimal("2"),
+            operation_id="q-page-1", actor_user_id="qa", location_id="loc1")
+        assert result.success, result.message
+
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn)
+        page = QuarantinePage(pres)
+        page.refresh()
+        assert page._table.rowCount() == 1
+        page._table.selectRow(0)
+
+        with patch("frontend.desktop.modules.inventory.pages.quarantine_page"
+                   ".ConfirmationDialog.exec_", return_value=QDialog.Accepted), \
+             patch("frontend.desktop.modules.inventory.pages.quarantine_page"
+                   ".QMessageBox.information"):
+            page._on_release()
+
+        assert page._table.rowCount() == 0
+        assert pres.quarantines().total == 0
+
+    def test_quarantine_page_requires_selection_before_acting(self, conn):
+        """No row selected → the page warns and never calls the presenter."""
+        pytest.importorskip("PyQt5")
+        from unittest.mock import patch
+
+        from PyQt5.QtWidgets import QApplication
+
+        from frontend.desktop.modules.inventory.pages import QuarantinePage
+
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn)
+        page = QuarantinePage(pres)
+        page.refresh()
+
+        with patch("frontend.desktop.modules.inventory.pages.quarantine_page"
+                   ".QMessageBox.information") as info, \
+             patch.object(pres, "release_quarantine") as release:
+            page._on_release()
+        info.assert_called_once()
+        release.assert_not_called()
         del app
