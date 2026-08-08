@@ -19,7 +19,10 @@ from backend.application.inventory.session_authorization import (
     InventorySessionPermissionChecker,
     legacy_codes_for,
 )
-from backend.application.inventory.use_cases import PostInventoryMovementUseCase
+from backend.application.inventory.use_cases import (
+    PostInventoryMovementUseCase,
+    ReverseAdjustmentUseCase,
+)
 from backend.domain.inventory.exceptions import (
     InventoryConfigurationError,
     InventoryPermissionDeniedError,
@@ -55,6 +58,14 @@ def test_generic_build_injects_policy():
     factory = InventoryUseCaseFactory.for_tests()
     uc = factory.build(PostInventoryMovementUseCase)
     assert isinstance(uc, PostInventoryMovementUseCase)
+
+
+def test_factory_builds_reverse_adjustment():
+    """P0-C: reverse_adjustment() existía como caso de uso (ReverseAdjustmentUseCase)
+    pero el factory no lo exponía — la UI no podía construirlo con el checker real."""
+    factory = InventoryUseCaseFactory.for_tests()
+    uc = factory.reverse_adjustment()
+    assert isinstance(uc, ReverseAdjustmentUseCase)
 
 
 # ── session checker ──────────────────────────────────────────────────────────

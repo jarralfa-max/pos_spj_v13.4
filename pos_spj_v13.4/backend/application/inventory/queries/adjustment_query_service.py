@@ -17,8 +17,8 @@ class AdjustmentQueryService(InventoryRepositoryBase):
     def list_recent(self, *, branch_id: str | None = None,
                     limit: int = 200) -> list[dict]:
         """Recent adjustments (most recent first, bounded), optionally scoped to a
-        branch. Rows carry folio, reason, warehouse and status."""
-        cols = ("folio, reason, warehouse_id, status, created_at")
+        branch. Rows carry id, folio, reason, warehouse and status."""
+        cols = ("id, folio, reason, warehouse_id, status, created_at")
         lim = max(1, int(limit))
         if branch_id:
             rows = self._query(
@@ -29,7 +29,7 @@ class AdjustmentQueryService(InventoryRepositoryBase):
                 f"SELECT {cols} FROM inventory_adjustment"
                 " ORDER BY created_at DESC, id DESC LIMIT ?", (lim,))
         return [{
-            "folio": r["folio"], "reason": r["reason"],
+            "id": r["id"], "folio": r["folio"], "reason": r["reason"],
             "warehouse_id": r["warehouse_id"], "status": r["status"],
             "created_at": r["created_at"],
         } for r in rows]
