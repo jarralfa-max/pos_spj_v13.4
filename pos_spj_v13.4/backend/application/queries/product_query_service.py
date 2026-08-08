@@ -202,6 +202,51 @@ class ProductQueryService(BaseQueryService):
             return []
         return [self._row_to_dict(row) for row in rows]
 
+    def get_names(self, product_ids: list[str]) -> dict[str, str]:
+        """Batch id→name lookup (§P0-D): callers displaying a table keyed by
+        product_id resolve names here instead of ever showing the raw UUID.
+        Reads the canonical ``products`` table — the same one ``search()``
+        already matches against. Read-only, no balances/price."""
+        if self._db is None:
+            return {}
+        ids = [str(pid) for pid in (product_ids or []) if pid]
+        if not ids:
+            return {}
+        placeholders = ",".join("?" for _ in ids)
+        try:
+            rows = self._db.execute(
+                f"SELECT id, name FROM products WHERE id IN ({placeholders})",
+                ids).fetchall()
+        except Exception:
+            logger.exception("Error resolving product names for %s", ids)
+            return {}
+        return {(r["id"] if hasattr(r, "keys") else r[0]):
+                (r["name"] if hasattr(r, "keys") else r[1]) for r in rows}
+
+    def resolve_barcode(self, barcode: str) -> SearchResult | None:
+        """Exact barcode resolution (§P0-D item 2) for scanner input —
+        deterministic, unlike ``search()``'s fuzzy substring matching. Reads
+        the active-barcode index (``product_barcodes``), same source
+        ``search()`` already consults for its LIKE match."""
+        if self._db is None:
+            return None
+        code = str(barcode or "").strip()
+        if not code:
+            return None
+        from backend.infrastructure.db.repositories.products.barcode_repository import (
+            BarcodeRepository,
+        )
+        try:
+            product_id = BarcodeRepository(self._db).active_owner(code)
+        except Exception:
+            logger.exception("Error resolving barcode '%s'", code)
+            return None
+        if not product_id:
+            return None
+        names = self.get_names([product_id])
+        return SearchResult(id=product_id, label=names.get(product_id, product_id),
+                            subtitle=code)
+
     def type_labels_es(self) -> list[str]:
         """Return Spanish product type labels for desktop UI widgets."""
         return ProductTypePolicy.type_labels_es()

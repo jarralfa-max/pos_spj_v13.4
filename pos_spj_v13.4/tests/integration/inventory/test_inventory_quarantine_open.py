@@ -170,7 +170,7 @@ class TestOpenQuarantine:
         assert ok, message
         vm = pres.quarantines()
         assert vm.total == 1
-        assert vm.rows[0][0] == "p1"
+        assert vm.rows[0][0] == "Pechuga de pollo"  # nombre resuelto, no el UUID
 
     def test_open_quarantine_uses_session_branch_and_warehouse(self, conn):
         _seed_stock(conn)

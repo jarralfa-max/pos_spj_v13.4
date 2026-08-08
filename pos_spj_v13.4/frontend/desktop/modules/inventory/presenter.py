@@ -138,6 +138,42 @@ class InventoryPresenter:
         return [SearchOption(id=r.id, label=r.label, subtitle=r.subtitle)
                 for r in results]
 
+    def resolve_barcode(self, barcode: str):
+        """Resolución exacta de código de barras (§P0-D item 2): a diferencia
+        de ``product_options`` (búsqueda difusa, para escribir/filtrar), esto
+        es lo que un escáner necesita — una coincidencia exacta y
+        determinista, o nada. Nunca ambigua."""
+        from frontend.desktop.components.search_selector import SearchOption
+        if self._product_factory is None:
+            return None
+        code = str(barcode or "").strip()
+        if not code:
+            return None
+        try:
+            result = self._product_factory(self._conn()).resolve_barcode(code)
+        except Exception:
+            logger.exception("InventoryPresenter.resolve_barcode failed")
+            return None
+        if result is None:
+            return None
+        return SearchOption(id=result.id, label=result.label, subtitle=result.subtitle)
+
+    def _product_names(self, product_ids) -> dict:
+        """Resolución en lote de id→nombre (§P0-D item 3): nunca mostrar un
+        UUID crudo en una tabla cuando el nombre está a una consulta de
+        distancia. Falla cerrado a un dict vacío — los llamadores deben usar
+        ``.get(pid, pid)`` para no perder la fila si el nombre no resuelve."""
+        if self._product_factory is None:
+            return {}
+        ids = [str(pid) for pid in (product_ids or []) if pid]
+        if not ids:
+            return {}
+        try:
+            return self._product_factory(self._conn()).get_names(ids)
+        except Exception:
+            logger.exception("InventoryPresenter._product_names failed")
+            return {}
+
     def location_options(self, *, warehouse_id: str | None = None):
         """Ubicaciones reales (activas) del almacén, para selects acotados
         (§P0-04 corolario): una lista chica por almacén no amerita
@@ -188,6 +224,9 @@ class InventoryPresenter:
                                        warehouse_id=warehouse_id)
             rows.append({"product_id": dto.product_id, "on_hand": dto.on_hand,
                          "reserved": dto.reserved, "available": dto.available})
+        names = self._product_names([r["product_id"] for r in rows])
+        for r in rows:
+            r["product_name"] = names.get(r["product_id"], r["product_id"])
         return availability_table(rows)
 
     def stock(self, *, branch_id: str | None = None) -> TableViewModel:
@@ -197,6 +236,9 @@ class InventoryPresenter:
             return stock_table([])
         branch = branch_id or self.default_branch()
         rows = self._stock_factory(self._conn()).list_on_hand(branch_id=branch or None)
+        names = self._product_names([r.get("product_id") for r in rows])
+        for r in rows:
+            r["product_name"] = names.get(r.get("product_id"), r.get("product_id"))
         return stock_table(rows)
 
     def reservations(self, *, product_id: str,
@@ -305,6 +347,9 @@ class InventoryPresenter:
         branch = branch_id or self.default_branch()
         rows = self._weight_factory(self._conn()).list_catch_weight(
             branch_id=branch or None)
+        names = self._product_names([r.get("product_id") for r in rows])
+        for r in rows:
+            r["product_name"] = names.get(r.get("product_id"), r.get("product_id"))
         return weight_table(rows)
 
     def transfers(self, *, branch_id: str | None = None) -> TableViewModel:
@@ -334,6 +379,9 @@ class InventoryPresenter:
             return quarantine_table([])
         branch = branch_id or self.default_branch()
         rows = self._quarantine_factory(self._conn()).list_open(branch_id=branch or None)
+        names = self._product_names([r.get("product_id") for r in rows])
+        for r in rows:
+            r["product_name"] = names.get(r.get("product_id"), r.get("product_id"))
         return quarantine_table(rows)
 
     def availability_breakdown(self, *, product_id: str, branch_id: str | None = None,
@@ -379,6 +427,9 @@ class InventoryPresenter:
             return expiry_table([])
         branch = branch_id or self.default_branch()
         rows = self._expiry_factory(self._conn()).list_at_risk(branch_id=branch or None)
+        names = self._product_names([r.get("product_id") for r in rows])
+        for r in rows:
+            r["product_name"] = names.get(r.get("product_id"), r.get("product_id"))
         return expiry_table(rows)
 
     def traceability(self, *, lot_id: str) -> TableViewModel:
@@ -394,7 +445,11 @@ class InventoryPresenter:
     def open_suggestions(self, *, branch_id: str | None = None) -> TableViewModel:
         branch = branch_id or self.default_branch()
         svc = self._replenishment_factory(self._conn())
-        return replenishment_table(svc.list_open_suggestions(branch_id=branch))
+        rows = svc.list_open_suggestions(branch_id=branch)
+        names = self._product_names([r.get("product_id") for r in rows])
+        for r in rows:
+            r["product_name"] = names.get(r.get("product_id"), r.get("product_id"))
+        return replenishment_table(rows)
 
     def replenishment_kpis(self, *, branch_id: str | None = None) -> list[KpiViewModel]:
         branch = branch_id or self.default_branch()

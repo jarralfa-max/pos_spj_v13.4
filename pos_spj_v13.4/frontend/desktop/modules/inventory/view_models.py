@@ -217,13 +217,22 @@ class KpiViewModel:
     tooltip: str | None = None
 
 
+def product_label(r: dict) -> str:
+    """§P0-D item 3: nunca mostrar el UUID crudo del producto cuando el
+    nombre resuelto (``product_name``, agregado por el presenter vía
+    ``ProductQueryService.get_names``) está disponible — cae al id sólo si
+    la resolución falló, para no perder la fila."""
+    return str(r.get("product_name") or r.get("product_id") or "—")
+
+
 def availability_table(rows: list[dict]) -> TableViewModel:
-    """rows: [{product_id, on_hand, reserved, available, ...}] → display table."""
+    """rows: [{product_id, product_name, on_hand, reserved, available, ...}]
+    → display table."""
     out, ids = [], []
     for r in rows:
         ids.append(str(r.get("product_id") or ""))
         out.append([
-            str(r.get("product_id") or "—"),
+            product_label(r),
             qty(r.get("on_hand")),
             qty(r.get("reserved")),
             qty(r.get("available")),
@@ -567,8 +576,8 @@ def quarantine_table(rows: list[dict]) -> TableViewModel:
     for r in rows:
         ids.append(str(r.get("id") or ""))
         out.append([
-            str(r.get("product_id") or "—"),
-            str(r.get("lot_id") or "—"),
+            product_label(r),
+            str(r.get("lot_code") or r.get("lot_id") or "—"),
             quarantine_reason_es(r.get("reason")),
             qty(r.get("quantity")),
             quarantine_status_es(r.get("status")),
@@ -584,7 +593,7 @@ def stock_table(rows: list[dict]) -> TableViewModel:
         ids.append(f"{r.get('product_id','')}:{r.get('warehouse_id','')}:"
                    f"{r.get('inventory_status','')}:{i}")
         out.append([
-            str(r.get("product_id") or "—"),
+            product_label(r),
             str(r.get("warehouse_id") or "—"),
             status_es(r.get("inventory_status")),
             qty(r.get("quantity")),
@@ -601,7 +610,7 @@ def weight_table(rows: list[dict]) -> TableViewModel:
         ids.append(f"{r.get('product_id','')}:{r.get('warehouse_id','')}:"
                    f"{r.get('inventory_status','')}:{i}")
         out.append([
-            str(r.get("product_id") or "—"),
+            product_label(r),
             str(r.get("warehouse_id") or "—"),
             status_es(r.get("inventory_status")),
             qty(r.get("quantity")),
@@ -654,7 +663,7 @@ def expiry_table(rows: list[dict]) -> TableViewModel:
         ids.append(str(r.get("lot_id") or ""))
         days = r.get("days_to_expiry")
         out.append([
-            str(r.get("product_id") or "—"),
+            product_label(r),
             str(r.get("lot_code") or "—"),
             qty(r.get("quantity")),
             "—" if days is None else str(days),
@@ -706,7 +715,7 @@ def replenishment_table(rows: list[dict]) -> TableViewModel:
     for r in rows:
         ids.append(str(r.get("id") or ""))
         out.append([
-            str(r.get("product_id") or "—"),
+            product_label(r),
             qty(r.get("current_available")),
             qty(r.get("suggested_quantity")),
             source_es(r.get("source_type")),

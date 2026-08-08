@@ -838,3 +838,112 @@ idénticas).
   `SetLotQualityStatusUseCase`) sin wireo aún — quedan como los siguientes
   candidatos naturales para continuar el checklist del audit en una
   próxima slice.
+
+### Slice 11 — P0-D: Integración con Productos (parcial, 4 de 6 ítems) — HECHO
+
+El usuario pidió P0-D con un checklist de 6 ítems. Antes de tocar código se
+auditó cuánto de esto ya existía: la búsqueda canónica (ítem 1) y la
+eliminación de UUID manuales (ítem 6) ya estaban resueltas para los tres
+diálogos de creación de P0-C (Cuarentena/Ajustes/Conteos) desde las slices
+3 y 6-8 — `grep` confirmó que **ningún** diálogo de creación lee un
+`product_id` de un campo de texto; todos pasan por `dlg.product_id()` →
+`EntitySearchInput.selected_id()`. Esta slice cierra los ítems 2 y 3 por
+completo, y dos hallazgos nuevos quedan documentados para continuar el
+checklist (ítems 1 y 4/5, ver "Explícitamente fuera de esta slice" abajo).
+
+**Ítem 3 — mostrar nombres en vez de UUID (el hallazgo más grande):**
+`grep` sobre `view_models.py` encontró **6 tablas** mostrando
+`str(r.get("product_id") or "—")` crudo: `availability_table`,
+`stock_table`, `weight_table`, `quarantine_table`, `expiry_table`,
+`replenishment_table`. Ninguna tenía el nombre del producto disponible en
+la fila — habría que resolverlo. Se agregó
+`ProductQueryService.get_names(product_ids) -> dict[id, name]` (lookup en
+lote sobre la tabla canónica `products`, la misma que ya usa `search()`) y
+`InventoryPresenter._product_names()` (helper privado que llama a
+`get_names` y nunca lanza — falla cerrado a `{}`). Los 6 métodos de lectura
+del presenter (`availability`, `stock`, `catch_weight`, `quarantines`,
+`expiring`, `open_suggestions`) ahora enriquecen sus filas con
+`product_name` antes de construir la tabla; se agregó `product_label(r)` en
+`view_models.py` (helper compartido: `product_name` si resolvió, si no
+`product_id`, nunca una celda vacía) y se reemplazaron las 6 ocurrencias.
+**Bonus en el mismo espíritu, dentro del propio dominio de Inventario (no
+cruza a Productos):** `QuarantineQueryService.list_open()` tampoco
+resolvía `lot_code` — sólo `lot_id` crudo — se agregó un `LEFT JOIN
+inventory_lots` de una línea; `quarantine_table` ahora muestra el código de
+lote real.
+
+**Ítem 2 — resolver código de barras:** `ProductQueryService.resolve_barcode
+(barcode)` — resolución **exacta y determinista** (vía
+`BarcodeRepository.active_owner()`, ya existente para asignación de
+códigos, nunca antes usado para resolución), a diferencia de
+`search_products()`/`product_options()` que hacen coincidencia difusa por
+subcadena (pensada para escribir/filtrar, no para un escáner que debe
+resolver sin ambigüedad o no resolver nada).
+`InventoryPresenter.resolve_barcode(barcode)` expone esto a la UI —
+devuelve un `SearchOption` o `None`, mismo tipo que `product_options()`,
+listo para que una página con captura por escáner lo consuma (ninguna
+página tiene hoy un campo de escaneo dedicado — `EntitySearchInput` ya
+encuentra por código de barras vía LIKE, así que el gap real no era "no se
+puede buscar por barras" sino "no hay una resolución exacta reutilizable"
+para cuando sí exista ese campo).
+
+**Evidencia:**
+- `tests/integration/inventory/test_inventory_product_integration.py`
+  (nuevo, 17 tests): `TestResolveBarcode` (resuelve exacto; código
+  desconocido/vacío/inactivo → `None`; sin wiring → `None`);
+  `TestProductQueryServiceGetNames` (unit-level sobre el query service:
+  resuelve conocidos, omite desconocidos, entrada vacía, barcode
+  desconocido); `TestProductNamesInTables` (las 6 tablas muestran el
+  nombre real con datos sembrados de verdad — recepción de stock, cuarentena
+  con lote, lote por vencer, sugerencia de reposición —, más los casos de
+  fallback: sin `product_query_factory` cae al id, producto inexistente
+  cae al id, nunca una celda vacía).
+- `tests/integration/inventory/test_inventory_quarantine_open.py` —
+  actualizado `test_open_quarantine_creates_visible_open_quarantine`: ahora
+  afirma el nombre resuelto ("Pechuga de pollo"), no el UUID `"p1"` —
+  regresión real atrapada por el propio test, no un ajuste cosmético.
+  **17 passed** en el archivo (sin cambio de conteo, un test corregido).
+- Inventario completo: `2 failed / 701 passed` (2 pre-existentes de
+  `test_legacy_reader_repoints.py`, sin relación con este cambio, +17
+  nuevos).
+- Arquitectura completa desde la raíz del repo: `29 failed / 534 passed`
+  (línea base sin cambios).
+- Suite de Productos (`tests/unit/test_phase5_query_services.py`,
+  `tests/integration/test_product_catalog_status_filters.py`,
+  `tests/integration/products/`): **394 passed, 1 skipped** — el guardrail
+  que impide a Productos leer balances de Inventario no aplica en la
+  dirección contraria (Inventario leyendo nombres de Productos es la
+  dirección permitida, §30), y de cualquier forma `get_names`/
+  `resolve_barcode` sólo tocan `products`/`product_barcodes`, nunca
+  `inventory_balances`.
+
+**Explícitamente fuera de esta slice (2 hallazgos documentados, no
+completados):**
+- **Ítem 1, hallazgo nuevo — `InventoryDashboardPage` siempre vacío en
+  producción:** `page_registry.py` construye
+  `InventoryDashboardPage(presenter)` sin `product_ids` — el parámetro por
+  defecto es `None` → `[]`, así que `availability(product_ids=[])` siempre
+  devuelve una tabla vacía. Nadie ha tenido nunca forma de elegir qué
+  productos vigilar desde la propia página; sólo los tests que pasan
+  `product_ids=["p1"]` explícito la ven poblada. El fix (agregar un picker
+  de productos a la página, vía `EntitySearchInput` + `product_options()`,
+  igual que Cuarentena/Ajustes/Conteos) es del mismo tamaño que esta slice
+  y queda para la siguiente.
+- **Ítems 4/5 — cargar configuración física + validar unidad/lote/peso/
+  caducidad/calidad:** se localizó el backend exacto para esto —
+  `InventoryProductConfigQueryService` (§30,
+  `backend/application/products/queries/integration_query_services.py`),
+  que expone `InventoryProductConfigDTO` (`base_unit_id, lot_controlled,
+  serial_controlled, expiration_controlled, catch_weight_enabled,
+  quality_controlled, traceability_required`) — **existe, tiene tests
+  propios, y no se usa en ningún lado del módulo de Inventario.** El plan
+  para la siguiente slice: wirear esto al presenter
+  (`product_physical_config(product_id)`), y usarlo en los diálogos de
+  Cuarentena/Ajustes/Conteos para (a) mostrar la unidad base junto al
+  campo de cantidad, (b) mostrar el campo de peso sólo si
+  `catch_weight_enabled` (los use cases ya aceptan `weight`/`weight_delta`
+  — nunca expuestos en estos 3 diálogos, otro gap real encontrado en el
+  camino), y (c) exigir/mostrar un selector de lote (con calidad y
+  caducidad visibles, vía `LotQueryService.list_for_product`, ya ordenado
+  FEFO) cuando `lot_controlled` sea verdadero — en vez de dejar el lote
+  como un campo opcional sin contexto.
