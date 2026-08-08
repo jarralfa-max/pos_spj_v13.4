@@ -58,6 +58,9 @@ class InventoryPresenter:
                  open_quarantine_uc=None, product_query_factory=None,
                  create_adjustment_uc=None, approve_adjustment_uc=None,
                  post_adjustment_uc=None, reverse_adjustment_uc=None,
+                 create_count_uc=None, record_count_uc=None,
+                 confirm_count_uc=None, approve_count_uc=None,
+                 create_adjustment_from_count_uc=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -89,6 +92,11 @@ class InventoryPresenter:
         self._approve_adjustment_uc = approve_adjustment_uc
         self._post_adjustment_uc = post_adjustment_uc
         self._reverse_adjustment_uc = reverse_adjustment_uc
+        self._create_count_uc = create_count_uc
+        self._record_count_uc = record_count_uc
+        self._confirm_count_uc = confirm_count_uc
+        self._approve_count_uc = approve_count_uc
+        self._create_adjustment_from_count_uc = create_adjustment_from_count_uc
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -613,4 +621,146 @@ class InventoryPresenter:
             return bool(result.success), result.message, self._result_data(result)
         except Exception:
             logger.exception("InventoryPresenter.reverse_adjustment failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def create_count(self, *, product_id: str, count_type: str = "CYCLE_COUNT",
+                     blind: bool = True, branch_id: str | None = None,
+                     warehouse_id: str | None = None) -> tuple[bool, str, dict]:
+        """Inicia un conteo de una sola línea (§27): el producto se resuelve
+        vía product_options, nunca un UUID tecleado a mano."""
+        if self._create_count_uc is None:
+            return False, "Creación de conteos no disponible.", {}
+        pid = str(product_id or "").strip()
+        if not pid:
+            return False, "Selecciona un producto.", {}
+        try:
+            from backend.domain.inventory.enums import CountType
+            type_enum = CountType(str(count_type))
+        except ValueError:
+            return False, "Tipo de conteo inválido.", {}
+        branch = branch_id or self.default_branch()
+        warehouse = warehouse_id or self.default_warehouse()
+        folio = f"CT-{new_uuid()[:8].upper()}"
+        try:
+            result = self._create_count_uc.execute(
+                self._conn(), folio=folio, count_type=type_enum, branch_id=branch,
+                warehouse_id=warehouse, scope_lines=[{"product_id": pid}],
+                operation_id=new_uuid(), actor_user_id=self._actor(), blind=blind)
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            data = self._result_data(result)
+            message = result.message
+            if result.success:
+                message = f"{message} (folio {folio})"
+            return bool(result.success), message, data
+        except Exception:
+            logger.exception("InventoryPresenter.create_count failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def record_count(self, *, count_id: str, counted_quantity,
+                     counted_weight=0) -> tuple[bool, str, dict]:
+        """Captura la cantidad contada de la única línea del conteo (§27) — el
+        id de línea nunca lo ve la UI, se resuelve vía CountQueryService."""
+        if self._record_count_uc is None:
+            return False, "Captura de conteos no disponible.", {}
+        cid = str(count_id or "").strip()
+        if not cid:
+            return False, "Selecciona un conteo.", {}
+        if counted_quantity is None:
+            return False, "Captura una cantidad contada.", {}
+        if self._count_factory is None:
+            return False, "Captura de conteos no disponible.", {}
+        try:
+            lines = self._count_factory(self._conn()).list_lines(count_id=cid)
+        except Exception:
+            logger.exception("InventoryPresenter.record_count failed to resolve line")
+            return False, "Error inesperado; revise el log.", {}
+        if not lines:
+            return False, "El conteo no tiene líneas.", {}
+        try:
+            result = self._record_count_uc.execute(
+                self._conn(), count_id=cid, line_id=lines[0]["id"],
+                counted_quantity=counted_quantity, counted_weight=counted_weight,
+                operation_id=new_uuid(), actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.record_count failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def confirm_count(self, *, count_id: str) -> tuple[bool, str, dict]:
+        """Confirma el conteo (§27): calcula varianza y bloquea la captura."""
+        if self._confirm_count_uc is None:
+            return False, "Confirmación de conteos no disponible.", {}
+        cid = str(count_id or "").strip()
+        if not cid:
+            return False, "Selecciona un conteo.", {}
+        try:
+            result = self._confirm_count_uc.execute(
+                self._conn(), count_id=cid, operation_id=new_uuid(),
+                actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.confirm_count failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def approve_count(self, *, count_id: str) -> tuple[bool, str, dict]:
+        """Aprueba el conteo (§27): segregación real (contador != aprobador
+        cuando hay varianza), aplicada por el use case, no por la UI."""
+        if self._approve_count_uc is None:
+            return False, "Aprobación de conteos no disponible.", {}
+        cid = str(count_id or "").strip()
+        if not cid:
+            return False, "Selecciona un conteo.", {}
+        try:
+            result = self._approve_count_uc.execute(
+                self._conn(), count_id=cid, operation_id=new_uuid(),
+                actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.approve_count failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def generate_adjustment_from_count(self, *, count_id: str) -> tuple[bool, str, dict]:
+        """Cierra el ciclo (§27→§29): convierte las varianzas de un conteo
+        aprobado en un ajuste real, listo para postear."""
+        if self._create_adjustment_from_count_uc is None:
+            return False, "Generar ajuste desde conteo no disponible.", {}
+        cid = str(count_id or "").strip()
+        if not cid:
+            return False, "Selecciona un conteo.", {}
+        folio = f"AJ-{new_uuid()[:8].upper()}"
+        try:
+            result = self._create_adjustment_from_count_uc.execute(
+                self._conn(), count_id=cid, folio=folio, operation_id=new_uuid(),
+                actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            data = self._result_data(result)
+            message = result.message
+            if result.success and result.entity_id:
+                message = f"{message} (folio {folio})"
+            return bool(result.success), message, data
+        except Exception:
+            logger.exception("InventoryPresenter.generate_adjustment_from_count failed")
             return False, "Error inesperado; revise el log.", {}

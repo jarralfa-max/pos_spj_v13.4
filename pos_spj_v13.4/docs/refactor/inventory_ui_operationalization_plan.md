@@ -574,3 +574,90 @@ Ajustes (P0-C) quedan con el mismo nivel de operacionalización; Conteos
 queda pendiente para un patrón equivalente (crear conteo → capturar líneas →
 aprobar → generar ajuste vía `CreateAdjustmentFromCountUseCase`, ya existente
 en backend).
+
+### Slice 8 — P0-C (Conteos): iniciar/capturar/confirmar/aprobar/generar ajuste — HECHO
+
+Cierra el último tramo de P0-C: lleva Conteos al mismo nivel que Cuarentena y
+Ajustes. A diferencia de esos dos, Conteos es un flujo de 4 pasos
+(`CreateCountUseCase → RecordCountUseCase → ConfirmCountUseCase →
+ApproveCountUseCase`) que además cierra hacia Ajustes
+(`CreateAdjustmentFromCountUseCase`, ya existente en backend desde INV-14,
+huérfano de interfaz igual que el resto). Alcance acotado igual que Ajustes:
+**una sola línea por conteo** (producto vía `product_options`), no un conteo
+multi-producto tipo carrito — eso queda fuera de esta slice.
+
+**Mismo bug de `row_ids` encontrado por tercera vez** (Cuarentena slice 2,
+Ajustes slice 4, ahora Conteos): `CountQueryService.list_recent()` no
+seleccionaba `id`, y `counts_table()` usaba `f"{folio}:{índice}"`. Corregido
+igual que las dos veces anteriores. Además se agregó
+`CountQueryService.list_lines(count_id)` — no existía ninguna forma de leer
+las líneas de un conteo desde la UI; `RecordCountUseCase` necesita el
+`line_id` real, que `list_recent()` nunca expone (un conteo puede tener
+varias líneas en general, aunque esta slice sólo crea una).
+
+**Composition root**: `InventoryUseCaseFactory` importaba pero no exponía
+`RecordCountUseCase` (tenía builder `create_count`/`confirm_count`/
+`approve_count`, faltaba `record_count`) ni `CreateAdjustmentFromCountUseCase`
+(no tenía builder alguno) — el mismo patrón de "el use case existe, el
+composition root no lo expone" ya visto con `reverse_adjustment` en la slice
+4. Se agregaron ambos builders.
+
+**Presenter** (`frontend/desktop/modules/inventory/presenter.py`): 5
+parámetros y 5 comandos nuevos —
+- `create_count(*, product_id, count_type="CYCLE_COUNT", blind=True, ...)` —
+  valida producto y `CountType`; folio generado (`CT-{uuid[:8]}`), igual
+  patrón que Ajustes (no existe folio-service en backend).
+- `record_count(*, count_id, counted_quantity, counted_weight=0)` — resuelve
+  el `line_id` real vía `CountQueryService.list_lines()` (la UI nunca ve ni
+  maneja el id de línea directamente).
+- `confirm_count(*, count_id)`, `approve_count(*, count_id)` — mismo patrón
+  de validación/try-except/dispatch que el resto.
+- `generate_adjustment_from_count(*, count_id)` — folio de ajuste
+  (`AJ-{uuid[:8]}`); sólo agrega el sufijo de folio al mensaje si
+  `result.entity_id` viene poblado (un conteo sin varianzas responde ok sin
+  crear ajuste — ver `CreateAdjustmentFromCountUseCase`).
+
+**Diálogos nuevos** (`dialogs.py`): `CreateCountDialog` (producto vía
+`EntitySearchInput`, tipo vía `QComboBox`+`COUNT_TYPE_ES`, checkbox "a
+ciegas" marcado por defecto — nunca se muestra la cantidad esperada durante
+la captura, coherente con el diseño de dominio) y `RecordCountDialog`
+(cantidad contada, `DecimalInput` con mínimo 0 — a diferencia de Ajustes,
+aquí 0 es un valor legítimo: el producto puede estar agotado).
+
+**Página** (`counts_page.py`): botones "Nuevo conteo"/"Capturar"/
+"Confirmar"/"Aprobar"/"Generar ajuste" — mismo patrón de
+`_selected_count_id()`, `ConfirmationDialog` para confirmar/aprobar/generar,
+refresco sólo si la operación tuvo éxito.
+
+**Evidencia:**
+- `tests/unit/inventory/test_inventory_composition.py` — 2 tests nuevos
+  (`test_factory_builds_record_count`,
+  `test_factory_builds_create_adjustment_from_count`).
+- `tests/integration/inventory/test_inventory_ui_presenter.py` — nueva clase
+  `TestCountCommands` (19 tests): iniciar/capturar/confirmar/aprobar/generar
+  ajuste con flujo real; segregación real cubierta igual que Ajustes (conteo
+  capturado por `"qa"`, aprobado por la sesión `"u1"` del presenter — un
+  intento de aprobar con el mismo actor que capturó fue el primer resultado,
+  confirmando que la segregación del dominio SÍ se ejecuta, no sólo se
+  documenta); comandos sin selección/sin producto/tipo inválido/cantidad
+  vacía; comandos con use case no wireado. 4 tests nuevos de página
+  (`TestPagesSmoke`): crear desde el diálogo agrega la fila, capturar aplica
+  la línea, el flujo confirmar→aprobar→generar-ajuste cierra el conteo
+  (`POSTED`, no `APPROVED` — generar el ajuste marca el conteo posteado) y
+  deja un ajuste real, guardia de selección vacía. `test_counts_view_model`
+  actualizado para confirmar `row_ids[0] == result.entity_id`. **93 passed**
+  en el archivo completo (antes 72, +21 nuevos, +2 en composition).
+- Inventario completo: `2 failed / 647 passed` (2 pre-existentes de
+  `test_legacy_reader_repoints.py`, sin relación con este cambio, +23
+  nuevos).
+- Arquitectura completa desde la raíz del repo: `29 failed / 534 passed`
+  (línea base sin cambios); `test_inventory_ui_guardrails.py` sigue en verde.
+
+**Cierra P0-C del audit por completo** — Cuarentena, Ajustes y Conteos
+quedan en paridad: crear/capturar/confirmar/aprobar son comandos reales, no
+sólo lectura, con segregación de funciones real (no decorativa) y sin
+identidades fabricadas. **Explícitamente fuera de esta slice:** conteo
+multi-línea (hoy una sola línea por conteo, como Ajustes); reconteo
+(`request_recount`, existe en el dominio, sin UI); selector de ubicación
+real en la captura (usa la ubicación por defecto del almacén, mismo
+pendiente ya documentado para Cuarentena en la slice 3).

@@ -20,7 +20,9 @@ from backend.application.inventory.session_authorization import (
     legacy_codes_for,
 )
 from backend.application.inventory.use_cases import (
+    CreateAdjustmentFromCountUseCase,
     PostInventoryMovementUseCase,
+    RecordCountUseCase,
     ReverseAdjustmentUseCase,
 )
 from backend.domain.inventory.exceptions import (
@@ -66,6 +68,22 @@ def test_factory_builds_reverse_adjustment():
     factory = InventoryUseCaseFactory.for_tests()
     uc = factory.reverse_adjustment()
     assert isinstance(uc, ReverseAdjustmentUseCase)
+
+
+def test_factory_builds_record_count():
+    """P0-C (Conteos): capturar líneas es una operación autorizada, no sólo
+    crear/aprobar — necesita el checker real, igual que el resto del flujo."""
+    factory = InventoryUseCaseFactory.for_tests()
+    uc = factory.record_count()
+    assert isinstance(uc, RecordCountUseCase)
+
+
+def test_factory_builds_create_adjustment_from_count():
+    """P0-C (Conteos): cierra el ciclo conteo→ajuste sin exponer un
+    ``CreateAdjustmentFromCountUseCase()`` con la política permisiva."""
+    factory = InventoryUseCaseFactory.for_tests()
+    uc = factory.create_adjustment_from_count()
+    assert isinstance(uc, CreateAdjustmentFromCountUseCase)
 
 
 # ── session checker ──────────────────────────────────────────────────────────

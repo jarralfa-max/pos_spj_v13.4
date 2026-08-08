@@ -373,8 +373,8 @@ def counts_table(rows: list[dict]) -> TableViewModel:
     """rows: count rows (list_recent) → display table (folio, tipo, almacén,
     modalidad, estado, creado), más recientes primero."""
     out, ids = [], []
-    for i, r in enumerate(rows):
-        ids.append(f"{r.get('folio','')}:{i}")
+    for r in rows:
+        ids.append(str(r.get("id") or ""))
         out.append([
             str(r.get("folio") or "—"),
             count_type_es(r.get("count_type")),

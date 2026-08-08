@@ -71,11 +71,16 @@ class ModuloInventarioEnterprise(QWidget):
         )
         from backend.application.inventory.use_cases import (
             ApproveAdjustmentUseCase,
+            ApproveCountUseCase,
+            ConfirmCountUseCase,
+            CreateAdjustmentFromCountUseCase,
             CreateAdjustmentUseCase,
+            CreateCountUseCase,
             DisposeQuarantineUseCase,
             GenerateReplenishmentSuggestionsUseCase,
             PostAdjustmentUseCase,
             QuarantineStockUseCase,
+            RecordCountUseCase,
             ReleaseQuarantineUseCase,
             ReverseAdjustmentUseCase,
         )
@@ -100,6 +105,11 @@ class ModuloInventarioEnterprise(QWidget):
             approve_adjustment_uc = factory.approve_adjustment()
             post_adjustment_uc = factory.post_adjustment()
             reverse_adjustment_uc = factory.reverse_adjustment()
+            create_count_uc = factory.create_count()
+            record_count_uc = factory.record_count()
+            confirm_count_uc = factory.confirm_count()
+            approve_count_uc = factory.approve_count()
+            create_adjustment_from_count_uc = factory.create_adjustment_from_count()
         else:
             generate_uc = GenerateReplenishmentSuggestionsUseCase()
             release_quarantine_uc = ReleaseQuarantineUseCase()
@@ -109,6 +119,11 @@ class ModuloInventarioEnterprise(QWidget):
             approve_adjustment_uc = ApproveAdjustmentUseCase()
             post_adjustment_uc = PostAdjustmentUseCase()
             reverse_adjustment_uc = ReverseAdjustmentUseCase()
+            create_count_uc = CreateCountUseCase()
+            record_count_uc = RecordCountUseCase()
+            confirm_count_uc = ConfirmCountUseCase()
+            approve_count_uc = ApproveCountUseCase()
+            create_adjustment_from_count_uc = CreateAdjustmentFromCountUseCase()
 
         return InventoryPresenter(
             connection_provider=lambda: conn,
@@ -141,5 +156,10 @@ class ModuloInventarioEnterprise(QWidget):
             approve_adjustment_uc=approve_adjustment_uc,
             post_adjustment_uc=post_adjustment_uc,
             reverse_adjustment_uc=reverse_adjustment_uc,
+            create_count_uc=create_count_uc,
+            record_count_uc=record_count_uc,
+            confirm_count_uc=confirm_count_uc,
+            approve_count_uc=approve_count_uc,
+            create_adjustment_from_count_uc=create_adjustment_from_count_uc,
             session_context=session,
         )

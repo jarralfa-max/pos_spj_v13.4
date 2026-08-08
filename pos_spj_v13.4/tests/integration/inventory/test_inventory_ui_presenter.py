@@ -30,7 +30,11 @@ from backend.application.inventory.queries import (
 )
 from backend.application.inventory.use_cases import (
     ApproveAdjustmentUseCase,
+    ApproveCountUseCase,
+    ConfirmCountUseCase,
+    CreateAdjustmentFromCountUseCase,
     CreateAdjustmentUseCase,
+    CreateCountUseCase,
     CreateLocationUseCase,
     CreateWarehouseUseCase,
     DisposeQuarantineUseCase,
@@ -38,6 +42,7 @@ from backend.application.inventory.use_cases import (
     PostAdjustmentUseCase,
     PostInventoryMovementUseCase,
     QuarantineStockUseCase,
+    RecordCountUseCase,
     ReleaseQuarantineUseCase,
     ReverseAdjustmentUseCase,
     SetReplenishmentRuleUseCase,
@@ -111,6 +116,11 @@ def _presenter(conn):
         approve_adjustment_uc=ApproveAdjustmentUseCase(),
         post_adjustment_uc=PostAdjustmentUseCase(),
         reverse_adjustment_uc=ReverseAdjustmentUseCase(),
+        create_count_uc=CreateCountUseCase(),
+        record_count_uc=RecordCountUseCase(),
+        confirm_count_uc=ConfirmCountUseCase(),
+        approve_count_uc=ApproveCountUseCase(),
+        create_adjustment_from_count_uc=CreateAdjustmentFromCountUseCase(),
         session_context=_Session())
 
 
@@ -407,7 +417,7 @@ class TestPresenter:
         from backend.application.inventory.use_cases import CreateCountUseCase
         from backend.domain.inventory.enums import CountType
         _seed(conn)  # 5 pzas de p1 en w1/loc1
-        CreateCountUseCase().execute(
+        result = CreateCountUseCase().execute(
             conn, folio="CT-1", count_type=CountType.CYCLE_COUNT, branch_id="b1",
             warehouse_id="w1", scope_lines=[{"product_id": "p1"}],
             operation_id="cnt-1", actor_user_id="u1", blind=True)
@@ -418,6 +428,7 @@ class TestPresenter:
         assert vm.rows[0][2] == "w1"          # almacén
         assert vm.rows[0][3] == "A ciegas"    # modalidad
         assert vm.rows[0][4] == "En proceso"  # estado es-MX (start())
+        assert vm.row_ids[0] == result.entity_id  # id real, no "folio:índice"
 
     def test_counts_empty(self, conn):
         vm = _presenter(conn).counts()
@@ -741,6 +752,174 @@ class TestAdjustmentCommands:
         assert "no disponible" in message
 
 
+class TestCountCommands:
+    """P0-C (Conteos) — iniciar/capturar/confirmar/aprobar/generar ajuste son
+    comandos reales. Segregación (contador != aprobador en varianza crítica)
+    se cubre iniciando el conteo con actor "qa" y aprobando con la sesión
+    "u1" del presenter, igual que el patrón ya usado para Ajustes."""
+
+    def _started_count(self, conn, *, operation_id="cnt-1"):
+        from backend.domain.inventory.enums import CountType
+        _seed(conn)  # 5 pzas de p1 en w1/loc1
+        result = CreateCountUseCase().execute(
+            conn, folio=f"CT-{operation_id}", count_type=CountType.CYCLE_COUNT,
+            branch_id="b1", warehouse_id="w1", scope_lines=[{"product_id": "p1"}],
+            operation_id=operation_id, actor_user_id="qa", blind=True)
+        assert result.success, result.message
+        return result.entity_id
+
+    def test_create_count_via_presenter_starts_in_progress(self, conn):
+        _seed(conn)
+        pres = _presenter(conn)
+        ok, message, data = pres.create_count(product_id="p1", count_type="CYCLE_COUNT")
+        assert ok, message
+        assert data.get("entity_id")
+        assert pres.counts().total == 1
+
+    def test_create_count_without_product_does_not_call_backend(self, conn):
+        pres = _presenter(conn)
+        ok, message, _ = pres.create_count(product_id="", count_type="CYCLE_COUNT")
+        assert not ok
+        assert "Selecciona" in message
+
+    def test_create_count_with_invalid_type_fails(self, conn):
+        pres = _presenter(conn)
+        ok, message, _ = pres.create_count(product_id="p1", count_type="NOT_A_TYPE")
+        assert not ok
+        assert "Tipo" in message
+
+    def test_record_count_captures_the_single_line(self, conn):
+        cid = self._started_count(conn)
+        pres = _presenter(conn)
+        ok, message, _ = pres.record_count(count_id=cid, counted_quantity=Decimal("4"))
+        assert ok, message
+        lines = CountQueryService(conn).list_lines(count_id=cid)
+        assert lines[0]["counted"] is True
+
+    def test_record_count_without_selection_does_not_call_backend(self, conn):
+        pres = _presenter(conn)
+        ok, message, _ = pres.record_count(count_id="", counted_quantity=Decimal("1"))
+        assert not ok
+        assert "Selecciona" in message
+
+    def test_record_count_without_quantity_fails(self, conn):
+        cid = self._started_count(conn, operation_id="cnt-2")
+        pres = _presenter(conn)
+        ok, message, _ = pres.record_count(count_id=cid, counted_quantity=None)
+        assert not ok
+        assert "Captura" in message
+
+    def test_confirm_count_computes_variance_and_requires_approval(self, conn):
+        cid = self._started_count(conn, operation_id="cnt-3")
+        pres = _presenter(conn)
+        ok, message, _ = pres.record_count(count_id=cid, counted_quantity=Decimal("4"))
+        assert ok, message
+        ok, message, _ = pres.confirm_count(count_id=cid)
+        assert ok, message
+        rows = CountQueryService(conn).list_recent(branch_id="b1")
+        assert rows[0]["status"] == "PENDING_APPROVAL"  # 4 contado vs 5 esperado
+
+    def test_confirm_count_without_selection_does_not_call_backend(self, conn):
+        pres = _presenter(conn)
+        ok, message, _ = pres.confirm_count(count_id="")
+        assert not ok
+        assert "Selecciona" in message
+
+    def test_approve_count_transitions_to_approved(self, conn):
+        cid = self._started_count(conn, operation_id="cnt-4")
+        lines = CountQueryService(conn).list_lines(count_id=cid)
+        record = RecordCountUseCase().execute(
+            conn, count_id=cid, line_id=lines[0]["id"], counted_quantity=Decimal("4"),
+            operation_id="cnt-4-rec", actor_user_id="qa")  # contador != aprobador (u1)
+        assert record.success, record.message
+        ConfirmCountUseCase().execute(
+            conn, count_id=cid, operation_id="cnt-4-confirm", actor_user_id="qa")
+        pres = _presenter(conn)
+        ok, message, _ = pres.approve_count(count_id=cid)
+        assert ok, message
+        rows = CountQueryService(conn).list_recent(branch_id="b1")
+        assert rows[0]["status"] == "APPROVED"
+
+    def test_approve_count_without_selection_does_not_call_backend(self, conn):
+        pres = _presenter(conn)
+        ok, message, _ = pres.approve_count(count_id="")
+        assert not ok
+        assert "Selecciona" in message
+
+    def test_generate_adjustment_from_count_creates_adjustment(self, conn):
+        cid = self._started_count(conn, operation_id="cnt-5")
+        lines = CountQueryService(conn).list_lines(count_id=cid)
+        RecordCountUseCase().execute(
+            conn, count_id=cid, line_id=lines[0]["id"], counted_quantity=Decimal("4"),
+            operation_id="cnt-5-rec", actor_user_id="qa")
+        ConfirmCountUseCase().execute(
+            conn, count_id=cid, operation_id="cnt-5-confirm", actor_user_id="qa")
+        pres = _presenter(conn)
+        ok, message, _ = pres.approve_count(count_id=cid)  # actor u1 != contador qa
+        assert ok, message
+        ok, message, data = pres.generate_adjustment_from_count(count_id=cid)
+        assert ok, message
+        assert data.get("entity_id")
+        assert pres.adjustments().total == 1
+
+    def test_generate_adjustment_from_count_without_selection_does_not_call_backend(
+            self, conn):
+        pres = _presenter(conn)
+        ok, message, _ = pres.generate_adjustment_from_count(count_id="")
+        assert not ok
+        assert "Selecciona" in message
+
+    def test_create_count_unavailable_when_not_wired(self, conn):
+        pres = InventoryPresenter(
+            connection_provider=lambda: conn,
+            availability_service_factory=InventoryAvailabilityQueryService,
+            replenishment_query_factory=ReplenishmentQueryService,
+            count_query_factory=CountQueryService)
+        ok, message, _ = pres.create_count(product_id="p1", count_type="CYCLE_COUNT")
+        assert not ok
+        assert "no disponible" in message
+
+    def test_record_count_unavailable_when_not_wired(self, conn):
+        pres = InventoryPresenter(
+            connection_provider=lambda: conn,
+            availability_service_factory=InventoryAvailabilityQueryService,
+            replenishment_query_factory=ReplenishmentQueryService,
+            count_query_factory=CountQueryService)
+        ok, message, _ = pres.record_count(count_id="c-1", counted_quantity=Decimal("1"))
+        assert not ok
+        assert "no disponible" in message
+
+    def test_confirm_count_unavailable_when_not_wired(self, conn):
+        pres = InventoryPresenter(
+            connection_provider=lambda: conn,
+            availability_service_factory=InventoryAvailabilityQueryService,
+            replenishment_query_factory=ReplenishmentQueryService,
+            count_query_factory=CountQueryService)
+        ok, message, _ = pres.confirm_count(count_id="c-1")
+        assert not ok
+        assert "no disponible" in message
+
+    def test_approve_count_unavailable_when_not_wired(self, conn):
+        pres = InventoryPresenter(
+            connection_provider=lambda: conn,
+            availability_service_factory=InventoryAvailabilityQueryService,
+            replenishment_query_factory=ReplenishmentQueryService,
+            count_query_factory=CountQueryService)
+        ok, message, _ = pres.approve_count(count_id="c-1")
+        assert not ok
+        assert "no disponible" in message
+
+    def test_generate_adjustment_from_count_unavailable_when_not_wired(self, conn):
+        pres = InventoryPresenter(
+            connection_provider=lambda: conn,
+            availability_service_factory=InventoryAvailabilityQueryService,
+            replenishment_query_factory=ReplenishmentQueryService,
+            count_query_factory=CountQueryService)
+        ok, message, _ = pres.generate_adjustment_from_count(count_id="c-1")
+        assert not ok
+        assert "no disponible" in message
+
+
 class TestPagesSmoke:
     def test_pages_build_and_refresh(self, conn):
         pytest.importorskip("PyQt5")
@@ -957,6 +1136,141 @@ class TestPagesSmoke:
         dto = InventoryAvailabilityQueryService(conn).get_availability(
             product_id="p1", branch_id="b1", warehouse_id="w1")
         assert dto.on_hand == Decimal("0")
+        del app
+
+    def test_counts_page_create_action_calls_presenter_and_refreshes(self, conn):
+        """P0-C (Conteos): Nuevo conteo captura producto/tipo/modalidad vía el
+        diálogo y arranca un conteo real en progreso."""
+        pytest.importorskip("PyQt5")
+        from unittest.mock import MagicMock, patch
+
+        from PyQt5.QtWidgets import QApplication, QDialog
+
+        from frontend.desktop.modules.inventory.pages import CountsPage
+
+        _seed(conn)
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn)
+        page = CountsPage(pres)
+        page.refresh()
+
+        dlg = MagicMock()
+        dlg.exec_.return_value = QDialog.Accepted
+        dlg.product_id.return_value = "p1"
+        dlg.count_type_code.return_value = "CYCLE_COUNT"
+        dlg.blind.return_value = True
+
+        with patch("frontend.desktop.modules.inventory.pages.counts_page"
+                   ".CreateCountDialog", return_value=dlg), \
+             patch("frontend.desktop.modules.inventory.pages.counts_page"
+                   ".QMessageBox.information"):
+            page._on_create()
+
+        assert page._table.rowCount() == 1
+
+    def test_counts_page_record_action_calls_presenter_and_captures_line(self, conn):
+        """P0-C (Conteos): Capturar toma la cantidad del diálogo y la aplica a
+        la única línea del conteo seleccionado."""
+        pytest.importorskip("PyQt5")
+        from unittest.mock import MagicMock, patch
+
+        from PyQt5.QtWidgets import QApplication, QDialog
+
+        from backend.domain.inventory.enums import CountType
+        from frontend.desktop.modules.inventory.pages import CountsPage
+
+        _seed(conn)
+        result = CreateCountUseCase().execute(
+            conn, folio="CT-PAGE-1", count_type=CountType.CYCLE_COUNT,
+            branch_id="b1", warehouse_id="w1", scope_lines=[{"product_id": "p1"}],
+            operation_id="cnt-page-1", actor_user_id="qa", blind=True)
+        assert result.success, result.message
+
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn)
+        page = CountsPage(pres)
+        page.refresh()
+        page._table.selectRow(0)
+
+        record_dlg = MagicMock()
+        record_dlg.exec_.return_value = QDialog.Accepted
+        record_dlg.counted_quantity.return_value = Decimal("4")
+        with patch("frontend.desktop.modules.inventory.pages.counts_page"
+                   ".RecordCountDialog", return_value=record_dlg), \
+             patch("frontend.desktop.modules.inventory.pages.counts_page"
+                   ".QMessageBox.information"):
+            page._on_record()
+
+        lines = CountQueryService(conn).list_lines(count_id=result.entity_id)
+        assert lines[0]["counted"] is True
+        del app
+
+    def test_counts_page_confirm_approve_and_generate_adjustment(self, conn):
+        """P0-C (Conteos): confirmar, aprobar y generar el ajuste desde la
+        página, sobre un conteo ya capturado por otro actor (segregación real:
+        quien contó -"qa"- no es quien aprueba desde la sesión del presenter
+        -"u1"-)."""
+        pytest.importorskip("PyQt5")
+        from unittest.mock import patch
+
+        from PyQt5.QtWidgets import QApplication, QDialog
+
+        from backend.domain.inventory.enums import CountType
+        from frontend.desktop.modules.inventory.pages import CountsPage
+
+        _seed(conn)
+        result = CreateCountUseCase().execute(
+            conn, folio="CT-PAGE-2", count_type=CountType.CYCLE_COUNT,
+            branch_id="b1", warehouse_id="w1", scope_lines=[{"product_id": "p1"}],
+            operation_id="cnt-page-2", actor_user_id="qa", blind=True)
+        assert result.success, result.message
+        lines = CountQueryService(conn).list_lines(count_id=result.entity_id)
+        RecordCountUseCase().execute(
+            conn, count_id=result.entity_id, line_id=lines[0]["id"],
+            counted_quantity=Decimal("4"), operation_id="cnt-page-2-rec",
+            actor_user_id="qa")
+
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn)
+        page = CountsPage(pres)
+        page.refresh()
+        page._table.selectRow(0)
+
+        with patch("frontend.desktop.modules.inventory.pages.counts_page"
+                   ".ConfirmationDialog.exec_", return_value=QDialog.Accepted), \
+             patch("frontend.desktop.modules.inventory.pages.counts_page"
+                   ".QMessageBox.information"):
+            page._on_confirm()
+            page._table.selectRow(0)
+            page._on_approve()
+            page._table.selectRow(0)
+            page._on_generate_adjustment()
+
+        rows = CountQueryService(conn).list_recent(branch_id="b1")
+        assert rows[0]["status"] == "POSTED"  # generar ajuste cierra el conteo
+        assert pres.adjustments().total == 1
+        del app
+
+    def test_counts_page_requires_selection_before_acting(self, conn):
+        """No row selected → the page warns and never calls the presenter."""
+        pytest.importorskip("PyQt5")
+        from unittest.mock import patch
+
+        from PyQt5.QtWidgets import QApplication
+
+        from frontend.desktop.modules.inventory.pages import CountsPage
+
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn)
+        page = CountsPage(pres)
+        page.refresh()
+
+        with patch("frontend.desktop.modules.inventory.pages.counts_page"
+                   ".QMessageBox.information") as info, \
+             patch.object(pres, "confirm_count") as confirm:
+            page._on_confirm()
+        info.assert_called_once()
+        confirm.assert_not_called()
         del app
 
 
