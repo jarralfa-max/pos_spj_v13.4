@@ -1,16 +1,50 @@
-"""Locations page (INV-5) — hierarchical storage locations of a warehouse.
+"""Locations page (INV-5 / P0-C) — jerarquía de ubicaciones de un almacén.
 
-UI only: the presenter returns the location hierarchy already flattened with
-indentation, so the table shows the warehouse → zone → aisle → rack tree.
+Antes de esta slice la página se registraba en el sidebar sin forma de
+elegir almacén (``LocationsPage(presenter)``, sin ``warehouse_id``) — el
+árbol quedaba siempre vacío en uso real; sólo los tests que pasaban
+``warehouse_id`` explícito la veían poblada. Se agrega un selector de
+almacén (acotado, vía ``presenter.warehouse_options()``) para que la página
+sea utilizable por sí sola desde la navegación lateral.
+
+Acciones: "Nueva ubicación" crea una raíz en el almacén elegido; el menú
+contextual sobre una fila ofrece "Agregar sub-ubicación" (jerarquía real,
+pasillo → rack → nivel → posición) además de activar/bloquear; doble clic
+alterna el estado con confirmación, igual que en Almacenes. Todo pasa por el
+presenter — sin SQL ni lógica de negocio aquí.
 """
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QVBoxLayout, QWidget
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QHBoxLayout,
+    QMenu,
+    QMessageBox,
+    QVBoxLayout,
+    QWidget,
+)
 
-from frontend.desktop.components import ColumnSpec, PageHeader, StandardTable
+from frontend.desktop.components import (
+    ColumnSpec,
+    PageHeader,
+    StandardTable,
+    create_danger_button,
+    create_primary_button,
+    create_secondary_button,
+)
+from frontend.desktop.components.dialogs import ConfirmationDialog
 from frontend.desktop.components.icons import Icons
+from frontend.desktop.modules.inventory.dialogs import (
+    BlockReasonDialog,
+    CreateLocationDialog,
+)
 from frontend.desktop.themes.tokens import Spacing
+
+_STATUS_COLUMN = 3
+_ACTIVE_LABEL = "Activa"
 
 
 class LocationsPage(QWidget):
@@ -30,16 +64,58 @@ class LocationsPage(QWidget):
             icon=getattr(Icons, "INVENTORY", None), compact=True)
         layout.addWidget(self.header)
 
+        actions = QHBoxLayout()
+        self.warehouse_combo = QComboBox(self)
+        self.warehouse_combo.setMinimumWidth(220)
+        self.warehouse_combo.currentIndexChanged.connect(self._on_warehouse_changed)
+        actions.addWidget(self.warehouse_combo)
+        actions.addStretch(1)
+        self.create_button = create_primary_button(text="Nueva ubicación")
+        self.create_button.clicked.connect(self._on_create)
+        actions.addWidget(self.create_button)
+        self.activate_button = create_secondary_button(text="Activar")
+        self.activate_button.clicked.connect(self._on_activate)
+        actions.addWidget(self.activate_button)
+        self.block_button = create_danger_button(text="Bloquear")
+        self.block_button.clicked.connect(self._on_block)
+        actions.addWidget(self.block_button)
+        layout.addLayout(actions)
+
         self._table = StandardTable(columns=[
             ColumnSpec("Código", "text"),
             ColumnSpec("Nombre", "text"),
             ColumnSpec("Nivel", "numeric"),
             ColumnSpec("Estado", "status"),
         ])
+        self._table.cellDoubleClicked.connect(self._on_double_click)
+        self._table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self._table.customContextMenuRequested.connect(self._on_context_menu)
         layout.addWidget(self._table)
+
+        self._load_warehouse_options()
+
+    def _load_warehouse_options(self) -> None:
+        self.warehouse_combo.blockSignals(True)
+        self.warehouse_combo.clear()
+        for option in self._presenter.warehouse_options():
+            self.warehouse_combo.addItem(option.label, option.id)
+        self.warehouse_combo.blockSignals(False)
+        if self._warehouse_id:
+            idx = self.warehouse_combo.findData(self._warehouse_id)
+            if idx >= 0:
+                self.warehouse_combo.setCurrentIndex(idx)
+        elif self.warehouse_combo.count():
+            self._warehouse_id = self.warehouse_combo.currentData()
 
     def set_warehouse(self, warehouse_id: str) -> None:
         self._warehouse_id = warehouse_id
+        idx = self.warehouse_combo.findData(warehouse_id)
+        if idx >= 0:
+            self.warehouse_combo.setCurrentIndex(idx)
+        self.refresh()
+
+    def _on_warehouse_changed(self, _index: int) -> None:
+        self._warehouse_id = self.warehouse_combo.currentData()
         self.refresh()
 
     def refresh(self) -> None:
@@ -48,3 +124,113 @@ class LocationsPage(QWidget):
             return
         table = self._presenter.location_tree(warehouse_id=self._warehouse_id)
         self._table.load_rows(table.rows, row_ids=table.row_ids)
+
+    def _selected_location_id(self) -> str | None:
+        lid = self._table.selected_row_id()
+        if not lid:
+            QMessageBox.information(
+                self, "Ubicaciones", "Selecciona una ubicación de la lista.")
+            return None
+        return lid
+
+    def _is_active(self, row: int) -> bool:
+        item = self._table.item(row, _STATUS_COLUMN)
+        return bool(item) and item.text() == _ACTIVE_LABEL
+
+    def _on_create(self, *, parent_location_id: str | None = None,
+                   parent_label: str | None = None) -> None:
+        if not self._warehouse_id:
+            QMessageBox.information(self, "Ubicaciones", "Selecciona un almacén primero.")
+            return
+        dlg = CreateLocationDialog(self, parent_label=parent_label)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        code, name = dlg.code(), dlg.name()
+        if not code or not name:
+            QMessageBox.warning(self, "Ubicaciones", "Captura código y nombre.")
+            return
+        self.create_button.setEnabled(False)
+        try:
+            ok, message, _ = self._presenter.create_location(
+                warehouse_id=self._warehouse_id, code=code, name=name,
+                level=dlg.level(), parent_location_id=parent_location_id)
+        finally:
+            self.create_button.setEnabled(True)
+        (QMessageBox.information if ok else QMessageBox.warning)(
+            self, "Ubicaciones", message)
+        if ok:
+            self.refresh()
+
+    def _on_activate(self) -> None:
+        lid = self._selected_location_id()
+        if lid is None:
+            return
+        dlg = ConfirmationDialog(
+            self, title="Activar ubicación",
+            message="La ubicación volverá a estar disponible. ¿Continuar?",
+            confirm_text="Activar")
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        self._run_status_change(lid, activate=True, reason="")
+
+    def _on_block(self) -> None:
+        lid = self._selected_location_id()
+        if lid is None:
+            return
+        dlg = BlockReasonDialog(self, title="Bloquear ubicación")
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        self._run_status_change(lid, activate=False, reason=dlg.reason())
+
+    def _run_status_change(self, location_id: str, *, activate: bool, reason: str) -> None:
+        self.activate_button.setEnabled(False)
+        self.block_button.setEnabled(False)
+        try:
+            ok, message, _ = self._presenter.set_location_status(
+                location_id=location_id, activate=activate, reason=reason)
+        finally:
+            self.activate_button.setEnabled(True)
+            self.block_button.setEnabled(True)
+        (QMessageBox.information if ok else QMessageBox.warning)(
+            self, "Ubicaciones", message)
+        if ok:
+            self.refresh()
+
+    def _on_double_click(self, row: int, _column: int) -> None:
+        item = self._table.item(row, 0)
+        lid = item.data(Qt.UserRole) if item is not None else None
+        if not lid:
+            return
+        active = self._is_active(row)
+        dlg = ConfirmationDialog(
+            self, title="Bloquear ubicación" if active else "Activar ubicación",
+            message=("La ubicación dejará de estar disponible. ¿Continuar?" if active
+                     else "La ubicación volverá a estar disponible. ¿Continuar?"),
+            confirm_text="Bloquear" if active else "Activar")
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        self._run_status_change(lid, activate=not active, reason="")
+
+    def _on_context_menu(self, position) -> None:
+        row = self._table.rowAt(position.y())
+        if row < 0:
+            return
+        self._table.selectRow(row)
+        item = self._table.item(row, 0)
+        lid = item.data(Qt.UserRole) if item is not None else None
+        if not lid:
+            return
+        label = item.text().strip("· ")
+        active = self._is_active(row)
+        menu = QMenu(self)
+        add_sub = menu.addAction("Agregar sub-ubicación")
+        menu.addSeparator()
+        toggle = menu.addAction("Bloquear" if active else "Activar")
+        chosen = menu.exec_(self._table.viewport().mapToGlobal(position))
+        if chosen is add_sub:
+            self._on_create(parent_location_id=lid, parent_label=label)
+        elif chosen is toggle:
+            if active:
+                self._on_block()
+            else:
+                self._on_activate()

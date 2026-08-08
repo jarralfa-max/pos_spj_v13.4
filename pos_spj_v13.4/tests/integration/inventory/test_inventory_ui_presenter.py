@@ -45,7 +45,9 @@ from backend.application.inventory.use_cases import (
     RecordCountUseCase,
     ReleaseQuarantineUseCase,
     ReverseAdjustmentUseCase,
+    SetLocationStatusUseCase,
     SetReplenishmentRuleUseCase,
+    SetWarehouseStatusUseCase,
 )
 from backend.domain.inventory.enums import WarehouseType
 from backend.domain.inventory.entities.inventory_movement import (
@@ -121,6 +123,10 @@ def _presenter(conn):
         confirm_count_uc=ConfirmCountUseCase(),
         approve_count_uc=ApproveCountUseCase(),
         create_adjustment_from_count_uc=CreateAdjustmentFromCountUseCase(),
+        create_warehouse_uc=CreateWarehouseUseCase(),
+        set_warehouse_status_uc=SetWarehouseStatusUseCase(),
+        create_location_uc=CreateLocationUseCase(),
+        set_location_status_uc=SetLocationStatusUseCase(),
         session_context=_Session())
 
 
@@ -920,6 +926,174 @@ class TestCountCommands:
         assert "no disponible" in message
 
 
+class TestWarehouseAndLocationCommands:
+    """P0-C (Almacenes/Ubicaciones) — crear/activar/bloquear son comandos
+    reales; antes de esta slice la página de Almacenes no tenía alta
+    (hallazgo explícito del audit, §7.4) y Ubicaciones no podía elegir
+    almacén (quedaba siempre vacía fuera de los tests)."""
+
+    def test_create_warehouse_via_presenter(self, conn):
+        pres = _presenter(conn)
+        ok, message, data = pres.create_warehouse(
+            code="WH-9", name="Bodega 9", warehouse_type="CENTRAL")
+        assert ok, message
+        assert data.get("entity_id")
+        options = pres.warehouse_options()
+        assert any(o.id == data["entity_id"] for o in options)
+
+    def test_create_warehouse_without_code_or_name_fails(self, conn):
+        pres = _presenter(conn)
+        ok, message, _ = pres.create_warehouse(
+            code="", name="Bodega 9", warehouse_type="CENTRAL")
+        assert not ok
+        assert "Captura" in message
+
+    def test_create_warehouse_invalid_type_fails(self, conn):
+        pres = _presenter(conn)
+        ok, message, _ = pres.create_warehouse(
+            code="WH-9", name="Bodega 9", warehouse_type="NOT_A_TYPE")
+        assert not ok
+        assert "Tipo" in message
+
+    def test_create_warehouse_unavailable_when_not_wired(self, conn):
+        pres = InventoryPresenter(
+            connection_provider=lambda: conn,
+            availability_service_factory=InventoryAvailabilityQueryService,
+            replenishment_query_factory=ReplenishmentQueryService)
+        ok, message, _ = pres.create_warehouse(
+            code="WH-9", name="Bodega 9", warehouse_type="CENTRAL")
+        assert not ok
+        assert "no disponible" in message
+
+    def test_set_warehouse_status_blocks_and_activates(self, conn):
+        pres = _presenter(conn)
+        wid = CreateWarehouseUseCase().execute(
+            conn, code="WH-1", name="Central", branch_id="b1",
+            warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1").entity_id
+        ok, message, _ = pres.set_warehouse_status(
+            warehouse_id=wid, activate=False, reason="Mantenimiento")
+        assert ok, message
+        rows = WarehouseQueryService(conn).list_warehouses(branch_id="b1")
+        assert rows[0]["status"] == "BLOCKED"
+        ok, message, _ = pres.set_warehouse_status(warehouse_id=wid, activate=True)
+        assert ok, message
+        rows = WarehouseQueryService(conn).list_warehouses(branch_id="b1")
+        assert rows[0]["status"] == "ACTIVE"
+
+    def test_set_warehouse_status_without_selection_does_not_call_backend(self, conn):
+        pres = _presenter(conn)
+        ok, message, _ = pres.set_warehouse_status(warehouse_id="", activate=True)
+        assert not ok
+        assert "Selecciona" in message
+
+    def test_set_warehouse_status_unavailable_when_not_wired(self, conn):
+        pres = InventoryPresenter(
+            connection_provider=lambda: conn,
+            availability_service_factory=InventoryAvailabilityQueryService,
+            replenishment_query_factory=ReplenishmentQueryService)
+        ok, message, _ = pres.set_warehouse_status(warehouse_id="w-1", activate=True)
+        assert not ok
+        assert "no disponible" in message
+
+    def test_warehouse_options_lists_branch_warehouses(self, conn):
+        pres = _presenter(conn)
+        CreateWarehouseUseCase().execute(
+            conn, code="WH-1", name="Central", branch_id="b1",
+            warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1")
+        options = pres.warehouse_options()
+        assert len(options) == 1
+        assert "WH-1" in options[0].label
+
+    def test_create_location_via_presenter(self, conn):
+        pres = _presenter(conn)
+        wid = CreateWarehouseUseCase().execute(
+            conn, code="WH-1", name="Central", branch_id="b1",
+            warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1").entity_id
+        ok, message, data = pres.create_location(
+            warehouse_id=wid, code="A1", name="Pasillo 1")
+        assert ok, message
+        assert data.get("entity_id")
+        options = pres.location_options(warehouse_id=wid)
+        assert any(o.id == data["entity_id"] for o in options)
+
+    def test_create_sub_location_with_parent(self, conn):
+        pres = _presenter(conn)
+        wid = CreateWarehouseUseCase().execute(
+            conn, code="WH-1", name="Central", branch_id="b1",
+            warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1").entity_id
+        parent_id = CreateLocationUseCase().execute(
+            conn, warehouse_id=wid, code="A1", name="Pasillo 1",
+            actor_user_id="u1").entity_id
+        ok, message, data = pres.create_location(
+            warehouse_id=wid, code="A1-R1", name="Rack 1", level=1,
+            parent_location_id=parent_id)
+        assert ok, message
+        tree = pres.location_tree(warehouse_id=wid)
+        assert tree.total == 2
+
+    def test_create_location_without_code_or_name_fails(self, conn):
+        pres = _presenter(conn)
+        wid = CreateWarehouseUseCase().execute(
+            conn, code="WH-1", name="Central", branch_id="b1",
+            warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1").entity_id
+        ok, message, _ = pres.create_location(warehouse_id=wid, code="", name="Pasillo 1")
+        assert not ok
+        assert "Captura" in message
+
+    def test_create_location_without_warehouse_fails(self, conn):
+        pres = _presenter(conn)
+        ok, message, _ = pres.create_location(warehouse_id="", code="A1", name="Pasillo 1")
+        assert not ok
+        assert "Selecciona" in message
+
+    def test_create_location_unavailable_when_not_wired(self, conn):
+        pres = InventoryPresenter(
+            connection_provider=lambda: conn,
+            availability_service_factory=InventoryAvailabilityQueryService,
+            replenishment_query_factory=ReplenishmentQueryService)
+        ok, message, _ = pres.create_location(warehouse_id="w-1", code="A1", name="Pasillo 1")
+        assert not ok
+        assert "no disponible" in message
+
+    def test_set_location_status_blocks_and_activates(self, conn):
+        pres = _presenter(conn)
+        wid = CreateWarehouseUseCase().execute(
+            conn, code="WH-1", name="Central", branch_id="b1",
+            warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1").entity_id
+        lid = CreateLocationUseCase().execute(
+            conn, warehouse_id=wid, code="A1", name="Pasillo 1",
+            actor_user_id="u1").entity_id
+        ok, message, _ = pres.set_location_status(
+            location_id=lid, activate=False, reason="Reacomodo")
+        assert ok, message
+        assert pres.location_options(warehouse_id=wid) == []  # bloqueada, ya no activa
+        ok, message, _ = pres.set_location_status(location_id=lid, activate=True)
+        assert ok, message
+        assert len(pres.location_options(warehouse_id=wid)) == 1
+
+    def test_set_location_status_without_selection_does_not_call_backend(self, conn):
+        pres = _presenter(conn)
+        ok, message, _ = pres.set_location_status(location_id="", activate=True)
+        assert not ok
+        assert "Selecciona" in message
+
+    def test_set_location_status_unavailable_when_not_wired(self, conn):
+        pres = InventoryPresenter(
+            connection_provider=lambda: conn,
+            availability_service_factory=InventoryAvailabilityQueryService,
+            replenishment_query_factory=ReplenishmentQueryService)
+        ok, message, _ = pres.set_location_status(location_id="l-1", activate=True)
+        assert not ok
+        assert "no disponible" in message
+
+    def test_warehouse_options_empty_when_not_wired(self, conn):
+        pres = InventoryPresenter(
+            connection_provider=lambda: conn,
+            availability_service_factory=InventoryAvailabilityQueryService,
+            replenishment_query_factory=ReplenishmentQueryService)
+        assert pres.warehouse_options() == []
+
+
 class TestPagesSmoke:
     def test_pages_build_and_refresh(self, conn):
         pytest.importorskip("PyQt5")
@@ -1271,6 +1445,316 @@ class TestPagesSmoke:
             page._on_confirm()
         info.assert_called_once()
         confirm.assert_not_called()
+        del app
+
+    def test_warehouses_page_create_action_calls_presenter_and_refreshes(self, conn):
+        pytest.importorskip("PyQt5")
+        from unittest.mock import MagicMock, patch
+
+        from PyQt5.QtWidgets import QApplication, QDialog
+
+        from frontend.desktop.modules.inventory.pages import WarehousesPage
+
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn)
+        page = WarehousesPage(pres)
+        page.refresh()
+
+        dlg = MagicMock()
+        dlg.exec_.return_value = QDialog.Accepted
+        dlg.code.return_value = "WH-9"
+        dlg.name.return_value = "Bodega 9"
+        dlg.warehouse_type.return_value = "CENTRAL"
+
+        with patch("frontend.desktop.modules.inventory.pages.warehouses_page"
+                   ".CreateWarehouseDialog", return_value=dlg), \
+             patch("frontend.desktop.modules.inventory.pages.warehouses_page"
+                   ".QMessageBox.information"):
+            page._on_create()
+
+        assert page._table.rowCount() == 1
+        del app
+
+    def test_warehouses_page_block_and_activate_via_toolbar(self, conn):
+        pytest.importorskip("PyQt5")
+        from unittest.mock import MagicMock, patch
+
+        from PyQt5.QtWidgets import QApplication, QDialog
+
+        from frontend.desktop.modules.inventory.pages import WarehousesPage
+
+        wid = CreateWarehouseUseCase().execute(
+            conn, code="WH-1", name="Central", branch_id="b1",
+            warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1").entity_id
+
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn)
+        page = WarehousesPage(pres)
+        page.refresh()
+        page._table.selectRow(0)
+
+        block_dlg = MagicMock()
+        block_dlg.exec_.return_value = QDialog.Accepted
+        block_dlg.reason.return_value = "Mantenimiento"
+        with patch("frontend.desktop.modules.inventory.pages.warehouses_page"
+                   ".BlockReasonDialog", return_value=block_dlg), \
+             patch("frontend.desktop.modules.inventory.pages.warehouses_page"
+                   ".QMessageBox.information"):
+            page._on_block()
+        rows = WarehouseQueryService(conn).list_warehouses(branch_id="b1")
+        assert rows[0]["status"] == "BLOCKED"
+
+        page.refresh()
+        page._table.selectRow(0)
+        with patch("frontend.desktop.modules.inventory.pages.warehouses_page"
+                   ".ConfirmationDialog.exec_", return_value=QDialog.Accepted), \
+             patch("frontend.desktop.modules.inventory.pages.warehouses_page"
+                   ".QMessageBox.information"):
+            page._on_activate()
+        rows = WarehouseQueryService(conn).list_warehouses(branch_id="b1")
+        assert rows[0]["status"] == "ACTIVE"
+        assert wid == rows[0]["id"]
+        del app
+
+    def test_warehouses_page_double_click_toggles_status(self, conn):
+        pytest.importorskip("PyQt5")
+        from unittest.mock import patch
+
+        from PyQt5.QtWidgets import QApplication, QDialog
+
+        from frontend.desktop.modules.inventory.pages import WarehousesPage
+
+        CreateWarehouseUseCase().execute(
+            conn, code="WH-1", name="Central", branch_id="b1",
+            warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1")
+
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn)
+        page = WarehousesPage(pres)
+        page.refresh()
+
+        with patch("frontend.desktop.modules.inventory.pages.warehouses_page"
+                   ".ConfirmationDialog.exec_", return_value=QDialog.Accepted), \
+             patch("frontend.desktop.modules.inventory.pages.warehouses_page"
+                   ".QMessageBox.information"):
+            page._on_double_click(0, 0)  # activo → bloquea con confirmación
+
+        rows = WarehouseQueryService(conn).list_warehouses(branch_id="b1")
+        assert rows[0]["status"] == "BLOCKED"
+        del app
+
+    def test_warehouses_page_requires_selection_before_acting(self, conn):
+        pytest.importorskip("PyQt5")
+        from unittest.mock import patch
+
+        from PyQt5.QtWidgets import QApplication
+
+        from frontend.desktop.modules.inventory.pages import WarehousesPage
+
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn)
+        page = WarehousesPage(pres)
+        page.refresh()
+
+        with patch("frontend.desktop.modules.inventory.pages.warehouses_page"
+                   ".QMessageBox.information") as info, \
+             patch.object(pres, "set_warehouse_status") as set_status:
+            page._on_block()
+        info.assert_called_once()
+        set_status.assert_not_called()
+        del app
+
+    def test_locations_page_create_root_action(self, conn):
+        pytest.importorskip("PyQt5")
+        from unittest.mock import MagicMock, patch
+
+        from PyQt5.QtWidgets import QApplication, QDialog
+
+        from frontend.desktop.modules.inventory.pages import LocationsPage
+
+        wid = CreateWarehouseUseCase().execute(
+            conn, code="WH-1", name="Central", branch_id="b1",
+            warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1").entity_id
+
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn)
+        page = LocationsPage(pres, warehouse_id=wid)
+        page.refresh()
+        assert page.warehouse_combo.count() == 1  # el único almacén de la sucursal
+
+        dlg = MagicMock()
+        dlg.exec_.return_value = QDialog.Accepted
+        dlg.code.return_value = "A1"
+        dlg.name.return_value = "Pasillo 1"
+        dlg.level.return_value = 0
+
+        with patch("frontend.desktop.modules.inventory.pages.locations_page"
+                   ".CreateLocationDialog", return_value=dlg), \
+             patch("frontend.desktop.modules.inventory.pages.locations_page"
+                   ".QMessageBox.information"):
+            page._on_create()
+
+        assert page._table.rowCount() == 1
+        del app
+
+    def test_locations_page_context_menu_creates_sub_location(self, conn):
+        """P0-C: el menú contextual arma la jerarquía real (parent_location_id),
+        no sólo repite el botón de la barra de herramientas."""
+        pytest.importorskip("PyQt5")
+        from unittest.mock import MagicMock, patch
+
+        from PyQt5.QtWidgets import QApplication, QDialog
+
+        from frontend.desktop.modules.inventory.pages import LocationsPage
+
+        wid = CreateWarehouseUseCase().execute(
+            conn, code="WH-1", name="Central", branch_id="b1",
+            warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1").entity_id
+        parent_id = CreateLocationUseCase().execute(
+            conn, warehouse_id=wid, code="A1", name="Pasillo 1",
+            actor_user_id="u1").entity_id
+
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn)
+        page = LocationsPage(pres, warehouse_id=wid)
+        page.refresh()
+        assert page._table.rowCount() == 1
+
+        dlg = MagicMock()
+        dlg.exec_.return_value = QDialog.Accepted
+        dlg.code.return_value = "A1-R1"
+        dlg.name.return_value = "Rack 1"
+        dlg.level.return_value = 1
+
+        with patch("frontend.desktop.modules.inventory.pages.locations_page"
+                   ".CreateLocationDialog", return_value=dlg), \
+             patch("frontend.desktop.modules.inventory.pages.locations_page"
+                   ".QMessageBox.information"):
+            page._on_create(parent_location_id=parent_id, parent_label="A1")
+
+        assert page._table.rowCount() == 2
+        tree = pres.location_tree(warehouse_id=wid)
+        assert tree.total == 2
+        assert parent_id in tree.row_ids
+        del app
+
+    def test_locations_page_block_and_activate(self, conn):
+        pytest.importorskip("PyQt5")
+        from unittest.mock import MagicMock, patch
+
+        from PyQt5.QtWidgets import QApplication, QDialog
+
+        from frontend.desktop.modules.inventory.pages import LocationsPage
+
+        wid = CreateWarehouseUseCase().execute(
+            conn, code="WH-1", name="Central", branch_id="b1",
+            warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1").entity_id
+        CreateLocationUseCase().execute(
+            conn, warehouse_id=wid, code="A1", name="Pasillo 1", actor_user_id="u1")
+
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn)
+        page = LocationsPage(pres, warehouse_id=wid)
+        page.refresh()
+        page._table.selectRow(0)
+
+        block_dlg = MagicMock()
+        block_dlg.exec_.return_value = QDialog.Accepted
+        block_dlg.reason.return_value = "Reacomodo"
+        with patch("frontend.desktop.modules.inventory.pages.locations_page"
+                   ".BlockReasonDialog", return_value=block_dlg), \
+             patch("frontend.desktop.modules.inventory.pages.locations_page"
+                   ".QMessageBox.information"):
+            page._on_block()
+        assert pres.location_options(warehouse_id=wid) == []
+
+        page.refresh()
+        page._table.selectRow(0)
+        with patch("frontend.desktop.modules.inventory.pages.locations_page"
+                   ".ConfirmationDialog.exec_", return_value=QDialog.Accepted), \
+             patch("frontend.desktop.modules.inventory.pages.locations_page"
+                   ".QMessageBox.information"):
+            page._on_activate()
+        assert len(pres.location_options(warehouse_id=wid)) == 1
+        del app
+
+    def test_locations_page_double_click_toggles_status(self, conn):
+        pytest.importorskip("PyQt5")
+        from unittest.mock import patch
+
+        from PyQt5.QtWidgets import QApplication, QDialog
+
+        from frontend.desktop.modules.inventory.pages import LocationsPage
+
+        wid = CreateWarehouseUseCase().execute(
+            conn, code="WH-1", name="Central", branch_id="b1",
+            warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1").entity_id
+        CreateLocationUseCase().execute(
+            conn, warehouse_id=wid, code="A1", name="Pasillo 1", actor_user_id="u1")
+
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn)
+        page = LocationsPage(pres, warehouse_id=wid)
+        page.refresh()
+
+        with patch("frontend.desktop.modules.inventory.pages.locations_page"
+                   ".ConfirmationDialog.exec_", return_value=QDialog.Accepted), \
+             patch("frontend.desktop.modules.inventory.pages.locations_page"
+                   ".QMessageBox.information"):
+            page._on_double_click(0, 0)
+
+        assert pres.location_options(warehouse_id=wid) == []
+        del app
+
+    def test_locations_page_requires_selection_before_acting(self, conn):
+        pytest.importorskip("PyQt5")
+        from unittest.mock import patch
+
+        from PyQt5.QtWidgets import QApplication
+
+        from frontend.desktop.modules.inventory.pages import LocationsPage
+
+        wid = CreateWarehouseUseCase().execute(
+            conn, code="WH-1", name="Central", branch_id="b1",
+            warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1").entity_id
+
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn)
+        page = LocationsPage(pres, warehouse_id=wid)
+        page.refresh()
+
+        with patch("frontend.desktop.modules.inventory.pages.locations_page"
+                   ".QMessageBox.information") as info, \
+             patch.object(pres, "set_location_status") as set_status:
+            page._on_block()
+        info.assert_called_once()
+        set_status.assert_not_called()
+        del app
+
+    def test_locations_page_warehouse_combo_switches_tree(self, conn):
+        pytest.importorskip("PyQt5")
+        from PyQt5.QtWidgets import QApplication
+
+        from frontend.desktop.modules.inventory.pages import LocationsPage
+
+        wid1 = CreateWarehouseUseCase().execute(
+            conn, code="WH-1", name="Central", branch_id="b1",
+            warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1").entity_id
+        wid2 = CreateWarehouseUseCase().execute(
+            conn, code="WH-2", name="Secundario", branch_id="b1",
+            warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1").entity_id
+        CreateLocationUseCase().execute(
+            conn, warehouse_id=wid2, code="B1", name="Pasillo B", actor_user_id="u1")
+
+        app = QApplication.instance() or QApplication([])
+        pres = _presenter(conn)
+        page = LocationsPage(pres, warehouse_id=wid1)
+        page.refresh()
+        assert page._table.rowCount() == 0  # wid1 no tiene ubicaciones
+
+        idx = page.warehouse_combo.findData(wid2)
+        page.warehouse_combo.setCurrentIndex(idx)
+        assert page._table.rowCount() == 1
         del app
 
 

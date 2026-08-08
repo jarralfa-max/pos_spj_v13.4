@@ -21,9 +21,12 @@ from backend.application.inventory.session_authorization import (
 )
 from backend.application.inventory.use_cases import (
     CreateAdjustmentFromCountUseCase,
+    CreateLocationUseCase,
     PostInventoryMovementUseCase,
     RecordCountUseCase,
     ReverseAdjustmentUseCase,
+    SetLocationStatusUseCase,
+    SetWarehouseStatusUseCase,
 )
 from backend.domain.inventory.exceptions import (
     InventoryConfigurationError,
@@ -84,6 +87,26 @@ def test_factory_builds_create_adjustment_from_count():
     factory = InventoryUseCaseFactory.for_tests()
     uc = factory.create_adjustment_from_count()
     assert isinstance(uc, CreateAdjustmentFromCountUseCase)
+
+
+def test_factory_builds_set_warehouse_status():
+    """P0-C (Almacenes/Ubicaciones): activar/bloquear un almacén es una
+    operación autorizada, no sólo lectura."""
+    factory = InventoryUseCaseFactory.for_tests()
+    uc = factory.set_warehouse_status()
+    assert isinstance(uc, SetWarehouseStatusUseCase)
+
+
+def test_factory_builds_create_location():
+    factory = InventoryUseCaseFactory.for_tests()
+    uc = factory.create_location()
+    assert isinstance(uc, CreateLocationUseCase)
+
+
+def test_factory_builds_set_location_status():
+    factory = InventoryUseCaseFactory.for_tests()
+    uc = factory.set_location_status()
+    assert isinstance(uc, SetLocationStatusUseCase)
 
 
 # ── session checker ──────────────────────────────────────────────────────────

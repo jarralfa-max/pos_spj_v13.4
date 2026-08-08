@@ -76,6 +76,8 @@ class ModuloInventarioEnterprise(QWidget):
             CreateAdjustmentFromCountUseCase,
             CreateAdjustmentUseCase,
             CreateCountUseCase,
+            CreateLocationUseCase,
+            CreateWarehouseUseCase,
             DisposeQuarantineUseCase,
             GenerateReplenishmentSuggestionsUseCase,
             PostAdjustmentUseCase,
@@ -83,6 +85,8 @@ class ModuloInventarioEnterprise(QWidget):
             RecordCountUseCase,
             ReleaseQuarantineUseCase,
             ReverseAdjustmentUseCase,
+            SetLocationStatusUseCase,
+            SetWarehouseStatusUseCase,
         )
         from backend.application.queries.product_query_service import (
             ProductQueryService,
@@ -110,6 +114,10 @@ class ModuloInventarioEnterprise(QWidget):
             confirm_count_uc = factory.confirm_count()
             approve_count_uc = factory.approve_count()
             create_adjustment_from_count_uc = factory.create_adjustment_from_count()
+            create_warehouse_uc = factory.create_warehouse()
+            set_warehouse_status_uc = factory.set_warehouse_status()
+            create_location_uc = factory.create_location()
+            set_location_status_uc = factory.set_location_status()
         else:
             generate_uc = GenerateReplenishmentSuggestionsUseCase()
             release_quarantine_uc = ReleaseQuarantineUseCase()
@@ -124,6 +132,10 @@ class ModuloInventarioEnterprise(QWidget):
             confirm_count_uc = ConfirmCountUseCase()
             approve_count_uc = ApproveCountUseCase()
             create_adjustment_from_count_uc = CreateAdjustmentFromCountUseCase()
+            create_warehouse_uc = CreateWarehouseUseCase()
+            set_warehouse_status_uc = SetWarehouseStatusUseCase()
+            create_location_uc = CreateLocationUseCase()
+            set_location_status_uc = SetLocationStatusUseCase()
 
         return InventoryPresenter(
             connection_provider=lambda: conn,
@@ -161,5 +173,9 @@ class ModuloInventarioEnterprise(QWidget):
             confirm_count_uc=confirm_count_uc,
             approve_count_uc=approve_count_uc,
             create_adjustment_from_count_uc=create_adjustment_from_count_uc,
+            create_warehouse_uc=create_warehouse_uc,
+            set_warehouse_status_uc=set_warehouse_status_uc,
+            create_location_uc=create_location_uc,
+            set_location_status_uc=set_location_status_uc,
             session_context=session,
         )

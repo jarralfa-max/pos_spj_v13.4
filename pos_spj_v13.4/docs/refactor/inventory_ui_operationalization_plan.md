@@ -727,3 +727,114 @@ opciones de picker.
 ubicación real; queda documentado como follow-up natural para Ajustes y
 Conteos si sus flujos lo necesitan (ninguno de los dos lo pidió
 explícitamente en el audit).
+
+### Slice 10 — P0-C (Almacenes/Ubicaciones): crear y activar/bloquear — HECHO
+
+El usuario pidió explícitamente "agregar acciones a cada página" siguiendo
+un checklist completo (toolbar, botones, menús contextuales, doble clic,
+formularios, confirmaciones, permisos, estados de carga, mensajes de error,
+refresco posterior), con la instrucción explícita de **no** repetir
+mecánicamente todos los ítems en todas las páginas — cada acción debe
+corresponder al workflow real de la página. Dado que el módulo tiene 21
+páginas y no todas tienen backend listo (Transferencias, por ejemplo, sólo
+tiene query service — la mutación vive en un bounded context `transfers`
+aparte, sin use cases expuestos aquí; Peso/Alertas/Configuración tampoco
+tienen use case dedicado), esta slice ataca las dos páginas con más
+respaldo de backend inmediato y mayor impacto documentado: **Almacenes**
+(el propio audit señaló explícitamente "sin botón de alta", §7.4) y
+**Ubicaciones** (hallazgo nuevo de esta slice: la página se registraba en
+el sidebar sin forma de elegir almacén — `LocationsPage(presenter)`, sin
+`warehouse_id` — así que en uso real el árbol quedaba **siempre vacío**;
+sólo los tests que pasaban `warehouse_id` explícito la veían poblada).
+
+**Backend ya existía, huérfano de interfaz** (mismo patrón que Ajustes/
+Conteos): `CreateWarehouseUseCase`, `SetWarehouseStatusUseCase`,
+`CreateLocationUseCase`, `SetLocationStatusUseCase` (INV-5) tenían
+permisos, idempotencia por código y auditoría — pero `CreateWarehouseUseCase`
+sólo se usaba desde el script de aprovisionamiento (P0-E, slice 5) y los
+otros tres no se usaban en ningún lado. Se agregaron los 3 builders que
+faltaban al composition root (`set_warehouse_status`, `create_location`,
+`set_location_status`; `create_warehouse` ya existía desde P0-E) y se
+wirearon en `modulos/inventario_enterprise.py`.
+
+**Presenter**: 4 comandos nuevos (`create_warehouse`, `set_warehouse_status`,
+`create_location`, `set_location_status`) con el mismo patrón de validación/
+try-except/dispatch que el resto de P0-C, y 2 lecturas acotadas nuevas
+(`warehouse_options()`, análoga a `location_options()` de la slice 9 —
+"almacenes de la sucursal" es igual de chico y acotado que "ubicaciones del
+almacén", mismo `SearchOption` reutilizado, nunca `EntitySearchInput`).
+
+**Diseño de acciones por página (deliberadamente distinto entre las dos,
+no una plantilla calcada):**
+- **Almacenes**: toolbar "Nuevo almacén"/"Activar"/"Bloquear"; doble clic en
+  una fila es un atajo al cambio de estado contrario al actual (activo →
+  bloquea, bloqueado → activa), siempre con confirmación — mismo resultado
+  que el botón, más rápido. Botones deshabilitados durante la llamada al
+  presenter (estado de carga mínimo pero real, sin infraestructura nueva).
+  Activar usa `ConfirmationDialog` (no necesita motivo); Bloquear usa el
+  nuevo `BlockReasonDialog` (si se bloquea, el motivo queda auditado).
+- **Ubicaciones**: gana un `QComboBox` de almacén (antes ausente — el fix
+  del hallazgo real) además de toolbar "Nueva ubicación"/"Activar"/
+  "Bloquear". El **menú contextual** (clic derecho sobre una fila) es
+  donde vive la acción realmente distintiva de esta página: "Agregar
+  sub-ubicación" pasa el `parent_location_id` de la fila al diálogo,
+  construyendo la jerarquía real (pasillo → rack → nivel → posición) que
+  el toolbar por sí solo no puede expresar — ahí es donde un menú
+  contextual corresponde al workflow y un botón de barra no. Doble clic
+  alterna el estado igual que en Almacenes, por consistencia entre ambas
+  páginas de topología.
+
+**Diálogos nuevos** (`dialogs.py`): `CreateWarehouseDialog` (código, nombre,
+tipo vía `WAREHOUSE_TYPE_ES`), `CreateLocationDialog` (código, nombre,
+nivel — título cambia a "Nueva sub-ubicación de «X»" cuando viene del menú
+contextual), `BlockReasonDialog` (genérico, reutilizado por ambas páginas —
+motivo de bloqueo con `title` configurable; no ameritaba dos clases casi
+idénticas).
+
+**Evidencia:**
+- `tests/unit/inventory/test_inventory_composition.py` — 3 tests nuevos
+  (`test_factory_builds_set_warehouse_status`, `_create_location`,
+  `_set_location_status`).
+- `tests/integration/inventory/test_inventory_ui_presenter.py` — nueva
+  clase `TestWarehouseAndLocationCommands` (17 tests): crear almacén/
+  ubicación reales; bloquear→activar con verificación de estado real vía
+  `WarehouseQueryService`/`location_options()` (no la tabla formateada);
+  sub-ubicación con `parent_location_id` real (jerarquía de 2 niveles,
+  `location_tree().total == 2`); guardas sin selección/código/nombre/tipo
+  inválido; comandos con use case no wireado. 10 tests nuevos de página en
+  `TestPagesSmoke`: alta desde diálogo (mockeado) en ambas páginas; bloquear/
+  activar reales vía toolbar con verificación de estado en BD; doble clic
+  alterna estado con confirmación; menú contextual crea sub-ubicación real
+  (verificado con `location_tree` de 2 niveles, no sólo con el mock);
+  guardia de selección vacía en ambas páginas; cambiar el combo de almacén
+  refresca el árbol al almacén correcto. **120 passed** en el archivo
+  completo (antes 93, +27 nuevos).
+- Inventario completo: `2 failed / 684 passed` (2 pre-existentes de
+  `test_legacy_reader_repoints.py`, sin relación con este cambio, +30
+  nuevos).
+- Arquitectura completa desde la raíz del repo: `29 failed / 534 passed`
+  (línea base sin cambios); `test_inventory_ui_guardrails.py` sigue en
+  verde (20 passed junto con composition).
+
+**Explícitamente fuera de esta slice** (con razón documentada, no olvido):
+- **Transferencias**: `TransferQueryService` sólo lee; las mutaciones viven
+  en `backend/application/transfers/` (bounded context aparte, con su
+  propia composition root) — envolver eso en el composition root de
+  Inventario sería mezclar dos contextos, no una extracción P0-C. Requiere
+  su propia auditoría antes de tocarla.
+- **Peso variable, Alertas, Configuración, Reposición (aceptar/rechazar
+  sugerencia)**: sin use case dedicado en `backend/application/inventory/
+  use_cases/` (peso se captura hoy sólo vía movimiento con `weight=`;
+  alertas y configuración no tienen mutación expuesta; reposición sólo
+  genera sugerencias — aceptar una implicaría crear una orden de compra o
+  transferencia, cruzando de nuevo hacia otro bounded context). Cada una
+  necesitaría su propio diseño de use case antes de una página de acciones,
+  no sólo wiring.
+- **Zonas** (`CreateZoneUseCase`): existe en el backend pero ninguna página
+  las lista ni las selecciona hoy — agregar el alta sin una vista que las
+  muestre sería una acción sin lugar donde aparecer.
+- **Cadena de frío, Lotes**: tienen use cases listos
+  (`RecordTemperatureReadingUseCase`, `RegisterInventoryLotUseCase`,
+  `SetLotQualityStatusUseCase`) sin wireo aún — quedan como los siguientes
+  candidatos naturales para continuar el checklist del audit en una
+  próxima slice.

@@ -1,24 +1,26 @@
-"""Inventory action dialogs (P0-B/P0-C/P0-D — Cuarentena, Ajustes, Conteos).
+"""Inventory action dialogs (P0-B/P0-C/P0-D — Cuarentena, Ajustes, Conteos,
+Almacenes, Ubicaciones).
 
-Presentation-only: capture values for the Cuarentena/Ajustes/Conteos use cases
-(open, dispose, create, reverse, capturar, confirmar). No business logic, no
-backend calls — the page reads the captured values and hands them to the
-presenter after the dialog is accepted. Product selection goes through the
-canonical search provider (§P0-D) — never a hand-typed UUID.
+Presentation-only: capture values for the corresponding use cases (open,
+dispose, create, reverse, capturar, confirmar, activar, bloquear). No
+business logic, no backend calls — the page reads the captured values and
+hands them to the presenter after the dialog is accepted. Product selection
+goes through the canonical search provider (§P0-D) — never a hand-typed UUID.
 """
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QCheckBox, QComboBox
+from PyQt5.QtWidgets import QCheckBox, QComboBox, QSpinBox
 
 from frontend.desktop.components.decimal_input import DecimalInput
 from frontend.desktop.components.dialogs import FormDialog
 from frontend.desktop.components.entity_search_input import EntitySearchInput
-from frontend.desktop.components.text_inputs import StandardTextArea
+from frontend.desktop.components.text_inputs import StandardLineEdit, StandardTextArea
 from frontend.desktop.modules.inventory.view_models import (
     ADJUSTMENT_REASON_ES,
     COUNT_TYPE_ES,
     QUARANTINE_REASON_ES,
+    WAREHOUSE_TYPE_ES,
 )
 
 
@@ -177,3 +179,74 @@ class RecordCountDialog(FormDialog):
 
     def counted_quantity(self):
         return self.quantity.decimal_value()
+
+
+class CreateWarehouseDialog(FormDialog):
+    """Alta de almacén (§12): código, nombre y tipo. Sin ubicaciones técnicas
+    aquí — eso lo hace el aprovisionamiento por defecto (P0-E) cuando aplica;
+    esta alta manual es para almacenes adicionales con nombre propio."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent, title="Nuevo almacén")
+        self.code_input = StandardLineEdit(self, placeholder="Código (p.ej. WH-002)")
+        self.name_input = StandardLineEdit(self, placeholder="Nombre")
+        self.type_combo = QComboBox(self)
+        for code, label in WAREHOUSE_TYPE_ES.items():
+            self.type_combo.addItem(label, code)
+        self.form.addRow("Código:", self.code_input)
+        self.form.addRow("Nombre:", self.name_input)
+        self.form.addRow("Tipo:", self.type_combo)
+        self.add_button_box(ok_text="Crear almacén")
+
+    def code(self) -> str:
+        return self.code_input.value()
+
+    def name(self) -> str:
+        return self.name_input.value()
+
+    def warehouse_type(self) -> str:
+        return str(self.type_combo.currentData() or "")
+
+
+class CreateLocationDialog(FormDialog):
+    """Alta de ubicación (§12): código, nombre y nivel. ``parent_label`` — si
+    se abrió desde el menú contextual de una ubicación existente — deja claro
+    que se está creando una sub-ubicación, no una raíz nueva."""
+
+    def __init__(self, parent=None, *, parent_label: str | None = None) -> None:
+        title = (f"Nueva sub-ubicación de «{parent_label}»" if parent_label
+                 else "Nueva ubicación")
+        super().__init__(parent, title=title)
+        self.code_input = StandardLineEdit(self, placeholder="Código (p.ej. A1)")
+        self.name_input = StandardLineEdit(self, placeholder="Nombre")
+        self.level_spin = QSpinBox(self)
+        self.level_spin.setRange(0, 10)
+        self.form.addRow("Código:", self.code_input)
+        self.form.addRow("Nombre:", self.name_input)
+        self.form.addRow("Nivel:", self.level_spin)
+        self.add_button_box(ok_text="Crear ubicación")
+
+    def code(self) -> str:
+        return self.code_input.value()
+
+    def name(self) -> str:
+        return self.name_input.value()
+
+    def level(self) -> int:
+        return self.level_spin.value()
+
+
+class BlockReasonDialog(FormDialog):
+    """Motivo de bloqueo — reutilizado por Almacenes y Ubicaciones: ambos
+    bloquean por el mismo tipo de razón operativa (mantenimiento, cierre,
+    incidente) y no ameritan dos clases casi idénticas."""
+
+    def __init__(self, parent=None, *, title: str = "Bloquear") -> None:
+        super().__init__(parent, title=title)
+        self.reason_input = StandardTextArea(self, placeholder="Motivo del bloqueo…")
+        self.reason_input.setMaximumHeight(90)
+        self.form.addRow("Motivo:", self.reason_input)
+        self.add_button_box(ok_text="Bloquear")
+
+    def reason(self) -> str:
+        return self.reason_input.value()

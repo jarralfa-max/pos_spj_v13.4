@@ -29,6 +29,7 @@ from backend.application.inventory.use_cases import (
     CreateAdjustmentFromCountUseCase,
     CreateAdjustmentUseCase,
     CreateCountUseCase,
+    CreateLocationUseCase,
     CreateReservationUseCase,
     CreateWarehouseUseCase,
     DisposeQuarantineUseCase,
@@ -44,6 +45,8 @@ from backend.application.inventory.use_cases import (
     ReleaseReservationUseCase,
     ReverseAdjustmentUseCase,
     ReverseInventoryMovementUseCase,
+    SetLocationStatusUseCase,
+    SetWarehouseStatusUseCase,
 )
 from backend.domain.inventory.exceptions import InventoryConfigurationError
 
@@ -180,6 +183,15 @@ class InventoryUseCaseFactory:
 
     def create_warehouse(self, **kw):
         return self.build(CreateWarehouseUseCase, **kw)
+
+    def set_warehouse_status(self, **kw):
+        return self.build(SetWarehouseStatusUseCase, **kw)
+
+    def create_location(self, **kw):
+        return self.build(CreateLocationUseCase, **kw)
+
+    def set_location_status(self, **kw):
+        return self.build(SetLocationStatusUseCase, **kw)
 
     def provision_default_warehouse(self, **kw):
         return self.build(ProvisionDefaultWarehouseUseCase, **kw)

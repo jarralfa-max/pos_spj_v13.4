@@ -61,6 +61,8 @@ class InventoryPresenter:
                  create_count_uc=None, record_count_uc=None,
                  confirm_count_uc=None, approve_count_uc=None,
                  create_adjustment_from_count_uc=None,
+                 create_warehouse_uc=None, set_warehouse_status_uc=None,
+                 create_location_uc=None, set_location_status_uc=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -97,6 +99,10 @@ class InventoryPresenter:
         self._confirm_count_uc = confirm_count_uc
         self._approve_count_uc = approve_count_uc
         self._create_adjustment_from_count_uc = create_adjustment_from_count_uc
+        self._create_warehouse_uc = create_warehouse_uc
+        self._set_warehouse_status_uc = set_warehouse_status_uc
+        self._create_location_uc = create_location_uc
+        self._set_location_status_uc = set_location_status_uc
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -152,6 +158,24 @@ class InventoryPresenter:
         return [SearchOption(id=r.get("id"), label=f"{r.get('code')} — {r.get('name')}",
                              subtitle=str(r.get("status") or ""))
                 for r in rows if str(r.get("status") or "ACTIVE") == "ACTIVE"]
+
+    def warehouse_options(self, *, branch_id: str | None = None):
+        """Almacenes de la sucursal, para selects acotados (p.ej. el picker de
+        la página de Ubicaciones, que no tiene forma de elegir almacén hoy)."""
+        from frontend.desktop.components.search_selector import SearchOption
+        if self._warehouse_factory is None:
+            return []
+        branch = branch_id or self.default_branch()
+        if not branch:
+            return []
+        try:
+            rows = self._warehouse_factory(self._conn()).list_warehouses(branch_id=branch)
+        except Exception:
+            logger.exception("InventoryPresenter.warehouse_options failed")
+            return []
+        return [SearchOption(id=r.get("id"), label=f"{r.get('code')} — {r.get('name')}",
+                             subtitle=str(r.get("status") or ""))
+                for r in rows]
 
     # reads -------------------------------------------------------------------
     def availability(self, *, product_ids: list[str], branch_id: str | None = None,
@@ -790,4 +814,106 @@ class InventoryPresenter:
             return bool(result.success), message, data
         except Exception:
             logger.exception("InventoryPresenter.generate_adjustment_from_count failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def create_warehouse(self, *, code: str, name: str, warehouse_type: str,
+                         branch_id: str | None = None) -> tuple[bool, str, dict]:
+        """Alta de almacén (§12): la página de Almacenes no tenía forma de
+        crear uno — la única vía era el script de provisión (P0-E)."""
+        if self._create_warehouse_uc is None:
+            return False, "Creación de almacenes no disponible.", {}
+        code_v = str(code or "").strip()
+        name_v = str(name or "").strip()
+        if not code_v or not name_v:
+            return False, "Captura código y nombre.", {}
+        try:
+            from backend.domain.inventory.enums import WarehouseType
+            type_enum = WarehouseType(str(warehouse_type))
+        except ValueError:
+            return False, "Tipo de almacén inválido.", {}
+        branch = branch_id or self.default_branch()
+        try:
+            result = self._create_warehouse_uc.execute(
+                self._conn(), code=code_v, name=name_v, branch_id=branch,
+                warehouse_type=type_enum, actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.create_warehouse failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def set_warehouse_status(self, *, warehouse_id: str, activate: bool,
+                             reason: str = "") -> tuple[bool, str, dict]:
+        if self._set_warehouse_status_uc is None:
+            return False, "Cambio de estado de almacén no disponible.", {}
+        wid = str(warehouse_id or "").strip()
+        if not wid:
+            return False, "Selecciona un almacén.", {}
+        try:
+            result = self._set_warehouse_status_uc.execute(
+                self._conn(), warehouse_id=wid, activate=bool(activate),
+                actor_user_id=self._actor(), reason=str(reason or "").strip())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.set_warehouse_status failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def create_location(self, *, warehouse_id: str, code: str, name: str,
+                        level: int = 0,
+                        parent_location_id: str | None = None) -> tuple[bool, str, dict]:
+        """Alta de ubicación (§12), opcionalmente como sub-ubicación de otra
+        (jerarquía pasillo → rack → nivel → posición)."""
+        if self._create_location_uc is None:
+            return False, "Creación de ubicaciones no disponible.", {}
+        wid = str(warehouse_id or "").strip()
+        if not wid:
+            return False, "Selecciona un almacén.", {}
+        code_v = str(code or "").strip()
+        name_v = str(name or "").strip()
+        if not code_v or not name_v:
+            return False, "Captura código y nombre.", {}
+        try:
+            result = self._create_location_uc.execute(
+                self._conn(), warehouse_id=wid, code=code_v, name=name_v,
+                level=int(level or 0),
+                parent_location_id=str(parent_location_id or "").strip() or None,
+                actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.create_location failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def set_location_status(self, *, location_id: str, activate: bool,
+                            reason: str = "") -> tuple[bool, str, dict]:
+        if self._set_location_status_uc is None:
+            return False, "Cambio de estado de ubicación no disponible.", {}
+        lid = str(location_id or "").strip()
+        if not lid:
+            return False, "Selecciona una ubicación.", {}
+        try:
+            result = self._set_location_status_uc.execute(
+                self._conn(), location_id=lid, activate=bool(activate),
+                actor_user_id=self._actor(), reason=str(reason or "").strip())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.set_location_status failed")
             return False, "Error inesperado; revise el log.", {}
