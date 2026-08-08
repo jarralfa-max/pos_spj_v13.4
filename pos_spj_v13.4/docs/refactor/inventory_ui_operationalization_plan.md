@@ -947,3 +947,102 @@ completados):**
   caducidad visibles, vía `LotQueryService.list_for_product`, ya ordenado
   FEFO) cuando `lot_controlled` sea verdadero — en vez de dejar el lote
   como un campo opcional sin contexto.
+
+### Slice 12 — P0-E: Compras→Inventario, gate real de inspección — HECHO
+
+El usuario pidió P0-E con 5 flujos de integración entre módulos (Ventas,
+Compras, Producción, Transferencias, Merma). Dado que el tamaño de cada
+brecha varía enormemente (de "cablear un caso de uso" a "poner en
+producción todo un bounded context"), se auditó primero con un agente en
+segundo plano y se preguntó al usuario cuál cerrar primero
+(`AskUserQuestion`) en vez de asumir prioridad. Eligió **Compras: activar
+el gate de inspección**.
+
+**El hallazgo que cambió el plan inicial:** la hipótesis de partida era
+que `SetLotQualityStatusUseCase` ya podía liberar una recepción retenida —
+sólo faltaba cablearla. Leer `lot_quality_projection.py` y
+`inventory_lot.py` completos mostró que son **dos dimensiones de
+"pendiente" totalmente distintas**: `LotQualityStatus.PENDING_INSPECTION`
+es un valor de metadato de lote que `PHYSICAL_BUCKET` mapea a
+`InventoryStatus.AVAILABLE` (un lote es vendible por defecto aunque su
+metadato diga "pendiente"), mientras que `InventoryStatus
+.PENDING_INSPECTION` es un bucket físico real de balance al que
+`PurchaseReceiptHandler` puede enrutar existencia vía un flag
+`quality_hold`. `SetLotQualityStatusUseCase` sólo opera sobre la primera
+dimensión — no puede tocar la segunda. Por eso hizo falta un caso de uso
+nuevo, no cablear uno existente.
+
+**Además, el propio gate estaba muerto:** `grep -rn "quality_hold"`
+confirmó que **ningún** productor del evento de recepción seteaba ese
+flag jamás — toda recepción aterrizaba en `AVAILABLE` de inmediato sin
+importar el perfil de calidad del producto.
+
+**Cambios:**
+- `InspectReceiptUseCase` (nuevo,
+  `backend/application/inventory/use_cases/inspect_receipt.py`): aprueba
+  (→ `AVAILABLE`) o rechaza (→ `QUALITY_BLOCKED`) un balance identificado
+  por su `inventory_balances.id` real — reutiliza los permisos ya
+  existentes pero huérfanos `InventoryPermissions.QUALITY_BLOCK` /
+  `QUALITY_RELEASE`. Postea un movimiento canónico (`QUALITY_RELEASE` /
+  `QUALITY_BLOCK`) y deja auditoría (`uow.audit.record`).
+- `InventoryBalanceRepository.get_by_id(balance_id)` (nuevo) — antes sólo
+  existía `get()` por clave compuesta; hacía falta buscar por el `id`
+  sintético de la fila para poder actuar sobre ella desde la UI.
+- `PurchaseReceiptHandler._receipt_status` (antes `@staticmethod`, ahora
+  método de instancia): si no hay `to_status` explícito ni `quality_hold`
+  en la línea/payload, ahora pregunta a Productos
+  (`QualityProductConfigQueryService.inspection_required`, §34, lectura
+  cruzada permitida) si el producto requiere inspección — fail-closed a
+  `AVAILABLE` si esa lectura falla (una lectura cruzada rota nunca debe
+  bloquear una recepción).
+- `StockQueryService.list_on_hand`: antes no seleccionaba `id` — usaba un
+  row_id sintético en la UI (`f"{product}:{warehouse}:{status}:{i}"`),
+  el mismo patrón de bug ya corregido en Cuarentena/Ajustes/Conteos en
+  slices anteriores. Ahora selecciona `id`/`branch_id`/`location_id`/
+  `lot_id` y `stock_table` usa el `id` real como row_id.
+- `StockPage` (antes de sólo lectura, 44 líneas): ahora tiene botones
+  "Aprobar inspección"/"Rechazar inspección", habilitados sólo sobre una
+  fila cuyo estado sea "Por inspección" (`_selected_pending_balance_id`
+  valida esto en vez de confiar en la selección). Aprobar pide
+  confirmación (`ConfirmationDialog`); rechazar pide motivo
+  (`BlockReasonDialog`, generalizado con un parámetro `ok_text` para no
+  duplicar la clase sólo por el texto del botón).
+- `InventoryPresenter.inspect_stock(balance_id, passed, reason)` — nuevo
+  comando, mismo contrato `(bool, str, dict)` que el resto; refresca vía
+  `self._dispatch()` tras éxito.
+- Cableado completo en `composition.py` (`factory.inspect_receipt()`) y
+  `modulos/inventario_enterprise.py` (ambas ramas, con/sin sesión).
+
+**Evidencia:**
+- `tests/integration/inventory/test_inventory_purchase_inspection.py`
+  (nuevo, 18 tests): `TestReceiptRoutesToInspection` (perfil con
+  inspección → `PENDING_INSPECTION`; sin perfil → `AVAILABLE`; flag
+  explícito `quality_hold` sobrepone el perfil; tabla de perfil de calidad
+  ausente degrada a `AVAILABLE` sin lanzar), `TestInspectReceiptUseCase`
+  (aprobar/rechazar mueven el balance; balance inexistente falla;
+  balance que no está pendiente falla; permiso denegado/permitido),
+  `TestPresenterInspectStock` (aprobar, rechazar con motivo, sin selección,
+  caso de uso no cableado), `TestStockPageInspectionActions` (botón
+  aprobar/rechazar mueven la fila en la tabla; no se puede inspeccionar
+  una fila que ya está disponible; exige selección antes de actuar).
+- Inventario completo: `2 failed / 719 passed` (los mismos 2
+  pre-existentes de `test_legacy_reader_repoints.py`, +18 nuevos).
+- Arquitectura completa desde la raíz del repo: `29 failed / 534 passed`
+  (línea base sin cambios).
+- Regresión verificada sin cambios:
+  `test_inventory_procurement_integration.py`,
+  `test_purchase_stock_entry_flip.py`,
+  `test_inventory_legacy_lot_writes_retired.py`,
+  `tests/integration/procurement/test_pipeline_end_to_end.py` — 24
+  passed.
+
+**Explícitamente fuera de esta slice (P0-E, 4 flujos restantes, sin
+empezar — el usuario decide el orden en la siguiente instrucción):**
+- **Ventas** — reservar/validar disponibilidad antes de `SALE_ISSUE`.
+- **Producción** — merma explícita + genealogía de lotes en el consumo.
+- **Transferencias** — `CanonicalInventoryTransferGateway` existe pero
+  nunca se instancia en producción; sólo un workspace de sólo lectura está
+  cableado en `transfers_factory.py`.
+- **Refresco reactivo de UI** — `InventoryUiEventBridge` no existe en el
+  código; el `event_dispatcher` del presenter nunca se cablea a nada en
+  `modulos/inventario_enterprise.py` (siempre `None` en producción).

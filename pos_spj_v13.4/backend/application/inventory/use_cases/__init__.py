@@ -65,6 +65,9 @@ from backend.application.inventory.use_cases.warehouse_use_cases import (
     SetLocationStatusUseCase,
     SetWarehouseStatusUseCase,
 )
+from backend.application.inventory.use_cases.inspect_receipt import (
+    InspectReceiptUseCase,
+)
 
 __all__ = [
     "AllocateReservationUseCase",
@@ -81,6 +84,7 @@ __all__ = [
     "DisposeQuarantineUseCase",
     "ExpireInventoryUseCase",
     "GenerateExpiryAlertsUseCase",
+    "InspectReceiptUseCase",
     "GenerateReplenishmentSuggestionsUseCase",
     "PostAdjustmentUseCase",
     "PostInventoryMovementUseCase",

@@ -80,6 +80,7 @@ class ModuloInventarioEnterprise(QWidget):
             CreateWarehouseUseCase,
             DisposeQuarantineUseCase,
             GenerateReplenishmentSuggestionsUseCase,
+            InspectReceiptUseCase,
             PostAdjustmentUseCase,
             QuarantineStockUseCase,
             RecordCountUseCase,
@@ -118,6 +119,7 @@ class ModuloInventarioEnterprise(QWidget):
             set_warehouse_status_uc = factory.set_warehouse_status()
             create_location_uc = factory.create_location()
             set_location_status_uc = factory.set_location_status()
+            inspect_receipt_uc = factory.inspect_receipt()
         else:
             generate_uc = GenerateReplenishmentSuggestionsUseCase()
             release_quarantine_uc = ReleaseQuarantineUseCase()
@@ -136,6 +138,7 @@ class ModuloInventarioEnterprise(QWidget):
             set_warehouse_status_uc = SetWarehouseStatusUseCase()
             create_location_uc = CreateLocationUseCase()
             set_location_status_uc = SetLocationStatusUseCase()
+            inspect_receipt_uc = InspectReceiptUseCase()
 
         return InventoryPresenter(
             connection_provider=lambda: conn,
@@ -177,5 +180,6 @@ class ModuloInventarioEnterprise(QWidget):
             set_warehouse_status_uc=set_warehouse_status_uc,
             create_location_uc=create_location_uc,
             set_location_status_uc=set_location_status_uc,
+            inspect_receipt_uc=inspect_receipt_uc,
             session_context=session,
         )

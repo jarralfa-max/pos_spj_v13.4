@@ -63,6 +63,7 @@ class InventoryPresenter:
                  create_adjustment_from_count_uc=None,
                  create_warehouse_uc=None, set_warehouse_status_uc=None,
                  create_location_uc=None, set_location_status_uc=None,
+                 inspect_receipt_uc=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -103,6 +104,7 @@ class InventoryPresenter:
         self._set_warehouse_status_uc = set_warehouse_status_uc
         self._create_location_uc = create_location_uc
         self._set_location_status_uc = set_location_status_uc
+        self._inspect_receipt_uc = inspect_receipt_uc
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -971,4 +973,30 @@ class InventoryPresenter:
             return bool(result.success), result.message, self._result_data(result)
         except Exception:
             logger.exception("InventoryPresenter.set_location_status failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def inspect_stock(self, *, balance_id: str, passed: bool,
+                      reason: str = "") -> tuple[bool, str, dict]:
+        """Aprueba o rechaza una existencia retenida en inspección (§P0-E,
+        integración Compras→Inventario): antes de este comando, nada podía
+        sacar el stock del bucket PENDING_INSPECTION — la maquinaria de
+        calidad de lotes opera sobre un bucket distinto."""
+        if self._inspect_receipt_uc is None:
+            return False, "Inspección de existencias no disponible.", {}
+        bid = str(balance_id or "").strip()
+        if not bid:
+            return False, "Selecciona una existencia pendiente de inspección.", {}
+        try:
+            result = self._inspect_receipt_uc.execute(
+                self._conn(), balance_id=bid, passed=bool(passed),
+                operation_id=new_uuid(), actor_user_id=self._actor(),
+                reason=str(reason or "").strip())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.inspect_stock failed")
             return False, "Error inesperado; revise el log.", {}

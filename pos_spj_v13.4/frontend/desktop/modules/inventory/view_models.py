@@ -587,11 +587,11 @@ def quarantine_table(rows: list[dict]) -> TableViewModel:
 
 def stock_table(rows: list[dict]) -> TableViewModel:
     """rows: on-hand balance rows (list_on_hand) → display table (producto,
-    almacén, estado/bucket, cantidad, reservado)."""
+    almacén, estado/bucket, cantidad, reservado). row_ids carry the real
+    balance id (§P0-E: needed to act on a PENDING_INSPECTION row)."""
     out, ids = [], []
-    for i, r in enumerate(rows):
-        ids.append(f"{r.get('product_id','')}:{r.get('warehouse_id','')}:"
-                   f"{r.get('inventory_status','')}:{i}")
+    for r in rows:
+        ids.append(str(r.get("id") or ""))
         out.append([
             product_label(r),
             str(r.get("warehouse_id") or "—"),

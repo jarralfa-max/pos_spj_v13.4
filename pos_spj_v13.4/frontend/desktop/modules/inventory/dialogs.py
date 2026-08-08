@@ -237,16 +237,18 @@ class CreateLocationDialog(FormDialog):
 
 
 class BlockReasonDialog(FormDialog):
-    """Motivo de bloqueo — reutilizado por Almacenes y Ubicaciones: ambos
-    bloquean por el mismo tipo de razón operativa (mantenimiento, cierre,
-    incidente) y no ameritan dos clases casi idénticas."""
+    """Motivo de bloqueo — reutilizado por Almacenes, Ubicaciones e
+    Inspección: todos bloquean/rechazan por el mismo tipo de razón operativa
+    (mantenimiento, cierre, incidente, falla de calidad) y no ameritan
+    varias clases casi idénticas."""
 
-    def __init__(self, parent=None, *, title: str = "Bloquear") -> None:
+    def __init__(self, parent=None, *, title: str = "Bloquear",
+                 ok_text: str = "Bloquear") -> None:
         super().__init__(parent, title=title)
         self.reason_input = StandardTextArea(self, placeholder="Motivo del bloqueo…")
         self.reason_input.setMaximumHeight(90)
         self.form.addRow("Motivo:", self.reason_input)
-        self.add_button_box(ok_text="Bloquear")
+        self.add_button_box(ok_text=ok_text)
 
     def reason(self) -> str:
         return self.reason_input.value()

@@ -35,6 +35,11 @@ def _to_entity(row: dict) -> InventoryBalance:
 
 
 class InventoryBalanceRepository(InventoryRepositoryBase):
+    def get_by_id(self, balance_id: str) -> InventoryBalance | None:
+        row = self._query_one(
+            "SELECT * FROM inventory_balances WHERE id=?", (balance_id,))
+        return _to_entity(row) if row else None
+
     def get(self, *, product_id: str, branch_id: str, warehouse_id: str,
             inventory_status: InventoryStatus = InventoryStatus.AVAILABLE,
             location_id: str | None = None, lot_id: str | None = None,

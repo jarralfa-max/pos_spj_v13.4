@@ -34,6 +34,7 @@ from backend.application.inventory.use_cases import (
     CreateWarehouseUseCase,
     DisposeQuarantineUseCase,
     GenerateReplenishmentSuggestionsUseCase,
+    InspectReceiptUseCase,
     PostAdjustmentUseCase,
     PostInventoryMovementUseCase,
     ProvisionDefaultWarehouseUseCase,
@@ -195,6 +196,9 @@ class InventoryUseCaseFactory:
 
     def provision_default_warehouse(self, **kw):
         return self.build(ProvisionDefaultWarehouseUseCase, **kw)
+
+    def inspect_receipt(self, **kw):
+        return self.build(InspectReceiptUseCase, **kw)
 
     def generate_replenishment_suggestions(self, **kw):
         return self.build(GenerateReplenishmentSuggestionsUseCase, **kw)

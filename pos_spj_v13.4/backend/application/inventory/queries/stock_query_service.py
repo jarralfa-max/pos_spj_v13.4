@@ -17,9 +17,11 @@ class StockQueryService(InventoryRepositoryBase):
     def list_on_hand(self, *, branch_id: str | None = None,
                      limit: int = 500) -> list[dict]:
         """On-hand balances (quantity or weight ≠ 0), ordered by product then
-        warehouse. Rows carry product, warehouse, bucket status and quantity."""
-        cols = ("product_id, warehouse_id, inventory_status, quantity, weight,"
-                " reserved_quantity")
+        warehouse. Rows carry the real balance id (§P0-E: needed to act on a
+        row — e.g. inspect a PENDING_INSPECTION bucket — not just display it),
+        branch/location/lot, bucket status and quantity."""
+        cols = ("id, product_id, branch_id, warehouse_id, location_id, lot_id,"
+                " inventory_status, quantity, weight, reserved_quantity")
         lim = max(1, int(limit))
         where = "(quantity <> '0' OR weight <> '0')"
         params: tuple = ()
@@ -31,8 +33,9 @@ class StockQueryService(InventoryRepositoryBase):
             " ORDER BY product_id, warehouse_id, inventory_status LIMIT ?",
             params + (lim,))
         return [{
-            "product_id": r["product_id"], "warehouse_id": r["warehouse_id"],
-            "inventory_status": r["inventory_status"],
+            "id": r["id"], "product_id": r["product_id"], "branch_id": r["branch_id"],
+            "warehouse_id": r["warehouse_id"], "location_id": r["location_id"],
+            "lot_id": r["lot_id"], "inventory_status": r["inventory_status"],
             "quantity": to_decimal(r["quantity"]),
             "reserved_quantity": to_decimal(r["reserved_quantity"]),
         } for r in rows]

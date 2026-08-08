@@ -103,7 +103,7 @@ class PurchaseReceiptHandler:
             product_id=product_id, quantity=ln.get("quantity", 0),
             weight=ln.get("weight", 0), unit=ln.get("unit", "PZA"), lot_id=lot_id,
             to_location_id=ln.get("to_location_id") or ln.get("location_id"),
-            to_status=self._receipt_status(ln, quality_hold),
+            to_status=self._receipt_status(ln, quality_hold, product_id=product_id),
             unit_cost=ln.get("unit_cost"), reason_code=ln.get("reason_code"))
 
     def _ensure_lot(self, *, product_id: str, lot_code: str, ln: dict,
@@ -118,14 +118,33 @@ class PurchaseReceiptHandler:
             origin_document_id=document_id or None, branch_id=branch_id)
         return res.entity_id if res.success else None
 
-    @staticmethod
-    def _receipt_status(ln: dict, quality_hold: bool) -> InventoryStatus:
+    def _receipt_status(self, ln: dict, quality_hold: bool, *,
+                        product_id: str) -> InventoryStatus:
         status = ln.get("to_status")
         if status:
             return InventoryStatus(status)
         if ln.get("quality_hold") or quality_hold:
             return InventoryStatus.PENDING_INSPECTION
+        if self._requires_inspection(product_id):
+            return InventoryStatus.PENDING_INSPECTION
         return InventoryStatus.AVAILABLE
+
+    def _requires_inspection(self, product_id: str) -> bool:
+        """§P0-E: nobody ever set an explicit ``quality_hold`` flag on a
+        receipt payload, so the gate was dead code — every receipt landed
+        AVAILABLE immediately regardless of the product's own quality
+        profile. This asks Products directly (§34, read-only, never the
+        other way around) whether the product requires inspection."""
+        try:
+            from backend.application.products.queries.integration_query_services import (
+                QualityProductConfigQueryService,
+            )
+            config = QualityProductConfigQueryService(self._conn).get(product_id)
+        except Exception:
+            logger.exception("purchase receipt: no se pudo leer el perfil de "
+                             "calidad de %s; se asume sin inspección", product_id)
+            return False
+        return bool(config and config.inspection_required)
 
 
 class DirectPurchaseReceiptHandler(PurchaseReceiptHandler):
