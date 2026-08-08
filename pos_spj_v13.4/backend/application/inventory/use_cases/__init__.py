@@ -55,6 +55,9 @@ from backend.application.inventory.use_cases.rebuild_inventory_balances import (
     RebuildInventoryBalancesUseCase,
     ValidateInventoryProjectionUseCase,
 )
+from backend.application.inventory.use_cases.provision_default_warehouse import (
+    ProvisionDefaultWarehouseUseCase,
+)
 from backend.application.inventory.use_cases.warehouse_use_cases import (
     CreateLocationUseCase,
     CreateWarehouseUseCase,
@@ -81,6 +84,7 @@ __all__ = [
     "GenerateReplenishmentSuggestionsUseCase",
     "PostAdjustmentUseCase",
     "PostInventoryMovementUseCase",
+    "ProvisionDefaultWarehouseUseCase",
     "QuarantineStockUseCase",
     "RecordCountUseCase",
     "RegisterTraceabilityLinkUseCase",

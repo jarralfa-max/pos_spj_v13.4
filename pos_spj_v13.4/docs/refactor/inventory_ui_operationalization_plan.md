@@ -54,11 +54,20 @@ un botón nuevo mutaría con identidad o alcance incorrectos).
    (`create_/approve_/post_/reverse_adjustment`), diálogos y botones en
    `AdjustmentsPage` — el mismo patrón que Cuarentena, retomar cuando se
    continúe P0-C.
-5. P0-E: integración entre módulos (refresco por eventos tras venta/compra/
-   producción; auditar y corregir `warehouse_id=branch_id` en los bridges de
-   Ventas/Compras/Producción — el propio audit señala que ahí también existe).
-   **← siguiente, en curso.**
-6. P1: `InventoryUiEventBridge` (refresco reactivo) + pruebas de workflow por
+5. ~~P0-E, parte 1 (prerrequisito) — `ProvisionDefaultWarehouseUseCase`~~ —
+   **HECHO (slice 5, abajo)**. Antes de tocar los bridges se confirmó que
+   ninguna sucursal tiene almacén real (ninguna migración/seed lo crea, la UI
+   de Almacenes no tiene alta) — repuntar los bridges sin esto habría roto
+   ventas/producción/compras en el acto. Se construyó el caso de uso +
+   script idempotentes que provisionan un almacén CENTRAL con ubicaciones
+   técnicas por sucursal. **No se ejecutó contra ninguna base real** —
+   requiere `--apply` explícito y un `--actor-user-id` real.
+6. **P0-E, parte 2 — repuntar los 3 bridges** (`sale_items_bridge.py`,
+   `production_items_bridge.py`, `purchase_stock_entry_bridge.py`) para
+   resolver almacén/ubicación reales en vez de `branch_id` — **pendiente,
+   bloqueado hasta correr el script de la parte 1 contra la base real** (o
+   decidir un fallback in-bridge que auto-provisione la primera vez).
+7. P1: `InventoryUiEventBridge` (refresco reactivo) + pruebas de workflow por
    página (no solo de tablas).
 
 ## 2. Slices ejecutados
@@ -354,3 +363,74 @@ cantidad con signo, una sola línea por envío como en Cuarentena),
 composition root — wireado vía `factory.create_adjustment()` etc.; página —
 botones "Nuevo ajuste"/"Aprobar"/"Postear"/"Reversar" con diálogos
 (reutilizando `OpenQuarantineDialog`/`DisposeQuarantineDialog` como plantilla).
+
+### Slice 5 — P0-E parte 1: prerrequisito de provisión de almacén — HECHO
+
+**Investigación antes de tocar código (evitó una regresión grave):** el
+hallazgo P0-06 del audit ("warehouse_id=branch_id en los bridges de Ventas/
+Producción/Compras") no es un descuido aislado — es la única razón por la que
+esos tres flujos funcionan hoy. Se confirmó por grep exhaustivo que:
+
+- Ningún archivo de `migrations/`, `scripts/bootstrap_db.py` ni
+  `scripts/seed_demo.py` crea jamás una fila en `warehouses`.
+- La página "Almacenes" (§7.4 del audit) no tiene botón de alta — nadie ha
+  podido crear un almacén nunca desde la UI.
+- Por lo tanto, en el estado real/sembrado del sistema, **ninguna sucursal
+  tiene almacén**, y `sale_items_bridge.py`/`production_items_bridge.py`/
+  `purchase_stock_entry_bridge.py` sustituyen `branch_id` por `warehouse_id`
+  (y por `location_id`) como único modo de que la venta/producción/compra no
+  falle.
+
+Repuntar esos tres bridges para resolver un almacén real —sin que exista
+ninguno— habría bloqueado toda venta, producción y compra de inmediato: la
+violación exacta de PRIORIDAD 0 en la dirección contraria. Se preguntó al
+usuario cómo proceder; eligió **provisionar primero, repuntar después** (dos
+slices separadas).
+
+**Esta slice (parte 1) construye únicamente el prerrequisito — no toca
+ningún bridge todavía:**
+
+- `backend/application/inventory/use_cases/provision_default_warehouse.py`
+  (nuevo) — `ProvisionDefaultWarehouseUseCase`: dado un `branch_id`,
+  idempotentemente (por código determinístico `WH-DEFAULT-{branch_id}`,
+  la misma clave de idempotencia que `CreateWarehouseUseCase` ya verifica)
+  crea un almacén `CENTRAL` con las 4 banderas de asignación activas
+  (`allow_sales_allocation`, `allow_purchase_receipt`, `allow_production`,
+  `allow_quarantine` — debe servir a los tres bridges por igual) y llama a
+  `EnsureTechnicalLocationsUseCase` (§8, ya existía) para sembrar sus 8
+  ubicaciones técnicas reales.
+- `backend/application/inventory/composition.py` — se agregaron los builders
+  `create_warehouse()` y `provision_default_warehouse()` al factory (junto
+  con el import de `CreateWarehouseUseCase`/`ProvisionDefaultWarehouseUseCase`)
+  — el factory no tenía **ningún** builder relacionado con almacenes hasta
+  ahora, un vacío que también es parte del hallazgo P0-B del audit para la
+  página de Almacenes (no tocada en esta slice, solo se habilitó su
+  prerrequisito de composition root).
+- `scripts/provision_default_warehouses.py` (nuevo) — mismo patrón que
+  `reconcile_inventory.py`: modo reporte por default (lista sucursales
+  activas sin almacén), `--apply` para escribir, `--actor-user-id` **requerido
+  explícitamente** (nunca fabricado — ni "system" ni "admin" por default).
+  Probado manualmente extremo a extremo contra una BD sintética temporal
+  (2 sucursales → 2 almacenes + 16 ubicaciones técnicas; segunda corrida
+  confirma cero duplicados) — **no se ejecutó contra ninguna base real**.
+
+**Evidencia:**
+- `tests/integration/inventory/test_provision_default_warehouse.py` (8,
+  nuevo): crea almacén con id distinto de `branch_id` (real UUIDv7); siembra
+  las 8 ubicaciones técnicas (ids distintos del almacén); segunda llamada es
+  idempotente (mismo almacén, `already_existed=True`, cero duplicados);
+  sucursales distintas obtienen almacenes distintos; falla sin `branch_id`;
+  reconoce un almacén creado manualmente con el mismo código determinístico
+  (no lo duplica); el factory construye ambos use cases nuevos.
+- Inventario completo: `2 failed / 602 passed` (2 pre-existentes, +8 nuevos).
+- Arquitectura completa desde la raíz del repo: `29 failed / 534 passed`
+  (línea base sin cambios; confirmado que la falla de
+  `test_no_create_or_alter_table_outside_migrations` es de
+  `product_attributes`/`supplier_master`/`stock_transfers` — archivos ajenos,
+  no tocados aquí).
+
+**Explícitamente fuera de esta slice:** repuntar los 3 bridges (parte 2,
+bloqueada hasta correr el script contra la base real o decidir un
+auto-aprovisionamiento in-bridge); UI de Almacenes con acción de alta
+(compartiría estos mismos builders del factory, pero es una página P0-C
+aparte).

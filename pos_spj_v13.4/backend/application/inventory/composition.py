@@ -29,10 +29,12 @@ from backend.application.inventory.use_cases import (
     CreateAdjustmentUseCase,
     CreateCountUseCase,
     CreateReservationUseCase,
+    CreateWarehouseUseCase,
     DisposeQuarantineUseCase,
     GenerateReplenishmentSuggestionsUseCase,
     PostAdjustmentUseCase,
     PostInventoryMovementUseCase,
+    ProvisionDefaultWarehouseUseCase,
     QuarantineStockUseCase,
     RecordTemperatureReadingUseCase,
     RegisterWasteUseCase,
@@ -167,6 +169,12 @@ class InventoryUseCaseFactory:
 
     def record_temperature_reading(self, **kw):
         return self.build(RecordTemperatureReadingUseCase, **kw)
+
+    def create_warehouse(self, **kw):
+        return self.build(CreateWarehouseUseCase, **kw)
+
+    def provision_default_warehouse(self, **kw):
+        return self.build(ProvisionDefaultWarehouseUseCase, **kw)
 
     def generate_replenishment_suggestions(self, **kw):
         return self.build(GenerateReplenishmentSuggestionsUseCase, **kw)
