@@ -80,7 +80,9 @@ class QuarantinePage(QWidget):
         return qid
 
     def _on_open(self) -> None:
-        dlg = OpenQuarantineDialog(self, product_provider=self._presenter.product_options)
+        dlg = OpenQuarantineDialog(
+            self, product_provider=self._presenter.product_options,
+            location_options=self._presenter.location_options())
         if dlg.exec_() != QDialog.Accepted:
             return
         product_id = dlg.product_id()
@@ -93,7 +95,7 @@ class QuarantinePage(QWidget):
             return
         ok, message, _ = self._presenter.open_quarantine(
             product_id=product_id, reason=dlg.reason_code(), quantity=quantity,
-            reason_note=dlg.note())
+            location_id=dlg.location_id(), reason_note=dlg.note())
         (QMessageBox.information if ok else QMessageBox.warning)(
             self, "Cuarentena", message)
         if ok:

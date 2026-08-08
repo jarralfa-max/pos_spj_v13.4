@@ -56,6 +56,11 @@ class InventoryPresenter:
                  alert_query_factory=None, settings_query_factory=None,
                  release_quarantine_uc=None, dispose_quarantine_uc=None,
                  open_quarantine_uc=None, product_query_factory=None,
+                 create_adjustment_uc=None, approve_adjustment_uc=None,
+                 post_adjustment_uc=None, reverse_adjustment_uc=None,
+                 create_count_uc=None, record_count_uc=None,
+                 confirm_count_uc=None, approve_count_uc=None,
+                 create_adjustment_from_count_uc=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -83,6 +88,15 @@ class InventoryPresenter:
         self._dispose_quarantine_uc = dispose_quarantine_uc
         self._open_quarantine_uc = open_quarantine_uc
         self._product_factory = product_query_factory
+        self._create_adjustment_uc = create_adjustment_uc
+        self._approve_adjustment_uc = approve_adjustment_uc
+        self._post_adjustment_uc = post_adjustment_uc
+        self._reverse_adjustment_uc = reverse_adjustment_uc
+        self._create_count_uc = create_count_uc
+        self._record_count_uc = record_count_uc
+        self._confirm_count_uc = confirm_count_uc
+        self._approve_count_uc = approve_count_uc
+        self._create_adjustment_from_count_uc = create_adjustment_from_count_uc
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -117,6 +131,27 @@ class InventoryPresenter:
             return []
         return [SearchOption(id=r.id, label=r.label, subtitle=r.subtitle)
                 for r in results]
+
+    def location_options(self, *, warehouse_id: str | None = None):
+        """Ubicaciones reales (activas) del almacén, para selects acotados
+        (§P0-04 corolario): una lista chica por almacén no amerita
+        EntitySearchInput — pero tampoco debe quedar ausente, forzando a la
+        acción a asumir el almacén completo como ubicación implícita."""
+        from frontend.desktop.components.search_selector import SearchOption
+        if self._warehouse_factory is None:
+            return []
+        warehouse = warehouse_id or self.default_warehouse()
+        if not warehouse:
+            return []
+        try:
+            rows = self._warehouse_factory(self._conn()).list_locations(
+                warehouse_id=warehouse)
+        except Exception:
+            logger.exception("InventoryPresenter.location_options failed")
+            return []
+        return [SearchOption(id=r.get("id"), label=f"{r.get('code')} — {r.get('name')}",
+                             subtitle=str(r.get("status") or ""))
+                for r in rows if str(r.get("status") or "ACTIVE") == "ACTIVE"]
 
     # reads -------------------------------------------------------------------
     def availability(self, *, product_ids: list[str], branch_id: str | None = None,
@@ -468,9 +503,13 @@ class InventoryPresenter:
     def open_quarantine(self, *, product_id: str, reason: str, quantity,
                         branch_id: str | None = None,
                         warehouse_id: str | None = None,
+                        location_id: str | None = None,
                         reason_note: str = "") -> tuple[bool, str, dict]:
         """Pone stock en cuarentena (§31): AVAILABLE → QUARANTINED. El producto
-        se resuelve por búsqueda canónica (§P0-D), nunca por UUID escrito a mano."""
+        se resuelve por búsqueda canónica (§P0-D), nunca por UUID escrito a
+        mano. Con ``location_id`` real (§P0-04 corolario) encuentra el saldo
+        donde vive de verdad; sin él, el use case cae al almacén completo
+        como ubicación implícita — sólo funciona si el stock vive ahí."""
         if self._open_quarantine_uc is None:
             return False, "Apertura de cuarentena no disponible.", {}
         pid = str(product_id or "").strip()
@@ -483,11 +522,13 @@ class InventoryPresenter:
             return False, "Motivo de cuarentena inválido.", {}
         branch = branch_id or self.default_branch()
         warehouse = warehouse_id or self.default_warehouse()
+        loc = str(location_id or "").strip() or None
         try:
             result = self._open_quarantine_uc.execute(
                 self._conn(), product_id=pid, branch_id=branch, warehouse_id=warehouse,
                 reason=reason_enum, quantity=quantity, operation_id=new_uuid(),
-                actor_user_id=self._actor(), reason_note=str(reason_note or "").strip())
+                actor_user_id=self._actor(), location_id=loc,
+                reason_note=str(reason_note or "").strip())
             if result.success and self._dispatch is not None:
                 try:
                     self._dispatch()
@@ -496,4 +537,257 @@ class InventoryPresenter:
             return bool(result.success), result.message, self._result_data(result)
         except Exception:
             logger.exception("InventoryPresenter.open_quarantine failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def create_adjustment(self, *, product_id: str, reason: str, quantity_delta,
+                          weight_delta=0, reason_note: str = "",
+                          branch_id: str | None = None,
+                          warehouse_id: str | None = None) -> tuple[bool, str, dict]:
+        """Crea un ajuste de una sola línea (§29): cantidad con signo — positivo
+        entrada, negativo salida. Queda en borrador o pendiente de aprobación
+        según el límite configurado; el use case decide, no la UI."""
+        if self._create_adjustment_uc is None:
+            return False, "Creación de ajustes no disponible.", {}
+        pid = str(product_id or "").strip()
+        if not pid:
+            return False, "Selecciona un producto.", {}
+        try:
+            from backend.domain.inventory.enums import AdjustmentReason
+            reason_enum = AdjustmentReason(str(reason))
+        except ValueError:
+            return False, "Motivo de ajuste inválido.", {}
+        if not quantity_delta and not weight_delta:
+            return False, "Captura una cantidad o peso distinto de cero.", {}
+        branch = branch_id or self.default_branch()
+        warehouse = warehouse_id or self.default_warehouse()
+        folio = f"AJ-{new_uuid()[:8].upper()}"
+        try:
+            result = self._create_adjustment_uc.execute(
+                self._conn(), folio=folio, branch_id=branch, warehouse_id=warehouse,
+                reason=reason_enum, operation_id=new_uuid(), actor_user_id=self._actor(),
+                reason_note=str(reason_note or "").strip(),
+                lines=[{"product_id": pid, "quantity_delta": quantity_delta,
+                       "weight_delta": weight_delta}])
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            data = self._result_data(result)
+            message = result.message
+            if result.success and data.get("requires_approval"):
+                message = f"{message} (folio {folio}) — requiere aprobación"
+            elif result.success:
+                message = f"{message} (folio {folio})"
+            return bool(result.success), message, data
+        except Exception:
+            logger.exception("InventoryPresenter.create_adjustment failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def approve_adjustment(self, *, adjustment_id: str) -> tuple[bool, str, dict]:
+        """Aprueba un ajuste pendiente (§29): quien lo creó no puede aprobarlo
+        (segregación de funciones, resuelta aguas abajo, nunca en la UI)."""
+        if self._approve_adjustment_uc is None:
+            return False, "Aprobación de ajustes no disponible.", {}
+        aid = str(adjustment_id or "").strip()
+        if not aid:
+            return False, "Selecciona un ajuste.", {}
+        try:
+            result = self._approve_adjustment_uc.execute(
+                self._conn(), adjustment_id=aid, operation_id=new_uuid(),
+                actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.approve_adjustment failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def post_adjustment(self, *, adjustment_id: str) -> tuple[bool, str, dict]:
+        """Postea un ajuste aprobado (§29): mueve el ledger. Un ajuste pendiente
+        de aprobación es rechazado por el use case, no simulado aquí."""
+        if self._post_adjustment_uc is None:
+            return False, "Posteo de ajustes no disponible.", {}
+        aid = str(adjustment_id or "").strip()
+        if not aid:
+            return False, "Selecciona un ajuste.", {}
+        try:
+            result = self._post_adjustment_uc.execute(
+                self._conn(), adjustment_id=aid, operation_id=new_uuid(),
+                actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.post_adjustment failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def reverse_adjustment(self, *, adjustment_id: str,
+                           reason: str = "") -> tuple[bool, str, dict]:
+        """Reversa un ajuste posteado (§29): movimiento inverso, irreversible."""
+        if self._reverse_adjustment_uc is None:
+            return False, "Reverso de ajustes no disponible.", {}
+        aid = str(adjustment_id or "").strip()
+        if not aid:
+            return False, "Selecciona un ajuste.", {}
+        try:
+            result = self._reverse_adjustment_uc.execute(
+                self._conn(), adjustment_id=aid, operation_id=new_uuid(),
+                actor_user_id=self._actor(), reason=str(reason or "").strip())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.reverse_adjustment failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def create_count(self, *, product_id: str, count_type: str = "CYCLE_COUNT",
+                     blind: bool = True, branch_id: str | None = None,
+                     warehouse_id: str | None = None) -> tuple[bool, str, dict]:
+        """Inicia un conteo de una sola línea (§27): el producto se resuelve
+        vía product_options, nunca un UUID tecleado a mano."""
+        if self._create_count_uc is None:
+            return False, "Creación de conteos no disponible.", {}
+        pid = str(product_id or "").strip()
+        if not pid:
+            return False, "Selecciona un producto.", {}
+        try:
+            from backend.domain.inventory.enums import CountType
+            type_enum = CountType(str(count_type))
+        except ValueError:
+            return False, "Tipo de conteo inválido.", {}
+        branch = branch_id or self.default_branch()
+        warehouse = warehouse_id or self.default_warehouse()
+        folio = f"CT-{new_uuid()[:8].upper()}"
+        try:
+            result = self._create_count_uc.execute(
+                self._conn(), folio=folio, count_type=type_enum, branch_id=branch,
+                warehouse_id=warehouse, scope_lines=[{"product_id": pid}],
+                operation_id=new_uuid(), actor_user_id=self._actor(), blind=blind)
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            data = self._result_data(result)
+            message = result.message
+            if result.success:
+                message = f"{message} (folio {folio})"
+            return bool(result.success), message, data
+        except Exception:
+            logger.exception("InventoryPresenter.create_count failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def record_count(self, *, count_id: str, counted_quantity,
+                     counted_weight=0) -> tuple[bool, str, dict]:
+        """Captura la cantidad contada de la única línea del conteo (§27) — el
+        id de línea nunca lo ve la UI, se resuelve vía CountQueryService."""
+        if self._record_count_uc is None:
+            return False, "Captura de conteos no disponible.", {}
+        cid = str(count_id or "").strip()
+        if not cid:
+            return False, "Selecciona un conteo.", {}
+        if counted_quantity is None:
+            return False, "Captura una cantidad contada.", {}
+        if self._count_factory is None:
+            return False, "Captura de conteos no disponible.", {}
+        try:
+            lines = self._count_factory(self._conn()).list_lines(count_id=cid)
+        except Exception:
+            logger.exception("InventoryPresenter.record_count failed to resolve line")
+            return False, "Error inesperado; revise el log.", {}
+        if not lines:
+            return False, "El conteo no tiene líneas.", {}
+        try:
+            result = self._record_count_uc.execute(
+                self._conn(), count_id=cid, line_id=lines[0]["id"],
+                counted_quantity=counted_quantity, counted_weight=counted_weight,
+                operation_id=new_uuid(), actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.record_count failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def confirm_count(self, *, count_id: str) -> tuple[bool, str, dict]:
+        """Confirma el conteo (§27): calcula varianza y bloquea la captura."""
+        if self._confirm_count_uc is None:
+            return False, "Confirmación de conteos no disponible.", {}
+        cid = str(count_id or "").strip()
+        if not cid:
+            return False, "Selecciona un conteo.", {}
+        try:
+            result = self._confirm_count_uc.execute(
+                self._conn(), count_id=cid, operation_id=new_uuid(),
+                actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.confirm_count failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def approve_count(self, *, count_id: str) -> tuple[bool, str, dict]:
+        """Aprueba el conteo (§27): segregación real (contador != aprobador
+        cuando hay varianza), aplicada por el use case, no por la UI."""
+        if self._approve_count_uc is None:
+            return False, "Aprobación de conteos no disponible.", {}
+        cid = str(count_id or "").strip()
+        if not cid:
+            return False, "Selecciona un conteo.", {}
+        try:
+            result = self._approve_count_uc.execute(
+                self._conn(), count_id=cid, operation_id=new_uuid(),
+                actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.approve_count failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def generate_adjustment_from_count(self, *, count_id: str) -> tuple[bool, str, dict]:
+        """Cierra el ciclo (§27→§29): convierte las varianzas de un conteo
+        aprobado en un ajuste real, listo para postear."""
+        if self._create_adjustment_from_count_uc is None:
+            return False, "Generar ajuste desde conteo no disponible.", {}
+        cid = str(count_id or "").strip()
+        if not cid:
+            return False, "Selecciona un conteo.", {}
+        folio = f"AJ-{new_uuid()[:8].upper()}"
+        try:
+            result = self._create_adjustment_from_count_uc.execute(
+                self._conn(), count_id=cid, folio=folio, operation_id=new_uuid(),
+                actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            data = self._result_data(result)
+            message = result.message
+            if result.success and result.entity_id:
+                message = f"{message} (folio {folio})"
+            return bool(result.success), message, data
+        except Exception:
+            logger.exception("InventoryPresenter.generate_adjustment_from_count failed")
             return False, "Error inesperado; revise el log.", {}

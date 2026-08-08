@@ -26,6 +26,7 @@ from backend.application.inventory.use_cases import (
     ApproveAdjustmentUseCase,
     ApproveCountUseCase,
     ConfirmCountUseCase,
+    CreateAdjustmentFromCountUseCase,
     CreateAdjustmentUseCase,
     CreateCountUseCase,
     CreateReservationUseCase,
@@ -36,6 +37,7 @@ from backend.application.inventory.use_cases import (
     PostInventoryMovementUseCase,
     ProvisionDefaultWarehouseUseCase,
     QuarantineStockUseCase,
+    RecordCountUseCase,
     RecordTemperatureReadingUseCase,
     RegisterWasteUseCase,
     ReleaseQuarantineUseCase,
@@ -140,11 +142,17 @@ class InventoryUseCaseFactory:
     def create_count(self, **kw):
         return self.build(CreateCountUseCase, **kw)
 
+    def record_count(self, **kw):
+        return self.build(RecordCountUseCase, **kw)
+
     def confirm_count(self, **kw):
         return self.build(ConfirmCountUseCase, **kw)
 
     def approve_count(self, **kw):
         return self.build(ApproveCountUseCase, **kw)
+
+    def create_adjustment_from_count(self, **kw):
+        return self.build(CreateAdjustmentFromCountUseCase, **kw)
 
     def create_reservation(self, **kw):
         return self.build(CreateReservationUseCase, **kw)

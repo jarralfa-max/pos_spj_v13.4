@@ -47,6 +47,13 @@ un botón nuevo mutaría con identidad o alcance incorrectos).
    Lotes y Conteos — pendiente cablearlos ahí (mismo patrón, otro use case).
    Pendiente explícito: selector de ubicación (hoy `open_quarantine` asume la
    ubicación por defecto del almacén; sin selector de ubicación real).
+3b. ~~P0-D rollout — Disponibilidad/Lotes/Reservas~~ — **HECHO (slice 6,
+   abajo)**. Las tres páginas que el audit señala explícitamente (§7.3, §7.6,
+   §7.9, hallazgo P0-04) escribían el texto tecleado directamente como
+   `product_id` — se repuntaron al mismo `EntitySearchInput` +
+   `product_options` de la slice 3. Pendiente: Trazabilidad (§7.18, también
+   señalada por el audit) y Conteos/Ajustes cuando lleguen sus formularios de
+   creación.
 4. **P0-C (Ajustes) — EN CURSO, pausado en un punto seguro (slice 4, abajo).**
    Se corrigió el mismo bug de `row_ids` que Cuarentena tenía (folio en vez de
    id real) y se expuso `InventoryUseCaseFactory.reverse_adjustment()` (existía
@@ -434,3 +441,289 @@ bloqueada hasta correr el script contra la base real o decidir un
 auto-aprovisionamiento in-bridge); UI de Almacenes con acción de alta
 (compartiría estos mismos builders del factory, pero es una página P0-C
 aparte).
+
+### Slice 6 — P0-D rollout: Disponibilidad/Lotes/Reservas — HECHO
+
+Continuación directa de la slice 3: llevar `EntitySearchInput` +
+`InventoryPresenter.product_options()` (ya construidos, sin tocar backend) a
+las tres páginas que el propio audit nombra en su hallazgo P0-04 como el
+ejemplo más claro del problema — "el usuario no debería conocer ni escribir
+UUIDs" — y que hasta esta slice hacían exactamente eso:
+
+```python
+self._search = SearchInput(placeholder="Producto (ID o código escaneado)…")
+self._search.search_submitted.connect(self._on_search)
+...
+def _on_search(self, text: str) -> None:
+    self._product_id = str(text or "").strip()   # el texto tecleado, tal cual
+```
+
+Las tres páginas (`availability_page.py`, `lots_page.py`,
+`reservations_page.py`) compartían línea por línea el mismo patrón, así que
+el cambio fue idéntico en las tres: `SearchInput` → `EntitySearchInput`
+(`provider=self._presenter.product_options`), conectado a su señal
+`selected` (emite el id real del producto elegido) en vez de
+`search_submitted` (el texto crudo). Cero cambios de backend — el presenter y
+`ProductQueryService` ya existían desde la slice 3.
+
+**Regresión atrapada por los tests existentes, no por inspección manual:**
+`tests/integration/inventory/test_inventory_view_shell.py` construye estas
+tres páginas con un `_StubPresenter` mínimo; como `EntitySearchInput` lee
+`provider=self._presenter.product_options` en el `__init__` (no de forma
+perezosa), las 3 pruebas de wiring de esas páginas fallaron de inmediato con
+`AttributeError` hasta agregar `product_options` al stub. Buena señal: el
+test suite atrapó la integración rota antes de necesitar una corrida manual.
+
+**Evidencia:**
+- `tests/integration/inventory/test_inventory_view_shell.py` — se agregó
+  `product_options` al `_StubPresenter`; **20 passed** (antes 3 fallaban por
+  la razón de arriba).
+- `tests/integration/inventory/test_inventory_ui_presenter.py` — nueva clase
+  `TestProductSearchPages` (4 tests): Lotes/Disponibilidad refrescan con
+  datos reales tras `search.selected.emit("p1")` (flujo real, sin mocks:
+  `RegisterInventoryLotUseCase`/`_seed` seedean datos verdaderos); Reservas
+  no truena sin reservas pero sí fija `_product_id`; las tres páginas usan
+  `EntitySearchInput`, no `SearchInput` (guardrail de regresión explícito
+  para que nadie reintroduzca el campo de texto crudo). **54 passed** (antes
+  50, +4 nuevos).
+- Inventario completo: `2 failed / 606 passed` (2 pre-existentes, +4 nuevos).
+- Arquitectura completa desde la raíz del repo: `29 failed / 534 passed`
+  (línea base sin cambios); `test_inventory_ui_guardrails.py` (SQL/db-access
+  scan de las páginas modificadas) sigue en verde.
+
+**Pendiente explícito:** Trazabilidad (§7.18) tiene el mismo problema pero
+para lote/documento, no producto — necesita un provider distinto (`lot`/
+`document` search), fuera del alcance de esta slice. Conteos y Ajustes
+recibirán este mismo patrón cuando se construyan sus diálogos de creación
+(P0-C, ya iniciado para Ajustes en la slice 4).
+
+### Slice 7 — P0-C (Ajustes) resumido: crear/aprobar/postear/reversar — HECHO
+
+Retoma la slice 4 (pausada por la interrupción "P0-E") y termina la página de
+Ajustes con el mismo patrón que Cuarentena (slice 2/3): comandos reales en el
+presenter, wireado vía el composition root con el checker RBAC real, diálogos
+del Design System y botones en la página — sin SQL ni lógica de negocio en la
+UI.
+
+**Presenter** (`frontend/desktop/modules/inventory/presenter.py`):
+- 4 parámetros nuevos (`create_adjustment_uc`, `approve_adjustment_uc`,
+  `post_adjustment_uc`, `reverse_adjustment_uc`) y 4 comandos nuevos:
+  - `create_adjustment(*, product_id, reason, quantity_delta, weight_delta=0,
+    reason_note="", branch_id=None, warehouse_id=None)` — valida producto
+    seleccionado y motivo (`AdjustmentReason` real, no texto libre) antes de
+    llamar al use case; genera el folio (`AJ-{uuid[:8]}`) porque no existe
+    servicio de folios en backend; el signo de la cantidad se decide en el
+    diálogo (dirección entrada/salida), nunca lo teclea el usuario como
+    número negativo.
+  - `approve_adjustment(*, adjustment_id)`, `post_adjustment(*,
+    adjustment_id)`, `reverse_adjustment(*, adjustment_id, reason="")` —
+    mismo patrón de validación/try-except/dispatch que Cuarentena.
+  - `_result_data()` (ya existente desde la slice 3) reutilizado en los 4
+    comandos nuevos para que `entity_id` viaje en el dict de datos.
+
+**Composition root** (`modulos/inventario_enterprise.py`): las 4 use cases se
+construyen vía `factory.create_adjustment()` / `.approve_adjustment()` /
+`.post_adjustment()` / `.reverse_adjustment()` cuando hay sesión viva (checker
+RBAC real), con fallback a instanciación directa (política permisiva) sólo en
+el arnés mínimo sin `.session`; se agregan como kwargs al `InventoryPresenter`
+final.
+
+**Diálogos nuevos** (`frontend/desktop/modules/inventory/dialogs.py`):
+- `CreateAdjustmentDialog` — producto vía `EntitySearchInput`
+  (`product_provider`), motivo (`QComboBox` con `ADJUSTMENT_REASON_ES`),
+  dirección (`QComboBox` "Entrada (+)"/"Salida (-)") + cantidad no-negativa
+  (`DecimalInput`); `quantity_delta()` arma el signo combinando dirección y
+  magnitud — el usuario nunca teclea un menos. Nota opcional.
+- `ReverseAdjustmentDialog` — motivo de reverso (`StandardTextArea`), igual
+  que `DisposeQuarantineDialog`.
+
+**Página** (`frontend/desktop/modules/inventory/pages/adjustments_page.py`):
+botones "Nuevo ajuste" (primario), "Aprobar"/"Postear" (secundarios),
+"Reversar" (peligro) — mismo patrón que `quarantine_page.py`:
+`_selected_adjustment_id()` avisa si no hay fila seleccionada;
+`ConfirmationDialog` para aprobar/postear; refresco sólo si la operación tuvo
+éxito; feedback con `QMessageBox` (información/advertencia).
+
+**Evidencia:**
+- `tests/integration/inventory/test_inventory_ui_presenter.py` — nueva clase
+  `TestAdjustmentCommands` (14 tests): crear ajuste real (queda en `DRAFT` sin
+  límite configurado — `InventoryLimitPolicy.classify` devuelve `WITHIN` sin
+  límite, y `DRAFT→APPROVED` es una transición válida directa, igual que
+  `DRAFT→PENDING_APPROVAL`); guardas sin producto/motivo inválido/cantidad
+  cero; aprobar/postear/reversar con segregación real (el ajuste de prueba se
+  crea con actor `"qa"`, el presenter opera con `"u1"` — igual que el patrón
+  ya usado en `TestQuarantineCommands._open_quarantine`); postear aplica el
+  movimiento (`on_hand` verificado vía
+  `InventoryAvailabilityQueryService`, no vía la tabla formateada del
+  presenter); reversar lo deshace; comandos sin selección y con use case no
+  wireado. 6 tests nuevos de página (`TestPagesSmoke`): aprobar desde la
+  página cambia el estado real (`AdjustmentQueryService.list_recent`), crear
+  desde el diálogo (mockeado) agrega la fila, reversar desde la página
+  deshace el movimiento posteado, guardia de selección vacía. **72 passed**
+  en el archivo completo (antes 54, +18 nuevos).
+- Inventario completo: `2 failed / 624 passed` (2 pre-existentes de
+  `test_legacy_reader_repoints.py`, sin relación con este cambio, +18
+  nuevos).
+- Arquitectura completa desde la raíz del repo: `29 failed / 534 passed`
+  (línea base sin cambios); `test_inventory_ui_guardrails.py` sigue en verde
+  (4 passed).
+
+**Cierra P0-C (Ajustes) del audit** — crear/aprobar/postear/reversar son
+ahora comandos reales de la UI, no sólo lectura. Cuarentena (P0-B/C) y
+Ajustes (P0-C) quedan con el mismo nivel de operacionalización; Conteos
+queda pendiente para un patrón equivalente (crear conteo → capturar líneas →
+aprobar → generar ajuste vía `CreateAdjustmentFromCountUseCase`, ya existente
+en backend).
+
+### Slice 8 — P0-C (Conteos): iniciar/capturar/confirmar/aprobar/generar ajuste — HECHO
+
+Cierra el último tramo de P0-C: lleva Conteos al mismo nivel que Cuarentena y
+Ajustes. A diferencia de esos dos, Conteos es un flujo de 4 pasos
+(`CreateCountUseCase → RecordCountUseCase → ConfirmCountUseCase →
+ApproveCountUseCase`) que además cierra hacia Ajustes
+(`CreateAdjustmentFromCountUseCase`, ya existente en backend desde INV-14,
+huérfano de interfaz igual que el resto). Alcance acotado igual que Ajustes:
+**una sola línea por conteo** (producto vía `product_options`), no un conteo
+multi-producto tipo carrito — eso queda fuera de esta slice.
+
+**Mismo bug de `row_ids` encontrado por tercera vez** (Cuarentena slice 2,
+Ajustes slice 4, ahora Conteos): `CountQueryService.list_recent()` no
+seleccionaba `id`, y `counts_table()` usaba `f"{folio}:{índice}"`. Corregido
+igual que las dos veces anteriores. Además se agregó
+`CountQueryService.list_lines(count_id)` — no existía ninguna forma de leer
+las líneas de un conteo desde la UI; `RecordCountUseCase` necesita el
+`line_id` real, que `list_recent()` nunca expone (un conteo puede tener
+varias líneas en general, aunque esta slice sólo crea una).
+
+**Composition root**: `InventoryUseCaseFactory` importaba pero no exponía
+`RecordCountUseCase` (tenía builder `create_count`/`confirm_count`/
+`approve_count`, faltaba `record_count`) ni `CreateAdjustmentFromCountUseCase`
+(no tenía builder alguno) — el mismo patrón de "el use case existe, el
+composition root no lo expone" ya visto con `reverse_adjustment` en la slice
+4. Se agregaron ambos builders.
+
+**Presenter** (`frontend/desktop/modules/inventory/presenter.py`): 5
+parámetros y 5 comandos nuevos —
+- `create_count(*, product_id, count_type="CYCLE_COUNT", blind=True, ...)` —
+  valida producto y `CountType`; folio generado (`CT-{uuid[:8]}`), igual
+  patrón que Ajustes (no existe folio-service en backend).
+- `record_count(*, count_id, counted_quantity, counted_weight=0)` — resuelve
+  el `line_id` real vía `CountQueryService.list_lines()` (la UI nunca ve ni
+  maneja el id de línea directamente).
+- `confirm_count(*, count_id)`, `approve_count(*, count_id)` — mismo patrón
+  de validación/try-except/dispatch que el resto.
+- `generate_adjustment_from_count(*, count_id)` — folio de ajuste
+  (`AJ-{uuid[:8]}`); sólo agrega el sufijo de folio al mensaje si
+  `result.entity_id` viene poblado (un conteo sin varianzas responde ok sin
+  crear ajuste — ver `CreateAdjustmentFromCountUseCase`).
+
+**Diálogos nuevos** (`dialogs.py`): `CreateCountDialog` (producto vía
+`EntitySearchInput`, tipo vía `QComboBox`+`COUNT_TYPE_ES`, checkbox "a
+ciegas" marcado por defecto — nunca se muestra la cantidad esperada durante
+la captura, coherente con el diseño de dominio) y `RecordCountDialog`
+(cantidad contada, `DecimalInput` con mínimo 0 — a diferencia de Ajustes,
+aquí 0 es un valor legítimo: el producto puede estar agotado).
+
+**Página** (`counts_page.py`): botones "Nuevo conteo"/"Capturar"/
+"Confirmar"/"Aprobar"/"Generar ajuste" — mismo patrón de
+`_selected_count_id()`, `ConfirmationDialog` para confirmar/aprobar/generar,
+refresco sólo si la operación tuvo éxito.
+
+**Evidencia:**
+- `tests/unit/inventory/test_inventory_composition.py` — 2 tests nuevos
+  (`test_factory_builds_record_count`,
+  `test_factory_builds_create_adjustment_from_count`).
+- `tests/integration/inventory/test_inventory_ui_presenter.py` — nueva clase
+  `TestCountCommands` (19 tests): iniciar/capturar/confirmar/aprobar/generar
+  ajuste con flujo real; segregación real cubierta igual que Ajustes (conteo
+  capturado por `"qa"`, aprobado por la sesión `"u1"` del presenter — un
+  intento de aprobar con el mismo actor que capturó fue el primer resultado,
+  confirmando que la segregación del dominio SÍ se ejecuta, no sólo se
+  documenta); comandos sin selección/sin producto/tipo inválido/cantidad
+  vacía; comandos con use case no wireado. 4 tests nuevos de página
+  (`TestPagesSmoke`): crear desde el diálogo agrega la fila, capturar aplica
+  la línea, el flujo confirmar→aprobar→generar-ajuste cierra el conteo
+  (`POSTED`, no `APPROVED` — generar el ajuste marca el conteo posteado) y
+  deja un ajuste real, guardia de selección vacía. `test_counts_view_model`
+  actualizado para confirmar `row_ids[0] == result.entity_id`. **93 passed**
+  en el archivo completo (antes 72, +21 nuevos, +2 en composition).
+- Inventario completo: `2 failed / 647 passed` (2 pre-existentes de
+  `test_legacy_reader_repoints.py`, sin relación con este cambio, +23
+  nuevos).
+- Arquitectura completa desde la raíz del repo: `29 failed / 534 passed`
+  (línea base sin cambios); `test_inventory_ui_guardrails.py` sigue en verde.
+
+**Cierra P0-C del audit por completo** — Cuarentena, Ajustes y Conteos
+quedan en paridad: crear/capturar/confirmar/aprobar son comandos reales, no
+sólo lectura, con segregación de funciones real (no decorativa) y sin
+identidades fabricadas. **Explícitamente fuera de esta slice:** conteo
+multi-línea (hoy una sola línea por conteo, como Ajustes); reconteo
+(`request_recount`, existe en el dominio, sin UI); selector de ubicación
+real en la captura (usa la ubicación por defecto del almacén, mismo
+pendiente ya documentado para Cuarentena en la slice 3).
+
+### Slice 9 — P0-C (Cuarentena): selector de ubicación real en "Nueva cuarentena" — HECHO
+
+Cierra el único pendiente explícito que le quedaba a Cuarentena desde la
+slice 3: `open_quarantine` no tenía forma de indicar `location_id`, así que
+`QuarantineStockUseCase` caía siempre a `warehouse_id` como ubicación
+implícita — sólo funcionaba si el stock vivía exactamente ahí (el caso común
+en almacenes sin desglose real de ubicaciones, pero no el caso general).
+Mismo principio del audit (§P0-04, "el usuario no debería conocer ni
+escribir UUIDs") aplicado esta vez a ubicaciones, no a productos.
+
+**Sin componente nuevo ni wiring de composition root:** a diferencia de
+`EntitySearchInput` (pensado para catálogos grandes, "nunca cargar miles de
+filas en un QComboBox" según su propio docstring), una lista de ubicaciones
+por almacén es chica y acotada — un `QComboBox` poblado una vez al abrir el
+diálogo es el componente correcto, no una búsqueda con debounce.
+`WarehouseQueryService.list_locations()` ya existía (lo usa `LocationsPage`
+desde INV-5); sólo hacía falta un método del presenter que lo expusiera como
+opciones de picker.
+
+**Archivos:**
+- `frontend/desktop/modules/inventory/presenter.py` — nuevo método de
+  lectura `location_options(warehouse_id=None)`: resuelve el almacén de la
+  sesión si no se especifica, delega en `warehouse_query_factory` (ya
+  wireado, sin cambios en `modulos/inventario_enterprise.py`), filtra a
+  ubicaciones `ACTIVE` y devuelve `SearchOption` (mismo tipo que
+  `product_options`, reutilizado por consistencia aunque el widget que lo
+  consume sea distinto). `open_quarantine` gana el parámetro `location_id`
+  y lo reenvía al use case (que ya lo aceptaba desde INV-15 — estaba huérfano
+  de interfaz, no ausente, el mismo patrón visto en Ajustes/Conteos con sus
+  builders).
+- `frontend/desktop/modules/inventory/dialogs.py` — `OpenQuarantineDialog`
+  gana `location_options` (parámetro opcional, compatibilidad con cualquier
+  caller que no lo pase) y un `QComboBox` "Ubicación:" con una opción
+  "Automática (todo el almacén)" primero (valor `""` → `None`, preserva el
+  comportamiento anterior) seguida de las ubicaciones reales.
+- `frontend/desktop/modules/inventory/pages/quarantine_page.py` — `_on_open`
+  construye el diálogo con `location_options=self._presenter.location_options()`
+  y reenvía `dlg.location_id()` al comando.
+
+**Evidencia:**
+- `tests/integration/inventory/test_inventory_quarantine_open.py` — 9 tests
+  nuevos: `TestLocationOptions` (lista ubicaciones activas de un almacén
+  real; sin almacén provisto usa el de la sesión, que en el arnés de prueba
+  no tiene ubicaciones reales — vacío, no fabricado; vacío sin
+  `warehouse_query_factory`; vacío en un almacén sin ubicaciones);
+  `TestOpenQuarantineWithRealLocation` — demuestra el antes/después: mismo
+  stock sembrado en una ubicación real distinta del almacén, **sin**
+  `location_id` sigue fallando ("inventario negativo", confirmando que la
+  limitación de la slice 3 seguía viva hasta este cambio) y **con**
+  `location_id` real la cuarentena se abre con éxito; un test de página
+  (`TestQuarantinePageOpenAction`) hace clic real en "Nueva cuarentena",
+  selecciona la ubicación real del combo (`findData`/`setCurrentIndex`, no
+  un mock del diálogo completo) y confirma que la cuarentena se abre.
+  **17 passed** en el archivo (antes 10, +9 — dos tests indirectamente
+  reforzados también quedaron en verde, no se cuentan doble).
+- Inventario completo: `2 failed / 654 passed` (2 pre-existentes de
+  `test_legacy_reader_repoints.py`, sin relación con este cambio).
+- Arquitectura completa desde la raíz del repo: `29 failed / 534 passed`
+  (línea base sin cambios); `test_inventory_ui_guardrails.py` sigue en verde.
+
+**Cierra P0-C (Cuarentena) sin pendientes** — de los tres pilotos de P0-C
+(Cuarentena, Ajustes, Conteos), Cuarentena es ahora el único con selector de
+ubicación real; queda documentado como follow-up natural para Ajustes y
+Conteos si sus flujos lo necesitan (ninguno de los dos lo pidió
+explícitamente en el audit).

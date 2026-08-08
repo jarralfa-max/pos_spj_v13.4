@@ -1,21 +1,19 @@
 """Availability page (INV-25 / §9.3) — per-product availability breakdown.
 
-Presentation-only: a ``SearchInput`` picks/scans a product (no huge combo), and
-the page shows its availability broken down by physical bucket — what Sales can
-promise vs. why the rest is not available (reserved, quarantined, quality-blocked,
-damaged, expired…). All values come from the presenter; no SQL, no business logic.
+Presentation-only: an ``EntitySearchInput`` resolves the product by name, code
+or barcode against the canonical catalog (§P0-D — never a hand-typed UUID),
+and the page shows its availability broken down by physical bucket — what
+Sales can promise vs. why the rest is not available (reserved, quarantined,
+quality-blocked, damaged, expired…). All values come from the presenter; no
+SQL, no business logic.
 """
 
 from __future__ import annotations
 
 from PyQt5.QtWidgets import QVBoxLayout, QWidget
 
-from frontend.desktop.components import (
-    ColumnSpec,
-    PageHeader,
-    SearchInput,
-    StandardTable,
-)
+from frontend.desktop.components import ColumnSpec, PageHeader, StandardTable
+from frontend.desktop.components.entity_search_input import EntitySearchInput
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.themes.tokens import Spacing
 
@@ -37,8 +35,10 @@ class AvailabilityPage(QWidget):
             icon=getattr(Icons, "INVENTORY", None), compact=True)
         layout.addWidget(self.header)
 
-        self._search = SearchInput(placeholder="Producto (ID o código escaneado)…")
-        self._search.search_submitted.connect(self._on_search)
+        self._search = EntitySearchInput(
+            self, provider=self._presenter.product_options,
+            placeholder="Buscar producto por nombre, código o código de barras…")
+        self._search.selected.connect(self._on_product_selected)
         layout.addWidget(self._search)
 
         self._table = StandardTable(columns=[
@@ -47,8 +47,8 @@ class AvailabilityPage(QWidget):
         ])
         layout.addWidget(self._table)
 
-    def _on_search(self, text: str) -> None:
-        self._product_id = str(text or "").strip()
+    def _on_product_selected(self, product_id) -> None:
+        self._product_id = str(product_id or "")
         self.refresh()
 
     def refresh(self) -> None:
