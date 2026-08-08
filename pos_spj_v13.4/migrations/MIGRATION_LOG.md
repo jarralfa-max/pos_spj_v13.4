@@ -753,3 +753,79 @@ Autorizar → Ejecutar segregado. Un solo hallazgo real:
   por cubierto con esta auditoría (las integraciones evento-driven
   Compras→Inventario/CxP/Tesorería ya estaban bien cableadas) — no se
   construyó ninguna pantalla nueva de monitoreo.
+
+---
+
+## Fase 6 (UI/UX enterprise): Finanzas y RRHH migran a SideNav/Worklist — 2026-08-08
+
+Auditoría contra "Shell, Sidebar, Worklists, Master-detail, Command bars,
+Tablas, Dashboard, Estados visuales, Accesibilidad táctil" — a diferencia de
+Fase 4/5, el hueco no era funcional dentro de un módulo sino de
+**consistencia del sistema de diseño entre módulos**: Compras/Inventario/
+Productos ya usaban los componentes compartidos; Finanzas y RRHH
+reimplementaban su propio sidebar (`QListWidget` crudo) y su propio
+scaffold de listado (`FinancePage`/`HRPage`, sin paginación ni estados
+vacío/error). "Command bars" no existe en ningún lado (no se construyó —
+fuera del alcance elegido) y "Accesibilidad táctil" solo existe en el
+teclado numérico, no en los botones base (tampoco tocado esta vuelta).
+
+El usuario eligió el alcance grande: migrar Finanzas y RRHH al mismo
+patrón, no solo documentar.
+
+- **Nuevo `frontend/desktop/components/worklist_page.py::WorklistPage`** —
+  extracción de `_ListPageBase` (que solo vivía dentro de
+  `purchasing/pages/enterprise_pages.py`) a un componente genuinamente
+  compartido. Soporta dos estilos de hook para no forzar una reescritura de
+  las 26 páginas de Finanzas/RRHH:
+  - override `_fetch()` (paginado/filtrado — patrón de Compras): el
+    `_load()` por defecto lo invoca y llena la tabla.
+  - override `_load()` directo (páginas simples — patrón de Finanzas/RRHH):
+    llaman `self.set_table(model)` ellas mismas; la base igual decide el
+    estado vacío después.
+  `searchable`/`paginated` son ahora flags opcionales (default `True`,
+  igual que Compras); Finanzas/RRHH los ponen en `False` porque sus
+  métodos de presenter no aceptan `query`/`offset` todavía.
+- **Compatibilidad de atributos**: las 26 páginas de Finanzas/RRHH ya
+  usaban `self.table` (sin guion bajo) y `self._layout` directamente —
+  `WorklistPage` expone ambos (alias de `self._table`) para no tener que
+  tocar el cuerpo de ninguna página individual. `set_kpis()` sigue usando
+  `modulos.ui_components.create_kpi_bar` (no se tocó — fuera de alcance).
+  `notify(ok, message)` ahora es el aviso inline de Compras (nunca bloquea
+  la pantalla), no `QMessageBox` — es el único cambio de UX visible en las
+  26 páginas, y ninguna necesitó edición para adoptarlo (heredado del base).
+- **Purchasing**: `_ListPageBase` en `enterprise_pages.py` pasó a ser una
+  subclase de una línea (`icon = Icons.PURCHASES`) de `WorklistPage` — cero
+  cambio de comportamiento, verificado con la suite completa de Compras.
+- **`FinanceView`/`HRView`**: `QListWidget` crudo → `SideNav` (mismo
+  patrón de `add_group()`/`add_section()` que usa
+  `PurchasingModuleShell`). `FinancePage`/`HRPage` pasaron a ser
+  subclases de dos líneas de `WorklistPage` (`searchable = paginated =
+  False`). Bug menor de paso: `SideNav.add_group()` estaba definido dos
+  veces de forma idéntica en `side_nav.py` — se eliminó el duplicado.
+- **Sin capability gating**: se confirmó (no se tocó) que ni Finanzas ni
+  RRHH filtran su sidebar por permisos — a diferencia de
+  `PurchasingModuleShell`, que sí lo hace vía `visible_routes(capabilities)`.
+  Explícitamente fuera del alcance de esta vuelta (es un cambio de
+  autorización, no de sistema de diseño).
+- **Verificación**: no existía ningún test de UI para Finanzas ni RRHH
+  antes de esta vuelta. Se agregaron
+  `tests/integration/finance/test_finance_ui_shell.py` y
+  `tests/integration/hr/test_hr_ui_shell.py` — construyen la vista real
+  contra una base de datos vacía recién sembrada (`bootstrap_finance`/
+  `create_hr_schema`) y navegan **cada una** de las 19 + 9 páginas,
+  confirmando que cargan sin excepción (ejercita el nuevo camino
+  `ViewState.EMPTY` que ninguna tenía antes). Las 27 páginas cargaron a la
+  primera, sin necesitar ajustes adicionales — confirma que el diseño de
+  compatibilidad de atributos fue correcto.
+- **Regresión real encontrada y corregida**: `test_purchasing_desktop_shell.py`
+  buscaba los literales `"QSplitter"`/`"itemSelectionChanged"` directamente
+  en el texto fuente de `enterprise_pages.py` — dejaron de estar ahí al
+  moverse a `worklist_page.py`. Se actualizó el test para leer también el
+  nuevo archivo compartido.
+- **31 fallas pre-existentes descubiertas, no de esta vuelta**: esta fue la
+  primera corrida de `tests/architecture/` completo (sin filtro) en toda la
+  sesión — destapó fallas en módulos nunca tocados (Productos, Mermas,
+  orquestador de refactor, migraciones de PK, menú lateral, etc.).
+  Confirmado con `git status` que ninguno de los archivos involucrados en
+  esas 31 fallas está entre los 11 archivos modificados esta vuelta — no
+  se investigaron ni corrigieron (fuera de alcance).

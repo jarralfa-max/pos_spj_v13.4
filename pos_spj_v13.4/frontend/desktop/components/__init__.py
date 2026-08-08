@@ -78,6 +78,8 @@ from frontend.desktop.components.form_field import FieldState, FormField, Standa
 # ── DS-5 charts ───────────────────────────────────────────────────────────────
 from frontend.desktop.components.chart_view import HtmlChartView
 from frontend.desktop.components.dashboard_grid import DashboardGrid
+# ── FASE 6 worklist scaffold ────────────────────────────────────────────────
+from frontend.desktop.components.worklist_page import WorklistPage
 
 __all__ = [
     "AddressInput",
@@ -159,4 +161,5 @@ __all__ = [
     # DS-5 charts
     "HtmlChartView",
     "DashboardGrid",
+    "WorklistPage",
 ]
