@@ -17,12 +17,16 @@ from frontend.desktop.components import (
     PageHeader,
     StandardTable,
     create_danger_button,
+    create_primary_button,
     create_secondary_button,
 )
 from frontend.desktop.components.dialogs import ConfirmationDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.themes.tokens import Spacing
-from frontend.desktop.modules.inventory.dialogs import DisposeQuarantineDialog
+from frontend.desktop.modules.inventory.dialogs import (
+    DisposeQuarantineDialog,
+    OpenQuarantineDialog,
+)
 
 
 class QuarantinePage(QWidget):
@@ -43,6 +47,9 @@ class QuarantinePage(QWidget):
 
         actions = QHBoxLayout()
         actions.addStretch(1)
+        self.open_button = create_primary_button(text="Nueva cuarentena")
+        self.open_button.clicked.connect(self._on_open)
+        actions.addWidget(self.open_button)
         self.release_button = create_secondary_button(text="Liberar")
         self.release_button.clicked.connect(self._on_release)
         actions.addWidget(self.release_button)
@@ -71,6 +78,26 @@ class QuarantinePage(QWidget):
                 self, "Cuarentena", "Selecciona una cuarentena de la lista.")
             return None
         return qid
+
+    def _on_open(self) -> None:
+        dlg = OpenQuarantineDialog(self, product_provider=self._presenter.product_options)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        product_id = dlg.product_id()
+        if not product_id:
+            QMessageBox.warning(self, "Cuarentena", "Selecciona un producto de la lista.")
+            return
+        quantity = dlg.quantity_value()
+        if not quantity or quantity <= 0:
+            QMessageBox.warning(self, "Cuarentena", "Captura una cantidad mayor a cero.")
+            return
+        ok, message, _ = self._presenter.open_quarantine(
+            product_id=product_id, reason=dlg.reason_code(), quantity=quantity,
+            reason_note=dlg.note())
+        (QMessageBox.information if ok else QMessageBox.warning)(
+            self, "Cuarentena", message)
+        if ok:
+            self.refresh()
 
     def _on_release(self) -> None:
         qid = self._selected_quarantine_id()

@@ -72,7 +72,11 @@ class ModuloInventarioEnterprise(QWidget):
         from backend.application.inventory.use_cases import (
             DisposeQuarantineUseCase,
             GenerateReplenishmentSuggestionsUseCase,
+            QuarantineStockUseCase,
             ReleaseQuarantineUseCase,
+        )
+        from backend.application.queries.product_query_service import (
+            ProductQueryService,
         )
         from frontend.desktop.modules.inventory.presenter import InventoryPresenter
 
@@ -87,10 +91,12 @@ class ModuloInventarioEnterprise(QWidget):
             generate_uc = factory.generate_replenishment_suggestions()
             release_quarantine_uc = factory.release_quarantine()
             dispose_quarantine_uc = factory.dispose_quarantine()
+            open_quarantine_uc = factory.quarantine_stock()
         else:
             generate_uc = GenerateReplenishmentSuggestionsUseCase()
             release_quarantine_uc = ReleaseQuarantineUseCase()
             dispose_quarantine_uc = DisposeQuarantineUseCase()
+            open_quarantine_uc = QuarantineStockUseCase()
 
         return InventoryPresenter(
             connection_provider=lambda: conn,
@@ -117,5 +123,7 @@ class ModuloInventarioEnterprise(QWidget):
             settings_query_factory=SettingsQueryService,
             release_quarantine_uc=release_quarantine_uc,
             dispose_quarantine_uc=dispose_quarantine_uc,
+            open_quarantine_uc=open_quarantine_uc,
+            product_query_factory=ProductQueryService.from_connection,
             session_context=session,
         )

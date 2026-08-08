@@ -40,12 +40,13 @@ un botón nuevo mutaría con identidad o alcance incorrectos).
 
 1. ~~P0-A: sesión y composition root~~ — **HECHO (slice 1, abajo)**.
 2. ~~P0-B/C: página piloto (Cuarentena) — liberar/disponer~~ — **HECHO (slice 2,
-   abajo)**. Pendiente en esa misma página: "Poner en cuarentena" (crear), que
-   se difiere a P0-D porque necesita búsqueda canónica de producto.
-3. P0-D: integración con Productos (búsqueda canónica, resolución de código de
-   barras, nombres en vez de UUID en las tablas) — desbloquea "Poner en
-   cuarentena" y el resto de las páginas con creación (Ajustes, Reservas,
-   Lotes, Conteos).
+   abajo)**.
+3. ~~P0-D piloto: búsqueda canónica de producto + "Poner en cuarentena"~~ —
+   **HECHO (slice 3, abajo)**. `InventoryPresenter.product_options()` y
+   `EntitySearchInput` quedan listos para reutilizarse en Ajustes, Reservas,
+   Lotes y Conteos — pendiente cablearlos ahí (mismo patrón, otro use case).
+   Pendiente explícito: selector de ubicación (hoy `open_quarantine` asume la
+   ubicación por defecto del almacén; sin selector de ubicación real).
 4. P0-E: integración entre módulos (refresco por eventos tras venta/compra/
    producción; auditar y corregir `warehouse_id=branch_id` en los bridges de
    Ventas/Compras/Producción — el propio audit señala que ahí también existe).
@@ -215,3 +216,85 @@ documentadas): "Poner en cuarentena" (crear) difiere a P0-D por la búsqueda de
 producto; el refresco reactivo por evento (`INVENTORY_QUARANTINE_RELEASED`, ya
 emitido por el use case) es P1 — hoy el refresco es manual post-éxito, que es
 correcto pero no reactivo ante cambios de otras pantallas/usuarios.
+
+### Slice 3 — P0-D piloto: búsqueda canónica de producto + "Poner en cuarentena" — HECHO
+
+Completa el ciclo abrir→liberar/disponer de la página Cuarentena (lo que la
+slice 2 dejó explícitamente diferido) y, de paso, entrega el patrón
+reutilizable de búsqueda de producto que el audit pide para el resto de
+páginas con creación (P0-D, hallazgo P0-04: "el usuario no debería conocer ni
+escribir UUIDs").
+
+**Componente reutilizado, no reinventado:** `EntitySearchInput` (Design
+System, FASE DS-4) y `ProductQueryService.search_products()` (canónico,
+`backend/application/queries/product_query_service.py` — el mismo que ya usa
+Productos) ya existían. Solo faltaba conectarlos a Inventario. Se siguió el
+patrón exacto de `DirectPurchasePresenter.supplier_options()` (Compras): el
+**presenter**, no el diálogo, hace la búsqueda — la UI nunca toca el query
+service ni SQL directamente.
+
+**Archivos:**
+- `frontend/desktop/modules/inventory/presenter.py` — nuevo método de lectura
+  `product_options(query)` (delega en `product_query_factory`, atrapa
+  excepciones → `[]`) y nuevo comando `open_quarantine(product_id, reason,
+  quantity, branch_id=None, warehouse_id=None, reason_note="")` (valida
+  producto seleccionado y motivo contra el enum real `QuarantineReason` antes
+  de llamar al use case — nunca deja pasar un string arbitrario). También se
+  agregó `_result_data()`, un helper que pliega `result.entity_id` dentro del
+  dict devuelto — los tres comandos de Cuarentena (`release_`, `dispose_`,
+  `open_quarantine`) y `generate_suggestions` ahora devuelven `entity_id`
+  cuando aplica, como pide el audit en la sección 18 ("resultados
+  normalizados: success, message, error_code, entity_id, data").
+- `modulos/inventario_enterprise.py::_build_presenter` — nuevo
+  `product_query_factory=ProductQueryService.from_connection` (classmethod,
+  no la clase pelada — su `__init__` no toma la conexión como primer
+  posicional) y `open_quarantine_uc` (vía `factory.quarantine_stock()` con
+  sesión viva, o `QuarantineStockUseCase()` default en pruebas).
+- `frontend/desktop/modules/inventory/dialogs.py` — `OpenQuarantineDialog`:
+  `EntitySearchInput` (producto), `QComboBox` con motivos en es-MX
+  (`QUARANTINE_REASON_ES`), `DecimalInput` (cantidad) y nota opcional.
+- `frontend/desktop/modules/inventory/pages/quarantine_page.py` — botón
+  "Nueva cuarentena"; valida producto seleccionado y cantidad > 0 en la propia
+  página (el `FormDialog` base no valida por sí solo) antes de llamar al
+  presenter.
+
+**Limitación explícita de esta slice (documentada, no un descuido):**
+`open_quarantine` no recibe `location_id` — no hay selector de ubicación
+todavía en esta página. `QuarantineStockUseCase` cae a `warehouse_id` como
+ubicación cuando no se especifica una, así que esta acción solo encuentra
+saldo disponible si el stock vive exactamente en esa ubicación por defecto
+(el caso común en almacenes sin desglose de ubicaciones). Un selector de
+ubicación real es un follow-up de P0-D, no de esta slice.
+
+**Bug atrapado en el propio proceso de escribir el test de extremo a extremo:**
+el primer intento de test sembraba stock en `to_location_id="loc1"` (una
+ubicación arbitraria) mientras `open_quarantine` (sin location_id) resuelve a
+`warehouse_id="w1"` — el use case devolvía correctamente `"Inventario negativo
+no permitido"` porque, en efecto, no había saldo en esa ubicación. Sirve como
+confirmación en vivo de la limitación de arriba, no como fallo del código.
+
+**Hallazgo operativo (afecta cómo se deben escribir tests de diálogos Qt en
+adelante, no un bug de producto):** al mockear `exec_()` de un diálogo con una
+función simple en vez de dejar que el flujo de error real llegara a un
+`QMessageBox.warning` **sin mockear**, la prueba quedó colgada indefinidamente
+bajo `QT_QPA_PLATFORM=offscreen` (un `QMessageBox` modal real nunca recibe la
+interacción que necesita para cerrarse, y no hay timeout). Se resolvió
+mockeando también `.warning` y aserting que no se llamó — pero además cambia
+la práctica recomendada: **toda prueba de una página Qt en este módulo debe
+mockear tanto `QMessageBox.information` como `.warning`**, nunca solo una,
+independientemente de qué rama se espere ejercitar.
+
+**Evidencia:**
+- `tests/integration/inventory/test_inventory_quarantine_open.py` (10, nuevo):
+  `TestProductOptions` (busca por nombre, por código, sin match, sin wiring);
+  `TestOpenQuarantine` (crea cuarentena visible; usa branch/warehouse de la
+  sesión, nunca fabricados; rechaza sin producto sin tocar backend; rechaza
+  motivo inválido; responde "no disponible" sin wiring); `TestQuarantinePageOpenAction`
+  (clic real en "Nueva cuarentena" con producto+cantidad capturados crea la
+  cuarentena y refresca la tabla — sin colgarse, con ambos QMessageBox
+  mockeados).
+- `tests/integration/inventory/test_inventory_ui_presenter.py` (50) y
+  `test_inventory_enterprise_session_wiring.py` (2) sin cambios.
+- Inventario completo: `2 failed / 593 passed` (2 pre-existentes, +10 nuevos).
+- Arquitectura completa desde la raíz del repo: `29 failed / 534 passed`
+  (línea base sin cambios).
