@@ -174,7 +174,7 @@ class TestSegregation:
 class TestAuthorization:
     def test_unknown_permission(self):
         with pytest.raises(PurchasePermissionDeniedError):
-            PurchaseAuthorizationPolicy().require("u1", "PURCHASES_NOPE")
+            PurchaseAuthorizationPolicy().require("u1", "COMPRAS.no_existe")
 
     def test_no_checker_fails_closed(self):
         with pytest.raises(PurchasePermissionDeniedError, match="no configurado"):
@@ -192,8 +192,8 @@ class TestAuthorization:
             PurchaseAuthorizationPolicy().authorize_exception("", PurchasePermissions.DIRECT_CONFIRM)
 
     def test_permission_catalog_is_granular(self):
-        # a broad "PURCHASES_ALL" must not exist; codes are per-action
-        assert "PURCHASES_ALL" not in ALL_PURCHASE_PERMISSIONS
+        # a broad "COMPRAS.todo" must not exist; codes are per-action
+        assert "COMPRAS.todo" not in ALL_PURCHASE_PERMISSIONS
         assert len(ALL_PURCHASE_PERMISSIONS) >= 60
 
 

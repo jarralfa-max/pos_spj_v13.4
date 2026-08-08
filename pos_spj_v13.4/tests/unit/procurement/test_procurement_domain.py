@@ -259,11 +259,11 @@ class TestSupplierInvoiceAndAuthorization:
     def test_authorization_record_requires_reason(self):
         with pytest.raises(ProcurementDomainError):
             PurchaseAuthorization.create(
-                operation_id="op", permission_code="PURCHASES_DIRECT_CONFIRM",
+                operation_id="op", permission_code="COMPRAS.directa.confirmar",
                 requested_by_user_id="u1", authorized_by_user_id="u2", reason="  ",
                 amount=_money("9000"))
         auth = PurchaseAuthorization.create(
-            operation_id="op", permission_code="PURCHASES_DIRECT_CONFIRM",
+            operation_id="op", permission_code="COMPRAS.directa.confirmar",
             requested_by_user_id="u1", authorized_by_user_id="u2", reason="supera límite",
             amount=_money("9000"))
         assert auth.authorized_by_user_id == "u2"

@@ -24,6 +24,11 @@ def resolve_purchasing_capabilities(can: Callable[[str], bool]) -> PurchasingCap
         requisition_approve=can(P.REQUISITION_APPROVE),
         requisition_reject=can(P.REQUISITION_REJECT),
         rfq_create=can(P.RFQ_CREATE),
+        quotation_view=(can(P.RFQ_CREATE) or can(P.QUOTE_CAPTURE)
+                        or can(P.QUOTE_COMPARE) or can(P.QUOTE_AWARD)),
+        quote_capture=can(P.QUOTE_CAPTURE),
+        quote_compare=can(P.QUOTE_COMPARE),
+        quote_award=can(P.QUOTE_AWARD),
         order_view=can(P.ORDER_VIEW),
         order_create=can(P.ORDER_CREATE),
         order_approve=can(P.ORDER_APPROVE),

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 class PurchasingRoutes:
     DASHBOARD = "dashboard"
     REQUISITIONS = "requisitions"
+    QUOTATIONS = "quotations"
     ORDERS = "orders"
     DIRECT_PURCHASE_CREATE = "direct_purchase_create"
     DIRECT_PURCHASE_HISTORY = "direct_purchase_history"
@@ -30,6 +31,8 @@ IMPLEMENTED_PURCHASING_ROUTES = (
                               "module_view"),
     PurchasingRouteDefinition(PurchasingRoutes.REQUISITIONS, "Solicitudes", "PLANEACIÓN",
                               "requisition_view", "requisitions"),
+    PurchasingRouteDefinition(PurchasingRoutes.QUOTATIONS, "Cotizaciones", "COTIZACIONES",
+                              "quotation_view"),
     PurchasingRouteDefinition(PurchasingRoutes.ORDERS, "Órdenes de compra", "ÓRDENES",
                               "order_view", "orders"),
     PurchasingRouteDefinition(PurchasingRoutes.DIRECT_PURCHASE_CREATE, "Nueva compra",

@@ -91,7 +91,8 @@ def test_purchasing_ui_does_not_write_permission_literals():
     offenders = []
     for path in _ui_files():
         source = path.read_text(encoding="utf-8")
-        if '.can("procurement.' in source or '.can("logistics.' in source:
+        if ('.can("procurement.' in source or '.can("logistics.' in source
+                or '.can("COMPRAS.' in source or '.can("LOGISTICA.' in source):
             offenders.append(str(path.relative_to(REPO)))
     assert not offenders, f"Purchasing UI writes permission literals: {offenders}"
 

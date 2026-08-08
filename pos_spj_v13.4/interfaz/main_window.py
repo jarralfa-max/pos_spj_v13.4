@@ -874,6 +874,9 @@ class MainWindow(QMainWindow):
             if hasattr(widget, "set_sucursal"):
                 try: widget.set_sucursal(sucursal_id, nombre_suc)
                 except Exception: pass
+            if hasattr(widget, "refresh_permissions"):
+                try: widget.refresh_permissions()
+                except Exception: pass
 
         # Propagar sucursal activa al AppContainer
         try:

@@ -6,6 +6,9 @@ cases. The view/pages never see the connection nor the AppContainer.
 
 from __future__ import annotations
 
+from backend.application.procurement.adapters.product_catalog_adapter import (
+    ProcurementProductCatalogAdapter,
+)
 from backend.application.procurement.queries import (
     DirectPurchaseReadService,
     SupplierPickerQueryService,
@@ -55,6 +58,7 @@ def build_direct_purchase_presenter(connection, session_context=None) -> DirectP
         connection_provider=lambda: connection,
         read_service=DirectPurchaseReadService(connection),
         supplier_picker=SupplierPickerQueryService(connection),
+        product_catalog=ProcurementProductCatalogAdapter(connection),
         use_cases={
             "create": CreateDirectPurchaseUseCase(authorization, supplier_directory),
             "authorize": AuthorizeDirectPurchaseUseCase(authorization),

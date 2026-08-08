@@ -93,9 +93,14 @@ class ProcurementDownstreamTranslators:
             "amount": payload.get("amount"),
             "currency_code": payload.get("currency_code", "MXN"),
             "document_id": payload.get("document_id"),
+            "document_number": payload.get("document_number"),
+            "branch_id": payload.get("branch_id"),
+            "timestamp": payload.get("timestamp"),
             "source_type": payload.get("source_type"),
             "source_id": payload.get("source_id"),
             "payment_condition": payload.get("payment_condition"),
+            "nature_subtotals": payload.get("nature_subtotals"),
+            "tax_total": payload.get("tax_total"),
         })
 
     # treasury / petty cash ---------------------------------------------------

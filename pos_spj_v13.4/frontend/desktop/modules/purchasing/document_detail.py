@@ -74,20 +74,57 @@ class RequisitionDetailPanel(SectionCard):
             self._timeline.set_events([])
             return
         self._summary.setText(
-            f"{detail.get('document_number', '—')} · {detail.get('status', '—')}\n"
-            f"Solicitante: {detail.get('requested_by_user_id', '—')} · "
-            f"Prioridad: {detail.get('priority', '—')}\n"
-            f"Motivo: {detail.get('business_reason') or 'Sin justificación'}")
+            f"{detail.document_number} · {detail.status}\n"
+            f"Solicitante: {detail.requested_by_name} · "
+            f"Prioridad: {detail.priority}\n"
+            f"Motivo: {detail.business_reason or 'Sin justificación'}")
         self._lines.load_rows([
-            [line.get("product_id", "—"), line.get("quantity", "0"),
-             line.get("estimated_unit_cost") or "—", line.get("purchase_nature", "—")]
-            for line in detail.get("lines", ())])
-        related = detail.get("related_documents", ())
+            [line.product_id, line.quantity, line.estimated_unit_cost or "—",
+             line.purchase_nature] for line in detail.lines])
+        related = detail.related_documents
         self._related.load_rows([
             [document.get("document_number", "—"), document.get("document_type", "—"),
              document.get("status", "—")] for document in related],
             row_ids=[document.get("id", "") for document in related])
-        self._timeline.set_events(detail.get("timeline", ()))
+        self._timeline.set_events(detail.timeline)
+
+
+class RfqDetailPanel(SectionCard):
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent, title="Invitaciones y cotizaciones")
+        self.setObjectName("procurementRfqDetail")
+        self._summary = QLabel("Selecciona una RFQ para ver proveedores invitados y sus"
+                               " cotizaciones.", self)
+        self._summary.setWordWrap(True)
+        self.add(self._summary)
+        self._invitations = StandardTable([
+            ColumnSpec("Proveedor"), ColumnSpec("Estado", "status"), ColumnSpec("Cotizó"),
+        ], self)
+        self._invitations.setMaximumHeight(150)
+        self.add(self._invitations)
+        self._quotes = StandardTable([
+            ColumnSpec("Proveedor"), ColumnSpec("Total", "numeric"),
+            ColumnSpec("Plazo (días)", "numeric"), ColumnSpec("Líneas", "numeric"),
+        ], self)
+        self.add(self._quotes)
+
+    def load_detail(self, detail) -> None:
+        if not detail:
+            self._summary.setText("Selecciona una RFQ para ver proveedores invitados y sus"
+                                  " cotizaciones.")
+            self._invitations.load_rows([])
+            self._quotes.load_rows([])
+            return
+        self._summary.setText(
+            f"{detail.document_number} · {detail.status}\n"
+            f"{'Adjudicada' if detail.awarded else 'Sin adjudicar'}")
+        self._invitations.load_rows([
+            [inv.supplier_name, inv.status, "Sí" if inv.has_quote else "No"]
+            for inv in detail.invitations], row_ids=[inv.supplier_id for inv in detail.invitations])
+        self._quotes.load_rows([
+            [q.supplier_name, f"{q.total} {q.currency_code}", str(q.lead_time_days),
+             str(q.line_count)] for q in detail.quotes],
+            row_ids=[q.quote_id for q in detail.quotes])
 
 
 class OrderDetailPanel(SectionCard):
@@ -119,17 +156,15 @@ class OrderDetailPanel(SectionCard):
             self._timeline.set_events([])
             return
         self._summary.setText(
-            f"{detail.get('document_number', '—')} · {detail.get('status', '—')} · "
-            f"v{detail.get('version', '1')}\n"
-            f"Proveedor: {detail.get('supplier_id', '—')} · "
-            f"Total: {detail.get('total', '0')} {detail.get('currency_code', '')}")
+            f"{detail.document_number} · {detail.status} · v{detail.version}\n"
+            f"Proveedor: {detail.supplier_name} · "
+            f"Total: {detail.total} {detail.currency_code}")
         self._lines.load_rows([
-            [line.get("product_id", "—"), line.get("ordered_quantity", "0"),
-             line.get("unit_price") or "—", line.get("received_quantity") or "0"]
-            for line in detail.get("lines", ())])
-        related = detail.get("related_documents", ())
+            [line.product_id, line.ordered_quantity, line.unit_price or "—",
+             line.received_quantity or "0"] for line in detail.lines])
+        related = detail.related_documents
         self._related.load_rows([
             [document.get("document_number", "—"), document.get("document_type", "—"),
              document.get("status", "—")] for document in related],
             row_ids=[document.get("id", "") for document in related])
-        self._timeline.set_events(detail.get("timeline", ()))
+        self._timeline.set_events(detail.timeline)

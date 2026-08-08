@@ -14,7 +14,7 @@ class Verifier:
             "01900000-0000-7000-8000-000000000001", "Comprador",
             "01900000-0000-7000-8000-000000000002", "Centro",
             "01900000-0000-7000-8000-000000000003", "Almacén",
-            device_id, ("logistics.shipment.create", "logistics.container.scan"))
+            device_id, ("LOGISTICA.embarque.crear", "LOGISTICA.contenedor.escanear"))
 
 
 def test_mobile_session_is_signed_and_contains_canonical_context():

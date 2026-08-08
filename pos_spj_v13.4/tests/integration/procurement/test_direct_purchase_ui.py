@@ -87,6 +87,19 @@ def test_presenter_full_flow(app, conn):
     assert ok and rdata["status"] == "REVERSED"
 
 
+def test_purchases_table_shows_supplier_name_not_uuid(app, conn):
+    presenter = build_direct_purchase_presenter(conn, Session())
+    lines = [CartLineVM("p1", "Pollo", Decimal("3"), Decimal("100"))]
+    ok, _msg, _data = presenter.create(
+        supplier_id="sup-1", lines=lines, mode="DIRECT_WITH_IMMEDIATE_RECEIPT",
+        payment_condition="IMMEDIATE_PAYMENT", branch_id="br-1", warehouse_id="wh-1")
+    assert ok
+    model = presenter.purchases()
+    assert model.total == 1
+    assert model.rows[0][1] == "Proveedor Uno"
+    assert "sup-1" not in model.rows[0][1]
+
+
 def test_presenter_blocks_pos_cash(app, conn):
     presenter = build_direct_purchase_presenter(conn, Session())
     lines = [CartLineVM("p1", "x", Decimal("1"), Decimal("10"))]

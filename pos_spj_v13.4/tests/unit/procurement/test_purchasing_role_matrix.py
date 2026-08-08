@@ -65,7 +65,8 @@ def _capabilities(role):
     [
         ("solicitante", {PurchasingRoutes.DASHBOARD, PurchasingRoutes.REQUISITIONS}),
         ("comprador", {PurchasingRoutes.DASHBOARD, PurchasingRoutes.REQUISITIONS,
-                       PurchasingRoutes.ORDERS, PurchasingRoutes.DIRECT_PURCHASE_CREATE,
+                       PurchasingRoutes.QUOTATIONS, PurchasingRoutes.ORDERS,
+                       PurchasingRoutes.DIRECT_PURCHASE_CREATE,
                        PurchasingRoutes.DIRECT_PURCHASE_HISTORY}),
         ("aprobador", {PurchasingRoutes.DASHBOARD, PurchasingRoutes.REQUISITIONS,
                        PurchasingRoutes.ORDERS}),

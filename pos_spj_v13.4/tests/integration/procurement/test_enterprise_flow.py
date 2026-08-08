@@ -276,10 +276,10 @@ def test_invoice_capture_match_creates_payable(proc_conn):
         (po_id,)).fetchone()
     receipt_rows = ReceiptReadService(proc_conn).list(
         branch_id=receipt_scope[0], warehouse_id=receipt_scope[1])
-    assert receipt_rows[0]["accepted"] == 10 and receipt_rows[0]["rejected"] == 0
+    assert receipt_rows[0].accepted == 10 and receipt_rows[0].rejected == 0
     invoice_detail = InvoiceReadService(proc_conn).detail(inv.entity_id)
-    assert invoice_detail["lines"][0]["invoiced_quantity"] == "10"
-    assert invoice_detail["comparison"][0]["accepted_quantity"] == 10
+    assert invoice_detail.lines[0].invoiced_quantity == "10"
+    assert invoice_detail.comparison[0]["accepted_quantity"] == 10
 
 
 def test_invoice_without_completed_receipt_is_blocked(proc_conn):

@@ -12,13 +12,16 @@ class LogisticsAuthorizationPolicy:
 
 
 class LogisticsPermissions:
-    SHIPMENT_VIEW = "logistics.shipment.view"
-    SHIPMENT_CREATE = "logistics.shipment.create"
-    CONTAINER_MANAGE = "logistics.container.manage"
-    CONTAINER_ATTACH = "logistics.container.attach"
-    CONTAINER_MOVE = "logistics.container.move"
-    CONTAINER_SEAL = "logistics.container.seal"
-    SHIPMENT_DISPATCH = "logistics.shipment.dispatch"
-    SHIPMENT_OVERRIDE = "logistics.shipment.override"
-    CONTAINER_RELEASE = "logistics.container.release"
-    LABEL_PRINT = "logistics.label.print"
+    """Canonical `MODULO.accion` codes (see core/security/permission_catalog.py)."""
+
+    SHIPMENT_VIEW = "LOGISTICA.embarque.ver"
+    SHIPMENT_CREATE = "LOGISTICA.embarque.crear"
+    CONTAINER_MANAGE = "LOGISTICA.contenedor.gestionar"
+    CONTAINER_ATTACH = "LOGISTICA.contenedor.adjuntar"
+    CONTAINER_MOVE = "LOGISTICA.contenedor.mover"
+    CONTAINER_SEAL = "LOGISTICA.contenedor.sellar"
+    SHIPMENT_DISPATCH = "LOGISTICA.embarque.despachar"
+    SHIPMENT_OVERRIDE = "LOGISTICA.embarque.forzar"
+    CONTAINER_RELEASE = "LOGISTICA.contenedor.liberar"
+    LABEL_PRINT = "LOGISTICA.etiqueta.imprimir"
+    CONTAINER_SCAN = "LOGISTICA.contenedor.escanear"

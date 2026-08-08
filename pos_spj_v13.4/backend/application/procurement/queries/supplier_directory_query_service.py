@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import dataclass
 
 
@@ -20,14 +21,29 @@ class SupplierDirectoryQueryService:
         self._connection = connection
 
     def get_eligibility(self, supplier_id: str) -> SupplierEligibility | None:
-        cursor = self._connection.execute(
-            "SELECT id, activo FROM proveedores WHERE id=?", (supplier_id,))
+        try:
+            cursor = self._connection.execute(
+                "SELECT id, activo, "
+                "COALESCE(compras_habilitadas, 1), COALESCE(bloqueado_financiero, 0)"
+                " FROM proveedores WHERE id=?", (supplier_id,))
+        except sqlite3.OperationalError:
+            # migración 178 (proveedores.bloqueado_financiero) aún no corrió en
+            # esta base — degrada al comportamiento previo, nunca inventa un
+            # bloqueo que no se puede leer.
+            cursor = self._connection.execute(
+                "SELECT id, activo FROM proveedores WHERE id=?", (supplier_id,))
+            row = cursor.fetchone()
+            if row is None:
+                return None
+            return SupplierEligibility(
+                supplier_id=str(row[0]), active=bool(row[1]),
+                purchasing_enabled=True, financially_blocked=False)
         row = cursor.fetchone()
         if row is None:
             return None
         return SupplierEligibility(
             supplier_id=str(row[0]), active=bool(row[1]),
-            purchasing_enabled=True, financially_blocked=False)
+            purchasing_enabled=bool(row[2]), financially_blocked=bool(row[3]))
 
     def require_eligible(self, supplier_id: str) -> None:
         from backend.domain.procurement.exceptions import SupplierNotEligibleError

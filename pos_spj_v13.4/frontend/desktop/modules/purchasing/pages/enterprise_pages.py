@@ -31,17 +31,18 @@ from frontend.desktop.components import (
 )
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.purchasing.dialogs.enterprise_dialogs import (
+    AwardDialog,
     InvoiceFormDialog,
     OrderFormDialog,
+    QuoteCaptureDialog,
     ReasonDialog,
     ReceiveOrderDialog,
     RequisitionFormDialog,
     SupplierSelectionDialog,
 )
 from frontend.desktop.modules.purchasing.document_detail import (
-    OrderDetailPanel, RequisitionDetailPanel,
+    OrderDetailPanel, RequisitionDetailPanel, RfqDetailPanel,
 )
-from frontend.desktop.modules.purchasing.document_detail import OrderDetailPanel
 from frontend.desktop.themes.tokens import Spacing
 
 
@@ -264,7 +265,7 @@ class RequisitionsPage(_ListPageBase):
                                             search=self._search.text().strip(), page=self._page)
 
     def _create(self):
-        dialog = RequisitionFormDialog(self)
+        dialog = RequisitionFormDialog(self, product_provider=self._presenter.product_options)
         if not dialog.exec_():
             return
         values = dialog.values()
@@ -322,7 +323,7 @@ class RequisitionsPage(_ListPageBase):
             self._notify(False, "Selecciona al menos un proveedor.")
             return
         ok, msg, _ = self._presenter.create_rfq_from_requisition(
-            detail["id"], supplier_ids)
+            detail.id, supplier_ids)
         self._notify(ok, msg)
 
     def _create_order(self):
@@ -338,11 +339,12 @@ class RequisitionsPage(_ListPageBase):
         dialog = OrderFormDialog(
             self, source_requisition=detail,
             branch_id=self._presenter.default_branch(), warehouse_id=warehouse_id,
-            supplier_provider=self._presenter.supplier_options)
+            supplier_provider=self._presenter.supplier_options,
+            product_provider=self._presenter.product_options)
         if not dialog.exec_():
             return
         values = dialog.values()
-        values["requisition_id"] = detail["id"]
+        values["requisition_id"] = detail.id
         if not values["supplier_id"] or not values["lines"]:
             self._notify(False, "Captura proveedor y líneas con precio.")
             return
@@ -353,6 +355,89 @@ class RequisitionsPage(_ListPageBase):
         detail = self._selected_detail()
         if detail:
             self.direct_purchase_requested.emit(detail)
+
+
+class QuotationsPage(_ListPageBase):
+    title = "Cotizaciones"
+    subtitle = "Capturar lo que cotizó cada proveedor invitado y adjudicar."
+    columns = [ColumnSpec("Folio", "text"), ColumnSpec("Estado", "status"),
+               ColumnSpec("Invitados", "text"), ColumnSpec("Cotizados", "text"),
+               ColumnSpec("Adjudicada", "text"), ColumnSpec("Fecha", "text")]
+    status_filter = [("", "Todos"), ("DRAFT", "Borrador"), ("SENT", "Enviada"),
+                     ("CLOSED", "Cerrada")]
+    empty_message = "No hay RFQ"
+
+    def _create_detail_panel(self):
+        self._detail = RfqDetailPanel(self)
+        return self._detail
+
+    def _selection_changed(self):
+        super()._selection_changed()
+        rfq_id = self._selected()
+        detail = self._presenter.rfq_detail(rfq_id) if rfq_id else None
+        self._detail.load_detail(detail)
+
+    def _allowed_actions(self):
+        row = self._table.currentRow()
+        awarded = self._table.item(row, 4).text() if row >= 0 and self._table.item(row, 4) else ""
+        if awarded == "Sí":
+            return set()
+        return {"Capturar cotización", "Comparar y adjudicar"}
+
+    def _build_row_actions(self, row):
+        capabilities = self._presenter.capabilities()
+        capture = create_secondary_button(self, "Capturar cotización")
+        capture.setVisible(capabilities.quote_capture)
+        capture.clicked.connect(self._capture_quote)
+        award = create_success_button(self, "Comparar y adjudicar")
+        award.setVisible(capabilities.quote_award)
+        award.clicked.connect(self._award)
+        for b in (capture, award):
+            row.addWidget(b)
+
+    def _fetch(self):
+        return self._presenter.rfqs(status=self._status_id() or None,
+                                    search=self._search.text().strip(), page=self._page)
+
+    def _capture_quote(self):
+        rfq_id = self._selected()
+        if not rfq_id:
+            self._notify(False, "Selecciona una RFQ.")
+            return
+        detail = self._presenter.rfq_detail(rfq_id)
+        if not detail or not detail.invitations:
+            self._notify(False, "La RFQ no tiene proveedores invitados.")
+            return
+        invited = [(inv.supplier_id, inv.supplier_name) for inv in detail.invitations]
+        dialog = QuoteCaptureDialog(self, invited_suppliers=invited,
+                                    product_provider=self._presenter.product_options)
+        if not dialog.exec_():
+            return
+        values = dialog.values()
+        if not values["supplier_id"] or not values["lines"]:
+            self._notify(False, "Selecciona proveedor y captura al menos una línea.")
+            return
+        ok, msg, _ = self._presenter.capture_quote(rfq_id=rfq_id, **values)
+        self._notify(ok, msg)
+
+    def _award(self):
+        rfq_id = self._selected()
+        if not rfq_id:
+            self._notify(False, "Selecciona una RFQ.")
+            return
+        comparison = self._presenter.quote_comparison(rfq_id)
+        if not comparison:
+            self._notify(False, "La RFQ no tiene cotizaciones capturadas.")
+            return
+        dialog = AwardDialog(self, comparison_rows=comparison)
+        if not dialog.exec_():
+            return
+        award_lines = dialog.award_lines()
+        if not award_lines or not dialog.reason():
+            self._notify(False, "Selecciona al menos una línea y captura la justificación.")
+            return
+        ok, msg, _ = self._presenter.award_quote(award_lines=award_lines, reason=dialog.reason())
+        self._notify(ok, msg)
 
 
 class OrdersPage(_ListPageBase):
@@ -515,23 +600,23 @@ class InvoicesPage(_ListPageBase):
         if not invoice_id or not hasattr(self, "_invoice_lines"): return
         detail = self._presenter.invoice_detail(invoice_id)
         if not detail: return
-        comparisons = {line["source_line_id"]: line for line in detail.get("comparison", ())}
+        comparisons = {line["source_line_id"]: line for line in detail.comparison}
         rows = []
-        for line in detail.get("lines", ()):
-            source_id = line.get("purchase_order_line_id") or line.get("direct_purchase_line_id")
+        for line in detail.lines:
+            source_id = line.purchase_order_line_id or line.direct_purchase_line_id
             expected = comparisons.get(source_id, {})
-            rows.append([line["product_id"], str(expected.get("accepted_quantity", "0")),
-                         line["invoiced_quantity"], str(expected.get("unit_price", "—")),
-                         line["unit_price"], line["tax"]])
+            rows.append([line.product_id, str(expected.get("accepted_quantity", "0")),
+                         line.invoiced_quantity, str(expected.get("unit_price", "—")),
+                         line.unit_price, line.tax])
         self._invoice_lines.load_rows(rows, row_ids=[str(i) for i in range(len(rows))])
         self._match_history.load_rows([[
-            item["result"], item.get("released_by_user_id") or "—",
-            item.get("notes") or "—", item["created_at"],
-        ] for item in detail.get("matches", ())],
-            row_ids=[str(i) for i, _ in enumerate(detail.get("matches", ()))])
+            item.result, item.released_by_user_id or "—",
+            item.notes or "—", item.created_at,
+        ] for item in detail.matches],
+            row_ids=[str(i) for i, _ in enumerate(detail.matches)])
         self._invoice_summary.setText(
-            f"{detail['document_number']} · Factura {detail['invoice_number']} · "
-            f"{detail['status']} · {detail.get('match_result') or 'Sin conciliar'}")
+            f"{detail.document_number} · Factura {detail.invoice_number} · "
+            f"{detail.status} · {detail.match_result or 'Sin conciliar'}")
 
     def _allowed_actions(self):
         row = self._table.currentRow()
@@ -567,7 +652,8 @@ class InvoicesPage(_ListPageBase):
     def _create(self):
         dialog = InvoiceFormDialog(
             self, document_provider=self._presenter.invoice_document_options,
-            document_profile=self._presenter.invoice_document_profile)
+            document_profile=self._presenter.invoice_document_profile,
+            product_provider=self._presenter.product_options)
         if not dialog.exec_():
             return
         values = dialog.values()

@@ -18,6 +18,10 @@ class PurchasingCapabilities:
     requisition_approve: bool = False
     requisition_reject: bool = False
     rfq_create: bool = False
+    quotation_view: bool = False
+    quote_capture: bool = False
+    quote_compare: bool = False
+    quote_award: bool = False
     order_view: bool = False
     order_create: bool = False
     order_approve: bool = False
@@ -65,10 +69,15 @@ MATCH_RESULT_ES = {
     "MISSING_ORDER": "Sin orden", "MISSING_PURCHASE_DOCUMENT": "Sin documento",
     "VARIANCE_RELEASED": "Diferencia liberada",
 }
+RFQ_STATUS_ES = {"DRAFT": "Borrador", "SENT": "Enviada", "CLOSED": "Cerrada"}
 
 
 def requisition_status_es(code):
     return REQUISITION_STATUS_ES.get(str(code or ""), str(code or "—"))
+
+
+def rfq_status_es(code):
+    return RFQ_STATUS_ES.get(str(code or ""), str(code or "—"))
 
 
 def order_status_es(code):

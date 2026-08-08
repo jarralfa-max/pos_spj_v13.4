@@ -171,6 +171,8 @@ MIGRATIONS = [
     _Migration("174",  "migrations.standalone.174_losses_bounded_context_schema"),
     _Migration("175",  "migrations.standalone.175_cash_register_bounded_context_schema"),
     _Migration("176",  "migrations.standalone.176_cash_register_configuration_schema"),
+    _Migration("177",  "migrations.standalone.177_compras_logistica_canonical_permissions"),
+    _Migration("178",  "migrations.standalone.178_proveedores_bloqueo_financiero"),
 ]
 
 def _ensure_tracking_table(conn):

@@ -16,7 +16,7 @@ from frontend.desktop.modules.purchasing.navigation import (
     PurchasingRoutes, visible_routes,
 )
 from frontend.desktop.modules.purchasing.pages.enterprise_pages import (
-    InvoicesPage, OrdersPage, RequisitionsPage,
+    InvoicesPage, OrdersPage, QuotationsPage, RequisitionsPage,
 )
 from frontend.desktop.modules.purchasing.pages.procurement_dashboard_page import (
     ProcurementDashboardPage,
@@ -76,6 +76,7 @@ class PurchasingModuleShell(QWidget):
         super().__init__(parent)
         self.setObjectName("purchasingModuleShell")
         self._presenter = presenter
+        self._direct_purchase_views = direct_purchase_views or {}
         self._loaded = False
         self._row_to_page: dict[int, int] = {}
         self._route_to_page: dict[str, int] = {}
@@ -122,7 +123,7 @@ class PurchasingModuleShell(QWidget):
         body_layout.addWidget(self.content, stretch=1)
         root.addWidget(body, stretch=1)
 
-        self._build_navigation(direct_purchase_views or {})
+        self._build_navigation(self._direct_purchase_views)
         self.sidebar.currentRowChanged.connect(self._navigate_row)
         self.sidebar.setCurrentRow(next(iter(self._row_to_page)))
 
@@ -153,6 +154,7 @@ class PurchasingModuleShell(QWidget):
             PurchasingRoutes.DASHBOARD: lambda: ProcurementDashboardPage(
                 self._presenter, self),
             PurchasingRoutes.REQUISITIONS: self._create_requisitions_page,
+            PurchasingRoutes.QUOTATIONS: lambda: QuotationsPage(self._presenter, self),
             PurchasingRoutes.ORDERS: lambda: OrdersPage(self._presenter, self),
             PurchasingRoutes.DIRECT_PURCHASE_CREATE: lambda: direct_purchase_views.get("create"),
             PurchasingRoutes.DIRECT_PURCHASE_HISTORY: lambda: direct_purchase_views.get("history"),
@@ -204,6 +206,39 @@ class PurchasingModuleShell(QWidget):
             handler = getattr(page, f"start_{action}", None)
             if callable(handler):
                 handler()
+
+    def refresh_permissions(self) -> None:
+        """Reconstruye rutas y botones tras login o un cambio de permisos.
+
+        Compras se construye antes del login (MainWindow arma todas las
+        pantallas primero); en ese momento capabilities() está vacío. Este
+        método se re-invoca desde MainWindow tras set_permisos() para que el
+        sidebar y las acciones reflejen los permisos reales sin reconstruir
+        el widget completo.
+        """
+        current_route = next((key for key, row in self._route_to_row.items()
+                              if row == self.sidebar.currentRow()), None)
+        for page in self._pages:
+            self.content.removeWidget(page)
+            if page not in self._direct_purchase_views.values():
+                page.deleteLater()
+        self._pages.clear()
+        self._row_to_page.clear()
+        self._route_to_page.clear()
+        self._route_to_row.clear()
+        self._route_badges.clear()
+        self.sidebar.clear()
+        self._build_navigation(self._direct_purchase_views)
+        if current_route in self._route_to_row:
+            self.navigate_to(current_route)
+        elif self._row_to_page:
+            self.sidebar.setCurrentRow(next(iter(self._row_to_page)))
+        for view in self._direct_purchase_views.values():
+            refresher = getattr(view, "refresh_permissions", None)
+            if callable(refresher):
+                refresher()
+        self._loaded = False
+        self.ensure_loaded()
 
     def _navigate_row(self, row: int) -> None:
         page_index = self._row_to_page.get(row)
