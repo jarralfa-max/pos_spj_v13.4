@@ -30,11 +30,20 @@ class WarehouseQueryService:
     def list_warehouses(self, *, branch_id: str) -> list[dict]:
         return self._repo.list_by_branch(branch_id)
 
+    def get_warehouse(self, *, warehouse_id: str) -> dict | None:
+        """Full raw row (§24 edición) — the list views only carry display-ready
+        strings, this is for prefilling an edit form with real values."""
+        return self._repo.get_warehouse(warehouse_id)
+
     def list_zones(self, *, warehouse_id: str) -> list[dict]:
         return self._repo.list_zones(warehouse_id)
 
     def list_locations(self, *, warehouse_id: str) -> list[dict]:
         return self._repo.list_locations(warehouse_id)
+
+    def get_location(self, *, location_id: str) -> dict | None:
+        """Full raw row (§24 edición), same rationale as ``get_warehouse``."""
+        return self._repo.get_location(location_id)
 
     def location_hierarchy(self, *, warehouse_id: str) -> list[LocationNode]:
         """Nest storage locations by ``parent_location_id`` into a forest of roots."""

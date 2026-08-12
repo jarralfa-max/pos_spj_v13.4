@@ -1,6 +1,9 @@
 """LOSS-23 hard cutover: one Losses route, classification, and schema."""
 
 from pathlib import Path
+import sqlite3
+
+from migrations.m000_base_schema import up as bootstrap_schema
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -19,6 +22,7 @@ LEGACY_IMPORT_TOKENS = (
     "modulos.merma", "ModuloMerma", "WasteApplicationService",
     "RegisterWasteCommand", "CanonicalWasteInventoryService",
     "register_waste_use_case", "inventory_waste_event",
+    "ajustes_inventario",
 )
 
 
@@ -42,11 +46,26 @@ def test_born_clean_schema_has_only_loss_bounded_context_tables():
     base = (ROOT / "migrations/m000_base_schema.py").read_text(encoding="utf-8")
     inventory = (ROOT / "backend/infrastructure/db/schema/inventory_schema.py").read_text(encoding="utf-8")
     assert "CREATE TABLE IF NOT EXISTS mermas" not in base
+    assert "CREATE TABLE IF NOT EXISTS ajustes_inventario" not in base
     assert 'ensure_column(conn, "mermas"' not in base
     assert "inventory_waste_event" not in inventory
     canonical = (ROOT / "migrations/standalone/174_losses_bounded_context_schema.py").read_text(encoding="utf-8")
     assert "CREATE TABLE IF NOT EXISTS loss_cases" in canonical
     assert "CREATE TABLE IF NOT EXISTS loss_lines" in canonical
+
+
+def test_born_clean_bootstrap_does_not_materialize_retired_tables():
+    connection = sqlite3.connect(":memory:")
+    try:
+        bootstrap_schema(connection)
+        tables = {row[0] for row in connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        assert not tables.intersection({
+            "mermas", "ajustes_inventario", "inventory_waste_event"})
+        assert {"loss_cases", "loss_lines", "loss_classifications"} <= tables
+        assert not connection.execute("PRAGMA foreign_key_check").fetchall()
+    finally:
+        connection.close()
 
 
 def test_inventory_analytics_reads_canonical_loss_classification():

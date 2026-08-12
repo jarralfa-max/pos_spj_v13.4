@@ -34,7 +34,6 @@ LEGACY_TABLES = (
     "inventory_movements", "movimientos_inventario", "movimientos_lote",
     "movimientos_trazabilidad",
     "transferencias", "transferencias_inventario", "traspasos", "recepciones",
-    "ajustes_inventario",
     "stock_reservas", "stock_reservas_detalle", "inventory_reservations",
     "lotes",
 )

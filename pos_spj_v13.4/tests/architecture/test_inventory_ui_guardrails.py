@@ -1,7 +1,7 @@
 """INV-25 guardrails — the enterprise inventory UI is presentation-only.
 
 No SQL, no raw sqlite, no direct connection use in the module; navigation
-permissions are granular INVENTORY_* codes.
+permissions are granular INVENTARIO.accion codes.
 """
 
 from __future__ import annotations
@@ -52,7 +52,7 @@ def test_nav_permissions_are_granular_inventory_codes():
     assert INVENTORY_NAV
     for entry in INVENTORY_NAV:
         assert entry.permission in ALL_INVENTORY_PERMISSIONS
-        assert entry.permission.startswith("INVENTORY_")
+        assert entry.permission.startswith("INVENTARIO.")
 
 
 def test_module_files_present():

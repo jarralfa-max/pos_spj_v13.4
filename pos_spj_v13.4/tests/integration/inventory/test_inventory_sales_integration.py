@@ -1,8 +1,10 @@
 """INV-11 — Sales/POS integration e2e over the canonical inventory context.
 
 POS reads availability (never writes stock); a confirmed sale drives a SALE_ISSUE
-movement via the handler; a customer return drives a SALE_RETURN into
-PENDING_INSPECTION (Quality intervenes). All idempotent by operation_id.
+movement (live path: CanonicalSaleInventoryHandler, exercised elsewhere — here we
+post the same movement type directly to set up return scenarios); a customer
+return drives a SALE_RETURN into PENDING_INSPECTION (Quality intervenes). All
+idempotent by operation_id.
 """
 
 from decimal import Decimal
@@ -13,9 +15,6 @@ import pytest
 
 from backend.application.event_handlers.inventory.customer_return_handler import (
     CustomerReturnHandler,
-)
-from backend.application.event_handlers.inventory.sale_issue_handler import (
-    SaleIssueHandler,
 )
 from backend.application.inventory.queries import InventoryAvailabilityQueryService
 from backend.application.inventory.use_cases import (
@@ -50,6 +49,16 @@ def _receipt(conn, qty="10", loc="loc1", op="r1"):
     PostInventoryMovementUseCase().execute(conn, mv, actor_user_id="u1")
 
 
+def _issue(conn, qty="4", loc="loc1", op="sale-1"):
+    line = InventoryMovementLine.create(product_id="p1", quantity=Decimal(qty),
+                                        from_location_id=loc)
+    mv = InventoryMovement.create(
+        movement_type=MovementType.SALE_ISSUE, branch_id="b1", warehouse_id="w1",
+        source_module="sales", source_document_type="SALE", source_document_id="SALE-1",
+        operation_id=op, created_by_user_id="u1", lines=[line])
+    PostInventoryMovementUseCase().execute(conn, mv, actor_user_id="u1")
+
+
 def _avail(conn):
     return InventoryAvailabilityQueryService(conn).get_availability(
         product_id="p1", branch_id="b1")
@@ -78,56 +87,10 @@ class TestAvailabilityQuery:
         assert _avail(conn).by_status["AVAILABLE"] == "10"
 
 
-class TestSaleIssueHandler:
-    def _payload(self, op="sale-1", qty="4"):
-        return {"operation_id": op, "branch_id": "b1", "warehouse_id": "w1",
-                "document_id": "SALE-1", "user_id": "cashier",
-                "lines": [{"product_id": "p1", "quantity": qty, "from_location_id": "loc1"}]}
-
-    def test_confirmed_sale_decrements_stock(self, conn):
-        _receipt(conn, "10")
-        SaleIssueHandler(conn).handle(self._payload(qty="4"))
-        assert _avail(conn).available == Decimal("6")
-
-    def test_issue_is_idempotent(self, conn):
-        _receipt(conn, "10")
-        SaleIssueHandler(conn).handle(self._payload(op="sale-1", qty="4"))
-        SaleIssueHandler(conn).handle(self._payload(op="sale-1", qty="4"))  # replay
-        assert _avail(conn).available == Decimal("6")  # not 2
-
-    def test_issue_beyond_stock_raises(self, conn):
-        _receipt(conn, "3")
-        with pytest.raises(RuntimeError):
-            SaleIssueHandler(conn).handle(self._payload(qty="5"))
-        assert _avail(conn).available == Decimal("3")  # rolled back
-
-    def test_incomplete_payload_ignored(self, conn):
-        SaleIssueHandler(conn).handle({"operation_id": "x"})  # no lines → no-op
-
-    def test_missing_warehouse_is_not_defaulted_to_branch(self, conn):
-        # §5: sin warehouse_id el evento NO se procesa con warehouse=branch.
-        _receipt(conn, "10")
-        payload = self._payload()
-        payload.pop("warehouse_id")
-        SaleIssueHandler(conn).handle(payload)  # fail-closed → no-op
-        assert _avail(conn).available == Decimal("10")  # stock intacto
-
-    def test_missing_user_is_not_fabricated_as_system(self, conn):
-        # §5.4: sin user_id el evento NO se procesa con actor "system".
-        _receipt(conn, "10")
-        payload = self._payload()
-        payload.pop("user_id")
-        SaleIssueHandler(conn).handle(payload)  # fail-closed → no-op
-        assert _avail(conn).available == Decimal("10")
-
-
 class TestCustomerReturnHandler:
     def test_return_enters_pending_inspection(self, conn):
         _receipt(conn, "10")
-        SaleIssueHandler(conn).handle(
-            {"operation_id": "sale-1", "branch_id": "b1", "warehouse_id": "w1",
-             "document_id": "SALE-1", "user_id": "c",
-             "lines": [{"product_id": "p1", "quantity": "4", "from_location_id": "loc1"}]})
+        _issue(conn, "4")
         CustomerReturnHandler(conn).handle(
             {"operation_id": "ret-1", "branch_id": "b1", "warehouse_id": "w1",
              "document_id": "RET-1", "user_id": "c",

@@ -27,10 +27,10 @@ except Exception as e:
     logger.error("Error cargando ModuloVentas: %s", e)
 
 try:
-    from modulos.caja import ModuloCaja
+    from frontend.desktop.modules.cash_register import CashRegisterWorkspace as ModuloCaja
 except Exception as e:
     ModuloCaja = None
-    logger.error("Error cargando ModuloCaja: %s", e)
+    logger.error("Error cargando CashRegisterWorkspace: %s", e)
 
 try:
     from modulos.inventario_enterprise import ModuloInventarioEnterprise as ModuloInventarioLocal

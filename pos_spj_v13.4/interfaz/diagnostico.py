@@ -161,7 +161,7 @@ class DiagnosticoSistema(QDialog):
             # Lista de módulos críticos a verificar
             modulos_criticos = [
                 ("Ventas", "modulos.ventas"),
-                ("Caja", "modulos.caja"),
+                ("Caja", "frontend.desktop.modules.cash_register"),
                 ("Inventario", "modulos.inventario"),
                 ("Productos", "modulos.productos_enterprise"),
                 ("Clientes", "modulos.clientes"),

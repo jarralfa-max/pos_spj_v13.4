@@ -99,7 +99,6 @@ def up(conn: sqlite3.Connection) -> None:
     _safe(conn, _create_tarjetas,          "tarjetas")
     _safe(conn, _create_recetas_produccion,"recetas_produccion")
     _safe(conn, _create_batch_fifo,        "batch_fifo")
-    _safe(conn, _create_mermas_ajustes,    "mermas_ajustes")
     _safe(conn, _create_losses_bounded_context, "losses_bounded_context")
     _safe(conn, _create_cash_register_bounded_context, "cash_register_bounded_context")
     _safe(conn, _create_cash_register_configuration, "cash_register_configuration")
@@ -2123,10 +2122,6 @@ def _create_batch_fifo(conn):
             activo        INTEGER  NOT NULL DEFAULT 1
         )
     """)
-
-
-def _create_mermas_ajustes(conn):
-    pass  # ya creadas en _create_inventario
 
 
 def _create_losses_bounded_context(conn):

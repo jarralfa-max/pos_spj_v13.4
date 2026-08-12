@@ -15,7 +15,6 @@ REPO = Path(__file__).resolve().parents[2]
 #: POS-side surfaces that must stay purchase-execution-free.
 _POS_FILES = [
     "modulos/ventas.py",
-    "modulos/caja.py",
 ]
 
 _FORBIDDEN = re.compile(

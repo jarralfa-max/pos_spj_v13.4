@@ -1,20 +1,24 @@
-from core.services.caja_ticket_service import CajaTicketService
+from backend.application.cash_register.printing import (
+    CashPrintDocument,
+    CashPrintDocumentType,
+)
+from backend.infrastructure.printing.cash_register_renderers import CashDocumentEscPosRenderer
+from backend.shared.ids import new_uuid
 
 
-class _Printer:
-    def __init__(self):
-        self.calls = []
-    def has_ticket_printer(self):
-        return True
-    def print_ticket(self, data):
-        self.calls.append(data)
-        return 'job-z'
-
-
-def test_caja_corte_usa_printerservice():
-    p = _Printer()
-    svc = CajaTicketService(printer_service=p)
-    ok = svc.enviar_escpos({'cierre_id': 9, 'fecha': '2026-01-01', 'cajero': 'ana', 'ventas_totales': 100, 'diferencia': 0})
-    assert ok is True
-    assert len(p.calls) == 1
-    assert p.calls[0].get('ticket_type') == 'caja_corte_z'
+def test_caja_corte_usa_renderer_escpos_canonico():
+    document = CashPrintDocument(
+        document_type=CashPrintDocumentType.Z_CUT,
+        entity_id=new_uuid(),
+        branch_id=new_uuid(),
+        reference="CZ-2026-000009",
+        title="Corte Z",
+        fields=(("Fecha", "2026-01-01"), ("Cajero", "ana")),
+        totals=(("Ventas", "$100.00"), ("Diferencia", "$0.00")),
+        final=True,
+    )
+    artifact = CashDocumentEscPosRenderer().render(document)
+    text = artifact.content.decode("cp850", errors="replace")
+    assert artifact.media_type == "application/vnd.escpos"
+    assert "CORTE Z" in text
+    assert "CZ-2026-000009" in text

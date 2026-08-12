@@ -47,13 +47,13 @@ def _limit(cap="100", approval="20"):
 # ── permisos granulares ────────────────────────────────────────────────────
 class TestPermissions:
     def test_catalog_is_granular_not_broad(self):
-        assert "INVENTORY_ALL" not in ALL_INVENTORY_PERMISSIONS
         assert "INVENTARIO" not in ALL_INVENTORY_PERMISSIONS
+        assert "INVENTORY_ALL" not in ALL_INVENTORY_PERMISSIONS
         assert len(ALL_INVENTORY_PERMISSIONS) >= 60
 
     def test_all_codes_are_prefixed_strings(self):
         for code in ALL_INVENTORY_PERMISSIONS:
-            assert isinstance(code, str) and code.startswith("INVENTORY_")
+            assert isinstance(code, str) and code.startswith("INVENTARIO.")
 
     def test_no_duplicate_codes(self):
         values = [v for k, v in vars(InventoryPermissions).items()
@@ -62,15 +62,14 @@ class TestPermissions:
 
     def test_key_sensitive_actions_present(self):
         for code in (InventoryPermissions.MOVEMENT_REVERSE,
-                     InventoryPermissions.TRANSFER_APPROVE,
-                     InventoryPermissions.TRANSFER_DISPATCH,
-                     InventoryPermissions.TRANSFER_RECEIVE,
                      InventoryPermissions.COUNT_CONFIRM,
                      InventoryPermissions.COUNT_VIEW_EXPECTED,
                      InventoryPermissions.ADJUSTMENT_APPROVE,
                      InventoryPermissions.QUALITY_RELEASE,
                      InventoryPermissions.WEIGHT_MANUAL_OVERRIDE,
-                     InventoryPermissions.NEGATIVE_OVERRIDE):
+                     InventoryPermissions.NEGATIVE_OVERRIDE,
+                     InventoryPermissions.RECEIPT_REVERSE,
+                     InventoryPermissions.DISPOSAL_AUTHORIZE):
             assert code in ALL_INVENTORY_PERMISSIONS
 
 

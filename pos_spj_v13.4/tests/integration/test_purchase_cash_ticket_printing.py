@@ -1,4 +1,4 @@
-"""Impresión de recibos de compra/caja: ruta canónica y fallo no destructivo."""
+"""Impresion de recibos de compra/caja: ruta canonica y fallo no destructivo."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -18,23 +18,24 @@ def test_printer_service_is_canonical_route():
     assert "from escpos.printer import Usb" not in src
 
 
-def test_caja_ticket_service_does_not_raise_on_print_failure():
-    """El fallo de impresión no debe propagar y cancelar la operación de Caja."""
-    from core.services.caja_ticket_service import CajaTicketService
+def test_cash_printing_uses_canonical_queue_and_audit_ports():
+    """Caja ya no usa CajaTicketService; imprime por use case + cola/auditoria."""
+    from backend.application.cash_register.printing import (
+        CashPrintAuditRepository,
+        CashPrintQueue,
+        PrintCashDocumentUseCase,
+    )
 
-    svc = CajaTicketService.__new__(CajaTicketService)
-    # enviar_escpos devuelve bool — la falla se reporta, no revienta
-    assert isinstance(CajaTicketService.enviar_escpos, object)
-    src = (APP_ROOT / "core" / "services" / "caja_ticket_service.py").read_text(encoding="utf-8")
-    assert "def enviar_escpos" in src
+    src = (APP_ROOT / "backend" / "application" / "cash_register" / "printing.py").read_text(encoding="utf-8")
+    assert "CajaTicketService" not in src
+    assert CashPrintQueue
+    assert CashPrintAuditRepository
+    assert PrintCashDocumentUseCase
 
 
 def test_sales_ui_delegates_printing_to_printer_service():
     text = (APP_ROOT / "modulos" / "ventas.py").read_text(encoding="utf-8")
-    code = "\n".join(l for l in text.splitlines() if not l.strip().startswith("#"))
-    assert "from escpos.printer import Usb" not in code, (
-        "la UI de ventas no debe usar escpos.printer.Usb directamente"
-    )
+    code = "\n".join(line for line in text.splitlines() if not line.strip().startswith("#"))
+    assert "from escpos.printer import Usb" not in code
     assert "printer_service" in code
-    # La venta ya completada no se cancela por fallo del ticket
-    assert "La venta fue completada, pero el ticket no se imprimió" in text
+    assert "La venta fue completada, pero el ticket no se imprimi" in text

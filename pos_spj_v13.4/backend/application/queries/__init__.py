@@ -17,7 +17,6 @@ from backend.application.queries.branch_query_service import BranchQueryService
 from backend.application.queries.driver_query_service import DriverQueryService
 from backend.application.queries.asset_query_service import AssetQueryService
 from backend.application.queries.delivery_query_service import DeliveryQueryService
-from backend.application.queries.waste_query_service import WasteQueryService
 from backend.application.queries.production_query_service import ProductionQueryService
 from backend.application.queries.quote_query_service import QuoteQueryService
 from backend.application.queries.loyalty_query_service import LoyaltyQueryService
@@ -42,7 +41,6 @@ __all__ = [
     "DriverQueryService",
     "AssetQueryService",
     "DeliveryQueryService",
-    "WasteQueryService",
     "ProductionQueryService",
     "QuoteQueryService",
     "LoyaltyQueryService",

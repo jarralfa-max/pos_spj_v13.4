@@ -5,7 +5,9 @@ through the inventory use cases. They are a PARALLEL build: none is wired to the
 live EventBus yet (the legacy stock path owns stock until the INV-27 cutover, so
 wiring both would double-count). They subscribe at cutover.
 
-INV-11 (Sales): SaleIssueHandler, CustomerReturnHandler.
+INV-11 (Sales): CustomerReturnHandler. (SaleIssueHandler retired — the live sale
+path already posts SALE_ISSUE via CanonicalSaleInventoryHandler, wired directly
+in core/events/wiring.py; SaleIssueHandler was unreachable dead code.)
 INV-19 (Procurement): PurchaseReceiptHandler / DirectPurchaseReceiptHandler,
 SupplierReturnHandler, GoodsReceiptReversedHandler.
 """
@@ -23,9 +25,6 @@ from backend.application.event_handlers.inventory.purchase_receipt_handler impor
     DirectPurchaseReceiptHandler,
     PurchaseReceiptHandler,
 )
-from backend.application.event_handlers.inventory.sale_issue_handler import (
-    SaleIssueHandler,
-)
 from backend.application.event_handlers.inventory.slaughter_stub_handler import (
     SlaughterExecutedStubHandler,
 )
@@ -39,7 +38,6 @@ __all__ = [
     "GoodsReceiptReversedHandler",
     "ProductionExecutionHandler",
     "PurchaseReceiptHandler",
-    "SaleIssueHandler",
     "SlaughterExecutedStubHandler",
     "SupplierReturnHandler",
 ]

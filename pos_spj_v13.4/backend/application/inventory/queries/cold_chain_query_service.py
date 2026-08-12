@@ -19,7 +19,7 @@ class ColdChainQueryService(InventoryRepositoryBase):
     def list_open_excursions(self, *, warehouse_id: str | None = None) -> list[dict]:
         """Open temperature excursions (unresolved), most recent first. Rows carry
         warehouse, lot, temperature, range, status and action for display."""
-        cols = ("warehouse_id, lot_id, status, temperature, min_temp, max_temp,"
+        cols = ("id, warehouse_id, lot_id, status, temperature, min_temp, max_temp,"
                 " action_taken, created_at")
         sql = (f"SELECT {cols} FROM inventory_temperature_excursions WHERE resolved=0")
         params: tuple = ()
@@ -28,7 +28,7 @@ class ColdChainQueryService(InventoryRepositoryBase):
             params += (warehouse_id,)
         sql += " ORDER BY created_at DESC"
         return [{
-            "warehouse_id": r["warehouse_id"], "lot_id": zn(r["lot_id"]),
+            "id": r["id"], "warehouse_id": r["warehouse_id"], "lot_id": zn(r["lot_id"]),
             "status": r["status"], "temperature": to_decimal(r["temperature"]),
             "min_temp": to_decimal(r["min_temp"]), "max_temp": to_decimal(r["max_temp"]),
             "action_taken": r["action_taken"],

@@ -88,11 +88,6 @@ def test_sales_commands_use_str_ids():
     assert "reservation_id: int" not in src
 
 
-def test_waste_commands_use_str_ids():
-    src = (PACKAGE_ROOT / "backend" / "application" / "commands" / "waste_commands.py").read_text()
-    assert "product_id: int" not in src
-
-
 def test_use_case_commands_use_str_ids():
     """Individual use case command dataclasses must not have int IDs."""
     files = [

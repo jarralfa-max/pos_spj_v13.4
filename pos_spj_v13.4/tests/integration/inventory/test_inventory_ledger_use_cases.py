@@ -14,6 +14,7 @@ import pytest
 
 from backend.application.inventory.authorization import InventoryAuthorizationPolicy
 from backend.application.inventory.permissions import InventoryPermissions
+from backend.application.inventory.queries import AuditQueryService, MovementQueryService
 from backend.application.inventory.use_cases import (
     PostInventoryMovementUseCase,
     ReverseInventoryMovementUseCase,
@@ -178,3 +179,59 @@ class TestBalanceReconstructable:
         ReverseInventoryMovementUseCase().execute(
             conn, movement_id=issue_id, operation_id="rev-1", actor_user_id="u1", reason="x")
         assert _balance(conn) == Decimal("10")  # issue undone
+
+
+class TestMovementDetailQueries:
+    """INV-6 (§6) — detalle/documento origen/auditoría read the ledger
+    directly (no new write path); these just confirm the query-service
+    wrappers added around the already-existing repository methods."""
+
+    def test_get_movement_and_lines(self, conn):
+        PostInventoryMovementUseCase().execute(conn, _receipt("op-1", "10"), actor_user_id="u1")
+        with InventoryUnitOfWork(conn) as uow:
+            mv_id = uow.ledger.find_by_operation_id("op-1")["id"]
+        svc = MovementQueryService(conn)
+        header = svc.get_movement(movement_id=mv_id)
+        assert header["movement_type"] == "PURCHASE_RECEIPT"
+        assert header["source_document_id"] == "gr1"
+        lines = svc.get_lines(movement_id=mv_id)
+        assert len(lines) == 1 and lines[0]["product_id"] == "p1"
+
+    def test_get_movement_unknown_returns_none(self, conn):
+        assert MovementQueryService(conn).get_movement(movement_id=new_uuid()) is None
+
+    def test_list_for_document_finds_siblings(self, conn):
+        PostInventoryMovementUseCase().execute(conn, _receipt("op-1", "10"), actor_user_id="u1")
+        line = InventoryMovementLine.create(
+            product_id="p2", quantity=Decimal("5"), to_location_id="loc1")
+        second = InventoryMovement.create(
+            movement_type=MovementType.PURCHASE_RECEIPT, branch_id="b1", warehouse_id="w1",
+            source_module="procurement", source_document_type="GOODS_RECEIPT",
+            source_document_id="gr1", operation_id="op-1b", created_by_user_id="u1",
+            lines=[line])
+        PostInventoryMovementUseCase().execute(conn, second, actor_user_id="u1")
+
+        siblings = MovementQueryService(conn).list_for_document(
+            source_document_type="GOODS_RECEIPT", source_document_id="gr1")
+        assert len(siblings) == 2
+
+    def test_audit_trail_scoped_to_entity_id(self, conn):
+        PostInventoryMovementUseCase().execute(conn, _receipt("op-1", "10"), actor_user_id="u1")
+        PostInventoryMovementUseCase().execute(conn, _receipt("op-2", "5", loc="loc2"),
+                                               actor_user_id="u1")
+        with InventoryUnitOfWork(conn) as uow:
+            mv1 = uow.ledger.find_by_operation_id("op-1")["id"]
+        entries = AuditQueryService(conn).list_recent(entity_id=mv1)
+        assert len(entries) == 1
+        assert entries[0]["entity_id"] == mv1 and entries[0]["action"] == "POSTED"
+
+    def test_audit_trail_includes_reversal(self, conn):
+        PostInventoryMovementUseCase().execute(conn, _receipt("op-1", "10"), actor_user_id="u1")
+        with InventoryUnitOfWork(conn) as uow:
+            mv1 = uow.ledger.find_by_operation_id("op-1")["id"]
+        ReverseInventoryMovementUseCase().execute(
+            conn, movement_id=mv1, operation_id="rev-1", actor_user_id="mgr",
+            reason="error de captura")
+        entries = AuditQueryService(conn).list_recent(entity_id=mv1)
+        actions = {e["action"] for e in entries}
+        assert actions == {"POSTED", "REVERSED"}

@@ -32,21 +32,33 @@ from backend.application.inventory.use_cases import (
     CreateLocationUseCase,
     CreateReservationUseCase,
     CreateWarehouseUseCase,
+    CreateZoneUseCase,
+    DeactivateLocationUseCase,
+    DeactivateWarehouseUseCase,
     DisposeQuarantineUseCase,
+    ExpireInventoryUseCase,
+    GenerateExpiryAlertsUseCase,
     GenerateReplenishmentSuggestionsUseCase,
     InspectReceiptUseCase,
     PostAdjustmentUseCase,
     PostInventoryMovementUseCase,
     ProvisionDefaultWarehouseUseCase,
     QuarantineStockUseCase,
+    RecordCatchWeightUseCase,
     RecordCountUseCase,
     RecordTemperatureReadingUseCase,
+    RegisterInventoryLotUseCase,
     ReleaseQuarantineUseCase,
     ReleaseReservationUseCase,
+    ResolveTemperatureExcursionUseCase,
     ReverseAdjustmentUseCase,
     ReverseInventoryMovementUseCase,
     SetLocationStatusUseCase,
+    SetLotQualityStatusUseCase,
     SetWarehouseStatusUseCase,
+    UpdateLocationUseCase,
+    UpdateLotUseCase,
+    UpdateWarehouseUseCase,
 )
 from backend.domain.inventory.exceptions import InventoryConfigurationError
 
@@ -178,23 +190,61 @@ class InventoryUseCaseFactory:
     def record_temperature_reading(self, **kw):
         return self.build(RecordTemperatureReadingUseCase, **kw)
 
+    def resolve_temperature_excursion(self, **kw):
+        return self.build(ResolveTemperatureExcursionUseCase, **kw)
+
     def create_warehouse(self, **kw):
         return self.build(CreateWarehouseUseCase, **kw)
+
+    def update_warehouse(self, **kw):
+        return self.build(UpdateWarehouseUseCase, **kw)
 
     def set_warehouse_status(self, **kw):
         return self.build(SetWarehouseStatusUseCase, **kw)
 
+    def deactivate_warehouse(self, **kw):
+        return self.build(DeactivateWarehouseUseCase, **kw)
+
+    def create_zone(self, **kw):
+        return self.build(CreateZoneUseCase, **kw)
+
     def create_location(self, **kw):
         return self.build(CreateLocationUseCase, **kw)
+
+    def update_location(self, **kw):
+        return self.build(UpdateLocationUseCase, **kw)
 
     def set_location_status(self, **kw):
         return self.build(SetLocationStatusUseCase, **kw)
 
+    def deactivate_location(self, **kw):
+        return self.build(DeactivateLocationUseCase, **kw)
+
     def provision_default_warehouse(self, **kw):
         return self.build(ProvisionDefaultWarehouseUseCase, **kw)
 
+<<<<<<< HEAD
     def inspect_receipt(self, **kw):
         return self.build(InspectReceiptUseCase, **kw)
+=======
+    def register_lot(self, **kw):
+        return self.build(RegisterInventoryLotUseCase, **kw)
+
+    def update_lot(self, **kw):
+        return self.build(UpdateLotUseCase, **kw)
+
+    def set_lot_quality_status(self, **kw):
+        return self.build(SetLotQualityStatusUseCase, **kw)
+
+    def generate_expiry_alerts(self, **kw):
+        return self.build(GenerateExpiryAlertsUseCase, **kw)
+
+    def expire_inventory(self, **kw):
+        return self.build(ExpireInventoryUseCase, **kw)
+
+    def record_catch_weight(self, **kw):
+        return self.build(RecordCatchWeightUseCase, **kw)
+>>>>>>> 42f747f4 (Refactir de modulo de Caja y merma)
 
     def generate_replenishment_suggestions(self, **kw):
         return self.build(GenerateReplenishmentSuggestionsUseCase, **kw)

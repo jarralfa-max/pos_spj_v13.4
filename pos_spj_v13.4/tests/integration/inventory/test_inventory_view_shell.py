@@ -34,7 +34,10 @@ from frontend.desktop.modules.inventory.pages import (  # noqa: E402
     TransfersPage,
     WeightPage,
 )
-from frontend.desktop.modules.inventory.view_models import TableViewModel  # noqa: E402
+from frontend.desktop.modules.inventory.view_models import (  # noqa: E402
+    InventoryCapabilities,
+    TableViewModel,
+)
 
 
 class _StubPresenter:
@@ -42,6 +45,15 @@ class _StubPresenter:
 
     def product_options(self, query):
         return []
+
+    def capabilities(self):
+        return InventoryCapabilities()
+
+    def lot_stock(self, *, lot_id):
+        return TableViewModel(rows=[], row_ids=[], total=0)
+
+    def lot_movements(self, *, lot_id):
+        return TableViewModel(rows=[], row_ids=[], total=0)
 
     def availability_breakdown(self, *, product_id, branch_id=None, warehouse_id=None):
         return TableViewModel(rows=[], row_ids=[], total=0)

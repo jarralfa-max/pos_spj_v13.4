@@ -21,7 +21,6 @@ _HANDLERS = _ROOT / "backend/application/event_handlers/inventory"
 
 # Handlers que postean al ledger canónico y deben cumplir el contrato fail-closed.
 _CANONICAL_HANDLERS = (
-    "sale_issue_handler.py",
     "customer_return_handler.py",
     "purchase_receipt_handler.py",
     "supplier_return_handler.py",

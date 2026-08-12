@@ -4,6 +4,11 @@ Mapa obligatorio de reubicación estructural (SPJ_UI_UX_ARCHITECTURE_SKILL.md §
 
 Estados permitidos: `NOT_STARTED | IN_PROGRESS | WRAPPED | MIGRATED | LEGACY_REMOVED | BLOCKED`
 
+Estado CASH-25 (2026-08-08): Caja queda `LEGACY_REMOVED`. Se eliminaron
+`modulos/caja.py` y `core/services/caja_ticket_service.py`; la navegacion carga
+`frontend/desktop/modules/cash_register/` y la cola/auditoria de impresion nace
+en `cash_print_jobs` / `cash_print_audit` via `CashPrintRepository`.
+
 Estado LOSS-0 (2026-08-01): Mermas/Losses está `IN_PROGRESS`. La UI activa sigue en
 `modulos/merma.py`; el objetivo es `frontend/desktop/modules/losses/`,
 `backend/domain/losses/`, `backend/application/losses/` y repositorios Losses.

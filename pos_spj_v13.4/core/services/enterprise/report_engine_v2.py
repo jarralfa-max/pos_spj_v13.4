@@ -94,10 +94,10 @@ class ReportEngineV2:
 
         # Mermas del período
         merma_row = self.db.fetchone(f"""
-            SELECT COALESCE(SUM(m.cantidad), 0) AS total_merma
-            FROM mermas m
-            WHERE DATE(m.created_at) BETWEEN DATE(?) AND DATE(?)
-            {("AND m.sucursal_id = ?" if branch_id else "")}
+            SELECT COALESCE(SUM(CAST(l.quantity AS REAL)), 0) AS total_merma
+            FROM loss_cases lc JOIN loss_lines l ON l.loss_case_id=lc.id
+            WHERE DATE(lc.occurred_at) BETWEEN DATE(?) AND DATE(?)
+            {("AND lc.branch_id = ?" if branch_id else "")}
         """, [date_from, date_to] + ([branch_id] if branch_id else []))
         merma_total = float(merma_row["total_merma"] or 0) if merma_row else 0
 
@@ -428,20 +428,21 @@ class ReportEngineV2:
         self, branch_id: Optional[int], date_from: str, date_to: str
     ) -> List[Dict]:
         """Reporte detallado de mermas con valor monetario estimado."""
-        bf = "AND m.sucursal_id = ?" if branch_id else ""
-        params = ([branch_id] if branch_id else []) + [date_from, date_to]
+        bf = "AND lc.branch_id = ?" if branch_id else ""
+        params = [date_from, date_to] + ([branch_id] if branch_id else [])
         rows = self.db.fetchall(f"""
             SELECT
-                m.id, m.producto_id, m.cantidad, m.unidad,
-                m.motivo, m.usuario, m.created_at,
-                p.nombre AS producto, s.nombre AS sucursal,
-                COALESCE(p.precio_compra, p.costo, 0) AS costo_unit,
-                COALESCE(p.precio, 0) AS precio_unit
-            FROM mermas m
-            LEFT JOIN productos p ON p.id = m.producto_id
-            LEFT JOIN sucursales s ON s.id = m.sucursal_id
-            WHERE DATE(m.created_at) BETWEEN DATE(?) AND DATE(?) {bf}
-            ORDER BY m.created_at DESC
+                l.id, l.product_id AS producto_id, l.quantity AS cantidad, l.unit AS unidad,
+                r.display_name AS motivo, lc.reported_by_user_id AS usuario,
+                lc.occurred_at AS created_at, p.name AS producto,
+                lc.branch_id AS sucursal, l.unit_cost AS costo_unit,
+                l.gross_value AS valor_linea
+            FROM loss_cases lc
+            JOIN loss_lines l ON l.loss_case_id=lc.id
+            JOIN loss_reasons r ON r.id=lc.reason_id
+            LEFT JOIN products p ON p.id=l.product_id
+            WHERE DATE(lc.occurred_at) BETWEEN DATE(?) AND DATE(?) {bf}
+            ORDER BY lc.occurred_at DESC
         """, params)
         result = []
         for r in rows:
@@ -455,8 +456,8 @@ class ReportEngineV2:
                 "motivo": r["motivo"],
                 "usuario": r["usuario"],
                 "fecha": str(r["created_at"] or "")[:16],
-                "valor_costo": round(cant * float(r["costo_unit"] or 0), 2),
-                "valor_venta": round(cant * float(r["precio_unit"] or 0), 2),
+                "valor_costo": round(float(r["valor_linea"] or 0), 2),
+                "valor_venta": round(float(r["valor_linea"] or 0), 2),
             })
         return result
 
@@ -464,17 +465,17 @@ class ReportEngineV2:
         self, branch_id: Optional[int], date_from: str, date_to: str
     ) -> Dict:
         """Resumen de mermas por producto."""
-        bf = "AND m.sucursal_id = ?" if branch_id else ""
-        params = ([branch_id] if branch_id else []) + [date_from, date_to]
+        bf = "AND lc.branch_id = ?" if branch_id else ""
+        params = [date_from, date_to] + ([branch_id] if branch_id else [])
         rows = self.db.fetchall(f"""
-            SELECT m.producto_id, p.nombre,
-                   SUM(m.cantidad) AS total_qty,
-                   COUNT(m.id) AS num_eventos,
-                   SUM(m.cantidad * COALESCE(p.precio_compra, p.costo, 0)) AS valor_perdido
-            FROM mermas m
-            LEFT JOIN productos p ON p.id = m.producto_id
-            WHERE DATE(m.created_at) BETWEEN DATE(?) AND DATE(?) {bf}
-            GROUP BY m.producto_id ORDER BY valor_perdido DESC
+            SELECT l.product_id AS producto_id, p.name AS nombre,
+                   SUM(CAST(l.quantity AS REAL)) AS total_qty,
+                   COUNT(DISTINCT lc.id) AS num_eventos,
+                   SUM(CAST(l.net_loss_value AS REAL)) AS valor_perdido
+            FROM loss_cases lc JOIN loss_lines l ON l.loss_case_id=lc.id
+            LEFT JOIN products p ON p.id=l.product_id
+            WHERE DATE(lc.occurred_at) BETWEEN DATE(?) AND DATE(?) {bf}
+            GROUP BY l.product_id,p.name ORDER BY valor_perdido DESC
         """, params)
         items = [dict(r) for r in rows]
         total_valor = sum(float(r.get("valor_perdido") or 0) for r in items)

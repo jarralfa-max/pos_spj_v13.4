@@ -16,13 +16,13 @@ ROOTS = (
 class CashRegisterSecurityArchitectureTests(unittest.TestCase):
     def test_permission_catalog_is_granular(self):
         required = {
-            "CASH_SHIFT_OPEN", "CASH_SHIFT_CLOSE", "CASH_MOVEMENT_WITHDRAWAL",
-            "CASH_BLIND_COUNT_CONFIRM", "CASH_Z_CUT_GENERATE",
-            "CASH_DIFFERENCE_RESOLVE", "CASH_HANDOVER_RECEIVE",
-            "CASH_REFUND_AUTHORIZE", "CASH_DRAWER_OPEN_WITHOUT_SALE",
+            "CAJA.turno.abrir", "CAJA.turno.cerrar", "CAJA.movimiento.retiro",
+            "CAJA.conteo.confirmar", "CAJA.corte_z.generar",
+            "CAJA.diferencia.resolver", "CAJA.entrega.recibir",
+            "CAJA.reembolso.autorizar", "CAJA.cajon.abrir_sin_venta",
         }
         self.assertTrue(required <= ALL_CASH_PERMISSIONS)
-        self.assertTrue({"CAJA", "ADMIN_CAJA", "PUEDE_CERRAR_CAJA"}.isdisjoint(
+        self.assertTrue({"ADMIN_CAJA", "PUEDE_CERRAR_CAJA"}.isdisjoint(
             ALL_CASH_PERMISSIONS))
 
     def test_security_foundation_has_no_float_contracts_or_legacy_permissions(self):

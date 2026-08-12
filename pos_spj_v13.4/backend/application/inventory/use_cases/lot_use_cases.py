@@ -86,6 +86,39 @@ class RegisterInventoryLotUseCase:
                                   operation_id=operation_id)
 
 
+class UpdateLotUseCase:
+    """Edita los datos de referencia editables de un lote (§26 "Editar datos
+    permitidos") — nunca la identidad (producto/código/origen) ni el estado
+    de calidad (su propio flujo auditado con motivo)."""
+
+    def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+
+    def execute(self, connection, *, lot_id: str, operation_id: str,
+                actor_user_id: str, **fields) -> InventoryResult:
+        try:
+            self._auth.require(actor_user_id, InventoryPermissions.LOT_EDIT)
+        except InventoryPermissionDeniedError as exc:
+            return InventoryResult.fail(str(exc), "PERMISSION_DENIED",
+                                        operation_id=operation_id)
+        try:
+            with InventoryUnitOfWork(connection) as uow:
+                lot = uow.lots.get(lot_id)
+                if lot is None:
+                    return InventoryResult.fail("Lote no encontrado", "LOT_NOT_FOUND",
+                                                operation_id=operation_id)
+                lot.update_details(**fields)
+                uow.lots.update_details(lot)
+                uow.audit.record(entity_type="LOT", entity_id=lot.id, action="UPDATED",
+                                 user_id=actor_user_id, operation_id=operation_id,
+                                 product_id=lot.product_id, lot_id=lot.id)
+        except InventoryDomainError as exc:
+            return InventoryResult.fail(str(exc), "INVENTORY_RULE_VIOLATION",
+                                        operation_id=operation_id)
+        return InventoryResult.ok("Lote actualizado", entity_id=lot.id,
+                                  operation_id=operation_id)
+
+
 class SetLotQualityStatusUseCase:
     """Block (quarantine/reject) or release a lot's quality status (§31)."""
 

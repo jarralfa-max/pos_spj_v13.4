@@ -6,12 +6,25 @@ from backend.domain.inventory.entities.cold_chain import (
     TemperatureExcursion,
     TemperatureReading,
 )
+from backend.domain.inventory.enums import ColdChainStatus, ExcursionAction
 from backend.infrastructure.db.repositories.inventory.base import (
     InventoryRepositoryBase,
     dec_str,
     enum_value,
     now_iso,
+    to_decimal,
 )
+
+
+def _to_entity(row: dict) -> TemperatureExcursion:
+    return TemperatureExcursion(
+        id=row["id"], reading_id=row["reading_id"], warehouse_id=row["warehouse_id"],
+        status=ColdChainStatus(row["status"]), temperature=to_decimal(row["temperature"]),
+        min_temp=to_decimal(row["min_temp"]), max_temp=to_decimal(row["max_temp"]),
+        action_taken=ExcursionAction(row["action_taken"]), lot_id=row["lot_id"],
+        resolved=bool(row["resolved"]), resolved_by_user_id=row["resolved_by"],
+        resolved_at=row["resolved_at"], resolution_note=row["resolution_note"] or "",
+        created_at=row["created_at"])
 
 
 class ColdChainRepository(InventoryRepositoryBase):
@@ -49,7 +62,13 @@ class ColdChainRepository(InventoryRepositoryBase):
             "SELECT * FROM inventory_temperature_excursions WHERE resolved=0"
             " ORDER BY created_at DESC")
 
-    def resolve_excursion(self, excursion_id: str) -> None:
+    def get_excursion(self, excursion_id: str) -> TemperatureExcursion | None:
+        row = self._query_one(
+            "SELECT * FROM inventory_temperature_excursions WHERE id=?", (excursion_id,))
+        return _to_entity(row) if row else None
+
+    def update_resolution(self, exc: TemperatureExcursion) -> None:
         self._execute(
-            "UPDATE inventory_temperature_excursions SET resolved=1 WHERE id=?",
-            (excursion_id,))
+            "UPDATE inventory_temperature_excursions SET resolved=1, resolved_by=?,"
+            " resolved_at=?, resolution_note=? WHERE id=?",
+            (exc.resolved_by_user_id, exc.resolved_at, exc.resolution_note, exc.id))

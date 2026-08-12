@@ -224,10 +224,13 @@ class TestLocationOptions:
 
     def test_lists_active_locations_of_the_warehouse(self, conn):
         wid, lid = self._provisioned_warehouse(conn)
+        # §20: CreateWarehouseUseCase también aprovisiona las ubicaciones
+        # técnicas (TECH:*) del almacén — el picker las lista igual (son
+        # ubicaciones activas reales), la manual "A1" debe estar entre ellas.
         options = _presenter(conn).location_options(warehouse_id=wid)
-        assert len(options) == 1
-        assert options[0].id == lid
-        assert "A1" in options[0].label
+        manual = [o for o in options if o.id == lid]
+        assert len(manual) == 1
+        assert "A1" in manual[0].label
 
     def test_defaults_to_session_warehouse_when_not_given(self, conn):
         # La sesión de prueba usa warehouse_id="w1" — sin almacén provisto,
@@ -239,11 +242,15 @@ class TestLocationOptions:
         wid, _ = self._provisioned_warehouse(conn)
         assert pres.location_options(warehouse_id=wid) == []
 
-    def test_empty_when_warehouse_has_no_locations(self, conn):
+    def test_has_no_manual_locations_when_none_were_created(self, conn):
+        # §20: el almacén siempre trae sus ubicaciones técnicas (TECH:*)
+        # auto-aprovisionadas — "sin ubicaciones" ahora significa "sin
+        # ninguna manual", no una lista vacía.
         wid = CreateWarehouseUseCase().execute(
             conn, code="WH2", name="Vacío", branch_id="b1",
             warehouse_type=WarehouseType.CENTRAL, actor_user_id="u1").entity_id
-        assert _presenter(conn).location_options(warehouse_id=wid) == []
+        options = _presenter(conn).location_options(warehouse_id=wid)
+        assert all(o.label.startswith("TECH:") for o in options)
 
 
 class TestOpenQuarantineWithRealLocation:

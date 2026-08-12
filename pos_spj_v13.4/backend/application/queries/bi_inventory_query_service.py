@@ -4,7 +4,7 @@ Inventory quantities come from the branch-specific on-hand source (never a globa
 product-level sum). Name, active state, category, unit, cost and minimum stock come
 from the canonical master/catalogs (`products`, `product_categories`,
 `units_of_measure`, `product_cost`, `inventory_replenishment_rule`). Waste value
-comes from the mermas table.
+comes from the canonical Losses bounded context.
 """
 from __future__ import annotations
 
@@ -61,12 +61,12 @@ class BiInventoryQueryService:
         return self._scalar(sql, params)
 
     def waste_value(self, f) -> float:
-        """Costo estimado de merma del periodo (mermas.valor_perdida)."""
-        sql = ("SELECT COALESCE(SUM(COALESCE(valor_perdida, cantidad*COALESCE(costo_unitario,0))),0) "
-               "FROM mermas WHERE DATE(COALESCE(fecha, created_at)) BETWEEN ? AND ?")
+        """Canonical net loss value for the requested period."""
+        sql = ("SELECT COALESCE(SUM(CAST(net_loss_value AS REAL)),0) "
+               "FROM loss_cases WHERE DATE(occurred_at) BETWEEN ? AND ?")
         params: list = [f.date_from, f.date_to]
         if f.branch_id:
-            sql += " AND sucursal_id = ?"
+            sql += " AND branch_id = ?"
             params.append(str(f.branch_id))
         return self._scalar(sql, params)
 
@@ -100,13 +100,14 @@ class BiInventoryQueryService:
 
     def waste_by_category(self, f) -> list[tuple[str, float]]:
         sql = ("SELECT COALESCE(NULLIF(pcat.name,''),'(sin categoría)') c, "
-               "COALESCE(SUM(COALESCE(m.valor_perdida, m.cantidad*COALESCE(m.costo_unitario,0))),0) v "
-               "FROM mermas m LEFT JOIN products p ON p.id=m.producto_id "
+               "COALESCE(SUM(CAST(l.net_loss_value AS REAL)),0) v "
+               "FROM loss_cases lc JOIN loss_lines l ON l.loss_case_id=lc.id "
+               "LEFT JOIN products p ON p.id=l.product_id "
                "LEFT JOIN product_categories pcat ON pcat.id=p.category_id "
-               "WHERE DATE(COALESCE(m.fecha, m.created_at)) BETWEEN ? AND ? ")
+               "WHERE DATE(lc.occurred_at) BETWEEN ? AND ? ")
         params: list = [f.date_from, f.date_to]
         if f.branch_id:
-            sql += "AND m.sucursal_id = ? "
+            sql += "AND lc.branch_id = ? "
             params.append(str(f.branch_id))
         sql += "GROUP BY c ORDER BY v DESC LIMIT 10"
         try:

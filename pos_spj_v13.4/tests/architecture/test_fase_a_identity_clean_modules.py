@@ -16,7 +16,6 @@ from pathlib import Path
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 
 BRANCH_CLEAN_MODULES = [
-    "modulos/caja.py",
     "modulos/inventario_enterprise.py",
     "modulos/activos.py",
     "modulos/modulo_growth_engine.py",

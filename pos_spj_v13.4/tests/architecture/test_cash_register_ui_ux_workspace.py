@@ -44,7 +44,20 @@ class CashRegisterUiUxWorkspaceTests(unittest.TestCase):
             "Configuracion",
         ):
             self.assertIn(label, source)
-        self.assertIn("cash_register.configuration.view", source)
+        self.assertIn("CashPermissions.SETTINGS_VIEW", source)
+        self.assertNotIn("cash_register.configuration.view", source)
+
+    def test_routes_use_canonical_caja_permissions_without_legacy_translation(self):
+        routes = (MODULE / "cash_register_routes.py").read_text(encoding="utf-8")
+        permissions = (ROOT / "backend/application/cash_register/permissions.py").read_text(encoding="utf-8")
+        presenter = (MODULE / "cash_register_presenter.py").read_text(encoding="utf-8")
+        for source in (routes, permissions, presenter):
+            self.assertNotIn('"cash_register.', source)
+            self.assertNotIn("'cash_register.", source)
+            self.assertNotIn("CASH_ACCESS", source)
+        self.assertIn('ACCESS = "CAJA.ver"', permissions)
+        self.assertIn("SessionContext.tiene_permiso", permissions)
+        self.assertIn("CashPermissions.ACCESS", routes)
 
     def test_dialogs_use_standard_components_and_audit_fields(self):
         source = (MODULE / "cash_register_dialogs.py").read_text(encoding="utf-8")

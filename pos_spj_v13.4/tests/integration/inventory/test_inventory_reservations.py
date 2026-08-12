@@ -8,6 +8,9 @@ import sqlite3
 import pytest
 
 from backend.application.inventory.authorization import InventoryAuthorizationPolicy
+from backend.application.inventory.queries.reservation_query_service import (
+    ReservationQueryService,
+)
 from backend.application.inventory.use_cases import (
     AllocateReservationUseCase,
     CreateReservationUseCase,
@@ -226,3 +229,12 @@ class TestAllocateReservation:
         with InventoryUnitOfWork(conn) as uow:
             rows = uow.reservations.list_allocations(r.entity_id)
         assert rows and all(row["lot_id"] == late for row in rows)  # nunca SOON
+
+
+class TestReservationQueryId:
+    def test_list_active_for_product_returns_id(self, conn):
+        _receipt(conn, "10")
+        r = _reserve(conn, "4")
+        rows = ReservationQueryService(conn).list_active_for_product(
+            product_id="p1", branch_id="b1")
+        assert len(rows) == 1 and rows[0]["id"] == r.entity_id

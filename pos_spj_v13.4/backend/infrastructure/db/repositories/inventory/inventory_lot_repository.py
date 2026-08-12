@@ -75,3 +75,13 @@ class InventoryLotRepository(InventoryRepositoryBase):
         self._execute(
             "UPDATE inventory_lots SET quality_status=? WHERE id=?",
             (enum_value(status), lot_id))
+
+    def update_details(self, lot: InventoryLot) -> None:
+        """Persists the editable subset (§26) — mirrors ``update_details`` on
+        the domain entity, not a full re-save (identity fields stay put)."""
+        self._execute(
+            "UPDATE inventory_lots SET supplier_lot_code=?, production_lot_code=?,"
+            " origin_document_id=?, production_date=?, expiration_date=?,"
+            " received_at=? WHERE id=?",
+            (lot.supplier_lot_code, lot.production_lot_code, lot.origin_document_id,
+             lot.production_date, lot.expiration_date, lot.received_at, lot.id))

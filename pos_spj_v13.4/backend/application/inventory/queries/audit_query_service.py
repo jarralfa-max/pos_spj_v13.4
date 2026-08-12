@@ -16,13 +16,20 @@ from backend.infrastructure.db.repositories.inventory.base import (
 
 class AuditQueryService(InventoryRepositoryBase):
     def list_recent(self, *, branch_id: str | None = None,
+                    entity_id: str | None = None,
                     limit: int = 200) -> list[dict]:
         """Recent audit entries (most recent first, bounded). Rows carry the
-        timestamp, entity type, action, user and authorizer for display."""
+        timestamp, entity type, action, user and authorizer for display.
+        ``entity_id`` narrows the trail to one entity (e.g. one movement's
+        history — posted, reversed, by whom) instead of the whole branch log."""
         cols = ("occurred_at, entity_type, entity_id, action, user_id,"
                 " authorized_by, reason")
         lim = max(1, int(limit))
-        if branch_id:
+        if entity_id:
+            rows = self._query(
+                f"SELECT {cols} FROM inventory_audit_log WHERE entity_id=?"
+                " ORDER BY occurred_at DESC, id DESC LIMIT ?", (entity_id, lim))
+        elif branch_id:
             rows = self._query(
                 f"SELECT {cols} FROM inventory_audit_log WHERE branch_id=?"
                 " ORDER BY occurred_at DESC, id DESC LIMIT ?", (branch_id, lim))

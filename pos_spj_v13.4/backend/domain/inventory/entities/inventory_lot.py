@@ -81,3 +81,26 @@ class InventoryLot:
 
     def release(self) -> None:
         self.quality_status = LotQualityStatus.RELEASED
+
+    def update_details(self, *, supplier_lot_code: str | None = ...,
+                       production_lot_code: str | None = ...,
+                       origin_document_id: str | None = ...,
+                       production_date: str | None = ...,
+                       expiration_date: str | None = ...,
+                       received_at: str | None = ...) -> None:
+        """Edit the lot's mutable reference data (§26 "Editar datos
+        permitidos"). Deliberately excludes ``product_id``/``lot_code``/
+        ``origin_type`` (identity) and ``quality_status`` (its own dedicated
+        block/release flow, always audited with a reason)."""
+        if supplier_lot_code is not ...:
+            self.supplier_lot_code = supplier_lot_code
+        if production_lot_code is not ...:
+            self.production_lot_code = production_lot_code
+        if origin_document_id is not ...:
+            self.origin_document_id = origin_document_id
+        if production_date is not ...:
+            self.production_date = production_date
+        if expiration_date is not ...:
+            self.expiration_date = expiration_date
+        if received_at is not ...:
+            self.received_at = received_at

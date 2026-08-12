@@ -5,6 +5,21 @@ action — movement, adjustment, transfer approval/dispatch/receipt, count
 confirm, quarantine release, manual weight override — has its own code, and the
 backend re-validates each one on every use case (hiding a button is not
 security).
+
+Codes use the app-wide canonical `MODULO.accion` format (see
+`core/security/permission_catalog.py`) so they are stored, granted and checked
+exactly like every other module's permissions — `rol_permisos` rows, the
+Configuración permission matrix and `SessionContext.tiene_permiso()` all share
+this one vocabulary. Comparisons are case-insensitive (values are normalized to
+uppercase at check time), so codes are authored in the same mixed-case style as
+the rest of the catalog (e.g. `COMPRAS.directa.crear`).
+
+Transfer *lifecycle* permissions (request/approve/dispatch/receive) belong to
+the Transferencias bounded context (`TRANSFERENCIAS.*` / the future granular
+`TransferPermissions`, see docs/refactor/TRF-0_transfers_audit_and_plan.md) —
+Inventario never re-implements that workflow. The only inventory-owned
+transfer-adjacent permission is ``IN_TRANSIT_VIEW`` (read-only visibility of
+stock currently in transit).
 """
 
 from __future__ import annotations
@@ -12,104 +27,105 @@ from __future__ import annotations
 
 class InventoryPermissions:
     # ── consulta (§46) ────────────────────────────────────────────────────
-    ACCESS = "INVENTORY_ACCESS"
-    VIEW = "INVENTORY_VIEW"
-    VIEW_OWN_BRANCH = "INVENTORY_VIEW_OWN_BRANCH"
-    VIEW_ASSIGNED_BRANCHES = "INVENTORY_VIEW_ASSIGNED_BRANCHES"
-    VIEW_ALL_BRANCHES = "INVENTORY_VIEW_ALL_BRANCHES"
-    VIEW_COST_REFERENCE = "INVENTORY_VIEW_COST_REFERENCE"
-    VIEW_TRACEABILITY = "INVENTORY_VIEW_TRACEABILITY"
-    TRACEABILITY_LINK = "INVENTORY_TRACEABILITY_LINK"
-    VIEW_AUDIT = "INVENTORY_VIEW_AUDIT"
-    EXPORT = "INVENTORY_EXPORT"
+    ACCESS = "INVENTARIO.acceso"
+    VIEW = "INVENTARIO.ver"
+    VIEW_OWN_BRANCH = "INVENTARIO.ver.sucursal_propia"
+    VIEW_ASSIGNED_BRANCHES = "INVENTARIO.ver.sucursales_asignadas"
+    VIEW_ALL_BRANCHES = "INVENTARIO.ver.todas_sucursales"
+    VIEW_COST_REFERENCE = "INVENTARIO.ver.costo_referencia"
+    VIEW_TRACEABILITY = "INVENTARIO.ver.trazabilidad"
+    TRACEABILITY_LINK = "INVENTARIO.trazabilidad.vincular"
+    VIEW_AUDIT = "INVENTARIO.ver.auditoria"
+    EXPORT = "INVENTARIO.exportar"
 
     # ── almacenes y ubicaciones (§46) ─────────────────────────────────────
-    WAREHOUSE_VIEW = "INVENTORY_WAREHOUSE_VIEW"
-    WAREHOUSE_CREATE = "INVENTORY_WAREHOUSE_CREATE"
-    WAREHOUSE_EDIT = "INVENTORY_WAREHOUSE_EDIT"
-    WAREHOUSE_ACTIVATE = "INVENTORY_WAREHOUSE_ACTIVATE"
-    WAREHOUSE_BLOCK = "INVENTORY_WAREHOUSE_BLOCK"
-    LOCATION_VIEW = "INVENTORY_LOCATION_VIEW"
-    LOCATION_MANAGE = "INVENTORY_LOCATION_MANAGE"
+    WAREHOUSE_VIEW = "INVENTARIO.almacen.ver"
+    WAREHOUSE_CREATE = "INVENTARIO.almacen.crear"
+    WAREHOUSE_EDIT = "INVENTARIO.almacen.editar"
+    WAREHOUSE_ACTIVATE = "INVENTARIO.almacen.activar"
+    WAREHOUSE_BLOCK = "INVENTARIO.almacen.bloquear"
+    WAREHOUSE_DEACTIVATE = "INVENTARIO.almacen.desactivar"
+    LOCATION_VIEW = "INVENTARIO.ubicacion.ver"
+    LOCATION_MANAGE = "INVENTARIO.ubicacion.gestionar"
 
     # ── movimientos (§46) ─────────────────────────────────────────────────
-    MOVEMENT_VIEW = "INVENTORY_MOVEMENT_VIEW"
-    MOVEMENT_CREATE = "INVENTORY_MOVEMENT_CREATE"
-    MOVEMENT_REVERSE = "INVENTORY_MOVEMENT_REVERSE"
-    MOVEMENT_OVERRIDE = "INVENTORY_MOVEMENT_OVERRIDE"
+    MOVEMENT_VIEW = "INVENTARIO.movimiento.ver"
+    MOVEMENT_CREATE = "INVENTARIO.movimiento.crear_manual"
+    MOVEMENT_REVERSE = "INVENTARIO.movimiento.reversar"
+    MOVEMENT_OVERRIDE = "INVENTARIO.movimiento.sobrescribir"
 
     # ── lotes y series (§46) ──────────────────────────────────────────────
-    LOT_VIEW = "INVENTORY_LOT_VIEW"
-    LOT_CREATE = "INVENTORY_LOT_CREATE"
-    LOT_EDIT = "INVENTORY_LOT_EDIT"
-    LOT_BLOCK = "INVENTORY_LOT_BLOCK"
-    LOT_RELEASE = "INVENTORY_LOT_RELEASE"
-    SERIAL_MANAGE = "INVENTORY_SERIAL_MANAGE"
+    LOT_VIEW = "INVENTARIO.lote.ver"
+    LOT_CREATE = "INVENTARIO.lote.crear"
+    LOT_EDIT = "INVENTARIO.lote.editar"
+    LOT_BLOCK = "INVENTARIO.lote.bloquear"
+    LOT_RELEASE = "INVENTARIO.lote.liberar"
+    SERIAL_MANAGE = "INVENTARIO.serie.gestionar"
 
     # ── reservas (§46) ────────────────────────────────────────────────────
-    RESERVATION_VIEW = "INVENTORY_RESERVATION_VIEW"
-    RESERVATION_CREATE = "INVENTORY_RESERVATION_CREATE"
-    RESERVATION_RELEASE = "INVENTORY_RESERVATION_RELEASE"
-    ALLOCATION_OVERRIDE = "INVENTORY_ALLOCATION_OVERRIDE"
+    RESERVATION_VIEW = "INVENTARIO.reserva.ver"
+    RESERVATION_CREATE = "INVENTARIO.reserva.crear"
+    RESERVATION_RELEASE = "INVENTARIO.reserva.liberar"
+    ALLOCATION_OVERRIDE = "INVENTARIO.reserva.sobrescribir_asignacion"
 
-    # ── transferencias (§46) ──────────────────────────────────────────────
-    TRANSFER_VIEW = "INVENTORY_TRANSFER_VIEW"
-    TRANSFER_CREATE = "INVENTORY_TRANSFER_CREATE"
-    TRANSFER_EDIT = "INVENTORY_TRANSFER_EDIT"
-    TRANSFER_SUBMIT = "INVENTORY_TRANSFER_SUBMIT"
-    TRANSFER_APPROVE = "INVENTORY_TRANSFER_APPROVE"
-    TRANSFER_DISPATCH = "INVENTORY_TRANSFER_DISPATCH"
-    TRANSFER_RECEIVE = "INVENTORY_TRANSFER_RECEIVE"
-    TRANSFER_RESOLVE_DIFFERENCE = "INVENTORY_TRANSFER_RESOLVE_DIFFERENCE"
-    TRANSFER_CANCEL = "INVENTORY_TRANSFER_CANCEL"
+    # ── inventario en tránsito (§10/§41 — workflow vive en TRANSFERENCIAS.*) ──
+    IN_TRANSIT_VIEW = "INVENTARIO.transito.ver"
 
     # ── conteos (§46) ─────────────────────────────────────────────────────
-    COUNT_VIEW = "INVENTORY_COUNT_VIEW"
-    COUNT_CREATE = "INVENTORY_COUNT_CREATE"
-    COUNT_EXECUTE = "INVENTORY_COUNT_EXECUTE"
-    COUNT_CONFIRM = "INVENTORY_COUNT_CONFIRM"
-    COUNT_RECOUNT = "INVENTORY_COUNT_RECOUNT"
-    COUNT_APPROVE = "INVENTORY_COUNT_APPROVE"
-    COUNT_VIEW_EXPECTED = "INVENTORY_COUNT_VIEW_EXPECTED"
+    COUNT_VIEW = "INVENTARIO.conteo.ver"
+    COUNT_CREATE = "INVENTARIO.conteo.crear"
+    COUNT_EXECUTE = "INVENTARIO.conteo.ejecutar"
+    COUNT_CONFIRM = "INVENTARIO.conteo.confirmar"
+    COUNT_RECOUNT = "INVENTARIO.conteo.recontar"
+    COUNT_APPROVE = "INVENTARIO.conteo.aprobar"
+    COUNT_VIEW_EXPECTED = "INVENTARIO.conteo.ver_esperado"
 
     # ── ajustes (§46) ─────────────────────────────────────────────────────
-    ADJUSTMENT_VIEW = "INVENTORY_ADJUSTMENT_VIEW"
-    ADJUSTMENT_CREATE = "INVENTORY_ADJUSTMENT_CREATE"
-    ADJUSTMENT_APPROVE = "INVENTORY_ADJUSTMENT_APPROVE"
-    ADJUSTMENT_POST = "INVENTORY_ADJUSTMENT_POST"
-    ADJUSTMENT_REVERSE = "INVENTORY_ADJUSTMENT_REVERSE"
+    ADJUSTMENT_VIEW = "INVENTARIO.ajuste.ver"
+    ADJUSTMENT_CREATE = "INVENTARIO.ajuste.crear"
+    ADJUSTMENT_APPROVE = "INVENTARIO.ajuste.aprobar"
+    ADJUSTMENT_POST = "INVENTARIO.ajuste.postear"
+    ADJUSTMENT_REVERSE = "INVENTARIO.ajuste.reversar"
 
     # ── calidad y cuarentena (§46) ────────────────────────────────────────
-    QUARANTINE_VIEW = "INVENTORY_QUARANTINE_VIEW"
-    QUARANTINE_CREATE = "INVENTORY_QUARANTINE_CREATE"
-    QUARANTINE_RELEASE = "INVENTORY_QUARANTINE_RELEASE"
-    QUALITY_BLOCK = "INVENTORY_QUALITY_BLOCK"
-    QUALITY_RELEASE = "INVENTORY_QUALITY_RELEASE"
-    DISPOSAL_AUTHORIZE = "INVENTORY_DISPOSAL_AUTHORIZE"
+    QUARANTINE_VIEW = "INVENTARIO.cuarentena.ver"
+    QUARANTINE_CREATE = "INVENTARIO.cuarentena.crear"
+    QUARANTINE_RELEASE = "INVENTARIO.cuarentena.liberar"
+    QUALITY_BLOCK = "INVENTARIO.calidad.bloquear"
+    QUALITY_RELEASE = "INVENTARIO.calidad.liberar"
+    DISPOSAL_AUTHORIZE = "INVENTARIO.cuarentena.disponer"
 
-    # ── peso y hardware (§46) ─────────────────────────────────────────────
-    WEIGHT_CAPTURE = "INVENTORY_WEIGHT_CAPTURE"
-    WEIGHT_MANUAL_OVERRIDE = "INVENTORY_WEIGHT_MANUAL_OVERRIDE"
-    SCALE_MANAGE = "INVENTORY_SCALE_MANAGE"
-    LABEL_PRINT = "INVENTORY_LABEL_PRINT"
-    LABEL_REPRINT = "INVENTORY_LABEL_REPRINT"
+    # ── peso y báscula (§46) ──────────────────────────────────────────────
+    WEIGHT_CAPTURE = "INVENTARIO.peso.capturar"
+    WEIGHT_MANUAL_OVERRIDE = "INVENTARIO.peso.capturar_manual"
+    SCALE_USE = "INVENTARIO.bascula.usar"
+    SCALE_MANAGE = "INVENTARIO.bascula.gestionar"
+    LABEL_PRINT = "INVENTARIO.lote.imprimir"
+    LABEL_REPRINT = "INVENTARIO.lote.reimprimir"
+
+    # ── recepciones físicas (§32) ─────────────────────────────────────────
+    RECEIPT_VIEW = "INVENTARIO.recepcion.ver"
+    RECEIPT_INSPECT = "INVENTARIO.recepcion.inspeccionar"
+    RECEIPT_REVERSE = "INVENTARIO.recepcion.reversar"
 
     # ── reposición (§34) ──────────────────────────────────────────────────
-    REPLENISHMENT_VIEW = "INVENTORY_REPLENISHMENT_VIEW"
-    REPLENISHMENT_MANAGE = "INVENTORY_REPLENISHMENT_MANAGE"
-    REPLENISHMENT_GENERATE = "INVENTORY_REPLENISHMENT_GENERATE"
+    REPLENISHMENT_VIEW = "INVENTARIO.reposicion.ver"
+    REPLENISHMENT_MANAGE = "INVENTARIO.reposicion.configurar"
+    REPLENISHMENT_GENERATE = "INVENTARIO.reposicion.generar"
 
     # ── negativo (override) (§16) ─────────────────────────────────────────
-    NEGATIVE_OVERRIDE = "INVENTORY_NEGATIVE_OVERRIDE"
+    NEGATIVE_OVERRIDE = "INVENTARIO.movimiento.permitir_negativo"
 
     # ── cadena de frío (§21) ──────────────────────────────────────────────
-    TEMPERATURE_RECORD = "INVENTORY_TEMPERATURE_RECORD"
+    TEMPERATURE_VIEW = "INVENTARIO.temperatura.ver"
+    TEMPERATURE_RECORD = "INVENTARIO.temperatura.registrar"
+    TEMPERATURE_RESOLVE = "INVENTARIO.temperatura.resolver"
 
     # ── configuración (§46) ───────────────────────────────────────────────
-    SETTINGS_VIEW = "INVENTORY_SETTINGS_VIEW"
-    SETTINGS_MANAGE = "INVENTORY_SETTINGS_MANAGE"
-    NOTIFICATIONS_MANAGE = "INVENTORY_NOTIFICATIONS_MANAGE"
-    WHATSAPP_ALERTS_MANAGE = "INVENTORY_WHATSAPP_ALERTS_MANAGE"
+    SETTINGS_VIEW = "INVENTARIO.configuracion.ver"
+    SETTINGS_MANAGE = "INVENTARIO.configuracion.editar"
+    NOTIFICATIONS_MANAGE = "INVENTARIO.notificacion.gestionar"
+    WHATSAPP_ALERTS_MANAGE = "INVENTARIO.whatsapp.gestionar"
 
 
 ALL_INVENTORY_PERMISSIONS = frozenset(

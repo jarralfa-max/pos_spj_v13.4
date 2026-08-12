@@ -49,3 +49,9 @@ nuevos, 2 tests antes rojos ahora pasan).
   esquema post-corte para dejar el módulo verde.
 - Checklist UI completo (SearchSelector ya usado; revisar números en 0,
   sin defaults arbitrarios, QueryService para lecturas del tab).
+- **Relocalización pendiente**: el "DONE" de este documento cubre solo la
+  auditoría REGLA CERO in-place. La relocalización a
+  `backend/{domain,application,infrastructure}/meat_processing/` +
+  `frontend/desktop/modules/meat_processing/` (patrón Inventario/Cash
+  Register/CRM/Losses) se rastrea por separado en
+  `docs/refactor/PROC-0_legacy_audit.md` y las fases `PROC-1`..`PROC-26`.

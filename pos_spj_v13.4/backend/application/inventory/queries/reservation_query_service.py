@@ -27,12 +27,12 @@ class ReservationQueryService(InventoryRepositoryBase):
             return []
         placeholders = ",".join("?" for _ in _ACTIVE)
         rows = self._query(
-            "SELECT source, source_document_id, warehouse_id, quantity, status,"
+            "SELECT id, source, source_document_id, warehouse_id, quantity, status,"
             " created_at FROM inventory_reservation WHERE product_id=? AND branch_id=?"
             f" AND status IN ({placeholders}) ORDER BY created_at",
             (pid, branch_id, *_ACTIVE))
         return [{
-            "source": r["source"],
+            "id": r["id"], "source": r["source"],
             "source_document_id": zn(r["source_document_id"]),
             "warehouse_id": r["warehouse_id"], "quantity": to_decimal(r["quantity"]),
             "status": r["status"],

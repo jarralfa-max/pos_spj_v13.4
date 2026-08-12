@@ -9,14 +9,27 @@ import sqlite3
 import pytest
 
 from backend.application.inventory.authorization import InventoryAuthorizationPolicy
+from backend.application.inventory.permissions import InventoryPermissions
+from backend.application.inventory.queries import (
+    LotQueryService,
+    MovementQueryService,
+    StockQueryService,
+)
 from backend.application.inventory.use_cases import (
+    PostInventoryMovementUseCase,
     RegisterInventoryLotUseCase,
     SetLotQualityStatusUseCase,
+    UpdateLotUseCase,
+)
+from backend.domain.inventory.entities.inventory_movement import (
+    InventoryMovement,
+    InventoryMovementLine,
 )
 from backend.domain.inventory.enums import (
     AllocationStrategy,
     LotOrigin,
     LotQualityStatus,
+    MovementType,
 )
 from backend.domain.inventory.services import LotAllocationService, LotCandidate
 from backend.infrastructure.db.repositories.inventory.unit_of_work import (
@@ -99,7 +112,7 @@ class TestQualityStatus:
 
         class OnlyBlock:
             def has_permission(self, u, p):
-                return p != "INVENTORY_LOT_RELEASE"
+                return p != InventoryPermissions.LOT_RELEASE
         r = SetLotQualityStatusUseCase(InventoryAuthorizationPolicy(OnlyBlock())).execute(
             conn, lot_id=lot_id, new_status=LotQualityStatus.RELEASED,
             operation_id="op-r", actor_user_id="u1")
@@ -133,3 +146,125 @@ class TestFefoOverRepository:
             candidates, Decimal("5"), strategy=AllocationStrategy.FEFO)
         soon_id = next(r["id"] for r in rows if r["lot_code"] == "SOON")
         assert plan[0].lot_id == soon_id  # earliest expiry first
+
+
+class TestUpdateLot:
+    def _lot(self, conn):
+        RegisterInventoryLotUseCase().execute(
+            conn, product_id="p1", lot_code="L-1", origin_type=LotOrigin.PURCHASE,
+            operation_id="op-1", actor_user_id="u1", expiration_date="2026-08-01")
+        with InventoryUnitOfWork(conn) as uow:
+            return uow.lots.get_by_code("p1", "L-1").id
+
+    def test_update_editable_fields(self, conn):
+        lot_id = self._lot(conn)
+        r = UpdateLotUseCase().execute(
+            conn, lot_id=lot_id, operation_id="op-u", actor_user_id="u1",
+            supplier_lot_code="SUP-9", expiration_date="2026-09-15")
+        assert r.success
+        with InventoryUnitOfWork(conn) as uow:
+            lot = uow.lots.get(lot_id)
+        assert lot.supplier_lot_code == "SUP-9"
+        assert lot.expiration_date == "2026-09-15"
+
+    def test_update_leaves_unspecified_fields_untouched(self, conn):
+        lot_id = self._lot(conn)
+        UpdateLotUseCase().execute(
+            conn, lot_id=lot_id, operation_id="op-u1", actor_user_id="u1",
+            supplier_lot_code="SUP-1")
+        UpdateLotUseCase().execute(
+            conn, lot_id=lot_id, operation_id="op-u2", actor_user_id="u1",
+            production_lot_code="PROD-1")
+        with InventoryUnitOfWork(conn) as uow:
+            lot = uow.lots.get(lot_id)
+        assert lot.supplier_lot_code == "SUP-1"  # no se perdió en la 2a edición
+        assert lot.production_lot_code == "PROD-1"
+
+    def test_update_does_not_touch_identity_or_quality(self, conn):
+        lot_id = self._lot(conn)
+        UpdateLotUseCase().execute(
+            conn, lot_id=lot_id, operation_id="op-u", actor_user_id="u1",
+            supplier_lot_code="SUP-9")
+        with InventoryUnitOfWork(conn) as uow:
+            lot = uow.lots.get(lot_id)
+        assert lot.lot_code == "L-1" and lot.product_id == "p1"
+        assert lot.quality_status is LotQualityStatus.PENDING_INSPECTION
+
+    def test_update_requires_permission(self, conn):
+        lot_id = self._lot(conn)
+
+        class Deny:
+            def has_permission(self, u, p):
+                return False
+        r = UpdateLotUseCase(InventoryAuthorizationPolicy(Deny())).execute(
+            conn, lot_id=lot_id, operation_id="op-u", actor_user_id="u1",
+            supplier_lot_code="SUP-9")
+        assert not r.success and r.error_code == "PERMISSION_DENIED"
+
+    def test_update_missing_lot(self, conn):
+        r = UpdateLotUseCase().execute(
+            conn, lot_id="nope", operation_id="op-u", actor_user_id="u1",
+            supplier_lot_code="SUP-9")
+        assert not r.success and r.error_code == "LOT_NOT_FOUND"
+
+
+class TestLotDetailQueries:
+    """INV-7 (§26) — the detail/stock/movements read the ledger/lots directly
+    (no new write path); these confirm the query-service additions."""
+
+    def test_get_lot(self, conn):
+        RegisterInventoryLotUseCase().execute(
+            conn, product_id="p1", lot_code="L-1", origin_type=LotOrigin.PURCHASE,
+            operation_id="op-1", actor_user_id="u1", expiration_date="2026-08-01")
+        with InventoryUnitOfWork(conn) as uow:
+            lot_id = uow.lots.get_by_code("p1", "L-1").id
+        row = LotQueryService(conn).get_lot(lot_id=lot_id)
+        assert row["lot_code"] == "L-1" and row["expiration_date"] == "2026-08-01"
+
+    def test_get_lot_unknown_returns_none(self, conn):
+        assert LotQueryService(conn).get_lot(lot_id="nope") is None
+
+    def test_stock_filtered_by_lot(self, conn):
+        RegisterInventoryLotUseCase().execute(
+            conn, product_id="p1", lot_code="L-1", origin_type=LotOrigin.PURCHASE,
+            operation_id="op-1", actor_user_id="u1")
+        with InventoryUnitOfWork(conn) as uow:
+            lot_id = uow.lots.get_by_code("p1", "L-1").id
+        line = InventoryMovementLine.create(
+            product_id="p1", quantity=Decimal("10"), to_location_id="loc1", lot_id=lot_id)
+        mv = InventoryMovement.create(
+            movement_type=MovementType.PURCHASE_RECEIPT, branch_id="b1", warehouse_id="w1",
+            source_module="procurement", source_document_type="GR",
+            source_document_id="gr1", operation_id="op-r", created_by_user_id="u1",
+            lines=[line])
+        PostInventoryMovementUseCase().execute(conn, mv, actor_user_id="u1")
+
+        rows = StockQueryService(conn).list_on_hand(lot_id=lot_id)
+        assert len(rows) == 1 and rows[0]["quantity"] == Decimal("10")
+
+    def test_movements_filtered_by_lot(self, conn):
+        RegisterInventoryLotUseCase().execute(
+            conn, product_id="p1", lot_code="L-1", origin_type=LotOrigin.PURCHASE,
+            operation_id="op-1", actor_user_id="u1")
+        with InventoryUnitOfWork(conn) as uow:
+            lot_id = uow.lots.get_by_code("p1", "L-1").id
+        line = InventoryMovementLine.create(
+            product_id="p1", quantity=Decimal("10"), to_location_id="loc1", lot_id=lot_id)
+        mv = InventoryMovement.create(
+            movement_type=MovementType.PURCHASE_RECEIPT, branch_id="b1", warehouse_id="w1",
+            source_module="procurement", source_document_type="GR",
+            source_document_id="gr1", operation_id="op-r", created_by_user_id="u1",
+            lines=[line])
+        PostInventoryMovementUseCase().execute(conn, mv, actor_user_id="u1")
+        # un segundo movimiento sin este lote no debe aparecer
+        other_line = InventoryMovementLine.create(
+            product_id="p2", quantity=Decimal("1"), to_location_id="loc1")
+        other_mv = InventoryMovement.create(
+            movement_type=MovementType.PURCHASE_RECEIPT, branch_id="b1", warehouse_id="w1",
+            source_module="procurement", source_document_type="GR",
+            source_document_id="gr2", operation_id="op-r2", created_by_user_id="u1",
+            lines=[other_line])
+        PostInventoryMovementUseCase().execute(conn, other_mv, actor_user_id="u1")
+
+        rows = MovementQueryService(conn).list_for_lot(lot_id=lot_id)
+        assert len(rows) == 1 and rows[0]["source_document_id"] == "gr1"

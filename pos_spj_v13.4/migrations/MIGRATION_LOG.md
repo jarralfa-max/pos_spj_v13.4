@@ -5,6 +5,47 @@ documentarse aquí antes del commit.
 
 ---
 
+## 187_meat_processing_bounded_context_schema — 2026-08-12
+
+**Motivo:** PROC-3 — esquema born-clean del bounded context Procesamiento
+Cárnico/Meat Processing (núcleo productivo del prompt maestro §1: `ProcessingOrder`,
+`ProcessingBatch`, `ProcessExecution`, `MaterialConsumption`, `ProcessOutput`,
+`ProcessWeighing`, `YieldReconciliation`), consumido por
+`backend/infrastructure/db/repositories/meat_processing/` vía
+`MeatProcessingUnitOfWork`. DDL vive en
+`backend/infrastructure/db/schema/meat_processing_schema.py` (patrón CRM/Customers:
+la migración solo invoca `create_meat_processing_schema(conn)`).
+**Tablas:** `processing_orders`, `processing_batches`,
+`processing_batch_source_lots`, `process_executions`, `material_consumptions`,
+`process_outputs`, `process_weighings`, `yield_reconciliations`,
+`meat_processing_authorization_log`, `meat_processing_audit_log`,
+`meat_processing_outbox`, `meat_processing_processed_events` (12 tablas nuevas).
+**Constraints:** todo `id` es `TEXT PRIMARY KEY` UUIDv7 (REGLA CERO); todo
+`operation_id` es `UNIQUE` y `CHECK(operation_id <> id)`; toda columna
+cantidad/peso/porcentaje es `TEXT` decimal con `CHECK(CAST(x AS NUMERIC) >= 0)`
+(sin `REAL`); `status`/`process_type`/`output_type`/etc. usan
+`CHECK (col IN (...))` generado directamente desde
+`backend.domain.meat_processing.enums` (no puede haber drift esquema↔dominio);
+`process_weighings` fuerza `manual_override=0 OR authorized_by_user_id IS NOT NULL`
+(§21) y `stable=1 OR manual_override=1`.
+**Impacto:** Solo aditivo — no toca las tablas legacy `producciones`/
+`produccion_detalle` (ver `docs/refactor/PROC-0_legacy_audit.md`), que conservan
+sus lectores vivos hasta PROC-25. Sin FKs cross-context (product_id/branch_id/
+warehouse_id se validan a nivel de aplicación, no de esquema, para no acoplar el
+orden de migraciones a Productos/Sucursales/Inventario).
+
+---
+
+## 184_inventory_cold_chain_resolution — 2026-08-10
+
+**Motivo:** INV-9 — resolución operacional de excursiones de cadena de frío
+(quién resolvió, cuándo y por qué), consumida por `ResolveTemperatureExcursionUseCase`.
+**Tabla:** `inventory_temperature_excursions` — agrega `resolved_by`, `resolved_at`,
+`resolution_note` (todas nullable, TEXT).
+**Impacto:** Sólo aditivo; `ALTER TABLE ... ADD COLUMN` idempotente (mismo patrón que 180).
+
+---
+
 ## 060_depreciacion_acumulada — 2026-04-13
 
 **Motivo:** Fase 3 — acumulado mensual de depreciación por activo y periodo.
@@ -829,3 +870,39 @@ patrón, no solo documentar.
   Confirmado con `git status` que ninguno de los archivos involucrados en
   esas 31 fallas está entre los 11 archivos modificados esta vuelta — no
   se investigaron ni corrigieron (fuera de alcance).
+- **2026-08-08 — LOSS-23, corte born-clean de Mermas**: eliminadas las rutas
+  `waste`/`modulos.merma`, las tablas `mermas`, `inventory_waste_event` y
+  `ajustes_inventario`, y las migraciones 097/129 que las recreaban. BI y
+  reportes se repuntaron a `loss_cases`, `loss_lines` y
+  `loss_classifications`. No hay rescate ni lectura dual; la base de desarrollo
+  debe regenerarse. Detalle en `docs/refactor/LOSS_23_LEGACY_REMOVAL_REPORT.md`.
+- **2026-08-08 — INV-1, catálogo canónico de permisos de Inventario
+  (migración 179)**: `CANONICAL_MODULE_PERMISSIONS["INVENTARIO"]` pasó de un
+  stub de 3 acciones (`ver`, `ajustar`, `transferir`) a ~70 acciones
+  granulares (`almacen.*`, `ubicacion.*`, `movimiento.*`, `lote.*`,
+  `reserva.*`, `conteo.*`, `ajuste.*`, `cuarentena.*`, `calidad.*`, `peso.*`,
+  `bascula.*`, `recepcion.*`, `reposicion.*`, `temperatura.*`,
+  `configuracion.*`, etc.), igualando el patrón ya usado por `COMPRAS`.
+  `InventoryPermissions` (`backend/application/inventory/permissions.py`)
+  cambió sus ~70 valores de `INVENTORY_*` (inglés) a `INVENTARIO.accion`
+  (español canónico) manteniendo los mismos nombres de constante — cero
+  cambios en los call sites que ya usaban `InventoryPermissions.X`.
+  `InventorySessionPermissionChecker` perdió su puente
+  `legacy_codes_for()` (que concedía cualquier mutación granular a quien
+  tuviera el permiso legacy grueso `inventario.editar`, y cualquier lectura a
+  `inventario.ver`) — ahora exige el código canónico exacto directamente en
+  la sesión, igual que `ProcurementSessionPermissionChecker`. La migración
+  179 es defensiva/documental como la 177: normaliza `modulo='INVENTORY'` →
+  `'INVENTARIO'` si existiera, y **no** expande automáticamente
+  `inventario.editar`/`ajustar`/`transferir` a las acciones granulares
+  nuevas (escalamiento de privilegios prohibido) — un administrador debe
+  otorgarlas explícitamente vía Configuración → Seguridad. Se retiraron
+  también las 8 constantes `TRANSFER_*` no usadas por ningún caso de uso
+  (el workflow de transferencias vive en el bounded context Transferencias,
+  ver `docs/refactor/TRF-0_transfers_audit_and_plan.md`); la única gestionada
+  por Inventario ahora es `IN_TRANSIT_VIEW` (`INVENTARIO.transito.ver`,
+  sólo lectura). Se agregó `frontend/desktop/modules/inventory/capability_resolver.py`
+  (`InventoryCapabilities`, mismo patrón que Compras) y se cableó
+  `visible_entries()` (existía pero nadie la invocaba) en
+  `page_registry.build_page_specs()`/`modulos/inventario_enterprise.py` para
+  que la navegación lateral realmente oculte secciones sin permiso.

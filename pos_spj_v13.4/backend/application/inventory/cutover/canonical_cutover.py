@@ -18,7 +18,6 @@ from backend.application.event_handlers.inventory import (
     GoodsReceiptReversedHandler,
     ProductionExecutionHandler,
     PurchaseReceiptHandler,
-    SaleIssueHandler,
     SupplierReturnHandler,
 )
 
@@ -29,9 +28,11 @@ _SETTING_KEY = "canonical_cutover_enabled"
 _TRUTHY = {"1", "true", "yes", "on"}
 
 #: The canonical handler classes that take over at cutover, each keyed by the
-#: live event it consumes (via its ``event_name``).
+#: live event it consumes (via its ``event_name``). SaleIssueHandler is not
+#: here — the live sale path already posts SALE_ISSUE via
+#: CanonicalSaleInventoryHandler (core/events/wiring.py), wired outside this
+#: gate; including it here again would double-count sales.
 CANONICAL_HANDLER_CLASSES = (
-    SaleIssueHandler,
     CustomerReturnHandler,
     PurchaseReceiptHandler,
     DirectPurchaseReceiptHandler,

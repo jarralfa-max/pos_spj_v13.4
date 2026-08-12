@@ -270,7 +270,6 @@ SCHEMA_CHANGES_OUTSIDE_MIGRATIONS_ALLOWLIST = {
 
 HARDCODED_NUMERIC_DEFAULTS_IN_UI_ALLOWLIST = {
     'pos_spj_v13.4/interfaz/diagnostico.py': 3,
-    'pos_spj_v13.4/modulos/caja.py': 1,
     # PUR-13: modulos/compras/totals_panel.py (era 1) y compras_pro.py (era 2)
     # eliminados — Compras es el módulo enterprise.
     'pos_spj_v13.4/modulos/config_hardware.py': 1,
@@ -366,4 +365,57 @@ DEPRECATED_SERVICES_WITH_BUSINESS_LOGIC_ALLOWLIST = {
 DIALOG_BUSINESS_LOGIC_ALLOWLIST = {
     # Vacío: ningún QDialog en modulos/, ui/ o interfaz/ ejecuta SQL/commit/
     # publish/asiento. El contrato queda enforced sin deuda tolerada.
+}
+
+# CRM-1 — Allowlist de excepciones LOCALES al bounded context nuevo
+# (backend/domain|application/{customers,crm,customer_service,customer_credit,
+# customer_privacy}/, backend/infrastructure/db/repositories/{...}/,
+# frontend/desktop/modules/customers_crm/). A diferencia de los diccionarios
+# anteriores (deuda heredada de legacy que se tolera hasta que baja), este
+# allowlist es sobre código NUEVO: debe permanecer vacío siempre. Si algún
+# archivo bajo esas rutas necesita una excepción a un guardrail
+# (test_customers_crm_*), la excepción se agrega aquí con justificación y
+# CRM-1's test_customers_crm_legacy_allowlist_is_empty.py debe seguir en verde
+# sólo si el propio equipo decide tolerarla explícitamente — hoy son 0.
+CUSTOMERS_CRM_MODULE_ALLOWLIST: dict[str, int] = {}
+
+# CRM-1 — Lista de consumidores LEGACY de lógica de "cliente" fuera del
+# bounded context canónico nuevo (ver docs/architecture/CRM_0_CUSTOMER_MASTER_AUDIT.md
+# y tests/architecture/customers_crm_guardrails.py::LEGACY_CUSTOMER_FILES).
+# Esto NO es una excepción a los guardrails de customers_crm — es el registro
+# de qué archivos legacy siguen siendo la ruta de producción real hasta que
+# CRM-21/CRM-22 migren sus consumidores y los retiren. Cada entrada debe
+# desaparecer de aquí (no solo bajar de número) cuando el archivo se elimina.
+CUSTOMERS_CRM_LEGACY_CONSUMERS = {
+    'pos_spj_v13.4/modulos/clientes.py':
+        'UI legacy (ModuloClientes, DialogoCliente, DialogoHistorialCliente, '
+        'RFM). Reemplazar por frontend/desktop/modules/customers_crm/ (CRM-14+).',
+    'pos_spj_v13.4/core/services/cliente_service.py':
+        'Fachada legacy con fallback SQL directo en guardar_formulario(). '
+        'Reemplazar por backend/application/customers use cases (CRM-3).',
+    'pos_spj_v13.4/core/services/cliente_query_service.py':
+        'QueryService legacy (tarjetas, RFM, historial). Fidelidad/BI deben '
+        'absorber lo que no sea Customer Master (CRM-3/CRM-22).',
+    'pos_spj_v13.4/core/use_cases/cliente.py':
+        'GestionarClienteUC (español). Fusionar con CreateCustomerUseCase '
+        '(backend/application/use_cases/create_customer_use_case.py) en CRM-3.',
+    'pos_spj_v13.4/repositories/cliente_repository.py':
+        'Único repositorio real hoy. Base para CustomerRepository en '
+        'backend/infrastructure/db/repositories/customers/ (CRM-3).',
+    'pos_spj_v13.4/api/routers/clientes.py':
+        'SQL directo, ruta paralela sin UC. Reescribir sobre UseCases/'
+        'QueryServices canónicos (CRM-3/CRM-13).',
+    'pos_spj_v13.4/application/services/customer_credit_service.py':
+        'Validación de crédito en checkout, fuera de core/ y backend/. '
+        'Migrar a backend/application/customer_credit (CRM-8).',
+    'pos_spj_v13.4/backend/application/use_cases/create_customer_use_case.py':
+        'UC nuevo (inglés) sin repositorio propio, SQL fallback propio. '
+        'Mover a backend/application/customers/use_cases (CRM-3).',
+    'pos_spj_v13.4/backend/application/commands/customer_commands.py':
+        'UpdateCustomerCommand aislado. Mover a backend/application/customers/'
+        'commands (CRM-3).',
+    'pos_spj_v13.4/backend/application/queries/customer_history_query_service.py':
+        'Único QueryService "en inglés" ya en producción (usado por '
+        'DialogoHistorialCliente). Mover a backend/application/customers/'
+        'queries sin romper el consumidor (CRM-3).',
 }

@@ -82,3 +82,20 @@ class TestEntities:
             temperature=Decimal("9"), min_temp=Decimal("0"), max_temp=Decimal("4"),
             action_taken=ExcursionAction.QUARANTINE, lot_id="L1")
         assert e.action_taken is ExcursionAction.QUARANTINE and not e.resolved
+
+    def test_excursion_resolve_sets_fields(self):
+        e = TemperatureExcursion.create(
+            reading_id="r1", warehouse_id="w1", status=ColdChainStatus.OUT_OF_RANGE,
+            temperature=Decimal("9"), min_temp=Decimal("0"), max_temp=Decimal("4"),
+            action_taken=ExcursionAction.QUARANTINE, lot_id="L1")
+        e.resolve(user_id="quality-1", note="Liberado tras inspección")
+        assert e.resolved and e.resolved_by_user_id == "quality-1"
+        assert e.resolved_at and e.resolution_note == "Liberado tras inspección"
+
+    def test_excursion_resolve_twice_raises(self):
+        e = TemperatureExcursion.create(
+            reading_id="r1", warehouse_id="w1", status=ColdChainStatus.WARNING,
+            temperature=Decimal("5"), min_temp=Decimal("0"), max_temp=Decimal("4"))
+        e.resolve(user_id="quality-1")
+        with pytest.raises(InventoryDomainError):
+            e.resolve(user_id="quality-2")

@@ -77,16 +77,15 @@ class TestWiring:
         bus = _FakeBus()
         legacy_called = []
 
-        def legacy_sale(payload):
+        def legacy_receipt(payload):
             legacy_called.append(payload)
 
-        bus.subscribe("SALE_CONFIRMED", legacy_sale)
+        bus.subscribe("GOODS_RECEIPT_COMPLETED", legacy_receipt)
         cut = CanonicalInventoryCutover(conn, env={"INVENTORY_CANONICAL_CUTOVER": "1"})
-        report = cut.wire(bus, legacy_handlers=[("SALE_CONFIRMED", legacy_sale)])
+        report = cut.wire(bus, legacy_handlers=[("GOODS_RECEIPT_COMPLETED", legacy_receipt)])
         assert report["enabled"] is True
-        assert "SALE_CONFIRMED" in report["subscribed"] and report["neutralized"] == 1
-        assert "GOODS_RECEIPT_COMPLETED" in report["subscribed"]
-        assert legacy_sale not in bus.subs["SALE_CONFIRMED"]  # legacy dropped
+        assert "GOODS_RECEIPT_COMPLETED" in report["subscribed"] and report["neutralized"] == 1
+        assert legacy_receipt not in bus.subs["GOODS_RECEIPT_COMPLETED"]  # legacy dropped
 
     def test_wired_receipt_event_drives_canonical_ledger(self, conn):
         bus = _FakeBus()

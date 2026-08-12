@@ -1,8 +1,8 @@
 """Declarative navigation for the enterprise inventory module (§46, §54).
 
 Pure data: the pages, their Spanish titles/tooltips, icon keys and the granular
-INVENTORY_* permission each requires. The app shell renders this and hides an
-entry when the session lacks the permission (hiding is UX, not security — the
+INVENTARIO.accion permission each requires. The app shell renders this and hides
+an entry when the session lacks the permission (hiding is UX, not security — the
 backend re-validates every action). Keeping this declarative makes the module
 map testable without Qt.
 """
@@ -50,7 +50,7 @@ INVENTORY_NAV: tuple[NavEntry, ...] = (
              InventoryPermissions.WEIGHT_CAPTURE,
              "Captura de peso (catch weight) y báscula."),
     NavEntry("inventory_cold_chain", "Cadena de frío", "temperature",
-             InventoryPermissions.TEMPERATURE_RECORD,
+             InventoryPermissions.TEMPERATURE_VIEW,
              "Lecturas de temperatura, excursiones y bloqueo automático."),
     NavEntry("inventory_reservations", "Reservas", "reservation",
              InventoryPermissions.RESERVATION_VIEW,
@@ -59,10 +59,11 @@ INVENTORY_NAV: tuple[NavEntry, ...] = (
              InventoryPermissions.MOVEMENT_VIEW,
              "Ledger de movimientos: entradas, salidas, transferencias."),
     NavEntry("inventory_transfers", "Transferencias", "transfer",
-             InventoryPermissions.TRANSFER_VIEW,
-             "Traslados entre almacenes con despacho y recepción."),
+             InventoryPermissions.IN_TRANSIT_VIEW,
+             "Traslados entre almacenes con despacho y recepción (sólo lectura; "
+             "el workflow completo vive en el módulo de Transferencias)."),
     NavEntry("inventory_receipts", "Recepciones", "receipt",
-             InventoryPermissions.MOVEMENT_VIEW,
+             InventoryPermissions.RECEIPT_VIEW,
              "Recepciones de compra y producción hacia el inventario."),
     NavEntry("inventory_replenishment", "Reposición", "replenishment",
              InventoryPermissions.REPLENISHMENT_VIEW,

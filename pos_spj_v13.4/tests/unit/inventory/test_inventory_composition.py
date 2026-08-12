@@ -3,8 +3,9 @@
 - `InventoryUseCaseFactory` requires a real PermissionChecker (fail closed).
 - It builds sensitive use cases wired with the checker-backed policy, not the
   permissive default.
-- `InventorySessionPermissionChecker` bridges canonical INVENTORY_* codes to the
-  live legacy `inventario.*` roles and denies without a session.
+- `InventorySessionPermissionChecker` grants only the live session's canonical
+  `INVENTARIO.accion` codes directly (no legacy translation) and denies
+  without an active session/branch or on user mismatch.
 """
 
 import pytest
@@ -17,7 +18,6 @@ from backend.application.inventory.composition import InventoryUseCaseFactory
 from backend.application.inventory.permissions import InventoryPermissions
 from backend.application.inventory.session_authorization import (
     InventorySessionPermissionChecker,
-    legacy_codes_for,
 )
 from backend.application.inventory.use_cases import (
     CreateAdjustmentFromCountUseCase,
@@ -111,8 +111,10 @@ def test_factory_builds_set_location_status():
 
 # ── session checker ──────────────────────────────────────────────────────────
 class _Session:
-    def __init__(self, user_id, codes):
+    def __init__(self, user_id, codes, *, is_active=True, active_branch_id="b1"):
         self.user_id = user_id
+        self.is_active = is_active
+        self.active_branch_id = active_branch_id
         self._codes = set(codes)
 
     def tiene_permiso(self, code):
@@ -124,30 +126,31 @@ def test_session_checker_denies_without_session():
     assert checker.has_permission("u1", InventoryPermissions.MOVEMENT_CREATE) is False
 
 
-def test_session_checker_grants_via_legacy_edit():
-    checker = InventorySessionPermissionChecker(_Session("u1", {"inventario.editar"}))
-    assert checker.has_permission("u1", InventoryPermissions.MOVEMENT_CREATE) is True
-
-
-def test_session_checker_view_permission_not_granted_by_view_for_mutation():
-    checker = InventorySessionPermissionChecker(_Session("u1", {"inventario.ver"}))
-    # A mutation is NOT granted by read-only legacy access.
-    assert checker.has_permission("u1", InventoryPermissions.MOVEMENT_CREATE) is False
-
-
-def test_session_checker_user_mismatch_denies():
-    checker = InventorySessionPermissionChecker(_Session("boss", {"inventario.editar"}))
-    assert checker.has_permission("clerk", InventoryPermissions.MOVEMENT_CREATE) is False
-
-
 def test_session_checker_grants_canonical_code_directly():
     checker = InventorySessionPermissionChecker(
         _Session("u1", {InventoryPermissions.MOVEMENT_CREATE}))
     assert checker.has_permission("u1", InventoryPermissions.MOVEMENT_CREATE) is True
 
 
-def test_legacy_bridge_maps_by_action():
-    assert legacy_codes_for("INVENTORY_MOVEMENT_VIEW") == ("inventario.ver",)
-    assert "inventario.ajustar" in legacy_codes_for("INVENTORY_ADJUSTMENT_CREATE")
-    assert "inventario.transferir" in legacy_codes_for("INVENTORY_TRANSFER_DISPATCH")
-    assert legacy_codes_for("INVENTORY_MOVEMENT_CREATE") == ("inventario.editar",)
+def test_session_checker_view_permission_does_not_grant_mutation():
+    checker = InventorySessionPermissionChecker(_Session("u1", {InventoryPermissions.VIEW}))
+    # No legacy translation: holding VIEW does not imply MOVEMENT_CREATE.
+    assert checker.has_permission("u1", InventoryPermissions.MOVEMENT_CREATE) is False
+
+
+def test_session_checker_user_mismatch_denies():
+    checker = InventorySessionPermissionChecker(
+        _Session("boss", {InventoryPermissions.MOVEMENT_CREATE}))
+    assert checker.has_permission("clerk", InventoryPermissions.MOVEMENT_CREATE) is False
+
+
+def test_session_checker_inactive_session_denies():
+    checker = InventorySessionPermissionChecker(
+        _Session("u1", {InventoryPermissions.MOVEMENT_CREATE}, is_active=False))
+    assert checker.has_permission("u1", InventoryPermissions.MOVEMENT_CREATE) is False
+
+
+def test_session_checker_without_active_branch_denies():
+    checker = InventorySessionPermissionChecker(
+        _Session("u1", {InventoryPermissions.MOVEMENT_CREATE}, active_branch_id=""))
+    assert checker.has_permission("u1", InventoryPermissions.MOVEMENT_CREATE) is False

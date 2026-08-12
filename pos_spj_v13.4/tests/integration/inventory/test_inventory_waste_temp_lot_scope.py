@@ -1,6 +1,6 @@
-"""P0-A slice 8 (§5.3) — scope enforced on waste, cold-chain and lots.
+"""P0-A slice 8 (§5.3) — scope enforced on cold-chain and lots.
 
-Waste (branch+warehouse from UI), temperature (warehouse-only), and lot register /
+Temperature (warehouse-only) and lot register /
 quality-status (branch) validate against the actor's InventoryExecutionContext.
 Out-of-scope → SCOPE_DENIED.
 """
@@ -17,7 +17,6 @@ from backend.application.inventory.use_cases import (
     PostInventoryMovementUseCase,
     RecordTemperatureReadingUseCase,
     RegisterInventoryLotUseCase,
-    RegisterWasteUseCase,
 )
 from backend.application.inventory.use_cases.lot_use_cases import (
     SetLotQualityStatusUseCase,
@@ -31,7 +30,6 @@ from backend.domain.inventory.enums import (
     LotQualityStatus,
     MovementType,
     TemperaturePoint,
-    WasteType,
 )
 from backend.infrastructure.db.schema.inventory_schema import create_inventory_schema
 
@@ -61,36 +59,6 @@ def _ctx(*, branch="b1", warehouses=("w1",),
     return InventoryExecutionContext(
         actor_user_id="u1", active_branch_id=branch,
         allowed_warehouse_ids=frozenset(warehouses), permissions=frozenset(perms))
-
-
-# ── waste ────────────────────────────────────────────────────────────────────
-def _waste(conn, *, op="wst-1", context=None):
-    return RegisterWasteUseCase().execute(
-        conn, product_id="p1", branch_id="b1", warehouse_id="w1",
-        waste_type=WasteType.DAMAGE, quantity=Decimal("1"), operation_id=op,
-        actor_user_id="u1", location_id="loc1", context=context)
-
-
-def test_waste_in_scope(conn):
-    _receipt(conn)
-    assert _waste(conn, context=_ctx()).success
-
-
-def test_waste_out_of_branch_scope_denied(conn):
-    _receipt(conn)
-    res = _waste(conn, context=_ctx(branch="b2"))
-    assert not res.success and res.error_code == "SCOPE_DENIED"
-
-
-def test_waste_out_of_warehouse_scope_denied(conn):
-    _receipt(conn)
-    res = _waste(conn, context=_ctx(warehouses=("w9",)))
-    assert not res.success and res.error_code == "SCOPE_DENIED"
-
-
-def test_waste_no_context_backward_compatible(conn):
-    _receipt(conn)
-    assert _waste(conn).success
 
 
 # ── temperature (warehouse-only) ─────────────────────────────────────────────

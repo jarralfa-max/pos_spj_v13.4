@@ -34,3 +34,11 @@ class LotQueryService(InventoryRepositoryBase):
                 " WHERE product_id=? ORDER BY expiration_date", (pid,))
         return [dict(r) | {"expiration_date": zn(r["expiration_date"]),
                            "received_at": zn(r["received_at"])} for r in rows]
+
+    def get_lot(self, *, lot_id: str) -> dict | None:
+        """Full raw lot row (§26 detalle) — for the detail view, not the
+        display-ready list rows."""
+        lid = str(lot_id or "").strip()
+        if not lid:
+            return None
+        return self._query_one("SELECT * FROM inventory_lots WHERE id=?", (lid,))

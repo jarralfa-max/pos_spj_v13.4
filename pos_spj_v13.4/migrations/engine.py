@@ -171,6 +171,16 @@ MIGRATIONS = [
     _Migration("176",  "migrations.standalone.176_cash_register_configuration_schema"),
     _Migration("177",  "migrations.standalone.177_compras_logistica_canonical_permissions"),
     _Migration("178",  "migrations.standalone.178_proveedores_bloqueo_financiero"),
+    _Migration("179",  "migrations.standalone.179_inventario_canonical_permissions"),
+    _Migration("180",  "migrations.standalone.180_inventory_warehouse_location_capacity"),
+    _Migration("181",  "migrations.standalone.181_customers_crm_bounded_context_schema"),
+    _Migration("182",  "migrations.standalone.182_crm_bounded_context_schema"),
+    _Migration("183",  "migrations.standalone.183_crm_opportunities_schema"),
+    _Migration("184",  "migrations.standalone.184_inventory_cold_chain_resolution"),
+    _Migration("185",  "migrations.standalone.185_crm_activities_schema"),
+    _Migration("186",  "migrations.standalone.186_customer_service_bounded_context_schema"),
+    _Migration("187",  "migrations.standalone.187_meat_processing_bounded_context_schema"),
+    _Migration("188",  "migrations.standalone.188_customer_credit_bounded_context_schema"),
 ]
 
 def _ensure_tracking_table(conn):

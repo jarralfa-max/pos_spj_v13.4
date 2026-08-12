@@ -12,7 +12,11 @@ from __future__ import annotations
 import logging
 
 from backend.shared.ids import new_uuid
+from frontend.desktop.modules.inventory.capability_resolver import (
+    resolve_inventory_capabilities,
+)
 from frontend.desktop.modules.inventory.view_models import (
+    InventoryCapabilities,
     KpiViewModel,
     TableViewModel,
     adjustments_table,
@@ -26,6 +30,7 @@ from frontend.desktop.modules.inventory.view_models import (
     expiry_table,
     locations_table,
     lots_table,
+    movement_lines_table,
     movements_table,
     quarantine_table,
     replenishment_table,
@@ -37,6 +42,7 @@ from frontend.desktop.modules.inventory.view_models import (
     urgency_variant,
     warehouses_table,
     weight_table,
+    zones_table,
 )
 
 logger = logging.getLogger("spj.inventory.presenter")
@@ -62,8 +68,23 @@ class InventoryPresenter:
                  confirm_count_uc=None, approve_count_uc=None,
                  create_adjustment_from_count_uc=None,
                  create_warehouse_uc=None, set_warehouse_status_uc=None,
+                 update_warehouse_uc=None, deactivate_warehouse_uc=None,
+                 create_zone_uc=None,
                  create_location_uc=None, set_location_status_uc=None,
+<<<<<<< HEAD
                  inspect_receipt_uc=None,
+=======
+                 update_location_uc=None, deactivate_location_uc=None,
+                 reverse_movement_uc=None,
+                 register_lot_uc=None, update_lot_uc=None,
+                 set_lot_quality_status_uc=None, label_print_service_factory=None,
+                 generate_expiry_alerts_uc=None, expire_inventory_uc=None,
+                 record_catch_weight_uc=None, scale_gateway_factory=None,
+                 record_temperature_reading_uc=None,
+                 resolve_temperature_excursion_uc=None,
+                 create_reservation_uc=None, allocate_reservation_uc=None,
+                 release_reservation_uc=None,
+>>>>>>> 42f747f4 (Refactir de modulo de Caja y merma)
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -102,9 +123,31 @@ class InventoryPresenter:
         self._create_adjustment_from_count_uc = create_adjustment_from_count_uc
         self._create_warehouse_uc = create_warehouse_uc
         self._set_warehouse_status_uc = set_warehouse_status_uc
+        self._update_warehouse_uc = update_warehouse_uc
+        self._deactivate_warehouse_uc = deactivate_warehouse_uc
+        self._create_zone_uc = create_zone_uc
         self._create_location_uc = create_location_uc
         self._set_location_status_uc = set_location_status_uc
+<<<<<<< HEAD
         self._inspect_receipt_uc = inspect_receipt_uc
+=======
+        self._update_location_uc = update_location_uc
+        self._deactivate_location_uc = deactivate_location_uc
+        self._reverse_movement_uc = reverse_movement_uc
+        self._register_lot_uc = register_lot_uc
+        self._update_lot_uc = update_lot_uc
+        self._set_lot_quality_status_uc = set_lot_quality_status_uc
+        self._label_print_service_factory = label_print_service_factory
+        self._generate_expiry_alerts_uc = generate_expiry_alerts_uc
+        self._expire_inventory_uc = expire_inventory_uc
+        self._record_catch_weight_uc = record_catch_weight_uc
+        self._scale_gateway_factory = scale_gateway_factory
+        self._record_temperature_reading_uc = record_temperature_reading_uc
+        self._resolve_temperature_excursion_uc = resolve_temperature_excursion_uc
+        self._create_reservation_uc = create_reservation_uc
+        self._allocate_reservation_uc = allocate_reservation_uc
+        self._release_reservation_uc = release_reservation_uc
+>>>>>>> 42f747f4 (Refactir de modulo de Caja y merma)
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -115,6 +158,13 @@ class InventoryPresenter:
     # usuario y el checker deniega sin identidad).
     def _actor(self) -> str:
         return str(getattr(self._session, "user_id", None) or "")
+
+    def capabilities(self) -> InventoryCapabilities:
+        """Resolved display capabilities for the current session (§15/§17).
+        Pages use this to show/enable actions; the backend re-validates every
+        one independently regardless of what the UI shows."""
+        check = getattr(self._session, "tiene_permiso", None)
+        return resolve_inventory_capabilities(check if callable(check) else lambda _c: False)
 
     def default_branch(self) -> str:
         session = self._session
@@ -354,6 +404,38 @@ class InventoryPresenter:
             r["product_name"] = names.get(r.get("product_id"), r.get("product_id"))
         return weight_table(rows)
 
+    def weight_history(self, *, branch_id: str | None = None) -> TableViewModel:
+        """Historial de capturas de peso (§28 "Ver historial"): los ajustes con
+        motivo ``WEIGHT_VARIANCE`` — cada captura de báscula/manual se aplica al
+        inventario como un ajuste, así que su historial es ese mismo filtro.
+        Sólo lectura; delega en el adjustment query service."""
+        if self._adjustment_factory is None:
+            return adjustments_table([])
+        branch = branch_id or self.default_branch()
+        rows = self._adjustment_factory(self._conn()).list_recent(
+            branch_id=branch or None, reason="WEIGHT_VARIANCE")
+        return adjustments_table(rows)
+
+    def read_scale(self) -> dict | None:
+        """Lee una lectura pendiente de la báscula cableada (§18/§28 "Leer
+        báscula"): vista previa antes de confirmar la captura. Sin gateway
+        cableado o sin lectura encolada (driver de hardware pendiente) devuelve
+        None — la UI debe ofrecer la captura manual, no fallar."""
+        if self._scale_gateway_factory is None:
+            return None
+        from backend.domain.inventory.exceptions import InvalidCatchWeightError
+        try:
+            gateway = self._scale_gateway_factory()
+            reading = gateway.read()
+        except InvalidCatchWeightError:
+            return None
+        except Exception:
+            logger.exception("InventoryPresenter.read_scale failed")
+            return None
+        return {"gross": reading.gross, "tare": reading.tare, "net": reading.net,
+                "unit": reading.unit, "stable": reading.stable,
+                "source": reading.source.value}
+
     def transfers(self, *, branch_id: str | None = None) -> TableViewModel:
         """Transferencias físicas recientes que tocan la sucursal (folio, tipo,
         origen, destino, estado, actualizado). Sólo lectura; ventana al contexto de
@@ -410,6 +492,35 @@ class InventoryPresenter:
             product_id=pid, branch_id=branch or None)
         return lots_table(rows)
 
+    def lot_detail(self, *, lot_id: str) -> dict | None:
+        """Fila cruda de un lote (§26 detalle) — para la vista de detalle, no
+        la fila ya formateada de la lista."""
+        lid = str(lot_id or "").strip()
+        if not lid or self._lot_factory is None:
+            return None
+        return self._lot_factory(self._conn()).get_lot(lot_id=lid)
+
+    def lot_stock(self, *, lot_id: str) -> TableViewModel:
+        """Existencias del lote (§26 "Ver stock"). Sólo lectura; delega en el
+        stock query service (mismo mapper que la página de Existencias)."""
+        lid = str(lot_id or "").strip()
+        if not lid or self._stock_factory is None:
+            return stock_table([])
+        rows = self._stock_factory(self._conn()).list_on_hand(lot_id=lid)
+        names = self._product_names([r.get("product_id") for r in rows])
+        for r in rows:
+            r["product_name"] = names.get(r.get("product_id"), r.get("product_id"))
+        return stock_table(rows)
+
+    def lot_movements(self, *, lot_id: str) -> TableViewModel:
+        """Movimientos del ledger que tocan el lote (§26 "Ver movimientos").
+        Sólo lectura; delega en el movement query service."""
+        lid = str(lot_id or "").strip()
+        if not lid or self._movement_factory is None:
+            return movements_table([])
+        rows = self._movement_factory(self._conn()).list_for_lot(lot_id=lid)
+        return movements_table(rows)
+
     def movements(self, *, branch_id: str | None = None,
                   limit: int = 100) -> TableViewModel:
         """Movimientos recientes del ledger (fecha, tipo, módulo, documento, estado),
@@ -420,6 +531,409 @@ class InventoryPresenter:
         rows = self._movement_factory(self._conn()).list_recent(
             branch_id=branch or None, limit=limit)
         return movements_table(rows)
+
+    def movement_detail(self, *, movement_id: str) -> dict | None:
+        """Encabezado crudo del movimiento (§6 detalle) — para la vista de
+        detalle, no la fila ya formateada de la lista."""
+        mid = str(movement_id or "").strip()
+        if not mid or self._movement_factory is None:
+            return None
+        return self._movement_factory(self._conn()).get_movement(movement_id=mid)
+
+    def _location_labels(self, location_ids) -> dict:
+        """id→"código — nombre" para las ubicaciones citadas en un puñado de
+        líneas de movimiento (§P0-D: nunca un UUID crudo). El número de
+        ubicaciones distintas por movimiento es chico, así que resolver una
+        por una aquí es más simple que agregar una consulta masiva nueva."""
+        if self._warehouse_factory is None:
+            return {}
+        svc = self._warehouse_factory(self._conn())
+        labels = {}
+        for lid in {str(i) for i in location_ids if i}:
+            row = svc.get_location(location_id=lid)
+            if row is not None:
+                labels[lid] = f"{row.get('code')} — {row.get('name')}"
+        return labels
+
+    def movement_lines(self, *, movement_id: str) -> TableViewModel:
+        """Líneas del movimiento (§6 detalle/líneas). Sólo lectura; delega en
+        el movement query service."""
+        mid = str(movement_id or "").strip()
+        if not mid or self._movement_factory is None:
+            return movement_lines_table([])
+        rows = self._movement_factory(self._conn()).get_lines(movement_id=mid)
+        names = self._product_names([r.get("product_id") for r in rows])
+        locations = self._location_labels(
+            [r.get("from_location_id") for r in rows]
+            + [r.get("to_location_id") for r in rows])
+        return movement_lines_table(rows, product_names=names, location_labels=locations)
+
+    def movement_source_document(self, *, movement_id: str) -> TableViewModel:
+        """Otros movimientos del ledger que comparten el mismo documento
+        origen (§6 documento origen) — p.ej. todos los efectos de inventario
+        de una misma recepción de compra. Sólo lectura."""
+        mid = str(movement_id or "").strip()
+        if not mid or self._movement_factory is None:
+            return movements_table([])
+        svc = self._movement_factory(self._conn())
+        header = svc.get_movement(movement_id=mid)
+        if header is None:
+            return movements_table([])
+        doc_type = header.get("source_document_type")
+        doc_id = header.get("source_document_id")
+        if not doc_type or not doc_id:
+            return movements_table([])
+        rows = svc.list_for_document(
+            source_document_type=doc_type, source_document_id=doc_id)
+        return movements_table(rows)
+
+    def movement_audit(self, *, movement_id: str) -> TableViewModel:
+        """Bitácora de auditoría de este movimiento (§6 auditoría): quién lo
+        posteó, quién lo reversó y cuándo. Sólo lectura; delega en el audit
+        query service (ya escrito por post_movement/ReverseInventoryMovementUseCase)."""
+        mid = str(movement_id or "").strip()
+        if not mid or self._audit_factory is None:
+            return audit_table([])
+        rows = self._audit_factory(self._conn()).list_recent(entity_id=mid)
+        return audit_table(rows)
+
+    def reverse_movement(self, *, movement_id: str,
+                         reason: str) -> tuple[bool, str, dict]:
+        """Reversa un movimiento posteado (§6 reverso): movimiento inverso,
+        irreversible, ligado por ``reversal_of_id``."""
+        if self._reverse_movement_uc is None:
+            return False, "Reverso de movimientos no disponible.", {}
+        mid = str(movement_id or "").strip()
+        if not mid:
+            return False, "Selecciona un movimiento.", {}
+        reason_v = str(reason or "").strip()
+        if not reason_v:
+            return False, "Captura un motivo.", {}
+        try:
+            result = self._reverse_movement_uc.execute(
+                self._conn(), movement_id=mid, operation_id=new_uuid(),
+                actor_user_id=self._actor(), reason=reason_v)
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.reverse_movement failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def register_lot(self, *, product_id: str, lot_code: str, origin_type: str,
+                     supplier_lot_code: str = "", production_lot_code: str = "",
+                     origin_document_id: str = "", production_date: str = "",
+                     expiration_date: str = "", branch_id: str | None = None
+                     ) -> tuple[bool, str, dict]:
+        """Alta de lote (§26 "Registrar lote")."""
+        if self._register_lot_uc is None:
+            return False, "Registro de lotes no disponible.", {}
+        pid = str(product_id or "").strip()
+        code = str(lot_code or "").strip()
+        if not pid or not code:
+            return False, "Selecciona un producto y captura el código de lote.", {}
+        try:
+            from backend.domain.inventory.enums import LotOrigin
+            origin_enum = LotOrigin(str(origin_type))
+        except ValueError:
+            return False, "Origen de lote inválido.", {}
+        try:
+            result = self._register_lot_uc.execute(
+                self._conn(), product_id=pid, lot_code=code, origin_type=origin_enum,
+                operation_id=new_uuid(), actor_user_id=self._actor(),
+                supplier_lot_code=str(supplier_lot_code or "").strip() or None,
+                production_lot_code=str(production_lot_code or "").strip() or None,
+                origin_document_id=str(origin_document_id or "").strip() or None,
+                production_date=str(production_date or "").strip() or None,
+                expiration_date=str(expiration_date or "").strip() or None,
+                branch_id=branch_id or self.default_branch() or None)
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.register_lot failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def update_lot(self, *, lot_id: str, supplier_lot_code: str | None = ...,
+                   production_lot_code: str | None = ..., origin_document_id: str | None = ...,
+                   production_date: str | None = ..., expiration_date: str | None = ...
+                   ) -> tuple[bool, str, dict]:
+        """Edita los datos permitidos de un lote (§26 "Editar datos permitidos")."""
+        if self._update_lot_uc is None:
+            return False, "Edición de lotes no disponible.", {}
+        lid = str(lot_id or "").strip()
+        if not lid:
+            return False, "Selecciona un lote.", {}
+        fields: dict = {}
+        for name, value in (
+            ("supplier_lot_code", supplier_lot_code),
+            ("production_lot_code", production_lot_code),
+            ("origin_document_id", origin_document_id),
+            ("production_date", production_date),
+            ("expiration_date", expiration_date),
+        ):
+            if value is not ...:
+                fields[name] = str(value).strip() or None if value is not None else None
+        try:
+            result = self._update_lot_uc.execute(
+                self._conn(), lot_id=lid, operation_id=new_uuid(),
+                actor_user_id=self._actor(), **fields)
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.update_lot failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def set_lot_quality_status(self, *, lot_id: str, new_status: str,
+                               reason: str = "") -> tuple[bool, str, dict]:
+        """Libera, bloquea o envía a cuarentena un lote (§26/§31) — un único
+        flujo auditado, con el estado destino como único diferenciador."""
+        if self._set_lot_quality_status_uc is None:
+            return False, "Cambio de estado de calidad no disponible.", {}
+        lid = str(lot_id or "").strip()
+        if not lid:
+            return False, "Selecciona un lote.", {}
+        try:
+            from backend.domain.inventory.enums import LotQualityStatus
+            status_enum = LotQualityStatus(str(new_status))
+        except ValueError:
+            return False, "Estado de calidad inválido.", {}
+        try:
+            result = self._set_lot_quality_status_uc.execute(
+                self._conn(), lot_id=lid, new_status=status_enum, operation_id=new_uuid(),
+                actor_user_id=self._actor(), reason=str(reason or "").strip())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.set_lot_quality_status failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def print_lot_label(self, *, lot_id: str,
+                        is_reprint: bool = False) -> tuple[bool, str, dict]:
+        """Imprime (o reimprime) la etiqueta de un lote (§26)."""
+        if self._label_print_service_factory is None:
+            return False, "Impresión de etiquetas no disponible.", {}
+        lid = str(lot_id or "").strip()
+        if not lid or self._lot_factory is None:
+            return False, "Selecciona un lote.", {}
+        lot = self._lot_factory(self._conn()).get_lot(lot_id=lid)
+        if lot is None:
+            return False, "Lote no encontrado.", {}
+        names = self._product_names([lot.get("product_id")])
+        product_name = names.get(lot.get("product_id"), lot.get("product_id"))
+        try:
+            from backend.domain.inventory.enums import LabelType
+            from backend.domain.inventory.value_objects.label_document import (
+                LabelDocument,
+            )
+            document = LabelDocument(
+                label_type=LabelType.LOT, title=str(lot.get("lot_code") or ""),
+                lines=(str(product_name), f"Caducidad: {lot.get('expiration_date') or '—'}"),
+                barcode=str(lot.get("lot_code") or ""), entity_ref=lid)
+            service = self._label_print_service_factory(self._conn())
+            result = service.print_label(
+                document, actor_user_id=self._actor(), is_reprint=is_reprint,
+                branch_id=lot.get("branch_id"))
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.print_lot_label failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def record_temperature_reading(self, *, sensor_id: str, warehouse_id: str | None = None,
+                                   temperature, reading_point: str, min_temp, max_temp,
+                                   warning_margin=0, location_id: str | None = None,
+                                   lot_id: str | None = None,
+                                   auto_block: bool = False) -> tuple[bool, str, dict]:
+        """Registra una lectura de temperatura (§21 "Registrar lectura"): clasifica
+        contra el rango, y si excede (WARNING/OUT_OF_RANGE) registra la excursión y,
+        con bloqueo automático + lote, pone el lote en cuarentena."""
+        if self._record_temperature_reading_uc is None:
+            return False, "Registro de temperatura no disponible.", {}
+        sensor = str(sensor_id or "").strip()
+        if not sensor:
+            return False, "Captura el identificador del sensor.", {}
+        warehouse = warehouse_id or self.default_warehouse()
+        if not warehouse:
+            return False, "Selecciona un almacén.", {}
+        try:
+            from backend.domain.inventory.enums import TemperaturePoint
+            point_enum = TemperaturePoint(str(reading_point))
+        except ValueError:
+            return False, "Punto de lectura inválido.", {}
+        try:
+            result = self._record_temperature_reading_uc.execute(
+                self._conn(), sensor_id=sensor, warehouse_id=warehouse,
+                temperature=temperature, reading_point=point_enum, min_temp=min_temp,
+                max_temp=max_temp, warning_margin=warning_margin, location_id=location_id,
+                lot_id=lot_id or None, auto_block=auto_block, operation_id=new_uuid(),
+                actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.record_temperature_reading failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def resolve_temperature_excursion(self, *, excursion_id: str, resolution: str,
+                                      resolution_note: str = "") -> tuple[bool, str, dict]:
+        """Resuelve una excursión abierta (§21 "Resolver excursión"): libera o
+        rechaza el lote si quedó bloqueado por auto-bloqueo, y cierra la excursión."""
+        if self._resolve_temperature_excursion_uc is None:
+            return False, "Resolución de excursiones no disponible.", {}
+        eid = str(excursion_id or "").strip()
+        if not eid:
+            return False, "Selecciona una excursión.", {}
+        if resolution not in ("RELEASE", "REJECT"):
+            return False, "Acción de resolución inválida.", {}
+        try:
+            result = self._resolve_temperature_excursion_uc.execute(
+                self._conn(), excursion_id=eid, resolution=resolution,
+                resolution_note=str(resolution_note or "").strip(),
+                operation_id=new_uuid(), actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.resolve_temperature_excursion failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def create_reservation(self, *, product_id: str, source: str, source_document_id: str,
+                           quantity, weight=0, branch_id: str | None = None,
+                           warehouse_id: str | None = None, expires_at=None,
+                           location_id: str | None = None) -> tuple[bool, str, dict]:
+        """Crea una reserva (§22): reduce el disponible a prometer sin mover stock
+        físico. La asignación a lotes concretos es un paso aparte
+        (``allocate_reservation``)."""
+        if self._create_reservation_uc is None:
+            return False, "Creación de reservas no disponible.", {}
+        pid = str(product_id or "").strip()
+        if not pid:
+            return False, "Selecciona un producto.", {}
+        try:
+            from backend.domain.inventory.enums import ReservationSource
+            source_enum = ReservationSource(str(source))
+        except ValueError:
+            return False, "Origen de reserva inválido.", {}
+        if not quantity:
+            return False, "Captura una cantidad mayor a cero.", {}
+        branch = branch_id or self.default_branch()
+        warehouse = warehouse_id or self.default_warehouse()
+        try:
+            result = self._create_reservation_uc.execute(
+                self._conn(), product_id=pid, branch_id=branch, warehouse_id=warehouse,
+                source=source_enum,
+                source_document_id=str(source_document_id or "").strip(),
+                quantity=quantity, weight=weight, expires_at=expires_at or None,
+                location_id=location_id, operation_id=new_uuid(),
+                actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.create_reservation failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def allocate_reservation(self, *, reservation_id: str) -> tuple[bool, str, dict]:
+        """Asigna una reserva confirmada a lotes concretos por FEFO (§22)."""
+        if self._allocate_reservation_uc is None:
+            return False, "Asignación de reservas no disponible.", {}
+        rid = str(reservation_id or "").strip()
+        if not rid:
+            return False, "Selecciona una reserva.", {}
+        try:
+            result = self._allocate_reservation_uc.execute(
+                self._conn(), reservation_id=rid, operation_id=new_uuid(),
+                actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.allocate_reservation failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def release_reservation(self, *, reservation_id: str,
+                            reason: str = "") -> tuple[bool, str, dict]:
+        """Libera una reserva activa (§22): el disponible a prometer vuelve a subir."""
+        if self._release_reservation_uc is None:
+            return False, "Liberación de reservas no disponible.", {}
+        rid = str(reservation_id or "").strip()
+        if not rid:
+            return False, "Selecciona una reserva.", {}
+        try:
+            result = self._release_reservation_uc.execute(
+                self._conn(), reservation_id=rid, reason=str(reason or "").strip(),
+                operation_id=new_uuid(), actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.release_reservation failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def generate_expiry_alerts(self) -> tuple[bool, str, dict]:
+        """Genera alertas de caducidad (§27) para los lotes disponibles en
+        riesgo — no mueve stock, sólo evalúa y encola alertas."""
+        if self._generate_expiry_alerts_uc is None:
+            return False, "Generación de alertas no disponible.", {}
+        try:
+            result = self._generate_expiry_alerts_uc.execute(
+                self._conn(), operation_id=new_uuid(), actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.generate_expiry_alerts failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def process_expired_lots(self) -> tuple[bool, str, dict]:
+        """Procesa lotes vencidos (§27 "Procesar vencidos"): mueve su existencia
+        disponible al bucket EXPIRED (no los da de baja — eso es una merma aparte)."""
+        if self._expire_inventory_uc is None:
+            return False, "Procesamiento de vencidos no disponible.", {}
+        try:
+            result = self._expire_inventory_uc.execute(
+                self._conn(), operation_id=new_uuid(), actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.process_expired_lots failed")
+            return False, "Error inesperado; revise el log.", {}
 
     def expiring(self, *, branch_id: str | None = None) -> TableViewModel:
         """Lotes disponibles en riesgo de caducidad (vencido/crítico/próximo),
@@ -477,9 +991,36 @@ class InventoryPresenter:
         svc = self._warehouse_factory(self._conn())
         return warehouses_table(svc.list_warehouses(branch_id=branch))
 
+    def warehouse_detail(self, *, warehouse_id: str) -> dict | None:
+        """Fila cruda de un almacén (§24 edición) — para prellenar el diálogo de
+        edición con los valores reales, no las cadenas ya formateadas para tabla."""
+        wid = str(warehouse_id or "").strip()
+        if not wid:
+            return None
+        svc = self._warehouse_factory(self._conn())
+        return svc.get_warehouse(warehouse_id=wid)
+
+    def location_detail(self, *, location_id: str) -> dict | None:
+        """Fila cruda de una ubicación (§24 edición), mismo motivo que
+        ``warehouse_detail``."""
+        lid = str(location_id or "").strip()
+        if not lid:
+            return None
+        svc = self._warehouse_factory(self._conn())
+        return svc.get_location(location_id=lid)
+
     def location_tree(self, *, warehouse_id: str) -> TableViewModel:
         svc = self._warehouse_factory(self._conn())
         return locations_table(svc.location_hierarchy(warehouse_id=warehouse_id))
+
+    def zones(self, *, warehouse_id: str) -> TableViewModel:
+        """Zonas del almacén (§24 "Zonas"). Sólo lectura; delega en el
+        warehouse query service (``list_zones`` ya existía sin UI)."""
+        wid = str(warehouse_id or "").strip()
+        if not wid:
+            return zones_table([])
+        svc = self._warehouse_factory(self._conn())
+        return zones_table(svc.list_zones(warehouse_id=wid))
 
     # analytics (INV-24) -------------------------------------------------------
     def inventory_kpis(self, *, branch_id: str | None = None) -> list[KpiViewModel]:
@@ -663,6 +1204,46 @@ class InventoryPresenter:
             return bool(result.success), message, data
         except Exception:
             logger.exception("InventoryPresenter.create_adjustment failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def record_catch_weight(self, *, product_id: str, use_scale: bool,
+                            pieces_delta=0, gross=None, tare=0, unit: str = "KG",
+                            authorizer_user_id: str | None = None,
+                            reason_note: str = "", location_id: str | None = None,
+                            branch_id: str | None = None,
+                            warehouse_id: str | None = None) -> tuple[bool, str, dict]:
+        """Captura una lectura de peso (báscula o manual autorizada) y la aplica
+        como un ajuste de inventario (§28/§29 "Capturar peso", "Corregir
+        lectura", "Reconciliar piezas/peso") — ver ``RecordCatchWeightUseCase``
+        para el porqué de reusar el mecanismo de ajustes en vez de uno nuevo."""
+        if self._record_catch_weight_uc is None:
+            return False, "Captura de peso no disponible.", {}
+        pid = str(product_id or "").strip()
+        if not pid:
+            return False, "Selecciona un producto.", {}
+        branch = branch_id or self.default_branch()
+        warehouse = warehouse_id or self.default_warehouse()
+        gateway = None
+        if use_scale:
+            if self._scale_gateway_factory is None:
+                return False, "No hay báscula configurada.", {}
+            gateway = self._scale_gateway_factory()
+        try:
+            result = self._record_catch_weight_uc.execute(
+                self._conn(), product_id=pid, branch_id=branch, warehouse_id=warehouse,
+                location_id=location_id, pieces_delta=pieces_delta, gateway=gateway,
+                gross=gross, tare=tare, unit=unit,
+                authorizer_user_id=str(authorizer_user_id or "").strip() or None,
+                reason_note=str(reason_note or "").strip(),
+                operation_id=new_uuid(), actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.record_catch_weight failed")
             return False, "Error inesperado; revise el log.", {}
 
     def approve_adjustment(self, *, adjustment_id: str) -> tuple[bool, str, dict]:
@@ -874,7 +1455,10 @@ class InventoryPresenter:
             return False, "Error inesperado; revise el log.", {}
 
     def create_warehouse(self, *, code: str, name: str, warehouse_type: str,
-                         branch_id: str | None = None) -> tuple[bool, str, dict]:
+                         branch_id: str | None = None,
+                         temperature_profile: str | None = None,
+                         capacity=None, capacity_uom: str | None = None
+                         ) -> tuple[bool, str, dict]:
         """Alta de almacén (§12): la página de Almacenes no tenía forma de
         crear uno — la única vía era el script de provisión (P0-E)."""
         if self._create_warehouse_uc is None:
@@ -892,7 +1476,9 @@ class InventoryPresenter:
         try:
             result = self._create_warehouse_uc.execute(
                 self._conn(), code=code_v, name=name_v, branch_id=branch,
-                warehouse_type=type_enum, actor_user_id=self._actor())
+                warehouse_type=type_enum, actor_user_id=self._actor(),
+                temperature_profile=str(temperature_profile or "").strip() or None,
+                capacity=capacity, capacity_uom=str(capacity_uom or "").strip() or None)
             if result.success and self._dispatch is not None:
                 try:
                     self._dispatch()
@@ -901,6 +1487,47 @@ class InventoryPresenter:
             return bool(result.success), result.message, self._result_data(result)
         except Exception:
             logger.exception("InventoryPresenter.create_warehouse failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def update_warehouse(self, *, warehouse_id: str, name: str | None = None,
+                         warehouse_type: str | None = None,
+                         temperature_profile: str | None = ...,
+                         capacity=..., capacity_uom: str | None = ...
+                         ) -> tuple[bool, str, dict]:
+        """Edita un almacén existente (§24 "Editar almacén")."""
+        if self._update_warehouse_uc is None:
+            return False, "Edición de almacenes no disponible.", {}
+        wid = str(warehouse_id or "").strip()
+        if not wid:
+            return False, "Selecciona un almacén.", {}
+        fields: dict = {}
+        if name is not None:
+            fields["name"] = name
+        if warehouse_type is not None:
+            try:
+                from backend.domain.inventory.enums import WarehouseType
+                fields["warehouse_type"] = WarehouseType(str(warehouse_type))
+            except ValueError:
+                return False, "Tipo de almacén inválido.", {}
+        if temperature_profile is not ...:
+            fields["temperature_profile"] = (str(temperature_profile).strip() or None
+                                             if temperature_profile is not None else None)
+        if capacity is not ...:
+            fields["capacity"] = capacity
+        if capacity_uom is not ...:
+            fields["capacity_uom"] = (str(capacity_uom).strip() or None
+                                      if capacity_uom is not None else None)
+        try:
+            result = self._update_warehouse_uc.execute(
+                self._conn(), warehouse_id=wid, actor_user_id=self._actor(), **fields)
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.update_warehouse failed")
             return False, "Error inesperado; revise el log.", {}
 
     def set_warehouse_status(self, *, warehouse_id: str, activate: bool,
@@ -924,9 +1551,64 @@ class InventoryPresenter:
             logger.exception("InventoryPresenter.set_warehouse_status failed")
             return False, "Error inesperado; revise el log.", {}
 
+    def deactivate_warehouse(self, *, warehouse_id: str,
+                             reason: str = "") -> tuple[bool, str, dict]:
+        """Retira un almacén de servicio (§24 "Desactivar almacén")."""
+        if self._deactivate_warehouse_uc is None:
+            return False, "Desactivación de almacenes no disponible.", {}
+        wid = str(warehouse_id or "").strip()
+        if not wid:
+            return False, "Selecciona un almacén.", {}
+        try:
+            result = self._deactivate_warehouse_uc.execute(
+                self._conn(), warehouse_id=wid, actor_user_id=self._actor(),
+                reason=str(reason or "").strip())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.deactivate_warehouse failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def create_zone(self, *, warehouse_id: str, code: str, name: str,
+                    zone_type: str) -> tuple[bool, str, dict]:
+        """Alta de zona (§24 "Zonas") — el backend ya existía (`CreateZoneUseCase`)
+        sin ningún camino de UI hasta ahora."""
+        if self._create_zone_uc is None:
+            return False, "Creación de zonas no disponible.", {}
+        wid = str(warehouse_id or "").strip()
+        if not wid:
+            return False, "Selecciona un almacén.", {}
+        code_v = str(code or "").strip()
+        name_v = str(name or "").strip()
+        if not code_v or not name_v:
+            return False, "Captura código y nombre.", {}
+        try:
+            from backend.domain.inventory.enums import WarehouseZoneType
+            type_enum = WarehouseZoneType(str(zone_type))
+        except ValueError:
+            return False, "Tipo de zona inválido.", {}
+        try:
+            result = self._create_zone_uc.execute(
+                self._conn(), warehouse_id=wid, code=code_v, name=name_v,
+                zone_type=type_enum, actor_user_id=self._actor())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.create_zone failed")
+            return False, "Error inesperado; revise el log.", {}
+
     def create_location(self, *, warehouse_id: str, code: str, name: str,
                         level: int = 0,
-                        parent_location_id: str | None = None) -> tuple[bool, str, dict]:
+                        parent_location_id: str | None = None,
+                        capacity=None) -> tuple[bool, str, dict]:
         """Alta de ubicación (§12), opcionalmente como sub-ubicación de otra
         (jerarquía pasillo → rack → nivel → posición)."""
         if self._create_location_uc is None:
@@ -943,7 +1625,7 @@ class InventoryPresenter:
                 self._conn(), warehouse_id=wid, code=code_v, name=name_v,
                 level=int(level or 0),
                 parent_location_id=str(parent_location_id or "").strip() or None,
-                actor_user_id=self._actor())
+                capacity=capacity, actor_user_id=self._actor())
             if result.success and self._dispatch is not None:
                 try:
                     self._dispatch()
@@ -952,6 +1634,32 @@ class InventoryPresenter:
             return bool(result.success), result.message, self._result_data(result)
         except Exception:
             logger.exception("InventoryPresenter.create_location failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def update_location(self, *, location_id: str, name: str | None = None,
+                        capacity=...) -> tuple[bool, str, dict]:
+        """Edita una ubicación existente (§24 "Editar ubicación")."""
+        if self._update_location_uc is None:
+            return False, "Edición de ubicaciones no disponible.", {}
+        lid = str(location_id or "").strip()
+        if not lid:
+            return False, "Selecciona una ubicación.", {}
+        fields: dict = {}
+        if name is not None:
+            fields["name"] = name
+        if capacity is not ...:
+            fields["capacity"] = capacity
+        try:
+            result = self._update_location_uc.execute(
+                self._conn(), location_id=lid, actor_user_id=self._actor(), **fields)
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.update_location failed")
             return False, "Error inesperado; revise el log.", {}
 
     def set_location_status(self, *, location_id: str, activate: bool,
@@ -975,6 +1683,7 @@ class InventoryPresenter:
             logger.exception("InventoryPresenter.set_location_status failed")
             return False, "Error inesperado; revise el log.", {}
 
+<<<<<<< HEAD
     def inspect_stock(self, *, balance_id: str, passed: bool,
                       reason: str = "") -> tuple[bool, str, dict]:
         """Aprueba o rechaza una existencia retenida en inspección (§P0-E,
@@ -990,6 +1699,19 @@ class InventoryPresenter:
             result = self._inspect_receipt_uc.execute(
                 self._conn(), balance_id=bid, passed=bool(passed),
                 operation_id=new_uuid(), actor_user_id=self._actor(),
+=======
+    def deactivate_location(self, *, location_id: str,
+                            reason: str = "") -> tuple[bool, str, dict]:
+        """Retira una ubicación de servicio (§24 "Desactivar ubicación")."""
+        if self._deactivate_location_uc is None:
+            return False, "Desactivación de ubicaciones no disponible.", {}
+        lid = str(location_id or "").strip()
+        if not lid:
+            return False, "Selecciona una ubicación.", {}
+        try:
+            result = self._deactivate_location_uc.execute(
+                self._conn(), location_id=lid, actor_user_id=self._actor(),
+>>>>>>> 42f747f4 (Refactir de modulo de Caja y merma)
                 reason=str(reason or "").strip())
             if result.success and self._dispatch is not None:
                 try:
@@ -998,5 +1720,9 @@ class InventoryPresenter:
                     logger.exception("post-commit dispatch failed")
             return bool(result.success), result.message, self._result_data(result)
         except Exception:
+<<<<<<< HEAD
             logger.exception("InventoryPresenter.inspect_stock failed")
+=======
+            logger.exception("InventoryPresenter.deactivate_location failed")
+>>>>>>> 42f747f4 (Refactir de modulo de Caja y merma)
             return False, "Error inesperado; revise el log.", {}

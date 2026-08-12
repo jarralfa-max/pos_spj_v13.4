@@ -11,6 +11,7 @@ from .repositories import (
     CashSyncRepository,
 )
 from .notification_repository import CashNotificationRepository
+from .printing_repository import CashPrintRepository
 
 
 class CashRegisterUnitOfWork:
@@ -30,6 +31,7 @@ class CashRegisterUnitOfWork:
         self.outbox = CashOutboxRepository(connection)
         self.sync = CashSyncRepository(connection)
         self.notifications = CashNotificationRepository(connection)
+        self.printing = CashPrintRepository(connection)
         self.audit = CashAuditRepository(connection)
         self._completed = False
 

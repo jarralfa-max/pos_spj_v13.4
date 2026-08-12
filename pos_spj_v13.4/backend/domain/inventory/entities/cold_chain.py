@@ -64,6 +64,9 @@ class TemperatureExcursion:
     action_taken: ExcursionAction = ExcursionAction.WARN
     lot_id: str | None = None
     resolved: bool = False
+    resolved_by_user_id: str | None = None
+    resolved_at: str | None = None
+    resolution_note: str = ""
     created_at: str = field(default_factory=_utcnow)
 
     @classmethod
@@ -74,3 +77,11 @@ class TemperatureExcursion:
         return cls(id=new_uuid(), reading_id=reading_id, warehouse_id=warehouse_id,
                    status=status, temperature=_dec(temperature), min_temp=_dec(min_temp),
                    max_temp=_dec(max_temp), action_taken=action_taken, lot_id=lot_id)
+
+    def resolve(self, *, user_id: str, note: str = "") -> None:
+        if self.resolved:
+            raise InventoryDomainError("La excursión ya fue resuelta")
+        self.resolved = True
+        self.resolved_by_user_id = user_id
+        self.resolved_at = _utcnow()
+        self.resolution_note = note

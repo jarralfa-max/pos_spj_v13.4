@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from backend.application.cash_register.permissions import CashPermissions
+
 
 @dataclass(frozen=True)
 class CashRegisterRoute:
@@ -25,77 +27,77 @@ CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
         "Resumen",
         "Operacion",
         "Estado operativo de caja, alertas y pendientes del turno.",
-        "cash_register.view",
+        CashPermissions.ACCESS,
     ),
     CashRegisterRoute(
         "shifts",
         "Apertura y turnos",
         "Operacion",
         "Abrir, suspender, reanudar y cerrar preliminarmente un turno.",
-        "cash_register.shift.view",
+        CashPermissions.SHIFT_VIEW,
     ),
     CashRegisterRoute(
         "ledger",
         "Ledger",
         "Operacion",
         "Movimientos inmutables, reversos y saldo reconstruible.",
-        "cash_register.ledger.view",
+        CashPermissions.MOVEMENT_VIEW,
     ),
     CashRegisterRoute(
         "blind_count",
         "Conteo ciego",
         "Cortes",
         "Captura de denominaciones sin revelar el esperado.",
-        "cash_register.count.view",
+        CashPermissions.BLIND_COUNT_START,
     ),
     CashRegisterRoute(
         "x_cut",
         "Corte X",
         "Cortes",
         "Consulta parcial imprimible sin cierre del turno.",
-        "cash_register.x_cut.view",
+        CashPermissions.X_CUT_VIEW,
     ),
     CashRegisterRoute(
         "z_cut",
         "Corte Z",
         "Cortes",
         "Consolidacion, diferencia, cierre, publicacion e impresion.",
-        "cash_register.z_cut.view",
+        CashPermissions.Z_CUT_VIEW,
     ),
     CashRegisterRoute(
         "differences",
         "Diferencias",
         "Control",
         "Clasificacion, tolerancias, revision, resolucion y reincidencia.",
-        "cash_register.difference.view",
+        CashPermissions.DIFFERENCE_VIEW,
     ),
     CashRegisterRoute(
         "handover",
         "Entrega de valores",
         "Control",
         "Preparacion, doble confirmacion, tesoreria y disputas.",
-        "cash_register.handover.view",
+        CashPermissions.HANDOVER_PREPARE,
     ),
     CashRegisterRoute(
         "refunds",
         "Reembolsos",
         "Control",
         "Metodo original, autorizacion, salida fisica y frontera financiera.",
-        "cash_register.refund.view",
+        CashPermissions.REFUND_REQUEST,
     ),
     CashRegisterRoute(
         "hardware",
         "Hardware",
         "Administracion",
         "Cajon, impresora, terminales, drivers, diagnostico y alertas.",
-        "cash_register.hardware.view",
+        CashPermissions.HARDWARE_DIAGNOSE,
     ),
     CashRegisterRoute(
         "configuration",
         "Configuracion",
         "Administracion",
         "Jerarquia, vigencias, denominaciones, limites, alertas y permisos.",
-        "cash_register.configuration.view",
+        CashPermissions.SETTINGS_VIEW,
     ),
 )
 

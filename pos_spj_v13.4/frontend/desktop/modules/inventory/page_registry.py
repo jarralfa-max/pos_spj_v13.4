@@ -5,11 +5,17 @@ list of ``(factory, title)`` the ``InventoryView`` shell renders. Sections with 
 built enterprise page use it; the rest fall back to a DS ``PlaceholderPage`` so the
 sidebar is complete from day one without a saturated catch-all window. Pure
 wiring — no Qt widgets are constructed here (factories run lazily in the shell).
+
+``has_permission`` (§16): when given, only sections whose permission the
+session holds are included — hiding a section without ``INVENTARIO.ver`` (or
+its own granular permission) is UX, the backend still re-validates every
+action. Omitting it renders every section (used by diagnostic/test harnesses
+without a live session).
 """
 
 from __future__ import annotations
 
-from frontend.desktop.modules.inventory.navigation import INVENTORY_NAV
+from frontend.desktop.modules.inventory.navigation import INVENTORY_NAV, visible_entries
 from frontend.desktop.modules.inventory.pages import (
     AdjustmentsPage,
     AlertsPage,
@@ -67,13 +73,17 @@ def _placeholder_factory(entry):
     return factory
 
 
-def build_page_specs():
-    """Ordered ``[(factory, title)]`` for the 21 canonical sidebar sections.
+def build_page_specs(has_permission=None):
+    """Ordered ``[(factory, title)]`` for the visible sidebar sections.
 
     ``factory(presenter) -> QWidget``. Built pages get their real factory; the
-    rest get a ``PlaceholderPage`` carrying the section's title/tooltip."""
+    rest get a ``PlaceholderPage`` carrying the section's title/tooltip.
+    ``has_permission(code) -> bool`` filters to the sections the session may
+    see (§16); without it every section is included."""
+    entries = (INVENTORY_NAV if has_permission is None
+               else visible_entries(has_permission))
     specs = []
-    for entry in INVENTORY_NAV:
+    for entry in entries:
         real = _REAL_PAGES.get(entry.page_id)
         factory = real if real is not None else _placeholder_factory(entry)
         specs.append((factory, entry.title))

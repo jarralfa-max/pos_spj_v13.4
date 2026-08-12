@@ -1,8 +1,12 @@
 """Inventory application use cases (INV-6+)."""
 
+from backend.application.inventory.use_cases.catch_weight_use_cases import (
+    RecordCatchWeightUseCase,
+)
 from backend.application.inventory.use_cases.lot_use_cases import (
     RegisterInventoryLotUseCase,
     SetLotQualityStatusUseCase,
+    UpdateLotUseCase,
 )
 from backend.application.inventory.use_cases.adjustment_use_cases import (
     ApproveAdjustmentUseCase,
@@ -35,6 +39,9 @@ from backend.application.inventory.use_cases.replenishment_use_cases import (
 from backend.application.inventory.use_cases.record_temperature_reading import (
     RecordTemperatureReadingUseCase,
 )
+from backend.application.inventory.use_cases.resolve_temperature_excursion import (
+    ResolveTemperatureExcursionUseCase,
+)
 from backend.application.inventory.use_cases.reservation_use_cases import (
     AllocateReservationUseCase,
     CreateReservationUseCase,
@@ -61,8 +68,12 @@ from backend.application.inventory.use_cases.warehouse_use_cases import (
     CreateLocationUseCase,
     CreateWarehouseUseCase,
     CreateZoneUseCase,
+    DeactivateLocationUseCase,
+    DeactivateWarehouseUseCase,
     SetLocationStatusUseCase,
     SetWarehouseStatusUseCase,
+    UpdateLocationUseCase,
+    UpdateWarehouseUseCase,
 )
 from backend.application.inventory.use_cases.inspect_receipt import (
     InspectReceiptUseCase,
@@ -80,6 +91,8 @@ __all__ = [
     "CreateReservationUseCase",
     "CreateWarehouseUseCase",
     "CreateZoneUseCase",
+    "DeactivateLocationUseCase",
+    "DeactivateWarehouseUseCase",
     "DisposeQuarantineUseCase",
     "ExpireInventoryUseCase",
     "GenerateExpiryAlertsUseCase",
@@ -96,12 +109,17 @@ __all__ = [
     "SetWarehouseStatusUseCase",
     "ReleaseQuarantineUseCase",
     "ReverseAdjustmentUseCase",
+    "RecordCatchWeightUseCase",
     "RecordTemperatureReadingUseCase",
     "RegisterInventoryLotUseCase",
     "ReleaseReservationUseCase",
+    "ResolveTemperatureExcursionUseCase",
     "EnsureTechnicalLocationsUseCase",
     "RebuildInventoryBalancesUseCase",
     "ReverseInventoryMovementUseCase",
     "ValidateInventoryProjectionUseCase",
     "SetLotQualityStatusUseCase",
+    "UpdateLocationUseCase",
+    "UpdateLotUseCase",
+    "UpdateWarehouseUseCase",
 ]

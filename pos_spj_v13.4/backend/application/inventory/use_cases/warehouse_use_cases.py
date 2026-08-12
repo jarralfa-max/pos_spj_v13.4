@@ -10,10 +10,14 @@ warehouse/location event. Locations never move stock — that's the ledger's job
 from __future__ import annotations
 
 import json
+from decimal import Decimal
 
 from backend.application.inventory.authorization import InventoryAuthorizationPolicy
 from backend.application.inventory.permissions import InventoryPermissions
 from backend.application.inventory.result import InventoryResult
+from backend.application.inventory.use_cases.ensure_technical_locations import (
+    EnsureTechnicalLocationsUseCase,
+)
 from backend.domain.inventory.entities.warehouse import (
     StorageLocation,
     Warehouse,
@@ -30,9 +34,16 @@ from backend.domain.inventory.exceptions import (
     InventoryDomainError,
     InventoryPermissionDeniedError,
 )
+from backend.infrastructure.db.repositories.inventory.base import (
+    to_decimal,
+)
 from backend.infrastructure.db.repositories.inventory.unit_of_work import (
     InventoryUnitOfWork,
 )
+
+
+def _opt_decimal(value) -> Decimal | None:
+    return None if value is None else to_decimal(value)
 
 
 def _emit(uow, event_name, *, entity_id, actor, **extra):
@@ -57,19 +68,88 @@ class CreateWarehouseUseCase:
             with InventoryUnitOfWork(connection) as uow:
                 existing = uow.warehouses.get_by_code(code)
                 if existing is not None:
-                    return InventoryResult.ok("Almacén ya existe (idempotente)",
-                                              entity_id=existing["id"], idempotent=True)
-                wh = Warehouse.create(code=code, name=name, branch_id=branch_id,
-                                      warehouse_type=warehouse_type, **options)
-                uow.warehouses.save_warehouse(wh)
-                uow.audit.record(entity_type="WAREHOUSE", entity_id=wh.id,
-                                 action="CREATED", user_id=actor_user_id,
-                                 branch_id=branch_id)
-                _emit(uow, InventoryEvents.WAREHOUSE_CREATED, entity_id=wh.id,
-                      actor=actor_user_id, branch_id=branch_id)
+                    warehouse_id = existing["id"]
+                    idempotent = True
+                else:
+                    wh = Warehouse.create(code=code, name=name, branch_id=branch_id,
+                                          warehouse_type=warehouse_type, **options)
+                    uow.warehouses.save_warehouse(wh)
+                    uow.audit.record(entity_type="WAREHOUSE", entity_id=wh.id,
+                                     action="CREATED", user_id=actor_user_id,
+                                     branch_id=branch_id)
+                    _emit(uow, InventoryEvents.WAREHOUSE_CREATED, entity_id=wh.id,
+                          actor=actor_user_id, branch_id=branch_id)
+                    warehouse_id = wh.id
+                    idempotent = False
         except InventoryDomainError as exc:
             return InventoryResult.fail(str(exc), "INVENTORY_RULE_VIOLATION")
-        return InventoryResult.ok("Almacén creado", entity_id=wh.id)
+        # §12/§20: cada almacén (creado a mano o por defecto) recibe sus
+        # ubicaciones técnicas — idempotente, así que reintentarlo para un
+        # almacén idempotente que ya las tenía es un no-op seguro.
+        EnsureTechnicalLocationsUseCase().execute(connection, warehouse_id=warehouse_id)
+        if idempotent:
+            return InventoryResult.ok("Almacén ya existe (idempotente)",
+                                      entity_id=warehouse_id, idempotent=True)
+        return InventoryResult.ok("Almacén creado", entity_id=warehouse_id)
+
+
+class UpdateWarehouseUseCase:
+    """Edita datos mutables de un almacén (§24 "Editar almacén")."""
+
+    def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+
+    def execute(self, connection, *, warehouse_id: str, actor_user_id: str,
+                **fields) -> InventoryResult:
+        try:
+            self._auth.require(actor_user_id, InventoryPermissions.WAREHOUSE_EDIT)
+        except InventoryPermissionDeniedError as exc:
+            return InventoryResult.fail(str(exc), "PERMISSION_DENIED")
+        try:
+            with InventoryUnitOfWork(connection) as uow:
+                row = uow.warehouses.get_warehouse(warehouse_id)
+                if row is None:
+                    return InventoryResult.fail("Almacén no encontrado", "NOT_FOUND")
+                wh = _warehouse_from_row(row)
+                wh.update_details(**fields)
+                uow.warehouses.save_warehouse(wh)
+                uow.audit.record(entity_type="WAREHOUSE", entity_id=wh.id,
+                                 action="UPDATED", user_id=actor_user_id,
+                                 branch_id=wh.branch_id)
+                _emit(uow, InventoryEvents.WAREHOUSE_UPDATED, entity_id=wh.id,
+                      actor=actor_user_id, branch_id=wh.branch_id)
+        except InventoryDomainError as exc:
+            return InventoryResult.fail(str(exc), "INVENTORY_RULE_VIOLATION")
+        return InventoryResult.ok("Almacén actualizado", entity_id=wh.id)
+
+
+class DeactivateWarehouseUseCase:
+    """Retira un almacén de servicio (§24 "Desactivar almacén") — distinto de
+    bloquear: un almacén bloqueado es una suspensión temporal; uno desactivado
+    ya no está en uso operativo."""
+
+    def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+
+    def execute(self, connection, *, warehouse_id: str, actor_user_id: str,
+                reason: str = "") -> InventoryResult:
+        try:
+            self._auth.require(actor_user_id, InventoryPermissions.WAREHOUSE_DEACTIVATE)
+        except InventoryPermissionDeniedError as exc:
+            return InventoryResult.fail(str(exc), "PERMISSION_DENIED")
+        with InventoryUnitOfWork(connection) as uow:
+            row = uow.warehouses.get_warehouse(warehouse_id)
+            if row is None:
+                return InventoryResult.fail("Almacén no encontrado", "NOT_FOUND")
+            wh = _warehouse_from_row(row)
+            wh.deactivate()
+            uow.warehouses.save_warehouse(wh)
+            uow.audit.record(entity_type="WAREHOUSE", entity_id=wh.id,
+                             action="INACTIVE", user_id=actor_user_id, reason=reason,
+                             branch_id=wh.branch_id)
+            _emit(uow, InventoryEvents.WAREHOUSE_DEACTIVATED, entity_id=wh.id,
+                  actor=actor_user_id, branch_id=wh.branch_id)
+        return InventoryResult.ok("Almacén desactivado", entity_id=wh.id)
 
 
 class SetWarehouseStatusUseCase:
@@ -121,6 +201,8 @@ class CreateZoneUseCase:
                 uow.warehouses.save_zone(zone)
                 uow.audit.record(entity_type="WAREHOUSE_ZONE", entity_id=zone.id,
                                  action="CREATED", user_id=actor_user_id)
+                _emit(uow, InventoryEvents.ZONE_CREATED, entity_id=zone.id,
+                      actor=actor_user_id, warehouse_id=warehouse_id)
         except InventoryDomainError as exc:
             return InventoryResult.fail(str(exc), "INVENTORY_RULE_VIOLATION")
         return InventoryResult.ok("Zona creada", entity_id=zone.id)
@@ -132,7 +214,8 @@ class CreateLocationUseCase:
 
     def execute(self, connection, *, warehouse_id: str, code: str, name: str,
                 actor_user_id: str, zone_id: str | None = None,
-                parent_location_id: str | None = None, level: int = 0) -> InventoryResult:
+                parent_location_id: str | None = None, level: int = 0,
+                capacity=None) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, InventoryPermissions.LOCATION_MANAGE)
         except InventoryPermissionDeniedError as exc:
@@ -147,7 +230,7 @@ class CreateLocationUseCase:
                     return InventoryResult.fail("Ubicación padre no encontrada", "NOT_FOUND")
                 loc = StorageLocation.create(
                     warehouse_id=warehouse_id, code=code, name=name, zone_id=zone_id,
-                    parent_location_id=parent_location_id, level=level)
+                    parent_location_id=parent_location_id, level=level, capacity=capacity)
                 uow.warehouses.save_location(loc)
                 uow.audit.record(entity_type="STORAGE_LOCATION", entity_id=loc.id,
                                  action="CREATED", user_id=actor_user_id)
@@ -174,7 +257,7 @@ class SetLocationStatusUseCase:
                 return InventoryResult.fail("Ubicación no encontrada", "NOT_FOUND")
             loc = _location_from_row(row)
             if activate:
-                loc.status = LocationStatus.ACTIVE
+                loc.activate()
             else:
                 loc.block()
             uow.warehouses.save_location(loc)
@@ -186,6 +269,62 @@ class SetLocationStatusUseCase:
         return InventoryResult.ok(f"Ubicación {loc.status.value}", entity_id=loc.id)
 
 
+class UpdateLocationUseCase:
+    """Edita datos mutables de una ubicación (§24 "Editar ubicación")."""
+
+    def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+
+    def execute(self, connection, *, location_id: str, actor_user_id: str,
+                **fields) -> InventoryResult:
+        try:
+            self._auth.require(actor_user_id, InventoryPermissions.LOCATION_MANAGE)
+        except InventoryPermissionDeniedError as exc:
+            return InventoryResult.fail(str(exc), "PERMISSION_DENIED")
+        try:
+            with InventoryUnitOfWork(connection) as uow:
+                row = uow.warehouses.get_location(location_id)
+                if row is None:
+                    return InventoryResult.fail("Ubicación no encontrada", "NOT_FOUND")
+                loc = _location_from_row(row)
+                loc.update_details(**fields)
+                uow.warehouses.save_location(loc)
+                uow.audit.record(entity_type="STORAGE_LOCATION", entity_id=loc.id,
+                                 action="UPDATED", user_id=actor_user_id)
+                _emit(uow, InventoryEvents.LOCATION_UPDATED, entity_id=loc.id,
+                      actor=actor_user_id)
+        except InventoryDomainError as exc:
+            return InventoryResult.fail(str(exc), "INVENTORY_RULE_VIOLATION")
+        return InventoryResult.ok("Ubicación actualizada", entity_id=loc.id)
+
+
+class DeactivateLocationUseCase:
+    """Retira una ubicación de servicio (§24 "Desactivar ubicación") — distinta
+    de bloquear, igual que en almacenes (ver `DeactivateWarehouseUseCase`)."""
+
+    def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+
+    def execute(self, connection, *, location_id: str, actor_user_id: str,
+                reason: str = "") -> InventoryResult:
+        try:
+            self._auth.require(actor_user_id, InventoryPermissions.LOCATION_MANAGE)
+        except InventoryPermissionDeniedError as exc:
+            return InventoryResult.fail(str(exc), "PERMISSION_DENIED")
+        with InventoryUnitOfWork(connection) as uow:
+            row = uow.warehouses.get_location(location_id)
+            if row is None:
+                return InventoryResult.fail("Ubicación no encontrada", "NOT_FOUND")
+            loc = _location_from_row(row)
+            loc.deactivate()
+            uow.warehouses.save_location(loc)
+            uow.audit.record(entity_type="STORAGE_LOCATION", entity_id=loc.id,
+                             action="INACTIVE", user_id=actor_user_id, reason=reason)
+            _emit(uow, InventoryEvents.LOCATION_DEACTIVATED, entity_id=loc.id,
+                  actor=actor_user_id)
+        return InventoryResult.ok("Ubicación desactivada", entity_id=loc.id)
+
+
 # ── row → entity helpers ────────────────────────────────────────────────────
 def _warehouse_from_row(row: dict) -> Warehouse:
     return Warehouse(
@@ -193,6 +332,7 @@ def _warehouse_from_row(row: dict) -> Warehouse:
         warehouse_type=WarehouseType(row["warehouse_type"]),
         status=WarehouseStatus(row["status"]),
         temperature_profile=row["temperature_profile"],
+        capacity=_opt_decimal(row["capacity"]), capacity_uom=row["capacity_uom"],
         allow_sales_allocation=bool(row["allow_sales_allocation"]),
         allow_purchase_receipt=bool(row["allow_purchase_receipt"]),
         allow_production=bool(row["allow_production"]),
@@ -205,4 +345,4 @@ def _location_from_row(row: dict) -> StorageLocation:
         id=row["id"], warehouse_id=row["warehouse_id"], code=row["code"],
         name=row["name"], zone_id=row["zone_id"],
         parent_location_id=row["parent_location_id"], level=row["level"],
-        status=LocationStatus(row["status"]))
+        status=LocationStatus(row["status"]), capacity=_opt_decimal(row["capacity"]))

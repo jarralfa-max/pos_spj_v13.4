@@ -33,10 +33,17 @@ WAREHOUSE_TYPE_ES = {
 }
 WAREHOUSE_STATUS_ES = {"ACTIVE": "Activo", "BLOCKED": "Bloqueado", "INACTIVE": "Inactivo"}
 LOCATION_STATUS_ES = {"ACTIVE": "Activa", "BLOCKED": "Bloqueada", "INACTIVE": "Inactiva"}
+WAREHOUSE_ZONE_TYPE_ES = {
+    "RECEIVING": "Recepción", "AVAILABLE": "Disponible", "PICKING": "Surtido",
+    "RESERVE": "Reserva", "COLD": "Frío", "FROZEN": "Congelado",
+    "QUARANTINE": "Cuarentena", "DAMAGED": "Dañado", "RETURNS": "Devoluciones",
+    "DISPATCH": "Despacho",
+}
 SOURCE_ES = {"PURCHASE": "Compra", "TRANSFER": "Transferencia"}
 LOT_ORIGIN_ES = {
-    "PURCHASE": "Compra", "PRODUCTION": "Producción", "SLAUGHTER": "Faena",
-    "TRANSFER": "Transferencia", "RETURN": "Devolución", "ADJUSTMENT": "Ajuste",
+    "PURCHASE": "Compra", "PRODUCTION": "Producción", "SLAUGHTER_FUTURE": "Faena",
+    "CUSTOMER_RETURN": "Devolución de cliente", "TRANSFER": "Transferencia",
+    "MANUAL_AUTHORIZED": "Manual autorizado",
 }
 LOT_QUALITY_ES = {
     "RELEASED": "Liberado", "PENDING_INSPECTION": "Por inspección",
@@ -101,6 +108,10 @@ COLD_CHAIN_STATUS_ES = {
 EXCURSION_ACTION_ES = {
     "NONE": "Ninguna", "WARN": "Alerta", "BLOCK_LOT": "Bloqueo de lote",
     "QUARANTINE": "Cuarentena",
+}
+TEMPERATURE_POINT_ES = {
+    "RECEIPT": "Recepción", "STORAGE": "Almacenamiento", "DISPATCH": "Despacho",
+    "TRANSIT": "Tránsito",
 }
 AUDIT_ENTITY_ES = {
     "MOVEMENT": "Movimiento", "LOT": "Lote", "RESERVATION": "Reserva",
@@ -180,6 +191,10 @@ def excursion_action_es(code) -> str:
     return EXCURSION_ACTION_ES.get(str(code or ""), str(code or "—"))
 
 
+def temperature_point_es(code) -> str:
+    return TEMPERATURE_POINT_ES.get(str(code or ""), str(code or "—"))
+
+
 def audit_entity_es(code) -> str:
     return AUDIT_ENTITY_ES.get(str(code or ""), str(code or "—"))
 
@@ -194,6 +209,10 @@ def warehouse_status_es(code) -> str:
 
 def location_status_es(code) -> str:
     return LOCATION_STATUS_ES.get(str(code or ""), str(code or "—"))
+
+
+def zone_type_es(code) -> str:
+    return WAREHOUSE_ZONE_TYPE_ES.get(str(code or ""), str(code or "—"))
 
 
 def qty(value, unit: str | None = None) -> str:
@@ -281,6 +300,19 @@ def warehouses_table(rows: list[dict]) -> TableViewModel:
             str(r.get("name") or "—"),
             warehouse_type_es(r.get("warehouse_type")),
             warehouse_status_es(r.get("status")),
+        ])
+    return TableViewModel(rows=out, row_ids=ids, total=len(out))
+
+
+def zones_table(rows: list[dict]) -> TableViewModel:
+    """rows: WarehouseQueryService.list_zones(warehouse_id=...) → display table."""
+    out, ids = [], []
+    for r in rows:
+        ids.append(str(r.get("id") or ""))
+        out.append([
+            str(r.get("code") or "—"),
+            str(r.get("name") or "—"),
+            zone_type_es(r.get("zone_type")),
         ])
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 
@@ -539,7 +571,7 @@ def cold_chain_table(rows: list[dict]) -> TableViewModel:
     lote, temperatura, rango, estado, acción)."""
     out, ids = [], []
     for i, r in enumerate(rows):
-        ids.append(f"{r.get('warehouse_id','')}:{i}")
+        ids.append(str(r.get("id") or f"{r.get('warehouse_id','')}:{i}"))
         rango = f"{qty(r.get('min_temp'))}–{qty(r.get('max_temp'))} °C"
         out.append([
             str(r.get("warehouse_id") or "—"),
@@ -557,7 +589,7 @@ def reservations_table(rows: list[dict]) -> TableViewModel:
     (origen, documento, almacén, cantidad, estado)."""
     out, ids = [], []
     for i, r in enumerate(rows):
-        ids.append(f"{r.get('source_document_id','')}:{i}")
+        ids.append(str(r.get("id") or f"{r.get('source_document_id','')}:{i}"))
         out.append([
             reservation_source_es(r.get("source")),
             str(r.get("source_document_id") or "—"),
@@ -709,6 +741,31 @@ def movements_table(rows: list[dict]) -> TableViewModel:
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 
 
+def movement_lines_table(rows: list[dict], *, product_names: dict | None = None,
+                         location_labels: dict | None = None) -> TableViewModel:
+    """rows: ``inventory_ledger_lines`` rows (§6 detalle) → display table
+    (producto, lote, cantidad, origen, destino, costo unitario, motivo).
+    ``product_names``/``location_labels`` are id→label maps the presenter
+    already resolved — never a raw UUID shown when a name is a lookup away."""
+    names = product_names or {}
+    locations = location_labels or {}
+    out, ids = [], []
+    for r in rows:
+        ids.append(str(r.get("id") or ""))
+        pid = str(r.get("product_id") or "")
+        from_loc = str(r.get("from_location_id") or "")
+        to_loc = str(r.get("to_location_id") or "")
+        out.append([
+            names.get(pid, pid) or "—",
+            str(r.get("lot_id") or "—"),
+            qty(r.get("quantity"), r.get("unit")),
+            locations.get(from_loc, from_loc) or "—",
+            locations.get(to_loc, to_loc) or "—",
+            str(r.get("unit_cost") or "—"),
+        ])
+    return TableViewModel(rows=out, row_ids=ids, total=len(out))
+
+
 def replenishment_table(rows: list[dict]) -> TableViewModel:
     """rows: notification-log-like suggestion rows → display table."""
     out, ids = [], []
@@ -722,3 +779,92 @@ def replenishment_table(rows: list[dict]) -> TableViewModel:
             urgency_es(r.get("urgency")),
         ])
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
+
+
+@dataclass(frozen=True)
+class InventoryCapabilities:
+    """Display capabilities for the inventory shell (§15/§17).
+
+    One resolved snapshot per session — built once by
+    ``capability_resolver.resolve_inventory_capabilities`` and handed to pages
+    so they show/enable actions without each page re-deriving
+    ``InventoryPermissions`` checks. Hiding/disabling here is UX only; the
+    backend re-validates every action independently.
+    """
+
+    module_view: bool = False
+
+    warehouse_view: bool = False
+    warehouse_create: bool = False
+    warehouse_edit: bool = False
+    warehouse_activate: bool = False
+    warehouse_block: bool = False
+    warehouse_deactivate: bool = False
+
+    location_view: bool = False
+    location_manage: bool = False
+
+    lot_view: bool = False
+    lot_create: bool = False
+    lot_edit: bool = False
+    lot_block: bool = False
+    lot_release: bool = False
+    lot_print: bool = False
+    lot_reprint: bool = False
+
+    weight_capture: bool = False
+    weight_manual_override: bool = False
+    scale_use: bool = False
+    scale_manage: bool = False
+
+    temperature_view: bool = False
+    temperature_record: bool = False
+    temperature_resolve: bool = False
+
+    reservation_view: bool = False
+    reservation_create: bool = False
+    reservation_release: bool = False
+
+    movement_view: bool = False
+    movement_manual: bool = False
+    movement_reverse: bool = False
+
+    in_transit_view: bool = False
+
+    receipt_view: bool = False
+    receipt_inspect: bool = False
+    receipt_reverse: bool = False
+
+    count_view: bool = False
+    count_create: bool = False
+    count_execute: bool = False
+    count_confirm: bool = False
+    count_recount: bool = False
+    count_approve: bool = False
+    count_view_expected: bool = False
+
+    adjustment_view: bool = False
+    adjustment_create: bool = False
+    adjustment_approve: bool = False
+    adjustment_post: bool = False
+    adjustment_reverse: bool = False
+
+    quarantine_view: bool = False
+    quarantine_create: bool = False
+    quarantine_release: bool = False
+    quarantine_dispose: bool = False
+    quality_block: bool = False
+    quality_release: bool = False
+
+    replenishment_view: bool = False
+    replenishment_manage: bool = False
+    replenishment_generate: bool = False
+
+    traceability_view: bool = False
+    audit_view: bool = False
+    export: bool = False
+
+    settings_view: bool = False
+    settings_manage: bool = False
+    notifications_manage: bool = False
+    whatsapp_alerts_manage: bool = False

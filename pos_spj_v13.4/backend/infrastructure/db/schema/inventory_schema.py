@@ -85,6 +85,8 @@ _DDL = (
         warehouse_type TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'ACTIVE',
         temperature_profile TEXT,
+        capacity TEXT,                              -- INV-5: capacidad declarada (decimal string; opcional)
+        capacity_uom TEXT,                          -- INV-5: unidad de la capacidad (p.ej. m3, kg)
         allow_sales_allocation INTEGER NOT NULL DEFAULT 1,
         allow_purchase_receipt INTEGER NOT NULL DEFAULT 1,
         allow_production INTEGER NOT NULL DEFAULT 0,
@@ -114,6 +116,7 @@ _DDL = (
         level INTEGER NOT NULL DEFAULT 0,
         status TEXT NOT NULL DEFAULT 'ACTIVE',
         location_type TEXT,                        -- §8 technical location kind (NULL = física)
+        capacity TEXT,                              -- INV-5: capacidad declarada (decimal string; opcional)
         UNIQUE (warehouse_id, code)
     )
     """,
@@ -413,6 +416,9 @@ _DDL = (
         max_temp TEXT NOT NULL,
         action_taken TEXT NOT NULL DEFAULT 'WARN',
         resolved INTEGER NOT NULL DEFAULT 0,
+        resolved_by TEXT,
+        resolved_at TEXT,
+        resolution_note TEXT,
         created_at TEXT NOT NULL
     )
     """,

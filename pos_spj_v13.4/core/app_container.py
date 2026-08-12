@@ -190,7 +190,98 @@ class AppContainer:
                 RegisterCashMovementUseCase,
             )
             from backend.application.use_cases.generate_z_cut_use_case import GenerateZCutUseCase
+            from backend.application.cash_register.authorization import CashAuthorizationPolicy
+            from backend.application.cash_register.blind_count_query_service import BlindCountQueryService
+            from backend.application.cash_register.configuration_query_service import (
+                CashConfigurationQueryService,
+            )
+            from backend.application.cash_register.device_query_service import CashDeviceQueryService
+            from backend.application.cash_register.device_use_cases import (
+                AssignCashDeviceUseCase,
+                CreateCashDeviceUseCase,
+                SetCashDeviceStatusUseCase,
+            )
+            from backend.application.cash_register.ledger_query_service import CashLedgerQueryService
+            from backend.application.cash_register.ledger_use_cases import (
+                RegisterCashMovementUseCase as CanonicalRegisterCashMovementUseCase,
+                ReverseCashMovementUseCase,
+            )
+            from backend.application.cash_register.session_authorization import (
+                CashSessionBranchScopeChecker,
+                CashSessionPermissionChecker,
+            )
+            from backend.application.cash_register.shift_use_cases import (
+                BeginCashShiftClosingUseCase,
+                OpenCashShiftUseCase as CanonicalOpenCashShiftUseCase,
+                ResumeCashShiftUseCase,
+                SuspendCashShiftUseCase,
+            )
+            from backend.domain.cash_register.policies.security_policies import CashMonetaryLimitPolicy
+            from decimal import Decimal
+            from backend.infrastructure.db.repositories.cash_register.configuration_repository import (
+                CashConfigurationReadRepository,
+            )
+            from backend.infrastructure.db.repositories.cash_register.repositories import (
+                CashDeviceRepository,
+                CashLedgerRepository,
+            )
+            from backend.infrastructure.db.repositories.cash_register.unit_of_work import (
+                CashRegisterUnitOfWork,
+            )
             from core.events.event_bus import get_bus as _cash_get_bus
+
+            self.cash_authorization_policy = CashAuthorizationPolicy(
+                permissions=CashSessionPermissionChecker(self.session),
+                scopes=CashSessionBranchScopeChecker(self.session),
+            )
+            self.cash_register_uow_factory = CashRegisterUnitOfWork
+            self.cash_configuration_query_service = CashConfigurationQueryService(
+                CashConfigurationReadRepository(self.db)
+            )
+            self.cash_devices_query_service = CashDeviceQueryService(
+                CashDeviceRepository(self.db)
+            )
+            self.cash_ledger_query_service = CashLedgerQueryService(
+                CashLedgerRepository(self.db)
+            )
+            self.cash_blind_count_query_service = BlindCountQueryService(
+                self.db,
+                self.cash_authorization_policy,
+            )
+            self.cash_device_create_uc = CreateCashDeviceUseCase(self.cash_authorization_policy)
+            self.cash_device_status_uc = SetCashDeviceStatusUseCase(self.cash_authorization_policy)
+            self.cash_device_assign_uc = AssignCashDeviceUseCase(self.cash_authorization_policy)
+            def _cash_limit_policy(operation_type: str) -> CashMonetaryLimitPolicy:
+                row = self.db.execute(
+                    """SELECT approval_threshold,hard_cap
+                    FROM cash_operation_limits
+                    WHERE operation_type=? AND active=1
+                    ORDER BY effective_from DESC LIMIT 1""",
+                    (operation_type,),
+                ).fetchone()
+                threshold = Decimal(str(row[0])) if row else Decimal("0")
+                hard_cap = Decimal(str(row[1])) if row else Decimal("0")
+                return CashMonetaryLimitPolicy(
+                    approval_threshold=threshold,
+                    hard_cap=hard_cap,
+                )
+
+            cash_opening_limit_policy = _cash_limit_policy("OPENING_FLOAT")
+            cash_movement_limit_policy = _cash_limit_policy("MANUAL_MOVEMENT")
+            self.cash_open_shift_uc = CanonicalOpenCashShiftUseCase(
+                self.cash_authorization_policy,
+                cash_opening_limit_policy,
+            )
+            self.cash_suspend_shift_uc = SuspendCashShiftUseCase(self.cash_authorization_policy)
+            self.cash_resume_shift_uc = ResumeCashShiftUseCase(self.cash_authorization_policy)
+            self.cash_begin_shift_closing_uc = BeginCashShiftClosingUseCase(
+                self.cash_authorization_policy
+            )
+            self.cash_register_movement_uc = CanonicalRegisterCashMovementUseCase(
+                self.cash_authorization_policy,
+                cash_movement_limit_policy,
+            )
+            self.cash_reverse_movement_uc = ReverseCashMovementUseCase(self.cash_authorization_policy)
 
             self.cash_register_service = CashRegisterApplicationService(
                 self.finance_service,
@@ -202,22 +293,26 @@ class AppContainer:
             )
             self.generate_z_cut_uc = GenerateZCutUseCase(handler=self.cash_register_service.generate_z_cut)
         except Exception as _cash_err:
+            self.cash_authorization_policy = None
+            self.cash_register_uow_factory = None
+            self.cash_configuration_query_service = None
+            self.cash_devices_query_service = None
+            self.cash_ledger_query_service = None
+            self.cash_blind_count_query_service = None
+            self.cash_device_create_uc = None
+            self.cash_device_status_uc = None
+            self.cash_device_assign_uc = None
+            self.cash_open_shift_uc = None
+            self.cash_suspend_shift_uc = None
+            self.cash_resume_shift_uc = None
+            self.cash_begin_shift_closing_uc = None
+            self.cash_register_movement_uc = None
+            self.cash_reverse_movement_uc = None
             self.cash_register_service = None
             self.open_cash_shift_uc = None
             self.register_cash_movement_uc = None
             self.generate_z_cut_uc = None
             logger.warning("CashRegister use cases no cargados: %s", _cash_err)
-
-        # CajaTicketService — impresión y PDF de cortes Z
-        try:
-            from core.services.caja_ticket_service import CajaTicketService
-            self.caja_ticket_service = CajaTicketService(
-                db=self.db,
-                hardware_service=None,  # wired later after hardware_service init
-            )
-        except Exception as _caja_tkt_err:
-            self.caja_ticket_service = None
-            logger.warning("CajaTicketService no cargado: %s", _caja_tkt_err)
 
         # CustomerCreditService — validación de crédito y CxC en ventas
         from application.services.customer_credit_service import CustomerCreditService
@@ -316,10 +411,6 @@ class AppContainer:
         # ── Servicios adicionales (v12) ───────────────────────────────────
         from core.services.hardware_service import HardwareService
         self.hardware_service = HardwareService(self.db)
-
-        # Wire hardware_service into CajaTicketService now that it's available
-        if self.caja_ticket_service is not None:
-            self.caja_ticket_service._hw = self.hardware_service
 
         # v13.4 Fase 1: ModuleConfig (toggles globales) — antes de otros servicios
         from core.module_config import ModuleConfig
