@@ -89,7 +89,7 @@ class CashPrintingTests(unittest.TestCase):
             audit.records[0]["event_payload"]["payload"]["document_type"],
             CashPrintDocumentType.Z_CUT.value,
         )
-        self.assertEqual(authorization.calls[0]["permission_code"], "CASH_PRINT")
+        self.assertEqual(authorization.calls[0]["permission_code"], "CAJA.imprimir")
         self.assertIn(b"Matriz &amp; Norte", queue.jobs[0].artifact.content)
 
     def test_reprint_requires_reason_and_original_document(self):
@@ -112,7 +112,7 @@ class CashPrintingTests(unittest.TestCase):
         self.assertNotEqual(original, reprint)
         self.assertEqual(len(queue.jobs), 2)
         self.assertEqual(queue.jobs[-1].original_print_id, original)
-        self.assertEqual(authorization.calls[-1]["permission_code"], "CASH_REPRINT")
+        self.assertEqual(authorization.calls[-1]["permission_code"], "CAJA.reimprimir")
 
     def test_reprint_rejects_original_from_another_document(self):
         audit = InMemoryCashPrintAuditRepository()

@@ -48,7 +48,7 @@ CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
         "Conteo ciego",
         "Cortes",
         "Captura de denominaciones sin revelar el esperado.",
-        CashPermissions.BLIND_COUNT_START,
+        CashPermissions.BLIND_COUNT_VIEW,
     ),
     CashRegisterRoute(
         "x_cut",
@@ -76,21 +76,21 @@ CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
         "Entrega de valores",
         "Control",
         "Preparacion, doble confirmacion, tesoreria y disputas.",
-        CashPermissions.HANDOVER_PREPARE,
+        CashPermissions.HANDOVER_VIEW,
     ),
     CashRegisterRoute(
         "refunds",
         "Reembolsos",
         "Control",
         "Metodo original, autorizacion, salida fisica y frontera financiera.",
-        CashPermissions.REFUND_REQUEST,
+        CashPermissions.REFUND_VIEW,
     ),
     CashRegisterRoute(
         "hardware",
         "Hardware",
         "Administracion",
         "Cajon, impresora, terminales, drivers, diagnostico y alertas.",
-        CashPermissions.HARDWARE_DIAGNOSE,
+        CashPermissions.HARDWARE_VIEW,
     ),
     CashRegisterRoute(
         "configuration",

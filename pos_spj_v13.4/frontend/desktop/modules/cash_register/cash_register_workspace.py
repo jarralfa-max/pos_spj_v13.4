@@ -24,7 +24,6 @@ from frontend.desktop.modules.cash_register.blind_count_page import BlindCountPa
 from frontend.desktop.modules.cash_register.cash_configuration_page import CashConfigurationPage
 from frontend.desktop.modules.cash_register.cash_devices_page import CashDevicesPage
 from frontend.desktop.modules.cash_register.cash_ledger_page import CashLedgerPage
-from frontend.desktop.modules.cash_register.cash_register_presenter import CashRegisterPresenter
 from frontend.desktop.modules.cash_register.cash_register_routes import CASH_REGISTER_ROUTES, grouped_routes
 from frontend.desktop.themes.tokens import ResponsiveBreakpoints, Spacing
 
@@ -32,11 +31,10 @@ from frontend.desktop.themes.tokens import ResponsiveBreakpoints, Spacing
 class CashRegisterWorkspace(QWidget):
     """Responsive module shell for Caja."""
 
-    def __init__(self, container=None, parent=None, *, presenter=None,
+    def __init__(self, presenter, parent=None, *,
                  page_factories: dict[str, Callable] | None = None):
         super().__init__(parent)
-        self.container = container
-        self._presenter = presenter or CashRegisterPresenter(container=container)
+        self._presenter = presenter
         self._page_factories = page_factories or {}
         self._route_index_by_key: dict[str, int] = {}
         self._routes = CASH_REGISTER_ROUTES
@@ -171,19 +169,6 @@ class CashRegisterWorkspace(QWidget):
         )
         apply_tooltip(placeholder, tooltip, help_id=f"cash_register.{key}")
         return placeholder
-
-    def _resolve_query_service(self, key: str):
-        candidates = {
-            "configuration": ("cash_configuration_query_service", "cash_register_configuration_query"),
-            "hardware": ("cash_devices_query_service", "cash_hardware_query_service"),
-            "ledger": ("cash_ledger_query_service", "cash_register_ledger_query"),
-            "blind_count": ("blind_count_query_service", "cash_blind_count_query_service"),
-        }.get(key, ())
-        for name in candidates:
-            service = getattr(self.container, name, None)
-            if service is not None:
-                return service
-        return None
 
     def _active_shift_id(self) -> str | None:
         return self._presenter.active_shift_id()

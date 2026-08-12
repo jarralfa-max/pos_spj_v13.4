@@ -180,6 +180,6 @@ class CashPermissionProfile:
     @classmethod
     def create(cls, name: str, permission_codes: tuple[str, ...]) -> "CashPermissionProfile":
         codes = tuple(dict.fromkeys(permission_codes))
-        if not name.strip() or not codes or any(not code.startswith("CASH_") for code in codes):
-            raise ValueError("Permission profile requires CASH_* permissions")
+        if not name.strip() or not codes or any(not code.startswith("CAJA.") for code in codes):
+            raise ValueError("Permission profile requires CAJA.accion permissions")
         return cls(new_uuid(), name.strip(), codes)

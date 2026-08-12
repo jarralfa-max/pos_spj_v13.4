@@ -9,7 +9,7 @@ logger = logging.getLogger("spj.ui.loader")
 
 MODULE_REGISTRY = {
     "ventas":           ("ModuloVentas",              "modulos.ventas",                 []),
-    "caja":             ("ModuloCaja",                "modulos.caja",                   []),
+    "caja":             ("CashRegisterModuleHost",    "backend.infrastructure.desktop.cash_register_factory", []),
     "inventario":       ("ModuloInventarioEnterprise", "modulos.inventario_enterprise",   []),
     # PROD-19 FLIP: la UI legacy (modulos/productos.py) fue eliminada; se monta el
     # módulo enterprise PRC-7 (frontend/desktop/modules/products vía host).

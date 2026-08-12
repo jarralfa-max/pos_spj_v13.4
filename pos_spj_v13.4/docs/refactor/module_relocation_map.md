@@ -9,6 +9,12 @@ Estado CASH-25 (2026-08-08): Caja queda `LEGACY_REMOVED`. Se eliminaron
 `frontend/desktop/modules/cash_register/` y la cola/auditoria de impresion nace
 en `cash_print_jobs` / `cash_print_audit` via `CashPrintRepository`.
 
+Estado CASH-P0-A/P0-B (2026-08-12): Caja se monta desde
+`backend.infrastructure.desktop.cash_register_factory.CashRegisterModuleHost`.
+`core/ui/module_loader.py` ya no apunta a `modulos.caja`; el frontend recibe
+`CashRegisterPresenter` con dependencias explicitas y los permisos runtime son
+exclusivamente `CAJA.accion` con catalogo global alineado.
+
 Estado LOSS-0 (2026-08-01): Mermas/Losses está `IN_PROGRESS`. La UI activa sigue en
 `modulos/merma.py`; el objetivo es `frontend/desktop/modules/losses/`,
 `backend/domain/losses/`, `backend/application/losses/` y repositorios Losses.

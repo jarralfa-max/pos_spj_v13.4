@@ -1,0 +1,79 @@
+"""Caja desktop view models."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True, slots=True)
+class CashCapabilities:
+    module_view: bool
+    register_view: bool
+    register_create: bool
+    register_edit: bool
+    register_activate: bool
+    register_block: bool
+    drawer_view: bool
+    drawer_manage: bool
+    drawer_open: bool
+    drawer_open_without_sale: bool
+    terminal_view: bool
+    terminal_manage: bool
+    terminal_operate: bool
+    shift_view: bool
+    shift_open: bool
+    shift_suspend: bool
+    shift_resume: bool
+    shift_prepare_close: bool
+    shift_close: bool
+    shift_force_close: bool
+    shift_reassign: bool
+    movement_view: bool
+    movement_income: bool
+    movement_withdrawal: bool
+    safe_drop_create: bool
+    movement_reverse: bool
+    movement_authorize_over_limit: bool
+    count_view: bool
+    count_start: bool
+    count_capture: bool
+    count_confirm: bool
+    count_reveal_expected: bool
+    count_cancel: bool
+    count_override: bool
+    x_cut_view: bool
+    x_cut_generate: bool
+    x_cut_print: bool
+    x_cut_reprint: bool
+    z_cut_view: bool
+    z_cut_generate: bool
+    z_cut_review: bool
+    z_cut_print: bool
+    z_cut_reprint: bool
+    difference_view: bool
+    difference_explain: bool
+    difference_review: bool
+    difference_resolve: bool
+    handover_view: bool
+    handover_prepare: bool
+    handover_deliver: bool
+    handover_receive: bool
+    handover_dispute: bool
+    deposit_view: bool
+    deposit_prepare: bool
+    payment_view: bool
+    refund_view: bool
+    refund_request: bool
+    refund_execute: bool
+    refund_authorize: bool
+    drawer_event_view: bool
+    hardware_view: bool
+    hardware_diagnose: bool
+    hardware_manage: bool
+    notification_view: bool
+    notification_manage: bool
+    audit_view: bool
+    settings_view: bool
+    settings_manage: bool
+    sync_view: bool
+    sync_manage: bool

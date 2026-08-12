@@ -1,7 +1,8 @@
 from .cash_configuration_page import CashConfigurationPage
 from .cash_devices_page import CashDevicesPage
+from .capability_resolver import resolve_cash_capabilities
 from .cash_register_dialogs import CashPrintPreviewDialog, CashReasonDialog, HotAuthorizationDialog
-from .cash_register_presenter import CashRegisterPresenter, resolve_cash_register_capabilities
+from .cash_register_presenter import CashRegisterPresenter
 from .cash_register_routes import CASH_REGISTER_ROUTES, CashRegisterRoute
 from .cash_register_workspace import CashRegisterWorkspace
 
@@ -15,5 +16,5 @@ __all__ = [
     "CashRegisterRoute",
     "CashRegisterWorkspace",
     "HotAuthorizationDialog",
-    "resolve_cash_register_capabilities",
+    "resolve_cash_capabilities",
 ]

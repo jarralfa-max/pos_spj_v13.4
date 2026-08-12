@@ -7,55 +7,34 @@ and no legacy permission translation live here.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Callable
+from collections.abc import Callable
 
-from backend.application.cash_register.permissions import CashPermissions
-
-
-@dataclass(frozen=True, slots=True)
-class CashRegisterCapabilities:
-    module_view: bool
-    shift_view: bool
-    ledger_view: bool
-    blind_count_view: bool
-    x_cut_view: bool
-    z_cut_view: bool
-    difference_view: bool
-    handover_view: bool
-    refund_view: bool
-    hardware_view: bool
-    configuration_view: bool
-
-
-def resolve_cash_register_capabilities(can: Callable[[str], bool]) -> CashRegisterCapabilities:
-    P = CashPermissions
-    return CashRegisterCapabilities(
-        module_view=can(P.ACCESS),
-        shift_view=can(P.SHIFT_VIEW),
-        ledger_view=can(P.MOVEMENT_VIEW),
-        blind_count_view=can(P.BLIND_COUNT_START),
-        x_cut_view=can(P.X_CUT_VIEW),
-        z_cut_view=can(P.Z_CUT_VIEW),
-        difference_view=can(P.DIFFERENCE_VIEW),
-        handover_view=can(P.HANDOVER_PREPARE),
-        refund_view=can(P.REFUND_REQUEST),
-        hardware_view=can(P.HARDWARE_DIAGNOSE),
-        configuration_view=can(P.SETTINGS_VIEW),
-    )
+from frontend.desktop.modules.cash_register.capability_resolver import resolve_cash_capabilities
+from frontend.desktop.modules.cash_register.view_models import CashCapabilities
 
 
 class CashRegisterPresenter:
-    def __init__(self, *, container, session_context=None) -> None:
-        self._container = container
-        self._session = session_context or getattr(container, "session", None)
+    def __init__(
+        self,
+        *,
+        session_context,
+        query_services: dict[str, object] | None = None,
+        use_cases: dict[str, object] | None = None,
+        active_shift_provider: Callable[[], str | None] | None = None,
+        active_count_context_provider: Callable[[], tuple[str, str, str] | None] | None = None,
+    ) -> None:
+        self._session = session_context
+        self._query_services = dict(query_services or {})
+        self._use_cases = dict(use_cases or {})
+        self._active_shift_provider = active_shift_provider or (lambda: None)
+        self._active_count_context_provider = active_count_context_provider or (lambda: None)
 
     def can(self, permission: str) -> bool:
         checker = getattr(self._session, "tiene_permiso", None)
         return bool(callable(checker) and checker(permission))
 
-    def capabilities(self) -> CashRegisterCapabilities:
-        return resolve_cash_register_capabilities(self.can)
+    def capabilities(self) -> CashCapabilities:
+        return resolve_cash_capabilities(self.can)
 
     def session_summary(self) -> dict[str, str]:
         return {
@@ -67,35 +46,21 @@ class CashRegisterPresenter:
                         or "Sesion activa"),
             "branch_id": str(getattr(self._session, "active_branch_id", None)
                              or getattr(self._session, "branch_id", None)
-                             or getattr(self._container, "sucursal_id", "") or ""),
+                             or ""),
             "branch": str(getattr(self._session, "active_branch_name", None)
                           or getattr(self._session, "sucursal_nombre", None)
-                          or getattr(self._container, "sucursal_nombre", "") or ""),
+                          or ""),
         }
 
     def active_shift_id(self) -> str | None:
-        value = getattr(self._container, "active_cash_shift_id", None)
+        value = self._active_shift_provider()
         return str(value) if value else None
 
     def active_count_context(self) -> tuple[str, str, str] | None:
-        count_id = getattr(self._container, "active_cash_count_id", None)
-        summary = self.session_summary()
-        if count_id and summary["branch_id"] and summary["user_id"]:
-            return str(count_id), summary["branch_id"], summary["user_id"]
-        return None
+        return self._active_count_context_provider()
 
     def query_service(self, key: str):
-        candidates = {
-            "configuration": ("cash_configuration_query_service",),
-            "hardware": ("cash_devices_query_service", "cash_device_query_service"),
-            "ledger": ("cash_ledger_query_service",),
-            "blind_count": ("cash_blind_count_query_service", "blind_count_query_service"),
-        }.get(key, ())
-        for name in candidates:
-            service = getattr(self._container, name, None)
-            if service is not None:
-                return service
-        return None
+        return self._query_services.get(key)
 
     def backend_binding(self, key: str) -> str:
         bindings = {
@@ -116,15 +81,17 @@ class CashRegisterPresenter:
             "hardware": ("cash_devices_query_service", "cash_device_create_uc"),
             "configuration": ("cash_configuration_query_service",),
         }.get(key, ())
-        connected = [name for name in bindings if getattr(self._container, name, None) is not None]
+        connected = [
+            name for name in bindings
+            if name in self._query_services or name in self._use_cases
+        ]
         if connected:
             return "Conectada al backend: " + ", ".join(connected)
         return "Sin binding backend disponible en este entorno."
 
     def status_cards(self) -> dict[str, object]:
         sync_state = "Lista"
-        sync_repo = getattr(getattr(self._container, "cash_register_uow", None), "sync", None)
-        if sync_repo is not None:
+        if "sync" in self._query_services or "sync" in self._use_cases:
             sync_state = "Conectada"
         return {
             "shift": self.active_shift_id() or "Sin turno activo",

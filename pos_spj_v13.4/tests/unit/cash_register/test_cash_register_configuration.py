@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 import unittest
 
+from backend.application.cash_register.permissions import CashPermissions
 from backend.domain.cash_register.configuration import (
     CashAlertRule, CashConfigurationResolver, CashDenomination,
     CashOperationLimit, CashPaymentMethod, CashPermissionProfile,
@@ -43,7 +44,10 @@ class CashConfigurationTests(unittest.TestCase):
         payment = CashPaymentMethod.create("CASH", "Efectivo", affects_physical_cash=True)
         alert = CashAlertRule.create("CASH_DIFFERENCE_DETECTED", "CRITICAL", ("IN_APP", "WHATSAPP"))
         recipient = CashWhatsAppRecipient.create("CASH_DIFFERENCE_DETECTED", "+525512345678")
-        profile = CashPermissionProfile.create("Supervisor", ("CASH_Z_CUT_GENERATE", "CASH_DIFFERENCE_REVIEW"))
+        profile = CashPermissionProfile.create(
+            "Supervisor",
+            (CashPermissions.Z_CUT_GENERATE, CashPermissions.DIFFERENCE_REVIEW),
+        )
         self.assertTrue(payment.affects_physical_cash)
         self.assertIn("WHATSAPP", alert.channels)
         self.assertTrue(recipient.phone_e164.startswith("+52"))

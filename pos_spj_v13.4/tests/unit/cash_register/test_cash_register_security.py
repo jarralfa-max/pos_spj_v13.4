@@ -47,9 +47,9 @@ class _Audit:
 
 class CashRegisterSecurityTests(unittest.TestCase):
     def test_catalog_is_granular_and_has_no_legacy_general_action(self):
-        self.assertEqual(CashPermissions.SHIFT_OPEN, "CASH_SHIFT_OPEN")
-        self.assertEqual(CashPermissions.BLIND_COUNT_CONFIRM, "CASH_BLIND_COUNT_CONFIRM")
-        self.assertEqual(CashPermissions.DIFFERENCE_RESOLVE, "CASH_DIFFERENCE_RESOLVE")
+        self.assertEqual(CashPermissions.SHIFT_OPEN, "CAJA.turno.abrir")
+        self.assertEqual(CashPermissions.BLIND_COUNT_CONFIRM, "CAJA.conteo.confirmar")
+        self.assertEqual(CashPermissions.DIFFERENCE_RESOLVE, "CAJA.diferencia.resolver")
         self.assertFalse(hasattr(CashPermissions, "GENERAL"))
 
     def test_authorization_fails_closed_and_revalidates_branch_scope(self):

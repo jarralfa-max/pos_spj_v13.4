@@ -27,10 +27,10 @@ except Exception as e:
     logger.error("Error cargando ModuloVentas: %s", e)
 
 try:
-    from frontend.desktop.modules.cash_register import CashRegisterWorkspace as ModuloCaja
+    from backend.infrastructure.desktop.cash_register_factory import CashRegisterModuleHost
 except Exception as e:
-    ModuloCaja = None
-    logger.error("Error cargando CashRegisterWorkspace: %s", e)
+    CashRegisterModuleHost = None
+    logger.error("Error cargando CashRegisterModuleHost: %s", e)
 
 try:
     from modulos.inventario_enterprise import ModuloInventarioEnterprise as ModuloInventarioLocal
@@ -637,7 +637,7 @@ class MainWindow(QMainWindow):
             pass
 
         self._conectar("POS",            ModuloVentas,         "🛒 Punto de Venta")
-        self._conectar("CAJA",           ModuloCaja,           "💰 Caja / Cortes Z")
+        self._conectar("CAJA",           CashRegisterModuleHost, "💰 Caja / Cortes Z")
         self._conectar("INVENTARIO",     ModuloInventarioLocal,"📦 Inventario")
         self._conectar("TRANSFERENCIAS", TransfersModuleHost, "Transferencias")
         self._conectar("PRODUCTOS",      ModuloProductos,      "🏷️ Productos")

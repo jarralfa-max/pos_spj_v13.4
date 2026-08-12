@@ -1,7 +1,7 @@
 from backend.application.cash_register.permissions import CashPermissions
+from frontend.desktop.modules.cash_register.capability_resolver import resolve_cash_capabilities
 from frontend.desktop.modules.cash_register.cash_register_presenter import (
     CashRegisterPresenter,
-    resolve_cash_register_capabilities,
 )
 from frontend.desktop.modules.cash_register.cash_register_routes import CASH_REGISTER_ROUTES
 
@@ -19,10 +19,7 @@ class _Session:
 
 
 class _Container:
-    def __init__(self, session):
-        self.session = session
-        self.cash_configuration_query_service = object()
-        self.cash_open_shift_uc = object()
+    pass
 
 
 def test_cash_routes_use_backend_permission_catalog():
@@ -35,14 +32,18 @@ def test_cash_routes_use_backend_permission_catalog():
 
 def test_cash_presenter_resolves_capabilities_from_session_permissions():
     grants = {CashPermissions.ACCESS, CashPermissions.SETTINGS_VIEW}
-    capabilities = resolve_cash_register_capabilities(_Session(grants).tiene_permiso)
+    capabilities = resolve_cash_capabilities(_Session(grants).tiene_permiso)
     assert capabilities.module_view
-    assert capabilities.configuration_view
-    assert not capabilities.ledger_view
+    assert capabilities.settings_view
+    assert not capabilities.movement_view
 
 
 def test_cash_presenter_exposes_backend_query_services_from_container():
-    presenter = CashRegisterPresenter(container=_Container(_Session({CashPermissions.ACCESS})))
+    presenter = CashRegisterPresenter(
+        session_context=_Session({CashPermissions.ACCESS}),
+        query_services={"configuration": object()},
+        use_cases={"cash_open_shift_uc": object()},
+    )
     assert presenter.query_service("configuration") is not None
     assert presenter.query_service("ledger") is None
     assert "cash_open_shift_uc" in presenter.backend_binding("shifts")

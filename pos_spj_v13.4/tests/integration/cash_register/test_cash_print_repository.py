@@ -76,7 +76,7 @@ class CashPrintRepositoryTests(unittest.TestCase):
         self.conn.commit()
 
         self.assertEqual(service.execute(cmd), print_id)
-        self.assertEqual(auth.calls[0]["permission_code"], "CASH_PRINT")
+        self.assertEqual(auth.calls[0]["permission_code"], "CAJA.imprimir")
         job = self.conn.execute("SELECT id,status,document_type FROM cash_print_jobs").fetchone()
         audit = self.conn.execute("SELECT print_id,status,document_type FROM cash_print_audit").fetchone()
         self.assertEqual(job, (print_id, "QUEUED", "Z_CUT"))
@@ -97,7 +97,7 @@ class CashPrintRepositoryTests(unittest.TestCase):
         self.conn.commit()
 
         self.assertNotEqual(original, reprint)
-        self.assertEqual(auth.calls[-1]["permission_code"], "CASH_REPRINT")
+        self.assertEqual(auth.calls[-1]["permission_code"], "CAJA.reimprimir")
         self.assertEqual(
             self.conn.execute(
                 "SELECT COUNT(*) FROM cash_print_audit WHERE original_print_id=?",
