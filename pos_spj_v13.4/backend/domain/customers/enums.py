@@ -62,3 +62,68 @@ class ValidationStatus(str, Enum):
     MANUAL = "MANUAL"
     VALIDATED = "VALIDATED"
     FAILED = "FAILED"
+
+
+class DuplicateCandidateStatus(str, Enum):
+    """§45's literal state list for CustomerDuplicateCandidate."""
+
+    DETECTED = "DETECTED"
+    UNDER_REVIEW = "UNDER_REVIEW"
+    CONFIRMED_DUPLICATE = "CONFIRMED_DUPLICATE"
+    DISMISSED = "DISMISSED"
+    MERGED = "MERGED"
+
+
+class CustomerMergeStatus(str, Enum):
+    """CustomerMergeRecord lifecycle. §45 describes the merge *flow*
+    ("selecciona maestro, preserva referencias... audita") but names no
+    explicit state list the way it does for duplicates — this collapses
+    "approved" and "executed" into one hot-authorized step (see
+    ExecuteCustomerMergeUseCase) rather than inventing a separate persisted
+    APPROVED-but-not-yet-executed state nothing in the master prompt asks
+    for and that would have no use case of its own."""
+
+    PROPOSED = "PROPOSED"
+    EXECUTED = "EXECUTED"
+    REJECTED = "REJECTED"
+
+
+class DataQualityIssueStatus(str, Enum):
+    """§46's literal state list for CustomerDataQualityIssue."""
+
+    OPEN = "OPEN"
+    ACKNOWLEDGED = "ACKNOWLEDGED"
+    CORRECTED = "CORRECTED"
+    DISMISSED = "DISMISSED"
+
+
+class DataQualityRuleCode(str, Enum):
+    """The subset of §46's rule list this phase evaluates directly — pure
+    ``customers``-package data only (no reach into other bounded
+    contexts). See CustomerDataQualityService's docstring for the other
+    five §46 rules (consentimiento faltante, crédito inconsistente, lead
+    sin seguimiento, oportunidad sin próxima actividad, caso sin
+    propietario), deferred to CRM-12 (Customer 360). "Duplicado probable"
+    is deliberately NOT a rule here either — that surface is
+    CustomerDuplicateCandidate's own dedicated workflow, not re-flagged as
+    a second, overlapping mechanism."""
+
+    INCOMPLETE_NAME = "INCOMPLETE_NAME"
+    INVALID_PHONE = "INVALID_PHONE"
+    INVALID_EMAIL = "INVALID_EMAIL"
+    INVALID_TAX_ID = "INVALID_TAX_ID"
+    INCOMPLETE_ADDRESS = "INCOMPLETE_ADDRESS"
+
+
+class ImportBatchStatus(str, Enum):
+    """CustomerImportBatch lifecycle (§47). PENDING_APPROVAL only occurs for
+    ``is_sensitive=True`` batches (§73: "quien importa no aprueba una
+    importación sensible" — a second, distinct approver is required before
+    rows are written); non-sensitive batches go straight to PROCESSING."""
+
+    PENDING_APPROVAL = "PENDING_APPROVAL"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    PARTIAL = "PARTIAL"
+    FAILED = "FAILED"
+    REJECTED = "REJECTED"

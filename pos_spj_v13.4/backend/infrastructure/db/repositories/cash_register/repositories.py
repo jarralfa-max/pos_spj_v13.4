@@ -182,7 +182,97 @@ class CashLedgerRepository(_Repository):
         return dict(zip((item[0] for item in cursor.description), row))
 
 
+class CashSettlementRepository(_Repository):
+    """Canonical settlement persistence owned by Caja, not Ventas."""
+
+    def add_payment_record(self, *, payment_id: str, sale_id: str,
+                           shift_id: str, branch_id: str,
+                           amount_to_settle: str, operation_id: str,
+                           recorded_by: str, recorded_at: str,
+                           status: str = "CONFIRMED") -> None:
+        self.execute(
+            """INSERT INTO payment_records
+            (id,sale_id,shift_id,branch_id,amount_to_settle,operation_id,
+             recorded_by,recorded_at,status)
+            VALUES(?,?,?,?,?,?,?,?,?)""",
+            (payment_id, sale_id, shift_id, branch_id, amount_to_settle,
+             operation_id, recorded_by, recorded_at, status),
+        )
+
+    def add_payment_allocation(self, *, allocation_id: str,
+                               payment_record_id: str, method_type: str,
+                               amount: str, affects_drawer: bool,
+                               created_at: str,
+                               external_reference: str | None = None) -> None:
+        self.execute(
+            """INSERT INTO payment_allocations
+            (id,payment_record_id,method_type,amount,affects_drawer,
+             external_reference,created_at)
+            VALUES(?,?,?,?,?,?,?)""",
+            (allocation_id, payment_record_id, method_type, amount,
+             1 if affects_drawer else 0, external_reference, created_at),
+        )
+
+    def add_refund_execution(self, *, execution_id: str, refund_id: str,
+                             sale_id: str, shift_id: str, branch_id: str,
+                             method: str, amount: str, executed_by: str,
+                             authorized_by: str, operation_id: str,
+                             executed_at: str,
+                             ledger_entry_id: str | None = None) -> None:
+        self.execute(
+            """INSERT INTO cash_refund_executions
+            (id,refund_id,sale_id,shift_id,branch_id,method,amount,
+             executed_by,authorized_by,operation_id,ledger_entry_id,executed_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (execution_id, refund_id, sale_id, shift_id, branch_id, method,
+             amount, executed_by, authorized_by, operation_id, ledger_entry_id,
+             executed_at),
+        )
+
+
+class CashDrawerEventRepository(_Repository):
+    def add_open_event(self, *, event_id: str, drawer_id: str, shift_id: str,
+                       branch_id: str, opened_by: str, reason: str,
+                       operation_id: str, opened_at: str,
+                       source_document_id: str | None = None) -> None:
+        self.execute(
+            """INSERT INTO drawer_open_events
+            (id,drawer_id,shift_id,branch_id,opened_by,reason,operation_id,
+             source_document_id,opened_at)
+            VALUES(?,?,?,?,?,?,?,?,?)""",
+            (event_id, drawer_id, shift_id, branch_id, opened_by, reason,
+             operation_id, source_document_id, opened_at),
+        )
+
+
+class CashDepositPreparationRepository(_Repository):
+    def add(self, *, deposit_id: str, handover_id: str, branch_id: str,
+            amount: str, prepared_by: str, operation_id: str,
+            denominations_json: str, prepared_at: str,
+            status: str = "PREPARED") -> None:
+        self.execute(
+            """INSERT INTO cash_deposit_preparations
+            (id,handover_id,branch_id,amount,prepared_by,operation_id,status,
+             denominations_json,prepared_at)
+            VALUES(?,?,?,?,?,?,?,?,?)""",
+            (deposit_id, handover_id, branch_id, amount, prepared_by,
+             operation_id, status, denominations_json, prepared_at),
+        )
+
+
 class CashMovementReasonRepository(_Repository):
+    def list_active(self, *, movement_type: str, occurred_at: str) -> list[dict]:
+        cursor = self.execute(
+            """SELECT code,display_name,movement_type,requires_authorization
+            FROM cash_movement_reasons
+            WHERE movement_type=? AND active=1
+              AND effective_from<=?
+              AND (effective_to IS NULL OR effective_to>?)
+            ORDER BY display_name,code""",
+            (movement_type.strip().upper(), occurred_at, occurred_at))
+        columns = [item[0] for item in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
     def get_active(self, *, code: str, movement_type: str, occurred_at: str):
         cursor = self.execute(
             """SELECT * FROM cash_movement_reasons
@@ -221,6 +311,18 @@ class CashHandoverRepository(_Repository):
         if row is None:
             return None
         return dict(zip((item[0] for item in cursor.description), row))
+
+    def list_for_branch(self, *, branch_id: str, limit: int = 100) -> list[dict]:
+        cursor = self.execute(
+            """SELECT id,shift_id,branch_id,amount,prepared_by,delivered_by,received_by,
+            source_entry_id,status,prepared_at,delivered_at,received_at,disputed_by,
+            disputed_at,dispute_reason FROM cash_handovers
+            WHERE branch_id=?
+            ORDER BY prepared_at DESC,id DESC LIMIT ?""",
+            (branch_id, int(limit)),
+        )
+        columns = [item[0] for item in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
     def transition(self, *, handover_id: str, source_status: str, target_status: str,
                    actor_column: str, actor_user_id: str, timestamp_column: str,
@@ -426,6 +528,32 @@ class CashCutRepository(_Repository):
         if row is None: return None
         return dict(zip((item[0] for item in cursor.description), row))
 
+    def list_x_for_branch(self, *, branch_id: str, limit: int = 100) -> list[dict]:
+        cursor = self.execute(
+            """SELECT id,shift_id,branch_id,cut_type,document_number,snapshot_json,
+            generated_by,expected_cash,counted_cash,difference,blind_count_id,
+            operation_id,is_final,generated_at
+            FROM cash_cuts
+            WHERE branch_id=? AND cut_type='X'
+            ORDER BY generated_at DESC,id DESC LIMIT ?""",
+            (branch_id, int(limit)),
+        )
+        columns = [item[0] for item in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def list_z_for_branch(self, *, branch_id: str, limit: int = 100) -> list[dict]:
+        cursor = self.execute(
+            """SELECT id,shift_id,branch_id,cut_type,document_number,snapshot_json,
+            generated_by,expected_cash,counted_cash,difference,blind_count_id,
+            operation_id,is_final,generated_at
+            FROM cash_cuts
+            WHERE branch_id=? AND cut_type='Z'
+            ORDER BY generated_at DESC,id DESC LIMIT ?""",
+            (branch_id, int(limit)),
+        )
+        columns = [item[0] for item in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
 
 class CashDifferenceRepository(_Repository):
     def add(self, difference: CashDifference) -> None:
@@ -458,6 +586,25 @@ class CashDifferenceRepository(_Repository):
         row = cursor.fetchone()
         if row is None: return None
         return dict(zip((item[0] for item in cursor.description), row))
+
+    def list_for_branch(self, *, branch_id: str, limit: int = 100) -> list[dict]:
+        cursor = self.execute(
+            """SELECT id,shift_id,z_cut_id,branch_id,expected_amount,counted_amount,amount,
+            detected_by,responsible_user_id,classification,severity,tolerance_amount,
+            recurrence_count,status,explanation,explained_by,reviewed_by,resolution,resolved_by
+            FROM cash_differences
+            WHERE branch_id=?
+            ORDER BY CASE status
+                WHEN 'DETECTED' THEN 0
+                WHEN 'EXPLAINED' THEN 1
+                WHEN 'UNDER_REVIEW' THEN 2
+                ELSE 3 END,
+                recurrence_count DESC,id DESC
+            LIMIT ?""",
+            (branch_id, int(limit)),
+        )
+        columns = [item[0] for item in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
     def recurrence_count(self, *, branch_id: str, responsible_user_id: str,
                          since: str) -> int:
@@ -653,6 +800,32 @@ class CashSyncRepository(_Repository):
         return {**device, "pending_count": counts.get("PENDING", 0) + counts.get("RETRY", 0),
                 "conflict_count": counts.get("CONFLICT", 0),
                 "synced_count": counts.get("SYNCED", 0)}
+
+    def list_recent(self, *, device_id: str, limit: int = 100) -> list[dict]:
+        cursor = self.execute(
+            """SELECT s.id,s.sequence_no,s.aggregate_version,s.state,s.attempt_count,
+                      s.next_attempt_at,s.remote_revision,s.created_at,s.synced_at,
+                      o.event_name,o.operation_id,o.entity_id,o.last_error
+            FROM cash_sync_envelopes s JOIN cash_outbox o ON o.id=s.outbox_id
+            WHERE s.device_id=?
+            ORDER BY s.sequence_no DESC LIMIT ?""",
+            (device_id, limit),
+        )
+        columns = [item[0] for item in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def list_conflicts(self, *, device_id: str) -> list[dict]:
+        cursor = self.execute(
+            """SELECT s.id,s.sequence_no,s.aggregate_version,s.state,s.attempt_count,
+                      s.remote_revision,s.conflict_json,s.created_at,
+                      o.event_name,o.operation_id,o.entity_id,o.last_error
+            FROM cash_sync_envelopes s JOIN cash_outbox o ON o.id=s.outbox_id
+            WHERE s.device_id=? AND s.state='CONFLICT'
+            ORDER BY s.sequence_no""",
+            (device_id,),
+        )
+        columns = [item[0] for item in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
     def get_envelope(self, envelope_id: str):
         cursor = self.execute("SELECT * FROM cash_sync_envelopes WHERE id=?", (envelope_id,))

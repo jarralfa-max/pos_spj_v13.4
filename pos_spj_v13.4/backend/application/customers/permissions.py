@@ -106,6 +106,15 @@ class CustomerPermissions:
     CONSENT_WITHDRAW = "CLIENTES.consentimiento.retirar"
     CONSENT_EVIDENCE_VIEW = "CLIENTES.consentimiento.evidencia.ver"
 
+    # CRM-9 retroactive addition: §44 names CustomerCommunicationPreference
+    # explicitly (canal/horario/idioma/marketing/promociones/recordatorios)
+    # but CRM-2's original catalog had no permission for it — preferences
+    # are operational settings, not a legal consent grant, so reusing
+    # CONSENT_* would have been a semantic mismatch. Same kind of gap as
+    # CRM-6's TASKS_RESCHEDULE / CRM-7's SLA_MANAGE / CRM-8's CREDIT_CLOSE.
+    COMMUNICATION_PREFERENCE_VIEW = "CLIENTES.preferencia_comunicacion.ver"
+    COMMUNICATION_PREFERENCE_MANAGE = "CLIENTES.preferencia_comunicacion.gestionar"
+
     PRIVACY_REQUEST_VIEW = "CLIENTES.privacidad.solicitud.ver"
     PRIVACY_REQUEST_CREATE = "CLIENTES.privacidad.solicitud.crear"
     PRIVACY_REQUEST_PROCESS = "CLIENTES.privacidad.solicitud.procesar"
@@ -131,6 +140,23 @@ class CustomerPermissions:
 
     # ── auditoría (§76) ────────────────────────────────────────────────────
     AUDIT_VIEW = "CLIENTES.auditoria.ver"
+
+    # ── integraciones (§49-55, CRM-13 retroactive additions) ───────────────
+    # CRM-2's catalog covered every *internal* Clientes/CRM action but no
+    # code for "another module wants to check/see something about this
+    # customer" — §49-55 explicitly names Ventas/Finanzas/Pedidos/Delivery/
+    # WhatsApp/Fidelidad as consumers, so each gets its own flat (no OWN/
+    # TEAM axis — same precedent as CREDIT_VIEW/DATA_QUALITY_VIEW) view
+    # permission rather than overloading VIEW, which already means "can see
+    # the customer record itself," a different question from "can see this
+    # external-module summary for it." Credit eligibility needed no new
+    # code: CRM-8's CheckCreditSaleEligibilityUseCase already gates on
+    # CREDIT_VIEW — found while building this phase, not rebuilt.
+    COMMERCIAL_ELIGIBILITY_CHECK = "CLIENTES.elegibilidad_comercial.verificar"
+    ORDERS_VIEW = "CLIENTES.pedidos.ver"
+    DELIVERY_VIEW = "CLIENTES.entregas.ver"
+    WHATSAPP_VIEW = "CLIENTES.whatsapp.ver"
+    LOYALTY_VIEW = "CLIENTES.fidelidad.ver"
 
 
 ALL_CUSTOMER_PERMISSIONS = frozenset(

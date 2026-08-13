@@ -135,7 +135,27 @@ class CashInAppAlertQueryService:
         self._authorization = authorization
 
     def unread(self, connection, *, user_id: str, branch_id: str) -> list[dict]:
-        self._authorization.require(user_id=user_id, permission_code=CashPermissions.ACCESS,
+        self._authorization.require(user_id=user_id, permission_code=CashPermissions.NOTIFICATIONS_VIEW,
                                     branch_id=branch_id)
         with CashRegisterUnitOfWork(connection) as uow:
             return uow.notifications.unread(user_id=user_id)
+
+    def dashboard(self, connection, *, user_id: str, branch_id: str) -> dict[str, int]:
+        self._authorization.require(user_id=user_id, permission_code=CashPermissions.NOTIFICATIONS_VIEW,
+                                    branch_id=branch_id)
+        with CashRegisterUnitOfWork(connection) as uow:
+            counts = uow.notifications.job_counts(branch_id=branch_id)
+            return {
+                "unread": uow.notifications.unread_count(user_id=user_id),
+                "pending": counts.get("PENDING", 0) + counts.get("RETRY", 0),
+                "delivered": counts.get("DELIVERED", 0),
+                "dead_letter": counts.get("DEAD_LETTER", 0),
+                "skipped": counts.get("SKIPPED", 0),
+            }
+
+    def recent_jobs(self, connection, *, user_id: str, branch_id: str,
+                    limit: int = 100) -> list[dict]:
+        self._authorization.require(user_id=user_id, permission_code=CashPermissions.NOTIFICATIONS_VIEW,
+                                    branch_id=branch_id)
+        with CashRegisterUnitOfWork(connection) as uow:
+            return uow.notifications.recent_jobs(branch_id=branch_id, limit=limit)

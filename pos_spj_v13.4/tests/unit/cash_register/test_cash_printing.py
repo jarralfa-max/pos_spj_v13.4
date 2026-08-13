@@ -4,6 +4,8 @@ from backend.application.cash_register.printing import (
     CashPrintDocument,
     CashPrintDocumentType,
     CashPrintFormat,
+    CashQueuedPrintJob,
+    DispatchCashPrintQueueUseCase,
     InMemoryCashPrintAuditRepository,
     InMemoryCashPrintQueue,
     PrintCashDocumentCommand,
@@ -29,6 +31,29 @@ class Authorization:
 class FailingQueue(InMemoryCashPrintQueue):
     def enqueue(self, job):
         raise RuntimeError("printer queue offline")
+
+
+class DispatchStore:
+    def __init__(self, jobs):
+        self.jobs = tuple(jobs)
+        self.printed = []
+        self.failed = []
+
+    def list_pending_jobs(self, *, branch_id: str, limit: int = 25):
+        return self.jobs[:limit]
+
+    def mark_printed(self, *, print_id: str, actor_user_id: str, gateway_reference=None):
+        self.printed.append((print_id, actor_user_id, gateway_reference))
+
+    def mark_failed(self, *, print_id: str, actor_user_id: str, error: str):
+        self.failed.append((print_id, actor_user_id, error))
+
+
+class MixedGateway:
+    def print_job(self, job):
+        if job.filename.endswith("fail.html"):
+            raise RuntimeError("printer offline")
+        return f"gateway:{job.print_id}"
 
 
 def sample_document(document_type=CashPrintDocumentType.Z_CUT):
@@ -142,6 +167,63 @@ class CashPrintingTests(unittest.TestCase):
         self.assertIn("Corte Z".upper(), text)
         preview = renderer.render_text_preview(sample_document())
         self.assertLessEqual(max(len(line) for line in preview.splitlines()), 32)
+
+    def test_all_required_cash_24_documents_render_to_html_and_escpos(self):
+        required = {
+            CashPrintDocumentType.OPENING,
+            CashPrintDocumentType.MOVEMENT_RECEIPT,
+            CashPrintDocumentType.SAFE_DROP,
+            CashPrintDocumentType.BLIND_COUNT,
+            CashPrintDocumentType.X_CUT,
+            CashPrintDocumentType.Z_CUT,
+            CashPrintDocumentType.DIFFERENCE,
+            CashPrintDocumentType.HANDOVER,
+            CashPrintDocumentType.DEPOSIT_PREPARATION,
+            CashPrintDocumentType.REFUND,
+        }
+        self.assertEqual({item for item in CashPrintDocumentType}, required)
+        for document_type in required:
+            with self.subTest(document_type=document_type.value):
+                doc = sample_document(document_type)
+                html = CashDocumentHtmlRenderer().render(doc)
+                escpos = CashDocumentEscPosRenderer().render(doc)
+                self.assertEqual(html.format, CashPrintFormat.HTML)
+                self.assertEqual(escpos.format, CashPrintFormat.ESC_POS)
+                self.assertIn(document_type.value.lower(), html.filename)
+
+    def test_dispatch_queue_marks_printed_and_failed_without_stopping(self):
+        actor = new_uuid()
+        branch = new_uuid()
+        ok = CashQueuedPrintJob(
+            print_id=new_uuid(),
+            printer_id="thermal-main",
+            content=b"ok",
+            media_type="text/html",
+            filename="ok.html",
+            copies=1,
+        )
+        fail = CashQueuedPrintJob(
+            print_id=new_uuid(),
+            printer_id="thermal-main",
+            content=b"fail",
+            media_type="text/html",
+            filename="will-fail.html",
+            copies=1,
+        )
+        store = DispatchStore([ok, fail])
+        auth = Authorization()
+
+        summary = DispatchCashPrintQueueUseCase(
+            authorization=auth,
+            store=store,
+            gateway=MixedGateway(),
+        ).execute(branch_id=branch, actor_user_id=actor)
+
+        self.assertEqual((summary.processed, summary.printed, summary.failed), (2, 1, 1))
+        self.assertEqual(store.printed[0][0], ok.print_id)
+        self.assertEqual(store.failed[0][0], fail.print_id)
+        self.assertIn("offline", store.failed[0][2])
+        self.assertEqual(auth.calls[0]["permission_code"], "CAJA.imprimir")
 
 
 if __name__ == "__main__":

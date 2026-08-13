@@ -109,3 +109,32 @@ class CashNotificationRepository:
         )
         columns = [item[0] for item in cursor.description]
         return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def unread_count(self, *, user_id: str) -> int:
+        return int(self.connection.execute(
+            """SELECT COUNT(*) FROM cash_in_app_alerts
+            WHERE recipient_user_id=? AND read_at IS NULL""",
+            (user_id,),
+        ).fetchone()[0])
+
+    def job_counts(self, *, branch_id: str) -> dict[str, int]:
+        rows = self.connection.execute(
+            """SELECT j.status,COUNT(*)
+            FROM cash_notification_jobs j JOIN cash_domain_events e ON e.id=j.source_event_id
+            WHERE e.branch_id=? GROUP BY j.status""",
+            (branch_id,),
+        ).fetchall()
+        return {str(status): int(count) for status, count in rows}
+
+    def recent_jobs(self, *, branch_id: str, limit: int = 100) -> list[dict]:
+        cursor = self.connection.execute(
+            """SELECT j.id,j.channel,j.recipient,j.severity,j.title,j.status,
+                      j.attempt_count,j.next_attempt_at,j.last_error,j.created_at,
+                      j.delivered_at,e.event_name,e.operation_id,e.branch_id
+            FROM cash_notification_jobs j JOIN cash_domain_events e ON e.id=j.source_event_id
+            WHERE e.branch_id=?
+            ORDER BY j.created_at DESC,j.id DESC LIMIT ?""",
+            (branch_id, int(limit)),
+        )
+        columns = [item[0] for item in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]

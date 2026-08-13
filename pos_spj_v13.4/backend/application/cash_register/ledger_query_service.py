@@ -20,6 +20,8 @@ class LedgerRow:
     amount: Decimal
     balance: Decimal
     reversal_of_id: str | None
+    reference_id: str | None
+    related_sale_id: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,5 +53,7 @@ class CashLedgerQueryService:
                 id=item["id"], recorded_at=item["recorded_at"],
                 movement_type=item["movement_type"], concept=item["concept"],
                 direction=item["direction"], amount=amount, balance=balance,
-                reversal_of_id=item["reversal_of_id"]))
+                reversal_of_id=item["reversal_of_id"],
+                reference_id=item.get("reference_id"),
+                related_sale_id=item.get("related_sale_id")))
         return LedgerProjection(shift_id, balance, inflows, outflows, len(rows), tuple(rows))

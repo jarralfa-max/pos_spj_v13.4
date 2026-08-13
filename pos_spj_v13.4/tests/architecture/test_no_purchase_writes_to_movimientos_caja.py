@@ -33,7 +33,6 @@ def test_no_purchase_writes_to_movimientos_caja() -> None:
 
 
 def test_cash_service_rejects_purchase_movements() -> None:
-    """La guarda canónica vive en CajaApplicationService."""
+    """La ruta legacy de Caja ya no existe; Compras no tiene puente directo."""
     path = APP_ROOT / "application" / "services" / "caja_application_service.py"
-    text = path.read_text(encoding="utf-8")
-    assert "Las compras no se registran desde Caja" in text
+    assert not path.exists()

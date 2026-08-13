@@ -56,12 +56,13 @@ class CashFinanceTreasuryIntegrationTest(unittest.TestCase):
                   finance_event="SALE_REFUNDED"),
             event("CASH_HANDOVER_RECEIVED", shift_id=new_uuid(), received_amount="900.00",
                   treasury_transfer_required=True),
+            event("CASH_DEPOSIT_PREPARED", amount="900.00"),
         ]
         for message in messages:
             self.router.handle(message); self.router.handle(message)
         self.assertEqual(self.db.execute(
             "SELECT COUNT(*) FROM finance_processed_events WHERE event_name LIKE 'CASH_%'"
-        ).fetchone()[0], 3)
+        ).fetchone()[0], 4)
         self.assertEqual(self.db.execute("SELECT COUNT(*) FROM journal_entries").fetchone()[0], 0)
 
     def test_confirmed_deposit_moves_general_cash_to_bank_idempotently(self):

@@ -4,8 +4,9 @@ import unittest
 from datetime import datetime, timezone
 
 from backend.application.cash_register.offline_sync import (
-    CashOfflineSyncService, SyncAcknowledgement,
+    CashOfflineSyncService, CashSyncStateQueryService, SyncAcknowledgement,
 )
+from backend.application.cash_register.permissions import CashPermissions
 from backend.domain.cash_register.events import CashEvents, cash_event_payload
 from backend.infrastructure.db.repositories.cash_register.unit_of_work import CashRegisterUnitOfWork
 from backend.shared.ids import new_uuid
@@ -26,6 +27,15 @@ class Transport:
 
 class FailingTransport:
     def push(self, **kwargs): raise ConnectionError("offline")
+
+
+class AllowSyncAuth:
+    def __init__(self):
+        self.calls = []
+    def require(self, **kwargs):
+        self.calls.append(kwargs)
+        if kwargs["permission_code"] != CashPermissions.SYNC_VIEW:
+            raise AssertionError(kwargs)
 
 
 class CashOfflineSyncIntegrationTest(unittest.TestCase):
@@ -69,6 +79,31 @@ class CashOfflineSyncIntegrationTest(unittest.TestCase):
         ).fetchone()
         self.assertEqual(row[:2], ("RETRY", 1))
         self.assertGreater(row[2], NOW.isoformat(timespec="seconds"))
+
+    def test_sync_query_service_exposes_state_and_recent_envelopes_by_scope(self):
+        self.add_event()
+        CashOfflineSyncService(FailingTransport()).synchronize(
+            self.db, device_id=self.device, branch_id=self.branch, now=NOW)
+        auth = AllowSyncAuth()
+        query = CashSyncStateQueryService(auth)
+
+        state = query.get(
+            self.db,
+            device_id=self.device,
+            branch_id=self.branch,
+            actor_user_id=self.actor,
+        )
+        envelopes = query.list_envelopes(
+            self.db,
+            device_id=self.device,
+            branch_id=self.branch,
+            actor_user_id=self.actor,
+        )
+
+        self.assertEqual(state["pending_count"], 1)
+        self.assertEqual(envelopes[0]["state"], "RETRY")
+        self.assertEqual(envelopes[0]["attempt_count"], 1)
+        self.assertEqual(auth.calls[0]["permission_code"], CashPermissions.SYNC_VIEW)
 
     def test_conflict_is_explicit_and_blocks_later_delivery(self):
         self.add_event()

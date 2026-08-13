@@ -12,6 +12,16 @@ class TransferPermissionChecker(Protocol):
     def has_permission(self, user_id: str, permission_code: str) -> bool: ...
 
 
+class AllowAllTransferPermissionCheckerForTests:
+    """Test-only checker that grants every permission. NEVER wire in
+    production — it exists so isolated tests can build a policy with an
+    explicit, honest permissive checker instead of relying on a fail-open
+    None."""
+
+    def has_permission(self, user_id: str, permission_code: str) -> bool:
+        return True
+
+
 class TransferScopeChecker(Protocol):
     def can_access_transfer_scope(self, *, user_id: str, branch_id: str | None,
                                   warehouse_id: str | None, location_id: str | None) -> bool: ...

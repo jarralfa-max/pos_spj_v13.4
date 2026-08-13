@@ -1,6 +1,8 @@
 """Read adapter for the CASH-5 configuration projection."""
 from __future__ import annotations
 
+import json
+
 
 class CashConfigurationReadRepository:
     _QUERIES = {
@@ -24,4 +26,83 @@ class CashConfigurationReadRepository:
         cursor = self._connection.execute(sql)
         columns = [item[0] for item in cursor.description]
         return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+
+class CashConfigurationWriteRepository:
+    """Mutation adapter for effective CASH-5 configuration catalogs.
+
+    It deliberately does not commit; CashRegisterUnitOfWork owns the
+    transaction when this repository is used from application services.
+    """
+
+    def __init__(self, connection) -> None:
+        self._connection = connection
+
+    def execute(self, sql: str, params: tuple = ()):
+        return self._connection.execute(sql, params)
+
+    def add_setting(self, *, row_id: str, setting_key: str,
+                    setting_value: str, scope_type: str, scope_id: str | None,
+                    effective_from: str, effective_to: str | None,
+                    created_by: str) -> None:
+        self.execute(
+            """INSERT INTO cash_settings
+            (id,setting_key,setting_value,scope_type,scope_id,effective_from,
+             effective_to,created_by,created_at)
+            VALUES(?,?,?,?,?,?,?,?,?)""",
+            (row_id, setting_key, setting_value, scope_type, scope_id,
+             effective_from, effective_to, created_by, effective_from),
+        )
+
+    def add_denomination(self, *, row_id: str, currency_code: str,
+                         value: str, label: str, sort_order: int,
+                         effective_from: str, effective_to: str | None) -> None:
+        self.execute(
+            """INSERT INTO cash_denominations
+            (id,currency_code,denomination_value,display_name,sort_order,active,
+             effective_from,effective_to)
+            VALUES(?,?,?,?,?,1,?,?)""",
+            (row_id, currency_code, value, label, sort_order,
+             effective_from, effective_to),
+        )
+
+    def add_payment_method(self, *, row_id: str, code: str,
+                           display_name: str, affects_physical_cash: bool,
+                           effective_from: str, effective_to: str | None) -> None:
+        self.execute(
+            """INSERT INTO cash_payment_methods
+            (id,code,display_name,affects_physical_cash,active,effective_from,
+             effective_to)
+            VALUES(?,?,?,?,1,?,?)""",
+            (row_id, code, display_name, 1 if affects_physical_cash else 0,
+             effective_from, effective_to),
+        )
+
+    def add_operation_limit(self, *, row_id: str, operation_type: str,
+                            approval_threshold: str, hard_cap: str,
+                            scope_type: str, scope_id: str | None,
+                            effective_from: str, effective_to: str | None,
+                            created_by: str) -> None:
+        self.execute(
+            """INSERT INTO cash_operation_limits
+            (id,operation_type,approval_threshold,hard_cap,scope_type,scope_id,
+             effective_from,effective_to,created_by)
+            VALUES(?,?,?,?,?,?,?,?,?)""",
+            (row_id, operation_type, approval_threshold, hard_cap, scope_type,
+             scope_id, effective_from, effective_to, created_by),
+        )
+
+    def add_alert_rule(self, *, row_id: str, event_name: str,
+                       severity: str, channels: tuple[str, ...],
+                       scope_type: str, scope_id: str | None,
+                       effective_from: str, effective_to: str | None) -> None:
+        self.execute(
+            """INSERT INTO cash_alert_rules
+            (id,event_name,severity,channels_json,scope_type,scope_id,active,
+             effective_from,effective_to)
+            VALUES(?,?,?,?,?,?,1,?,?)""",
+            (row_id, event_name, severity,
+             json.dumps(tuple(channels), ensure_ascii=False), scope_type,
+             scope_id, effective_from, effective_to),
+        )
 

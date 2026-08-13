@@ -49,6 +49,17 @@ class OpportunityDirectoryQueryService:
         owner_ids = (scope.owner_user_id,) if scope.axis == "OWN" else scope.team_member_ids
         return self._uow.opportunities.list_owned_by(owner_ids, limit=limit, offset=offset)
 
+    def list_for_customer(self, customer_id: str, context: CRMScopeContext, *,
+                          limit: int = 200) -> list[Opportunity]:
+        """CRM-12: Customer 360's "pipeline" tab. Fetches by customer_id (not
+        owner) then filters through the caller's resolved scope, same
+        in-scope-after-fetch check ``get_profile`` already does — a customer
+        can have opportunities owned by different reps, and the caller only
+        sees the ones their OWN/TEAM grant actually covers."""
+        scope = self._scope_resolver.resolve_view_scope(context, OPPORTUNITY_VIEW_SCOPE_PERMISSIONS)
+        opportunities = self._uow.opportunities.list_for_customer(customer_id, limit=limit)
+        return [o for o in opportunities if self._in_scope(o, scope)]
+
     def list_by_stage_for_kanban(
         self, context: CRMScopeContext, *, limit_per_stage: int = 200,
     ) -> dict[str, list[Opportunity]]:

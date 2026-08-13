@@ -65,24 +65,52 @@ class SetCashDeviceStatusUseCase:
 
     def execute(self, connection, *, kind: str, device_id: str, branch_id: str,
                 activate: bool, actor_user_id: str, operation_id: str,
-                reason: str = "") -> DeviceResult:
-        permission = CashPermissions.REGISTER_ACTIVATE if activate and kind == "register" else (
-            CashPermissions.REGISTER_BLOCK if kind == "register" else
-            CashPermissions.DRAWER_MANAGE if kind == "drawer" else CashPermissions.TERMINAL_MANAGE)
+                reason: str = "", target_status: str | None = None) -> DeviceResult:
+        validate_uuidv7(device_id)
+        validate_uuidv7(branch_id)
+        validate_uuidv7(actor_user_id)
+        validate_uuidv7(operation_id)
+        target_status = (target_status or ("ACTIVE" if activate else "BLOCKED")).strip().upper()
+        if target_status not in {"ACTIVE", "BLOCKED", "MAINTENANCE", "RETIRED"}:
+            raise ValueError("Estado de dispositivo de Caja invalido")
+        permission = self._permission(kind=kind, status=target_status)
         self._auth.require(user_id=actor_user_id, permission_code=permission, branch_id=branch_id)
         events = {
-            ("register", True): CashEvents.REGISTER_ACTIVATED, ("register", False): CashEvents.REGISTER_BLOCKED,
-            ("drawer", True): CashEvents.DRAWER_ACTIVATED, ("drawer", False): CashEvents.DRAWER_BLOCKED,
-            ("terminal", True): CashEvents.TERMINAL_ACTIVATED, ("terminal", False): CashEvents.TERMINAL_BLOCKED,
+            ("register", "ACTIVE"): CashEvents.REGISTER_ACTIVATED,
+            ("register", "BLOCKED"): CashEvents.REGISTER_BLOCKED,
+            ("register", "MAINTENANCE"): CashEvents.REGISTER_BLOCKED,
+            ("register", "RETIRED"): CashEvents.REGISTER_RETIRED,
+            ("drawer", "ACTIVE"): CashEvents.DRAWER_ACTIVATED,
+            ("drawer", "BLOCKED"): CashEvents.DRAWER_BLOCKED,
+            ("drawer", "MAINTENANCE"): CashEvents.DRAWER_MAINTENANCE_STARTED,
+            ("drawer", "RETIRED"): CashEvents.DRAWER_RETIRED,
+            ("terminal", "ACTIVE"): CashEvents.TERMINAL_ACTIVATED,
+            ("terminal", "BLOCKED"): CashEvents.TERMINAL_BLOCKED,
+            ("terminal", "MAINTENANCE"): CashEvents.TERMINAL_MAINTENANCE_STARTED,
+            ("terminal", "RETIRED"): CashEvents.TERMINAL_RETIRED,
         }
         with CashRegisterUnitOfWork(connection) as uow:
-            if uow.devices.get(kind, device_id) is None: raise LookupError("Dispositivo no encontrado")
-            uow.devices.set_status(kind, device_id, "ACTIVE" if activate else "BLOCKED",
+            device = uow.devices.get(kind, device_id)
+            if device is None or device["branch_id"] != branch_id:
+                raise LookupError("Dispositivo no encontrado o fuera de alcance")
+            uow.devices.set_status(kind, device_id, target_status,
                                    reason=reason or None, now=_now())
-            _record(uow, events[(kind, activate)], operation_id=operation_id,
+            _record(uow, events[(kind, target_status)], operation_id=operation_id,
                     entity_id=device_id, branch_id=branch_id,
-                    actor_user_id=actor_user_id, reason=reason)
+                    actor_user_id=actor_user_id, reason=reason,
+                    status=target_status)
         return DeviceResult(device_id, "Estado actualizado")
+
+    def _permission(self, *, kind: str, status: str) -> str:
+        if kind == "register":
+            if status == "ACTIVE":
+                return CashPermissions.REGISTER_ACTIVATE
+            if status == "RETIRED":
+                return CashPermissions.REGISTER_RETIRE
+            return CashPermissions.REGISTER_BLOCK
+        if kind == "drawer":
+            return CashPermissions.DRAWER_MANAGE
+        return CashPermissions.TERMINAL_MANAGE
 
 
 class AssignCashDeviceUseCase:
@@ -90,6 +118,10 @@ class AssignCashDeviceUseCase:
 
     def execute(self, connection, *, kind: str, device_id: str, register_id: str,
                 branch_id: str, actor_user_id: str, operation_id: str) -> DeviceResult:
+        validate_uuidv7(device_id)
+        validate_uuidv7(branch_id)
+        validate_uuidv7(actor_user_id)
+        validate_uuidv7(operation_id)
         permission = CashPermissions.DRAWER_MANAGE if kind == "drawer" else CashPermissions.TERMINAL_MANAGE
         self._auth.require(user_id=actor_user_id, permission_code=permission, branch_id=branch_id)
         validate_uuidv7(register_id)
@@ -113,6 +145,10 @@ class DiagnoseCashHardwareUseCase:
 
     def execute(self, connection, *, device_id: str, branch_id: str,
                 actor_user_id: str, operation_id: str):
+        validate_uuidv7(device_id)
+        validate_uuidv7(branch_id)
+        validate_uuidv7(actor_user_id)
+        validate_uuidv7(operation_id)
         self._auth.require(user_id=actor_user_id,
                            permission_code=CashPermissions.HARDWARE_DIAGNOSE,
                            branch_id=branch_id)

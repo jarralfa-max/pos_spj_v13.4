@@ -114,9 +114,31 @@ class CRMPermissions:
     TERRITORIES_MANAGE = "CRM.territorios.gestionar"
     PORTFOLIOS_VIEW = "CRM.carteras.ver"
     PORTFOLIOS_MANAGE = "CRM.carteras.gestionar"
+    # CRM-10 retroactive addition: §33-36/§73 ("reasignar cartera... requiere
+    # motivo") implies a dedicated, reason-gated action for putting a
+    # specific customer into a portfolio — distinct from PORTFOLIOS_MANAGE,
+    # which governs the portfolio *catalog* (create/edit/deactivate a
+    # cartera), not membership in one. Same gap-filling rationale as
+    # CRM-6's TASKS_RESCHEDULE/REMINDERS_CREATE and CRM-8's CREDIT_CLOSE.
+    # No separate "reassign" code: unlike leads/opportunities/tasks/cases,
+    # the catalog has no signal singling out portfolio *reassignment* as a
+    # distinct permission from first assignment, so one code covers both —
+    # the SoD reason requirement (enforce_ownership_reassignment_justified)
+    # is what actually gates reassignment, not a second permission code.
+    PORTFOLIOS_ASSIGN = "CRM.carteras.asignar"
     CUSTOMER_OWNER_VIEW = "CRM.propietario.ver"
     CUSTOMER_OWNER_ASSIGN = "CRM.propietario.asignar"
     CUSTOMER_OWNER_REASSIGN = "CRM.propietario.reasignar"
+
+    # ── BI (§49-55, CRM-13 retroactive addition) ───────────────────────────
+    # §55: "CRM expone leads/conversiones/pipeline/actividad/oportunidades/
+    # casos/SLA/segmentos... BI calcula CLV/churn/... " — CRM-2's catalog had
+    # no permission for exposing an aggregate company-wide snapshot to a
+    # separate BI module; §73's "exportar datos sensibles deja evidencia"
+    # implies this needs its own gate, distinct from any single VIEW
+    # permission (an export sees across leads/opportunities/cases/segments
+    # at once, at COMPANY scope, not one entity at a time).
+    BI_EXPORT_VIEW = "CRM.bi.exportar"
 
 
 ALL_CRM_PERMISSIONS = frozenset(

@@ -5,7 +5,6 @@ Tests para servicios core sin cobertura previa:
   - AuditService
   - AlertasService
   - AuthService
-  - CierreCajaService
   - ForecastEngine
   - ComprasInventariablesEngine
   - ClienteRepository
@@ -220,13 +219,13 @@ class TestAlertasService:
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# CierreCajaService
+# Legacy cash close service removed in CASH-25
 # ════════════════════════════════════════════════════════════════════════════
-class TestCierreCajaService:
+@pytest.mark.skip(reason="Legacy cash close service removed in CASH-25")
+class TestRemovedCashCloseService:
 
     def _svc(self, db):
-        from core.services.cierre_caja_service import CierreCajaService
-        return CierreCajaService(conn=db, sucursal_id=1, usuario="cajero_test")
+        raise RuntimeError("Legacy cash close service removed in CASH-25")
 
     def test_abrir_turno(self, db):
         svc = self._svc(db)

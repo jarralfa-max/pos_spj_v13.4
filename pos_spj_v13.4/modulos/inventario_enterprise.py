@@ -156,9 +156,7 @@ class ModuloInventarioEnterprise(QWidget):
             create_location_uc = factory.create_location()
             update_location_uc = factory.update_location()
             set_location_status_uc = factory.set_location_status()
-<<<<<<< HEAD
             inspect_receipt_uc = factory.inspect_receipt()
-=======
             deactivate_location_uc = factory.deactivate_location()
             reverse_movement_uc = factory.reverse_movement()
             register_lot_uc = factory.register_lot()
@@ -176,7 +174,6 @@ class ModuloInventarioEnterprise(QWidget):
             label_print_service_factory = (
                 lambda c, _pol=_label_policy: InventoryLabelPrintService(
                     c, authorization=_pol))
->>>>>>> 42f747f4 (Refactir de modulo de Caja y merma)
         else:
             generate_uc = GenerateReplenishmentSuggestionsUseCase()
             release_quarantine_uc = ReleaseQuarantineUseCase()
@@ -199,9 +196,7 @@ class ModuloInventarioEnterprise(QWidget):
             create_location_uc = CreateLocationUseCase()
             update_location_uc = UpdateLocationUseCase()
             set_location_status_uc = SetLocationStatusUseCase()
-<<<<<<< HEAD
             inspect_receipt_uc = InspectReceiptUseCase()
-=======
             deactivate_location_uc = DeactivateLocationUseCase()
             reverse_movement_uc = ReverseInventoryMovementUseCase()
             register_lot_uc = RegisterInventoryLotUseCase()
@@ -216,7 +211,6 @@ class ModuloInventarioEnterprise(QWidget):
             allocate_reservation_uc = AllocateReservationUseCase()
             release_reservation_uc = ReleaseReservationUseCase()
             label_print_service_factory = lambda c: InventoryLabelPrintService(c)  # noqa: E731
->>>>>>> 42f747f4 (Refactir de modulo de Caja y merma)
 
         return InventoryPresenter(
             connection_provider=lambda: conn,
@@ -262,9 +256,7 @@ class ModuloInventarioEnterprise(QWidget):
             create_location_uc=create_location_uc,
             update_location_uc=update_location_uc,
             set_location_status_uc=set_location_status_uc,
-<<<<<<< HEAD
             inspect_receipt_uc=inspect_receipt_uc,
-=======
             deactivate_location_uc=deactivate_location_uc,
             reverse_movement_uc=reverse_movement_uc,
             register_lot_uc=register_lot_uc,
@@ -280,6 +272,5 @@ class ModuloInventarioEnterprise(QWidget):
             create_reservation_uc=create_reservation_uc,
             allocate_reservation_uc=allocate_reservation_uc,
             release_reservation_uc=release_reservation_uc,
->>>>>>> 42f747f4 (Refactir de modulo de Caja y merma)
             session_context=session,
         )

@@ -70,6 +70,8 @@ class CashLedgerFlowTests(unittest.TestCase):
         self.assertEqual(projection.inflows, Decimal("600.10"))
         self.assertEqual(projection.outflows, Decimal("75.05"))
         self.assertEqual(projection.movement_count, 4)
+        self.assertEqual(projection.rows[0].reference_id, self.shift_id)
+        self.assertIsNone(projection.rows[-1].related_sale_id)
 
     def test_explicit_idempotency_does_not_duplicate_side_effects(self):
         operation_id = new_uuid()

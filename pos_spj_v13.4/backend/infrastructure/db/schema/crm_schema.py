@@ -1,11 +1,11 @@
 """CRM (relationship) bounded context — born-clean UUIDv7 schema (single
 source of truth for CRM-4+).
 
-Covers Leads (CRM-4), Opportunities/pipeline (CRM-5), and Activities/Tasks/
-Notes/Reminders (CRM-6). Service Cases (CRM-7) extend this same file with
-their own tables when that phase lands — one schema file per sub-bounded-
-context, same convention as
-backend/infrastructure/db/schema/customers_crm_schema.py.
+Covers Leads (CRM-4), Opportunities/pipeline (CRM-5), Activities/Tasks/
+Notes/Reminders (CRM-6), and Segmentation/Tags/Territories/Portfolios/
+Ownership (CRM-10). Service Cases (CRM-7) landed as a separate sibling
+bounded context (customer_service) instead of extending this file — see
+docs/refactor/CRM-7_atencion.md.
 
 Rules (REGLA CERO, master prompt §11):
 - Every id is ``TEXT PRIMARY KEY`` holding a lowercase UUIDv7.
@@ -30,6 +30,14 @@ CRM_TABLES: tuple[str, ...] = (
     "crm_tasks",
     "crm_notes",
     "crm_reminders",
+    "sales_territories",
+    "customer_portfolios",
+    "customer_ownerships",
+    "portfolio_assignments",
+    "customer_segments",
+    "customer_segment_memberships",
+    "customer_tags",
+    "customer_tag_assignments",
     "crm_audit_log",
     "crm_outbox",
     "crm_processed_events",
@@ -218,6 +226,101 @@ _DDL = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS sales_territories (
+        id TEXT PRIMARY KEY,
+        code TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS customer_portfolios (
+        id TEXT PRIMARY KEY,
+        code TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        manager_user_id TEXT,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS customer_ownerships (
+        id TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL,
+        ownership_type TEXT NOT NULL CHECK (ownership_type IN (
+            'PRIMARY','SECONDARY','ACCOUNT_MANAGER','CREDIT_MANAGER','SERVICE_OWNER')),
+        owner_user_id TEXT NOT NULL,
+        assigned_by_user_id TEXT,
+        reason TEXT NOT NULL DEFAULT '',
+        operation_id TEXT UNIQUE,
+        created_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS portfolio_assignments (
+        id TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL,
+        portfolio_id TEXT NOT NULL REFERENCES customer_portfolios(id),
+        assigned_by_user_id TEXT,
+        reason TEXT NOT NULL DEFAULT '',
+        operation_id TEXT UNIQUE,
+        created_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS customer_segments (
+        id TEXT PRIMARY KEY,
+        code TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        rule_definition TEXT NOT NULL DEFAULT '',
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS customer_segment_memberships (
+        id TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL,
+        segment_id TEXT NOT NULL REFERENCES customer_segments(id),
+        source TEXT NOT NULL DEFAULT 'MANUAL' CHECK (source IN (
+            'MANUAL','RULE_BASED','IMPORTED','ANALYTICS_GENERATED')),
+        added_by_user_id TEXT,
+        removed_at TEXT,
+        removed_by_user_id TEXT,
+        operation_id TEXT UNIQUE,
+        created_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS customer_tags (
+        id TEXT PRIMARY KEY,
+        code TEXT NOT NULL UNIQUE,
+        label TEXT NOT NULL,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS customer_tag_assignments (
+        id TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL,
+        tag_id TEXT NOT NULL REFERENCES customer_tags(id),
+        assigned_by_user_id TEXT,
+        removed_at TEXT,
+        removed_by_user_id TEXT,
+        operation_id TEXT UNIQUE,
+        created_at TEXT NOT NULL
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS crm_audit_log (
         id TEXT PRIMARY KEY,
         lead_id TEXT,
@@ -284,6 +387,22 @@ _INDEXES = (
     " ON crm_notes(related_entity_type, related_entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_crm_reminders_task ON crm_reminders(task_id)",
     "CREATE INDEX IF NOT EXISTS idx_crm_reminders_activity ON crm_reminders(activity_id)",
+    "CREATE INDEX IF NOT EXISTS idx_customer_ownerships_customer"
+    " ON customer_ownerships(customer_id, ownership_type)",
+    "CREATE INDEX IF NOT EXISTS idx_customer_ownerships_owner"
+    " ON customer_ownerships(owner_user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_portfolio_assignments_customer"
+    " ON portfolio_assignments(customer_id)",
+    "CREATE INDEX IF NOT EXISTS idx_portfolio_assignments_portfolio"
+    " ON portfolio_assignments(portfolio_id)",
+    "CREATE INDEX IF NOT EXISTS idx_customer_segment_memberships_customer"
+    " ON customer_segment_memberships(customer_id)",
+    "CREATE INDEX IF NOT EXISTS idx_customer_segment_memberships_segment"
+    " ON customer_segment_memberships(segment_id)",
+    "CREATE INDEX IF NOT EXISTS idx_customer_tag_assignments_customer"
+    " ON customer_tag_assignments(customer_id)",
+    "CREATE INDEX IF NOT EXISTS idx_customer_tag_assignments_tag"
+    " ON customer_tag_assignments(tag_id)",
     "CREATE INDEX IF NOT EXISTS idx_crm_audit_lead ON crm_audit_log(lead_id)",
     "CREATE INDEX IF NOT EXISTS idx_crm_audit_opportunity ON crm_audit_log(opportunity_id)",
     "CREATE INDEX IF NOT EXISTS idx_crm_audit_activity ON crm_audit_log(activity_id)",

@@ -55,7 +55,7 @@ class StandardTable(QTableWidget):
                 item.setToolTip(text)
                 if self._columns[col_index].kind == "numeric":
                     item.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
-                if row_ids is not None and col_index == 0:
+                if row_ids is not None:
                     item.setData(Qt.UserRole, row_ids[row_index])
                 self.setItem(row_index, col_index, item)
 
@@ -63,5 +63,10 @@ class StandardTable(QTableWidget):
         row = self.currentRow()
         if row < 0:
             return None
+        current = self.currentItem()
+        if current is not None:
+            row_id = current.data(Qt.UserRole)
+            if row_id:
+                return row_id
         item = self.item(row, 0)
         return item.data(Qt.UserRole) if item is not None else None

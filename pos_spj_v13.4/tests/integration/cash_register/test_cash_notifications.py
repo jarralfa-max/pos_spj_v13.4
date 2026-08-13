@@ -4,8 +4,10 @@ import unittest
 from datetime import datetime, timezone
 
 from backend.application.cash_register.notifications import (
-    DispatchCashNotificationsUseCase, PrepareCashNotificationsUseCase,
+    CashInAppAlertQueryService, DispatchCashNotificationsUseCase,
+    PrepareCashNotificationsUseCase,
 )
+from backend.application.cash_register.permissions import CashPermissions
 from backend.domain.cash_register.events import CashEvents, cash_event_payload
 from backend.infrastructure.db.repositories.cash_register.unit_of_work import CashRegisterUnitOfWork
 from backend.shared.ids import new_uuid
@@ -20,6 +22,15 @@ class Sender:
         self.messages.append(message)
         if self.fail: raise ConnectionError("provider details")
         return "provider-1"
+
+
+class AllowNotificationAuth:
+    def __init__(self):
+        self.calls = []
+    def require(self, **kwargs):
+        self.calls.append(kwargs)
+        if kwargs["permission_code"] != CashPermissions.NOTIFICATIONS_VIEW:
+            raise AssertionError(kwargs)
 
 
 class CashNotificationsIntegrationTest(unittest.TestCase):
@@ -62,6 +73,22 @@ class CashNotificationsIntegrationTest(unittest.TestCase):
         self.assertEqual(self.db.execute("SELECT COUNT(*) FROM cash_in_app_alerts").fetchone()[0], 1)
         self.assertEqual(self.db.execute("SELECT COUNT(*) FROM cash_notification_attempts").fetchone()[0], 3)
         self.assertEqual(self.db.execute("SELECT COUNT(*) FROM cash_audit_log WHERE action LIKE 'CASH_NOTIFICATION_%'").fetchone()[0], 3)
+
+    def test_query_service_exposes_dashboard_alerts_and_queue_by_branch(self):
+        PrepareCashNotificationsUseCase().execute(self.db, event_id=self.event_id)
+        DispatchCashNotificationsUseCase(whatsapp=Sender()).execute(self.db, now=NOW)
+        auth = AllowNotificationAuth()
+        query = CashInAppAlertQueryService(auth)
+
+        dashboard = query.dashboard(self.db, user_id=self.user, branch_id=self.branch)
+        alerts = query.unread(self.db, user_id=self.user, branch_id=self.branch)
+        jobs = query.recent_jobs(self.db, user_id=self.user, branch_id=self.branch)
+
+        self.assertEqual(dashboard["unread"], 1)
+        self.assertEqual(dashboard["delivered"], 2)
+        self.assertEqual(len(alerts), 1)
+        self.assertEqual({job["channel"] for job in jobs}, {"IN_APP", "WHATSAPP", "EMAIL"})
+        self.assertEqual(auth.calls[0]["permission_code"], CashPermissions.NOTIFICATIONS_VIEW)
 
     def test_provider_failure_retries_without_duplicate_job_or_leaking_error(self):
         PrepareCashNotificationsUseCase().execute(self.db, event_id=self.event_id)

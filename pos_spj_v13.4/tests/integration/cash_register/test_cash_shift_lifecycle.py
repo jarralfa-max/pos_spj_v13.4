@@ -5,6 +5,7 @@ import unittest
 
 from backend.application.cash_register.authorization import CashAuthorizationPolicy
 from backend.application.cash_register.permissions import ALL_CASH_PERMISSIONS
+from backend.application.cash_register.shift_query_service import CashShiftQueryService
 from backend.application.cash_register.shift_use_cases import (
     BeginCashShiftClosingUseCase, OpenCashShiftUseCase,
     ResumeCashShiftUseCase, SuspendCashShiftUseCase,
@@ -92,6 +93,23 @@ class CashShiftLifecycleTests(unittest.TestCase):
         self.assertEqual(row, ("CLOSING", None, None))
         names = {r[0] for r in self.db.execute("SELECT event_name FROM cash_domain_events")}
         self.assertTrue({"CASH_SHIFT_OPENED", "CASH_SHIFT_SUSPENDED", "CASH_SHIFT_RESUMED", "CASH_SHIFT_CLOSING_STARTED"} <= names)
+
+    def test_shift_query_service_lists_recent_shifts_for_ui_without_sql_in_frontend(self):
+        shift = self._open()
+        listing = CashShiftQueryService(self.db, self.auth).list_recent(
+            branch_id=self.branch,
+            requester_user_id=self.cashier,
+        )
+        self.assertEqual(listing.active_count, 1)
+        self.assertEqual(len(listing.rows), 1)
+        row = listing.rows[0]
+        self.assertEqual(row.id, shift.entity_id)
+        self.assertEqual(row.register_name, "Caja")
+        self.assertEqual(row.drawer_name, "Cajón")
+        self.assertEqual(row.terminal_name, "POS")
+        self.assertEqual(row.status, "OPEN")
+        self.assertEqual(row.opening_amount, Decimal("500"))
+        self.assertEqual(row.expected_cash, Decimal("500"))
 
 
 if __name__ == "__main__": unittest.main()

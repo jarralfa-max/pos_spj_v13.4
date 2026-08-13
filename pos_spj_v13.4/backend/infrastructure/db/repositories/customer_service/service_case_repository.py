@@ -84,6 +84,16 @@ class ServiceCaseRepository(CustomerServiceRepositoryBase):
             (*owner_user_ids, limit, offset))
         return [self._hydrate(r) for r in rows]
 
+    def list_for_customer(self, customer_id: str, *,
+                           limit: int = 200, offset: int = 0) -> list[CustomerServiceCase]:
+        """CRM-12: Customer 360's "casos" tab — every case tied to this
+        customer, regardless of assignee (unlike list_owned_by, which
+        filters by scope)."""
+        rows = self._query(
+            f"SELECT {_CASE_COLS} FROM service_cases WHERE customer_id=?"
+            " ORDER BY created_at DESC LIMIT ? OFFSET ?", (customer_id, limit, offset))
+        return [self._hydrate(r) for r in rows]
+
     # helpers -----------------------------------------------------------------
     @staticmethod
     def _params(case: CustomerServiceCase, operation_id: str | None) -> tuple:

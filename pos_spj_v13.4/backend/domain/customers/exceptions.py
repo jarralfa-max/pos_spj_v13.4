@@ -82,3 +82,42 @@ class InvalidPhoneNumberError(CustomerDomainError):
 
 class InvalidEmailAddressError(CustomerDomainError):
     """An email value is not a syntactically valid address."""
+
+
+# ── CRM-11: Calidad, duplicados, fusión, importación (§45-47, §73-74) ───────
+
+class CustomerDuplicateCandidateNotFoundError(CustomerDomainError):
+    """Referenced a duplicate_candidate_id that does not exist."""
+
+
+class InvalidDuplicateCandidateStateError(CustomerDomainError):
+    """A lifecycle transition (review/confirm/dismiss) is not valid from the
+    candidate's current status."""
+
+
+class CustomerMergeRecordNotFoundError(CustomerDomainError):
+    """Referenced a merge_record_id that does not exist."""
+
+
+class InvalidCustomerMergeStateError(CustomerDomainError):
+    """A lifecycle transition (execute/reject) is not valid from the merge
+    record's current status, or the merge was proposed with an invalid
+    master/merged pair (e.g. the same customer twice)."""
+
+
+class CustomerDataQualityIssueNotFoundError(CustomerDomainError):
+    """Referenced a data_quality_issue_id that does not exist."""
+
+
+class InvalidDataQualityIssueStateError(CustomerDomainError):
+    """A lifecycle transition (acknowledge/correct/dismiss) is not valid
+    from the issue's current status."""
+
+
+class CustomerImportBatchNotFoundError(CustomerDomainError):
+    """Referenced an import_batch_id that does not exist."""
+
+
+class InvalidCustomerImportError(CustomerDomainError):
+    """An import batch/row was built or transitioned invalidly (e.g. no
+    rows, or approving a batch that isn't pending approval)."""

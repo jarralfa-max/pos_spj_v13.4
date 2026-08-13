@@ -1,18 +1,15 @@
 """Thin CASH-5 configuration UI; no persistence or business rules."""
 from __future__ import annotations
 
-from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QTabWidget, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QMessageBox, QTabWidget, QVBoxLayout, QWidget
 
 from frontend.desktop.components.buttons import create_primary_button, create_secondary_button
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
+from frontend.desktop.modules.cash_register.cash_register_dialogs import CashConfigurationDialog
 
 
 class CashConfigurationPage(QWidget):
-    create_requested = pyqtSignal(str)
-    edit_requested = pyqtSignal(str, str)
-
     SECTIONS = (
         ("hierarchy", "Jerarquía"), ("validity", "Vigencias"),
         ("denominations", "Denominaciones"), ("payment_methods", "Medios de pago"),
@@ -20,9 +17,10 @@ class CashConfigurationPage(QWidget):
         ("whatsapp", "WhatsApp"), ("permissions", "Permisos"),
     )
 
-    def __init__(self, query_service, parent=None) -> None:
+    def __init__(self, query_service, parent=None, *, presenter=None) -> None:
         super().__init__(parent)
         self._query = query_service
+        self._presenter = presenter
         self._tables = {}
         root = QVBoxLayout(self)
         add_button = create_primary_button(self, "Nueva configuración")
@@ -50,12 +48,41 @@ class CashConfigurationPage(QWidget):
         return self.SECTIONS[self._tabs.currentIndex()][0]
 
     def _request_create(self) -> None:
-        self.create_requested.emit(self._active_section())
+        if self._presenter is None:
+            QMessageBox.warning(self, "Caja", "Comando de configuracion no disponible.")
+            return
+        section = self._active_section()
+        dialog = CashConfigurationDialog(self, section=section)
+        if dialog.exec_() != dialog.Accepted:
+            return
+        value = dialog.result_value()
+        try:
+            result = self._presenter.configure_cash_register(
+                section=section,
+                name=value.name,
+                value=value.value,
+                scope_type=value.scope_type,
+                scope_id=value.scope_id,
+                effective_from=value.effective_from,
+                effective_to=value.effective_to,
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, "Caja", str(exc) or "No fue posible guardar la configuracion.")
+            return
+        QMessageBox.information(self, "Caja", getattr(result, "message", "Configuracion guardada"))
+        self.refresh()
 
     def _request_edit(self, section: str) -> None:
         row_id = self._tables[section].selected_row_id()
         if row_id:
-            self.edit_requested.emit(section, row_id)
+            QMessageBox.information(
+                self,
+                "Caja",
+                "La edicion conserva vigencias: crea una nueva configuracion efectiva "
+                f"para reemplazar {row_id}.",
+            )
+            self._tabs.setCurrentIndex([key for key, _ in self.SECTIONS].index(section))
+            self._request_create()
 
     def refresh(self) -> None:
         for section, _label in self.SECTIONS:

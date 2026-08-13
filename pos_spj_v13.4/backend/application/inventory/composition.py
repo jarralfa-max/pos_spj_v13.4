@@ -223,10 +223,8 @@ class InventoryUseCaseFactory:
     def provision_default_warehouse(self, **kw):
         return self.build(ProvisionDefaultWarehouseUseCase, **kw)
 
-<<<<<<< HEAD
     def inspect_receipt(self, **kw):
         return self.build(InspectReceiptUseCase, **kw)
-=======
     def register_lot(self, **kw):
         return self.build(RegisterInventoryLotUseCase, **kw)
 
@@ -244,7 +242,6 @@ class InventoryUseCaseFactory:
 
     def record_catch_weight(self, **kw):
         return self.build(RecordCatchWeightUseCase, **kw)
->>>>>>> 42f747f4 (Refactir de modulo de Caja y merma)
 
     def generate_replenishment_suggestions(self, **kw):
         return self.build(GenerateReplenishmentSuggestionsUseCase, **kw)

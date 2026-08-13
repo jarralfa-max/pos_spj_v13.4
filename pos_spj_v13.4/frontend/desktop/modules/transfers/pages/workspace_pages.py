@@ -1,5 +1,6 @@
 """Thin page declarations sharing the canonical responsive workspace shell."""
 from .base_page import TransferWorkspacePage
+from .transfer_requests_page import TransferRequestsPage
 
 
 def _page(name, page_id, title, subtitle, action_text=""):
@@ -9,7 +10,6 @@ def _page(name, page_id, title, subtitle, action_text=""):
     })
 
 
-TransferRequestsPage = _page("TransferRequestsPage", "transfers_requests", "Solicitudes", "Necesidades de traslado y prioridades.", "Nueva solicitud")
 PendingApprovalsPage = _page("PendingApprovalsPage", "transfers_approvals", "Aprobaciones", "Decisiones parciales y segregación de funciones.")
 PickingPage = _page("PickingPage", "transfers_picking", "Picking", "Ubicaciones, lotes, piezas y peso real.")
 ReadyToDispatchPage = _page("ReadyToDispatchPage", "transfers_ready_to_dispatch", "Listas para despacho", "Embarques verificados y listos para liberar.")

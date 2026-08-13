@@ -25,3 +25,4 @@ class TransferSyncConflictError(TransferError): pass
 class SegregationOfDutiesError(TransferError): pass
 class TransferLimitExceededError(TransferError): pass
 class TransferAuthorizationRequiredError(TransferError): pass
+class TransferConfigurationError(TransferError): pass

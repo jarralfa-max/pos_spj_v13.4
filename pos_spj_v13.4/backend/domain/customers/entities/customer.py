@@ -72,6 +72,12 @@ class Customer:
     suspended_at: str | None = None
     blocked_at: str | None = None
     closed_at: str | None = None
+    # CRM-13 (§49 Ventas): sale-activity projection, updated by
+    # RecordCustomerSaleActivityUseCase in reaction to Ventas'
+    # SALE_COMPLETED/SALE_CANCELLED events — never written by Ventas
+    # directly (CRM does not register sales, per §49).
+    last_purchase_at: str | None = None
+    purchase_count: int = 0
 
     # construction --------------------------------------------------------
     @classmethod
@@ -178,6 +184,43 @@ class Customer:
 
     def assign_territory(self, territory_id: str | None) -> None:
         self.territory_id = territory_id
+        self._touch()
+
+    # sale-activity projection (CRM-13, §49) -----------------------------------
+    def record_sale_activity(self, occurred_at: str) -> LifecycleStage | None:
+        """React to a completed sale (Ventas' SALE_COMPLETED). Bumps the
+        purchase counter/last-purchase timestamp and, only for a prospect/
+        lead/qualified/lost/inactive relationship, advances lifecycle_stage
+        to reflect a real purchase happened — never overrides an already
+        active CUSTOMER/REPEAT_CUSTOMER/AT_RISK stage with a lesser one, and
+        never moves it backwards. Returns the new stage if it changed, else
+        None (so the caller only emits a LIFECYCLE_STAGE_CHANGED event when
+        something actually moved)."""
+        self.purchase_count += 1
+        self.last_purchase_at = occurred_at
+        previous = self.lifecycle_stage
+        if previous in (LifecycleStage.PROSPECT, LifecycleStage.LEAD,
+                        LifecycleStage.QUALIFIED, LifecycleStage.LOST):
+            self.lifecycle_stage = LifecycleStage.CUSTOMER
+        elif previous in (LifecycleStage.INACTIVE, LifecycleStage.AT_RISK):
+            self.lifecycle_stage = LifecycleStage.REPEAT_CUSTOMER
+        elif previous is LifecycleStage.CUSTOMER and self.purchase_count > 1:
+            self.lifecycle_stage = LifecycleStage.REPEAT_CUSTOMER
+        self._touch()
+        return self.lifecycle_stage if self.lifecycle_stage is not previous else None
+
+    def record_sale_cancelled(self) -> None:
+        """React to a cancelled sale (Ventas' SALE_CANCELLED) — a completed
+        sale that gets voided did not really happen, so it is un-counted.
+        Deliberately does NOT try to recompute last_purchase_at from
+        history (this bounded context does not own sales history, see
+        CustomerHistoryQueryService's read-only cross-context precedent) —
+        it stays pointing at whatever the last *recorded* activity was,
+        same "approximate, documented" tradeoff already accepted for CRM-5's
+        pipeline "stagnant" signal. lifecycle_stage is left untouched: a
+        cancellation is not evidence of the relationship regressing."""
+        if self.purchase_count > 0:
+            self.purchase_count -= 1
         self._touch()
 
     # capability checks -------------------------------------------------------

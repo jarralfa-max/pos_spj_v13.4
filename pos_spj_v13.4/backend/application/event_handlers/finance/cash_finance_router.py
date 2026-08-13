@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from backend.application.event_handlers.finance.cash_shift_closed_handler import CashShiftClosedHandler
 from backend.application.event_handlers.finance.cash_treasury_handlers import (
-    CashDifferenceDetectedHandler, CashHandoverReceivedHandler,
+    CashDepositPreparedHandler, CashDifferenceDetectedHandler, CashHandoverReceivedHandler,
     CashRefundProcessedHandler, TreasuryCashDepositConfirmedHandler,
 )
 from backend.domain.finance.exceptions import FinanceDomainError
@@ -17,6 +17,7 @@ class CashFinanceEventRouter:
             "CASH_DIFFERENCE_DETECTED": CashDifferenceDetectedHandler(connection),
             "CASH_REFUND_PROCESSED": CashRefundProcessedHandler(connection),
             "CASH_HANDOVER_RECEIVED": CashHandoverReceivedHandler(connection),
+            "CASH_DEPOSIT_PREPARED": CashDepositPreparedHandler(connection),
             "TREASURY_CASH_DEPOSIT_CONFIRMED": TreasuryCashDepositConfirmedHandler(connection),
         }
 

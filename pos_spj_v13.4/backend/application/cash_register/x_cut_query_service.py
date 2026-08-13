@@ -28,6 +28,20 @@ class XCutQueryService:
     def __init__(self, connection, authorization: CashAuthorizationPolicy) -> None:
         self._cuts, self._auth = CashCutRepository(connection), authorization
 
+    def list_for_branch(self, *, branch_id: str,
+                        requester_user_id: str) -> tuple[XCutDocumentDTO, ...]:
+        self._auth.require(user_id=requester_user_id,
+                           permission_code=CashPermissions.X_CUT_VIEW,
+                           branch_id=branch_id)
+        visible = self._auth.has_permission(
+            user_id=requester_user_id,
+            permission_code=CashPermissions.VIEW_SENSITIVE_AMOUNTS,
+            branch_id=branch_id)
+        return tuple(
+            _dto(cut, sensitive_amounts_visible=visible)
+            for cut in self._cuts.list_x_for_branch(branch_id=branch_id)
+        )
+
     def get(self, *, cut_id: str, branch_id: str,
             requester_user_id: str) -> XCutDocumentDTO:
         self._auth.require(user_id=requester_user_id,
@@ -40,10 +54,17 @@ class XCutQueryService:
             user_id=requester_user_id,
             permission_code=CashPermissions.VIEW_SENSITIVE_AMOUNTS,
             branch_id=branch_id)
-        return XCutDocumentDTO(
-            id=cut["id"], document_number=cut["document_number"],
-            shift_id=cut["shift_id"], generated_at=cut["generated_at"],
-            generated_by=cut["generated_by"],
-            expected_cash=Decimal(cut["expected_cash"]) if visible else None,
-            snapshot=json.loads(cut["snapshot_json"]) if visible else None,
-            sensitive_amounts_visible=visible)
+        return _dto(cut, sensitive_amounts_visible=visible)
+
+
+def _dto(cut: dict, *, sensitive_amounts_visible: bool) -> XCutDocumentDTO:
+    return XCutDocumentDTO(
+        id=str(cut["id"]),
+        document_number=str(cut["document_number"]),
+        shift_id=str(cut["shift_id"]),
+        generated_at=str(cut["generated_at"]),
+        generated_by=str(cut["generated_by"]),
+        expected_cash=Decimal(str(cut["expected_cash"])) if sensitive_amounts_visible else None,
+        snapshot=json.loads(cut["snapshot_json"]) if sensitive_amounts_visible else None,
+        sensitive_amounts_visible=sensitive_amounts_visible,
+    )

@@ -1,22 +1,45 @@
 """Standard workflow dialogs; callers submit captured values to application UseCases."""
+from PyQt5.QtWidgets import QComboBox
+
 from frontend.desktop.components.barcode_input import BarcodeInput
 from frontend.desktop.components.decimal_input import DecimalInput
 from frontend.desktop.components.dialogs import FormDialog
-from frontend.desktop.components.search_input import SearchInput
+from frontend.desktop.components.entity_search_input import EntitySearchInput
 
 
 class TransferRequestDialog(FormDialog):
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, *, branch_options=None, product_provider=None) -> None:
         super().__init__(parent, title="Nueva solicitud de transferencia")
-        self.origin = SearchInput(self, placeholder="Buscar origen…")
-        self.destination = SearchInput(self, placeholder="Buscar destino…")
+        self.origin_combo = QComboBox(self)
+        self.destination_combo = QComboBox(self)
+        for option in (branch_options or []):
+            self.origin_combo.addItem(option.label, option.id)
+            self.destination_combo.addItem(option.label, option.id)
+        self.product = EntitySearchInput(
+            self, provider=product_provider, placeholder="Buscar producto por nombre o código…")
         self.quantity = DecimalInput(self, precision=3, minimum="0")
         self.weight = DecimalInput(self, precision=3, minimum="0", suffix="kg")
-        self.form.addRow("Origen", self.origin)
-        self.form.addRow("Destino", self.destination)
+        self.form.addRow("Origen", self.origin_combo)
+        self.form.addRow("Destino", self.destination_combo)
+        self.form.addRow("Producto", self.product)
         self.form.addRow("Cantidad", self.quantity)
         self.form.addRow("Peso", self.weight)
         self.add_button_box(ok_text="Crear solicitud")
+
+    def origin_branch_id(self) -> str:
+        return str(self.origin_combo.currentData() or "")
+
+    def destination_branch_id(self) -> str:
+        return str(self.destination_combo.currentData() or "")
+
+    def product_id(self) -> str:
+        return str(self.product.selected_id() or "")
+
+    def quantity_value(self):
+        return self.quantity.decimal_value()
+
+    def weight_value(self):
+        return self.weight.decimal_value() or 0
 
 
 class TransferApprovalDialog(FormDialog):

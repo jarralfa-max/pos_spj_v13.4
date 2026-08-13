@@ -46,6 +46,7 @@ class CustomerCreditSummaryView:
     current_exposure: str
     overdue_amount: str
     next_due_date: date | None
+    receivable_status: str
     visibility: FieldVisibility
 
 
@@ -76,7 +77,8 @@ class CustomerCreditQueryService:
             available_credit=mask(str(available_credit), visibility),
             current_exposure=mask(str(summary.current_exposure), visibility),
             overdue_amount=mask(str(summary.overdue_amount), visibility),
-            next_due_date=summary.next_due_date, visibility=visibility,
+            next_due_date=summary.next_due_date, receivable_status=summary.receivable_status,
+            visibility=visibility,
         )
 
     def _resolve_visibility(self, actor_user_id: str) -> FieldVisibility:

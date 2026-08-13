@@ -6,6 +6,7 @@ from backend.application.cash_register.printing import (
     CashPrintDocument,
     CashPrintDocumentType,
     CashPrintFormat,
+    DispatchCashPrintQueueUseCase,
     PrintCashDocumentCommand,
     PrintCashDocumentUseCase,
 )
@@ -22,6 +23,18 @@ class Authorization:
 
     def require(self, **values):
         self.calls.append(values)
+
+
+class RecordingGateway:
+    def __init__(self, *, fail: bool = False):
+        self.fail = fail
+        self.jobs = []
+
+    def print_job(self, job):
+        self.jobs.append(job)
+        if self.fail:
+            raise RuntimeError("printer offline")
+        return f"printed:{job.print_id}"
 
 
 def document():
@@ -104,6 +117,61 @@ class CashPrintRepositoryTests(unittest.TestCase):
                 (original,),
             ).fetchone()[0],
             1,
+        )
+
+    def test_dispatch_marks_printed_and_failed_in_queue_and_audit(self):
+        auth = Authorization()
+        service = self.service(auth)
+        doc = document()
+        print_id = service.execute(command(doc))
+        self.conn.commit()
+
+        gateway = RecordingGateway()
+        summary = DispatchCashPrintQueueUseCase(
+            authorization=auth,
+            store=self.uow.printing,
+            gateway=gateway,
+        ).execute(branch_id=doc.branch_id, actor_user_id=new_uuid())
+        self.conn.commit()
+
+        self.assertEqual((summary.processed, summary.printed, summary.failed), (1, 1, 0))
+        self.assertEqual(gateway.jobs[0].print_id, print_id)
+        self.assertEqual(
+            self.conn.execute("SELECT status FROM cash_print_jobs WHERE id=?", (print_id,)).fetchone()[0],
+            "PRINTED",
+        )
+        self.assertEqual(
+            self.conn.execute(
+                "SELECT COUNT(*) FROM cash_print_audit WHERE print_id=? AND status='PRINTED'",
+                (print_id,),
+            ).fetchone()[0],
+            1,
+        )
+
+        retry_doc = document()
+        retry_id = service.execute(command(retry_doc))
+        self.conn.commit()
+        failed = DispatchCashPrintQueueUseCase(
+            authorization=auth,
+            store=self.uow.printing,
+            gateway=RecordingGateway(fail=True),
+        ).execute(branch_id=retry_doc.branch_id, actor_user_id=new_uuid())
+        self.conn.commit()
+
+        self.assertEqual((failed.processed, failed.printed, failed.failed), (1, 0, 1))
+        self.assertEqual(
+            self.conn.execute(
+                "SELECT status,last_error FROM cash_print_jobs WHERE id=?",
+                (retry_id,),
+            ).fetchone(),
+            ("FAILED", "printer offline"),
+        )
+        self.assertTrue(
+            self.uow.printing.original_exists(
+                retry_id,
+                retry_doc.entity_id,
+                retry_doc.document_type,
+            )
         )
 
 

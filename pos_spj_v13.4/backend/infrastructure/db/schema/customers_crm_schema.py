@@ -26,6 +26,10 @@ CUSTOMER_TABLES: tuple[str, ...] = (
     "customer_contacts",
     "customer_addresses",
     "customer_tax_profiles",
+    "customer_duplicate_candidates",
+    "customer_merge_records",
+    "customer_data_quality_issues",
+    "customer_import_batches",
     "customer_audit_log",
     "customer_outbox",
     "customer_processed_events",
@@ -65,7 +69,9 @@ _DDL = (
         activated_at TEXT,
         suspended_at TEXT,
         blocked_at TEXT,
-        closed_at TEXT
+        closed_at TEXT,
+        last_purchase_at TEXT,
+        purchase_count INTEGER NOT NULL DEFAULT 0
     )
     """,
     """
@@ -140,6 +146,84 @@ _DDL = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS customer_duplicate_candidates (
+        id TEXT PRIMARY KEY,
+        customer_id_a TEXT NOT NULL REFERENCES customers(id),
+        customer_id_b TEXT NOT NULL REFERENCES customers(id),
+        match_reasons_json TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL DEFAULT 'DETECTED' CHECK (status IN (
+            'DETECTED','UNDER_REVIEW','CONFIRMED_DUPLICATE','DISMISSED','MERGED')),
+        reviewed_by_user_id TEXT,
+        reviewed_at TEXT,
+        resolution_reason TEXT NOT NULL DEFAULT '',
+        operation_id TEXT UNIQUE,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS customer_merge_records (
+        id TEXT PRIMARY KEY,
+        master_customer_id TEXT NOT NULL REFERENCES customers(id),
+        merged_customer_id TEXT NOT NULL REFERENCES customers(id),
+        duplicate_candidate_id TEXT REFERENCES customer_duplicate_candidates(id),
+        proposed_by_user_id TEXT NOT NULL,
+        reason TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'PROPOSED' CHECK (status IN (
+            'PROPOSED','EXECUTED','REJECTED')),
+        executed_by_user_id TEXT,
+        executed_at TEXT,
+        rejected_by_user_id TEXT,
+        rejected_at TEXT,
+        rejection_reason TEXT NOT NULL DEFAULT '',
+        operation_id TEXT UNIQUE,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS customer_data_quality_issues (
+        id TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL REFERENCES customers(id),
+        rule_code TEXT NOT NULL CHECK (rule_code IN (
+            'INCOMPLETE_NAME','INVALID_PHONE','INVALID_EMAIL','INVALID_TAX_ID',
+            'INCOMPLETE_ADDRESS')),
+        description TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'OPEN' CHECK (status IN (
+            'OPEN','ACKNOWLEDGED','CORRECTED','DISMISSED')),
+        acknowledged_by_user_id TEXT,
+        acknowledged_at TEXT,
+        corrected_at TEXT,
+        dismissed_by_user_id TEXT,
+        dismissed_at TEXT,
+        dismissal_reason TEXT NOT NULL DEFAULT '',
+        operation_id TEXT UNIQUE,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS customer_import_batches (
+        id TEXT PRIMARY KEY,
+        submitted_by_user_id TEXT NOT NULL,
+        is_sensitive INTEGER NOT NULL DEFAULT 0,
+        total_rows INTEGER NOT NULL DEFAULT 0,
+        created_count INTEGER NOT NULL DEFAULT 0,
+        updated_count INTEGER NOT NULL DEFAULT 0,
+        rejected_count INTEGER NOT NULL DEFAULT 0,
+        duplicate_count INTEGER NOT NULL DEFAULT 0,
+        error_count INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'PROCESSING' CHECK (status IN (
+            'PENDING_APPROVAL','PROCESSING','COMPLETED','PARTIAL','FAILED','REJECTED')),
+        approved_by_user_id TEXT,
+        approved_at TEXT,
+        pending_rows_json TEXT,
+        operation_id TEXT UNIQUE,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS customer_audit_log (
         id TEXT PRIMARY KEY,
         customer_id TEXT,
@@ -186,6 +270,22 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_customer_contacts_account ON customer_contacts(customer_account_id)",
     "CREATE INDEX IF NOT EXISTS idx_customer_addresses_customer ON customer_addresses(customer_id)",
     "CREATE INDEX IF NOT EXISTS idx_customer_tax_profiles_customer ON customer_tax_profiles(customer_id)",
+    "CREATE INDEX IF NOT EXISTS idx_customer_dupe_candidates_a"
+    " ON customer_duplicate_candidates(customer_id_a)",
+    "CREATE INDEX IF NOT EXISTS idx_customer_dupe_candidates_b"
+    " ON customer_duplicate_candidates(customer_id_b)",
+    "CREATE INDEX IF NOT EXISTS idx_customer_dupe_candidates_status"
+    " ON customer_duplicate_candidates(status)",
+    "CREATE INDEX IF NOT EXISTS idx_customer_merge_records_master"
+    " ON customer_merge_records(master_customer_id)",
+    "CREATE INDEX IF NOT EXISTS idx_customer_merge_records_merged"
+    " ON customer_merge_records(merged_customer_id)",
+    "CREATE INDEX IF NOT EXISTS idx_customer_quality_issues_customer"
+    " ON customer_data_quality_issues(customer_id)",
+    "CREATE INDEX IF NOT EXISTS idx_customer_quality_issues_status"
+    " ON customer_data_quality_issues(status)",
+    "CREATE INDEX IF NOT EXISTS idx_customer_import_batches_status"
+    " ON customer_import_batches(status)",
     "CREATE INDEX IF NOT EXISTS idx_customer_audit_customer ON customer_audit_log(customer_id)",
     "CREATE INDEX IF NOT EXISTS idx_customer_outbox_status ON customer_outbox(status)",
 )

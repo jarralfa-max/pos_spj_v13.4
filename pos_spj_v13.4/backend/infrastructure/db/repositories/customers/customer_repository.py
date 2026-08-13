@@ -16,7 +16,8 @@ _MASTER_COLS = (
     " source, origin_branch_id, primary_contact_id, default_billing_address_id,"
     " default_delivery_address_id, account_owner_user_id, territory_id,"
     " created_by_user_id, operation_id, version, created_at, updated_at,"
-    " activated_at, suspended_at, blocked_at, closed_at"
+    " activated_at, suspended_at, blocked_at, closed_at, last_purchase_at,"
+    " purchase_count"
 )
 
 
@@ -31,7 +32,7 @@ class CustomerRepository(CustomerRepositoryBase):
     def save(self, customer: Customer, *, operation_id: str | None = None) -> None:
         self._execute(
             f"INSERT INTO customers ({_MASTER_COLS})"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             self._params(customer, operation_id or customer.operation_id))
 
     def update(self, customer: Customer) -> None:
@@ -41,7 +42,7 @@ class CustomerRepository(CustomerRepositoryBase):
             " origin_branch_id=?, primary_contact_id=?, default_billing_address_id=?,"
             " default_delivery_address_id=?, account_owner_user_id=?, territory_id=?,"
             " version=?, updated_at=?, activated_at=?, suspended_at=?, blocked_at=?,"
-            " closed_at=? WHERE id=?",
+            " closed_at=?, last_purchase_at=?, purchase_count=? WHERE id=?",
             (customer.display_name, customer.legal_name, customer.first_name,
              customer.last_name, customer.second_last_name, customer.commercial_name,
              customer.status.value, customer.lifecycle_stage.value, customer.source,
@@ -49,7 +50,8 @@ class CustomerRepository(CustomerRepositoryBase):
              customer.default_billing_address_id, customer.default_delivery_address_id,
              customer.account_owner_user_id, customer.territory_id, customer.version,
              customer.updated_at, customer.activated_at, customer.suspended_at,
-             customer.blocked_at, customer.closed_at, customer.id))
+             customer.blocked_at, customer.closed_at, customer.last_purchase_at,
+             customer.purchase_count, customer.id))
 
     def get(self, customer_id: str) -> Customer | None:
         row = self._query_one(f"SELECT {_MASTER_COLS} FROM customers WHERE id=?", (customer_id,))
@@ -98,6 +100,23 @@ class CustomerRepository(CustomerRepositoryBase):
             " ORDER BY display_name LIMIT ? OFFSET ?", (branch_id, limit, offset))
         return [self._hydrate(r) for r in rows]
 
+    def search_lookup(self, query: str, *, limit: int = 20) -> list[dict]:
+        """CRM-12: lightweight rows for CustomerLookupQueryService's fast
+        typeahead — never hydrates a full Customer aggregate (unlike
+        find_duplicate_rows, which loads the whole base for one-shot batch
+        matching, this runs per-keystroke and must stay cheap)."""
+        pattern = f"%{query}%"
+        return self._query(
+            "SELECT c.id, c.customer_number, c.display_name, c.legal_name, c.status,"
+            " ct.phone_e164, ct.email"
+            " FROM customers c"
+            " LEFT JOIN customer_contacts ct ON ct.customer_id=c.id AND ct.is_primary=1"
+            " WHERE c.status NOT IN ('CLOSED','MERGED','ANONYMIZED')"
+            " AND (c.display_name LIKE ? OR c.legal_name LIKE ?"
+            " OR ct.phone_e164 LIKE ? OR ct.email LIKE ?)"
+            " ORDER BY c.display_name LIMIT ?",
+            (pattern, pattern, pattern, pattern, limit))
+
     def list_by_territory(self, territory_id: str, *, limit: int = 200, offset: int = 0) -> list[Customer]:
         rows = self._query(
             f"SELECT {_MASTER_COLS} FROM customers WHERE territory_id=?"
@@ -118,6 +137,7 @@ class CustomerRepository(CustomerRepositoryBase):
             customer.created_by_user_id, operation_id, customer.version,
             customer.created_at, customer.updated_at, customer.activated_at,
             customer.suspended_at, customer.blocked_at, customer.closed_at,
+            customer.last_purchase_at, customer.purchase_count,
         )
 
     @staticmethod
@@ -141,4 +161,6 @@ class CustomerRepository(CustomerRepositoryBase):
             created_at=row["created_at"], updated_at=row["updated_at"],
             activated_at=row["activated_at"], suspended_at=row["suspended_at"],
             blocked_at=row["blocked_at"], closed_at=row["closed_at"],
+            last_purchase_at=row["last_purchase_at"],
+            purchase_count=row["purchase_count"] or 0,
         )

@@ -3,11 +3,13 @@ import unittest
 
 from backend.domain.cash_register.entities import (
     BlindCashCount, CashDifference, CashDrawer, CashHandover, CashLedger,
-    CashLedgerEntry, CashRegister, CashShift, PosTerminal, XCut, ZCut,
+    CashLedgerEntry, CashRefundExecution, CashRegister, CashShift,
+    DrawerOpenEvent, PaymentRecord, PosTerminal, XCut, ZCut,
 )
 from backend.domain.cash_register.enums import (
     CashDifferenceStatus, CashHandoverStatus, CashMovementDirection,
-    CashMovementType, CashShiftStatus, DeviceStatus,
+    CashMovementType, CashPaymentMethodType, CashRefundMethod,
+    CashShiftStatus, DeviceStatus, DrawerOpenReason,
 )
 from backend.domain.cash_register.events import CashEvents, cash_event_payload
 from backend.domain.cash_register.exceptions import (
@@ -15,6 +17,7 @@ from backend.domain.cash_register.exceptions import (
     CashSegregationOfDutiesError,
 )
 from backend.domain.cash_register.policies.workflow_policies import CashClosingPolicy
+from backend.domain.cash_register.settlements import classify_settlement
 from backend.shared.ids import is_uuidv7, new_uuid
 
 
@@ -134,6 +137,67 @@ class CashRegisterDomainTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             cash_event_payload("CAJA_ABIERTA", operation_id=operation_id,
                                entity_id=entity_id, branch_id=branch_id, user_id=user_id)
+
+    def test_canonical_domain_catalogs_cover_operational_states(self):
+        self.assertTrue({"ACTIVE", "INACTIVE", "MAINTENANCE", "BLOCKED", "RETIRED"} <= {item.value for item in DeviceStatus})
+        self.assertTrue({"OPENING", "OPEN", "SUSPENDED", "COUNTING", "CLOSING", "CLOSED", "FORCE_CLOSED"} <= {item.value for item in CashShiftStatus})
+        self.assertTrue({"OPENING_FLOAT", "CASH_SALE", "CASH_REFUND", "SAFE_DROP", "CASH_HANDOVER", "REVERSAL"} <= {item.value for item in CashMovementType})
+        self.assertTrue({"DRAFT", "READY", "IN_TRANSIT", "RECEIVED", "DISPUTED", "CANCELLED"} <= {item.value for item in CashHandoverStatus})
+
+    def test_payment_record_allocations_balance_and_drawer_effect(self):
+        payment = PaymentRecord.create(
+            sale_id=uid(), shift_id=uid(), branch_id=uid(),
+            amount_to_settle=Decimal("1000.00"), operation_id=uid(),
+            recorded_by=uid(),
+        )
+        payment.add_allocation(method_type=CashPaymentMethodType.CASH,
+                               amount=Decimal("400.00"), affects_drawer=True)
+        payment.add_allocation(method_type=CashPaymentMethodType.BANK_CARD,
+                               amount=Decimal("350.00"), affects_drawer=False,
+                               external_reference="terminal-batch")
+        payment.add_allocation(method_type=CashPaymentMethodType.BANK_TRANSFER,
+                               amount=Decimal("150.00"), affects_drawer=False)
+        payment.add_allocation(method_type=CashPaymentMethodType.LOYALTY_POINTS,
+                               amount=Decimal("100.00"), affects_drawer=False)
+        payment.confirm_balanced()
+        self.assertEqual(payment.allocated_total, Decimal("1000.00"))
+        self.assertEqual(payment.drawer_effect, Decimal("400.00"))
+        with self.assertRaises(TypeError):
+            payment.add_allocation(method_type=CashPaymentMethodType.CASH,
+                                   amount=1.0, affects_drawer=True)
+
+    def test_settlement_classifier_uses_canonical_payment_types(self):
+        self.assertEqual(classify_settlement("CARD").canonical_type, "BANK_CARD")
+        self.assertEqual(classify_settlement("ON_CREDIT").canonical_type, "CUSTOMER_CREDIT")
+        self.assertFalse(classify_settlement("REFUND_VOUCHER").affects_drawer)
+        with self.assertRaises(CashInvalidStateError):
+            classify_settlement("GIFT_CARD")
+        self.assertEqual(classify_settlement("GIFT_CARD", allow_future=True).canonical_type, "GIFT_CARD")
+
+    def test_refund_execution_and_drawer_open_event_are_uuid_domain_documents(self):
+        executed_by, authorized_by = uid(), uid()
+        execution = CashRefundExecution.execute(
+            refund_id=uid(), sale_id=uid(), shift_id=uid(), branch_id=uid(),
+            method=CashRefundMethod.CASH, amount=Decimal("125.00"),
+            executed_by=executed_by, authorized_by=authorized_by,
+            operation_id=uid(), ledger_entry_id=uid(),
+        )
+        self.assertTrue(is_uuidv7(execution.id))
+        self.assertEqual(execution.method, CashRefundMethod.CASH)
+        with self.assertRaises(CashSegregationOfDutiesError):
+            CashRefundExecution.execute(
+                refund_id=uid(), sale_id=uid(), shift_id=uid(), branch_id=uid(),
+                method=CashRefundMethod.CASH, amount=Decimal("1.00"),
+                executed_by=executed_by, authorized_by=executed_by,
+                operation_id=uid(),
+            )
+        drawer_event = DrawerOpenEvent.record(
+            drawer_id=uid(), shift_id=uid(), branch_id=uid(),
+            opened_by=uid(), reason=DrawerOpenReason.NO_SALE_AUTHORIZED,
+            operation_id=uid(), source_document_id=uid(),
+        )
+        self.assertTrue(is_uuidv7(drawer_event.id))
+        self.assertEqual(drawer_event.reason, DrawerOpenReason.NO_SALE_AUTHORIZED)
 
 
 if __name__ == "__main__":

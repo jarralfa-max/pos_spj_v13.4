@@ -5,11 +5,12 @@ from typing import Any
 
 from .repositories import (
     CashAuditRepository, CashCountRepository, CashCutRepository, CashDeviceRepository, CashDifferenceRepository,
-    CashDifferencePolicyRepository, CashEventRepository, CashHandoverRepository,
-    CashIdempotencyRepository, CashLedgerRepository,
-    CashMovementReasonRepository, CashOutboxRepository, CashShiftRepository,
-    CashSyncRepository,
+    CashDifferencePolicyRepository, CashDrawerEventRepository,
+    CashDepositPreparationRepository, CashEventRepository, CashHandoverRepository,
+    CashIdempotencyRepository, CashLedgerRepository, CashMovementReasonRepository,
+    CashOutboxRepository, CashSettlementRepository, CashShiftRepository, CashSyncRepository,
 )
+from .configuration_repository import CashConfigurationWriteRepository
 from .notification_repository import CashNotificationRepository
 from .printing_repository import CashPrintRepository
 
@@ -20,6 +21,10 @@ class CashRegisterUnitOfWork:
         self.shifts = CashShiftRepository(connection)
         self.devices = CashDeviceRepository(connection)
         self.ledger = CashLedgerRepository(connection)
+        self.settlements = CashSettlementRepository(connection)
+        self.drawer_events = CashDrawerEventRepository(connection)
+        self.deposit_preparations = CashDepositPreparationRepository(connection)
+        self.configuration = CashConfigurationWriteRepository(connection)
         self.movement_reasons = CashMovementReasonRepository(connection)
         self.handovers = CashHandoverRepository(connection)
         self.idempotency = CashIdempotencyRepository(connection)

@@ -203,3 +203,66 @@ class TestCustomerDuplicatePolicy:
         matches = self.policy.find_matches(
             {"display_name": "Juan Perez", "phone_e164": "+525512345678"}, existing)
         assert matches == []
+
+
+class TestCustomerSaleActivityProjection:
+    """CRM-13 (§49 Ventas): Customer.record_sale_activity/record_sale_cancelled."""
+
+    def test_first_purchase_bumps_counter_and_timestamp(self):
+        c = _customer()
+        c.record_sale_activity("2026-08-13T10:00:00+00:00")
+        assert c.purchase_count == 1
+        assert c.last_purchase_at == "2026-08-13T10:00:00+00:00"
+
+    def test_first_purchase_advances_prospect_to_customer(self):
+        from backend.domain.customers.enums import LifecycleStage
+        c = _customer(as_prospect=True)
+        assert c.lifecycle_stage is LifecycleStage.PROSPECT
+        new_stage = c.record_sale_activity("2026-08-13T10:00:00+00:00")
+        assert c.lifecycle_stage is LifecycleStage.CUSTOMER
+        assert new_stage is LifecycleStage.CUSTOMER
+
+    def test_second_purchase_advances_customer_to_repeat_customer(self):
+        from backend.domain.customers.enums import LifecycleStage
+        c = _customer()
+        assert c.lifecycle_stage is LifecycleStage.CUSTOMER
+        c.record_sale_activity("2026-08-01T10:00:00+00:00")
+        new_stage = c.record_sale_activity("2026-08-13T10:00:00+00:00")
+        assert c.lifecycle_stage is LifecycleStage.REPEAT_CUSTOMER
+        assert new_stage is LifecycleStage.REPEAT_CUSTOMER
+
+    def test_purchase_from_inactive_moves_to_repeat_customer(self):
+        from backend.domain.customers.enums import LifecycleStage
+        c = _customer()
+        c.set_lifecycle_stage(LifecycleStage.INACTIVE)
+        new_stage = c.record_sale_activity("2026-08-13T10:00:00+00:00")
+        assert c.lifecycle_stage is LifecycleStage.REPEAT_CUSTOMER
+        assert new_stage is LifecycleStage.REPEAT_CUSTOMER
+
+    def test_no_stage_change_returns_none(self):
+        from backend.domain.customers.enums import LifecycleStage
+        c = _customer()
+        c.set_lifecycle_stage(LifecycleStage.REPEAT_CUSTOMER)
+        new_stage = c.record_sale_activity("2026-08-13T10:00:00+00:00")
+        assert new_stage is None
+        assert c.lifecycle_stage is LifecycleStage.REPEAT_CUSTOMER
+
+    def test_cancel_decrements_purchase_count(self):
+        c = _customer()
+        c.record_sale_activity("2026-08-13T10:00:00+00:00")
+        c.record_sale_activity("2026-08-14T10:00:00+00:00")
+        c.record_sale_cancelled()
+        assert c.purchase_count == 1
+
+    def test_cancel_never_goes_negative(self):
+        c = _customer()
+        c.record_sale_cancelled()
+        assert c.purchase_count == 0
+
+    def test_cancel_does_not_change_lifecycle_stage(self):
+        from backend.domain.customers.enums import LifecycleStage
+        c = _customer()
+        c.record_sale_activity("2026-08-13T10:00:00+00:00")
+        stage_before = c.lifecycle_stage
+        c.record_sale_cancelled()
+        assert c.lifecycle_stage is stage_before

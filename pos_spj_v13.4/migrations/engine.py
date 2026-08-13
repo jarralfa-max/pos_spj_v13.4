@@ -181,6 +181,10 @@ MIGRATIONS = [
     _Migration("186",  "migrations.standalone.186_customer_service_bounded_context_schema"),
     _Migration("187",  "migrations.standalone.187_meat_processing_bounded_context_schema"),
     _Migration("188",  "migrations.standalone.188_customer_credit_bounded_context_schema"),
+    _Migration("189",  "migrations.standalone.189_customer_privacy_bounded_context_schema"),
+    _Migration("190",  "migrations.standalone.190_crm_segmentation_bounded_context_schema"),
+    _Migration("191",  "migrations.standalone.191_customers_data_quality_bounded_context_schema"),
+    _Migration("192",  "migrations.standalone.192_customers_sale_activity_projection"),
 ]
 
 def _ensure_tracking_table(conn):

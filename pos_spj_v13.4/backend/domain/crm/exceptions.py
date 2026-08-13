@@ -122,3 +122,71 @@ class InvalidCRMNoteError(CRMDomainError):
 class InvalidCRMReminderError(CRMDomainError):
     """A CRMReminder was built without a valid channel/recipient/schedule,
     or without a task/activity to attach to."""
+
+
+# ── CRM-10: Propietario, territorios, carteras, segmentación, etiquetas
+#            (§33-36, §69, §73) ──────────────────────────────────────────────
+
+class SalesTerritoryNotFoundError(CRMDomainError):
+    """Referenced a territory_id that does not exist."""
+
+
+class InvalidSalesTerritoryError(CRMDomainError):
+    """A SalesTerritory was built with invalid configuration (e.g. empty
+    code/name)."""
+
+
+class CustomerPortfolioNotFoundError(CRMDomainError):
+    """Referenced a portfolio_id that does not exist."""
+
+
+class InvalidCustomerPortfolioError(CRMDomainError):
+    """A CustomerPortfolio was built with invalid configuration (e.g. empty
+    code/name)."""
+
+
+class InvalidCustomerOwnershipError(CRMDomainError):
+    """A CustomerOwnership record was captured with missing customer_id or
+    owner_user_id."""
+
+
+class InvalidPortfolioAssignmentError(CRMDomainError):
+    """A PortfolioAssignment record was captured with missing customer_id
+    or portfolio_id."""
+
+
+class CustomerSegmentNotFoundError(CRMDomainError):
+    """Referenced a segment_id that does not exist."""
+
+
+class InvalidCustomerSegmentError(CRMDomainError):
+    """A CustomerSegment was built with invalid configuration (e.g. empty
+    code/name)."""
+
+
+class CustomerSegmentMembershipNotFoundError(CRMDomainError):
+    """Referenced a segment membership_id that does not exist."""
+
+
+class InvalidCustomerSegmentMembershipError(CRMDomainError):
+    """A CustomerSegmentMembership was captured/removed invalidly (e.g.
+    missing customer_id/segment_id, or removing an already-removed
+    membership)."""
+
+
+class CustomerTagNotFoundError(CRMDomainError):
+    """Referenced a tag_id that does not exist."""
+
+
+class InvalidCustomerTagError(CRMDomainError):
+    """A CustomerTag was built with invalid configuration (e.g. empty
+    code/label)."""
+
+
+class CustomerTagAssignmentNotFoundError(CRMDomainError):
+    """Referenced a tag assignment_id that does not exist."""
+
+
+class InvalidCustomerTagAssignmentError(CRMDomainError):
+    """A CustomerTagAssignment was captured/removed invalidly (e.g. missing
+    customer_id/tag_id, or removing an already-removed assignment)."""

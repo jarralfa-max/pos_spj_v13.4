@@ -26,6 +26,7 @@ class CashFinanceTreasuryBoundaryTest(unittest.TestCase):
         handlers = (ROOT / "backend/application/event_handlers/finance/cash_treasury_handlers.py").read_text(encoding="utf-8")
         self.assertIn("Sales owns revenue/tax reversal", handlers)
         self.assertIn("Z-cut posting already includes over/short", handlers)
+        self.assertIn("Cash prepares a deposit package only", handlers)
         self.assertIn("PostingPurpose.CASH_DEPOSIT", handlers)
 
 

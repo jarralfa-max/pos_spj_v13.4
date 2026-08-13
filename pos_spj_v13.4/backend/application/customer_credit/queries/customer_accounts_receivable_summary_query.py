@@ -29,6 +29,13 @@ failure to hide.
 All amounts converted row-by-row to ``Decimal`` (REGLA CERO) — SQL
 ``SUM()`` over the underlying ``REAL`` columns is deliberately avoided to
 keep summation precision-safe.
+
+CRM-13 (§49): "CRM muestra saldo/vencido/exposición/estatus" — the fourth
+item, ``receivable_status``, was the one field this query didn't expose
+yet. Derived, never persisted (same discipline as the due-date computation
+above and CRM-6/7's OVERDUE/breach-status): ``SIN_MOVIMIENTOS`` (no open
+documents), ``VENCIDO`` (any open document past due), or ``AL_CORRIENTE``
+(open documents, none overdue).
 """
 
 from __future__ import annotations
@@ -45,6 +52,7 @@ class CustomerAccountsReceivableSummary:
     overdue_amount: Decimal
     next_due_date: date | None
     open_documents_count: int
+    receivable_status: str
 
 
 def _parse_date(value: str) -> date | None:
@@ -95,6 +103,13 @@ class CustomerAccountsReceivableSummaryQuery:
             elif next_due is None or due_date < next_due:
                 next_due = due_date
 
+        if count == 0:
+            status = "SIN_MOVIMIENTOS"
+        elif overdue > 0:
+            status = "VENCIDO"
+        else:
+            status = "AL_CORRIENTE"
+
         return CustomerAccountsReceivableSummary(
             customer_id=customer_id, current_exposure=exposure, overdue_amount=overdue,
-            next_due_date=next_due, open_documents_count=count)
+            next_due_date=next_due, open_documents_count=count, receivable_status=status)

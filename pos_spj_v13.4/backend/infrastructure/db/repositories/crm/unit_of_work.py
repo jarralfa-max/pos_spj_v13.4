@@ -8,6 +8,24 @@ from __future__ import annotations
 from typing import Any
 
 from backend.infrastructure.db.repositories.crm.activity_repository import CRMActivityRepository
+from backend.infrastructure.db.repositories.crm.customer_ownership_repository import (
+    CustomerOwnershipRepository,
+)
+from backend.infrastructure.db.repositories.crm.customer_portfolio_repository import (
+    CustomerPortfolioRepository,
+)
+from backend.infrastructure.db.repositories.crm.customer_segment_membership_repository import (
+    CustomerSegmentMembershipRepository,
+)
+from backend.infrastructure.db.repositories.crm.customer_segment_repository import (
+    CustomerSegmentRepository,
+)
+from backend.infrastructure.db.repositories.crm.customer_tag_assignment_repository import (
+    CustomerTagAssignmentRepository,
+)
+from backend.infrastructure.db.repositories.crm.customer_tag_repository import (
+    CustomerTagRepository,
+)
 from backend.infrastructure.db.repositories.crm.lead_qualification_repository import (
     LeadQualificationRepository,
 )
@@ -16,10 +34,16 @@ from backend.infrastructure.db.repositories.crm.note_repository import CRMNoteRe
 from backend.infrastructure.db.repositories.crm.opportunity_repository import (
     OpportunityRepository,
 )
+from backend.infrastructure.db.repositories.crm.portfolio_assignment_repository import (
+    PortfolioAssignmentRepository,
+)
 from backend.infrastructure.db.repositories.crm.product_interest_repository import (
     OpportunityProductInterestRepository,
 )
 from backend.infrastructure.db.repositories.crm.reminder_repository import CRMReminderRepository
+from backend.infrastructure.db.repositories.crm.sales_territory_repository import (
+    SalesTerritoryRepository,
+)
 from backend.infrastructure.db.repositories.crm.stage_definition_repository import (
     CRMStageDefinitionRepository,
 )
@@ -47,6 +71,14 @@ class CRMUnitOfWork:
         self.tasks = CRMTaskRepository(connection)
         self.notes = CRMNoteRepository(connection)
         self.reminders = CRMReminderRepository(connection)
+        self.territories = SalesTerritoryRepository(connection)
+        self.portfolios = CustomerPortfolioRepository(connection)
+        self.ownerships = CustomerOwnershipRepository(connection)
+        self.portfolio_assignments = PortfolioAssignmentRepository(connection)
+        self.segments = CustomerSegmentRepository(connection)
+        self.segment_memberships = CustomerSegmentMembershipRepository(connection)
+        self.tags = CustomerTagRepository(connection)
+        self.tag_assignments = CustomerTagAssignmentRepository(connection)
         self.audit = CRMAuditRepository(connection)
         self.outbox = CRMOutboxRepository(connection)
         self.processed_events = CRMProcessedEventRepository(connection)

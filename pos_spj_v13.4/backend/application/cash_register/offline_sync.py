@@ -142,6 +142,28 @@ class CashSyncStateQueryService:
             raise LookupError("Sync device outside branch scope")
         return state
 
+    def list_envelopes(self, connection, *, device_id: str, branch_id: str,
+                       actor_user_id: str, limit: int = 100) -> list[dict]:
+        self._authorization.require(user_id=actor_user_id,
+                                    permission_code=CashPermissions.SYNC_VIEW,
+                                    branch_id=branch_id)
+        with CashRegisterUnitOfWork(connection) as uow:
+            state = uow.sync.state(device_id)
+            if state["branch_id"] != branch_id:
+                raise LookupError("Sync device outside branch scope")
+            return uow.sync.list_recent(device_id=device_id, limit=limit)
+
+    def list_conflicts(self, connection, *, device_id: str, branch_id: str,
+                       actor_user_id: str) -> list[dict]:
+        self._authorization.require(user_id=actor_user_id,
+                                    permission_code=CashPermissions.SYNC_VIEW,
+                                    branch_id=branch_id)
+        with CashRegisterUnitOfWork(connection) as uow:
+            state = uow.sync.state(device_id)
+            if state["branch_id"] != branch_id:
+                raise LookupError("Sync device outside branch scope")
+            return uow.sync.list_conflicts(device_id=device_id)
+
 
 class RegisterCashSyncDeviceUseCase:
     def __init__(self, authorization: CashAuthorizationPolicy) -> None:

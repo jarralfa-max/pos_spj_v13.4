@@ -10,7 +10,6 @@ from repositories.auth_repository import AuthRepository
 from repositories.recetas import RecetaRepository as RecipeRepository
 from repositories.finance_repository import FinanceRepository
 from infrastructure.persistence.sqlite_sales_repository import SQLiteSalesRepository
-from repositories.caja import CajaRepository
 from repositories.productos import ProductoRepository
 # Si tienes estos, descoméntalos; si no, coméntalos para que no den error:
 from repositories.promotion_repository import PromotionRepository
@@ -106,7 +105,6 @@ class AppContainer:
         self.recipe_repo = RecipeRepository(self.db)
         self.finance_repo = FinanceRepository(self.db)
         self.sales_repo = SQLiteSalesRepository(self.db)
-        self.caja_repo = CajaRepository(self.db)
 
         # Opcionales (depende de qué tan avanzados vayan tus módulos)
         self.promo_repo = PromotionRepository(self.db)
@@ -168,17 +166,6 @@ class AppContainer:
         self.finance_service = FinanceService(self.db) # Solo recibe 1 parámetro
         self.loyalty_service = LoyaltyService(self.db, finance_service=self.finance_service)  # module_config set below
 
-        # CajaApplicationService — fuente única de verdad para operaciones de caja
-        try:
-            from application.services.caja_application_service import CajaApplicationService
-            self.caja_service = CajaApplicationService(
-                db=self.db,
-                finance_service=self.finance_service,
-                caja_repo=self.caja_repo,
-            )
-        except Exception as _caja_svc_err:
-            self.caja_service = None
-            logger.warning("CajaApplicationService no cargado: %s", _caja_svc_err)
 
         # FASE 7.7 — capa canónica de caja (use cases + eventos CASH_*)
         try:
@@ -255,7 +242,9 @@ class AppContainer:
                 row = self.db.execute(
                     """SELECT approval_threshold,hard_cap
                     FROM cash_operation_limits
-                    WHERE operation_type=? AND active=1
+                    WHERE operation_type=?
+                      AND effective_from<=CURRENT_TIMESTAMP
+                      AND (effective_to IS NULL OR effective_to>CURRENT_TIMESTAMP)
                     ORDER BY effective_from DESC LIMIT 1""",
                     (operation_type,),
                 ).fetchone()
@@ -1081,7 +1070,6 @@ class AppContainer:
         # D1 paso 2c: cierra los turnos abiertos canónicos (turnos_caja) por la
         # ruta canónica de corte Z (GenerateZCutUseCase → finance_service), que
         # registra cierres_caja y postea el asiento de diferencia. Antes usaba
-        # CierreCajaService sobre turno_actual (tracker legacy vacío en prod → no-op).
         def _auto_cierre_turno():
             from datetime import datetime
             ahora = datetime.now()

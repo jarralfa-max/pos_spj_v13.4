@@ -15,6 +15,18 @@ from backend.infrastructure.db.repositories.customers.customer_child_repositorie
     CustomerContactRepository,
     CustomerTaxProfileRepository,
 )
+from backend.infrastructure.db.repositories.customers.customer_data_quality_issue_repository import (
+    CustomerDataQualityIssueRepository,
+)
+from backend.infrastructure.db.repositories.customers.customer_duplicate_candidate_repository import (
+    CustomerDuplicateCandidateRepository,
+)
+from backend.infrastructure.db.repositories.customers.customer_import_batch_repository import (
+    CustomerImportBatchRepository,
+)
+from backend.infrastructure.db.repositories.customers.customer_merge_record_repository import (
+    CustomerMergeRecordRepository,
+)
 from backend.infrastructure.db.repositories.customers.customer_repository import (
     CustomerRepository,
 )
@@ -33,6 +45,10 @@ class CustomerUnitOfWork:
         self.contacts = CustomerContactRepository(connection)
         self.addresses = CustomerAddressRepository(connection)
         self.tax_profiles = CustomerTaxProfileRepository(connection)
+        self.duplicate_candidates = CustomerDuplicateCandidateRepository(connection)
+        self.merge_records = CustomerMergeRecordRepository(connection)
+        self.data_quality_issues = CustomerDataQualityIssueRepository(connection)
+        self.import_batches = CustomerImportBatchRepository(connection)
         self.audit = CustomerAuditRepository(connection)
         self.outbox = CustomerOutboxRepository(connection)
         self.processed_events = CustomerProcessedEventRepository(connection)

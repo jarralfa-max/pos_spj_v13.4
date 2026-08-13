@@ -23,8 +23,22 @@ from frontend.desktop.components.view_states import ViewState, create_state_widg
 from frontend.desktop.modules.cash_register.blind_count_page import BlindCountPage
 from frontend.desktop.modules.cash_register.cash_configuration_page import CashConfigurationPage
 from frontend.desktop.modules.cash_register.cash_devices_page import CashDevicesPage
+from frontend.desktop.modules.cash_register.cash_differences_page import CashDifferencesPage
+from frontend.desktop.modules.cash_register.cash_handovers_page import CashHandoversPage
 from frontend.desktop.modules.cash_register.cash_ledger_page import CashLedgerPage
-from frontend.desktop.modules.cash_register.cash_register_routes import CASH_REGISTER_ROUTES, grouped_routes
+from frontend.desktop.modules.cash_register.cash_notifications_page import CashNotificationsPage
+from frontend.desktop.modules.cash_register.cash_operational_read_page import CashOperationalReadPage
+from frontend.desktop.modules.cash_register.cash_overview_page import CashOverviewPage
+from frontend.desktop.modules.cash_register.cash_refunds_page import CashRefundsPage
+from frontend.desktop.modules.cash_register.cash_shifts_page import CashShiftsPage
+from frontend.desktop.modules.cash_register.cash_sync_page import CashSyncPage
+from frontend.desktop.modules.cash_register.cash_x_cuts_page import CashXCutsPage
+from frontend.desktop.modules.cash_register.cash_z_cuts_page import CashZCutsPage
+from frontend.desktop.modules.cash_register.cash_register_routes import (
+    CASH_REGISTER_ROUTES,
+    grouped_routes,
+    visible_routes,
+)
 from frontend.desktop.themes.tokens import ResponsiveBreakpoints, Spacing
 
 
@@ -115,18 +129,7 @@ class CashRegisterWorkspace(QWidget):
                 page_index += 1
 
     def _visible_grouped_routes(self) -> list[tuple[str, list]]:
-        if not self._presenter.capabilities().module_view:
-            return []
-        visible = [
-            route for route in CASH_REGISTER_ROUTES
-            if self._presenter.can(route.required_permission)
-        ]
-        groups: list[tuple[str, list]] = []
-        for route in visible:
-            if not groups or groups[-1][0] != route.group:
-                groups.append((route.group, []))
-            groups[-1][1].append(route)
-        return groups
+        return grouped_routes(visible_routes(self._presenter.capabilities()))
 
     def _wrap_page(self, key: str, label: str, tooltip: str) -> QWidget:
         page = QFrame(self)
@@ -151,16 +154,56 @@ class CashRegisterWorkspace(QWidget):
             return self._page_factories[key](self)
 
         query_service = self._presenter.query_service(key)
+        if key == "overview":
+            return CashOverviewPage(presenter=self._presenter, parent=self)
         if key == "configuration" and query_service is not None:
-            return CashConfigurationPage(query_service, self)
+            return CashConfigurationPage(query_service, self, presenter=self._presenter)
         if key == "hardware" and query_service is not None:
-            return CashDevicesPage(query_service, self)
-        if key == "ledger" and query_service is not None and self._active_shift_id():
-            return CashLedgerPage(query_service, shift_id=self._active_shift_id(), parent=self)
-        if key == "blind_count" and query_service is not None and self._active_count_context():
-            count_id, branch_id, user_id = self._active_count_context()
-            return BlindCountPage(query_service, count_id=count_id, branch_id=branch_id,
-                                  requester_user_id=user_id, parent=self)
+            return CashDevicesPage(query_service, presenter=self._presenter, parent=self)
+        if key == "shifts" and query_service is not None:
+            return CashShiftsPage(query_service, presenter=self._presenter, parent=self)
+        if key == "ledger" and query_service is not None:
+            return CashLedgerPage(
+                query_service,
+                shift_id=self._active_shift_id(),
+                presenter=self._presenter,
+                parent=self,
+            )
+        if key == "handover" and query_service is not None:
+            return CashHandoversPage(query_service, presenter=self._presenter, parent=self)
+        if key == "differences" and query_service is not None:
+            return CashDifferencesPage(query_service, presenter=self._presenter, parent=self)
+        if key == "x_cut" and query_service is not None:
+            return CashXCutsPage(query_service, presenter=self._presenter, parent=self)
+        if key == "z_cut" and query_service is not None:
+            return CashZCutsPage(query_service, presenter=self._presenter, parent=self)
+        if key == "refunds":
+            return CashRefundsPage(presenter=self._presenter, parent=self)
+        if key == "notifications":
+            return CashNotificationsPage(presenter=self._presenter, parent=self)
+        if key == "sync":
+            return CashSyncPage(presenter=self._presenter, parent=self)
+        if key in {"deposits", "payment_methods", "payment_terminals", "drawer_events", "audit"}:
+            return CashOperationalReadPage(
+                presenter=self._presenter,
+                section_key=key,
+                title=label,
+                subtitle=tooltip,
+                parent=self,
+            )
+        if key == "blind_count" and query_service is not None:
+            context = self._active_count_context()
+            if context:
+                count_id, branch_id, user_id = context
+                return BlindCountPage(
+                    query_service,
+                    presenter=self._presenter,
+                    count_id=count_id,
+                    branch_id=branch_id,
+                    requester_user_id=user_id,
+                    parent=self,
+                )
+            return BlindCountPage(query_service, presenter=self._presenter, parent=self)
 
         placeholder = create_state_widget(
             ViewState.EMPTY,
@@ -171,7 +214,7 @@ class CashRegisterWorkspace(QWidget):
         return placeholder
 
     def _active_shift_id(self) -> str | None:
-        return self._presenter.active_shift_id()
+        return self._presenter.optional_active_shift_id()
 
     def _active_count_context(self) -> tuple[str, str, str] | None:
         return self._presenter.active_count_context()

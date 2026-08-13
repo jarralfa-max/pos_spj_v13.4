@@ -370,10 +370,7 @@ def _wire_cash_events(bus, container) -> None:
     DEEP_AUDIT B2: los dos vocabularios de eventos de caja no tenían un solo
     suscriptor. El bridge unifica ambos en el canal canónico CASH_* y el audit
     handler deja trazabilidad. El asiento de diferencia NO se registra aquí
-    (ya lo hace CajaApplicationService.generar_corte_z / CierreCajaService).
     """
-    from core.events.cash_event_bridge import register_cash_event_bridge
-    register_cash_event_bridge(bus, container)
 
     # Bug 10: el corte Z consolida el efectivo del turno en capital/tesorería.
     treasury = getattr(container, "treasury_service", None)

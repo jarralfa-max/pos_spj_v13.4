@@ -39,13 +39,41 @@ class CashRegisterUiUxWorkspaceTests(unittest.TestCase):
             "Corte Z",
             "Diferencias",
             "Entrega de valores",
+            "Depositos preparados",
             "Reembolsos",
+            "Medios de pago",
+            "Terminales de pago",
+            "Eventos de cajon",
             "Hardware",
+            "Auditoria",
             "Configuracion",
         ):
             self.assertIn(label, source)
         self.assertIn("CashPermissions.SETTINGS_VIEW", source)
+        self.assertIn("CashPermissions.PAYMENT_METHOD_VIEW", source)
+        self.assertIn("CashPermissions.PAYMENT_TERMINAL_VIEW", source)
+        self.assertIn("CashPermissions.DRAWER_EVENT_VIEW", source)
+        self.assertIn("CashPermissions.AUDIT_VIEW", source)
         self.assertNotIn("cash_register.configuration.view", source)
+
+    def test_secondary_pages_are_backend_backed_not_placeholders(self):
+        workspace = (MODULE / "cash_register_workspace.py").read_text(encoding="utf-8")
+        presenter = (MODULE / "cash_register_presenter.py").read_text(encoding="utf-8")
+        page = (MODULE / "cash_operational_read_page.py").read_text(encoding="utf-8")
+        factory = (ROOT / "backend/infrastructure/desktop/cash_register_factory.py").read_text(
+            encoding="utf-8"
+        )
+        for route in ("deposits", "payment_methods", "payment_terminals", "drawer_events", "audit"):
+            self.assertIn(route, workspace)
+            self.assertIn(route, presenter)
+        self.assertIn("CashOperationalReadPage", workspace)
+        self.assertIn("cash_operational_section", presenter)
+        self.assertIn('"operational_read"', factory)
+        self.assertIn("CashOperationalReadQueryService", factory)
+        upper = page.upper()
+        for forbidden in ("SQLITE3", "SELECT ", "INSERT ", "UPDATE ", "DELETE ",
+                          ".COMMIT(", ".ROLLBACK(", "REPOSITORY"):
+            self.assertNotIn(forbidden, upper)
 
     def test_routes_use_canonical_caja_permissions_without_legacy_translation(self):
         routes = (MODULE / "cash_register_routes.py").read_text(encoding="utf-8")
@@ -75,6 +103,25 @@ class CashRegisterUiUxWorkspaceTests(unittest.TestCase):
         upper = source.upper()
         for forbidden in ("QMESSAGEBOX", "SETSTYLESHEET", "SQLITE3", ".COMMIT(", ".ROLLBACK("):
             self.assertNotIn(forbidden, upper)
+
+    def test_configuration_page_is_wired_to_presenter_and_use_case(self):
+        page = (MODULE / "cash_configuration_page.py").read_text(encoding="utf-8")
+        workspace = (MODULE / "cash_register_workspace.py").read_text(encoding="utf-8")
+        presenter = (MODULE / "cash_register_presenter.py").read_text(encoding="utf-8")
+        factory = (ROOT / "backend/infrastructure/desktop/cash_register_factory.py").read_text(
+            encoding="utf-8"
+        )
+        use_case = (ROOT / "backend/application/cash_register/configuration_use_cases.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("CashConfigurationDialog", page)
+        self.assertIn("configure_cash_register(", page)
+        self.assertNotIn("pyqtSignal", page)
+        self.assertIn("presenter=self._presenter", workspace)
+        self.assertIn("def configure_cash_register", presenter)
+        self.assertIn("ConfigureCashRegisterUseCase", factory)
+        self.assertIn("CashRegisterUnitOfWork", use_case)
+        self.assertIn("CashPermissions.SETTINGS_MANAGE", use_case)
 
     def test_juanis_side_nav_theme_is_global_qss(self):
         qss = (ROOT / "frontend/desktop/themes/qss_builder.py").read_text(encoding="utf-8")

@@ -7,6 +7,7 @@ from backend.application.cash_register.device_use_cases import (
     AssignCashDeviceUseCase, CreateCashDeviceUseCase,
     DiagnoseCashHardwareUseCase, SetCashDeviceStatusUseCase,
 )
+from backend.application.cash_register.device_query_service import CashDeviceQueryService
 from backend.application.cash_register.hardware import StubCashHardwareGateway
 from backend.application.cash_register.permissions import ALL_CASH_PERMISSIONS
 from backend.shared.ids import new_uuid
@@ -16,6 +17,14 @@ class _Permissions:
     def has_permission(self, user_id, permission_code): return permission_code in ALL_CASH_PERMISSIONS
 class _Scopes:
     def can_access_branch(self, *, user_id, branch_id): return True
+
+
+class _DeviceRows:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def list_devices(self, kind: str):
+        return list(self._rows)
 
 
 class CashRegisterDeviceTests(unittest.TestCase):
@@ -69,6 +78,37 @@ class CashRegisterDeviceTests(unittest.TestCase):
         self.assertEqual(self.db.execute(
             "SELECT COUNT(*) FROM cash_domain_events WHERE event_name='CASH_HARDWARE_DIAGNOSED'"
         ).fetchone()[0], 1)
+
+    def test_born_clean_schema_rejects_non_uuid_device_identity(self):
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(
+                """INSERT INTO cash_registers
+                (id,branch_id,name,status,created_at,updated_at)
+                VALUES(?,?,?,?,?,?)""",
+                ("kkkk", self.branch, "Caja contaminada", "ACTIVE", "2026-08-13", "2026-08-13"),
+            )
+
+    def test_device_query_marks_contaminated_identity_before_ui_actions(self):
+        rows = CashDeviceQueryService(_DeviceRows([{
+            "id": "kkkk",
+            "name": "Caja contaminada",
+            "branch_name": self.branch,
+            "assignment": "",
+            "status": "ACTIVE",
+            "hardware_status": "No verificado",
+        }])).list_devices("register")
+
+        self.assertEqual(rows[0].id, "kkkk")
+        self.assertEqual(rows[0].hardware_status, "Identidad inválida")
+
+    def test_device_commands_reject_non_uuid_identity_before_repository_mutation(self):
+        with self.assertRaises(ValueError):
+            SetCashDeviceStatusUseCase(self.auth).execute(
+                self.db, kind="register", device_id="kkkk",
+                branch_id=self.branch, activate=False,
+                actor_user_id=self.actor, operation_id=new_uuid(),
+                reason="Mantenimiento",
+            )
 
 
 if __name__ == "__main__": unittest.main()

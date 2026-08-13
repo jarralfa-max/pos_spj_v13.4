@@ -4,6 +4,12 @@ from typing import Any, Protocol
 
 
 @dataclass(frozen=True, slots=True)
+class BranchOptionViewModel:
+    id: str
+    name: str
+
+
+@dataclass(frozen=True, slots=True)
 class TransferKPIViewModel:
     title: str
     value: str
@@ -30,3 +36,5 @@ class TransferPageViewModel:
 
 class TransfersWorkspaceQueryService(Protocol):
     def page(self, *, page_id: str, search: str = "") -> TransferPageViewModel: ...
+    def list_active_branches(self) -> tuple[BranchOptionViewModel, ...]: ...
+    def product_base_unit_id(self, product_id: str) -> str | None: ...

@@ -365,17 +365,10 @@ class EditLocationDialog(FormDialog):
 
 
 class BlockReasonDialog(FormDialog):
-<<<<<<< HEAD
     """Motivo de bloqueo — reutilizado por Almacenes, Ubicaciones e
     Inspección: todos bloquean/rechazan por el mismo tipo de razón operativa
     (mantenimiento, cierre, incidente, falla de calidad) y no ameritan
     varias clases casi idénticas."""
-=======
-    """Motivo de bloqueo/desactivación — reutilizado por Almacenes y
-    Ubicaciones: ambas acciones piden el mismo tipo de razón operativa
-    (mantenimiento, cierre, incidente, retiro de servicio) y no ameritan
-    clases casi idénticas."""
->>>>>>> 42f747f4 (Refactir de modulo de Caja y merma)
 
     def __init__(self, parent=None, *, title: str = "Bloquear",
                  ok_text: str = "Bloquear") -> None:

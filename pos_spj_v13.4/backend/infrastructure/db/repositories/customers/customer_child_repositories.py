@@ -50,6 +50,14 @@ class CustomerAccountRepository(CustomerRepositoryBase):
             (customer_id,))
         return [self._hydrate(r) for r in rows]
 
+    def reassign_customer_id(self, old_customer_id: str, new_customer_id: str) -> None:
+        """CRM-11 merge support: move every account from a merged customer to
+        the surviving master. No uniqueness constraint blocks this (a
+        customer can have several accounts)."""
+        self._execute(
+            "UPDATE customer_accounts SET customer_id=? WHERE customer_id=?",
+            (new_customer_id, old_customer_id))
+
     @staticmethod
     def _hydrate(row: dict) -> CustomerAccount:
         return CustomerAccount(
@@ -94,6 +102,15 @@ class CustomerContactRepository(CustomerRepositoryBase):
     def clear_primary(self, customer_id: str) -> None:
         self._execute(
             "UPDATE customer_contacts SET is_primary=0 WHERE customer_id=?", (customer_id,))
+
+    def reassign_customer_id(self, old_customer_id: str, new_customer_id: str) -> None:
+        """CRM-11 merge support: move every contact from a merged customer to
+        the surviving master. Reassigned contacts keep ``is_primary`` as-is;
+        the caller is responsible for calling ``clear_primary``/re-marking a
+        primary contact afterward if that matters for the merge."""
+        self._execute(
+            "UPDATE customer_contacts SET customer_id=? WHERE customer_id=?",
+            (new_customer_id, old_customer_id))
 
     @staticmethod
     def _params(contact: CustomerContactPerson) -> tuple:
@@ -153,6 +170,13 @@ class CustomerAddressRepository(CustomerRepositoryBase):
             "UPDATE customer_addresses SET is_default=0"
             " WHERE customer_id=? AND address_type=?", (customer_id, address_type))
 
+    def reassign_customer_id(self, old_customer_id: str, new_customer_id: str) -> None:
+        """CRM-11 merge support: move every address from a merged customer to
+        the surviving master."""
+        self._execute(
+            "UPDATE customer_addresses SET customer_id=? WHERE customer_id=?",
+            (new_customer_id, old_customer_id))
+
     @staticmethod
     def _params(address: CustomerAddress) -> tuple:
         return (
@@ -199,6 +223,21 @@ class CustomerTaxProfileRepository(CustomerRepositoryBase):
             f"SELECT {_TAX_COLS} FROM customer_tax_profiles WHERE customer_id=?",
             (customer_id,))
         return self._hydrate(row) if row else None
+
+    def reassign_customer_id(self, old_customer_id: str, new_customer_id: str) -> None:
+        """CRM-11 merge support: move a merged customer's tax profile to the
+        surviving master. Caller must first confirm the master has none —
+        ``customer_tax_profiles`` is UNIQUE(customer_id), so reassigning
+        onto a master that already has a profile would violate it."""
+        self._execute(
+            "UPDATE customer_tax_profiles SET customer_id=? WHERE customer_id=?",
+            (new_customer_id, old_customer_id))
+
+    def delete_for_customer(self, customer_id: str) -> None:
+        """CRM-11 merge support: drop a merged customer's redundant tax
+        profile when the master already has its own (see
+        ExecuteCustomerMergeUseCase — the master's profile always wins)."""
+        self._execute("DELETE FROM customer_tax_profiles WHERE customer_id=?", (customer_id,))
 
     @staticmethod
     def _params(profile: CustomerTaxProfile) -> tuple:

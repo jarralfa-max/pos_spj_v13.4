@@ -91,7 +91,6 @@ SCHEMA_CHANGES_OUTSIDE_MIGRATIONS_ALLOWLIST = {
     'pos_spj_v13.4/core/services/ai_advisor.py': 1,
     'pos_spj_v13.4/core/services/alert_engine.py': 1,
     'pos_spj_v13.4/core/services/alertas_service.py': 2,
-    'pos_spj_v13.4/core/services/cierre_caja_service.py': 2,
     'pos_spj_v13.4/core/services/compras_inventariables_engine.py': 1,
     'pos_spj_v13.4/core/services/cotizacion_service.py': 2,
     'pos_spj_v13.4/core/services/decision_engine.py': 1,

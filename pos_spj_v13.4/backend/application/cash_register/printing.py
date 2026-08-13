@@ -18,11 +18,15 @@ from backend.shared.ids import new_uuid, validate_uuidv7
 
 
 class CashPrintDocumentType(str, Enum):
+    OPENING = "OPENING"
     X_CUT = "X_CUT"
     Z_CUT = "Z_CUT"
     MOVEMENT_RECEIPT = "MOVEMENT_RECEIPT"
     SAFE_DROP = "SAFE_DROP"
+    BLIND_COUNT = "BLIND_COUNT"
+    DIFFERENCE = "DIFFERENCE"
     HANDOVER = "HANDOVER"
+    DEPOSIT_PREPARATION = "DEPOSIT_PREPARATION"
     REFUND = "REFUND"
 
 
@@ -87,6 +91,30 @@ class CashPrintJob:
 
 
 @dataclass(frozen=True, slots=True)
+class CashQueuedPrintJob:
+    print_id: str
+    printer_id: str
+    content: bytes
+    media_type: str
+    filename: str
+    copies: int
+
+    def __post_init__(self) -> None:
+        validate_uuidv7(self.print_id)
+        if not self.printer_id or not self.content or not self.media_type or not self.filename:
+            raise ValueError("Queued cash print job is incomplete")
+        if self.copies < 1 or self.copies > 10:
+            raise ValueError("Cash print copies must be between 1 and 10")
+
+
+@dataclass(frozen=True, slots=True)
+class CashPrintDispatchSummary:
+    processed: int
+    printed: int
+    failed: int
+
+
+@dataclass(frozen=True, slots=True)
 class PrintCashDocumentCommand:
     operation_id: str
     actor_user_id: str
@@ -114,6 +142,17 @@ class CashDocumentRenderer(Protocol):
 
 class CashPrintQueue(Protocol):
     def enqueue(self, job: CashPrintJob) -> None: ...
+
+
+class CashPrintJobStore(Protocol):
+    def list_pending_jobs(self, *, branch_id: str, limit: int = 25) -> tuple[CashQueuedPrintJob, ...]: ...
+    def mark_printed(self, *, print_id: str, actor_user_id: str,
+                     gateway_reference: str | None = None) -> None: ...
+    def mark_failed(self, *, print_id: str, actor_user_id: str, error: str) -> None: ...
+
+
+class CashPrintGateway(Protocol):
+    def print_job(self, job: CashQueuedPrintJob) -> str | None: ...
 
 
 class CashPrintAuditRepository(Protocol):
@@ -233,3 +272,49 @@ class PrintCashDocumentUseCase:
         self._audit.record(print_id=print_id, command=command, artifact=artifact,
                            status="QUEUED", event_payload=event_payload)
         return print_id
+
+
+class DispatchCashPrintQueueUseCase:
+    """Send queued print jobs after the business transaction has committed."""
+
+    def __init__(self, *, authorization: CashAuthorizationPolicy,
+                 store: CashPrintJobStore, gateway: CashPrintGateway) -> None:
+        self._authorization = authorization
+        self._store = store
+        self._gateway = gateway
+
+    def execute(self, *, branch_id: str, actor_user_id: str,
+                limit: int = 25) -> CashPrintDispatchSummary:
+        self._authorization.require(
+            user_id=actor_user_id,
+            permission_code=CashPermissions.PRINT,
+            branch_id=branch_id,
+        )
+        jobs = self._store.list_pending_jobs(
+            branch_id=branch_id,
+            limit=max(1, min(int(limit or 25), 100)),
+        )
+        printed = 0
+        failed = 0
+        for job in jobs:
+            try:
+                gateway_reference = self._gateway.print_job(job)
+            except Exception as exc:
+                failed += 1
+                self._store.mark_failed(
+                    print_id=job.print_id,
+                    actor_user_id=actor_user_id,
+                    error=str(exc) or exc.__class__.__name__,
+                )
+                continue
+            printed += 1
+            self._store.mark_printed(
+                print_id=job.print_id,
+                actor_user_id=actor_user_id,
+                gateway_reference=gateway_reference,
+            )
+        return CashPrintDispatchSummary(
+            processed=len(jobs),
+            printed=printed,
+            failed=failed,
+        )

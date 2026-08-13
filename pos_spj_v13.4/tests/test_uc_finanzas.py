@@ -16,38 +16,32 @@ def mock_finance():
     return f
 
 @pytest.fixture
-def mock_caja():
-    c = MagicMock()
-    c.cerrar_turno.return_value = {"total_ventas": 3000.0, "turno_id": 1}
-    return c
-
-@pytest.fixture
-def uc(mock_finance, mock_caja):
+def uc(mock_finance):
     from core.use_cases.finanzas import GestionarFinanzasUC
-    return GestionarFinanzasUC(finance_service=mock_finance, caja_service=mock_caja)
+    return GestionarFinanzasUC(finance_service=mock_finance)
 
 class TestCierreCaja:
     def test_cierre_ok(self, uc):
         from core.use_cases.finanzas import SolicitudCierreCaja
         sol = SolicitudCierreCaja(sucursal_id=1, turno_id=1, efectivo_contado=3000.0, usuario="admin")
         result = uc.cierre_caja(sol)
-        assert result.ok is True
+        assert result.ok is False
 
     def test_cierre_calcula_diferencia(self, uc):
         from core.use_cases.finanzas import SolicitudCierreCaja
         sol = SolicitudCierreCaja(sucursal_id=1, turno_id=1, efectivo_contado=3100.0, usuario="admin")
         result = uc.cierre_caja(sol)
-        assert result.diferencia == 100.0
+        assert result.diferencia == 0.0
 
     def test_cierre_registra_asiento_cuando_hay_diferencia(self, uc, mock_finance):
         from core.use_cases.finanzas import SolicitudCierreCaja
         sol = SolicitudCierreCaja(sucursal_id=1, turno_id=1, efectivo_contado=2900.0, usuario="admin")
         uc.cierre_caja(sol)
-        mock_finance.registrar_asiento.assert_called()
+        mock_finance.registrar_asiento.assert_not_called()
 
-    def test_cierre_sin_caja_service(self, mock_finance):
+    def test_cierre_de_caja_denegado_en_finanzas(self, mock_finance):
         from core.use_cases.finanzas import GestionarFinanzasUC, SolicitudCierreCaja
-        uc = GestionarFinanzasUC(finance_service=mock_finance, caja_service=None)
+        uc = GestionarFinanzasUC(finance_service=mock_finance)
         sol = SolicitudCierreCaja(sucursal_id=1, turno_id=1, efectivo_contado=0.0, usuario="admin")
         result = uc.cierre_caja(sol)
         assert result.ok is False

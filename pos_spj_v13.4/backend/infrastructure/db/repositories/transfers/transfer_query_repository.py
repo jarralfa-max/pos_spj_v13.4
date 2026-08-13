@@ -1,6 +1,6 @@
 """Read-only canonical Transfers workspace projection."""
 from backend.application.transfers.queries.workspace_query_service import (
-    TransferKPIViewModel, TransferPageViewModel, TransferRowViewModel,
+    BranchOptionViewModel, TransferKPIViewModel, TransferPageViewModel, TransferRowViewModel,
 )
 
 
@@ -54,3 +54,13 @@ class TransferWorkspaceQueryRepository:
                 statuses).fetchone()[0]
             result.append(TransferKPIViewModel(title, str(count), variant))
         return tuple(result)
+
+    def list_active_branches(self) -> tuple[BranchOptionViewModel, ...]:
+        rows = self._db.execute(
+            "SELECT id, nombre FROM sucursales WHERE activa = 1 ORDER BY nombre").fetchall()
+        return tuple(BranchOptionViewModel(id=str(r[0]), name=str(r[1])) for r in rows)
+
+    def product_base_unit_id(self, product_id: str) -> str | None:
+        row = self._db.execute(
+            "SELECT base_unit_id FROM products WHERE id = ?", (product_id,)).fetchone()
+        return row[0] if row is not None else None

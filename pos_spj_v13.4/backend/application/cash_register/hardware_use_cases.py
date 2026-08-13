@@ -42,6 +42,12 @@ class OpenCashDrawerUseCase:
     def execute(self, connection, *, drawer_id: str, branch_id: str,
                 actor_user_id: str, operation_id: str,
                 sale_id: str | None = None, reason: str = "") -> None:
+        validate_uuidv7(drawer_id)
+        validate_uuidv7(branch_id)
+        validate_uuidv7(actor_user_id)
+        validate_uuidv7(operation_id)
+        if sale_id is not None:
+            validate_uuidv7(sale_id)
         self._authorization.require(user_id=actor_user_id,
                                     permission_code=CashPermissions.DRAWER_OPEN,
                                     branch_id=branch_id)
@@ -53,7 +59,6 @@ class OpenCashDrawerUseCase:
                 permission_code=CashPermissions.DRAWER_OPEN_WITHOUT_SALE,
                 branch_id=branch_id,
             )
-        validate_uuidv7(operation_id)
         with CashRegisterUnitOfWork(connection) as uow:
             drawer = uow.devices.get("drawer", drawer_id)
             if not drawer or drawer["branch_id"] != branch_id:
@@ -115,6 +120,10 @@ class ChargePaymentTerminalUseCase:
     def execute(self, connection, *, terminal_id: str, amount: Decimal,
                 currency: str, reference: str, branch_id: str,
                 actor_user_id: str, operation_id: str):
+        validate_uuidv7(terminal_id)
+        validate_uuidv7(branch_id)
+        validate_uuidv7(actor_user_id)
+        validate_uuidv7(operation_id)
         self._authorization.require(user_id=actor_user_id,
                                     permission_code=CashPermissions.TERMINAL_OPERATE,
                                     branch_id=branch_id)

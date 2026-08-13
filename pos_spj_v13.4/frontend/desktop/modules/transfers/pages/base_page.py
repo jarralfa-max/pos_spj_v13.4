@@ -24,10 +24,10 @@ class TransferWorkspacePage(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(Spacing.LG, Spacing.MD, Spacing.LG, Spacing.LG)
         root.setSpacing(Spacing.MD)
-        action = create_primary_button(self, self.action_text)
-        action.setVisible(bool(self.action_text))
+        self.action_button = create_primary_button(self, self.action_text)
+        self.action_button.setVisible(bool(self.action_text))
         root.addWidget(PageHeader(self, title=self.title, subtitle=self.subtitle,
-                                  actions=[action] if self.action_text else []))
+                                  actions=[self.action_button] if self.action_text else []))
         self.search = SearchInput(self, placeholder="Buscar folio, origen o destino…")
         self.search.setAccessibleName(f"Buscar en {self.title}")
         self.search.search_changed.connect(self.reload)

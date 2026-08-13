@@ -58,6 +58,18 @@ class CashHandoverReceivedHandler(FinanceEventHandler):
         # Register -> general-cash custody is already represented by the Z cut.
 
 
+class CashDepositPreparedHandler(FinanceEventHandler):
+    event_name = "CASH_DEPOSIT_PREPARED"
+
+    def _handle(self, uow, payload: dict) -> None:
+        _uuid(payload, "deposit_id")
+        amount = self.money(payload, "amount", self.currency(payload))
+        if not amount.is_positive():
+            raise FinanceDomainError("Prepared deposit must be positive")
+        # Cash prepares a deposit package only. Treasury owns bank confirmation
+        # and Finance posts only TREASURY_CASH_DEPOSIT_CONFIRMED.
+
+
 class TreasuryCashDepositConfirmedHandler(FinanceEventHandler):
     event_name = "TREASURY_CASH_DEPOSIT_CONFIRMED"
 

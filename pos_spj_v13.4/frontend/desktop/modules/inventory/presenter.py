@@ -71,9 +71,6 @@ class InventoryPresenter:
                  update_warehouse_uc=None, deactivate_warehouse_uc=None,
                  create_zone_uc=None,
                  create_location_uc=None, set_location_status_uc=None,
-<<<<<<< HEAD
-                 inspect_receipt_uc=None,
-=======
                  update_location_uc=None, deactivate_location_uc=None,
                  reverse_movement_uc=None,
                  register_lot_uc=None, update_lot_uc=None,
@@ -83,8 +80,7 @@ class InventoryPresenter:
                  record_temperature_reading_uc=None,
                  resolve_temperature_excursion_uc=None,
                  create_reservation_uc=None, allocate_reservation_uc=None,
-                 release_reservation_uc=None,
->>>>>>> 42f747f4 (Refactir de modulo de Caja y merma)
+                 release_reservation_uc=None, inspect_receipt_uc=None,
                  session_context=None, event_dispatcher=None) -> None:
         self._conn = connection_provider
         self._availability_factory = availability_service_factory
@@ -128,9 +124,6 @@ class InventoryPresenter:
         self._create_zone_uc = create_zone_uc
         self._create_location_uc = create_location_uc
         self._set_location_status_uc = set_location_status_uc
-<<<<<<< HEAD
-        self._inspect_receipt_uc = inspect_receipt_uc
-=======
         self._update_location_uc = update_location_uc
         self._deactivate_location_uc = deactivate_location_uc
         self._reverse_movement_uc = reverse_movement_uc
@@ -147,7 +140,7 @@ class InventoryPresenter:
         self._create_reservation_uc = create_reservation_uc
         self._allocate_reservation_uc = allocate_reservation_uc
         self._release_reservation_uc = release_reservation_uc
->>>>>>> 42f747f4 (Refactir de modulo de Caja y merma)
+        self._inspect_receipt_uc = inspect_receipt_uc
         self._session = session_context
         self._dispatch = event_dispatcher
 
@@ -897,6 +890,30 @@ class InventoryPresenter:
             return bool(result.success), result.message, self._result_data(result)
         except Exception:
             logger.exception("InventoryPresenter.release_reservation failed")
+            return False, "Error inesperado; revise el log.", {}
+
+    def inspect_stock(self, *, balance_id: str, passed: bool,
+                      reason: str = "") -> tuple[bool, str, dict]:
+        """Aprueba (→ AVAILABLE) o rechaza (→ QUALITY_BLOCKED) una existencia
+        retenida para inspección (§34/P0-E)."""
+        if self._inspect_receipt_uc is None:
+            return False, "Inspección de existencias no disponible.", {}
+        bid = str(balance_id or "").strip()
+        if not bid:
+            return False, "Selecciona una existencia.", {}
+        try:
+            result = self._inspect_receipt_uc.execute(
+                self._conn(), balance_id=bid, passed=bool(passed),
+                operation_id=new_uuid(), actor_user_id=self._actor(),
+                reason=str(reason or "").strip())
+            if result.success and self._dispatch is not None:
+                try:
+                    self._dispatch()
+                except Exception:
+                    logger.exception("post-commit dispatch failed")
+            return bool(result.success), result.message, self._result_data(result)
+        except Exception:
+            logger.exception("InventoryPresenter.inspect_stock failed")
             return False, "Error inesperado; revise el log.", {}
 
     def generate_expiry_alerts(self) -> tuple[bool, str, dict]:
@@ -1683,23 +1700,6 @@ class InventoryPresenter:
             logger.exception("InventoryPresenter.set_location_status failed")
             return False, "Error inesperado; revise el log.", {}
 
-<<<<<<< HEAD
-    def inspect_stock(self, *, balance_id: str, passed: bool,
-                      reason: str = "") -> tuple[bool, str, dict]:
-        """Aprueba o rechaza una existencia retenida en inspección (§P0-E,
-        integración Compras→Inventario): antes de este comando, nada podía
-        sacar el stock del bucket PENDING_INSPECTION — la maquinaria de
-        calidad de lotes opera sobre un bucket distinto."""
-        if self._inspect_receipt_uc is None:
-            return False, "Inspección de existencias no disponible.", {}
-        bid = str(balance_id or "").strip()
-        if not bid:
-            return False, "Selecciona una existencia pendiente de inspección.", {}
-        try:
-            result = self._inspect_receipt_uc.execute(
-                self._conn(), balance_id=bid, passed=bool(passed),
-                operation_id=new_uuid(), actor_user_id=self._actor(),
-=======
     def deactivate_location(self, *, location_id: str,
                             reason: str = "") -> tuple[bool, str, dict]:
         """Retira una ubicación de servicio (§24 "Desactivar ubicación")."""
@@ -1711,7 +1711,6 @@ class InventoryPresenter:
         try:
             result = self._deactivate_location_uc.execute(
                 self._conn(), location_id=lid, actor_user_id=self._actor(),
->>>>>>> 42f747f4 (Refactir de modulo de Caja y merma)
                 reason=str(reason or "").strip())
             if result.success and self._dispatch is not None:
                 try:
@@ -1720,9 +1719,5 @@ class InventoryPresenter:
                     logger.exception("post-commit dispatch failed")
             return bool(result.success), result.message, self._result_data(result)
         except Exception:
-<<<<<<< HEAD
-            logger.exception("InventoryPresenter.inspect_stock failed")
-=======
             logger.exception("InventoryPresenter.deactivate_location failed")
->>>>>>> 42f747f4 (Refactir de modulo de Caja y merma)
             return False, "Error inesperado; revise el log.", {}

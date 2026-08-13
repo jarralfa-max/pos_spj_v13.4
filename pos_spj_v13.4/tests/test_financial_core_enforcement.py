@@ -7,7 +7,7 @@ Covers the six critical fixes applied:
   2. CreditSaleFinanceHandler — CxC + GL inside SAVEPOINT for credit sales
   3. SaleCancelledFinanceHandler — GL reversal on sale cancellation
   4. CustomerCreditService.register_credit_sale — GL asiento before commit
-  5. CierreCajaService.corte_z — asiento for cash discrepancies
+  5. Canonical Cash Register events — cash discrepancies are outside legacy close
   6. AnticipoCotizacionService.registrar_anticipo_pagado — asiento for advance payments
 """
 from __future__ import annotations
@@ -421,9 +421,10 @@ class TestCustomerCreditServiceAtomicity(unittest.TestCase):
         assert float(row["saldo_pendiente"]) == 750.0
 
 
-# ── 5. CierreCajaService corte Z discrepancy asiento ─────────────────────────
+# ── 5. Legacy cash close service removed in CASH-25 ──────────────────────────
 
-class TestCierreCajaDiscrepancyAsiento(unittest.TestCase):
+@unittest.skip("Legacy cash close service removed in CASH-25")
+class TestRemovedCashCloseDiscrepancyAsiento(unittest.TestCase):
 
     def setUp(self):
         self.db = _memory_db()
@@ -441,9 +442,7 @@ class TestCierreCajaDiscrepancyAsiento(unittest.TestCase):
         self.fs = _mock_finance()
 
     def _svc(self):
-        from core.services.cierre_caja_service import CierreCajaService
-        return CierreCajaService(conn=self.db, sucursal_id=1,
-                                  usuario="cajero1", finance_service=self.fs)
+        raise RuntimeError("Legacy cash close service removed in CASH-25")
 
     def test_surplus_posts_asiento(self):
         """Efectivo_contado > expected → sobrante → asiento debe=caja haber=diferencias."""
@@ -476,8 +475,7 @@ class TestCierreCajaDiscrepancyAsiento(unittest.TestCase):
         self.fs.registrar_asiento.assert_not_called()
 
     def test_corte_z_without_finance_service_does_not_crash(self):
-        from core.services.cierre_caja_service import CierreCajaService
-        svc = CierreCajaService(conn=self.db, sucursal_id=1, usuario="cajero1")
+        svc = self._svc()
         result = svc.corte_z(efectivo_contado=620.0)
         # Should complete without error even if no finance_service
         assert "cierre_id" in result

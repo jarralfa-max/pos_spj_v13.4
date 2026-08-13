@@ -31,10 +31,33 @@ class CashRegisterDomainArchitectureTests(unittest.TestCase):
             "CASH_REGISTER_CREATED", "CASH_DRAWER_ASSIGNED", "CASH_TERMINAL_ASSIGNED",
             "CASH_SHIFT_OPENED", "CASH_MOVEMENT_RECORDED", "CASH_BLIND_COUNT_CONFIRMED",
             "CASH_X_CUT_GENERATED", "CASH_Z_CUT_GENERATED", "CASH_DIFFERENCE_DETECTED",
-            "CASH_HANDOVER_RECEIVED",
+            "CASH_HANDOVER_RECEIVED", "CASH_DEPOSIT_PREPARED",
+            "CASH_REFUND_EXECUTED", "CASH_DRAWER_OPENED", "CASH_SHIFT_FORCE_CLOSED",
         }
         self.assertTrue(expected <= ALL_CASH_EVENTS)
         self.assertNotIn("CAJA_CERRADA", ALL_CASH_EVENTS)
+        self.assertNotIn("CASH_DEPOSIT_CONFIRMED", ALL_CASH_EVENTS)
+
+    def test_domain_exposes_cash_2_ownership_entities(self):
+        source = (DOMAIN / "entities.py").read_text(encoding="utf-8")
+        for required in (
+            "class CashRegister",
+            "class CashDrawer",
+            "class PosTerminal",
+            "class CashShift",
+            "class CashLedgerEntry",
+            "class CashLedger",
+            "class BlindCashCount",
+            "class XCut",
+            "class ZCut",
+            "class CashDifference",
+            "class CashHandover",
+            "class PaymentRecord",
+            "class PaymentAllocation",
+            "class CashRefundExecution",
+            "class DrawerOpenEvent",
+        ):
+            self.assertIn(required, source)
 
 
 if __name__ == "__main__":

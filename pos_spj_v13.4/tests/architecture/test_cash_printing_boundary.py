@@ -16,11 +16,17 @@ class CashPrintingBoundaryTests(unittest.TestCase):
             "CashDocumentHtmlRenderer",
             "CashDocumentEscPosRenderer",
             "CashPrintQueue",
+            "CashPrintJobStore",
+            "DispatchCashPrintQueueUseCase",
             "CashPrintAuditRepository",
             "original_print_id",
             "reprint_reason",
             "cash_event_payload",
             "CASH_DOCUMENT_PRINTED",
+            "OPENING",
+            "BLIND_COUNT",
+            "DIFFERENCE",
+            "DEPOSIT_PREPARATION",
         ):
             self.assertIn(required, source)
         for forbidden in (

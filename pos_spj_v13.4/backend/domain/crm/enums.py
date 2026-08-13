@@ -124,3 +124,31 @@ class ReminderChannel(str, Enum):
     EMAIL = "EMAIL"
     WHATSAPP_INTERNAL = "WHATSAPP_INTERNAL"
     PUSH_FUTURE = "PUSH_FUTURE"
+
+
+class OwnershipType(str, Enum):
+    """§33-36: "con historial de asignación — no solo vendedor_id plano".
+    PRIMARY is the only type kept in sync with the fast-path denormalized
+    Customer.account_owner_user_id field CRM-3 built for OWN-scope
+    resolution (see CustomerDataScopeResolver) — the other types are
+    informational roles that don't affect data-scope resolution."""
+
+    PRIMARY = "PRIMARY"
+    SECONDARY = "SECONDARY"
+    ACCOUNT_MANAGER = "ACCOUNT_MANAGER"
+    CREDIT_MANAGER = "CREDIT_MANAGER"
+    SERVICE_OWNER = "SERVICE_OWNER"
+
+
+class SegmentMembershipSource(str, Enum):
+    """§33-36: "MANUAL, RULE_BASED, IMPORTED, ANALYTICS_GENERATED" — how a
+    customer ended up in a segment. Lives on CustomerSegmentMembership, not
+    on CustomerSegment itself: the same segment can accumulate members from
+    more than one source over time (a manually-added member and a
+    BI-suggested one can coexist in the same segment), so the source is a
+    fact about the membership, not a property of the segment definition."""
+
+    MANUAL = "MANUAL"
+    RULE_BASED = "RULE_BASED"
+    IMPORTED = "IMPORTED"
+    ANALYTICS_GENERATED = "ANALYTICS_GENERATED"

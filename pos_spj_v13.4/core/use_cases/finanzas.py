@@ -47,45 +47,18 @@ class AsientoManualDTO:
 
 class GestionarFinanzasUC:
 
-    def __init__(self, finance_service=None, caja_service=None):
+    def __init__(self, finance_service=None):
         self._finance = finance_service
-        self._caja = caja_service
 
     def cierre_caja(self, solicitud: SolicitudCierreCaja) -> ResultadoCierreCaja:
-        if not self._caja:
-            return ResultadoCierreCaja(ok=False, error="caja_service no disponible")
-        try:
-            res = self._caja.cerrar_turno(
-                turno_id=solicitud.turno_id,
-                efectivo_contado=solicitud.efectivo_contado,
-            )
-            total_ventas = float(res.get("total_ventas", 0.0))
-            diferencia = round(solicitud.efectivo_contado - total_ventas, 2)
-
-            if self._finance and abs(diferencia) > 0.01:
-                cuenta_debe  = "1100-caja" if diferencia > 0 else "5200-diferencias"
-                cuenta_haber = "5200-diferencias" if diferencia > 0 else "1100-caja"
-                try:
-                    self._finance.registrar_asiento(
-                        debe=cuenta_debe,
-                        haber=cuenta_haber,
-                        concepto=f"Diferencia cierre turno {solicitud.turno_id}",
-                        monto=abs(diferencia),
-                        sucursal_id=solicitud.sucursal_id,
-                    )
-                except Exception as exc:
-                    logger.warning("asiento diferencia cierre: %s", exc)
-
-            return ResultadoCierreCaja(
-                ok=True,
-                # REGLA CERO: la identidad del turno es str (UUIDv7-ready); sin int().
-                turno_id=str(res.get("turno_id", solicitud.turno_id) or ""),
-                total_ventas=total_ventas,
-                diferencia=diferencia,
-            )
-        except Exception as exc:
-            logger.error("cierre_caja: %s", exc)
-            return ResultadoCierreCaja(ok=False, error=str(exc))
+        return ResultadoCierreCaja(
+            ok=False,
+            turno_id=str(solicitud.turno_id or ""),
+            error=(
+                "Cierre de Caja eliminado de Finanzas: usa el bounded context "
+                "canonico de Caja y consume eventos CASH_*."
+            ),
+        )
 
     def consultar_balance(self, sucursal_id: int = 1) -> ResultadoBalance:
         if not self._finance:

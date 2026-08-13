@@ -62,6 +62,10 @@ class CashCapabilities:
     deposit_view: bool
     deposit_prepare: bool
     payment_view: bool
+    payment_method_view: bool
+    payment_method_manage: bool
+    payment_terminal_view: bool
+    payment_terminal_manage: bool
     refund_view: bool
     refund_request: bool
     refund_execute: bool

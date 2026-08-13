@@ -9,7 +9,8 @@ from backend.shared.ids import new_uuid, validate_uuidv7
 from backend.domain.cash_register.enums import (
     BlindCountStatus, CashDifferenceClassification, CashDifferenceSeverity,
     CashDifferenceStatus, CashHandoverStatus,
-    CashMovementDirection, CashMovementType, CashShiftStatus, DeviceStatus,
+    CashMovementDirection, CashMovementType, CashPaymentMethodType,
+    CashRefundMethod, CashShiftStatus, DeviceStatus, DrawerOpenReason,
 )
 from backend.domain.cash_register.exceptions import (
     CashDuplicateOperationError, CashInvalidStateError,
@@ -405,3 +406,122 @@ class CashHandover:
             raise CashSegregationOfDutiesError("Handover receiver must differ from deliverer")
         self.received_by, self.status = received_by, CashHandoverStatus.RECEIVED
         self.received_at = _now()
+
+
+@dataclass(frozen=True, slots=True)
+class PaymentAllocation:
+    id: str
+    payment_record_id: str
+    method_type: CashPaymentMethodType
+    amount: Decimal
+    affects_drawer: bool
+    external_reference: str | None = None
+
+    @classmethod
+    def create(cls, *, payment_record_id: str, method_type: CashPaymentMethodType,
+               amount: Decimal, affects_drawer: bool,
+               external_reference: str | None = None) -> "PaymentAllocation":
+        _ids(payment_record_id)
+        return cls(new_uuid(), payment_record_id, method_type,
+                   money(amount, allow_zero=False), bool(affects_drawer),
+                   (external_reference or None))
+
+
+@dataclass(slots=True)
+class PaymentRecord:
+    id: str
+    sale_id: str
+    shift_id: str
+    branch_id: str
+    amount_to_settle: Decimal
+    operation_id: str
+    recorded_by: str
+    allocations: list[PaymentAllocation] = field(default_factory=list)
+    recorded_at: str = field(default_factory=_now)
+
+    @classmethod
+    def create(cls, *, sale_id: str, shift_id: str, branch_id: str,
+               amount_to_settle: Decimal, operation_id: str,
+               recorded_by: str) -> "PaymentRecord":
+        _ids(sale_id, shift_id, branch_id, operation_id, recorded_by)
+        return cls(new_uuid(), sale_id, shift_id, branch_id,
+                   money(amount_to_settle, allow_zero=False),
+                   operation_id, recorded_by)
+
+    def add_allocation(self, *, method_type: CashPaymentMethodType,
+                       amount: Decimal, affects_drawer: bool,
+                       external_reference: str | None = None) -> PaymentAllocation:
+        allocation = PaymentAllocation.create(
+            payment_record_id=self.id,
+            method_type=method_type,
+            amount=amount,
+            affects_drawer=affects_drawer,
+            external_reference=external_reference,
+        )
+        self.allocations.append(allocation)
+        return allocation
+
+    @property
+    def allocated_total(self) -> Decimal:
+        return sum((item.amount for item in self.allocations), Decimal("0"))
+
+    @property
+    def drawer_effect(self) -> Decimal:
+        return sum((item.amount for item in self.allocations if item.affects_drawer), Decimal("0"))
+
+    def confirm_balanced(self) -> None:
+        if self.allocated_total != self.amount_to_settle:
+            raise CashInvalidStateError("Payment allocations must equal amount_to_settle")
+
+
+@dataclass(frozen=True, slots=True)
+class CashRefundExecution:
+    id: str
+    refund_id: str
+    sale_id: str
+    shift_id: str
+    branch_id: str
+    method: CashRefundMethod
+    amount: Decimal
+    executed_by: str
+    authorized_by: str
+    operation_id: str
+    ledger_entry_id: str | None = None
+    executed_at: str = field(default_factory=_now)
+
+    @classmethod
+    def execute(cls, *, refund_id: str, sale_id: str, shift_id: str,
+                branch_id: str, method: CashRefundMethod, amount: Decimal,
+                executed_by: str, authorized_by: str, operation_id: str,
+                ledger_entry_id: str | None = None) -> "CashRefundExecution":
+        _ids(refund_id, sale_id, shift_id, branch_id, executed_by, authorized_by, operation_id)
+        if ledger_entry_id is not None:
+            _ids(ledger_entry_id)
+        if executed_by == authorized_by:
+            raise CashSegregationOfDutiesError("Refund execution requires independent authorization")
+        return cls(new_uuid(), refund_id, sale_id, shift_id, branch_id,
+                   method, money(amount, allow_zero=False), executed_by,
+                   authorized_by, operation_id, ledger_entry_id)
+
+
+@dataclass(frozen=True, slots=True)
+class DrawerOpenEvent:
+    id: str
+    drawer_id: str
+    shift_id: str
+    branch_id: str
+    opened_by: str
+    reason: DrawerOpenReason
+    operation_id: str
+    source_document_id: str | None = None
+    opened_at: str = field(default_factory=_now)
+
+    @classmethod
+    def record(cls, *, drawer_id: str, shift_id: str, branch_id: str,
+               opened_by: str, reason: DrawerOpenReason, operation_id: str,
+               source_document_id: str | None = None) -> "DrawerOpenEvent":
+        _ids(drawer_id, shift_id, branch_id, opened_by, operation_id)
+        if source_document_id is not None:
+            _ids(source_document_id)
+        return cls(new_uuid(), drawer_id, shift_id, branch_id, opened_by,
+                   reason, operation_id, source_document_id)

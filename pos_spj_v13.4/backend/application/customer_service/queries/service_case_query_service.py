@@ -53,6 +53,18 @@ class ServiceCaseQueryService:
                                                         CRMPermissions.CASES_VIEW_SENSITIVE)
         return [c for c in cases if not c.is_sensitive or can_view_sensitive]
 
+    def list_for_customer(self, customer_id: str, context: CRMScopeContext, *,
+                          limit: int = 200) -> list[CustomerServiceCase]:
+        """CRM-12: Customer 360's "casos" tab. Fetches by customer_id (not
+        assignee) then filters through the caller's resolved scope and
+        sensitive-case masking, same as ``list_directory``."""
+        scope = self._scope_resolver.resolve_view_scope(context, CASE_VIEW_SCOPE_PERMISSIONS)
+        cases = self._uow.cases.list_for_customer(customer_id, limit=limit)
+        can_view_sensitive = self._auth.has_permission(context.user_id,
+                                                        CRMPermissions.CASES_VIEW_SENSITIVE)
+        return [c for c in cases if self._in_scope(c, scope)
+                and (not c.is_sensitive or can_view_sensitive)]
+
     @staticmethod
     def _in_scope(case: CustomerServiceCase, scope: CRMDataScope) -> bool:
         if scope.axis == "OWN":
