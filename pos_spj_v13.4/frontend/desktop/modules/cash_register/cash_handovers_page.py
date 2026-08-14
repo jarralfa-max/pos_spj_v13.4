@@ -11,9 +11,10 @@ from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
 from frontend.desktop.modules.cash_register.cash_register_dialogs import (
-    CashDenominationDialog,
-    CashTextReasonDialog,
+    CashHandoverDenominationDialog,
+    DisputeCashHandoverDialog,
 )
+from frontend.desktop.modules.cash_register.presentation import display_code, status_label, user_facing_error
 
 
 class CashHandoversPage(QWidget):
@@ -21,6 +22,7 @@ class CashHandoversPage(QWidget):
         super().__init__(parent)
         self._query = query_service
         self._presenter = presenter
+        self._rows_by_id = {}
         root = QVBoxLayout(self)
         deliver = create_secondary_button(self, "Entregar")
         receive = create_secondary_button(self, "Recibir")
@@ -54,6 +56,7 @@ class CashHandoversPage(QWidget):
 
     def refresh(self):
         rows = self._query.list_for_branch(self._presenter.active_branch_id())
+        self._rows_by_id = {row.id: row for row in rows}
         pending = sum(1 for row in rows if row.status in {"PREPARED", "DELIVERED"})
         disputed = sum(1 for row in rows if row.status == "DISPUTED")
         self._kpis.set_cards([
@@ -63,8 +66,10 @@ class CashHandoversPage(QWidget):
         ])
         self._table.load_rows([
             [
-                row.prepared_at, row.status, self._money(row.amount),
-                row.prepared_by, row.delivered_by or "-", row.received_by or "-",
+                row.prepared_at, status_label(row.status), self._money(row.amount),
+                display_code("USR", row.prepared_by),
+                display_code("USR", row.delivered_by) if row.delivered_by else "-",
+                display_code("USR", row.received_by) if row.received_by else "-",
                 row.dispute_reason or "-",
             ]
             for row in rows
@@ -73,12 +78,21 @@ class CashHandoversPage(QWidget):
     def _selected_handover_id(self) -> str | None:
         return self._table.selected_row_id()
 
-    def _capture_denominations(self, title: str) -> dict[str, int] | None:
+    def _selected_handover(self):
+        handover_id = self._selected_handover_id()
+        return self._rows_by_id.get(handover_id or "")
+
+    def _capture_denominations(self, title: str, handover) -> dict[str, int] | None:
         denominations = tuple(self._presenter.denomination_options())
         if not denominations:
             self._show_error("No hay denominaciones activas configuradas.")
             return None
-        dialog = CashDenominationDialog(self, title=title, denominations=denominations)
+        dialog = CashHandoverDenominationDialog(
+            self,
+            title=title,
+            handover=handover,
+            denominations=denominations,
+        )
         if dialog.exec_() != dialog.Accepted:
             return None
         return dialog.result_value().quantities
@@ -87,14 +101,18 @@ class CashHandoversPage(QWidget):
         handover_id = self._selected_handover_id()
         if not handover_id:
             return
-        denominations = self._capture_denominations("Confirmar entrega")
+        handover = self._selected_handover()
+        if handover is None:
+            self._show_error("Selecciona una entrega vigente.")
+            return
+        denominations = self._capture_denominations("Confirmar entrega", handover)
         if denominations is None:
             return
         try:
             result = self._presenter.deliver_cash_handover(
                 handover_id=handover_id, denominations=denominations)
         except CashRegisterError as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
         self._show_result(getattr(result, "message", "Entrega confirmada"))
         self.refresh()
@@ -103,14 +121,18 @@ class CashHandoversPage(QWidget):
         handover_id = self._selected_handover_id()
         if not handover_id:
             return
-        denominations = self._capture_denominations("Confirmar recepcion")
+        handover = self._selected_handover()
+        if handover is None:
+            self._show_error("Selecciona una entrega vigente.")
+            return
+        denominations = self._capture_denominations("Confirmar recepcion", handover)
         if denominations is None:
             return
         try:
             result = self._presenter.receive_cash_handover(
                 handover_id=handover_id, denominations=denominations)
         except CashRegisterError as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
         self._show_result(getattr(result, "message", "Recepcion registrada"))
         self.refresh()
@@ -119,7 +141,11 @@ class CashHandoversPage(QWidget):
         handover_id = self._selected_handover_id()
         if not handover_id:
             return
-        dialog = CashTextReasonDialog(self, title="Disputar entrega")
+        handover = self._selected_handover()
+        if handover is None:
+            self._show_error("Selecciona una entrega vigente.")
+            return
+        dialog = DisputeCashHandoverDialog(self, handover=handover)
         if dialog.exec_() != dialog.Accepted:
             return
         try:
@@ -128,7 +154,7 @@ class CashHandoversPage(QWidget):
                 reason=dialog.result_value().reason,
             )
         except CashRegisterError as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
         self._show_result(getattr(result, "message", "Entrega disputada"))
         self.refresh()
@@ -137,4 +163,4 @@ class CashHandoversPage(QWidget):
         QMessageBox.information(self, "Caja", message)
 
     def _show_error(self, message: str) -> None:
-        QMessageBox.warning(self, "Caja", message or "No fue posible completar la entrega.")
+        QMessageBox.warning(self, "Caja", user_facing_error(message or "No fue posible completar la entrega."))

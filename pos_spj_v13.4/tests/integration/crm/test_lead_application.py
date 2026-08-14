@@ -10,7 +10,11 @@ from __future__ import annotations
 
 import pytest
 
-from backend.application.crm.authorization import CRMAuthorizationPolicy
+from backend.application.crm.authorization import (
+    AllowAllCRMPermissionCheckerForTests,
+    CRMAuthorizationPolicy,
+    DenyAllCRMPermissionCheckerForTests,
+)
 from backend.application.crm.data_scope import CRMDataScopeResolver, CRMScopeContext
 from backend.application.crm.permissions import CRMPermissions
 from backend.application.crm.queries.lead_directory_query_service import (
@@ -29,7 +33,7 @@ from backend.application.crm.use_cases.lead_use_cases import (
     UpdateLeadUseCase,
 )
 from backend.application.customers.authorization import CustomerAuthorizationPolicy
-from backend.domain.crm.exceptions import CRMScopeError, LeadNotFoundError
+from backend.domain.crm.exceptions import CRMDomainError, CRMScopeError, LeadNotFoundError
 from backend.shared.ids import new_uuid
 
 
@@ -345,3 +349,31 @@ class TestLeadDirectoryQueryService:
         results = service.list_directory(
             CRMScopeContext(user_id="u1", team_member_ids=("u1", "u2")))
         assert [l.id for l in results] == [mine]
+
+    def test_count_new_counts_unassigned_leads(self, crm_conn):
+        """CRM-15: a NEW lead has no assigned_user_id, so it can never
+        appear via list_directory()'s OWN/TEAM scoping — count_new() is the
+        one deliberately unscoped read that surfaces it."""
+        _create(crm_conn, name="Uno")
+        _create(crm_conn, name="Dos")
+        service = LeadDirectoryQueryService(
+            crm_conn, CRMDataScopeResolver(AllowAllCRMPermissionCheckerForTests()),
+            authorization=_allow_crm())
+        assert service.count_new(actor_user_id="u1") == 2
+
+    def test_count_new_excludes_assigned_leads(self, crm_conn):
+        lead_id = _create(crm_conn, name="Asignado").entity_id
+        AssignLeadUseCase(_allow_crm()).execute(
+            crm_conn, actor_user_id="u1", lead_id=lead_id, operation_id=new_uuid(),
+            assignee_user_id="u2")
+        service = LeadDirectoryQueryService(
+            crm_conn, CRMDataScopeResolver(AllowAllCRMPermissionCheckerForTests()),
+            authorization=_allow_crm())
+        assert service.count_new(actor_user_id="u1") == 0
+
+    def test_count_new_requires_permission(self, crm_conn):
+        service = LeadDirectoryQueryService(
+            crm_conn, CRMDataScopeResolver(DenyAllCRMPermissionCheckerForTests()),
+            authorization=CRMAuthorizationPolicy(DenyAllCRMPermissionCheckerForTests()))
+        with pytest.raises(CRMDomainError):
+            service.count_new(actor_user_id="u1")

@@ -16,7 +16,12 @@ from frontend.desktop.components.integer_input import IntegerInput
 from frontend.desktop.components.money_input import MoneyInput
 from frontend.desktop.components.text_inputs import PasswordInput, StandardLineEdit, StandardTextArea
 from frontend.desktop.components.tooltip import apply_tooltip
+from frontend.desktop.modules.cash_register.presentation import display_code, scope_label, status_label
 from frontend.desktop.themes.tokens import DialogMetrics
+
+
+def _money(value) -> str:
+    return f"${value:,.2f}"
 
 
 @dataclass(frozen=True)
@@ -42,6 +47,17 @@ class CashDenominationCaptureResult:
 @dataclass(frozen=True)
 class CashTextReasonResult:
     reason: str
+
+
+@dataclass(frozen=True)
+class CashHandoverDenominationResult:
+    quantities: dict[str, int]
+
+
+@dataclass(frozen=True)
+class CashDeviceDialogResult:
+    name: str
+    register_id: str | None
 
 
 @dataclass(frozen=True)
@@ -251,6 +267,275 @@ class CashTextReasonDialog(FormDialog):
         return CashTextReasonResult(reason=self.reason.value())
 
 
+class ExplainCashDifferenceDialog(FormDialog):
+    """Semantic dialog for cashier/supervisor explanation of a detected difference."""
+
+    def __init__(self, parent=None, *, difference) -> None:
+        super().__init__(parent, title="Explicar diferencia", width=DialogMetrics.WIDTH_MD)
+        amount = _money(getattr(difference, "amount", 0))
+        expected = _money(getattr(difference, "expected_amount", 0))
+        counted = _money(getattr(difference, "counted_amount", 0))
+        context = QLabel(
+            "\n".join((
+                f"Diferencia detectada: {amount}",
+                f"Turno: {display_code('TUR', getattr(difference, 'shift_id', ''))}",
+                f"Esperado: {expected}",
+                f"Contado: {counted}",
+                f"Severidad: {status_label(getattr(difference, 'severity', ''))}",
+            )),
+            self,
+        )
+        context.setWordWrap(True)
+        self.explanation = StandardTextArea(
+            self,
+            placeholder="Describe que ocurrio y agrega evidencia operacional si aplica",
+            max_length=700,
+        )
+        self.form.addRow("Contexto", context)
+        self.form.addRow("Explicacion", self.explanation)
+        self.add_button_box(ok_text="Guardar explicacion", cancel_text="Cancelar")
+
+    def accept(self) -> None:
+        if not self.explanation.value():
+            self.explanation.setFocus()
+            return
+        super().accept()
+
+    def result_value(self) -> CashTextReasonResult:
+        return CashTextReasonResult(reason=self.explanation.value())
+
+
+class ResolveCashDifferenceDialog(FormDialog):
+    """Semantic dialog for resolving a reviewed cash difference."""
+
+    def __init__(self, parent=None, *, difference) -> None:
+        super().__init__(parent, title="Resolver diferencia", width=DialogMetrics.WIDTH_MD)
+        context = QLabel(
+            "\n".join((
+                f"Diferencia: {_money(getattr(difference, 'amount', 0))}",
+                f"Estado: {status_label(getattr(difference, 'status', ''))}",
+                f"Severidad: {status_label(getattr(difference, 'severity', ''))}",
+                f"Explicacion previa: {getattr(difference, 'explanation', '') or 'Sin explicacion'}",
+                f"Recurrencia: {getattr(difference, 'recurrence_count', 0)}",
+            )),
+            self,
+        )
+        context.setWordWrap(True)
+        self.resolution = StandardTextArea(
+            self,
+            placeholder="Indica la resolucion operacional y el criterio aplicado",
+            max_length=700,
+        )
+        self.form.addRow("Contexto", context)
+        self.form.addRow("Resolucion", self.resolution)
+        self.add_button_box(ok_text="Resolver diferencia", cancel_text="Cancelar")
+
+    def accept(self) -> None:
+        if not self.resolution.value():
+            self.resolution.setFocus()
+            return
+        super().accept()
+
+    def result_value(self) -> CashTextReasonResult:
+        return CashTextReasonResult(reason=self.resolution.value())
+
+
+class CashHandoverDenominationDialog(FormDialog):
+    """Semantic denomination confirmation for value delivery/reception."""
+
+    def __init__(
+        self,
+        parent=None,
+        *,
+        title: str,
+        handover,
+        denominations: tuple[object, ...],
+    ) -> None:
+        super().__init__(parent, title=title, width=DialogMetrics.WIDTH_MD)
+        context = QLabel(
+            "\n".join((
+                f"Entrega: {display_code('ENT', getattr(handover, 'id', ''))}",
+                f"Turno: {display_code('TUR', getattr(handover, 'shift_id', ''))}",
+                f"Monto preparado: {_money(getattr(handover, 'amount', 0))}",
+                f"Estado: {status_label(getattr(handover, 'status', ''))}",
+                f"Preparo: {display_code('USR', getattr(handover, 'prepared_by', ''))}",
+            )),
+            self,
+        )
+        context.setWordWrap(True)
+        self.form.addRow("Contexto", context)
+        self._inputs: dict[str, IntegerInput] = {}
+        for denomination in denominations:
+            denomination_id = str(getattr(denomination, "id", ""))
+            if not denomination_id:
+                continue
+            label = str(getattr(denomination, "display_name", "")) or str(
+                getattr(denomination, "value", "")
+            )
+            field = IntegerInput(self, minimum=0)
+            self._inputs[denomination_id] = field
+            self.form.addRow(label, field)
+        self.add_button_box(ok_text="Confirmar", cancel_text="Cancelar")
+
+    def accept(self) -> None:
+        if not any(field.value() > 0 for field in self._inputs.values()):
+            if self._inputs:
+                next(iter(self._inputs.values())).setFocus()
+            return
+        super().accept()
+
+    def result_value(self) -> CashHandoverDenominationResult:
+        return CashHandoverDenominationResult(
+            quantities={
+                denomination_id: int(field.value())
+                for denomination_id, field in self._inputs.items()
+                if int(field.value()) > 0
+            }
+        )
+
+
+class DisputeCashHandoverDialog(FormDialog):
+    """Semantic dialog for a disputed value handover."""
+
+    def __init__(self, parent=None, *, handover) -> None:
+        super().__init__(parent, title="Reportar disputa", width=DialogMetrics.WIDTH_MD)
+        context = QLabel(
+            "\n".join((
+                f"Entrega: {display_code('ENT', getattr(handover, 'id', ''))}",
+                f"Monto: {_money(getattr(handover, 'amount', 0))}",
+                f"Estado: {status_label(getattr(handover, 'status', ''))}",
+                f"Entrego: {display_code('USR', getattr(handover, 'delivered_by', '')) if getattr(handover, 'delivered_by', '') else 'Pendiente'}",
+                f"Recibio: {display_code('USR', getattr(handover, 'received_by', '')) if getattr(handover, 'received_by', '') else 'Pendiente'}",
+            )),
+            self,
+        )
+        context.setWordWrap(True)
+        self.reason = StandardTextArea(
+            self,
+            placeholder="Describe la diferencia o disputa detectada",
+            max_length=700,
+        )
+        self.form.addRow("Contexto", context)
+        self.form.addRow("Motivo de disputa", self.reason)
+        self.add_button_box(ok_text="Reportar disputa", cancel_text="Cancelar")
+
+    def accept(self) -> None:
+        if not self.reason.value():
+            self.reason.setFocus()
+            return
+        super().accept()
+
+    def result_value(self) -> CashTextReasonResult:
+        return CashTextReasonResult(reason=self.reason.value())
+
+
+class CashDeviceActionDialog(FormDialog):
+    """Semantic reason dialog for hardware lifecycle and drawer override actions."""
+
+    def __init__(
+        self,
+        parent=None,
+        *,
+        title: str,
+        device,
+        placeholder: str,
+        ok_text: str = "Continuar",
+    ) -> None:
+        super().__init__(parent, title=title, width=DialogMetrics.WIDTH_MD)
+        context = QLabel(
+            "\n".join((
+                f"Dispositivo: {getattr(device, 'name', '') or 'Seleccionado'}",
+                f"Sucursal: {getattr(device, 'branch_name', '') or 'No especificada'}",
+                f"Asignacion: {getattr(device, 'assignment', '') or 'Sin asignacion'}",
+                f"Estado: {status_label(getattr(device, 'status', ''))}",
+                f"Hardware: {getattr(device, 'hardware_status', '') or 'No verificado'}",
+            )),
+            self,
+        )
+        context.setWordWrap(True)
+        self.reason = StandardTextArea(self, placeholder=placeholder, max_length=700)
+        self.form.addRow("Contexto", context)
+        self.form.addRow("Motivo", self.reason)
+        self.add_button_box(ok_text=ok_text, cancel_text="Cancelar")
+
+    def accept(self) -> None:
+        if not self.reason.value():
+            self.reason.setFocus()
+            return
+        super().accept()
+
+    def result_value(self) -> CashTextReasonResult:
+        return CashTextReasonResult(reason=self.reason.value())
+
+
+class CashDeviceDialog(FormDialog):
+    """Capture device creation data without exposing UUIDs to the operator."""
+
+    _KIND_LABELS = {
+        "register": "Caja",
+        "drawer": "Cajón",
+        "terminal": "Terminal",
+    }
+
+    def __init__(
+        self,
+        parent=None,
+        *,
+        kind: str,
+        registers: tuple[object, ...] = (),
+        title: str = "Nuevo dispositivo",
+    ) -> None:
+        super().__init__(parent, title=title, width=DialogMetrics.WIDTH_MD)
+        self._kind = kind
+        self.name = StandardLineEdit(
+            self,
+            placeholder=f"Nombre operativo de {self._KIND_LABELS.get(kind, 'dispositivo').lower()}",
+            max_length=120,
+            required=True,
+        )
+        self.register = QComboBox(self)
+        self.register.setObjectName("standardComboBox")
+        self.register.addItem("Selecciona una caja", "")
+        for row in registers:
+            register_id = str(getattr(row, "id", "") or "")
+            if not register_id:
+                continue
+            label = str(getattr(row, "name", "") or register_id)
+            branch = str(getattr(row, "branch_name", "") or "")
+            if branch:
+                label = f"{label} — {branch}"
+            self.register.addItem(label, register_id)
+        apply_tooltip(self.name, "Nombre visible para operación y auditoría.")
+        apply_tooltip(self.register, "Caja física a la que quedará asignado este dispositivo.")
+        self.form.addRow("Tipo", QLabel(self._KIND_LABELS.get(kind, kind), self))
+        self.form.addRow("Nombre", self.name)
+        if kind in {"drawer", "terminal"}:
+            self.form.addRow("Caja", self.register)
+        else:
+            self.register.setVisible(False)
+        self.add_button_box(ok_text="Crear", cancel_text="Cancelar")
+
+    def _validate(self) -> bool:
+        if not self.name.value():
+            self.name.setFocus()
+            return False
+        if self._kind in {"drawer", "terminal"} and not self.register.currentData():
+            self.register.setFocus()
+            return False
+        return True
+
+    def accept(self) -> None:
+        if self._validate():
+            super().accept()
+
+    def result_value(self) -> CashDeviceDialogResult:
+        register_id = self.register.currentData()
+        return CashDeviceDialogResult(
+            name=self.name.value(),
+            register_id=str(register_id) if register_id else None,
+        )
+
+
 class CashShiftOpeningDialog(FormDialog):
     """Capture opening float for the active register/drawer/terminal assignment."""
 
@@ -290,34 +575,47 @@ class CashConfigurationDialog(FormDialog):
         self.scope_type = QComboBox(self)
         self.scope_type.setObjectName("standardComboBox")
         for value in ("SYSTEM", "COMPANY", "BRANCH", "REGISTER", "USER"):
-            self.scope_type.addItem(value, value)
+            self.scope_type.addItem(scope_label(value), value)
         self.scope_id = StandardLineEdit(
             self,
-            placeholder="UUID de alcance si no es SYSTEM",
+            placeholder="Buscar o seleccionar entidad del alcance",
             max_length=80,
         )
         self.effective_from = StandardLineEdit(
             self,
-            placeholder="ISO-8601 opcional; vacio = ahora",
+            placeholder="Vigente desde; vacio = ahora",
             max_length=40,
         )
         self.effective_to = StandardLineEdit(
             self,
-            placeholder="ISO-8601 opcional",
+            placeholder="Vigente hasta opcional",
             max_length=40,
         )
         apply_tooltip(self.name, "Clave canonica del ajuste, denominacion, medio, limite o alerta.")
         apply_tooltip(self.value, "Valor persistido por Caja; el backend valida formato y alcance.")
         apply_tooltip(self.scope_type, "Jerarquia efectiva de configuracion.")
-        apply_tooltip(self.scope_id, "Requerido para alcances distintos de SYSTEM.")
+        apply_tooltip(self.scope_id, "Requerido para alcances especificos como sucursal, caja o usuario.")
         self.form.addRow("Seccion", QLabel(section, self))
         self.form.addRow("Nombre", self.name)
         self.form.addRow("Valor", self.value)
-        self.form.addRow("Alcance", self.scope_type)
-        self.form.addRow("Scope ID", self.scope_id)
+        self.form.addRow("Aplicar en", self.scope_type)
+        self.form.addRow("Entidad", self.scope_id)
         self.form.addRow("Vigente desde", self.effective_from)
         self.form.addRow("Vigente hasta", self.effective_to)
+        self.scope_type.currentIndexChanged.connect(self._sync_scope_controls)
+        self._sync_scope_controls()
         self.add_button_box(ok_text="Guardar", cancel_text="Cancelar")
+
+    def _sync_scope_controls(self) -> None:
+        specific = self.scope_type.currentData() != "SYSTEM"
+        self.scope_id.setEnabled(specific)
+        if not specific:
+            self.scope_id.clear()
+            self.scope_id.setPlaceholderText("No aplica para todo el sistema")
+        else:
+            self.scope_id.setPlaceholderText(
+                f"Buscar {scope_label(self.scope_type.currentData()).lower()}"
+            )
 
     def _validate(self) -> bool:
         if not self.name.value():
@@ -362,18 +660,18 @@ class CashRefundDialog(FormDialog):
     def __init__(self, parent=None, *, title: str = "Ejecutar reembolso") -> None:
         super().__init__(parent, title=title, width=DialogMetrics.WIDTH_MD)
         self.refund_id = StandardLineEdit(
-            self, placeholder="UUID del reembolso autorizado por Ventas", max_length=80, required=True)
+            self, placeholder="Buscar autorizacion, folio o ticket", max_length=80, required=True)
         self.sale_id = StandardLineEdit(
-            self, placeholder="UUID de la venta original", max_length=80, required=True)
+            self, placeholder="Venta, folio o ticket seleccionado", max_length=80, required=True)
         self.authorized_by = StandardLineEdit(
-            self, placeholder="Usuario autorizador", max_length=80, required=True)
+            self, placeholder="Nombre del autorizador", max_length=80, required=True)
         self.reason = StandardTextArea(
             self, placeholder="Motivo autorizado por Ventas", max_length=500)
         self._original_inputs: dict[str, MoneyInput] = {}
         self._refund_inputs: dict[str, MoneyInput] = {}
-        self.form.addRow("Reembolso", self.refund_id)
-        self.form.addRow("Venta", self.sale_id)
-        self.form.addRow("Autoriza", self.authorized_by)
+        self.form.addRow("Autorizacion", self.refund_id)
+        self.form.addRow("Venta / folio", self.sale_id)
+        self.form.addRow("Autorizado por", self.authorized_by)
         self.form.addRow("Motivo", self.reason)
         for code, label in self._SETTLEMENTS:
             original = MoneyInput(self)

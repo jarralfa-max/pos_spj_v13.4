@@ -45,6 +45,32 @@ class ClienteService:
         """Get loyalty points movements for a client."""
         return self._repo.get_movimientos_puntos(cliente_id)
 
+    def get_crm_loyalty_summary(self, cliente_id: str) -> Optional[Dict]:
+        """CRM-21: enrolled/tier/points/lifetime-amount from the Customer
+        Master's ``LoyaltyCustomerSummaryQuery`` (CRM-13), additive to the
+        legacy ``get_movimientos_puntos`` ledger above. Called with the
+        LEGACY ``cliente_id`` directly — the query's own SQL filters
+        ``loyalty_snapshots.cliente_id`` by whatever id it's given, and that
+        column already holds this legacy id (see the query's docstring for
+        why), so no identity bridging is needed here. Returns ``None``
+        (never raises to the UI) if the Customer Master's permission
+        checker isn't wired for this deployment yet — a separate,
+        pre-existing gap this method can't close on its own."""
+        try:
+            from backend.application.customers.queries.loyalty_customer_summary_query import (
+                LoyaltyCustomerSummaryQuery,
+            )
+            summary = LoyaltyCustomerSummaryQuery(self._repo.db).get_summary(
+                str(cliente_id), actor_user_id="SISTEMA")
+        except Exception as e:
+            logger.debug("get_crm_loyalty_summary unavailable for %s: %s", cliente_id, e)
+            return None
+        return {
+            "enrolled": summary.enrolled, "current_points": summary.current_points,
+            "tier": summary.tier, "visits": summary.visits,
+            "lifetime_amount": summary.lifetime_amount,
+        }
+
     # ── Mutaciones ────────────────────────────────────────────────────────
 
     def crear(self, nombre: str, telefono: str = "", email: str = "",

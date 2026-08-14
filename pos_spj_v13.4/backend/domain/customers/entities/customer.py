@@ -78,6 +78,12 @@ class Customer:
     # directly (CRM does not register sales, per §49).
     last_purchase_at: str | None = None
     purchase_count: int = 0
+    # CRM-21 (migración de consumidores): bridges this aggregate to the
+    # legacy ``clientes.id`` row it was backfilled/resolved from, when
+    # applicable. None for customers created natively in this bounded
+    # context (e.g. CRM-18's Alta rápida). See
+    # backend/application/customers/use_cases/legacy_customer_bridge_use_cases.py.
+    legacy_customer_id: str | None = None
 
     # construction --------------------------------------------------------
     @classmethod
@@ -88,6 +94,7 @@ class Customer:
         origin_branch_id: str | None = None, account_owner_user_id: str | None = None,
         territory_id: str | None = None, created_by_user_id: str | None = None,
         operation_id: str | None = None, as_prospect: bool = False,
+        legacy_customer_id: str | None = None,
     ) -> "Customer":
         if not display_name or not display_name.strip():
             raise InvalidCustomerStateError("display_name es obligatorio")
@@ -102,6 +109,7 @@ class Customer:
             operation_id=operation_id,
             status=CustomerStatus.PROSPECT if as_prospect else CustomerStatus.ACTIVE,
             lifecycle_stage=LifecycleStage.PROSPECT if as_prospect else LifecycleStage.CUSTOMER,
+            legacy_customer_id=legacy_customer_id,
         )
 
     def _touch(self) -> None:

@@ -291,7 +291,7 @@ class MenuLateral(QFrame):
         layout_botones.addWidget(self._crear_boton("📦 Inventario", "INVENTARIO"))
         layout_botones.addWidget(self._crear_boton("🔄 Transferencias", "TRANSFERENCIAS"))
         layout_botones.addWidget(self._crear_boton("🏷️ Productos", "PRODUCTOS"))
-        layout_botones.addWidget(self._crear_boton("👥 Clientes", "CLIENTES"))
+        layout_botones.addWidget(self._crear_boton("👥 Clientes y CRM", "CLIENTES_CRM"))
         layout_botones.addWidget(self._crear_boton("Mermas", "MERMAS"))
 
         # --- SECCIÓN: COMERCIAL ---

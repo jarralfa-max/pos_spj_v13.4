@@ -1,5 +1,7 @@
 # api/routers/pedidos.py — Endpoints de pedidos (WhatsApp / delivery)
 from __future__ import annotations
+import logging
+from dataclasses import asdict
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -7,6 +9,8 @@ from pydantic import BaseModel, Field
 from api.deps import get_db, get_container
 from api.auth import verify_api_key
 from backend.shared.ids import new_uuid
+
+logger = logging.getLogger("spj.api.pedidos")
 
 router = APIRouter(prefix="/pedidos", tags=["pedidos"])
 
@@ -119,7 +123,26 @@ async def get_pedido(
         "FROM detalles_venta WHERE venta_id=?",
         (pedido_id,)
     ).fetchall()
-    return {"pedido": dict(row), "items": [dict(i) for i in items]}
+
+    # CRM-21: additive CRM delivery summary — CustomerDeliverySummaryQuery
+    # accepts the LEGACY cliente_id directly (see its own docstring: no
+    # identity bridging needed), same as CustomerOrdersSummaryQuery. Never
+    # blocks/breaks the pedido response if the Customer Master's permission
+    # checker isn't wired for this deployment yet.
+    crm_delivery_summary = None
+    cliente_id = dict(row).get("cliente_id")
+    if cliente_id:
+        try:
+            from backend.application.customers.queries.customer_delivery_summary_query import (
+                CustomerDeliverySummaryQuery,
+            )
+            crm_delivery_summary = asdict(CustomerDeliverySummaryQuery(db).get_summary(
+                cliente_id, actor_user_id="WHATSAPP_BOT"))
+        except Exception as e:
+            logger.debug("crm_delivery_summary unavailable for pedido %s: %s", pedido_id, e)
+
+    return {"pedido": dict(row), "items": [dict(i) for i in items],
+            "crm_delivery_summary": crm_delivery_summary}
 
 
 @router.patch("/{pedido_id}/estado")

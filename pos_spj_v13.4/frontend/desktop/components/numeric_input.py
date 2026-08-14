@@ -6,6 +6,9 @@ from decimal import Decimal
 
 from PyQt5.QtWidgets import QDoubleSpinBox
 
+from frontend.desktop.components.virtual_keyboard import attach_virtual_keyboard_action
+from frontend.desktop.themes.tokens import TouchTarget
+
 
 class NumericInput(QDoubleSpinBox):
     """Base numeric input that starts at zero and centralizes formatting."""
@@ -16,6 +19,8 @@ class NumericInput(QDoubleSpinBox):
         self.setRange(minimum, maximum)
         self.setValue(0)
         self.setKeyboardTracking(False)
+        self.setMinimumHeight(TouchTarget.INPUT_HEIGHT)
+        attach_virtual_keyboard_action(self.lineEdit(), numeric=True)
 
     def decimal_value(self) -> Decimal:
         return Decimal(str(self.value()))

@@ -10,7 +10,11 @@ from frontend.desktop.components.kpi_bar import KPIBar
 from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
-from frontend.desktop.modules.cash_register.cash_register_dialogs import CashTextReasonDialog
+from frontend.desktop.modules.cash_register.cash_register_dialogs import (
+    ExplainCashDifferenceDialog,
+    ResolveCashDifferenceDialog,
+)
+from frontend.desktop.modules.cash_register.presentation import status_label, user_facing_error
 
 
 class CashDifferencesPage(QWidget):
@@ -18,6 +22,7 @@ class CashDifferencesPage(QWidget):
         super().__init__(parent)
         self._query = query_service
         self._presenter = presenter
+        self._rows_by_id = {}
         root = QVBoxLayout(self)
         explain = create_secondary_button(self, "Explicar")
         review = create_secondary_button(self, "Revisar")
@@ -55,6 +60,7 @@ class CashDifferencesPage(QWidget):
             branch_id=self._presenter.active_branch_id(),
             requester_user_id=self._presenter.actor_user_id(),
         )
+        self._rows_by_id = {row.id: row for row in rows}
         pending = sum(1 for row in rows if row.status != "RESOLVED")
         critical = sum(1 for row in rows if row.severity == "CRITICAL")
         self._kpis.set_cards([
@@ -64,7 +70,7 @@ class CashDifferencesPage(QWidget):
         ])
         self._table.load_rows([
             [
-                row.status, row.classification, row.severity,
+                status_label(row.status), status_label(row.classification), status_label(row.severity),
                 self._money(row.amount), self._money(row.tolerance_amount),
                 row.recurrence_count, row.explanation or "-", row.resolution or "-",
             ]
@@ -74,9 +80,14 @@ class CashDifferencesPage(QWidget):
     def _selected_difference_id(self) -> str | None:
         return self._table.selected_row_id()
 
+    def _selected_difference(self):
+        difference_id = self._selected_difference_id()
+        return self._rows_by_id.get(difference_id or "")
+
     def _explain(self) -> None:
         self._run_text_transition(
-            title="Explicar diferencia",
+            dialog_factory=lambda difference: ExplainCashDifferenceDialog(
+                self, difference=difference),
             command=lambda difference_id, text: self._presenter.explain_cash_difference(
                 difference_id=difference_id, explanation=text),
             success="Diferencia explicada",
@@ -89,30 +100,35 @@ class CashDifferencesPage(QWidget):
         try:
             result = self._presenter.review_cash_difference(difference_id=difference_id)
         except CashRegisterError as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
         self._show_result(getattr(result, "message", "Diferencia en revision"))
         self.refresh()
 
     def _resolve(self) -> None:
         self._run_text_transition(
-            title="Resolver diferencia",
+            dialog_factory=lambda difference: ResolveCashDifferenceDialog(
+                self, difference=difference),
             command=lambda difference_id, text: self._presenter.resolve_cash_difference(
                 difference_id=difference_id, resolution=text),
             success="Diferencia resuelta",
         )
 
-    def _run_text_transition(self, *, title: str, command, success: str) -> None:
+    def _run_text_transition(self, *, dialog_factory, command, success: str) -> None:
         difference_id = self._selected_difference_id()
         if not difference_id:
             return
-        dialog = CashTextReasonDialog(self, title=title)
+        difference = self._selected_difference()
+        if difference is None:
+            self._show_error("Selecciona una diferencia vigente.")
+            return
+        dialog = dialog_factory(difference)
         if dialog.exec_() != dialog.Accepted:
             return
         try:
             result = command(difference_id, dialog.result_value().reason)
         except CashRegisterError as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
         self._show_result(getattr(result, "message", success))
         self.refresh()
@@ -121,4 +137,4 @@ class CashDifferencesPage(QWidget):
         QMessageBox.information(self, "Caja", message)
 
     def _show_error(self, message: str) -> None:
-        QMessageBox.warning(self, "Caja", message or "No fue posible completar la diferencia.")
+        QMessageBox.warning(self, "Caja", user_facing_error(message or "No fue posible completar la diferencia."))

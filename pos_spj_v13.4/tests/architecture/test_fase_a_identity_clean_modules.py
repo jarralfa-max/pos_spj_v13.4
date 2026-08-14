@@ -27,7 +27,9 @@ BRANCH_CLEAN_MODULES = [
     "modulos/whatsapp/whatsapp_module.py",
     "modulos/rrhh.py",
     "modulos/etiquetas.py",
-    "modulos/clientes.py",
+    # modulos/clientes.py eliminado — reemplazado por
+    # frontend/desktop/modules/customers_crm/ (ver
+    # docs/refactor/CRM-24_retiro_modulo_legacy.md).
     "modulos/fidelidad_config.py",
     "modulos/configuracion.py",
 ]

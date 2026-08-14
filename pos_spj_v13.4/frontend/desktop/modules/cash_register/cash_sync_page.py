@@ -15,6 +15,7 @@ from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
 from frontend.desktop.modules.cash_register.cash_register_dialogs import CashTextReasonDialog
+from frontend.desktop.modules.cash_register.presentation import display_code, status_label, user_facing_error
 
 
 class CashSyncPage(QWidget):
@@ -88,7 +89,7 @@ class CashSyncPage(QWidget):
             state = self._presenter.cash_sync_state()
             rows = self._presenter.cash_sync_records()
         except (CashRegisterError, RuntimeError, ValueError, LookupError) as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             self._kpis.set_cards([
                 KPIDTO("state", "Estado", "No disponible"),
                 KPIDTO("pending", "Pendientes", "0"),
@@ -98,7 +99,7 @@ class CashSyncPage(QWidget):
             self._table.load_rows([])
             return
         self._kpis.set_cards([
-            KPIDTO("state", "Estado", f"{state.get('connectivity')} / {state.get('sync_status')}"),
+            KPIDTO("state", "Estado", f"{status_label(state.get('connectivity'))} / {status_label(state.get('sync_status'))}"),
             KPIDTO("pending", "Pendientes", str(state.get("pending_count", 0))),
             KPIDTO("conflicts", "Conflictos", str(state.get("conflict_count", 0))),
             KPIDTO("synced", "Sincronizados", str(state.get("synced_count", 0))),
@@ -108,12 +109,12 @@ class CashSyncPage(QWidget):
                 [
                     row.get("sequence_no", ""),
                     row.get("event_name", ""),
-                    row.get("state", ""),
+                    status_label(row.get("state", "")),
                     row.get("attempt_count", ""),
                     row.get("next_attempt_at", ""),
                     row.get("remote_revision", ""),
-                    row.get("operation_id", ""),
-                    row.get("last_error", ""),
+                    display_code("OP", row.get("operation_id", "")),
+                    user_facing_error(row.get("last_error", "")) if row.get("last_error") else "",
                 ]
                 for row in rows
             ],
@@ -154,7 +155,7 @@ class CashSyncPage(QWidget):
         try:
             result = command()
         except (CashRegisterError, RuntimeError, ValueError, LookupError) as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
         if result is not None and hasattr(result, "status"):
             self._show_result(
@@ -176,4 +177,4 @@ class CashSyncPage(QWidget):
         QMessageBox.information(self, "Caja", message)
 
     def _show_error(self, message: str) -> None:
-        QMessageBox.warning(self, "Caja", message or "No fue posible completar la operacion.")
+        QMessageBox.warning(self, "Caja", user_facing_error(message or "No fue posible completar la operacion."))

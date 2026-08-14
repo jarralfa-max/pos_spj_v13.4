@@ -10,3 +10,9 @@ class CustomerGateway:
 
     def create_minimal(self, nombre: str, telefono: str):
         return self._bridge._create_cliente_minimo_impl(nombre, telefono)
+
+    def get_crm_summary(self, cliente_id: str):
+        """CRM-21: loyalty/order summary from the Customer Master, if the
+        ERP's CRM read-side integration is reachable. See
+        ERPBridge.get_crm_summary."""
+        return self._bridge.get_crm_summary(cliente_id)

@@ -5,6 +5,49 @@ documentarse aquí antes del commit.
 
 ---
 
+## 193_customers_legacy_identity_bridge — 2026-08-13
+
+**Motivo:** CRM-21 — "Migración de consumidores" (POS, Ventas, WhatsApp,
+Delivery, Fidelidad, Finanzas). CRM-13 built a full read-side integration
+layer for the Customer Master (`backend/application/customers/queries/*`,
+`backend/application/customer_credit/queries/*`,
+`sales_event_handlers.py`) but left it deliberately inert: the legacy
+`clientes` table (all real production data) and the new `customers` table
+(CRM-3, essentially unused in production) are two separate tables with
+independently-minted UUIDv7 ids and no bridge between them — named
+explicitly as deferred to "CRM-21/22" in three places in the CRM-13 code.
+
+**Cambio:** agrega `customers.legacy_customer_id TEXT` (nullable) +
+`idx_customers_legacy_id` (índice único parcial, `WHERE legacy_customer_id
+IS NOT NULL`, para no colisionar en NULL entre clientes nativos del nuevo
+bounded context). Same idempotent `_add_column` pattern as migration 192.
+DDL also added to the born-clean path in
+`backend/infrastructure/db/schema/customers_crm_schema.py` so a fresh DB
+gets the column from `create_customers_crm_schema()` directly.
+
+**No migra `clientes` en sí.** El puente es de solo lectura/resolución:
+`backend/application/customers/use_cases/legacy_identity_bridge_use_cases.py`
+añade `ResolveLegacyCustomerUseCase` (resuelve o crea perezosamente una fila
+`customers` bridge para un `clientes.id` dado) y
+`BackfillLegacyCustomersUseCase` (backfill por lotes, vía
+`tools/crm/backfill_legacy_customers.py`). Los seis módulos consumidores
+(POS/Ventas, WhatsApp, Delivery, Fidelidad, Finanzas) siguen escribiendo en
+`clientes` exactamente igual que antes — reescribir esas rutas de escritura
+al nuevo `customers` es trabajo futuro (CRM-22+), explícitamente fuera de
+alcance de esta fase por el riesgo de mover datos financieros reales sin una
+migración de producción dedicada (CLAUDE.md Prioridad 0).
+
+Investigación confirmó que solo dos consumidores de CRM-13 necesitaban este
+puente (`sales_event_handlers.py` vía `RecordCustomerSaleActivityUseCase` y
+`CustomerCommercialEligibilityQuery`, ambos leen la tabla `customers`
+nueva por id) — las otras tres queries de integración
+(`CustomerOrdersSummaryQuery`/`LoyaltyCustomerSummaryQuery`/
+`CustomerAccountsReceivableSummaryQuery`) ya funcionan correctamente contra
+datos reales al recibir directamente el `cliente_id` legacy, sin traducción
+de identidad. Ver `docs/refactor/CRM-21_migracion_consumidores.md`.
+
+---
+
 ## 187_meat_processing_bounded_context_schema — 2026-08-12
 
 **Motivo:** PROC-3 — esquema born-clean del bounded context Procesamiento

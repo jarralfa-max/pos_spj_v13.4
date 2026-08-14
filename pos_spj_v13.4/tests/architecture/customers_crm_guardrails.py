@@ -77,9 +77,10 @@ ALL_CRM_CODE_ROOTS = CRM_BACKEND_ROOTS + (CRM_UI_ROOT,)
 # guardrail suite exists to eventually make obsolete (CRM-21/22). Tracked
 # centrally so no test has to hardcode this list independently.
 LEGACY_CUSTOMER_FILES = (
-    "modulos/clientes.py",
+    # modulos/clientes.py and core/services/cliente_query_service.py were
+    # retired (see docs/refactor/CRM-24_retiro_modulo_legacy.md) — removed
+    # from here per this tuple's own rule ("no solo bajar de número").
     "core/services/cliente_service.py",
-    "core/services/cliente_query_service.py",
     "core/use_cases/cliente.py",
     "repositories/cliente_repository.py",
     "api/routers/clientes.py",

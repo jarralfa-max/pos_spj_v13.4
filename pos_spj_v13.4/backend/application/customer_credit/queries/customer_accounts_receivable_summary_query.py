@@ -16,15 +16,18 @@ persisted anywhere in this bounded context — see
 ``fecha + payment_terms_days`` (from the caller's ``CustomerCreditProfile``),
 same derived-not-stored discipline as CRM-6/7's OVERDUE/breach-status.
 
-**Known data-model gap, not a bug in this query**: ``cuentas_por_cobrar.
-cliente_id`` was created against the legacy integer ``clientes`` table
-(``migrations/m000_base_schema.py``), not CRM-3's UUIDv7 ``customers``
-table — the CRM-0 audit documented these as two unreconciled customer
-identities, and unifying them is explicitly deferred to CRM-21/22. Until
-then, this query correctly returns zero exposure for any customer that
-only exists in the new ``customers`` table and has no matching legacy
-``cliente_id`` rows — that is accurate given today's data, not a silent
-failure to hide.
+**Data-model note, not a bug in this query**: ``cuentas_por_cobrar.
+cliente_id`` was created against the legacy ``clientes`` table
+(``migrations/m000_base_schema.py`` — ``clientes.id`` is itself a TEXT
+UUIDv7, just a separately-minted one, not an integer), not CRM-3's
+``customers`` table. CRM-0 documented these as two unreconciled customer
+identities; CRM-21 added a bridge column (``customers.legacy_customer_id``,
+migration 193, resolved via ``ResolveLegacyCustomerUseCase``) but this
+query itself needs no change from it — call it directly with the LEGACY
+``cliente_id`` (not the new ``customers.id``) and it already returns real
+exposure, since ``cuentas_por_cobrar`` was never migrated and still keys on
+the legacy id. Passing a new ``customers.id`` here (with no matching legacy
+rows) correctly returns zero exposure — accurate, not a silent failure.
 
 All amounts converted row-by-row to ``Decimal`` (REGLA CERO) — SQL
 ``SUM()`` over the underlying ``REAL`` columns is deliberately avoided to

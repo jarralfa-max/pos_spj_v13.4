@@ -275,6 +275,26 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
         self.db.commit()
         return cursor.lastrowid
 
+    def get_crm_summary(self, cliente_id: str) -> Optional[Dict]:
+        """CRM-21: loyalty tier/points + order-history summary from the
+        Customer Master's read-side integration layer
+        (`GET /api/v1/clientes/{id}/crm-summary`, ERP-side only). REST-only
+        — unlike the other gateway methods here, no SQLite fallback: the
+        CRM query services this endpoint wraps live in the ERP's own
+        Python package (permission-gated Unit-of-Work queries), not
+        something this microservice can reach directly against its shared
+        `clientes` DB file. Returns None when the API is disabled or the
+        call fails (e.g. the ERP's Customer Master permission checker isn't
+        wired yet) — purely additive enrichment, never required for a
+        WhatsApp reply to succeed."""
+        if not self._use_api:
+            return None
+        try:
+            return self._api_get(f"/api/v1/clientes/{cliente_id}/crm-summary")
+        except Exception as exc:
+            logger.debug("get_crm_summary via API failed: %s", exc)
+            return None
+
     def get_credito_disponible(self, cliente_id: str) -> float:
         row = self.db.execute("""
             SELECT COALESCE(credit_limit,0) - COALESCE(credit_balance,0)

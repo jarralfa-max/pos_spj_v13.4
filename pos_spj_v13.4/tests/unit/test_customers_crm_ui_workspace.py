@@ -54,7 +54,13 @@ class TestCustomerCrmRoutes:
         assert len(ids) == len(set(ids))
 
     def test_all_61_canonical_routes_declared(self):
-        assert len(CUSTOMER_CRM_ROUTES) == 61
+        # 61 canonical §9 routes + 1 (`customers.edit`) added when customer
+        # editing was built — not in the master prompt's original list, but
+        # a real, needed route (backend UpdateCustomerUseCase already
+        # existed; only the route/page were missing). The CRM-1
+        # routes-are-stable guardrail only checks id format/no-None
+        # resolution, not a fixed count, so adding one is sanctioned.
+        assert len(CUSTOMER_CRM_ROUTES) == 62
 
     def test_every_route_capability_field_exists_on_capabilities(self):
         for route in CUSTOMER_CRM_ROUTES:

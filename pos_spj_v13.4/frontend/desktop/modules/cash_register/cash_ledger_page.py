@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QLabel, QMessageBox, QVBoxLayout, QWidget
 
 from backend.domain.cash_register.exceptions import CashAuthorizationRequiredError, CashRegisterError
 from frontend.desktop.components.buttons import create_primary_button, create_secondary_button
+from frontend.desktop.components.dialogs import StandardDialog
 from frontend.desktop.components.kpi_bar import KPIBar
 from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
@@ -15,6 +16,13 @@ from frontend.desktop.modules.cash_register.cash_register_dialogs import (
     CashDenominationDialog,
     CashReasonDialog,
     HotAuthorizationDialog,
+)
+from frontend.desktop.modules.cash_register.presentation import (
+    direction_label,
+    display_code,
+    movement_label,
+    origin_label,
+    user_facing_error,
 )
 
 
@@ -51,8 +59,8 @@ class CashLedgerPage(QWidget):
 
         root.addWidget(PageHeader(
             self,
-            title="Ledger de caja",
-            subtitle="Movimientos inmutables y saldo reconstruible del turno.",
+            title="Movimientos de caja",
+            subtitle="Entradas, salidas y saldo actual del turno.",
             actions=[origin, detail, reverse, safe_drop, withdrawal, income],
         ))
 
@@ -60,7 +68,7 @@ class CashLedgerPage(QWidget):
             root.addWidget(create_state_widget(
                 ViewState.EMPTY,
                 self,
-                message="No hay turno activo seleccionado. Abre o selecciona un turno para consultar el ledger.",
+                message="No hay turno activo seleccionado. Abre o selecciona un turno para consultar movimientos.",
             ))
             self._kpis = KPIBar(self)
             self._table = StandardTable([], self)
@@ -70,13 +78,13 @@ class CashLedgerPage(QWidget):
         root.addWidget(self._kpis)
         self._table = StandardTable([
             ColumnSpec("Fecha", "date"),
-            ColumnSpec("Tipo"),
+            ColumnSpec("Movimiento"),
             ColumnSpec("Concepto"),
-            ColumnSpec("Direccion", "status"),
-            ColumnSpec("Monto", "numeric"),
+            ColumnSpec("Entrada", "numeric"),
+            ColumnSpec("Salida", "numeric"),
             ColumnSpec("Saldo", "numeric"),
             ColumnSpec("Reverso de"),
-            ColumnSpec("Origen"),
+            ColumnSpec("Documento origen"),
         ], self)
         root.addWidget(self._table)
         self.refresh()
@@ -99,16 +107,23 @@ class CashLedgerPage(QWidget):
         self._table.load_rows([
             [
                 row.recorded_at,
-                row.movement_type,
+                movement_label(row.movement_type),
                 row.concept,
-                row.direction,
-                self._money(row.amount),
+                self._money(row.amount) if row.direction == "INFLOW" else "—",
+                self._money(row.amount) if row.direction == "OUTFLOW" else "—",
                 self._money(row.balance),
                 row.reversal_of_id or "—",
                 row.reference_id or row.related_sale_id or "—",
             ]
             for row in projection.rows
         ], row_ids=[row.id for row in projection.rows])
+        for row_index, row in enumerate(projection.rows):
+            reversal = display_code("MOV", row.reversal_of_id) if row.reversal_of_id else "—"
+            origin = origin_label(reference_id=row.reference_id, sale_id=row.related_sale_id)
+            self._table.item(row_index, 6).setText(reversal)
+            self._table.item(row_index, 6).setToolTip(reversal)
+            self._table.item(row_index, 7).setText(origin)
+            self._table.item(row_index, 7).setToolTip(origin)
 
     def _request_reversal(self):
         entry_id = self._table.selected_row_id()
@@ -127,7 +142,7 @@ class CashLedgerPage(QWidget):
             self._show_result(getattr(response, "message", "Movimiento reversado"))
             self.refresh()
         except CashRegisterError as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
 
     def _request_movement(self, movement_type: str, title: str) -> None:
         if self._presenter is None:
@@ -166,10 +181,10 @@ class CashLedgerPage(QWidget):
                     authorized_by=authorization.authorizer_user,
                 )
             except CashRegisterError as exc:
-                self._show_error(str(exc))
+                self._show_error(user_facing_error(exc))
                 return
         except CashRegisterError as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
         self._show_result(getattr(response, "message", "Movimiento registrado"))
         if movement_type == "SAFE_DROP":
@@ -179,7 +194,7 @@ class CashLedgerPage(QWidget):
     def _selected_row(self):
         entry_id = self._table.selected_row_id()
         if not entry_id:
-            self._show_error("Selecciona un movimiento del ledger.")
+            self._show_error("Selecciona un movimiento.")
             return None
         row = self._rows_by_id.get(entry_id)
         if row is None:
@@ -190,14 +205,37 @@ class CashLedgerPage(QWidget):
         row = self._selected_row()
         if row is None:
             return
+        dialog = StandardDialog(self, title="Detalle de movimiento")
+        title = QLabel(f"{movement_label(row.movement_type)}\n{self._money(row.amount)}", dialog)
+        title.setProperty("role", "dialogTitle")
+        body = QLabel(
+            "\n".join((
+                f"Fecha: {row.recorded_at}",
+                f"Movimiento: {movement_label(row.movement_type)}",
+                f"Direccion: {direction_label(row.direction)}",
+                f"Concepto: {row.concept}",
+                f"Documento origen: {origin_label(reference_id=row.reference_id, sale_id=row.related_sale_id)}",
+                f"Reverso de: {display_code('MOV', row.reversal_of_id) if row.reversal_of_id else 'No aplica'}",
+                f"Saldo del turno: {self._money(row.balance)}",
+                "",
+                "Detalles tecnicos disponibles en Auditoria.",
+            )),
+            dialog,
+        )
+        body.setWordWrap(True)
+        dialog.content_layout().addWidget(title)
+        dialog.content_layout().addWidget(body)
+        dialog.add_button_box(ok_text="Cerrar")
+        dialog.exec_()
+        return
         QMessageBox.information(
             self,
             "Detalle de movimiento",
             "\n".join((
-                f"ID: {row.id}",
+                "Detalles tecnicos disponibles en Auditoria.",
                 f"Fecha: {row.recorded_at}",
-                f"Tipo: {row.movement_type}",
-                f"Direccion: {row.direction}",
+                f"Tipo: {movement_label(row.movement_type)}",
+                f"Direccion: {direction_label(row.direction)}",
                 f"Importe: {self._money(row.amount)}",
                 f"Saldo reconstruido: {self._money(row.balance)}",
                 f"Concepto: {row.concept}",
@@ -210,21 +248,20 @@ class CashLedgerPage(QWidget):
         row = self._selected_row()
         if row is None:
             return
-        origin = row.reference_id or row.related_sale_id
-        if not origin:
+        if not (row.reference_id or row.related_sale_id):
             self._show_error("El movimiento no tiene documento origen vinculado.")
             return
         QMessageBox.information(
             self,
             "Documento origen",
-            f"Documento origen disponible para auditoria:\n{origin}",
+            f"Documento origen disponible para auditoria:\n{origin_label(reference_id=row.reference_id, sale_id=row.related_sale_id)}",
         )
 
     def _show_result(self, message: str) -> None:
         QMessageBox.information(self, "Caja", message)
 
     def _show_error(self, message: str) -> None:
-        QMessageBox.warning(self, "Caja", message or "No fue posible completar la operacion.")
+        QMessageBox.warning(self, "Caja", user_facing_error(message))
 
     def _offer_prepare_handover(self, safe_drop_entry_id: str) -> None:
         if not safe_drop_entry_id or self._presenter is None:
@@ -255,6 +292,6 @@ class CashLedgerPage(QWidget):
                 denominations=dialog.result_value().quantities,
             )
         except CashRegisterError as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
         self._show_result(getattr(response, "message", "Entrega preparada"))

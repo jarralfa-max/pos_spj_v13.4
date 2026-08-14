@@ -12,6 +12,9 @@ from decimal import Decimal, InvalidOperation
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QLineEdit
 
+from frontend.desktop.components.virtual_keyboard import attach_virtual_keyboard_action
+from frontend.desktop.themes.tokens import TouchTarget
+
 
 class DecimalInput(QLineEdit):
     value_changed = pyqtSignal()
@@ -28,10 +31,12 @@ class DecimalInput(QLineEdit):
         self._nullable = nullable
         self._suffix = suffix
         self.setPlaceholderText("0" if not nullable else "")
+        self.setMinimumHeight(TouchTarget.INPUT_HEIGHT)
         if suffix:
             # suffix is display-only context, shown as a companion, not stored
             self.setToolTip(f"Valor en {suffix.strip()}")
         self.textChanged.connect(lambda _t: self.value_changed.emit())
+        attach_virtual_keyboard_action(self, numeric=True)
 
     # value -------------------------------------------------------------------
     def decimal_value(self) -> Decimal | None:

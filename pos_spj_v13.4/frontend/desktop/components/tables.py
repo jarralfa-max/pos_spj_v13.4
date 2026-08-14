@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QAbstractItemView, QHeaderView, QTableWidget, QTableWidgetItem
 
+from frontend.desktop.themes.tokens import TableMetrics, TouchTarget
+
 
 @dataclass(frozen=True)
 class ColumnSpec:
@@ -35,9 +37,9 @@ class StandardTable(QTableWidget):
         self.setAlternatingRowColors(True)
         self.setWordWrap(True)
         self.verticalHeader().setVisible(False)
-        self.verticalHeader().setDefaultSectionSize(32)
+        self.verticalHeader().setDefaultSectionSize(max(TableMetrics.ROW_HEIGHT, TouchTarget.TABLE_ROW_HEIGHT))
         header = self.horizontalHeader()
-        header.setMinimumHeight(32)
+        header.setMinimumHeight(max(TableMetrics.HEADER_HEIGHT, TouchTarget.MIN_HEIGHT))
         for index, col in enumerate(columns):
             if col.kind == "text":
                 header.setSectionResizeMode(index, QHeaderView.Stretch)

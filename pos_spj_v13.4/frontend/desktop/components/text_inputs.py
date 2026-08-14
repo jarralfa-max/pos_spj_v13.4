@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from PyQt5.QtWidgets import QLineEdit, QPlainTextEdit
 
+from frontend.desktop.components.virtual_keyboard import attach_virtual_keyboard_action
+from frontend.desktop.themes.tokens import TouchTarget
+
 
 class StandardLineEdit(QLineEdit):
     """Short free text. Use specialized inputs for phone/email/money/etc."""
@@ -13,10 +16,12 @@ class StandardLineEdit(QLineEdit):
         super().__init__(parent)
         self.setObjectName("standardLineEdit")
         self._required = required
+        self.setMinimumHeight(TouchTarget.INPUT_HEIGHT)
         if placeholder:
             self.setPlaceholderText(placeholder)
         if max_length:
             self.setMaxLength(max_length)
+        attach_virtual_keyboard_action(self)
 
     def value(self) -> str:
         return self.text().strip()

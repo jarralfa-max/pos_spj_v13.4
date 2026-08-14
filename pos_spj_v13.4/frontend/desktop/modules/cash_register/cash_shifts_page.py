@@ -14,6 +14,7 @@ from frontend.desktop.modules.cash_register.cash_register_dialogs import (
     CashShiftOpeningDialog,
     CashTextReasonDialog,
 )
+from frontend.desktop.modules.cash_register.presentation import display_code, status_label, user_facing_error
 
 
 class CashShiftsPage(QWidget):
@@ -81,8 +82,8 @@ class CashShiftsPage(QWidget):
                 row.register_name,
                 row.drawer_name,
                 row.terminal_name,
-                row.cashier_user_id,
-                row.status,
+                row.cashier_name or display_code("USR", row.cashier_user_id),
+                status_label(row.status),
                 self._money(row.opening_amount),
                 self._money(row.expected_cash),
             ]
@@ -101,7 +102,7 @@ class CashShiftsPage(QWidget):
                 opening_amount=dialog.result_value().opening_amount,
             )
         except (CashRegisterError, RuntimeError, ValueError) as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
         self._show_result(getattr(result, "message", "Turno abierto"))
         self.refresh()
@@ -120,7 +121,7 @@ class CashShiftsPage(QWidget):
                 reason=dialog.result_value().reason,
             )
         except (CashRegisterError, RuntimeError, ValueError) as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
         self._show_result(getattr(result, "message", "Turno suspendido"))
         self.refresh()
@@ -147,7 +148,7 @@ class CashShiftsPage(QWidget):
         try:
             result = action(shift_id)
         except (CashRegisterError, RuntimeError, ValueError) as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
         self._show_result(getattr(result, "message", success_message))
         self.refresh()
@@ -156,4 +157,4 @@ class CashShiftsPage(QWidget):
         QMessageBox.information(self, "Caja", message)
 
     def _show_error(self, message: str) -> None:
-        QMessageBox.warning(self, "Caja", message or "No fue posible completar la operacion.")
+        QMessageBox.warning(self, "Caja", user_facing_error(message))

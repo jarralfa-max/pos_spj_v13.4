@@ -7,6 +7,7 @@ from frontend.desktop.components.buttons import create_primary_button, create_se
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
 from frontend.desktop.modules.cash_register.cash_register_dialogs import CashConfigurationDialog
+from frontend.desktop.modules.cash_register.presentation import scope_label, status_label, user_facing_error
 
 
 class CashConfigurationPage(QWidget):
@@ -67,7 +68,7 @@ class CashConfigurationPage(QWidget):
                 effective_to=value.effective_to,
             )
         except Exception as exc:
-            QMessageBox.warning(self, "Caja", str(exc) or "No fue posible guardar la configuracion.")
+            QMessageBox.warning(self, "Caja", user_facing_error(exc))
             return
         QMessageBox.information(self, "Caja", getattr(result, "message", "Configuracion guardada"))
         self.refresh()
@@ -79,7 +80,7 @@ class CashConfigurationPage(QWidget):
                 self,
                 "Caja",
                 "La edicion conserva vigencias: crea una nueva configuracion efectiva "
-                f"para reemplazar {row_id}.",
+                "para reemplazar la seleccion actual.",
             )
             self._tabs.setCurrentIndex([key for key, _ in self.SECTIONS].index(section))
             self._request_create()
@@ -88,6 +89,6 @@ class CashConfigurationPage(QWidget):
         for section, _label in self.SECTIONS:
             rows = self._query.list_section(section)
             self._tables[section].load_rows([
-                [row.name, row.value, row.scope, row.effective_from,
-                 row.effective_to, row.status] for row in rows
+                [row.name, row.value, scope_label(row.scope), row.effective_from,
+                 row.effective_to, status_label(row.status)] for row in rows
             ], row_ids=[row.id for row in rows])

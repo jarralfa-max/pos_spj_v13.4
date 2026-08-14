@@ -4030,6 +4030,40 @@ class ModuloVentas(ModuloBase):
                         "Asigne un cliente y vuelva a intentarlo, o elija otro método de pago."
                     )
                     return
+                # CRM-21: advisory-only CRM eligibility check (suspendido/
+                # bloqueado/cerrado at the Customer Master level, e.g. set
+                # from the CRM Expediente). Purely informational — it never
+                # blocks the sale and never replaces `_ccs.validate_credit`
+                # below, the sole enforcement path for credit limits. Soft
+                # no-ops today until a real PermissionChecker is wired for
+                # the Customer Master bounded context into AppContainer
+                # (still pending, same deferred-wiring gap CRM-14 already
+                # documented for the CRM module's own menu registration) —
+                # `CustomerAuthorizationPolicy()` fails closed with no
+                # checker configured, which this call site correctly treats
+                # as "nothing to show," not an error to surface to the cajero.
+                try:
+                    from backend.application.customers.queries.customer_commercial_eligibility_query import (
+                        CustomerCommercialEligibilityQuery,
+                    )
+                    from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
+                        ResolveLegacyCustomerUseCase,
+                    )
+                    _db = self.container.db
+                    _new_customer_id = ResolveLegacyCustomerUseCase().execute(
+                        _db, legacy_customer_id=str(self.cliente_actual['id']))
+                    _elig = CustomerCommercialEligibilityQuery(_db).check(
+                        _new_customer_id, actor_user_id=str(self.usuario_actual or ""))
+                    if not _elig.eligible:
+                        QMessageBox.warning(
+                            self, "Aviso CRM",
+                            "El expediente CRM de este cliente tiene una alerta:\n"
+                            f"{'; '.join(_elig.violations)}\n\n"
+                            "Esto no bloquea la venta; verifique con su supervisor si procede."
+                        )
+                except Exception as _crm_e:
+                    logger.debug("CRM commercial eligibility advisory: %s", _crm_e)
+
                 _ccs = getattr(self.container, 'customer_credit_service', None)
                 _financed = float(datos_pago.get('saldo_credito') or datos_pago.get('total_pagado', 0))
                 if _ccs and _financed > 0:

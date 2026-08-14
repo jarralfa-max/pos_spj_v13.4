@@ -59,6 +59,18 @@ CUSTOMER_CRM_ROUTES: tuple[CustomerCrmRoute, ...] = (
         route_id="customers.profile", label="Expedientes", group="Clientes",
         tooltip="Expediente 360 del cliente.",
         required_permission=CustomerPermissions.VIEW, capability="clientes"),
+    # Added when customer editing was built (backend UpdateCustomerUseCase
+    # already existed; this route/page were the missing piece) — not in the
+    # master prompt's original §9 list, same "customers." dotted-id
+    # convention every other route here follows. Reached the same way
+    # customers.create -> customers.profile hands off: an action button on
+    # the Expediente, not a bare sidebar link with nothing selected (though
+    # like customers.profile itself, it also shows an empty-state
+    # placeholder if opened with nothing selected).
+    CustomerCrmRoute(
+        route_id="customers.edit", label="Editar cliente", group="Clientes",
+        tooltip="Edición de los datos de identidad de un cliente.",
+        required_permission=CustomerPermissions.EDIT, capability="clientes"),
     CustomerCrmRoute(
         route_id="customers.accounts", label="Cuentas comerciales", group="Clientes",
         tooltip="Cuentas y jerarquía comercial.",

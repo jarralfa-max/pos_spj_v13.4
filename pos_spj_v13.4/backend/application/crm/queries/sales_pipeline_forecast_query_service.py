@@ -31,6 +31,10 @@ class SalesPipelineForecast:
     expected_closures: list[Opportunity] = field(default_factory=list)
     overdue: list[Opportunity] = field(default_factory=list)
     stagnant: list[Opportunity] = field(default_factory=list)
+    # CRM-15 (§90 dashboard KPI "Oportunidades abiertas"): additive — the
+    # count was already computed as len(open_opportunities) below and
+    # simply never surfaced; no new query needed.
+    open_count: int = 0
 
 
 def _today_utc() -> date:
@@ -77,4 +81,5 @@ class SalesPipelineForecastQueryService:
         expected_closures.sort(key=lambda o: o.expected_close_date)
         return SalesPipelineForecast(
             total_pipeline=total, weighted_pipeline=weighted, by_stage=by_stage,
-            expected_closures=expected_closures, overdue=overdue, stagnant=stagnant)
+            expected_closures=expected_closures, overdue=overdue, stagnant=stagnant,
+            open_count=len(open_opportunities))

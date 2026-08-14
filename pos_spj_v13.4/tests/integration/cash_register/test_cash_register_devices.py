@@ -10,6 +10,7 @@ from backend.application.cash_register.device_use_cases import (
 from backend.application.cash_register.device_query_service import CashDeviceQueryService
 from backend.application.cash_register.hardware import StubCashHardwareGateway
 from backend.application.cash_register.permissions import ALL_CASH_PERMISSIONS
+from backend.infrastructure.db.repositories.cash_register.repositories import CashDeviceRepository
 from backend.shared.ids import new_uuid
 
 
@@ -100,6 +101,28 @@ class CashRegisterDeviceTests(unittest.TestCase):
 
         self.assertEqual(rows[0].id, "kkkk")
         self.assertEqual(rows[0].hardware_status, "Identidad inválida")
+
+    def test_device_query_translates_branch_id_to_branch_name_when_catalog_exists(self):
+        self.db.execute(
+            """CREATE TABLE sucursales (
+            id TEXT PRIMARY KEY,
+            nombre TEXT NOT NULL
+            )"""
+        )
+        self.db.execute(
+            "INSERT INTO sucursales(id,nombre) VALUES(?,?)",
+            (self.branch, "Sucursal Centro"),
+        )
+        device = CreateCashDeviceUseCase(self.auth).execute(
+            self.db, kind="register", branch_id=self.branch,
+            name="Caja mostrador", actor_user_id=self.actor,
+            operation_id=new_uuid(),
+        )
+
+        rows = CashDeviceQueryService(CashDeviceRepository(self.db)).list_devices("register")
+
+        self.assertEqual(rows[0].id, device.entity_id)
+        self.assertEqual(rows[0].branch_name, "Sucursal Centro")
 
     def test_device_commands_reject_non_uuid_identity_before_repository_mutation(self):
         with self.assertRaises(ValueError):

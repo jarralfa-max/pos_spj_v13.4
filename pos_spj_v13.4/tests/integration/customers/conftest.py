@@ -45,15 +45,23 @@ CREATE TABLE IF NOT EXISTS cuentas_por_cobrar (
 """
 
 
-# CRM-13: minimal legacy shapes for Ventas/Pedidos/Delivery/Fidelidad —
-# each is the sanctioned read-only-summary exception, same footing as
-# _CXC_DDL above. Real columns copied from migrations/m000_base_schema.py
-# (pedidos_whatsapp, loyalty_snapshots) and migrations/093_create_delivery_
-# core.sql (delivery_orders/delivery_order_history) — see
+# CRM-13/21: minimal legacy shapes for Clientes/Ventas/Pedidos/Delivery/
+# Fidelidad — each is the sanctioned read-only-summary exception, same
+# footing as _CXC_DDL above. Real columns copied from
+# migrations/m000_base_schema.py (clientes, pedidos_whatsapp,
+# loyalty_snapshots) and migrations/093_create_delivery_core.sql
+# (delivery_orders/delivery_order_history) — see
 # backend/application/customers/queries/customer_orders_summary_query.py /
-# customer_delivery_summary_query.py / loyalty_customer_summary_query.py
-# for why cliente_id here never matches a real customers.id yet.
+# customer_delivery_summary_query.py / loyalty_customer_summary_query.py /
+# backend/application/customers/use_cases/legacy_customer_bridge_use_cases.py
+# for why cliente_id here is the legacy id, not a real customers.id.
 _LEGACY_OPS_DDL = """
+CREATE TABLE IF NOT EXISTS clientes (
+    id TEXT NOT NULL PRIMARY KEY,
+    nombre TEXT NOT NULL,
+    telefono TEXT,
+    activo INTEGER DEFAULT 1
+);
 CREATE TABLE IF NOT EXISTS pedidos_whatsapp (
     id TEXT NOT NULL PRIMARY KEY,
     numero_whatsapp TEXT NOT NULL,

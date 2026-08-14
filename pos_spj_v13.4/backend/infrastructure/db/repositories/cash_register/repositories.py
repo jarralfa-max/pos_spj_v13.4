@@ -112,8 +112,17 @@ class CashDeviceRepository(_Repository):
     def list_devices(self, kind: str) -> list[dict]:
         table = self._TABLES[kind]
         assignment = "''" if kind == "register" else "register_id"
+        has_branches = self.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='sucursales'"
+        ).fetchone() is not None
+        branch_label = "COALESCE(s.nombre,d.branch_id)" if has_branches else "d.branch_id"
+        join = "LEFT JOIN sucursales s ON s.id=d.branch_id" if has_branches else ""
         cursor = self.execute(
-            f"SELECT id,name,branch_id branch_name,{assignment} assignment,status,'No verificado' hardware_status FROM {table} ORDER BY name")
+            f"""SELECT d.id,d.name,{branch_label} branch_name,
+                      {assignment if kind == "register" else "d.register_id"} assignment,
+                      d.status,'No verificado' hardware_status
+            FROM {table} d {join}
+            ORDER BY d.name""")
         columns = [item[0] for item in cursor.description]
         return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
@@ -184,6 +193,16 @@ class CashLedgerRepository(_Repository):
 
 class CashSettlementRepository(_Repository):
     """Canonical settlement persistence owned by Caja, not Ventas."""
+
+    def find_payment_record_for_sale(self, sale_id: str):
+        cursor = self.execute(
+            "SELECT * FROM payment_records WHERE sale_id=? ORDER BY recorded_at,id LIMIT 1",
+            (sale_id,),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return dict(zip((item[0] for item in cursor.description), row))
 
     def add_payment_record(self, *, payment_id: str, sale_id: str,
                            shift_id: str, branch_id: str,

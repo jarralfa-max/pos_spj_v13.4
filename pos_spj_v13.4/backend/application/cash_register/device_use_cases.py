@@ -3,12 +3,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import sqlite3
 
 from backend.application.cash_register.authorization import CashAuthorizationPolicy
 from backend.application.cash_register.hardware import CashHardwareGateway
 from backend.application.cash_register.permissions import CashPermissions
 from backend.domain.cash_register.entities import CashDrawer, CashRegister, PosTerminal
 from backend.domain.cash_register.events import CashEvents, cash_event_payload
+from backend.domain.cash_register.exceptions import CashInvalidStateError
 from backend.shared.ids import new_uuid, validate_uuidv7
 from backend.infrastructure.db.repositories.cash_register.unit_of_work import CashRegisterUnitOfWork
 
@@ -93,8 +95,14 @@ class SetCashDeviceStatusUseCase:
             device = uow.devices.get(kind, device_id)
             if device is None or device["branch_id"] != branch_id:
                 raise LookupError("Dispositivo no encontrado o fuera de alcance")
-            uow.devices.set_status(kind, device_id, target_status,
-                                   reason=reason or None, now=_now())
+            try:
+                uow.devices.set_status(kind, device_id, target_status,
+                                       reason=reason or None, now=_now())
+            except sqlite3.IntegrityError as exc:
+                raise CashInvalidStateError(
+                    "La base local de Caja no acepta este estado de dispositivo; "
+                    "reinicia con schema born-clean UUIDv7 actualizado."
+                ) from exc
             _record(uow, events[(kind, target_status)], operation_id=operation_id,
                     entity_id=device_id, branch_id=branch_id,
                     actor_user_id=actor_user_id, reason=reason,

@@ -11,6 +11,7 @@ from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
 from frontend.desktop.components.tooltip import apply_tooltip
 from frontend.desktop.components.view_states import ViewState, create_state_widget
+from frontend.desktop.modules.cash_register.presentation import status_label, user_facing_error
 
 
 class CashOperationalReadPage(QWidget):
@@ -57,7 +58,7 @@ class CashOperationalReadPage(QWidget):
         except Exception as exc:
             self._table.load_rows([])
             self._kpis.set_cards([KPIDTO("rows", "Registros", "0")])
-            self._set_state(ViewState.ERROR, str(exc) or "No fue posible cargar la seccion.")
+            self._set_state(ViewState.ERROR, user_facing_error(exc))
             return
 
         rows = list(section.rows)
@@ -67,7 +68,7 @@ class CashOperationalReadPage(QWidget):
         ])
         self._table.load_rows(
             [
-                [row.primary, row.secondary, row.status, row.occurred_at]
+                [row.primary, row.secondary, status_label(row.status), row.occurred_at]
                 for row in rows
             ],
             row_ids=[row.id for row in rows],
@@ -89,4 +90,3 @@ class CashOperationalReadPage(QWidget):
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
-

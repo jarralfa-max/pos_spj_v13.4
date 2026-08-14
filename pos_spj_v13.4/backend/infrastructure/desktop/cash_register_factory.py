@@ -143,6 +143,7 @@ class _DesktopCashSyncQueryService:
         self._query = query
 
     def get(self, *, device_id: str, branch_id: str, actor_user_id: str) -> dict:
+        _ensure_cash_sync_device(self._connection, device_id=device_id, branch_id=branch_id)
         return self._query.get(
             self._connection,
             device_id=device_id,
@@ -152,6 +153,7 @@ class _DesktopCashSyncQueryService:
 
     def list_envelopes(self, *, device_id: str, branch_id: str,
                        actor_user_id: str, limit: int = 100) -> list[dict]:
+        _ensure_cash_sync_device(self._connection, device_id=device_id, branch_id=branch_id)
         return self._query.list_envelopes(
             self._connection,
             device_id=device_id,
@@ -162,6 +164,7 @@ class _DesktopCashSyncQueryService:
 
     def list_conflicts(self, *, device_id: str, branch_id: str,
                        actor_user_id: str) -> list[dict]:
+        _ensure_cash_sync_device(self._connection, device_id=device_id, branch_id=branch_id)
         return self._query.list_conflicts(
             self._connection,
             device_id=device_id,
@@ -232,6 +235,23 @@ def _first_active_cash_device(connection, *, table: str, branch_id: str,
             (branch_id,),
         ).fetchone()
     return str(row[0]) if row else None
+
+
+def _ensure_cash_sync_device(connection, *, device_id: str | None,
+                             branch_id: str | None) -> str | None:
+    """Register the active POS terminal as sync identity if session lacks one."""
+    if not device_id or not branch_id:
+        return None
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    connection.execute(
+        """INSERT INTO cash_sync_devices
+        (id,branch_id,local_sequence,last_synced_sequence,connectivity,sync_status,updated_at)
+        VALUES(?,?,0,0,'ONLINE','IDLE',?)
+        ON CONFLICT(id) DO NOTHING""",
+        (str(device_id), str(branch_id), now),
+    )
+    connection.commit()
+    return str(device_id)
 
 
 def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
@@ -1147,6 +1167,7 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         actor_user_id: str,
         online: bool,
     ):
+        _ensure_cash_sync_device(connection, device_id=device_id, branch_id=branch_id)
         return use_cases["cash_sync_connectivity_uc"].execute(
             connection,
             device_id=device_id,
@@ -1187,6 +1208,7 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
             permission_code=CashPermissions.SYNC_MANAGE,
             branch_id=branch_id,
         )
+        _ensure_cash_sync_device(connection, device_id=device_id, branch_id=branch_id)
         return use_cases["cash_sync_service"].synchronize(
             connection,
             device_id=device_id,
@@ -1273,17 +1295,20 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
                 register_id=str(cash_register_id or "") or None,
             )
         )
+        sync_device_id = (
+            getattr(composition_root, "active_cash_sync_device_id", None)
+            or getattr(session, "active_cash_sync_device_id", None)
+            or getattr(session, "device_id", None)
+        )
+        if not sync_device_id:
+            sync_device_id = str(pos_terminal_id or cash_register_id or "") or None
         return {
             "branch_id": branch_id,
             "cash_register_id": cash_register_id,
             "cash_drawer_id": cash_drawer_id,
             "pos_terminal_id": pos_terminal_id,
             "cash_shift_id": getattr(composition_root, "active_cash_shift_id", None),
-            "sync_device_id": (
-                getattr(composition_root, "active_cash_sync_device_id", None)
-                or getattr(session, "active_cash_sync_device_id", None)
-                or getattr(session, "device_id", None)
-            ),
+            "sync_device_id": sync_device_id,
         }
 
     def active_count_context() -> tuple[str, str, str] | None:

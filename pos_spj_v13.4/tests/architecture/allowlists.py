@@ -49,7 +49,10 @@ SQL_IN_UI_ALLOWLIST = {
 COMMIT_ROLLBACK_IN_UI_ALLOWLIST = {
     # activos.py: commit()/rollback() movidos a AssetService (Remediación F).
     'pos_spj_v13.4/modulos/base.py': 4,
-    'pos_spj_v13.4/modulos/clientes.py': 5,
+    # CRM-22: clientes.py tolerated 5 here but had 0 real commit()/rollback()
+    # calls (only a stale docstring mention) — confirmed by direct grep
+    # before AND after splitting the file into modulos/dialogs/cliente_*.py.
+    # Entry removed; the new split files have 0 too, so none of them are listed.
     # PUR-13: modulos/compras_pro.py eliminado (era 5) — Compras es enterprise.
     # CONFIGURACION FASE 1: config_hardware.py, config_modules.py and
     # configuracion.py no longer call commit()/rollback() in the UI.
@@ -314,7 +317,6 @@ HARDCODED_RELATIVE_PATHS_ALLOWLIST = {
     'pos_spj_v13.4/core/ticket_escpos_renderer.py': 1,
     'pos_spj_v13.4/interfaz/menu_lateral.py': 1,
     'pos_spj_v13.4/modulos/base.py': 1,
-    'pos_spj_v13.4/modulos/clientes.py': 2,
     'pos_spj_v13.4/tests/test_fase0_finanzas_syntax.py': 3,
     'pos_spj_v13.4/tests/test_fase0_menu_lateral.py': 3,
     'pos_spj_v13.4/tests/test_fase0_ventas_canje.py': 2,
@@ -386,15 +388,15 @@ CUSTOMERS_CRM_MODULE_ALLOWLIST: dict[str, int] = {}
 # CRM-21/CRM-22 migren sus consumidores y los retiren. Cada entrada debe
 # desaparecer de aquí (no solo bajar de número) cuando el archivo se elimina.
 CUSTOMERS_CRM_LEGACY_CONSUMERS = {
-    'pos_spj_v13.4/modulos/clientes.py':
-        'UI legacy (ModuloClientes, DialogoCliente, DialogoHistorialCliente, '
-        'RFM). Reemplazar por frontend/desktop/modules/customers_crm/ (CRM-14+).',
+    # modulos/clientes.py, its four modulos/dialogs/cliente_*_dialog.py
+    # split files (CRM-22), and core/services/cliente_query_service.py
+    # (their only consumer) were all retired — see
+    # docs/refactor/CRM-24_retiro_modulo_legacy.md. Card/loyalty (tarjetas)
+    # and RFM segmentation had no replacement built (Fidelidad/BI's job,
+    # not Customer Master's — see that doc's "Pendiente").
     'pos_spj_v13.4/core/services/cliente_service.py':
         'Fachada legacy con fallback SQL directo en guardar_formulario(). '
         'Reemplazar por backend/application/customers use cases (CRM-3).',
-    'pos_spj_v13.4/core/services/cliente_query_service.py':
-        'QueryService legacy (tarjetas, RFM, historial). Fidelidad/BI deben '
-        'absorber lo que no sea Customer Master (CRM-3/CRM-22).',
     'pos_spj_v13.4/core/use_cases/cliente.py':
         'GestionarClienteUC (español). Fusionar con CreateCustomerUseCase '
         '(backend/application/use_cases/create_customer_use_case.py) en CRM-3.',

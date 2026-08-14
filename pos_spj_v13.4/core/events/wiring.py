@@ -238,6 +238,7 @@ def wire_all(container: "AppContainer") -> None:
     bus = get_bus()
 
     _wire_venta(bus, container)
+    _wire_customers_crm_sales_activity(bus, container)
     _wire_pedido(bus, container)
     _wire_inventario(bus, container)
     _wire_produccion(bus, container)
@@ -552,6 +553,46 @@ def _wire_venta(bus, container) -> None:
 
     bus.subscribe(VENTA_CANCELADA, _raffles_cancel,
                   priority=49, label="raffles_cancel")
+
+
+def _wire_customers_crm_sales_activity(bus, container) -> None:
+    """CRM-21: activates CRM-13's ``sales_event_handlers.py``, previously
+    built but left unsubscribed because ``VENTA_COMPLETADA``/
+    ``VENTA_CANCELADA``'s ``cliente_id`` is the LEGACY ``clientes.id``, which
+    the Customer Master's ``RecordCustomerSaleActivityUseCase`` cannot read
+    directly (it looks up the new ``customers`` table by id). Bridges the
+    legacy id via ``ResolveLegacyCustomerUseCase`` (migration 193) before
+    delegating. Priority 40: below fidelidad (50, a real balance/points
+    effect) and above auditoría (30) — this is a secondary CRM relationship
+    projection, not core sync or the accounting ledger. Soft-fails like
+    every other handler here (``_treasury_venta``): a bridging/projection
+    failure must never block or roll back a sale.
+    """
+    from core.events.event_bus import VENTA_COMPLETADA, VENTA_CANCELADA
+    from backend.application.customers.integrations.sales_event_handlers import (
+        handle_sale_cancelled,
+        handle_sale_completed,
+    )
+    from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
+        ResolveLegacyCustomerUseCase,
+    )
+
+    def _bridged(data: dict, handler) -> None:
+        db = getattr(container, "db", None)
+        legacy_cliente_id = data.get("cliente_id")
+        if not db or not legacy_cliente_id:
+            return
+        try:
+            resolved_id = ResolveLegacyCustomerUseCase().execute(
+                db, legacy_customer_id=str(legacy_cliente_id))
+            handler(db, {**data, "cliente_id": resolved_id})
+        except Exception as e:
+            logger.debug("customers_crm_sales_activity handler: %s", e)
+
+    bus.subscribe(VENTA_COMPLETADA, lambda d: _bridged(d, handle_sale_completed),
+                  priority=40, label="customers_crm_sale_activity")
+    bus.subscribe(VENTA_CANCELADA, lambda d: _bridged(d, handle_sale_cancelled),
+                  priority=40, label="customers_crm_sale_cancelled")
 
 
 # ── PEDIDO_NUEVO ──────────────────────────────────────────────────────────────

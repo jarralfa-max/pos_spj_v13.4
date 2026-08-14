@@ -17,7 +17,7 @@ _MASTER_COLS = (
     " default_delivery_address_id, account_owner_user_id, territory_id,"
     " created_by_user_id, operation_id, version, created_at, updated_at,"
     " activated_at, suspended_at, blocked_at, closed_at, last_purchase_at,"
-    " purchase_count"
+    " purchase_count, legacy_customer_id"
 )
 
 
@@ -32,7 +32,7 @@ class CustomerRepository(CustomerRepositoryBase):
     def save(self, customer: Customer, *, operation_id: str | None = None) -> None:
         self._execute(
             f"INSERT INTO customers ({_MASTER_COLS})"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             self._params(customer, operation_id or customer.operation_id))
 
     def update(self, customer: Customer) -> None:
@@ -65,6 +65,14 @@ class CustomerRepository(CustomerRepositoryBase):
     def get_by_operation_id(self, operation_id: str) -> Customer | None:
         row = self._query_one(
             f"SELECT {_MASTER_COLS} FROM customers WHERE operation_id=?", (operation_id,))
+        return self._hydrate(row) if row else None
+
+    def get_by_legacy_customer_id(self, legacy_customer_id: str) -> Customer | None:
+        """CRM-21: lookup by the legacy ``clientes.id`` this aggregate was
+        bridged/backfilled from. See ``ResolveLegacyCustomerUseCase``."""
+        row = self._query_one(
+            f"SELECT {_MASTER_COLS} FROM customers WHERE legacy_customer_id=?",
+            (legacy_customer_id,))
         return self._hydrate(row) if row else None
 
     def find_duplicate_rows(self) -> list[dict]:
@@ -138,6 +146,7 @@ class CustomerRepository(CustomerRepositoryBase):
             customer.created_at, customer.updated_at, customer.activated_at,
             customer.suspended_at, customer.blocked_at, customer.closed_at,
             customer.last_purchase_at, customer.purchase_count,
+            customer.legacy_customer_id,
         )
 
     @staticmethod
@@ -163,4 +172,5 @@ class CustomerRepository(CustomerRepositoryBase):
             blocked_at=row["blocked_at"], closed_at=row["closed_at"],
             last_purchase_at=row["last_purchase_at"],
             purchase_count=row["purchase_count"] or 0,
+            legacy_customer_id=row["legacy_customer_id"],
         )

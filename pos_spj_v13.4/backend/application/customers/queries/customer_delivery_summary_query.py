@@ -14,13 +14,20 @@ counts as an "incident" here when ``reason`` is non-empty, same
 "repurpose the closest existing signal instead of inventing a parallel one"
 discipline this bounded context has followed since CRM-6.
 
-**Known, documented gap**: ``delivery_orders.cliente_id`` is declared
-``INTEGER`` — a THIRD, mutually incompatible identity space alongside the
-legacy ``clientes.id`` (TEXT) and this bounded context's UUIDv7
-``customers.id`` (TEXT). Comparing a UUIDv7 string against an INTEGER
-column never raises (SQLite's type-affinity rules) and never matches —
-this query correctly returns an empty summary for every customer today,
-same deferred-to-CRM-21/22 story as the rest of this phase.
+**Data-model note, verified by CRM-21**: ``delivery_orders.cliente_id`` is
+declared ``INTEGER`` in ``migrations/093_create_delivery_core.sql``, but
+this is stale schema drift, not a real third identity space — SQLite has no
+strict column typing (type affinity only steers storage class on INSERT; a
+TEXT value that can't convert to INTEGER, like a UUIDv7, is stored as TEXT
+regardless of the column's declared type). Tracing the actual write path
+(``integrations/pos_adapter.py`` mints ``new_uuid()`` and
+``repositories/delivery_repository.py`` passes it through untyped) confirms
+this column holds the same legacy ``clientes.id`` TEXT UUID as everywhere
+else. Call this query with that LEGACY ``cliente_id`` (not the new
+``customers.id``) and it returns real data — no identity bridging needed
+here, only ``ResolveLegacyCustomerUseCase``-consuming call sites (see
+``backend/application/customers/use_cases/legacy_customer_bridge_use_cases.py``)
+need one.
 """
 
 from __future__ import annotations

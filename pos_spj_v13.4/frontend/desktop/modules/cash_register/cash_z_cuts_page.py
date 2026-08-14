@@ -13,6 +13,7 @@ from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
 from frontend.desktop.modules.cash_register.cash_register_dialogs import CashTextReasonDialog
+from frontend.desktop.modules.cash_register.presentation import display_code, user_facing_error
 
 
 class CashZCutsPage(QWidget):
@@ -72,7 +73,7 @@ class CashZCutsPage(QWidget):
         self._table.load_rows([
             [
                 row.document_number,
-                row.shift_id,
+                display_code("TUR", row.shift_id),
                 self._money(row.expected_cash),
                 self._money(row.counted_cash),
                 self._money(row.difference),
@@ -86,10 +87,19 @@ class CashZCutsPage(QWidget):
         return self._table.selected_row_id()
 
     def _generate(self) -> None:
+        answer = QMessageBox.question(
+            self,
+            "Cerrar turno",
+            "Se generara el Corte Z final y el turno quedara cerrado. Verifica que el conteo este confirmado.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if answer != QMessageBox.Yes:
+            return
         try:
             result = self._presenter.generate_z_cut()
         except (CashRegisterError, RuntimeError, ValueError) as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
         self._show_result(
             f"Corte Z {getattr(result, 'document_number', '')} generado y turno cerrado."
@@ -119,9 +129,9 @@ class CashZCutsPage(QWidget):
                 reprint_reason=reason,
             )
         except (CashRegisterError, RuntimeError, ValueError) as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
-        self._show_result(f"Impresion en cola: {print_id}")
+        self._show_result("Corte Z enviado a impresion." if print_id else "Corte Z enviado a impresion.")
 
     def _notify(self) -> None:
         cut_id = self._selected_cut_id()
@@ -130,14 +140,14 @@ class CashZCutsPage(QWidget):
         try:
             result = self._presenter.notify_z_cut(cut_id=cut_id)
         except (CashRegisterError, RuntimeError, ValueError) as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
         self._show_result(
-            f"Notificacion preparada para {getattr(result, 'document_number', cut_id)}"
+            f"Notificacion preparada para {getattr(result, 'document_number', 'el Corte Z seleccionado')}"
         )
 
     def _show_result(self, message: str) -> None:
         QMessageBox.information(self, "Caja", message)
 
     def _show_error(self, message: str) -> None:
-        QMessageBox.warning(self, "Caja", message or "No fue posible completar Corte Z.")
+        QMessageBox.warning(self, "Caja", user_facing_error(message or "No fue posible completar Corte Z."))

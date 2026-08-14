@@ -1,4 +1,13 @@
-"""Address input with autocomplete provider and manual fallback."""
+"""Address input with autocomplete provider and manual fallback.
+
+CRM-18: the map-search box carries the virtual-keyboard action (§90's "todo
+input alfanumérico" requirement); the manual-capture ``QTextEdit`` fallback
+does not — ``attach_virtual_keyboard_action`` targets ``QLineEdit``'s
+trailing-action API specifically, which ``QTextEdit`` doesn't expose the
+same way. Documented gap, not silently dropped: extending the keyboard
+affordance to multi-line text areas is a separate, small piece of work
+this phase didn't need for its own form (single-line fields only).
+"""
 
 from __future__ import annotations
 
@@ -7,6 +16,8 @@ from typing import Callable, Iterable
 
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QCheckBox, QLineEdit, QListWidget, QListWidgetItem, QTextEdit, QVBoxLayout, QWidget
+
+from frontend.desktop.components.virtual_keyboard import attach_virtual_keyboard_action
 
 
 @dataclass(frozen=True)
@@ -28,6 +39,7 @@ class AddressInput(QWidget):
         self._provider = provider or (lambda _query: [])
         self._search_box = QLineEdit(self)
         self._search_box.setPlaceholderText("Buscar dirección en mapa...")
+        attach_virtual_keyboard_action(self._search_box)
         self._manual_toggle = QCheckBox("Captura manual", self)
         self._manual_text = QTextEdit(self)
         self._manual_text.setPlaceholderText("Escribe la dirección manualmente")

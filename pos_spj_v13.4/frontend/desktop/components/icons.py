@@ -49,6 +49,8 @@ class Icons:
     CLOCK = "clock"
     PHONE = "phone"
     ADDRESS = "address"
+    KEYBOARD = "keyboard"
+    NUMERIC_KEYPAD = "numeric_keypad"
 
 
 #: Human, accessible names (es-MX) for screen readers / tooltips.
@@ -63,6 +65,8 @@ _ACCESSIBLE_NAMES = {
     Icons.WARNING: "Advertencia", Icons.SUCCESS: "Éxito", Icons.ERROR: "Error",
     Icons.INFO: "Información", Icons.CALENDAR: "Calendario", Icons.CLOCK: "Hora",
     Icons.PHONE: "Teléfono", Icons.ADDRESS: "Dirección",
+    Icons.KEYBOARD: "Mostrar teclado en pantalla",
+    Icons.NUMERIC_KEYPAD: "Mostrar teclado numerico",
 }
 
 

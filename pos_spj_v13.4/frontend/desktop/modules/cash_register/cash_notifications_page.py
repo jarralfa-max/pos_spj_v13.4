@@ -15,6 +15,7 @@ from frontend.desktop.components.kpi_bar import KPIBar
 from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
+from frontend.desktop.modules.cash_register.presentation import status_label, user_facing_error
 
 
 class CashNotificationsPage(QWidget):
@@ -70,7 +71,7 @@ class CashNotificationsPage(QWidget):
             alerts = self._presenter.cash_notification_alerts()
             jobs = self._presenter.cash_notification_jobs()
         except (CashRegisterError, RuntimeError, ValueError, LookupError) as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             self._kpis.set_cards([
                 KPIDTO("unread", "No leidas", "0"),
                 KPIDTO("pending", "Pendientes", "0"),
@@ -89,7 +90,7 @@ class CashNotificationsPage(QWidget):
         self._alerts.load_rows(
             [
                 [
-                    row.get("severity", ""),
+                    status_label(row.get("severity", "")),
                     row.get("title", ""),
                     row.get("body", ""),
                     row.get("created_at", ""),
@@ -101,14 +102,14 @@ class CashNotificationsPage(QWidget):
         self._jobs.load_rows(
             [
                 [
-                    row.get("channel", ""),
+                    status_label(row.get("channel", "")),
                     row.get("recipient", ""),
-                    row.get("severity", ""),
-                    row.get("status", ""),
+                    status_label(row.get("severity", "")),
+                    status_label(row.get("status", "")),
                     row.get("attempt_count", ""),
                     row.get("next_attempt_at", ""),
                     row.get("event_name", ""),
-                    row.get("last_error", ""),
+                    user_facing_error(row.get("last_error", "")) if row.get("last_error") else "",
                 ]
                 for row in jobs
             ],
@@ -119,7 +120,7 @@ class CashNotificationsPage(QWidget):
         try:
             result = self._presenter.dispatch_cash_notifications()
         except (CashRegisterError, RuntimeError, ValueError, LookupError) as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
         self._show_result(
             f"Despacho ejecutado. Entregadas={result.delivered}, "
@@ -131,4 +132,4 @@ class CashNotificationsPage(QWidget):
         QMessageBox.information(self, "Caja", message)
 
     def _show_error(self, message: str) -> None:
-        QMessageBox.warning(self, "Caja", message or "No fue posible completar la operacion.")
+        QMessageBox.warning(self, "Caja", user_facing_error(message or "No fue posible completar la operacion."))

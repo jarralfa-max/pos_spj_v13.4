@@ -32,6 +32,8 @@ class CashDevicesUiTests(unittest.TestCase):
             REPO / "backend/infrastructure/desktop/cash_register_factory.py"
         ).read_text(encoding="utf-8")
         self.assertIn("create_cash_device(", page)
+        self.assertIn("CashDeviceDialog", page)
+        self.assertNotIn("UUID de la caja", page)
         self.assertIn("set_cash_device_status(", page)
         self.assertIn('target_status="MAINTENANCE"', page)
         self.assertIn('target_status="RETIRED"', page)

@@ -16,10 +16,18 @@ class CashSettlementClassificationTests(unittest.TestCase):
             self.assertFalse(classify_settlement(settlement).affects_drawer)
 
     def test_commercial_instruments_share_explicit_classification(self):
-        for settlement in ("PUNTOS", "COUPON", "VOUCHER", "STORE_CREDIT"):
-            self.assertIs(
-                classify_settlement(settlement).classification,
-                CashSettlementClass.COMMERCIAL_INSTRUMENT)
+        for settlement in (
+            "PUNTOS", "COUPON", "VOUCHER", "REFUND_VOUCHER",
+            "STORE_CREDIT", "SALDO_PROMOCIONAL",
+        ):
+            definition = classify_settlement(settlement)
+            self.assertIs(definition.classification, CashSettlementClass.COMMERCIAL_INSTRUMENT)
+            self.assertTrue(definition.requires_external_validation)
+            self.assertFalse(definition.affects_drawer)
+
+    def test_operational_payment_methods_do_not_require_loyalty_validation(self):
+        for settlement in ("CASH", "BANK_CARD", "BANK_TRANSFER", "CUSTOMER_CREDIT"):
+            self.assertFalse(classify_settlement(settlement).requires_external_validation)
 
     def test_future_gift_card_is_classified_but_not_operational(self):
         with self.assertRaises(CashInvalidStateError):
@@ -28,6 +36,7 @@ class CashSettlementClassificationTests(unittest.TestCase):
         self.assertIs(definition.classification, CashSettlementClass.FUTURE_INSTRUMENT)
         self.assertFalse(definition.affects_drawer)
         self.assertFalse(definition.operational)
+        self.assertTrue(definition.requires_external_validation)
 
     def test_unknown_settlement_fails_closed(self):
         with self.assertRaises(CashInvalidStateError):

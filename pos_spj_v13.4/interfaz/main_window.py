@@ -46,10 +46,10 @@ except Exception as e:
     logger.error("Error cargando ModuloProductos: %s", e)
 
 try:
-    from modulos.clientes import ModuloClientes
+    from modulos.clientes_crm import ModuloClientesCrm
 except Exception as e:
-    ModuloClientes = None
-    logger.error("Error cargando ModuloClientes: %s", e)
+    ModuloClientesCrm = None
+    logger.error("Error cargando ModuloClientesCrm: %s", e)
 
 try:
     from modulos.delivery import ModuloDelivery
@@ -641,7 +641,11 @@ class MainWindow(QMainWindow):
         self._conectar("INVENTARIO",     ModuloInventarioLocal,"📦 Inventario")
         self._conectar("TRANSFERENCIAS", TransfersModuleHost, "Transferencias")
         self._conectar("PRODUCTOS",      ModuloProductos,      "🏷️ Productos")
-        self._conectar("CLIENTES",       ModuloClientes,       "👥 Clientes")
+        # Reemplaza al antiguo modulos/clientes.py (retirado — ver
+        # docs/refactor/CRM-24_retiro_modulo_legacy.md). Tarjetas/fidelidad
+        # y RFM no tienen reemplazo todavía (no le pertenecen a este bounded
+        # context, ver ese documento).
+        self._conectar("CLIENTES_CRM",   ModuloClientesCrm,    "👥 Clientes y CRM")
         self._conectar("MERMAS",         LossesModuleHost,     "Mermas")
 
         # ── Comercial ────────────────────────────────────────────────────────
@@ -694,7 +698,7 @@ class MainWindow(QMainWindow):
                         "ventas":           "POS",
                         "inventario":       "INVENTARIO",
                         "caja":             "CAJA",
-                        "clientes":         "CLIENTES",
+                        "clientes":         "CLIENTES_CRM",
                         "pedidos_whatsapp": "WHATSAPP",
                         "delivery":         "DELIVERY",
                         "reportes":         "INTELIGENCIA_BI",
@@ -1416,7 +1420,7 @@ class MainWindow(QMainWindow):
                 rows2 = repo.buscar_clientes(texto)
                 for r in rows2:
                     it = QListWidgetItem(f"👤 {r[0]} {r[1]}  —  {r[2]}")
-                    it.setData(Qt.UserRole, ("CLIENTES", None))
+                    it.setData(Qt.UserRole, ("CLIENTES_CRM", None))
                     lst.addItem(it)
                 # Ventas por folio
                 rows3 = repo.buscar_ventas_por_folio(texto)

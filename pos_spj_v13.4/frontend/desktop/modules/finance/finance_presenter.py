@@ -145,6 +145,34 @@ class FinancePresenter:
             ids.append(receivable["id"])
         return TableViewModel(rows, ids)
 
+    def crm_receivable_summary(self, cliente_id: str) -> dict | None:
+        """CRM-21: exposure/overdue/next-due-date summary from
+        ``CustomerAccountsReceivableSummaryQuery`` (CRM-8/13), read directly
+        against ``cuentas_por_cobrar`` (real production CxC data) — separate
+        from, and not a replacement for, ``open_receivables()`` above, which
+        reads the newer ``receivables`` table this Finanzas UI otherwise
+        shows. Called with the LEGACY ``cliente_id`` (the id
+        ``cuentas_por_cobrar.cliente_id`` actually holds), not the new
+        Customer Master id — see the query's own docstring. Returns
+        ``None`` if the customer has no CxC exposure or the lookup fails;
+        never raises to the UI."""
+        try:
+            from backend.application.customer_credit.queries.customer_accounts_receivable_summary_query import (
+                CustomerAccountsReceivableSummaryQuery,
+            )
+            summary = CustomerAccountsReceivableSummaryQuery(self._conn()).get_summary(
+                str(cliente_id))
+        except Exception as e:
+            logger.debug("crm_receivable_summary unavailable for %s: %s", cliente_id, e)
+            return None
+        return {
+            "customer_id": summary.customer_id,
+            "current_exposure": money_display(summary.current_exposure),
+            "overdue_amount": money_display(summary.overdue_amount),
+            "next_due_date": summary.next_due_date,
+            "receivable_status": summary.receivable_status,
+        }
+
     def register_collection(self, *, receivable_id: str, amount: str,
                             treasury_account_id: str, reference: str) -> tuple[bool, str]:
         return self._run(

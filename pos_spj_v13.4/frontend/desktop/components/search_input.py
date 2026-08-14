@@ -12,6 +12,8 @@ from PyQt5.QtWidgets import QLineEdit
 
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.components.tooltip import apply_tooltip
+from frontend.desktop.components.virtual_keyboard import attach_virtual_keyboard_action
+from frontend.desktop.themes.tokens import TouchTarget
 
 
 class SearchInput(QLineEdit):
@@ -25,6 +27,8 @@ class SearchInput(QLineEdit):
         self.setClearButtonEnabled(True)
         self.setPlaceholderText(placeholder)
         self.setProperty("icon", Icons.SEARCH)
+        self.setMinimumHeight(TouchTarget.INPUT_HEIGHT)
+        attach_virtual_keyboard_action(self)
         apply_tooltip(self, "Buscar", shortcut="Ctrl+F")
 
         self._timer = QTimer(self)

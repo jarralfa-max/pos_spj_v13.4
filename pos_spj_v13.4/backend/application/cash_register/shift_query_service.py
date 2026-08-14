@@ -16,6 +16,7 @@ class CashShiftRow:
     drawer_name: str
     terminal_name: str
     cashier_user_id: str
+    cashier_name: str
     status: str
     opening_amount: Decimal
     expected_cash: Decimal
@@ -48,12 +49,20 @@ class CashShiftQueryService:
             branch_id=branch_id,
         )
         safe_limit = max(1, min(int(limit or 100), 500))
+        users_join = ""
+        cashier_expr = "s.cashier_user_id"
+        cashier_group = "s.cashier_user_id"
+        if self._has_table("usuarios"):
+            users_join = "LEFT JOIN usuarios u ON u.id=s.cashier_user_id"
+            cashier_expr = "COALESCE(u.nombre,u.usuario,s.cashier_user_id)"
+            cashier_group = "s.cashier_user_id,u.nombre,u.usuario"
         cursor = self._connection.execute(
-            """SELECT s.id,
+            f"""SELECT s.id,
                       COALESCE(r.name,''),
                       COALESCE(d.name,''),
                       COALESCE(t.name,''),
                       s.cashier_user_id,
+                      {cashier_expr},
                       s.status,
                       s.opening_amount,
                       COALESCE(SUM(CASE l.direction
@@ -64,9 +73,10 @@ class CashShiftQueryService:
                JOIN cash_registers r ON r.id=s.register_id
                JOIN cash_drawers d ON d.id=s.drawer_id
                JOIN pos_terminals t ON t.id=s.terminal_id
+               {users_join}
                LEFT JOIN cash_ledger_entries l ON l.shift_id=s.id
                WHERE s.branch_id=?
-               GROUP BY s.id,r.name,d.name,t.name,s.cashier_user_id,s.status,
+               GROUP BY s.id,r.name,d.name,t.name,{cashier_group},s.status,
                         s.opening_amount,s.opened_at
                ORDER BY CASE s.status
                    WHEN 'OPEN' THEN 0
@@ -84,12 +94,23 @@ class CashShiftQueryService:
                 drawer_name=str(row[2] or ""),
                 terminal_name=str(row[3] or ""),
                 cashier_user_id=str(row[4] or ""),
-                status=str(row[5] or ""),
-                opening_amount=Decimal(str(row[6] or "0")),
-                expected_cash=Decimal(str(row[7] or "0")),
-                opened_at=str(row[8] or ""),
+                cashier_name=str(row[5] or ""),
+                status=str(row[6] or ""),
+                opening_amount=Decimal(str(row[7] or "0")),
+                expected_cash=Decimal(str(row[8] or "0")),
+                opened_at=str(row[9] or ""),
             )
             for row in cursor.fetchall()
         )
         active_count = sum(1 for row in rows if row.status in {"OPEN", "SUSPENDED", "CLOSING"})
         return CashShiftList(active_count=active_count, rows=rows)
+
+    def _has_table(self, name: str) -> bool:
+        try:
+            row = self._connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                (name,),
+            ).fetchone()
+        except Exception:
+            return False
+        return bool(row)

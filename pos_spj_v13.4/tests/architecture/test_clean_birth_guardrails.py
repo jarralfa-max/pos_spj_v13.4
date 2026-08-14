@@ -871,9 +871,10 @@ def test_clientes_table_is_born_clean_uuid_identity():
         src = w.read_text(encoding="utf-8")
         assert ("INSERT INTO clientes (id," in src) or ("INSERT INTO clientes(id," in src), w.name
 
-    ui_src = (REPO / "modulos" / "clientes.py").read_text(encoding="utf-8")
-    assert "QRandomGenerator.global_().bounded(1000, 10000)" not in ui_src   # id aleatorio eliminado
-    assert "int(self.tabla_clientes.item(" not in ui_src                     # casts de identidad eliminados
+    # modulos/clientes.py (el UI legacy que generaba ids aleatorios/casts de
+    # identidad enteros) fue eliminado — ver
+    # docs/refactor/CRM-24_retiro_modulo_legacy.md. Ambos patrones
+    # prohibidos aquí ya no pueden existir porque el archivo no existe.
 
 
 def test_activos_tables_are_born_clean_uuid_identity():

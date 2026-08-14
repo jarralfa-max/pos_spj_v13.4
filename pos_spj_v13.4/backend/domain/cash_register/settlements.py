@@ -22,6 +22,7 @@ class CashSettlementDefinition:
     classification: CashSettlementClass
     affects_drawer: bool
     operational: bool = True
+    requires_external_validation: bool = False
 
 
 _DEFINITIONS = {
@@ -31,14 +32,14 @@ _DEFINITIONS = {
     "PAYMENT_LINK": CashSettlementDefinition("PAYMENT_LINK", CashSettlementClass.ELECTRONIC, False),
     "PAYMENT_PROCESSOR": CashSettlementDefinition("PAYMENT_PROCESSOR", CashSettlementClass.ELECTRONIC, False),
     "CUSTOMER_CREDIT": CashSettlementDefinition("CUSTOMER_CREDIT", CashSettlementClass.CREDIT, False),
-    "LOYALTY_POINTS": CashSettlementDefinition("LOYALTY_POINTS", CashSettlementClass.COMMERCIAL_INSTRUMENT, False),
-    "COUPON": CashSettlementDefinition("COUPON", CashSettlementClass.COMMERCIAL_INSTRUMENT, False),
-    "VOUCHER": CashSettlementDefinition("VOUCHER", CashSettlementClass.COMMERCIAL_INSTRUMENT, False),
-    "REFUND_VOUCHER": CashSettlementDefinition("REFUND_VOUCHER", CashSettlementClass.COMMERCIAL_INSTRUMENT, False),
-    "PROMOTIONAL_VOUCHER": CashSettlementDefinition("PROMOTIONAL_VOUCHER", CashSettlementClass.COMMERCIAL_INSTRUMENT, False),
-    "STORE_CREDIT": CashSettlementDefinition("STORE_CREDIT", CashSettlementClass.COMMERCIAL_INSTRUMENT, False),
-    "PROMOTIONAL_BALANCE": CashSettlementDefinition("PROMOTIONAL_BALANCE", CashSettlementClass.COMMERCIAL_INSTRUMENT, False),
-    "GIFT_CARD": CashSettlementDefinition("GIFT_CARD", CashSettlementClass.FUTURE_INSTRUMENT, False, False),
+    "LOYALTY_POINTS": CashSettlementDefinition("LOYALTY_POINTS", CashSettlementClass.COMMERCIAL_INSTRUMENT, False, True, True),
+    "COUPON": CashSettlementDefinition("COUPON", CashSettlementClass.COMMERCIAL_INSTRUMENT, False, True, True),
+    "VOUCHER": CashSettlementDefinition("VOUCHER", CashSettlementClass.COMMERCIAL_INSTRUMENT, False, True, True),
+    "REFUND_VOUCHER": CashSettlementDefinition("REFUND_VOUCHER", CashSettlementClass.COMMERCIAL_INSTRUMENT, False, True, True),
+    "PROMOTIONAL_VOUCHER": CashSettlementDefinition("PROMOTIONAL_VOUCHER", CashSettlementClass.COMMERCIAL_INSTRUMENT, False, True, True),
+    "STORE_CREDIT": CashSettlementDefinition("STORE_CREDIT", CashSettlementClass.COMMERCIAL_INSTRUMENT, False, True, True),
+    "PROMOTIONAL_BALANCE": CashSettlementDefinition("PROMOTIONAL_BALANCE", CashSettlementClass.COMMERCIAL_INSTRUMENT, False, True, True),
+    "GIFT_CARD": CashSettlementDefinition("GIFT_CARD", CashSettlementClass.FUTURE_INSTRUMENT, False, False, True),
 }
 
 _ALIASES = {

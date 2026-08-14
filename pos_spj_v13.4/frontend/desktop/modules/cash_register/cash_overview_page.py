@@ -11,6 +11,7 @@ from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
 from frontend.desktop.components.view_states import ViewState, create_state_widget
+from frontend.desktop.modules.cash_register.presentation import status_label, user_facing_error
 
 
 class CashOverviewPage(QWidget):
@@ -53,7 +54,7 @@ class CashOverviewPage(QWidget):
         except (CashRegisterError, RuntimeError, ValueError, LookupError) as exc:
             if self._error is None:
                 self._error = create_state_widget(
-                    ViewState.ERROR, self, message=str(exc) or "No fue posible cargar BI de Caja."
+                    ViewState.ERROR, self, message=user_facing_error(exc)
                 )
                 self.layout().addWidget(self._error)
             self._grid.setVisible(False)
@@ -75,6 +76,6 @@ class CashOverviewPage(QWidget):
 
     def _load(self, table: StandardTable, rows) -> None:
         table.load_rows(
-            [[row.label, row.status, row.detail, row.occurred_at] for row in rows],
+            [[row.label, status_label(row.status), row.detail, row.occurred_at] for row in rows],
             row_ids=[row.id for row in rows],
         )

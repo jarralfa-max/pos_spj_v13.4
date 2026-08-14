@@ -21,17 +21,9 @@ def test_no_sql_in_pyqt_modules() -> None:
     assert_no_new_violations("SQL in PyQt modules", violations, SQL_IN_UI_ALLOWLIST)
 
 
-def test_clientes_history_dialog_has_no_sql() -> None:
-    """El historial de Clientes lee vía CustomerHistoryQueryService."""
-    from .architecture_guardrails import APP_ROOT, iter_source_lines
-
-    path = APP_ROOT / "modulos" / "clientes.py"
-    text = path.read_text(encoding="utf-8")
-    marker = "class DialogoHistorialCliente"
-    assert marker in text
-    dialog_src = text.split(marker, 1)[1].split("\nclass ", 1)[0]
-    for banned in ("cursor.execute", "SELECT fecha, total, metodo_pago", "id_cliente = ?"):
-        assert banned not in dialog_src, (
-            f"DialogoHistorialCliente aún contiene SQL directo: {banned!r}"
-        )
-    assert "CustomerHistoryQueryService" in text
+# ``test_clientes_history_dialog_has_no_sql`` (asserted DialogoHistorialCliente
+# had no raw SQL) was retired along with the class itself — the whole legacy
+# modulos/clientes.py module (and its modulos/dialogs/cliente_*.py split
+# from CRM-22) was deleted; the replacement,
+# frontend/desktop/modules/customers_crm/pages/customer_profile_page.py, is
+# already covered by the customers_crm CRM-1 no-raw-SQL guardrail suite.

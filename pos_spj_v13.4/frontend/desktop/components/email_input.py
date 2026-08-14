@@ -11,6 +11,9 @@ import re
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QLineEdit
 
+from frontend.desktop.components.virtual_keyboard import attach_virtual_keyboard_action
+from frontend.desktop.themes.tokens import TouchTarget
+
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
@@ -22,7 +25,9 @@ class EmailInput(QLineEdit):
         self.setObjectName("emailInput")
         self._required = required
         self.setPlaceholderText("nombre@dominio.com")
+        self.setMinimumHeight(TouchTarget.INPUT_HEIGHT)
         self.textChanged.connect(lambda _t: self.value_changed.emit())
+        attach_virtual_keyboard_action(self)
 
     def email(self) -> str:
         """Return the normalized email (trimmed; domain lowercased)."""

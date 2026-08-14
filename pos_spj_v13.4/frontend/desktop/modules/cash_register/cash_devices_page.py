@@ -7,7 +7,11 @@ from backend.shared.ids import is_uuidv7
 from frontend.desktop.components.buttons import create_primary_button, create_secondary_button
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
-from frontend.desktop.modules.cash_register.cash_register_dialogs import CashTextReasonDialog
+from frontend.desktop.modules.cash_register.cash_register_dialogs import (
+    CashDeviceActionDialog,
+    CashDeviceDialog,
+)
+from frontend.desktop.modules.cash_register.presentation import status_label, user_facing_error
 
 
 class CashDevicesPage(QWidget):
@@ -16,6 +20,7 @@ class CashDevicesPage(QWidget):
     def __init__(self, query_service, *, presenter, parent=None):
         super().__init__(parent)
         self._query, self._tables = query_service, {}
+        self._rows_by_id = {}
         self._presenter = presenter
         root = QVBoxLayout(self)
         create = create_primary_button(self, "Nuevo dispositivo")
@@ -70,6 +75,11 @@ class CashDevicesPage(QWidget):
         device_id = self._tables[self._active_kind()].selected_row_id()
         if device_id and not is_uuidv7(str(device_id)):
             self._show_error(
+                "El dispositivo seleccionado no tiene una identidad valida. "
+                "Actualiza la pantalla o recrea el registro."
+            )
+            return None
+            self._show_error(
                 "El dispositivo seleccionado tiene una identidad inválida. "
                 "Caja requiere UUIDv7 canónico; recrea el registro desde una base born-clean."
             )
@@ -77,11 +87,14 @@ class CashDevicesPage(QWidget):
         return device_id
 
     def refresh(self):
+        self._rows_by_id = {}
         for kind, _label in self.SECTIONS:
             rows = self._query.list_devices(kind)
+            for row in rows:
+                self._rows_by_id[row.id] = row
             self._tables[kind].load_rows(
                 [
-                    [row.name, row.branch_name, row.assignment, row.status, row.hardware_status]
+                    [row.name, row.branch_name, row.assignment, status_label(row.status), row.hardware_status]
                     for row in rows
                 ],
                 row_ids=[row.id for row in rows],
@@ -89,17 +102,19 @@ class CashDevicesPage(QWidget):
 
     def _create_device(self) -> None:
         kind = self._active_kind()
-        name = self._text_dialog("Nuevo dispositivo", "Nombre operativo del dispositivo")
-        if not name:
+        registers = tuple(self._query.list_devices("register")) if kind in {"drawer", "terminal"} else ()
+        dialog = CashDeviceDialog(
+            self,
+            kind=kind,
+            registers=registers,
+            title="Nuevo dispositivo de Caja",
+        )
+        if dialog.exec_() != dialog.Accepted:
             return
-        register_id = None
-        if kind in {"drawer", "terminal"}:
-            register_id = self._text_dialog("Asignar a caja", "UUID de la caja a la que pertenece")
-            if not register_id:
-                return
+        data = dialog.result_value()
         self._run(
             lambda: self._presenter.create_cash_device(
-                kind=kind, name=name, register_id=register_id),
+                kind=kind, name=data.name, register_id=data.register_id),
             "Dispositivo creado",
         )
 
@@ -134,7 +149,7 @@ class CashDevicesPage(QWidget):
         try:
             result = self._presenter.diagnose_cash_hardware(device_id=device_id)
         except (CashRegisterError, RuntimeError, ValueError) as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
         self._show_result(
             f"Diagnostico: {getattr(result, 'message', '')} "
@@ -164,14 +179,23 @@ class CashDevicesPage(QWidget):
         try:
             result = command()
         except (CashRegisterError, RuntimeError, ValueError) as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
         self._show_result(getattr(result, "message", success))
         self.refresh()
 
     def _text_dialog(self, title: str, placeholder: str) -> str:
-        dialog = CashTextReasonDialog(self, title=title)
-        dialog.reason.setPlaceholderText(placeholder)
+        device = self._rows_by_id.get(self._selected_id() or "")
+        if device is None:
+            self._show_error("Selecciona un dispositivo vigente.")
+            return ""
+        dialog = CashDeviceActionDialog(
+            self,
+            title=title,
+            device=device,
+            placeholder=placeholder,
+            ok_text="Continuar",
+        )
         if dialog.exec_() != dialog.Accepted:
             return ""
         return dialog.result_value().reason
@@ -180,4 +204,4 @@ class CashDevicesPage(QWidget):
         QMessageBox.information(self, "Caja", message)
 
     def _show_error(self, message: str) -> None:
-        QMessageBox.warning(self, "Caja", message or "No fue posible completar la operacion.")
+        QMessageBox.warning(self, "Caja", user_facing_error(message))

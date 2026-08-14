@@ -124,6 +124,12 @@ CANONICAL_MODULE_PERMISSIONS: dict[str, list[str]] = {
         "elegibilidad_comercial.verificar",
         "pedidos.ver", "entregas.ver", "whatsapp.ver", "fidelidad.ver",
     ],
+    # Visibilidad del módulo nuevo (frontend/desktop/modules/customers_crm/),
+    # adicional al legacy "CLIENTES" de arriba mientras ambos coexisten. Los
+    # permisos granulares que el módulo usa internamente ya están
+    # registrados bajo "CLIENTES"/"CRM" (CustomerPermissions/CRMPermissions);
+    # esta entrada es solo la puerta de entrada al menú lateral.
+    "CLIENTES_CRM": ["ver"],
     # Bounded context CRM (relación comercial: leads, oportunidades,
     # actividades, atención; granular, ver backend/application/crm/permissions.py).
     "CRM": [

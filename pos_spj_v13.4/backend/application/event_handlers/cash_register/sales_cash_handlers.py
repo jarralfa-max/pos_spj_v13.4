@@ -17,11 +17,7 @@ class SaleCompletedCashHandler:
         payload = dict(event.payload)
         settlements = payload.get("settlements")
         if isinstance(settlements, list):
-            payment_lines = {}
-            for line in settlements:
-                key = str(line.get("type") or "")
-                payment_lines[key] = Decimal(str(payment_lines.get(key, "0"))) + Decimal(
-                    str(line.get("amount", "0")))
+            payment_lines = [dict(line) for line in settlements]
         else:
             payment_lines = dict(payload.get("payment_breakdown") or settlements or {})
         if not payment_lines:

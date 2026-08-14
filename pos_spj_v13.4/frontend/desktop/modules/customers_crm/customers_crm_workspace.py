@@ -7,13 +7,23 @@ cash_register_workspace.py``'s shape and responsibilities exactly, scaled
 down to what CRM-14 ("UI Foundations": rutas, sidebar, PageHeader, density,
 theme, IconProvider) actually needs.
 
-**Every one of the 61 routes in ``customers_crm_routes.py`` resolves to a
-real widget today** — none of their feature pages exist yet (that's each
-later phase's own job, CRM-15+), so ``_create_page`` falls back to the
-canonical ``ViewState.EMPTY`` placeholder (never ``None``) for all of them
-unless a caller supplies a ``page_factories`` override, the same escape
-hatch `cash_register` uses for its own not-yet-built sections and for
-tests.
+**Not every route in ``customers_crm_routes.py`` resolves to a real widget
+yet** — 8 do today. CRM-15 built the dashboard (``customers.overview``);
+CRM-16 built the four directory pages (``customers.directory``/
+``crm.leads``/``crm.opportunities``/``crm.service_cases``); CRM-17 built the
+Expediente (``customers.profile``) and wired the customers directory to it
+(double-click a row → see that customer's Customer 360); CRM-18 built the
+quick-add form (``customers.create``) and wires ITS success back to the
+same Expediente (create a customer → land straight on their new record).
+The phase that wired this module into the real app for the first time also
+added ``customers.edit`` (``EditCustomerPage``), reached from the
+Expediente's "Editar" action and handing back to it on success — the same
+round trip as create, entered from the opposite direction. The remaining
+routes don't have pages yet (each later phase's own job), so
+``_create_page`` falls back to the canonical ``ViewState.EMPTY`` placeholder
+(never ``None``) for all of them unless a caller supplies a
+``page_factories`` override, the same escape hatch `cash_register` uses for
+its own not-yet-built sections and for tests.
 
 **Density**: `frontend/desktop/design_system/` has no `compact`/
 `comfortable`/`touch` profile system anywhere yet (aspirational per the
@@ -43,6 +53,26 @@ from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.side_nav import SideNav
 from frontend.desktop.components.tooltip import apply_tooltip
 from frontend.desktop.components.view_states import ViewState, create_state_widget
+from frontend.desktop.modules.customers_crm.pages.create_customer_page import (
+    CreateCustomerPage,
+)
+from frontend.desktop.modules.customers_crm.pages.customer_profile_page import (
+    CustomerProfilePage,
+)
+from frontend.desktop.modules.customers_crm.pages.customers_directory_page import (
+    CustomersDirectoryPage,
+)
+from frontend.desktop.modules.customers_crm.pages.edit_customer_page import (
+    EditCustomerPage,
+)
+from frontend.desktop.modules.customers_crm.pages.leads_directory_page import LeadsDirectoryPage
+from frontend.desktop.modules.customers_crm.pages.opportunities_directory_page import (
+    OpportunitiesDirectoryPage,
+)
+from frontend.desktop.modules.customers_crm.pages.overview_page import CustomersCrmOverviewPage
+from frontend.desktop.modules.customers_crm.pages.service_cases_directory_page import (
+    ServiceCasesDirectoryPage,
+)
 from frontend.desktop.modules.customers_crm.customers_crm_routes import (
     CUSTOMER_CRM_ROUTES,
     grouped_routes,
@@ -92,6 +122,7 @@ class CustomersCrmWorkspace(QWidget):
 
         self._build_routes()
         self.select_route("customers.overview")
+        self._ensure_active_page_loaded()
 
     def _initial_compact(self) -> bool:
         width = self.window().width() if self.window() else 0
@@ -147,6 +178,30 @@ class CustomersCrmWorkspace(QWidget):
     def _create_page(self, route_id: str, label: str, tooltip: str) -> QWidget:
         if route_id in self._page_factories:
             return self._page_factories[route_id](self)
+        if route_id == "customers.overview":
+            return CustomersCrmOverviewPage(self._presenter, self)
+        if route_id == "customers.profile":
+            self._profile_page = CustomerProfilePage(self._presenter, self)
+            self._profile_page.edit_requested.connect(self._open_edit_customer)
+            return self._profile_page
+        if route_id == "customers.edit":
+            self._edit_page = EditCustomerPage(self._presenter, self)
+            self._edit_page.customer_updated.connect(self._open_customer_profile)
+            return self._edit_page
+        if route_id == "customers.directory":
+            directory = CustomersDirectoryPage(self._presenter, self)
+            directory.entity_selected.connect(self._open_customer_profile)
+            return directory
+        if route_id == "customers.create":
+            create_page = CreateCustomerPage(self._presenter, self)
+            create_page.customer_created.connect(self._open_customer_profile)
+            return create_page
+        if route_id == "crm.leads":
+            return LeadsDirectoryPage(self._presenter, self)
+        if route_id == "crm.opportunities":
+            return OpportunitiesDirectoryPage(self._presenter, self)
+        if route_id == "crm.service_cases":
+            return ServiceCasesDirectoryPage(self._presenter, self)
 
         placeholder = create_state_widget(
             ViewState.EMPTY, self,
@@ -154,11 +209,36 @@ class CustomersCrmWorkspace(QWidget):
         apply_tooltip(placeholder, tooltip, help_id=f"customers_crm.{route_id}")
         return placeholder
 
+    def _open_customer_profile(self, customer_id: str) -> None:
+        """CRM-17: double-clicking a row in the customers directory opens
+        the Expediente for that customer. ``self._profile_page`` is set by
+        ``_create_page`` whenever ``customers.profile`` is built — always
+        true here in practice, since it shares the same "clientes" group
+        capability as ``customers.directory`` (same visibility gate), but
+        guarded defensively rather than assumed."""
+        profile_page = getattr(self, "_profile_page", None)
+        if profile_page is None:
+            return
+        self.select_route("customers.profile")
+        profile_page.show_customer(customer_id)
+
+    def _open_edit_customer(self, customer_id: str) -> None:
+        """The Expediente's "Editar" action navigates here; on success
+        ``EditCustomerPage.customer_updated`` hands back to
+        ``_open_customer_profile`` (same round trip create already does,
+        just entering from the opposite direction)."""
+        edit_page = getattr(self, "_edit_page", None)
+        if edit_page is None:
+            return
+        self.select_route("customers.edit")
+        edit_page.load_customer(customer_id)
+
     def _on_navigated(self, nav_row: int) -> None:
         item = self._nav.item(nav_row)
         route_id = item.data(Qt.UserRole) if item is not None else None
         if route_id in self._route_index_by_id:
             self._stack.setCurrentIndex(self._route_index_by_id[route_id])
+            self._ensure_active_page_loaded()
 
     def select_route(self, route_id: str) -> None:
         target_index = self._route_index_by_id.get(route_id)
@@ -173,6 +253,19 @@ class CustomersCrmWorkspace(QWidget):
                 self._nav.setCurrentRow(row)
                 break
         self._stack.setCurrentIndex(target_index)
+        self._ensure_active_page_loaded()
+
+    def _ensure_active_page_loaded(self) -> None:
+        """Lazy-load hook for real pages (currently only
+        ``CustomersCrmOverviewPage``) — placeholders have no ``ensure_loaded``
+        and are skipped harmlessly via ``hasattr``."""
+        host = self._stack.currentWidget()
+        if host is None:
+            return
+        scroll = host.findChild(QScrollArea)
+        page = scroll.widget() if scroll is not None else None
+        if page is not None and hasattr(page, "ensure_loaded"):
+            page.ensure_loaded()
 
     def refresh_permissions(self) -> None:
         current_id = None

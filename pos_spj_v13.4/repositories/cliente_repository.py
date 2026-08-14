@@ -32,7 +32,7 @@ class ClienteRepository:
 
     # ── Consultas ────────────────────────────────────────────────────────────
 
-    def get_by_id(self, cliente_id: int) -> Optional[dict]:
+    def get_by_id(self, cliente_id: str) -> Optional[dict]:
         row = self.db.execute(
             "SELECT * FROM clientes WHERE id=?", (cliente_id,)
         ).fetchone()
@@ -139,7 +139,7 @@ class ClienteRepository:
         """).fetchone()
         return dict(row) if row else {"total": 0, "activos": 0, "con_tarjeta": 0, "puntos_totales": 0}
 
-    def existe(self, cliente_id: int) -> bool:
+    def existe(self, cliente_id: str) -> bool:
         r = self.db.execute(
             "SELECT COUNT(*) FROM clientes WHERE id=?", (cliente_id,)
         ).fetchone()
@@ -147,7 +147,7 @@ class ClienteRepository:
 
     # ── Historial ────────────────────────────────────────────────────────────
 
-    def get_historial_compras(self, cliente_id: int, limit: int = 30) -> list:
+    def get_historial_compras(self, cliente_id: str, limit: int = 30) -> list:
         try:
             rows = self.db.execute("""
                 SELECT v.fecha, v.total, v.forma_pago, v.folio,
@@ -158,10 +158,10 @@ class ClienteRepository:
             """, (cliente_id, limit)).fetchall()
             return [dict(r) for r in rows]
         except Exception as e:
-            logger.warning("get_historial_compras(%d): %s", cliente_id, e)
+            logger.warning("get_historial_compras(%s): %s", cliente_id, e)
             return []
 
-    def get_movimientos_puntos(self, cliente_id: int, limit: int = 30) -> list:
+    def get_movimientos_puntos(self, cliente_id: str, limit: int = 30) -> list:
         try:
             rows = self.db.execute("""
                 SELECT fecha, tipo, puntos, saldo_actual, descripcion
@@ -171,10 +171,10 @@ class ClienteRepository:
             """, (cliente_id, limit)).fetchall()
             return [dict(r) for r in rows]
         except Exception as e:
-            logger.warning("get_movimientos_puntos(%d): %s", cliente_id, e)
+            logger.warning("get_movimientos_puntos(%s): %s", cliente_id, e)
             return []
 
-    def get_stats(self, cliente_id: int) -> dict:
+    def get_stats(self, cliente_id: str) -> dict:
         """Devuelve estadísticas básicas del cliente."""
         try:
             row = self.db.execute("""
@@ -187,7 +187,7 @@ class ClienteRepository:
             """, (cliente_id,)).fetchone()
             return dict(row) if row else {}
         except Exception as e:
-            logger.warning("get_stats(%d): %s", cliente_id, e)
+            logger.warning("get_stats(%s): %s", cliente_id, e)
             return {}
 
     # ── Mutaciones ───────────────────────────────────────────────────────────
@@ -210,7 +210,7 @@ class ClienteRepository:
         logger.info("Cliente creado id=%s nombre=%s", cliente_id, nombre)
         return cliente_id
 
-    def actualizar(self, cliente_id: int, **campos) -> bool:
+    def actualizar(self, cliente_id: str, **campos) -> bool:
         if not campos:
             return False
         allowed = {"nombre","telefono","email","direccion","notas","activo"}
@@ -226,7 +226,7 @@ class ClienteRepository:
         except Exception: pass
         return True
 
-    def dar_de_baja(self, cliente_id: int) -> bool:
+    def dar_de_baja(self, cliente_id: str) -> bool:
         """Soft-delete: marca inactivo, preserva historial."""
         self.db.execute("""
             UPDATE clientes
@@ -235,10 +235,10 @@ class ClienteRepository:
         """, (cliente_id,))
         try: self.db.commit()
         except Exception: pass
-        logger.info("Cliente %d dado de baja", cliente_id)
+        logger.info("Cliente %s dado de baja", cliente_id)
         return True
 
-    def actualizar_puntos(self, cliente_id: int, nuevos_puntos: float) -> bool:
+    def actualizar_puntos(self, cliente_id: str, nuevos_puntos: float) -> bool:
         self.db.execute(
             "UPDATE clientes SET puntos=? WHERE id=?",
             (nuevos_puntos, cliente_id)

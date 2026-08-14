@@ -1,25 +1,20 @@
 """Ventas → CRM bridge (CRM-13, §49): translates the legacy EventBus'
 ``VENTA_COMPLETADA``/``VENTA_CANCELADA`` payloads (``core/events/
-event_bus.py``, wired in ``core/events/wiring.py``) into calls against
-``RecordCustomerSaleActivityUseCase``/``RecordCustomerSaleCancelledUseCase``.
+event_bus.py``) into calls against ``RecordCustomerSaleActivityUseCase``/
+``RecordCustomerSaleCancelledUseCase``.
 
-**Known, documented gap — not wired into ``core/events/wiring.py`` yet**:
-``VENTA_COMPLETADA``'s ``cliente_id`` is the LEGACY ``clientes.id`` (see
+``payload["cliente_id"]`` is the LEGACY ``clientes.id`` (see
 ``core/services/sales_service.py``), never this bounded context's UUIDv7
 ``customers.id`` — the same unreconciled-identity gap
-``CustomerAccountsReceivableSummaryQuery`` (CRM-8) already documents for
-``cuentas_por_cobrar.cliente_id``, now confirmed to span Ventas/Pedidos/
-Delivery/WhatsApp/Fidelidad too, deferred to CRM-21/22. These handlers are
-real, tested, and correct: given a payload whose ``cliente_id`` happens to
-match a row in ``customers``, they apply the projection; given today's
-actual data (it never does), they no-op, exactly like the CxC query
-correctly returns zero exposure for a customer that only exists in the new
-table. Subscribing them in ``core/events/wiring.py`` is left to CRM-21/22
-(or to whichever future phase performs the identity reconciliation) — doing
-it now would either be permanently-dead code (a wiring change to a shared,
-cross-bounded-context legacy file that never fires) or would require
-inventing a fragile phone/RFC-based matching heuristic this phase was not
-asked to build.
+``CustomerAccountsReceivableSummaryQuery`` (CRM-8) documents for
+``cuentas_por_cobrar.cliente_id``. **CRM-21 closes this gap**: these
+handlers are now subscribed for real, by
+``core/events/wiring.py::_wire_customers_crm_sales_activity``, which
+resolves the legacy id through ``ResolveLegacyCustomerUseCase`` (migration
+193's ``customers.legacy_customer_id`` bridge) before calling
+``handle_sale_completed``/``handle_sale_cancelled`` below — so this module's
+own functions still receive a NEW ``customers.id`` in ``cliente_id``, same
+contract as always; only the caller changed.
 
 No handler exists for ``SALE_RETURNED``: no such event is published
 anywhere in this codebase today (only ``VENTA_COMPLETADA``/

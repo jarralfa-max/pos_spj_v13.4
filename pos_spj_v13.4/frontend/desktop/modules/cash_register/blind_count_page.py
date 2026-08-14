@@ -9,6 +9,7 @@ from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.quantity_input import QuantityInput
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
+from frontend.desktop.modules.cash_register.presentation import status_label, user_facing_error
 
 
 class BlindCountPage(QWidget):
@@ -83,7 +84,7 @@ class BlindCountPage(QWidget):
             reveal_expected=reveal_expected)
         self._kpis.set_cards([
             KPIDTO("counted", "Total contado", self._money(dto.total_counted), dto.total_counted),
-            KPIDTO("status", "Estado", "Bloqueado" if dto.locked else "En captura"),
+            KPIDTO("status", "Estado", "Bloqueado" if dto.locked else status_label("COUNTING")),
         ])
         if dto.expected_cash is None:
             self._expected.setText("Esperado: oculto")
@@ -100,7 +101,7 @@ class BlindCountPage(QWidget):
         try:
             result = self._presenter.start_blind_count()
         except (CashRegisterError, RuntimeError, ValueError) as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
         self._count_id = getattr(result, "entity_id", None)
         self._branch_id = self._presenter.active_branch_id()
@@ -119,7 +120,7 @@ class BlindCountPage(QWidget):
                 quantity=int(self._quantity.value()),
             )
         except (CashRegisterError, RuntimeError, ValueError) as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
         self.refresh()
 
@@ -129,7 +130,7 @@ class BlindCountPage(QWidget):
         try:
             self._presenter.confirm_blind_count(count_id=self._count_id)
         except (CashRegisterError, RuntimeError, ValueError) as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
         self._show_result("Conteo confirmado y bloqueado.")
         self.refresh()
@@ -140,10 +141,10 @@ class BlindCountPage(QWidget):
         try:
             self.refresh(reveal_expected=True)
         except (CashRegisterError, RuntimeError, ValueError) as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
 
     def _show_result(self, message: str) -> None:
         QMessageBox.information(self, "Caja", message)
 
     def _show_error(self, message: str) -> None:
-        QMessageBox.warning(self, "Caja", message or "No fue posible completar el conteo.")
+        QMessageBox.warning(self, "Caja", user_facing_error(message or "No fue posible completar el conteo."))

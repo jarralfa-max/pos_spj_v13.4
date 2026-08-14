@@ -164,7 +164,7 @@ class DiagnosticoSistema(QDialog):
                 ("Caja", "frontend.desktop.modules.cash_register"),
                 ("Inventario", "modulos.inventario"),
                 ("Productos", "modulos.productos_enterprise"),
-                ("Clientes", "modulos.clientes"),
+                ("Clientes", "modulos.clientes_crm"),
                 ("Finanzas", "modulos.finanzas"),
                 ("Reportes", "modulos.reportes"),
             ]

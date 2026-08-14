@@ -80,16 +80,11 @@ def test_blank_customer_id_returns_empty():
     assert qs.get_points_history(None) == []
 
 
-def test_dialog_assigns_history_qs_in_init_not_property():
-    """Regresión: 'DialogoHistorialCliente' object has no attribute '_history_qs'.
-
-    El QueryService se asigna como atributo plano en __init__ (antes de
-    init_ui), no como property — resistente a hotfixes locales que asignan.
-    """
-    from pathlib import Path
-
-    src = (Path(__file__).resolve().parents[2] / "modulos" / "clientes.py").read_text(encoding="utf-8")
-    dialog_src = src.split("class DialogoHistorialCliente", 1)[1]
-    init_src = dialog_src.split("def init_ui", 1)[0]
-    assert "self._history_qs = CustomerHistoryQueryService(" in init_src
-    assert "@property" not in dialog_src.split("def cargar_historial_compras", 1)[0]
+# ``test_dialog_assigns_history_qs_in_init_not_property`` (regression guard
+# for a legacy ``DialogoHistorialCliente`` bug) was retired along with that
+# class — the whole legacy modulos/clientes.py module (and its
+# modulos/dialogs/cliente_*.py split from CRM-22) was deleted; the
+# replacement, CustomerProfilePage, reads via
+# CustomerCrmPresenter.customer_360() rather than constructing
+# CustomerHistoryQueryService itself, so this test's premise no longer
+# applies to the new architecture.

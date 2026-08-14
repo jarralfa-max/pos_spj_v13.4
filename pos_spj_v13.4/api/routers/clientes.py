@@ -1,5 +1,7 @@
 # api/routers/clientes.py — Endpoints de clientes
 from __future__ import annotations
+import logging
+from dataclasses import asdict
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -8,6 +10,13 @@ from api.deps import get_db
 from api.auth import verify_api_key
 
 router = APIRouter(prefix="/clientes", tags=["clientes"])
+logger = logging.getLogger("spj.api.clientes")
+
+# CRM-21: pseudo-actor for CRM-13's permission-gated query services when
+# called from a system integration (no human user session) — mirrors the
+# 'WHATSAPP_BOT' literal already used as `usuario` elsewhere in
+# integrations/pos_adapter.py for the same "system caller" concept.
+_WHATSAPP_BOT_ACTOR = "WHATSAPP_BOT"
 
 
 class ClienteIn(BaseModel):
@@ -105,6 +114,67 @@ async def crear_cliente(
         return {"ok": True, "cliente_id": cliente_id, "nombre": body.nombre}
     except Exception as e:
         raise HTTPException(422, str(e))
+
+
+@router.get("/{cliente_id}/crm-summary")
+async def get_crm_summary(
+    cliente_id: str,
+    _key: str = Depends(verify_api_key),
+    db=Depends(get_db),
+):
+    """CRM-21: enriches a WhatsApp reply with the Customer Master's view of
+    this (legacy) customer — loyalty tier/points and order history, plus a
+    friendlier CRM `customer_number`/`display_name` if a bridge row exists.
+
+    `LoyaltyCustomerSummaryQuery`/`CustomerOrdersSummaryQuery` accept the
+    LEGACY `cliente_id` directly (their SQL filters legacy tables by it —
+    see their own docstrings), so no identity bridging is needed for those
+    two. Only the friendlier name/folio needs
+    `ResolveLegacyCustomerUseCase`. Degrades to `"available": false` per
+    section (never a 500) if the Customer Master's permission checker isn't
+    wired for this deployment yet (`CustomerAuthorizationPolicy()` fails
+    closed with no checker configured — a separate, pre-existing gap, not
+    something this endpoint can fix)."""
+    row = db.execute("SELECT id FROM clientes WHERE id=?", (cliente_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, f"Cliente {cliente_id} no encontrado")
+
+    from backend.application.customers.queries.customer_orders_summary_query import (
+        CustomerOrdersSummaryQuery,
+    )
+    from backend.application.customers.queries.loyalty_customer_summary_query import (
+        LoyaltyCustomerSummaryQuery,
+    )
+    from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
+        ResolveLegacyCustomerUseCase,
+    )
+
+    result: dict = {"cliente_id": cliente_id, "loyalty": None, "orders": None,
+                    "customer_number": None, "display_name": None}
+    try:
+        loyalty = LoyaltyCustomerSummaryQuery(db).get_summary(
+            cliente_id, actor_user_id=_WHATSAPP_BOT_ACTOR)
+        result["loyalty"] = asdict(loyalty)
+    except Exception as e:
+        logger.debug("crm-summary loyalty unavailable: %s", e)
+    try:
+        orders = CustomerOrdersSummaryQuery(db).get_summary(
+            cliente_id, actor_user_id=_WHATSAPP_BOT_ACTOR)
+        result["orders"] = asdict(orders)
+    except Exception as e:
+        logger.debug("crm-summary orders unavailable: %s", e)
+    try:
+        new_customer_id = ResolveLegacyCustomerUseCase().execute(
+            db, legacy_customer_id=cliente_id)
+        bridged = db.execute(
+            "SELECT customer_number, display_name FROM customers WHERE id=?",
+            (new_customer_id,)).fetchone()
+        if bridged:
+            result["customer_number"] = bridged["customer_number"]
+            result["display_name"] = bridged["display_name"]
+    except Exception as e:
+        logger.debug("crm-summary bridge unavailable: %s", e)
+    return result
 
 
 @router.get("/{cliente_id}/puntos")

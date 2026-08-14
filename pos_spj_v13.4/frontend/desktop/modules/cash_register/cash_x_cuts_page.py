@@ -11,6 +11,7 @@ from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
 from frontend.desktop.modules.cash_register.cash_register_dialogs import CashTextReasonDialog
+from frontend.desktop.modules.cash_register.presentation import display_code, user_facing_error
 
 
 class CashXCutsPage(QWidget):
@@ -66,7 +67,7 @@ class CashXCutsPage(QWidget):
         self._table.load_rows([
             [
                 row.document_number,
-                row.shift_id,
+                display_code("TUR", row.shift_id),
                 self._money(row.expected_cash),
                 (row.snapshot or {}).get("movement_count", "Restringido"),
                 "No",
@@ -82,7 +83,7 @@ class CashXCutsPage(QWidget):
         try:
             result = self._presenter.generate_x_cut()
         except (CashRegisterError, RuntimeError, ValueError) as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
         self._show_result(
             f"Corte X {getattr(result, 'document_number', '')} generado sin cerrar el turno."
@@ -112,12 +113,12 @@ class CashXCutsPage(QWidget):
                 reprint_reason=reason,
             )
         except (CashRegisterError, RuntimeError, ValueError) as exc:
-            self._show_error(str(exc))
+            self._show_error(user_facing_error(exc))
             return
-        self._show_result(f"Impresion en cola: {print_id}")
+        self._show_result("Corte X enviado a impresion." if print_id else "Corte X enviado a impresion.")
 
     def _show_result(self, message: str) -> None:
         QMessageBox.information(self, "Caja", message)
 
     def _show_error(self, message: str) -> None:
-        QMessageBox.warning(self, "Caja", message or "No fue posible completar Corte X.")
+        QMessageBox.warning(self, "Caja", user_facing_error(message or "No fue posible completar Corte X."))

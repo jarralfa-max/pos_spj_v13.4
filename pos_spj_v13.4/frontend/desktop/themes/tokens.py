@@ -92,6 +92,16 @@ class TableMetrics:
     ACTION_COLUMN_WIDTH = 120
 
 
+class TouchTarget:
+    """Minimum touch-friendly targets for frequently used POS screens."""
+
+    MIN_HEIGHT = 40
+    BUTTON_HEIGHT = 40
+    TABLE_ROW_HEIGHT = 40
+    ICON_BUTTON_SIZE = 40
+    INPUT_HEIGHT = 40
+
+
 class DialogMetrics:
     WIDTH_SM = 420
     WIDTH_MD = 560

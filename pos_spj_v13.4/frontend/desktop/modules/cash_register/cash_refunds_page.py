@@ -11,6 +11,7 @@ from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.view_states import ViewState, create_state_widget
 from frontend.desktop.modules.cash_register.cash_register_dialogs import CashRefundDialog
+from frontend.desktop.modules.cash_register.presentation import user_facing_error
 
 
 class CashRefundsPage(QWidget):
@@ -30,7 +31,7 @@ class CashRefundsPage(QWidget):
         self._kpis = KPIBar(self)
         self._kpis.set_cards([
             KPIDTO("boundary", "Frontera", "Ventas autoriza"),
-            KPIDTO("cash", "Efectivo", "Ledger si aplica"),
+            KPIDTO("cash", "Efectivo", "Salida fisica si aplica"),
             KPIDTO("finance", "Finanzas", "Evento operativo"),
         ])
         root.addWidget(self._kpis)
@@ -58,12 +59,11 @@ class CashRefundsPage(QWidget):
                 reason=data.reason,
             )
         except CashRegisterError as exc:
-            QMessageBox.warning(self, "Caja", str(exc))
+            QMessageBox.warning(self, "Caja", user_facing_error(exc))
             return
         cash = getattr(result, "cash_amount", "0")
-        entry_id = getattr(result, "ledger_entry_id", None)
         QMessageBox.information(
             self,
             "Caja",
-            f"Reembolso ejecutado. Efectivo: {cash}. Ledger: {entry_id or 'sin salida fisica'}.",
+            f"Reembolso realizado correctamente.\nSe entregaron {cash} en efectivo.",
         )

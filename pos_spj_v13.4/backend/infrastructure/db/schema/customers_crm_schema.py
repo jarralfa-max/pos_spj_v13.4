@@ -12,7 +12,14 @@ Rules (REGLA CERO, master prompt §11):
   events.
 - Sin secuencias auto-numéricas ni identidades de cursor; sin compatibilidad legacy —
   the legacy ``clientes`` table (docs/architecture/CRM_0_CUSTOMER_MASTER_AUDIT.md
-  §4) is untouched by this file and migrates its readers in CRM-21/22.
+  §4) is untouched by this file. CRM-21 added ``customers.legacy_customer_id``
+  (nullable, unique-when-set) as a bridge column so read-side consumers can
+  resolve a legacy ``clientes.id`` to this aggregate without migrating
+  ``clientes`` itself — see
+  ``backend/application/customers/use_cases/legacy_customer_bridge_use_cases.py``.
+  Writers on the six legacy consumer areas (POS/Ventas/WhatsApp/Delivery/
+  Fidelidad/Finanzas) still target ``clientes`` directly; that full cutover
+  remains future work.
 
 Only a migration in ``migrations/`` may execute this DDL.
 """
@@ -71,7 +78,8 @@ _DDL = (
         blocked_at TEXT,
         closed_at TEXT,
         last_purchase_at TEXT,
-        purchase_count INTEGER NOT NULL DEFAULT 0
+        purchase_count INTEGER NOT NULL DEFAULT 0,
+        legacy_customer_id TEXT
     )
     """,
     """
@@ -265,6 +273,10 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_customers_owner ON customers(account_owner_user_id)",
     "CREATE INDEX IF NOT EXISTS idx_customers_branch ON customers(origin_branch_id)",
     "CREATE INDEX IF NOT EXISTS idx_customers_territory ON customers(territory_id)",
+    # CRM-21: legacy `clientes.id` bridge — nullable+partial so customers
+    # created natively (no legacy origin) never collide on NULL.
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_legacy_customer_id ON customers(legacy_customer_id)"
+    " WHERE legacy_customer_id IS NOT NULL",
     "CREATE INDEX IF NOT EXISTS idx_customer_accounts_customer ON customer_accounts(customer_id)",
     "CREATE INDEX IF NOT EXISTS idx_customer_contacts_customer ON customer_contacts(customer_id)",
     "CREATE INDEX IF NOT EXISTS idx_customer_contacts_account ON customer_contacts(customer_account_id)",

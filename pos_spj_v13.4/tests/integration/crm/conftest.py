@@ -5,6 +5,7 @@ import sqlite3
 
 import pytest
 
+from backend.infrastructure.db.schema.customer_service_schema import create_customer_service_schema
 from backend.infrastructure.db.schema.customers_crm_schema import create_customers_crm_schema
 
 # Run the CRM migrations in their real bootstrap order: 183 creates the
@@ -41,5 +42,18 @@ def crm_and_customers_conn():
     conn.execute("PRAGMA foreign_keys = ON")
     _seed_crm_schema(conn)
     create_customers_crm_schema(conn)
+    yield conn
+    conn.close()
+
+
+@pytest.fixture
+def crm_and_service_conn():
+    """CRM-15: CustomerDashboardQueryService composes leads/opportunities/
+    activities/tasks (crm schema) with SLA breach status (customer_service
+    schema) — needs both on one connection."""
+    conn = sqlite3.connect(":memory:")
+    conn.execute("PRAGMA foreign_keys = ON")
+    _seed_crm_schema(conn)
+    create_customer_service_schema(conn)
     yield conn
     conn.close()
