@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from backend.application.cash_register.authorization import CashAuthorizationPolicy
+from backend.application.cash_register.blind_count_visibility import shift_has_open_blind_count
 from backend.application.cash_register.permissions import CashPermissions
 from backend.domain.cash_register.exceptions import CashInvalidStateError
 from backend.infrastructure.db.repositories.cash_register.repositories import CashCutRepository
@@ -26,6 +27,7 @@ class XCutDocumentDTO:
 
 class XCutQueryService:
     def __init__(self, connection, authorization: CashAuthorizationPolicy) -> None:
+        self._connection = connection
         self._cuts, self._auth = CashCutRepository(connection), authorization
 
     def list_for_branch(self, *, branch_id: str,
@@ -33,12 +35,18 @@ class XCutQueryService:
         self._auth.require(user_id=requester_user_id,
                            permission_code=CashPermissions.X_CUT_VIEW,
                            branch_id=branch_id)
-        visible = self._auth.has_permission(
+        sensitive_allowed = self._auth.has_permission(
             user_id=requester_user_id,
             permission_code=CashPermissions.VIEW_SENSITIVE_AMOUNTS,
             branch_id=branch_id)
         return tuple(
-            _dto(cut, sensitive_amounts_visible=visible)
+            _dto(
+                cut,
+                sensitive_amounts_visible=(
+                    sensitive_allowed
+                    and not shift_has_open_blind_count(self._connection, str(cut["shift_id"]))
+                ),
+            )
             for cut in self._cuts.list_x_for_branch(branch_id=branch_id)
         )
 
@@ -54,6 +62,8 @@ class XCutQueryService:
             user_id=requester_user_id,
             permission_code=CashPermissions.VIEW_SENSITIVE_AMOUNTS,
             branch_id=branch_id)
+        if shift_has_open_blind_count(self._connection, str(cut["shift_id"])):
+            visible = False
         return _dto(cut, sensitive_amounts_visible=visible)
 
 

@@ -181,11 +181,21 @@ class SessionContext:
 
     def tiene_permiso(self, codigo_permiso: str) -> bool:
         """Verifica si el usuario tiene un permiso específico.
-        Admin siempre tiene todos los permisos."""
+        Admin siempre tiene todos los permisos.
+
+        Soporta tres formas de grant en `self._permisos`:
+          - código exacto ("CLIENTES.VER")
+          - wildcard de módulo ("CLIENTES.*" — CRM-29: cubre cualquier
+            acción de ese módulo sin enumerarlas una por una)
+          - wildcard global ("*")
+        """
         if self.es_admin:
             return True
         normalized = normalize_permission(codigo_permiso)
-        return "*" in self._permisos or normalized in self._permisos
+        if "*" in self._permisos or normalized in self._permisos:
+            return True
+        module = normalized.split(".", 1)[0] if "." in normalized else ""
+        return bool(module) and f"{module}.*" in self._permisos
 
     def requiere_permiso(self, codigo_permiso: str, accion: str = "") -> bool:
         """Verifica permiso y lanza excepción si no lo tiene.

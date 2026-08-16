@@ -25,7 +25,8 @@ class SaleCompletedCashHandler:
         return self._service.record_completed_sale(
             self._connection, sale_id=event.entity_id, branch_id=event.branch_id,
             cashier_user_id=str(event.user_id or ""), operation_id=event.operation_id,
-            payment_lines=payment_lines, change=payload.get("change", "0"))
+            payment_lines=payment_lines, change=payload.get("change", "0"),
+            amount_to_settle=payload.get("total"))
 
 
 class SaleCancelledCashHandler:
@@ -63,7 +64,6 @@ class SaleRefundedCashHandler:
             cashier_user_id=str(event.user_id or ""),
             authorized_by=str(payload.get("authorized_by") or ""),
             operation_id=event.operation_id,
-            original_payment_lines=_settlement_map(payload.get("original_settlements")),
-            refund_lines=_settlement_map(
-                payload.get("refund_settlements") or payload.get("settlements")),
+            original_payment_lines=payload.get("original_settlements") or {},
+            refund_lines=payload.get("refund_settlements") or payload.get("settlements") or {},
             reason=str(payload.get("reason") or "Reembolso de venta"))

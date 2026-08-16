@@ -48,7 +48,7 @@ class CashRegisterUnitOfWorkTests(unittest.TestCase):
         movement = CashLedgerEntry.create(
             shift_id=shift.id, branch_id=branch, movement_type=CashMovementType.OPENING_FLOAT,
             direction=CashMovementDirection.INFLOW, amount=Decimal("500"),
-            operation_id=uid(), recorded_by=user)
+            operation_id=uid(), recorded_by=user, reference_id=shift.id)
         count = BlindCashCount.start(shift_id=shift.id, branch_id=branch,
                                      counter_user_id=user, operation_id=uid())
         count.capture(denomination=Decimal("500"), quantity=1)
@@ -113,7 +113,7 @@ class CashRegisterUnitOfWorkTests(unittest.TestCase):
                 movement_type=CashMovementType.SAFE_DROP,
                 direction=CashMovementDirection.OUTFLOW,
                 amount=Decimal("25"), operation_id=uid(), recorded_by=user,
-                concept="Retiro a tesoreria",
+                concept="Retiro a tesoreria", reference_id=uid(),
             )
             handover = CashHandover.prepare(
                 shift_id=shift.id, branch_id=branch, amount=Decimal("25"),

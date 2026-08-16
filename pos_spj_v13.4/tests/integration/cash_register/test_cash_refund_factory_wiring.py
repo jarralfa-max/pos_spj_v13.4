@@ -103,6 +103,13 @@ class CashRefundFactoryWiringTests(unittest.TestCase):
             self.db.execute("SELECT COUNT(*) FROM cash_domain_events WHERE event_name='CASH_REFUND_PROCESSED'").fetchone()[0],
             1,
         )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT method,amount,ledger_entry_id FROM cash_refund_executions WHERE refund_id=?",
+                (refund_id,),
+            ).fetchone(),
+            ("ORIGINAL_PAYMENT_METHOD", "100", None),
+        )
 
     def test_cash_refund_creates_physical_outflow_ledger_entry(self):
         sale_id = new_uuid()
@@ -131,6 +138,13 @@ class CashRefundFactoryWiringTests(unittest.TestCase):
             (result.ledger_entry_id,),
         ).fetchone()
         self.assertEqual(row, ("CASH_REFUND", "OUTFLOW", "50", sale_id))
+        self.assertEqual(
+            self.db.execute(
+                "SELECT method,amount,ledger_entry_id FROM cash_refund_executions WHERE ledger_entry_id=?",
+                (result.ledger_entry_id,),
+            ).fetchone(),
+            ("CASH", "50", result.ledger_entry_id),
+        )
 
 
 if __name__ == "__main__":

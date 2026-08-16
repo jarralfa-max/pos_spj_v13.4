@@ -95,6 +95,50 @@ class TestCreate:
         assert first.success and second.success
         assert first.entity_id == second.entity_id
 
+    def test_retries_on_customer_number_collision(self, cust_conn, monkeypatch):
+        """CRM-41 (Fase 7): `next_code()` is a read-then-increment — under
+        a concurrent writer that already claimed the number, `save()`
+        raises a UNIQUE-constraint IntegrityError. The use case must retry
+        with a fresh code instead of surfacing the raw DB error."""
+        from backend.domain.customers.value_objects.customer_code import CustomerCode
+        from backend.infrastructure.db.repositories.customers.customer_repository import (
+            CustomerRepository,
+        )
+
+        _create(cust_conn, name="Cliente Existente")  # claims CLI-000001
+
+        real_next_code = CustomerRepository.next_code
+        calls = {"n": 0}
+
+        def _colliding_then_real(self):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return CustomerCode.from_sequence(1)  # already taken above
+            return real_next_code(self)
+
+        monkeypatch.setattr(CustomerRepository, "next_code", _colliding_then_real)
+
+        result = _create(cust_conn, name="Cliente Nuevo")
+
+        assert result.success, result.error
+        assert result.data["code"] != "CLI-000001"
+        assert calls["n"] == 2
+
+    def test_gives_up_after_max_attempts_on_persistent_collision(self, cust_conn, monkeypatch):
+        from backend.domain.customers.value_objects.customer_code import CustomerCode
+        from backend.infrastructure.db.repositories.customers.customer_repository import (
+            CustomerRepository,
+        )
+        import sqlite3
+
+        _create(cust_conn, name="Cliente Existente")  # claims CLI-000001
+        monkeypatch.setattr(
+            CustomerRepository, "next_code",
+            lambda self: CustomerCode.from_sequence(1))  # always colliding
+
+        with pytest.raises(sqlite3.IntegrityError):
+            _create(cust_conn, name="Nunca Se Crea")
+
     def test_invalid_display_name_fails_validation(self, cust_conn):
         result = CreateCustomerUseCase(_allow_all()).execute(
             cust_conn, actor_user_id="u1", display_name="   ", operation_id=new_uuid())

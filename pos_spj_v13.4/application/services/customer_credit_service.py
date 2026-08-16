@@ -60,15 +60,53 @@ class CustomerCreditService:
         if not row:
             return None
 
+        allows_credit = bool(row[3])
+        credit_limit = float(row[4])
+
+        # CRM-27: prefer Customer Master's `customer_credit_profiles` (CRM-8
+        # workflow — request/review/approve/suspend/block, permission-gated
+        # and audited) when a bridged profile exists, so managing credit
+        # through the modern workflow actually takes effect at the POS gate
+        # instead of being silently disconnected from it. Falls back to the
+        # legacy `clientes` columns when no bridge/profile exists yet (fresh
+        # install, isolated test schema, or a customer nobody has run the
+        # new workflow for) — never a hard dependency, same defensive
+        # try/except discipline CRM-25 already established for the CRM
+        # eligibility advisory check.
+        try:
+            profile = self._credit_profile(cliente_id)
+            if profile is not None:
+                allows_credit = profile.is_usable_for_credit_sale()
+                credit_limit = float(profile.credit_limit)
+        except Exception as e:
+            logger.debug("get_customer credit profile lookup: %s", e)
+
         return {
             "id":             str(row[0]),
             "nombre":         row[1],
             "activo":         bool(row[2]),
-            "allows_credit":  bool(row[3]),
-            "credit_limit":   float(row[4]),
+            "allows_credit":  allows_credit,
+            "credit_limit":   credit_limit,
             "credit_balance": float(row[5]),
             "puntos":         int(row[6]),
         }
+
+    def _credit_profile(self, cliente_id: str):
+        """Resolve the bridged Customer Master credit profile for a legacy
+        `clientes.id`, or None if no bridge/profile exists. Raises (caught by
+        the caller) if the Customer Master schema isn't present at all —
+        that's a valid state for isolated/legacy-only test schemas, not an
+        error to surface."""
+        from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
+            ResolveLegacyCustomerUseCase,
+        )
+        from backend.infrastructure.db.repositories.customer_credit.unit_of_work import (
+            CustomerCreditUnitOfWork,
+        )
+        customer_id = ResolveLegacyCustomerUseCase().execute(
+            self.db, legacy_customer_id=cliente_id)
+        with CustomerCreditUnitOfWork(self.db) as uow:
+            return uow.profiles.get_by_customer_id(customer_id)
 
     def validate_credit(self, cliente_id: str, monto: float) -> Tuple[bool, str]:
         """

@@ -90,6 +90,47 @@ class CashRegisterFactoryActiveContextTests(unittest.TestCase):
             branch_id,
         )
 
+    def test_presenter_recovers_active_shift_from_persistence_after_restart(self):
+        branch_id, user_id = new_uuid(), new_uuid()
+        register_id, drawer_id, terminal_id, shift_id = (
+            new_uuid(), new_uuid(), new_uuid(), new_uuid()
+        )
+        now = "2026-08-13T12:00:00+00:00"
+        self.db.execute(
+            "INSERT INTO cash_registers VALUES(?,?,?,?,?,?,?)",
+            (register_id, branch_id, "Caja principal", "ACTIVE", None, now, now),
+        )
+        self.db.execute(
+            "INSERT INTO cash_drawers VALUES(?,?,?,?,?,?,?)",
+            (drawer_id, branch_id, register_id, "Cajon principal", "ACTIVE", now, now),
+        )
+        self.db.execute(
+            "INSERT INTO pos_terminals VALUES(?,?,?,?,?,?,?)",
+            (terminal_id, branch_id, register_id, "Terminal principal", "ACTIVE", now, now),
+        )
+        self.db.execute(
+            """INSERT INTO cash_shifts
+            (id,branch_id,register_id,drawer_id,terminal_id,cashier_user_id,
+             opening_amount,opening_operation_id,status,opened_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?)""",
+            (
+                shift_id, branch_id, register_id, drawer_id, terminal_id,
+                user_id, "250.00", new_uuid(), "OPEN", now,
+            ),
+        )
+        self.db.commit()
+        root = _Root()
+        root.db = self.db
+        root.session = _Session(user_id=user_id, branch_id=branch_id)
+
+        presenter = build_cash_register_presenter(root)
+
+        self.assertEqual(presenter.active_shift_id(), shift_id)
+        self.assertEqual(presenter.optional_active_shift_id(), shift_id)
+        self.assertEqual(presenter.active_register_id(), register_id)
+        self.assertEqual(presenter.active_drawer_id(), drawer_id)
+        self.assertEqual(presenter.active_terminal_id(), terminal_id)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -30,17 +30,18 @@ def verificar_password(usuario: str, password: str) -> bool:
         return False
 
 def migrar_password_a_bcrypt(usuario_id: int, password_plano: str) -> None:
-    try:
-        import bcrypt
-        hashed = (lambda p: __import__("hashlib").sha256(p.encode()).hexdigest())(password_plano)
-        conn = get_connection()
-        conn.execute(
-            "UPDATE usuarios SET contrasena=? WHERE id=?",
-            (hashed, usuario_id)
-        )
-        conn.commit()
-    except Exception as e:
-        logger.warning("migrar_password_a_bcrypt: %s", e)
+    """Rehashea con bcrypt (pese al nombre, hasta CRM-28 escribía un hash
+    SHA-256 — un bug de seguridad silencioso, nunca detectado porque no
+    tenía consumidores). Sin fallback: si bcrypt no está instalado, falla
+    en vez de escribir un hash débil."""
+    import bcrypt
+    hashed = bcrypt.hashpw(password_plano.encode(), bcrypt.gensalt()).decode()
+    conn = get_connection()
+    conn.execute(
+        "UPDATE usuarios SET contrasena=? WHERE id=?",
+        (hashed, usuario_id)
+    )
+    conn.commit()
 
 __all__ = [
     "get_connection", "get_db", "get_db_connection", "close_connection",

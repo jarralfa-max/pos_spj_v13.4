@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from backend.application.cash_register.authorization import CashAuthorizationPolicy
+from backend.application.cash_register.blind_count_visibility import shift_has_open_blind_count
 from backend.application.cash_register.permissions import CashPermissions
 
 
@@ -19,7 +20,7 @@ class CashShiftRow:
     cashier_name: str
     status: str
     opening_amount: Decimal
-    expected_cash: Decimal
+    expected_cash: Decimal | None
     opened_at: str
 
 
@@ -87,23 +88,29 @@ class CashShiftQueryService:
                LIMIT ?""",
             (branch_id, safe_limit),
         )
-        rows = tuple(
-            CashShiftRow(
-                id=str(row[0]),
-                register_name=str(row[1] or ""),
-                drawer_name=str(row[2] or ""),
-                terminal_name=str(row[3] or ""),
-                cashier_user_id=str(row[4] or ""),
-                cashier_name=str(row[5] or ""),
-                status=str(row[6] or ""),
-                opening_amount=Decimal(str(row[7] or "0")),
-                expected_cash=Decimal(str(row[8] or "0")),
-                opened_at=str(row[9] or ""),
-            )
-            for row in cursor.fetchall()
-        )
+        rows = tuple(self._row_from_record(row) for row in cursor.fetchall())
         active_count = sum(1 for row in rows if row.status in {"OPEN", "SUSPENDED", "CLOSING"})
         return CashShiftList(active_count=active_count, rows=rows)
+
+    def _row_from_record(self, row) -> CashShiftRow:
+        shift_id = str(row[0])
+        expected_cash = (
+            None
+            if shift_has_open_blind_count(self._connection, shift_id)
+            else Decimal(str(row[8] or "0"))
+        )
+        return CashShiftRow(
+            id=shift_id,
+            register_name=str(row[1] or ""),
+            drawer_name=str(row[2] or ""),
+            terminal_name=str(row[3] or ""),
+            cashier_user_id=str(row[4] or ""),
+            cashier_name=str(row[5] or ""),
+            status=str(row[6] or ""),
+            opening_amount=Decimal(str(row[7] or "0")),
+            expected_cash=expected_cash,
+            opened_at=str(row[9] or ""),
+        )
 
     def _has_table(self, name: str) -> bool:
         try:

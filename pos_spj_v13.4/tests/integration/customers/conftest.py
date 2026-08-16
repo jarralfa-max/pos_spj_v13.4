@@ -60,7 +60,17 @@ CREATE TABLE IF NOT EXISTS clientes (
     id TEXT NOT NULL PRIMARY KEY,
     nombre TEXT NOT NULL,
     telefono TEXT,
+    email TEXT,
     activo INTEGER DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS ventas (
+    id TEXT NOT NULL PRIMARY KEY,
+    folio TEXT,
+    cliente_id TEXT,
+    total REAL DEFAULT 0,
+    estado TEXT DEFAULT 'completada',
+    usuario TEXT,
+    fecha DATETIME DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS pedidos_whatsapp (
     id TEXT NOT NULL PRIMARY KEY,

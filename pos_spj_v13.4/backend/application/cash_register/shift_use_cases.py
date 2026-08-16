@@ -7,9 +7,10 @@ from decimal import Decimal
 from backend.application.cash_register.authorization import CashAuthorizationPolicy
 from backend.application.cash_register.permissions import CashPermissions
 from backend.domain.cash_register.entities import CashLedgerEntry, CashShift
-from backend.domain.cash_register.enums import CashMovementDirection, CashMovementType
+from backend.domain.cash_register.enums import CashMovementDirection, CashMovementType, CashShiftStatus
 from backend.domain.cash_register.events import CashEvents, cash_event_payload
 from backend.domain.cash_register.exceptions import CashAuthorizationRequiredError, CashInvalidStateError
+from backend.domain.cash_register.policies.workflow_policies import CashShiftLifecyclePolicy
 from backend.domain.cash_register.policies.security_policies import CashLimitDecision, CashMonetaryLimitPolicy
 from backend.infrastructure.db.repositories.cash_register.unit_of_work import CashRegisterUnitOfWork
 from backend.shared.ids import new_uuid
@@ -96,8 +97,7 @@ class OpenCashShiftUseCase:
 
 class _TransitionUseCase:
     permission = ""
-    source_status = ""
-    target_status = ""
+    target_status: CashShiftStatus
     event_name = ""
 
     def __init__(self, authorization: CashAuthorizationPolicy) -> None: self._auth = authorization
@@ -110,32 +110,32 @@ class _TransitionUseCase:
             shift = uow.shifts.get(shift_id)
             if not shift or shift["branch_id"] != branch_id:
                 raise CashInvalidStateError("Turno no encontrado en la sucursal")
-            if shift["status"] != self.source_status:
-                raise CashInvalidStateError(
-                    f"Transición inválida: {shift['status']} → {self.target_status}")
-            if self.target_status == "SUSPENDED" and not reason.strip():
-                raise CashInvalidStateError("La suspensión requiere motivo")
-            uow.shifts.set_lifecycle(shift_id=shift_id, status=self.target_status,
+            CashShiftLifecyclePolicy.ensure_transition(
+                current=shift["status"],
+                target=self.target_status,
+                reason=reason,
+            )
+            uow.shifts.set_lifecycle(shift_id=shift_id, status=self.target_status.value,
                                      suspended_reason=reason.strip() or None)
             _record(uow, self.event_name, operation_id=operation_id,
                     entity_id=shift_id, branch_id=branch_id,
                     actor_user_id=actor_user_id, reason=reason)
-        return ShiftResult(shift_id, f"Turno {self.target_status}")
+        return ShiftResult(shift_id, f"Turno {self.target_status.value}")
 
 
 class SuspendCashShiftUseCase(_TransitionUseCase):
     permission = CashPermissions.SHIFT_SUSPEND
-    source_status, target_status = "OPEN", "SUSPENDED"
+    target_status = CashShiftStatus.SUSPENDED
     event_name = CashEvents.SHIFT_SUSPENDED
 
 
 class ResumeCashShiftUseCase(_TransitionUseCase):
     permission = CashPermissions.SHIFT_RESUME
-    source_status, target_status = "SUSPENDED", "OPEN"
+    target_status = CashShiftStatus.OPEN
     event_name = CashEvents.SHIFT_RESUMED
 
 
 class BeginCashShiftClosingUseCase(_TransitionUseCase):
     permission = CashPermissions.SHIFT_PREPARE_CLOSE
-    source_status, target_status = "OPEN", "CLOSING"
+    target_status = CashShiftStatus.CLOSING
     event_name = CashEvents.SHIFT_CLOSING_STARTED

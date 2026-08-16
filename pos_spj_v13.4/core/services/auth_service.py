@@ -1,41 +1,45 @@
 
 # core/services/auth_service.py
 import logging
-import hashlib as _hashlib
-
-def _sha256(pwd: str) -> str:
-    return _hashlib.sha256(pwd.encode()).hexdigest()
 
 try:
     import bcrypt as _bcrypt
-    def _hash_password(pwd: str) -> str:
-        return _bcrypt.hashpw(pwd.encode(), _bcrypt.gensalt()).decode()
-    def _check_password(pwd: str, hashed: str) -> bool:
-        """
-        Acepta contraseñas en 3 formatos:
-          1. Texto plano (BD legacy que nunca hasheó)
-          2. SHA-256 hex (formato usado por el seed inicial de SPJ)
-          3. Bcrypt (formato seguro moderno)
-        """
-        # Texto plano
-        if hashed == pwd:
-            return True
-        # SHA-256 (seed inicial)
-        if _sha256(pwd) == hashed:
-            return True
-        # Bcrypt
-        try:
-            return _bcrypt.checkpw(pwd.encode(), hashed.encode())
-        except Exception:
-            return False
 except ImportError:
-    def _hash_password(pwd: str) -> str:
-        return _sha256(pwd)
-    def _check_password(pwd: str, hashed: str) -> bool:
-        """Acepta texto plano y SHA-256."""
-        return hashed == pwd or _sha256(pwd) == hashed
+    _bcrypt = None
 
 logger = logging.getLogger(__name__)
+
+
+class MissingPasswordHashingBackendError(RuntimeError):
+    """bcrypt no está instalado. No hay fallback: hashear o verificar una
+    contraseña sin un backend criptográfico real (SHA-256 sin sal, o texto
+    plano) es una vulnerabilidad, no una degradación aceptable — fail fast
+    en vez de silenciosamente debilitar la seguridad de todas las cuentas."""
+
+
+def _hash_password(pwd: str) -> str:
+    if _bcrypt is None:
+        raise MissingPasswordHashingBackendError(
+            "bcrypt no está instalado. Ejecute 'pip install bcrypt' — no existe "
+            "una ruta alterna para hashear contraseñas."
+        )
+    return _bcrypt.hashpw(pwd.encode(), _bcrypt.gensalt()).decode()
+
+
+def _check_password(pwd: str, hashed: str) -> bool:
+    """Verifica contra bcrypt únicamente. Ningún otro formato (texto plano,
+    SHA-256) es aceptado como válido — ver `MissingPasswordHashingBackendError`."""
+    if _bcrypt is None:
+        raise MissingPasswordHashingBackendError(
+            "bcrypt no está instalado. Ejecute 'pip install bcrypt' — no existe "
+            "una ruta alterna para verificar contraseñas."
+        )
+    try:
+        return _bcrypt.checkpw(pwd.encode(), hashed.encode())
+    except (ValueError, TypeError):
+        # hashed no tiene forma de hash bcrypt válido (p.ej. un hash legacy
+        # SHA-256/texto plano que no fue migrado) — inválido, no una excepción.
+        return False
 
 class AuthService:
     """
@@ -157,20 +161,14 @@ class AuthService:
             raise PermissionError("Usuario o contraseña incorrectos.")
 
         db_pass = user_data['password_hash']
-        is_valid = False
 
-        # 1. VERIFICACIÓN: soporta formatos legacy y modernos.
-        is_plain_legacy = (db_pass == plain_password)
-        is_sha_legacy = (_sha256(plain_password) == db_pass)
-        if is_plain_legacy:
-            is_valid = True
-            logger.warning("Usuario %s autenticado vía texto plano (legacy).", username)
-        else:
-            try:
-                if _check_password(plain_password, db_pass):
-                    is_valid = True
-            except ValueError:
-                pass
+        # VERIFICACIÓN: bcrypt únicamente. Sin fallback a texto plano ni
+        # SHA-256 — una cuenta con un hash legacy no migrado simplemente no
+        # puede autenticarse hasta que un administrador le asigne una
+        # contraseña nueva (ver `MissingPasswordHashingBackendError` y
+        # CRM-28 en migrations/MIGRATION_LOG.md para el reset ya aplicado
+        # a las cuentas que tenían hashes legacy al momento del cutover).
+        is_valid = _check_password(plain_password, db_pass or "")
 
         if not is_valid:
             self._register_failed_attempt(username)
@@ -181,19 +179,6 @@ class AuthService:
             )
             # Mensaje genérico (no revela si falló el usuario o la contraseña).
             raise PermissionError("Usuario o contraseña incorrectos.")
-
-        # 1.1 Auto-migración transparente a hash fuerte si venía en formato legacy
-        if is_plain_legacy or is_sha_legacy:
-            try:
-                new_hash = _hash_password(plain_password)
-                if self.repo.migrate_password_hash(user_data['id'], new_hash):
-                    self.audit_service.log_change(
-                        usuario=username, accion="PASSWORD_REHASHED", modulo="AUTH", entidad="USUARIO",
-                        entidad_id=str(user_data['id']), before_state={}, after_state={}, sucursal_id=user_data['sucursal_id'],
-                        detalles="Hash de contraseña migrado automáticamente a formato fuerte."
-                    )
-            except Exception as e:
-                logger.warning("No se pudo migrar hash de %s: %s", username, e)
 
         # 2. ÉXITO: Cargar permisos RBAC en caché para este usuario/sucursal
         self._reset_failed_attempts(username)

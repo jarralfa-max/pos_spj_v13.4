@@ -17,7 +17,8 @@ class CashDifferenceUiWiringArchitectureTests(unittest.TestCase):
         self.assertIn("explain_cash_difference(", page)
         self.assertIn("review_cash_difference(", page)
         self.assertIn("resolve_cash_difference(", page)
-        self.assertIn("CashTextReasonDialog", page)
+        self.assertIn("ExplainCashDifferenceDialog", page)
+        self.assertIn("ResolveCashDifferenceDialog", page)
         self.assertIn("CashDifferencesPage(query_service", workspace)
 
     def test_difference_factory_uses_canonical_use_cases(self):

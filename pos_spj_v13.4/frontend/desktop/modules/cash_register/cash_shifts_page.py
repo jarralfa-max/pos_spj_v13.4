@@ -66,6 +66,8 @@ class CashShiftsPage(QWidget):
 
     @staticmethod
     def _money(value) -> str:
+        if value is None:
+            return "Oculto por arqueo"
         return f"${value:,.2f}"
 
     def refresh(self) -> None:

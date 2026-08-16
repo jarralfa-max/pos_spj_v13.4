@@ -393,10 +393,12 @@ CUSTOMERS_CRM_LEGACY_CONSUMERS = {
     # (their only consumer) were all retired — see
     # docs/refactor/CRM-24_retiro_modulo_legacy.md. Card/loyalty (tarjetas)
     # and RFM segmentation had no replacement built (Fidelidad/BI's job,
-    # not Customer Master's — see that doc's "Pendiente").
-    'pos_spj_v13.4/core/services/cliente_service.py':
-        'Fachada legacy con fallback SQL directo en guardar_formulario(). '
-        'Reemplazar por backend/application/customers use cases (CRM-3).',
+    # not Customer Master's — see that doc's "Pendiente"). CRM-34 retired
+    # core/services/cliente_service.py — zero production callers (its only
+    # caller, the legacy DialogoCliente form, was already retired in
+    # CRM-24; its one real capability, get_crm_loyalty_summary, is
+    # redundant with LoyaltyCustomerSummaryQuery already wired into
+    # Customer 360) — see docs/refactor/CRM-34_legacy_purge.md.
     'pos_spj_v13.4/core/use_cases/cliente.py':
         'GestionarClienteUC (español). Fusionar con CreateCustomerUseCase '
         '(backend/application/use_cases/create_customer_use_case.py) en CRM-3.',

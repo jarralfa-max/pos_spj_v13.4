@@ -137,6 +137,11 @@ class CashPrintingTests(unittest.TestCase):
         self.assertNotEqual(original, reprint)
         self.assertEqual(len(queue.jobs), 2)
         self.assertEqual(queue.jobs[-1].original_print_id, original)
+        self.assertEqual(queue.jobs[-1].metadata["reprint_reason"], "Ticket danado por impresora")
+        self.assertEqual(
+            audit.records[-1]["event_payload"]["payload"]["reprint_reason"],
+            "Ticket danado por impresora",
+        )
         self.assertEqual(authorization.calls[-1]["permission_code"], "CAJA.reimprimir")
 
     def test_reprint_rejects_original_from_another_document(self):

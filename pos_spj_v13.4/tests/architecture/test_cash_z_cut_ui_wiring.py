@@ -17,7 +17,7 @@ class CashZCutUiWiringArchitectureTests(unittest.TestCase):
         self.assertIn("generate_z_cut(", page)
         self.assertIn("print_z_cut(", page)
         self.assertIn("notify_z_cut(", page)
-        self.assertIn("CashTextReasonDialog", page)
+        self.assertIn("ReprintCashDocumentDialog", page)
         self.assertIn("CashZCutsPage(query_service", workspace)
 
     def test_z_cut_factory_uses_canonical_use_cases_and_born_clean_print_queue(self):

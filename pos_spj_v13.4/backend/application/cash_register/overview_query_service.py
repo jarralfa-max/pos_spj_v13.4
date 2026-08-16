@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from backend.application.cash_register.authorization import CashAuthorizationPolicy
+from backend.application.cash_register.blind_count_visibility import branch_has_open_blind_count
 from backend.application.cash_register.permissions import CashPermissions
 
 
@@ -56,10 +57,16 @@ class CashOverviewQueryService:
         differences = self._pending_differences(branch_id)
         handovers = self._pending_handovers(branch_id)
         terminals = self._terminal_alerts(branch_id)
-        expected = self._expected_cash(branch_id)
+        expected_hidden = branch_has_open_blind_count(self._connection, branch_id)
+        expected = None if expected_hidden else self._expected_cash(branch_id)
         kpis = (
             CashOverviewKpi("active_shifts", "Turnos activos", str(len(active)), len(active)),
-            CashOverviewKpi("expected_cash", "Efectivo esperado", f"${expected:.2f}", expected),
+            CashOverviewKpi(
+                "expected_cash",
+                "Efectivo esperado",
+                "Oculto por arqueo" if expected_hidden else f"${expected:.2f}",
+                expected,
+            ),
             CashOverviewKpi("safe_drops", "Retiros pendientes", str(len(handovers)), len(handovers)),
             CashOverviewKpi("differences", "Diferencias pendientes", str(len(differences)), len(differences)),
             CashOverviewKpi("closures", "Cierres pendientes", str(len(closures)), len(closures)),

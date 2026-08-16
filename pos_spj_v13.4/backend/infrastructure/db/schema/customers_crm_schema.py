@@ -51,7 +51,9 @@ _DDL = (
         customer_type TEXT NOT NULL CHECK (customer_type IN (
             'INDIVIDUAL','BUSINESS','PUBLIC_CUSTOMER','EMPLOYEE','INTERNAL','OTHER')),
         display_name TEXT NOT NULL,
+        normalized_name TEXT NOT NULL DEFAULT '',
         legal_name TEXT NOT NULL DEFAULT '',
+        normalized_legal_name TEXT NOT NULL DEFAULT '',
         first_name TEXT NOT NULL DEFAULT '',
         last_name TEXT NOT NULL DEFAULT '',
         second_last_name TEXT NOT NULL DEFAULT '',
@@ -290,6 +292,11 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_customers_number ON customers(customer_number)",
     "CREATE INDEX IF NOT EXISTS idx_customers_status ON customers(status)",
     "CREATE INDEX IF NOT EXISTS idx_customers_display_name ON customers(display_name)",
+    # CRM-41 (Fase 7): blocking keys for CustomerDuplicatePolicy — lets
+    # find_duplicate_rows() filter in SQL instead of loading every customer.
+    "CREATE INDEX IF NOT EXISTS idx_customers_normalized_name ON customers(normalized_name)",
+    "CREATE INDEX IF NOT EXISTS idx_customers_normalized_legal_name"
+    " ON customers(normalized_legal_name)",
     "CREATE INDEX IF NOT EXISTS idx_customers_owner ON customers(account_owner_user_id)",
     "CREATE INDEX IF NOT EXISTS idx_customers_branch ON customers(origin_branch_id)",
     "CREATE INDEX IF NOT EXISTS idx_customers_territory ON customers(territory_id)",
@@ -300,8 +307,14 @@ _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_customer_accounts_customer ON customer_accounts(customer_id)",
     "CREATE INDEX IF NOT EXISTS idx_customer_contacts_customer ON customer_contacts(customer_id)",
     "CREATE INDEX IF NOT EXISTS idx_customer_contacts_account ON customer_contacts(customer_account_id)",
+    # CRM-41 (Fase 7): blocking keys for duplicate detection + typeahead —
+    # both previously only reachable via a full LEFT JOIN scan.
+    "CREATE INDEX IF NOT EXISTS idx_customer_contacts_phone ON customer_contacts(phone_e164)",
+    "CREATE INDEX IF NOT EXISTS idx_customer_contacts_email ON customer_contacts(email)",
     "CREATE INDEX IF NOT EXISTS idx_customer_addresses_customer ON customer_addresses(customer_id)",
     "CREATE INDEX IF NOT EXISTS idx_customer_tax_profiles_customer ON customer_tax_profiles(customer_id)",
+    "CREATE INDEX IF NOT EXISTS idx_customer_tax_profiles_identifier"
+    " ON customer_tax_profiles(tax_identifier)",
     "CREATE INDEX IF NOT EXISTS idx_customer_dupe_candidates_a"
     " ON customer_duplicate_candidates(customer_id_a)",
     "CREATE INDEX IF NOT EXISTS idx_customer_dupe_candidates_b"

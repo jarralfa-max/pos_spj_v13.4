@@ -8,7 +8,10 @@ from __future__ import annotations
 from backend.domain.customers.entities.customer import Customer
 from backend.domain.customers.enums import CustomerStatus, CustomerType, LifecycleStage
 from backend.domain.customers.value_objects.customer_code import CustomerCode
-from backend.infrastructure.db.repositories.customers.base import CustomerRepositoryBase
+from backend.infrastructure.db.repositories.customers.base import (
+    CustomerRepositoryBase,
+    normalize_name,
+)
 
 _MASTER_COLS = (
     "id, customer_number, customer_type, display_name, legal_name, first_name,"
@@ -31,18 +34,24 @@ class CustomerRepository(CustomerRepositoryBase):
 
     def save(self, customer: Customer, *, operation_id: str | None = None) -> None:
         self._execute(
-            f"INSERT INTO customers ({_MASTER_COLS})"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            self._params(customer, operation_id or customer.operation_id))
+            f"INSERT INTO customers ({_MASTER_COLS}, normalized_name, normalized_legal_name)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            self._params(customer, operation_id or customer.operation_id)
+            + (normalize_name(customer.display_name), normalize_name(customer.legal_name)))
 
     def update(self, customer: Customer) -> None:
+        # CRM-41 (Fase 7): normalized_name/normalized_legal_name recomputed
+        # on every update so they never drift from display_name/legal_name
+        # — same discipline as any derived column that must stay in sync
+        # with what it's derived from.
         self._execute(
             "UPDATE customers SET display_name=?, legal_name=?, first_name=?, last_name=?,"
             " second_last_name=?, commercial_name=?, status=?, lifecycle_stage=?, source=?,"
             " origin_branch_id=?, primary_contact_id=?, default_billing_address_id=?,"
             " default_delivery_address_id=?, account_owner_user_id=?, territory_id=?,"
             " version=?, updated_at=?, activated_at=?, suspended_at=?, blocked_at=?,"
-            " closed_at=?, last_purchase_at=?, purchase_count=? WHERE id=?",
+            " closed_at=?, last_purchase_at=?, purchase_count=?, normalized_name=?,"
+            " normalized_legal_name=? WHERE id=?",
             (customer.display_name, customer.legal_name, customer.first_name,
              customer.last_name, customer.second_last_name, customer.commercial_name,
              customer.status.value, customer.lifecycle_stage.value, customer.source,
@@ -51,7 +60,8 @@ class CustomerRepository(CustomerRepositoryBase):
              customer.account_owner_user_id, customer.territory_id, customer.version,
              customer.updated_at, customer.activated_at, customer.suspended_at,
              customer.blocked_at, customer.closed_at, customer.last_purchase_at,
-             customer.purchase_count, customer.id))
+             customer.purchase_count, normalize_name(customer.display_name),
+             normalize_name(customer.legal_name), customer.id))
 
     def get(self, customer_id: str) -> Customer | None:
         row = self._query_one(f"SELECT {_MASTER_COLS} FROM customers WHERE id=?", (customer_id,))
@@ -76,13 +86,67 @@ class CustomerRepository(CustomerRepositoryBase):
         return self._hydrate(row) if row else None
 
     def find_duplicate_rows(self) -> list[dict]:
-        """Lightweight rows for CustomerDuplicatePolicy (never loads full aggregates)."""
+        """Lightweight rows for CustomerDuplicatePolicy — never loads full
+        aggregates. Unfiltered: every batch caller that scans for
+        duplicates across the WHOLE customer base (bulk CSV import,
+        `DetectCustomerDuplicatesUseCase`) genuinely needs every row —
+        there is no single candidate to block against. For the one-
+        candidate-at-a-time case (creating a single customer), use
+        ``find_duplicate_rows_matching`` (CRM-41, Fase 7) instead, which
+        filters in SQL rather than loading everyone."""
         return self._query(
             "SELECT c.id, c.display_name, c.legal_name, t.tax_identifier,"
             " ct.phone_e164, ct.email"
             " FROM customers c"
             " LEFT JOIN customer_tax_profiles t ON t.customer_id=c.id"
             " LEFT JOIN customer_contacts ct ON ct.customer_id=c.id AND ct.is_primary=1")
+
+    def find_duplicate_rows_matching(
+        self, *, normalized_display_name: str = "", normalized_legal_name: str = "",
+        tax_identifier: str = "", phone_e164: str = "", email: str = "",
+    ) -> list[dict]:
+        """CRM-41 (Fase 7): blocking-key variant of ``find_duplicate_rows``
+        for the single-candidate case (``CreateCustomerUseCase``) — avoids
+        loading every customer just to check one new one.
+        `CustomerDuplicatePolicy.find_matches()` only ever reports a match
+        on an EXACT match of one of these blocking keys (never fuzzy), and
+        checks the candidate's normalized display AND legal name against
+        BOTH the stored display and legal name — so the SQL filter mirrors
+        that exact 2x2 name comparison (not just display-vs-display) to
+        stay faithful to the full-scan behavior; a real duplicate is
+        guaranteed to share at least one key with the candidate, so
+        filtering to rows sharing at least one returns the same matches a
+        full scan would. A candidate with none of the keys set matches
+        nothing here, same as it would against a full scan (no key to
+        match on)."""
+        clauses: list[str] = []
+        params: list[str] = []
+        name_candidates = [n for n in (normalized_display_name, normalized_legal_name) if n]
+        if name_candidates:
+            placeholders = ",".join("?" for _ in name_candidates)
+            clauses.append(f"c.normalized_name IN ({placeholders})")
+            params.extend(name_candidates)
+            clauses.append(f"c.normalized_legal_name IN ({placeholders})")
+            params.extend(name_candidates)
+        if tax_identifier:
+            clauses.append("UPPER(t.tax_identifier) = ?")
+            params.append(tax_identifier.upper())
+        if phone_e164:
+            clauses.append("ct.phone_e164 = ?")
+            params.append(phone_e164)
+        if email:
+            clauses.append("LOWER(ct.email) = ?")
+            params.append(email.lower())
+        if not clauses:
+            return []
+        return self._query(
+            "SELECT c.id, c.display_name, c.legal_name, t.tax_identifier,"
+            " ct.phone_e164, ct.email"
+            " FROM customers c"
+            " LEFT JOIN customer_tax_profiles t ON t.customer_id=c.id"
+            " LEFT JOIN customer_contacts ct ON ct.customer_id=c.id AND ct.is_primary=1"
+            f" WHERE {' OR '.join(clauses)}",
+            tuple(params))
 
     def list_active(self, *, limit: int = 200, offset: int = 0) -> list[Customer]:
         rows = self._query(

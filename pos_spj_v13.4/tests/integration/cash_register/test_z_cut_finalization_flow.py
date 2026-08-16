@@ -12,6 +12,7 @@ from backend.application.cash_register.permissions import ALL_CASH_PERMISSIONS
 from backend.application.cash_register.shift_use_cases import (
     BeginCashShiftClosingUseCase, OpenCashShiftUseCase,
 )
+from backend.application.cash_register.z_cut_query_service import CashZCutQueryService
 from backend.application.cash_register.z_cut_use_cases import (
     GenerateZCutUseCase, NotifyZCutUseCase, PrintZCutUseCase,
 )
@@ -22,6 +23,14 @@ from backend.shared.ids import new_uuid
 
 class _Permissions:
     def has_permission(self, user_id, permission_code): return permission_code in ALL_CASH_PERMISSIONS
+
+
+class _LimitedPermissions:
+    def __init__(self, grants):
+        self._grants = set(grants)
+
+    def has_permission(self, user_id, permission_code):
+        return permission_code in self._grants
 
 
 class _Scopes:
@@ -183,6 +192,39 @@ class ZCutFinalizationFlowTests(unittest.TestCase):
             "SELECT event_name FROM cash_domain_events WHERE entity_id=?", (cut.entity_id,))}
         self.assertTrue({"CASH_Z_CUT_GENERATED", "CASH_Z_CUT_PRINTED",
                          "CASH_Z_CUT_NOTIFICATION_SENT"} <= names)
+
+    def test_z_cut_projection_redacts_sensitive_amounts_without_permission(self):
+        self._confirmed_count(5)
+        self._begin_closing()
+        cut = self._generate()
+        view_only_auth = CashAuthorizationPolicy(
+            _LimitedPermissions({"CAJA.corte_z.ver"}),
+            _Scopes(),
+        )
+        hidden = CashZCutQueryService(self.db, view_only_auth).get(
+            cut_id=cut.entity_id,
+            branch_id=self.branch,
+            requester_user_id=self.cashier,
+        )
+        self.assertIsNone(hidden.expected_cash)
+        self.assertIsNone(hidden.counted_cash)
+        self.assertIsNone(hidden.difference)
+        self.assertIsNone(hidden.snapshot)
+        self.assertFalse(hidden.sensitive_amounts_visible)
+
+        sensitive_auth = CashAuthorizationPolicy(
+            _LimitedPermissions({"CAJA.corte_z.ver", "CAJA.ver.importes_sensibles"}),
+            _Scopes(),
+        )
+        visible = CashZCutQueryService(self.db, sensitive_auth).get(
+            cut_id=cut.entity_id,
+            branch_id=self.branch,
+            requester_user_id=self.cashier,
+        )
+        self.assertEqual(visible.expected_cash, Decimal("500"))
+        self.assertEqual(visible.counted_cash, Decimal("500"))
+        self.assertEqual(visible.difference, Decimal("0"))
+        self.assertIn("denominations_json", visible.snapshot)
 
 
 if __name__ == "__main__": unittest.main()

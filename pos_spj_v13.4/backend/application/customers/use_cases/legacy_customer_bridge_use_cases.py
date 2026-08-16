@@ -29,7 +29,9 @@ import json
 from backend.domain.customers.entities.customer import Customer
 from backend.domain.customers.enums import CustomerType
 from backend.domain.customers.events import CustomerEvents, build_event_payload
+from backend.domain.customers.exceptions import CustomerNotFoundError
 from backend.infrastructure.db.repositories.customers.unit_of_work import CustomerUnitOfWork
+from backend.shared.ids import new_uuid
 
 
 def _legacy_display_name(connection, legacy_customer_id: str) -> str:
@@ -68,6 +70,58 @@ class ResolveLegacyCustomerUseCase:
             uow.outbox.enqueue(payload["event_id"], CustomerEvents.CREATED,
                                json.dumps(payload), payload["operation_id"])
             return customer.id
+
+
+class EnsureLegacyCustomerBridgeUseCase:
+    """Fase 2 (§2, "IDENTIDAD ÚNICA DE CLIENTE") — the bridge direction
+    CRM-21 never built. `ResolveLegacyCustomerUseCase` only goes
+    legacy → new; a customer created NATIVELY in the Customer Master
+    (e.g. via the CRM "Nuevo cliente" page, never mirrored from a
+    `clientes` row) has no legacy record — every legacy-only consumer
+    (Ventas checkout, WhatsApp's phone lookup, Delivery, Fidelidad) is
+    unable to select or transact with them. Documented as an explicit,
+    honest limitation by CRM-32's `ModuloVentas.aplicar_contexto`
+    ("Cliente sin registro en Ventas") rather than silently failing —
+    this use case closes that gap by creating the missing `clientes` row
+    on demand and pointing `customers.legacy_customer_id` at it.
+
+    Idempotent: if `legacy_customer_id` is already set (bridged from
+    either direction), returns it unchanged — never creates a second
+    `clientes` row for the same customer. `customers.legacy_customer_id`
+    is otherwise write-once-at-creation in `CustomerRepository.update()`
+    (by design — it's provenance, not an editable field); this is the one
+    sanctioned exception, a direct targeted `UPDATE` for exactly that
+    column, mirroring `ResolveLegacyCustomerUseCase`'s already-sanctioned
+    direct-SQL read into `clientes` (a different bounded context's table,
+    read/written only for bridging, never for business logic)."""
+
+    def execute(self, connection, *, customer_id: str) -> str:
+        with CustomerUnitOfWork(connection) as uow:
+            customer = uow.customers.get(customer_id)
+            if customer is None:
+                raise CustomerNotFoundError(f"Customer {customer_id} no existe")
+            if customer.legacy_customer_id:
+                return customer.legacy_customer_id
+
+            contacts = uow.contacts.list_for_customer(customer_id)
+            primary = next((c for c in contacts if c.is_primary), None) or (
+                contacts[0] if contacts else None)
+            telefono = (primary.phone_e164 if primary else "") or ""
+            email = (primary.email if primary else "") or ""
+
+            legacy_customer_id = new_uuid()
+            connection.execute(
+                "INSERT INTO clientes (id, nombre, telefono, email, activo)"
+                " VALUES (?, ?, ?, ?, 1)",
+                (legacy_customer_id, customer.display_name, telefono, email))
+            connection.execute(
+                "UPDATE customers SET legacy_customer_id=? WHERE id=?",
+                (legacy_customer_id, customer_id))
+            uow.audit.record(
+                action=CustomerEvents.UPDATED, actor_user_id=None, customer_id=customer_id,
+                after_json=json.dumps({"legacy_customer_id": legacy_customer_id}),
+                reason="reverse_bridge_ensured")
+            return legacy_customer_id
 
 
 class BackfillLegacyCustomersUseCase:

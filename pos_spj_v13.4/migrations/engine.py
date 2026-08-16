@@ -188,6 +188,8 @@ MIGRATIONS = [
     _Migration("193",  "migrations.standalone.193_customers_legacy_customer_bridge"),
     _Migration("194",  "migrations.standalone.194_crm_automation_rules_schema"),
     _Migration("195",  "migrations.standalone.195_crm_sync_conflicts_schema"),
+    _Migration("196",  "migrations.standalone.196_customer_credit_profile_backfill"),
+    _Migration("197",  "migrations.standalone.197_customers_normalized_name_blocking_keys"),
 ]
 
 def _ensure_tracking_table(conn):

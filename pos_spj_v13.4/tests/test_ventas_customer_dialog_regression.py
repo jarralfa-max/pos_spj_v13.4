@@ -132,6 +132,169 @@ class TestGuardarNuevoClienteRegression:
         assert ns.cliente_actual["id"] == first_id, "existing-card branch selected the wrong customer"
 
 
+def _fake_ventas_with_container(conn):
+    ns = _fake_ventas(conn)
+    ns.container = SimpleNamespace(db=conn)
+    return ns
+
+
+class TestAplicarContextoNavigationIntent:
+    """CRM-32: receiving end of a NavigationIntent(route="sales.new",
+    context={"customer_id": ...}) — must preselect the bridged legacy
+    customer without crashing, and must never silently do nothing when no
+    bridge exists."""
+
+    def test_preselects_customer_via_legacy_bridge(self):
+        from backend.infrastructure.db.schema.customers_crm_schema import (
+            create_customers_crm_schema,
+        )
+        from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
+            ResolveLegacyCustomerUseCase,
+        )
+
+        conn = _make_db()
+        create_customers_crm_schema(conn)
+        cli_repo = ClienteRepository(conn)
+        legacy_id = cli_repo.crear(nombre="Delia Nuñez", telefono="5533334444")
+        customer_id = ResolveLegacyCustomerUseCase().execute(conn, legacy_customer_id=legacy_id)
+
+        ns = _fake_ventas_with_container(conn)
+        ModuloVentas.aplicar_contexto(ns, {"customer_id": customer_id})
+
+        assert ns.cliente_actual is not None
+        assert ns.cliente_actual["id"] == legacy_id
+        assert ns.cliente_actual["nombre"] == "Delia Nuñez"
+        ns.actualizar_info_cliente.assert_called_once()
+
+    def test_native_crm_only_customer_gets_a_legacy_row_created_on_demand(self):
+        """CRM-36: EnsureLegacyCustomerBridgeUseCase closed the gap this
+        test used to document as a limitation (see git history) — a
+        customer created ONLY in the Customer Master now gets a real
+        `clientes` row created on the fly, so "Nueva venta" always
+        succeeds instead of telling the cashier to search manually."""
+        from backend.infrastructure.db.schema.customers_crm_schema import (
+            create_customers_crm_schema,
+        )
+        from backend.domain.customers.entities.customer import Customer
+        from backend.domain.customers.enums import CustomerType
+        from backend.infrastructure.db.repositories.customers.unit_of_work import (
+            CustomerUnitOfWork,
+        )
+
+        conn = _make_db()
+        create_customers_crm_schema(conn)
+        with CustomerUnitOfWork(conn) as uow:
+            customer = Customer.create(
+                uow.customers.next_code(), "Cliente Nativo CRM", CustomerType.INDIVIDUAL,
+                source="crm_ui")
+            uow.customers.save(customer)
+        customer_id = customer.id
+
+        ns = _fake_ventas_with_container(conn)
+        ModuloVentas.aplicar_contexto(ns, {"customer_id": customer_id})
+
+        assert ns.cliente_actual is not None
+        assert ns.cliente_actual["nombre"] == "Cliente Nativo CRM"
+        with CustomerUnitOfWork(conn) as uow:
+            bridged = uow.customers.get(customer_id)
+        assert bridged.legacy_customer_id == ns.cliente_actual["id"]
+
+    def test_empty_context_is_a_noop(self):
+        conn = _make_db()
+        ns = _fake_ventas_with_container(conn)
+        ModuloVentas.aplicar_contexto(ns, {})
+        assert ns.cliente_actual is None
+        ns.actualizar_info_cliente.assert_not_called()
+
+
+class TestBuscarClienteCustomerMasterFallback:
+    """CRM-36 (Fase 2): when the legacy search finds nothing, `buscar_cliente`
+    also tries the Customer Master — covers customers created only via the
+    CRM's "Nuevo cliente" page, previously invisible here."""
+
+    def _fake_ventas_with_auth(self, conn):
+        from backend.application.customers.authorization import CustomerAuthorizationPolicy
+
+        ns = _fake_ventas_with_container(conn)
+        ns.container.customer_authorization_policy = CustomerAuthorizationPolicy.permissive_for_tests()
+        ns.container.session = SimpleNamespace(user_id="u-cajero-1")
+        ns.txt_cliente = MagicMock()
+        ns._buscar_cliente_en_customer_master = (
+            lambda termino: ModuloVentas._buscar_cliente_en_customer_master(ns, termino))
+        return ns
+
+    def test_falls_back_to_customer_master_when_legacy_search_empty(self):
+        from backend.infrastructure.db.schema.customers_crm_schema import (
+            create_customers_crm_schema,
+        )
+        from backend.domain.customers.entities.customer import Customer
+        from backend.domain.customers.enums import CustomerType
+        from backend.infrastructure.db.repositories.customers.unit_of_work import (
+            CustomerUnitOfWork,
+        )
+
+        conn = _make_db()
+        create_customers_crm_schema(conn)
+        with CustomerUnitOfWork(conn) as uow:
+            customer = Customer.create(
+                uow.customers.next_code(), "Zoe Fernandez", CustomerType.INDIVIDUAL,
+                source="crm_ui")
+            uow.customers.save(customer)
+
+        ns = self._fake_ventas_with_auth(conn)
+        ns.txt_cliente.text.return_value = "Zoe"
+
+        ModuloVentas.buscar_cliente(ns)
+
+        assert ns.cliente_actual is not None
+        assert ns.cliente_actual["nombre"] == "Zoe Fernandez"
+        with CustomerUnitOfWork(conn) as uow:
+            bridged = uow.customers.get(customer.id)
+        assert bridged.legacy_customer_id == ns.cliente_actual["id"]
+
+    def test_legacy_match_takes_priority_over_customer_master(self):
+        """If the legacy search already finds someone, the Customer Master
+        fallback must never even be consulted — zero behavior change for
+        every customer already findable today."""
+        conn = _make_db()
+        cli_repo = ClienteRepository(conn)
+        cli_repo.crear(nombre="Mismo Nombre", telefono="5500001111")
+
+        ns = self._fake_ventas_with_auth(conn)
+        ns.txt_cliente.text.return_value = "Mismo Nombre"
+
+        ModuloVentas.buscar_cliente(ns)
+
+        assert ns.cliente_actual is not None
+        assert ns.cliente_actual["nombre"] == "Mismo Nombre"
+
+    def test_offers_create_new_when_neither_source_has_a_match(self, monkeypatch):
+        conn = _make_db()
+        ns = self._fake_ventas_with_auth(conn)
+        ns.txt_cliente.text.return_value = "Nadie Existe"
+        asked = []
+        monkeypatch.setattr(
+            "modulos.ventas.QMessageBox.question",
+            lambda *a, **k: (asked.append(True), 0)[1])
+        ns.agregar_cliente_con_nombre = MagicMock()
+
+        ModuloVentas.buscar_cliente(ns)
+
+        assert ns.cliente_actual is None
+        assert asked, "debe seguir ofreciendo crear cliente nuevo si no se encuentra en ningún lado"
+
+    def test_no_auth_wired_degrades_silently(self):
+        """container sin customer_authorization_policy (composición no
+        wireada aún) — no debe crashear, solo no encontrar nada extra."""
+        conn = _make_db()
+        ns = _fake_ventas_with_container(conn)  # sin customer_authorization_policy
+        ns.txt_cliente = MagicMock()
+        ns.txt_cliente.text.return_value = "Quien Sea"
+
+        result = ModuloVentas._buscar_cliente_en_customer_master(ns, "Quien Sea")
+        assert result is None
+
+
 class TestBuscarClienteBaseline:
     """Baseline for `buscar_cliente`'s found path, before CRM-25 step 5
     swaps its lookup source — must keep working identically."""

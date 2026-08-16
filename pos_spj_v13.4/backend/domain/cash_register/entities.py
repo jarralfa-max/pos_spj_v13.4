@@ -16,6 +16,7 @@ from backend.domain.cash_register.exceptions import (
     CashDuplicateOperationError, CashInvalidStateError,
     CashSegregationOfDutiesError,
 )
+from backend.domain.cash_register.movement_model import ensure_cash_movement_contract
 from backend.domain.cash_register.value_objects.money import money
 
 
@@ -129,24 +130,38 @@ class CashShift:
                    cashier_user_id, money(opening_amount), operation_id)
 
     def suspend(self, reason: str) -> None:
-        if self.status is not CashShiftStatus.OPEN or not reason.strip():
-            raise CashInvalidStateError("Only an open shift can be suspended with a reason")
+        from backend.domain.cash_register.policies.workflow_policies import CashShiftLifecyclePolicy
+
+        CashShiftLifecyclePolicy.ensure_transition(
+            current=self.status, target=CashShiftStatus.SUSPENDED, reason=reason
+        )
         self.status, self.suspended_reason = CashShiftStatus.SUSPENDED, reason.strip()
 
     def resume(self) -> None:
-        if self.status is not CashShiftStatus.SUSPENDED:
-            raise CashInvalidStateError("Only a suspended shift can be resumed")
+        from backend.domain.cash_register.policies.workflow_policies import CashShiftLifecyclePolicy
+
+        CashShiftLifecyclePolicy.ensure_transition(
+            current=self.status, target=CashShiftStatus.OPEN
+        )
         self.status, self.suspended_reason = CashShiftStatus.OPEN, None
 
     def begin_closing(self) -> None:
-        if self.status is not CashShiftStatus.OPEN:
-            raise CashInvalidStateError("Only an open shift can begin closing")
+        from backend.domain.cash_register.policies.workflow_policies import CashShiftLifecyclePolicy
+
+        CashShiftLifecyclePolicy.ensure_transition(
+            current=self.status, target=CashShiftStatus.CLOSING
+        )
         self.status = CashShiftStatus.CLOSING
 
     def close(self, *, z_cut_id: str) -> None:
         _ids(z_cut_id)
-        if self.status is not CashShiftStatus.CLOSING or self.z_cut_id:
-            raise CashInvalidStateError("Shift closing requires CLOSING state and one final Z cut")
+        from backend.domain.cash_register.policies.workflow_policies import CashShiftLifecyclePolicy
+
+        CashShiftLifecyclePolicy.ensure_transition(
+            current=self.status,
+            target=CashShiftStatus.CLOSED,
+            has_final_z_cut=bool(z_cut_id) and not self.z_cut_id,
+        )
         self.z_cut_id, self.status, self.closed_at = z_cut_id, CashShiftStatus.CLOSED, _now()
 
 
@@ -175,6 +190,14 @@ class CashLedgerEntry:
                reversal_of_id: str | None = None,
                related_sale_id: str | None = None) -> "CashLedgerEntry":
         _ids(shift_id, branch_id, operation_id, recorded_by)
+        concept = concept.strip()
+        ensure_cash_movement_contract(
+            movement_type=movement_type,
+            direction=direction,
+            concept=concept,
+            reference_id=reference_id,
+            reversal_of_id=reversal_of_id,
+        )
         if reference_id is not None:
             _ids(reference_id)
         if reversal_of_id is not None:
@@ -183,7 +206,7 @@ class CashLedgerEntry:
             _ids(related_sale_id)
         return cls(new_uuid(), shift_id, branch_id, movement_type, direction,
                    money(amount, allow_zero=False), operation_id, recorded_by,
-                   concept.strip(), reference_id, reversal_of_id, related_sale_id)
+                   concept, reference_id, reversal_of_id, related_sale_id)
 
     @property
     def signed_amount(self) -> Decimal:

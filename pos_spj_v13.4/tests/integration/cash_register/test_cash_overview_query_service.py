@@ -51,10 +51,10 @@ class CashOverviewQueryServiceTest(unittest.TestCase):
         self.db.execute(
             """INSERT INTO cash_ledger_entries
             (id,shift_id,branch_id,movement_type,direction,amount,operation_id,
-             recorded_by,concept,recorded_at)
-            VALUES(?,?,?,?,?,?,?,?,?,?)""",
+             recorded_by,concept,reference_id,recorded_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
             (new_uuid(), self.shift, self.branch, "OPENING_FLOAT", "INFLOW",
-             "100.00", new_uuid(), self.user, "Apertura", now),
+             "100.00", new_uuid(), self.user, "Apertura", self.shift, now),
         )
         self.db.execute(
             """INSERT INTO cash_handovers
@@ -73,10 +73,11 @@ class CashOverviewQueryServiceTest(unittest.TestCase):
         self.db.execute(
             """INSERT INTO cash_ledger_entries
             (id,shift_id,branch_id,movement_type,direction,amount,operation_id,
-             recorded_by,concept,recorded_at)
-            VALUES(?,?,?,?,?,?,?,?,?,?)""",
+             recorded_by,concept,reference_id,recorded_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
             (entry_id, self.shift, self.branch, "SAFE_DROP", "OUTFLOW",
-             "50.00", new_uuid(), self.user, "Retiro", "2026-08-01T10:05:00+00:00"),
+             "50.00", new_uuid(), self.user, "Retiro", new_uuid(),
+             "2026-08-01T10:05:00+00:00"),
         )
         return entry_id
 
@@ -100,6 +101,26 @@ class CashOverviewQueryServiceTest(unittest.TestCase):
         self.assertEqual(len(dto.terminal_alerts), 1)
         self.assertIn("entregas de valores pendientes", dto.next_action)
         self.assertEqual(auth.calls[0]["permission_code"], CashPermissions.ACCESS)
+
+    def test_dashboard_hides_expected_cash_while_blind_count_is_open(self):
+        self.db.execute(
+            """INSERT INTO cash_counts
+            (id,shift_id,branch_id,counter_user_id,operation_id,denominations_json,
+             total_counted,status,confirmed_at)
+            VALUES(?,?,?,?,?,?,?,?,?)""",
+            (new_uuid(), self.shift, self.branch, self.user, new_uuid(), "{}",
+             "0", "OPEN", None),
+        )
+        self.db.commit()
+
+        dto = CashOverviewQueryService(self.db, AllowAuth()).dashboard(
+            branch_id=self.branch,
+            requester_user_id=self.user,
+        )
+
+        expected = next(kpi for kpi in dto.kpis if kpi.key == "expected_cash")
+        self.assertEqual(expected.value, "Oculto por arqueo")
+        self.assertIsNone(expected.numeric_value)
 
 
 if __name__ == "__main__":

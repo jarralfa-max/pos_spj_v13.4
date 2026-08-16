@@ -14,6 +14,7 @@ from backend.application.crm.queries.opportunity_directory_query_service import 
     OpportunityDirectoryQueryService,
 )
 from backend.application.crm.use_cases.activity_use_cases import CreateCRMActivityUseCase
+from backend.application.crm.use_cases.note_use_cases import CreateCRMNoteUseCase
 from backend.application.crm.use_cases.opportunity_use_cases import CreateOpportunityUseCase
 from backend.application.crm.use_cases.task_use_cases import CreateCRMTaskUseCase
 from backend.application.customer_service.queries.service_case_query_service import (
@@ -145,6 +146,149 @@ class TestCustomerHistoryQueryService:
         history = CustomerHistoryQueryService(full_crm_conn, _allow_cust()).get_timeline(
             customer_a, actor_user_id="u1")
         assert all(e.source_module != "crm" for e in history)
+
+    def test_includes_sales_bridged_via_legacy_customer_id(self, full_crm_conn_with_ops):
+        conn = full_crm_conn_with_ops
+        from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
+            ResolveLegacyCustomerUseCase,
+        )
+
+        legacy_id = new_uuid()
+        conn.execute(
+            "INSERT INTO clientes (id, nombre, activo) VALUES (?, 'Cliente Legacy', 1)",
+            (legacy_id,))
+        customer_id = ResolveLegacyCustomerUseCase().execute(conn, legacy_customer_id=legacy_id)
+        conn.execute(
+            "INSERT INTO ventas (id, folio, cliente_id, total, estado, usuario)"
+            " VALUES (?, 'F-100', ?, 750.0, 'completada', 'cajero1')",
+            (new_uuid(), legacy_id))
+        conn.commit()
+
+        history = CustomerHistoryQueryService(conn, _allow_cust()).get_timeline(
+            customer_id, actor_user_id="u1")
+        sales = [e for e in history if e.source_module == "ventas"]
+        assert len(sales) == 1
+        assert sales[0].action == "VENTA_COMPLETADA"
+        assert "F-100" in sales[0].reason
+        assert sales[0].actor_user_id == "cajero1"
+
+    def test_cancelled_sale_uses_cancelled_action(self, full_crm_conn_with_ops):
+        conn = full_crm_conn_with_ops
+        from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
+            ResolveLegacyCustomerUseCase,
+        )
+
+        legacy_id = new_uuid()
+        conn.execute(
+            "INSERT INTO clientes (id, nombre, activo) VALUES (?, 'Cliente Legacy', 1)",
+            (legacy_id,))
+        customer_id = ResolveLegacyCustomerUseCase().execute(conn, legacy_customer_id=legacy_id)
+        conn.execute(
+            "INSERT INTO ventas (id, folio, cliente_id, total, estado)"
+            " VALUES (?, 'F-101', ?, 100.0, 'cancelada')",
+            (new_uuid(), legacy_id))
+        conn.commit()
+
+        history = CustomerHistoryQueryService(conn, _allow_cust()).get_timeline(
+            customer_id, actor_user_id="u1")
+        sales = [e for e in history if e.source_module == "ventas"]
+        assert sales[0].action == "VENTA_CANCELADA"
+
+    def test_no_legacy_bridge_contributes_no_sales(self, full_crm_conn_with_ops):
+        conn = full_crm_conn_with_ops
+        customer_id = _customer(conn, name="Cliente Nativo")
+
+        history = CustomerHistoryQueryService(conn, _allow_cust()).get_timeline(
+            customer_id, actor_user_id="u1")
+        assert all(e.source_module != "ventas" for e in history)
+
+    def test_includes_activity_directly_related_to_customer(self, full_crm_conn):
+        conn = full_crm_conn
+        customer_id = _customer(conn)
+        result = CreateCRMActivityUseCase(_allow_crm()).execute(
+            conn, actor_user_id="u1", activity_type="CALL", related_entity_type="CUSTOMER",
+            related_entity_id=customer_id, subject="Llamada de seguimiento",
+            operation_id=new_uuid())
+        assert result.success
+
+        history = CustomerHistoryQueryService(conn, _allow_cust()).get_timeline(
+            customer_id, actor_user_id="u1")
+        crm_direct = [e for e in history if e.source_entity_id == result.entity_id]
+        assert len(crm_direct) == 1
+        assert crm_direct[0].action == "CRM_ACTIVITY_CREATED"
+
+    def test_includes_task_directly_related_to_customer(self, full_crm_conn):
+        conn = full_crm_conn
+        customer_id = _customer(conn)
+        result = CreateCRMTaskUseCase(_allow_crm()).execute(
+            conn, actor_user_id="u1", related_entity_type="CUSTOMER",
+            related_entity_id=customer_id, title="Enviar cotización",
+            due_at="2026-09-01T00:00:00+00:00", operation_id=new_uuid())
+        assert result.success
+
+        history = CustomerHistoryQueryService(conn, _allow_cust()).get_timeline(
+            customer_id, actor_user_id="u1")
+        crm_direct = [e for e in history if e.source_entity_id == result.entity_id]
+        assert len(crm_direct) == 1
+
+    def test_includes_note_directly_related_to_customer(self, full_crm_conn):
+        conn = full_crm_conn
+        customer_id = _customer(conn)
+        result = CreateCRMNoteUseCase(_allow_crm()).execute(
+            conn, actor_user_id="u1", related_entity_type="CUSTOMER",
+            related_entity_id=customer_id, body="Cliente prefiere entrega por la tarde",
+            operation_id=new_uuid())
+        assert result.success
+
+        history = CustomerHistoryQueryService(conn, _allow_cust()).get_timeline(
+            customer_id, actor_user_id="u1")
+        crm_direct = [e for e in history if e.source_entity_id == result.entity_id]
+        assert len(crm_direct) == 1
+        assert crm_direct[0].action == "CRM_NOTE_CREATED"
+
+    def test_activity_for_a_different_customer_not_included(self, full_crm_conn):
+        conn = full_crm_conn
+        customer_a = _customer(conn, name="Cliente A")
+        customer_b = _customer(conn, name="Cliente B")
+        CreateCRMActivityUseCase(_allow_crm()).execute(
+            conn, actor_user_id="u1", activity_type="CALL", related_entity_type="CUSTOMER",
+            related_entity_id=customer_b, subject="Llamada", operation_id=new_uuid())
+
+        history = CustomerHistoryQueryService(conn, _allow_cust()).get_timeline(
+            customer_a, actor_user_id="u1")
+        assert all(e.action != "ACTIVITY_CREATED" for e in history)
+
+    def test_includes_whatsapp_order_bridged_via_legacy_customer_id(self, full_crm_conn_with_ops):
+        conn = full_crm_conn_with_ops
+        from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
+            ResolveLegacyCustomerUseCase,
+        )
+
+        legacy_id = new_uuid()
+        conn.execute(
+            "INSERT INTO clientes (id, nombre, activo) VALUES (?, 'Cliente WA', 1)",
+            (legacy_id,))
+        customer_id = ResolveLegacyCustomerUseCase().execute(conn, legacy_customer_id=legacy_id)
+        conn.execute(
+            "INSERT INTO pedidos_whatsapp (id, numero_whatsapp, cliente_id, estado, total)"
+            " VALUES (?, '+525500000000', ?, 'nuevo', 350.0)",
+            (new_uuid(), legacy_id))
+        conn.commit()
+
+        history = CustomerHistoryQueryService(conn, _allow_cust()).get_timeline(
+            customer_id, actor_user_id="u1")
+        wa_entries = [e for e in history if e.source_module == "whatsapp"]
+        assert len(wa_entries) == 1
+        assert wa_entries[0].action == "PEDIDO_WHATSAPP"
+        assert "350" in wa_entries[0].reason
+
+    def test_no_legacy_bridge_contributes_no_whatsapp_orders(self, full_crm_conn_with_ops):
+        conn = full_crm_conn_with_ops
+        customer_id = _customer(conn, name="Cliente Nativo WA")
+
+        history = CustomerHistoryQueryService(conn, _allow_cust()).get_timeline(
+            customer_id, actor_user_id="u1")
+        assert all(e.source_module != "whatsapp" for e in history)
 
 
 class TestCustomerLookupQueryService:

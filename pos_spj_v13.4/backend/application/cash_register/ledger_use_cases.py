@@ -16,6 +16,7 @@ from backend.domain.cash_register.exceptions import (
 from backend.domain.cash_register.policies.security_policies import (
     CashLimitDecision, CashMonetaryLimitPolicy, CashSegregationOfDutiesPolicy,
 )
+from backend.domain.cash_register.policies.workflow_policies import CashShiftLifecyclePolicy
 from backend.infrastructure.db.repositories.cash_register.unit_of_work import CashRegisterUnitOfWork
 
 
@@ -31,6 +32,17 @@ _MANUAL_MOVEMENTS = {
     CashMovementType.MANUAL_WITHDRAWAL: (CashMovementDirection.OUTFLOW, CashPermissions.MOVEMENT_WITHDRAWAL),
     CashMovementType.SAFE_DROP: (CashMovementDirection.OUTFLOW, CashPermissions.MOVEMENT_SAFE_DROP),
 }
+
+
+def _reconstruct_cash_balance(rows: list[dict]) -> Decimal:
+    balance = Decimal("0")
+    for row in rows:
+        amount = Decimal(str(row["amount"]))
+        if row["direction"] == CashMovementDirection.INFLOW.value:
+            balance += amount
+        elif row["direction"] == CashMovementDirection.OUTFLOW.value:
+            balance -= amount
+    return balance
 
 
 class RegisterCashMovementUseCase:
@@ -64,12 +76,20 @@ class RegisterCashMovementUseCase:
             if prior:
                 return LedgerCommandResult(prior["id"], "Movimiento ya registrado", True)
             shift = uow.shifts.get(shift_id)
-            if not shift or shift["branch_id"] != branch_id or shift["status"] != "OPEN":
+            if not shift or shift["branch_id"] != branch_id:
                 raise CashInvalidStateError("El turno debe estar abierto en la sucursal")
+            CashShiftLifecyclePolicy.ensure_operable(shift["status"])
+            if direction is CashMovementDirection.OUTFLOW:
+                available = _reconstruct_cash_balance(uow.ledger.list_for_shift(shift_id))
+                if amount > available:
+                    raise CashInvalidStateError(
+                        "El retiro excede el efectivo reconstruido del turno"
+                    )
             entry = CashLedgerEntry.create(
                 shift_id=shift_id, branch_id=branch_id, movement_type=movement_type,
                 direction=direction, amount=amount, operation_id=operation_id,
-                recorded_by=actor_user_id, concept=concept)
+                recorded_by=actor_user_id, concept=concept,
+                reference_id=operation_id if movement_type is CashMovementType.SAFE_DROP else None)
             uow.ledger.add(entry)
             _record(uow, CashEvents.MOVEMENT_RECORDED, operation_id=operation_id,
                     entity_id=entry.id, branch_id=branch_id,
@@ -110,8 +130,9 @@ class ReverseCashMovementUseCase:
             if uow.ledger.find_reversal(entry_id):
                 raise CashDuplicateOperationError("El movimiento ya fue reversado")
             shift = uow.shifts.get(original["shift_id"])
-            if not shift or shift["status"] != "OPEN":
-                raise CashInvalidStateError("Sólo se reversan movimientos de un turno abierto")
+            if not shift:
+                raise CashInvalidStateError("Solo se reversan movimientos de un turno abierto")
+            CashShiftLifecyclePolicy.ensure_operable(shift["status"])
             opposite = (CashMovementDirection.OUTFLOW
                         if original["direction"] == CashMovementDirection.INFLOW.value
                         else CashMovementDirection.INFLOW)

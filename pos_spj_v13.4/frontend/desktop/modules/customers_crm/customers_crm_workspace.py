@@ -45,7 +45,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QFrame, QHBoxLayout, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
 
 from frontend.desktop.components.icons import Icons
@@ -83,6 +83,13 @@ from frontend.desktop.themes.tokens import ResponsiveBreakpoints, Spacing
 
 class CustomersCrmWorkspace(QWidget):
     """Responsive module shell for Clientes y CRM."""
+
+    #: CRM-32: relayed from `CustomerProfilePage.navigation_requested` —
+    #: this is the object `interfaz/main_window.py` actually adds to its
+    #: `QStackedWidget` (see `modulos/clientes_crm.py`'s factory), so this
+    #: is the level `_conectar()`'s `hasattr(pantalla, ...)` auto-wiring
+    #: needs to see the signal on.
+    navigation_requested = pyqtSignal(object)
 
     def __init__(self, presenter, parent=None, *,
                  page_factories: dict[str, Callable] | None = None):
@@ -183,6 +190,7 @@ class CustomersCrmWorkspace(QWidget):
         if route_id == "customers.profile":
             self._profile_page = CustomerProfilePage(self._presenter, self)
             self._profile_page.edit_requested.connect(self._open_edit_customer)
+            self._profile_page.navigation_requested.connect(self.navigation_requested.emit)
             return self._profile_page
         if route_id == "customers.edit":
             self._edit_page = EditCustomerPage(self._presenter, self)

@@ -111,5 +111,24 @@ class CashShiftLifecycleTests(unittest.TestCase):
         self.assertEqual(row.opening_amount, Decimal("500"))
         self.assertEqual(row.expected_cash, Decimal("500"))
 
+    def test_shift_query_hides_expected_cash_while_blind_count_is_open(self):
+        shift = self._open()
+        self.db.execute(
+            """INSERT INTO cash_counts
+            (id,shift_id,branch_id,counter_user_id,operation_id,denominations_json,
+             total_counted,status,confirmed_at)
+            VALUES(?,?,?,?,?,?,?,?,?)""",
+            (new_uuid(), shift.entity_id, self.branch, self.cashier, new_uuid(),
+             "{}", "0", "OPEN", None),
+        )
+        self.db.commit()
+
+        listing = CashShiftQueryService(self.db, self.auth).list_recent(
+            branch_id=self.branch,
+            requester_user_id=self.cashier,
+        )
+
+        self.assertIsNone(listing.rows[0].expected_cash)
+
 
 if __name__ == "__main__": unittest.main()

@@ -98,6 +98,9 @@ from backend.application.cash_register.z_cut_use_cases import (
 from backend.domain.cash_register.policies.security_policies import CashMonetaryLimitPolicy
 from backend.domain.cash_register.enums import CashMovementType
 from backend.shared.ids import new_uuid
+from backend.infrastructure.desktop.cash_operational_context import (
+    DesktopCashOperationalContextResolver,
+)
 from backend.infrastructure.db.repositories.cash_register.printing_repository import CashPrintRepository
 from backend.infrastructure.db.repositories.cash_register.configuration_repository import (
     CashConfigurationReadRepository,
@@ -212,29 +215,6 @@ def _cash_limit_policy(connection, operation_type: str) -> CashMonetaryLimitPoli
     threshold = Decimal(str(row[0])) if row else Decimal("0")
     hard_cap = Decimal(str(row[1])) if row else Decimal("0")
     return CashMonetaryLimitPolicy(approval_threshold=threshold, hard_cap=hard_cap)
-
-
-def _first_active_cash_device(connection, *, table: str, branch_id: str,
-                              register_id: str | None = None) -> str | None:
-    if table not in {"cash_registers", "cash_drawers", "pos_terminals"}:
-        raise ValueError("Unsupported Caja device table")
-    if not branch_id:
-        return None
-    if register_id and table in {"cash_drawers", "pos_terminals"}:
-        row = connection.execute(
-            f"""SELECT id FROM {table}
-            WHERE branch_id=? AND register_id=? AND status='ACTIVE'
-            ORDER BY updated_at DESC,id LIMIT 1""",
-            (branch_id, register_id),
-        ).fetchone()
-    else:
-        row = connection.execute(
-            f"""SELECT id FROM {table}
-            WHERE branch_id=? AND status='ACTIVE'
-            ORDER BY updated_at DESC,id LIMIT 1""",
-            (branch_id,),
-        ).fetchone()
-    return str(row[0]) if row else None
 
 
 def _ensure_cash_sync_device(connection, *, device_id: str | None,
@@ -1077,6 +1057,13 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
             branch_id=branch_id,
             requester_user_id=actor_user_id,
         )
+        totals = ()
+        if cut.sensitive_amounts_visible:
+            totals = (
+                ("Efectivo esperado", f"{cut.expected_cash:.2f}"),
+                ("Efectivo contado", f"{cut.counted_cash:.2f}"),
+                ("Diferencia", f"{cut.difference:.2f}"),
+            )
         return CashPrintDocument(
             document_type=CashPrintDocumentType.Z_CUT,
             entity_id=cut.id,
@@ -1090,11 +1077,7 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
                 ("Generado", cut.generated_at),
                 ("Final", "Si" if cut.is_final else "No"),
             ),
-            totals=(
-                ("Efectivo esperado", f"{cut.expected_cash:.2f}"),
-                ("Efectivo contado", f"{cut.counted_cash:.2f}"),
-                ("Diferencia", f"{cut.difference:.2f}"),
-            ),
+            totals=totals,
             qr_value=cut.id,
             final=cut.is_final,
         )
@@ -1108,15 +1091,15 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         original_print_id: str | None = None,
         reprint_reason: str | None = None,
     ):
-        document = _z_cut_document(
-            cut_id=cut_id,
-            branch_id=branch_id,
-            actor_user_id=actor_user_id,
-        )
         authorization.require(
             user_id=actor_user_id,
             permission_code=CashPermissions.Z_CUT_REPRINT if reprint else CashPermissions.Z_CUT_PRINT,
             branch_id=branch_id,
+        )
+        document = _z_cut_document(
+            cut_id=cut_id,
+            branch_id=branch_id,
+            actor_user_id=actor_user_id,
         )
         resolved_original_print_id = original_print_id
         if reprint and not resolved_original_print_id and hasattr(
@@ -1261,68 +1244,14 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         "dispatch_cash_notifications": dispatch_cash_notifications_handler,
     }
 
-    def active_shift_id() -> str | None:
-        value = getattr(composition_root, "active_cash_shift_id", None)
-        return str(value) if value else None
+    operational_context = DesktopCashOperationalContextResolver(
+        connection,
+        session,
+        composition_root,
+    )
 
     def active_context() -> dict[str, object | None]:
-        branch_id = (
-            getattr(session, "active_branch_id", None)
-            or getattr(session, "branch_id", None)
-            or getattr(composition_root, "sucursal_id", None)
-        )
-        cash_register_id = (
-            getattr(composition_root, "active_cash_register_id", None)
-            or _first_active_cash_device(
-                connection, table="cash_registers", branch_id=str(branch_id or "")
-            )
-        )
-        cash_drawer_id = (
-            getattr(composition_root, "active_cash_drawer_id", None)
-            or _first_active_cash_device(
-                connection,
-                table="cash_drawers",
-                branch_id=str(branch_id or ""),
-                register_id=str(cash_register_id or "") or None,
-            )
-        )
-        pos_terminal_id = (
-            getattr(composition_root, "active_pos_terminal_id", None)
-            or _first_active_cash_device(
-                connection,
-                table="pos_terminals",
-                branch_id=str(branch_id or ""),
-                register_id=str(cash_register_id or "") or None,
-            )
-        )
-        sync_device_id = (
-            getattr(composition_root, "active_cash_sync_device_id", None)
-            or getattr(session, "active_cash_sync_device_id", None)
-            or getattr(session, "device_id", None)
-        )
-        if not sync_device_id:
-            sync_device_id = str(pos_terminal_id or cash_register_id or "") or None
-        return {
-            "branch_id": branch_id,
-            "cash_register_id": cash_register_id,
-            "cash_drawer_id": cash_drawer_id,
-            "pos_terminal_id": pos_terminal_id,
-            "cash_shift_id": getattr(composition_root, "active_cash_shift_id", None),
-            "sync_device_id": sync_device_id,
-        }
-
-    def active_count_context() -> tuple[str, str, str] | None:
-        count_id = getattr(composition_root, "active_cash_count_id", None)
-        branch_id = str(
-            getattr(session, "active_branch_id", None)
-            or getattr(session, "branch_id", None)
-            or getattr(composition_root, "sucursal_id", "")
-            or ""
-        )
-        user_id = str(getattr(session, "user_id", "") or "")
-        if count_id and branch_id and user_id:
-            return str(count_id), branch_id, user_id
-        return None
+        return operational_context.context().as_presenter_dict()
 
     return CashRegisterPresenter(
         session_context=session,
@@ -1330,8 +1259,8 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         use_cases=use_cases,
         command_handlers=command_handlers,
         active_context_provider=active_context,
-        active_shift_provider=active_shift_id,
-        active_count_context_provider=active_count_context,
+        active_shift_provider=operational_context.active_shift_id,
+        active_count_context_provider=operational_context.active_count_context,
     )
 
 

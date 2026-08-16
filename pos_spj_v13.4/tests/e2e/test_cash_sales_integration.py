@@ -52,12 +52,13 @@ class CashSalesE2ETests(unittest.TestCase):
 
     def tearDown(self): self.db.close()
 
-    def _event(self, *, sale_id=None, operation_id=None, lines=None, change="0"):
+    def _event(self, *, sale_id=None, operation_id=None, lines=None, change="0", total=None):
         return create_domain_event(
             event_name=EventName.SALE_COMPLETED,
             operation_id=operation_id or new_uuid(), entity_id=sale_id or new_uuid(),
             branch_id=self.branch, user_id=self.cashier, source_module="sales",
-            payload={"payment_breakdown": lines or {}, "change": change})
+            payload={"payment_breakdown": lines or {}, "change": change,
+                     **({} if total is None else {"total": total})})
 
     def _balance(self):
         return CashLedgerQueryService(CashLedgerRepository(self.db)).projection(
@@ -65,14 +66,30 @@ class CashSalesE2ETests(unittest.TestCase):
 
     def test_cash_and_mixed_payments_record_only_net_cash(self):
         SaleCompletedCashHandler(self.db).handle(
-            self._event(lines={"efectivo": "120"}, change="20"))
+            self._event(lines={"efectivo": "120"}, change="20", total="100"))
         SaleCompletedCashHandler(self.db).handle(
-            self._event(lines={"efectivo": "40.25", "tarjeta": "59.75"}))
+            self._event(lines={"efectivo": "40.25", "tarjeta": "59.75"}, total="100.00"))
         self.assertEqual(self._balance(), Decimal("240.25"))
         rows = self.db.execute(
             "SELECT amount FROM cash_ledger_entries WHERE movement_type='CASH_SALE' ORDER BY recorded_at,id"
         ).fetchall()
         self.assertEqual(rows, [("100",), ("40.25",)])
+
+    def test_sales_total_must_match_cash_settlement_before_cash_writes(self):
+        with self.assertRaises(CashInvalidStateError):
+            SaleCompletedCashHandler(self.db).handle(
+                self._event(
+                    lines={"efectivo": "400", "tarjeta": "350"},
+                    total="1000.00",
+                )
+            )
+        self.assertEqual(self.db.execute(
+            "SELECT COUNT(*) FROM payment_records"
+        ).fetchone()[0], 0)
+        self.assertEqual(self.db.execute(
+            "SELECT COUNT(*) FROM cash_ledger_entries WHERE movement_type='CASH_SALE'"
+        ).fetchone()[0], 0)
+        self.assertEqual(self._balance(), Decimal("100"))
 
     def test_card_sale_requires_shift_but_does_not_change_cash(self):
         SaleCompletedCashHandler(self.db).handle(

@@ -1,4 +1,5 @@
 import importlib
+import json
 import sqlite3
 import unittest
 
@@ -118,6 +119,13 @@ class CashPrintRepositoryTests(unittest.TestCase):
             ).fetchone()[0],
             1,
         )
+        row = self.conn.execute(
+            """SELECT reprint_reason,event_payload_json
+               FROM cash_print_audit WHERE original_print_id=?""",
+            (original,),
+        ).fetchone()
+        self.assertEqual(row[0], "Papel danado")
+        self.assertEqual(json.loads(row[1])["payload"]["reprint_reason"], "Papel danado")
 
     def test_dispatch_marks_printed_and_failed_in_queue_and_audit(self):
         auth = Authorization()

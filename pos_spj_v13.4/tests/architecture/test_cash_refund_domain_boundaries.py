@@ -8,9 +8,12 @@ ROOT = Path(__file__).parents[2]
 class CashRefundDomainBoundaryTests(unittest.TestCase):
     def test_cash_does_not_mutate_finance_loyalty_or_sales(self):
         source = (ROOT / "backend/application/cash_register/refund_integration.py").read_text(encoding="utf-8")
-        for forbidden in ("backend.domain.finance", "loyalty_balance", "UPDATE ventas",
+        for forbidden in ("backend.domain.finance", "backend.domain.inventory",
+                          "loyalty_balance", "UPDATE ventas", "UPDATE inventory",
                           "journal_entries", "commercial_obligations"):
             self.assertNotIn(forbidden, source)
+        self.assertIn("CashRefundExecution", source)
+        self.assertIn("add_refund_execution", source)
         self.assertIn('finance_event="SALE_REFUNDED"', source)
         self.assertIn("loyalty_reversal_required", source)
 

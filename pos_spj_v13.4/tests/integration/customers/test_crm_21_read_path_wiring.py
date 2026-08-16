@@ -193,27 +193,13 @@ class TestDeliveryPedidoCrmSummaryField:
         assert resp.json()["crm_delivery_summary"] is None
 
 
-class TestFidelidadClienteServiceCrmLoyaltySummary:
-    def test_returns_snapshot_for_enrolled_cliente(self, conn, permissive_customer_auth):
-        from core.services.cliente_service import ClienteService
-        _insert_cliente(conn, "legacy-loy-1")
-        conn.execute(
-            "INSERT INTO loyalty_snapshots (id, cliente_id, puntos_actuales, nivel, visitas,"
-            " importe_total) VALUES (?,?,?,?,?,?)",
-            (new_uuid(), "legacy-loy-1", 300, "Oro", 10, 9000.0))
-        conn.commit()
-        summary = ClienteService(conn).get_crm_loyalty_summary("legacy-loy-1")
-        assert summary == {
-            "enrolled": True, "current_points": 300, "tier": "Oro", "visits": 10,
-            "lifetime_amount": "9000.0",
-        }
-
-    def test_returns_none_when_permission_checker_unwired(self, conn):
-        """Today's real production default (see permissive_customer_auth's
-        docstring) — the method degrades to None rather than raising."""
-        from core.services.cliente_service import ClienteService
-        _insert_cliente(conn, "legacy-loy-none")
-        assert ClienteService(conn).get_crm_loyalty_summary("legacy-loy-none") is None
+# `TestFidelidadClienteServiceCrmLoyaltySummary` (tested
+# `core/services/cliente_service.py::ClienteService.get_crm_loyalty_summary`)
+# was retired in CRM-34 along with that class — zero production callers
+# (its only caller, the legacy `DialogoCliente` form, was already retired
+# in CRM-24; the same loyalty summary is already shown to real users via
+# `LoyaltyCustomerSummaryQuery` wired into Customer 360). See
+# docs/refactor/CRM-34_legacy_purge.md.
 
 
 class TestFinanzasCrmReceivableSummary:

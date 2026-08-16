@@ -5,7 +5,7 @@ import pytest
 
 from backend.application.services.user_security_service import UserSecurityService
 from backend.shared.ids import new_uuid
-from core.services.auth_service import AuthService, _sha256
+from core.services.auth_service import AuthService, _hash_password
 from tests.integration._born_clean_db import make_db
 
 
@@ -43,7 +43,7 @@ def _make_user(conn) -> str:
     conn.execute(
         "INSERT INTO usuarios (id, nombre, usuario, password_hash, rol, activo) "
         "VALUES (?, 'Caja Uno', 'caja1', ?, 'cajero', 1)",
-        (uid, _sha256("secreta")),
+        (uid, _hash_password("secreta")),
     )
     return uid
 

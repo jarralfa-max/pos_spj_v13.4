@@ -17,14 +17,19 @@ class CashAppContainerBornCleanWiringTests(unittest.TestCase):
         self.assertNotIn("active=1", cash_block)
 
     def test_cash_factory_resolves_active_context_from_canonical_devices(self):
-        source = (
+        factory = (
             ROOT / "backend/infrastructure/desktop/cash_register_factory.py"
         ).read_text(encoding="utf-8")
-        self.assertIn("_first_active_cash_device", source)
-        self.assertIn("cash_registers", source)
-        self.assertIn("cash_drawers", source)
-        self.assertIn("pos_terminals", source)
-        self.assertIn("status='ACTIVE'", source)
+        resolver = (
+            ROOT / "backend/infrastructure/desktop/cash_operational_context.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("DesktopCashOperationalContextResolver", factory)
+        self.assertNotIn("def _first_active_cash_device", factory)
+        self.assertIn("_first_active_cash_device", resolver)
+        self.assertIn("cash_registers", resolver)
+        self.assertIn("cash_drawers", resolver)
+        self.assertIn("pos_terminals", resolver)
+        self.assertIn("status='ACTIVE'", resolver)
 
 
 if __name__ == "__main__":

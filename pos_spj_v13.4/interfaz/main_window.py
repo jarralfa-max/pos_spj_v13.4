@@ -710,6 +710,13 @@ class MainWindow(QMainWindow):
                     pantalla.abrir_modulo.connect(
                         lambda k: self.manejar_navegacion(_DASH_NAV.get(k, k.upper()))
                     )
+                # CRM-32: cross-module NavigationIntent (e.g. Customer 360's
+                # "Nueva venta" → Ventas, customer preselected). Additive
+                # sibling of `abrir_modulo` above — carries a payload,
+                # which `abrir_modulo`'s plain `pyqtSignal(str)` can't
+                # without breaking every module already wired to it.
+                if hasattr(pantalla, 'navigation_requested'):
+                    pantalla.navigation_requested.connect(self._handle_navigation_intent)
                 return
             except Exception as e:
                 import traceback as _tb
@@ -1308,6 +1315,62 @@ class MainWindow(QMainWindow):
             QMessageBox.information(
                 self, "Módulo no disponible",
                 f"El módulo '{modulo}' aún no está registrado en el sistema.")
+
+    #: CRM-32: route → module code, the payload-carrying sibling of
+    #: `_DASH_NAV` above (dashboard's `abrir_modulo` mapping). Grows one
+    #: entry at a time as each destination screen gains a real
+    #: `aplicar_contexto(context)` handler — see `ModuloVentas.
+    #: aplicar_contexto` for the first one.
+    _NAVIGATION_ROUTES = {
+        "sales.new": "POS",
+        "finance.receivables": "FINANZAS_UNIFICADAS",
+    }
+
+    def _resolve_legacy_customer_id(self, customer_id: str) -> str | None:
+        """CRM-37: the one place allowed to touch the Customer Master
+        bridge on behalf of a destination screen that (by design, e.g.
+        `FinanceView`) never sees the DB connection itself. Adds
+        `legacy_customer_id` to the intent's context so any destination
+        can use it without importing the bridge use case on its own.
+        Never raises — a resolution failure just means that key is
+        absent; a screen only using `customer_id` (e.g. Ventas, which
+        resolves it internally already) is unaffected either way."""
+        if not customer_id:
+            return None
+        try:
+            from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
+                EnsureLegacyCustomerBridgeUseCase,
+            )
+            return EnsureLegacyCustomerBridgeUseCase().execute(
+                self.container.db, customer_id=customer_id)
+        except Exception:
+            logger.debug("No se pudo resolver legacy_customer_id para %s", customer_id)
+            return None
+
+    def _handle_navigation_intent(self, intent) -> None:
+        """CRM-32/CRM-37: receiving end of any module's `navigation_requested`
+        signal. Switches the stack via the existing `manejar_navegacion`
+        (same permission check every other navigation path already goes
+        through), then hands the intent's context to the destination
+        screen's `aplicar_contexto`, if it has one."""
+        codigo = self._NAVIGATION_ROUTES.get(getattr(intent, "route", None))
+        if not codigo:
+            return
+        self.manejar_navegacion(codigo)
+        if self.stack.currentIndex() != self.indices_pantallas.get(codigo, -1):
+            return  # navegación denegada por permisos — no aplicar contexto
+        destino = self.stack.currentWidget()
+        if destino is not None and hasattr(destino, 'aplicar_contexto'):
+            context = dict(getattr(intent, "context", None) or {})
+            customer_id = str(context.get("customer_id") or "").strip()
+            if customer_id and "legacy_customer_id" not in context:
+                legacy_id = self._resolve_legacy_customer_id(customer_id)
+                if legacy_id:
+                    context["legacy_customer_id"] = legacy_id
+            try:
+                destino.aplicar_contexto(context)
+            except Exception:
+                logger.exception("aplicar_contexto falló para route=%s", intent.route)
 
     def aplicar_tema(self, nombre_tema: str) -> None:
         """Aplica el tema — API pública para configuracion.py."""

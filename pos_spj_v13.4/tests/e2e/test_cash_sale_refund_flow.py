@@ -88,6 +88,12 @@ class CashSaleRefundFlowTests(unittest.TestCase):
             """SELECT movement_type,direction,amount,reference_id,related_sale_id
             FROM cash_ledger_entries WHERE id=?""", (result.ledger_entry_id,)).fetchone()
         self.assertEqual(row, ("CASH_REFUND", "OUTFLOW", "40", refund_id, self.sale_id))
+        execution = self.db.execute(
+            """SELECT refund_id,sale_id,method,amount,ledger_entry_id
+            FROM cash_refund_executions WHERE refund_id=?""",
+            (refund_id,),
+        ).fetchone()
+        self.assertEqual(execution, (refund_id, self.sale_id, "CASH", "40", result.ledger_entry_id))
         self.assertEqual(self._balance(), Decimal("110"))
 
     def test_refund_event_retry_is_idempotent(self):
@@ -109,17 +115,39 @@ class CashSaleRefundFlowTests(unittest.TestCase):
             self._handle(self._event(refunded={"CASH": "50"}))
 
     def test_non_cash_refund_has_no_drawer_entry_and_signals_loyalty_finance(self):
+        loyalty_contract = new_uuid()
         event = self._event(
-            original={"LOYALTY_POINTS": "30", "CARD": "70"},
-            refunded={"LOYALTY_POINTS": "20", "CARD": "10"})
+            original=[
+                {"type": "LOYALTY_POINTS", "amount": "30", "instrument_id": loyalty_contract},
+                {"type": "CARD", "amount": "70"},
+            ],
+            refunded=[
+                {"type": "LOYALTY_POINTS", "amount": "20", "instrument_id": loyalty_contract},
+                {"type": "CARD", "amount": "10"},
+            ])
         result = self._handle(event)
         self.assertIsNone(result.ledger_entry_id)
         self.assertEqual(self._balance(), Decimal("150"))
+        execution = self.db.execute(
+            "SELECT method,amount,ledger_entry_id FROM cash_refund_executions WHERE refund_id=?",
+            (event.payload["refund_id"],),
+        ).fetchone()
+        self.assertEqual(execution, ("ORIGINAL_PAYMENT_METHOD", "30", None))
         payload = self.db.execute(
             "SELECT payload_json FROM cash_domain_events WHERE operation_id=?",
             (event.operation_id,)).fetchone()[0]
         self.assertIn('"finance_event":"SALE_REFUNDED"', payload)
         self.assertIn('"loyalty_reversal_required":true', payload)
+
+    def test_commercial_refund_requires_validated_external_contract(self):
+        with self.assertRaises(CashInvalidStateError):
+            self._handle(self._event(
+                original={"LOYALTY_POINTS": "30"},
+                refunded={"LOYALTY_POINTS": "10"},
+            ))
+        self.assertEqual(self.db.execute(
+            "SELECT COUNT(*) FROM cash_refund_executions"
+        ).fetchone()[0], 0)
 
 
 if __name__ == "__main__": unittest.main()

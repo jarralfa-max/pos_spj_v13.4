@@ -3719,6 +3719,14 @@ class ModuloVentas(ModuloBase):
                 clientes = _cli.buscar(termino, limit=1) if _cli else []
             cliente = clientes[0] if clientes else None
 
+            if not cliente:
+                # CRM-36 (Fase 2): la búsqueda legacy es la ruta primaria/
+                # probada, sin cambios arriba. Solo cuando no encuentra NADA
+                # se intenta también en el Customer Master — cubre clientes
+                # creados únicamente desde el CRM, que antes eran invisibles
+                # aquí. Nunca sustituye la búsqueda legacy.
+                cliente = self._buscar_cliente_en_customer_master(termino)
+
             if cliente:
                 self.cliente_actual = {
                     'id': cliente['id'], 'nombre': cliente['nombre'],
@@ -3743,6 +3751,83 @@ class ModuloVentas(ModuloBase):
                     self.agregar_cliente_con_nombre(termino)
         except sqlite3.Error as e:
             self.mostrar_mensaje("Error", f"Error al buscar cliente: {str(e)}", QMessageBox.Critical)
+
+    def _buscar_cliente_en_customer_master(self, termino: str):
+        """CRM-36 (Fase 2, "IDENTIDAD ÚNICA DE CLIENTE"): fallback de
+        búsqueda cuando la ruta legacy no encuentra nada. Requiere
+        `container.customer_authorization_policy` (CRM-25) con un permiso
+        `CLIENTES.buscar` real otorgado al rol de caja — si no está
+        wireado o el actor no tiene el permiso, degrada a None
+        silenciosamente (nunca bloquea el flujo de venta; el llamador cae
+        de vuelta al diálogo "¿crear cliente nuevo?" de siempre).
+
+        Si encuentra un match, asegura el bridge inverso
+        (`EnsureLegacyCustomerBridgeUseCase`, CRM-36) para devolver un
+        registro legacy real con el que el resto de checkout ya sabe
+        trabajar — nunca expone un `customer_id` crudo aquí."""
+        try:
+            auth = getattr(self.container, 'customer_authorization_policy', None)
+            actor_id = str(getattr(self.container.session, 'user_id', '') or '')
+            if not auth or not actor_id:
+                return None
+            from backend.application.customers.queries.customer_lookup_query_service import (
+                CustomerLookupQueryService,
+            )
+            from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
+                EnsureLegacyCustomerBridgeUseCase,
+            )
+            results = CustomerLookupQueryService(self.container.db, auth).lookup(
+                termino, actor_user_id=actor_id, limit=1)
+            if not results:
+                return None
+            legacy_id = EnsureLegacyCustomerBridgeUseCase().execute(
+                self.container.db, customer_id=results[0].customer_id)
+            return self._cli_repo.get_by_id(legacy_id) if self._cli_repo else None
+        except Exception as exc:
+            logger.debug("Customer Master fallback search (CRM-36): %s", exc)
+            return None
+
+    def aplicar_contexto(self, context: dict) -> None:
+        """CRM-32/CRM-36: receiving end of a `NavigationIntent` (route
+        ``"sales.new"``) coming from the Customer 360 profile page's
+        "Nueva venta" action — preselects the customer so the cashier
+        doesn't have to search for them again.
+
+        `context["customer_id"]` is the Customer Master id (`customers.id`),
+        never the legacy `clientes.id` Ventas itself operates on — resolved
+        here via the CRM-21 bridge column (`customers.legacy_customer_id`).
+        A customer created natively in the Customer Master (never bridged
+        from a legacy `clientes` row — e.g. created directly from the CRM
+        "Nuevo cliente" page) had no legacy row for Ventas to select before
+        CRM-36's `EnsureLegacyCustomerBridgeUseCase` — now one is created
+        on demand, mirroring the customer's name/primary contact info, so
+        this always succeeds rather than telling the cashier to search
+        manually."""
+        customer_id = str((context or {}).get("customer_id") or "").strip()
+        if not customer_id:
+            return
+        try:
+            from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
+                EnsureLegacyCustomerBridgeUseCase,
+            )
+            legacy_id = EnsureLegacyCustomerBridgeUseCase().execute(
+                self.container.db, customer_id=customer_id)
+            cliente = self._cli_repo.get_by_id(legacy_id) if self._cli_repo else None
+            if not cliente:
+                return
+            self.cliente_actual = {
+                'id': cliente['id'], 'nombre': cliente['nombre'],
+                'telefono': cliente.get('telefono', ''),
+                'email': cliente.get('email', ''),
+                'direccion': cliente.get('direccion', ''),
+                'rfc': cliente.get('rfc', ''),
+                'puntos': cliente.get('puntos', 0),
+                'codigo_qr': cliente.get('codigo_qr', ''),
+                'saldo': cliente.get('saldo', 0.0) or 0.0,
+            }
+            self.actualizar_info_cliente()
+        except Exception as exc:
+            logger.warning("aplicar_contexto (CRM-32 navigation intent): %s", exc)
 
     def actualizar_info_cliente(self):
         if self.cliente_actual:

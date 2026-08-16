@@ -9,10 +9,18 @@ from typing import Mapping
 
 from backend.application.cash_register.authorization import CashAuthorizationPolicy
 from backend.application.cash_register.permissions import CashPermissions
-from backend.application.cash_register.sales_integration import _amount
+from backend.application.cash_register.sales_integration import (
+    _amount,
+    _external_validation_reference,
+    _settlement_lines,
+)
 from backend.application.cash_register.shift_use_cases import _record
-from backend.domain.cash_register.entities import CashLedgerEntry
-from backend.domain.cash_register.enums import CashMovementDirection, CashMovementType
+from backend.domain.cash_register.entities import CashLedgerEntry, CashRefundExecution
+from backend.domain.cash_register.enums import (
+    CashMovementDirection,
+    CashMovementType,
+    CashRefundMethod,
+)
 from backend.domain.cash_register.events import CashEvents
 from backend.domain.cash_register.exceptions import CashInvalidStateError
 from backend.domain.cash_register.policies.security_policies import (
@@ -26,11 +34,18 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def _classified(lines: Mapping[str, object]) -> dict[str, Decimal]:
+def _classified(lines: object) -> dict[str, Decimal]:
     result: dict[str, Decimal] = {}
-    for raw_type, raw_amount in lines.items():
+    for line in _settlement_lines(lines):
+        raw_type = str(line.get("type") or "")
         definition = classify_settlement(str(raw_type))
-        amount = _amount(raw_amount, name=str(raw_type))
+        amount = _amount(line.get("amount"), name=str(raw_type))
+        if amount == 0:
+            continue
+        if definition.requires_external_validation and not _external_validation_reference(line):
+            raise CashInvalidStateError(
+                f"{definition.canonical_type} requiere contrato o referencia validada externa"
+            )
         result[definition.canonical_type] = result.get(
             definition.canonical_type, Decimal("0")) + amount
     return result
@@ -58,8 +73,8 @@ class CashRefundIntegrationService:
 
     def process(self, connection, *, refund_id: str, sale_id: str,
                 branch_id: str, cashier_user_id: str, authorized_by: str,
-                operation_id: str, original_payment_lines: Mapping[str, object],
-                refund_lines: Mapping[str, object], reason: str) -> CashRefundResult:
+                operation_id: str, original_payment_lines: object,
+                refund_lines: object, reason: str) -> CashRefundResult:
         self._auth.require(user_id=cashier_user_id,
                            permission_code=CashPermissions.REFUND_REQUEST,
                            branch_id=branch_id)
@@ -71,6 +86,8 @@ class CashRefundIntegrationService:
         if not reason.strip():
             raise CashInvalidStateError("El reembolso requiere motivo")
         original, requested = _classified(original_payment_lines), _classified(refund_lines)
+        if not requested:
+            raise CashInvalidStateError("El reembolso requiere al menos una compensación monetaria")
         for settlement_type, amount in requested.items():
             if amount > original.get(settlement_type, Decimal("0")):
                 raise CashInvalidStateError(
@@ -108,10 +125,38 @@ class CashRefundIntegrationService:
                     concept=reason, reference_id=refund_id,
                     related_sale_id=sale_id)
                 uow.ledger.add(entry)
+            requested_total = sum(requested.values(), Decimal("0"))
+            execution = CashRefundExecution.execute(
+                refund_id=refund_id,
+                sale_id=sale_id,
+                shift_id=shift["id"],
+                branch_id=branch_id,
+                method=CashRefundMethod.CASH if cash_amount > 0 else CashRefundMethod.ORIGINAL_PAYMENT_METHOD,
+                amount=cash_amount if cash_amount > 0 else requested_total,
+                executed_by=cashier_user_id,
+                authorized_by=authorized_by,
+                operation_id=operation_id,
+                ledger_entry_id=entry.id if entry else None,
+            )
+            uow.settlements.add_refund_execution(
+                execution_id=execution.id,
+                refund_id=execution.refund_id,
+                sale_id=execution.sale_id,
+                shift_id=execution.shift_id,
+                branch_id=execution.branch_id,
+                method=execution.method.value,
+                amount=str(execution.amount),
+                executed_by=execution.executed_by,
+                authorized_by=execution.authorized_by,
+                operation_id=execution.operation_id,
+                executed_at=execution.executed_at,
+                ledger_entry_id=execution.ledger_entry_id,
+            )
             result_entity_id = entry.id if entry else refund_id
             result_data = {
                 "ledger_entry_id": entry.id if entry else None,
                 "cash_amount": str(cash_amount),
+                "refund_execution_id": execution.id,
             }
             uow.idempotency.add(
                 operation_id=operation_id, operation_type="SALE_REFUND_CASH",
@@ -121,6 +166,7 @@ class CashRefundIntegrationService:
                     entity_id=refund_id, branch_id=branch_id,
                     actor_user_id=cashier_user_id, reason=reason.strip(),
                     sale_id=sale_id, shift_id=shift["id"],
+                    refund_execution_id=execution.id,
                     ledger_entry_id=entry.id if entry else None,
                     cash_amount=str(cash_amount),
                     original_settlements={key: str(value) for key, value in original.items()},

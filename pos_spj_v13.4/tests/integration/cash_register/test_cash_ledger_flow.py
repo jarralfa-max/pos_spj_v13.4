@@ -73,6 +73,18 @@ class CashLedgerFlowTests(unittest.TestCase):
         self.assertEqual(projection.rows[0].reference_id, self.shift_id)
         self.assertIsNone(projection.rows[-1].related_sale_id)
 
+    def test_manual_outflows_cannot_exceed_reconstructed_cash(self):
+        with self.assertRaises(CashInvalidStateError):
+            self._record(CashMovementType.MANUAL_WITHDRAWAL, Decimal("500.01"))
+        with self.assertRaises(CashInvalidStateError):
+            self._record(CashMovementType.SAFE_DROP, Decimal("500.01"))
+
+        self._record(CashMovementType.MANUAL_INCOME, Decimal("25"))
+        self._record(CashMovementType.MANUAL_WITHDRAWAL, Decimal("525"))
+
+        projection = CashLedgerQueryService(CashLedgerRepository(self.db)).projection(self.shift_id)
+        self.assertEqual(projection.balance, Decimal("0"))
+
     def test_explicit_idempotency_does_not_duplicate_side_effects(self):
         operation_id = new_uuid()
         first = self._record(CashMovementType.MANUAL_INCOME, Decimal("10"), operation_id=operation_id)

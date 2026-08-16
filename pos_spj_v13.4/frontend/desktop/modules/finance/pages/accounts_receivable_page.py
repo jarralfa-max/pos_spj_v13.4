@@ -48,7 +48,16 @@ class AccountsReceivablePage(FinancePage):
             self, "Resumen CRM", "ID de cliente (legacy):")
         if not ok or not cliente_id.strip():
             return
-        summary = self._presenter.crm_receivable_summary(cliente_id.strip())
+        self.show_crm_summary_for(cliente_id.strip())
+
+    def show_crm_summary_for(self, cliente_id: str) -> None:
+        """CRM-37 (Fase 3, NavigationIntent): entry point for arriving here
+        already knowing WHICH customer — from Customer 360's "Ver CxC"
+        action (`FinanceView.aplicar_contexto`) — instead of the cashier
+        typing the legacy id by hand via `_show_crm_summary`'s
+        `QInputDialog`. Same underlying call, same result dialog; the only
+        difference is how `cliente_id` was obtained."""
+        summary = self._presenter.crm_receivable_summary(cliente_id)
         if summary is None:
             self.notify(False, "No se encontró exposición CRM para ese cliente.")
             return

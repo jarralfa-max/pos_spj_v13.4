@@ -16,7 +16,14 @@ from backend.domain.cash_register.exceptions import (
     CashDuplicateOperationError, CashInvalidStateError,
     CashSegregationOfDutiesError,
 )
-from backend.domain.cash_register.policies.workflow_policies import CashClosingPolicy
+from backend.domain.cash_register.movement_model import (
+    canonical_direction,
+    ensure_cash_movement_contract,
+)
+from backend.domain.cash_register.policies.workflow_policies import (
+    CashClosingPolicy,
+    CashShiftLifecyclePolicy,
+)
 from backend.domain.cash_register.settlements import classify_settlement
 from backend.shared.ids import is_uuidv7, new_uuid
 
@@ -49,21 +56,66 @@ class CashRegisterDomainTests(unittest.TestCase):
         with self.assertRaises(CashInvalidStateError):
             shift.close(z_cut_id=uid())
 
+    def test_shift_lifecycle_policy_is_the_canonical_transition_table(self):
+        self.assertTrue(CashShiftLifecyclePolicy.is_active(CashShiftStatus.OPEN))
+        self.assertTrue(CashShiftLifecyclePolicy.is_active(CashShiftStatus.CLOSING))
+        self.assertFalse(CashShiftLifecyclePolicy.is_active(CashShiftStatus.CLOSED))
+        CashShiftLifecyclePolicy.ensure_transition(
+            current=CashShiftStatus.OPEN,
+            target=CashShiftStatus.SUSPENDED,
+            reason="pausa operativa",
+        )
+        CashShiftLifecyclePolicy.ensure_transition(
+            current="SUSPENDED",
+            target="OPEN",
+        )
+        CashShiftLifecyclePolicy.ensure_transition(
+            current=CashShiftStatus.OPEN,
+            target=CashShiftStatus.CLOSING,
+        )
+        CashShiftLifecyclePolicy.ensure_transition(
+            current=CashShiftStatus.CLOSING,
+            target=CashShiftStatus.CLOSED,
+            has_final_z_cut=True,
+        )
+        with self.assertRaises(CashInvalidStateError):
+            CashShiftLifecyclePolicy.ensure_transition(
+                current=CashShiftStatus.CLOSED,
+                target=CashShiftStatus.OPEN,
+            )
+        with self.assertRaises(CashInvalidStateError):
+            CashShiftLifecyclePolicy.ensure_transition(
+                current=CashShiftStatus.OPEN,
+                target=CashShiftStatus.SUSPENDED,
+                reason="",
+            )
+        with self.assertRaises(CashInvalidStateError):
+            CashShiftLifecyclePolicy.ensure_transition(
+                current=CashShiftStatus.CLOSING,
+                target=CashShiftStatus.CLOSED,
+                has_final_z_cut=False,
+            )
+        with self.assertRaises(CashInvalidStateError):
+            CashShiftLifecyclePolicy.ensure_operable(CashShiftStatus.SUSPENDED)
+
     def test_ledger_is_reconstructible_decimal_and_idempotent(self):
         shift_id, branch_id = uid(), uid()
         ledger = CashLedger(shift_id=shift_id)
         opening = CashLedgerEntry.create(
             shift_id=shift_id, branch_id=branch_id, movement_type=CashMovementType.OPENING_FLOAT,
             direction=CashMovementDirection.INFLOW, amount=Decimal("500"),
-            operation_id=uid(), recorded_by=uid())
+            operation_id=uid(), recorded_by=uid(), reference_id=shift_id)
+        sale_id = uid()
         sale = CashLedgerEntry.create(
             shift_id=shift_id, branch_id=branch_id, movement_type=CashMovementType.CASH_SALE,
             direction=CashMovementDirection.INFLOW, amount=Decimal("125.50"),
-            operation_id=uid(), recorded_by=uid())
+            operation_id=uid(), recorded_by=uid(), reference_id=sale_id)
+        safe_drop_document_id = uid()
         drop = CashLedgerEntry.create(
             shift_id=shift_id, branch_id=branch_id, movement_type=CashMovementType.SAFE_DROP,
             direction=CashMovementDirection.OUTFLOW, amount=Decimal("100"),
-            operation_id=uid(), recorded_by=uid())
+            operation_id=uid(), recorded_by=uid(), concept="Retiro de seguridad",
+            reference_id=safe_drop_document_id)
         for entry in (opening, sale, drop):
             ledger.append(entry)
         self.assertEqual(ledger.balance, Decimal("525.50"))
@@ -72,7 +124,40 @@ class CashRegisterDomainTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             CashLedgerEntry.create(shift_id=shift_id, branch_id=branch_id,
                 movement_type=CashMovementType.CASH_SALE, direction=CashMovementDirection.INFLOW,
-                amount=1.5, operation_id=uid(), recorded_by=uid())
+                amount=1.5, operation_id=uid(), recorded_by=uid(), reference_id=uid())
+
+    def test_cash_movement_contract_enforces_canonical_direction_and_source(self):
+        self.assertIs(
+            canonical_direction(CashMovementType.CASH_SALE),
+            CashMovementDirection.INFLOW,
+        )
+        self.assertIs(
+            canonical_direction(CashMovementType.SAFE_DROP),
+            CashMovementDirection.OUTFLOW,
+        )
+        with self.assertRaises(CashInvalidStateError):
+            CashLedgerEntry.create(
+                shift_id=uid(), branch_id=uid(),
+                movement_type=CashMovementType.CASH_SALE,
+                direction=CashMovementDirection.OUTFLOW,
+                amount=Decimal("10"), operation_id=uid(), recorded_by=uid(),
+                reference_id=uid(),
+            )
+        with self.assertRaises(CashInvalidStateError):
+            CashLedgerEntry.create(
+                shift_id=uid(), branch_id=uid(),
+                movement_type=CashMovementType.CASH_SALE,
+                direction=CashMovementDirection.INFLOW,
+                amount=Decimal("10"), operation_id=uid(), recorded_by=uid(),
+            )
+        with self.assertRaises(CashInvalidStateError):
+            ensure_cash_movement_contract(
+                movement_type=CashMovementType.MANUAL_WITHDRAWAL,
+                direction=CashMovementDirection.OUTFLOW,
+                concept="",
+                reference_id=None,
+                reversal_of_id=None,
+            )
 
     def test_blind_count_has_no_expected_amount_and_locks_after_confirmation(self):
         count = BlindCashCount.start(shift_id=uid(), branch_id=uid(), counter_user_id=uid(),
@@ -142,6 +227,7 @@ class CashRegisterDomainTests(unittest.TestCase):
         self.assertTrue({"ACTIVE", "INACTIVE", "MAINTENANCE", "BLOCKED", "RETIRED"} <= {item.value for item in DeviceStatus})
         self.assertTrue({"OPENING", "OPEN", "SUSPENDED", "COUNTING", "CLOSING", "CLOSED", "FORCE_CLOSED"} <= {item.value for item in CashShiftStatus})
         self.assertTrue({"OPENING_FLOAT", "CASH_SALE", "CASH_REFUND", "SAFE_DROP", "CASH_HANDOVER", "REVERSAL"} <= {item.value for item in CashMovementType})
+        self.assertNotIn("HANDOVER", {item.value for item in CashMovementType})
         self.assertTrue({"DRAFT", "READY", "IN_TRANSIT", "RECEIVED", "DISPUTED", "CANCELLED"} <= {item.value for item in CashHandoverStatus})
 
     def test_payment_record_allocations_balance_and_drawer_effect(self):

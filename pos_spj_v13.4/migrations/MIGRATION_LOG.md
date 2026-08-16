@@ -5,6 +5,21 @@ documentarse aquí antes del commit.
 
 ---
 
+## 196_customer_credit_profile_backfill — 2026-08-16
+
+**Motivo:** CRM-27 (cut-over completo Customer Master, parte 1) — el gate
+real de crédito en checkout (`CustomerCreditService.validate_credit`)
+leía `clientes.allows_credit`/`credit_limit` directamente; el workflow
+moderno `customer_credit` (CRM-8, migración 188) existía pero no tenía
+ningún efecto en POS.
+
+**Qué hace:** bridgea todo `clientes` legacy con crédito activo hacia
+`customers` (CRM-21) y crea un `customer_credit_profiles` AUTHORIZED
+espejo. Idempotente, nunca pisa un perfil ya existente. Ver
+`docs/refactor/CRM-27_finance_credit_cutover.md` para el detalle completo.
+
+---
+
 ## 193_customers_legacy_customer_bridge — fix de orden — 2026-08-14
 
 **Motivo:** CRM-25 — al aplicar esta migración por primera vez contra una

@@ -59,6 +59,18 @@ class CashRegisterDomainArchitectureTests(unittest.TestCase):
         ):
             self.assertIn(required, source)
 
+    def test_shift_lifecycle_policy_is_used_by_domain_and_application(self):
+        policy = (DOMAIN / "policies" / "workflow_policies.py").read_text(encoding="utf-8")
+        entities = (DOMAIN / "entities.py").read_text(encoding="utf-8")
+        use_case = (
+            REPO / "backend" / "application" / "cash_register" / "shift_use_cases.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("class CashShiftLifecyclePolicy", policy)
+        self.assertIn("TRANSITIONS", policy)
+        self.assertIn("ACTIVE_STATUSES", policy)
+        self.assertIn("CashShiftLifecyclePolicy.ensure_transition", entities)
+        self.assertIn("CashShiftLifecyclePolicy.ensure_transition", use_case)
+
 
 if __name__ == "__main__":
     unittest.main()

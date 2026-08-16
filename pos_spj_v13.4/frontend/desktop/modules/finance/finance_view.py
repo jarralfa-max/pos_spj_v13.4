@@ -116,6 +116,23 @@ class FinanceView(QWidget):
         self._stack.setCurrentIndex(page_index)
         self._pages[page_index].ensure_loaded()
 
+    def aplicar_contexto(self, context: dict) -> None:
+        """CRM-37 (Fase 3, NavigationIntent route ``"finance.receivables"``):
+        Customer 360's "Ver CxC" action lands here with
+        ``context["legacy_customer_id"]`` already resolved (by
+        `interfaz/main_window.py::_handle_navigation_intent`, the one place
+        allowed to touch the Customer Master bridge — this view never sees
+        the DB connection, see the module docstring). Switches to the CxC
+        page and shows the summary immediately, no manual id entry."""
+        legacy_customer_id = str((context or {}).get("legacy_customer_id") or "").strip()
+        if not legacy_customer_id:
+            return
+        self.set_active_submodule("cxc")
+        for page in self._pages:
+            if isinstance(page, AccountsReceivablePage):
+                page.show_crm_summary_for(legacy_customer_id)
+                return
+
     def set_active_submodule(self, name: str) -> None:
         """Compatibility hook (e.g. legacy 'tesoreria' deep link)."""
         targets = {"tesoreria": TreasuryPage, "cxc": AccountsReceivablePage,

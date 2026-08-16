@@ -17,8 +17,8 @@ class CashHandoverUiWiringArchitectureTests(unittest.TestCase):
         self.assertIn("deliver_cash_handover(", page)
         self.assertIn("receive_cash_handover(", page)
         self.assertIn("dispute_cash_handover(", page)
-        self.assertIn("CashDenominationDialog", page)
-        self.assertIn("CashTextReasonDialog", page)
+        self.assertIn("CashHandoverDenominationDialog", page)
+        self.assertIn("DisputeCashHandoverDialog", page)
         self.assertIn("CashHandoversPage(query_service", workspace)
 
     def test_handover_factory_uses_canonical_use_cases(self):

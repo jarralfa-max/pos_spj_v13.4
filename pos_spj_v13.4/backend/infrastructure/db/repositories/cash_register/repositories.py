@@ -13,6 +13,7 @@ from backend.domain.cash_register.entities import (
     BlindCashCount, CashDifference, CashDrawer, CashHandover, CashLedgerEntry,
     CashRegister, CashShift, PosTerminal, XCut, ZCut,
 )
+from backend.domain.cash_register.policies.workflow_policies import CashShiftLifecyclePolicy
 from backend.shared.ids import new_uuid
 
 
@@ -29,10 +30,7 @@ class _Repository:
 
 
 class CashShiftRepository(_Repository):
-    _ACTIVE_STATUSES = (
-        "OPENING", "OPEN", "SUSPENDED", "PENDING_COUNT", "COUNTING",
-        "COUNTED", "PENDING_REVIEW", "CLOSING",
-    )
+    _ACTIVE_STATUSES = tuple(status.value for status in CashShiftLifecyclePolicy.ACTIVE_STATUSES)
 
     def add(self, shift: CashShift) -> None:
         self.execute(

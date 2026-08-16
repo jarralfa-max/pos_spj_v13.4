@@ -25,6 +25,25 @@ Correlation to customer_id per source:
     column either — correlated via ``service_cases.customer_id``.
   - customer_credit / customer_privacy: their own audit tables already
     carry ``customer_id`` directly.
+  - ventas (CRM-33): Ventas has no ``customer_id`` column at all —
+    ``ventas.cliente_id`` is the legacy identity, never migrated (same
+    documented gap as ``CustomerAccountsReceivableSummaryQuery``).
+    Correlated via ``customers.legacy_customer_id`` (CRM-21's bridge):
+    resolve ``customer_id`` → legacy id first, then read ``ventas`` by
+    that legacy id. A customer with no bridge row (native Customer Master
+    creation, never mirrored from a legacy ``clientes`` row) simply
+    contributes no sales entries — not an error, same "missing means
+    nothing to contribute" discipline as ``_table_exists``.
+  - crm activities/tasks/notes (CRM-38, Fase 4): unlike leads/
+    opportunities, these three ARE directly correlatable —
+    ``CRMRelatedEntityType.CUSTOMER`` exists precisely so an
+    Activity/Task/Note can point at a customer without going through an
+    Opportunity first. Correlated the same way as ``_crm_entries``, just
+    a different ``related_entity_type`` filter, then joined to
+    ``crm_audit_log`` via ``activity_id``/``task_id``/``note_id``.
+  - pedidos_whatsapp (CRM-38, Fase 4): same legacy-bridge pattern as
+    ventas — ``pedidos_whatsapp.cliente_id`` is the legacy id, resolved
+    the same way.
 
 Gated by ``AUDIT_VIEW`` (§76) — viewing a customer's full cross-context
 history is an audit concern, not a profile-viewing concern.
@@ -64,6 +83,9 @@ class CustomerHistoryQueryService:
         entries.extend(self._service_entries(customer_id))
         entries.extend(self._credit_entries(customer_id))
         entries.extend(self._privacy_entries(customer_id))
+        entries.extend(self._sales_entries(customer_id))
+        entries.extend(self._crm_direct_entries(customer_id))
+        entries.extend(self._whatsapp_order_entries(customer_id))
         entries.sort(key=lambda e: e.occurred_at, reverse=True)
         return entries[:limit]
 
@@ -121,6 +143,73 @@ class CustomerHistoryQueryService:
         return [CustomerTimelineEntry(
             occurred_at=r[3], source_module="customer_privacy", action=r[0], actor_user_id=r[1],
             reason=r[2] or "", source_entity_id=r[4]) for r in rows]
+
+    def _sales_entries(self, customer_id: str) -> list[CustomerTimelineEntry]:
+        if not (self._table_exists("ventas") and self._table_exists("customers")):
+            return []
+        legacy_customer_id = self._legacy_customer_id(customer_id)
+        if not legacy_customer_id:
+            return []
+        rows = self._conn.execute(
+            "SELECT id, folio, total, estado, usuario, fecha FROM ventas WHERE cliente_id=?",
+            (legacy_customer_id,)).fetchall()
+        action_by_estado = {
+            "cancelada": "VENTA_CANCELADA", "cancelado": "VENTA_CANCELADA",
+        }
+        entries = []
+        for sale_id, folio, total, estado, usuario, fecha in rows:
+            action = action_by_estado.get(str(estado or "").lower(), "VENTA_COMPLETADA")
+            monto = f"${float(total or 0):,.2f}"
+            entries.append(CustomerTimelineEntry(
+                occurred_at=fecha, source_module="ventas", action=action,
+                actor_user_id=usuario, reason=f"Folio {folio or sale_id} · {monto}",
+                source_entity_id=sale_id))
+        return entries
+
+    def _crm_direct_entries(self, customer_id: str) -> list[CustomerTimelineEntry]:
+        if not (self._table_exists("crm_audit_log") and self._table_exists("crm_activities")
+                and self._table_exists("crm_tasks") and self._table_exists("crm_notes")):
+            return []
+        rows = self._conn.execute(
+            "SELECT a.action, a.actor_user_id, a.reason, a.created_at,"
+            " COALESCE(a.activity_id, a.task_id, a.note_id) AS entity_id"
+            " FROM crm_audit_log a"
+            " WHERE a.activity_id IN"
+            "   (SELECT id FROM crm_activities WHERE related_entity_type='CUSTOMER'"
+            "     AND related_entity_id=?)"
+            "    OR a.task_id IN"
+            "   (SELECT id FROM crm_tasks WHERE related_entity_type='CUSTOMER'"
+            "     AND related_entity_id=?)"
+            "    OR a.note_id IN"
+            "   (SELECT id FROM crm_notes WHERE related_entity_type='CUSTOMER'"
+            "     AND related_entity_id=?)",
+            (customer_id, customer_id, customer_id)).fetchall()
+        return [CustomerTimelineEntry(
+            occurred_at=r[3], source_module="crm", action=r[0], actor_user_id=r[1],
+            reason=r[2] or "", source_entity_id=r[4]) for r in rows]
+
+    def _whatsapp_order_entries(self, customer_id: str) -> list[CustomerTimelineEntry]:
+        if not (self._table_exists("pedidos_whatsapp") and self._table_exists("customers")):
+            return []
+        legacy_customer_id = self._legacy_customer_id(customer_id)
+        if not legacy_customer_id:
+            return []
+        rows = self._conn.execute(
+            "SELECT id, estado, total, fecha FROM pedidos_whatsapp WHERE cliente_id=?",
+            (legacy_customer_id,)).fetchall()
+        entries = []
+        for pedido_id, estado, total, fecha in rows:
+            monto = f"${float(total or 0):,.2f}"
+            entries.append(CustomerTimelineEntry(
+                occurred_at=fecha, source_module="whatsapp", action="PEDIDO_WHATSAPP",
+                actor_user_id=None, reason=f"Estado {estado or '—'} · {monto}",
+                source_entity_id=pedido_id))
+        return entries
+
+    def _legacy_customer_id(self, customer_id: str) -> str | None:
+        row = self._conn.execute(
+            "SELECT legacy_customer_id FROM customers WHERE id=?", (customer_id,)).fetchone()
+        return row[0] if row else None
 
     def _table_exists(self, name: str) -> bool:
         """Sibling bounded contexts are optional at the schema level (a

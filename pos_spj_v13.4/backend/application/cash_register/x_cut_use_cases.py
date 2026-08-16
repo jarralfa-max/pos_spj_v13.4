@@ -56,6 +56,10 @@ class GenerateXCutUseCase:
             shift = uow.shifts.get(shift_id)
             if not shift or shift["branch_id"] != branch_id or shift["status"] == "CLOSED":
                 raise CashInvalidStateError("El Corte X requiere un turno activo de la sucursal")
+            if uow.counts.find_open_for_shift(shift_id):
+                raise CashInvalidStateError(
+                    "No se puede generar Corte X mientras hay un conteo ciego abierto"
+                )
             expected, snapshot = _snapshot(uow.ledger.list_for_shift(shift_id))
             cut = XCut.generate(
                 shift_id=shift_id, branch_id=branch_id, generated_by=actor_user_id,
@@ -100,6 +104,10 @@ class PrintXCutUseCase:
             cut = uow.cuts.get(cut_id)
             if not cut or cut["branch_id"] != branch_id or cut["cut_type"] != "X":
                 raise CashInvalidStateError("Corte X no encontrado en la sucursal")
+            if uow.counts.find_open_for_shift(cut["shift_id"]):
+                raise CashInvalidStateError(
+                    "No se puede imprimir Corte X mientras hay un conteo ciego abierto"
+                )
             document = {
                 "cut_id": cut["id"], "document_number": cut["document_number"],
                 "shift_id": cut["shift_id"], "branch_id": cut["branch_id"],

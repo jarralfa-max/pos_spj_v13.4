@@ -86,32 +86,34 @@ class PasswordDebilError(AuthError):
 # ── Funciones públicas ───────────────────────────────────────────────────────
 
 def hash_password(password: str) -> str:
-    """Hashea contraseña con bcrypt. Lanza PasswordDebilError si es muy corta."""
+    """Hashea contraseña con bcrypt. Lanza PasswordDebilError si es muy corta.
+    Lanza AuthError (fail-fast) si bcrypt no está instalado — no existe
+    fallback a SHA-256 ni a ningún otro esquema más débil."""
     _validar_password(password)
     if not HAS_BCRYPT or not bcrypt:
-        import hashlib
-        return hashlib.sha256(password.encode()).hexdigest()
+        raise AuthError(
+            "bcrypt no está instalado. Ejecute 'pip install bcrypt' — no existe "
+            "una ruta alterna para hashear contraseñas."
+        )
     salt = bcrypt.gensalt(BCRYPT_ROUNDS)
     return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
 
 def verify_password(raw: str, stored: str) -> bool:
-    """
-    Verifica contraseña. Soporta:
-    - bcrypt ($2b$, $2a$): comparación segura
-    - Texto plano (legacy): comparación directa (solo para migración)
-    """
+    """Verifica contraseña contra un hash bcrypt únicamente. Un hash que no
+    tiene forma bcrypt (legacy texto plano/SHA-256, o bcrypt no instalado)
+    se trata como inválido — nunca como una comparación directa de texto
+    plano."""
     if not raw or not stored:
         return False
-    if stored.startswith(("$2b$", "$2a$", "$2y$")):
-        if not HAS_BCRYPT:
-            return False
-        try:
-            return bcrypt.checkpw(raw.encode("utf-8"), stored.encode("utf-8"))
-        except Exception:
-            return False
-    # Legacy texto plano
-    return raw == stored
+    if not stored.startswith(("$2b$", "$2a$", "$2y$")):
+        return False
+    if not HAS_BCRYPT:
+        return False
+    try:
+        return bcrypt.checkpw(raw.encode("utf-8"), stored.encode("utf-8"))
+    except Exception:
+        return False
 
 
 def autenticar(
@@ -157,10 +159,6 @@ def autenticar(
         conn.commit()
     except Exception as e:
         logger.warning("No se pudo actualizar ultimo_acceso: %s", e)
-
-    # Migrar password legacy → bcrypt
-    if not str(row["password_hash"] or "").startswith(("$2b$", "$2a$", "$2y$")):
-        _migrar_password_a_bcrypt(conn, row["id"], password)
 
     # Obtener módulos permitidos
     modulos = _get_modulos(conn, row["id"])

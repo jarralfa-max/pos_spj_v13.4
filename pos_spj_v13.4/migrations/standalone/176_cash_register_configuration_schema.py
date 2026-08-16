@@ -61,7 +61,7 @@ DDL = (
       active INTEGER NOT NULL CHECK(active IN (0,1)), created_at TEXT NOT NULL, updated_at TEXT NOT NULL)""",
     f"""CREATE TABLE IF NOT EXISTS cash_permission_profile_items (
       id TEXT PRIMARY KEY CHECK({U('id')}), profile_id TEXT NOT NULL REFERENCES cash_permission_profiles(id) ON DELETE CASCADE,
-      permission_code TEXT NOT NULL CHECK(permission_code LIKE 'CASH_%'), UNIQUE(profile_id,permission_code))""",
+      permission_code TEXT NOT NULL CHECK(permission_code LIKE 'CAJA.%'), UNIQUE(profile_id,permission_code))""",
     f"""CREATE TABLE IF NOT EXISTS cash_in_app_recipients (
       id TEXT PRIMARY KEY CHECK({U('id')}), alert_rule_id TEXT NOT NULL REFERENCES cash_alert_rules(id) ON DELETE CASCADE,
       user_id TEXT NOT NULL CHECK({U('user_id')}), display_name TEXT NOT NULL DEFAULT '',

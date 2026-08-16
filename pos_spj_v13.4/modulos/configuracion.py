@@ -1385,8 +1385,13 @@ class ModuloConfiguracion(ModuloBase):
             emp_id  = cmb_empleado.currentData()
             pwd_hash = None
             if pwd_raw:
-                pwd_hash = (_bcrypt.hashpw(pwd_raw.encode(), _bcrypt.gensalt()).decode()
-                            if _bcrypt else pwd_raw)
+                if not _bcrypt:
+                    raise RuntimeError(
+                        "bcrypt no está instalado. Ejecute 'pip install bcrypt' — "
+                        "no se puede guardar la contraseña sin hashearla con un "
+                        "esquema seguro."
+                    )
+                pwd_hash = _bcrypt.hashpw(pwd_raw.encode(), _bcrypt.gensalt()).decode()
             elif not usuario_id:
                 QMessageBox.warning(self, "Aviso", "La contraseña es obligatoria."); return
             self.user_management_service.save_user(

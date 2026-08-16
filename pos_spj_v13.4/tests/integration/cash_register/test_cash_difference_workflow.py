@@ -100,6 +100,11 @@ class CashDifferenceWorkflowTests(unittest.TestCase):
 
     def test_explain_review_resolve_are_segregated_audited_and_idempotent(self):
         explain_operation = new_uuid()
+        with self.assertRaises(CashSegregationOfDutiesError):
+            ExplainCashDifferenceUseCase(self.auth).execute(
+                self.db, difference_id=self.difference_id, branch_id=self.branch,
+                actor_user_id=self.supervisor, operation_id=new_uuid(),
+                explanation="Explicación capturada por actor incorrecto")
         ExplainCashDifferenceUseCase(self.auth).execute(
             self.db, difference_id=self.difference_id, branch_id=self.branch,
             actor_user_id=self.cashier, operation_id=explain_operation,

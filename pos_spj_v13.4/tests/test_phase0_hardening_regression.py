@@ -4,6 +4,8 @@ import importlib
 import os
 import sys
 
+import pytest
+
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
@@ -21,7 +23,11 @@ from core.events.outbox_dispatcher import dispatch_pending, OutboxDispatcherThre
 from repositories.auth_repository import AuthRepository
 
 
-def test_auth_service_auto_rehash_plaintext_password():
+def test_auth_service_rejects_plaintext_stored_password():
+    """CRM-28: la auto-migración transparente de texto plano fue eliminada
+    (fail-fast, sin fallback débil). Una cuenta con un hash legacy que no
+    tiene forma bcrypt debe rechazarse igual que una contraseña incorrecta
+    — nunca aceptarse ni re-hashearse automáticamente."""
     class Repo:
         def __init__(self):
             self.migrated = []
@@ -60,13 +66,12 @@ def test_auth_service_auto_rehash_plaintext_password():
     audit = Audit()
     svc = AuthService(repo, Security(), audit)
 
-    out = svc.authenticate("admin", "1234")
+    with pytest.raises(PermissionError):
+        svc.authenticate("admin", "1234")
 
-    assert out["username"] == "admin"
-    assert any(a == "PASSWORD_REHASHED" for a in audit.actions)
-    assert repo.migrated and repo.migrated[0][0] == 7
-    # Nuevo hash no debe permanecer en texto plano
-    assert repo.migrated[0][1] != "1234"
+    # Nunca se acepta ni se re-hashea automáticamente un hash legacy.
+    assert not repo.migrated
+    assert not any(a == "PASSWORD_REHASHED" for a in audit.actions)
 
 
 def test_auth_repository_detects_password_column_and_migrates():

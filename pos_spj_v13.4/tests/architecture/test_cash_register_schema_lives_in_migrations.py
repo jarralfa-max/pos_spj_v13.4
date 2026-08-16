@@ -5,6 +5,7 @@ import unittest
 
 REPO = Path(__file__).resolve().parents[2]
 MIGRATION = REPO / "migrations/standalone/175_cash_register_bounded_context_schema.py"
+CONFIGURATION_MIGRATION = REPO / "migrations/standalone/176_cash_register_configuration_schema.py"
 
 
 class CashRegisterSchemaArchitectureTests(unittest.TestCase):
@@ -23,6 +24,11 @@ class CashRegisterSchemaArchitectureTests(unittest.TestCase):
             self.assertNotIn(legacy, upper)
         for forbidden in ("ALTER TABLE", "INSERT INTO", "SELECT ", "LEGACY_ID", "AUTOINCREMENT", "LASTROWID"):
             self.assertNotIn(forbidden, upper)
+
+    def test_configuration_schema_permissions_use_caja_action_codes(self):
+        source = CONFIGURATION_MIGRATION.read_text(encoding="utf-8")
+        self.assertIn("permission_code TEXT NOT NULL CHECK(permission_code LIKE 'CAJA.%')", source)
+        self.assertNotIn("permission_code TEXT NOT NULL CHECK(permission_code LIKE 'CASH_%')", source)
 
 
 if __name__ == "__main__":

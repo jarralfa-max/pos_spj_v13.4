@@ -59,10 +59,13 @@ def _external_validation_reference(line: Mapping[str, object]) -> str | None:
 
 def _settlement_lines(payment_lines: object) -> list[dict[str, object]]:
     if isinstance(payment_lines, Mapping):
-        return [
-            {"type": key, "amount": value}
-            for key, value in payment_lines.items()
-        ]
+        rows: list[dict[str, object]] = []
+        for key, value in payment_lines.items():
+            if isinstance(value, Mapping):
+                rows.append({"type": key, **dict(value)})
+            else:
+                rows.append({"type": key, "amount": value})
+        return rows
     if isinstance(payment_lines, Sequence) and not isinstance(payment_lines, (str, bytes, bytearray)):
         rows: list[dict[str, object]] = []
         for index, line in enumerate(payment_lines):
@@ -96,7 +99,8 @@ class CashSalesIntegrationService:
     def record_completed_sale(self, connection, *, sale_id: str, branch_id: str,
                               cashier_user_id: str, operation_id: str,
                               payment_lines: object,
-                              change: object = "0") -> SaleCashResult:
+                              change: object = "0",
+                              amount_to_settle: object | None = None) -> SaleCashResult:
         lines = _settlement_lines(payment_lines)
         if not lines:
             raise CashInvalidStateError("La venta requiere al menos un medio de pago")
@@ -134,9 +138,17 @@ class CashSalesIntegrationService:
                 if affects_drawer else (method, amount, affects_drawer, reference)
                 for method, amount, affects_drawer, reference in allocations
             ]
-        amount_to_settle = sum((amount for _, amount, _, _ in allocations), Decimal("0"))
-        if amount_to_settle <= 0:
+        allocated_total = sum((amount for _, amount, _, _ in allocations), Decimal("0"))
+        expected_total = (
+            _amount(amount_to_settle, name="amount_to_settle")
+            if amount_to_settle is not None else allocated_total
+        )
+        if expected_total <= 0:
             raise CashInvalidStateError("La liquidación de venta debe ser mayor a cero")
+        if allocated_total != expected_total:
+            raise CashInvalidStateError(
+                "La liquidación de Caja debe coincidir con el total confirmado por Ventas"
+            )
         with CashRegisterUnitOfWork(connection) as uow:
             shift = uow.shifts.find_open_for_cashier(
                 branch_id=branch_id, cashier_user_id=cashier_user_id)
@@ -150,7 +162,7 @@ class CashSalesIntegrationService:
                                       True, prior_payment["id"])
             payment = PaymentRecord.create(
                 sale_id=sale_id, shift_id=shift["id"], branch_id=branch_id,
-                amount_to_settle=amount_to_settle, operation_id=operation_id,
+                amount_to_settle=expected_total, operation_id=operation_id,
                 recorded_by=cashier_user_id,
             )
             for method_type, amount, affects_drawer, external_reference in allocations:

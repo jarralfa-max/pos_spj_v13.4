@@ -75,10 +75,32 @@ class CashRegisterSchemaBornCleanTests(unittest.TestCase):
         )
         shift_id = self._seed_shift(register_id, drawer_id, terminal_id, status="PENDING_REVIEW")
         self.db.execute(
-            "INSERT INTO cash_ledger_entries(id,shift_id,branch_id,movement_type,direction,amount,operation_id,recorded_by,concept,recorded_at) "
-            "VALUES(?,?,?,?,?,?,?,?,?,?)",
-            (new_uuid(), shift_id, self.branch_id, "CASH_PICKUP", "OUTFLOW", "1.00", new_uuid(), self.cashier_id, "pickup", "now"),
+            "INSERT INTO cash_ledger_entries(id,shift_id,branch_id,movement_type,direction,amount,operation_id,recorded_by,concept,reference_id,recorded_at) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            (new_uuid(), shift_id, self.branch_id, "CASH_PICKUP", "OUTFLOW", "1.00", new_uuid(), self.cashier_id, "pickup", new_uuid(), "now"),
         )
+
+    def test_cash_movement_schema_rejects_legacy_type_and_wrong_direction(self):
+        register_id, drawer_id, terminal_id = self._seed_shift_dependencies()
+        shift_id = self._seed_shift(register_id, drawer_id, terminal_id)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(
+                "INSERT INTO cash_ledger_entries(id,shift_id,branch_id,movement_type,direction,amount,operation_id,recorded_by,concept,recorded_at) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?)",
+                (new_uuid(), shift_id, self.branch_id, "HANDOVER", "OUTFLOW", "1.00", new_uuid(), self.cashier_id, "legacy", "now"),
+            )
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(
+                "INSERT INTO cash_ledger_entries(id,shift_id,branch_id,movement_type,direction,amount,operation_id,recorded_by,concept,reference_id,recorded_at) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                (new_uuid(), shift_id, self.branch_id, "CASH_SALE", "OUTFLOW", "1.00", new_uuid(), self.cashier_id, "venta", new_uuid(), "now"),
+            )
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(
+                "INSERT INTO cash_ledger_entries(id,shift_id,branch_id,movement_type,direction,amount,operation_id,recorded_by,concept,recorded_at) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?)",
+                (new_uuid(), shift_id, self.branch_id, "SAFE_DROP", "OUTFLOW", "1.00", new_uuid(), self.cashier_id, "retiro", "now"),
+            )
 
     def test_active_shift_final_z_cut_and_operation_idempotency_are_unique(self):
         index_sql = "\n".join(row[0] or "" for row in self.db.execute(
@@ -124,6 +146,7 @@ class CashRegisterSchemaBornCleanTests(unittest.TestCase):
     def test_bootstrap_is_repeatable_and_foreign_keys_are_clean(self):
         self.migration.run(self.db)
         self.assertEqual(self.db.execute("PRAGMA foreign_key_check").fetchall(), [])
+        self.assertEqual(self.db.execute("PRAGMA integrity_check").fetchone()[0], "ok")
 
     def _seed_shift_dependencies(self):
         self.branch_id = new_uuid()

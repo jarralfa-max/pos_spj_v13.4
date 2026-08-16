@@ -16,7 +16,7 @@ class CashXCutUiWiringArchitectureTests(unittest.TestCase):
         self.assertIn("class CashXCutsPage", page)
         self.assertIn("generate_x_cut(", page)
         self.assertIn("print_x_cut(", page)
-        self.assertIn("CashTextReasonDialog", page)
+        self.assertIn("ReprintCashDocumentDialog", page)
         self.assertIn("CashXCutsPage(query_service", workspace)
 
     def test_x_cut_factory_uses_canonical_use_case_query_and_print_queue(self):

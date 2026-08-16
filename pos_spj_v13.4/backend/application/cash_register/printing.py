@@ -249,6 +249,7 @@ class PrintCashDocumentUseCase:
             printer_id=command.printer_id,
             copies=command.copies,
             original_print_id=command.original_print_id,
+            reprint_reason=command.reprint_reason,
             reprint=bool(command.original_print_id),
         )
         job = CashPrintJob(
@@ -261,7 +262,10 @@ class PrintCashDocumentUseCase:
             entity_id=command.document.entity_id,
             branch_id=command.document.branch_id,
             original_print_id=command.original_print_id,
-            metadata={"reference": command.document.reference},
+            metadata={
+                "reference": command.document.reference,
+                "reprint_reason": command.reprint_reason,
+            },
         )
         try:
             self._queue.enqueue(job)

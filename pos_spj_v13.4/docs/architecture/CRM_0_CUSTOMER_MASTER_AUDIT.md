@@ -343,6 +343,43 @@ la brújula, no el contrato literal (regla ya establecida desde CRM-2).
 
 ### 15.6 Conclusión de este refresh
 
+## 16. CUSTOMER MASTER CUT-OVER / LEGACY PURGE (2026-08-16)
+
+Sesión de cut-over completo (CRM-27 a CRM-34) ejecutada tras §15.3/§15.6
+identificar la segunda ruta legacy viva como el riesgo principal
+restante. Reporte completo, con las 12 secciones que pide la Fase 16 del
+prompt maestro (resumen, archivos, tablas, integraciones, seguridad,
+frontend, tests, deuda restante, grep final):
+**`docs/refactor/CRM-35_cutover_session_report.md`**.
+
+Resumen de una línea por fase — cada una con su propio doc en
+`docs/refactor/`:
+
+- **CRM-27**: el gate de crédito real de Ventas ahora prefiere
+  `customer_credit_profiles` (workflow CRM-8) cuando existe, en vez de
+  leer `clientes.allows_credit` directo — el workflow moderno de crédito
+  finalmente tiene efecto en el POS.
+- **CRM-28**: eliminado el fallback de contraseña en texto plano/SHA-256
+  en las tres rutas de auth — fail-fast si bcrypt no está instalado.
+- **CRM-29**: wildcard de módulo (`"CLIENTES.*"`) agregado al evaluador
+  de permisos real.
+- **CRM-30**: Delivery/Loyalty investigados — su lado de lectura ya
+  estaba correctamente wireado desde CRM-13, no era una brecha real.
+- **CRM-31**: el dominio de consentimiento de CRM-9 ahora gatea envíos
+  reales de WhatsApp (honra un WITHDRAWN explícito, nunca bloquea por
+  ausencia de registro).
+- **CRM-32**: `NavigationIntent` — Customer 360 puede saltar a Ventas con
+  el cliente preseleccionado, mecanismo listo para crecer a más destinos.
+- **CRM-33**: la Timeline del cliente ahora incluye eventos de venta.
+- **CRM-34**: `core/services/cliente_service.py` eliminado (cero
+  consumidores de producción).
+
+Actualiza §15.3: la ruta legacy de Ventas/WhatsApp sigue viva por diseño
+(decisión ya tomada en CRM-25, "safe subset now, credit gate later") —
+esta sesión cerró la parte de "credit gate later" que quedaba pendiente,
+sin migrar la selección de cliente de Ventas fuera de la identidad
+legacy (deuda real, documentada en la sección 11 del reporte CRM-35).
+
 El bounded context Customer Master/CRM está, en profundidad de dominio y
 aplicación, sustancialmente completo contra el master prompt (10 de 11
 áreas grandes construidas con tests reales; automatizaciones es la única

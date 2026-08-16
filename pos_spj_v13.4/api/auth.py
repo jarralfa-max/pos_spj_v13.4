@@ -18,13 +18,15 @@ logger = logging.getLogger("spj.api.auth")
 
 _API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
 
-# Clave por defecto solo para desarrollo local — en producción debe
-# configurarse via ERP_API_KEY o tabla configuraciones.
-_DEFAULT_DEV_KEY = "dev-only-change-in-production"
 
-
-def _get_configured_key(db=None) -> str:
-    """Obtiene la API key activa: ENV > BD > default dev."""
+def _get_configured_key(db=None) -> str | None:
+    """Obtiene la API key activa: ENV > BD. Retorna ``None`` si no hay
+    ninguna configurada — CRM-40 (Fase 6): sin fallback a un valor por
+    defecto conocido/adivinable. Un valor por defecto público (aunque
+    documentado como "solo para desarrollo") es, en la práctica, una
+    puerta trasera si alguien olvida configurar la clave real en
+    producción — el mismo razonamiento que ya llevó a eliminar el
+    fallback de SHA-256/texto plano en autenticación (CRM-28)."""
     env_key = os.environ.get("ERP_API_KEY", "")
     if env_key:
         return env_key
@@ -37,13 +39,15 @@ def _get_configured_key(db=None) -> str:
                 return row[0]
         except Exception:
             pass
-    return _DEFAULT_DEV_KEY
+    return None
 
 
 def verify_api_key(api_key: str = Security(_API_KEY_HEADER), db=None) -> str:
     """
-    Dependency que valida la API Key. Lanza 401 si es inválida.
-    Usa comparación en tiempo constante para evitar timing attacks.
+    Dependency que valida la API Key. Lanza 401 si es inválida o falta,
+    503 si el servidor no tiene ninguna clave configurada (fail-closed:
+    nunca acepta una clave por defecto conocida). Usa comparación en
+    tiempo constante para evitar timing attacks.
     """
     if not api_key:
         raise HTTPException(
@@ -51,6 +55,15 @@ def verify_api_key(api_key: str = Security(_API_KEY_HEADER), db=None) -> str:
             detail="API Key requerida en header X-API-Key",
         )
     configured = _get_configured_key(db)
+    if not configured:
+        logger.error(
+            "API Key no configurada (ERP_API_KEY o configuraciones.api_gateway_key) "
+            "— rechazando todas las solicitudes hasta que se configure"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="API Key no configurada en el servidor",
+        )
     if not secrets.compare_digest(api_key, configured):
         logger.warning("API Key inválida recibida")
         raise HTTPException(

@@ -48,12 +48,14 @@ from frontend.desktop.components import (
     StandardTable,
     StatusBadge,
     ViewState,
+    create_primary_button,
     create_secondary_button,
     create_state_widget,
 )
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.formatters.money_formatter import format_money
 from frontend.desktop.modules.customers_crm.pages._pill_tab_bar import PillTabBar
+from frontend.desktop.navigation.navigation_intent import NavigationIntent
 from frontend.desktop.themes.tokens import Spacing
 
 _STATUS_LABELS = {
@@ -83,6 +85,12 @@ _TABS = (
 
 class CustomerProfilePage(QWidget):
     edit_requested = pyqtSignal(str)
+    #: CRM-32: cross-module jump, e.g. to Ventas with this customer
+    #: preselected. Payload is a `NavigationIntent` (plain dataclass, not a
+    #: registered Qt type — carried as `object` since PyQt doesn't need a
+    #: declared custom type for signals that only ever connect to Python
+    #: slots in this same process).
+    navigation_requested = pyqtSignal(object)
 
     def __init__(self, presenter, parent=None) -> None:
         super().__init__(parent)
@@ -98,9 +106,13 @@ class CustomerProfilePage(QWidget):
         refresh.clicked.connect(self._reload_current)
         edit_btn = create_secondary_button(self, "Editar")
         edit_btn.clicked.connect(self._request_edit)
+        new_sale_btn = create_primary_button(self, "Nueva venta")
+        new_sale_btn.clicked.connect(self._request_new_sale)
+        cxc_btn = create_secondary_button(self, "Ver CxC")
+        cxc_btn.clicked.connect(self._request_receivables)
         self._header = PageHeader(
             self, title="Expediente del cliente", icon=Icons.CUSTOMERS,
-            compact=True, actions=[edit_btn, refresh])
+            compact=True, actions=[new_sale_btn, cxc_btn, edit_btn, refresh])
         root.addWidget(self._header)
 
         self._summary_row = QHBoxLayout()
@@ -161,6 +173,24 @@ class CustomerProfilePage(QWidget):
     def _request_edit(self) -> None:
         if self._customer_id is not None:
             self.edit_requested.emit(self._customer_id)
+
+    def _request_new_sale(self) -> None:
+        """CRM-32: jump to Ventas with this customer preselected — the
+        first concrete `NavigationIntent` target. See
+        `ModuloVentas.aplicar_contexto` for how the receiving screen
+        resolves the Customer Master id back to its own legacy record."""
+        if self._customer_id is not None:
+            self.navigation_requested.emit(
+                NavigationIntent(route="sales.new", context={"customer_id": self._customer_id}))
+
+    def _request_receivables(self) -> None:
+        """CRM-37 (Fase 3): jump to Finanzas' CxC screen with this
+        customer's exposure summary shown immediately, instead of an
+        admin typing the legacy id by hand."""
+        if self._customer_id is not None:
+            self.navigation_requested.emit(
+                NavigationIntent(
+                    route="finance.receivables", context={"customer_id": self._customer_id}))
 
     def _reload_current(self) -> None:
         if self._customer_id is None:

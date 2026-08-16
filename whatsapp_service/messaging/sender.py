@@ -119,6 +119,57 @@ def _build_headers(token: str) -> dict:
 
 
 # -----------------------------------------------------------------------------
+#  Consentimiento (CRM-31) — honra un opt-out explícito antes de enviar
+# -----------------------------------------------------------------------------
+
+def _is_whatsapp_opted_out(phone: str) -> bool:
+    """True solo si el Customer Master tiene un registro de consentimiento
+    WHATSAPP explícitamente WITHDRAWN para este teléfono. Nunca bloquea por
+    AUSENCIA de registro — "no inferir consentimiento por tener teléfono"
+    (§44) aplica en ambos sentidos: ni se infiere otorgado ni se infiere
+    retirado. Hoy no existe ningún productor de estos registros en el
+    sistema (el dominio de consentimiento fue construido en CRM-9 pero
+    nunca conectado a un flujo real), así que en la práctica esto siempre
+    retorna False hasta que exista un flujo de captura de opt-out — pero
+    deja el gate real, no decorativo, listo para el día en que exista uno.
+
+    Defensivo por diseño (mismo criterio que
+    `ERPBridge._bridge_customer_to_crm`): cualquier fallo — cliente no
+    encontrado, paquete del ERP no importable, DB no disponible — degrada
+    a "no retirado", nunca bloquea un envío por una falla de plomería.
+    """
+    try:
+        from erp.bridge import ERPBridge
+        erp = ERPBridge(ERP_DB_PATH)
+        cliente = erp.find_cliente_by_phone(phone)
+        legacy_id = cliente.get("id") if cliente else None
+        if not legacy_id:
+            return False
+
+        import os
+        import sys
+        erp_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        erp_module = os.path.join(erp_path, "pos_spj_v13.4")
+        if os.path.exists(erp_module) and erp_module not in sys.path:
+            sys.path.insert(0, erp_module)
+        from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
+            ResolveLegacyCustomerUseCase,
+        )
+        customer_id = ResolveLegacyCustomerUseCase().execute(
+            erp.db, legacy_customer_id=str(legacy_id))
+
+        row = erp.db.execute(
+            "SELECT status FROM customer_consents WHERE customer_id=? AND consent_type='WHATSAPP'"
+            " ORDER BY created_at DESC LIMIT 1",
+            (customer_id,),
+        ).fetchone()
+        return bool(row and row[0] == "WITHDRAWN")
+    except Exception as exc:
+        logger.debug("Chequeo de consentimiento WhatsApp falló (envío continúa): %s", exc)
+        return False
+
+
+# -----------------------------------------------------------------------------
 #  Funciones públicas de envío
 # -----------------------------------------------------------------------------
 
@@ -129,6 +180,10 @@ async def send_message(msg: OutgoingMessage, sucursal_id: Optional[int] = None) 
     - sucursal_id: opcional, si no se especifica se usa la primera sucursal activa
     """
     try:
+        if _is_whatsapp_opted_out(msg.to):
+            logger.warning("Envío bloqueado: número retiró su consentimiento de WhatsApp (CRM-31)")
+            return False
+
         token, phone_id = _get_whatsapp_config(sucursal_id)
 
         if msg.buttons:
@@ -198,6 +253,10 @@ async def send_template(to: str, template_name: str,
     """
     try:
         to = _normalize_phone(to)
+        if _is_whatsapp_opted_out(to):
+            logger.warning("Template bloqueado: número retiró su consentimiento de WhatsApp (CRM-31)")
+            return False
+
         token, phone_id = _get_whatsapp_config(sucursal_id)
 
         payload = {

@@ -10,6 +10,7 @@ backend/application/suppliers/use_cases/lifecycle_use_cases.py.
 from __future__ import annotations
 
 import json
+import sqlite3
 
 from backend.application.customers.authorization import CustomerAuthorizationPolicy
 from backend.application.customers.permissions import CustomerPermissions
@@ -19,6 +20,7 @@ from backend.domain.customers.enums import CustomerType
 from backend.domain.customers.events import CustomerEvents, build_event_payload
 from backend.domain.customers.exceptions import CustomerDomainError
 from backend.domain.customers.policies.duplicate_policy import CustomerDuplicatePolicy
+from backend.infrastructure.db.repositories.customers.base import normalize_name
 from backend.infrastructure.db.repositories.customers.unit_of_work import CustomerUnitOfWork
 
 
@@ -31,6 +33,20 @@ class _BaseUseCase:
         payload = build_event_payload(event_name, operation_id=operation_id,
                                       customer_id=customer_id, user_id=actor_user_id, **extra)
         uow.outbox.enqueue(payload["event_id"], event_name, json.dumps(payload), operation_id)
+
+
+#: CRM-41 (Fase 7): `CustomerRepository.next_code()` is a
+#: SELECT-MAX-then-increment read — under concurrent writers, two
+#: transactions can read the same "last" number before either commits.
+#: `customers.customer_number` is `UNIQUE` (schema-level safety net, so a
+#: collision can never silently produce two customers sharing a number),
+#: but without a retry the second writer would surface a raw
+#: `sqlite3.IntegrityError` to the caller instead of quietly getting the
+#: next real number. A small bounded retry is the standard, safe pattern
+#: for this under SQLite's single-writer-at-a-time semantics: by the time
+#: a writer regains the lock and retries, the conflicting row is already
+#: committed and visible to the next `next_code()` read.
+_MAX_CUSTOMER_NUMBER_ATTEMPTS = 5
 
 
 class CreateCustomerUseCase(_BaseUseCase):
@@ -60,25 +76,41 @@ class CreateCustomerUseCase(_BaseUseCase):
             if not allow_duplicate:
                 candidate = {"tax_identifier": tax_identifier, "display_name": display_name,
                              "legal_name": legal_name, "phone_e164": phone_e164, "email": email}
-                matches = self._duplicates.find_matches(
-                    candidate, uow.customers.find_duplicate_rows())
+                # CRM-41 (Fase 7): blocking keys — only rows sharing at
+                # least one of these with the candidate are loaded, instead
+                # of every customer in the system (see
+                # CustomerRepository.find_duplicate_rows's docstring).
+                candidate_rows = uow.customers.find_duplicate_rows_matching(
+                    normalized_display_name=normalize_name(display_name),
+                    normalized_legal_name=normalize_name(legal_name),
+                    tax_identifier=(tax_identifier or "").strip(),
+                    phone_e164=(phone_e164 or "").strip(),
+                    email=(email or "").strip())
+                matches = self._duplicates.find_matches(candidate, candidate_rows)
                 if matches:
                     return CustomerResult.fail(
                         "Posible cliente duplicado", "DUPLICATE", operation_id=operation_id,
                         duplicates=[{"customer_id": m.customer_id, "reasons": list(m.reasons)}
                                     for m in matches])
-            try:
-                customer = Customer.create(
-                    uow.customers.next_code(), display_name, CustomerType(customer_type),
-                    legal_name=legal_name, first_name=first_name, last_name=last_name,
-                    second_last_name=second_last_name, commercial_name=commercial_name,
-                    source=source, origin_branch_id=origin_branch_id,
-                    account_owner_user_id=account_owner_user_id, territory_id=territory_id,
-                    created_by_user_id=actor_user_id, operation_id=operation_id,
-                    as_prospect=as_prospect)
-            except (CustomerDomainError, ValueError) as exc:
-                return CustomerResult.fail(str(exc), "VALIDATION", operation_id=operation_id)
-            uow.customers.save(customer, operation_id=operation_id)
+            for attempt in range(1, _MAX_CUSTOMER_NUMBER_ATTEMPTS + 1):
+                try:
+                    customer = Customer.create(
+                        uow.customers.next_code(), display_name, CustomerType(customer_type),
+                        legal_name=legal_name, first_name=first_name, last_name=last_name,
+                        second_last_name=second_last_name, commercial_name=commercial_name,
+                        source=source, origin_branch_id=origin_branch_id,
+                        account_owner_user_id=account_owner_user_id, territory_id=territory_id,
+                        created_by_user_id=actor_user_id, operation_id=operation_id,
+                        as_prospect=as_prospect)
+                except (CustomerDomainError, ValueError) as exc:
+                    return CustomerResult.fail(str(exc), "VALIDATION", operation_id=operation_id)
+                try:
+                    uow.customers.save(customer, operation_id=operation_id)
+                    break
+                except sqlite3.IntegrityError as exc:
+                    if "customer_number" not in str(exc) or attempt == _MAX_CUSTOMER_NUMBER_ATTEMPTS:
+                        raise
+                    continue
             uow.audit.record(action=CustomerEvents.CREATED, actor_user_id=actor_user_id,
                              customer_id=customer.id,
                              after_json=json.dumps({"display_name": display_name}),

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
-
 from PyQt5.QtWidgets import QMessageBox, QVBoxLayout, QWidget
 
 from backend.domain.cash_register.exceptions import CashRegisterError
@@ -58,6 +56,8 @@ class CashZCutsPage(QWidget):
 
     @staticmethod
     def _money(value):
+        if value is None:
+            return "Restringido"
         return f"${value:,.2f}"
 
     def refresh(self) -> None:
@@ -66,7 +66,8 @@ class CashZCutsPage(QWidget):
             requester_user_id=self._presenter.actor_user_id(),
         )
         self._rows_by_id = {row.id: row for row in rows}
-        total_difference = sum((row.difference for row in rows), Decimal("0"))
+        visible_differences = [row.difference for row in rows if row.difference is not None]
+        total_difference = sum(visible_differences) if visible_differences else None
         self._kpis.set_cards([
             KPIDTO("cuts", "Cortes Z", str(len(rows)), len(rows)),
             KPIDTO("final", "Finales", str(sum(1 for row in rows if row.is_final))),

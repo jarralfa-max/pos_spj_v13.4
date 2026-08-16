@@ -74,6 +74,16 @@ class ExplainCashDifferenceUseCase(_DifferenceTransition):
                 explanation: str) -> DifferenceResult:
         if not explanation.strip():
             raise CashInvalidStateError("La explicación es obligatoria")
+        difference = CashRegisterUnitOfWork(connection).differences.get(difference_id)
+        if (
+            difference
+            and difference["branch_id"] == branch_id
+            and difference.get("responsible_user_id")
+            and actor_user_id != difference["responsible_user_id"]
+        ):
+            raise CashSegregationOfDutiesError(
+                "La explicación debe registrarla el responsable de la diferencia"
+            )
         return self._execute(
             connection, difference_id=difference_id, branch_id=branch_id,
             actor_user_id=actor_user_id, operation_id=operation_id,

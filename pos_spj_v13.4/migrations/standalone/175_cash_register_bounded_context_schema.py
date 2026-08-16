@@ -42,7 +42,7 @@ DDL = (
     f"""CREATE TABLE IF NOT EXISTS cash_ledger_entries (
         id TEXT PRIMARY KEY CHECK({U('id')}), shift_id TEXT NOT NULL REFERENCES cash_shifts(id),
         branch_id TEXT NOT NULL CHECK({U('branch_id')}),
-        movement_type TEXT NOT NULL CHECK(movement_type IN ('OPENING_FLOAT','CASH_SALE','CASH_REFUND','CASH_IN','CASH_OUT','MANUAL_INCOME','MANUAL_WITHDRAWAL','SAFE_DROP','CASH_PICKUP','CASH_HANDOVER','CASH_RECEIPT','CHANGE_ADDITION','AUTHORIZED_PAID_OUT','HANDOVER','REVERSAL','ADJUSTMENT')),
+        movement_type TEXT NOT NULL CHECK(movement_type IN ('OPENING_FLOAT','CASH_SALE','CASH_REFUND','CASH_IN','CASH_OUT','MANUAL_INCOME','MANUAL_WITHDRAWAL','SAFE_DROP','CASH_PICKUP','CASH_HANDOVER','CASH_RECEIPT','CHANGE_ADDITION','AUTHORIZED_PAID_OUT','REVERSAL','ADJUSTMENT')),
         direction TEXT NOT NULL CHECK(direction IN ('INFLOW','OUTFLOW')),
         amount TEXT NOT NULL CHECK(trim(amount)<>'' AND CAST(amount AS NUMERIC)>0),
         operation_id TEXT NOT NULL UNIQUE CHECK({U('operation_id')} AND operation_id<>id),
@@ -51,7 +51,12 @@ DDL = (
         reversal_of_id TEXT REFERENCES cash_ledger_entries(id), related_sale_id TEXT,
         recorded_at TEXT NOT NULL,
         CHECK(reversal_of_id IS NULL OR movement_type='REVERSAL'),
-        CHECK(movement_type NOT IN ('MANUAL_INCOME','MANUAL_WITHDRAWAL','SAFE_DROP') OR trim(concept)<>''))""",
+        CHECK(movement_type<>'REVERSAL' OR reversal_of_id IS NOT NULL),
+        CHECK((movement_type IN ('OPENING_FLOAT','CASH_SALE','CASH_IN','MANUAL_INCOME','CASH_RECEIPT','CHANGE_ADDITION') AND direction='INFLOW') OR
+              (movement_type IN ('CASH_REFUND','CASH_OUT','MANUAL_WITHDRAWAL','SAFE_DROP','CASH_PICKUP','CASH_HANDOVER','AUTHORIZED_PAID_OUT') AND direction='OUTFLOW') OR
+              movement_type IN ('REVERSAL','ADJUSTMENT')),
+        CHECK(movement_type NOT IN ('OPENING_FLOAT','CASH_SALE','CASH_REFUND','SAFE_DROP','CASH_PICKUP','CASH_HANDOVER','CASH_RECEIPT') OR reference_id IS NOT NULL),
+        CHECK(movement_type NOT IN ('MANUAL_INCOME','MANUAL_WITHDRAWAL','SAFE_DROP','CASH_IN','CASH_OUT','CASH_PICKUP','CASH_HANDOVER','AUTHORIZED_PAID_OUT','ADJUSTMENT','REVERSAL') OR trim(concept)<>''))""",
     f"""CREATE TABLE IF NOT EXISTS payment_records (
         id TEXT PRIMARY KEY CHECK({U('id')}), sale_id TEXT NOT NULL CHECK({U('sale_id')}),
         shift_id TEXT NOT NULL REFERENCES cash_shifts(id), branch_id TEXT NOT NULL CHECK({U('branch_id')}),

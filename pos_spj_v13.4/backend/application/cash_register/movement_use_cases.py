@@ -20,6 +20,7 @@ from backend.domain.cash_register.exceptions import (
 from backend.domain.cash_register.policies.security_policies import (
     CashLimitDecision, CashMonetaryLimitPolicy,
 )
+from backend.domain.cash_register.policies.workflow_policies import CashShiftLifecyclePolicy
 from backend.infrastructure.db.repositories.cash_register.unit_of_work import CashRegisterUnitOfWork
 from backend.shared.ids import new_uuid
 
@@ -68,8 +69,9 @@ class RegisterSafeDropUseCase:
                                       Decimal(prior["amount"]),
                                       Decimal(prior["amount"]) >= self._alert_threshold, True)
             shift = uow.shifts.get(shift_id)
-            if not shift or shift["branch_id"] != branch_id or shift["status"] != "OPEN":
+            if not shift or shift["branch_id"] != branch_id:
                 raise CashInvalidStateError("El safe drop requiere un turno abierto")
+            CashShiftLifecyclePolicy.ensure_operable(shift["status"])
             reason = uow.movement_reasons.get_active(
                 code=reason_code, movement_type=CashMovementType.SAFE_DROP.value,
                 occurred_at=_now())
@@ -93,7 +95,7 @@ class RegisterSafeDropUseCase:
                 movement_type=CashMovementType.SAFE_DROP,
                 direction=CashMovementDirection.OUTFLOW, amount=amount,
                 operation_id=operation_id, recorded_by=actor_user_id,
-                concept=reason["display_name"])
+                concept=reason["display_name"], reference_id=operation_id)
             uow.ledger.add(entry)
             alert_required = entry.amount >= self._alert_threshold
             _record(uow, CashEvents.SAFE_DROP_RECORDED, operation_id=operation_id,

@@ -10,7 +10,7 @@ from backend.application.cash_register.shift_use_cases import OpenCashShiftUseCa
 from backend.application.cash_register.x_cut_query_service import XCutQueryService
 from backend.application.cash_register.x_cut_use_cases import GenerateXCutUseCase, PrintXCutUseCase
 from backend.domain.cash_register.enums import CashMovementType
-from backend.domain.cash_register.exceptions import CashPermissionDeniedError
+from backend.domain.cash_register.exceptions import CashInvalidStateError, CashPermissionDeniedError
 from backend.domain.cash_register.policies.security_policies import CashMonetaryLimitPolicy
 from backend.shared.ids import new_uuid
 
@@ -108,6 +108,30 @@ class XCutDocumentFlowTests(unittest.TestCase):
             XCutQueryService(self.db, denied_view).get(
                 cut_id=cut.entity_id, branch_id=self.branch,
                 requester_user_id=self.cashier)
+
+    def test_x_cut_redacts_and_blocks_printing_during_open_blind_count(self):
+        cut = self._generate()
+        self.db.execute(
+            """INSERT INTO cash_counts
+            (id,shift_id,branch_id,counter_user_id,operation_id,denominations_json,
+             total_counted,status,confirmed_at)
+            VALUES(?,?,?,?,?,?,?,?,?)""",
+            (new_uuid(), self.shift_id, self.branch, self.cashier, new_uuid(),
+             "{}", "0", "OPEN", None),
+        )
+        self.db.commit()
+
+        redacted = XCutQueryService(self.db, self.auth).get(
+            cut_id=cut.entity_id, branch_id=self.branch,
+            requester_user_id=self.cashier)
+        self.assertIsNone(redacted.expected_cash)
+        self.assertIsNone(redacted.snapshot)
+        with self.assertRaises(CashInvalidStateError):
+            PrintXCutUseCase(self.auth, _Printer()).execute(
+                self.db, cut_id=cut.entity_id, branch_id=self.branch,
+                actor_user_id=self.cashier, operation_id=new_uuid())
+        with self.assertRaises(CashInvalidStateError):
+            self._generate()
 
     def test_print_uses_gateway_is_idempotent_and_audited(self):
         cut, printer = self._generate(), _Printer()
