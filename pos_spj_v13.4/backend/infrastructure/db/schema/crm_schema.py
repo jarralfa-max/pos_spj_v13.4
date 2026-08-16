@@ -38,6 +38,9 @@ CRM_TABLES: tuple[str, ...] = (
     "customer_segment_memberships",
     "customer_tags",
     "customer_tag_assignments",
+    "crm_automation_rules",
+    "crm_automation_executions",
+    "crm_sync_conflicts",
     "crm_audit_log",
     "crm_outbox",
     "crm_processed_events",
@@ -321,6 +324,63 @@ _DDL = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS crm_automation_rules (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        trigger_type TEXT NOT NULL CHECK (trigger_type IN (
+            'LEAD_CREATED','LEAD_IDLE','OPPORTUNITY_STAGE_CHANGED','OPPORTUNITY_IDLE',
+            'OPPORTUNITY_OVERDUE','CUSTOMER_INACTIVE','CASE_CREATED','SLA_AT_RISK',
+            'SLA_BREACHED','CREDIT_REVIEW_DUE')),
+        action_type TEXT NOT NULL CHECK (action_type IN (
+            'CREATE_TASK','ASSIGN_OWNER','SEND_NOTIFICATION','CHANGE_PRIORITY',
+            'ESCALATE_CASE','ADD_TAG','ADD_TO_SEGMENT')),
+        trigger_config TEXT NOT NULL DEFAULT '{}',
+        action_config TEXT NOT NULL DEFAULT '{}',
+        active INTEGER NOT NULL DEFAULT 1,
+        created_by_user_id TEXT,
+        operation_id TEXT UNIQUE,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS crm_automation_executions (
+        id TEXT PRIMARY KEY,
+        rule_id TEXT NOT NULL REFERENCES crm_automation_rules(id),
+        trigger_type TEXT NOT NULL,
+        target_entity_type TEXT NOT NULL,
+        target_entity_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED','SKIPPED')),
+        result_detail TEXT NOT NULL DEFAULT '',
+        created_entity_id TEXT,
+        operation_id TEXT,
+        executed_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS crm_sync_conflicts (
+        id TEXT PRIMARY KEY,
+        related_entity_type TEXT NOT NULL CHECK (related_entity_type IN (
+            'LEAD','OPPORTUNITY','TASK','CASE')),
+        related_entity_id TEXT NOT NULL,
+        conflict_type TEXT NOT NULL CHECK (conflict_type IN (
+            'LEAD_ASSIGNMENT_CONFLICT','OPPORTUNITY_STAGE_CONFLICT',
+            'TASK_STATUS_CONFLICT','CASE_ASSIGNMENT_CONFLICT')),
+        local_updated_at TEXT NOT NULL,
+        remote_snapshot_json TEXT NOT NULL DEFAULT '{}',
+        status TEXT NOT NULL DEFAULT 'OPEN' CHECK (status IN (
+            'OPEN','RESOLVED_LOCAL','RESOLVED_REMOTE','RESOLVED_MERGED')),
+        detail TEXT NOT NULL DEFAULT '',
+        detected_at TEXT NOT NULL,
+        resolved_at TEXT,
+        resolved_by_user_id TEXT,
+        resolution_note TEXT NOT NULL DEFAULT '',
+        operation_id TEXT UNIQUE
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS crm_audit_log (
         id TEXT PRIMARY KEY,
         lead_id TEXT,
@@ -403,6 +463,13 @@ _INDEXES = (
     " ON customer_tag_assignments(customer_id)",
     "CREATE INDEX IF NOT EXISTS idx_customer_tag_assignments_tag"
     " ON customer_tag_assignments(tag_id)",
+    "CREATE INDEX IF NOT EXISTS idx_crm_automation_rules_trigger"
+    " ON crm_automation_rules(trigger_type, active)",
+    "CREATE INDEX IF NOT EXISTS idx_crm_automation_executions_rule"
+    " ON crm_automation_executions(rule_id)",
+    "CREATE INDEX IF NOT EXISTS idx_crm_sync_conflicts_entity"
+    " ON crm_sync_conflicts(related_entity_type, related_entity_id)",
+    "CREATE INDEX IF NOT EXISTS idx_crm_sync_conflicts_status ON crm_sync_conflicts(status)",
     "CREATE INDEX IF NOT EXISTS idx_crm_audit_lead ON crm_audit_log(lead_id)",
     "CREATE INDEX IF NOT EXISTS idx_crm_audit_opportunity ON crm_audit_log(opportunity_id)",
     "CREATE INDEX IF NOT EXISTS idx_crm_audit_activity ON crm_audit_log(activity_id)",

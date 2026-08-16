@@ -121,3 +121,20 @@ class CustomerImportBatchNotFoundError(CustomerDomainError):
 class InvalidCustomerImportError(CustomerDomainError):
     """An import batch/row was built or transitioned invalidly (e.g. no
     rows, or approving a batch that isn't pending approval)."""
+
+
+# ── CRM-20: Offline-first sync conflicts (§91-92) ────────────────────────────
+
+class CustomerSyncConflictNotFoundError(CustomerDomainError):
+    """Referenced a sync conflict_id that does not exist."""
+
+
+class CustomerSyncConflictAlreadyResolvedError(CustomerDomainError):
+    """Attempted to resolve or re-detect a conflict that is no longer OPEN."""
+
+
+class CustomerSyncConflictDetectedError(CustomerDomainError):
+    """§92: "no sobrescribir silenciosamente" — raised (never silently
+    swallowed) when an incoming remote mutation targets a stale local
+    version. The caller must not apply the incoming change; a
+    CustomerSyncConflict record blocks it until explicitly resolved."""

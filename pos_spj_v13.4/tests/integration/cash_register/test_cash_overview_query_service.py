@@ -93,8 +93,12 @@ class CashOverviewQueryServiceTest(unittest.TestCase):
         self.assertEqual(values["safe_drops"], 1)
         self.assertEqual(values["terminals"], 1)
         self.assertEqual(len(dto.active_shifts), 1)
+        self.assertEqual(dto.active_shifts[0].detail, "Fondo inicial $100.00")
+        self.assertNotIn(self.user[:8], dto.active_shifts[0].detail)
         self.assertEqual(len(dto.pending_handovers), 1)
+        self.assertEqual(dto.pending_handovers[0].detail, "Monto preparado $50.00")
         self.assertEqual(len(dto.terminal_alerts), 1)
+        self.assertIn("entregas de valores pendientes", dto.next_action)
         self.assertEqual(auth.calls[0]["permission_code"], CashPermissions.ACCESS)
 
 

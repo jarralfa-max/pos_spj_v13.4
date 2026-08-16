@@ -253,3 +253,103 @@ Ninguno de los tests de seguridad/permisos exigidos por la sección 96 del pipel
 3. Tres fuentes de verdad para "cliente" (español legacy, inglés backend, API REST) sin contrato compartido — alto riesgo de que un alta por API no dispare lo mismo que un alta por UI (p. ej. sin asiento de crédito, sin evento `CLIENTE_CREADO`).
 4. `api/routers/clientes.py` no valida ni usa `PhoneWidget`/E.164 — puede insertar teléfonos en formato distinto al que exige la UI.
 5. Ninguna de las tres rutas de creación implementa lo pedido por CRM-1 (UUIDv7 ya sí, pero no idempotencia por `operation_id`, ni outbox).
+
+---
+
+## 15. REFRESH — Re-auditoría post CRM-24 (2026-08-14)
+
+El pipeline CRM-0..CRM-24 ya se ejecutó casi en su totalidad (CRM-19/20 fueron
+saltadas por decisión explícita del usuario). Esta sección documenta el
+estado REAL del código hoy, verificado por agente de exploración +
+`pytest`, no reconstruido de memoria — no reemplaza las secciones 1-14
+(que documentan el punto de partida), las complementa.
+
+### 15.1 Lo que YA NO es una brecha (estaba en §13/§14, ahora existe)
+
+Casi todo lo listado como "ausente"/"nuevo" en la auditoría original ya
+tiene código de dominio + aplicación + tests reales, no solo el master
+prompt aspiracional:
+
+| Brecha original (§13/§14) | Estado hoy | Dónde |
+|---|---|---|
+| Sin Leads/Oportunidades/Pipeline | ✅ Construido | `backend/domain/crm/entities/{lead,opportunity,...}.py`, `application/crm/use_cases/{lead,opportunity,convert_lead,create_opportunity_from_lead}.py` (CRM-4/5) |
+| Sin Actividades/Agenda/Tareas | ✅ Construido | `crm_activity.py`/`crm_task.py`/`crm_note.py`/`crm_reminder.py` + use cases (CRM-6) |
+| Sin Casos de atención/SLA | ✅ Construido | `backend/application/customer_service/` completo, `SLAInstance`/`ServiceLevelPolicy` (CRM-7) |
+| Crédito solo como campos planos | ✅ Workflow completo | `backend/application/customer_credit/use_cases/customer_credit_use_cases.py`: `RequestCustomerCreditUseCase`, `ReviewCustomerCreditUseCase`, `ApproveCustomerCreditUseCase`, `RejectCustomerCreditUseCase`, `UpdateCustomerCreditLimitUseCase`, `SuspendCustomerCreditUseCase`, `BlockCustomerCreditUseCase`, `ReopenCustomerCreditUseCase`, `CloseCustomerCreditUseCase` (CRM-8) |
+| Sin Consentimientos/Privacidad | ✅ Construido | `backend/domain/customer_privacy/` + `application/customer_privacy/use_cases/{consent,privacy_request,anonymize_customer,retention_policy}.py` (CRM-9) |
+| Sin Segmentos/Tags/Territorios/Carteras | ✅ Construido | `backend/domain/crm/entities/{customer_segment,customer_tag,sales_territory,customer_portfolio,customer_ownership}.py` (CRM-10) |
+| Sin detección de duplicados/Merge | ✅ Construido | `customer_duplicate_candidate.py`, `application/customers/use_cases/merge_use_cases.py` (`ProposeCustomerMergeUseCase`/`ExecuteCustomerMergeUseCase`/`RejectCustomerMergeUseCase` — nombres distintos al `MergeCustomersUseCase` literal del master prompt, mismo patrón "nombre real difs del prompt" ya documentado en cada fase) (CRM-11) |
+| Sin importación/exportación masiva | ✅ Import construido | `customer_import_batch.py`, `application/customers/use_cases/import_use_cases.py` (CRM-11). Exportación masiva (`ExportCustomersQuery` etc., §48) sigue sin encontrarse como caso de uso dedicado — no confirmado en este refresh, pendiente verificar en fase futura si se necesita. |
+| Catálogo de permisos plano (4 códigos) | ✅ 166 códigos reales | `CustomerPermissions` = 83, `CRMPermissions` = 83 (`backend/application/{customers,crm}/permissions.py`) — códigos reales tipo `"CLIENTES.credito.aprobar"`, no aspiracionales (CRM-2) |
+| Sin scope resolver OWN/TEAM/BRANCH/... | ✅ Construido, 6 ejes | `CustomerDataScopeResolver`/`CRMDataScopeResolver` (CRM-2), consumidos por casi todos los query services desde CRM-3 en adelante |
+| Sin pantalla real (todo el CRM era solo campos en `modulos/clientes.py`) | ✅ Módulo completo wireado | `frontend/desktop/modules/customers_crm/` (CRM-14-18), único punto de entrada real (`modulos/clientes_crm.py` → `"CLIENTES_CRM"` en menú), `modulos/clientes.py` **eliminado** (CRM-24) |
+
+### 15.2 Brecha real confirmada, no cerrada
+
+- **`CRMAutomationRule`/`CRMAutomationExecution` (§56, automatizaciones
+  declarativas por trigger)** — grep de `"automation"` en todo `backend/`
+  no arrojó ningún resultado. Ningún trigger (`LEAD_IDLE`,
+  `OPPORTUNITY_OVERDUE`, `SLA_AT_RISK`, etc.) tiene mecanismo de reglas
+  declarativas ni ejecutor. Es la única sección grande del master prompt
+  sin ningún código, ni parcial.
+
+### 15.3 Lo que §11 llamaba "3 arquitecturas coexistiendo" — estado hoy
+
+El hallazgo central de CRM-0 (tres rutas paralelas de "cliente": legacy
+español `core/`, nuevo inglés `backend/application/`, API REST SQL
+directo) **se redujo pero no se cerró del todo**, por decisión explícita
+documentada en CRM-21/CRM-24 (no un olvido):
+
+- **Ruta 1 (legacy español, `modulos/clientes.py` + sus 4 diálogos)**:
+  eliminada por completo en CRM-24. Ya no existe.
+- **Ruta 2 (`backend/application/`, ahora `backend/domain/customers` +
+  `application/customers`)**: es la única ruta real que sirve la UI activa
+  hoy (`frontend/desktop/modules/customers_crm/`).
+- **Ruta 3 (API REST `api/routers/clientes.py`, SQL directo) y las piezas
+  legacy que todavía la alimentan** (`core/use_cases/cliente.py`
+  `GestionarClienteUC`, `repositories/cliente_repository.py`
+  `ClienteRepository`, `application/services/customer_credit_service.py`,
+  `core/services/card_batch_engine.py`) — **siguen vivas y activas**,
+  consumidas por Ventas (`modulos/ventas.py:1010,1055,2884-2885`, checkout)
+  y WhatsApp. Documentadas explícitamente en `CUSTOMERS_CRM_LEGACY_CONSUMERS`
+  (`tests/architecture/allowlists.py`) como burn-down pendiente — no se
+  tocan hasta que Ventas/WhatsApp migren sus propias llamadas al Customer
+  Master nuevo, un trabajo de fases futuras aún no numeradas.
+
+Es decir: **para la UI de escritorio ya hay una sola fuente de verdad**;
+para Ventas/WhatsApp/API REST todavía hay una segunda, legacy, que no ha
+sido unificada. §11 sigue siendo parcialmente cierto, ya no en la UI.
+
+### 15.4 Números de verificación (agente + pytest, 2026-08-14)
+
+- `tests/unit/customers/ tests/unit/crm/ tests/integration/customers/ tests/integration/crm/ tests/architecture/test_customers_crm_*.py`: **586 passed**.
+- Incluyendo también `customer_credit`/`customer_privacy`/`customer_service` (unit+integration): **808 passed, 0 failed**.
+- Menú: confirmado un solo punto de entrada real (`"CLIENTES_CRM"` →
+  `modulos.clientes_crm.ModuloClientesCrm`); cero referencias reales a
+  `ModuloClientes` (solo comentarios/docstrings históricos).
+- `core/ui/module_loader.py["clientes"]` apunta a `ModuloClientesCrm`.
+
+### 15.5 Nombres de clase que difieren del master prompt (no son brechas, son nomenclatura)
+
+Confirmado por el agente, consistente con el patrón ya documentado en cada
+fase (CRM-2, CRM-9, CRM-12, CRM-14... "el prompt nombra un concepto, la
+clase real tiene otro nombre"):
+
+- Merge: `ProposeCustomerMergeUseCase`/`ExecuteCustomerMergeUseCase`/`RejectCustomerMergeUseCase`, no `MergeCustomersUseCase`.
+- Consentimiento: `CaptureConsentUseCase`/`RequestConsentUseCase`/`ConfirmConsentUseCase`/`WithdrawConsentUseCase`/`MarkConsentNotRequiredUseCase`, no `GrantCustomerConsentUseCase`/`WithdrawCustomerConsentUseCase`.
+
+No se recomienda renombrar solo para calzar con el prompt — el prompt es
+la brújula, no el contrato literal (regla ya establecida desde CRM-2).
+
+### 15.6 Conclusión de este refresh
+
+El bounded context Customer Master/CRM está, en profundidad de dominio y
+aplicación, sustancialmente completo contra el master prompt (10 de 11
+áreas grandes construidas con tests reales; automatizaciones es la única
+ausente por completo). El riesgo real que queda no es "falta construir
+X" sino "todavía hay una segunda ruta legacy viva para Ventas/WhatsApp/API
+REST" (§15.3) — coherente con lo que CRM-21/24 ya documentaron como
+pendiente, no un hallazgo nuevo. Cualquier fase futura debería priorizarse
+entre: (a) cerrar §15.3 (migrar Ventas/WhatsApp a los Use Cases nuevos),
+o (b) construir §15.2 (automatizaciones) — ambas son decisiones del
+usuario, no algo para asumir.

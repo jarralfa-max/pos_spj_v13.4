@@ -35,6 +35,7 @@ class CashOverviewDTO:
     pending_handovers: tuple[CashOverviewRow, ...]
     terminal_alerts: tuple[CashOverviewRow, ...]
     freshness: str
+    next_action: str = ""
 
 
 class CashOverviewQueryService:
@@ -72,6 +73,13 @@ class CashOverviewQueryService:
             pending_handovers=handovers,
             terminal_alerts=terminals,
             freshness=self._freshness(),
+            next_action=self._next_action(
+                active=active,
+                closures=closures,
+                differences=differences,
+                handovers=handovers,
+                terminals=terminals,
+            ),
         )
 
     def _fetch_rows(self, sql: str, params: tuple) -> tuple[CashOverviewRow, ...]:
@@ -89,9 +97,7 @@ class CashOverviewQueryService:
 
     def _active_shifts(self, branch_id: str) -> tuple[CashOverviewRow, ...]:
         return self._fetch_rows(
-            """SELECT s.id,r.name,s.status,
-                      'Cajero '||substr(s.cashier_user_id,1,8)||' · apertura '||s.opening_amount,
-                      s.opened_at
+            """SELECT s.id,r.name,s.status,'Fondo inicial $'||s.opening_amount,s.opened_at
             FROM cash_shifts s JOIN cash_registers r ON r.id=s.register_id
             WHERE s.branch_id=? AND s.status IN ('OPEN','SUSPENDED','CLOSING')
             ORDER BY s.opened_at DESC LIMIT 10""",
@@ -109,7 +115,12 @@ class CashOverviewQueryService:
 
     def _pending_differences(self, branch_id: str) -> tuple[CashOverviewRow, ...]:
         return self._fetch_rows(
-            """SELECT id,classification,status,'Importe '||amount||' · severidad '||severity,''
+            """SELECT id,
+                      CASE classification WHEN 'SHORTAGE' THEN 'Faltante' WHEN 'OVERAGE' THEN 'Sobrante' ELSE classification END,
+                      status,
+                      'Importe $'||amount||' - '||
+                      CASE severity WHEN 'CRITICAL' THEN 'critica' WHEN 'REVIEW' THEN 'requiere revision' ELSE 'dentro de tolerancia' END,
+                      ''
             FROM cash_differences
             WHERE branch_id=? AND status<>'RESOLVED'
             ORDER BY CASE severity WHEN 'CRITICAL' THEN 0 WHEN 'REVIEW' THEN 1 ELSE 2 END,
@@ -119,7 +130,7 @@ class CashOverviewQueryService:
 
     def _pending_handovers(self, branch_id: str) -> tuple[CashOverviewRow, ...]:
         return self._fetch_rows(
-            """SELECT id,'Entrega de valores',status,'Importe '||amount,prepared_at
+            """SELECT id,'Entrega de valores',status,'Monto preparado $'||amount,prepared_at
             FROM cash_handovers
             WHERE branch_id=? AND status IN ('PREPARED','DELIVERED','DISPUTED')
             ORDER BY prepared_at DESC LIMIT 10""",
@@ -128,7 +139,7 @@ class CashOverviewQueryService:
 
     def _terminal_alerts(self, branch_id: str) -> tuple[CashOverviewRow, ...]:
         return self._fetch_rows(
-            """SELECT id,name,status,'Terminal POS requiere atencion',updated_at
+            """SELECT id,name,status,'Revisar disponibilidad antes de cobrar con tarjeta',updated_at
             FROM pos_terminals
             WHERE branch_id=? AND status<>'ACTIVE'
             ORDER BY updated_at DESC LIMIT 10""",
@@ -159,3 +170,24 @@ class CashOverviewQueryService:
             )"""
         ).fetchone()
         return str(row[0] or "")
+
+    def _next_action(
+        self,
+        *,
+        active: tuple[CashOverviewRow, ...],
+        closures: tuple[CashOverviewRow, ...],
+        differences: tuple[CashOverviewRow, ...],
+        handovers: tuple[CashOverviewRow, ...],
+        terminals: tuple[CashOverviewRow, ...],
+    ) -> str:
+        if closures:
+            return "Hay turnos en cierre: confirma el conteo y genera el Corte Z."
+        if differences:
+            return "Hay diferencias pendientes: revisa explicacion, evidencia y segregacion."
+        if handovers:
+            return "Hay entregas de valores pendientes: confirma entrega o recepcion."
+        if terminals:
+            return "Hay terminales con alerta: diagnostica hardware antes de operar."
+        if active:
+            return "Operacion normal: monitorea movimientos y prepara retiro si excede politica."
+        return "No hay turno activo: abre un turno para iniciar operacion de caja."

@@ -29,6 +29,11 @@ class _Repository:
 
 
 class CashShiftRepository(_Repository):
+    _ACTIVE_STATUSES = (
+        "OPENING", "OPEN", "SUSPENDED", "PENDING_COUNT", "COUNTING",
+        "COUNTED", "PENDING_REVIEW", "CLOSING",
+    )
+
     def add(self, shift: CashShift) -> None:
         self.execute(
             """INSERT INTO cash_shifts
@@ -56,6 +61,28 @@ class CashShiftRepository(_Repository):
         cursor = self.execute(
             "SELECT * FROM cash_shifts WHERE branch_id=? AND cashier_user_id=? AND status='OPEN'",
             (branch_id, cashier_user_id))
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return dict(zip((item[0] for item in cursor.description), row))
+
+    def find_active_for_cashier(self, *, cashier_user_id: str):
+        placeholders = ",".join("?" for _ in self._ACTIVE_STATUSES)
+        cursor = self.execute(
+            f"SELECT * FROM cash_shifts WHERE cashier_user_id=? AND status IN ({placeholders})",
+            (cashier_user_id, *self._ACTIVE_STATUSES))
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return dict(zip((item[0] for item in cursor.description), row))
+
+    def find_active_for_resource(self, *, column: str, value: str):
+        if column not in {"register_id", "drawer_id", "terminal_id"}:
+            raise ValueError("Unsupported cash shift resource column")
+        placeholders = ",".join("?" for _ in self._ACTIVE_STATUSES)
+        cursor = self.execute(
+            f"SELECT * FROM cash_shifts WHERE {column}=? AND status IN ({placeholders})",
+            (value, *self._ACTIVE_STATUSES))
         row = cursor.fetchone()
         if row is None:
             return None

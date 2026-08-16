@@ -35,6 +35,9 @@ from backend.infrastructure.db.repositories.customers.support_repositories impor
     CustomerOutboxRepository,
     CustomerProcessedEventRepository,
 )
+from backend.infrastructure.db.repositories.customers.customer_sync_conflict_repository import (
+    CustomerSyncConflictRepository,
+)
 
 
 class CustomerUnitOfWork:
@@ -49,6 +52,7 @@ class CustomerUnitOfWork:
         self.merge_records = CustomerMergeRecordRepository(connection)
         self.data_quality_issues = CustomerDataQualityIssueRepository(connection)
         self.import_batches = CustomerImportBatchRepository(connection)
+        self.sync_conflicts = CustomerSyncConflictRepository(connection)
         self.audit = CustomerAuditRepository(connection)
         self.outbox = CustomerOutboxRepository(connection)
         self.processed_events = CustomerProcessedEventRepository(connection)

@@ -61,6 +61,18 @@ class OpenCashShiftUseCase:
                 raise CashInvalidStateError("Caja, cajón y terminal deben estar activos en la sucursal")
             if drawer["register_id"] != register_id or terminal["register_id"] != register_id:
                 raise CashInvalidStateError("Cajón y terminal deben estar asignados a la caja")
+            if uow.shifts.find_active_for_cashier(cashier_user_id=cashier_user_id):
+                raise CashInvalidStateError(
+                    "El cajero ya tiene un turno activo. Cierra o suspende el turno actual antes de abrir otro.")
+            if uow.shifts.find_active_for_resource(column="register_id", value=register_id):
+                raise CashInvalidStateError(
+                    "La caja seleccionada ya tiene un turno activo. Selecciona otra caja o cierra el turno actual.")
+            if uow.shifts.find_active_for_resource(column="drawer_id", value=drawer_id):
+                raise CashInvalidStateError(
+                    "El cajon seleccionado ya tiene un turno activo. Selecciona otro cajon o cierra el turno actual.")
+            if uow.shifts.find_active_for_resource(column="terminal_id", value=terminal_id):
+                raise CashInvalidStateError(
+                    "La terminal seleccionada ya tiene un turno activo. Selecciona otra terminal o cierra el turno actual.")
             shift = CashShift.open(
                 branch_id=branch_id, register_id=register_id, drawer_id=drawer_id,
                 terminal_id=terminal_id, cashier_user_id=cashier_user_id,

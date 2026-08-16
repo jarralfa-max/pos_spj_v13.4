@@ -10,6 +10,8 @@ class CashOverviewBiWiringTest(unittest.TestCase):
         page = (ROOT / "frontend/desktop/modules/cash_register/cash_overview_page.py").read_text(encoding="utf-8")
         for required in ("PageHeader", "KPIBar", "DashboardGrid", "StandardTable", "ViewState"):
             self.assertIn(required, page)
+        self.assertIn("Siguiente accion", page)
+        self.assertIn("pending_closures", page)
         for forbidden in ("SELECT ", "INSERT ", "UPDATE ", "DELETE ", "sqlite3", ".commit(", ".rollback("):
             self.assertNotIn(forbidden, page)
 
@@ -19,6 +21,8 @@ class CashOverviewBiWiringTest(unittest.TestCase):
         self.assertIn("Turnos activos", service)
         self.assertIn("Efectivo esperado", service)
         self.assertIn("Diferencias pendientes", service)
+        self.assertIn("Fondo inicial $", service)
+        self.assertNotIn("substr(s.cashier_user_id", service)
         self.assertIn("CashPermissions.ACCESS", service)
 
     def test_factory_workspace_and_presenter_mount_overview(self):

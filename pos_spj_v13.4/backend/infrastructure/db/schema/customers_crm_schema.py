@@ -37,6 +37,7 @@ CUSTOMER_TABLES: tuple[str, ...] = (
     "customer_merge_records",
     "customer_data_quality_issues",
     "customer_import_batches",
+    "customer_sync_conflicts",
     "customer_audit_log",
     "customer_outbox",
     "customer_processed_events",
@@ -232,6 +233,25 @@ _DDL = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS customer_sync_conflicts (
+        id TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL REFERENCES customers(id),
+        conflict_type TEXT NOT NULL CHECK (conflict_type IN (
+            'CUSTOMER_UPDATED_REMOTELY','DUPLICATE_CREATED','CONTACT_CONFLICT',
+            'ADDRESS_CONFLICT','CONSENT_CONFLICT','CREDIT_CONFLICT')),
+        local_version INTEGER NOT NULL,
+        remote_snapshot_json TEXT NOT NULL DEFAULT '{}',
+        status TEXT NOT NULL DEFAULT 'OPEN' CHECK (status IN (
+            'OPEN','RESOLVED_LOCAL','RESOLVED_REMOTE','RESOLVED_MERGED')),
+        detail TEXT NOT NULL DEFAULT '',
+        detected_at TEXT NOT NULL,
+        resolved_at TEXT,
+        resolved_by_user_id TEXT,
+        resolution_note TEXT NOT NULL DEFAULT '',
+        operation_id TEXT UNIQUE
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS customer_audit_log (
         id TEXT PRIMARY KEY,
         customer_id TEXT,
@@ -298,6 +318,10 @@ _INDEXES = (
     " ON customer_data_quality_issues(status)",
     "CREATE INDEX IF NOT EXISTS idx_customer_import_batches_status"
     " ON customer_import_batches(status)",
+    "CREATE INDEX IF NOT EXISTS idx_customer_sync_conflicts_customer"
+    " ON customer_sync_conflicts(customer_id)",
+    "CREATE INDEX IF NOT EXISTS idx_customer_sync_conflicts_status"
+    " ON customer_sync_conflicts(status)",
     "CREATE INDEX IF NOT EXISTS idx_customer_audit_customer ON customer_audit_log(customer_id)",
     "CREATE INDEX IF NOT EXISTS idx_customer_outbox_status ON customer_outbox(status)",
 )

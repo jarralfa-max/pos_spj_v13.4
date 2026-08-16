@@ -10,7 +10,7 @@ from frontend.desktop.components.kpi_bar import KPIBar
 from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
-from frontend.desktop.modules.cash_register.cash_register_dialogs import CashTextReasonDialog
+from frontend.desktop.modules.cash_register.cash_register_dialogs import ReprintCashDocumentDialog
 from frontend.desktop.modules.cash_register.presentation import display_code, user_facing_error
 
 
@@ -46,6 +46,7 @@ class CashXCutsPage(QWidget):
             ColumnSpec("Final"),
             ColumnSpec("Generado"),
         ], self)
+        self._rows_by_id = {}
         root.addWidget(self._table)
         self.refresh()
 
@@ -58,6 +59,7 @@ class CashXCutsPage(QWidget):
             branch_id=self._presenter.active_branch_id(),
             requester_user_id=self._presenter.actor_user_id(),
         )
+        self._rows_by_id = {row.id: row for row in rows}
         visible_amounts = sum(1 for row in rows if row.sensitive_amounts_visible)
         self._kpis.set_cards([
             KPIDTO("cuts", "Cortes X", str(len(rows)), len(rows)),
@@ -97,7 +99,11 @@ class CashXCutsPage(QWidget):
         cut_id = self._selected_cut_id()
         if not cut_id:
             return
-        dialog = CashTextReasonDialog(self, title="Motivo de reimpresion")
+        dialog = ReprintCashDocumentDialog(
+            self,
+            document_type="Corte X",
+            document=self._rows_by_id.get(cut_id),
+        )
         if dialog.exec_() != dialog.Accepted:
             return
         self._print_selected(reprint=True, reason=dialog.result_value().reason)

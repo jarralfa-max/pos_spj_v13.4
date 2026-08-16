@@ -5,6 +5,37 @@ documentarse aquí antes del commit.
 
 ---
 
+## 193_customers_legacy_customer_bridge — fix de orden — 2026-08-14
+
+**Motivo:** CRM-25 — al aplicar esta migración por primera vez contra una
+base de datos de desarrollo REAL (no un bootstrap fresco en memoria, que es
+lo único que la ejercitaba hasta ahora), falló con
+`sqlite3.OperationalError: no such column: legacy_customer_id`.
+
+**Causa raíz:** `run(conn)` llamaba `create_customers_crm_schema(conn)`
+ANTES de agregar la columna vía `_add_column`. En una base con `customers`
+ya creada por la migración 181 (es decir, cualquier base real migrada
+secuencialmente, no una vacía), el `CREATE TABLE IF NOT EXISTS` de esa
+función es un no-op — pero su `CREATE UNIQUE INDEX IF NOT EXISTS
+idx_customers_legacy_customer_id ON customers(legacy_customer_id)` es
+incondicional y se ejecuta igual, fallando porque la columna todavía no
+existe. Nunca se detectó antes porque toda la suite de tests de CRM-13
+en adelante usa `full_crm_conn`/bootstraps en memoria, donde la tabla
+`customers` se crea POR PRIMERA VEZ ya con la columna incluida.
+
+**Cambio:** se invirtió el orden en `migrations/standalone/
+193_customers_legacy_customer_bridge.py::run()` — `_add_column` primero,
+`create_customers_crm_schema(conn)` después. Sin cambio de comportamiento
+en un bootstrap fresco (la función seguía creando la columna en el primer
+`CREATE TABLE`); solo corrige el caso de una base preexistente.
+
+**Verificación:** aplicada exitosamente contra
+`data/spj_pos_database.db` (backup previo en el scratchpad de la sesión);
+1 cliente legacy existente puenteado correctamente vía
+`tools/crm/backfill_legacy_customers.py`.
+
+---
+
 ## 193_customers_legacy_identity_bridge — 2026-08-13
 
 **Motivo:** CRM-21 — "Migración de consumidores" (POS, Ventas, WhatsApp,

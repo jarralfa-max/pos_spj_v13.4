@@ -140,6 +140,22 @@ class CRMPermissions:
     # at once, at COMPANY scope, not one entity at a time).
     BI_EXPORT_VIEW = "CRM.bi.exportar"
 
+    # ── automatizaciones (§56, CRM-26) ─────────────────────────────────────
+    # A rule's ACTION still requires its own target permission when it fires
+    # (e.g. CREATE_TASK checks TASKS_CREATE via CreateCRMTaskUseCase itself)
+    # — these codes gate the rule ENGINE (who can define/toggle automation),
+    # not a bypass around each action's own authorization.
+    AUTOMATION_RULES_VIEW = "CRM.automatizaciones.ver"
+    AUTOMATION_RULES_CREATE = "CRM.automatizaciones.crear"
+    AUTOMATION_RULES_EDIT = "CRM.automatizaciones.editar"
+    AUTOMATION_RULES_ACTIVATE = "CRM.automatizaciones.activar"
+    AUTOMATION_RULES_DEACTIVATE = "CRM.automatizaciones.desactivar"
+    AUTOMATION_EXECUTIONS_VIEW = "CRM.automatizaciones.ver_ejecuciones"
+
+    # ── offline-first sync conflicts (§91-92, CRM-20) ──────────────────────
+    SYNC_CONFLICTS_VIEW = "CRM.sync_conflictos.ver"
+    SYNC_CONFLICTS_RESOLVE = "CRM.sync_conflictos.resolver"
+
 
 ALL_CRM_PERMISSIONS = frozenset(
     v for k, v in vars(CRMPermissions).items()

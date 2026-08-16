@@ -78,13 +78,15 @@ def _build_db() -> sqlite3.Connection:
             email TEXT DEFAULT '',
             direccion TEXT DEFAULT '',
             rfc TEXT DEFAULT '',
+            notas TEXT DEFAULT '',
             codigo_qr TEXT,
             puntos REAL DEFAULT 0,
             nivel TEXT DEFAULT 'Bronce',
             credit_limit REAL DEFAULT 0,
             credit_balance REAL DEFAULT 0,
             activo INTEGER DEFAULT 1,
-            fecha_registro DATETIME DEFAULT (datetime('now'))
+            fecha_registro DATETIME DEFAULT (datetime('now')),
+            fecha_alta DATETIME DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS loyalty_ledger (
             id TEXT PRIMARY KEY,

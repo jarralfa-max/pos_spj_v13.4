@@ -190,3 +190,29 @@ class CustomerTagAssignmentNotFoundError(CRMDomainError):
 class InvalidCustomerTagAssignmentError(CRMDomainError):
     """A CustomerTagAssignment was captured/removed invalidly (e.g. missing
     customer_id/tag_id, or removing an already-removed assignment)."""
+
+
+# ── CRM-26: Automatizaciones (§56) ───────────────────────────────────────────
+
+class CRMAutomationRuleNotFoundError(CRMDomainError):
+    """Referenced an automation rule_id that does not exist."""
+
+
+class InvalidCRMAutomationRuleError(CRMDomainError):
+    """A CRMAutomationRule was built with invalid configuration (e.g. empty
+    name, trigger/action not in the canonical enums, or action_config
+    missing a field the action type requires)."""
+
+
+# ── CRM-20: Offline-first sync conflicts (§91-92) ────────────────────────────
+
+class CRMSyncConflictNotFoundError(CRMDomainError):
+    """Referenced a sync conflict_id that does not exist."""
+
+
+class CRMSyncConflictAlreadyResolvedError(CRMDomainError):
+    """Attempted to resolve or re-detect a conflict that is no longer OPEN."""
+
+
+class CRMSyncConflictDetectedError(CRMDomainError):
+    """Mirrors CustomerSyncConflictDetectedError — never a silent overwrite."""

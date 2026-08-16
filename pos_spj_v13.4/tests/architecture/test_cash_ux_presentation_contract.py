@@ -66,11 +66,26 @@ class CashUxPresentationContractTests(unittest.TestCase):
         devices = (CASH_UI / "cash_devices_page.py").read_text(encoding="utf-8")
         self.assertIn("CashDeviceActionDialog", devices)
         self.assertNotIn("CashTextReasonDialog", devices)
+        shifts = (CASH_UI / "cash_shifts_page.py").read_text(encoding="utf-8")
+        self.assertIn("SuspendCashShiftDialog", shifts)
+        self.assertNotIn("CashTextReasonDialog", shifts)
+        x_cuts = (CASH_UI / "cash_x_cuts_page.py").read_text(encoding="utf-8")
+        z_cuts = (CASH_UI / "cash_z_cuts_page.py").read_text(encoding="utf-8")
+        self.assertIn("ReprintCashDocumentDialog", x_cuts)
+        self.assertIn("ReprintCashDocumentDialog", z_cuts)
+        self.assertNotIn("CashTextReasonDialog", x_cuts)
+        self.assertNotIn("CashTextReasonDialog", z_cuts)
+        sync = (CASH_UI / "cash_sync_page.py").read_text(encoding="utf-8")
+        self.assertIn("ResolveCashSyncConflictDialog", sync)
+        self.assertNotIn("CashTextReasonDialog", sync)
 
     def test_common_inputs_expose_virtual_keyboard_affordance(self):
-        for filename in ("text_inputs.py", "search_input.py", "numeric_input.py"):
+        for filename in ("text_inputs.py", "numeric_input.py"):
             source = (COMPONENTS / filename).read_text(encoding="utf-8")
             self.assertIn("attach_virtual_keyboard_action", source)
+        search = (COMPONENTS / "search_input.py").read_text(encoding="utf-8")
+        self.assertIn("StandardLineEdit", search)
+        self.assertIn("keyboard_enabled=keyboard_enabled", search)
 
 
 if __name__ == "__main__":

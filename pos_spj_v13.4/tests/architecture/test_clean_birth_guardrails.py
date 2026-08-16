@@ -866,8 +866,7 @@ def test_clientes_table_is_born_clean_uuid_identity():
     assert "new_uuid()" in repo_src
 
     # Ningún writer del id de cliente inserta sin id explícito.
-    for w in (REPO / "api" / "routers" / "clientes.py",
-              REPO / "integrations" / "pos_adapter.py"):
+    for w in (REPO / "integrations" / "pos_adapter.py",):
         src = w.read_text(encoding="utf-8")
         assert ("INSERT INTO clientes (id," in src) or ("INSERT INTO clientes(id," in src), w.name
 
@@ -875,6 +874,16 @@ def test_clientes_table_is_born_clean_uuid_identity():
     # identidad enteros) fue eliminado — ver
     # docs/refactor/CRM-24_retiro_modulo_legacy.md. Ambos patrones
     # prohibidos aquí ya no pueden existir porque el archivo no existe.
+
+    # api/routers/clientes.py (CRM-25) ya no hace INSERT directo — delega en
+    # ClienteRepository.crear() (verificado arriba: usa new_uuid(), sin
+    # lastrowid, id explícito), la misma fuente única de verdad que el resto
+    # del repo. Retirado de la lista de arriba porque ya no aplica revisar un
+    # patrón de INSERT que el archivo no ejecuta más — la propiedad REGLA
+    # CERO que este test protege se cumple con más fuerza, no con menos.
+    router_src = (REPO / "api" / "routers" / "clientes.py").read_text(encoding="utf-8")
+    assert "INSERT INTO clientes" not in router_src
+    assert "ClienteRepository" in router_src
 
 
 def test_activos_tables_are_born_clean_uuid_identity():

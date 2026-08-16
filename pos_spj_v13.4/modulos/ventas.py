@@ -3806,11 +3806,25 @@ class ModuloVentas(ModuloBase):
                     operation_id=f"sales-customer-{new_uuid()}",
                 )
             )
+            # result["id"] is a UUIDv7 string (REGLA CERO) — never int()-cast it.
+            cliente_id = result["id"]
             if result.get("existing"):
-                self.seleccionar_cliente(int(result["id"]))
+                _cli = self._cli_repo
+                _existing = _cli.get_by_id(cliente_id) if _cli else None
+                if _existing:
+                    self.cliente_actual = {
+                        'id': _existing['id'], 'nombre': _existing.get('nombre', result.get('name', '')),
+                        'telefono': _existing.get('telefono', ''),
+                        'email': _existing.get('email', ''),
+                        'direccion': _existing.get('direccion', ''),
+                        'puntos': _existing.get('puntos', 0) or 0,
+                        'codigo_qr': _existing.get('codigo_qr', ''),
+                        'saldo': _existing.get('saldo', 0.0) or 0.0,
+                    }
+                    self.actualizar_info_cliente()
+                self._bridge_customer_to_crm(cliente_id)
                 self.mostrar_mensaje("Info", f"Tarjeta ya asignada a: {result.get('name', '')}")
                 return
-            cliente_id = int(result["id"])
 
             self.cliente_actual = {
                 'id': cliente_id, 'nombre': cliente_data['nombre'],
@@ -3820,9 +3834,23 @@ class ModuloVentas(ModuloBase):
                 'puntos': 0, 'codigo_qr': codigo_qr, 'saldo': 0.0,
             }
             self.actualizar_info_cliente()
+            self._bridge_customer_to_crm(cliente_id)
             self.mostrar_mensaje("Éxito", f"Cliente '{cliente_data['nombre']}' agregado.")
         except Exception as e:
             self.mostrar_mensaje("Error", f"Error al guardar cliente: {str(e)}", QMessageBox.Critical)
+
+    def _bridge_customer_to_crm(self, legacy_customer_id: str) -> None:
+        """Eagerly create/resolve this customer's Customer Master bridge row
+        (CRM-25) instead of waiting for the lazy first-reference at the
+        advisory eligibility check. Never blocks customer creation."""
+        try:
+            from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
+                ResolveLegacyCustomerUseCase,
+            )
+            ResolveLegacyCustomerUseCase().execute(
+                self.conexion, legacy_customer_id=str(legacy_customer_id))
+        except Exception as _crm_e:
+            logger.debug("CRM legacy customer bridge (eager): %s", _crm_e)
 
     def limpiar_cliente(self):
         self.cliente_actual = None
@@ -4030,18 +4058,20 @@ class ModuloVentas(ModuloBase):
                         "Asigne un cliente y vuelva a intentarlo, o elija otro método de pago."
                     )
                     return
-                # CRM-21: advisory-only CRM eligibility check (suspendido/
-                # bloqueado/cerrado at the Customer Master level, e.g. set
-                # from the CRM Expediente). Purely informational — it never
-                # blocks the sale and never replaces `_ccs.validate_credit`
-                # below, the sole enforcement path for credit limits. Soft
-                # no-ops today until a real PermissionChecker is wired for
-                # the Customer Master bounded context into AppContainer
-                # (still pending, same deferred-wiring gap CRM-14 already
-                # documented for the CRM module's own menu registration) —
-                # `CustomerAuthorizationPolicy()` fails closed with no
-                # checker configured, which this call site correctly treats
-                # as "nothing to show," not an error to surface to the cajero.
+                # CRM-21/CRM-25: advisory-only CRM eligibility check
+                # (suspendido/bloqueado/cerrado at the Customer Master
+                # level, e.g. set from the CRM Expediente). Purely
+                # informational — it never blocks the sale and never
+                # replaces `_ccs.validate_credit` below, the sole
+                # enforcement path for credit limits. CRM-25 wires a real
+                # `CustomerAuthorizationPolicy` (`container.customer_authorization_policy`,
+                # backed by a live-session `CustomerSessionPermissionChecker`)
+                # — previously this always no-op'd (no checker configured).
+                # `actor_user_id` must be the session's real user id
+                # (`container.session.user_id`), NOT `self.usuario_actual`
+                # (the display username) — the checker compares against
+                # `session.user_id`, so passing the username would silently
+                # keep this a permanent no-op for a different reason.
                 try:
                     from backend.application.customers.queries.customer_commercial_eligibility_query import (
                         CustomerCommercialEligibilityQuery,
@@ -4050,10 +4080,12 @@ class ModuloVentas(ModuloBase):
                         ResolveLegacyCustomerUseCase,
                     )
                     _db = self.container.db
+                    _auth = getattr(self.container, 'customer_authorization_policy', None)
+                    _actor_id = str(getattr(self.container.session, 'user_id', '') or '')
                     _new_customer_id = ResolveLegacyCustomerUseCase().execute(
                         _db, legacy_customer_id=str(self.cliente_actual['id']))
-                    _elig = CustomerCommercialEligibilityQuery(_db).check(
-                        _new_customer_id, actor_user_id=str(self.usuario_actual or ""))
+                    _elig = CustomerCommercialEligibilityQuery(_db, _auth).check(
+                        _new_customer_id, actor_user_id=_actor_id)
                     if not _elig.eligible:
                         QMessageBox.warning(
                             self, "Aviso CRM",

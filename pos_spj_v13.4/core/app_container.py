@@ -115,6 +115,15 @@ class AppContainer:
         self.cliente_repo = ClienteRepository(self.db)
         self.producto_repo = ProductoRepository(self.db)
 
+        # Customer Master (CRM-25): real PermissionChecker for the new
+        # backend.application.customers stack, mirrors CashSessionPermissionChecker
+        # below — holds a live self.session reference, not a snapshot, so
+        # login/logout/branch changes are observed on every call.
+        from backend.application.customers.authorization import CustomerAuthorizationPolicy
+        from backend.application.customers.session_authorization import CustomerSessionPermissionChecker
+        self.customer_authorization_policy = CustomerAuthorizationPolicy(
+            CustomerSessionPermissionChecker(self.session))
+
         # MercadoPago (pagos digitales con link)
         try:
             from services.mercado_pago_service import MercadoPagoService

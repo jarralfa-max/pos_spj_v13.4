@@ -53,6 +53,10 @@ class CustomerEvents:
     IMPORT_BATCH_APPROVED = "CUSTOMER_IMPORT_BATCH_APPROVED"
     IMPORT_BATCH_COMPLETED = "CUSTOMER_IMPORT_BATCH_COMPLETED"
 
+    # ── CRM-20: offline-first sync conflicts (§91-92) ──────────────────────
+    SYNC_CONFLICT_DETECTED = "CUSTOMER_SYNC_CONFLICT_DETECTED"
+    SYNC_CONFLICT_RESOLVED = "CUSTOMER_SYNC_CONFLICT_RESOLVED"
+
 
 ALL_CUSTOMER_EVENTS = frozenset(
     v for k, v in vars(CustomerEvents).items() if not k.startswith("_") and isinstance(v, str)

@@ -81,6 +81,10 @@ class CreateLeadUseCase(_BaseUseCase):
                              lead_id=lead.id, after_json=json.dumps({"display_name": display_name}),
                              reason="alta", operation_id=operation_id)
             self._emit(uow, CRMEvents.LEAD_CREATED, lead.id, operation_id, actor_user_id)
+        from backend.application.crm.use_cases.automation_use_cases import fire_event_trigger
+        from backend.domain.crm.enums import CRMAutomationTrigger
+        fire_event_trigger(connection, CRMAutomationTrigger.LEAD_CREATED, "LEAD", lead.id,
+                           operation_id)
         return CRMResult.ok("Lead creado", entity_id=lead.id, operation_id=operation_id,
                             code=str(lead.code))
 

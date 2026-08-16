@@ -296,6 +296,10 @@ class MoveOpportunityStageUseCase(_BaseUseCase):
                              reason=reason, operation_id=operation_id)
             self._emit(uow, CRMEvents.OPPORTUNITY_STAGE_CHANGED, opportunity.id, operation_id,
                       actor_user_id, to_stage_id=to_stage.id, from_stage_id=from_stage_id)
+        from backend.application.crm.use_cases.automation_use_cases import fire_event_trigger
+        from backend.domain.crm.enums import CRMAutomationTrigger
+        fire_event_trigger(connection, CRMAutomationTrigger.OPPORTUNITY_STAGE_CHANGED,
+                           "OPPORTUNITY", opportunity_id, operation_id)
         return CRMResult.ok("Etapa actualizada", entity_id=opportunity_id,
                             operation_id=operation_id, stage_id=to_stage_id)
 

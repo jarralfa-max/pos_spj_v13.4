@@ -71,7 +71,7 @@ class CashShiftLifecycleTests(unittest.TestCase):
 
     def test_second_active_assignment_is_rejected_without_partial_writes(self):
         self._open()
-        with self.assertRaises(sqlite3.IntegrityError):
+        with self.assertRaisesRegex(CashInvalidStateError, "cajero ya tiene un turno activo"):
             self._open()
         self.assertEqual(self.db.execute("SELECT COUNT(*) FROM cash_shifts").fetchone()[0], 1)
         self.assertEqual(self.db.execute("SELECT COUNT(*) FROM cash_ledger_entries").fetchone()[0], 1)

@@ -38,6 +38,32 @@ class LifecycleStage(str, Enum):
     LOST = "LOST"
 
 
+class CustomerSyncConflictType(str, Enum):
+    """§92: the 6 conflict types that belong to the Customer Master half of
+    ``CustomerSyncConflict`` (the other 4 — lead/opportunity/task/case — are
+    ``CRMSyncConflictType`` in backend/domain/crm/enums.py, since §92 names
+    exactly TWO conflict entities total, not one per sub-package)."""
+
+    CUSTOMER_UPDATED_REMOTELY = "CUSTOMER_UPDATED_REMOTELY"
+    DUPLICATE_CREATED = "DUPLICATE_CREATED"
+    CONTACT_CONFLICT = "CONTACT_CONFLICT"
+    ADDRESS_CONFLICT = "ADDRESS_CONFLICT"
+    CONSENT_CONFLICT = "CONSENT_CONFLICT"
+    CREDIT_CONFLICT = "CREDIT_CONFLICT"
+
+
+class SyncConflictStatus(str, Enum):
+    """Shared resolution lifecycle for CustomerSyncConflict/CRMSyncConflict.
+    §92: "no sobrescribir silenciosamente" — a conflict stays OPEN, blocking
+    the incoming write, until a human explicitly picks one of the three
+    RESOLVED_* outcomes."""
+
+    OPEN = "OPEN"
+    RESOLVED_LOCAL = "RESOLVED_LOCAL"
+    RESOLVED_REMOTE = "RESOLVED_REMOTE"
+    RESOLVED_MERGED = "RESOLVED_MERGED"
+
+
 class ContactDecisionRole(str, Enum):
     DECISION_MAKER = "DECISION_MAKER"
     INFLUENCER = "INFLUENCER"

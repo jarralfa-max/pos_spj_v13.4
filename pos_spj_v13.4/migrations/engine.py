@@ -186,6 +186,8 @@ MIGRATIONS = [
     _Migration("191",  "migrations.standalone.191_customers_data_quality_bounded_context_schema"),
     _Migration("192",  "migrations.standalone.192_customers_sale_activity_projection"),
     _Migration("193",  "migrations.standalone.193_customers_legacy_customer_bridge"),
+    _Migration("194",  "migrations.standalone.194_crm_automation_rules_schema"),
+    _Migration("195",  "migrations.standalone.195_crm_sync_conflicts_schema"),
 ]
 
 def _ensure_tracking_table(conn):

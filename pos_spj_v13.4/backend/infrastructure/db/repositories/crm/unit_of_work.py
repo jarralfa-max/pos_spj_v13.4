@@ -8,6 +8,10 @@ from __future__ import annotations
 from typing import Any
 
 from backend.infrastructure.db.repositories.crm.activity_repository import CRMActivityRepository
+from backend.infrastructure.db.repositories.crm.automation_repository import (
+    CRMAutomationExecutionRepository,
+    CRMAutomationRuleRepository,
+)
 from backend.infrastructure.db.repositories.crm.customer_ownership_repository import (
     CustomerOwnershipRepository,
 )
@@ -25,6 +29,9 @@ from backend.infrastructure.db.repositories.crm.customer_tag_assignment_reposito
 )
 from backend.infrastructure.db.repositories.crm.customer_tag_repository import (
     CustomerTagRepository,
+)
+from backend.infrastructure.db.repositories.crm.crm_sync_conflict_repository import (
+    CRMSyncConflictRepository,
 )
 from backend.infrastructure.db.repositories.crm.lead_qualification_repository import (
     LeadQualificationRepository,
@@ -79,6 +86,9 @@ class CRMUnitOfWork:
         self.segment_memberships = CustomerSegmentMembershipRepository(connection)
         self.tags = CustomerTagRepository(connection)
         self.tag_assignments = CustomerTagAssignmentRepository(connection)
+        self.automation_rules = CRMAutomationRuleRepository(connection)
+        self.automation_executions = CRMAutomationExecutionRepository(connection)
+        self.sync_conflicts = CRMSyncConflictRepository(connection)
         self.audit = CRMAuditRepository(connection)
         self.outbox = CRMOutboxRepository(connection)
         self.processed_events = CRMProcessedEventRepository(connection)

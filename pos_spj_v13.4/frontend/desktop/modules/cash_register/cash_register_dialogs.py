@@ -267,6 +267,121 @@ class CashTextReasonDialog(FormDialog):
         return CashTextReasonResult(reason=self.reason.value())
 
 
+class SuspendCashShiftDialog(FormDialog):
+    """Semantic dialog for suspending an operational shift."""
+
+    def __init__(self, parent=None, *, shift) -> None:
+        super().__init__(parent, title="Suspender turno", width=DialogMetrics.WIDTH_MD)
+        context = QLabel(
+            "\n".join((
+                f"Turno: {display_code('TUR', getattr(shift, 'id', ''))}",
+                f"Caja: {getattr(shift, 'register_name', '') or 'Caja activa'}",
+                f"Cajon: {getattr(shift, 'drawer_name', '') or 'Cajon activo'}",
+                f"Terminal: {getattr(shift, 'terminal_name', '') or 'Terminal activa'}",
+                f"Cajero: {getattr(shift, 'cashier_name', '') or display_code('USR', getattr(shift, 'cashier_user_id', ''))}",
+                f"Estado: {status_label(getattr(shift, 'status', ''))}",
+            )),
+            self,
+        )
+        context.setWordWrap(True)
+        self.reason = StandardTextArea(
+            self,
+            placeholder="Indica por que se suspende el turno y cuando se retomara",
+            max_length=700,
+        )
+        self.form.addRow("Contexto", context)
+        self.form.addRow("Motivo operativo", self.reason)
+        self.add_button_box(ok_text="Suspender turno", cancel_text="Cancelar")
+
+    def accept(self) -> None:
+        if not self.reason.value():
+            self.reason.setFocus()
+            return
+        super().accept()
+
+    def result_value(self) -> CashTextReasonResult:
+        return CashTextReasonResult(reason=self.reason.value())
+
+
+class ReprintCashDocumentDialog(FormDialog):
+    """Semantic dialog for audited cash document reprints."""
+
+    def __init__(self, parent=None, *, document_type: str, document) -> None:
+        super().__init__(parent, title=f"Reimprimir {document_type}", width=DialogMetrics.WIDTH_MD)
+        document_number = getattr(document, "document_number", "") or display_code(
+            "DOC",
+            getattr(document, "id", ""),
+        )
+        context = QLabel(
+            "\n".join((
+                f"Documento: {document_number}",
+                f"Turno: {display_code('TUR', getattr(document, 'shift_id', ''))}",
+                f"Generado: {getattr(document, 'generated_at', '') or 'Sin fecha visible'}",
+                f"Final: {'Si' if getattr(document, 'is_final', False) else 'No'}",
+            )),
+            self,
+        )
+        context.setWordWrap(True)
+        self.reason = StandardTextArea(
+            self,
+            placeholder="Explica por que se necesita una reimpresion auditada",
+            max_length=700,
+        )
+        self.form.addRow("Contexto", context)
+        self.form.addRow("Motivo de reimpresion", self.reason)
+        self.add_button_box(ok_text="Reimprimir", cancel_text="Cancelar")
+
+    def accept(self) -> None:
+        if not self.reason.value():
+            self.reason.setFocus()
+            return
+        super().accept()
+
+    def result_value(self) -> CashTextReasonResult:
+        return CashTextReasonResult(reason=self.reason.value())
+
+
+class ResolveCashSyncConflictDialog(FormDialog):
+    """Semantic dialog for resolving an offline-first sync conflict."""
+
+    _STRATEGY_LABELS = {
+        "RETRY_LOCAL": "Reintentar version local",
+        "ACCEPT_REMOTE": "Aceptar version remota",
+    }
+
+    def __init__(self, parent=None, *, envelope: dict, strategy: str) -> None:
+        super().__init__(parent, title="Resolver conflicto de sincronizacion", width=DialogMetrics.WIDTH_MD)
+        context = QLabel(
+            "\n".join((
+                f"Estrategia: {self._STRATEGY_LABELS.get(strategy, strategy)}",
+                f"Evento: {envelope.get('event_name', '') or 'Evento de Caja'}",
+                f"Operacion: {display_code('OP', envelope.get('operation_id', ''))}",
+                f"Secuencia: {envelope.get('sequence_no', '') or 'Sin secuencia visible'}",
+                f"Estado: {status_label(envelope.get('state', ''))}",
+                f"Ultimo error: {envelope.get('last_error', '') or 'Sin detalle'}",
+            )),
+            self,
+        )
+        context.setWordWrap(True)
+        self.reason = StandardTextArea(
+            self,
+            placeholder="Describe el criterio operativo usado para resolver el conflicto",
+            max_length=700,
+        )
+        self.form.addRow("Contexto", context)
+        self.form.addRow("Motivo auditado", self.reason)
+        self.add_button_box(ok_text="Resolver conflicto", cancel_text="Cancelar")
+
+    def accept(self) -> None:
+        if not self.reason.value():
+            self.reason.setFocus()
+            return
+        super().accept()
+
+    def result_value(self) -> CashTextReasonResult:
+        return CashTextReasonResult(reason=self.reason.value())
+
+
 class ExplainCashDifferenceDialog(FormDialog):
     """Semantic dialog for cashier/supervisor explanation of a detected difference."""
 

@@ -12,7 +12,7 @@ from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
 from frontend.desktop.modules.cash_register.cash_register_dialogs import (
     CashShiftOpeningDialog,
-    CashTextReasonDialog,
+    SuspendCashShiftDialog,
 )
 from frontend.desktop.modules.cash_register.presentation import display_code, status_label, user_facing_error
 
@@ -60,6 +60,7 @@ class CashShiftsPage(QWidget):
             ColumnSpec("Fondo", "numeric"),
             ColumnSpec("Efectivo esperado", "numeric"),
         ], self)
+        self._rows_by_id = {}
         root.addWidget(self._table)
         self.refresh()
 
@@ -72,6 +73,7 @@ class CashShiftsPage(QWidget):
             branch_id=self._presenter.active_branch_id(),
             requester_user_id=self._presenter.actor_user_id(),
         )
+        self._rows_by_id = {row.id: row for row in listing.rows}
         self._kpis.set_cards([
             KPIDTO("active", "Turnos activos", str(listing.active_count), listing.active_count),
             KPIDTO("total", "Turnos visibles", str(len(listing.rows)), len(listing.rows)),
@@ -112,7 +114,7 @@ class CashShiftsPage(QWidget):
         if not shift_id:
             self._show_error("Selecciona un turno o configura un turno activo.")
             return
-        dialog = CashTextReasonDialog(self, title="Suspender turno")
+        dialog = SuspendCashShiftDialog(self, shift=self._rows_by_id.get(shift_id))
         if dialog.exec_() != dialog.Accepted:
             return
         try:

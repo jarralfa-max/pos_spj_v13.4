@@ -42,6 +42,28 @@ from erp.gateways.delivery_gateway import DeliveryGateway as DeliveryWriteGatewa
 logger = logging.getLogger("wa.erp")
 
 
+def _new_customer_id() -> str:
+    """UUIDv7 for a `clientes.id` row created from this dev-only fallback
+    (CRM-25). Prefers the ERP's own canonical generator
+    (`backend.shared.ids.new_uuid`, REGLA CERO — the only entity-id
+    generator every writer of this shared table must use) via the same
+    ERP-path sys.path trick `erp/events.py` already uses; falls back to a
+    plain `uuid4` only if the ERP package truly isn't importable (e.g. this
+    microservice deployed without a co-located ERP checkout)."""
+    try:
+        import sys
+        erp_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        erp_module = os.path.join(erp_path, "pos_spj_v13.4")
+        if os.path.exists(erp_module) and erp_module not in sys.path:
+            sys.path.insert(0, erp_module)
+        from backend.shared.ids import new_uuid
+        return new_uuid()
+    except ImportError:
+        import uuid as _uuid
+        logger.warning("ERP backend.shared.ids not importable — using uuid4 fallback")
+        return str(_uuid.uuid4())
+
+
 # ── Gateway interfaces ────────────────────────────────────────────────────────
 
 class CustomerGateway(ABC):
@@ -131,6 +153,26 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
         self.delivery_gateway = DeliveryWriteGateway(self)
 
     # ── HTTP client ───────────────────────────────────────────────────────────
+
+    def _bridge_customer_to_crm(self, legacy_customer_id: str) -> None:
+        """Eagerly create/resolve this customer's Customer Master bridge
+        row (CRM-25), same eager-bridge pattern as `ModuloVentas`/
+        `api/routers/clientes.py`. Dev-only (this method is only reached
+        from the SQLite fallback path, itself blocked in production) —
+        never blocks customer creation."""
+        try:
+            import sys
+            erp_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            erp_module = os.path.join(erp_path, "pos_spj_v13.4")
+            if os.path.exists(erp_module) and erp_module not in sys.path:
+                sys.path.insert(0, erp_module)
+            from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
+                ResolveLegacyCustomerUseCase,
+            )
+            ResolveLegacyCustomerUseCase().execute(
+                self.db, legacy_customer_id=str(legacy_customer_id))
+        except Exception as exc:
+            logger.debug("CRM legacy customer bridge (eager, WA fallback): %s", exc)
 
     @property
     def _use_api(self) -> bool:
@@ -269,11 +311,20 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                 self._handle_api_write_failure("create_cliente_minimo", exc)
 
         self._assert_sqlite_write_allowed("create_cliente_minimo")
-        cursor = self.db.execute(
-            "INSERT INTO clientes (nombre, telefono, activo) VALUES (?, ?, 1)",
-            (nombre, telefono))
+        # CRM-25: `clientes.id` is TEXT PRIMARY KEY (UUIDv7, REGLA CERO) —
+        # this INSERT previously omitted `id` entirely and returned
+        # `cursor.lastrowid` (the hidden internal ROWID, not the real PK,
+        # since TEXT PRIMARY KEY doesn't alias rowid the way INTEGER
+        # PRIMARY KEY does), silently inserting a row with a NULL id. Only
+        # reachable in dev (production always uses the REST path above,
+        # blocked from this fallback by `_assert_sqlite_write_allowed`).
+        cliente_id = _new_customer_id()
+        self.db.execute(
+            "INSERT INTO clientes (id, nombre, telefono, activo) VALUES (?, ?, ?, 1)",
+            (cliente_id, nombre, telefono))
         self.db.commit()
-        return cursor.lastrowid
+        self._bridge_customer_to_crm(cliente_id)
+        return cliente_id
 
     def get_crm_summary(self, cliente_id: str) -> Optional[Dict]:
         """CRM-21: loyalty tier/points + order-history summary from the

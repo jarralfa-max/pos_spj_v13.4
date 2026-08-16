@@ -22,20 +22,26 @@ class CashOverviewPage(QWidget):
         root.addWidget(PageHeader(
             self,
             title="Resumen de caja",
-            subtitle="KPIs operativos, alertas, cierres pendientes y frescura de datos.",
+            subtitle="Centro operativo: turno actual, alertas, cierres pendientes y siguiente accion.",
         ))
         self._grid = DashboardGrid(self)
         self._kpis = KPIBar(self)
         self._grid.add_kpi_bar(self._kpis)
+        self._next_action = QLabel("", self)
+        self._next_action.setObjectName("cashOverviewNextAction")
+        self._next_action.setWordWrap(True)
+        self._grid.add_full_width(self._next_action)
         self._freshness = QLabel("", self)
         self._freshness.setObjectName("cashOverviewFreshness")
         self._grid.add_full_width(self._freshness)
-        self._active = self._table("Caja", "Estado", "Detalle", "Apertura")
+        self._active = self._table("Caja", "Estado", "Turno actual", "Apertura")
+        self._closures = self._table("Caja", "Estado", "Accion requerida", "Apertura")
         self._differences = self._table("Diferencia", "Estado", "Detalle", "Fecha")
         self._handovers = self._table("Entrega", "Estado", "Detalle", "Preparada")
         self._terminals = self._table("Terminal", "Estado", "Detalle", "Actualizada")
-        self._grid.add_row((self._active, 2), (self._differences, 1))
-        self._grid.add_row((self._handovers, 1), (self._terminals, 1))
+        self._grid.add_row((self._active, 2), (self._closures, 1))
+        self._grid.add_row((self._differences, 1), (self._handovers, 1))
+        self._grid.add_row((self._terminals, 1))
         root.addWidget(self._grid)
         self._error = None
         self.refresh()
@@ -66,10 +72,12 @@ class CashOverviewPage(QWidget):
             KPIDTO(kpi.key, kpi.label, kpi.value, kpi.numeric_value)
             for kpi in dto.kpis
         ])
+        self._next_action.setText(f"Siguiente accion: {dto.next_action}")
         self._freshness.setText(
-            f"Frescura: {dto.freshness or 'sin eventos operativos registrados'}"
+            f"Actualizado con ultimo evento operativo: {dto.freshness or 'sin eventos registrados'}"
         )
         self._load(self._active, dto.active_shifts)
+        self._load(self._closures, dto.pending_closures)
         self._load(self._differences, dto.pending_differences)
         self._load(self._handovers, dto.pending_handovers)
         self._load(self._terminals, dto.terminal_alerts)

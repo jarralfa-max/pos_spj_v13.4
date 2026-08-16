@@ -123,6 +123,7 @@ CANONICAL_MODULE_PERMISSIONS: dict[str, list[str]] = {
         "auditoria.ver",
         "elegibilidad_comercial.verificar",
         "pedidos.ver", "entregas.ver", "whatsapp.ver", "fidelidad.ver",
+        "sync_conflictos.ver", "sync_conflictos.resolver",
     ],
     # Visibilidad del módulo nuevo (frontend/desktop/modules/customers_crm/),
     # adicional al legacy "CLIENTES" de arriba mientras ambos coexisten. Los
@@ -164,6 +165,10 @@ CANONICAL_MODULE_PERMISSIONS: dict[str, list[str]] = {
         "carteras.ver", "carteras.gestionar", "carteras.asignar",
         "propietario.ver", "propietario.asignar", "propietario.reasignar",
         "bi.exportar",
+        "automatizaciones.ver", "automatizaciones.crear", "automatizaciones.editar",
+        "automatizaciones.activar", "automatizaciones.desactivar",
+        "automatizaciones.ver_ejecuciones",
+        "sync_conflictos.ver", "sync_conflictos.resolver",
     ],
     "MERMA": ["ver", "crear", "autorizar"],
     "DELIVERY": ["ver", "crear", "asignar", "entregar"],

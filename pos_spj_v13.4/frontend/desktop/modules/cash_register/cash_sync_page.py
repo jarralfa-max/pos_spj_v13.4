@@ -14,7 +14,7 @@ from frontend.desktop.components.kpi_bar import KPIBar
 from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
-from frontend.desktop.modules.cash_register.cash_register_dialogs import CashTextReasonDialog
+from frontend.desktop.modules.cash_register.cash_register_dialogs import ResolveCashSyncConflictDialog
 from frontend.desktop.modules.cash_register.presentation import display_code, status_label, user_facing_error
 
 
@@ -81,6 +81,7 @@ class CashSyncPage(QWidget):
             ColumnSpec("Operacion"),
             ColumnSpec("Error"),
         ], self)
+        self._rows_by_id = {}
         root.addWidget(self._table)
         self.refresh()
 
@@ -90,6 +91,7 @@ class CashSyncPage(QWidget):
             rows = self._presenter.cash_sync_records()
         except (CashRegisterError, RuntimeError, ValueError, LookupError) as exc:
             self._show_error(user_facing_error(exc))
+            self._rows_by_id = {}
             self._kpis.set_cards([
                 KPIDTO("state", "Estado", "No disponible"),
                 KPIDTO("pending", "Pendientes", "0"),
@@ -98,6 +100,7 @@ class CashSyncPage(QWidget):
             ])
             self._table.load_rows([])
             return
+        self._rows_by_id = {str(row.get("id", "")): row for row in rows}
         self._kpis.set_cards([
             KPIDTO("state", "Estado", f"{status_label(state.get('connectivity'))} / {status_label(state.get('sync_status'))}"),
             KPIDTO("pending", "Pendientes", str(state.get("pending_count", 0))),
@@ -136,12 +139,14 @@ class CashSyncPage(QWidget):
         if not envelope_id:
             self._show_error("Selecciona un conflicto de sincronizacion.")
             return
-        reason = self._text_dialog(
-            "Resolver conflicto de sincronizacion",
-            "Motivo auditado de la resolucion",
+        dialog = ResolveCashSyncConflictDialog(
+            self,
+            envelope=self._rows_by_id.get(envelope_id, {}),
+            strategy=strategy,
         )
-        if not reason:
+        if dialog.exec_() != dialog.Accepted:
             return
+        reason = dialog.result_value().reason
         self._run(
             lambda: self._presenter.resolve_cash_sync_conflict(
                 envelope_id=envelope_id,
@@ -165,13 +170,6 @@ class CashSyncPage(QWidget):
         else:
             self._show_result(success)
         self.refresh()
-
-    def _text_dialog(self, title: str, placeholder: str) -> str:
-        dialog = CashTextReasonDialog(self, title=title)
-        dialog.reason.setPlaceholderText(placeholder)
-        if dialog.exec_() != dialog.Accepted:
-            return ""
-        return dialog.result_value().reason
 
     def _show_result(self, message: str) -> None:
         QMessageBox.information(self, "Caja", message)

@@ -158,6 +158,10 @@ class CustomerPermissions:
     WHATSAPP_VIEW = "CLIENTES.whatsapp.ver"
     LOYALTY_VIEW = "CLIENTES.fidelidad.ver"
 
+    # ── offline-first sync conflicts (§91-92, CRM-20) ──────────────────────
+    SYNC_CONFLICTS_VIEW = "CLIENTES.sync_conflictos.ver"
+    SYNC_CONFLICTS_RESOLVE = "CLIENTES.sync_conflictos.resolver"
+
 
 ALL_CUSTOMER_PERMISSIONS = frozenset(
     v for k, v in vars(CustomerPermissions).items()

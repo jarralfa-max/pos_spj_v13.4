@@ -47,8 +47,18 @@ def _add_column(conn, table: str, column: str, ddl_type: str) -> None:
 
 
 def run(conn) -> None:
-    create_customers_crm_schema(conn)
+    # Add the column BEFORE calling create_customers_crm_schema(): on a
+    # database where `customers` already existed from migration 181 (i.e.
+    # any real, sequentially-migrated database — not a fresh bootstrap),
+    # that schema function's own `CREATE TABLE IF NOT EXISTS` is a no-op,
+    # but its unconditional `CREATE UNIQUE INDEX ...
+    # idx_customers_legacy_customer_id ON customers(legacy_customer_id)`
+    # still runs and fails with "no such column" if run first (CRM-25
+    # found this the hard way against a real dev DB — every prior test
+    # only ever exercised a fresh bootstrap, where the column exists from
+    # the start, so this ordering bug never surfaced).
     _add_column(conn, "customers", "legacy_customer_id", "TEXT")
+    create_customers_crm_schema(conn)
     conn.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_legacy_customer_id ON customers(legacy_customer_id)"
         " WHERE legacy_customer_id IS NOT NULL")

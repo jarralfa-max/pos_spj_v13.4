@@ -108,6 +108,10 @@ class CreateServiceCaseUseCase(_BaseUseCase):
                              reason="alta", operation_id=operation_id)
             self._emit(uow, CustomerServiceEvents.CASE_CREATED, case.id, operation_id,
                       actor_user_id)
+        from backend.application.crm.use_cases.automation_use_cases import fire_event_trigger
+        from backend.domain.crm.enums import CRMAutomationTrigger
+        fire_event_trigger(connection, CRMAutomationTrigger.CASE_CREATED, "CASE", case.id,
+                           operation_id)
         return CustomerServiceResult.ok("Caso creado", entity_id=case.id,
                                         operation_id=operation_id, code=str(case.code))
 
