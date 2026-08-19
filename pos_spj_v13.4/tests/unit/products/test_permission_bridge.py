@@ -30,7 +30,7 @@ def test_checker_grants_via_legacy_code():
 
 
 def test_checker_grants_via_canonical_code():
-    has = make_permission_checker(_Session({"PRODUCTS_EDIT"}))
+    has = make_permission_checker(_Session({ProductPermissions.EDIT}))
     assert has(ProductPermissions.EDIT)
 
 

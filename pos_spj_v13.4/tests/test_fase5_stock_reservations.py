@@ -7,9 +7,38 @@ from core.services.stock_reservation_service import StockReservationService
 
 
 def _db():
+    """SALES-9: this fixture had bit-rotted — `stock_disponible()` reads
+    `inventory_stock` (not the `branch_inventory` table this fixture used to
+    create), and `stock_reservas`/`stock_reserva_detalles` (created by
+    `migrations/m000_base_schema.py`, never by this in-memory fixture) didn't
+    exist at all, so every test below was failing with "no such table"
+    before this fix — unrelated to, and pre-existing before, the
+    reservar()-always-fails-with-NOT-NULL bug also fixed in this phase."""
     db = sqlite3.connect(":memory:")
-    db.execute("CREATE TABLE branch_inventory(branch_id INTEGER, product_id INTEGER, quantity REAL)")
-    db.execute("INSERT INTO branch_inventory(branch_id, product_id, quantity) VALUES(1,1,10)")
+    db.execute("CREATE TABLE inventory_stock(branch_id TEXT, product_id TEXT, quantity REAL)")
+    db.execute("INSERT INTO inventory_stock(branch_id, product_id, quantity) VALUES('1','1',10)")
+    db.execute("""
+        CREATE TABLE stock_reservas (
+            id           TEXT NOT NULL PRIMARY KEY,
+            folio        TEXT UNIQUE,
+            branch_id    TEXT NOT NULL,
+            estado       TEXT NOT NULL DEFAULT 'activa',
+            payload_json TEXT NOT NULL DEFAULT '[]',
+            created_at   TEXT DEFAULT (datetime('now')),
+            updated_at   TEXT DEFAULT (datetime('now')),
+            expires_at   TEXT DEFAULT (datetime('now', '+30 minutes'))
+        )
+    """)
+    db.execute("""
+        CREATE TABLE stock_reserva_detalles (
+            id          TEXT NOT NULL PRIMARY KEY,
+            reserva_id  TEXT NOT NULL REFERENCES stock_reservas(id),
+            producto_id TEXT NOT NULL,
+            cantidad    REAL NOT NULL,
+            created_at  TEXT DEFAULT (datetime('now'))
+        )
+    """)
+    db.commit()
     return db
 
 
@@ -59,20 +88,12 @@ def _src(path: str) -> str:
     return (Path(__file__).resolve().parents[1] / path).read_text(encoding="utf-8")
 
 
-def test_ui_no_confirma_reserva_postventa():
-    src = _src("modulos/ventas.py")
-    aplicar = src.split("def _aplicar_resultado_venta", 1)[1].split("def _on_checkout_failed", 1)[0]
-    assert "self._stock_reservas.confirmar(" not in aplicar
-    assert "VENTA_CONFIRMADA_RESERVA" not in aplicar
-    assert "STOCK_DESCONTADO_RESERVA" not in aplicar
-    assert 'motivo="confirmada"' not in src
-
-
-def test_ui_pasa_reserva_id_al_uc_antes_de_aplicar_resultado():
-    src = _src("modulos/ventas.py")
-    finalizar = src.split("def finalizar_venta", 1)[1].split("def _on_checkout_success", 1)[0]
-    assert "reserva_id=self._reserva_activa_id" in finalizar
-    assert "result = _uc.ejecutar" in finalizar
+# modulos/ventas.py (legacy) retirado (SALES-22) — reemplazado por
+# frontend/desktop/modules/sales_pos/. Las pruebas que leían su código fuente
+# directamente (incluida la única falla preexistente/conocida de este archivo,
+# test_ui_pasa_reserva_id_al_uc_antes_de_aplicar_resultado, ya sin sujeto)
+# se retiraron con él; StockReservationService y sales_service.py siguen
+# vigentes y sus pruebas permanecen abajo.
 
 
 def test_sales_service_confirma_reserva_en_flujo_transaccional():
@@ -92,21 +113,10 @@ def test_confirmar_reserva_inactiva_falla_explicito():
         svc.confirmar(rid, venta_id=300, folio="F300")
 
 
-def test_reservation_failure_after_sale_does_not_mark_sale_failed():
-    src = _src("modulos/ventas.py")
-    aplicar = src.split("def _aplicar_resultado_venta", 1)[1].split("def _on_checkout_failed", 1)[0]
-    assert "self._stock_reservas.confirmar(" not in aplicar
-    assert "self._on_checkout_failed" not in aplicar
-
-
 def test_confirm_reservation_called_before_print_or_non_blocking():
     sales_src = _src("core/services/sales_service.py")
     core = sales_src.split("def _execute_sale_core", 1)[1].split("# B. Guardar detalles", 1)[0]
     assert "StockReservationService(self.db, branch_id=branch_id).confirmar" in core
-
-    ui_src = _src("modulos/ventas.py")
-    aplicar = ui_src.split("def _aplicar_resultado_venta", 1)[1].split("def _on_checkout_failed", 1)[0]
-    assert aplicar.find("reservation_confirmed") < aplicar.find("_imprimir_ticket_consolidado(datos_ticket)")
 
 
 def test_no_liberada_confirmada_status():
@@ -119,24 +129,3 @@ def test_no_liberada_confirmada_status():
     assert "liberada:confirmada" not in st
 
 
-def test_sale_success_even_if_reservation_warning():
-    src = _src("modulos/ventas.py")
-    aplicar = src.split("def _aplicar_resultado_venta", 1)[1].split("def _on_checkout_failed", 1)[0]
-    warning_idx = aplicar.find("Venta completada, pero la reserva quedó pendiente de revisión")
-    toast_idx = aplicar.find("Toast.warning", warning_idx)
-    fail_idx = aplicar.find("_on_checkout_failed", warning_idx)
-    assert warning_idx != -1
-    assert toast_idx != -1
-    assert fail_idx == -1
-
-
-def test_ui_warning_marks_reservation_for_review_without_canceling_sale():
-    src = _src("modulos/ventas.py")
-    aplicar = src.split("def _aplicar_resultado_venta", 1)[1].split("def _on_checkout_failed", 1)[0]
-    warning_idx = aplicar.find("Venta completada, pero la reserva quedó pendiente de revisión")
-    revision_idx = aplicar.find("self._stock_reservas.marcar_revision", warning_idx)
-    clear_idx = aplicar.find("self._reserva_activa_id = None", revision_idx)
-    fail_idx = aplicar.find("_on_checkout_failed", warning_idx)
-    assert revision_idx != -1
-    assert clear_idx != -1
-    assert fail_idx == -1

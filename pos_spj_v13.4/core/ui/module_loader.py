@@ -8,7 +8,10 @@ from PyQt5.QtWidgets import QWidget
 logger = logging.getLogger("spj.ui.loader")
 
 MODULE_REGISTRY = {
-    "ventas":           ("ModuloVentas",              "modulos.ventas",                 []),
+    # modulos/ventas.py (legacy) reemplazado — módulo decompuesto nuevo
+    # (frontend/desktop/modules/sales_pos/ vía shim), mismo patrón que
+    # "productos"/"clientes" arriba (ver docs/refactor/SALES-22_eliminacion_legacy.md).
+    "ventas":           ("ModuloVentasPos",           "modulos.ventas_pos",             []),
     "caja":             ("CashRegisterModuleHost",    "backend.infrastructure.desktop.cash_register_factory", []),
     "inventario":       ("ModuloInventarioEnterprise", "modulos.inventario_enterprise",   []),
     # PROD-19 FLIP: la UI legacy (modulos/productos.py) fue eliminada; se monta el

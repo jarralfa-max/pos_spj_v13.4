@@ -8,7 +8,6 @@ from core.events.domain_events import SALE_ITEMS_PROCESS
 from core.events.event_bus import EventBus
 
 ROOT = Path(__file__).resolve().parents[1]
-VENTAS_SRC = (ROOT / "modulos" / "ventas.py").read_text(encoding="utf-8")
 SALES_SRC = (ROOT / "core" / "services" / "sales_service.py").read_text(encoding="utf-8")
 PRINTER_SRC = (ROOT / "core" / "services" / "printer_service.py").read_text(encoding="utf-8")
 RESERVATION_SRC = (ROOT / "core" / "services" / "stock_reservation_service.py").read_text(encoding="utf-8")
@@ -21,20 +20,8 @@ def _between(src: str, start: str, end: str) -> str:
     return src[i:j]
 
 
-def test_cash_shift_validation_error_blocks_or_warns_explicitly():
-    block = _between(VENTAS_SRC, "# ── Validar que la caja esté abierta", "total_a_pagar =")
-    assert "logger.exception" in block
-    assert "QMessageBox.critical" in block
-    assert "return" in block
-    assert "pass  # If check fails" not in block
-
-
-def test_credit_validation_error_not_silent():
-    block = _between(VENTAS_SRC, "if is_credit_sale(datos_pago.get('forma_pago')):", "self.finalizar_venta(datos_pago)")
-    assert "Validación de crédito falló" in block
-    assert "Validación de crédito fallback falló" in block
-    assert block.count("QMessageBox.critical") >= 3
-    assert "logger.warning(\"validate_credit" not in block
+# modulos/ventas.py (legacy) retirado (SALES-22) — las 2 pruebas que leían su
+# código fuente directamente se retiraron con él.
 
 
 def test_ticket_generation_error_warning_not_pass():

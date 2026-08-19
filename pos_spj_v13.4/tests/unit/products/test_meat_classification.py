@@ -13,6 +13,7 @@ from backend.domain.products.exceptions import (
 from backend.domain.products.meat_enums import (
     BoneStatus,
     CutLevel,
+    FatClass,
     MeatCategory,
     MeatSpeciesCode,
 )
@@ -103,6 +104,17 @@ class TestCutClassification:
                               code="X", name="X", cut_level=CutLevel.SECONDARY,
                               bone_status=BoneStatus.BONELESS)
         assert c.bone_status is BoneStatus.BONELESS
+
+    def test_bone_status_and_fat_class_coerce_from_plain_strings(self):
+        # Regresión (PROD-3): __post_init__ coercía cut_level de str a enum pero
+        # no bone_status/fat_class — cualquier caller que pasara strings planos
+        # (el modo natural para un use case/command) dejaba estos dos campos
+        # como str, rompiendo `.value` aguas abajo en el repositorio.
+        c = CutClassification(species_id="s1", anatomical_region_id="r1",
+                              code="X", name="X", cut_level="PRIMARY",
+                              bone_status="BONE_IN", fat_class="LEAN")
+        assert c.bone_status is BoneStatus.BONE_IN
+        assert c.fat_class is FatClass.LEAN
 
 
 # ── classification policy ────────────────────────────────────────────────────

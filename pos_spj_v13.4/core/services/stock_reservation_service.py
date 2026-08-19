@@ -119,21 +119,36 @@ class StockReservationService:
                     )
 
             payload = [
-                {"producto_id": int(i["id"]), "cantidad": float(i["cantidad"])}
+                # SALES-9: no forzar int() aquí — el id de producto es UUIDv7
+                # (TEXT) en el catálogo canónico; la disponibilidad ya se
+                # valida arriba con str(item["id"]), nunca con este cast.
+                {"producto_id": i["id"], "cantidad": float(i["cantidad"])}
                 for i in items
             ]
             expires = f"datetime('now', '+{RESERVATION_TTL_MINUTES} minutes')"
-            cur = self.db.execute(
-                f"INSERT INTO stock_reservas(folio, branch_id, estado, payload_json, expires_at) "
-                f"VALUES(?, ?, 'activa', ?, {expires})",
-                (folio, self.branch_id, json.dumps(payload)),
-            )
+            # SALES-9: `stock_reservas.id` es TEXT NOT NULL PRIMARY KEY sin
+            # DEFAULT — generar el UUIDv7 ANTES del INSERT y pasarlo
+            # explícitamente. La versión previa generaba `reserva_id`
+            # después de este INSERT y nunca lo incluía en la lista de
+            # columnas, así que esta sentencia SIEMPRE fallaba con
+            # "NOT NULL constraint failed: stock_reservas.id" contra el
+            # esquema real (confirmado ejecutando el método directamente,
+            # no solo leyendo el código) — reservar() estaba roto para
+            # cualquier llamador, no solo para ids UUIDv7.
             reserva_id = new_uuid()
+            self.db.execute(
+                f"INSERT INTO stock_reservas(id, folio, branch_id, estado, payload_json, expires_at) "
+                f"VALUES(?, ?, ?, 'activa', ?, {expires})",
+                (reserva_id, folio, self.branch_id, json.dumps(payload)),
+            )
             for p in payload:
+                # Mismo bug que arriba: `stock_reserva_detalles.id` también
+                # es TEXT NOT NULL PRIMARY KEY sin DEFAULT.
                 self.db.execute(
                     "INSERT INTO stock_reserva_detalles"
-                    "(reserva_id, producto_id, cantidad) VALUES(?,?,?)",
-                    (reserva_id, str(p.get("product_id") or p.get("producto_id") or ""), float(p["cantidad"])),
+                    "(id, reserva_id, producto_id, cantidad) VALUES(?,?,?,?)",
+                    (new_uuid(), reserva_id,
+                     str(p.get("product_id") or p.get("producto_id") or ""), float(p["cantidad"])),
                 )
 
             self.db.execute(f"RELEASE SAVEPOINT {sp}")

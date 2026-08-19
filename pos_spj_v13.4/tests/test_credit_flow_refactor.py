@@ -405,33 +405,10 @@ class TestSalesServiceNoDuplicateCxc(unittest.TestCase):
         self.assertIn("AccountsReceivableService", src)
         self.assertIn("accounts_receivable_service", src)
 
-    def test_ventas_py_validates_credit_post_dialog(self):
-        """modulos/ventas.py must validate credit AFTER the payment dialog (post-dialog), not before."""
-        import os
-        src = open(os.path.join(
-            os.path.dirname(__file__), "..", "modulos", "ventas.py"
-        )).read()
-        # The post-dialog validation block references 'forma_pago' and 'Crédito' AFTER DialogoPago
-        dialog_idx = src.find("DialogoPago(")
-        self.assertGreater(dialog_idx, 0)
-        post_dialog_src = src[dialog_idx:]
-        self.assertIn("forma_pago", post_dialog_src,
-            "Credit validation must happen after DialogoPago in the source order")
-        self.assertIn("Cliente requerido", post_dialog_src,
-            "Post-dialog must block credit sales without a selected customer")
-
-    def test_ventas_py_no_pre_dialog_credit_block(self):
-        """The old pre-dialog credit validation block must be gone from ventas.py."""
-        import os
-        src = open(os.path.join(
-            os.path.dirname(__file__), "..", "modulos", "ventas.py"
-        )).read()
-        # The removed block had a very specific comment
-        self.assertNotIn(
-            "Validar límite de crédito antes de abrir diálogo",
-            src,
-            "Pre-dialog credit validation comment must be removed"
-        )
+    # modulos/ventas.py (legacy) retirado (SALES-22) —
+    # test_ventas_py_validates_credit_post_dialog y
+    # test_ventas_py_no_pre_dialog_credit_block leían su código fuente
+    # directamente y se retiraron con él.
 
 
 if __name__ == "__main__":

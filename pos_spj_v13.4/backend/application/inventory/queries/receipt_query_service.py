@@ -42,3 +42,23 @@ class ReceiptQueryService(InventoryRepositoryBase):
             " ORDER BY occurred_at DESC, id DESC LIMIT ?", params + (lim,))
         return [dict(r) | {"source_document_id": zn(r["source_document_id"])}
                 for r in rows]
+
+    def status_for_document(self, source_document_id: str) -> dict | None:
+        """Posting status of the most recent inbound receipt movement for a
+        single source document (e.g. a goods receipt/purchase order id).
+        Narrow, indexed single-lookup counterpart to ``list_recent`` — used by
+        other bounded contexts (via a port/adapter) that only need to know
+        whether *their* document has posted into inventory yet, never the
+        whole recent ledger window."""
+        cols = ("id, movement_type, branch_id, warehouse_id, source_module,"
+                " source_document_type, source_document_id, status, occurred_at")
+        marks = ",".join("?" for _ in RECEIPT_MOVEMENT_TYPES)
+        rows = self._query(
+            f"SELECT {cols} FROM inventory_ledger"
+            f" WHERE movement_type IN ({marks}) AND source_document_id=?"
+            " ORDER BY occurred_at DESC, id DESC LIMIT 1",
+            tuple(RECEIPT_MOVEMENT_TYPES) + (source_document_id,))
+        if not rows:
+            return None
+        row = rows[0]
+        return dict(row) | {"source_document_id": zn(row["source_document_id"])}

@@ -60,12 +60,6 @@ def test_error_claro_si_no_hay_impresora():
         assert "No hay impresora térmica ESC/POS configurada." in str(e)
 
 
-def test_pdf_auditoria_ruta_separada_sigue_disponible():
-    src = Path("modulos/ventas.py").read_text(encoding="utf-8")
-    assert "def guardar_ticket_pdf" in src
-    assert "def _guardar_pdf_auditoria_ultima_venta" in src
-
-
 def test_delivery_y_caja_usan_printerservice_en_tests_dedicados():
     src_delivery = Path("tests/test_delivery_ticket_uses_escpos.py").read_text(encoding="utf-8")
     src_caja = Path("tests/test_caja_ticket_uses_escpos.py").read_text(encoding="utf-8")
@@ -74,16 +68,12 @@ def test_delivery_y_caja_usan_printerservice_en_tests_dedicados():
 
 
 def test_no_qprinter_en_rutas_termicas_principales():
+    # modulos/ventas.py (legacy) retirado — SALES-22.
     for rel in [
-        "modulos/ventas.py",
         "modulos/ticket_designer.py",
         "core/services/ticket_printer_service.py",
     ]:
         src = Path(rel).read_text(encoding="utf-8")
-        if rel.endswith("ventas.py"):
-            start = src.index("def _imprimir_ticket_consolidado")
-            end = src.index("def _imprimir_ticket_hardware", start)
-            src = src[start:end]
         assert "QPrinter" not in src
 
 

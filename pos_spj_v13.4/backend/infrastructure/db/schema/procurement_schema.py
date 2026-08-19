@@ -493,3 +493,80 @@ def drop_procurement_schema(conn) -> list[str]:
         conn.execute(f"DROP TABLE IF EXISTS {table}")
         dropped.append(table)
     return dropped
+
+
+# ── purchase returns (devoluciones a proveedor) — migration 205 ────────────────
+# A separate, later-added table group. Kept out of PROCUREMENT_TABLES/_DDL/
+# create_procurement_schema on purpose: databases that already ran migration
+# "120" have that migration marked done in schema_migrations and will never
+# re-run it, so extending create_procurement_schema would silently skip
+# existing installs. create_purchase_returns_schema() is called only by
+# migration 205.
+PURCHASE_RETURN_TABLES: tuple[str, ...] = (
+    "purchase_returns",
+    "purchase_return_lines",
+)
+
+_RETURNS_DDL = (
+    """
+    CREATE TABLE IF NOT EXISTS purchase_returns (
+        id TEXT PRIMARY KEY,
+        document_number TEXT NOT NULL UNIQUE,
+        supplier_id TEXT NOT NULL,
+        branch_id TEXT NOT NULL,
+        warehouse_id TEXT NOT NULL,
+        goods_receipt_id TEXT REFERENCES goods_receipts(id),
+        purchase_order_id TEXT REFERENCES purchase_orders(id),
+        reason TEXT NOT NULL CHECK (reason IN (
+            'QUALITY','DAMAGED','WRONG_PRODUCT','EXCESS','EXPIRED',
+            'SANITARY_FAILURE','COMMERCIAL_AGREEMENT')),
+        status TEXT NOT NULL DEFAULT 'DRAFT' CHECK (status IN (
+            'DRAFT','CONFIRMED','CANCELLED')),
+        created_by_user_id TEXT,
+        operation_id TEXT UNIQUE,
+        created_at TEXT NOT NULL,
+        confirmed_at TEXT
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS purchase_return_lines (
+        id TEXT PRIMARY KEY,
+        purchase_return_id TEXT NOT NULL REFERENCES purchase_returns(id),
+        product_id TEXT NOT NULL,
+        quantity TEXT NOT NULL,
+        unit_cost TEXT,
+        lot TEXT,
+        goods_receipt_line_id TEXT REFERENCES goods_receipt_lines(id),
+        notes TEXT NOT NULL DEFAULT ''
+    )
+    """,
+)
+
+_RETURNS_INDEXES = (
+    "CREATE INDEX IF NOT EXISTS idx_purchase_returns_status ON purchase_returns(status)",
+    "CREATE INDEX IF NOT EXISTS idx_purchase_returns_supplier ON purchase_returns(supplier_id)",
+    "CREATE INDEX IF NOT EXISTS idx_purchase_returns_branch ON purchase_returns(branch_id)",
+    "CREATE INDEX IF NOT EXISTS idx_purchase_returns_receipt"
+    " ON purchase_returns(goods_receipt_id)",
+    "CREATE INDEX IF NOT EXISTS idx_purchase_return_lines_return"
+    " ON purchase_return_lines(purchase_return_id)",
+)
+
+
+def create_purchase_returns_schema(conn) -> None:
+    """Create the purchase_returns / purchase_return_lines tables (idempotent).
+
+    DDL lives only here; only migration 205 may call this.
+    """
+    for statement in _RETURNS_DDL:
+        conn.execute(statement)
+    for index in _RETURNS_INDEXES:
+        conn.execute(index)
+
+
+def drop_purchase_returns_schema(conn) -> list[str]:
+    dropped: list[str] = []
+    for table in reversed(PURCHASE_RETURN_TABLES):
+        conn.execute(f"DROP TABLE IF EXISTS {table}")
+        dropped.append(table)
+    return dropped

@@ -14,6 +14,7 @@ import json
 import logging
 from dataclasses import dataclass
 
+from backend.application.products.audit import record_product_audit_entry
 from backend.application.products.authorization.policy import ProductsAuthorizationPolicy
 from backend.application.products.commands.product_yield_commands import (
     CreateYieldProfileCommand,
@@ -73,6 +74,11 @@ class _BaseYieldUseCase:
     def _persist(self, version, event_name, command, message) -> YieldResult:
         try:
             self._repo.save_version(version)
+            record_product_audit_entry(
+                self._conn, action=message, entity_id=version.id,
+                user_id=command.user_id, operation_id=command.operation_id,
+                after={"status": version.status.value,
+                       "profile_id": version.yield_profile_id})
             _emit(self._conn, event_name, command, entity_id=version.id,
                   extra={"profile_id": version.yield_profile_id})
             self._conn.commit()
@@ -103,6 +109,11 @@ class CreateYieldProfileUseCase(_BaseYieldUseCase):
         try:
             self._repo.save_profile(profile)
             self._repo.save_version(version)
+            record_product_audit_entry(
+                self._conn, action="PRODUCT_YIELD_PROFILE_CREATED", entity_id=profile.id,
+                user_id=command.user_id, operation_id=command.operation_id,
+                after={"input_product_id": profile.input_product_id,
+                       "version_id": version.id})
             _emit(self._conn, ProductEvents.PRODUCT_YIELD_PROFILE_CREATED, command,
                   entity_id=profile.id,
                   extra={"input_product_id": profile.input_product_id,
@@ -138,6 +149,10 @@ class UpdateYieldVersionUseCase(_BaseYieldUseCase):
             return YieldResult(False, version.yield_profile_id, version.id, str(exc))
         try:
             self._repo.save_version(version)
+            record_product_audit_entry(
+                self._conn, action="YIELD_VERSION_UPDATED", entity_id=version.id,
+                user_id=command.user_id, operation_id=command.operation_id,
+                after={"profile_id": version.yield_profile_id})
             self._conn.commit()
         except Exception:
             self._rollback()

@@ -9,6 +9,11 @@ from __future__ import annotations
 from backend.application.procurement.adapters.product_catalog_adapter import (
     ProcurementProductCatalogAdapter,
 )
+from backend.application.procurement.adapters.supplier_profile_adapter import (
+    InventoryReceiptStatusAdapter,
+    SupplierFinanceAdapter,
+    SupplierProfileAdapter,
+)
 from backend.application.procurement.queries import (
     DirectPurchaseReadService,
     SupplierPickerQueryService,
@@ -71,4 +76,7 @@ def build_direct_purchase_presenter(connection, session_context=None) -> DirectP
         costs=ProductPurchaseCostReadService(connection),
         variance_policy=PriceVariancePolicy(),
         event_dispatcher=_post_commit_dispatcher(connection),
+        supplier_profile=SupplierProfileAdapter(connection),
+        supplier_finance=SupplierFinanceAdapter(connection),
+        receipt_status=InventoryReceiptStatusAdapter(connection),
     )

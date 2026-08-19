@@ -22,9 +22,34 @@ logger = logging.getLogger("spj.ui.productos_enterprise")
 
 
 class _Session:
-    def __init__(self, user_id, branch_id):
-        self.user_id = user_id
-        self.branch_id = branch_id
+    """Vista de identidad para las mutaciones (ciclo de vida, recetas, etc.).
+
+    Lee SIEMPRE EN VIVO desde la sesión real (`SessionContext`) — nunca una foto
+    fija tomada al construir el widget. `MainWindow._construir_todas_las_pantallas()`
+    construye todos los módulos (incluido este) dentro de `__init__`, ANTES de que
+    el usuario inicie sesión (el login se dispara después, vía
+    `QTimer.singleShot(0, self.mostrar_login)` en `MainWindow.showEvent`); una foto
+    fija de `user_id` tomada en ese momento queda vacía para siempre, aunque el
+    usuario inicie sesión un instante después (bug real reportado en producción:
+    "Operación sin usuario autenticado" al activar un producto pese a haber una
+    sesión autenticada). `container.session` es un singleton mutado en el lugar
+    (`set_permisos`/`iniciar_sesion`/`set_sucursal`, nunca reasignado), así que
+    guardar la referencia y leer sus properties en cada acceso es correcto y
+    suficiente — no hace falta re-consultar `container` cada vez.
+    """
+
+    def __init__(self, live_session, branch_id_fallback: str | None = None) -> None:
+        self._live = live_session
+        self._branch_fallback = branch_id_fallback
+
+    @property
+    def user_id(self) -> str | None:
+        return getattr(self._live, "user_id", None) or None
+
+    @property
+    def branch_id(self) -> str | None:
+        value = getattr(self._live, "sucursal_id", None)
+        return str(value) if value else self._branch_fallback
 
 
 class ModuloProductosEnterprise(QWidget):
@@ -33,19 +58,19 @@ class ModuloProductosEnterprise(QWidget):
     def __init__(self, container, parent=None):
         super().__init__(parent)
         conn = getattr(container, "db", container)
-        # §21.2 fail-closed: NO se inventa identidad (nada de "desktop"/"1"). Sin
-        # sesión autenticada el user/branch quedan en None y las mutaciones se
-        # niegan aguas abajo (la política real exige usuario).
-        user_id = (getattr(container, "usuario", None)
-                   or getattr(container, "usuario_actual", None))
-        _branch = (getattr(container, "sucursal_id", None)
-                   or getattr(container, "branch_id", None))
-        branch_id = str(_branch) if _branch else None
-        session = _Session(user_id, branch_id)
-        self._session = session  # expuesto para pruebas de identidad (§21.2)
         # Sesión viva (con tiene_permiso) para el gating granular; None en tests.
         self._live_session = (getattr(container, "session", None)
                               or getattr(container, "sesion", None))
+        # §21.2 fail-closed: NO se inventa identidad (nada de "desktop"/"1"). `_Session`
+        # lee EN VIVO de `self._live_session` (ver su propio docstring) — nunca una
+        # foto fija. `container.usuario`/`usuario_actual` NUNCA existieron en
+        # AppContainer (siempre None) — la identidad real vive en
+        # `SessionContext.user_id`.
+        _branch = (getattr(container, "sucursal_id", None)
+                   or getattr(container, "branch_id", None))
+        branch_fallback = str(_branch) if _branch else None
+        session = _Session(self._live_session, branch_fallback)
+        self._session = session  # expuesto para pruebas de identidad (§21.2)
 
         presenter = self._build_presenter(conn, session)
         self._view = self._build_view(presenter)

@@ -49,7 +49,7 @@ def _current_consumers() -> set[str]:
             except SyntaxError:
                 continue
             if any(_FROM_PRODUCTOS.search(sql) for sql in _sql_literals(tree)):
-                hits.add(str(path.relative_to(_ROOT)))
+                hits.add(path.relative_to(_ROOT).as_posix())
     return hits
 
 

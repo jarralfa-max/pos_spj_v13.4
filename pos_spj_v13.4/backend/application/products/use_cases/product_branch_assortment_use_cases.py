@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+from backend.application.products.audit import record_product_audit_entry
 from backend.application.products.authorization.policy import ProductsAuthorizationPolicy
 from backend.application.products.permissions import ProductPermissions
 from backend.domain.products.channel_enums import SalesChannel
@@ -21,6 +22,7 @@ from backend.domain.products.exceptions import ProductsDomainError
 from backend.infrastructure.db.repositories.products.branch_assortment_repository import (
     BranchAssortmentRepository,
 )
+from backend.shared.ids import new_uuid
 
 logger = logging.getLogger("spj.products.branch_assortment_uc")
 
@@ -64,6 +66,11 @@ class SetBranchProductUseCase(_Base):
             return BranchAssortmentResult(False, str(exc))
         try:
             self._repo.set_branch_product(bp)
+            record_product_audit_entry(
+                self._conn, action="BRANCH_PRODUCT_ENABLED" if enabled
+                else "BRANCH_PRODUCT_DISABLED",
+                entity_id=product_id, user_id=user_id, operation_id=new_uuid(),
+                branch_id=branch_id, after={"enabled": enabled})
             self._commit()
         except Exception:
             self._rollback()
@@ -89,6 +96,10 @@ class CreateAssortmentUseCase(_Base):
             return BranchAssortmentResult(False, str(exc))
         try:
             self._repo.save_assortment(a)
+            record_product_audit_entry(
+                self._conn, action="ASSORTMENT_CREATED", entity_id=a.id,
+                user_id=user_id, operation_id=new_uuid(), branch_id=branch_id,
+                after={"name": name, "channel": channel})
             self._commit()
         except Exception:
             self._rollback()
@@ -113,6 +124,11 @@ class SetAssortmentProductUseCase(_Base):
             return BranchAssortmentResult(False, str(exc))
         try:
             self._repo.add_to_assortment(item)
+            record_product_audit_entry(
+                self._conn, action="ASSORTMENT_PRODUCT_ENABLED" if enabled
+                else "ASSORTMENT_PRODUCT_DISABLED",
+                entity_id=product_id, user_id=user_id, operation_id=new_uuid(),
+                after={"assortment_id": assortment_id, "enabled": enabled})
             self._commit()
         except Exception:
             self._rollback()

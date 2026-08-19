@@ -93,9 +93,14 @@ def _class_methods(rel_path: str) -> set[str]:
 
 
 def test_ventas_declara_contrato_productos():
-    m = _class_methods("modulos/ventas.py")
-    assert {"refresh_products", "on_products_changed"} <= m, (
-        "B-V1: Ventas debe implementar el contrato de refresh de productos."
+    """modulos/ventas.py (legacy) retirado (SALES-22) — reemplazado por
+    frontend/desktop/modules/sales_pos/sales_pos_workspace.py::SalesPosWorkspace,
+    que implementa refresh_products/refresh_branches (segunda preferencia del
+    fan-out, ver core/events/catalog_events.py) en vez de on_products_changed/
+    on_branches_changed."""
+    m = _class_methods("frontend/desktop/modules/sales_pos/sales_pos_workspace.py")
+    assert {"refresh_products", "refresh_branches"} <= m, (
+        "B-V1: el módulo de Ventas/POS debe implementar el contrato de refresh."
     )
 
 

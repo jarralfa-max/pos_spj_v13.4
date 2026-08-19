@@ -121,7 +121,16 @@ class Product:
 
     @property
     def roles(self) -> frozenset[ProductRole]:
-        """Roles funcionales derivados de las banderas de control (§5)."""
+        """Roles funcionales derivados de las banderas de control (§5).
+
+        CONSUMABLE y COSTED no tienen bandera de captura propia en §10 (a
+        diferencia de los otros 7 roles) — se derivan de señales ya existentes,
+        igual que ``can_be_recipe_component()`` ya combina varias banderas para
+        una sola pregunta de negocio: CONSUMABLE cuando el producto puede ser
+        insumo de una receta/producción; COSTED cuando el producto tiene una vía
+        real de costeo (comprado, producido o rastreado en inventario — las tres
+        formas en que Pricing/Costing calcula costo, ver PRC-0..9).
+        """
         r: set[ProductRole] = set()
         if self.sellable:
             r.add(ProductRole.SELLABLE)
@@ -137,6 +146,10 @@ class Product:
             r.add(ProductRole.QUALITY_CONTROLLED)
         if self.traceability_required:
             r.add(ProductRole.TRACEABLE)
+        if self.can_be_recipe_component():
+            r.add(ProductRole.CONSUMABLE)
+        if self.purchasable or self.producible or self.inventory_managed:
+            r.add(ProductRole.COSTED)
         return frozenset(r)
 
     # ── invariantes de completitud (§7) ──────────────────────────────────

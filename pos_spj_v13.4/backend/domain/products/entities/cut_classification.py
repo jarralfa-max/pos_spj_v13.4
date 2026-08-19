@@ -48,6 +48,10 @@ class CutClassification:
             raise ProductsDomainError("El corte requiere un nombre")
         if not isinstance(self.cut_level, CutLevel):
             self.cut_level = CutLevel(str(self.cut_level))
+        if not isinstance(self.bone_status, BoneStatus):
+            self.bone_status = BoneStatus(str(self.bone_status))
+        if not isinstance(self.fat_class, FatClass):
+            self.fat_class = FatClass(str(self.fat_class))
         if self.parent_cut_id and self.parent_cut_id == self.id:
             raise ProductsDomainError("Un corte no puede ser su propio padre")
         object.__setattr__(self, "code", code)

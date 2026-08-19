@@ -25,6 +25,9 @@ from backend.infrastructure.db.repositories.procurement.qr_container_repository 
 from backend.infrastructure.db.repositories.procurement.purchase_order_repository import (
     PurchaseOrderRepository,
 )
+from backend.infrastructure.db.repositories.procurement.purchase_return_repository import (
+    PurchaseReturnRepository,
+)
 from backend.infrastructure.db.repositories.procurement.requisition_repository import (
     PurchaseRequisitionRepository,
 )
@@ -50,6 +53,7 @@ class ProcurementUnitOfWork:
         self.rfqs = RfqRepository(connection)
         self.invoices = SupplierInvoiceRepository(connection)
         self.receipts = GoodsReceiptRepository(connection)
+        self.returns = PurchaseReturnRepository(connection)
         self.limits = PurchaseLimitRepository(connection)
         self.qr_containers = QrContainerRepository(connection)
         self.sequences = DocumentSequenceRepository(connection)

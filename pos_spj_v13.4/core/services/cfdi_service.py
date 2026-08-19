@@ -23,6 +23,8 @@ import logging
 import uuid
 from datetime import datetime
 
+from backend.shared.ids import new_uuid
+
 logger = logging.getLogger("spj.cfdi")
 
 

@@ -101,144 +101,15 @@ class TestGetStockSucursal(unittest.TestCase):
         self.assertAlmostEqual(result, 0.0)
 
 
-# ── 2. IVA via config_service — static analysis ──────────────────────────────
-
-class TestVentasNoDirectDbForIva(unittest.TestCase):
-    """Ensure modulos/ventas.py no longer uses container.db.execute for tasa_iva."""
-
-    _VENTAS_PATH = Path(__file__).parent.parent / "modulos" / "ventas.py"
-
-    def _source(self) -> str:
-        return self._VENTAS_PATH.read_text(encoding="utf-8")
-
-    def test_no_direct_db_execute_for_tasa_iva(self):
-        src = self._source()
-        # Must not contain the old pattern: db.execute(... tasa_iva ...)
-        # We check that "tasa_iva" never appears next to "db.execute"
-        import re
-        bad = re.findall(r'db\.execute[^)]+tasa_iva', src)
-        self.assertFalse(
-            bad,
-            f"Direct db.execute for tasa_iva still present: {bad}",
-        )
-
-    def test_config_service_used_for_tasa_iva(self):
-        src = self._source()
-        self.assertIn("config_service.get('tasa_iva'", src,
-                      "config_service.get('tasa_iva',...) call not found in ventas.py")
+# modulos/ventas.py (legacy) retirado (SALES-22) — TestVentasNoDirectDbForIva,
+# TestVentasNoDirectDbForStock y TestNoDuplicateScannerBlock leían
+# exclusivamente su código fuente y se retiraron con él.
 
 
-# ── 3. Stock check uses inventory_service — static analysis ──────────────────
-
-class TestVentasNoDirectDbForStock(unittest.TestCase):
-    """Ensure the stock check in ventas.py uses inventory_service, not raw SQL."""
-
-    _VENTAS_PATH = Path(__file__).parent.parent / "modulos" / "ventas.py"
-
-    def _source(self) -> str:
-        return self._VENTAS_PATH.read_text(encoding="utf-8")
-
-    def test_get_stock_sucursal_called(self):
-        src = self._source()
-        self.assertIn("get_stock_sucursal", src,
-                      "inventory_service.get_stock_sucursal() call not found in ventas.py")
-
-    def test_no_inline_single_product_stock_check(self):
-        src = self._source()
-        # The old single-product stock check used this pattern — it should be
-        # gone, replaced by inventory_service.get_stock_sucursal().
-        # (The catalog query that loads ALL products with a JOIN is allowed.)
-        bad = (
-            "SELECT COALESCE(bi.quantity, p.existencia, 0) FROM productos p "
-            "LEFT JOIN branch_inventory"
-        )
-        self.assertNotIn(
-            bad, src.replace("\n", " ").replace("  ", " "),
-            "Old inline single-product branch_inventory stock query still present",
-        )
-
-
-# ── 4. No duplicate scanner fallback block ────────────────────────────────────
-
-class TestNoDuplicateScannerBlock(unittest.TestCase):
-    """The 90-line duplicate scanner-fallback block should be absent."""
-
-    _VENTAS_PATH = Path(__file__).parent.parent / "modulos" / "ventas.py"
-
-    def _source(self) -> str:
-        return self._VENTAS_PATH.read_text(encoding="utf-8")
-
-    def test_buscar_por_codigo_appears_only_once_as_fallback(self):
-        src = self._source()
-        # The duplicate block started with a comment identifying it as the
-        # "fallback idéntico" — this comment should now be in the file only
-        # as the removal notice, OR the pattern "# Fallback" should not
-        # appear with a second scanner lookup.  Simpler: count how many times
-        # the exact legacy query pattern appears.
-        legacy_pattern = "SELECT * FROM productos WHERE (codigo_barras=? OR codigo=?)"
-        count = src.count(legacy_pattern)
-        self.assertLessEqual(
-            count, 1,
-            f"Duplicate scanner SQL found {count} times — expected at most 1",
-        )
-
-    def test_file_has_no_syntax_errors(self):
-        src = self._source()
-        try:
-            ast.parse(src)
-        except SyntaxError as e:
-            self.fail(f"SyntaxError in ventas.py after refactor: {e}")
-
-
-# ── 5. Phase 4: repository usage in ventas.py ────────────────────────────────
+# ── 5. Phase 4: repository usage (shared repos/container, real regardless of
+#       modulos/ventas.py's retirement — SALES-22) ───────────────────────────
 
 class TestVentasPhase4Repos(unittest.TestCase):
-    """Verify that Phase 4 repository replacements are in place in ventas.py."""
-
-    _VENTAS_PATH = Path(__file__).parent.parent / "modulos" / "ventas.py"
-
-    def _source(self) -> str:
-        return self._VENTAS_PATH.read_text(encoding="utf-8")
-
-    def test_cliente_repo_property_exists(self):
-        src = self._source()
-        self.assertIn("def _cli_repo", src,
-                      "_cli_repo property missing from ModuloVentas")
-
-    def test_producto_repo_property_exists(self):
-        src = self._source()
-        self.assertIn("def _prod_repo", src,
-                      "_prod_repo property missing from ModuloVentas")
-
-    def test_buscar_cliente_uses_repo(self):
-        src = self._source()
-        self.assertIn("_cli.buscar(termino", src,
-                      "buscar_cliente() still uses direct SQL instead of ClienteRepository.buscar()")
-
-    def test_get_by_barcode_used_for_scanner(self):
-        src = self._source()
-        self.assertIn("get_by_barcode(codigo)", src,
-                      "Scanner product lookup still uses direct SQL instead of get_by_barcode()")
-
-    def test_get_by_scanner_used_for_client_scanner(self):
-        src = self._source()
-        self.assertIn("get_by_scanner(codigo)", src,
-                      "Scanner client lookup still uses direct SQL instead of get_by_scanner()")
-
-    def test_guardar_nuevo_cliente_uses_repo(self):
-        src = self._source()
-        self.assertIn("_cli.crear(", src,
-                      "guardar_nuevo_cliente() still uses direct INSERT instead of ClienteRepository.crear()")
-
-    def test_get_by_id_used_for_tarjeta_client_load(self):
-        src = self._source()
-        self.assertIn("_cli.get_by_id(", src,
-                      "procesar_tarjeta_escaneo() still uses direct SQL instead of get_by_id()")
-
-    def test_categories_use_repo(self):
-        src = self._source()
-        self.assertIn("prod_repo.get_categories()", src,
-                      "_cargar_categorias() still uses direct SQL instead of get_categories()")
 
     def test_ClienteRepository_has_get_by_scanner(self):
         from repositories.cliente_repository import ClienteRepository

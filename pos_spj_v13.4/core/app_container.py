@@ -124,6 +124,15 @@ class AppContainer:
         self.customer_authorization_policy = CustomerAuthorizationPolicy(
             CustomerSessionPermissionChecker(self.session))
 
+        # Sales/POS (SALES-2): real PermissionChecker for the granular
+        # `POS.accion` catalog, replacing the hardcoded role-name check that
+        # used to gate modulos/ventas.py's Devolución button. Same live
+        # self.session pattern as Customer Master/Caja above.
+        from backend.application.sales.authorization import SalesAuthorizationPolicy
+        from backend.application.sales.session_authorization import SalesSessionPermissionChecker
+        self.sales_authorization_policy = SalesAuthorizationPolicy(
+            SalesSessionPermissionChecker(self.session))
+
         # MercadoPago (pagos digitales con link)
         try:
             from services.mercado_pago_service import MercadoPagoService

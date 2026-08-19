@@ -89,6 +89,38 @@ class TestRoles:
         assert ProductRole.INTERNAL_ONLY in p.roles
         assert ProductRole.SELLABLE not in p.roles
 
+    def test_consumable_role_derives_from_recipe_component_eligibility(self):
+        # §5: CONSUMABLE no tiene bandera propia — se deriva de
+        # can_be_recipe_component() (recipe_allowed / interno / producible).
+        assert ProductRole.CONSUMABLE in _product(recipe_allowed=True).roles
+        assert ProductRole.CONSUMABLE in _product(producible=True).roles
+        assert ProductRole.CONSUMABLE in _product(
+            internal_only=True, inventory_managed=True).roles
+        assert ProductRole.CONSUMABLE not in _product().roles
+
+    def test_costed_role_derives_from_purchasable_producible_or_inventory_managed(self):
+        # §5: COSTED no tiene bandera propia — se deriva de tener una vía real
+        # de costeo (comprado, producido o rastreado en inventario).
+        assert ProductRole.COSTED in _product(purchasable=True).roles
+        assert ProductRole.COSTED in _product(producible=True).roles
+        assert ProductRole.COSTED in _product(inventory_managed=True).roles
+        assert ProductRole.COSTED not in _product().roles
+
+    def test_quality_and_traceable_roles(self):
+        p = _product(quality_controlled=True, traceability_required=True)
+        assert ProductRole.QUALITY_CONTROLLED in p.roles
+        assert ProductRole.TRACEABLE in p.roles
+
+    def test_all_nine_roles_are_reachable(self):
+        # Ratchet: los 9 roles de ProductRole deben poder aparecer en algún
+        # producto real — ninguno debe quedar como código muerto (§5).
+        p = _product(sellable=True, purchasable=True, inventory_managed=True,
+                     producible=True, quality_controlled=True,
+                     traceability_required=True, recipe_allowed=True)
+        internal = _product(internal_only=True, inventory_managed=True)
+        reachable = p.roles | internal.roles
+        assert reachable == frozenset(ProductRole)
+
 
 # ── clasificación cárnica mínima (§11, PROD-2) ───────────────────────────────
 class TestMeatFlag:

@@ -158,6 +158,26 @@ class ProcurementRole(str, Enum):
     REVERSAL_AUTHORIZER = "REVERSAL_AUTHORIZER"
 
 
+class PurchaseReturnReason(str, Enum):
+    """Why stock is being sent back to the supplier."""
+
+    QUALITY = "QUALITY"
+    DAMAGED = "DAMAGED"
+    WRONG_PRODUCT = "WRONG_PRODUCT"
+    EXCESS = "EXCESS"
+    EXPIRED = "EXPIRED"
+    SANITARY_FAILURE = "SANITARY_FAILURE"
+    COMMERCIAL_AGREEMENT = "COMMERCIAL_AGREEMENT"
+
+
+class PurchaseReturnStatus(str, Enum):
+    """Deliberately simple — not a multi-stage approval workflow."""
+
+    DRAFT = "DRAFT"
+    CONFIRMED = "CONFIRMED"
+    CANCELLED = "CANCELLED"
+
+
 class DiscrepancyType(str, Enum):
     SHORT_QUANTITY = "SHORT_QUANTITY"
     OVER_QUANTITY = "OVER_QUANTITY"

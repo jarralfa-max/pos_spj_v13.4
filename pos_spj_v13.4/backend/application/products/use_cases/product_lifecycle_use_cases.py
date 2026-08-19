@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import logging
 
+from backend.application.products.audit import record_product_audit_entry
 from backend.application.products.authorization.policy import ProductsAuthorizationPolicy
 from backend.application.products.permissions import ProductPermissions
 from backend.domain.products.entities.product import Product
@@ -82,6 +83,10 @@ class _BaseLifecycleUseCase:
                 product_id, status=product.lifecycle_status.value,
                 activated_at=product.activated_at,
                 discontinued_at=product.discontinued_at)
+            record_product_audit_entry(
+                self._conn, action=self.event, entity_id=product_id, user_id=user_id,
+                operation_id=op, before={"lifecycle_status": row["lifecycle_status"]},
+                after={"lifecycle_status": product.lifecycle_status.value})
             _enqueue(self._conn, self.event, product_id, op, product.lifecycle_status.value)
             self._conn.commit()
         except Exception:

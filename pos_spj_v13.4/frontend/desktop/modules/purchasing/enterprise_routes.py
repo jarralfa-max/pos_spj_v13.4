@@ -9,6 +9,11 @@ from __future__ import annotations
 from backend.application.procurement.adapters.product_catalog_adapter import (
     ProcurementProductCatalogAdapter,
 )
+from backend.application.procurement.adapters.supplier_profile_adapter import (
+    InventoryReceiptStatusAdapter,
+    SupplierFinanceAdapter,
+    SupplierProfileAdapter,
+)
 from backend.application.procurement.queries import SupplierPickerQueryService
 from backend.application.procurement.queries.enterprise_read_services import (
     InvoiceReadService,
@@ -126,6 +131,9 @@ def build_enterprise_presenter(connection, session_context=None, *,
         origin_workspace=origin_workspace,
         supplier_picker=SupplierPickerQueryService(connection),
         product_catalog=ProcurementProductCatalogAdapter(connection),
+        supplier_profile=SupplierProfileAdapter(connection),
+        supplier_finance=SupplierFinanceAdapter(connection),
+        receipt_status=InventoryReceiptStatusAdapter(connection),
     )
 
 

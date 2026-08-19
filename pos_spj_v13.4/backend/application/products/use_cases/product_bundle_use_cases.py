@@ -13,6 +13,7 @@ import json
 import logging
 from dataclasses import dataclass
 
+from backend.application.products.audit import record_product_audit_entry
 from backend.application.products.authorization.policy import ProductsAuthorizationPolicy
 from backend.application.products.commands.product_bundle_commands import (
     BundleVersionTransitionCommand,
@@ -72,6 +73,10 @@ class _BaseBundleUseCase:
     def _persist(self, version, event_name, command, message) -> BundleResult:
         try:
             self._repo.save_version(version)
+            record_product_audit_entry(
+                self._conn, action=message, entity_id=version.id,
+                user_id=command.user_id, operation_id=command.operation_id,
+                after={"status": version.status.value, "bundle_id": version.bundle_id})
             _emit(self._conn, event_name, command, entity_id=version.id,
                   extra={"bundle_id": version.bundle_id})
             self._conn.commit()
@@ -103,6 +108,10 @@ class CreateProductBundleUseCase(_BaseBundleUseCase):
         try:
             self._repo.save_bundle(bundle)
             self._repo.save_version(version)
+            record_product_audit_entry(
+                self._conn, action="PRODUCT_BUNDLE_CREATED", entity_id=bundle.id,
+                user_id=command.user_id, operation_id=command.operation_id,
+                after={"product_id": bundle.product_id, "version_id": version.id})
             _emit(self._conn, ProductEvents.PRODUCT_BUNDLE_CREATED, command,
                   entity_id=bundle.id,
                   extra={"product_id": bundle.product_id, "version_id": version.id})
@@ -137,6 +146,10 @@ class UpdateBundleVersionUseCase(_BaseBundleUseCase):
             return BundleResult(False, bundle.id, version.id, str(exc))
         try:
             self._repo.save_version(version)
+            record_product_audit_entry(
+                self._conn, action="BUNDLE_VERSION_UPDATED", entity_id=version.id,
+                user_id=command.user_id, operation_id=command.operation_id,
+                after={"bundle_id": bundle.id})
             self._conn.commit()
         except Exception:
             self._rollback()

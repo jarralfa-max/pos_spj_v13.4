@@ -24,6 +24,8 @@ from backend.domain.procurement.enums import (
     PaymentSource,
     PurchaseOrderStatus,
     PurchaseNature,
+    PurchaseReturnReason,
+    PurchaseReturnStatus,
     PurchaseType,
     RequisitionStatus,
     SourceChannel,
@@ -670,6 +672,82 @@ class GoodsReceipt:
 
     def total_accepted(self) -> Decimal:
         return sum((ln.accepted_quantity for ln in self.lines), Decimal("0"))
+
+
+# ── purchase return (devolución a proveedor) ───────────────────────────────────
+@dataclass(slots=True)
+class PurchaseReturnLine:
+    id: str
+    product_id: str
+    quantity: Decimal
+    unit_cost: Money | None = None
+    lot: str | None = None
+    goods_receipt_line_id: str | None = None
+    notes: str = ""
+
+    @classmethod
+    def create(cls, product_id: str, quantity, **kwargs) -> "PurchaseReturnLine":
+        q = _dec(quantity)
+        if q <= 0:
+            raise ProcurementDomainError("La cantidad a devolver debe ser mayor a cero")
+        return cls(id=new_uuid(), product_id=product_id, quantity=q, **kwargs)
+
+
+@dataclass(slots=True)
+class PurchaseReturn:
+    """A return of previously received goods to the supplier.
+
+    References — but never deletes — the original ``GoodsReceipt``/``PurchaseOrder``.
+    Deliberately simple lifecycle (DRAFT → CONFIRMED, or DRAFT → CANCELLED): this
+    is not a multi-stage approval workflow like ``PurchaseRequisition``.
+    """
+
+    id: str
+    document_number: str
+    supplier_id: str
+    branch_id: str
+    warehouse_id: str
+    reason: PurchaseReturnReason
+    status: PurchaseReturnStatus = PurchaseReturnStatus.DRAFT
+    goods_receipt_id: str | None = None
+    purchase_order_id: str | None = None
+    lines: list[PurchaseReturnLine] = field(default_factory=list)
+    created_by_user_id: str | None = None
+    created_at: str = field(default_factory=_utcnow)
+    confirmed_at: str | None = None
+
+    @classmethod
+    def create(cls, document_number: DocumentNumber, supplier_id: str, branch_id: str,
+               warehouse_id: str, reason: PurchaseReturnReason, *,
+               created_by_user_id: str, goods_receipt_id: str | None = None,
+               purchase_order_id: str | None = None) -> "PurchaseReturn":
+        return cls(id=new_uuid(), document_number=str(document_number), supplier_id=supplier_id,
+                   branch_id=branch_id, warehouse_id=warehouse_id, reason=reason,
+                   created_by_user_id=created_by_user_id, goods_receipt_id=goods_receipt_id,
+                   purchase_order_id=purchase_order_id)
+
+    def _assert_draft(self) -> None:
+        if self.status is not PurchaseReturnStatus.DRAFT:
+            raise InvalidPurchaseStateError(
+                f"No se puede modificar una devolución {self.status.value}")
+
+    def add_line(self, line: PurchaseReturnLine) -> None:
+        self._assert_draft()
+        self.lines.append(line)
+
+    def total_quantity(self) -> Decimal:
+        return sum((ln.quantity for ln in self.lines), Decimal("0"))
+
+    def confirm(self) -> None:
+        self._assert_draft()
+        if not self.lines:
+            raise InvalidPurchaseStateError("La devolución requiere al menos una línea")
+        self.status = PurchaseReturnStatus.CONFIRMED
+        self.confirmed_at = _utcnow()
+
+    def cancel(self) -> None:
+        self._assert_draft()
+        self.status = PurchaseReturnStatus.CANCELLED
 
 
 # ── supplier invoice ──────────────────────────────────────────────────────────

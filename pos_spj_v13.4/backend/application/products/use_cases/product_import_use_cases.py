@@ -18,6 +18,7 @@ import json
 import logging
 from dataclasses import dataclass
 
+from backend.application.products.audit import record_product_audit_entry
 from backend.application.products.authorization.policy import ProductsAuthorizationPolicy
 from backend.application.products.commands.product_import_commands import (
     CreateImportBatchCommand,
@@ -91,6 +92,10 @@ class CreateImportBatchUseCase:
                 self._repo.add_row(row_id=new_uuid(), job_id=job_id,
                                    row_number=row_number, payload=row,
                                    status=status, error=error)
+            record_product_audit_entry(
+                self._conn, action="PRODUCT_IMPORT_BATCH_CREATED", entity_id=job_id,
+                user_id=command.user_id, operation_id=command.operation_id,
+                after={"total": len(rows), "valid": valid, "invalid": invalid})
             _emit(self._conn, ProductEvents.PRODUCT_IMPORT_BATCH_CREATED,
                   command.operation_id, job_id,
                   {"total": len(rows), "valid": valid, "invalid": invalid})
@@ -128,6 +133,11 @@ class ApproveImportBatchUseCase:
         try:
             self._repo.set_status(command.job_id, "APPROVED",
                                   approved_by=command.user_id)
+            record_product_audit_entry(
+                self._conn, action="PRODUCT_IMPORT_BATCH_APPROVED",
+                entity_id=command.job_id, user_id=command.user_id,
+                operation_id=command.operation_id,
+                before={"created_by": job["created_by"]})
             _emit(self._conn, ProductEvents.PRODUCT_IMPORT_BATCH_APPROVED,
                   command.operation_id, command.job_id, {})
             self._conn.commit()
@@ -179,6 +189,10 @@ class ExecuteImportBatchUseCase:
         try:
             self._repo.set_created_count(command.job_id, created)
             self._repo.set_status(command.job_id, "EXECUTED")
+            record_product_audit_entry(
+                self._conn, action="PRODUCT_IMPORT_BATCH_EXECUTED",
+                entity_id=command.job_id, user_id=command.user_id,
+                operation_id=command.operation_id, after={"created": created})
             _emit(self._conn, ProductEvents.PRODUCT_IMPORT_BATCH_EXECUTED,
                   command.operation_id, command.job_id, {"created": created})
             self._conn.commit()

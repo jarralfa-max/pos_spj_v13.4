@@ -14,6 +14,7 @@ import json
 import logging
 from dataclasses import dataclass
 
+from backend.application.products.audit import record_product_audit_entry
 from backend.application.products.authorization.policy import ProductsAuthorizationPolicy
 from backend.application.products.commands.product_recipe_commands import (
     CreateRecipeCommand,
@@ -80,6 +81,10 @@ class _BaseRecipeUseCase:
         """Guarda la versión, emite el evento y confirma la transacción."""
         try:
             self._repo.save_version(version)
+            record_product_audit_entry(
+                self._conn, action=message, entity_id=version.id,
+                user_id=command.user_id, operation_id=command.operation_id,
+                after={"status": version.status.value, "recipe_id": version.recipe_id})
             _emit(self._conn, event_name, command, entity_id=version.id,
                   extra={"recipe_id": version.recipe_id})
             self._conn.commit()
@@ -112,6 +117,10 @@ class CreateProductRecipeUseCase(_BaseRecipeUseCase):
         try:
             self._repo.save_recipe(recipe)
             self._repo.save_version(version)
+            record_product_audit_entry(
+                self._conn, action="PRODUCT_RECIPE_CREATED", entity_id=recipe.id,
+                user_id=command.user_id, operation_id=command.operation_id,
+                after={"product_id": recipe.product_id, "version_id": version.id})
             _emit(self._conn, ProductEvents.PRODUCT_RECIPE_CREATED, command,
                   entity_id=recipe.id, extra={"product_id": recipe.product_id,
                                               "version_id": version.id})
@@ -147,6 +156,10 @@ class UpdateDraftVersionUseCase(_BaseRecipeUseCase):
             return RecipeResult(False, recipe.id, version.id, str(exc))
         try:
             self._repo.save_version(version)
+            record_product_audit_entry(
+                self._conn, action="RECIPE_VERSION_UPDATED", entity_id=version.id,
+                user_id=command.user_id, operation_id=command.operation_id,
+                after={"recipe_id": recipe.id})
             self._conn.commit()
         except Exception:
             self._rollback()

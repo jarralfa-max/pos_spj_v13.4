@@ -11,7 +11,10 @@ import logging
 
 from backend.application.procurement.ports import (
     BranchWarehouseContextPort,
+    InventoryReceiptStatusPort,
+    ProcurementFinancePort,
     ProcurementProductCatalogPort,
+    SupplierProcurementProfilePort,
 )
 from backend.shared.ids import new_uuid
 from frontend.desktop.components.search_selector import SearchOption
@@ -50,7 +53,10 @@ class EnterprisePurchasingPresenter:
                  logistics_reads=None,
                  warehouse_directory: BranchWarehouseContextPort | None = None,
                  history_reads=None, origin_workspace=None, supplier_picker=None,
-                 product_catalog: ProcurementProductCatalogPort | None = None) -> None:
+                 product_catalog: ProcurementProductCatalogPort | None = None,
+                 supplier_profile: SupplierProcurementProfilePort | None = None,
+                 supplier_finance: ProcurementFinancePort | None = None,
+                 receipt_status: InventoryReceiptStatusPort | None = None) -> None:
         self._conn = connection_provider
         self._reads = read_services
         self._analytics = analytics
@@ -63,6 +69,11 @@ class EnterprisePurchasingPresenter:
         self._origin = origin_workspace
         self._suppliers = supplier_picker
         self._product_catalog = product_catalog
+        # Wired for future UI consumption (supplier profile/financial standing,
+        # goods-receipt posting status); no current presenter flow reads these yet.
+        self._supplier_profile = supplier_profile
+        self._supplier_finance = supplier_finance
+        self._receipt_status = receipt_status
         self._period_start = None
         self._period_end = None
 

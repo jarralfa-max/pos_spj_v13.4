@@ -190,6 +190,13 @@ MIGRATIONS = [
     _Migration("195",  "migrations.standalone.195_crm_sync_conflicts_schema"),
     _Migration("196",  "migrations.standalone.196_customer_credit_profile_backfill"),
     _Migration("197",  "migrations.standalone.197_customers_normalized_name_blocking_keys"),
+    _Migration("198",  "migrations.standalone.198_sales_bounded_context_schema"),
+    _Migration("199",  "migrations.standalone.199_sales_inventory_reservation_column"),
+    _Migration("201",  "migrations.standalone.201_sales_payments_schema"),
+    _Migration("202",  "migrations.standalone.202_sales_loyalty_redemption_column"),
+    _Migration("203",  "migrations.standalone.203_sales_returns_schema"),
+    _Migration("204",  "migrations.standalone.204_sales_invoice_requests_schema"),
+    _Migration("205",  "migrations.standalone.205_purchase_returns_schema"),
 ]
 
 def _ensure_tracking_table(conn):

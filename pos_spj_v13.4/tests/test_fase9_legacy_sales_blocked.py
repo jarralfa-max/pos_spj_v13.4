@@ -7,7 +7,6 @@ from core.services.sales.unified_sales_service import DatosPago, UnifiedSalesSer
 
 ROOT = Path(__file__).resolve().parents[1]
 SALES_SRC = (ROOT / "core" / "services" / "sales_service.py").read_text(encoding="utf-8")
-VENTAS_UI_SRC = (ROOT / "modulos" / "ventas.py").read_text(encoding="utf-8")
 UNIFIED_SRC = (ROOT / "core" / "services" / "sales" / "unified_sales_service.py").read_text(encoding="utf-8")
 
 
@@ -44,13 +43,6 @@ def test_legacy_minimal_sale_write_blocked_by_default(monkeypatch):
             discount=0.0,
             usuario="u",
         )
-
-
-def test_no_ui_direct_sale_write():
-    assert "INSERT INTO ventas" not in VENTAS_UI_SRC
-    assert "VentaRepository(" not in VENTAS_UI_SRC
-    assert "create_sale(" not in VENTAS_UI_SRC
-    assert "result = _uc.ejecutar" in VENTAS_UI_SRC
 
 
 def test_no_legacy_ticket_path_active():

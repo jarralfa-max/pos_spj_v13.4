@@ -13,6 +13,7 @@ import json
 import logging
 from dataclasses import dataclass
 
+from backend.application.products.audit import record_product_audit_entry
 from backend.application.products.authorization.policy import ProductsAuthorizationPolicy
 from backend.application.products.commands.product_cutting_commands import (
     CreateCuttingSchemeCommand,
@@ -72,6 +73,11 @@ class _BaseCuttingUseCase:
     def _persist(self, version, event_name, command, message) -> CuttingResult:
         try:
             self._repo.save_version(version)
+            record_product_audit_entry(
+                self._conn, action=message, entity_id=version.id,
+                user_id=command.user_id, operation_id=command.operation_id,
+                after={"status": version.status.value,
+                       "scheme_id": version.cutting_scheme_id})
             _emit(self._conn, event_name, command, entity_id=version.id,
                   extra={"scheme_id": version.cutting_scheme_id})
             self._conn.commit()
@@ -102,6 +108,11 @@ class CreateCuttingSchemeUseCase(_BaseCuttingUseCase):
         try:
             self._repo.save_scheme(scheme)
             self._repo.save_version(version)
+            record_product_audit_entry(
+                self._conn, action="PRODUCT_CUTTING_SCHEME_CREATED", entity_id=scheme.id,
+                user_id=command.user_id, operation_id=command.operation_id,
+                after={"input_product_id": scheme.input_product_id,
+                       "version_id": version.id})
             _emit(self._conn, ProductEvents.PRODUCT_CUTTING_SCHEME_CREATED, command,
                   entity_id=scheme.id,
                   extra={"input_product_id": scheme.input_product_id,
@@ -137,6 +148,10 @@ class UpdateCuttingVersionUseCase(_BaseCuttingUseCase):
             return CuttingResult(False, scheme.id, version.id, str(exc))
         try:
             self._repo.save_version(version)
+            record_product_audit_entry(
+                self._conn, action="CUTTING_VERSION_UPDATED", entity_id=version.id,
+                user_id=command.user_id, operation_id=command.operation_id,
+                after={"scheme_id": scheme.id})
             self._conn.commit()
         except Exception:
             self._rollback()
@@ -172,6 +187,9 @@ class ApproveCuttingVersionUseCase(_BaseCuttingUseCase):
         version = self._repo.get_version(command.version_id)
         if version is None:
             return CuttingResult(False, None, None, "La versión no existe")
+        # NOTA (§39): a diferencia de Recipe/YieldProfileVersion, CuttingSchemeVersion
+        # no registra `created_by` — no hay identidad de creador que segregar contra
+        # el aprobador todavía. Ver docs/refactor memory products_enterprise_transformation.
         try:
             version.approve(approved_by_user_id=command.user_id or "",
                             reason=command.reason)

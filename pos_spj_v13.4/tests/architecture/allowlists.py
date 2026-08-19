@@ -63,7 +63,8 @@ COMMIT_ROLLBACK_IN_UI_ALLOWLIST = {
     # rrhh.py: commit()/rollback() movidos a RRHHCatalogService/repositorios (Remediación F).
     # rrhh_turnos.py: commit() movido a RRHHTurnosService (Remediación F).
     # ticket_designer.py: commit() eliminado (ConfigService persiste; Remediación F).
-    'pos_spj_v13.4/modulos/ventas.py': 2,
+    # modulos/ventas.py: retirado (SALES-22) — reemplazado por
+    # frontend/desktop/modules/sales_pos/, sin commit()/rollback() en UI.
 }
 
 SCHEMA_CHANGES_OUTSIDE_MIGRATIONS_ALLOWLIST = {
@@ -308,7 +309,7 @@ ENTITY_COMBO_MASS_LOADING_ALLOWLIST = {
     'pos_spj_v13.4/modulos/recepcion_qr_widget.py': 5,
     'pos_spj_v13.4/modulos/rrhh.py': 6,
     'pos_spj_v13.4/modulos/ticket_designer.py': 1,
-    'pos_spj_v13.4/modulos/ventas.py': 1,
+    # modulos/ventas.py: retirado (SALES-22).
     'pos_spj_v13.4/modulos/whatsapp/panels/numbers_panel.py': 2,
 }
 
@@ -328,7 +329,6 @@ HARDCODED_RELATIVE_PATHS_ALLOWLIST = {
     'pos_spj_v13.4/tests/test_fase8_no_legacy_conflicts.py': 1,
     'pos_spj_v13.4/tests/test_finanzas_kpi_refresh_wiring.py': 2,
     'pos_spj_v13.4/tests/test_loyalty_event_wiring_phase7.py': 3,
-    'pos_spj_v13.4/tests/test_phase11_payment_dialog_extraction.py': 2,
     'pos_spj_v13.4/tests/test_phase2_pos_venta_usa_uc.py': 2,
     'pos_spj_v13.4/tests/test_ticket_pipeline_integration.py': 3,
     'pos_spj_v13.4/ver_table.py': 1,

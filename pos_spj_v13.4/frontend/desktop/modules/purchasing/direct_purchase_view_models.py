@@ -10,6 +10,9 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 
 from frontend.desktop.formatters import format_money
+from frontend.desktop.modules.purchasing.enterprise_view_models import TableViewModel
+
+__all__ = ["CartLineVM", "TableViewModel", "money", "payment_condition_es", "status_es"]
 
 STATUS_ES = {
     "DRAFT": "Borrador", "PENDING_AUTHORIZATION": "Pendiente de autorización",
@@ -91,8 +94,3 @@ class CartLineVM:
         }
 
 
-@dataclass(frozen=True)
-class TableViewModel:
-    rows: list[list[str]] = field(default_factory=list)
-    row_ids: list[str] = field(default_factory=list)
-    total: int = 0

@@ -8,7 +8,22 @@ from __future__ import annotations
 
 CANONICAL_MODULE_PERMISSIONS: dict[str, list[str]] = {
     "DASHBOARD": ["ver"],
-    "POS": ["ver", "crear", "cancelar", "descuento"],
+    # Bounded context de Ventas/POS (granular; ver
+    # backend/application/sales/permissions.py). Los 4 códigos planos
+    # originales (ver/crear/cancelar/descuento) se conservan por
+    # compatibilidad con checks existentes — no autorizar código nuevo
+    # contra ellos, usar SalesPermissions.
+    "POS": [
+        "ver", "crear", "cancelar", "descuento",
+        "acceso", "abrir",
+        "venta.linea_agregar", "venta.linea_actualizar", "venta.linea_eliminar",
+        "venta.completar", "venta.suspender", "venta.reanudar",
+        "descuento.personalizado", "descuento.sobrescribir", "precio.sobrescribir",
+        "pago.efectivo", "pago.tarjeta", "pago.transferencia", "pago.mixto",
+        "pago.credito", "pago.mercado_pago",
+        "devolucion", "reverso", "ticket.reimprimir", "factura.solicitar",
+        "cajon.abrir_manual", "bascula.usar", "dispositivo.diagnostico_ver",
+    ],
     # Bounded context de Caja (granular; ver backend/application/cash_register/permissions.py).
     "CAJA": [
         "ver", "ver.sucursal_propia", "ver.sucursales_asignadas",
@@ -88,7 +103,42 @@ CANONICAL_MODULE_PERMISSIONS: dict[str, list[str]] = {
         "whatsapp.gestionar",
     ],
     "TRANSFERENCIAS": ["ver", "crear", "recibir", "cancelar"],
-    "PRODUCTOS": ["ver", "crear", "editar", "eliminar"],
+    # Bounded context de Productos / Product Master (granular; ver
+    # backend/application/products/permissions.py). Los 4 códigos planos
+    # originales (ver/crear/editar/eliminar) se conservan por compatibilidad
+    # con roles ya sembrados (admin/gerente/almacen/cajero) — no autorizar
+    # código nuevo contra ellos, usar ProductPermissions.
+    "PRODUCTOS": [
+        "ver", "crear", "editar", "eliminar",
+        "acceso", "exportar",
+        "ver.costo_referencia", "ver.interno", "ver.carnico", "ver.auditoria",
+        "enviar_revision", "aprobar", "activar", "bloquear",
+        "descontinuar", "archivar",
+        "codigo.sobrescribir", "codigo.configurar_reglas",
+        "categoria.ver", "categoria.gestionar",
+        "marca.ver", "marca.gestionar",
+        "atributo.ver", "atributo.gestionar", "variante.generar",
+        "imagen.gestionar",
+        "combo.ver", "combo.gestionar",
+        "especie.ver", "especie.gestionar",
+        "clasificacion_carnica.ver", "clasificacion_carnica.gestionar",
+        "corte.ver", "corte.gestionar",
+        "unidad.ver", "unidad.gestionar",
+        "conversion.gestionar",
+        "codigo_barras.gestionar", "codigo_alterno.gestionar",
+        "receta.ver", "receta.crear", "receta.editar", "receta.aprobar", "receta.activar",
+        "rendimiento.ver", "rendimiento.crear", "rendimiento.editar",
+        "rendimiento.aprobar", "rendimiento.activar",
+        "despiece.ver", "despiece.gestionar",
+        "interno.ver", "interno.crear", "interno.editar", "interno.activar",
+        "sucursal.ver", "sucursal.gestionar",
+        "surtido.gestionar",
+        "externo.buscar", "externo.importar", "externo.revisar", "externo.aprobar",
+        "importacion.ejecutar", "importacion.aprobar",
+        "configuracion.ver", "configuracion.editar",
+        "notificacion.gestionar",
+        "whatsapp.gestionar",
+    ],
     # Bounded context de Customer Master (granular; ver
     # backend/application/customers/permissions.py). "ver", "crear",
     # "editar", "credito" se conservan por compatibilidad con

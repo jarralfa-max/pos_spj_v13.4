@@ -60,7 +60,9 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 BASELINE: dict[str, dict[str, int]] = {
     "backend/application/commands/product_commands.py": {},
     "backend/application/queries/product_query_service.py": {
-        "sql_select": 10,
+        # Grew 10 -> 13 in 77f8dc11 (nombres resueltos + resolución de barras);
+        # baseline update was missed in that commit, ratcheted here now.
+        "sql_select": 13,
     },
     "backend/application/services/product_catalog_service.py": {
         # Transaction boundary moved to ConnectionUnitOfWork (F3): no explicit

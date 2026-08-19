@@ -3,7 +3,6 @@ import sqlite3
 
 from core.services.sales_service import SalesService
 
-SRC = (Path(__file__).resolve().parents[1] / "modulos" / "ventas.py").read_text(encoding="utf-8")
 SALES_SRC = (Path(__file__).resolve().parents[1] / "core" / "services" / "sales_service.py").read_text(encoding="utf-8")
 
 
@@ -20,34 +19,11 @@ def _service_with_stock(stock=5.0):
     return svc, db
 
 
-def test_mp_pending_reenables_cobrar_button():
-    assert "finally:" in SRC
-    assert "_worker_started" not in SRC
-    assert "self._on_checkout_finished()" in SRC
-
-
-def test_mp_pending_does_not_leave_checkout_running_true():
-    assert "self._venta_checkout_running = False" in SRC
-
-
-def test_mp_link_failure_releases_pending_reservation_before_raising():
-    start = SRC.find("if is_mercado_pago(datos_pago.get('forma_pago')):")
-    end = SRC.find("# ── Guardrail: detectar ítems por debajo del costo", start)
-    block = SRC[start:end]
-    assert 'sales_svc.cancel_pending_payment_sale(folio_pend, motivo="link_failed")' in block
-    assert "raise RuntimeError(\"No se pudo generar link de pago MercadoPago.\")" in block
-    fail_idx = block.find("raise RuntimeError(\"No se pudo generar link de pago MercadoPago.\")")
-    clear_idx = block.find("self.cancelar_venta(silent=True)")
-    assert clear_idx == -1 or clear_idx > fail_idx
-
-
-def test_mp_pending_has_recoverable_context():
-    assert '"estado": "pendiente_pago"' in SRC
-    assert '"folio": folio_pend' in SRC
-    assert '"reservation_id": pending.get("reservation_id")' in SRC
-    assert '"compra": list(self.compra_actual)' in SRC
-    assert '"totales": dict(self.totales)' in SRC
-    assert '"datos_pago": dict(datos_pago or {})' in SRC
+# modulos/ventas.py (legacy) retirado (SALES-22) — las 4 pruebas que leían su
+# código fuente directamente (reenables_cobrar_button/does_not_leave_checkout_
+# running_true/mp_link_failure_releases_pending_reservation/has_recoverable_
+# context) se retiraron con él. Las de abajo prueban SalesService directamente
+# y no dependen de ese archivo.
 
 
 def test_mp_pending_creates_reservation():

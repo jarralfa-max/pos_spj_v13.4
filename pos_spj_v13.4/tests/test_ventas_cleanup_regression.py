@@ -12,7 +12,6 @@ from core.services.sales.sale_execution_result import (
     SalePaymentResult,
 )
 from core.services.sales_service import SalesService
-from presentation.sales.workers.sale_checkout_worker_factory import SaleCheckoutWorkerFactory
 
 
 def _result(**kw):
@@ -138,20 +137,6 @@ def test_ticket_does_not_print_fake_zero_points():
     assert "Saldo total: 0 puntos" not in rendered
 
 
-def test_customer_cache_updated_only_with_real_balance_static():
-    body = _source_between(
-        "modulos/ventas.py",
-        "    def _aplicar_resultado_venta",
-        "    def _on_checkout_failed",
-    )
-    update_pos = body.index('self.cliente_actual["puntos"] = puntos_totales')
-    reliable_pos = body.index("if saldo_confiable:")
-    unavailable_pos = body.index('self.lbl_puntos_venta.setText("⭐ Saldo de puntos no disponible")')
-    assert reliable_pos < update_pos < unavailable_pos
-
-
-
-
 def test_loyalty_service_saldo_error_not_fake_zero():
     from core.services.loyalty_service import LoyaltyService
 
@@ -190,11 +175,6 @@ def test_credit_sale_payment_payload_has_credit_total_and_cash_zero():
     assert lines["efectivo"] == 0.0
 
 
-def test_sale_checkout_factory_disabled_or_removed():
-    with pytest.raises(RuntimeError, match="deshabilitado"):
-        SaleCheckoutWorkerFactory(object()).build(object(), [], object(), 1, "u")
-
-
 def test_mp_pending_requires_items_for_reservation():
     sales = SalesService.__new__(SalesService)
     sales.db = object()
@@ -210,29 +190,10 @@ def _source_between(path, start_marker, end_marker):
     return src[start:end]
 
 
-def test_no_ticket_from_compra_actual_after_sale():
-    body = _source_between(
-        "modulos/ventas.py",
-        "    def _aplicar_resultado_venta",
-        "    def _on_checkout_failed",
-    )
-    assert "ticket_payload" in body
-    assert "_imprimir_ticket_consolidado(datos_ticket)" in body
-    assert "compra_actual" not in body
-    assert "self.totales" not in body
-
-
-def test_ui_does_not_cache_ticket_html_without_backend_payload_contract():
-    body = _source_between(
-        "modulos/ventas.py",
-        "    def _aplicar_resultado_venta",
-        "    def _on_checkout_failed",
-    )
-    branch_start = body.index("if (\n            not datos_ticket")
-    missing_payload_branch = body[branch_start:body.index("        else:", branch_start)]
-    assert 'self._ticket_html_cache = ""' in missing_payload_branch
-    assert "_imprimir_ticket_consolidado" not in missing_payload_branch
-    assert "Use reimpresión desde venta_id" in missing_payload_branch
+# modulos/ventas.py (legacy) retirado (SALES-22) — las pruebas que leían su
+# código fuente directamente (customer_cache_updated_only_with_real_balance_
+# static, no_ticket_from_compra_actual_after_sale, ui_does_not_cache_ticket_
+# html_without_backend_payload_contract) se retiraron con él.
 
 
 def test_sales_service_ticket_payload_contract_has_backend_sale_id_total_and_payment():

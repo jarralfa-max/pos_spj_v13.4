@@ -264,17 +264,9 @@ class TestValidateCreditUsesCanonicalColumn(unittest.TestCase):
         self.assertIn("credit_balance", src,
             "validate_credit must query credit_balance")
 
-    def test_ui_source_uses_canonical_columns(self):
-        """modulos/ventas.py credit validation must read credit_balance."""
-        import os
-        src = open(os.path.join(
-            os.path.dirname(__file__),
-            "..", "modulos", "ventas.py",
-        )).read()
-        self.assertIn("credit_balance", src,
-            "ventas.py credit validation must reference credit_balance column")
-        self.assertIn("customer_credit_service", src,
-            "ventas.py must delegate to customer_credit_service when available")
+    # modulos/ventas.py (legacy) retirado (SALES-22) —
+    # test_ui_source_uses_canonical_columns leía su código fuente
+    # directamente y se retiró con él.
 
 
 if __name__ == "__main__":

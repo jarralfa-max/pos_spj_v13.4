@@ -34,7 +34,7 @@ class TestPermissionCatalog:
         assert "PRODUCTO" not in ALL_PRODUCT_PERMISSIONS
 
     def test_all_codes_are_prefixed_and_unique(self):
-        assert all(c.startswith("PRODUCTS_") for c in ALL_PRODUCT_PERMISSIONS)
+        assert all(c.startswith("PRODUCTOS.") for c in ALL_PRODUCT_PERMISSIONS)
         # sin colisiones de valor
         values = [v for k, v in vars(ProductPermissions).items()
                   if not k.startswith("_") and isinstance(v, str)]
@@ -63,7 +63,7 @@ class TestPermissionGate:
             pol.require("u1", ProductPermissions.CREATE)
 
     def test_require_unknown_permission_denied(self):
-        pol = ProductsAuthorizationPolicy(_Checker({("u1", "PRODUCTS_CREATE")}))
+        pol = ProductsAuthorizationPolicy(_Checker({("u1", ProductPermissions.CREATE)}))
         with pytest.raises(ProductPermissionDeniedError):
             pol.require("u1", "PRODUCTS_MADE_UP")
 

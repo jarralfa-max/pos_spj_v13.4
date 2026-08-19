@@ -26,9 +26,3 @@ def test_inventory_availability_service_bulk():
     svc = InventoryAvailabilityService(reservas)
     out = svc.disponible_por_producto([1])
     assert out[1] == 12.0
-
-
-def test_ventas_usa_inventory_availability_service_como_fuente_unica():
-    src = Path("pos_spj_v13.4/modulos/ventas.py").read_text(encoding="utf-8")
-    assert "InventoryAvailabilityService" in src
-    assert "self._inventory_availability.disponible_para_venta(producto_id)" in src

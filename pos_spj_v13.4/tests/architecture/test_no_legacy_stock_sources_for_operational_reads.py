@@ -9,7 +9,7 @@ WATCHED_FILES = [
     ROOT / "core/services/sales/product_catalog_query_service.py",
     ROOT / "core/services/stock_reservation_service.py",
     ROOT / "core/services/recipes/recipe_resolver.py",
-    ROOT / "modulos/ventas.py",
+    # modulos/ventas.py (legacy) retired — see docs/refactor/SALES-22_eliminacion_legacy.md.
 ]
 FORBIDDEN_PATTERNS = {
     "branch_inventory": re.compile(r"\bbranch_inventory\b", re.IGNORECASE),

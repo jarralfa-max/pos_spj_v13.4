@@ -21,10 +21,13 @@ from core.services.order_badge_service import OrderBadgeService
 
 # ── Operaciones ──────────────────────────────────────────────────────────────
 try:
-    from modulos.ventas import ModuloVentas
+    # POS-22 FLIP: UI legacy (modulos/ventas.py) reemplazada → módulo
+    # decompuesto nuevo (frontend/desktop/modules/sales_pos/, SALES-19..22).
+    # Ver docs/refactor/SALES-22_eliminacion_legacy.md.
+    from modulos.ventas_pos import ModuloVentasPos as ModuloVentas
 except Exception as e:
     ModuloVentas = None
-    logger.error("Error cargando ModuloVentas: %s", e)
+    logger.error("Error cargando ModuloVentasPos: %s", e)
 
 try:
     from backend.infrastructure.desktop.cash_register_factory import CashRegisterModuleHost

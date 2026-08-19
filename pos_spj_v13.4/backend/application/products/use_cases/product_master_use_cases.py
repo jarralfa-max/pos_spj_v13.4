@@ -14,6 +14,7 @@ import json
 import logging
 from dataclasses import dataclass
 
+from backend.application.products.audit import record_product_audit_entry
 from backend.application.products.authorization.policy import ProductsAuthorizationPolicy
 from backend.application.products.commands.product_master_commands import (
     CreateProductMasterCommand,
@@ -130,6 +131,11 @@ class CreateProductMasterUseCase:
             self._repo.create(_entity_row(product))
             if code_overridden:
                 _audit_code_override(self._conn, product_id, code, command)
+            record_product_audit_entry(
+                self._conn, action="PRODUCT_CREATED", entity_id=product_id,
+                user_id=command.user_id, operation_id=command.operation_id,
+                after={"code": code, "name": command.name,
+                       "product_type": command.product_type})
             _enqueue_outbox(self._conn, ProductEvents.PRODUCT_CREATED, command,
                             product_id, code=code)
             self._conn.commit()
@@ -170,6 +176,11 @@ class UpdateProductMasterUseCase:
             return ProductMasterResult(False, None, str(exc))
         try:
             self._repo.update(command.product_id, _entity_row(product))
+            record_product_audit_entry(
+                self._conn, action="PRODUCT_UPDATED", entity_id=command.product_id,
+                user_id=command.user_id, operation_id=command.operation_id,
+                before={"code": existing.get("code"), "name": existing.get("name")},
+                after={"code": command.code, "name": command.name})
             _enqueue_outbox(self._conn, ProductEvents.PRODUCT_UPDATED, command,
                             command.product_id, code=command.code)
             self._conn.commit()
@@ -189,15 +200,10 @@ def _rollback(conn) -> None:
 
 def _audit_code_override(conn, product_id: str, code: str, command) -> None:
     """P0-04: registra en auditoría toda asignación MANUAL de código."""
-    if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND "
-                    "name='product_audit_log'").fetchone() is None:
-        return
-    from backend.shared.ids import new_uuid
-    conn.execute(
-        "INSERT INTO product_audit_log (id, action, entity_id, user_id, operation_id, "
-        "after, reason, source) VALUES (?,?,?,?,?,?,?, 'product_master')",
-        (new_uuid(), "CODE_OVERRIDE", product_id, command.user_id, command.operation_id,
-         json.dumps({"code": code}), "Código asignado manualmente"))
+    record_product_audit_entry(
+        conn, action="CODE_OVERRIDE", entity_id=product_id, user_id=command.user_id,
+        operation_id=command.operation_id, after={"code": code},
+        reason="Código asignado manualmente", source="product_master")
 
 
 def _enqueue_outbox(conn, event_name: str, command, product_id: str,

@@ -10,6 +10,11 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
+from backend.application.procurement.ports import (
+    InventoryReceiptStatusPort,
+    ProcurementFinancePort,
+    SupplierProcurementProfilePort,
+)
 from backend.shared.ids import new_uuid
 from frontend.desktop.components.search_selector import SearchOption
 from frontend.desktop.modules.purchasing.capability_resolver import (
@@ -42,7 +47,10 @@ def _supplier_subtitle(row: dict) -> str:
 class DirectPurchasePresenter:
     def __init__(self, *, connection_provider, read_service, supplier_picker,
                  use_cases: dict, session_context=None, templates=None, costs=None,
-                 variance_policy=None, event_dispatcher=None, product_catalog=None) -> None:
+                 variance_policy=None, event_dispatcher=None, product_catalog=None,
+                 supplier_profile: SupplierProcurementProfilePort | None = None,
+                 supplier_finance: ProcurementFinancePort | None = None,
+                 receipt_status: InventoryReceiptStatusPort | None = None) -> None:
         self._conn = connection_provider
         self._reads = read_service
         self._suppliers = supplier_picker
@@ -53,6 +61,11 @@ class DirectPurchasePresenter:
         self._variance = variance_policy
         self._dispatch = event_dispatcher
         self._product_catalog = product_catalog
+        # Wired for future UI consumption (supplier profile/financial standing,
+        # goods-receipt posting status); no current presenter flow reads these yet.
+        self._supplier_profile = supplier_profile
+        self._supplier_finance = supplier_finance
+        self._receipt_status = receipt_status
 
     # session helpers ---------------------------------------------------------
     def _actor(self) -> str:

@@ -120,6 +120,7 @@ class DocumentSequenceRepository(ProcurementRepositoryBase):
         "OC": "purchase_orders",
         "REC": "goods_receipts",
         "FPR": "supplier_invoices",
+        "DEV": "purchase_returns",
     }
 
     def next_number(self, prefix: str, year: int) -> DocumentNumber:

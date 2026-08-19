@@ -9,6 +9,7 @@ writes a product_audit_log row. It never touches stock — that is Inventory's j
 
 from __future__ import annotations
 
+from backend.application.products.audit import record_product_audit_entry
 from backend.application.products.authorization.policy import (
     ProductsAuthorizationPolicy,
 )
@@ -80,10 +81,7 @@ class QualityStatusHandler:
             (event_id, event_name))
 
     def _audit(self, product_id, actor, operation_id, action, before, after, reason) -> None:
-        self._conn.execute(
-            """INSERT INTO product_audit_log
-               (id, action, entity_id, user_id, operation_id, before, after, reason, source)
-               VALUES (?,?,?,?,?,?,?,?, 'quality')""",
-            (new_uuid(), action, product_id, actor, operation_id,
-             f'{{"lifecycle_status": "{before.value}"}}',
-             f'{{"lifecycle_status": "{after.value}"}}', reason))
+        record_product_audit_entry(
+            self._conn, action=action, entity_id=product_id, user_id=actor,
+            operation_id=operation_id, before={"lifecycle_status": before.value},
+            after={"lifecycle_status": after.value}, reason=reason, source="quality")
