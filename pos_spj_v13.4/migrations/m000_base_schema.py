@@ -125,6 +125,13 @@ def up(conn: sqlite3.Connection) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _create_core_config(conn):
+    # Única definición válida: PK en `clave` (ver ConfigRepository, que solo
+    # lee/escribe clave/valor). Existió una segunda `CREATE TABLE IF NOT
+    # EXISTS configuraciones` con esquema incompatible (id/categoria/
+    # updated_at) inmediatamente después de esta — nunca se ejecutaba (la
+    # primera ya crea la tabla) y ningún consumidor leía sus columnas.
+    # Eliminada como código muerto (auditoría SET-0, docs/refactor/
+    # settings_legacy_inventory.md §0.2).
     conn.execute("""
         CREATE TABLE IF NOT EXISTS configuraciones (
             clave       TEXT NOT NULL PRIMARY KEY,
@@ -134,18 +141,6 @@ def _create_core_config(conn):
             descripcion TEXT
         )
     """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS configuraciones (
-            id          TEXT NOT NULL PRIMARY KEY,
-            clave       TEXT    NOT NULL UNIQUE,
-            valor       TEXT    NOT NULL,
-            categoria   TEXT    DEFAULT 'general',
-            tipo        TEXT    NOT NULL DEFAULT 'texto',
-            descripcion TEXT    DEFAULT '',
-            updated_at  TEXT    DEFAULT (datetime('now'))
-        )
-    """)
-    
     conn.execute("""
         CREATE TABLE IF NOT EXISTS feature_flags (
             clave               TEXT NOT NULL PRIMARY KEY,
@@ -3184,11 +3179,13 @@ def _seed_initial_data(conn: sqlite3.Connection):
         VALUES (?, 'Principal', 'Dirección Matriz', 1)
     """, (INSTALL_BRANCH_UUID,))
 
-    # 2. Crear Caja Principal (identidad UUIDv7 constante de instalación)
+    # 2. Crear Caja Principal (identidad UUIDv7 constante de instalación).
+    # Usa el esquema born-clean cash_registers (CASH-3/CASH-25) — la tabla
+    # legacy "cajas" ya no se crea en instalaciones limpias.
     conn.execute("""
-        INSERT OR IGNORE INTO cajas (id, nombre, ubicacion, estado, fondo_inicial, saldo_actual)
-        VALUES (?, 'Caja Principal', 'Mostrador', 'CERRADA', 0, 0)
-    """, (INSTALL_CASHBOX_UUID,))
+        INSERT OR IGNORE INTO cash_registers (id, branch_id, name, status, created_at, updated_at)
+        VALUES (?, ?, 'Caja Principal', 'ACTIVE', datetime('now'), datetime('now'))
+    """, (INSTALL_CASHBOX_UUID, INSTALL_BRANCH_UUID))
 
     # 2.1 Vincular la instalación a la sucursal matriz (el login lee esta clave
     # para inyectar la sucursal activa; sin ella la sesión queda sin branch).
@@ -3200,7 +3197,8 @@ def _seed_initial_data(conn: sqlite3.Connection):
     # 3. Crear Usuario Admin (solo si no existe; identidad UUIDv7 acuñada)
     existe_admin = conn.execute("SELECT id FROM usuarios WHERE usuario='admin'").fetchone()
     if not existe_admin:
-        hash_pass = (lambda p: __import__("hashlib").sha256(p.encode()).hexdigest())('admin123')
+        from security.auth import hash_password
+        hash_pass = hash_password('admin123')
         conn.execute("""
             INSERT INTO usuarios (id, nombre, usuario, password_hash, rol, sucursal_id, activo)
             VALUES (?, 'Administrador Maestro', 'admin', ?, 'admin', ?, 1)

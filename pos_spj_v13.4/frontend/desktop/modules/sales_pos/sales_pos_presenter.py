@@ -249,6 +249,33 @@ class SalesPosPresenter:
             return ()
         return service.check_all(requester_user_id=self.current_user_id())
 
+    # ── customer display (SET-17) ────────────────────────────────────────
+
+    def customer_display_state(self, sale_id: str):
+        service = self.query_service("customer_display")
+        if service is None:
+            return None
+        return service.current_state(sale_id, requester_user_id=self.current_user_id())
+
+    def push_customer_display(self, *, gateway, sale_id: str | None) -> None:
+        state = self.customer_display_state(sale_id) if sale_id else None
+        handler = self.command_handler("push_customer_display")
+        if handler is None:
+            return
+        handler(gateway=gateway, state=state, branch_id=self.current_branch_id())
+
+    def resolve_idle_ads(self, mode: str = "IDLE") -> tuple:
+        service = self.query_service("advertising")
+        if service is None:
+            return ()
+        return service.resolve_active_ads(mode)
+
+    def record_ad_impression(self, *, placement_id: str, duration_shown_seconds: int) -> None:
+        handler = self.command_handler("record_ad_impression")
+        if handler is None:
+            return
+        handler(placement_id=placement_id, duration_shown_seconds=duration_shown_seconds)
+
 
 def _new_op() -> str:
     from backend.shared.ids import new_uuid

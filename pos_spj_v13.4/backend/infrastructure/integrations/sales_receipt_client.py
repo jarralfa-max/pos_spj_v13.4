@@ -49,6 +49,7 @@ from backend.application.sales.dto import (
     SaleReceiptDataDTO,
     SaleReceiptLineDTO,
 )
+from backend.domain.document_output.value_objects.loyalty_summary import LoyaltySummary
 
 
 class SalesReceiptClient:
@@ -117,8 +118,11 @@ class SalesReceiptClient:
         )
 
     @staticmethod
-    def _to_ticket_payload(receipt: SaleReceiptDataDTO) -> dict[str, Any]:
-        return {
+    def _to_ticket_payload(
+        receipt: SaleReceiptDataDTO, *,
+        loyalty: LoyaltySummary | None = None, messages: tuple[str, ...] = (),
+    ) -> dict[str, Any]:
+        payload = {
             "folio": receipt.folio,
             "venta_id": receipt.sale_id,
             "fecha": receipt.created_at,
@@ -143,6 +147,16 @@ class SalesReceiptClient:
                 "cambio": float(receipt.cambio),
             },
         }
+        if loyalty is not None:
+            payload["loyalty"] = {
+                "puntos_totales": loyalty.points_balance,
+                "puntos_ganados": loyalty.points_earned,
+                "nivel": loyalty.tier,
+                "available": loyalty.available,
+            }
+        if messages:
+            payload["fomo_messages"] = list(messages)
+        return payload
 
     def print_receipt(
         self, sale: SaleDTO, *, forma_pago: str, cajero_nombre: str,
@@ -158,6 +172,7 @@ class SalesReceiptClient:
 
     def print_receipt_data(
         self, receipt: SaleReceiptDataDTO, *,
+        loyalty: LoyaltySummary | None = None, messages: tuple[str, ...] = (),
         on_success: Callable[[], None] | None = None,
         on_error: Callable[[Exception], None] | None = None,
     ) -> str:
@@ -167,7 +182,8 @@ class SalesReceiptClient:
         need `forma_pago`/`efectivo_recibido` re-derived, they're already
         part of the original receipt data."""
         return self._printer.print_ticket(
-            self._to_ticket_payload(receipt), on_success=on_success, on_error=on_error)
+            self._to_ticket_payload(receipt, loyalty=loyalty, messages=messages),
+            on_success=on_success, on_error=on_error)
 
     def get_job_status(self, job_id: str) -> PrintJobStatusDTO | None:
         """POS-17 "PrintJob": a real query against `print_job_log`

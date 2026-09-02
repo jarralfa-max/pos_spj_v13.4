@@ -8,6 +8,7 @@ CORRECCIÓN (FASE WA): WAEventEmitter usa ERP's bus.publish(), NO emit().
 from __future__ import annotations
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Callable, Dict, Any, Optional
 
@@ -58,6 +59,38 @@ ERP_PAYROLL_DUE         = "PAYROLL_DUE"
 ERP_EMPLOYEE_REST_DAY   = "EMPLOYEE_REST_DAY"
 ERP_EMPLOYEE_OVERWORK   = "EMPLOYEE_OVERWORK"
 ERP_FORECAST_GENERADO   = "FORECAST_GENERADO"
+
+
+def _new_event_id() -> str:
+    """UUIDv7 para `wa_event_log.id` (TEXT PRIMARY KEY, sin default SQL —
+    migración 050, REGLA CERO). Antes de WA-1, `emit()`/`_insert_wa_event()`
+    nunca proveían este valor, así que todo INSERT fallaba silenciosamente
+    contra ese esquema (S6, whatsapp_security_audit.md — "Crítica", viola la
+    regla 12 de CLAUDE.md sobre trazabilidad de auditoría).
+
+    Intenta primero el import directo (funciona cuando este módulo se carga
+    vía main.py, que ya puso pos_spj_v13.4 en sys.path) y si falla, aplica el
+    mismo truco de inserción de sys.path que usa `_init_bus()` de esta misma
+    clase, para que también funcione si `erp.events` se importa standalone
+    (p. ej. bajo tests) sin pasar por main.py.
+    """
+    try:
+        from backend.shared.ids import new_uuid
+        return new_uuid()
+    except ImportError:
+        try:
+            import sys
+            erp_path = os.path.dirname(os.path.dirname(
+                os.path.dirname(os.path.abspath(__file__))))
+            erp_module = os.path.join(erp_path, "pos_spj_v13.4")
+            if os.path.exists(erp_module) and erp_module not in sys.path:
+                sys.path.insert(0, erp_module)
+            from backend.shared.ids import new_uuid
+            return new_uuid()
+        except ImportError:
+            import uuid as _uuid
+            logger.warning("backend.shared.ids no importable — usando uuid4 fallback para wa_event_log.id")
+            return str(_uuid.uuid4())
 
 
 class WAEventEmitter:
@@ -116,16 +149,21 @@ class WAEventEmitter:
                 except Exception:
                     data_json = str(event_data)[:4000]
                 self.db.execute("""
-                    INSERT INTO wa_event_log (event_type, data_json,
+                    INSERT INTO wa_event_log (id, event_type, data_json,
                         sucursal_id, prioridad, timestamp)
-                    VALUES (?, ?, ?, ?, datetime('now'))
-                """, (event_type, data_json, sucursal_id, prioridad))
+                    VALUES (?, ?, ?, ?, ?, datetime('now'))
+                """, (_new_event_id(), event_type, data_json, sucursal_id, prioridad))
                 try:
                     self.db.commit()
                 except Exception:
                     pass
-            except Exception:
-                pass  # Table may not exist yet
+            except Exception as exc:
+                # WA-1 / S6: antes era `except Exception: pass` — el INSERT
+                # fallaba sistemáticamente por falta de `id` y nadie se
+                # enteraba. Ahora se loguea a WARNING (visible con el
+                # LOG_LEVEL=INFO por defecto) para que un fallo real de
+                # integridad del audit trail nunca vuelva a ser silencioso.
+                logger.warning("No se pudo insertar wa_event_log %s: %s", event_type, exc)
 
         # Emitir al EventBus del ERP (usa publish(), no emit())
         # Prioridad ≥ 80 → crítico (síncrono); resto async para no bloquear WA.
@@ -138,21 +176,28 @@ class WAEventEmitter:
                 logger.debug("EventBus publish error: %s", e)
 
     def ensure_tables(self):
+        """CREATE TABLE IF NOT EXISTS de respaldo — normalmente un no-op
+        porque la migración 050 ya crea `wa_event_log`. WA-1: el esquema
+        aquí antes usaba `id INTEGER PRIMARY KEY AUTOINCREMENT` y
+        `sucursal_id INTEGER`, violando REGLA CERO (UUIDv7 obligatorio) y
+        desacordando con el esquema real de la migración 050
+        (`id TEXT NOT NULL PRIMARY KEY`, `sucursal_id TEXT`, sin default SQL
+        en `id`). Corregido para coincidir exactamente."""
         if self.db:
             try:
                 self.db.execute("""
                     CREATE TABLE IF NOT EXISTS wa_event_log (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        event_type TEXT NOT NULL,
-                        data_json TEXT,
-                        sucursal_id INTEGER DEFAULT 1,
-                        prioridad INTEGER DEFAULT 5,
-                        timestamp TEXT DEFAULT (datetime('now'))
+                        id          TEXT NOT NULL    PRIMARY KEY,
+                        event_type  TEXT    NOT NULL,
+                        data_json   TEXT,
+                        sucursal_id TEXT,
+                        prioridad   INTEGER DEFAULT 5,
+                        timestamp   TEXT    DEFAULT (datetime('now'))
                     )
                 """)
                 try:
                     self.db.commit()
                 except Exception:
                     pass
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("No se pudo asegurar el esquema de wa_event_log: %s", exc)

@@ -18,13 +18,25 @@ import logging
 import sqlite3
 from typing import Optional
 
-from fastapi import APIRouter, Query, Header, HTTPException
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from core.delivery.projections.sale_delivery_projection import SaleDeliveryProjectionService
+from middleware.service_auth import require_service_auth
 
 logger = logging.getLogger("wa.delivery")
-router = APIRouter(prefix="/api/delivery", tags=["delivery"])
+# WA-1: ambos endpoints quedan protegidos por HMAC + identidad de servicio
+# (middleware.service_auth.require_service_auth) — reemplaza el
+# `_check_internal_key` con `!=` fail-open que tenía antes solo
+# `/orders/status` (whatsapp_security_audit.md S1/S2/S3). `/orders/pending`
+# no tenía ninguna protección: es un GET que expone venta_id/cliente/
+# teléfono/items, dato más sensible de lo que su docstring sugiere, así que
+# también se protege.
+router = APIRouter(
+    prefix="/api/delivery",
+    tags=["delivery"],
+    dependencies=[Depends(require_service_auth)],
+)
 
 
 def _connect() -> sqlite3.Connection:
@@ -39,28 +51,6 @@ def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
         return {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
     except Exception:
         return set()
-
-
-def _resolve_internal_key() -> str:
-    try:
-        from config.settings import get_internal_api_key
-        return get_internal_api_key() or ""
-    except Exception:
-        try:
-            from config.settings import WA_INTERNAL_API_KEY, INTERNAL_API_KEY
-            return WA_INTERNAL_API_KEY or INTERNAL_API_KEY or ""
-        except Exception:
-            return ""
-
-
-def _check_internal_key(x_internal_key: Optional[str]) -> None:
-    internal_key = _resolve_internal_key()
-    if not internal_key:
-        logger.warning("Internal API key not configured — delivery status endpoint unprotected in dev mode.")
-        return
-    if not x_internal_key or x_internal_key != internal_key:
-        logger.warning("delivery_router: unauthorized request — bad X-Internal-Key")
-        raise HTTPException(status_code=403, detail="Unauthorized")
 
 
 class DeliveryStatusRequest(BaseModel):
@@ -196,10 +186,8 @@ async def pending_orders(
 
 
 @router.post("/orders/status")
-async def sync_order_status(req: DeliveryStatusRequest,
-                            x_internal_key: Optional[str] = Header(None)):
+async def sync_order_status(req: DeliveryStatusRequest):
     """Sincroniza estado de Delivery hacia ventas WhatsApp sin generar mensajes repetidos."""
-    _check_internal_key(x_internal_key)
     conn = _connect()
     try:
         status_venta = _map_status_to_venta(req.status)
@@ -229,15 +217,22 @@ async def sync_order_status(req: DeliveryStatusRequest,
             return {"ok": False, "error": "delivery sale status projection failed"}
         status_venta = _map_status_to_venta(req.status)
         try:
+            # WA-1 / S6 (encontrado independientemente del audit, mismo bug
+            # raíz): este INSERT tampoco proveía `id`, así que fallaba
+            # sistemáticamente contra el esquema real de wa_event_log
+            # (`id TEXT NOT NULL PRIMARY KEY`, migración 050) — silenciado
+            # por un `except: pass` desnudo. Se agrega el id (UUIDv7) como
+            # primer valor SELECT-eado y se sube la visibilidad del error.
+            from erp.events import _new_event_id
             conn.execute("""
-                INSERT INTO wa_event_log(event_type, data_json, sucursal_id, prioridad, timestamp)
-                SELECT 'DELIVERY_STATUS_SYNC',
+                INSERT INTO wa_event_log(id, event_type, data_json, sucursal_id, prioridad, timestamp)
+                SELECT ?, 'DELIVERY_STATUS_SYNC',
                        json_object('venta_id', id, 'whatsapp_order_id', ?, 'status', ?, 'estado_venta', ?),
                        COALESCE(sucursal_id,1), 20, datetime('now')
                 FROM ventas WHERE id=?
-            """, (req.whatsapp_order_id, req.status, status_venta, venta_id))
-        except Exception:
-            pass
+            """, (_new_event_id(), req.whatsapp_order_id, req.status, status_venta, venta_id))
+        except Exception as exc:
+            logger.warning("No se pudo insertar wa_event_log DELIVERY_STATUS_SYNC: %s", exc)
         conn.commit()
         return {"ok": True, "venta_id": venta_id, "estado": status_venta}
     except Exception as exc:

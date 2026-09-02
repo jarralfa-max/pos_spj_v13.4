@@ -98,6 +98,11 @@ def validate_uuidv7(value: str) -> str:
 INSTALL_BRANCH_UUID = "01900000-0000-7000-8000-000000000001"
 INSTALL_CASHBOX_UUID = "01900000-0000-7000-8000-000000000002"
 
+# Identidad ESTABLE de la fila singleton de `installation` (SHELL-2): una
+# instalación desplegada tiene un único ciclo de vida de aprovisionamiento,
+# nunca uno por empresa/sucursal — igual razón que INSTALL_BRANCH_UUID.
+INSTALLATION_SINGLETON_UUID = "01900000-0000-7000-8000-000000000003"
+
 # Identidad ESTABLE de los roles del sistema. Son UUIDv7 canónicos (no enteros
 # '1'..'6'): el seed de roles/rol_permisos y RBAC deben usar estas constantes
 # para que Configuración → Permisos nunca reciba un role_id no-UUIDv7
@@ -113,6 +118,10 @@ SYSTEM_ROLE_UUIDS: dict[str, str] = {
     "delivery":     "01900000-0000-7000-8000-0000000000a7",
     "marketing":    "01900000-0000-7000-8000-0000000000a8",
     "finanzas":     "01900000-0000-7000-8000-0000000000a9",
+    # SHELL-2: rol del primer propietario creado durante el provisioning —
+    # distinto de "admin" (que sigue existiendo como rol operativo asignable
+    # después). Acceso total, igual matriz que admin, ver migración 206.
+    "system_owner": "01900000-0000-7000-8000-0000000000aa",
 }
 
 

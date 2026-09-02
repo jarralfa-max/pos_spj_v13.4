@@ -327,6 +327,9 @@ class MenuLateral(QFrame):
         layout_botones.addWidget(self._crear_boton("🖨️ Hardware", "CONFIG_HARDWARE"))
         layout_botones.addWidget(self._crear_boton("🔌 Configuración Módulos", "CONFIG_MODULOS"))
         layout_botones.addWidget(self._crear_boton("🛡️ Configuración", "CONFIG_SEGURIDAD"))
+        # SET-25: nuevo módulo Configuración (SET-0..23) — registrado junto a
+        # los 3 botones legacy de arriba, no en su reemplazo.
+        layout_botones.addWidget(self._crear_boton("🗂️ Configuración (Nuevo)", "CONFIGURACION"))
 
         # Espaciador para empujar los botones hacia arriba dentro del scroll
         spacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)

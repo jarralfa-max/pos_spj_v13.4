@@ -133,6 +133,35 @@ class AppContainer:
         self.sales_authorization_policy = SalesAuthorizationPolicy(
             SalesSessionPermissionChecker(self.session))
 
+        # Fidelidad/Loyalty (LOY-1): real PermissionChecker for the granular
+        # `GROWTH_ENGINE.accion` catalog, and a separate one for the
+        # specialized Loyalty Cards sub-bounded context
+        # (`TARJETAS_FIDELIDAD.accion`). Same live self.session pattern as
+        # Customer Master/Sales above. Neither the legacy
+        # `modulos/fidelidad_config.py` nor `modulos/loyalty_card_designer.py`
+        # call these yet (LOY-1 is the security-foundation phase only) —
+        # future LOY-N phases wire real use cases against them.
+        from backend.application.loyalty.authorization import LoyaltyAuthorizationPolicy
+        from backend.application.loyalty.session_authorization import LoyaltySessionPermissionChecker
+        from backend.application.loyalty_cards.authorization import LoyaltyCardsAuthorizationPolicy
+        from backend.application.loyalty_cards.session_authorization import LoyaltyCardsSessionPermissionChecker
+        self.loyalty_authorization_policy = LoyaltyAuthorizationPolicy(
+            LoyaltySessionPermissionChecker(self.session))
+        self.loyalty_cards_authorization_policy = LoyaltyCardsAuthorizationPolicy(
+            LoyaltyCardsSessionPermissionChecker(self.session))
+
+        # Pedidos/Delivery (ORD-1): real PermissionChecker for the granular
+        # `DELIVERY.accion` catalog (shared by Order Management and
+        # Last-Mile Fulfillment — one nav entry, master prompt §68). Same
+        # live self.session pattern as Customer Master/Sales/Loyalty above.
+        # Neither `modulos/delivery.py` nor `core/services/delivery_service.py`
+        # call this yet (ORD-1 is the security-foundation phase only) —
+        # future ORD-N phases wire real use cases against it.
+        from backend.application.orders_delivery.authorization import OrdersDeliveryAuthorizationPolicy
+        from backend.application.orders_delivery.session_authorization import OrdersDeliverySessionPermissionChecker
+        self.orders_delivery_authorization_policy = OrdersDeliveryAuthorizationPolicy(
+            OrdersDeliverySessionPermissionChecker(self.session))
+
         # MercadoPago (pagos digitales con link)
         try:
             from services.mercado_pago_service import MercadoPagoService

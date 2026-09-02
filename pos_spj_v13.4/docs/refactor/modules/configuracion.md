@@ -239,10 +239,49 @@ VIOLACIONES RESTANTES:
 - 0
 
 SIGUIENTE LOTE:
-<<<<<<< HEAD
 - Continuar CONFIGURACION-02-IDENTITY hasta cerrar PK/FK/DTO/repositorios UUIDv7 sin identidad dual.
 
 ---
+
+> **Nota de reconciliación (2026-08-21, auditoría SET-0):** las dos
+> secciones siguientes documentan continuaciones divergentes de este lote
+> (`claude/sleepy-goodall-33uld6` vs. `claude/intelligent-clarke-uq1ck7`)
+> que quedaron mezcladas con marcadores de conflicto de git sin resolver
+> desde el commit `ec582ed8` ("Clonacion de repo"). Se resolvieron
+> conservando ambas como historial, en el orden en que avanzan (la
+> narrativa `intelligent-clarke`, que llega hasta `CONFIGURACION-05`
+> `DONE`, es la más avanzada de las dos y sus artefactos —
+> `backend/application/queries/module_settings_query_service.py`,
+> `tests/unit/test_config_modules_query_service.py`,
+> `tests/architecture/test_config_modules_{queries,mutations}.py` — se
+> verificaron presentes en el árbol de trabajo actual). **Ninguna de las
+> dos narrativas debe tomarse como vigente sin re-verificar**: al correr
+> `pytest tests/ -k "config or settings"` el 2026-08-21 **desde la raíz
+> del repo** (ver `docs/refactor/settings_refactor_execution_plan.md` para
+> la corrección de un recuento inicial inflado por un bug de cwd propio de
+> esa auditoría — no del repositorio), 26 tests citados por ambas secciones
+> como pasando/"0 violaciones restantes" siguen genuinamente **en rojo** —
+> incluidos `test_configuracion_dtos.py` (2), `test_configuracion_transactions.py`
+> (3) y `test_configuracion_refactor_services.py` (6). La familia
+> `test_settings_module_*.py`/navegación/permisos-en-menú, en cambio, **sí
+> pasa** hoy (era falso negativo de cwd, no deuda real). Los archivos referenciados por la sección
+> F6–F8 de `sleepy-goodall` sí existen, bajo `tests/integration/` (no
+> `tests/unit/` como sugiere la prosa de esa sección):
+> `test_configuracion_use_case_flows.py`,
+> `test_configuracion_event_idempotency.py`,
+> `test_configuracion_external_integrations.py` — pero **10 de 25 tests
+> combinados de esos tres archivos fallan hoy** (verificado 2026-08-21;
+> ej. `test_create_user_flow`, `test_save_role_permissions_flow` fallan con
+> `ValueError: role_id must reference an existing role UUID` en
+> `ConfigRepository._resolve_role_row`), contradiciendo el "0 violaciones
+> restantes" de esa sección. El
+> siguiente lote registrado formalmente (`CONFIGURACION-06-DOMAIN_RULES`,
+> al final de la sección `intelligent-clarke`) tampoco tiene evidencia de
+> haberse iniciado. Ver la sección "Hallazgo importante para la próxima
+> sesión" en `docs/refactor/settings_refactor_execution_plan.md` para la
+> decisión pendiente sobre si esta numeración `CONFIGURACION-NN` continúa
+> o se reemplaza por el alcance ampliado `SET-NN` del prompt maestro más
+> reciente (Device Management/Document Output/Customer Display).
 
 ## Cierre F1–F8 (rama `claude/sleepy-goodall-33uld6`, PR #302)
 
@@ -282,8 +321,10 @@ El lote `CONFIGURACION-02-IDENTITY` permanece `IN_PROGRESS` (corte atómico UUID
 
 ### Siguiente
 Cerrar `CONFIGURACION-02-IDENTITY` con el corte atómico UUID (migración 200) o avanzar al siguiente módulo (`MERMA`) según prioridad.
-=======
-- Activar CONFIGURACION-03-UI.
+
+---
+
+## Continuación (rama `claude/intelligent-clarke-uq1ck7`) — Activar CONFIGURACION-03-UI
 
 ### CONFIGURACION-02-IDENTITY - Iteración 10
 
@@ -477,5 +518,5 @@ VIOLACIONES RESTANTES DEL LOTE:
 - 0
 
 SIGUIENTE LOTE REGISTRADO:
-- `CONFIGURACION-06-DOMAIN_RULES`
->>>>>>> claude/intelligent-clarke-uq1ck7
+- `CONFIGURACION-06-DOMAIN_RULES` (sin evidencia de haberse iniciado — ver
+  nota de reconciliación 2026-08-21 arriba).

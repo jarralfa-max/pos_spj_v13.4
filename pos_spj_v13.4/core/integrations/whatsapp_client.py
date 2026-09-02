@@ -3,20 +3,38 @@
 Cliente que permite al POS core comunicarse con el microservicio WhatsApp
 via REST. Usado por handlers de eventos y módulos de gestión.
 
-La autenticación interna se maneja con `X-Internal-Key`.
-La key se resuelve en este orden:
+La autenticación interna (WA-1) se maneja con HMAC + identidad de servicio,
+NO con el header `X-Internal-Key` plano que se usaba antes (audit
+whatsapp_security_audit.md S1/S2/S3: comparación `!=`, fail-open). El
+secreto compartido se sigue resolviendo igual que antes — lo que cambia es
+cómo se usa (clave HMAC, no valor comparado directamente):
 
 1. Parámetro explícito `internal_key`
 2. Tabla ERP `configuraciones.wa_internal_api_key` — capturada desde UI
 3. Variables de entorno `WA_INTERNAL_API_KEY` o `INTERNAL_API_KEY`
 4. Archivo `<repo>/whatsapp_service/.env`
 
+Cada request firmada envía `X-Service-Id: erp-core`, `X-Timestamp`,
+`X-Nonce`, `X-Signature` y `X-Correlation-Id`. La firma se calcula con
+`_sign_request()` de abajo — una copia deliberadamente corta (pura, sin
+dependencias de framework) de la misma lógica que
+`whatsapp_service/middleware/service_auth.py::sign_request()`, que es la
+especificación canónica de este formato. Este archivo vive en un paquete
+top-level distinto (`pos_spj_v13.4/` vs `whatsapp_service/`), así que en vez
+de un `sys.path` hack para importar esa función directamente, se duplica
+aquí — debe mantenerse byte-a-byte compatible con la copia canónica.
+
 Así el operador no necesita editar archivos ni saber programación.
 """
 from __future__ import annotations
+import hashlib
+import hmac
 import json
 import logging
 import os
+import secrets
+import time
+import uuid
 from pathlib import Path
 import sqlite3
 import urllib.request
@@ -26,6 +44,21 @@ from typing import Optional
 logger = logging.getLogger("spj.integrations.whatsapp")
 
 _DEFAULT_WA_URL = "http://localhost:8000"
+
+# Identidad de este servicio al llamar al microservicio WhatsApp — debe
+# coincidir con `ERP_CORE_SERVICE` en `whatsapp_service/middleware/service_auth.py`.
+_SERVICE_ID = "erp-core"
+
+
+def _sign_request(service_id: str, timestamp: str, nonce: str, body: bytes, secret: str) -> str:
+    """HMAC-SHA256 sobre `service_id:timestamp:nonce:sha256(body)`.
+
+    DEBE mantenerse idéntico a `whatsapp_service/middleware/service_auth.py
+    ::sign_request()` — ver el docstring de este módulo.
+    """
+    body_hash = hashlib.sha256(body or b"").hexdigest()
+    signed_string = f"{service_id}:{timestamp}:{nonce}:{body_hash}"
+    return hmac.new(secret.encode("utf-8"), signed_string.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
 def _read_env_file_value(path: Path, key: str) -> str:
@@ -121,12 +154,32 @@ class WhatsAppClient:
         self.timeout = timeout
         self._internal_key = _resolve_internal_key(internal_key)
 
+    def _signed_headers(self, body: bytes) -> dict:
+        """Construye los headers de autenticación de servicio (WA-1).
+
+        Si no hay clave interna configurada, no se envían headers de firma —
+        el microservicio decide fail-open (dev) o fail-closed (producción)
+        del lado `require_service_auth`, igual que antes con `X-Internal-Key`
+        ausente.
+        """
+        if not self._internal_key:
+            return {}
+        timestamp = str(int(time.time()))
+        nonce = secrets.token_hex(16)
+        signature = _sign_request(_SERVICE_ID, timestamp, nonce, body, self._internal_key)
+        return {
+            "X-Service-Id": _SERVICE_ID,
+            "X-Timestamp": timestamp,
+            "X-Nonce": nonce,
+            "X-Signature": signature,
+            "X-Correlation-Id": uuid.uuid4().hex,
+        }
+
     def _post(self, path: str, payload: dict) -> Optional[dict]:
         url = f"{self.base_url}{path}"
         data = json.dumps(payload).encode("utf-8")
         headers = {"Content-Type": "application/json"}
-        if self._internal_key:
-            headers["X-Internal-Key"] = self._internal_key
+        headers.update(self._signed_headers(data))
         req = urllib.request.Request(
             url, data=data, headers=headers, method="POST",
         )
@@ -150,9 +203,7 @@ class WhatsAppClient:
 
     def _get(self, path: str) -> Optional[dict]:
         url = f"{self.base_url}{path}"
-        headers = {}
-        if self._internal_key:
-            headers["X-Internal-Key"] = self._internal_key
+        headers = self._signed_headers(b"")
         req = urllib.request.Request(url, headers=headers, method="GET")
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:

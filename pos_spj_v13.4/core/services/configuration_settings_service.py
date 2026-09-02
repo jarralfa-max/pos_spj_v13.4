@@ -204,33 +204,74 @@ class SettingsApplicationService:
 
 
 class EmailSettingsService:
-    """Application boundary for SMTP settings."""
+    """Application boundary for SMTP settings.
 
-    KEYS = ["smtp_host", "smtp_port", "smtp_user", "smtp_password", "smtp_tls", "email_gerente"]
+    `smtp_password` is a secret: it is never persisted to the plaintext
+    `configuraciones` table. It lives in the injected `SecretStoreGateway`
+    (Windows Credential Manager / encrypted-local fallback — see
+    `backend/security/secrets/`) under the fixed reference name
+    `SECRET_NAME`. Every other field (host/port/user/tls/from-address) is
+    non-sensitive routing/display config and keeps using the generic
+    settings table. Migrated 2026-08-21 (SET-1) — see
+    docs/refactor/settings_refactor_execution_plan.md.
+    """
 
-    def __init__(self, system_settings_service: SystemSettingsService) -> None:
+    KEYS = ["smtp_host", "smtp_port", "smtp_user", "smtp_tls", "email_gerente"]
+    SECRET_NAME = "smtp_password"
+
+    def __init__(self, system_settings_service: SystemSettingsService, secret_store) -> None:
         self._system_settings_service = system_settings_service
+        self._secret_store = secret_store
 
     def get_settings(self) -> dict[str, str]:
-        return self._system_settings_service.get_many(self.KEYS, {"smtp_port": "0", "smtp_tls": "0"})
+        values = self._system_settings_service.get_many(self.KEYS, {"smtp_port": "0", "smtp_tls": "0"})
+        values["smtp_password"] = self._secret_store.get_secret(self.SECRET_NAME) or ""
+        return values
 
     def save_settings(self, settings: dict[str, Any]) -> None:
         self._system_settings_service.save_many({key: settings.get(key, "") for key in self.KEYS})
+        password = str(settings.get("smtp_password") or "")
+        if password:
+            self._secret_store.set_secret(self.SECRET_NAME, password)
+        else:
+            self._secret_store.delete_secret(self.SECRET_NAME)
 
 
 class PaymentProviderSettingsService:
-    """Application boundary for payment provider settings."""
+    """Application boundary for payment provider settings.
 
-    MERCADO_PAGO_KEYS = ["mp_access_token", "mp_webhook_url", "mp_return_url"]
+    `mp_access_token` is a secret: it is never persisted to the plaintext
+    `configuraciones` table. It lives in the injected `SecretStoreGateway`
+    (same mechanism as `EmailSettingsService.SECRET_NAME`) under the
+    fixed reference name `SECRET_NAME`. `mp_webhook_url`/`mp_return_url`
+    are non-sensitive routing config and keep using the generic settings
+    table. Migrated 2026-08-22 (SET-1) — closes the "segundo consumidor
+    con SQL crudo" gap `services/mercado_pago_service.py::_get_token()`
+    left open when `smtp_password` was migrated; see
+    docs/refactor/settings_refactor_execution_plan.md.
+    """
 
-    def __init__(self, system_settings_service: SystemSettingsService) -> None:
+    ROUTING_KEYS = ["mp_webhook_url", "mp_return_url"]
+    SECRET_NAME = "mp_access_token"
+
+    def __init__(self, system_settings_service: SystemSettingsService, secret_store) -> None:
         self._system_settings_service = system_settings_service
+        self._secret_store = secret_store
 
     def get_mercado_pago_settings(self) -> dict[str, str]:
-        return self._system_settings_service.get_many(self.MERCADO_PAGO_KEYS)
+        values = self._system_settings_service.get_many(self.ROUTING_KEYS)
+        values["mp_access_token"] = self._secret_store.get_secret(self.SECRET_NAME) or ""
+        return values
 
     def save_mercado_pago_settings(self, settings: dict[str, Any]) -> None:
-        self._system_settings_service.save_many({key: settings.get(key, "") for key in self.MERCADO_PAGO_KEYS})
+        self._system_settings_service.save_many(
+            {key: settings.get(key, "") for key in self.ROUTING_KEYS}
+        )
+        token = str(settings.get("mp_access_token") or "")
+        if token:
+            self._secret_store.set_secret(self.SECRET_NAME, token)
+        else:
+            self._secret_store.delete_secret(self.SECRET_NAME)
 
 
 class ClosingPeriodService:
@@ -530,17 +571,24 @@ class SettingsModuleServices:
     permission_event_publisher: PermissionEventPublisher
 
     @classmethod
-    def from_connection(cls, connection: Any, event_bus: Any | None = None) -> "SettingsModuleServices":
+    def from_connection(
+        cls, connection: Any, event_bus: Any | None = None, secret_store: Any | None = None,
+    ) -> "SettingsModuleServices":
         repository = ConfigRepository(connection)
         system_settings_service = SystemSettingsService(repository)
         settings_application_service = SettingsApplicationService(system_settings_service)
         permission_event_publisher = PermissionEventPublisher(event_bus)
+        if secret_store is None:
+            from backend.security.secrets.default_secret_store import build_default_secret_store
+            secret_store = build_default_secret_store()
         return cls(
             settings_application_service=settings_application_service,
             system_settings_service=system_settings_service,
             company_profile_service=CompanyProfileService(repository),
-            email_settings_service=EmailSettingsService(system_settings_service),
-            payment_provider_settings_service=PaymentProviderSettingsService(system_settings_service),
+            email_settings_service=EmailSettingsService(system_settings_service, secret_store),
+            payment_provider_settings_service=PaymentProviderSettingsService(
+                system_settings_service, secret_store
+            ),
             closing_period_service=ClosingPeriodService(repository),
             happy_hour_settings_service=HappyHourSettingsService(repository),
             user_management_service=UserManagementService(repository, permission_event_publisher),

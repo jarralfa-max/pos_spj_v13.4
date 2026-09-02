@@ -16,6 +16,11 @@ Actualizado: 2026-05-28
 - Fase 9: suite de regresión reforzada en áreas críticas.
 - Fase 10: documentación final consolidada (este documento + arquitectura + auditoría + catálogo de eventos).
 
+> **Nota (2026-09-01):** arrancó un nuevo pipeline WA-0..WA-22 (numeración
+> propia, distinta de las Fases 0-10 de este documento). WA-0 (auditoría de
+> seguridad) y WA-1 (remediación de seguridad) ya están cerradas — ver
+> `docs/refactor/whatsapp_security_audit.md` y `docs/refactor/WA-1_seguridad.md`.
+
 ## Reglas obligatorias (no regresión)
 
 1. WhatsApp **no** es fuente de verdad de ventas/precios/stock/crédito.

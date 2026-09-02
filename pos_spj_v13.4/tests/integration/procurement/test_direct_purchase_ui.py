@@ -16,6 +16,9 @@ pytest.importorskip("PyQt5.QtWidgets", exc_type=ImportError)
 
 from PyQt5.QtWidgets import QApplication  # noqa: E402
 
+from backend.infrastructure.db.schema.document_output_schema import (  # noqa: E402
+    create_document_numbering_schema,
+)
 from backend.infrastructure.db.schema.procurement_schema import (  # noqa: E402
     create_procurement_schema,
 )
@@ -47,6 +50,7 @@ def app():
 def conn():
     c = sqlite3.connect(":memory:")
     create_procurement_schema(c)
+    create_document_numbering_schema(c)
     c.execute("CREATE TABLE proveedores(id TEXT PRIMARY KEY, nombre TEXT, activo INTEGER)")
     c.execute("INSERT INTO proveedores VALUES ('sup-1','Proveedor Uno',1)")
     yield c

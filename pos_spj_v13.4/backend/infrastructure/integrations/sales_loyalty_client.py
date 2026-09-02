@@ -25,10 +25,35 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from backend.domain.document_output.value_objects.loyalty_summary import LoyaltySummary
+
 
 class SalesLoyaltyClient:
     def __init__(self, connection) -> None:
         self._connection = connection
+
+    def peek_loyalty_summary(self, *, customer_id: str) -> LoyaltySummary:
+        """SET-13 cutover: a real, side-effect-free balance/tier lookup for
+        ticket display — reuses `preview_redemption` exactly as intended by
+        its own docstring ("Seguro para llamar... la UI debe usar este
+        método"), never earns or redeems anything. `points_earned` stays
+        `None` — `sales_pos` checkout has no points-earning pipeline yet,
+        unlike the legacy `SalesService._execute_sale_core` path; this
+        summary never fabricates that number."""
+        from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
+            EnsureLegacyCustomerBridgeUseCase,
+        )
+        from core.services.loyalty_service import LoyaltyService
+
+        legacy_customer_id = EnsureLegacyCustomerBridgeUseCase().execute(
+            self._connection, customer_id=customer_id)
+        service = LoyaltyService(self._connection)
+        preview = service.preview_redemption(legacy_customer_id, 0.0)
+        return LoyaltySummary.create(
+            points_balance=int(preview.get("puntos_disponibles") or 0),
+            tier=str(preview.get("nivel") or ""),
+            available=bool(preview.get("enabled")),
+        )
 
     def preview_redemption(self, *, customer_id: str, subtotal: Decimal) -> dict[str, Any]:
         from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (

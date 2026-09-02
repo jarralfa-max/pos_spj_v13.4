@@ -22,7 +22,12 @@ from backend.application.customers.authorization import CustomerAuthorizationPol
 from backend.application.customers.session_authorization import CustomerSessionPermissionChecker
 from backend.application.sales.authorization import SalesAuthorizationPolicy
 from backend.application.sales.queries.benefit_evaluation_service import SaleBenefitEvaluationService
+from backend.application.customer_display.queries.advertising_query_service import AdvertisingQueryService
+from backend.application.customer_display.use_cases.record_content_impression_use_case import (
+    RecordContentImpressionUseCase,
+)
 from backend.application.sales.queries.catalog_query_service import SalesCatalogQueryService
+from backend.application.sales.queries.customer_display_query_service import CustomerDisplayQueryService
 from backend.application.sales.queries.device_health_query_service import DeviceHealthQueryService
 from backend.application.sales.queries.sale_query_service import SaleQueryService
 from backend.application.sales.session_authorization import SalesSessionPermissionChecker
@@ -55,6 +60,7 @@ from backend.application.sales.use_cases.receipt_use_cases import ReprintReceipt
 from backend.application.sales.use_cases.return_use_cases import ReturnSaleLineUseCase, ReverseSaleUseCase
 from backend.application.sales.use_cases.scan_use_cases import ScanCodeRouter
 from backend.domain.sales.enums import ScanContext
+from backend.infrastructure.integrations.sales_customer_display_client import SalesCustomerDisplayClient
 from frontend.desktop.modules.sales_pos.sales_pos_presenter import SalesPosPresenter
 
 
@@ -70,6 +76,8 @@ def build_sales_pos_presenter(
         "sale_query": SaleQueryService(connection, auth),
         "benefit_evaluation": SaleBenefitEvaluationService(connection, auth),
         "device_health": DeviceHealthQueryService(connection, auth),
+        "customer_display": CustomerDisplayQueryService(connection, auth),
+        "advertising": AdvertisingQueryService(connection),
     }
 
     def _h(execute, **extra):
@@ -100,6 +108,8 @@ def build_sales_pos_presenter(
         "reverse_sale": _h(ReverseSaleUseCase(auth).execute),
         "request_invoice": _h(RequestInvoiceUseCase(auth).execute),
         "reprint_receipt": _reprint_handler(connection, auth, printer_service),
+        "push_customer_display": _customer_display_handler(connection),
+        "record_ad_impression": _record_ad_impression_handler(connection),
     }
 
     return SalesPosPresenter(
@@ -132,6 +142,22 @@ def _reprint_handler(connection, auth, printer_service):
 
     def handler(**kwargs):
         return run(connection, printer_service, **kwargs)
+    return handler
+
+
+def _customer_display_handler(connection):
+    client = SalesCustomerDisplayClient(connection)
+
+    def handler(*, gateway, state, branch_id=None):
+        client.push_sale_state(gateway, state=state, branch_id=branch_id)
+    return handler
+
+
+def _record_ad_impression_handler(connection):
+    run = RecordContentImpressionUseCase(connection).execute
+
+    def handler(*, placement_id, duration_shown_seconds):
+        run(placement_id=placement_id, duration_shown_seconds=duration_shown_seconds)
     return handler
 
 

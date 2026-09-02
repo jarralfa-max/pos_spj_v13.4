@@ -48,6 +48,7 @@ from backend.domain.sales.policies.payment_policy import SalePaymentPolicy
 from backend.infrastructure.db.repositories.sales.unit_of_work import SalesUnitOfWork
 from backend.infrastructure.integrations.sales_cash_effects_client import SalesCashEffectsClient
 from backend.infrastructure.integrations.sales_inventory_client import SalesInventoryClient
+from backend.infrastructure.integrations.sales_sweepstakes_client import SalesSweepstakesClient
 
 logger = logging.getLogger("spj.sales.checkout")
 
@@ -103,6 +104,14 @@ class CheckoutSaleUseCase(_SalesBaseUseCase):
                 cash_effects_error = str(exc)
                 logger.warning("Efecto de caja no registrado para venta %s: %s", sale.id, exc)
 
+        raffle_issue_error: str | None = None
+        try:
+            SalesSweepstakesClient(connection).issue_tickets_for_sale(sale=SaleDTO.from_entity(sale))
+        except Exception as exc:  # noqa: BLE001 - never un-complete a sale over raffle issuance
+            raffle_issue_error = str(exc)
+            logger.warning("Boletos de rifa no emitidos para venta %s: %s", sale.id, exc)
+
         return SaleResult.ok(
             "Venta finalizada", entity_id=sale.id, operation_id=operation_id,
-            sale=SaleDTO.from_entity(sale), cash_effects_error=cash_effects_error)
+            sale=SaleDTO.from_entity(sale), cash_effects_error=cash_effects_error,
+            raffle_issue_error=raffle_issue_error)

@@ -174,6 +174,12 @@ except Exception as e:
     logger.error("Error cargando ModuloConfigHardware: %s", e)
 
 try:
+    from modulos.configuracion_workspace import ModuloConfiguracionWorkspace
+except Exception as e:
+    ModuloConfiguracionWorkspace = None
+    logger.error("Error cargando ModuloConfiguracionWorkspace: %s", e)
+
+try:
     from modulos.ticket_designer import ModuloTicketDesigner
 except Exception as e:
     ModuloTicketDesigner = None
@@ -532,11 +538,6 @@ class DialogoLogin(QDialog):
             self.btn_login.setText("ENTRAR AL SISTEMA")
 
 
-try:
-    from modulos.config_interfaz import ModuloConfigUI
-except Exception:
-    ModuloConfigUI = None
-
 class MainWindow(QMainWindow):
     """Ventana principal del ERP SPJ POS."""
 
@@ -680,6 +681,10 @@ class MainWindow(QMainWindow):
         self._conectar("CONFIG_HARDWARE",   ModuloConfigHardware, "🖨️ Hardware")
         self._conectar("CONFIG_MODULOS",    ModuloConfigModulos,  "🔌 Configuración Módulos")
         self._conectar("CONFIG_SEGURIDAD",  ModuloConfiguracion,  "🛡️ Configuración")
+        # SET-25: nuevo módulo Configuración (SET-0..23), registrado junto a
+        # los 3 anteriores — no los reemplaza todavía (ver
+        # docs/refactor/SET-25_legacy_removal_report.md).
+        self._conectar("CONFIGURACION",     ModuloConfiguracionWorkspace, "🗂️ Configuración (Nuevo)")
 
     def _conectar(self, codigo, clase_widget, titulo_fallback):
         """Carga el módulo real; si falla instancia pantalla de aviso.
@@ -1550,9 +1555,3 @@ class MainWindow(QMainWindow):
         except Exception as e:
             import logging
             logging.getLogger(__name__).debug("_cargar_tema_inicial: %s", e)
-
-try:
-    from modulos.modulo_growth_engine import ModuloGrowthEngine
-except Exception:
-    ModuloGrowthEngine = None
- 

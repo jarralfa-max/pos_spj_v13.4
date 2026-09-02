@@ -126,3 +126,159 @@ class TestSalesPosWorkspaceStructure:
         assert actions.btn_cobrar.isEnabled() is False
         assert actions.btn_suspender.isEnabled() is False
         assert actions.btn_devolucion.isEnabled() is False
+
+
+class TestCustomerDisplayToggle:
+    """SET-17 — the cashier-bar toggle owns a real (offscreen)
+    `CustomerDisplayWindow`; `_refresh()` pushes to it only while open, and
+    a push failure never blocks the cashier's real workflow (same
+    best-effort discipline every `_try_*` integration helper already
+    established for SET-12/13/15)."""
+
+    def test_toggle_button_opens_and_closes_the_window(self, app):
+        workspace = SalesPosWorkspace(_unwired_presenter())
+        assert workspace._customer_display_window is None
+
+        workspace.cashier_bar._btn_customer_display.setChecked(True)
+        assert workspace._customer_display_window is not None
+
+        workspace.cashier_bar._btn_customer_display.setChecked(False)
+        assert workspace._customer_display_window is None
+
+    def test_refresh_pushes_to_the_display_only_while_open(self, app):
+        calls = []
+        presenter = SalesPosPresenter(
+            session_context=_FakeSession({SalesPermissions.VIEW}),
+            command_handlers={"push_customer_display": lambda **kw: calls.append(kw)})
+        workspace = SalesPosWorkspace(presenter)
+
+        workspace._refresh()
+        assert calls == []
+
+        workspace.cashier_bar._btn_customer_display.setChecked(True)
+        assert len(calls) == 1  # opening the display pushes immediately
+
+        workspace._refresh()
+        assert len(calls) == 2
+
+        workspace.cashier_bar._btn_customer_display.setChecked(False)
+        workspace._refresh()
+        assert len(calls) == 2  # closed — no further pushes
+
+    def test_a_push_failure_never_blocks_refresh(self, app):
+        def _raise(**kwargs):
+            raise RuntimeError("pantalla desconectada")
+
+        presenter = SalesPosPresenter(
+            session_context=_FakeSession({SalesPermissions.VIEW}),
+            command_handlers={"push_customer_display": _raise})
+        workspace = SalesPosWorkspace(presenter)
+        workspace.cashier_bar._btn_customer_display.setChecked(True)
+
+        workspace._refresh()  # must not raise
+
+
+class _FakeAdvertisingQueryService:
+    def __init__(self, ads=()) -> None:
+        self._ads = list(ads)
+
+    def resolve_active_ads(self, mode):
+        return tuple(self._ads)
+
+
+def _ad(placement_id="placement-1", duration_seconds=2, title="Promo", body="2x1"):
+    from backend.application.customer_display.dto import ResolvedAdDTO
+
+    return ResolvedAdDTO(
+        placement_id=placement_id, campaign_id="campaign-1", content_id="content-1", title=title,
+        content_type="TEXT", body=body, duration_seconds=duration_seconds,
+    )
+
+
+class TestAdvertisingRotation:
+    """SET-18 cutover — `_on_ad_timer_tick()`. Ticks are invoked directly,
+    never via a real `QTimer` firing, same discipline as every other
+    workspace test in this file."""
+
+    def _presenter(self, *, ads=(), record_calls=None, push_calls=None):
+        record_calls = record_calls if record_calls is not None else []
+        push_calls = push_calls if push_calls is not None else []
+        return SalesPosPresenter(
+            session_context=_FakeSession({SalesPermissions.VIEW}),
+            query_services={"advertising": _FakeAdvertisingQueryService(ads)},
+            command_handlers={
+                "push_customer_display": lambda **kw: push_calls.append(kw),
+                "record_ad_impression": lambda **kw: record_calls.append(kw),
+            },
+        )
+
+    def test_first_tick_while_idle_shows_the_ad_immediately(self, app):
+        presenter = self._presenter(ads=[_ad()])
+        workspace = SalesPosWorkspace(presenter)
+        workspace.cashier_bar._btn_customer_display.setChecked(True)
+
+        workspace._on_ad_timer_tick()
+
+        assert workspace._customer_display_window._ad_label.text() == "2x1"
+        assert workspace._customer_display_window._ad_label.isVisible() is True
+
+    def test_never_shows_an_ad_while_the_cart_has_real_lines(self, app):
+        presenter = self._presenter(ads=[_ad()])
+        workspace = SalesPosWorkspace(presenter)
+        workspace._cart_is_idle = False
+        workspace.cashier_bar._btn_customer_display.setChecked(True)
+
+        workspace._on_ad_timer_tick()
+
+        assert workspace._ad_rotation == []
+        assert workspace._customer_display_window._ad_label.isVisible() is False
+
+    def test_records_a_real_impression_when_the_duration_elapses(self, app):
+        record_calls = []
+        presenter = self._presenter(ads=[_ad(duration_seconds=2)], record_calls=record_calls)
+        workspace = SalesPosWorkspace(presenter)
+        workspace.cashier_bar._btn_customer_display.setChecked(True)
+
+        workspace._on_ad_timer_tick()  # tick 0: resolves + shows, elapsed stays 0
+        assert record_calls == []
+        workspace._on_ad_timer_tick()  # tick 1: elapsed=1, not yet
+        assert record_calls == []
+        workspace._on_ad_timer_tick()  # tick 2: elapsed=2 >= duration -> records + rotates
+        assert record_calls == [{"placement_id": "placement-1", "duration_shown_seconds": 2}]
+
+    def test_rotates_to_the_next_ad_and_re_resolves_on_full_cycle(self, app):
+        first = _ad(placement_id="p1", duration_seconds=1, title="First", body="uno")
+        second = _ad(placement_id="p2", duration_seconds=1, title="Second", body="dos")
+        presenter = self._presenter(ads=[first, second])
+        workspace = SalesPosWorkspace(presenter)
+        workspace.cashier_bar._btn_customer_display.setChecked(True)
+
+        workspace._on_ad_timer_tick()  # shows "uno"
+        assert workspace._customer_display_window._ad_label.text() == "uno"
+        workspace._on_ad_timer_tick()  # elapsed=1 >= 1 -> rotates to "dos"
+        assert workspace._customer_display_window._ad_label.text() == "dos"
+        workspace._on_ad_timer_tick()  # elapsed=1 >= 1 -> wraps, re-resolves, back to "uno"
+        assert workspace._customer_display_window._ad_label.text() == "uno"
+
+    def test_a_resolve_failure_never_raises_out_of_the_tick(self, app):
+        class _RaisingQueryService:
+            def resolve_active_ads(self, mode):
+                raise RuntimeError("boom")
+
+        presenter = SalesPosPresenter(
+            session_context=_FakeSession({SalesPermissions.VIEW}),
+            query_services={"advertising": _RaisingQueryService()},
+            command_handlers={"push_customer_display": lambda **kw: None})
+        workspace = SalesPosWorkspace(presenter)
+        workspace.cashier_bar._btn_customer_display.setChecked(True)
+
+        workspace._on_ad_timer_tick()  # must not raise
+
+    def test_toggling_the_display_off_stops_the_timer(self, app):
+        presenter = self._presenter(ads=[_ad()])
+        workspace = SalesPosWorkspace(presenter)
+        workspace.cashier_bar._btn_customer_display.setChecked(True)
+        assert workspace._ad_timer.isActive() is True
+
+        workspace.cashier_bar._btn_customer_display.setChecked(False)
+        assert workspace._ad_timer.isActive() is False

@@ -54,6 +54,9 @@ ALLOWLIST = {
     "modulos/sistema/backup_engine.py",
     # Bootstrap de arranque: migraciones/integridad antes del AppContainer.
     "main.py",
+    # SHELL-3 DesktopApplicationBootstrapper: mismo caso que main.py — abre
+    # la conexión de arranque antes de que exista el pool/AppContainer.
+    "backend/bootstrap/steps/database_integrity_step.py",
     # Microservicio web independiente (proceso propio, puerto 8769).
     "webapp/api_pedidos.py",
     # Herramientas CLI (diagnóstico/reparación/refactor), fuera del runtime.

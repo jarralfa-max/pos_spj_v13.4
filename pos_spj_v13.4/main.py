@@ -45,33 +45,7 @@ sys.excepthook = _crash_handler
 
 # ── Imports principales ───────────────────────────────────────────────────────
 from core.app_container import AppContainer
-from migrations import engine as migrator
 from interfaz.main_window import MainWindow
-from scripts.bootstrap_db import bootstrap_database
-
-
-def _bootstrap_db(db_path: str) -> None:
-    """
-    Ejecuta bootstrap DB con fallback seguro para layouts donde /scripts no existe.
-    """
-    try:
-        from scripts.bootstrap_db import bootstrap_database
-        bootstrap_database(db_path)
-        return
-    except Exception as e:
-        logger.warning("bootstrap_db externo no disponible (%s). Usando fallback interno.", e)
-
-    # Fallback interno: migrar + validar sin depender del módulo scripts
-    import sqlite3
-    from core.db.connection import migrate_db, verificar_tablas
-
-    conn = sqlite3.connect(db_path)
-    try:
-        migrator.up(conn)
-        migrate_db(conn)
-        verificar_tablas(conn)
-    finally:
-        conn.close()
 
 _DATA_DIR = os.path.join(_BASE_DIR, "data")
 os.makedirs(_DATA_DIR, exist_ok=True)
@@ -96,28 +70,6 @@ def _instancia_unica(app) -> bool:
     except Exception as e:
         logger.warning("instancia_unica: %s", e)
     return True
-
-def _verificar_bd(path: str) -> bool:
-    import sqlite3
-    if not os.path.exists(path): return True
-    try:
-        conn = sqlite3.connect(path)
-        r = conn.execute("PRAGMA integrity_check").fetchone()
-        conn.close()
-        if r and r[0] == "ok":
-            logger.info("✅ Integridad BD OK"); return True
-        raise sqlite3.DatabaseError(r[0] if r else "unknown")
-    except Exception as e:
-        logger.critical("BD dañada: %s", e)
-        resp = QMessageBox.critical(None, "⚠️ Base de datos dañada",
-            f"La BD presenta problemas de integridad ({e}).\n\n"
-            "¿Restaurar el último backup?",
-            QMessageBox.Yes | QMessageBox.Ignore | QMessageBox.Cancel,
-            QMessageBox.Yes)
-        if resp == QMessageBox.Cancel: return False
-        if resp == QMessageBox.Yes:
-            return _restaurar_backup(path)
-        return True
 
 def _restaurar_backup(path: str) -> bool:
     import shutil
@@ -167,54 +119,48 @@ def inicializar_sistema():
             "SPJ POS ya está abierto en esta computadora.")
         sys.exit(0)
 
-    if not _verificar_bd(DB_PATH):
+    # ── Bootstrap de base de datos: secuencia única (SHELL-4) ────────────────
+    # Integridad → migraciones → validación de esquema/UUIDv7 → estado de
+    # instalación, en UNA sola pasada (backend.bootstrap.run_database_bootstrap).
+    # Reemplaza las tres rutas que existían antes (_bootstrap_db con su propio
+    # fallback interno, una llamada duplicada a bootstrap_database(), y un
+    # tercer bloque con su propia conexión y manejo de errores) — ninguna de
+    # ellas coincidía exactamente en qué migraba ni en qué consideraba fatal.
+    # Un fallo aquí SIEMPRE detiene el arranque: la ruta vieja tenía un
+    # `except Exception` que registraba el fallo como advertencia y dejaba
+    # continuar la app sobre un esquema posiblemente a medio migrar — eso ya
+    # no puede pasar (ver docs/refactor/application_bootstrap_audit.md).
+    from backend.bootstrap.run_database_bootstrap import run_database_bootstrap_sequence
+
+    result = run_database_bootstrap_sequence(DB_PATH)
+    if not result.success:
+        failed = result.failed_step()
+        if failed is not None and failed.step_name == "database_integrity":
+            logger.critical("BD dañada: %s", failed.message)
+            resp = QMessageBox.critical(
+                None, "Base de datos dañada",
+                f"La base de datos presenta problemas de integridad "
+                f"({failed.message}).\n\n¿Restaurar el último backup?",
+                QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Yes)
+            if resp == QMessageBox.Yes and _restaurar_backup(DB_PATH):
+                result = run_database_bootstrap_sequence(DB_PATH)
+
+    if not result.success:
+        failed = result.failed_step()
+        detail = failed.message if failed else "Fallo desconocido durante el arranque de la base de datos."
+        logger.critical("Bootstrap de base de datos falló (%s): %s",
+                         failed.step_name if failed else "?", detail)
+        if result.context.conn is not None:
+            try: result.context.conn.close()
+            except Exception: pass
+        QMessageBox.critical(None, "Error Fatal — Base de datos", detail)
         sys.exit(1)
 
-    try:
-        _bootstrap_db(DB_PATH)
-        bootstrap_database(DB_PATH)
-        logger.info("✅ Bootstrap DB OK")
-    except Exception as e:
-        logger.critical("Bootstrap DB falló: %s", e)
-        QMessageBox.critical(None, "Error Fatal — Bootstrap DB", str(e))
-        sys.exit(1)
-
-    _mig_conn = None
-    try:
-        import sqlite3
-        from core.db.connection import migrate_db, verificar_tablas
-        from backend.infrastructure.db.uuid_cutover import (
-            assert_uuid_identity, IntegerIdentityError,
-        )
-        _mig_conn = sqlite3.connect(DB_PATH)
-        migrator.up(_mig_conn)
-        migrate_db(_mig_conn)
-        verificar_tablas(_mig_conn)
-        # REGLA CERO paso 13: rechazar el arranque si la DB sigue sin cortar
-        # (PK enteras). El runtime asume identidad UUIDv7 post-corte.
-        assert_uuid_identity(_mig_conn)
-        _mig_conn.close()
-        _mig_conn = None
-        logger.info("✅ Migraciones OK")
-    except IntegerIdentityError as e:
-        if _mig_conn:
-            try: _mig_conn.close()
-            except Exception: pass
-        logger.critical("DB sin identidad UUIDv7 born-clean — en desarrollo resetea la BD (docs/runbooks/dev_db_reset.md); NO uses la migración 200 como solución normal: %s", e)
-        QMessageBox.critical(None, "Error Fatal — Identidad UUIDv7 requerida", str(e))
-        sys.exit(1)
-    except RuntimeError as e:
-        if _mig_conn:
-            try: _mig_conn.close()
-            except Exception: pass
-        logger.critical("DB incompleta post-migraciones: %s", e)
-        QMessageBox.critical(None, "Error Fatal — DB incompleta", str(e))
-        sys.exit(1)
-    except Exception as e:
-        if _mig_conn:
-            try: _mig_conn.close()
-            except Exception: pass
-        logger.error("Migraciones fallaron (continuando con repositorios como fallback): %s", e)
+    for warning_msg in result.warnings:
+        logger.warning(warning_msg)
+    if result.context.conn is not None:
+        result.context.conn.close()
+    logger.info("✅ Bootstrap de base de datos OK (%s)", result.final_state.value)
 
     try:
         container = AppContainer(db_path=DB_PATH)

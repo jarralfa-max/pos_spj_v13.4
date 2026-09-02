@@ -39,13 +39,20 @@ def test_no_sql_or_db_access_in_inventory_ui():
 def test_no_sql_or_db_access_in_inventory_shell_container():
     """El contenedor PyQt del shell (`modulos/inventario_enterprise.py`) es
     presentación pura: sin SQL, sin sqlite ni commit/rollback/cursor. Delega todo
-    en el InventoryPresenter (que a su vez llama a query services / use cases)."""
+    en el InventoryPresenter (que a su vez llama a query services / use cases).
+
+    SHELL-16: la composición del presenter (incluida la importación de
+    InventoryPresenter) se extrajo a
+    `frontend/desktop/modules/inventory/composition.py`; este archivo ahora
+    delega vía `build_inventory_presenter()` en lugar de importar la clase
+    directamente — el proxy de "delegación real" se actualiza para reflejar
+    eso en vez de exigir el nombre de la clase."""
     text = _SHELL_CONTAINER.read_text(encoding="utf-8")
     assert not _SQL_RE.search(text), "El contenedor del shell contiene SQL"
     assert not any(tok in text for tok in _FORBIDDEN), (
         "El contenedor del shell accede a datos (sqlite/commit/rollback/cursor)")
     # Debe cablear el presenter (delegación), no orquestar backend directamente.
-    assert "InventoryPresenter" in text
+    assert "build_inventory_presenter" in text
 
 
 def test_nav_permissions_are_granular_inventory_codes():

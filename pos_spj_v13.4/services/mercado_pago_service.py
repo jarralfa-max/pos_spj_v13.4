@@ -24,10 +24,25 @@ class MercadoPagoService:
         self.sales_service = None  # inyectado por AppContainer
 
     def _get_token(self) -> str:
+        # SET-1: mp_access_token is a secret — it lives in SecretStoreGateway,
+        # never in the plaintext `configuraciones` table (same migration
+        # already applied to smtp_password; see
+        # core/services/configuration_settings_service.py::PaymentProviderSettingsService).
+        # SET-19 cutover: the SECRET NAME itself is now resolved through the
+        # real Integrations catalog (IntegrationInstance.credential_references),
+        # not a hardcoded constant — falls back to that exact constant on any
+        # failure, so an unconfigured/broken catalog never blocks a real
+        # payment link (see mercadopago_credential_resolver.py's docstring).
         try:
-            row = self.conn.execute(
-                "SELECT valor FROM configuraciones WHERE clave='mp_access_token'").fetchone()
-            return row[0] if row else ""
+            from backend.security.secrets.default_secret_store import build_default_secret_store
+            from backend.infrastructure.integrations.mercadopago_credential_resolver import (
+                resolve_mercadopago_secret_name,
+            )
+            from core.services.configuration_settings_service import PaymentProviderSettingsService
+
+            secret_store = build_default_secret_store()
+            secret_name = resolve_mercadopago_secret_name(self.conn) or PaymentProviderSettingsService.SECRET_NAME
+            return secret_store.get_secret(secret_name) or ""
         except Exception as exc:
             logger.warning("MP: no se pudo leer access token: %s", exc)
             return ""
@@ -166,20 +181,36 @@ class MercadoPagoService:
         return False
 
     def _get_webhook_url(self) -> str:
+        # SET-25 repegado: routed through PaymentProviderSettingsService's
+        # own ROUTING_KEYS instead of raw SQL against `configuraciones` —
+        # that service already existed (SET-1) for exactly this table, this
+        # was the last direct-SQL reader of the 2 routing keys it owns.
         try:
-            row = self.conn.execute(
-                "SELECT valor FROM configuraciones WHERE clave='mp_webhook_url'").fetchone()
-            return row[0] if row else ""
+            from repositories.config_repository import ConfigRepository
+            from core.services.configuration_settings_service import (
+                PaymentProviderSettingsService, SystemSettingsService,
+            )
+
+            settings_service = SystemSettingsService(ConfigRepository(self.conn))
+            values = settings_service.get_many(PaymentProviderSettingsService.ROUTING_KEYS)
+            return values.get("mp_webhook_url", "")
         except Exception as exc:
             logger.warning("MP: no se pudo leer webhook URL: %s", exc)
             return ""
 
     def _get_return_url(self, status: str) -> str:
         try:
-            row = self.conn.execute(
-                "SELECT valor FROM configuraciones WHERE clave='mp_return_url'").fetchone()
-            base = row[0] if row else "http://localhost:8765"
-            return f"{base}/pago/{status}"
+            from repositories.config_repository import ConfigRepository
+            from core.services.configuration_settings_service import (
+                PaymentProviderSettingsService, SystemSettingsService,
+            )
+
+            settings_service = SystemSettingsService(ConfigRepository(self.conn))
+            values = settings_service.get_many(
+                PaymentProviderSettingsService.ROUTING_KEYS,
+                defaults={"mp_return_url": "http://localhost:8765"},
+            )
+            return f"{values['mp_return_url']}/pago/{status}"
         except Exception as exc:
             logger.warning("MP: no se pudo leer return URL status=%s: %s", status, exc)
             return f"http://localhost:8765/pago/{status}"

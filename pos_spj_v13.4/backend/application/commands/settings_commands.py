@@ -93,6 +93,18 @@ class SaveUserCommand(BaseCommand):
 
 
 @dataclass(frozen=True)
+class SaveRoleCommand(BaseCommand):
+    role_id: str = ""
+    name: str = ""
+    description: str = ""
+
+    def validate_context(self) -> None:
+        super().validate_context()
+        if not str(self.name or "").strip():
+            raise ValueError("name is required")
+
+
+@dataclass(frozen=True)
 class SetUserActiveCommand(BaseCommand):
     user_id: str = ""
     active: bool = True
@@ -101,6 +113,16 @@ class SetUserActiveCommand(BaseCommand):
         super().validate_context()
         if not str(self.user_id or "").strip():
             raise ValueError("user_id is required")
+
+
+@dataclass(frozen=True)
+class SetInstallationBranchCommand(BaseCommand):
+    branch_id: str = ""
+
+    def validate_context(self) -> None:
+        super().validate_context()
+        if not str(self.branch_id or "").strip():
+            raise ValueError("branch_id is required")
 
 
 @dataclass(frozen=True)

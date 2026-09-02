@@ -1,28 +1,23 @@
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from backend.api.schemas.mobile_common import (
+    DECIMAL,
+    UUID7,
+    DecimalText,
+    LoginRequest,
+    MobileCommand,
+    Uuid7,
+)
 
-UUID7 = r"^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-DECIMAL = r"^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$"
-Uuid7 = Annotated[str, Field(pattern=UUID7)]
-DecimalText = Annotated[str, Field(pattern=DECIMAL)]
-
-
-class LoginRequest(BaseModel):
-    username: str = Field(min_length=1, max_length=100)
-    password: str = Field(min_length=1, max_length=300)
-    deviceId: str = Field(min_length=1, max_length=200)
-
-
-class MobileCommand(BaseModel):
-    clientOperationId: Uuid7
-    deviceId: str = Field(min_length=1, max_length=200)
-    userId: Uuid7
-    createdAt: str
-    payloadVersion: Literal[1]
+__all__ = [
+    "DECIMAL", "UUID7", "DecimalText", "LoginRequest", "MobileCommand", "Uuid7",
+    "ShipmentCreateRequest", "NodeAttachRequest", "ContentAssignmentRequest",
+    "PhotoUploadRequest", "SealRequest", "DispatchRequest",
+]
 
 
 class ShipmentCreateRequest(MobileCommand):

@@ -13,6 +13,7 @@ inherit that gap.
 
 from __future__ import annotations
 
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel
 
 from frontend.desktop.components import StatusBadge, create_secondary_button
@@ -20,6 +21,8 @@ from frontend.desktop.themes.tokens import Spacing
 
 
 class CashierBar(QFrame):
+    customer_display_toggled = pyqtSignal(bool)
+
     def __init__(self, presenter, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("posCashierBar")
@@ -44,6 +47,11 @@ class CashierBar(QFrame):
         self._btn_diagnostics = create_secondary_button(self, "⚙ Diagnóstico")
         self._btn_diagnostics.clicked.connect(self.refresh_device_health)
         layout.addWidget(self._btn_diagnostics)
+
+        self._btn_customer_display = create_secondary_button(self, "🖥 Pantalla del cliente")
+        self._btn_customer_display.setCheckable(True)
+        self._btn_customer_display.toggled.connect(self.customer_display_toggled.emit)
+        layout.addWidget(self._btn_customer_display)
 
     def refresh_suspended_count(self) -> None:
         count = self._presenter.count_suspended()

@@ -5,6 +5,46 @@ from services.mercado_pago_service import MercadoPagoService
 from core.services.sales_service import SalesService
 
 
+def _db_with_configuraciones():
+    db = sqlite3.connect(":memory:")
+    db.row_factory = sqlite3.Row
+    db.execute("CREATE TABLE configuraciones (clave TEXT PRIMARY KEY, valor TEXT)")
+    db.commit()
+    return db
+
+
+def test_get_webhook_url_reads_through_payment_provider_settings_service():
+    db = _db_with_configuraciones()
+    db.execute("INSERT INTO configuraciones (clave, valor) VALUES ('mp_webhook_url', 'https://spj.example/mp/webhook')")
+    db.commit()
+
+    mp = MercadoPagoService(conn=db)
+    assert mp._get_webhook_url() == "https://spj.example/mp/webhook"
+
+
+def test_get_webhook_url_falls_back_to_blank_when_unset():
+    db = _db_with_configuraciones()
+
+    mp = MercadoPagoService(conn=db)
+    assert mp._get_webhook_url() == ""
+
+
+def test_get_return_url_reads_through_payment_provider_settings_service():
+    db = _db_with_configuraciones()
+    db.execute("INSERT INTO configuraciones (clave, valor) VALUES ('mp_return_url', 'https://spj.example')")
+    db.commit()
+
+    mp = MercadoPagoService(conn=db)
+    assert mp._get_return_url("approved") == "https://spj.example/pago/approved"
+
+
+def test_get_return_url_falls_back_to_default_base_when_unset():
+    db = _db_with_configuraciones()
+
+    mp = MercadoPagoService(conn=db)
+    assert mp._get_return_url("approved") == "http://localhost:8765/pago/approved"
+
+
 def test_webhook_approved_confirms_pending_sale():
     db = sqlite3.connect(":memory:")
     db.execute("CREATE TABLE links_pago (pedido_id TEXT PRIMARY KEY, monto REAL, preference_id TEXT, url_pago TEXT, estado TEXT, payment_id TEXT, fecha_pago TEXT)")

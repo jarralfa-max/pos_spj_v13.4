@@ -7,9 +7,15 @@ outbox payloads — callers mask them before recording.
 
 from __future__ import annotations
 
+import sqlite3
 from decimal import Decimal
 
+from backend.domain.document_output.entities.document_number_sequence import DocumentNumberSequence
+from backend.domain.document_output.enums import SequenceResetPolicy
 from backend.domain.procurement.value_objects import DocumentNumber
+from backend.infrastructure.db.repositories.document_output.document_number_sequence_repository import (
+    SqliteDocumentNumberSequenceRepository,
+)
 from backend.infrastructure.db.repositories.procurement.base import (
     ProcurementRepositoryBase,
     dec_str,
@@ -107,10 +113,30 @@ class ProcurementProcessedEventRepository(ProcurementRepositoryBase):
 
 
 class DocumentSequenceRepository(ProcurementRepositoryBase):
-    """Allocates the next per-type, per-year document sequence from existing rows.
+    """Allocates the next per-type, per-year document sequence.
 
-    The human code (PREFIX-YYYY-NNNNNN) never replaces the UUID; it is a readable
-    reference. UNIQUE(document_number) guarantees no collision even under races.
+    The human code (PREFIX-YYYY-NNNNNN) never replaces the UUID; it is a
+    readable reference. SET-16 cutover (2026-08-23): the counter now lives
+    in `document_number_sequences` (SET-16), advanced by a single atomic
+    `UPDATE ... RETURNING` (`SqliteDocumentNumberSequenceRepository.
+    reserve_and_get()`) — not the original `SELECT MAX(document_number)+1`
+    Python read-modify-write this method used to do, which relied entirely
+    on `UNIQUE(document_number)` catching a race after the fact (a raw
+    `sqlite3.IntegrityError` on whichever concurrent caller lost). On first
+    use of a prefix, the sequence is bootstrapped from that exact same
+    `MAX(document_number)` scan (still below, now only for bootstrapping)
+    so numbering continues seamlessly — never collides with numbers
+    already issued by the pre-cutover legacy path. Signature and return
+    type are unchanged: no caller of `next_number()` needed to change.
+
+    One behavioral difference from the old scan, accepted deliberately:
+    there is ONE persisted sequence row per prefix (not per prefix+year),
+    so `year` is expected to only advance forward across calls within a
+    row's lifetime — exactly what `_year()` (`date.today().year`) always
+    gives in real use. The old scan re-read the live table fresh every
+    call, so it happened to tolerate an out-of-order `year` argument; the
+    new counter does not, since that is not a real scenario any real
+    caller produces.
     """
 
     _TABLE_BY_PREFIX = {
@@ -124,12 +150,39 @@ class DocumentSequenceRepository(ProcurementRepositoryBase):
     }
 
     def next_number(self, prefix: str, year: int) -> DocumentNumber:
-        table = self._TABLE_BY_PREFIX.get(prefix)
-        if table is None:
+        if prefix not in self._TABLE_BY_PREFIX:
             return DocumentNumber(prefix, year, 1)
-        like = f"{prefix}-{year:04d}-%"
+
+        seq_repo = SqliteDocumentNumberSequenceRepository(self._conn)
+        period_key = f"{year:04d}"
+        sequence = seq_repo.get_by_prefix(prefix) or self._bootstrap_sequence(
+            seq_repo, prefix=prefix, period_key=period_key)
+        value = seq_repo.reserve_and_get(sequence.id, period_key=period_key)
+        return DocumentNumber(prefix, year, value)
+
+    def _bootstrap_sequence(
+        self, seq_repo: SqliteDocumentNumberSequenceRepository, *, prefix: str, period_key: str,
+    ) -> DocumentNumberSequence:
+        """First-ever use of `prefix` post-cutover: seed the new counter
+        from the legacy MAX(document_number) scan so it continues exactly
+        where the old path left off. A concurrent double-bootstrap is safe
+        — `document_number_sequences.prefix` is UNIQUE, so the losing
+        INSERT fails cleanly and that caller just re-fetches the winner's
+        row instead of raising."""
+        table = self._TABLE_BY_PREFIX[prefix]
+        like = f"{prefix}-{period_key}-%"
         highest = self._scalar(
-            f"SELECT MAX(document_number) FROM {table} WHERE document_number LIKE ?",
-            (like,))
-        sequence = 1 if not highest else int(str(highest).split("-")[-1]) + 1
-        return DocumentNumber(prefix, year, sequence)
+            f"SELECT MAX(document_number) FROM {table} WHERE document_number LIKE ?", (like,))
+        starting_value = 0 if not highest else int(str(highest).split("-")[-1])
+
+        sequence = DocumentNumberSequence.create(prefix=prefix, reset_policy=SequenceResetPolicy.YEARLY)
+        sequence.period_key = period_key
+        sequence.current_value = starting_value
+        try:
+            seq_repo.save(sequence)
+        except sqlite3.IntegrityError:
+            existing = seq_repo.get_by_prefix(prefix)
+            if existing is None:
+                raise
+            return existing
+        return sequence

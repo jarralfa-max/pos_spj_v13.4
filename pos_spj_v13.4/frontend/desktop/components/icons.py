@@ -30,6 +30,9 @@ class Icons:
     DELIVERY = "delivery"
     HR = "hr"
     SETTINGS = "settings"
+    TRANSFERS = "transfers"
+    LOYALTY = "loyalty"
+    LOYALTY_CARDS = "loyalty_cards"
     # actions
     ADD = "add"
     EDIT = "edit"
@@ -39,6 +42,7 @@ class Icons:
     EXPORT = "export"
     PRINT = "print"
     CLOSE = "close"
+    NOTIFICATIONS = "notifications"
     # status / feedback
     WARNING = "warning"
     SUCCESS = "success"
@@ -59,9 +63,12 @@ _ACCESSIBLE_NAMES = {
     Icons.PRODUCTION: "Producción", Icons.PURCHASES: "Compras",
     Icons.SALES: "Ventas", Icons.CUSTOMERS: "Clientes", Icons.CASH: "Caja",
     Icons.FINANCE: "Finanzas", Icons.DELIVERY: "Reparto", Icons.HR: "Recursos Humanos",
-    Icons.SETTINGS: "Configuración", Icons.ADD: "Agregar", Icons.EDIT: "Editar",
+    Icons.SETTINGS: "Configuración", Icons.TRANSFERS: "Transferencias",
+    Icons.LOYALTY: "Fidelización", Icons.LOYALTY_CARDS: "Tarjetas de fidelidad",
+    Icons.ADD: "Agregar", Icons.EDIT: "Editar",
     Icons.DELETE: "Eliminar", Icons.SEARCH: "Buscar", Icons.REFRESH: "Actualizar",
     Icons.EXPORT: "Exportar", Icons.PRINT: "Imprimir", Icons.CLOSE: "Cerrar",
+    Icons.NOTIFICATIONS: "Notificaciones",
     Icons.WARNING: "Advertencia", Icons.SUCCESS: "Éxito", Icons.ERROR: "Error",
     Icons.INFO: "Información", Icons.CALENDAR: "Calendario", Icons.CLOCK: "Hora",
     Icons.PHONE: "Teléfono", Icons.ADDRESS: "Dirección",

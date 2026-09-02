@@ -166,6 +166,33 @@ class TestSalesLoyaltyClient:
         preview = client.preview_redemption(customer_id=customer_id, subtotal=Decimal("100.00"))
         assert preview["puntos_disponibles"] == 0
 
+    def test_peek_loyalty_summary_reads_balance_and_tier_without_side_effects(self, conn):
+        from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
+            EnsureLegacyCustomerBridgeUseCase,
+        )
+
+        customer_id = _create_customer(conn)
+        legacy_id = EnsureLegacyCustomerBridgeUseCase().execute(conn, customer_id=customer_id)
+        conn.execute("INSERT OR IGNORE INTO clientes (id, nombre) VALUES (?, 'Bridge stub')", (legacy_id,))
+        conn.commit()
+        _award_points(conn, legacy_customer_id=legacy_id, points=250)
+
+        summary = SalesLoyaltyClient(conn).peek_loyalty_summary(customer_id=customer_id)
+
+        assert summary.points_balance == 250
+        assert summary.available is True
+        assert summary.points_earned is None  # sales_pos has no earning pipeline yet
+
+        # Never earns or redeems — the ledger must be untouched by a peek.
+        rows = conn.execute(
+            "SELECT COUNT(*) AS n FROM loyalty_ledger WHERE cliente_id=?", (legacy_id,)).fetchone()
+        assert rows["n"] == 1  # only the one _award_points insert above
+
+    def test_peek_loyalty_summary_customer_with_no_points(self, conn):
+        customer_id = _create_customer(conn)
+        summary = SalesLoyaltyClient(conn).peek_loyalty_summary(customer_id=customer_id)
+        assert summary.points_balance == 0
+
 
 # ── SaleBenefitEvaluationDTO composition ────────────────────────────────
 

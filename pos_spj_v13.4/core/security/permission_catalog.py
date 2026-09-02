@@ -221,7 +221,39 @@ CANONICAL_MODULE_PERMISSIONS: dict[str, list[str]] = {
         "sync_conflictos.ver", "sync_conflictos.resolver",
     ],
     "MERMA": ["ver", "crear", "autorizar"],
-    "DELIVERY": ["ver", "crear", "asignar", "entregar"],
+    # Bounded context de Pedidos y Delivery / Order Management + Last-Mile
+    # Fulfillment (granular; ver
+    # backend/application/orders_delivery/permissions.py). Los 4 códigos
+    # planos originales (ver/crear/asignar/entregar) se conservan por
+    # compatibilidad con el gateo del botón "🛵 Delivery" del menú lateral
+    # (interfaz/menu_lateral.py) — no autorizar código nuevo contra ellos,
+    # usar OrdersDeliveryPermissions. Pedidos y Delivery comparten esta única
+    # clave/entrada de navegación (master prompt §68: un solo sidebar
+    # "PEDIDOS Y DELIVERY").
+    "DELIVERY": [
+        "ver", "crear", "asignar", "entregar",
+        "acceso", "dashboard.ver",
+        "ver.sucursal_propia", "ver.sucursales_asignadas", "ver.todas_sucursales",
+        "exportar", "auditoria.ver", "alertas.ver", "analisis.ver",
+        "pedido.crear", "pedido.editar_borrador", "pedido.confirmar",
+        "pedido.programar", "pedido.reprogramar", "pedido.cancelar",
+        "pedido.reversar",
+        "preparacion.ver", "preparacion.asignar", "preparacion.iniciar",
+        "preparacion.completar", "peso.capturar", "peso.sobrescribir",
+        "sustitucion.proponer",
+        "aprobacion_cliente.ver", "aprobacion_cliente.reenviar",
+        "aprobacion_cliente.sobrescribir",
+        "entrega.ver", "entrega.crear", "entrega.confirmar", "entrega.reversar",
+        "repartidor.asignar", "ruta.planificar", "despacho.ejecutar",
+        "llegada.confirmar", "falla.registrar", "reentrega.solicitar",
+        "retorno_sucursal.registrar",
+        "repartidor.ver", "repartidor.estado_gestionar", "repartidor.efectivo_ver",
+        "cobro.registrar", "cobro.sobrescribir",
+        "liquidacion.ver", "liquidacion.crear", "liquidacion.revisar",
+        "liquidacion.aprobar", "liquidacion.cerrar",
+        "configuracion.ver", "configuracion.editar",
+        "notificacion.gestionar", "whatsapp.gestionar",
+    ],
     # Bounded context de Compras (granular; ver backend/application/procurement/permissions.py).
     "COMPRAS": [
         "ver", "ver.sucursal_propia", "ver.sucursales_asignadas", "ver.todas_sucursales",
@@ -328,8 +360,57 @@ CANONICAL_MODULE_PERMISSIONS: dict[str, list[str]] = {
     ],
     "ACTIVOS": ["ver", "crear", "mantenimiento"],
     "RRHH": ["ver", "crear", "editar"],
-    "GROWTH_ENGINE": ["ver"],
-    "TARJETAS_FIDELIDAD": ["ver"],
+    # Bounded context de Fidelidad/Loyalty (granular; ver
+    # backend/application/loyalty/permissions.py). El "ver" original se
+    # conserva por compatibilidad con el gateo del botón "⭐ Fidelización"
+    # del menú lateral — no autorizar código nuevo contra él, usar
+    # LoyaltyPermissions. Cubre programas, membresías, puntos, niveles,
+    # recompensas, retos, referidos, cumpleaños, retención, campañas,
+    # cupones, vales y sorteos (master prompt §4 — todos comparten esta
+    # entrada de navegación; Tarjetas de fidelidad tiene su propia clave
+    # abajo, TARJETAS_FIDELIDAD, por ser un subdominio especializado).
+    "GROWTH_ENGINE": [
+        "ver", "acceso", "dashboard.ver", "auditoria.ver",
+        "programa.ver", "programa.crear", "programa.editar",
+        "programa.aprobar", "programa.activar", "programa.suspender",
+        "membresia.ver", "membresia.inscribir", "membresia.suspender",
+        "membresia.cerrar",
+        "puntos.ver", "puntos.acreditar", "puntos.canjear", "puntos.ajustar",
+        "puntos.reversar", "puntos.auditar",
+        "nivel.ver", "nivel.gestionar",
+        "recompensa.ver", "recompensa.gestionar", "recompensa.canjear",
+        "reto.ver", "reto.gestionar",
+        "referido.ver", "referido.gestionar", "referido.aprobar",
+        "cumpleanos.ver", "cumpleanos.gestionar",
+        "retencion.ver", "retencion.gestionar",
+        "campana.ver", "campana.crear", "campana.aprobar", "campana.activar",
+        "cupon.ver", "cupon.emitir", "cupon.canjear", "cupon.cancelar",
+        "cupon.override",
+        "vale.ver", "vale.emitir", "vale.canjear", "vale.recargar",
+        "vale.cancelar", "vale.ajustar",
+        "sorteo.ver", "sorteo.gestionar", "sorteo.sortear",
+        "sorteo.boleto_imprimir", "sorteo.boleto_reimprimir",
+        "antifraude.ver", "antifraude.gestionar",
+        "configuracion.ver", "configuracion.editar",
+    ],
+    # Bounded context de Loyalty Cards (granular; ver
+    # backend/application/loyalty_cards/permissions.py). Subdominio
+    # especializado de Fidelidad (master prompt §30), con su propia entrada
+    # de navegación ("💳 Tarjetas Fidelidad") y su propia clave — no
+    # fusionar con GROWTH_ENGINE. El "ver" original se conserva por
+    # compatibilidad.
+    "TARJETAS_FIDELIDAD": [
+        "ver", "acceso",
+        "tarjeta.ver", "tarjeta.crear", "tarjeta.asignar", "tarjeta.activar",
+        "tarjeta.bloquear", "tarjeta.reponer", "tarjeta.cancelar",
+        "plantilla.ver", "plantilla.crear", "plantilla.editar",
+        "plantilla.importar", "plantilla.aprobar", "plantilla.activar",
+        "plantilla.archivar",
+        "disenador.acceso", "formato.gestionar", "pliego.gestionar",
+        "lote.crear", "lote.aprobar", "lote.imprimir",
+        "reimprimir", "qr.rotar",
+        "auditoria.ver", "configuracion.ver", "configuracion.editar",
+    ],
     "INTELIGENCIA_BI": [
         "ver", "ver_ventas", "ver_inventario", "ver_compras", "ver_caja",
         "ver_clientes", "ver_proveedores", "ver_finanzas", "ver_merma",
@@ -340,6 +421,75 @@ CANONICAL_MODULE_PERMISSIONS: dict[str, list[str]] = {
     "CONFIG_HARDWARE": ["ver"],
     "CONFIG_MODULOS": ["ver"],
     "CONFIG_SEGURIDAD": ["ver", "editar"],
+    # SET-1: bounded context de Configuración/Settings (governance, empresa,
+    # sucursales, estaciones, integraciones, feature flags, apariencia — ver
+    # docs/refactor/settings_refactor_execution_plan.md). Los 3 stubs
+    # CONFIG_HARDWARE/CONFIG_MODULOS/CONFIG_SEGURIDAD arriba se conservan
+    # sin cambios porque interfaz/menu_lateral.py sigue gateando sus 3
+    # botones actuales contra ellos; CONFIGURACION es la clave unificada
+    # para la navegación consolidada objetivo (aún no wireada en el menú).
+    "CONFIGURACION": [
+        "ver", "ver_global", "ver_empresa", "ver_sucursal",
+        "auditoria.ver", "exportar",
+        "valor.crear", "valor.editar", "valor.enviar", "valor.aprobar",
+        "valor.activar", "valor.rollback",
+        "sensible.ver", "sensible.gestionar",
+        "empresa.ver", "empresa.editar",
+        "sucursal.ver", "sucursal.crear", "sucursal.editar", "sucursal.activar",
+        "estacion.ver", "estacion.crear", "estacion.editar",
+        "estacion.bloquear", "estacion.retirar",
+        "integracion.ver", "integracion.crear", "integracion.editar",
+        "integracion.probar", "integracion.activar", "integracion.desactivar",
+        "integracion.secretos", "webhook.gestionar",
+        "flag.ver", "flag.crear", "flag.editar", "flag.aprobar",
+        "flag.activar", "flag.rollback",
+        "apariencia.ver", "apariencia.gestionar",
+        "tema.crear", "tema.aprobar", "tema.activar",
+        # SET-23: bounded context de Offline (cache/expiración) — sección de
+        # settings/, sin grupo de permisos propio, mismo criterio que
+        # integracion.*/flag.*/apariencia.* arriba.
+        "notificacion.ver", "notificacion.gestionar",
+        "offline.ver", "offline.gestionar",
+        # Usuarios/Roles/Auditoría — primera sección nueva más allá de los
+        # 9 bounded contexts SET-0..23 originales, sobre la capa canónica
+        # "FASE 6" (UserManagementService/RoleManagementService/
+        # PermissionQueryService) que ya existía pero nunca tenía un
+        # caller real. Desbloquear NO tiene código propio aquí — lo
+        # gatea `UserSecurityService.unlock_user()` internamente contra
+        # sus propios códigos ya existentes (CONFIG_SEGURIDAD.editar /
+        # USUARIOS.desbloquear), mismo mecanismo que ya usaba la UI legacy.
+        "usuario.ver", "usuario.crear", "usuario.editar", "usuario.activar",
+        "rol.ver", "rol.crear", "rol.editar",
+    ],
+    # SET-1: bounded context de Device Management (dispositivos, perfiles,
+    # asignación, diagnóstico — ver docs/refactor/settings_legacy_inventory.md §4).
+    "DISPOSITIVOS": [
+        "ver", "crear", "editar", "asignar", "probar", "deshabilitar",
+        "diagnostico.ver", "configuracion.gestionar",
+    ],
+    # SET-1: bounded context de Document Output (plantillas, trabajos de
+    # impresión, etiquetas, numeración — ver
+    # docs/refactor/settings_legacy_inventory.md §5).
+    "DOCUMENTOS": [
+        "plantilla.ver", "plantilla.crear", "plantilla.editar",
+        "plantilla.aprobar", "plantilla.activar",
+        "trabajo.ver", "trabajo.crear", "trabajo.reintentar", "trabajo.cancelar",
+        "reimprimir", "reimprimir_sensible",
+        "etiqueta.ver", "etiqueta.crear", "etiqueta.editar",
+        "etiqueta.aprobar", "etiqueta.activar", "etiqueta.imprimir",
+        "etiqueta.reimprimir",
+        "lote.imprimir", "precio.imprimir", "trazabilidad.imprimir",
+        # SET-13 cutover: campañas de marketing en tickets.
+        "campana.ver", "campana.crear", "campana.editar", "campana.activar",
+    ],
+    # SET-1: bounded context de Customer Display Management (pantalla del
+    # cliente, contenido, campañas publicitarias — ver
+    # docs/refactor/settings_legacy_inventory.md §6.4).
+    "PANTALLA_CLIENTE": [
+        "ver", "gestionar",
+        "contenido.ver", "contenido.crear", "contenido.aprobar",
+        "campana.programar", "publicidad.gestionar", "metricas.ver",
+    ],
 }
 
 

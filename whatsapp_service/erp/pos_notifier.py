@@ -160,21 +160,34 @@ class POSNotifier:
     # ── Inserción de eventos ─────────────────────────────────────────────────
 
     def _insert_wa_event(self, event_type: str, payload: Dict[str, Any], *, sucursal_id: int, prioridad: int) -> None:
+        """WA-1 / S6: mismo bug que `erp/events.py::WAEventEmitter.emit()` —
+        el `CREATE TABLE IF NOT EXISTS` de respaldo usaba
+        `id INTEGER PRIMARY KEY AUTOINCREMENT` / `sucursal_id INTEGER`
+        (viola REGLA CERO y desacuerda con el esquema real de la migración
+        050), y el INSERT nunca proveía `id` — fallaba sistemáticamente
+        contra el esquema real (`id TEXT NOT NULL PRIMARY KEY`, sin default
+        SQL) silenciado por un `except ... logger.debug(...)`, invisible con
+        el LOG_LEVEL=INFO por defecto. Corregido en ambos frentes; reusa
+        `_new_event_id()` de `erp.events` para no inventar una tercera fuente
+        de UUIDs.
+        """
         try:
             self.db.execute("""
                 CREATE TABLE IF NOT EXISTS wa_event_log (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    event_type TEXT NOT NULL,
-                    data_json TEXT,
-                    sucursal_id INTEGER DEFAULT 1,
-                    prioridad INTEGER DEFAULT 5,
-                    timestamp TEXT DEFAULT (datetime('now'))
+                    id          TEXT NOT NULL    PRIMARY KEY,
+                    event_type  TEXT    NOT NULL,
+                    data_json   TEXT,
+                    sucursal_id TEXT,
+                    prioridad   INTEGER DEFAULT 5,
+                    timestamp   TEXT    DEFAULT (datetime('now'))
                 )
             """)
+            from erp.events import _new_event_id
             self.db.execute("""
-                INSERT INTO wa_event_log (event_type, data_json, sucursal_id, prioridad, timestamp)
-                VALUES (?, ?, ?, ?, datetime('now'))
+                INSERT INTO wa_event_log (id, event_type, data_json, sucursal_id, prioridad, timestamp)
+                VALUES (?, ?, ?, ?, ?, datetime('now'))
             """, (
+                _new_event_id(),
                 event_type,
                 json.dumps(payload, ensure_ascii=False, default=str),
                 sucursal_id,
@@ -182,7 +195,7 @@ class POSNotifier:
             ))
             self.db.commit()
         except Exception as exc:
-            logger.debug("No se pudo insertar wa_event_log %s: %s", event_type, exc)
+            logger.warning("No se pudo insertar wa_event_log %s: %s", event_type, exc)
 
     # ── Inserción en notification_inbox ───────────────────────────────────────
 

@@ -39,6 +39,36 @@ from models.message import OutgoingMessage
 
 logger = logging.getLogger("wa.sender")
 
+
+def _load_redact_phone():
+    """Carga `infrastructure.security.redaction.redact_phone` por ruta de
+    archivo explícita, no por nombre de paquete.
+
+    Mismo motivo que en `config/settings.py::_load_secret_store_class()`:
+    `infrastructure` también existe como paquete top-level en
+    `pos_spj_v13.4/infrastructure/`, y si ese otro paquete ya quedó cacheado
+    en `sys.modules['infrastructure']` en este proceso, un import normal
+    resolvería contra el paquete equivocado.
+    """
+    import importlib.util
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    cache_key = "_wa_infra_redaction"
+    cached = _sys.modules.get(cache_key)
+    if cached is not None:
+        return cached.redact_phone
+
+    module_path = _Path(__file__).resolve().parent.parent / "infrastructure" / "security" / "redaction.py"
+    spec = importlib.util.spec_from_file_location(cache_key, str(module_path))
+    module = importlib.util.module_from_spec(spec)
+    _sys.modules[cache_key] = module
+    spec.loader.exec_module(module)
+    return module.redact_phone
+
+
+redact_phone = _load_redact_phone()
+
 # -----------------------------------------------------------------------------
 #  Utilidades
 # -----------------------------------------------------------------------------
@@ -115,6 +145,53 @@ def _build_headers(token: str) -> dict:
     return {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {token}",
+    }
+
+
+async def _post_message(url: str, payload: dict, headers: dict, *, timeout: float = 10.0) -> dict:
+    """POST de bajo nivel a la Graph API — retorna un dict normalizado
+    `{"ok", "status_code", "provider_message_id", "error", "raw"}`.
+
+    Único punto que realmente llama a `httpx` contra la Graph API para
+    ENVIAR un mensaje (§2/§81 del prompt maestro: "un solo sender"). Tanto
+    las funciones públicas de este módulo (`send_message`/`send_template`,
+    en uso real por flows/) como `MetaCloudApiWhatsAppGateway` (WA-5) pasan
+    por aquí — ninguna de las dos reimplementa la llamada HTTP por su
+    cuenta. Extraído en WA-5 de lo que antes era código duplicado inline en
+    `send_message` y `send_template`.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.post(url, json=payload, headers=headers)
+    except httpx.TimeoutException:
+        return {
+            "ok": False, "status_code": None, "provider_message_id": None,
+            "error": "timeout", "raw": None,
+        }
+    except Exception as exc:
+        return {
+            "ok": False, "status_code": None, "provider_message_id": None,
+            "error": str(exc), "raw": None,
+        }
+
+    if resp.status_code == 200:
+        try:
+            data = resp.json()
+        except Exception:
+            data = None
+        provider_message_id = None
+        if data:
+            messages = data.get("messages") or []
+            if messages:
+                provider_message_id = messages[0].get("id")
+        return {
+            "ok": True, "status_code": 200, "provider_message_id": provider_message_id,
+            "error": None, "raw": data,
+        }
+
+    return {
+        "ok": False, "status_code": resp.status_code, "provider_message_id": None,
+        "error": resp.text[:500], "raw": None,
     }
 
 
@@ -200,18 +277,18 @@ async def send_message(msg: OutgoingMessage, sucursal_id: Optional[int] = None) 
             resp = await client.post(url, json=payload, headers=headers)
 
         if resp.status_code == 200:
-            logger.info("Mensaje enviado a %s (sucursal=%s)", _normalize_phone(msg.to), sucursal_id)
+            logger.info("Mensaje enviado a %s (sucursal=%s)", redact_phone(_normalize_phone(msg.to)), sucursal_id)
             return True
         else:
             logger.error("Error enviando a %s: %s %s",
-                         _normalize_phone(msg.to), resp.status_code, resp.text[:500])
+                         redact_phone(_normalize_phone(msg.to)), resp.status_code, resp.text[:500])
             return False
 
     except ValueError as ve:
         logger.error("Error de configuración o formato: %s", ve)
         return False
     except httpx.TimeoutException:
-        logger.error("Timeout al enviar mensaje a %s", _normalize_phone(msg.to))
+        logger.error("Timeout al enviar mensaje a %s", redact_phone(_normalize_phone(msg.to)))
         return False
     except Exception as e:
         logger.error("send_message exception: %s", e, exc_info=True)

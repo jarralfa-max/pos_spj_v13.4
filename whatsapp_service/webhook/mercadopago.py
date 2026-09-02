@@ -3,8 +3,10 @@
 Recibe notificaciones de pago y actualiza el estado del pedido.
 """
 from __future__ import annotations
+import json
 import logging
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request, Response
+from middleware.hmac_validator import verify_mp_signature
 from state.business_idempotency import BusinessIdempotencyService
 
 logger = logging.getLogger("wa.webhook.mp")
@@ -21,10 +23,39 @@ def init_mp_webhook(erp_bridge, events):
 
 
 @router.post("/webhook/mercadopago")
-async def mp_notification(request: Request):
+async def mp_notification(
+    request: Request,
+    data_id: str = Query(None, alias="data.id"),
+):
     """Recibe notificación de pago de MercadoPago."""
+    from config.settings import get_mp_webhook_secret, is_production
+
+    body = await request.body()
+    secret = get_mp_webhook_secret()
+    if secret:
+        x_signature = request.headers.get("x-signature", "")
+        x_request_id = request.headers.get("x-request-id", "")
+        if not verify_mp_signature(x_signature, x_request_id, data_id, secret):
+            client_host = request.client.host if request.client else "?"
+            logger.warning("Firma MercadoPago inválida desde %s", client_host)
+            return Response(status_code=403)
+    elif is_production():
+        # WA-1 / S4: en producción, sin MP_WEBHOOK_SECRET no hay forma de
+        # verificar la notificación de pago — fail-closed en vez de aceptar
+        # sin firma (comportamiento anterior).
+        logger.error(
+            "MP_WEBHOOK_SECRET no configurado en producción; rechazando "
+            "notificación de MercadoPago (whatsapp_security_audit.md S4/S8)."
+        )
+        return Response(status_code=503)
+    else:
+        logger.warning(
+            "MP_WEBHOOK_SECRET no configurado; notificación de MercadoPago "
+            "aceptada sin validar firma (permitido solo fuera de producción)."
+        )
+
     try:
-        data = await request.json()
+        data = json.loads(body) if body else {}
     except Exception:
         return {"status": "error"}
 

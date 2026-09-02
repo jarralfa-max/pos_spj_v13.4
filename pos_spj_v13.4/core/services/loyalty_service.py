@@ -1100,6 +1100,25 @@ class LoyaltyService:
                 logger.warning("Emisión de boletos rifa=%s venta=%s falló: %s", rid, venta_id, exc)
         return printable
 
+    def get_printable_tickets_for_sale(self, venta_id) -> list[dict]:
+        """SET-15 cutover: every real, previously-issued raffle ticket for
+        this sale, ready for `PrinterService.print_raffle_ticket()`. Used
+        by reprint — `issue_raffle_tickets_for_sale()` builds print
+        payloads only for tickets it just generated; this looks up
+        whatever already exists instead of generating anything."""
+        tickets = self._app.repo.get_tickets_for_venta(str(venta_id))
+        raffle_cache: dict[str, dict] = {}
+        payloads = []
+        for ticket in tickets:
+            rid = ticket.get("raffle_id")
+            if rid not in raffle_cache:
+                raffle_cache[rid] = self._app.repo.get_raffle_by_id(rid)
+            raffle = raffle_cache[rid]
+            if not raffle:
+                continue
+            payloads.append(self._raffle_print_payload(raffle, ticket, venta_id=str(venta_id)))
+        return payloads
+
     def cancel_tickets_for_sale(self, venta_id: int, reason: str) -> int:
         n_cancelled = self._app.repo.cancel_tickets_for_sale(venta_id, reason)
         cancelled = int(n_cancelled or 0)  # conteo de boletos, no identidad

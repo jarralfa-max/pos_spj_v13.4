@@ -133,12 +133,14 @@ def test_payable_created_reaches_finance_and_creates_real_payable():
     from backend.infrastructure.db.repositories.finance.unit_of_work import (
         FinanceUnitOfWork,
     )
+    from backend.infrastructure.db.schema.document_output_schema import create_document_numbering_schema
     from backend.infrastructure.db.schema.finance_schema import create_finance_schema
     from backend.infrastructure.db.schema.procurement_schema import create_procurement_schema
 
     conn = sqlite3.connect(":memory:")
     conn.execute("PRAGMA foreign_keys = ON")
     create_procurement_schema(conn)
+    create_document_numbering_schema(conn)
     create_finance_schema(conn)
     bootstrap_finance(conn)
     conn.execute("CREATE TABLE proveedores(id TEXT PRIMARY KEY, nombre TEXT, activo INTEGER,"

@@ -23,17 +23,25 @@ previously-unwired consumer of that use case.
 
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 
+from PyQt5.QtCore import QTimer
 from PyQt5.QtGui import QKeySequence
 from PyQt5.QtWidgets import QMessageBox, QShortcut, QSplitter, QVBoxLayout, QWidget
 
 from frontend.desktop.modules.sales_pos.components.cashier_bar import CashierBar
 from frontend.desktop.modules.sales_pos.components.catalog_panel import CatalogPanel
 from frontend.desktop.modules.sales_pos.components.checkout_panel import CheckoutPanel
+from frontend.desktop.modules.sales_pos.customer_display_window import (
+    CustomerDisplayWindow,
+    QtCustomerDisplayGateway,
+)
 from frontend.desktop.modules.sales_pos.dialogs.discount_dialog import DiscountDialog
 from frontend.desktop.modules.sales_pos.dialogs.payment_dialog import PaymentDialog
 from frontend.desktop.modules.sales_pos.dialogs.quick_customer_dialog import QuickCustomerDialog
+
+logger = logging.getLogger(__name__)
 
 
 class SalesPosWorkspace(QWidget):
@@ -43,12 +51,22 @@ class SalesPosWorkspace(QWidget):
         self._presenter = presenter
         self._sale_id: str | None = None
         self._sale_started = False
+        self._customer_display_window: CustomerDisplayWindow | None = None
+        self._customer_display_gateway: QtCustomerDisplayGateway | None = None
+        self._cart_is_idle = True
+        self._ad_rotation: list = []
+        self._ad_index = 0
+        self._ad_elapsed = 0
+        self._ad_timer = QTimer(self)
+        self._ad_timer.setInterval(1000)
+        self._ad_timer.timeout.connect(self._on_ad_timer_tick)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
         self.cashier_bar = CashierBar(presenter, self)
+        self.cashier_bar.customer_display_toggled.connect(self._on_customer_display_toggled)
         root.addWidget(self.cashier_bar)
 
         self._splitter = QSplitter(self)
@@ -128,10 +146,79 @@ class SalesPosWorkspace(QWidget):
 
     def _refresh(self) -> None:
         sale = self._presenter.get_sale(self._sale_id) if self._sale_id else None
+        self._cart_is_idle = sale is None or not sale.lines
         self.checkout.render_sale(sale)
         self.checkout.refresh_suspended_count()
         self.cashier_bar.refresh_suspended_count()
         self.catalog.refresh()
+        if self._customer_display_gateway is not None:
+            self._push_customer_display()
+
+    # ── customer display (SET-17) ────────────────────────────────────────
+
+    def _on_customer_display_toggled(self, checked: bool) -> None:
+        if checked:
+            self._customer_display_window = CustomerDisplayWindow(self)
+            self._customer_display_gateway = QtCustomerDisplayGateway(self._customer_display_window)
+            self._push_customer_display()
+            self._ad_rotation = []
+            self._ad_index = 0
+            self._ad_elapsed = 0
+            self._ad_timer.start()
+        else:
+            self._ad_timer.stop()
+            if self._customer_display_window is not None:
+                self._customer_display_window.close()
+            self._customer_display_window = None
+            self._customer_display_gateway = None
+
+    def _push_customer_display(self) -> None:
+        """Best-effort, same discipline every `_try_*` integration helper in
+        `receipt_use_cases.py` established (SET-12/13/15): a customer-display
+        failure must never interrupt the cashier's real workflow."""
+        try:
+            self._presenter.push_customer_display(
+                gateway=self._customer_display_gateway, sale_id=self._sale_id)
+        except Exception:
+            logger.exception("No se pudo actualizar la pantalla del cliente")
+
+    # ── advertising rotation (SET-18) ────────────────────────────────────
+
+    def _on_ad_timer_tick(self) -> None:
+        """Advances the idle-screen ad rotation one second at a time.
+        Never runs while the cart has real content — sale-state rendering
+        (`_push_customer_display`) owns the screen then. Best-effort, same
+        discipline as `_push_customer_display`: a failure here must never
+        interrupt the cashier's real workflow."""
+        if not self._cart_is_idle or self._customer_display_window is None:
+            return
+        try:
+            if not self._ad_rotation:
+                self._ad_rotation = list(self._presenter.resolve_idle_ads())
+                self._ad_index = 0
+                self._ad_elapsed = 0
+                if self._ad_rotation:
+                    self._show_current_ad()
+                return
+
+            self._ad_elapsed += 1
+            current = self._ad_rotation[self._ad_index]
+            if self._ad_elapsed >= current.duration_seconds:
+                self._presenter.record_ad_impression(
+                    placement_id=current.placement_id, duration_shown_seconds=current.duration_seconds)
+                self._ad_index += 1
+                self._ad_elapsed = 0
+                if self._ad_index >= len(self._ad_rotation):
+                    self._ad_rotation = list(self._presenter.resolve_idle_ads())
+                    self._ad_index = 0
+                if self._ad_rotation:
+                    self._show_current_ad()
+        except Exception:
+            logger.exception("No se pudo actualizar la rotación de publicidad")
+
+    def _show_current_ad(self) -> None:
+        ad = self._ad_rotation[self._ad_index]
+        self._customer_display_window.render_idle_ad(ad.content_type, ad.title, ad.body)
 
     # ── event handlers (each delegates to the presenter, never touches
     #    the backend directly) ───────────────────────────────────────────

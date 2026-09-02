@@ -26,6 +26,43 @@ global usa únicamente `MERMAS` y el sidebar interno es canónico. Estado `IN_PR
 Desde LOSS-5, Registro usa `LossRegistrationPage`; el bridge temporal hacia
 `modulos/merma.py` fue eliminado.
 
+Estado SHELL-18 (2026-08-20): infraestructura del shell nuevo (bootstrap,
+seguridad, provisioning, autenticación, sesiones, Composition Root, módulos,
+rutas, navegación, shell, lifecycle, shutdown) queda `MIGRATED` — validada
+end-to-end, sin mocks: un login real (`AuthenticationCoordinator`, vía
+`build_authentication_coordinator()` en
+`frontend/desktop/shell/desktop_shell_authentication_composition.py`)
+produce un `ApplicationContext` real que, envuelto en `LegacySessionAdapter`
+(`backend/bootstrap/legacy_session_adapter.py`), construye un
+`ApplicationWindow` real y navegable (`build_application_window()` en
+`frontend/desktop/shell/desktop_shell_window_composition.py`) con los 9
+módulos ya migrados (sales_pos, cash_register, inventario, transferencias,
+productos, clientes/CRM, compras, finanzas, rrhh) registrados, enrutables y
+visibles en el sidebar — primera vez que esta cadena completa corre en este
+repositorio.
+
+Suite de validación SHELL-18: 1454 passed, cero regresiones en bootstrap,
+seguridad, provisioning, autenticación, sesiones, Composition Root, módulos,
+rutas, navegación, shell, lifecycle y shutdown. Las 75 fallas de
+`tests/architecture/` son la línea base preexistente (confirmada
+byte-a-byte idéntica contra ejecuciones aisladas previas de este mismo
+trabajo), ninguna introducida aquí. Bootstrap limpio contra una BD nueva en
+disco: 6/6 pasos y 6/6 checks de salud en `HEALTHY`. Secret scanning
+(patrones AWS/GitHub/Slack/OpenAI/clave privada) sobre el árbol completo:
+sin hallazgos.
+
+Pendiente explícito, NO cubierto por este `MIGRATED`: `main.py` sigue
+arrancando por la ruta legacy (`AppContainer`/`MainWindow`/`MenuLateral`/
+`DialogoLogin`) — el shell nuevo existe, está probado end-to-end y es
+sustituible, pero el corte real (cutover) de `main.py` es una decisión
+separada, de mayor alcance, aún no tomada. Quedan ~15 módulos del menú
+legacy (dashboard, merma, delivery, cotizaciones, producción, etiquetas,
+planeación de compras, activos, growth engine, fidelidad, BI, WhatsApp,
+diseñador de tickets, 3 pantallas de configuración) sin
+`shell_registration.py` propio — SHELL-17 (eliminación de legacy) permanece
+bloqueada hasta que `main.py` apunte al shell nuevo y todos los módulos
+estén migrados.
+
 | Módulo | Legacy actual | Frontend nuevo | Backend nuevo | Estado | Wrapper legacy | Pendiente |
 | ------ | ------------- | -------------- | ------------- | ------ | -------------- | --------- |
 | finanzas | `modulos/finanzas_unificadas.py`, `modulos/finanzas.py`, `modulos/tesoreria.py`, `core/services/finance/*`, `core/services/enterprise/finance_service.py`, `application/services/accounts_receivable_service.py`, `backend/infrastructure/db/repositories/finance_read_repository.py` | `frontend/desktop/modules/finance/` | `backend/domain/finance/`, `backend/application/{commands,dto,queries,use_cases/finance,event_handlers/finance}`, `backend/infrastructure/db/{schema/finance_schema.py,repositories/finance/}` | MIGRATED | Sí (wrappers delgados: finanzas.py, tesoreria.py, proveedores.py) | Plomería operativa remanente documentada en §6 del plan (migra con Caja/Compras/Producción/Clientes) |
@@ -34,3 +71,4 @@ Desde LOSS-5, Registro usa `LossRegistrationPage`; el bridge temporal hacia
 | transferencias | eliminado | `frontend/desktop/modules/transfers/` (view, presenter, sidebar, 15 páginas, diálogos y view models) | `backend/domain/transfers/`, `backend/application/transfers/`, `backend/infrastructure/db/{schema/transfers_schema.py,repositories/transfers/}` | MIGRATED | No | Ninguno; validación final TRF-23 y guardrails TRF-22 activos. |
 | compras | Eliminados monolito, servicios `application/purchases`, repositorios `purchase_*`/`compras_*` y entrada separada de compra directa | `frontend/desktop/modules/purchasing/` | `backend/domain/procurement/`, `backend/application/procurement/`, `backend/infrastructure/db/repositories/procurement/` | LEGACY_REMOVED | Sí (`modulos/compras_enterprise.py`, wrapper mínimo) | Planeación de compras permanece como bounded context/fase separada; no es una ruta de ejecución de Procurement. |
 | logística | Eliminados `recepcion_qr_widget.py`, `recepcion_qr_service.py` y QR/recepción duplicados dentro de Procurement | `frontend/web/logistics/` y referencias read-only desde `PurchasingModuleShell` | `backend/domain/logistics/`, `backend/application/logistics/`, `backend/api/routers/mobile_logistics.py`, `backend/infrastructure/db/repositories/logistics_repository.py`, migración `171_logistics_bounded_context_schema.py` | LEGACY_REMOVED | No | Recepción física continúa siendo propiedad de Inventario/Almacén; Procurement solo consulta referencias. |
+| configuración | `ui/themes/theme_engine.py`, `core/services/theme_service.py`, `modulos/config_modules.py`, `modulos/config_hardware.py`, `modulos/configuracion.py` | `frontend/desktop/modules/configuracion/` (view, presenter, routes, navigation, 9 páginas — General/Dispositivos/Documentos/Pantalla del cliente/Integraciones/Feature Flags/Apariencia/Notificaciones/Offline —, dialogs) | `backend/domain/{settings,device_management,document_output,customer_display,integrations,feature_flags,appearance,notifications,offline}/` (SET-0..23), `backend/application/{configuracion,queries/configuracion,use_cases/configuracion}/` | IN_PROGRESS | No | Registrado en `main_window.py`/`menu_lateral.py` como entrada adicional "Configuración (Nuevo)" (SET-25), junto a — no en reemplazo de — los 3 legacy. 4 de 9 secciones con escritura real: Feature Flags, Apariencia, **Dispositivos** (registrar/editar/activar/desactivar/bloquear/retirar dispositivos+perfiles), **Documentos** (crear plantilla+v1, nuevas versiones, ciclo de aprobación de 7 estados); las 5 restantes son de solo lectura por ahora (alcance documentado, no un descuido). `modulos/config_interfaz.py` (la pantalla "Apariencia" legacy, ya rota) fue eliminada — confirmado 100% muerta, nunca alcanzable. Las 3 pantallas de configuración legacy restantes (`config_modules.py`/`config_hardware.py`/`configuracion.py`) permanecen intactas y en uso — cubren funcionalidad real (cierre mensual, SMTP, hardware, alternado de módulos) que el módulo nuevo aún no iguala. |

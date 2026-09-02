@@ -4,8 +4,11 @@ WhatsApp solo permite templates aprobados fuera de la ventana de 24h.
 Este módulo mapea eventos del ERP a templates.
 """
 from __future__ import annotations
+import logging
 from typing import Dict, List, Optional
 from messaging.sender import send_template
+
+logger = logging.getLogger("wa.templates")
 
 # ── Registro de templates ─────────────────────────────────────────────────────
 # Nombre del template tal como está registrado en Meta Business
@@ -60,9 +63,27 @@ TEMPLATES: Dict[str, dict] = {
 
 async def send_event_template(to: str, event_name: str,
                                params: Dict[str, str]) -> bool:
-    """Envía un template basado en un evento del ERP."""
+    """Envía un template basado en un evento del ERP.
+
+    Rechaza el envío si falta algún parámetro que el template declara en
+    `params` — antes, un parámetro faltante se sustituía en silencio por
+    una cadena vacía (`params.get(param_name, "")`), enviando al cliente
+    real un mensaje con un espacio en blanco en vez de negarse a enviarlo.
+    Mismo criterio que
+    `backend/domain/notifications/policies/template_parameter_policy.py::
+    assert_params_satisfied()` ya documenta para este caso — reimplementado
+    aquí en vez de importado, este microservicio es independiente
+    (CLAUDE.md §14)."""
     tmpl = TEMPLATES.get(event_name)
     if not tmpl:
+        return False
+
+    missing = [name for name in tmpl["params"] if not params.get(name)]
+    if missing:
+        logger.error(
+            "No se envió el template %r a %s: faltan parámetros %s (recibidos: %s)",
+            event_name, to, missing, sorted(params.keys()),
+        )
         return False
 
     components = []

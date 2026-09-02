@@ -14,6 +14,7 @@ from backend.application.procurement.use_cases.purchase_return_use_cases import 
     CreatePurchaseReturnUseCase,
 )
 from backend.domain.procurement.enums import PurchaseReturnStatus
+from backend.infrastructure.db.schema.document_output_schema import create_document_numbering_schema
 from backend.infrastructure.db.schema.procurement_schema import (
     create_procurement_schema,
     create_purchase_returns_schema,
@@ -42,6 +43,7 @@ def return_conn():
     conn.execute("PRAGMA foreign_keys = ON")
     create_procurement_schema(conn)
     create_purchase_returns_schema(conn)
+    create_document_numbering_schema(conn)
     yield conn
     conn.close()
 

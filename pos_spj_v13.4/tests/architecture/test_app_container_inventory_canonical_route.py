@@ -25,11 +25,16 @@ def test_inventory_ui_is_read_only_over_canonical_presenter():
     # INV-27 corte: la UI legacy (inventario_local) fue eliminada. La UI enterprise
     # (inventario_enterprise) es solo lectura vía InventoryPresenter: sin motor
     # legacy, sin SQL directo, sin productos.existencia.
+    # SHELL-16: la composición del presenter se extrajo a
+    # frontend/desktop/modules/inventory/composition.py — este archivo ahora
+    # delega vía build_inventory_presenter() en lugar de importar
+    # InventoryPresenter directamente, así que el proxy de "delega en el
+    # presenter" se actualiza para seguir esa misma delegación real.
     source = INVENTORY_UI.read_text(encoding="utf-8")
 
     assert "from repositories.inventory_repository import InventoryRepository" not in source
     assert "UnifiedInventoryService" not in source
     assert "GestionarInventarioUC" not in source
-    assert "InventoryPresenter" in source
+    assert "build_inventory_presenter" in source
     assert "SELECT " not in source
     assert "productos.existencia" not in source

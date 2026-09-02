@@ -4,47 +4,26 @@ Endpoints que el POS core llama para enviar mensajes proactivos al cliente.
 Rutas: /api/notify/pedido-listo, /api/notify/anticipo,
        /api/notify/cotizacion, /api/notify/send
 
-Autenticación interna: header X-Internal-Key debe coincidir con la clave interna
-configurada desde el módulo WhatsApp (`configuraciones.wa_internal_api_key`).
-El .env queda como respaldo técnico.
+Autenticación interna (WA-1): HMAC + identidad de servicio vía
+`middleware.service_auth.require_service_auth` (headers X-Service-Id,
+X-Timestamp, X-Nonce, X-Signature, X-Correlation-Id). Reemplaza la
+comparación de string plano `X-Internal-Key` que este router reimplementaba
+antes (ver whatsapp_security_audit.md S1/S2/S3). El secreto compartido sigue
+siendo el mismo (`configuraciones.wa_internal_api_key`, .env como respaldo).
 """
 from __future__ import annotations
 import logging
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+
+from middleware.service_auth import require_service_auth
 
 logger = logging.getLogger("wa.notify")
-router = APIRouter(prefix="/api/notify", tags=["notify"])
-
-
-# ── Auth guard ────────────────────────────────────────────────────────────────
-
-def _resolve_internal_key() -> str:
-    """Resuelve la clave interna preferentemente desde la configuración ERP."""
-    try:
-        from config.settings import get_internal_api_key
-        return get_internal_api_key() or ""
-    except Exception:
-        try:
-            from config.settings import WA_INTERNAL_API_KEY, INTERNAL_API_KEY
-            return WA_INTERNAL_API_KEY or INTERNAL_API_KEY or ""
-        except Exception:
-            return ""
-
-
-def _check_internal_key(x_internal_key: Optional[str]) -> None:
-    """Valida la API key interna. Lanza 403 si es inválida."""
-    internal_key = _resolve_internal_key()
-    if not internal_key:
-        logger.warning(
-            "Internal API key not configured — notify endpoints are unprotected. "
-            "Configure it from the WhatsApp module for production."
-        )
-        return  # Dev mode: allow through with warning
-    if not x_internal_key or x_internal_key != internal_key:
-        logger.warning("notify_router: unauthorized request — bad X-Internal-Key")
-        raise HTTPException(status_code=403, detail="Unauthorized")
+router = APIRouter(
+    prefix="/api/notify",
+    tags=["notify"],
+    dependencies=[Depends(require_service_auth)],
+)
 
 
 # ── Request models ────────────────────────────────────────────────────────────
@@ -86,9 +65,7 @@ async def _send(phone: str, text: str) -> bool:
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.post("/pedido-listo")
-async def pedido_listo(req: PedidoListoRequest,
-                       x_internal_key: Optional[str] = Header(None)):
-    _check_internal_key(x_internal_key)
+async def pedido_listo(req: PedidoListoRequest):
     suc = f" en {req.sucursal}" if req.sucursal else ""
     ok = await _send(req.phone,
         f"✅ ¡Tu pedido *{req.folio}* está listo para recoger{suc}! 🛍️")
@@ -96,9 +73,7 @@ async def pedido_listo(req: PedidoListoRequest,
 
 
 @router.post("/anticipo")
-async def anticipo_requerido(req: AnticipoRequest,
-                             x_internal_key: Optional[str] = Header(None)):
-    _check_internal_key(x_internal_key)
+async def anticipo_requerido(req: AnticipoRequest):
     ok = await _send(req.phone,
         f"💳 Tu pedido *{req.folio}* requiere un anticipo de *${req.monto:.2f}*.\n"
         f"Responde con el método de pago para continuar.")
@@ -106,9 +81,7 @@ async def anticipo_requerido(req: AnticipoRequest,
 
 
 @router.post("/cotizacion")
-async def cotizacion_lista(req: CotizacionRequest,
-                           x_internal_key: Optional[str] = Header(None)):
-    _check_internal_key(x_internal_key)
+async def cotizacion_lista(req: CotizacionRequest):
     ok = await _send(req.phone,
         f"📋 Tu cotización *{req.folio}* está lista.\n"
         f"Total estimado: *${req.total:.2f}*\n"
@@ -117,9 +90,7 @@ async def cotizacion_lista(req: CotizacionRequest,
 
 
 @router.post("/send")
-async def send_message(req: SendMessageRequest,
-                       x_internal_key: Optional[str] = Header(None)):
-    _check_internal_key(x_internal_key)
+async def send_message(req: SendMessageRequest):
     from messaging.sender import send_text
     try:
         ok = await send_text(req.phone, req.message)

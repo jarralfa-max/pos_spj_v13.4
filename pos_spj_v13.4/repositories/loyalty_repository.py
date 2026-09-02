@@ -497,6 +497,23 @@ class LoyaltyRepository:
         ).fetchall()
         return [self._row_to_dict(r) for r in rows]
 
+    def get_tickets_for_venta(self, venta_id) -> List[Dict[str, Any]]:
+        """All non-cancelled raffle tickets for a sale, regardless of
+        raffle — SET-15 cutover: `get_tickets_for_sale` requires a known
+        raffle_id, but a reprint needs every boleto tied to a sale."""
+        self.ensure_raffle_tables()
+        rows = self.db.execute(
+            """
+            SELECT *
+              FROM raffle_tickets
+             WHERE venta_id=?
+               AND (estado IS NULL OR estado<>'cancelado')
+             ORDER BY id ASC
+            """,
+            (venta_id,),
+        ).fetchall()
+        return [self._row_to_dict(r) for r in rows]
+
     def cancel_tickets_for_sale(self, venta_id: int, reason: str) -> int:
         cur = self.db.execute(
             """

@@ -62,15 +62,36 @@ async def verify_webhook(
 @router.post("/webhook")
 async def receive_message(request: Request):
     """Recibe mensajes entrantes de WhatsApp."""
-    from config.settings import WA_APP_SECRET
+    from config.settings import get_app_secret, is_production
     body = await request.body()
 
-    if WA_APP_SECRET:
+    app_secret = get_app_secret()
+    if app_secret:
         sig_header = request.headers.get("X-Hub-Signature-256", "")
-        if not verify_signature(body, sig_header, WA_APP_SECRET):
+        if not verify_signature(body, sig_header, app_secret):
             logger.warning("Firma HMAC inválida desde %s", request.client.host)
             return Response(status_code=403)
+    elif is_production():
+        # WA-1 / S4: en producción, sin WA_APP_SECRET no hay forma de
+        # verificar que el mensaje viene realmente de Meta — fail-closed en
+        # vez del fail-open anterior (mismo criterio que
+        # erp/bridge.py::_assert_sqlite_write_allowed aplicado aquí).
+        logger.error(
+            "WA_APP_SECRET no configurado en producción; rechazando webhook "
+            "entrante (whatsapp_security_audit.md S4/S8)."
+        )
+        return Response(status_code=503)
+    else:
+        logger.warning(
+            "WA_APP_SECRET no configurado; verificación de firma omitida "
+            "(permitido solo fuera de producción, para desarrollo local)."
+        )
 
+    # Nota (WA-1): a diferencia de MercadoPago, el esquema
+    # X-Hub-Signature-256 de Meta no incluye un timestamp firmado, así que no
+    # hay forma sólida de acotar una ventana de replay a nivel de firma aquí.
+    # La mitigación real contra reprocesamiento es el dedupe por message_id
+    # de abajo (_conversation_store.is_duplicate).
     try:
         data = json.loads(body)
     except Exception:

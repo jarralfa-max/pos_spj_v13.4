@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#123c69">
+  <meta name="description" content="App de repartidor SPJ — asignaciones, entregas y cobro">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+  <title>SPJ · Repartidor</title>
+</head>
+<body>
+  <a class="skip-link" href="#main">Saltar al contenido</a>
+  <header class="app-header">
+    <div><span class="eyebrow">SPJ ERP</span><h1>Repartidor</h1></div>
+    <div class="header-status">
+      <span id="networkBadge" class="badge">Conectando</span>
+      <span id="syncBadge" class="badge">0 pendientes</span>
+    </div>
+  </header>
+
+  <main id="main">
+    <section id="loginView" class="view auth-card" aria-labelledby="loginTitle">
+      <div class="brand-mark" aria-hidden="true">SPJ</div>
+      <h2 id="loginTitle">Iniciar sesión</h2>
+      <p>Identidad, sucursal y permisos se validan en el servidor.</p>
+      <form id="loginForm">
+        <label>Usuario<input id="username" autocomplete="username" required></label>
+        <label>Contraseña<input id="password" type="password" autocomplete="current-password" required></label>
+        <label>Dispositivo<input id="deviceId" autocomplete="off" placeholder="phone-1" required></label>
+        <button class="primary" type="submit">Entrar</button>
+      </form>
+      <div id="loginError" class="inline-state error" hidden role="alert"></div>
+    </section>
+
+    <section id="workspaceView" class="view workspace" hidden>
+      <section class="context-strip" aria-label="Sesión activa">
+        <div><small>Repartidor</small><strong id="sessionUser">—</strong></div>
+        <div><small>Sucursal</small><strong id="sessionBranch">—</strong></div>
+        <button id="refreshButton" class="ghost">Actualizar</button>
+        <button id="logoutButton" class="ghost">Salir</button>
+      </section>
+
+      <section class="step-panel">
+        <div class="section-heading"><div><span class="eyebrow">Pendientes</span><h2>Asignaciones nuevas</h2></div></div>
+        <div id="assignmentList" class="job-grid" aria-live="polite"></div>
+      </section>
+
+      <section class="step-panel">
+        <div class="section-heading"><div><span class="eyebrow">Mis entregas</span><h2>Pedidos en curso</h2></div></div>
+        <div id="jobList" class="job-grid" aria-live="polite"></div>
+      </section>
+    </section>
+  </main>
+  <div id="toastRegion" class="toasts" aria-live="assertive"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
