@@ -11,6 +11,7 @@ from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
+    AlertCard,
     ChartCard,
     DashboardGrid,
     HtmlChartView,
@@ -22,6 +23,32 @@ from frontend.desktop.components import (
 from frontend.desktop.modules.purchasing.enterprise_view_models import money
 from frontend.desktop.modules.purchasing.navigation import PurchasingRoutes
 from frontend.desktop.themes.tokens import Spacing
+
+
+class AlertsBar(QFrame):
+    """Moved here from purchasing_module_shell.py (FASE UI chrome cleanup):
+    alerts are dashboard content, not global chrome duplicated on every
+    routed page."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setObjectName("purchasingAlertsBar")
+        self._row = QHBoxLayout(self)
+        self._row.setContentsMargins(0, 0, 0, 0)
+        self._row.setSpacing(Spacing.SM)
+
+    def set_alerts(self, alerts) -> None:
+        while self._row.count():
+            item = self._row.takeAt(0)
+            if item.widget() is not None:
+                item.widget().deleteLater()
+        for alert in alerts:
+            card = AlertCard(self, variant=alert.severity)
+            label = QLabel(f"{alert.count} · {alert.message}", card)
+            label.setWordWrap(True)
+            card.add(label)
+            self._row.addWidget(card, stretch=1)
+        self.setVisible(bool(alerts))
 
 
 class ProcurementDashboardPage(QWidget):
@@ -50,6 +77,9 @@ class ProcurementDashboardPage(QWidget):
         self._status.setWordWrap(True)
         self._status.hide()
         layout.addWidget(self._status)
+
+        self._alerts = AlertsBar(self)
+        layout.addWidget(self._alerts)
 
         self._grid = DashboardGrid(self)
         self._kpi_bar = KPIBar(cards=[])
@@ -156,6 +186,7 @@ class ProcurementDashboardPage(QWidget):
             charts = self._presenter.analytics_charts()
             for view, dto in zip(self._chart_views, charts):
                 view.set_chart(dto)
+            self._alerts.set_alerts(self._presenter.analytics_alerts())
             self._loaded = True
             self._status.hide()
         except Exception as exc:

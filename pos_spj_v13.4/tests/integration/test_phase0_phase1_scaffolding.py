@@ -72,7 +72,6 @@ def test_phase0_architecture_docs_and_phase1_guardrails_are_installed() -> None:
         "backend/application/queries/loyalty_query_service.py",
         "backend/application/queries/cash_register_query_service.py",
         "backend/application/queries/purchase_planning_query_service.py",
-        "backend/application/queries/business_intelligence_query_service.py",
         "backend/application/use_cases/create_sale_use_case.py",
         "backend/application/use_cases/execute_meat_production_use_case.py",
         "backend/application/use_cases/create_delivery_order_use_case.py",

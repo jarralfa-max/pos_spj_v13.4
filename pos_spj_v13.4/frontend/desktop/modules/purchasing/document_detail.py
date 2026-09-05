@@ -1,10 +1,24 @@
-"""Master-detail and document timeline components for Procurement."""
+"""Master-detail and document timeline components for Procurement.
+
+Each detail panel owns its document's command bar (business-action buttons
+scoped to the selected document) — buttons live here, capability-gated at
+construction time and enabled/disabled by document status in ``load_detail``.
+The click handlers themselves stay on the owning page (they call the
+presenter); panels only expose the buttons for the page to wire.
+"""
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from frontend.desktop.components import ColumnSpec, SectionCard, StandardTable
+from frontend.desktop.components import (
+    ColumnSpec,
+    SectionCard,
+    StandardTable,
+    create_secondary_button,
+    create_success_button,
+    create_warning_button,
+)
 from frontend.desktop.themes.tokens import Spacing
 
 
@@ -45,10 +59,48 @@ class DocumentTimeline(QWidget):
             self._labels.append(label)
 
 
+def _command_bar(parent, buttons) -> QWidget:
+    """A slim row of business-action buttons, shown above a document's
+    summary. Hidden entirely (not just disabled) when nothing is selected."""
+    bar = QWidget(parent)
+    row = QHBoxLayout(bar)
+    row.setContentsMargins(0, 0, 0, Spacing.SM)
+    row.setSpacing(Spacing.SM)
+    for button in buttons:
+        row.addWidget(button)
+    row.addStretch(1)
+    return bar
+
+
 class RequisitionDetailPanel(SectionCard):
-    def __init__(self, parent=None) -> None:
+    _ACTIONS_BY_STATUS = {
+        "DRAFT": {"Enviar"},
+        "PENDING_APPROVAL": {"Aprobar", "Rechazar"},
+        "APPROVED": {"Crear RFQ", "Crear orden", "Compra directa"},
+    }
+
+    def __init__(self, parent=None, capabilities=None) -> None:
         super().__init__(parent, title="Detalle de solicitud")
         self.setObjectName("procurementRequisitionDetail")
+        self.submit_button = create_secondary_button(self, "Enviar")
+        self.approve_button = create_success_button(self, "Aprobar")
+        self.reject_button = create_warning_button(self, "Rechazar")
+        self.create_rfq_button = create_secondary_button(self, "Crear RFQ")
+        self.create_order_button = create_secondary_button(self, "Crear orden")
+        self.create_direct_button = create_secondary_button(self, "Compra directa")
+        self._command_buttons = [
+            self.submit_button, self.approve_button, self.reject_button,
+            self.create_rfq_button, self.create_order_button, self.create_direct_button,
+        ]
+        if capabilities is not None:
+            self.submit_button.setVisible(capabilities.requisition_submit)
+            self.approve_button.setVisible(capabilities.requisition_approve)
+            self.reject_button.setVisible(capabilities.requisition_reject)
+            self.create_rfq_button.setVisible(capabilities.rfq_create)
+            self.create_order_button.setVisible(capabilities.order_create)
+            self.create_direct_button.setVisible(capabilities.direct_create)
+        self._commands = _command_bar(self, self._command_buttons)
+        self.add(self._commands)
         self._summary = QLabel("Selecciona una solicitud para consultar su abastecimiento.", self)
         self._summary.setWordWrap(True)
         self.add(self._summary)
@@ -65,14 +117,20 @@ class RequisitionDetailPanel(SectionCard):
         self.add(self._related)
         self._timeline = DocumentTimeline(self)
         self.add(self._timeline)
+        self._commands.setVisible(False)
 
     def load_detail(self, detail) -> None:
         if not detail:
+            self._commands.setVisible(False)
             self._summary.setText("Selecciona una solicitud para consultar su abastecimiento.")
             self._lines.load_rows([])
             self._related.load_rows([])
             self._timeline.set_events([])
             return
+        allowed = self._ACTIONS_BY_STATUS.get(str(detail.status or ""), set())
+        for button in self._command_buttons:
+            button.setEnabled(button.text() in allowed)
+        self._commands.setVisible(True)
         self._summary.setText(
             f"{detail.document_number} · {detail.status}\n"
             f"Solicitante: {detail.requested_by_name} · "
@@ -90,9 +148,17 @@ class RequisitionDetailPanel(SectionCard):
 
 
 class RfqDetailPanel(SectionCard):
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, capabilities=None) -> None:
         super().__init__(parent, title="Invitaciones y cotizaciones")
         self.setObjectName("procurementRfqDetail")
+        self.capture_button = create_secondary_button(self, "Capturar cotización")
+        self.award_button = create_success_button(self, "Comparar y adjudicar")
+        self._command_buttons = [self.capture_button, self.award_button]
+        if capabilities is not None:
+            self.capture_button.setVisible(capabilities.quote_capture)
+            self.award_button.setVisible(capabilities.quote_award)
+        self._commands = _command_bar(self, self._command_buttons)
+        self.add(self._commands)
         self._summary = QLabel("Selecciona una RFQ para ver proveedores invitados y sus"
                                " cotizaciones.", self)
         self._summary.setWordWrap(True)
@@ -107,14 +173,20 @@ class RfqDetailPanel(SectionCard):
             ColumnSpec("Plazo (días)", "numeric"), ColumnSpec("Líneas", "numeric"),
         ], self)
         self.add(self._quotes)
+        self._commands.setVisible(False)
 
     def load_detail(self, detail) -> None:
         if not detail:
+            self._commands.setVisible(False)
             self._summary.setText("Selecciona una RFQ para ver proveedores invitados y sus"
                                   " cotizaciones.")
             self._invitations.load_rows([])
             self._quotes.load_rows([])
             return
+        allowed = set() if detail.awarded else {"Capturar cotización", "Comparar y adjudicar"}
+        for button in self._command_buttons:
+            button.setEnabled(button.text() in allowed)
+        self._commands.setVisible(True)
         self._summary.setText(
             f"{detail.document_number} · {detail.status}\n"
             f"{'Adjudicada' if detail.awarded else 'Sin adjudicar'}")
@@ -128,9 +200,31 @@ class RfqDetailPanel(SectionCard):
 
 
 class OrderDetailPanel(SectionCard):
-    def __init__(self, parent=None) -> None:
+    _ACTIONS_BY_STATUS = {
+        "PENDING_APPROVAL": {"Aprobar"},
+        "APPROVED": {"Enviar", "Nueva versión"},
+        "SENT": {"Recibir", "Nueva versión"},
+        "ACKNOWLEDGED": {"Recibir", "Nueva versión"},
+        "PARTIALLY_RECEIVED": {"Recibir"},
+    }
+
+    def __init__(self, parent=None, capabilities=None) -> None:
         super().__init__(parent, title="Detalle y trazabilidad")
         self.setObjectName("procurementOrderDetail")
+        self.approve_button = create_success_button(self, "Aprobar")
+        self.send_button = create_secondary_button(self, "Enviar")
+        self.receive_button = create_secondary_button(self, "Recibir")
+        self.change_button = create_warning_button(self, "Nueva versión")
+        self._command_buttons = [
+            self.approve_button, self.send_button, self.receive_button, self.change_button,
+        ]
+        if capabilities is not None:
+            self.approve_button.setVisible(capabilities.order_approve)
+            self.send_button.setVisible(capabilities.order_send)
+            self.receive_button.setVisible(capabilities.receipt_complete)
+            self.change_button.setVisible(capabilities.order_change)
+        self._commands = _command_bar(self, self._command_buttons)
+        self.add(self._commands)
         self._summary = QLabel("Selecciona una orden para consultar líneas y trazabilidad.", self)
         self._summary.setWordWrap(True)
         self.add(self._summary)
@@ -147,14 +241,20 @@ class OrderDetailPanel(SectionCard):
         self.add(self._related)
         self._timeline = DocumentTimeline(self)
         self.add(self._timeline)
+        self._commands.setVisible(False)
 
     def load_detail(self, detail) -> None:
         if not detail:
+            self._commands.setVisible(False)
             self._summary.setText("Selecciona una orden para consultar líneas y trazabilidad.")
             self._lines.load_rows([])
             self._related.load_rows([])
             self._timeline.set_events([])
             return
+        allowed = self._ACTIONS_BY_STATUS.get(str(detail.status or ""), set())
+        for button in self._command_buttons:
+            button.setEnabled(button.text() in allowed)
+        self._commands.setVisible(True)
         self._summary.setText(
             f"{detail.document_number} · {detail.status} · v{detail.version}\n"
             f"Proveedor: {detail.supplier_name} · "

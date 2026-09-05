@@ -53,6 +53,11 @@ class CreateRfqUseCase:
             return ProcurementResult.fail(str(exc), "PERMISSION_DENIED",
                                           operation_id=operation_id)
         with ProcurementUnitOfWork(connection) as uow:
+            existing = uow.rfqs.get_rfq_by_operation(operation_id)
+            if existing is not None:
+                return ProcurementResult.ok("RFQ ya registrada", entity_id=existing.id,
+                                            operation_id=operation_id,
+                                            document_number=existing.document_number)
             try:
                 if requisition_id:
                     requisition = uow.requisitions.get(requisition_id)

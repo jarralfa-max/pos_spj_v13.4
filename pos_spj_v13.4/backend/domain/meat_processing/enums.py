@@ -134,3 +134,73 @@ class ProductionPlanStatus(str, Enum):
     PARTIALLY_CONVERTED = "PARTIALLY_CONVERTED"
     CONVERTED = "CONVERTED"
     CANCELLED = "CANCELLED"
+
+
+class MaterialRequirementStatus(str, Enum):
+    """§16 — requerido / reservado / asignado / consumido / cancelado."""
+    REQUIRED = "REQUIRED"
+    RESERVED = "RESERVED"
+    ALLOCATED = "ALLOCATED"
+    CONSUMED = "CONSUMED"
+    CANCELLED = "CANCELLED"
+
+
+class OperatorRole(str, Enum):
+    """§32 — roles operativos asignables a una orden."""
+    SUPERVISOR = "SUPERVISOR"
+    OPERATOR = "OPERATOR"
+    WEIGHER = "WEIGHER"
+    CUTTER = "CUTTER"
+    PACKER = "PACKER"
+    QUALITY_OBSERVER = "QUALITY_OBSERVER"
+    LINE_LEADER = "LINE_LEADER"
+
+
+class IncidentType(str, Enum):
+    """§30 — tipos de incidencia operativa."""
+    EQUIPMENT_FAILURE = "EQUIPMENT_FAILURE"
+    MATERIAL_SHORTAGE = "MATERIAL_SHORTAGE"
+    QUALITY_ISSUE = "QUALITY_ISSUE"
+    TEMPERATURE_DEVIATION = "TEMPERATURE_DEVIATION"
+    WEIGHT_VARIANCE = "WEIGHT_VARIANCE"
+    OPERATOR_ERROR = "OPERATOR_ERROR"
+    RECIPE_ERROR = "RECIPE_ERROR"
+    PACKAGING_FAILURE = "PACKAGING_FAILURE"
+    POWER_FAILURE = "POWER_FAILURE"
+    NETWORK_FAILURE = "NETWORK_FAILURE"
+    SAFETY_EVENT = "SAFETY_EVENT"
+    OTHER = "OTHER"
+
+
+class IncidentStatus(str, Enum):
+    OPEN = "OPEN"
+    UNDER_REVIEW = "UNDER_REVIEW"
+    RESOLVED = "RESOLVED"
+    CLOSED = "CLOSED"
+
+
+class ReworkOrigin(str, Enum):
+    """§29 — de dónde surge la necesidad de reprocesar."""
+    QUALITY_DECISION = "QUALITY_DECISION"
+    PROCESSING_INCIDENT = "PROCESSING_INCIDENT"
+    OUTPUT_VARIANCE = "OUTPUT_VARIANCE"
+    PACKAGING_FAILURE = "PACKAGING_FAILURE"
+    CUSTOMER_RETURN_AUTHORIZED = "CUSTOMER_RETURN_AUTHORIZED"
+
+
+class ReworkOrderStatus(str, Enum):
+    """§29 — Producto bloqueado → Crear → Aprobar → Ejecutar → Completar → Cerrar."""
+    CREATED = "CREATED"
+    APPROVED = "APPROVED"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+    CLOSED = "CLOSED"
+    CANCELLED = "CANCELLED"
+
+
+class EquipmentStatus(str, Enum):
+    """§19/§33 — condición física del equipo, independiente de si está
+    asignado a una orden ahora mismo (eso lo rastrea EquipmentAssignment)."""
+    AVAILABLE = "AVAILABLE"
+    MAINTENANCE = "MAINTENANCE"
+    RETIRED = "RETIRED"

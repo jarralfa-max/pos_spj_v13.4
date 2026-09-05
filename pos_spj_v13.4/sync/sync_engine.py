@@ -27,6 +27,34 @@ TABLAS_SINCRONIZABLES = [
     "production_batch_outputs",
     "branch_inventory",
     "inventario_actual",
+    # PROC-21 — bounded context Procesamiento Cárnico (born-clean, PROC-2/3
+    # en adelante). Excluidos a propósito: meat_processing_outbox y
+    # meat_processing_processed_events son mecanismos LOCALES por nodo
+    # (publicación de eventos / idempotencia de este dispositivo) — cada
+    # sucursal necesita su propia copia, sincronizarlos los corrompería.
+    "processing_orders",
+    "processing_batches",
+    "processing_batch_source_lots",
+    "process_executions",
+    "material_consumptions",
+    "process_outputs",
+    "process_weighings",
+    "yield_reconciliations",
+    "material_requirements",
+    "operator_assignments",
+    "process_step_executions",
+    "process_incidents",
+    "packaging_executions",
+    "production_labels",
+    "rework_orders",
+    "process_genealogy_links",
+    "production_areas",
+    "work_centers",
+    "production_stations",
+    "production_equipment",
+    "equipment_assignments",
+    "meat_processing_audit_log",
+    "meat_processing_authorization_log",
 ]
 
 

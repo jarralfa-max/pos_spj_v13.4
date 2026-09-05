@@ -41,7 +41,81 @@ class WhatsAppMetricsRepository:
         metrics.update(self._queue_metrics())
         metrics.update(self._context_db_metrics())
         self._legacy_fill(metrics)
+        # WA-19: visibilidad nueva del bounded context (WA-13..18) — sin
+        # equivalente legacy, así que se agrega siempre (nunca sobrescribe
+        # nada de arriba); `_new_bounded_context_activity` sí puede
+        # complementar `sesiones_activas`/`total_mensajes`/`mensajes_hoy`
+        # cuando el canal nuevo ya tenga tráfico real (hoy típicamente 0,
+        # sin cambio de comportamiento observable hasta el cutover).
+        self._new_bounded_context_activity(metrics)
+        metrics.update(self._new_bounded_context_operations())
         return metrics
+
+    # ── Actividad del bounded context nuevo (WA-2/WA-3) — complementa,
+    # nunca reemplaza, la fuente legacy/`conversations.db` ──────────────────
+    def _new_bounded_context_activity(self, metrics: Dict[str, Any]) -> None:
+        total_mensajes = self._scalar("SELECT COUNT(*) FROM whatsapp_messages", 0)
+        if total_mensajes:
+            metrics["total_mensajes"] = metrics.get("total_mensajes", 0) + total_mensajes
+            metrics["mensajes_hoy"] = metrics.get("mensajes_hoy", 0) + self._scalar(
+                "SELECT COUNT(*) FROM whatsapp_messages WHERE DATE(created_at)=DATE('now')", 0,
+            )
+        sesiones = self._active_conversation_count()
+        if sesiones:
+            metrics["sesiones_activas"] = metrics.get("sesiones_activas", 0) + sesiones
+
+    def _active_conversation_count(self) -> int:
+        """Cuenta en Python, no en SQL: `last_message_at` se guarda con
+        `datetime.isoformat()` (con separador 'T' y offset de zona, p. ej.
+        "2026-09-02T13:15:00+00:00") — comparar ese string directo contra
+        `datetime('now','-30 minutes')` de SQLite (formato con espacio, sin
+        zona) no ordena cronológicamente de forma confiable entre ambos
+        formatos. Mismo criterio que `bootstrap/health_checks.py::check_inbox_queue`
+        (WA-6): parsear con `datetime.fromisoformat()`, nunca comparar
+        strings de fecha con formatos distintos."""
+        try:
+            from datetime import datetime, timedelta, timezone
+
+            rows = self.conn.execute(
+                "SELECT last_message_at FROM whatsapp_conversations "
+                "WHERE state NOT IN ('RESOLVED','CLOSED','EXPIRED','BLOCKED') "
+                "AND last_message_at IS NOT NULL"
+            ).fetchall()
+        except Exception:
+            return 0
+
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+        count = 0
+        for (raw,) in rows:
+            try:
+                moment = datetime.fromisoformat(raw)
+            except (TypeError, ValueError):
+                continue
+            if moment.tzinfo is None:
+                moment = moment.replace(tzinfo=timezone.utc)
+            if moment >= cutoff:
+                count += 1
+        return count
+
+    # ── Métricas propias de WA-13..18, sin equivalente legacy alguno ───────
+    def _new_bounded_context_operations(self) -> Dict[str, Any]:
+        return {
+            "wa_handoff_abiertos": self._scalar(
+                "SELECT COUNT(*) FROM whatsapp_handoff_requests WHERE status IN ('OPEN','ASSIGNED')", 0,
+            ),
+            "wa_outbox_pendiente": self._scalar(
+                "SELECT COUNT(*) FROM whatsapp_outbox WHERE status='PENDING'", 0,
+            ),
+            "wa_dead_letter": self._scalar(
+                "SELECT COUNT(*) FROM whatsapp_dead_letter WHERE resolved_at IS NULL", 0,
+            ),
+            "wa_entregas_solicitadas": self._scalar(
+                "SELECT COUNT(*) FROM whatsapp_delivery_requests WHERE status='REQUESTED'", 0,
+            ),
+            "wa_idempotencia_fallidas": self._scalar(
+                "SELECT COUNT(*) FROM whatsapp_business_operation_idempotency WHERE status='FAILED'", 0,
+            ),
+        }
 
     # ── Pedidos / valor generado ──────────────────────────────────────────────
     def _sales_metrics(self) -> Dict[str, Any]:

@@ -63,7 +63,8 @@ class CreatePurchaseOrderUseCase:
                 branch_id: str, warehouse_id: str, lines: list[dict],
                 purchase_type: str = PurchaseType.INVENTORY.value, currency_code: str = "MXN",
                 requisition_id: str | None = None, rfq_id: str | None = None,
-                award_id: str | None = None) -> ProcurementResult:
+                award_id: str | None = None,
+                payment_terms: str | None = None) -> ProcurementResult:
         try:
             self._auth.require(actor_user_id, PurchasePermissions.ORDER_CREATE)
         except PurchasePermissionDeniedError as exc:
@@ -89,7 +90,8 @@ class CreatePurchaseOrderUseCase:
                 po = PurchaseOrder.create(
                     uow.sequences.next_number("OC", _year()), supplier_id, branch_id,
                     warehouse_id, created_by_user_id=actor_user_id,
-                    purchase_type=PurchaseType(purchase_type), currency_code=currency_code)
+                    purchase_type=PurchaseType(purchase_type), currency_code=currency_code,
+                    payment_terms=payment_terms)
                 po.source_requisition_id = requisition_id
                 po.source_rfq_id = rfq_id
                 po.source_award_id = award_id
@@ -331,6 +333,75 @@ class ReceivePurchaseOrderUseCase:
                                     operation_id=operation_id,
                                     order_status=po.status.value,
                                     accepted=str(gr.total_accepted()))
+
+
+class ReverseGoodsReceiptUseCase:
+    """Reverses a completed receipt against a purchase order (data-entry error,
+    not a supplier-facing return — that's PurchaseReturn). Reopens the order's
+    received/accepted/rejected quantities by exactly what this receipt added and
+    emits GOODS_RECEIPT_REVERSED so Inventory can compensate the posted movement
+    (see GoodsReceiptReversedHandler). Direct-purchase receipts are reversed via
+    ReverseDirectPurchaseUseCase instead, not here."""
+
+    def __init__(self, authorization: PurchaseAuthorizationPolicy | None = None) -> None:
+        self._auth = authorization or PurchaseAuthorizationPolicy()
+
+    def execute(self, connection, *, actor_user_id: str, goods_receipt_id: str,
+                operation_id: str, reason: str) -> ProcurementResult:
+        try:
+            self._auth.require(actor_user_id, PurchasePermissions.RECEIPT_REVERSE)
+        except PurchasePermissionDeniedError as exc:
+            return ProcurementResult.fail(str(exc), "PERMISSION_DENIED",
+                                          operation_id=operation_id)
+        if not reason or not reason.strip():
+            return ProcurementResult.fail("El reverso requiere un motivo", "VALIDATION",
+                                          operation_id=operation_id)
+        with ProcurementUnitOfWork(connection) as uow:
+            gr = uow.receipts.get(goods_receipt_id)
+            if gr is None:
+                return ProcurementResult.fail("Recepción inexistente", "NOT_FOUND",
+                                              operation_id=operation_id)
+            if gr.status == "REVERSED":
+                return ProcurementResult.ok("Recepción ya reversada", entity_id=gr.id,
+                                            operation_id=operation_id, status=gr.status)
+            if not gr.purchase_order_id:
+                return ProcurementResult.fail(
+                    "Esta recepción pertenece a una compra directa; reviértela desde ahí",
+                    "NOT_A_PURCHASE_ORDER_RECEIPT", operation_id=operation_id)
+            po = uow.orders.get(gr.purchase_order_id)
+            if po is None:
+                return ProcurementResult.fail("Orden inexistente", "NOT_FOUND",
+                                              operation_id=operation_id)
+            lines_by_product = {ln.product_id: ln for ln in po.lines}
+            try:
+                quantities: dict[str, Decimal] = {}
+                for gr_line in gr.lines:
+                    po_line = lines_by_product.get(gr_line.product_id)
+                    if po_line is None:
+                        continue
+                    po_line.accepted_quantity = max(
+                        Decimal("0"), po_line.accepted_quantity - gr_line.accepted_quantity)
+                    po_line.rejected_quantity = max(
+                        Decimal("0"), po_line.rejected_quantity - gr_line.rejected_quantity)
+                    quantities[po_line.id] = gr_line.received_quantity
+                po.unregister_receipt(quantities)
+                gr.reverse()
+            except ProcurementDomainError as exc:
+                return ProcurementResult.fail(str(exc), "INVALID_STATE",
+                                              operation_id=operation_id)
+            uow.receipts.save(gr)
+            uow.orders.save(po)
+            uow.audit.record(action=ProcurementEvents.GOODS_RECEIPT_REVERSED,
+                             actor_user_id=actor_user_id, document_id=gr.id,
+                             reason=reason.strip(), operation_id=operation_id,
+                             branch_id=gr.branch_id)
+            _emit(uow, ProcurementEvents.GOODS_RECEIPT_REVERSED, document_id=gr.id,
+                  operation_id=operation_id, actor_user_id=actor_user_id,
+                  goods_receipt_id=gr.id, purchase_order_id=po.id,
+                  reason=reason.strip())
+        return ProcurementResult.ok("Recepción reversada", entity_id=gr.id,
+                                    operation_id=operation_id, status=gr.status,
+                                    order_status=po.status.value)
 
 
 # ── helpers ─────────────────────────────────────────────────────────────────

@@ -160,3 +160,15 @@ class TestCatchWeight:
     def test_price_basis_per_piece(self):
         cfg = self._cfg(price_basis=PriceBasis.PER_PIECE_WITH_ACTUAL_WEIGHT)
         assert cfg.price_basis is PriceBasis.PER_PIECE_WITH_ACTUAL_WEIGHT
+
+    def test_price_basis_coerces_from_string_even_when_disabled(self):
+        # Regresión (PROD-5): __post_init__ saltaba TODA normalización (incluida
+        # price_basis) cuando enabled=False, porque el early-return corría antes
+        # de coercer el enum — cualquier caller pasando un string plano (el modo
+        # natural para un use case/command) dejaba price_basis como str, rompiendo
+        # `.value` aguas abajo en el repositorio.
+        cfg = CatchWeightConfiguration(
+            enabled=False, nominal_unit_id="", weight_unit_id="",
+            minimum_weight=Decimal("0"), maximum_weight=Decimal("0"),
+            price_basis="PER_GRAM")
+        assert cfg.price_basis is PriceBasis.PER_GRAM

@@ -10,6 +10,9 @@ from typing import Dict, List, Optional
 
 from core.events.event_bus import get_bus as _get_bus
 from backend.shared.ids import new_uuid
+from backend.application.inventory.queries.stock_aggregate_query_service import (
+    InventoryStockAggregateQueryService,
+)
 
 logger = logging.getLogger("spj.repositories.productos")
 
@@ -27,9 +30,39 @@ class ProductoRepository:
 
     def __init__(self, db):
         self.db = db
+        self._stock = InventoryStockAggregateQueryService(db)
 
     def _now(self) -> str:
         return datetime.utcnow().isoformat()
+
+    # ── Stock cutover (repunte a Inventario canónico) ───────────────────────────
+    # `productos.existencia`/`stock_minimo` ya no son la fuente de verdad — el
+    # ledger de Inventario (`inventory_balances`/`inventory_replenishment_rule`)
+    # lo es. Estas columnas legacy se dejan de leer/escribir aquí; las claves de
+    # salida del diccionario se preservan (cero cambio de contrato para los
+    # consumidores: `spj_product_search.py`, tests).
+
+    def _overlay_existencia(self, row: Dict) -> Dict:
+        row["existencia"] = float(self._stock.total_available(product_id=row["id"]))
+        return row
+
+    def _overlay_existencia_many(self, rows: List[Dict]) -> List[Dict]:
+        available = self._stock.available_by_product()
+        for row in rows:
+            row["existencia"] = float(available.get(row["id"], 0))
+        return rows
+
+    def _overlay_stock(self, row: Dict) -> Dict:
+        self._overlay_existencia(row)
+        row["stock_minimo"] = float(self._stock.reorder_point_for_product(row["id"]))
+        return row
+
+    def _overlay_stock_many(self, rows: List[Dict]) -> List[Dict]:
+        self._overlay_existencia_many(rows)
+        reorder = self._stock.reorder_points_by_product()
+        for row in rows:
+            row["stock_minimo"] = float(reorder.get(row["id"], 0))
+        return rows
 
     # ── Read ─────────────────────────────────────────────────────────────────
 
@@ -51,7 +84,7 @@ class ProductoRepository:
         # CORRECCIÓN: Uso de cursor para fetchall
         cursor = self.db.cursor()
         cursor.execute(f"""
-            SELECT p.id, p.nombre, p.precio, p.existencia, p.stock_minimo,
+            SELECT p.id, p.nombre, p.precio,
                    p.unidad, p.categoria, p.oculto, p.es_compuesto,
                    p.es_subproducto, p.is_active, p.deleted_at,
                    p.imagen_path
@@ -59,10 +92,11 @@ class ProductoRepository:
             {where}
             ORDER BY p.nombre
         """, params)
-        
+
         # Convertir filas a diccionarios para compatibilidad con la UI
         columnas = [col[0] for col in cursor.description]
-        return [dict(zip(columnas, row)) for row in cursor.fetchall()]
+        rows = [dict(zip(columnas, row)) for row in cursor.fetchall()]
+        return self._overlay_stock_many(rows)
 
     def get_by_id(self, producto_id: str) -> Optional[Dict]:
         # CORRECCIÓN: Uso de cursor para fetchone
@@ -71,7 +105,7 @@ class ProductoRepository:
         row = cursor.fetchone()
         if row:
             columnas = [col[0] for col in cursor.description]
-            return dict(zip(columnas, row))
+            return self._overlay_stock(dict(zip(columnas, row)))
         return None
 
     def get_categories(self):
@@ -89,7 +123,7 @@ class ProductoRepository:
         cursor = self.db.cursor()
         cursor.execute(
             """SELECT id, nombre, precio_venta, precio_kilo,
-                      existencia, unidad, tipo, imagen_path,
+                      unidad, tipo, imagen_path,
                       categoria, descripcion,
                       COALESCE(codigo_barras,'') as codigo_barras
                FROM productos
@@ -101,7 +135,7 @@ class ProductoRepository:
         row = cursor.fetchone()
         if row:
             cols = [c[0] for c in cursor.description]
-            return dict(zip(cols, row))
+            return self._overlay_existencia(dict(zip(cols, row)))
         return None
 
     def get_for_sale(self, search: str = "") -> List[Dict]:
@@ -113,7 +147,7 @@ class ProductoRepository:
             
         cursor = self.db.cursor()
         cursor.execute(f"""
-            SELECT p.id, p.nombre, p.precio, p.existencia,
+            SELECT p.id, p.nombre, p.precio,
                    p.unidad, p.categoria, p.imagen_path,
                    p.es_compuesto, p.es_subproducto
             FROM productos p
@@ -121,9 +155,10 @@ class ProductoRepository:
             {where_extra}
             ORDER BY p.nombre
         """, params)
-        
+
         columnas = [col[0] for col in cursor.description]
-        return [dict(zip(columnas, row)) for row in cursor.fetchall()]
+        rows = [dict(zip(columnas, row)) for row in cursor.fetchall()]
+        return self._overlay_existencia_many(rows)
 
     # ── Búsqueda para el widget de escáner (Remediación F: SQL fuera de la UI) ──
     #  Preservan EXACTAMENTE las consultas y columnas que usaba ProductSearchWidget.
@@ -134,7 +169,6 @@ class ProductoRepository:
             """SELECT id, nombre, COALESCE(codigo,'') as codigo,
                       COALESCE(codigo_barras,'') as codigo_barras,
                       precio, COALESCE(precio_compra,0) as precio_compra,
-                      COALESCE(existencia,0) as existencia,
                       COALESCE(unidad,'pz') as unidad
                FROM productos
                WHERE (COALESCE(codigo_barras,'')=? OR codigo=? OR CAST(id AS TEXT)=?)
@@ -142,7 +176,7 @@ class ProductoRepository:
                LIMIT 1""",
             (codigo, codigo, codigo),
         ).fetchone()
-        return dict(row) if row else None
+        return self._overlay_existencia(dict(row)) if row else None
 
     def buscar_para_scanner(self, text: str) -> List[Dict]:
         """Búsqueda difusa por nombre/código/barcode/ID para el popup del escáner."""
@@ -152,7 +186,6 @@ class ProductoRepository:
                       COALESCE(codigo_barras,'') as codigo_barras,
                       precio,
                       COALESCE(precio_compra,0) as precio_compra,
-                      COALESCE(existencia,0) as existencia,
                       COALESCE(unidad,'pz') as unidad
                FROM productos
                WHERE (
@@ -172,7 +205,7 @@ class ProductoRepository:
                LIMIT 20""",
             (f"%{text}%", f"%{text}%", f"%{text}%", text, text, text, text),
         ).fetchall()
-        return [dict(r) for r in rows]
+        return self._overlay_existencia_many([dict(r) for r in rows])
 
     def listar_para_etiquetas(self, limite: int = 2000) -> list:
         """Catálogo mínimo (id, nombre, precio, unidad) para el diseñador de etiquetas.
@@ -238,9 +271,12 @@ class ProductoRepository:
 
         # REGLA CERO: identidad UUIDv7 acuñada con new_uuid(), nunca rowid implícito.
         producto_id = data.get("id") or new_uuid()
+        # Stock cutover: `existencia`/`stock_minimo` ya no se escriben aquí — el
+        # stock inicial y los umbrales de reposición se dan de alta en Inventario
+        # (ledger canónico), no en el maestro de producto.
         cursor = self.db.cursor()
-        cursor.execute("INSERT INTO productos (id, nombre, nombre_normalizado, precio, existencia, stock_minimo, unidad, categoria, oculto, es_compuesto, es_subproducto, producto_padre_id, imagen_path, is_active) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)",
-        (producto_id, nombre, normalised, data.get("precio", 0), data.get("existencia", 0), data.get("stock_minimo", 0), data.get("unidad", "kg"), data.get("categoria", ""), 1 if data.get("oculto") else 0, 1 if data.get("es_compuesto") else 0, 1 if data.get("es_subproducto") else 0, data.get("producto_padre_id"), data.get("imagen_path")))
+        cursor.execute("INSERT INTO productos (id, nombre, nombre_normalizado, precio, unidad, categoria, oculto, es_compuesto, es_subproducto, producto_padre_id, imagen_path, is_active) VALUES (?,?,?,?,?,?,?,?,?,?,?,1)",
+        (producto_id, nombre, normalised, data.get("precio", 0), data.get("unidad", "kg"), data.get("categoria", ""), 1 if data.get("oculto") else 0, 1 if data.get("es_compuesto") else 0, 1 if data.get("es_subproducto") else 0, data.get("producto_padre_id"), data.get("imagen_path")))
 
         self.db.commit()
 
@@ -257,15 +293,17 @@ class ProductoRepository:
         nombre = data.get("nombre", "").strip()
         normalised = nombre.lower()
         
+        # Stock cutover: `existencia`/`stock_minimo` ya no se escriben aquí — el
+        # ledger de Inventario es la única fuente de verdad para stock/umbrales.
         cursor = self.db.cursor()
         cursor.execute("""
             UPDATE productos SET
-                nombre = ?, nombre_normalizado = ?, precio = ?, existencia = ?,
-                stock_minimo = ?, unidad = ?, categoria = ?, oculto = ?,
+                nombre = ?, nombre_normalizado = ?, precio = ?,
+                unidad = ?, categoria = ?, oculto = ?,
                 es_compuesto = ?, es_subproducto = ?, producto_padre_id = ?,
                 imagen_path = ?, fecha_actualizacion = ?
             WHERE id = ?
-        """, (nombre, normalised, data.get("precio", 0), data.get("existencia", 0), data.get("stock_minimo", 0), data.get("unidad", "kg"), data.get("categoria", ""), 1 if data.get("oculto") else 0, 1 if data.get("es_compuesto") else 0, 1 if data.get("es_subproducto") else 0, data.get("producto_padre_id"), data.get("imagen_path"), self._now(), producto_id))
+        """, (nombre, normalised, data.get("precio", 0), data.get("unidad", "kg"), data.get("categoria", ""), 1 if data.get("oculto") else 0, 1 if data.get("es_compuesto") else 0, 1 if data.get("es_subproducto") else 0, data.get("producto_padre_id"), data.get("imagen_path"), self._now(), producto_id))
         
         self.db.commit()
         self._write_audit("UPDATE", str(producto_id), data, usuario)

@@ -273,24 +273,22 @@ async def send_message(msg: OutgoingMessage, sucursal_id: Optional[int] = None) 
         url = get_wa_api_url(phone_id)
         headers = _build_headers(token)
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(url, json=payload, headers=headers)
+        result = await _post_message(url, payload, headers)
 
-        if resp.status_code == 200:
+        if result["ok"]:
             logger.info("Mensaje enviado a %s (sucursal=%s)", redact_phone(_normalize_phone(msg.to)), sucursal_id)
             return True
         else:
             logger.error("Error enviando a %s: %s %s",
-                         redact_phone(_normalize_phone(msg.to)), resp.status_code, resp.text[:500])
+                         redact_phone(_normalize_phone(msg.to)), result["status_code"], result["error"])
             return False
 
     except ValueError as ve:
         logger.error("Error de configuración o formato: %s", ve)
         return False
-    except httpx.TimeoutException:
-        logger.error("Timeout al enviar mensaje a %s", redact_phone(_normalize_phone(msg.to)))
-        return False
     except Exception as e:
+        # WA-5: httpx.TimeoutException ya no puede llegar aquí — _post_message
+        # la captura y la normaliza a result["ok"]=False, manejado arriba.
         logger.error("send_message exception: %s", e, exc_info=True)
         return False
 
@@ -351,24 +349,22 @@ async def send_template(to: str, template_name: str,
         url = get_wa_api_url(phone_id)
         headers = _build_headers(token)
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(url, json=payload, headers=headers)
+        result = await _post_message(url, payload, headers)
 
-        if resp.status_code == 200:
+        if result["ok"]:
             logger.info("Template '%s' enviado a %s (sucursal=%s)", template_name, to, sucursal_id)
             return True
         else:
             logger.error("Error enviando template a %s: %s %s",
-                         to, resp.status_code, resp.text[:500])
+                         to, result["status_code"], result["error"])
             return False
 
     except ValueError as ve:
         logger.error("Error de configuración en send_template: %s", ve)
         return False
-    except httpx.TimeoutException:
-        logger.error("Timeout enviando template a %s", to)
-        return False
     except Exception as e:
+        # WA-5: httpx.TimeoutException ya no puede llegar aquí — _post_message
+        # la captura y la normaliza a result["ok"]=False, manejado arriba.
         logger.error("send_template exception: %s", e, exc_info=True)
         return False
 

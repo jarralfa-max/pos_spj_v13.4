@@ -228,12 +228,19 @@ app = FastAPI(
 from webhook.whatsapp import router as wa_router
 from webhook.mercadopago import router as mp_router
 from router.notify_router import router as notify_router
+from router.notify_dispatch_router import router as notify_dispatch_router
 from router.delivery_router import router as delivery_router
+from router.diagnostics_router import router as diagnostics_router
 
 app.include_router(wa_router)
 app.include_router(mp_router)
 app.include_router(notify_router)
+# WA-18: montado ADITIVAMENTE junto al notify_router legacy (prefijo
+# /api/notify/v2, sin colisión) — ver docstring de notify_dispatch_router.py.
+app.include_router(notify_dispatch_router)
 app.include_router(delivery_router)
+# WA-20: GET /diagnostics — métricas de operación, complementa /health.
+app.include_router(diagnostics_router)
 
 
 # ── Health check (WA-4, §58) ────────────────────────────────────────────────

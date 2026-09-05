@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from backend.domain.products.entities.product import Product
 from backend.domain.products.exceptions import ProductsDomainError
-from backend.domain.products.internal_enums import INTERNAL_STAGES, InternalStage
+from backend.domain.products.internal_enums import InternalStage
 
 
 def validate_internal_product(product: Product) -> None:
@@ -34,8 +34,13 @@ def is_transformation(from_stage: InternalStage, to_stage: InternalStage) -> boo
 
     A real transformation (WIP → semi-finished → finished) must be modeled as a
     distinct product with an explicit technical relationship, not a mutated
-    identity. Same stage, or NONE, is not a transformation.
+    identity. Same stage, or NONE on either side (first entering the internal
+    pipeline, or leaving it, is a reclassification — not yet a physical
+    transformation), is not a transformation. Between any two DIFFERENT
+    non-NONE stages is always a real transformation.
     """
     if from_stage == to_stage:
         return False
-    return from_stage in INTERNAL_STAGES or to_stage in INTERNAL_STAGES
+    if InternalStage.NONE in (from_stage, to_stage):
+        return False
+    return True

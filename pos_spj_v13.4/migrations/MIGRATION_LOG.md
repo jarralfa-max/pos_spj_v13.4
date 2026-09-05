@@ -5,6 +5,109 @@ documentarse aquí antes del commit.
 
 ---
 
+## 252_meat_processing_resources_schema — 2026-09-03
+
+**Motivo:** PROC-19 (Recursos y capacidad) — cinco tablas nuevas sobre todo
+el esquema previo de Procesamiento Cárnico: `production_areas` → `work_centers`
+→ `production_stations` → `production_equipment` (§19, jerarquía de recursos
+físicos) y `equipment_assignments` (gemelo estructural de
+`operator_assignments`, PROC-7). `work_centers.capacity_per_hour`/`capacity_basis`
+es donde ahora vive el número que `CapacityValidationService` (PROC-5)
+siempre tomó como argumento del llamador, nunca hardcodeado.
+**DDL:** `backend/infrastructure/db/schema/meat_processing_schema.py::create_meat_processing_resources_schema`.
+**Impacto:** Solo aditivo. `processing_orders.production_area_id`/`.work_center_id`
+y `process_executions`/`operator_assignments.work_center_id` (todas de
+migraciones anteriores) siguen siendo referencias TEXT sin FK — SQLite no
+permite añadir una FK a una columna existente sin reconstruir la tabla; la
+integridad referencial contra estas tablas nuevas queda como responsabilidad
+de capa de aplicación, documentado en `PROC-19_recursos.md`.
+
+---
+
+## 251_meat_processing_genealogy_schema — 2026-09-02
+
+**Motivo:** PROC-18 (Trazabilidad) — una tabla nueva sobre todo el esquema
+previo de Procesamiento Cárnico, sin tocar ninguna: `process_genealogy_links`
+(§38), el enlace explícito upstream→downstream que hace consultable la
+cadena "multinivel" entre órdenes distintas (dentro de una misma orden, el
+`processing_order_id` compartido entre `material_consumptions` y
+`process_outputs` ya basta).
+**DDL:** `backend/infrastructure/db/schema/meat_processing_schema.py::create_meat_processing_genealogy_schema`.
+**Impacto:** Solo aditivo. Sin FK en `upstream_entity_id`/`downstream_entity_id`
+— son referencias polimórficas (pueden apuntar a `process_outputs`,
+`material_consumptions`, etc.), imposible de expresar como FK de una sola tabla.
+
+---
+
+## 250_meat_processing_rework_schema — 2026-09-02
+
+**Motivo:** PROC-17 (Reprocesos) — una tabla nueva: `rework_orders` (§29).
+Nunca modifica la orden/output de origen (`source_output_id` es de solo
+lectura); la ejecución real del reproceso ocurre en una `processing_orders`
+nueva referenciada por `processing_order_id`, ejecutada por el mismo núcleo
+productivo (§1) — no un motor de ejecución paralelo.
+**DDL:** `backend/infrastructure/db/schema/meat_processing_schema.py::create_meat_processing_rework_schema`.
+**Impacto:** Solo aditivo; FK a `process_outputs`/`processing_orders`.
+
+---
+
+## 249_meat_processing_packaging_schema — 2026-09-02
+
+**Motivo:** PROC-13 (Empaque) — dos tablas nuevas sobre el esquema núcleo
+(187) y el de preparación/ejecución (248), ninguno de los dos tocado:
+`packaging_executions` (§25, registro inmutable — sin workflow/estado, igual
+que `process_weighings`) y `production_labels` (§25, con `reprint_count` para
+reimpresiones; "la impresión no determina el éxito productivo").
+**DDL:** `backend/infrastructure/db/schema/meat_processing_schema.py::create_meat_processing_packaging_schema`.
+**Impacto:** Solo aditivo; FKs internas (`processing_orders`, `process_outputs`,
+`packaging_executions`).
+
+---
+
+## 248_meat_processing_preparation_execution_schema — 2026-09-02
+
+**Motivo:** PROC-7 (Preparación) / PROC-8 (Ejecución) — cuatro tablas nuevas
+sobre el esquema núcleo de Procesamiento Cárnico (migración 187, sin tocar):
+`material_requirements` (§16, ciclo requerido→reservado→asignado→consumido),
+`operator_assignments` (§32), `process_step_executions` (§20, sub-pasos de
+una `ProcessExecution`) y `process_incidents` (§30).
+**DDL:** `backend/infrastructure/db/schema/meat_processing_schema.py::create_meat_processing_preparation_execution_schema`
+(función separada de `create_meat_processing_schema`, para no reabrir 187).
+**Impacto:** Solo aditivo; FKs internas al propio bounded context
+(`processing_orders`, `process_executions`) — sin FK cross-context, mismo
+criterio que 187.
+
+---
+
+## 245_whatsapp_quote_drafts_schema — 2026-09-01
+
+**Motivo:** WA-11 (Cotizaciones) del refactor enterprise del canal
+WhatsApp. Agrega `whatsapp_quote_drafts`/`whatsapp_quote_draft_lines` —
+equivalente de `whatsapp_order_drafts` (244) para cotizaciones, con un
+ciclo de vida en dos pasos (capturar → `QuotesApiClient.create()` obtiene
+folio/vigencia real del ERP → aceptar/rechazar más tarde) en vez de uno
+solo como Pedidos (§37 vs §34). Reutiliza `create_whatsapp_schema()`.
+
+---
+
+## 244_whatsapp_order_drafts_schema — 2026-09-01
+
+**Motivo:** WA-10 (Pedidos) del refactor enterprise del canal WhatsApp.
+Agrega `whatsapp_order_drafts`/`whatsapp_order_draft_lines` al esquema de
+la migración 243 — el carrito conversacional que WhatsApp arma ANTES de
+pedirle a Orders (`OrdersApiClient`, WA-9) que cree el pedido canónico
+contra `ventas`/`detalles_venta` — nunca el pedido en sí (§34 del prompt
+maestro: "el draft conversacional no es el pedido canónico"). Reutiliza
+`create_whatsapp_schema()` (mismo módulo de la 243), no crea uno nuevo.
+Primer consumidor real de `whatsapp_business_operation_idempotency`
+(creada en la 243, sin repositorio hasta ahora): la confirmación de un
+`OrderDraft` usa un fingerprint determinístico
+(`conversation_id`+contenido del carrito+método de entrega) para que dos
+mensajes distintos del cliente ("confirmar" / "sí, confirmar") produzcan
+el mismo pedido, no dos.
+
+---
+
 ## 243_whatsapp_bounded_context_schema — 2026-09-01
 
 **Motivo:** WA-3 (Esquema limpio) del refactor enterprise del canal
@@ -2821,3 +2924,65 @@ patrón, no solo documentar.
   `visible_entries()` (existía pero nadie la invocaba) en
   `page_registry.build_page_specs()`/`modulos/inventario_enterprise.py` para
   que la navegación lateral realmente oculte secciones sin permiso.
+- **2026-09-04 — Compras UI, deduplicación de chrome + acciones al panel de
+  detalle (sin cambios en `backend/`)**: `PurchasingModuleShell` renderizaba,
+  antes del `QStackedWidget` de páginas, un `PageHeader` global ("Compras" +
+  botón Actualizar), `ContextFilters`, un `KPIBar` global y un `AlertsBar`
+  global — duplicando el `PageHeader` propio de cada página construida sobre
+  `WorklistPage`. Se eliminó el `PageHeader`/`KPIBar`/`AlertsBar` del shell;
+  el botón "Actualizar" se movió a la franja `ContextFilters` (única pieza de
+  chrome global que sí es necesaria — el selector de almacén no existe en
+  ningún otro lugar de la app) vía un nuevo método `ContextFilters.add_action()`.
+  La clase `AlertsBar` se movió tal cual a
+  `pages/procurement_dashboard_page.py` (su hogar natural — contenido de
+  dashboard, no chrome de todas las páginas) y se pobló en `reload()` igual
+  que antes (`self._alerts.set_alerts(self._presenter.analytics_alerts())`).
+  `PurchasingModuleShell.reload()` conserva las badges de navegación del
+  sidebar (`navigation_badges(kpis)`), que no dependían de los widgets
+  eliminados.
+  Por otro lado, `RequisitionsPage`/`QuotationsPage`/`OrdersPage`/
+  `InvoicesPage` (en `pages/enterprise_pages.py`) fijaban sus botones de
+  acción de negocio (Enviar/Aprobar/Rechazar/Crear RFQ/Crear orden/Compra
+  directa, Capturar cotización/Comparar y adjudicar, Aprobar/Enviar/Recibir/
+  Nueva versión, Conciliar/Liberar diferencia) en una fila fija debajo del
+  splitter maestro-detalle vía `_build_row_actions()`, habilitándolos por
+  estado con `_allowed_actions()` leyendo el texto de la celda de estado de
+  la tabla (traducido a español). Esos botones se movieron a la barra de
+  comandos propia de cada panel de detalle
+  (`RequisitionDetailPanel`/`RfqDetailPanel`/`OrderDetailPanel` en
+  `document_detail.py`, y el panel inline de `InvoicesPage` en
+  `enterprise_pages.py`): se construyen una sola vez en `__init__` con las
+  mismas fábricas de botón (`create_secondary_button` etc.), el
+  `.setVisible(capabilities.xxx)` de cada uno se preservó exactamente igual
+  que antes, y el habilitado/deshabilitado por estado ahora lee
+  `detail.status`/`detail.awarded` directamente del DTO (código crudo, p. ej.
+  `"APPROVED"`) en lugar de raspar el texto traducido de la tabla — mapas
+  `_ACTIONS_BY_STATUS` nuevos en cada panel replican exactamente la misma
+  lógica de habilitación que tenían los antiguos `_allowed_actions()`. Los
+  manejadores de clic (`_submit`, `_approve`, etc.) permanecen en la página —
+  el panel solo expone los botones (`panel.submit_button`, etc.) y la página
+  los conecta con `.clicked.connect(...)` justo después de construir el
+  panel en `_create_detail_panel()`, replicando el patrón ya existente de
+  `page.direct_purchase_requested.connect(...)` en el shell — sin
+  registro de callbacks genérico. Cuando `load_detail(None)` (nada
+  seleccionado), la barra de comandos completa se oculta
+  (`self._commands.setVisible(False)`) en vez de mostrar botones
+  deshabilitados. `_build_row_actions`/`_allowed_actions` se eliminaron por
+  completo de `enterprise_pages.py`; los no-ops de `WorklistPage` hacen que
+  la fila de acciones desaparezca (solo queda la paginación
+  Anterior/Siguiente cuando `paginated=True`).
+  **Verificación**: `pytest tests/architecture/test_purchasing_desktop_shell.py
+  tests/unit/procurement/ tests/integration/procurement/ -q` → 303 passed.
+  Chequeo de sintaxis global sobre todo el árbol → sin errores. Smoke-import
+  de `ModuloComprasEnterprise`/`create_enterprise_purchasing_view`/
+  `PurchasingModuleShell` → OK.
+  `tests/ui/test_purchasing_visual_closure.py` corre con
+  `QT_QPA_PLATFORM=offscreen` (ya lo fija el propio archivo); 6 de 8 casos
+  fallan mas son pre-existentes y ajenos a este cambio — ocurren enteramente
+  dentro de `DirectPurchaseCreatePage`
+  (`_DirectPresenter` de prueba no tiene `.capabilities()`) y
+  `LogisticsRelatedPage` (ancho renderizado no coincide con el tamaño de
+  ventana bajo el backend offscreen), ninguno de los cuales se tocó en esta
+  vuelta; confirmado con `git status` que ambos archivos ya estaban
+  presentes sin relación a los 5 archivos modificados aquí (shell, páginas
+  de enterprise, panel de detalle, dashboard, test de arquitectura).

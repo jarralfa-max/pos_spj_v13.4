@@ -10,11 +10,11 @@ backend en inglés, textos visibles en español.
 UI (modulos/reportes_bi_v2.py, bi_charts.py)   ← sólo presenta el payload
         │  consume
         ▼
-BiDashboardService (application/services)      ← KPIs, charts, alerts, insights,
-        │  orquesta                               predicciones, permisos, caché
+BiDashboardService (application/analytics/services)  ← KPIs, charts, alerts,
+        │  orquesta                               insights, predicciones, permisos, caché
         ▼
-BiDashboardQueryService (application/queries)  ← agrega métricas (periodo actual
-        │  compone                                 y anterior) + bundle de charts
+BiDashboardQueryService (application/analytics/queries)  ← agrega métricas
+        │  compone                                 (periodo actual y anterior) + bundle de charts
         ├── BiSalesQueryService        (ventas, top, categorías, métodos, horas)
         ├── BiInventoryQueryService    (valorizado, merma, stock crítico)
         ├── BiFinanceQueryService      (CxC, CxP, gastos, compras, proveedores)
@@ -24,7 +24,12 @@ BiDashboardQueryService (application/queries)  ← agrega métricas (periodo act
 SQLite / (PostgreSQL futuro)
 ```
 
-DTOs en `backend/application/dto/bi_dashboard_dto.py`:
+> **BI-4 (2026-09-04):** este árbol se relocalizó de `backend/application/{dto,queries,services}/bi_*`
+> al bounded context canónico `backend/application/analytics/{dto,queries,services}/` —
+> ver `docs/refactor/BI-4_query_layer.md`. Las rutas de este documento ya
+> reflejan la ubicación nueva.
+
+DTOs en `backend/application/analytics/dto/bi_dashboard_dto.py`:
 `DashboardFilters`, `KpiCard`, `ChartData`, `HighlightCard`, `Alert`, `Insight`,
 `Prediction`, `DashboardPayload`.
 

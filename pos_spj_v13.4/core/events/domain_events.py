@@ -173,3 +173,52 @@ __all__ += [
     "PRODUCT_DEACTIVATED",
     "PRODUCTS_CHANGED",
 ]
+
+# ── Eventos de Business Intelligence / Forecasting / Decision Intelligence ───
+# BI-2: catálogo canónico para el bounded context de analítica (ver
+# docs/refactor/BI-2_security.md). Ninguno de estos existía antes — el único
+# evento relacionado en event_bus.py es el legacy FORECAST_GENERADO (Spanish,
+# UPPERCASE, payload de core/services/forecast_service.py, huérfano de
+# producción — ver BI-0). No se toca ese legacy string aquí; se retira junto
+# con su emisor en BI-32. core/forecast/replenishment_engine.py también
+# publica un string crudo NO registrado "FORECAST_GENERATED" (inglés) — motor
+# muerto (nunca wireado), su reemplazo real usará FORECAST_RUN_COMPLETED.
+#
+# Payload mínimo común a todos: event_id, operation_id, occurred_at (§122).
+ANALYTICS_SNAPSHOT_CREATED       = "analytics_snapshot_created"
+FORECAST_RUN_STARTED             = "forecast_run_started"
+FORECAST_RUN_COMPLETED           = "forecast_run_completed"
+FORECAST_RUN_FAILED              = "forecast_run_failed"
+FORECAST_MODEL_APPROVED          = "forecast_model_approved"
+FORECAST_MODEL_ACTIVATED         = "forecast_model_activated"
+FORECAST_MODEL_DEGRADED          = "forecast_model_degraded"
+ANALYTICS_ALERT_CREATED          = "analytics_alert_created"
+ANALYTICS_ALERT_ACKNOWLEDGED     = "analytics_alert_acknowledged"
+ANALYTICS_ALERT_RESOLVED         = "analytics_alert_resolved"
+BUSINESS_RECOMMENDATION_CREATED  = "business_recommendation_created"
+BUSINESS_RECOMMENDATION_APPROVED = "business_recommendation_approved"
+BUSINESS_RECOMMENDATION_REJECTED = "business_recommendation_rejected"
+BUSINESS_RECOMMENDATION_EXPIRED  = "business_recommendation_expired"
+SCENARIO_CREATED                 = "scenario_created"
+SCENARIO_EVALUATED               = "scenario_evaluated"
+ANALYTICAL_REPORT_GENERATED      = "analytical_report_generated"
+
+__all__ += [
+    "ANALYTICS_SNAPSHOT_CREATED",
+    "FORECAST_RUN_STARTED",
+    "FORECAST_RUN_COMPLETED",
+    "FORECAST_RUN_FAILED",
+    "FORECAST_MODEL_APPROVED",
+    "FORECAST_MODEL_ACTIVATED",
+    "FORECAST_MODEL_DEGRADED",
+    "ANALYTICS_ALERT_CREATED",
+    "ANALYTICS_ALERT_ACKNOWLEDGED",
+    "ANALYTICS_ALERT_RESOLVED",
+    "BUSINESS_RECOMMENDATION_CREATED",
+    "BUSINESS_RECOMMENDATION_APPROVED",
+    "BUSINESS_RECOMMENDATION_REJECTED",
+    "BUSINESS_RECOMMENDATION_EXPIRED",
+    "SCENARIO_CREATED",
+    "SCENARIO_EVALUATED",
+    "ANALYTICAL_REPORT_GENERATED",
+]

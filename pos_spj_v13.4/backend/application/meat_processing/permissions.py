@@ -76,6 +76,14 @@ class MeatProcessingPermissions:
     CONSUMPTION_OVERRIDE = "PRODUCCION.consumo.sobrescribir"
     MATERIAL_SUBSTITUTE = "PRODUCCION.material.sustituir"
 
+    # ── operarios (§32) ─────────────────────────────────────────────────────
+    OPERATOR_ASSIGN = "PRODUCCION.operario.asignar"
+    OPERATOR_RELEASE = "PRODUCCION.operario.liberar"
+
+    # ── incidencias (§30) ───────────────────────────────────────────────────
+    INCIDENT_REPORT = "PRODUCCION.incidencia.reportar"
+    INCIDENT_RESOLVE = "PRODUCCION.incidencia.resolver"
+
     # ── pesajes ─────────────────────────────────────────────────────────────
     WEIGHT_VIEW = "PRODUCCION.peso.ver"
     WEIGHT_CAPTURE = "PRODUCCION.peso.capturar"
@@ -90,11 +98,18 @@ class MeatProcessingPermissions:
     SUBPRODUCT_CAPTURE = "PRODUCCION.output.derivado.capturar"
     WASTE_CAPTURE = "PRODUCCION.output.merma.capturar"
 
+    # ── calidad (§28/§44) — Procesamiento solicita y registra; Calidad decide ─
+    QUALITY_REQUEST_INSPECTION = "PRODUCCION.calidad.solicitar_inspeccion"
+    QUALITY_RECORD_DECISION = "PRODUCCION.calidad.registrar_decision"
+
     # ── rendimientos ────────────────────────────────────────────────────────
     YIELD_VIEW = "PRODUCCION.rendimiento.ver"
     YIELD_REVIEW = "PRODUCCION.rendimiento.revisar"
     YIELD_APPROVE = "PRODUCCION.rendimiento.aprobar"
     YIELD_OVERRIDE = "PRODUCCION.rendimiento.sobrescribir"
+
+    # ── mermas (§27) — Procesamiento solo solicita; Mermas clasifica ─────────
+    REQUEST_LOSS_CASE = "PRODUCCION.merma.solicitar"
 
     # ── reprocesos ──────────────────────────────────────────────────────────
     REWORK_VIEW = "PRODUCCION.reproceso.ver"
@@ -102,6 +117,15 @@ class MeatProcessingPermissions:
     REWORK_APPROVE = "PRODUCCION.reproceso.aprobar"
     REWORK_EXECUTE = "PRODUCCION.reproceso.ejecutar"
     REWORK_CLOSE = "PRODUCCION.reproceso.cerrar"
+
+    # ── recursos y capacidad (§19/§33) ────────────────────────────────────────
+    RESOURCE_VIEW = "PRODUCCION.recurso.ver"
+    RESOURCE_MANAGE = "PRODUCCION.recurso.gestionar"
+    EQUIPMENT_VIEW = "PRODUCCION.equipo.ver"
+    EQUIPMENT_MANAGE = "PRODUCCION.equipo.gestionar"
+    EQUIPMENT_ASSIGN = "PRODUCCION.equipo.asignar"
+    EQUIPMENT_RELEASE = "PRODUCCION.equipo.liberar"
+    EQUIPMENT_MAINTENANCE = "PRODUCCION.equipo.mantenimiento"
 
     # ── empaque ─────────────────────────────────────────────────────────────
     PACKAGING_EXECUTE = "PRODUCCION.empaque.ejecutar"
@@ -113,6 +137,10 @@ class MeatProcessingPermissions:
     SETTINGS_MANAGE = "PRODUCCION.configuracion.editar"
     NOTIFICATIONS_MANAGE = "PRODUCCION.notificacion.gestionar"
     WHATSAPP_ALERTS_MANAGE = "PRODUCCION.whatsapp.gestionar"
+
+    # ── alertas (§20/§60) — Procesamiento solicita el envío; el microservicio
+    # de notificaciones/WhatsApp decide cómo y a quién entregarlo ────────────
+    ALERT_SEND = "PRODUCCION.alerta.enviar"
 
     # ── sacrificio futuro (§37/§50) — mismo bounded context, feature-flagged ──
     SLAUGHTER_ACCESS = "PRODUCCION.sacrificio.acceso"

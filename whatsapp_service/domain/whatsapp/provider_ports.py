@@ -19,6 +19,23 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional, Protocol
 
+from domain.whatsapp.value_objects.intent_resolution import IntentResolution
+
+
+class IntentAIProvider(Protocol):
+    """§29 del prompt maestro — clasificador de intención / LLM.
+
+    Solo clasifica y extrae entidades — **nunca ejecuta una operación de
+    negocio**. `application/intent_resolution_service.py` (WA-8) es lo
+    único que la invoca, y solo después de agotar las capas
+    deterministas (interactive/expected-state/reglas, §28) que no
+    necesitan IA. Retornar `None` significa "no se pudo clasificar con
+    confianza" — el llamador cae a human handoff, nunca inventa una
+    intención de bajo alcance.
+    """
+
+    async def classify(self, *, text: str, context: Dict[str, Any]) -> Optional[IntentResolution]: ...
+
 
 class WhatsAppProviderGateway(Protocol):
     async def send_text(self, *, to: str, body: str) -> Dict[str, Any]: ...

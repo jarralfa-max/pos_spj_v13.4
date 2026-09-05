@@ -729,10 +729,10 @@ class AppContainer:
 
         # ── BI dashboard (query layer + application service) ─────────────────
         try:
-            from backend.application.queries.bi_dashboard_query_service import (
+            from backend.application.analytics.queries.bi_dashboard_query_service import (
                 BiDashboardQueryService,
             )
-            from backend.application.services.bi_dashboard_service import (
+            from backend.application.analytics.services.bi_dashboard_service import (
                 BiDashboardService,
             )
 
@@ -748,8 +748,8 @@ class AppContainer:
                         return True
                 return True
 
-            from backend.application.services.bi_settings_service import BiSettingsService
-            from backend.application.services.bi_export_service import BiExportService
+            from backend.application.analytics.services.bi_settings_service import BiSettingsService
+            from backend.application.analytics.services.bi_export_service import BiExportService
 
             self.bi_settings_service = BiSettingsService(self.config_service)
             self.bi_dashboard_service = BiDashboardService(

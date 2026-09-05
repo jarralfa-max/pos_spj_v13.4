@@ -94,6 +94,24 @@ class TestCustomerConsent:
         consent = CustomerConsent.mark_not_required("cust-1", ConsentType.PROFILING)
         assert consent.status is ConsentStatus.NOT_REQUIRED
 
+    def test_decline_goes_straight_to_withdrawn_without_prior_grant(self):
+        """WA-14: un cliente puede rechazar un consentimiento que nunca
+        había otorgado (p. ej. "BAJA" por WhatsApp la primera vez que
+        escribe)."""
+        consent = CustomerConsent.decline(
+            "cust-1", ConsentType.WHATSAPP, reason="Cliente solicitó baja vía WhatsApp")
+        assert consent.status is ConsentStatus.WITHDRAWN
+        assert consent.withdrawn_at is not None
+        assert consent.granted_at is None
+
+    def test_decline_requires_reason(self):
+        with pytest.raises(InvalidCustomerConsentStateError):
+            CustomerConsent.decline("cust-1", ConsentType.WHATSAPP, reason="   ")
+
+    def test_decline_requires_customer_id(self):
+        with pytest.raises(InvalidCustomerConsentStateError):
+            CustomerConsent.decline("", ConsentType.WHATSAPP, reason="motivo")
+
     def test_effective_status_expired_derivation(self):
         consent = CustomerConsent.capture(
             "cust-1", ConsentType.MARKETING, evidence_reference="x", expires_at=_iso(-1))

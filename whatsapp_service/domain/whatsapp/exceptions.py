@@ -33,3 +33,14 @@ class InvalidConversationContextError(WhatsAppDomainError):
 
 class InvalidMessageDeliveryTransitionError(WhatsAppDomainError):
     """Transición de estado inválida para `WhatsAppMessageDelivery`."""
+
+
+class InvalidInboxJobTransitionError(WhatsAppDomainError):
+    """Transición de estado inválida para `InboundMessageJob` (WA-6)."""
+
+
+class ChannelNumberNotRegisteredError(WhatsAppDomainError):
+    """El `phone_number_id` del webhook no corresponde a ningún
+    `WhatsAppChannelNumber` registrado (WA-6). El número debe darse de alta
+    (Accounts/Numbers — administración, fuera de alcance de WA-6) antes de
+    que el webhook pueda procesar mensajes reales para él."""

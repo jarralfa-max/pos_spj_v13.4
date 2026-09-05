@@ -24,16 +24,16 @@ class PurchaseOrderRepository(ProcurementRepositoryBase):
             "INSERT INTO purchase_orders (id, document_number, supplier_id, branch_id,"
             " warehouse_id, currency_code, purchase_type, status, total, version,"
             " created_by_user_id, approved_by_user_id, source_requisition_id,source_rfq_id,"
-            " source_award_id,operation_id,created_at,updated_at)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+            " source_award_id,operation_id,created_at,updated_at,payment_terms)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
             " ON CONFLICT(id) DO UPDATE SET status=excluded.status, total=excluded.total,"
             " version=excluded.version, approved_by_user_id=excluded.approved_by_user_id,"
-            " updated_at=excluded.updated_at",
+            " updated_at=excluded.updated_at, payment_terms=excluded.payment_terms",
             (po.id, po.document_number, po.supplier_id, po.branch_id, po.warehouse_id,
              po.currency_code, po.purchase_type.value, po.status.value,
              dec_str(po.total().amount), po.version, po.created_by_user_id,
              po.approved_by_user_id, po.source_requisition_id, po.source_rfq_id,
-             po.source_award_id, None, po.created_at, po.updated_at))
+             po.source_award_id, None, po.created_at, po.updated_at, po.payment_terms))
         self._execute("DELETE FROM purchase_order_lines WHERE purchase_order_id=?", (po.id,))
         for ln in po.lines:
             self._execute(
@@ -108,4 +108,5 @@ class PurchaseOrderRepository(ProcurementRepositoryBase):
             approved_by_user_id=row["approved_by_user_id"],
             source_requisition_id=row["source_requisition_id"],
             source_rfq_id=row["source_rfq_id"], source_award_id=row["source_award_id"],
-            created_at=row["created_at"], updated_at=row["updated_at"])
+            created_at=row["created_at"], updated_at=row["updated_at"],
+            payment_terms=row.get("payment_terms"))

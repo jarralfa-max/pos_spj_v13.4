@@ -1,4 +1,12 @@
-"""Enterprise purchasing shell: sidebar, global context, KPIs and routed content."""
+"""Enterprise purchasing shell: sidebar, global context and routed content.
+
+Indicator cards and the alerts strip are the dashboard page's job now
+(ProcurementDashboardPage) — this shell only carries sidebar navigation, the
+branch/warehouse/period context strip (genuinely global, not duplicated
+elsewhere), and the routed page stack. See MIGRATION_LOG.md for the
+chrome-deduplication pass that removed the shell-level title header and its
+duplicated indicator/alerts widgets.
+"""
 
 from __future__ import annotations
 
@@ -7,11 +15,9 @@ from PyQt5.QtWidgets import (
 )
 
 from frontend.desktop.components import (
-    AlertCard, DateRangeFilter, KPIBar, KPIDTO, KPIState, PageHeader, SearchableComboBox, SideNav,
+    DateRangeFilter, SearchableComboBox, SideNav,
     ViewState, create_primary_button, create_state_widget,
 )
-from frontend.desktop.components.icons import Icons
-from frontend.desktop.modules.purchasing.enterprise_view_models import money
 from frontend.desktop.modules.purchasing.navigation import (
     PurchasingRoutes, visible_routes,
 )
@@ -27,46 +33,33 @@ from frontend.desktop.themes.tokens import SidebarMetrics, Spacing
 
 
 class ContextFilters(QFrame):
-    """Read-only session scope plus a canonical period filter."""
+    """Read-only session scope plus a canonical period filter.
+
+    This is the shell's only remaining piece of global chrome: a genuine
+    cross-page need (branch/warehouse/period scope — no other screen in the
+    app offers a warehouse switcher). It carries the manual refresh action
+    too now that the shell no longer has its own PageHeader.
+    """
 
     def __init__(self, session: dict[str, str | bool], warehouses, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("purchasingContextFilters")
-        row = QHBoxLayout(self)
-        row.setContentsMargins(Spacing.MD, Spacing.SM, Spacing.MD, Spacing.SM)
+        self._row = QHBoxLayout(self)
+        self._row.setContentsMargins(Spacing.MD, Spacing.SM, Spacing.MD, Spacing.SM)
         label = QLabel(f"Sucursal: {session['branch']}", self)
         label.setProperty("role", "muted")
-        row.addWidget(label)
+        self._row.addWidget(label)
         self.warehouse = SearchableComboBox(self, placeholder="Selecciona almacén…")
         self.warehouse.set_options(warehouses)
         if session["warehouse_selected"]:
             self.warehouse.set_current_id(session["warehouse"])
-        row.addWidget(self.warehouse)
-        row.addStretch(1)
+        self._row.addWidget(self.warehouse)
+        self._row.addStretch(1)
         self.period = DateRangeFilter(self)
-        row.addWidget(self.period)
+        self._row.addWidget(self.period)
 
-
-class AlertsBar(QFrame):
-    def __init__(self, parent=None) -> None:
-        super().__init__(parent)
-        self.setObjectName("purchasingAlertsBar")
-        self._row = QHBoxLayout(self)
-        self._row.setContentsMargins(0, 0, 0, 0)
-        self._row.setSpacing(Spacing.SM)
-
-    def set_alerts(self, alerts) -> None:
-        while self._row.count():
-            item = self._row.takeAt(0)
-            if item.widget() is not None:
-                item.widget().deleteLater()
-        for alert in alerts:
-            card = AlertCard(self, variant=alert.severity)
-            label = QLabel(f"{alert.count} · {alert.message}", card)
-            label.setWordWrap(True)
-            card.add(label)
-            self._row.addWidget(card, stretch=1)
-        self.setVisible(bool(alerts))
+    def add_action(self, widget: QWidget) -> None:
+        self._row.addWidget(widget)
 
 
 class PurchasingModuleShell(QWidget):
@@ -96,16 +89,12 @@ class PurchasingModuleShell(QWidget):
         body_layout.setContentsMargins(Spacing.LG, Spacing.MD, Spacing.LG, Spacing.MD)
         body_layout.setSpacing(Spacing.MD)
         session = presenter.session_summary()
-        self.header = PageHeader(
-            title="Compras", subtitle=f"Resumen / Operación · {session['user']}",
-            icon=Icons.PURCHASES, compact=True)
-        refresh = create_primary_button(self, "Actualizar")
-        refresh.clicked.connect(self.reload)
-        self.header.add_action(refresh)
-        body_layout.addWidget(self.header)
         self.filters = ContextFilters(session, presenter.warehouse_options(), self)
         self.filters.period.range_changed.connect(self._period_changed)
         self.filters.warehouse.selection_changed.connect(self._warehouse_changed)
+        refresh = create_primary_button(self, "Actualizar")
+        refresh.clicked.connect(self.reload)
+        self.filters.add_action(refresh)
         body_layout.addWidget(self.filters)
         self._warehouse_notice = QLabel(
             "Selecciona un almacén para consultar embarques o ejecutar operaciones logísticas.",
@@ -115,10 +104,6 @@ class PurchasingModuleShell(QWidget):
         self._warehouse_notice.setWordWrap(True)
         self._warehouse_notice.setVisible(not session["warehouse_selected"])
         body_layout.addWidget(self._warehouse_notice)
-        self.kpis = KPIBar(self, cards=[])
-        body_layout.addWidget(self.kpis)
-        self.alerts = AlertsBar(self)
-        body_layout.addWidget(self.alerts)
         self.content = QStackedWidget(self)
         body_layout.addWidget(self.content, stretch=1)
         root.addWidget(body, stretch=1)
@@ -286,19 +271,6 @@ class PurchasingModuleShell(QWidget):
         badges = self._presenter.navigation_badges(kpis)
         for route_key, badge_key in self._route_badges.items():
             self.sidebar.set_badge(self._route_to_row[route_key], badges.get(badge_key, 0))
-        self.kpis.set_cards([
-            KPIDTO("req", "Solicitudes abiertas", str(kpis.open_requisitions), variant="primary"),
-            KPIDTO("approval", "Órdenes por aprobar", str(kpis.pending_order_approvals), variant="warning"),
-            KPIDTO("transit", "Órdenes en curso", str(kpis.orders_in_progress), variant="primary"),
-            KPIDTO("direct", "Compra directa hoy", str(kpis.direct_purchases_today), variant="primary"),
-            KPIDTO("difference", "Facturas con diferencias", str(kpis.invoices_with_differences), variant="danger"),
-            KPIDTO("spend", "Gasto comprometido",
-                   money(kpis.committed_spend) if capabilities.view_costs else "—",
-                   variant="primary",
-                   state=KPIState.READY if capabilities.view_costs
-                   else KPIState.NO_PERMISSION),
-        ])
-        self.alerts.set_alerts(self._presenter.analytics_alerts())
         page = self.content.currentWidget()
         reloader = getattr(page, "reload", None)
         if callable(reloader):

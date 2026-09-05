@@ -7,6 +7,13 @@ WhatsAppNotificationSender`/`EmailNotificationSender` (CASH-*) and
 — into a typed vocabulary, adding SMS/PUSH as the two channel kinds the
 master prompt's own notification taxonomy expects but no live sender
 implements yet.
+
+`IN_APP` added in BI-21 (analytical_alerting) — the ERP-inbox delivery
+path (`notification_inbox` table) already exists operationally but had no
+enum member of its own; alerts need it as a first-class channel choice
+(the default one, per the BI master prompt's own channel list) rather than
+inventing a second, parallel channel enum for just this one bounded
+context.
 """
 
 from __future__ import annotations
@@ -19,6 +26,7 @@ class NotificationChannel(str, Enum):
     SMS = "SMS"
     EMAIL = "EMAIL"
     PUSH = "PUSH"
+    IN_APP = "IN_APP"
 
 
 # Channels whose recipient is a phone number validated as E.164 — same

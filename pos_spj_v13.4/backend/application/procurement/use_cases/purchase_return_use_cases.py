@@ -92,13 +92,14 @@ class CreatePurchaseReturnUseCase:
                              actor_user_id=actor_user_id, document_id=pr.id,
                              reason="alta devolución a proveedor", operation_id=operation_id,
                              branch_id=branch_id)
-            # FOLLOW-UP: a purchase return should also emit an inventory outbound
-            # movement (stock leaves because it's being returned to the supplier).
-            # Not wired here — the Inventory bounded context does not yet expose a
-            # write port/translator target for outbound procurement-return
-            # movements (mirrors GOODS_RECEIPT_COMPLETED -> on_receipt_completed in
-            # integrations/downstream_translators.py + wiring.py); a separate task
-            # is formalizing missing ports and will add that translation.
+            # Inventory's SupplierReturnHandler (event_handlers/inventory/
+            # supplier_return_handler.py) already consumes PURCHASE_RETURN_CREATED
+            # and posts a SUPPLIER_RETURN outbound movement — it just isn't
+            # live-wired to the bus yet (deliberately gated behind the INV-27
+            # cutover, same as GoodsReceiptReversedHandler). The payload below is
+            # shaped to match what it expects (resolve_ingress + per-line
+            # product_id/quantity/unit_cost/lot_id) so it's correct once that
+            # cutover flips the subscription on.
             _emit(uow, ProcurementEvents.PURCHASE_RETURN_CREATED, document_id=pr.id,
                   operation_id=operation_id, actor_user_id=actor_user_id, branch_id=branch_id,
                   supplier_id=supplier_id, document_number=pr.document_number,
@@ -106,7 +107,7 @@ class CreatePurchaseReturnUseCase:
                   warehouse_id=warehouse_id,
                   lines=[{"product_id": ln.product_id, "quantity": str(ln.quantity),
                           "unit_cost": ln.unit_cost.to_string() if ln.unit_cost else None,
-                          "lot": ln.lot} for ln in pr.lines])
+                          "lot_id": ln.lot} for ln in pr.lines])
         return ProcurementResult.ok("Devolución creada", entity_id=pr.id,
                                     operation_id=operation_id, status=pr.status.value,
                                     document_number=pr.document_number)

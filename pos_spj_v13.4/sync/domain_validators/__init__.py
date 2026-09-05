@@ -11,6 +11,7 @@ Uso:
 """
 from sync.domain_validators.base import DomainValidator
 from sync.domain_validators.inventory_validator import InventoryValidator
+from sync.domain_validators.meat_processing_validator import MeatProcessingValidator
 from sync.domain_validators.sales_validator import SalesValidator
 from sync.domain_validators.production_validator import ProductionValidator
 
@@ -21,6 +22,7 @@ def get_default_validators(allow_negative_stock: bool = False) -> list:
         InventoryValidator(allow_negative=allow_negative_stock),
         SalesValidator(),
         ProductionValidator(),
+        MeatProcessingValidator(),
     ]
 
 
@@ -29,5 +31,6 @@ __all__ = [
     "InventoryValidator",
     "SalesValidator",
     "ProductionValidator",
+    "MeatProcessingValidator",
     "get_default_validators",
 ]

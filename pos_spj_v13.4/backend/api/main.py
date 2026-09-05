@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from backend.api.routers.analytics import router as analytics_router
 from backend.api.routers.driver_logistics import router as driver_logistics_router
 from backend.api.routers.mobile_logistics import router as mobile_logistics_router
 
@@ -19,6 +20,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title=API_TITLE, version=API_VERSION)
     app.include_router(mobile_logistics_router, prefix="/api")
     app.include_router(driver_logistics_router, prefix="/api")
+    app.include_router(analytics_router, prefix="/api")
 
     @app.get("/health", tags=["health"])
     def health_check() -> dict[str, str]:

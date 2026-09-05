@@ -12,6 +12,7 @@ from backend.domain.meat_processing.entities.production_plan_line import Product
 from backend.domain.meat_processing.enums import ProductionPlanStatus
 from backend.domain.meat_processing.exceptions import (
     MeatProcessingInvariantError,
+    MeatProcessingSegregationOfDutiesError,
     MeatProcessingStateTransitionError,
 )
 
@@ -72,7 +73,7 @@ class ProductionPlan:
         self._require_status(ProductionPlanStatus.UNDER_REVIEW)
         actor = required_uuid(actor_user_id, "approved_by_user_id")
         if actor == self.created_by_user_id:
-            raise MeatProcessingInvariantError(
+            raise MeatProcessingSegregationOfDutiesError(
                 "Quien crea un plan elevado no debe aprobarlo")
         self.approved_by_user_id = actor
         self.status = ProductionPlanStatus.APPROVED

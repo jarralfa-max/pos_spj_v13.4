@@ -14,7 +14,15 @@ def test_purchasing_root_is_sidebar_shell_not_tab_widget():
     compatibility = source("enterprise_view.py")
     assert "class PurchasingModuleShell" in shell
     assert "SideNav" in shell and "QStackedWidget" in shell
-    assert "ContextFilters" in shell and "AlertsBar" in shell and "KPIBar" in shell
+    # ContextFilters (branch/warehouse/period) is the shell's only remaining
+    # global chrome — genuinely cross-page, unlike the KPIs/alerts that used
+    # to duplicate each page's own PageHeader/KPIBar. Those now live only on
+    # the dashboard page (see test_dashboard_uses_canonical_charts_with_
+    # visual_hierarchy and test_dashboard_has_alerts_bar).
+    assert "ContextFilters" in shell
+    assert "class AlertsBar" not in shell
+    assert "KPIBar" not in shell
+    assert "PageHeader(" not in shell
     assert "Sin almacén seleccionado" not in shell
     assert "purchasingWarehouseNotice" in shell
     assert "QTabWidget" not in shell + compatibility
@@ -55,6 +63,17 @@ def test_dashboard_uses_canonical_charts_with_visual_hierarchy():
     assert "QMessageBox" not in dashboard
 
 
+def test_dashboard_has_alerts_bar():
+    # AlertsBar moved from the shell (global chrome on every page) onto the
+    # dashboard (its natural home — the shell no longer defines or owns it).
+    dashboard = source("pages/procurement_dashboard_page.py")
+    shell = source("purchasing_module_shell.py")
+    assert "class AlertsBar" in dashboard
+    assert "self._alerts = AlertsBar(self)" in dashboard
+    assert "analytics_alerts()" in dashboard
+    assert "AlertsBar" not in shell
+
+
 def test_orders_have_master_detail_timeline_and_contextual_actions():
     pages = source("pages/enterprise_pages.py")
     detail = source("document_detail.py")
@@ -75,7 +94,9 @@ def test_requisitions_have_master_detail_and_real_sourcing_actions():
     routes = (ROOT / "frontend/desktop/modules/purchasing/enterprise_routes.py").read_text(
         encoding="utf-8")
     assert "RequisitionDetailPanel" in pages + detail
-    assert all(action in pages for action in (
+    # Sourcing actions live in the requisition's own detail-panel command bar
+    # now (document_detail.py), not in a page-level bottom action row.
+    assert all(action in pages + detail for action in (
         "Crear RFQ", "Crear orden", "Compra directa"))
     assert "CreateRfqUseCase" in routes
     assert "direct_purchase_requested" in pages
@@ -100,3 +121,15 @@ def test_purchasing_ui_has_no_inline_styles_or_direct_buttons():
     combined = "\n".join(path.read_text(encoding="utf-8") for path in files)
     assert "setStyleSheet" not in combined
     assert "QPushButton" not in combined
+
+
+def test_business_actions_moved_out_of_page_level_bottom_row():
+    # RequisitionsPage/QuotationsPage/OrdersPage/InvoicesPage used to each
+    # implement _build_row_actions/_allowed_actions, pinning business-action
+    # buttons to a fixed row below the master-detail splitter. Those actions
+    # now live in each document's own detail-panel command bar
+    # (document_detail.py / InvoicesPage's inline panel), gated by the
+    # selected document's own status instead of scraped table-cell text.
+    pages = source("pages/enterprise_pages.py")
+    assert "_build_row_actions" not in pages
+    assert "_allowed_actions" not in pages

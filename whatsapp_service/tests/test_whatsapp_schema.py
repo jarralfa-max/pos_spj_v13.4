@@ -36,7 +36,7 @@ def _pk_type(connection, table):
 
 
 class TestSchemaCreation:
-    def test_all_twelve_tables_created(self, conn):
+    def test_all_tables_created(self, conn):
         existing = {
             row[0]
             for row in conn.execute(
@@ -44,7 +44,12 @@ class TestSchemaCreation:
             ).fetchall()
         }
         assert set(WHATSAPP_TABLES).issubset(existing)
-        assert len(WHATSAPP_TABLES) == 12
+        # WA-3: 12. WA-10 (migración 244) agregó whatsapp_order_drafts +
+        # whatsapp_order_draft_lines -> 14. WA-11 (migración 245) agregó
+        # whatsapp_quote_drafts + whatsapp_quote_draft_lines -> 16. WA-13
+        # (migración 246) agregó whatsapp_delivery_requests -> 17. WA-16
+        # (migración 247) agregó whatsapp_handoff_requests -> 18.
+        assert len(WHATSAPP_TABLES) == 18
 
     def test_create_is_idempotent(self, conn):
         create_whatsapp_schema(conn)  # segunda vez, no debe fallar
@@ -330,12 +335,85 @@ class TestMigrationWrapper:
         finally:
             connection.close()
 
+    def test_migration_244_delegates_and_commits(self):
+        module = importlib.import_module(
+            "migrations.standalone.244_whatsapp_order_drafts_schema"
+        )
+        connection = sqlite3.connect(":memory:")
+        try:
+            module.run(connection)
+            tables = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            assert {"whatsapp_order_drafts", "whatsapp_order_draft_lines"}.issubset(tables)
+        finally:
+            connection.close()
+
+    def test_migration_245_delegates_and_commits(self):
+        module = importlib.import_module(
+            "migrations.standalone.245_whatsapp_quote_drafts_schema"
+        )
+        connection = sqlite3.connect(":memory:")
+        try:
+            module.run(connection)
+            tables = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            assert {"whatsapp_quote_drafts", "whatsapp_quote_draft_lines"}.issubset(tables)
+        finally:
+            connection.close()
+
+    def test_migration_246_delegates_and_commits(self):
+        module = importlib.import_module(
+            "migrations.standalone.246_whatsapp_delivery_requests_schema"
+        )
+        connection = sqlite3.connect(":memory:")
+        try:
+            module.run(connection)
+            tables = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            assert "whatsapp_delivery_requests" in tables
+        finally:
+            connection.close()
+
+    def test_migration_247_delegates_and_commits(self):
+        module = importlib.import_module(
+            "migrations.standalone.247_whatsapp_handoff_requests_schema"
+        )
+        connection = sqlite3.connect(":memory:")
+        try:
+            module.run(connection)
+            tables = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            assert "whatsapp_handoff_requests" in tables
+        finally:
+            connection.close()
+
     def test_migration_243_is_registered_in_engine(self):
         from migrations.engine import MIGRATIONS
 
         versions = [m.version for m in MIGRATIONS]
         assert "243" in versions
-        assert versions[-1] == "243"
+        # WA-10/11/13/16 agregaron migraciones después — 243 ya no es la
+        # última, pero sigue registrada en orden.
+        assert (
+            versions.index("243") < versions.index("244") < versions.index("245")
+            < versions.index("246") < versions.index("247")
+        )
 
 
 def _seed_account(conn, account_id="acc-1"):

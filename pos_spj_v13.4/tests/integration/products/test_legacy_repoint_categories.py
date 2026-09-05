@@ -67,7 +67,7 @@ def test_backfill_skips_existing_category_by_name():
 
 
 def test_bi_filter_options_reads_canonical_categories():
-    from backend.application.queries.bi_dashboard_query_service import (
+    from backend.application.analytics.queries.bi_dashboard_query_service import (
         BiDashboardQueryService,
     )
 

@@ -102,3 +102,22 @@ def test_inactive_rules_are_ignored(conn):
         "VALUES ('r0','p1','b1','w1','99',0, datetime('now'))")
     conn.commit()
     assert InventoryStockAggregateQueryService(conn).low_stock_items() == []
+
+
+def test_reorder_points_by_product_reads_global_rule_only(conn):
+    # regla global (branch_id='' warehouse_id='') == equivalente canónico de
+    # `productos.stock_minimo`; una regla por sucursal/almacén NO cuenta aquí.
+    _rule(conn, "p1", "", "", "12")
+    _rule(conn, "p1", "b1", "w1", "999")  # scoped, no debe mezclarse
+    _rule(conn, "p2", "", "", "3")
+    conn.commit()
+    svc = InventoryStockAggregateQueryService(conn)
+    assert svc.reorder_points_by_product() == {"p1": Decimal("12"), "p2": Decimal("3")}
+
+
+def test_reorder_point_for_product_single_lookup(conn):
+    _rule(conn, "p1", "", "", "12")
+    conn.commit()
+    svc = InventoryStockAggregateQueryService(conn)
+    assert svc.reorder_point_for_product("p1") == Decimal("12")
+    assert svc.reorder_point_for_product("nope") == Decimal("0")

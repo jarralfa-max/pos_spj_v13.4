@@ -81,7 +81,7 @@ class TestInventoryBalanceQueryRepoint:
 
 class TestBiInventoryRepoint:
     def _svc(self, conn):
-        from backend.application.queries.bi_inventory_query_service import (
+        from backend.application.analytics.queries.bi_inventory_query_service import (
             BiInventoryQueryService,
         )
         # P2: el lector BI ya NO lee costo/stock_minimo de la tabla legacy

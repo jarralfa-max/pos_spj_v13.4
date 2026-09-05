@@ -44,6 +44,14 @@ class CatchWeightConfiguration:
     scale_barcode_enabled: bool = False
 
     def __post_init__(self) -> None:
+        # price_basis se normaliza siempre (independiente de `enabled`) — sólo
+        # las validaciones de RANGO se saltan para una config deshabilitada.
+        if not isinstance(self.price_basis, PriceBasis):
+            try:
+                object.__setattr__(self, "price_basis", PriceBasis(str(self.price_basis)))
+            except ValueError as exc:
+                raise InvalidCatchWeightConfigurationError(
+                    f"Base de precio inválida: {self.price_basis!r}") from exc
         if not self.enabled:
             return  # una config deshabilitada no exige rango
         if not self.nominal_unit_id or not self.weight_unit_id:
@@ -68,12 +76,6 @@ class CatchWeightConfiguration:
         if not (Decimal("0") <= self.tolerance_pct <= Decimal("100")):
             raise InvalidCatchWeightConfigurationError(
                 "La tolerancia debe estar entre 0 y 100 %")
-        if not isinstance(self.price_basis, PriceBasis):
-            try:
-                object.__setattr__(self, "price_basis", PriceBasis(str(self.price_basis)))
-            except ValueError as exc:
-                raise InvalidCatchWeightConfigurationError(
-                    f"Base de precio inválida: {self.price_basis!r}") from exc
 
     def is_weight_in_range(self, weight) -> bool:
         """True if a captured weight falls within [min, max] widened by tolerance."""

@@ -90,6 +90,18 @@ class TestInternalPolicy:
         assert not is_transformation(InternalStage.SEMI_FINISHED, InternalStage.SEMI_FINISHED)
         assert not is_transformation(InternalStage.NONE, InternalStage.NONE)
 
+    def test_none_on_either_side_is_never_a_transformation(self):
+        # Regresión (PROD-6): la implementación ignoraba el propio docstring de
+        # is_transformation ("Same stage, or NONE, is not a transformation") —
+        # sólo el caso de mismo-stage estaba cubierto por tests hasta que
+        # SetInternalStageUseCase se convirtió en el primer llamador real y
+        # NONE → INTERNAL_ONLY (una reclasificación legítima, no una
+        # transformación física) se rechazaba incorrectamente.
+        assert not is_transformation(InternalStage.NONE, InternalStage.INTERNAL_ONLY)
+        assert not is_transformation(InternalStage.NONE, InternalStage.WORK_IN_PROGRESS)
+        assert not is_transformation(InternalStage.WORK_IN_PROGRESS, InternalStage.NONE)
+        assert not is_transformation(InternalStage.INTERNAL_ONLY, InternalStage.NONE)
+
     def test_internal_stages_set(self):
         assert InternalStage.WORK_IN_PROGRESS in INTERNAL_STAGES
         assert InternalStage.NONE not in INTERNAL_STAGES

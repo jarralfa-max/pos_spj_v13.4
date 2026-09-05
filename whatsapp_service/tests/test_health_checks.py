@@ -11,6 +11,10 @@ from bootstrap.health_checks import (
     HealthStatus,
     build_health_response,
     check_database,
+    check_erp_api,
+    check_inbox_queue,
+    check_outbox_queue,
+    check_provider_gateway,
     check_schema,
     check_secrets,
     overall_status,
@@ -84,17 +88,156 @@ class TestIndividualChecks:
         assert "super-secret-value" not in result.detail
 
 
-class TestNotYetBuiltSubsystemsReportUnknown:
-    def test_provider_gateway_is_unknown_not_healthy(self, root):
-        results = run_all_checks(root)
-        provider = next(r for r in results if r.name == "provider_gateway")
-        assert provider.status == HealthStatus.UNKNOWN
-        assert "WA-5" in provider.detail
+class TestProviderGatewayCheck:
+    """WA-5: `provider_gateway` pasó de placeholder UNKNOWN a un ping real
+    contra la Graph API — ver `check_provider_gateway`."""
 
-    def test_inbox_worker_is_unknown(self, root):
-        results = run_all_checks(root)
-        inbox = next(r for r in results if r.name == "inbox_worker")
-        assert inbox.status == HealthStatus.UNKNOWN
+    def test_unknown_when_secrets_not_configured(self, root, monkeypatch):
+        monkeypatch.setattr("config.settings.get_meta_access_token", lambda: "")
+        monkeypatch.setattr("config.settings.get_meta_phone_number_id", lambda: "")
+        result = check_provider_gateway(root)
+        assert result.status == HealthStatus.UNKNOWN
+        assert "secrets" in result.detail
+
+    def test_healthy_when_configured_and_ping_succeeds(self, root, monkeypatch):
+        monkeypatch.setattr("config.settings.get_meta_access_token", lambda: "token")
+        monkeypatch.setattr("config.settings.get_meta_phone_number_id", lambda: "phone-id")
+        monkeypatch.setattr(
+            "infrastructure.providers.meta_cloud_api.gateway.MetaCloudApiWhatsAppGateway.health_check",
+            lambda self: True,
+        )
+        assert check_provider_gateway(root).status == HealthStatus.HEALTHY
+
+    def test_unhealthy_when_configured_but_ping_fails(self, root, monkeypatch):
+        monkeypatch.setattr("config.settings.get_meta_access_token", lambda: "token")
+        monkeypatch.setattr("config.settings.get_meta_phone_number_id", lambda: "phone-id")
+        monkeypatch.setattr(
+            "infrastructure.providers.meta_cloud_api.gateway.MetaCloudApiWhatsAppGateway.health_check",
+            lambda self: False,
+        )
+        result = check_provider_gateway(root)
+        assert result.status == HealthStatus.UNHEALTHY
+
+    def test_does_not_duplicate_secrets_severity(self, root, monkeypatch):
+        """Fuera de producción, sin secretos, `check_secrets` ya reporta
+        DEGRADED — `check_provider_gateway` no debe escalar a UNHEALTHY por
+        la misma causa, solo reportar UNKNOWN."""
+        monkeypatch.setattr("config.settings.is_production", lambda: False)
+        monkeypatch.setattr("config.settings.get_meta_access_token", lambda: "")
+        monkeypatch.setattr("config.settings.get_meta_phone_number_id", lambda: "")
+        assert check_provider_gateway(root).status != HealthStatus.UNHEALTHY
+
+
+class TestInboxQueueCheck:
+    """WA-6: `inbox_worker` pasó de placeholder UNKNOWN a profundidad/
+    antigüedad real de `whatsapp_inbox` — ver `check_inbox_queue`."""
+
+    def test_healthy_when_queue_empty(self, root):
+        result = check_inbox_queue(root)
+        assert result.status == HealthStatus.HEALTHY
+        assert "0 pendientes" in result.detail
+
+    def test_healthy_with_a_few_fresh_pending_jobs(self, root):
+        from domain.whatsapp.entities.inbox_job import InboundMessageJob
+
+        root.inbox.save(InboundMessageJob.create(message_id="msg-1"))
+        assert check_inbox_queue(root).status == HealthStatus.HEALTHY
+
+    def test_degraded_when_backlog_exceeds_threshold(self, root, monkeypatch):
+        monkeypatch.setattr("bootstrap.health_checks._INBOX_DEGRADED_PENDING", 1)
+        from domain.whatsapp.entities.inbox_job import InboundMessageJob
+
+        root.inbox.save(InboundMessageJob.create(message_id="msg-1"))
+        root.inbox.save(InboundMessageJob.create(message_id="msg-2"))
+        assert check_inbox_queue(root).status == HealthStatus.DEGRADED
+
+    def test_unhealthy_when_backlog_far_exceeds_threshold(self, root, monkeypatch):
+        monkeypatch.setattr("bootstrap.health_checks._INBOX_UNHEALTHY_PENDING", 1)
+        from domain.whatsapp.entities.inbox_job import InboundMessageJob
+
+        root.inbox.save(InboundMessageJob.create(message_id="msg-1"))
+        root.inbox.save(InboundMessageJob.create(message_id="msg-2"))
+        assert check_inbox_queue(root).status == HealthStatus.UNHEALTHY
+
+    def test_completed_jobs_do_not_count_toward_backlog(self, root):
+        from domain.whatsapp.entities.inbox_job import InboundMessageJob
+
+        job = InboundMessageJob.create(message_id="msg-1")
+        job.claim()
+        job.complete()
+        root.inbox.save(job)
+        result = check_inbox_queue(root)
+        assert result.status == HealthStatus.HEALTHY
+        assert "0 pendientes" in result.detail
+
+
+class TestOutboxQueueCheck:
+    """WA-17/WA-18: `outbox_worker` pasó de placeholder UNKNOWN ("pendiente
+    — WA-17") a profundidad/antigüedad real de `whatsapp_outbox` — mismo
+    criterio que `check_inbox_queue` (WA-6), en sentido saliente. Corregido
+    junto con `check_erp_api` al notar, en el smoke test de WA-18, que
+    ambos placeholders habían quedado obsoletos."""
+
+    def test_healthy_when_queue_empty(self, root):
+        result = check_outbox_queue(root)
+        assert result.status == HealthStatus.HEALTHY
+        assert "0 pendientes" in result.detail
+
+    def test_healthy_with_a_few_fresh_pending_messages(self, root):
+        from domain.whatsapp.entities.outbox_message import OutboxMessage
+
+        root.outbox.save(OutboxMessage.enqueue_text(destination_phone="+525512345678", body="Hola"))
+        assert check_outbox_queue(root).status == HealthStatus.HEALTHY
+
+    def test_degraded_when_backlog_exceeds_threshold(self, root, monkeypatch):
+        monkeypatch.setattr("bootstrap.health_checks._OUTBOX_DEGRADED_PENDING", 1)
+        from domain.whatsapp.entities.outbox_message import OutboxMessage
+
+        root.outbox.save(OutboxMessage.enqueue_text(destination_phone="+525511111111", body="a"))
+        root.outbox.save(OutboxMessage.enqueue_text(destination_phone="+525522222222", body="b"))
+        assert check_outbox_queue(root).status == HealthStatus.DEGRADED
+
+    def test_unhealthy_when_backlog_far_exceeds_threshold(self, root, monkeypatch):
+        monkeypatch.setattr("bootstrap.health_checks._OUTBOX_UNHEALTHY_PENDING", 1)
+        from domain.whatsapp.entities.outbox_message import OutboxMessage
+
+        root.outbox.save(OutboxMessage.enqueue_text(destination_phone="+525511111111", body="a"))
+        root.outbox.save(OutboxMessage.enqueue_text(destination_phone="+525522222222", body="b"))
+        assert check_outbox_queue(root).status == HealthStatus.UNHEALTHY
+
+    def test_sent_messages_do_not_count_toward_backlog(self, root):
+        from domain.whatsapp.entities.outbox_message import OutboxMessage
+
+        message = OutboxMessage.enqueue_text(destination_phone="+525512345678", body="Hola")
+        message.claim()
+        message.mark_sent()
+        root.outbox.save(message)
+        result = check_outbox_queue(root)
+        assert result.status == HealthStatus.HEALTHY
+        assert "0 pendientes" in result.detail
+
+
+class TestErpApiCheck:
+    def test_degraded_when_no_real_erp_bridge_available(self, root):
+        """El fixture `root` solo monta el esquema WA-3 (sin `clientes`),
+        así que WA-9 degrada a `UnavailableErpClient` — mismo escenario que
+        `TestErpClientsWithRealLegacySchema` en `test_composition_root.py`."""
+        result = check_erp_api(root)
+        assert result.status == HealthStatus.DEGRADED
+
+    def test_healthy_when_real_erp_bridge_is_built(self, tmp_path):
+        connection = sqlite3.connect(str(tmp_path / "erp_with_legacy.db"))
+        create_whatsapp_schema(connection)
+        connection.execute(
+            "CREATE TABLE clientes (id TEXT PRIMARY KEY, nombre TEXT, telefono TEXT, activo INTEGER DEFAULT 1)"
+        )
+        connection.commit()
+        root = WhatsAppCompositionRoot(connection)
+        try:
+            assert check_erp_api(root).status == HealthStatus.HEALTHY
+        finally:
+            root.customers._bridge.close()
+            connection.close()
 
 
 class TestOverallStatus:

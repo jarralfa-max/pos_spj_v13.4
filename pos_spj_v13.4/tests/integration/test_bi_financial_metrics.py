@@ -1,7 +1,7 @@
 """FASE 13 — métricas financieras: utilidad, margen, CxC, CxP."""
-from backend.application.dto.bi_dashboard_dto import DashboardFilters
-from backend.application.queries.bi_dashboard_query_service import BiDashboardQueryService
-from backend.application.queries.bi_finance_query_service import BiFinanceQueryService
+from backend.application.analytics.dto.bi_dashboard_dto import DashboardFilters
+from backend.application.analytics.queries.bi_dashboard_query_service import BiDashboardQueryService
+from backend.application.analytics.queries.bi_finance_query_service import BiFinanceQueryService
 from tests.integration import bi_seed as S
 
 

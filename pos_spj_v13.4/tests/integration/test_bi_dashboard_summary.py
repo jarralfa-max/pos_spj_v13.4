@@ -1,9 +1,9 @@
 """FASE 13 — el dashboard de resumen devuelve un payload completo y estable."""
 import pytest
 
-from backend.application.dto.bi_dashboard_dto import DashboardFilters
-from backend.application.queries.bi_dashboard_query_service import BiDashboardQueryService
-from backend.application.services.bi_dashboard_service import BiDashboardService
+from backend.application.analytics.dto.bi_dashboard_dto import DashboardFilters
+from backend.application.analytics.queries.bi_dashboard_query_service import BiDashboardQueryService
+from backend.application.analytics.services.bi_dashboard_service import BiDashboardService
 from tests.integration import bi_seed as S
 
 

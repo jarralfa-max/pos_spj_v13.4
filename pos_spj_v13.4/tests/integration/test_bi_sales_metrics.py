@@ -1,6 +1,6 @@
 """FASE 13 — métricas de ventas: ventas netas, ticket promedio, órdenes, top."""
-from backend.application.dto.bi_dashboard_dto import DashboardFilters
-from backend.application.queries.bi_sales_query_service import BiSalesQueryService
+from backend.application.analytics.dto.bi_dashboard_dto import DashboardFilters
+from backend.application.analytics.queries.bi_sales_query_service import BiSalesQueryService
 from tests.integration import bi_seed as S
 
 

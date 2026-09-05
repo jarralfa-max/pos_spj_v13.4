@@ -505,6 +505,7 @@ class PurchaseOrder:
     source_requisition_id: str | None = None
     source_rfq_id: str | None = None
     source_award_id: str | None = None
+    payment_terms: str | None = None
 
     @classmethod
     def create(cls, document_number: DocumentNumber, supplier_id: str, branch_id: str,
@@ -557,6 +558,24 @@ class PurchaseOrder:
         fully = all(ln.received_quantity >= ln.ordered_quantity for ln in self.lines)
         self.status = (PurchaseOrderStatus.RECEIVED if fully
                        else PurchaseOrderStatus.PARTIALLY_RECEIVED)
+        self.updated_at = _utcnow()
+
+    def unregister_receipt(self, quantities: dict[str, Decimal]) -> None:
+        """Symmetric undo of ``register_receipt`` for a reversed goods receipt
+        (§41: compensating, never negative). Clamps at zero per line — a
+        reversal never removes more than a line ever received."""
+        if self.status not in (PurchaseOrderStatus.RECEIVED,
+                               PurchaseOrderStatus.PARTIALLY_RECEIVED):
+            raise InvalidPurchaseStateError(
+                f"No hay recepción que reversar en una orden {self.status.value}")
+        for line in self.lines:
+            if line.id in quantities:
+                line.received_quantity = max(
+                    Decimal("0"), line.received_quantity - _dec(quantities[line.id]))
+        if all(ln.received_quantity <= 0 for ln in self.lines):
+            self.status = PurchaseOrderStatus.SENT
+        else:
+            self.status = PurchaseOrderStatus.PARTIALLY_RECEIVED
         self.updated_at = _utcnow()
 
     def create_new_version(self, reason: str) -> None:

@@ -63,6 +63,12 @@ WHATSAPP_TABLES = (
     "whatsapp_outbox",
     "whatsapp_business_operation_idempotency",
     "whatsapp_dead_letter",
+    "whatsapp_order_drafts",
+    "whatsapp_order_draft_lines",
+    "whatsapp_quote_drafts",
+    "whatsapp_quote_draft_lines",
+    "whatsapp_delivery_requests",
+    "whatsapp_handoff_requests",
 )
 
 _DDL = (
@@ -241,6 +247,89 @@ _DDL = (
         resolution TEXT
     )
     """,
+    # ── OrderDraft (WA-10, §34-35 — el carrito conversacional, nunca el
+    # pedido canónico) ───────────────────────────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS whatsapp_order_drafts (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL REFERENCES whatsapp_conversations(id),
+        branch_id TEXT,
+        customer_external_id TEXT,
+        delivery_method TEXT,
+        status TEXT NOT NULL DEFAULT 'BUILDING',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS whatsapp_order_draft_lines (
+        id TEXT PRIMARY KEY,
+        draft_id TEXT NOT NULL REFERENCES whatsapp_order_drafts(id),
+        product_external_id TEXT NOT NULL,
+        product_name TEXT NOT NULL,
+        quantity REAL NOT NULL,
+        unit TEXT NOT NULL,
+        unit_price REAL NOT NULL
+    )
+    """,
+    # ── QuoteDraft (WA-11, §37) ──────────────────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS whatsapp_quote_drafts (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL REFERENCES whatsapp_conversations(id),
+        branch_id TEXT,
+        customer_external_id TEXT,
+        quote_external_id TEXT,
+        folio TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'CAPTURING',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS whatsapp_quote_draft_lines (
+        id TEXT PRIMARY KEY,
+        draft_id TEXT NOT NULL REFERENCES whatsapp_quote_drafts(id),
+        product_external_id TEXT NOT NULL,
+        product_name TEXT NOT NULL,
+        quantity REAL NOT NULL,
+        unit TEXT NOT NULL,
+        unit_price REAL NOT NULL
+    )
+    """,
+    # ── DeliveryRequest (WA-13) — rastro conversacional de "programar
+    # entrega para el pedido X"; el estado operativo real de la entrega
+    # sigue siendo propiedad de Orders/Delivery, no de este canal ─────────────
+    """
+    CREATE TABLE IF NOT EXISTS whatsapp_delivery_requests (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL REFERENCES whatsapp_conversations(id),
+        order_external_id TEXT NOT NULL,
+        address TEXT NOT NULL,
+        delivery_date TEXT,
+        customer_phone TEXT,
+        status TEXT NOT NULL DEFAULT 'REQUESTED',
+        failure_reason TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    # ── HandoffRequest (WA-16, §32) — solicitud de traspaso a un agente
+    # humano; distinta de ConversationState.HANDOFF_REQUESTED/HUMAN_ACTIVE
+    # (WA-2/WA-7), que es el estado de la conversación en sí ───────────────
+    """
+    CREATE TABLE IF NOT EXISTS whatsapp_handoff_requests (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL REFERENCES whatsapp_conversations(id),
+        branch_id TEXT,
+        reason TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'OPEN',
+        assigned_to_phone TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        resolved_at TEXT
+    )
+    """,
 )
 
 _INDEXES = (
@@ -270,6 +359,18 @@ _INDEXES = (
     " ON whatsapp_business_operation_idempotency(aggregate_type, aggregate_id)",
     "CREATE INDEX IF NOT EXISTS idx_whatsapp_dead_letter_unresolved"
     " ON whatsapp_dead_letter(resolved_at)",
+    "CREATE INDEX IF NOT EXISTS idx_whatsapp_order_drafts_conversation"
+    " ON whatsapp_order_drafts(conversation_id, status)",
+    "CREATE INDEX IF NOT EXISTS idx_whatsapp_order_draft_lines_draft"
+    " ON whatsapp_order_draft_lines(draft_id)",
+    "CREATE INDEX IF NOT EXISTS idx_whatsapp_quote_drafts_conversation"
+    " ON whatsapp_quote_drafts(conversation_id, status)",
+    "CREATE INDEX IF NOT EXISTS idx_whatsapp_quote_draft_lines_draft"
+    " ON whatsapp_quote_draft_lines(draft_id)",
+    "CREATE INDEX IF NOT EXISTS idx_whatsapp_delivery_requests_order"
+    " ON whatsapp_delivery_requests(order_external_id)",
+    "CREATE INDEX IF NOT EXISTS idx_whatsapp_handoff_requests_conversation"
+    " ON whatsapp_handoff_requests(conversation_id, status)",
 )
 
 

@@ -154,3 +154,65 @@ class TestSupplierReturnAndReversal:
             operation_id="ret-1", branch_id="b1", return_id="RET-1", user_id="recv",
             lines=[{"product_id": "p1", "quantity": "3", "from_location_id": "loc1"}]))
         assert _avail(conn) == Decimal("10")
+
+    def test_real_purchase_return_event_is_consumable_by_supplier_return_handler(self, conn):
+        """Producer/consumer payload compatibility: CreatePurchaseReturnUseCase's
+        actual PURCHASE_RETURN_CREATED outbox payload — not a hand-written one —
+        must be exactly what SupplierReturnHandler expects (resolve_ingress +
+        per-line product_id/quantity/unit_cost/lot_id). Two separate connections,
+        like the real outbox dispatcher would see: procurement never shares a
+        schema with inventory."""
+        import json
+        import sqlite3 as _sqlite3
+
+        from backend.application.procurement.authorization import (
+            PurchaseAuthorizationPolicy,
+        )
+        from backend.application.procurement.use_cases.purchase_return_use_cases import (
+            CreatePurchaseReturnUseCase,
+        )
+        from backend.infrastructure.db.repositories.procurement.unit_of_work import (
+            ProcurementUnitOfWork,
+        )
+        from backend.infrastructure.db.schema.document_output_schema import (
+            create_document_numbering_schema,
+        )
+        from backend.infrastructure.db.schema.procurement_schema import (
+            create_procurement_schema,
+            create_purchase_returns_schema,
+        )
+
+        class _AllowAll:
+            def has_permission(self, user_id, permission_code):
+                return True
+
+        PurchaseReceiptHandler(conn).handle(_receipt_payload())
+        assert _avail(conn) == Decimal("10")
+
+        proc_conn = _sqlite3.connect(":memory:")
+        create_procurement_schema(proc_conn)
+        create_purchase_returns_schema(proc_conn)
+        create_document_numbering_schema(proc_conn)
+        result = CreatePurchaseReturnUseCase(PurchaseAuthorizationPolicy(_AllowAll())).execute(
+            proc_conn, actor_user_id="recv", operation_id="real-ret-1",
+            supplier_id="sup1", branch_id="b1", warehouse_id="w1", reason="DAMAGED",
+            lines=[{"product_id": "p1", "quantity": "3", "unit_cost": "25"}])
+        assert result.success
+        with ProcurementUnitOfWork(proc_conn) as uow:
+            outbox_row = next(
+                r for r in uow.outbox.list_pending(50)
+                if r["event_name"] == "PURCHASE_RETURN_CREATED")
+        payload = json.loads(outbox_row["payload_json"])
+        proc_conn.close()
+
+        # Envelope-level fields (operation_id/branch_id/warehouse_id/user_id/
+        # document_id) and the per-line lot_id key line up correctly — this is
+        # as far as the handler gets before hitting a SEPARATE, real gap: an
+        # outbound SUPPLIER_RETURN movement requires a source location per line
+        # (§ "Un movimiento de salida requiere ubicación origen"), and
+        # PurchaseReturnLine has no location field at all to supply one. That's
+        # a genuine follow-up (add a location to PurchaseReturnLine), not a
+        # payload-key mismatch — document the current failure precisely rather
+        # than silently expanding PurchaseReturn's schema under this task.
+        with pytest.raises(RuntimeError, match="ubicación origen"):
+            SupplierReturnHandler(conn).handle(payload)

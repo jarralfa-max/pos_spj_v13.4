@@ -30,11 +30,19 @@ class BarcodeRepository:
         return row["product_id"] if row else None
 
     def assign(self, barcode: ProductBarcode) -> None:
-        """Assign a barcode after checking active-uniqueness (§17)."""
+        """Assign a barcode after checking active-uniqueness (§17).
+
+        Re-assigning the same value to the same product is a real no-op (not
+        just "allowed" by the uniqueness check) — the partial UNIQUE index on
+        active rows would otherwise reject the second identical INSERT even
+        though nothing actually changed.
+        """
+        existing_owner = self.active_owner(barcode.value)
         ensure_barcode_assignable(
-            barcode_value=barcode.value,
-            product_id=barcode.product_id,
-            current_owner_product_id=self.active_owner(barcode.value))
+            barcode_value=barcode.value, product_id=barcode.product_id,
+            current_owner_product_id=existing_owner)
+        if existing_owner == barcode.product_id:
+            return
         self._conn.execute(
             """INSERT INTO product_barcodes
                (id, product_id, variant_id, barcode_value, barcode_type,
@@ -43,6 +51,18 @@ class BarcodeRepository:
             (barcode.id, barcode.product_id, barcode.variant_id, barcode.value,
              barcode.barcode.barcode_type.value, int(barcode.is_primary),
              int(barcode.active)))
+
+    def get(self, barcode_id: str) -> ProductBarcode | None:
+        row = self._conn.execute(
+            "SELECT * FROM product_barcodes WHERE id=?", (barcode_id,)).fetchone()
+        return self._row_to_barcode(row) if row else None
+
+    def set_active(self, barcode_id: str, active: bool) -> None:
+        """Retire (or reinstate) one barcode — inactive duplicates don't block
+        reassignment elsewhere (§17)."""
+        self._conn.execute(
+            "UPDATE product_barcodes SET active=? WHERE id=?",
+            (1 if active else 0, barcode_id))
 
     def list_for_product(self, product_id: str) -> list[ProductBarcode]:
         rows = self._conn.execute(

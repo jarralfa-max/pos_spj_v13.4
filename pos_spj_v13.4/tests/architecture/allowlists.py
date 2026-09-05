@@ -387,6 +387,14 @@ CUSTOMERS_CRM_MODULE_ALLOWLIST: dict[str, int] = {}
 # de qué archivos legacy siguen siendo la ruta de producción real hasta que
 # CRM-21/CRM-22 migren sus consumidores y los retiren. Cada entrada debe
 # desaparecer de aquí (no solo bajar de número) cuando el archivo se elimina.
+# ASSET-1 — Allowlist de excepciones LOCALES al bounded context nuevo de
+# Activos/EAM (backend/domain/assets/, backend/application/assets/,
+# backend/infrastructure/db/repositories/assets/, frontend/desktop/modules/assets/).
+# A diferencia de los diccionarios anteriores (deuda heredada de legacy que se
+# tolera hasta que baja), este allowlist es sobre código NUEVO: debe
+# permanecer vacío siempre. Ver tests/architecture/test_assets_legacy_allowlist_is_empty.py.
+ASSETS_MODULE_ALLOWLIST: dict[str, int] = {}
+
 CUSTOMERS_CRM_LEGACY_CONSUMERS = {
     # modulos/clientes.py, its four modulos/dialogs/cliente_*_dialog.py
     # split files (CRM-22), and core/services/cliente_query_service.py

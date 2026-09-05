@@ -235,6 +235,17 @@ MIGRATIONS = [
     _Migration("241",  "migrations.standalone.241_loyalty_digital_card_projections_schema"),
     _Migration("242",  "migrations.standalone.242_loyalty_fraud_cases_schema"),
     _Migration("243",  "migrations.standalone.243_whatsapp_bounded_context_schema"),
+    _Migration("244",  "migrations.standalone.244_whatsapp_order_drafts_schema"),
+    _Migration("245",  "migrations.standalone.245_whatsapp_quote_drafts_schema"),
+    _Migration("246",  "migrations.standalone.246_whatsapp_delivery_requests_schema"),
+    _Migration("247",  "migrations.standalone.247_whatsapp_handoff_requests_schema"),
+    _Migration("248",  "migrations.standalone.248_meat_processing_preparation_execution_schema"),
+    _Migration("249",  "migrations.standalone.249_meat_processing_packaging_schema"),
+    _Migration("250",  "migrations.standalone.250_meat_processing_rework_schema"),
+    _Migration("251",  "migrations.standalone.251_meat_processing_genealogy_schema"),
+    _Migration("252",  "migrations.standalone.252_meat_processing_resources_schema"),
+    _Migration("253",  "migrations.standalone.253_purchase_orders_payment_terms"),
+    _Migration("254",  "migrations.standalone.254_forecasting_schema"),
 ]
 
 def _ensure_tracking_table(conn):

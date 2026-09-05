@@ -158,3 +158,20 @@ class InventoryStockAggregateQueryService(InventoryRepositoryBase):
 
     def low_stock_products_count(self, *, positive_threshold_only: bool = False) -> int:
         return len(self.low_stock_products(positive_threshold_only=positive_threshold_only))
+
+    # ── umbral global por producto (equiv. legacy stock_minimo, lectura puntual) ─
+    def reorder_points_by_product(self) -> dict[str, Decimal]:
+        """``reorder_point`` global (regla ``branch_id=''``/``warehouse_id=''``) por
+        producto — equivalente canónico de ``productos.stock_minimo``."""
+        sql = ("SELECT product_id, reorder_point FROM inventory_replenishment_rule"
+               " WHERE active=1 AND branch_id='' AND warehouse_id=''")
+        return {r["product_id"]: to_decimal(r["reorder_point"]) for r in self._query(sql)}
+
+    def reorder_point_for_product(self, product_id: str) -> Decimal:
+        """``reorder_point`` global de un solo producto (lectura puntual, sin
+        cargar la tabla completa)."""
+        row = self._query_one(
+            "SELECT reorder_point FROM inventory_replenishment_rule"
+            " WHERE active=1 AND branch_id='' AND warehouse_id='' AND product_id=?",
+            (product_id,))
+        return to_decimal(row["reorder_point"]) if row else Decimal("0")

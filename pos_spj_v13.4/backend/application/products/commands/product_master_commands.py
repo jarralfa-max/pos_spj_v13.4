@@ -28,6 +28,7 @@ class CreateProductMasterCommand:
     brand_id: str | None = None
     species_id: str | None = None
     lifecycle_status: str = "DRAFT"
+    internal_stage: str = "NONE"
     sellable: bool = True
     purchasable: bool = True
     inventory_managed: bool = True

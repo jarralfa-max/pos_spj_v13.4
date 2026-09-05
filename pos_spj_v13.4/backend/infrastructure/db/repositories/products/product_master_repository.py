@@ -40,14 +40,15 @@ class ProductMasterRepository:
         self._conn.execute(
             f"""INSERT INTO products (
                     id, code, name, name_normalized, short_name, description,
-                    product_type, lifecycle_status, category_id, brand_id,
-                    parent_product_id, species_id,
+                    product_type, lifecycle_status, internal_stage, category_id,
+                    brand_id, parent_product_id, species_id,
                     base_unit_id, created_by, {', '.join(_CAP_FLAGS)})
                 VALUES (:id, :code, :name, :name_normalized, :short_name, :description,
-                    :product_type, :lifecycle_status, :category_id, :brand_id,
-                    :parent_product_id, :species_id,
+                    :product_type, :lifecycle_status, :internal_stage, :category_id,
+                    :brand_id, :parent_product_id, :species_id,
                     :base_unit_id, :created_by, {', '.join(':' + f for f in _CAP_FLAGS)})""",
-            {"brand_id": None, "parent_product_id": None, **data, **flags})
+            {"brand_id": None, "parent_product_id": None, "internal_stage": "NONE",
+             **data, **flags})
 
     def update_lifecycle(self, product_id: str, *, status: str,
                          activated_at: str | None = None,
@@ -68,8 +69,10 @@ class ProductMasterRepository:
                     code=:code, name=:name, name_normalized=:name_normalized,
                     short_name=:short_name, description=:description,
                     product_type=:product_type, lifecycle_status=:lifecycle_status,
+                    internal_stage=:internal_stage,
                     category_id=:category_id, brand_id=:brand_id, species_id=:species_id,
                     base_unit_id=:base_unit_id, updated_at=datetime('now'),
                     {', '.join(f'{f}=:{f}' for f in _CAP_FLAGS)}
                 WHERE id=:id""",
-            {"brand_id": None, **data, **flags, "id": product_id})
+            {"brand_id": None, "internal_stage": "NONE", **data, **flags,
+             "id": product_id})

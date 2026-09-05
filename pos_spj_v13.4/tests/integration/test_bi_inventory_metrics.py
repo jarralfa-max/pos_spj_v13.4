@@ -1,7 +1,7 @@
 """FASE 13 — métricas de inventario: valorizado, rotación, stock crítico."""
-from backend.application.dto.bi_dashboard_dto import DashboardFilters
-from backend.application.queries.bi_dashboard_query_service import BiDashboardQueryService
-from backend.application.queries.bi_inventory_query_service import BiInventoryQueryService
+from backend.application.analytics.dto.bi_dashboard_dto import DashboardFilters
+from backend.application.analytics.queries.bi_dashboard_query_service import BiDashboardQueryService
+from backend.application.analytics.queries.bi_inventory_query_service import BiInventoryQueryService
 from tests.integration import bi_seed as S
 
 

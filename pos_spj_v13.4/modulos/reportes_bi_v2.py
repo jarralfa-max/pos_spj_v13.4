@@ -836,7 +836,7 @@ class ModuloReportesBIv2(QWidget):
 
     def _current_filters(self):
         """Construye DashboardFilters desde la barra de filtros globales de la UI."""
-        from backend.application.dto.bi_dashboard_dto import DashboardFilters
+        from backend.application.analytics.dto.bi_dashboard_dto import DashboardFilters
         preset = self._PRESET_MAP.get(self.cmb_rango.currentText().strip().lower(), "month")
         branch = self.cmb_sucursal.currentData() if hasattr(self, "cmb_sucursal") else ""
         cat = self.cmb_categoria.currentData() if hasattr(self, "cmb_categoria") else ""

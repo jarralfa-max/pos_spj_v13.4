@@ -20,6 +20,9 @@ from backend.application.products.commands.product_master_commands import (
     CreateProductMasterCommand,
     UpdateProductMasterCommand,
 )
+from backend.application.products.notification_handlers.dispatch import (
+    dispatch_product_alerts,
+)
 from backend.application.products.permissions import ProductPermissions
 from backend.application.products.queries.unit_catalog_query_service import (
     UnitCatalogQueryService,
@@ -61,7 +64,7 @@ def _entity_row(product: Product) -> dict:
         "product_type": product.product_type.value,
         "lifecycle_status": product.lifecycle_status.value,
         "category_id": product.category_id, "brand_id": product.brand_id,
-        "species_id": product.species_id,
+        "species_id": product.species_id, "internal_stage": product.internal_stage.value,
         "base_unit_id": product.base_unit_id, "created_by": product.created_by,
     }
     row.update({f: getattr(product, f) for f in _FLAG_FIELDS})
@@ -69,18 +72,26 @@ def _entity_row(product: Product) -> dict:
 
 
 def _build_entity(command, *, product_id: str, lifecycle: LifecycleStatus,
-                  code: str) -> Product:
+                  code: str, internal_stage: str | None = None) -> Product:
     """Construye la entidad (VOs validan código/nombre/tipo) y corre la política de
-    creación. Lanza ProductsDomainError si algún invariante falla."""
+    creación. Lanza ProductsDomainError si algún invariante falla.
+
+    ``internal_stage``: en alta usa el del command (puede nacer WIP); en edición
+    el caller debe pasar el valor YA EXISTENTE (P0-01: la edición no cambia etapa,
+    igual que no cambia lifecycle_status — una transición de etapa real exige su
+    propio caso de uso, nunca un efecto colateral de editar nombre/código).
+    """
     ptype = ProductType(command.product_type)
     validate_creation(
         product_type=ptype, base_unit_id=command.base_unit_id,
         species_id=command.species_id, sellable=bool(command.sellable),
         internal_only=bool(command.internal_only))
     flags = {f: bool(getattr(command, f)) for f in _FLAG_FIELDS}
+    stage = internal_stage if internal_stage is not None else command.internal_stage
     return Product(
         id=product_id, code=code, name=command.name, product_type=ptype,
         base_unit_id=command.base_unit_id, lifecycle_status=lifecycle,
+        internal_stage=stage,
         short_name=command.short_name, description=command.description,
         category_id=command.category_id, brand_id=command.brand_id,
         species_id=command.species_id, created_by=command.user_id, **flags)
@@ -90,10 +101,16 @@ class CreateProductMasterUseCase:
     name = "CreateProductMasterUseCase"
 
     def __init__(self, connection,
-                 authorization: ProductsAuthorizationPolicy | None = None) -> None:
+                 authorization: ProductsAuthorizationPolicy | None = None, *,
+                 notification_service=None, notify_recipients: list[str] | None = None
+                 ) -> None:
         self._conn = connection
         self._repo = ProductMasterRepository(connection)
         self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        # PROD-16: opcional, no-op salvo que el caller provea ambos — ver
+        # notification_handlers/dispatch.py.
+        self._notification_service = notification_service
+        self._notify_recipients = notify_recipients
 
     def execute(self, command: CreateProductMasterCommand) -> ProductMasterResult:
         command.validate()
@@ -138,6 +155,10 @@ class CreateProductMasterUseCase:
                        "product_type": command.product_type})
             _enqueue_outbox(self._conn, ProductEvents.PRODUCT_CREATED, command,
                             product_id, code=code)
+            dispatch_product_alerts(
+                self._conn, product, notification_service=self._notification_service,
+                notify_recipients=self._notify_recipients,
+                operation_id=command.operation_id)
             self._conn.commit()
         except Exception:
             _rollback(self._conn)
@@ -150,10 +171,14 @@ class UpdateProductMasterUseCase:
     name = "UpdateProductMasterUseCase"
 
     def __init__(self, connection,
-                 authorization: ProductsAuthorizationPolicy | None = None) -> None:
+                 authorization: ProductsAuthorizationPolicy | None = None, *,
+                 notification_service=None, notify_recipients: list[str] | None = None
+                 ) -> None:
         self._conn = connection
         self._repo = ProductMasterRepository(connection)
         self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._notification_service = notification_service
+        self._notify_recipients = notify_recipients
 
     def execute(self, command: UpdateProductMasterCommand) -> ProductMasterResult:
         command.validate()
@@ -170,8 +195,10 @@ class UpdateProductMasterUseCase:
         # vida); se conserva el lifecycle actual y se revalidan los invariantes.
         current = LifecycleStatus(existing["lifecycle_status"])
         try:
-            product = _build_entity(command, product_id=command.product_id,
-                                    lifecycle=current, code=command.code)
+            product = _build_entity(
+                command, product_id=command.product_id, lifecycle=current,
+                code=command.code,
+                internal_stage=existing.get("internal_stage") or "NONE")
         except ProductsDomainError as exc:
             return ProductMasterResult(False, None, str(exc))
         try:
@@ -183,6 +210,10 @@ class UpdateProductMasterUseCase:
                 after={"code": command.code, "name": command.name})
             _enqueue_outbox(self._conn, ProductEvents.PRODUCT_UPDATED, command,
                             command.product_id, code=command.code)
+            dispatch_product_alerts(
+                self._conn, product, notification_service=self._notification_service,
+                notify_recipients=self._notify_recipients,
+                operation_id=command.operation_id)
             self._conn.commit()
         except Exception:
             _rollback(self._conn)

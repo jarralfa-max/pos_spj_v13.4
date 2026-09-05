@@ -7,6 +7,7 @@ from backend.domain.meat_processing.entities.production_plan_line import Product
 from backend.domain.meat_processing.enums import PlanSourceType, ProductionPlanStatus
 from backend.domain.meat_processing.exceptions import (
     MeatProcessingInvariantError,
+    MeatProcessingSegregationOfDutiesError,
     MeatProcessingStateTransitionError,
 )
 from backend.shared.ids import new_uuid
@@ -122,7 +123,7 @@ def test_plan_creator_cannot_approve_own_plan():
     plan.add_line(_line())
     plan.generate()
     plan.submit_for_review()
-    with pytest.raises(MeatProcessingInvariantError):
+    with pytest.raises(MeatProcessingSegregationOfDutiesError):
         plan.approve(actor_user_id=creator)
 
 

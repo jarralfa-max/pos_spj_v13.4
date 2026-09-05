@@ -275,7 +275,8 @@ _DDL = (
         source_award_id TEXT REFERENCES purchase_awards(id),
         operation_id TEXT UNIQUE,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        payment_terms TEXT
     )
     """,
     """
@@ -479,12 +480,21 @@ _INDEXES = (
 )
 
 
+def _column_exists(conn, table: str, column: str) -> bool:
+    return any(r[1] == column for r in conn.execute(f"PRAGMA table_info({table})"))
+
+
 def create_procurement_schema(conn) -> None:
     """Create the canonical procurement schema (idempotent). DDL lives only here."""
     for statement in _DDL:
         conn.execute(statement)
     for index in _INDEXES:
         conn.execute(index)
+    # purchase_orders.payment_terms (migration 253) — CREATE TABLE IF NOT EXISTS
+    # above only covers a never-before-created table; a purchase_orders table
+    # created by an earlier run of this same function still needs the ALTER.
+    if not _column_exists(conn, "purchase_orders", "payment_terms"):
+        conn.execute("ALTER TABLE purchase_orders ADD COLUMN payment_terms TEXT")
 
 
 def drop_procurement_schema(conn) -> list[str]:

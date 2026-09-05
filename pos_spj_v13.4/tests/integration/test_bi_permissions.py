@@ -1,7 +1,7 @@
 """FASE 13 — el dashboard respeta permisos por sección."""
-from backend.application.dto.bi_dashboard_dto import DashboardFilters
-from backend.application.queries.bi_dashboard_query_service import BiDashboardQueryService
-from backend.application.services.bi_dashboard_service import BiDashboardService
+from backend.application.analytics.dto.bi_dashboard_dto import DashboardFilters
+from backend.application.analytics.queries.bi_dashboard_query_service import BiDashboardQueryService
+from backend.application.analytics.services.bi_dashboard_service import BiDashboardService
 from tests.integration import bi_seed as S
 
 
@@ -31,7 +31,7 @@ def test_cajero_sin_finanzas_no_ve_finanzas():
 
 def test_permisos_usan_codigos_del_catalogo():
     from core.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
-    from backend.application.services.bi_dashboard_service import SECTION_PERMISSION
+    from backend.application.analytics.services.bi_dashboard_service import SECTION_PERMISSION
     acciones = set(CANONICAL_MODULE_PERMISSIONS["INTELIGENCIA_BI"])
     for code in SECTION_PERMISSION.values():
         modulo, accion = code.split(".", 1)

@@ -20,11 +20,21 @@ def test_meat_processing_view_uses_sidebar_and_stack_not_horizontal_tabs():
 
 
 def test_meat_processing_pages_do_not_access_database_or_repositories():
+    """PROC-23: pages/dialogs/view_models must stay free of DB access — but
+    presenters/ (added in PROC-23) legitimately call ``use_case.execute(...)``,
+    the sanctioned application-layer entry point (same pattern
+    InventoryPresenter/LossRegistrationPresenter already use); only
+    ``sqlite3``, direct ``.commit()`` and repository imports are real
+    violations there."""
     offenders = []
     module = ROOT / "frontend/desktop/modules/meat_processing"
     for path in module.rglob("*.py"):
         source = path.read_text(encoding="utf-8")
-        if any(token in source for token in ("sqlite3", ".execute(", ".commit(", "repositories")):
+        is_presenter = "presenters" in path.relative_to(module).parts
+        tokens = (
+            ("sqlite3", ".commit(", "repositories") if is_presenter
+            else ("sqlite3", ".execute(", ".commit(", "repositories"))
+        if any(token in source for token in tokens):
             offenders.append(str(path.relative_to(ROOT)))
     assert not offenders
 

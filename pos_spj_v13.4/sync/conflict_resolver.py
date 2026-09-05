@@ -32,6 +32,15 @@ ADDITIVE_TABLES = frozenset({
 SERVER_AUTH_TABLES = frozenset({
     "ventas", "ordenes_compra", "ordenes_compra_items",
     "compras", "detalles_compra",
+    # PROC-21 — núcleo transaccional de Procesamiento Cárnico: mismo trato
+    # que ventas/ordenes_compra (agregados auditables con máquina de
+    # estados; el servidor gana en conflicto para no divergir en silencio).
+    # Tablas de catálogo/detalle del mismo bounded context (material_requirements,
+    # operator_assignments, process_incidents, production_labels, etc.) se
+    # dejan en el LWW por defecto, igual que detalles_compra frente a compras.
+    "processing_orders", "processing_batches", "process_executions",
+    "material_consumptions", "process_outputs", "process_weighings",
+    "yield_reconciliations", "rework_orders",
 })
 LAST_WRITE_TABLES = frozenset({
     "clientes", "productos", "configuraciones",

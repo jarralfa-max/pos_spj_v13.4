@@ -10,6 +10,7 @@ from backend.application.procurement.use_cases.purchase_order_use_cases import (
     ChangePurchaseOrderUseCase,
     CreatePurchaseOrderUseCase,
     ReceivePurchaseOrderUseCase,
+    ReverseGoodsReceiptUseCase,
     SendPurchaseOrderUseCase,
 )
 from backend.application.procurement.use_cases.quotation_use_cases import (
@@ -126,6 +127,23 @@ def _make_order(conn, op="oc-1"):
         lines=[{"product_id": "p1", "description": "x", "quantity": "10", "unit_price": "100"}])
 
 
+def test_order_persists_payment_terms(proc_conn):
+    created = CreatePurchaseOrderUseCase().execute(
+        proc_conn, actor_user_id="u1", operation_id="oc-terms", supplier_id="sup-1",
+        branch_id="br-1", warehouse_id="wh-1", payment_terms="NET_30",
+        lines=[{"product_id": "p1", "description": "x", "quantity": "1", "unit_price": "1"}])
+    assert created.success
+    with ProcurementUnitOfWork(proc_conn) as uow:
+        po = uow.orders.get(created.entity_id)
+        assert po.payment_terms == "NET_30"
+
+
+def test_order_without_payment_terms_defaults_to_none(proc_conn):
+    created = _make_order(proc_conn, op="oc-no-terms")
+    with ProcurementUnitOfWork(proc_conn) as uow:
+        assert uow.orders.get(created.entity_id).payment_terms is None
+
+
 def test_order_create_approve_send_receive_inventory(proc_conn):
     created = _make_order(proc_conn)
     assert created.data["total"] == "1000.00"
@@ -144,6 +162,72 @@ def test_order_create_approve_send_receive_inventory(proc_conn):
     assert recv.data["order_status"] == PurchaseOrderStatus.RECEIVED.value
     assert recv.data["accepted"] == "8"
     assert "GOODS_RECEIPT_COMPLETED" in _pending(proc_conn)
+
+
+def test_reverse_goods_receipt_reopens_order(proc_conn):
+    created = _make_order(proc_conn, op="oc-rev-1")
+    ApprovePurchaseOrderUseCase().execute(
+        proc_conn, approver_user_id="jefe", purchase_order_id=created.entity_id, operation_id="a")
+    SendPurchaseOrderUseCase().execute(
+        proc_conn, actor_user_id="u1", purchase_order_id=created.entity_id, operation_id="s")
+    recv = ReceivePurchaseOrderUseCase().execute(
+        proc_conn, actor_user_id="alm", purchase_order_id=created.entity_id, operation_id="r",
+        receipt_lines=[{"product_id": "p1", "received_quantity": "10", "accepted_quantity": "8"}])
+    assert recv.data["order_status"] == PurchaseOrderStatus.RECEIVED.value
+
+    reversal = ReverseGoodsReceiptUseCase().execute(
+        proc_conn, actor_user_id="jefe", goods_receipt_id=recv.entity_id,
+        operation_id="rev-1", reason="captura duplicada")
+    assert reversal.success
+    assert reversal.data["status"] == "REVERSED"
+    assert reversal.data["order_status"] == PurchaseOrderStatus.SENT.value
+    assert "GOODS_RECEIPT_REVERSED" in _pending(proc_conn)
+
+    with ProcurementUnitOfWork(proc_conn) as uow:
+        po = uow.orders.get(created.entity_id)
+        line = po.lines[0]
+        assert line.received_quantity == Decimal("0")
+        assert line.accepted_quantity == Decimal("0")
+        assert line.rejected_quantity == Decimal("0")
+
+
+def test_reverse_goods_receipt_is_idempotent(proc_conn):
+    created = _make_order(proc_conn, op="oc-rev-2")
+    ApprovePurchaseOrderUseCase().execute(
+        proc_conn, approver_user_id="jefe", purchase_order_id=created.entity_id, operation_id="a")
+    SendPurchaseOrderUseCase().execute(
+        proc_conn, actor_user_id="u1", purchase_order_id=created.entity_id, operation_id="s")
+    recv = ReceivePurchaseOrderUseCase().execute(
+        proc_conn, actor_user_id="alm", purchase_order_id=created.entity_id, operation_id="r",
+        receipt_lines=[{"product_id": "p1", "received_quantity": "10", "accepted_quantity": "10"}])
+    ReverseGoodsReceiptUseCase().execute(
+        proc_conn, actor_user_id="jefe", goods_receipt_id=recv.entity_id,
+        operation_id="rev-a", reason="motivo")
+    second = ReverseGoodsReceiptUseCase().execute(
+        proc_conn, actor_user_id="jefe", goods_receipt_id=recv.entity_id,
+        operation_id="rev-b", reason="motivo")
+    assert second.success
+    assert second.data["status"] == "REVERSED"
+
+
+def test_reverse_goods_receipt_requires_permission(proc_conn):
+    created = _make_order(proc_conn, op="oc-rev-3")
+    ApprovePurchaseOrderUseCase().execute(
+        proc_conn, approver_user_id="jefe", purchase_order_id=created.entity_id, operation_id="a")
+    SendPurchaseOrderUseCase().execute(
+        proc_conn, actor_user_id="u1", purchase_order_id=created.entity_id, operation_id="s")
+    recv = ReceivePurchaseOrderUseCase().execute(
+        proc_conn, actor_user_id="alm", purchase_order_id=created.entity_id, operation_id="r",
+        receipt_lines=[{"product_id": "p1", "received_quantity": "10", "accepted_quantity": "10"}])
+    class NoReverse:
+        def has_permission(self, user_id, permission_code):
+            return permission_code != PurchasePermissions.RECEIPT_REVERSE
+
+    auth = PurchaseAuthorizationPolicy(NoReverse())
+    result = ReverseGoodsReceiptUseCase(auth).execute(
+        proc_conn, actor_user_id="jefe", goods_receipt_id=recv.entity_id,
+        operation_id="rev-denied", reason="motivo")
+    assert not result.success and result.error_code == "PERMISSION_DENIED"
 
 
 def test_partial_receipt_keeps_order_open(proc_conn):
@@ -236,6 +320,22 @@ def test_rfq_quote_award(proc_conn):
     assert proc_conn.execute(
         "SELECT COUNT(*) FROM purchase_award_lines WHERE award_id=?",
         (award.entity_id,)).fetchone()[0] == 1
+
+
+def test_create_rfq_is_idempotent_by_operation_id(proc_conn):
+    """A retried CreateRfqUseCase call (same operation_id) must return the
+    existing RFQ instead of creating a second row and crashing on the
+    operation_id UNIQUE constraint."""
+    first = CreateRfqUseCase().execute(
+        proc_conn, actor_user_id="u1", operation_id="rfq-retry", supplier_ids=["s1"])
+    assert first.success
+    second = CreateRfqUseCase().execute(
+        proc_conn, actor_user_id="u1", operation_id="rfq-retry", supplier_ids=["s1"])
+    assert second.success
+    assert second.entity_id == first.entity_id
+    assert proc_conn.execute(
+        "SELECT COUNT(*) FROM requests_for_quotation WHERE operation_id=?",
+        ("rfq-retry",)).fetchone()[0] == 1
 
 
 # ── supplier invoice / 3-way ─────────────────────────────────────────────────

@@ -1,8 +1,8 @@
 """FASE 13 — los filtros globales afectan realmente los resultados."""
 from datetime import timedelta
 
-from backend.application.dto.bi_dashboard_dto import DashboardFilters, resolve_range
-from backend.application.queries.bi_sales_query_service import BiSalesQueryService
+from backend.application.analytics.dto.bi_dashboard_dto import DashboardFilters, resolve_range
+from backend.application.analytics.queries.bi_sales_query_service import BiSalesQueryService
 from tests.integration import bi_seed as S
 
 

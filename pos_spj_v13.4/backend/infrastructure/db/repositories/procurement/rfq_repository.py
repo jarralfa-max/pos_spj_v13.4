@@ -55,6 +55,11 @@ class RfqRepository(ProcurementRepositoryBase):
             invitations=invitations, requisition_id=row["requisition_id"],
             status=row["status"], created_at=row["created_at"])
 
+    def get_rfq_by_operation(self, operation_id: str) -> RequestForQuotation | None:
+        row = self._query_one("SELECT id FROM requests_for_quotation WHERE operation_id=?",
+                              (operation_id,))
+        return self.get_rfq(row["id"]) if row else None
+
     def save_quote(self, quote: SupplierQuote) -> None:
         self._execute(
             "INSERT INTO supplier_quotes (id, rfq_id, supplier_id, currency_code,"

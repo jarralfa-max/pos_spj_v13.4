@@ -88,6 +88,30 @@ class CustomerConsent:
         )
 
     @classmethod
+    def decline(
+        cls, customer_id: str, consent_type: ConsentType, *, reason: str,
+        channel: ConsentChannel = ConsentChannel.OTHER, captured_by_user_id: str | None = None,
+        operation_id: str | None = None,
+    ) -> "CustomerConsent":
+        """WA-14 (canal WhatsApp): un cliente puede declarar explícitamente
+        que NO quiere este consentimiento sin que exista un `GRANTED`
+        previo que retirar (p. ej. responde "BAJA" a un número con el que
+        nunca había interactuado antes por WhatsApp) — `withdraw()` no
+        cubre este caso porque exige partir de `GRANTED`
+        (`_WITHDRAWABLE`). Va directo a `WITHDRAWN`, igual de explícito y
+        evidenciado que `capture()` (exige `reason`, nunca se infiere)."""
+        if not customer_id:
+            raise InvalidCustomerConsentStateError("customer_id es obligatorio")
+        if not reason.strip():
+            raise InvalidCustomerConsentStateError("decline() requiere un motivo (no se infiere)")
+        return cls(
+            id=new_uuid(), customer_id=customer_id, consent_type=consent_type,
+            status=ConsentStatus.WITHDRAWN, channel=channel, withdrawal_reason=reason,
+            withdrawn_at=_utcnow(), captured_by_user_id=captured_by_user_id,
+            operation_id=operation_id,
+        )
+
+    @classmethod
     def mark_not_required(
         cls, customer_id: str, consent_type: ConsentType, *, reason: str = "",
         captured_by_user_id: str | None = None, operation_id: str | None = None,

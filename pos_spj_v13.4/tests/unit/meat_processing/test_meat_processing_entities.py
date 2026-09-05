@@ -24,6 +24,7 @@ from backend.domain.meat_processing.enums import (
 )
 from backend.domain.meat_processing.exceptions import (
     MeatProcessingInvariantError,
+    MeatProcessingSegregationOfDutiesError,
     MeatProcessingStateTransitionError,
 )
 from backend.shared.ids import new_uuid
@@ -99,7 +100,7 @@ def test_processing_order_creator_cannot_approve_own_order():
     creator = new_uuid()
     order = _order(created_by_user_id=creator)
     order.submit_for_approval()
-    with pytest.raises(MeatProcessingInvariantError):
+    with pytest.raises(MeatProcessingSegregationOfDutiesError):
         order.approve(actor_user_id=creator)
 
 
@@ -112,7 +113,7 @@ def test_processing_order_closer_cannot_reverse_own_closure():
     order.complete(actor_user_id=new_uuid())
     closer = new_uuid()
     order.close(actor_user_id=closer)
-    with pytest.raises(MeatProcessingInvariantError):
+    with pytest.raises(MeatProcessingSegregationOfDutiesError):
         order.reverse(actor_user_id=closer)
 
 
@@ -144,6 +145,34 @@ def test_processing_order_close_is_terminal_and_immutable_to_reopen():
         order.close(actor_user_id=new_uuid())
     with pytest.raises(MeatProcessingStateTransitionError):
         order.start(actor_user_id=new_uuid())
+
+
+def test_processing_order_apply_recipe_snapshot_requires_approved_or_ready():
+    order = _order()
+    with pytest.raises(MeatProcessingStateTransitionError):
+        order.apply_recipe_snapshot(recipe_version_id=new_uuid())
+
+
+def test_processing_order_apply_recipe_snapshot_sets_version_ids():
+    order = _order()
+    order.submit_for_approval()
+    order.approve(actor_user_id=new_uuid())
+    recipe_id, cutting_id, yield_id = new_uuid(), new_uuid(), new_uuid()
+    order.apply_recipe_snapshot(
+        recipe_version_id=recipe_id, cutting_scheme_version_id=cutting_id,
+        yield_profile_version_id=yield_id)
+    assert order.recipe_version_id == recipe_id
+    assert order.cutting_scheme_version_id == cutting_id
+    assert order.yield_profile_version_id == yield_id
+
+
+def test_processing_order_apply_recipe_snapshot_is_immutable_once_captured():
+    order = _order()
+    order.submit_for_approval()
+    order.approve(actor_user_id=new_uuid())
+    order.apply_recipe_snapshot(recipe_version_id=new_uuid())
+    with pytest.raises(MeatProcessingInvariantError):
+        order.apply_recipe_snapshot(recipe_version_id=new_uuid())
 
 
 # -- ProcessingBatch --------------------------------------------------------------
