@@ -45,7 +45,13 @@ class MeatProcessingModuleHost(MeatProcessingView):
         def context_provider() -> MeatProcessingExecutionContext:
             actor = str(getattr(session, "user_id", "") or "")
             branch = str(getattr(session, "active_branch_id", "") or "")
-            warehouse = str(getattr(session, "warehouse_id", "") or "")
+            # `SessionContext`/`LegacySessionAdapter` exponen
+            # `active_warehouse_id`; ninguno define `warehouse_id`, así que
+            # leer sólo ese alias dejaba `allowed_warehouse_ids={""}` (§17).
+            # Mismo orden que ya resuelve el `ProcessingOrderPresenter` de
+            # este mismo módulo.
+            warehouse = str(getattr(session, "active_warehouse_id", None)
+                            or getattr(session, "warehouse_id", None) or "")
             permissions = frozenset(
                 code for code in getattr(session, "permisos", ())
                 if isinstance(code, str))

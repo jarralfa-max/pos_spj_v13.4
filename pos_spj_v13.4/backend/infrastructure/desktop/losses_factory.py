@@ -1,4 +1,12 @@
-"""Desktop composition root for the canonical Losses workspace."""
+"""Desktop composition root for the canonical Losses workspace.
+
+Una sola composición sirve a los DOS anfitriones del módulo: el slot `MERMAS`
+de `MainWindow` (vía `LossesModuleHost`) y el shell canónico (vía
+`create_losses_view`, que llama `LossesModuleActivator`). §3 prohíbe que cada
+uno arme el suyo.
+"""
+
+from typing import Callable, Mapping, NamedTuple
 
 from backend.application.losses.authorization import LossAuthorizationPolicy
 from backend.application.losses.execution_context import LossExecutionContext
@@ -47,110 +55,198 @@ from frontend.desktop.modules.losses.presenters.analytics_presenter import LossA
 from frontend.desktop.modules.losses.presenters import LossRegistrationPresenter
 
 
+class LossesWiring(NamedTuple):
+    """Todo lo que el workspace de Mermas necesita, compuesto UNA sola vez."""
+
+    has_permission: Callable[[str], bool]
+    page_builder: Callable[[str], object]
+    services: Mapping[str, object]
+
+
+def _resolve_warehouse_id(session) -> str:
+    """`SessionContext` y `LegacySessionAdapter` exponen `active_warehouse_id`;
+    NINGUNO define `warehouse_id`. Leer sólo el segundo devolvía siempre "":
+    almacén vacío en el formulario de registro y `allowed_warehouse_ids={""}`
+    en el scope de autorización — el "inventar contexto" que §17 prohíbe.
+
+    Mismo orden de resolución que ya usan `inventory/presenter.py`,
+    `purchasing/*_presenter.py` y el `ProcessingOrderPresenter` del módulo
+    hermano: canónico primero, alias legacy después.
+    """
+    return str(
+        getattr(session, "active_warehouse_id", None)
+        or getattr(session, "warehouse_id", None)
+        or ""
+    )
+
+
+def _permission_checker(session) -> Callable[[str], bool]:
+    """Las dos sesiones vivas —`SessionContext` y `LegacySessionAdapter`—
+    exponen `tiene_permiso`/`permisos`, nunca `has_permission`/`permissions`.
+
+    Sin sesión no se concede nada: este callback gobierna el sidebar interno
+    del módulo y mostrar de más sería peor que mostrar de menos.
+    """
+    if session is None:
+        return lambda _permission: False
+    checker = getattr(session, "tiene_permiso", None)
+    if callable(checker):
+        return lambda permission: bool(checker(permission))
+
+    def _from_permission_codes(permission: str) -> bool:
+        codes = getattr(session, "permisos", None)
+        if codes is None:
+            return False
+        granted = {str(code).upper() for code in codes}
+        return "*" in granted or permission.upper() in granted
+
+    return _from_permission_codes
+
+
+def build_losses_wiring(
+    connection, session=None, *, whatsapp_message_service=None,
+) -> LossesWiring:
+    """ÚNICA composición del workspace de Mermas (§3: una sola ruta funcional).
+
+    Recibe sólo lo que necesita —conexión y sesión ya desempaquetadas—, nunca
+    el `AppContainer`, igual que `create_fidelidad_view` y las demás funciones
+    de composición ya migradas.
+    """
+    has_permission = _permission_checker(session)
+    authorization = LossAuthorizationPolicy(LossSessionPermissionChecker(session))
+    warehouse_id = _resolve_warehouse_id(session)
+
+    def context_provider():
+        actor = str(getattr(session, "user_id", "") or "")
+        branch = str(getattr(session, "active_branch_id", "") or "")
+        permissions = frozenset(
+            code for code in getattr(session, "permisos", ())
+            if isinstance(code, str))
+        return LossExecutionContext(
+            actor_user_id=actor, active_branch_id=branch,
+            assigned_branch_ids=frozenset({branch}),
+            allowed_warehouse_ids=frozenset({warehouse_id}),
+            permissions=permissions,
+        )
+
+    presenter = LossRegistrationPresenter(
+        LossRegistrationQueryRepository(connection),
+        RegisterGeneralLossUseCase(LossRegistrationRepository(connection), authorization),
+        context_provider,
+    )
+    inventory_factory = InventoryUseCaseFactory.from_session(session)
+    inventory_gateway = LossesInventoryGateway(
+            connection, inventory_factory.post_movement(),
+            inventory_factory.reverse_movement(),
+            inventory_factory.quarantine_stock(),
+            inventory_factory.release_quarantine(),
+            inventory_factory.dispose_quarantine(),
+            inventory_factory.record_temperature_reading())
+    whatsapp_sender = (LossWhatsAppNotificationSender(whatsapp_message_service)
+                       if whatsapp_message_service is not None
+                       else UnavailableWhatsAppNotificationSender())
+    transfer_loss_service = TransferLossIntegrationService(
+        TransferLossRepository(connection), authorization,
+        context_provider=context_provider)
+    production_repository = ProductionLossRepository(connection)
+    production_loss_service = ProductionLossAnalysisService(
+        production_repository, authorization)
+
+    services = {
+        "loss_inventory_service": LossInventoryIntegrationService(
+            LossInventoryRepository(connection), inventory_gateway, authorization),
+        "expiry_damage_service": ExpiryDamageWorkflowService(
+            ExpiryDamageRepository(connection), inventory_gateway, authorization),
+        "quality_inspection_service": QualityInspectionService(
+            QualityControlRepository(connection), inventory_gateway, authorization),
+        "loss_recovery_service": LossRecoveryService(
+            LossRecoveryRepository(connection), inventory_gateway, authorization),
+        "loss_disposition_service": LossDispositionService(
+            LossDispositionRepository(connection), inventory_gateway, authorization),
+        "loss_investigation_service": LossInvestigationService(
+            LossInvestigationRepository(connection), authorization),
+        "loss_root_cause_service": LossRootCauseService(
+            LossRootCauseRepository(connection), authorization),
+        "loss_corrective_action_service": LossCorrectiveActionService(
+            LossCorrectiveActionRepository(connection), authorization),
+        "loss_valuation_service": LossValuationService(
+            LossValuationRepository(connection), authorization),
+        "loss_notification_router": LossNotificationRouter(
+            LossNotificationRepository(connection), LossInAppNotificationSender(),
+            whatsapp_sender),
+        "transfer_loss_service": transfer_loss_service,
+        "transfer_loss_requested_handler": TransferLossCaseRequestedHandler(
+            transfer_loss_service),
+        "production_loss_service": production_loss_service,
+        "yield_monitoring_query_service": YieldMonitoringQueryService(
+            production_repository),
+        "production_completed_loss_handler": ProductionCompletedLossHandler(
+            production_loss_service, context_provider),
+    }
+
+    analytics_presenter = LossAnalyticsPresenter(
+        LossAnalyticsQueryService(LossAnalyticsRepository(connection), authorization),
+        context_provider)
+    root_cause_presenter = RootCausePresenter(
+        LossRootCauseQueryService(LossRootCauseQueryRepository(connection)),
+        services["loss_root_cause_service"], context_provider)
+
+    def page_builder(page_id: str):
+        if page_id == "losses_registration":
+            return LossRegistrationPage(presenter, warehouse_id=warehouse_id)
+        if page_id == "losses_investigations":
+            return RootCausePage(root_cause_presenter)
+        if page_id in ("losses_overview", "losses_analysis"):
+            return LossAnalyticsPage(analytics_presenter)
+        return build_page(page_id)
+
+    return LossesWiring(has_permission, page_builder, services)
+
+
+def _attach_services(view: LossesView, services: Mapping[str, object]) -> LossesView:
+    for name, service in services.items():
+        setattr(view, name, service)
+    return view
+
+
+def create_losses_view(
+    connection, session=None, *, whatsapp_message_service=None,
+    badges=None, parent=None,
+) -> LossesView:
+    """Factory que consume el shell nuevo (`LossesModuleActivator`).
+
+    Antes el activator construía `LossesView(page_builder=build_page)` por su
+    cuenta: sin servicios, sin presenters y con las 16 rutas en placeholder,
+    incluidas las 4 que SÍ tienen página real. Eran dos composiciones del
+    mismo dominio y la del shell era estrictamente peor (§3).
+    """
+    wiring = build_losses_wiring(
+        connection, session, whatsapp_message_service=whatsapp_message_service)
+    view = LossesView(
+        has_permission=wiring.has_permission, badges=badges,
+        page_builder=wiring.page_builder, parent=parent)
+    return _attach_services(view, wiring.services)
+
+
 class LossesModuleHost(LossesView):
+    """Adaptador del `AppContainer` legacy para el slot `MERMAS` de
+    `MainWindow`: desempaqueta el contenedor y delega en `build_losses_wiring`.
+    NO compone nada por su cuenta (§4: los adapters traducen, no implementan).
+    """
+
     def __init__(self, container, parent=None) -> None:
-        session = getattr(container, "session", None)
-        has_permission = (
-            session.tiene_permiso
-            if session is not None and hasattr(session, "tiene_permiso")
-            else lambda _permission: False
+        wiring = build_losses_wiring(
+            container.db,
+            getattr(container, "session", None),
+            whatsapp_message_service=getattr(container, "whatsapp_message_service", None),
         )
-        badges = self._load_badges(container)
-
-        write_repository = LossRegistrationRepository(container.db)
-        query_repository = LossRegistrationQueryRepository(container.db)
-        authorization = LossAuthorizationPolicy(LossSessionPermissionChecker(session))
-
-        def context_provider():
-            actor = str(getattr(session, "user_id", "") or "")
-            branch = str(getattr(session, "active_branch_id", "") or "")
-            warehouse = str(getattr(session, "warehouse_id", "") or "")
-            permissions = frozenset(
-                code for code in getattr(session, "permisos", ())
-                if isinstance(code, str))
-            return LossExecutionContext(
-                actor_user_id=actor, active_branch_id=branch,
-                assigned_branch_ids=frozenset({branch}),
-                allowed_warehouse_ids=frozenset({warehouse}),
-                permissions=permissions,
-            )
-
-        presenter = LossRegistrationPresenter(
-            query_repository,
-            RegisterGeneralLossUseCase(write_repository, authorization),
-            context_provider,
-        )
-        inventory_factory = InventoryUseCaseFactory.from_session(session)
-        inventory_gateway = LossesInventoryGateway(
-                container.db, inventory_factory.post_movement(),
-                inventory_factory.reverse_movement(),
-                inventory_factory.quarantine_stock(),
-                inventory_factory.release_quarantine(),
-                inventory_factory.dispose_quarantine(),
-                inventory_factory.record_temperature_reading())
-        self.loss_inventory_service = LossInventoryIntegrationService(
-            LossInventoryRepository(container.db),
-            inventory_gateway,
-            authorization,
-        )
-        self.expiry_damage_service = ExpiryDamageWorkflowService(
-            ExpiryDamageRepository(container.db), inventory_gateway, authorization)
-        self.quality_inspection_service = QualityInspectionService(
-            QualityControlRepository(container.db), inventory_gateway, authorization)
-        self.loss_recovery_service = LossRecoveryService(
-            LossRecoveryRepository(container.db), inventory_gateway, authorization)
-        self.loss_disposition_service = LossDispositionService(
-            LossDispositionRepository(container.db), inventory_gateway, authorization)
-        self.loss_investigation_service = LossInvestigationService(
-            LossInvestigationRepository(container.db), authorization)
-        self.loss_root_cause_service = LossRootCauseService(
-            LossRootCauseRepository(container.db), authorization)
-        self.loss_corrective_action_service = LossCorrectiveActionService(
-            LossCorrectiveActionRepository(container.db), authorization)
-        self.loss_valuation_service = LossValuationService(
-            LossValuationRepository(container.db), authorization)
-        whatsapp_service = getattr(container, "whatsapp_message_service", None)
-        whatsapp_sender = (LossWhatsAppNotificationSender(whatsapp_service)
-                           if whatsapp_service is not None
-                           else UnavailableWhatsAppNotificationSender())
-        self.loss_notification_router = LossNotificationRouter(
-            LossNotificationRepository(container.db), LossInAppNotificationSender(),
-            whatsapp_sender)
-        analytics_presenter = LossAnalyticsPresenter(
-            LossAnalyticsQueryService(LossAnalyticsRepository(container.db), authorization),
-            context_provider)
-        root_cause_presenter = RootCausePresenter(
-            LossRootCauseQueryService(LossRootCauseQueryRepository(container.db)),
-            self.loss_root_cause_service, context_provider)
-        self.transfer_loss_service = TransferLossIntegrationService(
-            TransferLossRepository(container.db), authorization,
-            context_provider=context_provider)
-        self.transfer_loss_requested_handler = TransferLossCaseRequestedHandler(
-            self.transfer_loss_service)
-        production_repository = ProductionLossRepository(container.db)
-        self.production_loss_service = ProductionLossAnalysisService(
-            production_repository, authorization)
-        self.yield_monitoring_query_service = YieldMonitoringQueryService(
-            production_repository)
-        self.production_completed_loss_handler = ProductionCompletedLossHandler(
-            self.production_loss_service, context_provider)
-        warehouse_id = str(getattr(session, "warehouse_id", "") or "")
-
-        def page_builder(page_id: str):
-            if page_id == "losses_registration":
-                return LossRegistrationPage(presenter, warehouse_id=warehouse_id)
-            if page_id == "losses_investigations":
-                return RootCausePage(root_cause_presenter)
-            if page_id in ("losses_overview", "losses_analysis"):
-                return LossAnalyticsPage(analytics_presenter)
-            return build_page(page_id)
-
         super().__init__(
-            has_permission=has_permission,
-            badges=badges,
-            page_builder=page_builder,
+            has_permission=wiring.has_permission,
+            badges=self._load_badges(container),
+            page_builder=wiring.page_builder,
             parent=parent,
         )
+        _attach_services(self, wiring.services)
 
     @staticmethod
     def _load_badges(container) -> dict[str, int]:

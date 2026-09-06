@@ -93,7 +93,13 @@ _CUTOVER_PAIRS = {
 # hacerlo convertiría estas pantallas en relleno para el usuario final. La prueba
 # `test_main_is_not_cut_over_while_placeholder_modules_are_wired` lo impide.
 _PLACEHOLDER_BACKED = {
-    "LOSSES_MODULE_ID": "todas sus rutas devuelven LossesPlaceholderPage",
+    # Corregido tras auditar la composición real: NO son "todas". El activator
+    # devolvía 16 placeholders porque recomponía el módulo por su cuenta
+    # ignorando las 4 páginas reales que ya existían; ahora delega en
+    # `build_losses_wiring` y sirve las mismas que el slot MERMAS.
+    # Sigue en esta lista porque 12 de 16 rutas siguen sin página propia.
+    "LOSSES_MODULE_ID": "12 de 16 rutas son placeholder (4 reales: registro, "
+                        "investigaciones, resumen y análisis)",
     "MEAT_PROCESSING_MODULE_ID": "todas sus rutas devuelven MeatProcessingPlaceholderPage",
     "ORDERS_DELIVERY_MODULE_ID": "20 de 23 rutas son placeholder (3 reales)",
     "FIDELIDAD_MODULE_ID": "parte de sus páginas son placeholder",

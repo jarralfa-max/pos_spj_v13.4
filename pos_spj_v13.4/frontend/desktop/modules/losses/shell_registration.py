@@ -1,8 +1,12 @@
 """Losses (Mermas) registration into the new shell.
 
-Parte del lote que el usuario pidió cablear explícitamente sabiendo que
-todas sus rutas devuelven páginas placeholder hoy; la construcción de
-las páginas reales queda para una sesión posterior.
+CORRECCIÓN DE LA MEDICIÓN ANTERIOR: se cableó este módulo creyendo que
+"todas sus rutas devuelven páginas placeholder". Eso se midió sobre
+`losses_routes.build_page()`, que en efecto devuelve placeholder siempre,
+pero NO es el constructor de páginas que usa el módulo: el composition root
+(`losses_factory.py`) pasa su propio `page_builder` con 4 rutas reales
+—`losses_registration`, `losses_investigations`, `losses_overview` y
+`losses_analysis`—. Siguen siendo placeholder las otras 12.
 
 Sigue la misma forma que `transfers/shell_registration.py`: descriptor,
 route definition y activator con dependencias explícitas — nunca el
@@ -59,25 +63,21 @@ class LossesModuleActivator:
         self._session_context = session_context
         self._view_factories = view_factory_registry
 
-    def _has_permission(self, permission: str) -> bool:
-        """Sin sesión no se concede nada: gobierna el sidebar interno del
-        módulo y mostrar de más sería peor que mostrar de menos."""
-        session = self._session_context
-        if session is None:
-            return False
-        checker = getattr(session, "has_permission", None)
-        if callable(checker):
-            return bool(checker(permission))
-        permissions = getattr(session, "permissions", None)
-        if permissions is None:
-            return False
-        return "*" in permissions or permission.upper() in {str(p).upper() for p in permissions}
-
     def _build_view(self):
-        from frontend.desktop.modules.losses.losses_routes import build_page
-        from frontend.desktop.modules.losses.losses_view import LossesView
+        """Delega en la ÚNICA composición del dominio, la misma que sirve al
+        slot `MERMAS` de `MainWindow`.
 
-        return LossesView(has_permission=self._has_permission, page_builder=build_page)
+        Antes este activator construía `LossesView(page_builder=build_page)`
+        por su cuenta y eso era una SEGUNDA composición, estrictamente peor
+        que la canónica (§3): sin servicios, sin presenters, con las 16 rutas
+        en placeholder —incluidas las 4 que sí tienen página real— y con un
+        `_has_permission` que sondeaba `has_permission`/`permissions`, atributos
+        que ni `SessionContext` ni `LegacySessionAdapter` definen (ambos hablan
+        `tiene_permiso`/`permisos`), de modo que el sidebar salía vacío.
+        """
+        from backend.infrastructure.desktop.losses_factory import create_losses_view
+
+        return create_losses_view(self._connection, self._session_context)
 
 
     def activate(self, module: ModuleDescriptor) -> None:
