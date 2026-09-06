@@ -27,6 +27,7 @@ def test_no_int_id_casts() -> None:
         pattern=INT_ID_CAST_RE,
         roots=(APP_ROOT,),
         path_filter=outside_migrations,
+        code_only=True,
     )
     assert_no_new_violations("int(..._id) cast", violations, INT_ID_CASTS_ALLOWLIST)
 
@@ -39,7 +40,7 @@ def test_no_int_id_casts_in_permissions_and_session() -> None:
         APP_ROOT / "security",
         APP_ROOT / "repositories" / "security_repository.py",
     )
-    violations = collect_regex_violations(pattern=INT_ID_CAST_RE, roots=critical)
+    violations = collect_regex_violations(pattern=INT_ID_CAST_RE, roots=critical, code_only=True)
     assert not violations, (
         "Casts int(..._id) en RBAC/sesión:\n"
         + "\n".join(f"{v.relative_path}:{v.line_number}: {v.text}" for v in violations)

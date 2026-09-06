@@ -22,6 +22,15 @@ SKIPPED_DIR_PARTS = {
     ".ruff_cache",
     "htmlcov",
     "tests",
+    # There is a virtualenv INSIDE the package root (pos_spj_v13.4/.venv, 2570
+    # .py files), and it was not excluded — so every scan below walked third-party
+    # library source and reported it as our architecture debt. `test_no_int_id_casts`
+    # was failing on anyio's `int(scope_id)` and fpdf's `int(font_id)`, which we
+    # neither own nor can change. Vendored code is not this codebase's architecture.
+    ".venv",
+    "venv",
+    "site-packages",
+    "node_modules",
 }
 
 SOURCE_SUFFIXES = {".py", ".sql"}
@@ -134,6 +143,44 @@ def iter_source_lines(path: Path) -> Iterable[tuple[int, str]]:
         yield number, line.rstrip()
 
 
+def code_only_source_lines(path: Path) -> list[tuple[int, str]]:
+    """`iter_source_lines` with comment and string-literal spans blanked out.
+
+    Line numbers and columns are preserved (characters are replaced by spaces),
+    so a violation still points at the right line.
+
+    Identifier guards kept reporting prose: `test_no_lastrowid_entity_identity`
+    flagged `meat_processing_schema.py` for a docstring line that *promises*
+    "no ``lastrowid``", and its allowlist openly carried two more entries
+    described as "menciones en docstrings/documentación embebida (no código
+    ejecutable)" — tolerated debt that was never debt. Guards that look for an
+    identifier should use this; guards that look for SQL, hex colours or other
+    things that legitimately live inside strings must keep reading raw text.
+    """
+    import io
+    import tokenize
+
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    raw_lines = text.splitlines()
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(text).readline))
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return list(enumerate(raw_lines, 1))  # unparseable: fall back to strict raw text
+
+    blanked = [list(line) for line in raw_lines]
+    for token in tokens:
+        if token.type not in (tokenize.COMMENT, tokenize.STRING):
+            continue
+        (start_row, start_col), (end_row, end_col) = token.start, token.end
+        for row in range(start_row, min(end_row, len(blanked)) + 1):
+            chars = blanked[row - 1]
+            first = start_col if row == start_row else 0
+            last = end_col if row == end_row else len(chars)
+            for index in range(first, min(last, len(chars))):
+                chars[index] = " "
+    return [(number, "".join(chars)) for number, chars in enumerate(blanked, 1)]
+
+
 def collect_regex_violations(
     *,
     pattern: re.Pattern[str],
@@ -141,12 +188,14 @@ def collect_regex_violations(
     suffixes: set[str] = PYTHON_SUFFIXES,
     path_filter: Callable[[Path], bool] | None = None,
     line_filter: Callable[[Path, int, str], bool] | None = None,
+    code_only: bool = False,
 ) -> list[Violation]:
     violations: list[Violation] = []
+    reader = code_only_source_lines if code_only else iter_source_lines
     for path in iter_files(suffixes=suffixes, roots=roots):
         if path_filter and not path_filter(path):
             continue
-        for line_number, line in iter_source_lines(path):
+        for line_number, line in reader(path):
             if pattern.search(line) and (line_filter is None or line_filter(path, line_number, line)):
                 violations.append(Violation(path=path, line_number=line_number, text=line.strip()))
     return violations
