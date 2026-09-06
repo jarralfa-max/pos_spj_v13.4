@@ -225,43 +225,7 @@ def up(conn: sqlite3.Connection) -> None:
         ON ventas(operation_id) WHERE operation_id IS NOT NULL
     """)
 
-    # caja_operations — enterprise atomic caja table
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS caja_operations (
-            id              TEXT NOT NULL PRIMARY KEY,
-            branch_id       TEXT NOT NULL,
-            operation_id    TEXT    NOT NULL UNIQUE,
-            operation_type  TEXT    NOT NULL CHECK(operation_type IN ('INGRESO','EGRESO','APERTURA','CIERRE','AJUSTE')),
-            amount          REAL    NOT NULL DEFAULT 0 CHECK(amount >= 0),
-            usuario         TEXT    NOT NULL,
-            reference       TEXT,
-            forma_pago      TEXT,
-            venta_id        TEXT,
-            notes           TEXT,
-            created_at      DATETIME DEFAULT (datetime('now'))
-        )
-    """)
-    _add_idx(conn, "caja_operations", "idx_co_branch_date",   "branch_id, created_at DESC")
-    _add_idx(conn, "caja_operations", "idx_co_operation_type","operation_type")
-    _add_idx(conn, "caja_operations", "idx_co_venta",         "venta_id")
-
-    # movimientos_caja (legacy table — add missing columns)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS movimientos_caja (
-            id          TEXT NOT NULL PRIMARY KEY,
-            tipo        TEXT    NOT NULL,
-            monto       REAL    NOT NULL DEFAULT 0,
-            descripcion TEXT,
-            forma_pago  TEXT,
-            usuario     TEXT,
-            sucursal_id TEXT,
-            fecha       DATETIME DEFAULT (datetime('now'))
-        )
-    """)
-    _add_col(conn, "movimientos_caja", "sucursal_id", "TEXT")
-    _add_col(conn, "movimientos_caja", "operation_id", "TEXT")
-    _add_idx(conn, "movimientos_caja", "idx_mc_fecha",    "fecha DESC")
-    _add_idx(conn, "movimientos_caja", "idx_mc_sucursal", "sucursal_id, fecha DESC")
+    # Cash Register schema is owned by the canonical bounded context (175).
 
     # ══ BLOCK 10 — STRUCTURAL HARDENING ══════════════════════════════════════
 

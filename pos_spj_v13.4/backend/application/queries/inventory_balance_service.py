@@ -10,8 +10,15 @@ Usage:
     balance = svc.get_product_balance(producto_id=3, sucursal_id=1)
     print(balance["stock_disponible"])   # Decimal
 
-    # Reconciliation report
-    rows = svc.get_reconciliation_report(sucursal_id=1)
+Only get_product_balance()/get_product_balance_float() remain: they are the
+sole methods with a reachable caller (core/services/delivery_service.py,
+modulos/delivery.py, core/services/production_query_service.py), and both
+are already cutover-aware (read inventory_balances when the INV-27 flag is
+ON). list_branch_balances() and get_reconciliation_report() had zero
+production callers — the live enterprise inventory UI
+(frontend/desktop/modules/inventory/) reads exclusively through the
+canonical query services in backend/application/inventory/queries/ and
+backend/application/inventory/cutover/ — and were removed.
 """
 from __future__ import annotations
 
@@ -30,14 +37,6 @@ def _dec(value: Any) -> Decimal:
         return Decimal(str(value or 0)).quantize(_QUANT, rounding=ROUND_HALF_UP)
     except Exception:
         return _ZERO
-
-
-def _col_exists(conn, table: str, col: str) -> bool:
-    try:
-        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
-        return any(r[1] == col for r in rows)
-    except Exception:
-        return False
 
 
 def _tbl_exists(conn, name: str) -> bool:
@@ -180,137 +179,6 @@ class InventoryBalanceQueryService:
         """Convenience method returning stock_disponible as float (for legacy callers)."""
         b = self.get_product_balance(producto_id, sucursal_id)
         return float(b["stock_disponible"])
-
-    def list_branch_balances(self, sucursal_id: int) -> list[dict[str, Any]]:
-        """
-        Return balance for every active product at a given branch.
-        Used by both Producción and Inventario UI tables.
-        """
-        sucursal_id = str(sucursal_id)
-        out: list[dict[str, Any]] = []
-
-        if self._has_inv_actual:
-            rows = self._db.execute(
-                """
-                SELECT ia.product_id,
-                       p.nombre,
-                       '' AS categoria,
-                       COALESCE(ia.quantity, 0)      AS stock_fisico,
-                       COALESCE(p.stock_minimo, 0)   AS stock_minimo,
-                       COALESCE(ia.costo_promedio, 0) AS costo_promedio,
-                       COALESCE(p.unidad, 'kg')       AS unidad_base
-                FROM inventory_stock ia
-                JOIN productos p ON p.id = ia.product_id
-                WHERE ia.branch_id = ?
-                  AND COALESCE(p.activo, 1) = 1
-                ORDER BY p.nombre
-                """,
-                (sucursal_id,),
-            ).fetchall()
-            for r in rows:
-                pid = int(r[0])
-                fisico = _dec(r[3])
-                out.append({
-                    "producto_id":    pid,
-                    "nombre":         str(r[1] or ""),
-                    "categoria":      str(r[2] or ""),
-                    "stock_fisico":   fisico,
-                    "stock_minimo":   _dec(r[4]),
-                    "costo_promedio": _dec(r[5]),
-                    "unidad_base":    str(r[6] or "kg"),
-                    "stock_reservado":  _ZERO,
-                    "stock_disponible": fisico,
-                    "fuente":         "inventory_stock",
-                })
-        else:
-            rows = self._db.execute(
-                """
-                SELECT id, nombre, COALESCE(categoria,''),
-                       COALESCE(existencia,0), COALESCE(stock_minimo,0),
-                       COALESCE(unidad,'kg')
-                FROM productos
-                WHERE COALESCE(activo,1) = 1
-                ORDER BY nombre
-                """,
-            ).fetchall()
-            for r in rows:
-                fisico = _dec(r[3])
-                out.append({
-                    "producto_id":    int(r[0]),
-                    "nombre":         str(r[1] or ""),
-                    "categoria":      str(r[2] or ""),
-                    "stock_fisico":   fisico,
-                    "stock_minimo":   _dec(r[4]),
-                    "costo_promedio": _ZERO,
-                    "unidad_base":    str(r[5] or "kg"),
-                    "stock_reservado":  _ZERO,
-                    "stock_disponible": fisico,
-                    "fuente":         "productos.existencia",
-                })
-        return out
-
-    def get_reconciliation_report(self, sucursal_id: int) -> list[dict[str, Any]]:
-        """
-        Compare materialised stock in inventory_stock vs reconstructed from
-        movimientos_inventario.  Returns rows where difference != 0.
-
-        Columns: producto_id, nombre, unidad, saldo_materializado,
-                 saldo_movimientos, diferencia
-        """
-        sucursal_id = str(sucursal_id)
-        rows: list[dict[str, Any]] = []
-
-        if not self._has_inv_actual:
-            logger.warning("get_reconciliation_report: inventory_stock table missing")
-            return rows
-
-        has_movimientos = _tbl_exists(self._db, "movimientos_inventario")
-        if not has_movimientos:
-            logger.warning("get_reconciliation_report: movimientos_inventario table missing")
-            return rows
-
-        try:
-            result = self._db.execute(
-                """
-                SELECT ia.product_id,
-                       p.nombre,
-                       COALESCE(p.unidad,'kg')       AS unidad,
-                       COALESCE(ia.quantity, 0)       AS saldo_mat,
-                       COALESCE(saldo.saldo_mov, 0)   AS saldo_mov
-                FROM inventory_stock ia
-                JOIN productos p ON p.id = ia.product_id
-                LEFT JOIN (
-                    SELECT producto_id,
-                           SUM(CASE
-                               WHEN tipo IN ('ENTRADA','PRODUCCION')      THEN cantidad
-                               WHEN tipo IN ('SALIDA','MERMA','TRASPASO') THEN -cantidad
-                               ELSE 0
-                           END) AS saldo_mov
-                    FROM movimientos_inventario
-                    WHERE sucursal_id = ?
-                    GROUP BY producto_id
-                ) saldo ON saldo.producto_id = ia.product_id
-                WHERE ia.branch_id = ?
-                ORDER BY ABS(COALESCE(ia.quantity,0) - COALESCE(saldo.saldo_mov,0)) DESC
-                """,
-                (sucursal_id, sucursal_id),
-            ).fetchall()
-
-            for r in result:
-                mat = _dec(r[3])
-                mov = _dec(r[4])
-                diff = mat - mov
-                rows.append({
-                    "producto_id":        int(r[0]),
-                    "nombre":             str(r[1] or ""),
-                    "unidad":             str(r[2] or ""),
-                    "saldo_materializado": mat,
-                    "saldo_movimientos":  mov,
-                    "diferencia":         diff,
-                })
-        except Exception as exc:
-            logger.error("get_reconciliation_report failed: %s", exc)
-        return rows
 
     @classmethod
     def from_connection(cls, conn) -> "InventoryBalanceQueryService":

@@ -158,8 +158,19 @@ def inicializar_sistema():
 
     for warning_msg in result.warnings:
         logger.warning(warning_msg)
-    if result.context.conn is not None:
-        result.context.conn.close()
+    from backend.bootstrap.installation_setup import ensure_installation_provisioned
+
+    try:
+        if not ensure_installation_provisioned(result.context.conn):
+            logger.info("Configuración inicial cancelada o instalación bloqueada.")
+            sys.exit(0)
+    except Exception as exc:
+        logger.exception("No se pudo verificar la configuración inicial.")
+        QMessageBox.critical(None, "Error de configuración inicial", str(exc))
+        sys.exit(1)
+    finally:
+        if result.context.conn is not None:
+            result.context.conn.close()
     logger.info("✅ Bootstrap de base de datos OK (%s)", result.final_state.value)
 
     try:

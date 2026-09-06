@@ -5,7 +5,6 @@
 # Cambios:
 #   1. Tabla sale_refunds   — devoluciones parciales por ítem
 #   2. Tabla credit_notes   — notas de crédito sin movimiento físico
-#   3. Columna reference_id en movimientos_caja — trazabilidad cruzada
 #   4. Actualizar trigger trg_protect_sale_estado para permitir CANCEL_PENDING
 #   5. Trigger: bloquea devolver más de lo vendido por ítem
 #   6. Trigger: bloquea cancelar venta ya cancelada
@@ -22,12 +21,10 @@ logger = logging.getLogger("spj.migrations.029")
 def run(conn: sqlite3.Connection) -> None:
     _create_sale_refunds(conn)
     _create_credit_notes(conn)
-    _patch_movimientos_caja(conn)
     _update_sale_estado_trigger(conn)
     _create_refund_integrity_triggers(conn)
     _create_indexes(conn)
-    try: conn.commit()
-    except Exception: pass
+    conn.commit()
     logger.info("Migración 029 completada: sale_refunds + credit_notes + triggers reversión.")
 
 
@@ -116,26 +113,6 @@ def _create_credit_notes(conn: sqlite3.Connection) -> None:
         END
     """)
     logger.info("Tabla credit_notes creada/verificada.")
-
-
-# ── 3. Columna reference_id en movimientos_caja ───────────────────────────────
-
-def _add_col_safe(conn, tabla, col, defn):
-    existing = {r[1] for r in conn.execute(f"PRAGMA table_info({tabla})").fetchall()}
-    if col not in existing:
-        conn.execute(f"ALTER TABLE {tabla} ADD COLUMN {col} {defn}")
-        logger.debug("Columna %s.%s añadida.", tabla, col)
-
-
-def _patch_movimientos_caja(conn: sqlite3.Connection) -> None:
-    """
-    Añade reference_id a movimientos_caja para trazabilidad cruzada
-    (refund_id, credit_note_id, etc.).
-    """
-    _add_col_safe(conn, "movimientos_caja", "reference_id",   "INTEGER")
-    _add_col_safe(conn, "movimientos_caja", "reference_type", "TEXT")
-    _add_col_safe(conn, "movimientos_caja", "operation_id",   "TEXT")
-    logger.info("Columnas de trazabilidad añadidas a movimientos_caja.")
 
 
 # ── 4. Actualizar trigger de estado de ventas ─────────────────────────────────
@@ -231,10 +208,5 @@ def _create_indexes(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_credit_notes_sale
         ON credit_notes(sale_id)
-    """)
-    conn.execute("""
-        CREATE INDEX IF NOT EXISTS idx_movimientos_caja_op
-        ON movimientos_caja(operation_id)
-        WHERE operation_id IS NOT NULL
     """)
     logger.info("Índices de reversiones creados/verificados.")

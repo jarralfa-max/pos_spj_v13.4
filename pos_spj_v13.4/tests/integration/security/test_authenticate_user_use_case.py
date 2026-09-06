@@ -35,6 +35,7 @@ def _provisioned_conn(*, owner_password: str = PASSWORD):
     )
     uc.execute(
         company_name="SPJ", branch_name="Centro", owner_username="jarralfa",
+        workstation_name="Estación de prueba",
         owner_password=owner_password, owner_full_name="Jose Alfaro", now=T0,
     )
     conn.commit()

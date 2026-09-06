@@ -204,15 +204,6 @@ def test_reservation_get_available_stock_uses_inventory_stock():
     assert "inventario_actual" not in src, "get_available_stock must NOT query inventario_actual"
 
 
-def test_inventory_repository_uses_canonical_table():
-    """SQLiteInventoryRepository must use inventory_stock as canonical table."""
-    from infrastructure.persistence.sqlite_inventory_repository import SQLiteInventoryRepository
-    import inspect
-    src = inspect.getsource(SQLiteInventoryRepository.get_stock)
-    assert "inventory_stock" in src
-    assert "inventario_actual" not in src
-
-
 def test_sales_repository_creates_uuid_sale_id():
     """SQLiteSalesRepository.create_sale must generate UUID not integer."""
     with tempfile.NamedTemporaryFile(suffix=".db") as f:

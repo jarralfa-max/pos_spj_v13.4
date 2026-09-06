@@ -160,3 +160,21 @@ def test_login_window_accepted_but_no_authentication_result_returns_false(app):
     )
     assert coordinator.run() is False
     assert "ctx" not in captured
+
+
+def test_provisioning_gate_never_constructs_login_or_application(app):
+    def forbidden():
+        raise AssertionError("Login must not be constructed by the installation gate")
+
+    coordinator = _coordinator(
+        app, status=ProvisioningStatus.PROVISIONED, login_window_factory=forbidden,
+    )
+    assert coordinator.ensure_provisioned() is True
+
+
+def test_cancelled_provisioning_gate_blocks_startup(app):
+    coordinator = _coordinator(
+        app, status=ProvisioningStatus.UNINITIALIZED,
+        setup_wizard_factory=lambda: FakeDialog(result=QDialog.Rejected),
+    )
+    assert coordinator.ensure_provisioned() is False

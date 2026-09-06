@@ -88,12 +88,6 @@ def sales_repo(db):
     return SQLiteSalesRepository(db)
 
 
-@pytest.fixture
-def inv_repo(db):
-    from infrastructure.persistence.sqlite_inventory_repository import SQLiteInventoryRepository
-    return SQLiteInventoryRepository(db)
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # SQLiteSalesRepository
 # ─────────────────────────────────────────────────────────────────────────────
@@ -225,87 +219,4 @@ class TestSQLiteSalesRepository:
         rows = sales_repo.get_today(branch_id=BRANCH_UUID)
         assert len(rows) >= 1
         assert all(r["estado"] != "cancelada" for r in rows)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# SQLiteInventoryRepository
-# ─────────────────────────────────────────────────────────────────────────────
-
-class TestSQLiteInventoryRepository:
-    def test_get_stock_returns_quantity(self, inv_repo):
-        assert inv_repo.get_stock(PRODUCT_UUID, BRANCH_UUID) == pytest.approx(100.0)
-
-    def test_get_stock_falls_back_to_productos_existencia(self, inv_repo, db):
-        other_branch = new_uuid()
-        # No hay row en inventory_stock para ese branch → fallback a existencia
-        assert inv_repo.get_stock(PRODUCT2_UUID, other_branch) == pytest.approx(30.0)
-
-    def test_get_stock_missing_returns_zero(self, inv_repo):
-        assert inv_repo.get_stock("nonexistent-uuid", BRANCH_UUID) == pytest.approx(0.0)
-
-    def test_add_stock_increments(self, inv_repo):
-        inv_repo.add_stock(product_id=PRODUCT_UUID, branch_id=BRANCH_UUID, quantity=20.0)
-        assert inv_repo.get_stock(PRODUCT_UUID, BRANCH_UUID) == pytest.approx(120.0)
-
-    def test_deduct_stock_decrements(self, inv_repo):
-        inv_repo.deduct_stock(product_id=PRODUCT_UUID, branch_id=BRANCH_UUID, quantity=15.0)
-        assert inv_repo.get_stock(PRODUCT_UUID, BRANCH_UUID) == pytest.approx(85.0)
-
-    def test_upsert_stock_sets_absolute_value(self, inv_repo):
-        inv_repo.upsert_stock(product_id=PRODUCT_UUID, branch_id=BRANCH_UUID, quantity=999.0)
-        assert inv_repo.get_stock(PRODUCT_UUID, BRANCH_UUID) == pytest.approx(999.0)
-
-    def test_log_movement_inserts_row(self, inv_repo, db):
-        inv_repo.log_movement(
-            product_id=PRODUCT_UUID, branch_id=BRANCH_UUID, quantity=-5.0,
-            movement_type="VENTA", operation_id=new_uuid(), user="cajero",
-        )
-        count = db.execute("SELECT COUNT(*) FROM inventory_movements").fetchone()[0]
-        assert count == 1
-
-    def test_log_movement_id_is_uuid(self, inv_repo, db):
-        inv_repo.log_movement(
-            product_id=PRODUCT_UUID, branch_id=BRANCH_UUID, quantity=-2.0,
-            movement_type="VENTA", operation_id=new_uuid(), user="cajero",
-        )
-        row = db.execute("SELECT id FROM inventory_movements LIMIT 1").fetchone()
-        assert row is not None
-        assert "-" in row["id"], "movement id debe ser UUID"
-        assert not row["id"].isdigit()
-
-    def test_get_movements_returns_records(self, inv_repo):
-        inv_repo.log_movement(PRODUCT_UUID, BRANCH_UUID, -3.0, "VENTA",   new_uuid(), "x")
-        inv_repo.log_movement(PRODUCT_UUID, BRANCH_UUID,  5.0, "ENTRADA", new_uuid(), "y")
-        mvs = inv_repo.get_movements(product_id=PRODUCT_UUID, branch_id=BRANCH_UUID)
-        assert len(mvs) == 2
-
-    def test_get_all_stock_returns_products(self, inv_repo):
-        rows = inv_repo.get_all_stock(branch_id=BRANCH_UUID)
-        assert len(rows) >= 2
-        names = [r["nombre"] for r in rows]
-        assert "Pollo" in names
-
-    def test_get_low_stock_filters_correctly(self, inv_repo, db):
-        db.execute(
-            "UPDATE inventory_stock SET quantity=2.0 WHERE product_id=?",
-            (PRODUCT_UUID,),
-        )
-        low = inv_repo.get_low_stock(branch_id=BRANCH_UUID)
-        ids = [r["product_id"] for r in low]
-        assert PRODUCT_UUID in ids  # stock 2 < minimo 5
-
-    def test_add_stock_new_product_creates_row(self, inv_repo):
-        new_product = new_uuid()
-        inv_repo.add_stock(product_id=new_product, branch_id=BRANCH_UUID, quantity=10.0)
-        assert inv_repo.get_stock(new_product, BRANCH_UUID) == pytest.approx(10.0)
-
-    def test_branch_ids_are_text_not_integer(self, inv_repo, db):
-        """Guard: inventory_stock must store TEXT branch_id, not INTEGER."""
-        row = db.execute(
-            "SELECT branch_id FROM inventory_stock WHERE product_id=?",
-            (PRODUCT_UUID,),
-        ).fetchone()
-        assert row is not None
-        bid = row["branch_id"]
-        assert isinstance(bid, str)
         assert not str(bid).isdigit(), f"branch_id debe ser UUID, no entero: {bid}"

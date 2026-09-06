@@ -65,6 +65,7 @@ def services(app):
     )
     provision_uc.execute(
         company_name="Carnicería SPJ", branch_name="Sucursal Centro", owner_username="jarralfa",
+        workstation_name="Estación de prueba",
         owner_password=PASSWORD, owner_full_name="Jose Alfaro", now=T0,
     )
     conn.commit()

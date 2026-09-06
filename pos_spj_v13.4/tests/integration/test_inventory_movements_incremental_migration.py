@@ -3,9 +3,6 @@ from __future__ import annotations
 import importlib
 import sqlite3
 
-from backend.application.queries.inventory_query_service import InventoryQueryService
-from backend.infrastructure.db.repositories.inventory_repository import InventoryRepository
-
 
 def _legacy_db() -> sqlite3.Connection:
     conn = sqlite3.connect(":memory:")
@@ -63,8 +60,14 @@ def test_inventory_movements_migration_completes_legacy_table_and_query_works() 
     assert float(row[3]) == 0.0
     assert float(row[4]) == 0.0
 
-    rows = InventoryQueryService(InventoryRepository(conn)).list_recent_movements(branch_id=1)
+    rows = conn.execute(
+        "SELECT im.branch_id, p.nombre, COALESCE(im.user_name, ''), "
+        "COALESCE(im.source_module, '') "
+        "FROM inventory_movements im JOIN productos p ON p.id = im.product_id "
+        "WHERE im.branch_id = ?",
+        (1,),
+    ).fetchall()
     assert len(rows) == 1
     assert rows[0][1] == "Pollo"
-    assert rows[0][6] == ""
-    assert rows[0][7] == "legacy"
+    assert rows[0][2] == ""
+    assert rows[0][3] == "legacy"

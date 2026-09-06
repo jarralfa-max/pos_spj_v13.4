@@ -271,18 +271,5 @@ def up(conn):
     add_col("personal", "usuario_id TEXT")
     add_col("personal", "foto_path TEXT")
 
-    # Crear usuario demo si no existe (identidad UUIDv7; sucursal = matriz de
-    # instalación, nunca el entero '1').
-    try:
-        from backend.shared.ids import new_uuid, INSTALL_BRANCH_UUID
-        from security.auth import hash_password
-        demo_hash = hash_password("demo12345")
-        conn.execute(
-            "INSERT OR IGNORE INTO usuarios "
-            "(id,nombre,usuario,password_hash,rol,sucursal_id,activo) "
-            "VALUES(?,'Usuario Demo','demo',?,?,?,1)",
-            (new_uuid(), demo_hash, 'cajero', INSTALL_BRANCH_UUID))
-    except Exception: pass
-
     conn.execute("INSERT OR IGNORE INTO configuraciones(clave,valor) VALUES('app_version','13.0.0')")
     logger.info("047 — v13 schema aplicado")

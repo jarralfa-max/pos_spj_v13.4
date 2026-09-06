@@ -1,12 +1,7 @@
 """DatabaseMigrationStep — SHELL-3.
 
-Runs the one canonical migration engine (`migrations.engine.up`) against
-`context.conn` — the same engine `scripts/bootstrap_db.py` uses. This step
-does not attempt to fix `engine.up()`'s internal per-migration
-try/except-and-log behavior (flagged in the SHELL-0 audit as a real risk);
-hardening that sequence is SHELL-4's job ("Database bootstrap: secuencia
-única"). What this step *does* guarantee is that it never runs the engine
-twice and never silently continues if `context.conn` is missing.
+Runs the canonical fail-fast migration engine once. Import, contract,
+execution and commit failures are fatal schema errors and block later steps.
 """
 from __future__ import annotations
 
@@ -28,9 +23,9 @@ class DatabaseMigrationStep:
                 "(database_integrity debe ejecutarse antes).",
             )
 
-        from migrations import engine as migration_engine
-
         try:
+            from migrations import engine as migration_engine
+
             migration_engine.up(context.conn)
         except Exception as exc:
             return BootstrapStepResult.fatal(

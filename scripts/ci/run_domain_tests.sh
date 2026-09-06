@@ -17,12 +17,12 @@ case "$DOMAIN" in
     ;;
   ui)
     python -m pytest \
+      pos_spj_v13.4/tests/ui \
       pos_spj_v13.4/tests/test_ui_does_not_publish_inventory_business_events.py \
       pos_spj_v13.4/tests/test_mercado_pago_pending_flow.py -q
     ;;
   api)
-    python -m pytest pos_spj_v13.4/tests -q \
-      --ignore=pos_spj_v13.4/tests/test_delivery_action_policy.py
+    python -m pytest pos_spj_v13.4/tests -q
     ;;
   *)
     echo "Unknown domain: $DOMAIN" >&2

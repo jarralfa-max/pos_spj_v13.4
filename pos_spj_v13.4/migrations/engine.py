@@ -4,9 +4,22 @@
 # Ejecuta todas las migraciones en orden garantizado.
 # Idempotente: usa CREATE TABLE IF NOT EXISTS y ALTER TABLE seguro.
 # Registra cada migración ejecutada en la tabla schema_migrations.
+import importlib
 import logging, sqlite3
 from collections import namedtuple
 logger = logging.getLogger("spj.migrations")
+
+
+class MigrationExecutionError(RuntimeError):
+    """A mandatory migration or its durable completion record failed."""
+
+
+class MigrationImportError(MigrationExecutionError):
+    """A registered migration cannot be imported."""
+
+
+class MigrationContractError(MigrationExecutionError):
+    """A registered migration has no callable run/up entry point."""
 
 # Named tuple so MIGRATIONS entries have a .version attribute
 _Migration = namedtuple("_Migration", ["version", "module"])
@@ -75,7 +88,6 @@ MIGRATIONS = [
     _Migration("077",  "migrations.standalone.077_ordenes_compra_erp"),
     _Migration("078",  "migrations.standalone.078_compras_po_link"),
     _Migration("079",  "migrations.standalone.079_proveedores_condicion_pago"),
-    _Migration("080",  "migrations.standalone.080_caja_turno_id_link"),
     _Migration("081",  "migrations.standalone.081_wa_queue_backoff"),
     _Migration("082",  "migrations.standalone.082_treasury_tables"),
     _Migration("083",  "migrations.standalone.083_financial_traceability_tables"),
@@ -257,65 +269,72 @@ def _ensure_tracking_table(conn):
             version     TEXT NOT NULL PRIMARY KEY,
             executed_at TEXT DEFAULT (datetime('now'))
         )""")
-    try: conn.commit()
-    except Exception: pass
+    conn.commit()
 
 def _already_run(conn, version):
-    try:
-        r = conn.execute(
-            "SELECT 1 FROM schema_migrations WHERE version=?", (version,)
-        ).fetchone()
-        return r is not None
-    except Exception:
-        return False
+    r = conn.execute(
+        "SELECT 1 FROM schema_migrations WHERE version=?", (version,)
+    ).fetchone()
+    return r is not None
 
 def _mark_done(conn, version):
-    try:
-        conn.execute(
-            "INSERT OR IGNORE INTO schema_migrations(version) VALUES(?)", (version,))
-        conn.commit()
-    except Exception: pass
+    conn.execute(
+        "INSERT INTO schema_migrations(version) VALUES(?)", (version,))
+    conn.commit()
 
-def _schema_needs_bootstrap(conn: sqlite3.Connection) -> bool:
+
+def _rollback_after_failure(conn, error):
     try:
-        conn.execute("SELECT 1 FROM configuraciones LIMIT 1")
-        return False
-    except Exception:
-        return True
+        conn.rollback()
+    except Exception as rollback_error:
+        error.add_note(f"Rollback also failed: {rollback_error}")
+        logger.exception("Migration rollback failed; database must not be opened.")
+
 
 def up(db_conn: sqlite3.Connection) -> None:
-    _ensure_tracking_table(db_conn)
-    if _schema_needs_bootstrap(db_conn):
-        try:
-            db_conn.execute("DELETE FROM schema_migrations WHERE version='m000'")
-            db_conn.commit()
-            logger.warning("Schema vacío detectado — forzando re-ejecución de m000.")
-        except Exception:
-            pass
+    try:
+        _ensure_tracking_table(db_conn)
+    except Exception as exc:
+        error = MigrationExecutionError("Cannot initialize migration tracking.")
+        _rollback_after_failure(db_conn, error)
+        raise error from exc
 
     executed = 0
     for migration in MIGRATIONS:
         version = migration.version
         module_path = migration.module
-        if _already_run(db_conn, version):
-            continue
         try:
-            import importlib
+            if _already_run(db_conn, version):
+                continue
+        except Exception as exc:
+            error = MigrationExecutionError(f"Cannot read tracking for migration {version}.")
+            _rollback_after_failure(db_conn, error)
+            raise error from exc
+
+        try:
             mod = importlib.import_module(module_path)
-            fn  = getattr(mod, "run", None) or getattr(mod, "up", None) or getattr(mod, "crear_tablas", None)
-            if fn:
-                fn(db_conn)
-                _mark_done(db_conn, version)
-                logger.info("Migración %s ejecutada.", version)
-                executed += 1
-            else:
-                logger.warning("Migración %s: no se encontró run()/up().", version)
-        except ImportError:
-            logger.debug("Migración %s: módulo no disponible (omitido).", version)
-        except Exception as e:
-            logger.error("Migración %s falló: %s — haciendo rollback.", version, e)
-            try: db_conn.rollback()
-            except Exception: pass
+        except Exception as exc:
+            error = MigrationImportError(f"Cannot import required migration {version}: {module_path}.")
+            _rollback_after_failure(db_conn, error)
+            raise error from exc
+
+        fn = next((getattr(mod, name, None) for name in ("run", "up")
+                   if callable(getattr(mod, name, None))), None)
+        if fn is None:
+            error = MigrationContractError(f"Migration {version} ({module_path}) requires callable run/up.")
+            _rollback_after_failure(db_conn, error)
+            raise error
+
+        try:
+            fn(db_conn)
+            _mark_done(db_conn, version)
+        except Exception as exc:
+            error = MigrationExecutionError(f"Migration {version} ({module_path}) failed: {exc}")
+            _rollback_after_failure(db_conn, error)
+            logger.error("%s", error)
+            raise error from exc
+        logger.info("Migración %s ejecutada.", version)
+        executed += 1
 
     if executed:
         logger.info("Migraciones completadas: %d ejecutadas.", executed)

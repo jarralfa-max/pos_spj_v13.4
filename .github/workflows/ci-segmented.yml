@@ -24,7 +24,7 @@ jobs:
           sudo apt-get install -y libgl1 libegl1 libxkbcommon-x11-0
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install pytest PyQt5 fastapi starlette httpx anyio
+          pip install pytest pyyaml PyQt5 fastapi starlette httpx anyio
       - name: Compile Python sources
         run: |
           cd pos_spj_v13.4
@@ -32,21 +32,19 @@ jobs:
       - name: Validate architecture
         run: |
           cd pos_spj_v13.4
-<<<<<<< HEAD
-          python -m pytest -q \
-            tests/architecture/test_procurement*.py \
-            tests/architecture/test_logistics*.py \
-            tests/architecture/test_purchasing*.py \
-            tests/architecture/test_direct_purchase_ui_guardrails.py \
-            tests/architecture/test_purchase_inventory_canonical_route.py
-      - name: Validate role and domain unit tests
+          python -m pytest tests/architecture -q
+      - name: Validate unit tests
         run: |
           cd pos_spj_v13.4
-          python -m pytest tests/unit/procurement tests/unit/logistics -q
-      - name: Validate Procurement and Logistics integration / E2E
+          python -m pytest tests/unit -q
+      - name: Validate security
         run: |
           cd pos_spj_v13.4
-          python -m pytest tests/integration/procurement tests/integration/logistics -q
+          python -m pytest tests/unit/security tests/integration/security -q
+      - name: Validate integration tests
+        run: |
+          cd pos_spj_v13.4
+          python -m pytest tests/integration -q
       - name: Validate Purchasing visual contracts
         env:
           PURCHASING_VISUAL_ARTIFACTS: ${{ github.workspace }}/visual-artifacts
@@ -66,21 +64,6 @@ jobs:
           cd pos_spj_v13.4
           for file in frontend/web/logistics/*.js; do node --check "$file"; done
           node --test tests/pwa/*.test.mjs
-=======
-          python -m pytest tests/architecture -q
-      - name: Validate unit tests
-        run: |
-          cd pos_spj_v13.4
-          python -m pytest tests/unit -q
-      - name: Validate integration tests
-        run: |
-          cd pos_spj_v13.4
-          python -m pytest tests/integration -q
-      - name: Validate Logistics PWA syntax
-        run: |
-          cd pos_spj_v13.4
-          for file in frontend/web/logistics/*.js; do node --check "$file"; done
->>>>>>> f877b14564fe37c44b2caeab736af2048b371ae2
 
   ventas:
     runs-on: ubuntu-latest
@@ -98,7 +81,7 @@ jobs:
           sudo apt-get install -y libgl1 libegl1 libxkbcommon-x11-0
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install pytest PyQt5 fastapi starlette httpx anyio
+          pip install pytest pyyaml PyQt5 fastapi starlette httpx anyio
       - name: Run ventas-focused suite
         run: |
           ./scripts/ci/run_domain_tests.sh ventas
@@ -119,7 +102,7 @@ jobs:
           sudo apt-get install -y libgl1 libegl1 libxkbcommon-x11-0
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install pytest PyQt5 fastapi starlette httpx anyio
+          pip install pytest pyyaml PyQt5 fastapi starlette httpx anyio
       - name: Run UI-focused suite
         run: |
           ./scripts/ci/run_domain_tests.sh ui
@@ -140,7 +123,7 @@ jobs:
           sudo apt-get install -y libgl1 libegl1 libxkbcommon-x11-0
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install pytest PyQt5 fastapi starlette httpx anyio
-      - name: Run API-focused suite (exclude UI/GL tests)
+          pip install pytest pyyaml PyQt5 fastapi starlette httpx anyio
+      - name: Run full regression suite including API
         run: |
           ./scripts/ci/run_domain_tests.sh api

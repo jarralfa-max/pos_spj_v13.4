@@ -65,10 +65,11 @@ def test_provisioning_creates_branch_company_and_owner():
     ).fetchone()
     assert branch["nombre"] == "Sucursal Centro"
 
-    empresa_nombre = conn.execute(
-        "SELECT valor FROM configuraciones WHERE clave='empresa_nombre'"
-    ).fetchone()[0]
-    assert empresa_nombre == "Carnicería SPJ"
+    company = conn.execute(
+        "SELECT legal_name FROM company_profiles WHERE id=?", (result.installation.company_id,)
+    ).fetchone()
+    assert company is not None
+    assert company["legal_name"] == "Carnicería SPJ"
 
     owner = conn.execute(
         "SELECT usuario, rol FROM usuarios WHERE id = ?", (result.owner_user_id,)

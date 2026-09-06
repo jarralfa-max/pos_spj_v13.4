@@ -59,6 +59,23 @@ class AuthenticationCoordinator:
         every other outcome (cancelled wizard/login, locked installation,
         recovery-required installation) — the caller (main.py, eventually)
         should treat False as "nothing more to do, exit."""
+        if not self.ensure_provisioned():
+            return False
+
+        login_window = self._login_window_factory()
+        if login_window.exec_() != QDialog.Accepted:
+            return False
+
+        auth_result = login_window.authentication_result
+        if auth_result is None:
+            return False
+
+        context = self._build_application_context(auth_result)
+        self._on_authenticated(context)
+        return True
+
+    def ensure_provisioned(self) -> bool:
+        """Resolve first-run/locked states before any operational UI is built."""
         status = self._installation_status_query.current_status()
 
         if status in (ProvisioningStatus.UNINITIALIZED, ProvisioningStatus.PROVISIONING):
@@ -77,17 +94,4 @@ class AuthenticationCoordinator:
                 self._recovery_required_dialog_factory().exec_()
             return False
 
-        if status is not ProvisioningStatus.PROVISIONED:
-            return False
-
-        login_window = self._login_window_factory()
-        if login_window.exec_() != QDialog.Accepted:
-            return False
-
-        auth_result = login_window.authentication_result
-        if auth_result is None:
-            return False
-
-        context = self._build_application_context(auth_result)
-        self._on_authenticated(context)
-        return True
+        return status is ProvisioningStatus.PROVISIONED

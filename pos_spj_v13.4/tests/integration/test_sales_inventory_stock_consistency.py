@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import sqlite3
 
-from backend.application.queries.inventory_query_service import InventoryQueryService
 from backend.application.services.inventory_application_service import InventoryApplicationService
 from backend.infrastructure.db.repositories.inventory_repository import InventoryRepository
 from core.services.recipes.recipe_resolver import RecipeResolver
@@ -111,8 +110,11 @@ def _db() -> sqlite3.Connection:
 
 
 def _inventory_quantity(conn: sqlite3.Connection, product_id: int = 1) -> float:
-    rows = InventoryQueryService(InventoryRepository(conn)).list_stock_rows(branch_id=1)
-    return float(next(row[3] for row in rows if int(row[0]) == product_id))
+    row = conn.execute(
+        "SELECT COALESCE(quantity, 0) FROM inventory_stock WHERE product_id = ? AND branch_id = 1",
+        (product_id,),
+    ).fetchone()
+    return float(row[0]) if row is not None else 0.0
 
 
 def test_sales_inventory_recipe_and_reservations_share_inventory_stock() -> None:
