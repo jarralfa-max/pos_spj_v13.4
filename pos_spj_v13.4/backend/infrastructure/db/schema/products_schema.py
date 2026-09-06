@@ -1,7 +1,7 @@
 """Products bounded context — born-clean UUIDv7 schema (single source of truth).
 
 Rules (REGLA CERO / §8 / §48):
-- Every id is ``TEXT PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
+- Every id is ``TEXT NOT NULL PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
 - No ``existencia``/``stock`` column and no final price column live here: stock
   belongs to Inventory, price to Pricing (guardrails
   ``test_product_master_does_not_store_stock`` / ``..._does_not_own_pricing``).
@@ -192,7 +192,7 @@ _DDL = (
     # ── clasificación cárnica (PROD-3) ────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS species (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
@@ -202,7 +202,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS anatomical_regions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         species_id TEXT NOT NULL,
         code TEXT NOT NULL,
         name TEXT NOT NULL,
@@ -214,7 +214,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS cut_classifications (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         species_id TEXT NOT NULL,
         anatomical_region_id TEXT NOT NULL,
         code TEXT NOT NULL,
@@ -235,7 +235,7 @@ _DDL = (
     # ── unidades / conversiones / peso variable (PROD-5) ──────────────────
     """
     CREATE TABLE IF NOT EXISTS units_of_measure (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         dimension TEXT NOT NULL,            -- WEIGHT | COUNT | VOLUME | ...
@@ -245,7 +245,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS product_unit_conversions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         product_id TEXT,                    -- NULL = conversión global
         from_unit_id TEXT NOT NULL,
         to_unit_id TEXT NOT NULL,
@@ -282,7 +282,7 @@ _DDL = (
     # ── códigos / barcodes (PROD-7) ───────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS product_barcodes (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         product_id TEXT NOT NULL,
         variant_id TEXT,
         barcode_value TEXT NOT NULL,
@@ -300,7 +300,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS product_alternate_codes (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         product_id TEXT NOT NULL,
         code TEXT NOT NULL,
         code_type TEXT NOT NULL DEFAULT 'SUPPLIER_CODE',
@@ -313,7 +313,7 @@ _DDL = (
     # ── calidad / vida útil / logística (PROD-8) ──────────────────────────
     """
     CREATE TABLE IF NOT EXISTS product_shelf_life_profiles (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         product_id TEXT NOT NULL,
         shelf_life_days INTEGER NOT NULL,
         minimum_remaining_for_receipt INTEGER NOT NULL DEFAULT 0,
@@ -367,7 +367,7 @@ _DDL = (
     # ── recetas / BOM (PROD-9) ────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS recipes (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         product_id TEXT NOT NULL,
         recipe_type TEXT NOT NULL,
         name TEXT NOT NULL,
@@ -378,7 +378,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS recipe_versions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         recipe_id TEXT NOT NULL,
         version_number INTEGER NOT NULL,
         status TEXT NOT NULL DEFAULT 'DRAFT',
@@ -394,7 +394,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS recipe_components (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         version_id TEXT NOT NULL,
         component_product_id TEXT NOT NULL,
         quantity TEXT NOT NULL,             -- Decimal string
@@ -407,7 +407,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS recipe_outputs (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         version_id TEXT NOT NULL,
         product_id TEXT NOT NULL,
         output_type TEXT NOT NULL,
@@ -422,7 +422,7 @@ _DDL = (
     # ── rendimientos (PROD-10) ────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS yield_profiles (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         input_product_id TEXT NOT NULL,
         species_id TEXT,
         name TEXT NOT NULL,
@@ -434,7 +434,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS yield_profile_versions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         yield_profile_id TEXT NOT NULL,
         version_number INTEGER NOT NULL,
         status TEXT NOT NULL DEFAULT 'DRAFT',
@@ -451,7 +451,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS yield_outputs (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         version_id TEXT NOT NULL,
         product_id TEXT NOT NULL,
         output_type TEXT NOT NULL,
@@ -469,7 +469,7 @@ _DDL = (
     # ── esquemas de despiece (PROD-11) ────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS cutting_schemes (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         input_product_id TEXT NOT NULL,
         species_id TEXT NOT NULL,
         name TEXT NOT NULL,
@@ -482,7 +482,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS cutting_scheme_versions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         cutting_scheme_id TEXT NOT NULL,
         version_number INTEGER NOT NULL,
         status TEXT NOT NULL DEFAULT 'DRAFT',
@@ -497,7 +497,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS cutting_outputs (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         version_id TEXT NOT NULL,
         product_id TEXT NOT NULL,
         output_type TEXT NOT NULL DEFAULT 'MAIN_PRODUCT',
@@ -515,7 +515,7 @@ _DDL = (
     # ── combos / kits / paquetes (PROD-13) ────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS product_bundles (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         product_id TEXT NOT NULL,
         bundle_type TEXT NOT NULL,
         name TEXT NOT NULL,
@@ -526,7 +526,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS bundle_versions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         bundle_id TEXT NOT NULL,
         version_number INTEGER NOT NULL,
         status TEXT NOT NULL DEFAULT 'DRAFT',
@@ -541,7 +541,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS bundle_components (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         version_id TEXT NOT NULL,
         component_product_id TEXT NOT NULL,
         quantity TEXT NOT NULL,             -- Decimal string
@@ -559,7 +559,7 @@ _DDL = (
     #   precio (Pricing) ni stock (Inventory).
     """
     CREATE TABLE IF NOT EXISTS branch_product (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         product_id TEXT NOT NULL,
         branch_id TEXT NOT NULL,
         enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0,1)),
@@ -571,7 +571,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS assortments (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         name TEXT NOT NULL,
         channel TEXT NOT NULL,
         branch_id TEXT,
@@ -581,7 +581,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS assortment_products (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         assortment_id TEXT NOT NULL,
         product_id TEXT NOT NULL,
         enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0,1)),
@@ -593,7 +593,7 @@ _DDL = (
     # ── catálogos externos / importación (PROD-15) ────────────────────────
     """
     CREATE TABLE IF NOT EXISTS external_catalog_sources (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         provider_type TEXT NOT NULL,
@@ -604,7 +604,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS external_product_records (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         source_id TEXT NOT NULL,
         external_id TEXT NOT NULL,
         name TEXT NOT NULL,
@@ -626,7 +626,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS product_import_batches (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         source_id TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'PENDING',
         total_records INTEGER NOT NULL DEFAULT 0,
@@ -641,7 +641,7 @@ _DDL = (
     # ── notificaciones (PROD-16) ──────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS product_notification_log (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         alert_type TEXT NOT NULL,
         severity TEXT NOT NULL,
         channel TEXT NOT NULL,
@@ -657,7 +657,7 @@ _DDL = (
     #   NOTE: no existencia, no precio. Stock → Inventory, price → Pricing.
     """
     CREATE TABLE IF NOT EXISTS products (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         name_normalized TEXT NOT NULL DEFAULT '',
@@ -697,7 +697,7 @@ _DDL = (
     # ── seguridad / auditoría (PROD-1) ────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS product_authorization_log (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         permission_code TEXT NOT NULL,
         requested_by TEXT NOT NULL,
         authorized_by TEXT NOT NULL,
@@ -710,7 +710,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS product_audit_log (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         action TEXT NOT NULL,
         entity_id TEXT NOT NULL,
         user_id TEXT NOT NULL,
@@ -727,7 +727,7 @@ _DDL = (
     # ── outbox / idempotencia de eventos (§46) ────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS product_outbox (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         event_id TEXT NOT NULL UNIQUE,
         event_name TEXT NOT NULL,
         operation_id TEXT,
@@ -739,7 +739,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS product_processed_events (
-        event_id TEXT PRIMARY KEY,
+        event_id TEXT NOT NULL PRIMARY KEY,
         event_name TEXT NOT NULL,
         processed_at TEXT NOT NULL DEFAULT (datetime('now'))
     )

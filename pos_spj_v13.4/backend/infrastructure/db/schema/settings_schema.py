@@ -41,7 +41,7 @@ _VALUE_STATUSES = (
 
 _DEFINITIONS_DDL = f"""
     CREATE TABLE IF NOT EXISTS configuration_definitions (
-        id                      TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                      TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         key                     TEXT NOT NULL UNIQUE CHECK(trim(key)<>''),
         module                  TEXT NOT NULL CHECK(trim(module)<>''),
         section                 TEXT NOT NULL DEFAULT '',
@@ -68,7 +68,7 @@ _DEFINITIONS_DDL = f"""
 
 _VALUES_DDL = f"""
     CREATE TABLE IF NOT EXISTS configuration_values (
-        id                      TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                      TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         definition_id           TEXT NOT NULL REFERENCES configuration_definitions(id),
         scope_type              TEXT NOT NULL CHECK(scope_type IN ({_SCOPE_TYPES})),
         scope_id                TEXT,
@@ -111,7 +111,7 @@ _INDEXES = (
 
 _COMPANY_PROFILES_DDL = f"""
     CREATE TABLE IF NOT EXISTS company_profiles (
-        id                      TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                      TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         legal_name              TEXT NOT NULL CHECK(trim(legal_name)<>''),
         commercial_name         TEXT NOT NULL DEFAULT '',
         tax_id                  TEXT NOT NULL DEFAULT '',
@@ -137,7 +137,7 @@ _COMPANY_PROFILES_DDL = f"""
 # docstring for why `sucursales` itself isn't cut over here.
 _BRANCH_PROFILES_DDL = f"""
     CREATE TABLE IF NOT EXISTS branch_profiles (
-        id                              TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                              TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         branch_id                       TEXT NOT NULL UNIQUE REFERENCES sucursales(id) CHECK({_uuid('branch_id')}),
         code                            TEXT NOT NULL UNIQUE CHECK(trim(code)<>''),
         name                            TEXT NOT NULL CHECK(trim(name)<>''),
@@ -178,7 +178,7 @@ _WORKSTATION_STATUSES = "'ACTIVE','INACTIVE','MAINTENANCE','BLOCKED','RETIRED'"
 
 _WORKSTATIONS_DDL = f"""
     CREATE TABLE IF NOT EXISTS workstations (
-        id                   TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                   TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         branch_id            TEXT NOT NULL REFERENCES sucursales(id) CHECK({_uuid('branch_id')}),
         code                 TEXT NOT NULL UNIQUE CHECK(trim(code)<>''),
         name                 TEXT NOT NULL CHECK(trim(name)<>''),

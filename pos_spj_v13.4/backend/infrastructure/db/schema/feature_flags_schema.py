@@ -29,7 +29,7 @@ _CHANGE_STATUSES = "'PENDING_APPROVAL','APPROVED','REJECTED','APPLIED'"
 
 _FF_FLAGS_DDL = f"""
     CREATE TABLE IF NOT EXISTS ff_flags (
-        id                TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         code              TEXT NOT NULL UNIQUE CHECK(trim(code)<>''),
         name              TEXT NOT NULL CHECK(trim(name)<>''),
         description       TEXT NOT NULL DEFAULT '',
@@ -42,7 +42,7 @@ _FF_FLAGS_DDL = f"""
 
 _FF_RULES_DDL = f"""
     CREATE TABLE IF NOT EXISTS ff_rules (
-        id                    TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                    TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         flag_id               TEXT NOT NULL REFERENCES ff_flags(id) CHECK({_uuid('flag_id')}),
         scope_type            TEXT NOT NULL CHECK(scope_type IN ({_SCOPE_TYPES})),
         scope_id              TEXT,
@@ -56,7 +56,7 @@ _FF_RULES_DDL = f"""
 
 _FF_CHANGE_REQUESTS_DDL = f"""
     CREATE TABLE IF NOT EXISTS ff_change_requests (
-        id                              TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                              TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         flag_id                         TEXT NOT NULL REFERENCES ff_flags(id) CHECK({_uuid('flag_id')}),
         scope_type                      TEXT NOT NULL CHECK(scope_type IN ({_SCOPE_TYPES})),
         scope_id                        TEXT,

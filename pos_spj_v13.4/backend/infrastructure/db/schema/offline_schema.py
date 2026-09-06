@@ -28,7 +28,7 @@ _SYNC_STATES = "'FRESH','STALE'"
 
 _OFFLINE_CACHE_ENTRIES_DDL = f"""
     CREATE TABLE IF NOT EXISTS offline_cache_entries (
-        id                TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         entity_type       TEXT NOT NULL CHECK(trim(entity_type)<>''),
         entity_id         TEXT NOT NULL CHECK(trim(entity_id)<>''),
         workstation_id    TEXT NOT NULL REFERENCES workstations(id) CHECK({_uuid('workstation_id')}),
@@ -43,7 +43,7 @@ _OFFLINE_CACHE_ENTRIES_DDL = f"""
 
 _CACHE_EXPIRATION_POLICIES_DDL = f"""
     CREATE TABLE IF NOT EXISTS cache_expiration_policies (
-        id            TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id            TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         entity_type   TEXT NOT NULL UNIQUE CHECK(trim(entity_type)<>''),
         ttl_seconds   INTEGER NOT NULL CHECK(ttl_seconds > 0),
         active        INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),

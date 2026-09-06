@@ -19,7 +19,11 @@ def test_transfers_schema_is_uuid_decimal_constrained_and_indexed():
     ddl = "\n".join(TRANSFER_SCHEMA).upper()
     assert " REAL" not in ddl
     assert "AUTOINCREMENT" not in ddl
-    assert "ID TEXT PRIMARY KEY" in ddl
+    # `NOT NULL` es obligatorio, no decorativo: en SQLite sólo INTEGER PRIMARY KEY
+    # impide un id NULL; una PK TEXT sin NOT NULL acepta una fila sin identidad en
+    # silencio. Esta aserción fijaba la forma débil, así que se endurece.
+    assert "ID TEXT NOT NULL PRIMARY KEY" in ddl
+    assert "ID TEXT PRIMARY KEY" not in ddl
     assert "UNIQUE(OPERATION_ID, EVENT_NAME, AGGREGATE_ID)" in ddl
     indexes = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='index'")}
     assert len([name for name in indexes if name.startswith("idx_")]) == len(TRANSFER_INDEXES)

@@ -30,9 +30,11 @@ def test_schema_has_no_autoincrement():
 
 
 def test_schema_ids_are_text():
-    # cada tabla declara `id TEXT PRIMARY KEY` o PK compuesta TEXT
+    # cada tabla declara `id TEXT NOT NULL PRIMARY KEY` o PK compuesta TEXT.
+    # El NOT NULL no es decorativo: sin él SQLite admite una fila con id NULL.
     joined = "\n".join(_DDL)
-    assert "id TEXT PRIMARY KEY" in joined
+    assert "id TEXT NOT NULL PRIMARY KEY" in joined
+    assert "id TEXT PRIMARY KEY" not in joined
 
 
 def test_pricing_code_has_no_lastrowid_or_int_id_casts():

@@ -13,7 +13,7 @@ Enforced by ``tests/architecture/test_customers_crm_does_not_duplicate_cxc.py``
 (CRM-1), which already scans this sub-bounded-context's roots.
 
 Rules (REGLA CERO, master prompt §11):
-- Every id is ``TEXT PRIMARY KEY`` holding a lowercase UUIDv7.
+- Every id is ``TEXT NOT NULL PRIMARY KEY`` holding a lowercase UUIDv7.
 - Idempotency is structural: UNIQUE(operation_id), UNIQUE(customer_id) on
   the profile table (one credit profile per customer).
 - Every amount is ``TEXT`` (Decimal), never ``REAL``.
@@ -35,7 +35,7 @@ CUSTOMER_CREDIT_TABLES: tuple[str, ...] = (
 _DDL = (
     """
     CREATE TABLE IF NOT EXISTS customer_credit_profiles (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         customer_id TEXT NOT NULL UNIQUE,
         status TEXT NOT NULL DEFAULT 'PENDING_APPROVAL' CHECK (status IN (
             'PENDING_APPROVAL','UNDER_REVIEW','AUTHORIZED','SUSPENDED','BLOCKED','CLOSED')),
@@ -59,7 +59,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_credit_audit_log (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         customer_id TEXT,
         profile_id TEXT,
         action TEXT NOT NULL,
@@ -74,7 +74,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_credit_outbox (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         event_id TEXT NOT NULL,
         event_name TEXT NOT NULL,
         payload_json TEXT NOT NULL,
@@ -86,7 +86,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_credit_processed_events (
-        event_id TEXT PRIMARY KEY,
+        event_id TEXT NOT NULL PRIMARY KEY,
         event_name TEXT NOT NULL,
         operation_id TEXT NOT NULL,
         processed_at TEXT NOT NULL

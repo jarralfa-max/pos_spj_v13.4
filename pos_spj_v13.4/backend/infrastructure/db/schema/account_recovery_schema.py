@@ -17,7 +17,7 @@ from __future__ import annotations
 _ACCOUNT_RECOVERY_DDL = (
     """
     CREATE TABLE IF NOT EXISTS account_recovery_tokens (
-        token_id        TEXT PRIMARY KEY,
+        token_id        TEXT NOT NULL PRIMARY KEY,
         user_reference  TEXT NOT NULL,
         token_hash      TEXT NOT NULL UNIQUE,
         issued_at       TEXT NOT NULL,

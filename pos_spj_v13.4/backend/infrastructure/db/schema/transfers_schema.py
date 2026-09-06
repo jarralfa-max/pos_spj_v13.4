@@ -22,7 +22,7 @@ TRANSFER_TABLES = (
 
 TRANSFER_SCHEMA = (
     '''CREATE TABLE IF NOT EXISTS stock_transfers (
-        id TEXT PRIMARY KEY, transfer_number TEXT NOT NULL UNIQUE, transfer_type TEXT NOT NULL,
+        id TEXT NOT NULL PRIMARY KEY, transfer_number TEXT NOT NULL UNIQUE, transfer_type TEXT NOT NULL,
         source_channel TEXT NOT NULL, source_module TEXT NOT NULL, source_document_id TEXT,
         origin_node_type TEXT NOT NULL, origin_branch_id TEXT, origin_warehouse_id TEXT, origin_location_id TEXT,
         destination_node_type TEXT NOT NULL, destination_branch_id TEXT, destination_warehouse_id TEXT, destination_location_id TEXT,
@@ -33,7 +33,7 @@ TRANSFER_SCHEMA = (
         operation_id TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
         UNIQUE(source_module, source_document_id, transfer_type))''',
     '''CREATE TABLE IF NOT EXISTS stock_transfer_lines (
-        id TEXT PRIMARY KEY, transfer_id TEXT NOT NULL REFERENCES stock_transfers(id), product_id TEXT NOT NULL,
+        id TEXT NOT NULL PRIMARY KEY, transfer_id TEXT NOT NULL REFERENCES stock_transfers(id), product_id TEXT NOT NULL,
         unit_id TEXT NOT NULL, requested_quantity TEXT NOT NULL, requested_weight TEXT NOT NULL,
         approved_quantity TEXT NOT NULL, approved_weight TEXT NOT NULL, reserved_quantity TEXT NOT NULL,
         reserved_weight TEXT NOT NULL, picked_quantity TEXT NOT NULL, picked_weight TEXT NOT NULL,
@@ -43,24 +43,24 @@ TRANSFER_SCHEMA = (
         lot_required INTEGER NOT NULL, quality_required INTEGER NOT NULL, temperature_required INTEGER NOT NULL,
         temperature_at_pick TEXT, notes TEXT)''',
     '''CREATE TABLE IF NOT EXISTS transfer_shipments (
-        id TEXT PRIMARY KEY, transfer_id TEXT NOT NULL REFERENCES stock_transfers(id), shipment_number TEXT NOT NULL UNIQUE,
+        id TEXT NOT NULL PRIMARY KEY, transfer_id TEXT NOT NULL REFERENCES stock_transfers(id), shipment_number TEXT NOT NULL UNIQUE,
         dispatched_by_user_id TEXT NOT NULL, verified_by_user_id TEXT, carrier_id TEXT, vehicle_id TEXT, driver_id TEXT,
         seal_number TEXT, departure_at TEXT, expected_arrival_at TEXT, temperature_at_dispatch TEXT,
         status TEXT NOT NULL CHECK (status IN ('DRAFT','READY','DISPATCHED','IN_TRANSIT','DELIVERED','CANCELLED','RETURNED')),
         dispatch_operation_id TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, UNIQUE(transfer_id, dispatch_operation_id))''',
     '''CREATE TABLE IF NOT EXISTS transfer_shipment_lines (
-        id TEXT PRIMARY KEY, shipment_id TEXT NOT NULL REFERENCES transfer_shipments(id),
+        id TEXT NOT NULL PRIMARY KEY, shipment_id TEXT NOT NULL REFERENCES transfer_shipments(id),
         transfer_line_id TEXT NOT NULL REFERENCES stock_transfer_lines(id), product_id TEXT NOT NULL,
         lot_id TEXT, location_id TEXT, quantity TEXT NOT NULL, weight TEXT NOT NULL,
         UNIQUE(shipment_id, transfer_line_id, lot_id, location_id))''',
     '''CREATE TABLE IF NOT EXISTS transfer_custody_events (
-        id TEXT PRIMARY KEY, shipment_id TEXT NOT NULL REFERENCES transfer_shipments(id),
+        id TEXT NOT NULL PRIMARY KEY, shipment_id TEXT NOT NULL REFERENCES transfer_shipments(id),
         event_type TEXT NOT NULL, delivered_by_user_id TEXT NOT NULL,
         received_by_user_id TEXT NOT NULL, location_id TEXT, vehicle_id TEXT,
         seal_number TEXT, temperature TEXT, evidence_reference TEXT, notes TEXT,
         occurred_at TEXT NOT NULL)''',
     '''CREATE TABLE IF NOT EXISTS transfer_receipts (
-        id TEXT PRIMARY KEY, transfer_id TEXT NOT NULL REFERENCES stock_transfers(id),
+        id TEXT NOT NULL PRIMARY KEY, transfer_id TEXT NOT NULL REFERENCES stock_transfers(id),
         shipment_id TEXT NOT NULL REFERENCES transfer_shipments(id), received_by_user_id TEXT NOT NULL,
         receipt_operation_id TEXT NOT NULL UNIQUE, blind INTEGER NOT NULL DEFAULT 0, received_at TEXT NOT NULL,
         qr_reference TEXT, device_id TEXT, local_sequence INTEGER,
@@ -68,7 +68,7 @@ TRANSFER_SCHEMA = (
         CHECK (sync_status = 'CONFIRMED' OR (device_id IS NOT NULL AND local_sequence > 0)),
         UNIQUE(shipment_id, receipt_operation_id))''',
     '''CREATE TABLE IF NOT EXISTS transfer_receipt_lines (
-        id TEXT PRIMARY KEY, receipt_id TEXT NOT NULL REFERENCES transfer_receipts(id),
+        id TEXT NOT NULL PRIMARY KEY, receipt_id TEXT NOT NULL REFERENCES transfer_receipts(id),
         transfer_line_id TEXT NOT NULL REFERENCES stock_transfer_lines(id), product_id TEXT NOT NULL,
         lot_id TEXT, observed_quantity TEXT NOT NULL, observed_weight TEXT NOT NULL,
         observed_pieces TEXT NOT NULL, temperature_at_receipt TEXT, expires_on TEXT,
@@ -77,18 +77,18 @@ TRANSFER_SCHEMA = (
         quality_status TEXT NOT NULL CHECK (quality_status IN ('AVAILABLE','PENDING_INSPECTION','QUARANTINED','QUALITY_BLOCKED','REJECTED')),
         UNIQUE(receipt_id, transfer_line_id, lot_id))''',
     '''CREATE TABLE IF NOT EXISTS transfer_blind_receipt_counts (
-        id TEXT PRIMARY KEY, transfer_id TEXT NOT NULL REFERENCES stock_transfers(id),
+        id TEXT NOT NULL PRIMARY KEY, transfer_id TEXT NOT NULL REFERENCES stock_transfers(id),
         shipment_id TEXT NOT NULL REFERENCES transfer_shipments(id), receiver_user_id TEXT NOT NULL,
         start_operation_id TEXT NOT NULL UNIQUE, status TEXT NOT NULL CHECK (status IN ('CAPTURING','CONFIRMED')),
         receipt_id TEXT REFERENCES transfer_receipts(id), created_at TEXT NOT NULL, confirmed_at TEXT)''',
     '''CREATE TABLE IF NOT EXISTS transfer_blind_receipt_count_lines (
-        id TEXT PRIMARY KEY, count_id TEXT NOT NULL REFERENCES transfer_blind_receipt_counts(id),
+        id TEXT NOT NULL PRIMARY KEY, count_id TEXT NOT NULL REFERENCES transfer_blind_receipt_counts(id),
         transfer_line_id TEXT NOT NULL REFERENCES stock_transfer_lines(id), lot_id TEXT,
         observed_quantity TEXT NOT NULL, observed_weight TEXT NOT NULL, observed_pieces TEXT NOT NULL,
         temperature_at_receipt TEXT, expires_on TEXT, accepted INTEGER NOT NULL,
         UNIQUE(count_id, transfer_line_id, lot_id))''',
     '''CREATE TABLE IF NOT EXISTS transfer_differences (
-        id TEXT PRIMARY KEY, transfer_id TEXT NOT NULL REFERENCES stock_transfers(id),
+        id TEXT NOT NULL PRIMARY KEY, transfer_id TEXT NOT NULL REFERENCES stock_transfers(id),
         transfer_line_id TEXT NOT NULL REFERENCES stock_transfer_lines(id), difference_type TEXT NOT NULL,
         expected_quantity TEXT NOT NULL, actual_quantity TEXT NOT NULL, expected_weight TEXT NOT NULL,
         actual_weight TEXT NOT NULL, difference_quantity TEXT NOT NULL, difference_weight TEXT NOT NULL,
@@ -97,12 +97,12 @@ TRANSFER_SCHEMA = (
         status TEXT NOT NULL CHECK (status IN ('DETECTED','PENDING_REVIEW','UNDER_INVESTIGATION','ACCEPTED','REJECTED','CLAIMED','RESOLVED','CLOSED')),
         evidence TEXT, detected_at TEXT NOT NULL)''',
     '''CREATE TABLE IF NOT EXISTS transfer_difference_resolutions (
-        id TEXT PRIMARY KEY, difference_id TEXT NOT NULL REFERENCES transfer_differences(id),
+        id TEXT NOT NULL PRIMARY KEY, difference_id TEXT NOT NULL REFERENCES transfer_differences(id),
         resolution_type TEXT NOT NULL, resolved_by_user_id TEXT NOT NULL,
         operation_id TEXT NOT NULL UNIQUE, reason TEXT NOT NULL, evidence TEXT,
         resolved_at TEXT NOT NULL, UNIQUE(difference_id, operation_id))''',
     '''CREATE TABLE IF NOT EXISTS transfer_returns (
-        id TEXT PRIMARY KEY, transfer_id TEXT NOT NULL REFERENCES stock_transfers(id),
+        id TEXT NOT NULL PRIMARY KEY, transfer_id TEXT NOT NULL REFERENCES stock_transfers(id),
         return_number TEXT NOT NULL UNIQUE, reason TEXT NOT NULL,
         source_branch_id TEXT, source_warehouse_id TEXT, source_location_id TEXT,
         destination_branch_id TEXT, destination_warehouse_id TEXT, destination_location_id TEXT,
@@ -112,22 +112,22 @@ TRANSFER_SCHEMA = (
         status TEXT NOT NULL CHECK (status IN ('REQUESTED','APPROVED','DISPATCHED','IN_TRANSIT','RECEIVED','COMPLETED','REJECTED')),
         created_at TEXT NOT NULL, completed_at TEXT)''',
     '''CREATE TABLE IF NOT EXISTS transfer_return_lines (
-        id TEXT PRIMARY KEY, return_id TEXT NOT NULL REFERENCES transfer_returns(id),
+        id TEXT NOT NULL PRIMARY KEY, return_id TEXT NOT NULL REFERENCES transfer_returns(id),
         transfer_line_id TEXT NOT NULL REFERENCES stock_transfer_lines(id), lot_id TEXT,
         quantity TEXT NOT NULL, weight TEXT NOT NULL, pieces TEXT NOT NULL,
         dispatched_quantity TEXT NOT NULL, dispatched_weight TEXT NOT NULL,
         received_quantity TEXT NOT NULL, received_weight TEXT NOT NULL,
         UNIQUE(return_id, transfer_line_id, lot_id))''',
     '''CREATE TABLE IF NOT EXISTS transfer_return_custody_events (
-        id TEXT PRIMARY KEY, return_id TEXT NOT NULL REFERENCES transfer_returns(id),
+        id TEXT NOT NULL PRIMARY KEY, return_id TEXT NOT NULL REFERENCES transfer_returns(id),
         event_type TEXT NOT NULL, delivered_by_user_id TEXT NOT NULL,
         received_by_user_id TEXT NOT NULL, location_id TEXT, temperature TEXT,
         evidence_reference TEXT, occurred_at TEXT NOT NULL)''',
     '''CREATE TABLE IF NOT EXISTS transfer_suggestion_generations (
-        id TEXT PRIMARY KEY, operation_id TEXT NOT NULL UNIQUE, source_channel TEXT NOT NULL,
+        id TEXT NOT NULL PRIMARY KEY, operation_id TEXT NOT NULL UNIQUE, source_channel TEXT NOT NULL,
         source_reference_id TEXT, actor_user_id TEXT NOT NULL, generated_at TEXT NOT NULL)''',
     '''CREATE TABLE IF NOT EXISTS transfer_suggestions (
-        id TEXT PRIMARY KEY, product_id TEXT NOT NULL, unit_id TEXT NOT NULL,
+        id TEXT NOT NULL PRIMARY KEY, product_id TEXT NOT NULL, unit_id TEXT NOT NULL,
         origin_node_type TEXT NOT NULL, origin_branch_id TEXT, origin_warehouse_id TEXT, origin_location_id TEXT,
         destination_node_type TEXT NOT NULL, destination_branch_id TEXT, destination_warehouse_id TEXT, destination_location_id TEXT,
         suggested_quantity TEXT NOT NULL, origin_days_of_supply TEXT NOT NULL,
@@ -141,20 +141,20 @@ TRANSFER_SCHEMA = (
                origin_location_id, destination_node_type, destination_branch_id,
                destination_warehouse_id, destination_location_id))''',
     '''CREATE TABLE IF NOT EXISTS transfer_operations (
-        id TEXT PRIMARY KEY, operation_id TEXT NOT NULL UNIQUE, transfer_id TEXT NOT NULL REFERENCES stock_transfers(id),
+        id TEXT NOT NULL PRIMARY KEY, operation_id TEXT NOT NULL UNIQUE, transfer_id TEXT NOT NULL REFERENCES stock_transfers(id),
         operation_type TEXT NOT NULL, actor_user_id TEXT NOT NULL, device_id TEXT, local_sequence INTEGER,
         sync_status TEXT NOT NULL DEFAULT 'PENDING', occurred_at TEXT NOT NULL, UNIQUE(transfer_id, operation_id))''',
     '''CREATE TABLE IF NOT EXISTS transfer_authorization_log (
-        id TEXT PRIMARY KEY, transfer_id TEXT NOT NULL REFERENCES stock_transfers(id), shipment_id TEXT, receipt_id TEXT,
+        id TEXT NOT NULL PRIMARY KEY, transfer_id TEXT NOT NULL REFERENCES stock_transfers(id), shipment_id TEXT, receipt_id TEXT,
         requested_by_user_id TEXT NOT NULL, authorized_by_user_id TEXT NOT NULL, permission_code TEXT NOT NULL,
         reason TEXT NOT NULL, operation_id TEXT NOT NULL UNIQUE, quantity TEXT, weight TEXT, device_id TEXT, authorized_at TEXT NOT NULL)''',
     '''CREATE TABLE IF NOT EXISTS transfer_audit_log (
-        id TEXT PRIMARY KEY, transfer_id TEXT NOT NULL REFERENCES stock_transfers(id), shipment_id TEXT, receipt_id TEXT,
+        id TEXT NOT NULL PRIMARY KEY, transfer_id TEXT NOT NULL REFERENCES stock_transfers(id), shipment_id TEXT, receipt_id TEXT,
         user_id TEXT NOT NULL, authorized_by_user_id TEXT, operation_id TEXT NOT NULL, action TEXT NOT NULL,
         before_json TEXT, after_json TEXT, reason TEXT, branch_id TEXT, warehouse_id TEXT, product_id TEXT,
         lot_id TEXT, device_id TEXT, occurred_at TEXT NOT NULL)''',
     '''CREATE TABLE IF NOT EXISTS transfer_notification_deliveries (
-        id TEXT PRIMARY KEY, notification_id TEXT NOT NULL UNIQUE,
+        id TEXT NOT NULL PRIMARY KEY, notification_id TEXT NOT NULL UNIQUE,
         event_id TEXT NOT NULL, transfer_id TEXT NOT NULL REFERENCES stock_transfers(id),
         operation_id TEXT NOT NULL, recipient_user_id TEXT NOT NULL,
         channel TEXT NOT NULL CHECK (channel IN ('IN_APP','WHATSAPP')),
@@ -162,7 +162,7 @@ TRANSFER_SCHEMA = (
         destination TEXT NOT NULL, delivered_at TEXT NOT NULL,
         UNIQUE(event_id, recipient_user_id, channel))''',
     '''CREATE TABLE IF NOT EXISTS transfer_offline_operations (
-        id TEXT PRIMARY KEY, operation_id TEXT NOT NULL UNIQUE,
+        id TEXT NOT NULL PRIMARY KEY, operation_id TEXT NOT NULL UNIQUE,
         device_id TEXT NOT NULL, local_sequence INTEGER NOT NULL CHECK (local_sequence > 0),
         transfer_id TEXT NOT NULL REFERENCES stock_transfers(id), operation_type TEXT NOT NULL,
         base_version INTEGER NOT NULL CHECK (base_version >= 0), payload_json TEXT NOT NULL,
@@ -173,7 +173,7 @@ TRANSFER_SCHEMA = (
         created_at TEXT NOT NULL, synced_at TEXT,
         UNIQUE(device_id, local_sequence))''',
     '''CREATE TABLE IF NOT EXISTS transfer_print_log (
-        id TEXT PRIMARY KEY, operation_id TEXT NOT NULL UNIQUE,
+        id TEXT NOT NULL PRIMARY KEY, operation_id TEXT NOT NULL UNIQUE,
         transfer_id TEXT NOT NULL REFERENCES stock_transfers(id),
         document_type TEXT NOT NULL CHECK (document_type IN
             ('TRANSFER','PICKING_LIST','SHIPMENT','RECEIPT','PACKAGE_LABEL')),
@@ -186,7 +186,7 @@ TRANSFER_SCHEMA = (
         CHECK (original_print_id IS NULL OR
                (reprint_reason IS NOT NULL AND length(trim(reprint_reason)) > 0)))''',
     '''CREATE TABLE IF NOT EXISTS transfer_outbox (
-        id TEXT PRIMARY KEY, event_id TEXT NOT NULL UNIQUE, event_name TEXT NOT NULL, operation_id TEXT NOT NULL,
+        id TEXT NOT NULL PRIMARY KEY, event_id TEXT NOT NULL UNIQUE, event_name TEXT NOT NULL, operation_id TEXT NOT NULL,
         aggregate_id TEXT NOT NULL REFERENCES stock_transfers(id), payload_json TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','DISPATCHED','DEAD_LETTER')),
         occurred_at TEXT NOT NULL, published_at TEXT, UNIQUE(operation_id, event_name, aggregate_id))''',

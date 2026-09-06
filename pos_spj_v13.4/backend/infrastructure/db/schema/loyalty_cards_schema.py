@@ -30,7 +30,7 @@ _DDL = (
     # ── LoyaltyCard ──────────────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS loyalty_cards (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         card_number TEXT NOT NULL UNIQUE,
         card_type TEXT NOT NULL,
         customer_id TEXT NOT NULL,
@@ -52,7 +52,7 @@ _DDL = (
     # ── LoyaltyCardPublicToken — rotatable QR identifier (§32) ──────────
     """
     CREATE TABLE IF NOT EXISTS loyalty_card_tokens (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         card_id TEXT NOT NULL REFERENCES loyalty_cards(id),
         token TEXT NOT NULL UNIQUE,
         status TEXT NOT NULL DEFAULT 'ACTIVE',
@@ -64,7 +64,7 @@ _DDL = (
     # ── LoyaltyCardTemplate (§33) ────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS loyalty_card_templates (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
@@ -80,7 +80,7 @@ _DDL = (
     # ── LoyaltyCardTemplateVersion — versioned design snapshot (§33-34) ──
     """
     CREATE TABLE IF NOT EXISTS loyalty_card_template_versions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         template_id TEXT NOT NULL REFERENCES loyalty_card_templates(id),
         version_number INTEGER NOT NULL,
         design_schema_json TEXT NOT NULL,
@@ -95,7 +95,7 @@ _DDL = (
     # ── LoyaltyCardSheetProfile (§38-40) ─────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS loyalty_card_sheet_profiles (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         width_mm TEXT NOT NULL,
@@ -113,7 +113,7 @@ _DDL = (
     # ── LoyaltyCardImpositionProfile — derived columns/rows (§38-40) ─────
     """
     CREATE TABLE IF NOT EXISTS loyalty_card_imposition_profiles (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         sheet_profile_id TEXT NOT NULL REFERENCES loyalty_card_sheet_profiles(id),
         card_width_mm TEXT NOT NULL,
         card_height_mm TEXT NOT NULL,
@@ -129,7 +129,7 @@ _DDL = (
     # ── LoyaltyCardBatch (§43-44) ────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS loyalty_card_batches (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         template_id TEXT NOT NULL REFERENCES loyalty_card_templates(id),
         imposition_profile_id TEXT NOT NULL REFERENCES loyalty_card_imposition_profiles(id),
         item_count INTEGER NOT NULL,
@@ -144,7 +144,7 @@ _DDL = (
     # ── LoyaltyCardBatchItem — one physical card slot within a batch ────
     """
     CREATE TABLE IF NOT EXISTS loyalty_card_batch_items (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         batch_id TEXT NOT NULL REFERENCES loyalty_card_batches(id),
         card_id TEXT NOT NULL REFERENCES loyalty_cards(id),
         sheet_number INTEGER NOT NULL,
@@ -159,7 +159,7 @@ _DDL = (
     # ── LoyaltyCardPrintJob (§50-51) — own schema, no cross-context FK ──
     """
     CREATE TABLE IF NOT EXISTS loyalty_card_print_jobs (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         batch_id TEXT NOT NULL REFERENCES loyalty_card_batches(id),
         requested_by_user_id TEXT NOT NULL,
         only_sheet_number INTEGER,
@@ -176,7 +176,7 @@ _DDL = (
     # ── LoyaltyDigitalCardProjection — one per DIGITAL card (§48) ───────
     """
     CREATE TABLE IF NOT EXISTS loyalty_digital_card_projections (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         card_id TEXT NOT NULL UNIQUE REFERENCES loyalty_cards(id),
         customer_id TEXT NOT NULL,
         card_number TEXT NOT NULL,
@@ -189,7 +189,7 @@ _DDL = (
     # ── transactional outbox ─────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS loyalty_cards_outbox (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         event_id TEXT NOT NULL UNIQUE,
         event_name TEXT NOT NULL,
         payload_json TEXT NOT NULL,

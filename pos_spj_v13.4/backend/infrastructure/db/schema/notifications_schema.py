@@ -27,7 +27,7 @@ _NOTIFICATION_CHANNELS = "'WHATSAPP','SMS','EMAIL','PUSH'"
 
 _NOTIFICATION_ACCOUNTS_DDL = f"""
     CREATE TABLE IF NOT EXISTS notification_accounts (
-        id                      TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                      TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         channel                 TEXT NOT NULL CHECK(channel IN ({_NOTIFICATION_CHANNELS})),
         name                    TEXT NOT NULL CHECK(trim(name)<>''),
         credential_reference    TEXT,
@@ -40,7 +40,7 @@ _NOTIFICATION_ACCOUNTS_DDL = f"""
 
 _NOTIFICATION_TEMPLATES_DDL = f"""
     CREATE TABLE IF NOT EXISTS notification_templates (
-        id                    TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                    TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         code                  TEXT NOT NULL CHECK(trim(code)<>''),
         channel               TEXT NOT NULL CHECK(channel IN ({_NOTIFICATION_CHANNELS})),
         language              TEXT NOT NULL CHECK(trim(language)<>''),
@@ -54,7 +54,7 @@ _NOTIFICATION_TEMPLATES_DDL = f"""
 
 _NOTIFICATION_ROUTES_DDL = f"""
     CREATE TABLE IF NOT EXISTS notification_routes (
-        id            TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id            TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         event_code    TEXT NOT NULL CHECK(trim(event_code)<>''),
         channel       TEXT NOT NULL CHECK(channel IN ({_NOTIFICATION_CHANNELS})),
         template_id   TEXT NOT NULL REFERENCES notification_templates(id) CHECK({_uuid('template_id')}),

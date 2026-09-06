@@ -173,7 +173,7 @@ def _create_core_config(conn):
 def _create_auth(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
-            id                TEXT PRIMARY KEY,
+            id                TEXT NOT NULL PRIMARY KEY,
             nombre            TEXT    NOT NULL,
             usuario           TEXT    UNIQUE NOT NULL,
             password_hash     TEXT    NOT NULL,
@@ -223,7 +223,7 @@ def _create_auth(conn):
     # usuario_id/sucursal_id son UUID TEXT — nunca enteros.
     conn.execute("""
         CREATE TABLE IF NOT EXISTS usuario_permisos (
-            id         TEXT PRIMARY KEY,
+            id         TEXT NOT NULL PRIMARY KEY,
             usuario_id TEXT NOT NULL,
             modulo     TEXT NOT NULL,
             accion     TEXT NOT NULL,
@@ -232,7 +232,7 @@ def _create_auth(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS usuario_sucursal_permisos (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             usuario_id  TEXT NOT NULL,
             sucursal_id TEXT NOT NULL,
             modulo      TEXT NOT NULL,
@@ -292,7 +292,7 @@ def _create_clientes(conn):
     # sale_loyalty_policy y sales_reversal_service.
     conn.execute("""
         CREATE TABLE IF NOT EXISTS historico_puntos (
-            id           TEXT PRIMARY KEY,
+            id           TEXT NOT NULL PRIMARY KEY,
             cliente_id   TEXT,
             tipo         TEXT,
             puntos       INTEGER,
@@ -706,7 +706,7 @@ def _create_ventas(conn):
     # Identidad UUIDv7; antes la creaba el router de la API (prohibido).
     conn.execute("""
         CREATE TABLE IF NOT EXISTS anticipos (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             venta_id    TEXT NOT NULL,
             monto       REAL NOT NULL,
             metodo      TEXT DEFAULT 'mercadopago',
@@ -1673,7 +1673,7 @@ def _create_loyalty(conn):
     # (0 referencias). El log canónico de puntos es loyalty_ledger.
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_snapshots (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             cliente_id      TEXT NOT NULL UNIQUE,
             puntos_actuales INTEGER NOT NULL DEFAULT 0,
             nivel           TEXT    NOT NULL DEFAULT 'Bronce',

@@ -14,7 +14,7 @@ parallel activity/task/note tables live here (see
 backend/domain/customer_service/entities/__init__.py for why).
 
 Rules (REGLA CERO, master prompt §11):
-- Every id is ``TEXT PRIMARY KEY`` holding a lowercase UUIDv7.
+- Every id is ``TEXT NOT NULL PRIMARY KEY`` holding a lowercase UUIDv7.
 - ``case_number`` (folio) is a separate UNIQUE column, never the PK.
 - Idempotency is structural: UNIQUE(operation_id), UNIQUE(case_number).
 - Sin secuencias auto-numéricas ni identidades de cursor.
@@ -40,7 +40,7 @@ CUSTOMER_SERVICE_TABLES: tuple[str, ...] = (
 _DDL = (
     """
     CREATE TABLE IF NOT EXISTS service_case_categories (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         active INTEGER NOT NULL DEFAULT 1,
@@ -50,7 +50,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS service_level_policies (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         first_response_minutes INTEGER NOT NULL,
@@ -71,7 +71,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS service_cases (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         case_number TEXT NOT NULL UNIQUE,
         customer_id TEXT NOT NULL,
         case_type TEXT NOT NULL CHECK (case_type IN (
@@ -103,7 +103,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS service_case_resolutions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         case_id TEXT NOT NULL REFERENCES service_cases(id),
         resolution_summary TEXT NOT NULL,
         resolved_by_user_id TEXT NOT NULL,
@@ -114,7 +114,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS service_case_escalations (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         case_id TEXT NOT NULL REFERENCES service_cases(id),
         reason TEXT NOT NULL CHECK (reason IN (
             'SLA_BREACHED','PRIORITY_CUSTOMER','CRITICAL_CASE','MULTIPLE_REOPENS',
@@ -128,7 +128,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS sla_instances (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         case_id TEXT NOT NULL UNIQUE REFERENCES service_cases(id),
         policy_id TEXT NOT NULL REFERENCES service_level_policies(id),
         first_response_due_at TEXT NOT NULL,
@@ -143,7 +143,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_service_audit_log (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         case_id TEXT,
         action TEXT NOT NULL,
         actor_user_id TEXT,
@@ -156,7 +156,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_service_outbox (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         event_id TEXT NOT NULL,
         event_name TEXT NOT NULL,
         payload_json TEXT NOT NULL,
@@ -168,7 +168,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_service_processed_events (
-        event_id TEXT PRIMARY KEY,
+        event_id TEXT NOT NULL PRIMARY KEY,
         event_name TEXT NOT NULL,
         operation_id TEXT NOT NULL,
         processed_at TEXT NOT NULL

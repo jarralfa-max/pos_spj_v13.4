@@ -1,7 +1,7 @@
 """Suppliers bounded context — born-clean UUIDv7 schema (single source of truth).
 
 Rules:
-- Every id is ``TEXT PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
+- Every id is ``TEXT NOT NULL PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
 - Money columns are ``TEXT`` decimal strings (PostgreSQL: NUMERIC); no REAL.
 - Idempotency is structural: UNIQUE(operation_id) where an operation must not
   repeat; UNIQUE(supplier_code); UNIQUE(source event_id) in processed events.
@@ -39,7 +39,7 @@ SUPPLIER_TABLES: tuple[str, ...] = (
 _DDL = (
     """
     CREATE TABLE IF NOT EXISTS supplier_master (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         supplier_code TEXT NOT NULL UNIQUE,
         legal_name TEXT NOT NULL,
         trade_name TEXT NOT NULL DEFAULT '',
@@ -69,7 +69,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS supplier_categories (
-        code TEXT PRIMARY KEY,
+        code TEXT NOT NULL PRIMARY KEY,
         kind TEXT NOT NULL CHECK (kind IN ('CLASSIFICATION','COMMERCIAL')),
         name TEXT NOT NULL,
         active INTEGER NOT NULL DEFAULT 1
@@ -77,7 +77,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS supplier_category_links (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         supplier_id TEXT NOT NULL REFERENCES supplier_master(id),
         category_type TEXT NOT NULL CHECK (category_type IN ('CLASSIFICATION','COMMERCIAL')),
         category_code TEXT NOT NULL,
@@ -86,7 +86,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS supplier_contacts (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         supplier_id TEXT NOT NULL REFERENCES supplier_master(id),
         name TEXT NOT NULL,
         contact_type TEXT NOT NULL,
@@ -102,7 +102,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS supplier_addresses (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         supplier_id TEXT NOT NULL REFERENCES supplier_master(id),
         address_type TEXT NOT NULL,
         line TEXT NOT NULL,
@@ -118,7 +118,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS supplier_bank_accounts (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         supplier_id TEXT NOT NULL REFERENCES supplier_master(id),
         bank_name TEXT NOT NULL,
         account_holder TEXT NOT NULL,
@@ -137,7 +137,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS supplier_commercial_terms (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         supplier_id TEXT NOT NULL REFERENCES supplier_master(id),
         currency_code TEXT NOT NULL DEFAULT 'MXN',
         price_list TEXT,
@@ -160,7 +160,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS supplier_products (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         supplier_id TEXT NOT NULL REFERENCES supplier_master(id),
         product_id TEXT NOT NULL,
         supplier_sku TEXT NOT NULL DEFAULT '',
@@ -182,7 +182,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS supplier_documents (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         supplier_id TEXT NOT NULL REFERENCES supplier_master(id),
         document_type TEXT NOT NULL,
         file_reference TEXT NOT NULL,
@@ -197,7 +197,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS supplier_evaluations (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         supplier_id TEXT NOT NULL REFERENCES supplier_master(id),
         period TEXT NOT NULL,
         score INTEGER NOT NULL DEFAULT 0,
@@ -212,7 +212,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS supplier_evaluation_items (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         evaluation_id TEXT NOT NULL REFERENCES supplier_evaluations(id),
         dimension TEXT NOT NULL,
         score INTEGER NOT NULL,
@@ -221,7 +221,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS supplier_blocks (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         supplier_id TEXT NOT NULL REFERENCES supplier_master(id),
         block_type TEXT NOT NULL CHECK (block_type IN (
             'PURCHASING_BLOCK','PAYMENT_BLOCK','RECEIVING_BLOCK',
@@ -237,7 +237,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS supplier_branch_authorizations (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         supplier_id TEXT NOT NULL REFERENCES supplier_master(id),
         branch_id TEXT NOT NULL,
         can_purchase INTEGER NOT NULL DEFAULT 1,
@@ -250,7 +250,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS supplier_audit_log (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         supplier_id TEXT,
         action TEXT NOT NULL,
         actor_user_id TEXT,
@@ -263,7 +263,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS supplier_outbox (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         event_id TEXT NOT NULL,
         event_name TEXT NOT NULL,
         payload_json TEXT NOT NULL,
@@ -275,7 +275,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS supplier_processed_events (
-        event_id TEXT PRIMARY KEY,
+        event_id TEXT NOT NULL PRIMARY KEY,
         event_name TEXT NOT NULL,
         operation_id TEXT NOT NULL,
         processed_at TEXT NOT NULL

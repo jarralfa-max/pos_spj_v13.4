@@ -24,7 +24,7 @@ _CUSTOMER_DISPLAY_MODES = "'IDLE','CART','PAYMENT_PENDING','THANK_YOU'"
 
 _CUSTOMER_DISPLAYS_DDL = f"""
     CREATE TABLE IF NOT EXISTS customer_displays (
-        id              TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id              TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         workstation_id  TEXT NOT NULL REFERENCES workstations(id) CHECK({_uuid('workstation_id')}),
         name            TEXT NOT NULL CHECK(trim(name)<>''),
         current_mode    TEXT NOT NULL CHECK(current_mode IN ({_CUSTOMER_DISPLAY_MODES})),
@@ -36,7 +36,7 @@ _CUSTOMER_DISPLAYS_DDL = f"""
 
 _DISPLAY_LAYOUTS_DDL = f"""
     CREATE TABLE IF NOT EXISTS display_layouts (
-        id             TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id             TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         mode           TEXT NOT NULL CHECK(mode IN ({_CUSTOMER_DISPLAY_MODES})),
         sections_json  TEXT NOT NULL DEFAULT '[]',
         active         INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
@@ -71,7 +71,7 @@ _CONTENT_CAMPAIGN_STATUSES = (
 
 _DISPLAY_CONTENT_DDL = f"""
     CREATE TABLE IF NOT EXISTS display_content (
-        id                 TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                 TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         title              TEXT NOT NULL CHECK(trim(title)<>''),
         content_type       TEXT NOT NULL CHECK(content_type IN ({_CONTENT_TYPES})),
         body               TEXT NOT NULL CHECK(trim(body)<>''),
@@ -84,7 +84,7 @@ _DISPLAY_CONTENT_DDL = f"""
 
 _CONTENT_CAMPAIGNS_DDL = f"""
     CREATE TABLE IF NOT EXISTS content_campaigns (
-        id                     TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                     TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         name                   TEXT NOT NULL CHECK(trim(name)<>''),
         content_id             TEXT NOT NULL REFERENCES display_content(id) CHECK({_uuid('content_id')}),
         status                 TEXT NOT NULL CHECK(status IN ({_CONTENT_CAMPAIGN_STATUSES})),
@@ -101,7 +101,7 @@ _CONTENT_CAMPAIGNS_DDL = f"""
 
 _ADVERTISING_SLOTS_DDL = f"""
     CREATE TABLE IF NOT EXISTS advertising_slots (
-        id             TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id             TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         code           TEXT NOT NULL UNIQUE CHECK(trim(code)<>''),
         mode           TEXT NOT NULL CHECK(mode IN ({_CUSTOMER_DISPLAY_MODES})),
         display_order  INTEGER NOT NULL DEFAULT 0 CHECK(display_order >= 0),
@@ -113,7 +113,7 @@ _ADVERTISING_SLOTS_DDL = f"""
 
 _CAMPAIGN_PLACEMENTS_DDL = f"""
     CREATE TABLE IF NOT EXISTS campaign_placements (
-        id                    TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                    TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         campaign_id           TEXT NOT NULL REFERENCES content_campaigns(id) CHECK({_uuid('campaign_id')}),
         slot_id               TEXT NOT NULL REFERENCES advertising_slots(id) CHECK({_uuid('slot_id')}),
         active                INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
@@ -125,7 +125,7 @@ _CAMPAIGN_PLACEMENTS_DDL = f"""
 
 _CONTENT_IMPRESSIONS_DDL = f"""
     CREATE TABLE IF NOT EXISTS content_impressions (
-        id                       TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                       TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         placement_id             TEXT NOT NULL REFERENCES campaign_placements(id) CHECK({_uuid('placement_id')}),
         duration_shown_seconds   INTEGER NOT NULL CHECK(duration_shown_seconds >= 0),
         displayed_at             TEXT NOT NULL

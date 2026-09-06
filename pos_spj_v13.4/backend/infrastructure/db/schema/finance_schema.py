@@ -1,7 +1,7 @@
 """Finance bounded context — born-clean UUIDv7 schema (single source of truth).
 
 Rules:
-- Every id is ``TEXT PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
+- Every id is ``TEXT NOT NULL PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
 - Every monetary column is ``TEXT`` holding a canonical decimal string
   (PostgreSQL: NUMERIC); floats/REAL are forbidden for money.
 - Idempotency is structural: UNIQUE(operation_id) and
@@ -76,7 +76,7 @@ LEGACY_FINANCE_TABLES: tuple[str, ...] = (
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS accounts (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     code TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     account_type TEXT NOT NULL CHECK (account_type IN (
@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS accounts (
 );
 
 CREATE TABLE IF NOT EXISTS fiscal_periods (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     year INTEGER NOT NULL,
     month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
     status TEXT NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN','SOFT_CLOSED','CLOSED')),
@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS fiscal_periods (
 );
 
 CREATE TABLE IF NOT EXISTS journals (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     journal_type TEXT NOT NULL UNIQUE CHECK (journal_type IN (
         'SALES','PURCHASES','CASH','BANK','PAYROLL','INVENTORY','LOYALTY',
         'COMMERCIAL_INSTRUMENTS','FIXED_ASSETS','ADJUSTMENTS','GENERAL','OPENING','CLOSING')),
@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS journals (
 );
 
 CREATE TABLE IF NOT EXISTS journal_entries (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     journal_id TEXT NOT NULL REFERENCES journals(id),
     entry_number TEXT NOT NULL UNIQUE,
     entry_date TEXT NOT NULL,
@@ -148,7 +148,7 @@ CREATE TABLE IF NOT EXISTS journal_entries (
 );
 
 CREATE TABLE IF NOT EXISTS journal_lines (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     journal_entry_id TEXT NOT NULL REFERENCES journal_entries(id) ON DELETE CASCADE,
     account_id TEXT NOT NULL REFERENCES accounts(id),
     description TEXT NOT NULL DEFAULT '',
@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS journal_lines (
 );
 
 CREATE TABLE IF NOT EXISTS financial_documents (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     document_type TEXT NOT NULL,
     document_number TEXT NOT NULL,
     issue_date TEXT NOT NULL,
@@ -188,7 +188,7 @@ CREATE TABLE IF NOT EXISTS financial_documents (
 );
 
 CREATE TABLE IF NOT EXISTS receivables (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     customer_id TEXT NOT NULL,
     financial_document_id TEXT NOT NULL REFERENCES financial_documents(id),
     original_amount TEXT NOT NULL,
@@ -206,7 +206,7 @@ CREATE TABLE IF NOT EXISTS receivables (
 );
 
 CREATE TABLE IF NOT EXISTS collections (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     receivable_id TEXT NOT NULL REFERENCES receivables(id),
     customer_id TEXT NOT NULL,
     amount TEXT NOT NULL,
@@ -221,7 +221,7 @@ CREATE TABLE IF NOT EXISTS collections (
 );
 
 CREATE TABLE IF NOT EXISTS payables (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     supplier_id TEXT NOT NULL,
     financial_document_id TEXT NOT NULL REFERENCES financial_documents(id),
     original_amount TEXT NOT NULL,
@@ -239,7 +239,7 @@ CREATE TABLE IF NOT EXISTS payables (
 );
 
 CREATE TABLE IF NOT EXISTS supplier_payments (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     payable_id TEXT NOT NULL REFERENCES payables(id),
     supplier_id TEXT NOT NULL,
     amount TEXT NOT NULL,
@@ -263,7 +263,7 @@ CREATE TABLE IF NOT EXISTS supplier_payments (
 );
 
 CREATE TABLE IF NOT EXISTS treasury_accounts (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,
     account_type TEXT NOT NULL CHECK (account_type IN (
         'BANK','CASH_REGISTER','PETTY_CASH','GENERAL_CASH',
@@ -280,7 +280,7 @@ CREATE TABLE IF NOT EXISTS treasury_accounts (
 );
 
 CREATE TABLE IF NOT EXISTS bank_statements (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     treasury_account_id TEXT NOT NULL REFERENCES treasury_accounts(id),
     statement_date TEXT NOT NULL,
     opening_balance TEXT NOT NULL,
@@ -291,7 +291,7 @@ CREATE TABLE IF NOT EXISTS bank_statements (
 );
 
 CREATE TABLE IF NOT EXISTS bank_statement_lines (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     bank_statement_id TEXT NOT NULL REFERENCES bank_statements(id) ON DELETE CASCADE,
     transaction_date TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
@@ -304,7 +304,7 @@ CREATE TABLE IF NOT EXISTS bank_statement_lines (
 );
 
 CREATE TABLE IF NOT EXISTS reconciliations (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     treasury_account_id TEXT NOT NULL REFERENCES treasury_accounts(id),
     bank_statement_id TEXT NOT NULL REFERENCES bank_statements(id),
     status TEXT NOT NULL DEFAULT 'OPEN' CHECK (status IN (
@@ -319,7 +319,7 @@ CREATE TABLE IF NOT EXISTS reconciliations (
 );
 
 CREATE TABLE IF NOT EXISTS reconciliation_matches (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     reconciliation_id TEXT NOT NULL REFERENCES reconciliations(id) ON DELETE CASCADE,
     bank_statement_line_id TEXT NOT NULL REFERENCES bank_statement_lines(id),
     journal_line_id TEXT NOT NULL REFERENCES journal_lines(id),
@@ -330,7 +330,7 @@ CREATE TABLE IF NOT EXISTS reconciliation_matches (
 );
 
 CREATE TABLE IF NOT EXISTS cost_centers (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     code TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     parent_id TEXT REFERENCES cost_centers(id),
@@ -340,7 +340,7 @@ CREATE TABLE IF NOT EXISTS cost_centers (
 );
 
 CREATE TABLE IF NOT EXISTS profit_centers (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     code TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     branch_id TEXT,
@@ -349,7 +349,7 @@ CREATE TABLE IF NOT EXISTS profit_centers (
 );
 
 CREATE TABLE IF NOT EXISTS budgets (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,
     fiscal_year INTEGER NOT NULL,
     version INTEGER NOT NULL DEFAULT 1,
@@ -366,7 +366,7 @@ CREATE TABLE IF NOT EXISTS budgets (
 );
 
 CREATE TABLE IF NOT EXISTS budget_lines (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     budget_id TEXT NOT NULL REFERENCES budgets(id) ON DELETE CASCADE,
     account_id TEXT NOT NULL REFERENCES accounts(id),
     period_code TEXT NOT NULL,
@@ -380,7 +380,7 @@ CREATE TABLE IF NOT EXISTS budget_lines (
 );
 
 CREATE TABLE IF NOT EXISTS fixed_assets (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,
     acquisition_cost TEXT NOT NULL,
     residual_value TEXT NOT NULL DEFAULT '0.00',
@@ -405,7 +405,7 @@ CREATE TABLE IF NOT EXISTS fixed_assets (
 );
 
 CREATE TABLE IF NOT EXISTS posting_profiles (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     profile_key TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
     accounts_json TEXT NOT NULL,
@@ -426,7 +426,7 @@ CREATE INDEX IF NOT EXISTS idx_posting_profiles_key
     ON posting_profiles (profile_key, effective_from);
 
 CREATE TABLE IF NOT EXISTS commercial_obligations (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     instrument_type TEXT NOT NULL CHECK (instrument_type IN (
         'LOYALTY_POINTS','PROMOTIONAL_COUPON','DISCOUNT_COUPON','REFUND_VOUCHER',
         'STORE_CREDIT','GIFT_CARD','PREPAID_VOUCHER','PROMOTIONAL_BALANCE',
@@ -455,14 +455,14 @@ CREATE TABLE IF NOT EXISTS commercial_obligations (
 );
 
 CREATE TABLE IF NOT EXISTS finance_processed_events (
-    event_id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL PRIMARY KEY,
     event_name TEXT NOT NULL,
     operation_id TEXT NOT NULL,
     processed_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS finance_outbox (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     event_id TEXT NOT NULL UNIQUE,
     event_name TEXT NOT NULL,
     payload_json TEXT NOT NULL,

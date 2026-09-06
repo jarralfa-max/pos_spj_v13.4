@@ -1,7 +1,7 @@
 """Pricing / costing bounded context — born-clean UUIDv7 schema (PRC-3).
 
 Rules (REGLA CERO / Money-only):
-- Every id is ``TEXT PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
+- Every id is ``TEXT NOT NULL PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
 - Money amounts are ``TEXT`` decimal strings + a 3-letter ``*_currency`` column
   (PostgreSQL: NUMERIC + CHAR(3)); no REAL — floats are forbidden.
 - Quantities/percentages are ``TEXT`` decimal too.
@@ -30,7 +30,7 @@ PRICING_TABLES: tuple[str, ...] = (
 _DDL = (
     """
     CREATE TABLE IF NOT EXISTS price_list (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         kind TEXT NOT NULL,                 -- BASE | CHANNEL | CUSTOMER | PROMOTIONAL
@@ -46,7 +46,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS product_price (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         price_list_id TEXT NOT NULL,
         product_id TEXT NOT NULL,
         branch_id TEXT NOT NULL DEFAULT '',    -- '' = todas las sucursales
@@ -63,7 +63,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS volume_price (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         product_price_id TEXT NOT NULL,
         min_quantity TEXT NOT NULL,            -- Decimal string
         price TEXT NOT NULL,
@@ -82,7 +82,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS product_cost (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         product_id TEXT NOT NULL,
         branch_id TEXT NOT NULL DEFAULT '',
         average_cost TEXT NOT NULL,            -- Decimal string
@@ -97,7 +97,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS price_change_log (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         product_id TEXT NOT NULL,
         branch_id TEXT,
         field TEXT NOT NULL,                   -- sale_price | min_price | cost
@@ -113,7 +113,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS pricing_authorization_log (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         permission_code TEXT NOT NULL,
         requested_by TEXT NOT NULL,
         authorized_by TEXT NOT NULL,
@@ -126,7 +126,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS pricing_outbox (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         event_id TEXT NOT NULL UNIQUE,
         event_name TEXT NOT NULL,
         operation_id TEXT,

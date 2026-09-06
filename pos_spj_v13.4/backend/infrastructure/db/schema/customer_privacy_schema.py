@@ -8,7 +8,7 @@ sub-bounded-context per CRM-1's package layout, the last of the five CRM-1
 scaffolded.
 
 Rules (REGLA CERO, master prompt §11):
-- Every id is ``TEXT PRIMARY KEY`` holding a lowercase UUIDv7.
+- Every id is ``TEXT NOT NULL PRIMARY KEY`` holding a lowercase UUIDv7.
 - ``request_number`` (folio) is a separate UNIQUE column, never the PK.
 - Idempotency is structural: UNIQUE(operation_id) where applicable,
   UNIQUE(customer_id) on the 1:1 preference table.
@@ -33,7 +33,7 @@ CUSTOMER_PRIVACY_TABLES: tuple[str, ...] = (
 _DDL = (
     """
     CREATE TABLE IF NOT EXISTS customer_consents (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         customer_id TEXT NOT NULL,
         consent_type TEXT NOT NULL CHECK (consent_type IN (
             'PRIVACY_NOTICE','WHATSAPP','EMAIL','SMS','MARKETING','PROFILING',
@@ -55,7 +55,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_communication_preferences (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         customer_id TEXT NOT NULL UNIQUE,
         preferred_channel TEXT NOT NULL DEFAULT 'WHATSAPP' CHECK (preferred_channel IN (
             'WHATSAPP','EMAIL','SMS','PHONE','NONE')),
@@ -74,7 +74,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_data_retention_policies (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         data_category TEXT NOT NULL,
@@ -90,7 +90,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_privacy_requests (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         request_number TEXT NOT NULL UNIQUE,
         customer_id TEXT NOT NULL,
         request_type TEXT NOT NULL CHECK (request_type IN (
@@ -117,7 +117,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_privacy_audit_log (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         customer_id TEXT,
         request_id TEXT,
         consent_id TEXT,
@@ -133,7 +133,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_privacy_outbox (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         event_id TEXT NOT NULL,
         event_name TEXT NOT NULL,
         payload_json TEXT NOT NULL,
@@ -145,7 +145,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_privacy_processed_events (
-        event_id TEXT PRIMARY KEY,
+        event_id TEXT NOT NULL PRIMARY KEY,
         event_name TEXT NOT NULL,
         operation_id TEXT NOT NULL,
         processed_at TEXT NOT NULL

@@ -37,7 +37,7 @@ _PRINT_JOB_PRIORITIES = "'LOW','NORMAL','HIGH','URGENT'"
 
 _DOCUMENT_TEMPLATES_DDL = f"""
     CREATE TABLE IF NOT EXISTS document_templates (
-        id             TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id             TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         document_type  TEXT NOT NULL CHECK(trim(document_type)<>''),
         name           TEXT NOT NULL CHECK(trim(name)<>''),
         module         TEXT NOT NULL CHECK(trim(module)<>''),
@@ -50,7 +50,7 @@ _DOCUMENT_TEMPLATES_DDL = f"""
 
 _DOCUMENT_TEMPLATE_VERSIONS_DDL = f"""
     CREATE TABLE IF NOT EXISTS document_template_versions (
-        id                     TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                     TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         template_id            TEXT NOT NULL REFERENCES document_templates(id) CHECK({_uuid('template_id')}),
         version                INTEGER NOT NULL CHECK(version >= 1),
         content_format         TEXT NOT NULL CHECK(content_format IN ({_RENDER_FORMATS})),
@@ -70,7 +70,7 @@ _DOCUMENT_TEMPLATE_VERSIONS_DDL = f"""
 
 _PRINT_JOBS_DDL = f"""
     CREATE TABLE IF NOT EXISTS print_jobs (
-        id                     TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                     TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         document_type          TEXT NOT NULL CHECK(trim(document_type)<>''),
         source_module          TEXT NOT NULL CHECK(trim(source_module)<>''),
         source_document_id     TEXT NOT NULL CHECK({_uuid('source_document_id')}),
@@ -130,7 +130,7 @@ _MARKETING_MESSAGE_CATEGORIES = "'LOYALTY','FOMO','CTA'"
 
 _MARKETING_CAMPAIGNS_DDL = f"""
     CREATE TABLE IF NOT EXISTS marketing_campaigns (
-        id                  TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                  TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         code                TEXT NOT NULL UNIQUE CHECK(trim(code)<>''),
         category            TEXT NOT NULL CHECK(category IN ({_MARKETING_MESSAGE_CATEGORIES})),
         message_template    TEXT NOT NULL CHECK(trim(message_template)<>''),
@@ -162,7 +162,7 @@ _SEQUENCE_RESET_POLICIES = "'NEVER','YEARLY','MONTHLY','DAILY'"
 
 _DOCUMENT_NUMBER_SEQUENCES_DDL = f"""
     CREATE TABLE IF NOT EXISTS document_number_sequences (
-        id              TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id              TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         prefix          TEXT NOT NULL UNIQUE CHECK(trim(prefix)<>''),
         reset_policy    TEXT NOT NULL CHECK(reset_policy IN ({_SEQUENCE_RESET_POLICIES})),
         period_key      TEXT NOT NULL DEFAULT '',
@@ -174,7 +174,7 @@ _DOCUMENT_NUMBER_SEQUENCES_DDL = f"""
 
 _DOCUMENT_NUMBER_RESERVATIONS_DDL = f"""
     CREATE TABLE IF NOT EXISTS document_number_reservations (
-        id                TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         sequence_id       TEXT NOT NULL REFERENCES document_number_sequences(id) CHECK({_uuid('sequence_id')}),
         operation_id      TEXT NOT NULL,
         prefix            TEXT NOT NULL,

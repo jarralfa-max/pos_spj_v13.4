@@ -3,7 +3,7 @@ truth). Mirrors backend/infrastructure/db/schema/inventory_schema.py's
 conventions exactly.
 
 Rules (REGLA CERO / §8 / §9):
-- Every id is ``TEXT PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
+- Every id is ``TEXT NOT NULL PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
 - quantity / price / discount / tax / total columns are ``TEXT`` decimal
   strings (PostgreSQL: NUMERIC); no REAL — floats are forbidden. Conversion
   to/from ``Decimal`` happens in the repository layer (POS-5, not built yet),
@@ -43,7 +43,7 @@ _DDL = (
     # ── Sale aggregate root (backend/domain/sales/entities.py::Sale) ───────
     """
     CREATE TABLE IF NOT EXISTS sales (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         branch_id TEXT NOT NULL,
         cashier_user_id TEXT NOT NULL,
         operation_id TEXT NOT NULL UNIQUE,
@@ -78,7 +78,7 @@ _DDL = (
     # ── SaleLine (backend/domain/sales/entities.py::SaleLine) ──────────────
     """
     CREATE TABLE IF NOT EXISTS sale_lines (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         sale_id TEXT NOT NULL REFERENCES sales(id),
         product_id TEXT NOT NULL,
         product_snapshot TEXT NOT NULL DEFAULT '{}',   -- JSON: nombre/sku/unidad al momento de agregar (§11)
@@ -100,7 +100,7 @@ _DDL = (
     #    docstring above). ──────────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS sale_payments (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         sale_id TEXT NOT NULL REFERENCES sales(id),
         method TEXT NOT NULL,   -- CASH | CARD | TRANSFER | CREDIT | MERCADO_PAGO
         amount TEXT NOT NULL,
@@ -113,7 +113,7 @@ _DDL = (
     #    POS-16) — partial-line returns against a COMPLETED sale ───────────
     """
     CREATE TABLE IF NOT EXISTS sale_returns (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         sale_id TEXT NOT NULL REFERENCES sales(id),
         line_id TEXT NOT NULL REFERENCES sale_lines(id),
         quantity TEXT NOT NULL,
@@ -128,7 +128,7 @@ _DDL = (
     #    CFDI invoice requests against a completed sale ───────────────────
     """
     CREATE TABLE IF NOT EXISTS sale_invoice_requests (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         sale_id TEXT NOT NULL REFERENCES sales(id),
         tax_identifier TEXT NOT NULL,
         legal_name TEXT NOT NULL,
@@ -144,7 +144,7 @@ _DDL = (
     # ── transactional outbox (§39, master prompt phase POS-4) ──────────────
     """
     CREATE TABLE IF NOT EXISTS sales_outbox (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         event_id TEXT NOT NULL UNIQUE,
         event_name TEXT NOT NULL,
         payload_json TEXT NOT NULL,

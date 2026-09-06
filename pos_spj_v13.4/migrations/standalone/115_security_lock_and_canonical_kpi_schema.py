@@ -54,7 +54,7 @@ def run(conn: sqlite3.Connection) -> None:
     # ── 2. Overrides RBAC (usuario_id / sucursal_id UUID TEXT) ───────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS usuario_permisos (
-            id         TEXT PRIMARY KEY,
+            id         TEXT NOT NULL PRIMARY KEY,
             usuario_id TEXT NOT NULL,
             modulo     TEXT NOT NULL,
             accion     TEXT NOT NULL,
@@ -63,7 +63,7 @@ def run(conn: sqlite3.Connection) -> None:
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS usuario_sucursal_permisos (
-            id          TEXT PRIMARY KEY,
+            id          TEXT NOT NULL PRIMARY KEY,
             usuario_id  TEXT NOT NULL,
             sucursal_id TEXT NOT NULL,
             modulo      TEXT NOT NULL,
@@ -86,7 +86,7 @@ def run(conn: sqlite3.Connection) -> None:
         conn.execute("DROP TABLE loyalty_snapshots")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_snapshots (
-            id              TEXT PRIMARY KEY,
+            id              TEXT NOT NULL PRIMARY KEY,
             cliente_id      TEXT NOT NULL UNIQUE,
             puntos_actuales INTEGER NOT NULL DEFAULT 0,
             nivel           TEXT    NOT NULL DEFAULT 'Bronce',

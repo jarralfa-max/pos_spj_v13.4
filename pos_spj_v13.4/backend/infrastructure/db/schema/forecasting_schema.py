@@ -1,7 +1,7 @@
 """Forecasting bounded context — born-clean UUIDv7 schema (BI-11).
 
 Rules (same as every other bounded context's schema module):
-- Every id is ``TEXT PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
+- Every id is ``TEXT NOT NULL PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
 - Money/quantity/metric columns are ``TEXT`` decimal strings (PostgreSQL:
   NUMERIC) — no REAL.
 - A `ForecastRun`/`ForecastResultPoint` is immutable/append-only (§69): there
@@ -22,7 +22,7 @@ FORECASTING_TABLES: tuple[str, ...] = (
 _DDL = (
     """
     CREATE TABLE IF NOT EXISTS forecast_models (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         model_key TEXT NOT NULL,
         model_family TEXT NOT NULL,
         parameters TEXT NOT NULL DEFAULT '{}',
@@ -39,7 +39,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS forecast_runs (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         model_version_id TEXT NOT NULL REFERENCES forecast_models(id),
         series_definition_key TEXT NOT NULL,
         scope_policy TEXT NOT NULL,
@@ -57,7 +57,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS forecast_result_points (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         run_id TEXT NOT NULL REFERENCES forecast_runs(id),
         point_date TEXT NOT NULL,
         point_forecast TEXT NOT NULL,
@@ -68,7 +68,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS forecast_backtests (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         model_key TEXT NOT NULL,
         model_version INTEGER NOT NULL,
         series_definition_key TEXT NOT NULL,

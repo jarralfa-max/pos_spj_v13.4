@@ -3,7 +3,7 @@ Mirrors backend/infrastructure/db/schema/sales_schema.py's conventions
 exactly.
 
 Rules (REGLA CERO / §8 / §32-42):
-- Every id is ``TEXT PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
+- Every id is ``TEXT NOT NULL PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
 - ``points_amount`` is a ``TEXT`` decimal string (PostgreSQL: NUMERIC); no
   REAL — floats are forbidden. Conversion to/from ``Decimal`` happens in the
   repository layer (a future phase, not built yet), never in SQL.
@@ -77,7 +77,7 @@ _DDL = (
     # (migrations/m000_base_schema.py::_create_loyalty), see module docstring.
     """
     CREATE TABLE IF NOT EXISTS loyalty_program_definitions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         currency_name TEXT NOT NULL,
@@ -110,7 +110,7 @@ _DDL = (
     # stay independently deployable.
     """
     CREATE TABLE IF NOT EXISTS loyalty_accounts (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         customer_id TEXT NOT NULL UNIQUE,
         status TEXT NOT NULL DEFAULT 'ACTIVE',   -- ACTIVE | SUSPENDED | CLOSED
         suspended_at TEXT,
@@ -122,7 +122,7 @@ _DDL = (
     # ── LoyaltyMembership (backend/domain/loyalty/entities/loyalty_membership.py) ─
     """
     CREATE TABLE IF NOT EXISTS loyalty_memberships (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         loyalty_account_id TEXT NOT NULL REFERENCES loyalty_accounts(id),
         program_id TEXT NOT NULL REFERENCES loyalty_program_definitions(id),
         current_tier_id TEXT,
@@ -142,7 +142,7 @@ _DDL = (
     # that legitimately have no source_document_id, e.g. manual adjustments).
     """
     CREATE TABLE IF NOT EXISTS loyalty_transactions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         loyalty_account_id TEXT NOT NULL REFERENCES loyalty_accounts(id),
         membership_id TEXT REFERENCES loyalty_memberships(id),
         transaction_type TEXT NOT NULL,   -- EARN | BONUS | REDEEM | RESERVE | RELEASE | EXPIRE | ADJUSTMENT | REVERSAL | TRANSFER_IN | TRANSFER_OUT
@@ -167,7 +167,7 @@ _DDL = (
     # ── LoyaltyTier (backend/domain/loyalty/entities/loyalty_tier.py, LOY-7 §14) ─
     """
     CREATE TABLE IF NOT EXISTS loyalty_tiers (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         program_id TEXT NOT NULL REFERENCES loyalty_program_definitions(id),
         code TEXT NOT NULL,
         name TEXT NOT NULL,
@@ -191,7 +191,7 @@ _DDL = (
     # Append-only — no UPDATE path anywhere in the repository layer (LOY-7).
     """
     CREATE TABLE IF NOT EXISTS loyalty_tier_history (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         membership_id TEXT NOT NULL REFERENCES loyalty_memberships(id),
         previous_tier_id TEXT REFERENCES loyalty_tiers(id),
         new_tier_id TEXT REFERENCES loyalty_tiers(id),
@@ -202,7 +202,7 @@ _DDL = (
     # ── Reward (backend/domain/loyalty/entities/reward.py, LOY-8 §15) ──────
     """
     CREATE TABLE IF NOT EXISTS loyalty_rewards (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         program_id TEXT NOT NULL REFERENCES loyalty_program_definitions(id),
         code TEXT NOT NULL,
         name TEXT NOT NULL,
@@ -219,7 +219,7 @@ _DDL = (
     # ── RewardRedemption (backend/domain/loyalty/entities/reward_redemption.py) ─
     """
     CREATE TABLE IF NOT EXISTS loyalty_reward_redemptions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         reward_id TEXT NOT NULL REFERENCES loyalty_rewards(id),
         membership_id TEXT NOT NULL REFERENCES loyalty_memberships(id),
         loyalty_account_id TEXT NOT NULL REFERENCES loyalty_accounts(id),
@@ -240,7 +240,7 @@ _DDL = (
     #    class LOY-3 already found and fixed for "loyalty_programs". ────────
     """
     CREATE TABLE IF NOT EXISTS loyalty_challenge_definitions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         program_id TEXT NOT NULL REFERENCES loyalty_program_definitions(id),
         code TEXT NOT NULL,
         name TEXT NOT NULL,
@@ -261,7 +261,7 @@ _DDL = (
     # ── ChallengeProgress (backend/domain/loyalty/entities/challenge_progress.py) ─
     """
     CREATE TABLE IF NOT EXISTS loyalty_challenge_member_progress (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         challenge_id TEXT NOT NULL REFERENCES loyalty_challenge_definitions(id),
         membership_id TEXT NOT NULL REFERENCES loyalty_memberships(id),
         current_value TEXT NOT NULL DEFAULT '0',
@@ -275,7 +275,7 @@ _DDL = (
     # ── LoyaltyStreak (backend/domain/loyalty/entities/loyalty_streak.py) ──
     """
     CREATE TABLE IF NOT EXISTS loyalty_streaks (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         membership_id TEXT NOT NULL REFERENCES loyalty_memberships(id),
         streak_type TEXT NOT NULL,
         current_count INTEGER NOT NULL DEFAULT 0,
@@ -289,7 +289,7 @@ _DDL = (
     # Append-only — no UPDATE path in the repository layer.
     """
     CREATE TABLE IF NOT EXISTS loyalty_badges (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         membership_id TEXT NOT NULL REFERENCES loyalty_memberships(id),
         badge_code TEXT NOT NULL,
         source_challenge_id TEXT REFERENCES loyalty_challenge_definitions(id),
@@ -303,7 +303,7 @@ _DDL = (
     # way (different names), but flagged here for context.
     """
     CREATE TABLE IF NOT EXISTS loyalty_referrals (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         program_id TEXT NOT NULL REFERENCES loyalty_program_definitions(id),
         referrer_membership_id TEXT NOT NULL REFERENCES loyalty_memberships(id),
         referred_customer_id TEXT NOT NULL,
@@ -326,7 +326,7 @@ _DDL = (
     # exist in this repo, confirmed via grep). ──────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS loyalty_campaigns (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         program_id TEXT NOT NULL REFERENCES loyalty_program_definitions(id),
         code TEXT NOT NULL,
         name TEXT NOT NULL,
@@ -352,7 +352,7 @@ _DDL = (
     # ── BirthdayBenefitConfig (LOY-14 §18) ─────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS loyalty_birthday_configs (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         program_id TEXT NOT NULL UNIQUE REFERENCES loyalty_program_definitions(id),
         enabled INTEGER NOT NULL DEFAULT 1,
         benefit_type TEXT NOT NULL DEFAULT 'NONE',
@@ -370,7 +370,7 @@ _DDL = (
     # ── FraudCase (§29, LOY-26) ──────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS loyalty_fraud_cases (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         subject_type TEXT NOT NULL,
         subject_id TEXT NOT NULL,
         customer_id TEXT NOT NULL,
@@ -388,7 +388,7 @@ _DDL = (
     # ── transactional outbox (§39-equivalent for Loyalty; LOY-2's events.py) ─
     """
     CREATE TABLE IF NOT EXISTS loyalty_outbox (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         event_id TEXT NOT NULL UNIQUE,
         event_name TEXT NOT NULL,
         payload_json TEXT NOT NULL,

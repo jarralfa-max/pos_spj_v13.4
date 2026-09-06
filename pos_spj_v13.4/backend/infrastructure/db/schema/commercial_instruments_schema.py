@@ -1,6 +1,6 @@
 """Commercial Instruments bounded context — born-clean UUIDv7 schema
 (LOY-12, §21-22). Mirrors backend/infrastructure/db/schema/loyalty_schema.py's
-conventions exactly (same REGLA CERO rules: TEXT PRIMARY KEY UUIDv7, TEXT
+conventions exactly (same REGLA CERO rules: TEXT NOT NULL PRIMARY KEY UUIDv7, TEXT
 decimal strings for money, no enum CHECK constraints).
 
 Separate schema module from Loyalty's own — coupons/vouchers are a distinct
@@ -31,7 +31,7 @@ _DDL = (
     # ── CouponDefinition ─────────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS coupon_definitions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         coupon_type TEXT NOT NULL,
@@ -49,7 +49,7 @@ _DDL = (
     # ── CouponInstance ───────────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS coupon_instances (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         definition_id TEXT NOT NULL REFERENCES coupon_definitions(id),
         code TEXT NOT NULL UNIQUE,
         status TEXT NOT NULL DEFAULT 'ACTIVE',
@@ -65,7 +65,7 @@ _DDL = (
     # ── CouponRedemption — append-only audit trail ──────────────────────
     """
     CREATE TABLE IF NOT EXISTS coupon_redemptions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         coupon_instance_id TEXT NOT NULL REFERENCES coupon_instances(id),
         sale_id TEXT NOT NULL,
         amount_applied TEXT NOT NULL,
@@ -77,7 +77,7 @@ _DDL = (
     # ── VoucherDefinition (LOY-13 §22) ──────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS voucher_definitions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         voucher_type TEXT NOT NULL,
@@ -89,7 +89,7 @@ _DDL = (
     # ── VoucherInstance ──────────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS voucher_instances (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         definition_id TEXT NOT NULL REFERENCES voucher_definitions(id),
         code TEXT NOT NULL UNIQUE,
         status TEXT NOT NULL DEFAULT 'ACTIVE',
@@ -104,7 +104,7 @@ _DDL = (
     # ── VoucherTransaction ledger — §22 idempotency: UNIQUE(operation_id) ─
     """
     CREATE TABLE IF NOT EXISTS voucher_transactions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         voucher_instance_id TEXT NOT NULL REFERENCES voucher_instances(id),
         transaction_type TEXT NOT NULL,
         amount TEXT NOT NULL,
@@ -121,7 +121,7 @@ _DDL = (
     # ── VoucherRedemption — append-only, MULTIPLE per instance (partial) ──
     """
     CREATE TABLE IF NOT EXISTS voucher_redemptions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         voucher_instance_id TEXT NOT NULL REFERENCES voucher_instances(id),
         sale_id TEXT NOT NULL,
         amount_applied TEXT NOT NULL,
@@ -132,7 +132,7 @@ _DDL = (
     # ── transactional outbox ─────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS commercial_instruments_outbox (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         event_id TEXT NOT NULL UNIQUE,
         event_name TEXT NOT NULL,
         payload_json TEXT NOT NULL,

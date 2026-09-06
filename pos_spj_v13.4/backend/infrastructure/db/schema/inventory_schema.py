@@ -1,7 +1,7 @@
 """Inventory bounded context — born-clean UUIDv7 schema (single source of truth).
 
 Rules (REGLA CERO / §8 / §9):
-- Every id is ``TEXT PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
+- Every id is ``TEXT NOT NULL PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
 - quantity / weight / cost / threshold columns are ``TEXT`` decimal strings
   (PostgreSQL: NUMERIC); no REAL — floats are forbidden.
 - The ledger (``inventory_movements`` + ``inventory_movement_lines``) is the
@@ -62,7 +62,7 @@ _DDL = (
     # ── configurable limits (INV-1 §48) ───────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS inventory_operation_limits (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         scope_type TEXT NOT NULL,           -- USER | ROLE | BRANCH | WAREHOUSE
         scope_id TEXT NOT NULL,
         operation_kind TEXT NOT NULL,       -- ADJUSTMENT | TRANSFER | WEIGHT_VARIANCE | COUNT_VARIANCE | NEGATIVE_OVERRIDE
@@ -78,7 +78,7 @@ _DDL = (
     # ── warehouses / zones / locations (§12) ───────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS warehouses (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         branch_id TEXT NOT NULL,
@@ -97,7 +97,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS warehouse_zones (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         warehouse_id TEXT NOT NULL,
         code TEXT NOT NULL,
         name TEXT NOT NULL,
@@ -107,7 +107,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS storage_locations (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         warehouse_id TEXT NOT NULL,
         zone_id TEXT,
         parent_location_id TEXT,
@@ -125,7 +125,7 @@ _DDL = (
     # ``inventory_movements`` keeps its readers until INV-27).
     """
     CREATE TABLE IF NOT EXISTS inventory_ledger (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         movement_type TEXT NOT NULL,
         branch_id TEXT NOT NULL,
         warehouse_id TEXT NOT NULL,
@@ -142,7 +142,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS inventory_ledger_lines (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         movement_id TEXT NOT NULL,
         product_id TEXT NOT NULL,
         lot_id TEXT,
@@ -163,7 +163,7 @@ _DDL = (
     # ── balance projection (§14) ───────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS inventory_balances (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         product_id TEXT NOT NULL,
         branch_id TEXT NOT NULL,
         warehouse_id TEXT NOT NULL,
@@ -184,7 +184,7 @@ _DDL = (
     # ── lots / expiration (§19-20, INV-7) ──────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS inventory_lots (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         product_id TEXT NOT NULL,
         lot_code TEXT NOT NULL,
         origin_type TEXT NOT NULL,
@@ -208,7 +208,7 @@ _DDL = (
     # inventory_reservations belongs to legacy migrations and is reclaimed at INV-27.
     """
     CREATE TABLE IF NOT EXISTS inventory_reservation (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         product_id TEXT NOT NULL,
         branch_id TEXT NOT NULL,
         warehouse_id TEXT NOT NULL,
@@ -227,7 +227,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS inventory_allocation (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         reservation_id TEXT NOT NULL,
         lot_id TEXT,
         location_id TEXT,
@@ -241,7 +241,7 @@ _DDL = (
     # ── counts (§27-28, INV-13) ────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS inventory_count (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         folio TEXT NOT NULL,
         count_type TEXT NOT NULL,
         branch_id TEXT NOT NULL,
@@ -259,7 +259,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS inventory_count_line (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         count_id TEXT NOT NULL,
         product_id TEXT NOT NULL,
         location_id TEXT,
@@ -278,7 +278,7 @@ _DDL = (
     # ── adjustments (§29, INV-14) ──────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS inventory_adjustment (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         folio TEXT NOT NULL,
         branch_id TEXT NOT NULL,
         warehouse_id TEXT NOT NULL,
@@ -293,7 +293,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS inventory_adjustment_line (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         adjustment_id TEXT NOT NULL,
         product_id TEXT NOT NULL,
         location_id TEXT,
@@ -307,7 +307,7 @@ _DDL = (
     # ── quality / quarantine (§31, INV-15) ─────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS inventory_quarantine (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         product_id TEXT NOT NULL,
         branch_id TEXT NOT NULL,
         warehouse_id TEXT NOT NULL,
@@ -329,7 +329,7 @@ _DDL = (
     # these edges bridge lot-identity breaks so a recall can walk the genealogy.
     """
     CREATE TABLE IF NOT EXISTS inventory_traceability_link (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         parent_lot_id TEXT NOT NULL,
         child_lot_id TEXT NOT NULL,
         link_type TEXT NOT NULL,
@@ -351,7 +351,7 @@ _DDL = (
     # Neither moves stock — acting creates a purchase/transfer in its own context.
     """
     CREATE TABLE IF NOT EXISTS inventory_replenishment_rule (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         product_id TEXT NOT NULL,
         branch_id TEXT NOT NULL,
         warehouse_id TEXT NOT NULL,
@@ -371,7 +371,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS inventory_replenishment_suggestion (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         rule_id TEXT NOT NULL,
         product_id TEXT NOT NULL,
         branch_id TEXT NOT NULL,
@@ -391,7 +391,7 @@ _DDL = (
     # ── cold chain (§21, INV-9) ────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS inventory_temperature_readings (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         sensor_id TEXT NOT NULL,
         warehouse_id TEXT NOT NULL,
         location_id TEXT,
@@ -406,7 +406,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS inventory_temperature_excursions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         reading_id TEXT NOT NULL,
         warehouse_id TEXT NOT NULL,
         lot_id TEXT,
@@ -425,7 +425,7 @@ _DDL = (
     # ── configuration (§56) ────────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS inventory_settings (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         scope_type TEXT NOT NULL DEFAULT 'GLOBAL',
         scope_id TEXT NOT NULL DEFAULT '',
         setting_key TEXT NOT NULL,
@@ -441,7 +441,7 @@ _DDL = (
     # ── hot authorization + audit (§48, §49) ───────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS inventory_authorization_log (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         permission_code TEXT NOT NULL,
         requested_by TEXT NOT NULL,
         authorized_by TEXT NOT NULL,
@@ -456,7 +456,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS inventory_audit_log (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         entity_type TEXT NOT NULL,
         entity_id TEXT NOT NULL,
         action TEXT NOT NULL,
@@ -479,7 +479,7 @@ _DDL = (
     # ── transactional outbox + processed events (§58, §59) ─────────────────
     """
     CREATE TABLE IF NOT EXISTS inventory_outbox (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         event_id TEXT NOT NULL,
         event_name TEXT NOT NULL,
         payload_json TEXT NOT NULL,
@@ -491,7 +491,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS inventory_processed_events (
-        event_id TEXT PRIMARY KEY,
+        event_id TEXT NOT NULL PRIMARY KEY,
         event_name TEXT NOT NULL,
         operation_id TEXT NOT NULL,
         processed_at TEXT NOT NULL
@@ -504,7 +504,7 @@ _DDL = (
     # tracks how far each node/stream has been confirmed synced.
     """
     CREATE TABLE IF NOT EXISTS inventory_sync_dispatch (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         event_id TEXT NOT NULL UNIQUE,
         operation_id TEXT NOT NULL,
         node_id TEXT NOT NULL,
@@ -521,7 +521,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS inventory_sync_cursor (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         node_id TEXT NOT NULL,
         stream TEXT NOT NULL DEFAULT 'outbox',
         last_sequence INTEGER NOT NULL DEFAULT 0,
@@ -535,7 +535,7 @@ _DDL = (
     # idempotency guard (UNIQUE dedupe_key) + throttle source.
     """
     CREATE TABLE IF NOT EXISTS inventory_notification_rule (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         event_name TEXT NOT NULL,
         scope_type TEXT NOT NULL DEFAULT 'GLOBAL',
         scope_id TEXT NOT NULL DEFAULT '',
@@ -551,7 +551,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS inventory_notification_log (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         event_id TEXT NOT NULL,
         event_name TEXT NOT NULL,
         rule_id TEXT,
@@ -569,7 +569,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS inventory_label_print_log (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         label_type TEXT NOT NULL,
         label_format TEXT NOT NULL,
         entity_ref TEXT,

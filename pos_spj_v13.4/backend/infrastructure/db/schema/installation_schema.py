@@ -10,7 +10,7 @@ from __future__ import annotations
 _INSTALLATION_DDL = (
     """
     CREATE TABLE IF NOT EXISTS installation (
-        id                      TEXT PRIMARY KEY,
+        id                      TEXT NOT NULL PRIMARY KEY,
         installation_code       TEXT NOT NULL UNIQUE,
         company_id              TEXT,
         initial_branch_id       TEXT,
@@ -31,7 +31,7 @@ _INSTALLATION_DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS installation_recovery_codes (
-        id              TEXT PRIMARY KEY,
+        id              TEXT NOT NULL PRIMARY KEY,
         installation_id TEXT NOT NULL REFERENCES installation(id),
         code_hash       TEXT NOT NULL UNIQUE,
         status          TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (

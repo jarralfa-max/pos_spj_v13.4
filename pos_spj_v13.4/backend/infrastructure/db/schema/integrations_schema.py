@@ -26,7 +26,7 @@ _WEBHOOK_SIGNATURE_SCHEMES = "'HMAC_SHA256_HEADER','MERCADOPAGO_TS_V1','NONE'"
 
 _INTEGRATION_DEFINITIONS_DDL = f"""
     CREATE TABLE IF NOT EXISTS integration_definitions (
-        id                            TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                            TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         code                          TEXT NOT NULL UNIQUE CHECK(trim(code)<>''),
         name                          TEXT NOT NULL CHECK(trim(name)<>''),
         category                      TEXT NOT NULL CHECK(category IN ({_INTEGRATION_CATEGORIES})),
@@ -39,7 +39,7 @@ _INTEGRATION_DEFINITIONS_DDL = f"""
 
 _INTEGRATION_INSTANCES_DDL = f"""
     CREATE TABLE IF NOT EXISTS integration_instances (
-        id                        TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                        TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         definition_id             TEXT NOT NULL REFERENCES integration_definitions(id) CHECK({_uuid('definition_id')}),
         name                      TEXT NOT NULL CHECK(trim(name)<>''),
         config_json               TEXT NOT NULL DEFAULT '{{}}',
@@ -52,7 +52,7 @@ _INTEGRATION_INSTANCES_DDL = f"""
 
 _INTEGRATION_HEALTH_CHECKS_DDL = f"""
     CREATE TABLE IF NOT EXISTS integration_health_checks (
-        id            TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id            TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         instance_id   TEXT NOT NULL REFERENCES integration_instances(id) CHECK({_uuid('instance_id')}),
         success       INTEGER NOT NULL CHECK(success IN (0,1)),
         message       TEXT NOT NULL DEFAULT '',
@@ -62,7 +62,7 @@ _INTEGRATION_HEALTH_CHECKS_DDL = f"""
 
 _WEBHOOK_ENDPOINTS_DDL = f"""
     CREATE TABLE IF NOT EXISTS webhook_endpoints (
-        id                        TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                        TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         instance_id               TEXT NOT NULL REFERENCES integration_instances(id) CHECK({_uuid('instance_id')}),
         code                      TEXT NOT NULL UNIQUE CHECK(trim(code)<>''),
         path                      TEXT NOT NULL CHECK(trim(path)<>''),

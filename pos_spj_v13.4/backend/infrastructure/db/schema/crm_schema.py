@@ -8,7 +8,7 @@ bounded context (customer_service) instead of extending this file — see
 docs/refactor/CRM-7_atencion.md.
 
 Rules (REGLA CERO, master prompt §11):
-- Every id is ``TEXT PRIMARY KEY`` holding a lowercase UUIDv7.
+- Every id is ``TEXT NOT NULL PRIMARY KEY`` holding a lowercase UUIDv7.
 - ``lead_number`` (folio) is a separate UNIQUE column, never the PK.
 - Idempotency is structural: UNIQUE(operation_id), UNIQUE(lead_number).
 - Sin secuencias auto-numéricas ni identidades de cursor.
@@ -49,7 +49,7 @@ CRM_TABLES: tuple[str, ...] = (
 _DDL = (
     """
     CREATE TABLE IF NOT EXISTS leads (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         lead_number TEXT NOT NULL UNIQUE,
         display_name TEXT NOT NULL,
         company_name TEXT NOT NULL DEFAULT '',
@@ -81,7 +81,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS lead_qualifications (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         lead_id TEXT NOT NULL REFERENCES leads(id),
         model TEXT NOT NULL CHECK (model IN (
             'MANUAL','SCORE_BASED','BANT_LIKE','CUSTOM_RULE')),
@@ -95,7 +95,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS crm_stage_definitions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         sequence_order INTEGER NOT NULL,
@@ -111,7 +111,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS opportunities (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         opportunity_number TEXT NOT NULL UNIQUE,
         customer_id TEXT NOT NULL,
         account_id TEXT,
@@ -137,7 +137,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS opportunity_stage_history (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         opportunity_id TEXT NOT NULL REFERENCES opportunities(id),
         from_stage_id TEXT,
         to_stage_id TEXT NOT NULL REFERENCES crm_stage_definitions(id),
@@ -150,7 +150,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS opportunity_product_interests (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         opportunity_id TEXT NOT NULL REFERENCES opportunities(id),
         product_reference_id TEXT,
         product_name TEXT NOT NULL,
@@ -162,7 +162,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS crm_activities (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         activity_type TEXT NOT NULL CHECK (activity_type IN (
             'CALL','MEETING','VISIT','EMAIL','WHATSAPP','FOLLOW_UP',
             'QUOTE_REVIEW','PAYMENT_FOLLOW_UP','OTHER')),
@@ -184,7 +184,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS crm_tasks (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         related_entity_type TEXT NOT NULL CHECK (related_entity_type IN (
             'LEAD','OPPORTUNITY','CUSTOMER','CASE')),
         related_entity_id TEXT NOT NULL,
@@ -203,7 +203,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS crm_notes (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         related_entity_type TEXT NOT NULL CHECK (related_entity_type IN (
             'LEAD','OPPORTUNITY','CUSTOMER','CASE')),
         related_entity_id TEXT NOT NULL,
@@ -216,7 +216,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS crm_reminders (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         channel TEXT NOT NULL CHECK (channel IN (
             'IN_APP','EMAIL','WHATSAPP_INTERNAL','PUSH_FUTURE')),
         remind_at TEXT NOT NULL,
@@ -230,7 +230,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS sales_territories (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
@@ -241,7 +241,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_portfolios (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
@@ -253,7 +253,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_ownerships (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         customer_id TEXT NOT NULL,
         ownership_type TEXT NOT NULL CHECK (ownership_type IN (
             'PRIMARY','SECONDARY','ACCOUNT_MANAGER','CREDIT_MANAGER','SERVICE_OWNER')),
@@ -266,7 +266,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS portfolio_assignments (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         customer_id TEXT NOT NULL,
         portfolio_id TEXT NOT NULL REFERENCES customer_portfolios(id),
         assigned_by_user_id TEXT,
@@ -277,7 +277,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_segments (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
@@ -289,7 +289,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_segment_memberships (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         customer_id TEXT NOT NULL,
         segment_id TEXT NOT NULL REFERENCES customer_segments(id),
         source TEXT NOT NULL DEFAULT 'MANUAL' CHECK (source IN (
@@ -303,7 +303,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_tags (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
         label TEXT NOT NULL,
         active INTEGER NOT NULL DEFAULT 1,
@@ -313,7 +313,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_tag_assignments (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         customer_id TEXT NOT NULL,
         tag_id TEXT NOT NULL REFERENCES customer_tags(id),
         assigned_by_user_id TEXT,
@@ -325,7 +325,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS crm_automation_rules (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         name TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
         trigger_type TEXT NOT NULL CHECK (trigger_type IN (
@@ -347,7 +347,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS crm_automation_executions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         rule_id TEXT NOT NULL REFERENCES crm_automation_rules(id),
         trigger_type TEXT NOT NULL,
         target_entity_type TEXT NOT NULL,
@@ -361,7 +361,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS crm_sync_conflicts (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         related_entity_type TEXT NOT NULL CHECK (related_entity_type IN (
             'LEAD','OPPORTUNITY','TASK','CASE')),
         related_entity_id TEXT NOT NULL,
@@ -382,7 +382,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS crm_audit_log (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         lead_id TEXT,
         opportunity_id TEXT,
         activity_id TEXT,
@@ -399,7 +399,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS crm_outbox (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         event_id TEXT NOT NULL,
         event_name TEXT NOT NULL,
         payload_json TEXT NOT NULL,
@@ -411,7 +411,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS crm_processed_events (
-        event_id TEXT PRIMARY KEY,
+        event_id TEXT NOT NULL PRIMARY KEY,
         event_name TEXT NOT NULL,
         operation_id TEXT NOT NULL,
         processed_at TEXT NOT NULL

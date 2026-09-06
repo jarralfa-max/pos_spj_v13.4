@@ -31,7 +31,7 @@ _SCOPE_TYPES = "'GLOBAL','BRANCH','USER'"
 
 _THEMES_DDL = f"""
     CREATE TABLE IF NOT EXISTS themes (
-        id            TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id            TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         code          TEXT NOT NULL UNIQUE CHECK(trim(code)<>''),
         name          TEXT NOT NULL CHECK(trim(name)<>''),
         mode          TEXT NOT NULL CHECK(mode IN ({_THEME_MODES})),
@@ -44,7 +44,7 @@ _THEMES_DDL = f"""
 
 _DESIGN_TOKENS_DDL = f"""
     CREATE TABLE IF NOT EXISTS design_tokens (
-        id            TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id            TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         theme_id      TEXT REFERENCES themes(id) CHECK(theme_id IS NULL OR ({_uuid('theme_id')})),
         token_key     TEXT NOT NULL CHECK(trim(token_key)<>''),
         category      TEXT NOT NULL CHECK(category IN ({_TOKEN_CATEGORIES})),
@@ -56,7 +56,7 @@ _DESIGN_TOKENS_DDL = f"""
 
 _DENSITY_PROFILES_DDL = f"""
     CREATE TABLE IF NOT EXISTS density_profiles (
-        id                  TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                  TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         level               TEXT NOT NULL UNIQUE CHECK(level IN ({_DENSITY_LEVELS})),
         name                TEXT NOT NULL CHECK(trim(name)<>''),
         scale_factor        TEXT NOT NULL CHECK(trim(scale_factor)<>''),
@@ -71,7 +71,7 @@ _DENSITY_PROFILES_DDL = f"""
 
 _APPEARANCE_PREFERENCES_DDL = f"""
     CREATE TABLE IF NOT EXISTS appearance_preferences (
-        id               TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id               TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         scope_type       TEXT NOT NULL CHECK(scope_type IN ({_SCOPE_TYPES})),
         scope_id         TEXT,
         theme_id         TEXT NOT NULL REFERENCES themes(id) CHECK({_uuid('theme_id')}),

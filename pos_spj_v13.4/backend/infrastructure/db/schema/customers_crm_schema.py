@@ -2,7 +2,7 @@
 of truth for CRM-3).
 
 Rules (REGLA CERO, master prompt §11):
-- Every id is ``TEXT PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
+- Every id is ``TEXT NOT NULL PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
 - ``customer_number`` (folio) is a separate UNIQUE column, never the PK.
 - No REAL columns for money/credit — this schema has none (credit lives in
   Finanzas' CxC tables per §40; CRM-8 adds ``customer_credit_profiles`` under
@@ -46,7 +46,7 @@ CUSTOMER_TABLES: tuple[str, ...] = (
 _DDL = (
     """
     CREATE TABLE IF NOT EXISTS customers (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         customer_number TEXT NOT NULL UNIQUE,
         customer_type TEXT NOT NULL CHECK (customer_type IN (
             'INDIVIDUAL','BUSINESS','PUBLIC_CUSTOMER','EMPLOYEE','INTERNAL','OTHER')),
@@ -87,7 +87,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_accounts (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         customer_id TEXT NOT NULL REFERENCES customers(id),
         account_type TEXT NOT NULL DEFAULT 'BUSINESS',
         industry TEXT NOT NULL DEFAULT '',
@@ -101,7 +101,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_contacts (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         customer_id TEXT NOT NULL REFERENCES customers(id),
         customer_account_id TEXT REFERENCES customer_accounts(id),
         first_name TEXT NOT NULL,
@@ -119,7 +119,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_addresses (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         customer_id TEXT NOT NULL REFERENCES customers(id),
         address_type TEXT NOT NULL CHECK (address_type IN (
             'FISCAL','BILLING','DELIVERY','COMMERCIAL','PERSONAL')),
@@ -142,7 +142,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_tax_profiles (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         customer_id TEXT NOT NULL REFERENCES customers(id),
         tax_identifier TEXT NOT NULL DEFAULT '',
         legal_name TEXT NOT NULL DEFAULT '',
@@ -158,7 +158,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_duplicate_candidates (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         customer_id_a TEXT NOT NULL REFERENCES customers(id),
         customer_id_b TEXT NOT NULL REFERENCES customers(id),
         match_reasons_json TEXT NOT NULL DEFAULT '[]',
@@ -174,7 +174,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_merge_records (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         master_customer_id TEXT NOT NULL REFERENCES customers(id),
         merged_customer_id TEXT NOT NULL REFERENCES customers(id),
         duplicate_candidate_id TEXT REFERENCES customer_duplicate_candidates(id),
@@ -194,7 +194,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_data_quality_issues (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         customer_id TEXT NOT NULL REFERENCES customers(id),
         rule_code TEXT NOT NULL CHECK (rule_code IN (
             'INCOMPLETE_NAME','INVALID_PHONE','INVALID_EMAIL','INVALID_TAX_ID',
@@ -215,7 +215,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_import_batches (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         submitted_by_user_id TEXT NOT NULL,
         is_sensitive INTEGER NOT NULL DEFAULT 0,
         total_rows INTEGER NOT NULL DEFAULT 0,
@@ -236,7 +236,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_sync_conflicts (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         customer_id TEXT NOT NULL REFERENCES customers(id),
         conflict_type TEXT NOT NULL CHECK (conflict_type IN (
             'CUSTOMER_UPDATED_REMOTELY','DUPLICATE_CREATED','CONTACT_CONFLICT',
@@ -255,7 +255,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_audit_log (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         customer_id TEXT,
         action TEXT NOT NULL,
         actor_user_id TEXT,
@@ -268,7 +268,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_outbox (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         event_id TEXT NOT NULL,
         event_name TEXT NOT NULL,
         payload_json TEXT NOT NULL,
@@ -280,7 +280,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS customer_processed_events (
-        event_id TEXT PRIMARY KEY,
+        event_id TEXT NOT NULL PRIMARY KEY,
         event_name TEXT NOT NULL,
         operation_id TEXT NOT NULL,
         processed_at TEXT NOT NULL

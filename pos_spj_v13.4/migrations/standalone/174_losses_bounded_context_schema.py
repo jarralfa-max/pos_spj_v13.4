@@ -22,7 +22,7 @@ UUID_CHECK = "length({0})=36 AND lower({0})={0} AND substr({0},15,1)='7'"
 
 DDL = (
     f"""CREATE TABLE IF NOT EXISTS loss_classifications (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         code TEXT NOT NULL UNIQUE CHECK(code IN ({CLASSIFICATIONS})),
         display_name TEXT NOT NULL CHECK(trim(display_name) <> ''),
         description TEXT NOT NULL DEFAULT '',
@@ -32,7 +32,7 @@ DDL = (
         updated_at TEXT NOT NULL
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_reasons (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         classification_id TEXT NOT NULL REFERENCES loss_classifications(id),
         code TEXT NOT NULL CHECK(trim(code) <> ''),
         display_name TEXT NOT NULL CHECK(trim(display_name) <> ''),
@@ -47,7 +47,7 @@ DDL = (
         UNIQUE(id, classification_id)
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_cases (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         operation_id TEXT NOT NULL UNIQUE CHECK({UUID_CHECK.format('operation_id')} AND operation_id <> id),
         branch_id TEXT NOT NULL CHECK({UUID_CHECK.format('branch_id')}),
         warehouse_id TEXT NOT NULL CHECK({UUID_CHECK.format('warehouse_id')}),
@@ -83,7 +83,7 @@ DDL = (
         CHECK(CAST(net_loss_value AS NUMERIC) = CAST(gross_value AS NUMERIC) - CAST(recoverable_value AS NUMERIC))
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_lines (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         loss_case_id TEXT NOT NULL REFERENCES loss_cases(id) ON DELETE CASCADE,
         product_id TEXT NOT NULL CHECK({UUID_CHECK.format('product_id')}),
         lot_id TEXT CHECK(lot_id IS NULL OR ({UUID_CHECK.format('lot_id')})),
@@ -106,7 +106,7 @@ DDL = (
         CHECK(CAST(net_loss_value AS NUMERIC) = CAST(gross_value AS NUMERIC) - CAST(recoverable_value AS NUMERIC))
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_evidence (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         loss_case_id TEXT NOT NULL REFERENCES loss_cases(id) ON DELETE CASCADE,
         evidence_type TEXT NOT NULL CHECK(trim(evidence_type) <> ''),
         storage_uri TEXT NOT NULL CHECK(trim(storage_uri) <> ''),
@@ -116,7 +116,7 @@ DDL = (
         metadata_json TEXT NOT NULL DEFAULT '{{}}'
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_valuations (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         loss_case_id TEXT NOT NULL REFERENCES loss_cases(id) ON DELETE CASCADE,
         operation_id TEXT NOT NULL UNIQUE CHECK({UUID_CHECK.format('operation_id')}),
         valuation_version INTEGER NOT NULL CHECK(valuation_version > 0),
@@ -131,7 +131,7 @@ DDL = (
         UNIQUE(loss_case_id,valuation_version)
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_cost_references (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         valuation_id TEXT NOT NULL REFERENCES loss_valuations(id) ON DELETE CASCADE,
         loss_line_id TEXT NOT NULL REFERENCES loss_lines(id),
         reference_type TEXT NOT NULL CHECK(reference_type IN ('INVENTORY_AVERAGE','LOT_RECEIPT','PURCHASE_RECEIPT','MANUAL_AUTHORIZED')),
@@ -143,7 +143,7 @@ DDL = (
         UNIQUE(valuation_id,loss_line_id)
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_approvals (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         loss_case_id TEXT NOT NULL REFERENCES loss_cases(id) ON DELETE CASCADE,
         operation_id TEXT NOT NULL UNIQUE CHECK({UUID_CHECK.format('operation_id')}),
         requested_by_user_id TEXT NOT NULL CHECK({UUID_CHECK.format('requested_by_user_id')}),
@@ -157,7 +157,7 @@ DDL = (
         CHECK(requested_by_user_id <> authorized_by_user_id)
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_dispositions (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         loss_case_id TEXT NOT NULL REFERENCES loss_cases(id),
         quarantine_id TEXT NOT NULL REFERENCES inventory_quarantine(id),
         operation_id TEXT NOT NULL UNIQUE CHECK({UUID_CHECK.format('operation_id')}),
@@ -191,7 +191,7 @@ DDL = (
         PRIMARY KEY(disposition_id,evidence_id,phase)
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_recoveries (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         loss_case_id TEXT NOT NULL REFERENCES loss_cases(id),
         operation_id TEXT NOT NULL UNIQUE CHECK({UUID_CHECK.format('operation_id')}),
         recovery_type TEXT NOT NULL CHECK(recovery_type IN ('REWORK','RECLASSIFICATION','CLAIM','BY_PRODUCT','CO_PRODUCT','OTHER')),
@@ -213,7 +213,7 @@ DDL = (
         CHECK(recovery_type <> 'CLAIM' OR reference_id IS NOT NULL)
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_lot_risk_assessments (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         operation_id TEXT NOT NULL UNIQUE CHECK({UUID_CHECK.format('operation_id')}),
         loss_case_id TEXT NOT NULL REFERENCES loss_cases(id) ON DELETE CASCADE,
         lot_id TEXT NOT NULL REFERENCES inventory_lots(id),
@@ -233,7 +233,7 @@ DDL = (
         CHECK(CAST(quantity AS NUMERIC) > 0 OR CAST(weight AS NUMERIC) > 0)
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_quality_assessments (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         operation_id TEXT NOT NULL UNIQUE CHECK({UUID_CHECK.format('operation_id')}),
         loss_case_id TEXT NOT NULL REFERENCES loss_cases(id) ON DELETE CASCADE,
         lot_id TEXT NOT NULL REFERENCES inventory_lots(id),
@@ -260,7 +260,7 @@ DDL = (
         PRIMARY KEY(quality_assessment_id, evidence_id)
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_transfer_links (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         loss_case_id TEXT NOT NULL UNIQUE REFERENCES loss_cases(id) ON DELETE CASCADE,
         transfer_id TEXT NOT NULL REFERENCES stock_transfers(id),
         difference_id TEXT NOT NULL UNIQUE REFERENCES transfer_differences(id),
@@ -275,7 +275,7 @@ DDL = (
         created_at TEXT NOT NULL
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_transfer_claims (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         operation_id TEXT NOT NULL UNIQUE CHECK({UUID_CHECK.format('operation_id')}),
         loss_case_id TEXT NOT NULL REFERENCES loss_cases(id) ON DELETE CASCADE,
         transfer_id TEXT NOT NULL REFERENCES stock_transfers(id),
@@ -294,7 +294,7 @@ DDL = (
         CHECK(party_type='OTHER' OR responsible_party_id IS NOT NULL)
     )""",
     f"""CREATE TABLE IF NOT EXISTS yield_variances (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         loss_case_id TEXT REFERENCES loss_cases(id),
         operation_id TEXT NOT NULL UNIQUE CHECK({UUID_CHECK.format('operation_id')}),
         product_id TEXT NOT NULL CHECK({UUID_CHECK.format('product_id')}),
@@ -308,7 +308,7 @@ DDL = (
         detected_at TEXT NOT NULL
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_meat_output_observations (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         yield_variance_id TEXT NOT NULL REFERENCES yield_variances(id) ON DELETE CASCADE,
         production_id TEXT NOT NULL CHECK({UUID_CHECK.format('production_id')}),
         product_id TEXT NOT NULL CHECK({UUID_CHECK.format('product_id')}),
@@ -323,7 +323,7 @@ DDL = (
         CHECK(CAST(quantity AS NUMERIC) > 0 OR CAST(weight AS NUMERIC) > 0)
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_yield_alerts (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         yield_variance_id TEXT NOT NULL UNIQUE REFERENCES yield_variances(id) ON DELETE CASCADE,
         loss_case_id TEXT REFERENCES loss_cases(id),
         severity TEXT NOT NULL CHECK(severity IN ('WARNING','OUT_OF_TOLERANCE','CRITICAL')),
@@ -339,7 +339,7 @@ DDL = (
         resolved_at TEXT
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_investigations (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         loss_case_id TEXT NOT NULL UNIQUE REFERENCES loss_cases(id),
         operation_id TEXT NOT NULL UNIQUE CHECK({UUID_CHECK.format('operation_id')}),
         conclusion_operation_id TEXT UNIQUE CHECK(conclusion_operation_id IS NULL OR ({UUID_CHECK.format('conclusion_operation_id')})),
@@ -357,7 +357,7 @@ DDL = (
         CHECK(status <> 'CONCLUDED' OR (concluded_by_user_id IS NOT NULL AND trim(conclusion) <> ''))
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_investigation_findings (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         investigation_id TEXT NOT NULL REFERENCES loss_investigations(id) ON DELETE CASCADE,
         operation_id TEXT NOT NULL UNIQUE CHECK({UUID_CHECK.format('operation_id')}),
         cause_code TEXT NOT NULL CHECK(trim(cause_code) <> ''),
@@ -376,7 +376,7 @@ DDL = (
         UNIQUE(investigation_id,evidence_id)
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_root_cause_catalog (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         code TEXT NOT NULL UNIQUE CHECK(trim(code) <> ''),
         category TEXT NOT NULL CHECK(category IN ('PEOPLE','PROCESS','EQUIPMENT','MATERIAL','ENVIRONMENT','MANAGEMENT','OTHER')),
         display_name TEXT NOT NULL CHECK(trim(display_name) <> ''),
@@ -387,7 +387,7 @@ DDL = (
         updated_at TEXT NOT NULL
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_root_cause_analyses (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         investigation_id TEXT NOT NULL UNIQUE REFERENCES loss_investigations(id) ON DELETE CASCADE,
         operation_id TEXT NOT NULL UNIQUE CHECK({UUID_CHECK.format('operation_id')}),
         method TEXT NOT NULL CHECK(method IN ('FIVE_WHYS','FISHBONE','PARETO','FAULT_TREE','DIRECT_OBSERVATION')),
@@ -396,7 +396,7 @@ DDL = (
         recorded_at TEXT NOT NULL
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_root_causes (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         analysis_id TEXT NOT NULL REFERENCES loss_root_cause_analyses(id) ON DELETE CASCADE,
         catalog_entry_id TEXT NOT NULL REFERENCES loss_root_cause_catalog(id),
         role TEXT NOT NULL CHECK(role IN ('PRIMARY','CONTRIBUTING')),
@@ -406,7 +406,7 @@ DDL = (
         UNIQUE(analysis_id,catalog_entry_id)
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_corrective_actions (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         investigation_id TEXT NOT NULL REFERENCES loss_investigations(id),
         operation_id TEXT NOT NULL UNIQUE CHECK({UUID_CHECK.format('operation_id')}),
         submission_operation_id TEXT UNIQUE CHECK(submission_operation_id IS NULL OR ({UUID_CHECK.format('submission_operation_id')})),
@@ -430,7 +430,7 @@ DDL = (
         CHECK(verified_by_user_id IS NULL OR (verified_by_user_id <> owner_user_id AND verified_by_user_id <> created_by_user_id))
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_corrective_action_tasks (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         corrective_action_id TEXT NOT NULL REFERENCES loss_corrective_actions(id) ON DELETE CASCADE,
         title TEXT NOT NULL CHECK(trim(title) <> ''),
         assigned_to_user_id TEXT NOT NULL CHECK({UUID_CHECK.format('assigned_to_user_id')}),
@@ -440,7 +440,7 @@ DDL = (
         created_at TEXT NOT NULL
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_audit_log (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         loss_case_id TEXT REFERENCES loss_cases(id),
         operation_id TEXT NOT NULL CHECK({UUID_CHECK.format('operation_id')}),
         actor_user_id TEXT NOT NULL CHECK({UUID_CHECK.format('actor_user_id')}),
@@ -454,7 +454,7 @@ DDL = (
         correlation_id TEXT NOT NULL CHECK({UUID_CHECK.format('correlation_id')})
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_notification_subscriptions (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         user_id TEXT NOT NULL CHECK({UUID_CHECK.format('user_id')}),
         branch_id TEXT NOT NULL CHECK({UUID_CHECK.format('branch_id')}),
         role_code TEXT NOT NULL CHECK(trim(role_code)<>''),
@@ -466,7 +466,7 @@ DDL = (
         UNIQUE(user_id,branch_id,role_code)
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_notification_deliveries (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         source_event_id TEXT NOT NULL CHECK({UUID_CHECK.format('source_event_id')}),
         routing_operation_id TEXT NOT NULL CHECK({UUID_CHECK.format('routing_operation_id')}),
         loss_case_id TEXT NOT NULL REFERENCES loss_cases(id) ON DELETE CASCADE,
@@ -484,7 +484,7 @@ DDL = (
         UNIQUE(source_event_id,recipient_user_id,channel)
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_notification_audit (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         delivery_id TEXT NOT NULL REFERENCES loss_notification_deliveries(id) ON DELETE CASCADE,
         attempt_number INTEGER NOT NULL CHECK(attempt_number>0),
         status TEXT NOT NULL CHECK(status IN ('SENT','FAILED')),
@@ -494,7 +494,7 @@ DDL = (
         UNIQUE(delivery_id,attempt_number)
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_outbox (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         event_id TEXT NOT NULL UNIQUE CHECK({UUID_CHECK.format('event_id')}),
         event_name TEXT NOT NULL CHECK(trim(event_name) <> ''),
         aggregate_id TEXT NOT NULL CHECK({UUID_CHECK.format('aggregate_id')}),
@@ -511,7 +511,7 @@ DDL = (
         CHECK(event_id <> operation_id AND event_id <> aggregate_id AND operation_id <> aggregate_id)
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_processed_operations (
-        operation_id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('operation_id')}),
+        operation_id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('operation_id')}),
         operation_type TEXT NOT NULL CHECK(trim(operation_type) <> ''),
         result_entity_id TEXT NOT NULL CHECK({UUID_CHECK.format('result_entity_id')}),
         result_json TEXT NOT NULL,
@@ -519,7 +519,7 @@ DDL = (
         CHECK(operation_id <> result_entity_id)
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_offline_drafts (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         operation_id TEXT NOT NULL UNIQUE CHECK({UUID_CHECK.format('operation_id')}),
         device_id TEXT NOT NULL CHECK({UUID_CHECK.format('device_id')}),
         branch_id TEXT NOT NULL CHECK({UUID_CHECK.format('branch_id')}),
@@ -533,7 +533,7 @@ DDL = (
         CHECK(id <> operation_id)
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_offline_evidence (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         draft_id TEXT NOT NULL REFERENCES loss_offline_drafts(id) ON DELETE CASCADE,
         evidence_type TEXT NOT NULL CHECK(trim(evidence_type) <> ''),
         storage_uri TEXT NOT NULL CHECK(trim(storage_uri) <> ''),
@@ -543,7 +543,7 @@ DDL = (
         created_at TEXT NOT NULL
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_sync_outbox (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         draft_id TEXT NOT NULL REFERENCES loss_offline_drafts(id) ON DELETE CASCADE,
         operation_id TEXT NOT NULL UNIQUE CHECK({UUID_CHECK.format('operation_id')}),
         device_id TEXT NOT NULL CHECK({UUID_CHECK.format('device_id')}),
@@ -561,7 +561,7 @@ DDL = (
         CHECK(id <> operation_id AND id <> draft_id)
     )""",
     f"""CREATE TABLE IF NOT EXISTS loss_sync_conflicts (
-        id TEXT PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
+        id TEXT NOT NULL PRIMARY KEY CHECK({UUID_CHECK.format('id')}),
         envelope_id TEXT NOT NULL UNIQUE REFERENCES loss_sync_outbox(id) ON DELETE CASCADE,
         conflict_type TEXT NOT NULL CHECK(trim(conflict_type) <> ''),
         remote_revision TEXT NOT NULL DEFAULT '',

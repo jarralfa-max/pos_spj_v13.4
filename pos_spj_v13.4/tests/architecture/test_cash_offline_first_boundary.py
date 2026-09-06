@@ -23,7 +23,9 @@ class CashOfflineFirstBoundaryTest(unittest.TestCase):
     def test_sequence_is_ordering_not_identity(self):
         migration = (ROOT / "migrations/standalone/175_cash_register_bounded_context_schema.py").read_text(encoding="utf-8").upper()
         self.assertNotIn("AUTOINCREMENT", migration)
-        self.assertIn("ID TEXT PRIMARY KEY", migration)
+        # Forma fuerte: en SQLite una PK TEXT sin NOT NULL acepta un id NULL.
+        self.assertIn("ID TEXT NOT NULL PRIMARY KEY", migration)
+        self.assertNotIn("ID TEXT PRIMARY KEY", migration)
 
 
 if __name__ == "__main__": unittest.main()

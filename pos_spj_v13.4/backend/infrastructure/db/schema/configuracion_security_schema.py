@@ -29,7 +29,7 @@ def _uuid(column: str) -> str:
 
 _AUTHORIZATION_LOG_DDL = f"""
     CREATE TABLE IF NOT EXISTS configuracion_authorization_log (
-        id               TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id               TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         permission_code  TEXT NOT NULL CHECK(trim(permission_code)<>''),
         requested_by     TEXT NOT NULL CHECK(trim(requested_by)<>''),
         authorized_by    TEXT NOT NULL CHECK(trim(authorized_by)<>''),
@@ -42,7 +42,7 @@ _AUTHORIZATION_LOG_DDL = f"""
 
 _AUDIT_LOG_DDL = """
     CREATE TABLE IF NOT EXISTS configuracion_audit_log (
-        id             TEXT PRIMARY KEY,
+        id             TEXT NOT NULL PRIMARY KEY,
         entity_type    TEXT NOT NULL,
         entity_id      TEXT NOT NULL,
         action         TEXT NOT NULL,

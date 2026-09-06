@@ -1,6 +1,6 @@
 """Sweepstakes/Sorteos bounded context — born-clean UUIDv7 schema (LOY-15,
 §27-28). Mirrors backend/infrastructure/db/schema/commercial_instruments_schema.py's
-conventions exactly (TEXT PRIMARY KEY UUIDv7, TEXT decimal strings for money,
+conventions exactly (TEXT NOT NULL PRIMARY KEY UUIDv7, TEXT decimal strings for money,
 no enum CHECK constraints).
 
 Verified via grep against `migrations/m000_base_schema.py` — no collision.
@@ -29,7 +29,7 @@ _DDL = (
     # ── SweepstakesCampaign ──────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS sweepstakes_campaigns (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
@@ -48,7 +48,7 @@ _DDL = (
     # ── SweepstakesRule — one per campaign ──────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS sweepstakes_rules (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         campaign_id TEXT NOT NULL UNIQUE REFERENCES sweepstakes_campaigns(id),
         entry_method TEXT NOT NULL,
         amount_per_ticket TEXT NOT NULL DEFAULT '0',
@@ -62,7 +62,7 @@ _DDL = (
     # ── SweepstakesPrize ─────────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS sweepstakes_prizes (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         campaign_id TEXT NOT NULL REFERENCES sweepstakes_campaigns(id),
         name TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
@@ -76,7 +76,7 @@ _DDL = (
     # ── SweepstakesEntry — append-only "derecho previo" (§28) ───────────
     """
     CREATE TABLE IF NOT EXISTS sweepstakes_entries (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         campaign_id TEXT NOT NULL REFERENCES sweepstakes_campaigns(id),
         customer_id TEXT NOT NULL,
         entry_method TEXT NOT NULL,
@@ -90,7 +90,7 @@ _DDL = (
     # ── SweepstakesTicket — always references a real prior entry (§28) ──
     """
     CREATE TABLE IF NOT EXISTS sweepstakes_tickets (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         campaign_id TEXT NOT NULL REFERENCES sweepstakes_campaigns(id),
         entry_id TEXT NOT NULL REFERENCES sweepstakes_entries(id),
         customer_id TEXT NOT NULL,
@@ -107,7 +107,7 @@ _DDL = (
     # ── SweepstakesDraw ──────────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS sweepstakes_draws (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         campaign_id TEXT NOT NULL REFERENCES sweepstakes_campaigns(id),
         status TEXT NOT NULL DEFAULT 'SCHEDULED',
         scheduled_at TEXT,
@@ -122,7 +122,7 @@ _DDL = (
     # ── SweepstakesWinner — a ticket wins at most once per draw ─────────
     """
     CREATE TABLE IF NOT EXISTS sweepstakes_winners (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         draw_id TEXT NOT NULL REFERENCES sweepstakes_draws(id),
         campaign_id TEXT NOT NULL REFERENCES sweepstakes_campaigns(id),
         ticket_id TEXT NOT NULL REFERENCES sweepstakes_tickets(id),
@@ -142,7 +142,7 @@ _DDL = (
     # ── transactional outbox ─────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS sweepstakes_outbox (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         event_id TEXT NOT NULL UNIQUE,
         event_name TEXT NOT NULL,
         payload_json TEXT NOT NULL,

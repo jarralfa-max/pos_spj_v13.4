@@ -47,7 +47,7 @@ _ASSIGNMENT_ROLES = (
 
 _DEVICE_PROFILES_DDL = f"""
     CREATE TABLE IF NOT EXISTS device_profiles (
-        id                     TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                     TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         name                   TEXT NOT NULL CHECK(trim(name)<>''),
         device_type            TEXT NOT NULL CHECK(device_type IN ({_DEVICE_TYPES})),
         manufacturer           TEXT NOT NULL DEFAULT '',
@@ -72,7 +72,7 @@ _DEVICE_PROFILES_DDL = f"""
 
 _DEVICES_DDL = f"""
     CREATE TABLE IF NOT EXISTS devices (
-        id                   TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                   TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         branch_id            TEXT NOT NULL REFERENCES sucursales(id) CHECK({_uuid('branch_id')}),
         profile_id           TEXT NOT NULL REFERENCES device_profiles(id) CHECK({_uuid('profile_id')}),
         code                 TEXT NOT NULL UNIQUE CHECK(trim(code)<>''),
@@ -88,7 +88,7 @@ _DEVICES_DDL = f"""
 
 _ASSIGNMENTS_DDL = f"""
     CREATE TABLE IF NOT EXISTS workstation_device_assignments (
-        id                    TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                    TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         workstation_id        TEXT NOT NULL REFERENCES workstations(id) CHECK({_uuid('workstation_id')}),
         device_id             TEXT NOT NULL REFERENCES devices(id) CHECK({_uuid('device_id')}),
         role                  TEXT NOT NULL CHECK(role IN ({_ASSIGNMENT_ROLES})),
@@ -125,7 +125,7 @@ def create_device_management_schema(conn) -> None:
 
 _PRINT_ROUTES_DDL = f"""
     CREATE TABLE IF NOT EXISTS print_routes (
-        id                        TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                        TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         document_type             TEXT NOT NULL CHECK(trim(document_type)<>''),
         primary_device_id         TEXT NOT NULL REFERENCES devices(id) CHECK({_uuid('primary_device_id')}),
         fallback_device_ids_json  TEXT NOT NULL DEFAULT '[]',
@@ -141,7 +141,7 @@ _PRINT_ROUTES_DDL = f"""
 
 _PRINTER_TEST_RESULTS_DDL = f"""
     CREATE TABLE IF NOT EXISTS printer_test_results (
-        id                   TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                   TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         device_id            TEXT NOT NULL REFERENCES devices(id) CHECK({_uuid('device_id')}),
         success              INTEGER NOT NULL CHECK(success IN (0,1)),
         message              TEXT NOT NULL DEFAULT '',
@@ -173,7 +173,7 @@ def create_print_routing_schema(conn) -> None:
 
 _DEVICE_TEST_RESULTS_DDL = f"""
     CREATE TABLE IF NOT EXISTS device_test_results (
-        id                   TEXT PRIMARY KEY CHECK({_uuid('id')}),
+        id                   TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
         device_id            TEXT NOT NULL REFERENCES devices(id) CHECK({_uuid('device_id')}),
         test_type            TEXT NOT NULL CHECK(trim(test_type)<>''),
         success              INTEGER NOT NULL CHECK(success IN (0,1)),

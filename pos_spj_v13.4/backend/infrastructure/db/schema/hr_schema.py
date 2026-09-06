@@ -1,7 +1,7 @@
 """HR bounded context — born-clean UUIDv7 schema (single source of truth).
 
 Rules:
-- Every id is ``TEXT PRIMARY KEY`` holding a lowercase UUIDv7.
+- Every id is ``TEXT NOT NULL PRIMARY KEY`` holding a lowercase UUIDv7.
 - Money columns are ``TEXT`` decimal strings (PostgreSQL: NUMERIC); no REAL.
 - Attendance punches are immutable (no UPDATE path in the repositories).
 - Idempotency is structural: UNIQUE(operation_id) where an operation must not
@@ -46,7 +46,7 @@ LEGACY_HR_TABLES: tuple[str, ...] = (
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS hr_departments (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     code TEXT NOT NULL,
     name TEXT NOT NULL,
     branch_id TEXT,
@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS hr_departments (
 );
 
 CREATE TABLE IF NOT EXISTS hr_positions (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     code TEXT NOT NULL,
     name TEXT NOT NULL,
     department_id TEXT REFERENCES hr_departments(id),
@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS hr_positions (
 );
 
 CREATE TABLE IF NOT EXISTS employees (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     employee_code TEXT NOT NULL UNIQUE,
     first_name TEXT NOT NULL,
     last_name TEXT NOT NULL,
@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS employees (
 CREATE INDEX IF NOT EXISTS idx_employees_branch ON employees (branch_id, active);
 
 CREATE TABLE IF NOT EXISTS attendance_workdays (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     employee_id TEXT NOT NULL REFERENCES employees(id),
     branch_id TEXT NOT NULL,
     work_date TEXT NOT NULL,
@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS attendance_workdays (
 );
 
 CREATE TABLE IF NOT EXISTS attendance_punches (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     employee_id TEXT NOT NULL REFERENCES employees(id),
     branch_id TEXT NOT NULL,
     workday_id TEXT REFERENCES attendance_workdays(id),
@@ -142,7 +142,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_punches_source_ref
     WHERE source_reference_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS attendance_adjustments (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     employee_id TEXT NOT NULL REFERENCES employees(id),
     workday_id TEXT NOT NULL REFERENCES attendance_workdays(id),
     original_punch_id TEXT REFERENCES attendance_punches(id),
@@ -160,7 +160,7 @@ CREATE TABLE IF NOT EXISTS attendance_adjustments (
 );
 
 CREATE TABLE IF NOT EXISTS work_shifts (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,
     start_time TEXT NOT NULL,
     end_time TEXT NOT NULL,
@@ -173,7 +173,7 @@ CREATE TABLE IF NOT EXISTS work_shifts (
 );
 
 CREATE TABLE IF NOT EXISTS shift_assignments (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     employee_id TEXT NOT NULL REFERENCES employees(id),
     work_shift_id TEXT NOT NULL REFERENCES work_shifts(id),
     effective_from TEXT NOT NULL,
@@ -186,7 +186,7 @@ CREATE INDEX IF NOT EXISTS idx_shift_assignments_employee
     ON shift_assignments (employee_id, effective_from);
 
 CREATE TABLE IF NOT EXISTS leave_requests (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     employee_id TEXT NOT NULL REFERENCES employees(id),
     branch_id TEXT NOT NULL,
     leave_type TEXT NOT NULL CHECK (leave_type IN (
@@ -207,7 +207,7 @@ CREATE TABLE IF NOT EXISTS leave_requests (
 CREATE INDEX IF NOT EXISTS idx_leave_employee ON leave_requests (employee_id, status);
 
 CREATE TABLE IF NOT EXISTS payroll_runs (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     period_start TEXT NOT NULL,
     period_end TEXT NOT NULL,
     branch_id TEXT,
@@ -225,7 +225,7 @@ CREATE TABLE IF NOT EXISTS payroll_runs (
 );
 
 CREATE TABLE IF NOT EXISTS payroll_lines (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     payroll_run_id TEXT NOT NULL REFERENCES payroll_runs(id) ON DELETE CASCADE,
     employee_id TEXT NOT NULL REFERENCES employees(id),
     concept TEXT NOT NULL,
@@ -238,7 +238,7 @@ CREATE TABLE IF NOT EXISTS payroll_lines (
 CREATE INDEX IF NOT EXISTS idx_payroll_lines_run ON payroll_lines (payroll_run_id);
 
 CREATE TABLE IF NOT EXISTS payroll_payments (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     payroll_run_id TEXT NOT NULL UNIQUE REFERENCES payroll_runs(id),
     gross_amount TEXT NOT NULL,
     deductions_amount TEXT NOT NULL,
@@ -252,7 +252,7 @@ CREATE TABLE IF NOT EXISTS payroll_payments (
 );
 
 CREATE TABLE IF NOT EXISTS hr_audit_log (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     action TEXT NOT NULL,
     actor_user_id TEXT,
     entity_type TEXT NOT NULL,
@@ -264,14 +264,14 @@ CREATE TABLE IF NOT EXISTS hr_audit_log (
 CREATE INDEX IF NOT EXISTS idx_hr_audit_entity ON hr_audit_log (entity_type, entity_id);
 
 CREATE TABLE IF NOT EXISTS hr_processed_events (
-    event_id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL PRIMARY KEY,
     event_name TEXT NOT NULL,
     operation_id TEXT NOT NULL,
     processed_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS hr_outbox (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY,
     event_id TEXT NOT NULL UNIQUE,
     event_name TEXT NOT NULL,
     payload_json TEXT NOT NULL,

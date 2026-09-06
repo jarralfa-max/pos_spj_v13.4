@@ -16,7 +16,7 @@ from __future__ import annotations
 _AUTHENTICATION_DDL = (
     """
     CREATE TABLE IF NOT EXISTS authentication_attempts (
-        id              TEXT PRIMARY KEY,
+        id              TEXT NOT NULL PRIMARY KEY,
         user_reference  TEXT NOT NULL,
         workstation_id  TEXT NOT NULL DEFAULT '',
         success         INTEGER NOT NULL CHECK (success IN (0, 1)),

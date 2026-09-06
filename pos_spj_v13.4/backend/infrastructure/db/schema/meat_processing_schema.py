@@ -1,7 +1,7 @@
 """Meat Processing bounded context — born-clean UUIDv7 schema (PROC-3).
 
 Rules (REGLA CERO, master prompt §9):
-- Every id is ``TEXT PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
+- Every id is ``TEXT NOT NULL PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
   No ``INTEGER PRIMARY KEY AUTOINCREMENT``, no ``lastrowid``.
 - quantity / weight / percentage / tolerance columns are ``TEXT`` decimal strings
   (PostgreSQL: NUMERIC), each with a ``CAST(x AS NUMERIC) >= 0`` guard; no REAL —
@@ -103,7 +103,7 @@ _DDL = (
     # ── processing_orders (§12/§13) ────────────────────────────────────────
     f"""
     CREATE TABLE IF NOT EXISTS processing_orders (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         operation_id TEXT NOT NULL UNIQUE CHECK (operation_id <> id),
         branch_id TEXT NOT NULL,
         warehouse_id TEXT NOT NULL,
@@ -137,7 +137,7 @@ _DDL = (
     # ── processing_batches (§19) ────────────────────────────────────────────
     f"""
     CREATE TABLE IF NOT EXISTS processing_batches (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         operation_id TEXT NOT NULL UNIQUE CHECK (operation_id <> id),
         processing_order_id TEXT NOT NULL REFERENCES processing_orders(id),
         batch_number TEXT NOT NULL CHECK (trim(batch_number) <> ''),
@@ -156,7 +156,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS processing_batch_source_lots (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         processing_batch_id TEXT NOT NULL REFERENCES processing_batches(id) ON DELETE CASCADE,
         source_lot_id TEXT NOT NULL,
         UNIQUE (processing_batch_id, source_lot_id)
@@ -165,7 +165,7 @@ _DDL = (
     # ── process_executions (§20) ────────────────────────────────────────────
     f"""
     CREATE TABLE IF NOT EXISTS process_executions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         operation_id TEXT NOT NULL UNIQUE CHECK (operation_id <> id),
         processing_order_id TEXT NOT NULL REFERENCES processing_orders(id),
         processing_batch_id TEXT REFERENCES processing_batches(id),
@@ -183,7 +183,7 @@ _DDL = (
     # posts them itself (§39); inventory_operation_id is filled by Inventory. ──
     f"""
     CREATE TABLE IF NOT EXISTS material_consumptions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         operation_id TEXT NOT NULL UNIQUE CHECK (operation_id <> id),
         processing_order_id TEXT NOT NULL REFERENCES processing_orders(id),
         processing_batch_id TEXT REFERENCES processing_batches(id),
@@ -208,7 +208,7 @@ _DDL = (
     # share this one table, discriminated by output_type (see PROC-2_domain.md). ──
     f"""
     CREATE TABLE IF NOT EXISTS process_outputs (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         operation_id TEXT NOT NULL UNIQUE CHECK (operation_id <> id),
         processing_order_id TEXT NOT NULL REFERENCES processing_orders(id),
         processing_batch_id TEXT REFERENCES processing_batches(id),
@@ -232,7 +232,7 @@ _DDL = (
     # ── process_weighings (§21) ─────────────────────────────────────────────
     f"""
     CREATE TABLE IF NOT EXISTS process_weighings (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         operation_id TEXT NOT NULL UNIQUE CHECK (operation_id <> id),
         processing_order_id TEXT NOT NULL REFERENCES processing_orders(id),
         processing_batch_id TEXT REFERENCES processing_batches(id),
@@ -257,7 +257,7 @@ _DDL = (
     # supplied (see YieldReconciliationPolicy). ─────────────────────────────
     f"""
     CREATE TABLE IF NOT EXISTS yield_reconciliations (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         operation_id TEXT NOT NULL UNIQUE CHECK (operation_id <> id),
         processing_order_id TEXT NOT NULL REFERENCES processing_orders(id),
         processing_batch_id TEXT REFERENCES processing_batches(id),
@@ -279,7 +279,7 @@ _DDL = (
     # ── security / audit / outbox support tables (§48, §52, §60-62) ────────
     """
     CREATE TABLE IF NOT EXISTS meat_processing_authorization_log (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         permission_code TEXT NOT NULL,
         requested_by TEXT NOT NULL,
         authorized_by TEXT NOT NULL,
@@ -294,7 +294,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS meat_processing_audit_log (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         entity_type TEXT NOT NULL,
         entity_id TEXT NOT NULL,
         action TEXT NOT NULL,
@@ -315,7 +315,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS meat_processing_outbox (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         event_id TEXT NOT NULL UNIQUE,
         event_name TEXT NOT NULL,
         payload_json TEXT NOT NULL,
@@ -327,7 +327,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS meat_processing_processed_events (
-        event_id TEXT PRIMARY KEY,
+        event_id TEXT NOT NULL PRIMARY KEY,
         event_name TEXT NOT NULL,
         operation_id TEXT NOT NULL,
         processed_at TEXT NOT NULL
@@ -381,7 +381,7 @@ _DDL_PREPARATION_EXECUTION = (
     # ── material_requirements (§16) ─────────────────────────────────────────
     f"""
     CREATE TABLE IF NOT EXISTS material_requirements (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         operation_id TEXT NOT NULL UNIQUE CHECK (operation_id <> id),
         processing_order_id TEXT NOT NULL REFERENCES processing_orders(id),
         product_id TEXT NOT NULL,
@@ -404,7 +404,7 @@ _DDL_PREPARATION_EXECUTION = (
     # ── operator_assignments (§32) ──────────────────────────────────────────
     f"""
     CREATE TABLE IF NOT EXISTS operator_assignments (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         operation_id TEXT NOT NULL UNIQUE CHECK (operation_id <> id),
         processing_order_id TEXT NOT NULL REFERENCES processing_orders(id),
         user_id TEXT NOT NULL,
@@ -417,7 +417,7 @@ _DDL_PREPARATION_EXECUTION = (
     # ── process_step_executions (§20) ───────────────────────────────────────
     f"""
     CREATE TABLE IF NOT EXISTS process_step_executions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         operation_id TEXT NOT NULL UNIQUE CHECK (operation_id <> id),
         process_execution_id TEXT NOT NULL REFERENCES process_executions(id),
         step_name TEXT NOT NULL CHECK (trim(step_name) <> ''),
@@ -431,7 +431,7 @@ _DDL_PREPARATION_EXECUTION = (
     # ── process_incidents (§30) ─────────────────────────────────────────────
     f"""
     CREATE TABLE IF NOT EXISTS process_incidents (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         operation_id TEXT NOT NULL UNIQUE CHECK (operation_id <> id),
         processing_order_id TEXT NOT NULL REFERENCES processing_orders(id),
         process_execution_id TEXT REFERENCES process_executions(id),
@@ -472,7 +472,7 @@ _DDL_PACKAGING = (
     # ── packaging_executions (§25) — immutable capture, no status/workflow ──
     f"""
     CREATE TABLE IF NOT EXISTS packaging_executions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         operation_id TEXT NOT NULL UNIQUE CHECK (operation_id <> id),
         processing_order_id TEXT NOT NULL REFERENCES processing_orders(id),
         process_output_id TEXT REFERENCES process_outputs(id),
@@ -494,7 +494,7 @@ _DDL_PACKAGING = (
     # ── production_labels (§25) ─────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS production_labels (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         operation_id TEXT NOT NULL UNIQUE CHECK (operation_id <> id),
         packaging_execution_id TEXT NOT NULL REFERENCES packaging_executions(id),
         label_template_id TEXT NOT NULL,
@@ -529,7 +529,7 @@ _DDL_REWORK = (
     # links to a *new* processing_orders row that executes the rework. ──────
     f"""
     CREATE TABLE IF NOT EXISTS rework_orders (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         operation_id TEXT NOT NULL UNIQUE CHECK (operation_id <> id),
         source_output_id TEXT NOT NULL REFERENCES process_outputs(id),
         product_id TEXT NOT NULL,
@@ -570,7 +570,7 @@ _DDL_GENEALOGY = (
     # process_outputs, material_consumptions, etc.), so none is declared. ───
     f"""
     CREATE TABLE IF NOT EXISTS process_genealogy_links (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         operation_id TEXT NOT NULL UNIQUE CHECK (operation_id <> id),
         upstream_entity_type TEXT NOT NULL CHECK (trim(upstream_entity_type) <> ''),
         upstream_entity_id TEXT NOT NULL,
@@ -611,7 +611,7 @@ def create_meat_processing_genealogy_schema(conn) -> None:
 _DDL_RESOURCES = (
     f"""
     CREATE TABLE IF NOT EXISTS production_areas (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         branch_id TEXT NOT NULL,
         warehouse_id TEXT NOT NULL,
         code TEXT NOT NULL CHECK (trim(code) <> ''),
@@ -623,7 +623,7 @@ _DDL_RESOURCES = (
     """,
     f"""
     CREATE TABLE IF NOT EXISTS work_centers (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         production_area_id TEXT NOT NULL REFERENCES production_areas(id),
         code TEXT NOT NULL CHECK (trim(code) <> ''),
         name TEXT NOT NULL CHECK (trim(name) <> ''),
@@ -636,7 +636,7 @@ _DDL_RESOURCES = (
     """,
     f"""
     CREATE TABLE IF NOT EXISTS production_stations (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         work_center_id TEXT NOT NULL REFERENCES work_centers(id),
         code TEXT NOT NULL CHECK (trim(code) <> ''),
         name TEXT NOT NULL CHECK (trim(name) <> ''),
@@ -647,7 +647,7 @@ _DDL_RESOURCES = (
     """,
     f"""
     CREATE TABLE IF NOT EXISTS production_equipment (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         work_center_id TEXT NOT NULL REFERENCES work_centers(id),
         station_id TEXT REFERENCES production_stations(id),
         code TEXT NOT NULL CHECK (trim(code) <> ''),
@@ -662,7 +662,7 @@ _DDL_RESOURCES = (
     # ── equipment_assignments (§19) — structural twin of operator_assignments ──
     """
     CREATE TABLE IF NOT EXISTS equipment_assignments (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         operation_id TEXT NOT NULL UNIQUE CHECK (operation_id <> id),
         processing_order_id TEXT NOT NULL REFERENCES processing_orders(id),
         equipment_id TEXT NOT NULL REFERENCES production_equipment(id),

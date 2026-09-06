@@ -1,7 +1,7 @@
 """Procurement bounded context — born-clean UUIDv7 schema (single source of truth).
 
 Rules:
-- Every id is ``TEXT PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
+- Every id is ``TEXT NOT NULL PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
 - Money/weight/quantity columns are ``TEXT`` decimal strings (PostgreSQL:
   NUMERIC); no REAL — floats are forbidden for money/weight/quantity.
 - Structural idempotency: UNIQUE(operation_id) / UNIQUE(document_number) /
@@ -50,7 +50,7 @@ _DDL = (
     # ── limits ────────────────────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS user_purchase_limits (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         user_id TEXT NOT NULL,
         currency_code TEXT NOT NULL DEFAULT 'MXN',
         maximum_per_transaction TEXT,
@@ -65,7 +65,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS role_purchase_limits (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         role_code TEXT NOT NULL,
         currency_code TEXT NOT NULL DEFAULT 'MXN',
         maximum_per_transaction TEXT,
@@ -76,7 +76,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS branch_purchase_limits (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         branch_id TEXT NOT NULL,
         currency_code TEXT NOT NULL DEFAULT 'MXN',
         maximum_per_transaction TEXT,
@@ -90,7 +90,7 @@ _DDL = (
     # ── direct purchase ───────────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS direct_purchases (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         document_number TEXT NOT NULL UNIQUE,
         supplier_id TEXT NOT NULL,
         branch_id TEXT NOT NULL,
@@ -121,7 +121,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS direct_purchase_lines (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         direct_purchase_id TEXT NOT NULL REFERENCES direct_purchases(id),
         product_id TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
@@ -142,7 +142,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS direct_purchase_authorizations (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         direct_purchase_id TEXT NOT NULL REFERENCES direct_purchases(id),
         requested_by_user_id TEXT NOT NULL,
         authorized_by_user_id TEXT NOT NULL,
@@ -157,7 +157,7 @@ _DDL = (
     # ── requisitions ──────────────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS purchase_requisitions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         document_number TEXT NOT NULL UNIQUE,
         branch_id TEXT NOT NULL,
         requested_by_user_id TEXT NOT NULL,
@@ -176,7 +176,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS purchase_requisition_lines (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         requisition_id TEXT NOT NULL REFERENCES purchase_requisitions(id),
         product_id TEXT NOT NULL,
         quantity TEXT NOT NULL,
@@ -190,7 +190,7 @@ _DDL = (
     # ── rfq / quotes ──────────────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS requests_for_quotation (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         document_number TEXT NOT NULL UNIQUE,
         requisition_id TEXT REFERENCES purchase_requisitions(id),
         response_deadline TEXT,
@@ -201,7 +201,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS rfq_supplier_invitations (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         rfq_id TEXT NOT NULL REFERENCES requests_for_quotation(id),
         supplier_id TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'INVITED',
@@ -211,7 +211,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS supplier_quotes (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         rfq_id TEXT NOT NULL REFERENCES requests_for_quotation(id),
         supplier_id TEXT NOT NULL,
         currency_code TEXT NOT NULL DEFAULT 'MXN',
@@ -223,7 +223,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS supplier_quote_lines (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         quote_id TEXT NOT NULL REFERENCES supplier_quotes(id),
         product_id TEXT NOT NULL,
         quantity TEXT NOT NULL,
@@ -237,7 +237,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS purchase_awards (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         rfq_id TEXT NOT NULL REFERENCES requests_for_quotation(id),
         approved_by_user_id TEXT NOT NULL,
         operation_id TEXT NOT NULL UNIQUE,
@@ -246,7 +246,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS purchase_award_lines (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         award_id TEXT NOT NULL REFERENCES purchase_awards(id),
         quote_line_id TEXT NOT NULL REFERENCES supplier_quote_lines(id),
         supplier_id TEXT NOT NULL,
@@ -258,7 +258,7 @@ _DDL = (
     # ── purchase orders ───────────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS purchase_orders (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         document_number TEXT NOT NULL UNIQUE,
         supplier_id TEXT NOT NULL,
         branch_id TEXT NOT NULL,
@@ -281,7 +281,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS purchase_order_lines (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         purchase_order_id TEXT NOT NULL REFERENCES purchase_orders(id),
         product_id TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
@@ -300,7 +300,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS purchase_order_versions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         purchase_order_id TEXT NOT NULL REFERENCES purchase_orders(id),
         version INTEGER NOT NULL,
         before_json TEXT,
@@ -313,7 +313,7 @@ _DDL = (
     # ── goods receipts ────────────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS goods_receipts (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         document_number TEXT NOT NULL UNIQUE,
         supplier_id TEXT NOT NULL,
         branch_id TEXT NOT NULL,
@@ -329,7 +329,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS goods_receipt_lines (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         goods_receipt_id TEXT NOT NULL REFERENCES goods_receipts(id),
         product_id TEXT NOT NULL,
         ordered_quantity TEXT NOT NULL DEFAULT '0',
@@ -343,7 +343,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS receipt_discrepancies (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         goods_receipt_id TEXT NOT NULL REFERENCES goods_receipts(id),
         discrepancy_type TEXT NOT NULL,
         expected TEXT NOT NULL,
@@ -354,7 +354,7 @@ _DDL = (
     # ── invoices ──────────────────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS supplier_invoices (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         document_number TEXT NOT NULL UNIQUE,
         supplier_id TEXT NOT NULL,
         invoice_number TEXT NOT NULL,
@@ -378,7 +378,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS supplier_invoice_lines (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         supplier_invoice_id TEXT NOT NULL REFERENCES supplier_invoices(id),
         product_id TEXT NOT NULL,
         invoiced_quantity TEXT NOT NULL,
@@ -392,7 +392,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS supplier_invoice_matches (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         supplier_invoice_id TEXT NOT NULL REFERENCES supplier_invoices(id),
         result TEXT NOT NULL,
         released_by_user_id TEXT,
@@ -403,7 +403,7 @@ _DDL = (
     # ── authorization log / audit / outbox ────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS purchase_authorization_log (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         operation_id TEXT NOT NULL,
         permission_code TEXT NOT NULL,
         requested_by_user_id TEXT NOT NULL,
@@ -417,7 +417,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS procurement_audit_log (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         document_id TEXT,
         action TEXT NOT NULL,
         actor_user_id TEXT,
@@ -434,7 +434,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS procurement_outbox (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         event_id TEXT NOT NULL,
         event_name TEXT NOT NULL,
         payload_json TEXT NOT NULL,
@@ -450,7 +450,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS procurement_processed_events (
-        event_id TEXT PRIMARY KEY,
+        event_id TEXT NOT NULL PRIMARY KEY,
         event_name TEXT NOT NULL,
         operation_id TEXT NOT NULL,
         processed_at TEXT NOT NULL
@@ -520,7 +520,7 @@ PURCHASE_RETURN_TABLES: tuple[str, ...] = (
 _RETURNS_DDL = (
     """
     CREATE TABLE IF NOT EXISTS purchase_returns (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         document_number TEXT NOT NULL UNIQUE,
         supplier_id TEXT NOT NULL,
         branch_id TEXT NOT NULL,
@@ -540,7 +540,7 @@ _RETURNS_DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS purchase_return_lines (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         purchase_return_id TEXT NOT NULL REFERENCES purchase_returns(id),
         product_id TEXT NOT NULL,
         quantity TEXT NOT NULL,

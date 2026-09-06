@@ -3,7 +3,7 @@ Mirrors backend/infrastructure/db/schema/loyalty_schema.py's conventions
 exactly.
 
 Rules (REGLA CERO / §8 / §32-42):
-- Every id is ``TEXT PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
+- Every id is ``TEXT NOT NULL PRIMARY KEY`` holding a lowercase UUIDv7 (PostgreSQL: UUID).
 - Every money/quantity/weight column is a ``TEXT`` decimal string (PostgreSQL:
   NUMERIC); no REAL — floats are forbidden. Conversion to/from ``Decimal``
   happens in the repository layer (a future phase, not built yet), never in
@@ -62,7 +62,7 @@ _DDL = (
     # ── CustomerOrder (backend/domain/orders_delivery/entities.py) ─────────
     """
     CREATE TABLE IF NOT EXISTS customer_orders (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         order_number TEXT UNIQUE,
         branch_id TEXT NOT NULL,
         channel TEXT NOT NULL,
@@ -113,7 +113,7 @@ _DDL = (
     # ── CustomerOrderLine (owned entity) ────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS customer_order_lines (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         order_id TEXT NOT NULL REFERENCES customer_orders(id),
         product_id TEXT NOT NULL,
         variant_id TEXT,
@@ -152,7 +152,7 @@ _DDL = (
     # ── OrderAddress (backend/domain/orders_delivery/address.py, §20) ──────
     """
     CREATE TABLE IF NOT EXISTS order_addresses (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         order_id TEXT NOT NULL REFERENCES customer_orders(id),
         recipient_name TEXT NOT NULL,
         recipient_phone TEXT NOT NULL,
@@ -175,7 +175,7 @@ _DDL = (
     # ── DeliveryZone (backend/domain/orders_delivery/delivery_zone.py, §21) ─
     """
     CREATE TABLE IF NOT EXISTS delivery_zones (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         branch_id TEXT NOT NULL,
         name TEXT NOT NULL,
         postal_codes_json TEXT NOT NULL DEFAULT '[]',
@@ -192,7 +192,7 @@ _DDL = (
     # ── OrderPackage (backend/domain/orders_delivery/package.py, §29) ──────
     """
     CREATE TABLE IF NOT EXISTS order_packages (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         order_id TEXT NOT NULL REFERENCES customer_orders(id),
         package_number TEXT NOT NULL,
         package_type TEXT NOT NULL,
@@ -211,7 +211,7 @@ _DDL = (
     # references order_id, never embedded/joined by design.
     """
     CREATE TABLE IF NOT EXISTS delivery_jobs (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         order_id TEXT NOT NULL REFERENCES customer_orders(id),
         branch_id TEXT NOT NULL,
         delivery_number TEXT UNIQUE,
@@ -237,7 +237,7 @@ _DDL = (
     # ── DeliveryAttempt (backend/domain/orders_delivery/delivery_job.py, §38-40) ─
     """
     CREATE TABLE IF NOT EXISTS delivery_attempts (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         delivery_job_id TEXT NOT NULL REFERENCES delivery_jobs(id),
         successful INTEGER NOT NULL,
         recipient_name TEXT,
@@ -256,7 +256,7 @@ _DDL = (
     # facts (§33: never a parallel people table).
     """
     CREATE TABLE IF NOT EXISTS driver_operational_profiles (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         driver_id TEXT NOT NULL UNIQUE,
         branch_id TEXT NOT NULL,
         vehicle_type TEXT,
@@ -271,7 +271,7 @@ _DDL = (
     # ── DeliveryAssignment (backend/domain/orders_delivery/driver.py, §33) ──
     """
     CREATE TABLE IF NOT EXISTS delivery_assignments (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         delivery_job_id TEXT NOT NULL REFERENCES delivery_jobs(id),
         driver_id TEXT NOT NULL,
         assigned_by_user_id TEXT NOT NULL,
@@ -286,7 +286,7 @@ _DDL = (
     # ── DeliveryRoute / DeliveryRouteStop (backend/domain/orders_delivery/route.py, §35) ─
     """
     CREATE TABLE IF NOT EXISTS delivery_routes (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         branch_id TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'DRAFT',
         assigned_driver_id TEXT,
@@ -296,7 +296,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS delivery_route_stops (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         route_id TEXT NOT NULL REFERENCES delivery_routes(id),
         delivery_job_id TEXT NOT NULL REFERENCES delivery_jobs(id),
         sequence INTEGER NOT NULL,
@@ -309,7 +309,7 @@ _DDL = (
     # ── RedeliveryRequest (backend/domain/orders_delivery/redelivery.py, §41) ─
     """
     CREATE TABLE IF NOT EXISTS redelivery_requests (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         original_delivery_job_id TEXT NOT NULL REFERENCES delivery_jobs(id),
         reason TEXT NOT NULL,
         requested_by_user_id TEXT NOT NULL,
@@ -326,7 +326,7 @@ _DDL = (
     # ── DriverCashCollection (backend/domain/orders_delivery/cash_collection.py, §44-45) ─
     """
     CREATE TABLE IF NOT EXISTS driver_cash_collections (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         delivery_job_id TEXT NOT NULL REFERENCES delivery_jobs(id),
         driver_id TEXT NOT NULL,
         expected_amount TEXT NOT NULL DEFAULT '0',
@@ -342,7 +342,7 @@ _DDL = (
     # ── DriverSettlement (backend/domain/orders_delivery/settlement.py, §46) ─
     """
     CREATE TABLE IF NOT EXISTS driver_settlements (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         driver_id TEXT NOT NULL,
         branch_id TEXT NOT NULL,
         collection_ids_json TEXT NOT NULL DEFAULT '[]',
@@ -359,7 +359,7 @@ _DDL = (
     # ── transactional outbox (§57) ───────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS orders_delivery_outbox (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         event_id TEXT NOT NULL UNIQUE,
         aggregate_type TEXT NOT NULL,
         aggregate_id TEXT NOT NULL,

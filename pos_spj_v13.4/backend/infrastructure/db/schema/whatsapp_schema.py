@@ -75,7 +75,7 @@ _DDL = (
     # ── Accounts (WhatsAppBusinessAccount, §10) ─────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS whatsapp_business_accounts (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         provider TEXT NOT NULL,
         business_account_external_id TEXT NOT NULL UNIQUE,
         display_name TEXT NOT NULL,
@@ -88,7 +88,7 @@ _DDL = (
     # ── Provider configuration (WhatsAppProviderConfiguration, §10) ────────
     """
     CREATE TABLE IF NOT EXISTS whatsapp_provider_configurations (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         account_id TEXT NOT NULL UNIQUE REFERENCES whatsapp_business_accounts(id),
         provider TEXT NOT NULL,
         api_version TEXT NOT NULL,
@@ -100,7 +100,7 @@ _DDL = (
     # ── Numbers (WhatsAppChannelNumber, §10-11) ─────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS whatsapp_channel_numbers (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         account_id TEXT NOT NULL REFERENCES whatsapp_business_accounts(id),
         phone_number_external_id TEXT NOT NULL UNIQUE,
         display_phone_number TEXT NOT NULL,
@@ -117,7 +117,7 @@ _DDL = (
     # ── Identity (WhatsAppIdentity, §12) ────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS whatsapp_identities (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         wa_id TEXT NOT NULL UNIQUE,
         normalized_phone TEXT NOT NULL,
         customer_id TEXT,
@@ -132,7 +132,7 @@ _DDL = (
     # ── Conversation (WhatsAppConversation + ConversationContext, §14/§31) ─
     """
     CREATE TABLE IF NOT EXISTS whatsapp_conversations (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         identity_id TEXT NOT NULL REFERENCES whatsapp_identities(id),
         channel_number_id TEXT NOT NULL REFERENCES whatsapp_channel_numbers(id),
         branch_id TEXT,
@@ -149,7 +149,7 @@ _DDL = (
     # ── ConversationSession (§14) ────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS whatsapp_conversation_sessions (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         conversation_id TEXT NOT NULL REFERENCES whatsapp_conversations(id),
         started_at TEXT NOT NULL,
         ended_at TEXT
@@ -158,7 +158,7 @@ _DDL = (
     # ── Message (WhatsAppMessage, §15) ──────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS whatsapp_messages (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         conversation_id TEXT NOT NULL REFERENCES whatsapp_conversations(id),
         direction TEXT NOT NULL,
         message_type TEXT NOT NULL,
@@ -172,7 +172,7 @@ _DDL = (
     # ── MessageDelivery (WhatsAppMessageDelivery, §15) ──────────────────────
     """
     CREATE TABLE IF NOT EXISTS whatsapp_message_deliveries (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         message_id TEXT NOT NULL UNIQUE REFERENCES whatsapp_messages(id),
         status TEXT NOT NULL DEFAULT 'QUEUED',
         sent_at TEXT,
@@ -187,7 +187,7 @@ _DDL = (
     # ── Inbox (§20-21 — InboundMessageJob) ──────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS whatsapp_inbox (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         message_id TEXT NOT NULL UNIQUE REFERENCES whatsapp_messages(id),
         status TEXT NOT NULL DEFAULT 'PENDING',
         attempts INTEGER NOT NULL DEFAULT 0,
@@ -200,7 +200,7 @@ _DDL = (
     # ── Outbox (§21-22 — the "no persisted outbox" gap the audit flagged) ──
     """
     CREATE TABLE IF NOT EXISTS whatsapp_outbox (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         message_id TEXT REFERENCES whatsapp_messages(id),
         conversation_id TEXT REFERENCES whatsapp_conversations(id),
         channel_number_id TEXT REFERENCES whatsapp_channel_numbers(id),
@@ -219,7 +219,7 @@ _DDL = (
     # ── Business operation idempotency (§19) ────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS whatsapp_business_operation_idempotency (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         operation_id TEXT NOT NULL UNIQUE,
         operation_type TEXT NOT NULL,
         aggregate_type TEXT NOT NULL,
@@ -234,7 +234,7 @@ _DDL = (
     # ── Dead letter (§61) ────────────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS whatsapp_dead_letter (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         message_id TEXT REFERENCES whatsapp_messages(id),
         operation_id TEXT,
         failure_type TEXT NOT NULL,
@@ -251,7 +251,7 @@ _DDL = (
     # pedido canónico) ───────────────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS whatsapp_order_drafts (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         conversation_id TEXT NOT NULL REFERENCES whatsapp_conversations(id),
         branch_id TEXT,
         customer_external_id TEXT,
@@ -263,7 +263,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS whatsapp_order_draft_lines (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         draft_id TEXT NOT NULL REFERENCES whatsapp_order_drafts(id),
         product_external_id TEXT NOT NULL,
         product_name TEXT NOT NULL,
@@ -275,7 +275,7 @@ _DDL = (
     # ── QuoteDraft (WA-11, §37) ──────────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS whatsapp_quote_drafts (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         conversation_id TEXT NOT NULL REFERENCES whatsapp_conversations(id),
         branch_id TEXT,
         customer_external_id TEXT,
@@ -288,7 +288,7 @@ _DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS whatsapp_quote_draft_lines (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         draft_id TEXT NOT NULL REFERENCES whatsapp_quote_drafts(id),
         product_external_id TEXT NOT NULL,
         product_name TEXT NOT NULL,
@@ -302,7 +302,7 @@ _DDL = (
     # sigue siendo propiedad de Orders/Delivery, no de este canal ─────────────
     """
     CREATE TABLE IF NOT EXISTS whatsapp_delivery_requests (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         conversation_id TEXT NOT NULL REFERENCES whatsapp_conversations(id),
         order_external_id TEXT NOT NULL,
         address TEXT NOT NULL,
@@ -319,7 +319,7 @@ _DDL = (
     # (WA-2/WA-7), que es el estado de la conversación en sí ───────────────
     """
     CREATE TABLE IF NOT EXISTS whatsapp_handoff_requests (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL PRIMARY KEY,
         conversation_id TEXT NOT NULL REFERENCES whatsapp_conversations(id),
         branch_id TEXT,
         reason TEXT NOT NULL,
