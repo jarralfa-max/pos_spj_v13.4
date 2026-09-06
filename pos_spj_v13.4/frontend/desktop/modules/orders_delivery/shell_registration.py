@@ -17,6 +17,11 @@ from typing import Optional
 
 from backend.application.orders_delivery.permissions import OrdersDeliveryPermissions
 from frontend.desktop.shell.modules.module_descriptor import ModuleDescriptor
+from frontend.desktop.shell.modules.session_access import (
+    active_branch_id,
+    actor_user_id,
+    sidebar_permission_checker,
+)
 from frontend.desktop.shell.modules.startup_mode import StartupMode
 from frontend.desktop.shell.routing.route_definition import RouteDefinition
 
@@ -59,31 +64,28 @@ class OrdersDeliveryModuleActivator:
         self._session_context = session_context
         self._view_factories = view_factory_registry
 
-    def _has_permission(self, permission: str) -> bool:
-        """Sin sesión no se concede nada: gobierna el sidebar interno del
-        módulo y mostrar de más sería peor que mostrar de menos."""
-        session = self._session_context
-        if session is None:
-            return False
-        checker = getattr(session, "has_permission", None)
-        if callable(checker):
-            return bool(checker(permission))
-        permissions = getattr(session, "permissions", None)
-        if permissions is None:
-            return False
-        return "*" in permissions or permission.upper() in {str(p).upper() for p in permissions}
-
     def _build_view(self):
+        """La vista arma su propio `page_builder` a partir de
+        `connection`/`branch_id`/`actor_user_id` (ORD-28), así que aquí NO se
+        recompone nada: sólo se lee la sesión.
+
+        Esa lectura vivía copiada en este archivo y traía un error: el
+        `_has_permission` local sondeaba `has_permission`/`permissions`,
+        atributos que ni `SessionContext` ni `LegacySessionAdapter` definen
+        —ambos hablan `tiene_permiso`/`permisos`—, así que devolvía False
+        siempre y el sidebar interno salía VACÍO. Ahora la derivación es la
+        compartida del shell, con una sola implementación (§26).
+        """
         from frontend.desktop.modules.orders_delivery.orders_delivery_view import (
             OrdersDeliveryView,
         )
 
         session = self._session_context
         return OrdersDeliveryView(
-            has_permission=self._has_permission,
+            has_permission=sidebar_permission_checker(session),
             connection=self._connection,
-            branch_id=getattr(session, "sucursal_id", None) or getattr(session, "branch_id", None),
-            actor_user_id=getattr(session, "user_id", None),
+            branch_id=active_branch_id(session),
+            actor_user_id=actor_user_id(session),
         )
 
 

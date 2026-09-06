@@ -10,10 +10,17 @@ construye páginas **reales** en 10 de sus 13 rutas
 (`_REAL_ROUTE_BUILDERS` en `business_intelligence_routes.py`: ejecutivo,
 ventas, inventario, compras, finanzas, forecast, recomendaciones,
 escenarios, alertas, reportes). Sus 3 rutas restantes caen a un
-placeholder explícito. `losses` y `meat_processing`, en cambio, devuelven
-placeholder en **todas** sus rutas, y `orders_delivery` sólo tiene 3 de 23
-reales — cablearlos sería registrar pantallas vacías, no migrar
+placeholder explícito. `orders_delivery` sólo tiene 3 de 23 reales —
+cablear un módulo así sería registrar pantallas vacías, no migrar
 funcionalidad (§2).
+
+CORRECCIÓN: este docstring afirmaba que `losses` y `meat_processing`
+devuelven placeholder en **todas** sus rutas. Es falso, y el error venía de
+medir sobre `<módulo>_routes.build_page()` en vez del `page_builder` que
+pasa el composition root: `losses` tiene 4 rutas reales y
+`meat_processing` 1 (ver 87c00096 y 02d348bf). Siguen sin ser candidatos a
+corte —12 de 16 y 28 de 29 rutas sí son placeholder—, pero la razón es esa,
+no "todas".
 
 `BusinessIntelligenceView` ya acepta `connection`/`branch_id`/
 `actor_user_id` y arma su propio `page_builder` con ellos, así que este
@@ -30,6 +37,11 @@ from typing import Optional
 
 from core.security.permission_catalog import permission_code
 from frontend.desktop.shell.modules.module_descriptor import ModuleDescriptor
+from frontend.desktop.shell.modules.session_access import (
+    active_branch_id,
+    actor_user_id,
+    sidebar_permission_checker,
+)
 from frontend.desktop.shell.modules.startup_mode import StartupMode
 from frontend.desktop.shell.routing.route_definition import RouteDefinition
 
@@ -75,36 +87,30 @@ class BusinessIntelligenceModuleActivator:
         self._session_context = session_context
         self._view_factories = view_factory_registry
 
-    def _has_permission(self, permission: str) -> bool:
-        """Sin sesión no se concede nada.
-
-        El `SidebarResolver` ya filtra por `required_permission` antes de
-        llegar aquí; esto gobierna el sidebar *interno* del módulo, y negar
-        por defecto es lo correcto cuando no hay contexto de sesión — lo
-        contrario mostraría secciones que la persona quizá no puede ver.
-        """
-        session = self._session_context
-        if session is None:
-            return False
-        checker = getattr(session, "has_permission", None)
-        if callable(checker):
-            return bool(checker(permission))
-        permissions = getattr(session, "permissions", None)
-        if permissions is None:
-            return False
-        return "*" in permissions or permission.upper() in {str(p).upper() for p in permissions}
-
     def _build_view(self):
+        """La vista arma su propio `page_builder` a partir de
+        `connection`/`branch_id`/`actor_user_id` (BI-23), así que aquí NO se
+        recompone nada: sólo se lee la sesión.
+
+        El `SidebarResolver` ya filtró la entrada al módulo con
+        `required_permission`; el callback de abajo gobierna el sidebar
+        INTERNO. Estaba roto: el `_has_permission` local sondeaba
+        `has_permission`/`permissions`, atributos que ni `SessionContext` ni
+        `LegacySessionAdapter` definen —ambos hablan `tiene_permiso`/
+        `permisos`—, así que devolvía False siempre y las 10 rutas reales de
+        este módulo quedaban INALCANZABLES tras un sidebar vacío. Ahora usa
+        la derivación compartida del shell (§26).
+        """
         from frontend.desktop.modules.business_intelligence.business_intelligence_view import (
             BusinessIntelligenceView,
         )
 
         session = self._session_context
         return BusinessIntelligenceView(
-            has_permission=self._has_permission,
+            has_permission=sidebar_permission_checker(session),
             connection=self._connection,
-            branch_id=getattr(session, "sucursal_id", None) or getattr(session, "branch_id", None),
-            actor_user_id=getattr(session, "user_id", None),
+            branch_id=active_branch_id(session),
+            actor_user_id=actor_user_id(session),
         )
 
     def activate(self, module: ModuleDescriptor) -> None:
