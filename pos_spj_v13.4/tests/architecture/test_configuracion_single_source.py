@@ -39,11 +39,26 @@ def test_no_system_settings_runtime_write() -> None:
     assert not offenders, f"system_settings written at runtime: {offenders}"
 
 
+# The trailing `\b` is what keeps this from matching the canonical
+# `SettingsRepositoryBase` (backend/infrastructure/db/repositories/settings/base.py),
+# a different, legitimate class owned by the Settings bounded context. The banned
+# symbol is the dead dual-write `SettingsRepository` alone; a plain substring test
+# flagged that base class and made this guard fail for the wrong reason.
+_DEAD_SETTINGS_REPOSITORY = re.compile(r"^class\s+SettingsRepository\b", re.MULTILINE)
+
+
 def test_single_settings_repository_path() -> None:
     # The dead dual-write SettingsRepository must be gone.
     assert not (PACKAGE_ROOT / "repositories" / "settings_repository.py").exists()
-    offenders = [rel for rel, src in _runtime_py_files() if "class SettingsRepository" in src]
+    offenders = [rel for rel, src in _runtime_py_files() if _DEAD_SETTINGS_REPOSITORY.search(src)]
     assert not offenders, f"SettingsRepository still defined: {offenders}"
+
+
+def test_dead_settings_repository_pattern_still_catches_the_real_thing() -> None:
+    """Narrowing the pattern must not turn the guard above into a no-op."""
+    assert _DEAD_SETTINGS_REPOSITORY.search("class SettingsRepository:")
+    assert _DEAD_SETTINGS_REPOSITORY.search("class SettingsRepository(Base):")
+    assert not _DEAD_SETTINGS_REPOSITORY.search("class SettingsRepositoryBase:")
 
 
 def test_no_feature_flags_runtime_write_from_configuracion() -> None:

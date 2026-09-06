@@ -12,9 +12,10 @@ this round, matching every other `shell_registration.py` in this repo
 (finance, cash_register, inventory, …) — that wiring is a separate,
 later step the SHELL-N track owns, not this phase's job. The legacy
 "Apariencia" screen (`modulos/config_interfaz.py`, already broken —
-references nonexistent `theme_service.palettes`/`.densities`) remains
-the only thing end users see today; this module is the typed replacement
-surface, built but not yet switched on.
+referenced nonexistent `theme_service.palettes`/`.densities`) was
+deleted in 6e35244c, so there is no "Apariencia" surface reachable from
+the legacy menu at all right now; this module is the typed replacement,
+built but still not switched on.
 """
 from __future__ import annotations
 

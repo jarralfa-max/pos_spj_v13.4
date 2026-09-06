@@ -41,7 +41,10 @@ UI_FILES = [
     "modulos/configuracion.py",
     "modulos/config_modules.py",
     "modulos/config_hardware.py",
-    "modulos/config_interfaz.py",
+    # modulos/config_interfaz.py deleted in 6e35244c (legacy "Apariencia" screen,
+    # already broken); replaced by frontend/desktop/modules/configuracion/pages/
+    # apariencia_page.py over backend/domain/appearance/. Its 3 documented
+    # violations ratchet to zero by deletion.
 ]
 
 SERVICE_AND_PERSISTENCE_FILES = [
@@ -116,10 +119,6 @@ BASELINE: dict[str, dict[str, int]] = {
         # from the UI; persistence now goes through HardwareSettingsService.
         "currentText": 17,    # device value reads -> FASE 4
         "except_pass": 1,     # ticket tipo_idx swallow -> FASE 8
-    },
-    "modulos/config_interfaz.py": {
-        "currentText": 2,     # theme value reads -> FASE 4
-        "except_pass": 1,     # prefs load swallow -> FASE 8
     },
     "core/services/configuration_settings_service.py": {
         # FASE 3: the application service owns the transaction boundary and
@@ -248,9 +247,9 @@ def test_configuracion_documented_findings_snapshot():
 # pinned to hard zero so they can never regress).
 # ---------------------------------------------------------------------------
 def test_configuracion_main_ui_has_no_direct_sql():
-    """modulos/configuracion.py and config_interfaz.py must stay SQL-free."""
+    """modulos/configuracion.py must stay SQL-free."""
     offenders = []
-    for relative in ("modulos/configuracion.py", "modulos/config_interfaz.py"):
+    for relative in ("modulos/configuracion.py",):
         live = _measure(relative)
         for pattern in ("cursor_execute", "sql_insert", "sql_update", "sql_delete"):
             if live.get(pattern):

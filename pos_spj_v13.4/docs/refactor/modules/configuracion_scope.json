@@ -11,7 +11,6 @@
     "core/module_config.py",
     "core/services/config_service.py",
     "modulos/config_hardware.py",
-    "modulos/config_interfaz.py",
     "modulos/config_modules.py",
     "core/repositories/hardware_config_repository.py",
     "backend/application/queries/hardware_settings_query_service.py",

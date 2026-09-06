@@ -14,7 +14,6 @@ REQUIRED_CANONICAL_FILES = {
     "repositories/config_repository.py",
     "core/module_config.py",
     "modulos/config_hardware.py",
-    "modulos/config_interfaz.py",
     "modulos/config_modules.py",
     "core/repositories/hardware_config_repository.py",
     "backend/application/queries/hardware_settings_query_service.py",
@@ -68,7 +67,7 @@ def test_configuracion_work_queue_closed_scope_and_selected_identity() -> None:
     batches = {batch["id"]: batch for batch in queue["batches"]}
 
     assert queue["phase"] == "CONFIGURACION"
-    assert queue["active_batch"] == "CONFIGURACION-05-MUTATIONS"
+    assert queue["active_batch"] == "CONFIGURACION-06-DOMAIN_RULES"
     assert batches["CONFIGURACION-01-SCOPE"]["status"] == "DONE"
     assert batches["CONFIGURACION-01-SCOPE"]["violations"] == 0
     assert batches["CONFIGURACION-01-SCOPE"]["completed_actions"]
@@ -83,6 +82,13 @@ def test_configuracion_work_queue_closed_scope_and_selected_identity() -> None:
     assert batches["CONFIGURACION-04-QUERIES"]["violations"] == 0
     assert batches["CONFIGURACION-04-QUERIES"]["completed_actions"]
     assert batches["CONFIGURACION-04-QUERIES"]["forbidden_reselection"]
+    # 05 closed since this assertion block was last ratcheted; the queue moved on
+    # to 06 and the test kept pinning 05 as active, which is the drift this
+    # harness exists to force someone to record.
+    assert batches["CONFIGURACION-05-MUTATIONS"]["status"] == "DONE"
+    assert batches["CONFIGURACION-05-MUTATIONS"]["violations"] == 0
+    assert batches["CONFIGURACION-05-MUTATIONS"]["completed_actions"]
+    assert batches["CONFIGURACION-05-MUTATIONS"]["forbidden_reselection"]
 
 
 def test_no_configuracion_control_or_module_copy_exists_in_external_repo_root() -> None:

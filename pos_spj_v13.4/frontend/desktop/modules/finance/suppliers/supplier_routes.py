@@ -79,12 +79,12 @@ def build_supplier_presenter(connection, session_context=None) -> SupplierPresen
     )
 
 
-def create_suppliers_view(container, parent=None):
-    """Factory: build the SuppliersView from an app container / connection."""
-    from frontend.desktop.modules.finance.suppliers.suppliers_view import SuppliersView
-
-    connection = getattr(container, "db", None) or getattr(container, "db_conn", None) \
-        or container
-    session_context = getattr(container, "session_context", None)
-    presenter = build_supplier_presenter(connection, session_context)
-    return SuppliersView(presenter, parent)
+# `create_suppliers_view(container, ...)` used to live here and resolved its own
+# dependencies out of whatever object it was handed
+# (`getattr(container, "db", None) or getattr(container, "db_conn", None) or container`)
+# — the Service-Locator-at-the-frontier pattern the architecture rules forbid, and
+# the reason this file tripped the finance bounded-context guard while its own
+# docstring claimed the opposite. It had zero callers: the real consumer,
+# `frontend/desktop/modules/finance/pages/suppliers_page.py`, already goes through
+# `build_supplier_presenter(connection, session_context)` with both dependencies
+# passed explicitly. Deleted rather than rewritten, since nothing needed it.

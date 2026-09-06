@@ -16,7 +16,8 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 UI_FILES = (
     "modulos/configuracion.py",
     "modulos/config_hardware.py",
-    "modulos/config_interfaz.py",
+    # modulos/config_interfaz.py deleted in 6e35244c (legacy "Apariencia" screen);
+    # the canonical surface is frontend/desktop/modules/configuracion/pages/apariencia_page.py.
     "modulos/config_modules.py",
 )
 EXTERNAL_IMPORT_RE = re.compile(

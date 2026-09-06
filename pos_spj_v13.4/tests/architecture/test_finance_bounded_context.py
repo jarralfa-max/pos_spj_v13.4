@@ -31,6 +31,30 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _code(path: Path) -> str:
+    """`_read` with comments and string literals removed.
+
+    The identifier checks below (`AppContainer`, `db_conn`, `import sqlite3`)
+    used to run against the raw file, so a docstring *stating* that a module
+    never touches the AppContainer tripped the very guard that sentence was
+    describing — the failure reported prose, not a dependency. Only the
+    identifier guards use this; the SQL and hex-colour guards keep reading the
+    raw text, because what they look for legitimately lives inside strings.
+    """
+    import io
+    import tokenize
+
+    pieces: list[str] = []
+    try:
+        for token in tokenize.generate_tokens(io.StringIO(_read(path)).readline):
+            if token.type in (tokenize.COMMENT, tokenize.STRING):
+                continue
+            pieces.append(token.string)
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return _read(path)  # unparseable: fall back to the strict raw check
+    return "\n".join(pieces)
+
+
 class TestFinanceUiIsClean:
     def test_no_sql_in_ui(self):
         sql_pattern = re.compile(
@@ -41,7 +65,7 @@ class TestFinanceUiIsClean:
 
     def test_no_sqlite_or_connections_in_ui(self):
         for path in _py_files(UI_DIR):
-            source = _read(path)
+            source = _code(path)
             assert "import sqlite3" not in source, f"sqlite3 en UI: {path}"
             if path.name != "finance_routes.py":  # composition root wires the connection
                 assert "db_conn" not in source, f"db_conn en UI: {path}"
@@ -68,7 +92,7 @@ class TestFinanceUiIsClean:
         for path in _py_files(UI_DIR):
             if path.name == "finance_routes.py":
                 continue
-            assert "AppContainer" not in _read(path), f"AppContainer en UI: {path}"
+            assert "AppContainer" not in _code(path), f"AppContainer en UI: {path}"
 
     def test_no_except_exception_pass(self):
         pattern = re.compile(r"except Exception:\s*\n\s*pass")
