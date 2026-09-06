@@ -4,19 +4,19 @@ Estado real medido, no supuesto:
 
 * `interfaz/main_window.py` registra **26** módulos vía `_conectar(...)` y es el
   único shell que el usuario ve — `main.py` lo construye directamente.
-* `frontend/desktop/shell/desktop_shell_window_composition.py` cablea **9**
+* `frontend/desktop/shell/desktop_shell_window_composition.py` cablea **10**
   módulos y **no lo llama ningún código productivo**: sólo pruebas. El shell
   canónico existe pero está DORMIDO.
-* Los 9 canónicos tienen contraparte viva en MainWindow, así que esos dominios
+* Los 10 canónicos tienen contraparte viva en MainWindow, así que esos dominios
   están compuestos dos veces. No son dos rutas vivas — la canónica no arranca —
   pero sí es el "existe pero no gobierna" que §49 declara hallazgo abierto.
 
 Por qué este archivo es un ratchet y no un `assert` de corte:
 
-Cambiar `main.py` al shell canónico hoy **perdería 17 módulos operativos**
-(Activos, Configuración, Delivery, Producción, BI, Mermas, WhatsApp…), y §2
+Cambiar `main.py` al shell canónico hoy **perdería 16 módulos operativos**
+(Activos, Delivery, Producción, BI, Mermas, WhatsApp…), y §2
 prohíbe explícitamente eliminar funcionalidad operativa sin migración completa.
-El corte exige migrar esos 17 primero. Mientras tanto, lo que sí se puede
+El corte exige migrar esos 16 primero. Mientras tanto, lo que sí se puede
 garantizar es que la brecha **no crezca**: ningún módulo nuevo puede nacer en el
 shell legacy, y el registro canónico no puede encoger.
 
@@ -51,6 +51,7 @@ _CANONICAL_MODULE_IDS = frozenset({
     "SALES_POS_MODULE_ID", "CUSTOMERS_CRM_MODULE_ID", "FINANCE_MODULE_ID",
     "HR_MODULE_ID", "INVENTORY_MODULE_ID", "PRODUCTS_MODULE_ID",
     "PURCHASING_MODULE_ID", "TRANSFERS_MODULE_ID", "CASH_REGISTER_MODULE_ID",
+    "CONFIGURACION_MODULE_ID",
 })
 
 # Correspondencia canónico -> slot legacy. Cuando un módulo complete su cutover,
@@ -65,6 +66,11 @@ _CUTOVER_PAIRS = {
     "PURCHASING_MODULE_ID": "COMPRAS",
     "TRANSFERS_MODULE_ID": "TRANSFERENCIAS",
     "CASH_REGISTER_MODULE_ID": "CAJA",
+    # `configuracion` ya tenía shell_registration.py completo y sólo faltaba
+    # cablearlo. Cubre el slot CONFIGURACION; CONFIG_HARDWARE, CONFIG_MODULOS y
+    # CONFIG_SEGURIDAD siguen siendo slots legacy propios hasta que el módulo
+    # canónico absorba sus secciones.
+    "CONFIGURACION_MODULE_ID": "CONFIGURACION",
 }
 
 
@@ -141,8 +147,8 @@ def test_every_canonical_module_still_has_its_legacy_twin_documented() -> None:
 def test_remaining_cutover_gap_is_explicit() -> None:
     """La brecha real que bloquea las fases 5 y 6, medida y visible."""
     legacy_only = _legacy_modules() - set(_CUTOVER_PAIRS.values())
-    assert len(legacy_only) == 17, (
+    assert len(legacy_only) == 16, (
         f"La brecha del cutover cambió: {len(legacy_only)} módulos sólo-legacy "
-        f"(antes 17). Actualiza este número y 09_SHELL_CUTOVER_GAP.md:\n  "
+        f"(antes 16). Actualiza este número y 09_SHELL_CUTOVER_GAP.md:\n  "
         + "\n  ".join(sorted(legacy_only))
     )

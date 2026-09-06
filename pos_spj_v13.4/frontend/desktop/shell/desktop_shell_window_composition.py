@@ -37,6 +37,12 @@ from frontend.desktop.modules.cash_register.shell_registration import (
     CASH_REGISTER_MODULE_ID, CashRegisterModuleActivator,
     build_cash_register_module_descriptor, build_cash_register_route_definition,
 )
+from frontend.desktop.modules.configuracion.shell_registration import (
+    CONFIGURACION_MODULE_ID,
+    ConfiguracionModuleActivator,
+    build_configuracion_module_descriptor,
+    build_configuracion_route_definition,
+)
 from frontend.desktop.modules.customers_crm.shell_registration import (
     CUSTOMERS_CRM_MODULE_ID, CustomersCrmModuleActivator,
     build_customers_crm_module_descriptor, build_customers_crm_route_definition,
@@ -120,13 +126,14 @@ _MIGRATED_MODULE_WIRINGS = (
     (PURCHASING_MODULE_ID, build_purchasing_module_descriptor, build_purchasing_route_definition, _standard_activator_factory(PurchasingModuleActivator)),
     (TRANSFERS_MODULE_ID, build_transfers_module_descriptor, build_transfers_route_definition, _standard_activator_factory(TransfersModuleActivator)),
     (CASH_REGISTER_MODULE_ID, build_cash_register_module_descriptor, build_cash_register_route_definition, _standard_activator_factory(CashRegisterModuleActivator)),
+    (CONFIGURACION_MODULE_ID, build_configuracion_module_descriptor, build_configuracion_route_definition, _standard_activator_factory(ConfiguracionModuleActivator)),
 )
 
 
 def build_application_window(
     *, context: ApplicationContext, connection, session_context, health_report: HealthReport,
 ) -> ApplicationWindow:
-    """Build a real, live `ApplicationWindow` with all 9 migrated modules
+    """Build a real, live `ApplicationWindow` with all 10 migrated modules
     registered, routable, and represented in the sidebar — the same
     `connection`/`session_context` every migrated module's own
     `shell_registration.py` already expects (see that module's docstring

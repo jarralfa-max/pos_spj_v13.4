@@ -77,7 +77,7 @@ def provisioned_conn():
         owner_username=OWNER_USERNAME, owner_password=PASSWORD, owner_full_name="Jose Alfaro",
         now=T0,
     )
-    # The 9 migrated modules' own schemas aren't part of the auth/bootstrap
+    # The migrated modules' own schemas aren't part of the auth/bootstrap
     # schema make_db() seeds — add just enough for the module this test
     # navigates into (transfers), same lightweight fixture its own SHELL-16
     # tests already use. The provisioned branch becomes the active branch
@@ -123,7 +123,7 @@ def test_login_builds_a_real_navigable_application_window(app, provisioned_conn,
 
     # The owner role must carry admin-level access — PermissionEvaluator's
     # is_admin() bypass — so every migrated module's sidebar item resolves.
-    assert window.sidebar.visible_item_count == 9
+    assert window.sidebar.visible_item_count == 10
 
     result = window.navigate(TRANSFERS_ROUTE_ID)
     assert isinstance(result.view, TransfersView)

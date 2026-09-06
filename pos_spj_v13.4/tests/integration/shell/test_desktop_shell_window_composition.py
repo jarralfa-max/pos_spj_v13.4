@@ -1,5 +1,5 @@
 """SHELL-16½ piece 4a — `build_application_window()` proven end-to-end:
-a real `ApplicationWindow`, all 9 migrated modules registered, the real
+a real `ApplicationWindow`, all migrated modules registered, the real
 sidebar showing all 9 (permission-gated for real), and real navigation
 into two of them producing the actual production widgets.
 
@@ -87,14 +87,14 @@ def test_builds_a_real_application_window(app, conn):
     assert isinstance(window, ApplicationWindow)
 
 
-def test_sidebar_shows_all_nine_modules_when_fully_permitted(app, conn):
+def test_sidebar_shows_all_migrated_modules_when_fully_permitted(app, conn):
     context = _context(permissions={"*"})
     window = build_application_window(
         context=context, connection=conn, session_context=LegacySessionAdapter(context),
         health_report=_healthy_report(),
     )
     assert window.sidebar is not None
-    assert window.sidebar.visible_item_count == 9
+    assert window.sidebar.visible_item_count == 10
 
 
 def test_no_module_is_constructed_until_navigated_to(app, conn):

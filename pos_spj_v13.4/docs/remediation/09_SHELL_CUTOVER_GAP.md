@@ -93,3 +93,72 @@ El orden es forzoso y no admite atajos:
 
 Cada módulo migrado debe reducir `_LEGACY_MODULES` y ampliar `_CANONICAL_MODULE_IDS` en el
 ratchet, de modo que el progreso sea siempre visible y verificable.
+
+---
+
+## Corrección — mi diagnóstico inicial estaba mal planteado
+
+Escribí arriba "17 módulos sólo-legacy" y lo presenté como si faltara construirlos. **Eso
+era incorrecto y conviene decirlo con claridad**: medí el *cableado del shell*, no la
+existencia de los módulos. `frontend/desktop/modules/` contiene **18 paquetes canónicos**.
+
+El cuadro real, verificado paquete por paquete:
+
+| Situación | Módulos | Trabajo pendiente |
+| --- | --- | --- |
+| Cableados en el shell canónico | 10 | ninguno |
+| Existen, **sin contrato de shell** | `assets`, `business_intelligence`, `fidelidad`, `losses`, `meat_processing`, `orders_delivery`, `pricing`, `tarjetas_fidelidad` | escribir `shell_registration.py` |
+| Sin módulo canónico | `DASHBOARD`, `COTIZACIONES` | construir el módulo |
+
+Ninguno de esos 8 declara `ModuleDescriptor`, `RouteDefinition` ni `ModuleActivator`
+(comprobado con `git grep` sobre cada paquete): tienen vistas, páginas y presenters, pero
+no la superficie que el shell necesita para registrarlos. No hay que construirlos de cero
+— hay que darles el contrato.
+
+## Primer módulo cableado: `configuracion`
+
+`configuracion` ya tenía `shell_registration.py` **completo** (`CONFIGURACION_MODULE_ID`,
+`build_configuracion_module_descriptor`, `build_configuracion_route_definition`,
+`ConfiguracionModuleActivator`) y sólo faltaba añadirlo a `_MIGRATED_MODULE_WIRINGS` y al
+sidebar. Estaba construido y sin conectar.
+
+Se verificó antes de cablearlo que su activator acepta exactamente la firma que
+`_standard_activator_factory` entrega (`connection`, `view_factory_registry`,
+`session_context`), igual que los otros nueve — no hizo falta una factory especial como la
+de `products`.
+
+Etiqueta del sidebar: "Configuración", tomada de `menu_lateral.py` sin el emoji ni el
+sufijo "(Nuevo)", siguiendo la convención que el propio archivo de navegación documenta.
+
+**Brecha: 17 → 16.**
+
+### Una prueba que pasaba por accidente
+
+`test_migrated_modules_sidebar.py` mantiene su propia lista `_MODULE_BUILDERS`. Al añadir
+el item de navegación de `configuracion` sin añadirlo a esa lista, la prueba **seguía
+pasando**: `SidebarResolver` descarta en silencio los items cuyo módulo no está registrado,
+así que resolvía 9 de 10 y su `assert len(resolved) == 9` seguía verde mientras
+sub-verificaba.
+
+Se añadió `configuracion` también a esa lista y se subieron los conteos a 10. Las tres
+pruebas que fijaban 9 se **endurecen**, no se relajan.
+
+### Evidencia
+
+```text
+python -m pytest tests/integration/shell/ -q -p no:cacheprovider
+```
+Resultado: **60 passed** (antes 58 passed + 2 failed por el conteo de 9).
+
+```text
+python -m pytest tests/architecture/test_shell_cutover_ratchet.py -q
+```
+El ratchet **falló primero** exigiendo registrar el avance
+(`CONFIGURACION_MODULE_ID` ya está en el shell canónico), y pasó tras actualizarlo:
+**5 passed**. Funcionó exactamente como se diseñó.
+
+## Estado tras esta corrección
+
+`main.py` sigue sin cambiar. La brecha es de **16 slots legacy**, de los cuales 14 tienen
+módulo canónico esperando contrato de shell y 2 no tienen módulo. El corte sigue bloqueado,
+pero el trabajo restante es bastante menor de lo que este documento afirmaba antes.

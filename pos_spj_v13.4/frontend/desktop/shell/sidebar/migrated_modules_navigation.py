@@ -34,6 +34,11 @@ from frontend.desktop.modules.cash_register.shell_registration import (
     CASH_REGISTER_REQUIRED_PERMISSION,
     CASH_REGISTER_ROUTE_ID,
 )
+from frontend.desktop.modules.configuracion.shell_registration import (
+    CONFIGURACION_MODULE_ID,
+    CONFIGURACION_REQUIRED_PERMISSION,
+    CONFIGURACION_ROUTE_ID,
+)
 from frontend.desktop.modules.customers_crm.shell_registration import (
     CUSTOMERS_CRM_MODULE_ID,
     CUSTOMERS_CRM_REQUIRED_PERMISSION,
@@ -124,6 +129,11 @@ MIGRATED_MODULES_NAVIGATION_ITEMS: tuple[NavigationItemDefinition, ...] = (
         item_id="nav.hr", module_id=HR_MODULE_ID, route_id=HR_ROUTE_ID,
         label="Recursos Humanos", icon=Icons.HR, order=90, group=MIGRATED_MODULES_GROUP,
         required_permission=HR_REQUIRED_PERMISSION,
+    ),
+    NavigationItemDefinition(
+        item_id="nav.configuracion", module_id=CONFIGURACION_MODULE_ID, route_id=CONFIGURACION_ROUTE_ID,
+        label="Configuración", icon=Icons.SETTINGS, order=100, group=MIGRATED_MODULES_GROUP,
+        required_permission=CONFIGURACION_REQUIRED_PERMISSION,
     ),
 )
 

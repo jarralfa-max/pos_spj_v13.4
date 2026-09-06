@@ -1,4 +1,4 @@
-"""SHELL-16½ piece 3 — the 9 migrated modules' navigation items rendered
+"""SHELL-16½ piece 3 — the migrated modules' navigation items rendered
 by the REAL `SidebarResolver` + `GlobalSidebar`, gated by a REAL
 `ApplicationContext`'s permissions. Proves the whole chain (registry ->
 resolver -> widget) is not just internally consistent on paper but
@@ -25,6 +25,10 @@ from backend.bootstrap.application_context import ApplicationContext, FeatureCon
 from backend.bootstrap.health.health_status import HealthReport, HealthStatus  # noqa: E402
 from frontend.desktop.modules.cash_register.shell_registration import (  # noqa: E402
     build_cash_register_module_descriptor, build_cash_register_route_definition,
+)
+from frontend.desktop.modules.configuracion.shell_registration import (
+    build_configuracion_module_descriptor,
+    build_configuracion_route_definition,
 )
 from frontend.desktop.modules.customers_crm.shell_registration import (  # noqa: E402
     build_customers_crm_module_descriptor, build_customers_crm_route_definition,
@@ -70,6 +74,7 @@ _MODULE_BUILDERS = (
     (build_purchasing_module_descriptor, build_purchasing_route_definition),
     (build_transfers_module_descriptor, build_transfers_route_definition),
     (build_cash_register_module_descriptor, build_cash_register_route_definition),
+    (build_configuracion_module_descriptor, build_configuracion_route_definition),
 )
 
 
@@ -93,7 +98,7 @@ def _context(*, permissions) -> ApplicationContext:
     )
 
 
-def _wire_all_nine():
+def _wire_all_migrated():
     modules = ModuleRegistry()
     routes = RouteRegistry()
     nav_items = NavigationItemRegistry()
@@ -107,15 +112,15 @@ def _wire_all_nine():
     return resolver, modules, routes
 
 
-def test_all_nine_items_resolve_when_every_permission_is_granted(app):
-    resolver, _modules, _routes = _wire_all_nine()
+def test_all_migrated_items_resolve_when_every_permission_is_granted(app):
+    resolver, _modules, _routes = _wire_all_migrated()
     context = _context(permissions={"*"})
     resolved = resolver.resolve(context=context, health_report=_healthy_report())
-    assert len(resolved) == 9
+    assert len(resolved) == 10
 
 
 def test_only_permitted_items_resolve_with_a_narrow_permission_set(app):
-    resolver, _modules, _routes = _wire_all_nine()
+    resolver, _modules, _routes = _wire_all_migrated()
     context = _context(permissions={SALES_POS_REQUIRED_PERMISSION.upper()})
     resolved = resolver.resolve(context=context, health_report=_healthy_report())
     assert len(resolved) == 1
@@ -137,10 +142,10 @@ def test_an_unregistered_module_drops_its_item_silently(app):
 
 
 def test_global_sidebar_renders_the_resolved_items_as_real_rows(app):
-    resolver, _modules, _routes = _wire_all_nine()
+    resolver, _modules, _routes = _wire_all_migrated()
     context = _context(permissions={"*"})
     resolved = resolver.resolve(context=context, health_report=_healthy_report())
 
     sidebar = GlobalSidebar()
     sidebar.set_items(resolved)
-    assert sidebar.visible_item_count == 9
+    assert sidebar.visible_item_count == 10
