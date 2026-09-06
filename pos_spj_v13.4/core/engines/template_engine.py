@@ -172,3 +172,36 @@ class LabelTemplateEngine(TemplateEngine):
 
     def generar_etiqueta_zpl(self, template_zpl: str, producto_data: dict) -> str:
         return self.render(template_zpl, producto_data)
+
+
+def default_ticket_template() -> str:
+    """Plantilla HTML mínima cuando `configuraciones.ticket_template_html` no existe.
+
+    Vivía como `SalesService._default_ticket_template`, lo que obligaba a
+    `sales_receipt_client.py` a importar las 1615 líneas del servicio legacy de
+    ventas para obtener una cadena estática. Es una plantilla por defecto, no
+    lógica de venta: pertenece al motor que la renderiza.
+    """
+    return (
+        '<div style="text-align:center;">'
+        "<strong>{{nombre_empresa}}</strong><br>"
+        "Sucursal: {{sucursal_nombre}}<br>"
+        "{{sucursal_direccion}}<br>"
+        "Tel: {{sucursal_telefono}}<br>"
+        "WhatsApp: {{whatsapp_empresa}}<br>"
+        "RFC: {{rfc_emisor}}<br>"
+        "Régimen: {{regimen_fiscal}}<br>"
+        "<hr>"
+        "Ticket: {{folio}}<br>"
+        "Fecha: {{fecha}}<br>"
+        "Cajero: {{cajero}}<br>"
+        "Cliente: {{cliente_nombre}}<br>"
+        "<hr>"
+        "<table>{{items_html}}</table>"
+        "<hr>"
+        "Subtotal: {{subtotal}}<br>"
+        "Total: {{total}}<br>"
+        "Forma de pago: {{forma_pago}}<br>"
+        "{{mensaje_psicologico}}"
+        "</div>"
+    )

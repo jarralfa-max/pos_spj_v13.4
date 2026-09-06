@@ -27,7 +27,7 @@ template_engine.TicketTemplateEngine.generar_ticket()`, a genuinely
 UI-independent engine (constructor takes a bare `db_conn`, no QWidget) that
 reads the SAME `configuraciones.ticket_template_html` template the UI's
 designer saves, with the SAME default-template fallback
-(`SalesService._default_ticket_template()`) production already uses when
+(`core.engines.template_engine.default_ticket_template()`) production uses when
 none is configured. `save_receipt_document()` below reuses that exact
 engine and that exact fallback — not a simplified stand-in, not a second
 competing implementation — so the saved document matches what
@@ -215,16 +215,18 @@ class SalesReceiptClient:
         lookups)."""
         if self._connection is None:
             raise RuntimeError("save_receipt_document requiere una connection")
-        from core.engines.template_engine import TicketTemplateEngine
+        from core.engines.template_engine import (
+            TicketTemplateEngine,
+            default_ticket_template,
+        )
         from core.services.printer_service import save_ticket_pdf
-        from core.services.sales_service import SalesService
 
         try:
             row = self._connection.execute(
                 "SELECT valor FROM configuraciones WHERE clave='ticket_template_html'").fetchone()
         except Exception:  # noqa: BLE001 - no configuraciones table (fresh/minimal DB) degrades to default
             row = None
-        template_html = (row[0] if row and row[0] else None) or SalesService._default_ticket_template()
+        template_html = (row[0] if row and row[0] else None) or default_ticket_template()
         html = TicketTemplateEngine(self._connection).generar_ticket(
             template_html, self._to_ticket_payload(receipt))
         return save_ticket_pdf(html, filepath)

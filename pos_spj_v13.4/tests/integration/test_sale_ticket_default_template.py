@@ -1,12 +1,11 @@
 """ticket_template_html ausente NUNCA bloquea la venta: se usa template default."""
 from __future__ import annotations
 
-from core.engines.template_engine import TicketTemplateEngine
-from core.services.sales_service import SalesService
+from core.engines.template_engine import TicketTemplateEngine, default_ticket_template
 
 
 def test_default_template_renders_complete_ticket():
-    template = SalesService._default_ticket_template()
+    template = default_ticket_template()
     for var in ("{{nombre_empresa}}", "{{sucursal_nombre}}", "{{folio}}",
                 "{{fecha}}", "{{cajero}}", "{{total}}", "{{forma_pago}}"):
         assert var in template
@@ -41,4 +40,4 @@ def test_sales_service_never_raises_on_missing_template():
     src = (Path(__file__).resolve().parents[2] / "core" / "services" / "sales_service.py")
     text = src.read_text(encoding="utf-8")
     assert 'raise ValueError("ticket_template_html not configured")' not in text
-    assert "_default_ticket_template" in text
+    assert "default_ticket_template()" in text

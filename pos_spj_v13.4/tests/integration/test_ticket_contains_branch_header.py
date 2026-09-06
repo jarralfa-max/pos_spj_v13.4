@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from backend.shared.ids import new_uuid
 from core.engines.template_engine import TicketTemplateEngine
+from core.engines.template_engine import default_ticket_template
 from core.services.sales_service import SalesService
 from tests.integration._born_clean_db import make_db
 
@@ -73,7 +74,7 @@ def test_rendered_ticket_contains_branch_header():
     }
     datos.update(svc._ticket_header_data(branch_id))
     html = TicketTemplateEngine(db_conn=conn).generar_ticket(
-        SalesService._default_ticket_template(), datos
+        default_ticket_template(), datos
     )
     assert "Sucursal Sur" in html
     assert "Av. Tres 99" in html

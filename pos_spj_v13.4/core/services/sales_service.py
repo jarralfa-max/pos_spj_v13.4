@@ -976,7 +976,8 @@ class SalesService:
                 logger.warning(
                     "ticket_template_html no configurado — usando template default"
                 )
-                template_html = self._default_ticket_template()
+                from core.engines.template_engine import default_ticket_template
+                template_html = default_ticket_template()
             ticket_final_html = self.ticket_template_engine.generar_ticket(
                 template_html, datos_venta, mensaje_psicologico="🐔 ¡Gracias por tu compra!"
             )
@@ -1091,33 +1092,6 @@ class SalesService:
         except Exception as e:
             logger.warning("_ticket_header_data: sucursal %s no resuelta: %s", branch_id, e)
         return header
-
-    @staticmethod
-    def _default_ticket_template() -> str:
-        """Template HTML mínimo usado cuando ticket_template_html no está configurado."""
-        return (
-            '<div style="text-align:center;">'
-            "<strong>{{nombre_empresa}}</strong><br>"
-            "Sucursal: {{sucursal_nombre}}<br>"
-            "{{sucursal_direccion}}<br>"
-            "Tel: {{sucursal_telefono}}<br>"
-            "WhatsApp: {{whatsapp_empresa}}<br>"
-            "RFC: {{rfc_emisor}}<br>"
-            "Régimen: {{regimen_fiscal}}<br>"
-            "<hr>"
-            "Ticket: {{folio}}<br>"
-            "Fecha: {{fecha}}<br>"
-            "Cajero: {{cajero}}<br>"
-            "Cliente: {{cliente_nombre}}<br>"
-            "<hr>"
-            "<table>{{items_html}}</table>"
-            "<hr>"
-            "Subtotal: {{subtotal}}<br>"
-            "Total: {{total}}<br>"
-            "Forma de pago: {{forma_pago}}<br>"
-            "{{mensaje_psicologico}}"
-            "</div>"
-        )
 
     def _calculate_change(self, payment_method: str, payment_lines: dict, total: float) -> float:
         method = self._normalize_payment_method(payment_method)

@@ -125,16 +125,17 @@ async def anular_venta(
     db=Depends(get_db),
 ):
     """Anula una venta existente."""
-    from fastapi import Request
-    from core.services.sales_service import SalesService
-    # Obtener sales_service del container
+    # NOTA: este endpoint marca la venta como cancelada con SQL directo y no
+    # genera reversa contable, ni devuelve inventario, ni registra evento.
+    # El import de SalesService que habia aqui estaba MUERTO (nunca se usaba),
+    # asi que se retira; la deuda real de este endpoint queda documentada en
+    # docs/remediation/08_SALES_CUTOVER.md, no la crea esta limpieza.
     row = db.execute("SELECT estado FROM ventas WHERE id=?", (venta_id,)).fetchone()
     if not row:
         raise HTTPException(404, f"Venta {venta_id} no encontrada")
     if row["estado"] in ("cancelada", "anulada"):
         raise HTTPException(409, "La venta ya está anulada")
     try:
-        # Usar sales_service si está disponible en el scope
         db.execute(
             "UPDATE ventas SET estado='cancelada', notas=? WHERE id=?",
             (motivo, venta_id)
