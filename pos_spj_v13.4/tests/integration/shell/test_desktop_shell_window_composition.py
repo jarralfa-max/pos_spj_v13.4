@@ -94,7 +94,7 @@ def test_sidebar_shows_all_migrated_modules_when_fully_permitted(app, conn):
         health_report=_healthy_report(),
     )
     assert window.sidebar is not None
-    assert window.sidebar.visible_item_count == 11
+    assert window.sidebar.visible_item_count == 16
 
 
 def test_no_module_is_constructed_until_navigated_to(app, conn):

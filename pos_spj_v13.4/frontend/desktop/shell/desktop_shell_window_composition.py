@@ -39,6 +39,36 @@ from frontend.desktop.modules.business_intelligence.shell_registration import (
     build_business_intelligence_module_descriptor,
     build_business_intelligence_route_definition,
 )
+from frontend.desktop.modules.losses.shell_registration import (
+    LOSSES_MODULE_ID,
+    LossesModuleActivator,
+    build_losses_module_descriptor,
+    build_losses_route_definition,
+)
+from frontend.desktop.modules.meat_processing.shell_registration import (
+    MEAT_PROCESSING_MODULE_ID,
+    MeatProcessingModuleActivator,
+    build_meat_processing_module_descriptor,
+    build_meat_processing_route_definition,
+)
+from frontend.desktop.modules.orders_delivery.shell_registration import (
+    ORDERS_DELIVERY_MODULE_ID,
+    OrdersDeliveryModuleActivator,
+    build_orders_delivery_module_descriptor,
+    build_orders_delivery_route_definition,
+)
+from frontend.desktop.modules.fidelidad.shell_registration import (
+    FIDELIDAD_MODULE_ID,
+    FidelidadModuleActivator,
+    build_fidelidad_module_descriptor,
+    build_fidelidad_route_definition,
+)
+from frontend.desktop.modules.tarjetas_fidelidad.shell_registration import (
+    TARJETAS_FIDELIDAD_MODULE_ID,
+    TarjetasFidelidadModuleActivator,
+    build_tarjetas_fidelidad_module_descriptor,
+    build_tarjetas_fidelidad_route_definition,
+)
 from frontend.desktop.modules.cash_register.shell_registration import (
     CASH_REGISTER_MODULE_ID, CashRegisterModuleActivator,
     build_cash_register_module_descriptor, build_cash_register_route_definition,
@@ -134,13 +164,18 @@ _MIGRATED_MODULE_WIRINGS = (
     (CASH_REGISTER_MODULE_ID, build_cash_register_module_descriptor, build_cash_register_route_definition, _standard_activator_factory(CashRegisterModuleActivator)),
     (CONFIGURACION_MODULE_ID, build_configuracion_module_descriptor, build_configuracion_route_definition, _standard_activator_factory(ConfiguracionModuleActivator)),
     (BUSINESS_INTELLIGENCE_MODULE_ID, build_business_intelligence_module_descriptor, build_business_intelligence_route_definition, _standard_activator_factory(BusinessIntelligenceModuleActivator)),
+    (LOSSES_MODULE_ID, build_losses_module_descriptor, build_losses_route_definition, _standard_activator_factory(LossesModuleActivator)),
+    (MEAT_PROCESSING_MODULE_ID, build_meat_processing_module_descriptor, build_meat_processing_route_definition, _standard_activator_factory(MeatProcessingModuleActivator)),
+    (ORDERS_DELIVERY_MODULE_ID, build_orders_delivery_module_descriptor, build_orders_delivery_route_definition, _standard_activator_factory(OrdersDeliveryModuleActivator)),
+    (FIDELIDAD_MODULE_ID, build_fidelidad_module_descriptor, build_fidelidad_route_definition, _standard_activator_factory(FidelidadModuleActivator)),
+    (TARJETAS_FIDELIDAD_MODULE_ID, build_tarjetas_fidelidad_module_descriptor, build_tarjetas_fidelidad_route_definition, _standard_activator_factory(TarjetasFidelidadModuleActivator)),
 )
 
 
 def build_application_window(
     *, context: ApplicationContext, connection, session_context, health_report: HealthReport,
 ) -> ApplicationWindow:
-    """Build a real, live `ApplicationWindow` with all 11 migrated modules
+    """Build a real, live `ApplicationWindow` with all 16 migrated modules
     registered, routable, and represented in the sidebar — the same
     `connection`/`session_context` every migrated module's own
     `shell_registration.py` already expects (see that module's docstring

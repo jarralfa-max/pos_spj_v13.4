@@ -227,3 +227,70 @@ Dos decisiones que conviene dejar por escrito:
 El trabajo pendiente de esos 7 **no es escribir `shell_registration.py`** — eso es la parte
 trivial. Es construir las páginas reales que hoy son placeholder. Presentarlo como
 "cablear 8 módulos" subestimaría el esfuerzo por un orden de magnitud.
+
+---
+
+## Tercer lote: cableado de 5 módulos por decisión explícita (brecha 15 → 10)
+
+El usuario, tras leer el hallazgo de los placeholders, indicó: *"cablealos, en otra sesión
+se corregirán los módulos"*. Es su decisión y se ejecuta completa.
+
+Módulos cableados en este lote:
+
+| Módulo | Slot legacy | Permiso | Contenido real |
+| --- | --- | --- | --- |
+| `losses` | MERMAS | `LOSSES_VIEW` | **0 rutas reales** |
+| `meat_processing` | PRODUCCION | `PRODUCCION.ver` | **0 rutas reales** |
+| `orders_delivery` | DELIVERY | `DELIVERY.acceso` | 3 de 23 |
+| `fidelidad` | GROWTH_ENGINE | `GROWTH_ENGINE.ver` | parcial |
+| `tarjetas_fidelidad` | TARJETAS_FIDELIDAD | `TARJETAS_FIDELIDAD.ver` | parcial |
+
+Los cinco `shell_registration.py` se generaron con una plantilla parametrizada desde el
+patrón de `transfers`, no copiando el archivo cinco veces: descriptor, route definition y
+activator con dependencias explícitas, sin `AppContainer`.
+
+`fidelidad` y `tarjetas_fidelidad` ya tenían `create_*_view(connection, session_context)` en
+su `composition.py`; sus activators **llaman a esa función**, no reimplementan la
+composición. `losses` y `meat_processing` reciben su propio `build_page` como
+`page_builder`. `orders_delivery` recibe `connection`/`branch_id`/`actor_user_id`, que su
+vista ya sabe usar.
+
+Permisos: todos salen del `permissions.py` de cada bounded context
+(`LossPermissions.VIEW`, `MeatProcessingPermissions.VIEW`,
+`OrdersDeliveryPermissions.ACCESS`, `LoyaltyPermissions.VIEW`,
+`LoyaltyCardsPermissions.VIEW`) — ninguno inventado para esta migración.
+
+## El pestillo que hace segura esta decisión
+
+Cablear placeholders es inocuo **mientras el shell siga dormido**, y peligroso en el
+instante en que `main.py` corte: Mermas, Producción y Delivery se convertirían en pantallas
+de relleno para el usuario final.
+
+`test_main_is_not_cut_over_while_placeholder_modules_are_wired` cierra esa puerta. Mientras
+`_PLACEHOLDER_BACKED` no esté vacío, `main.py` no puede referenciar
+`build_application_window`, `ApplicationWindow` ni `CompositionRoot` sin que la prueba
+falle, nombrando qué módulo falta rellenar y por qué.
+
+Verificado añadiendo un import real de `build_application_window` a `main.py`: la prueba
+**falla** y lista los cinco pendientes; al revertir, vuelve a pasar. `main.py` quedó
+intacto (`git status` limpio).
+
+El orden queda así forzado y no depende de que alguien recuerde esta conversación:
+**primero se rellenan las páginas, después corta `main.py`**. Cuando un módulo deje de ser
+placeholder, se retira de `_PLACEHOLDER_BACKED`; cuando la lista quede vacía, el pestillo
+se abre solo.
+
+## Los 2 que NO se cablearon, y por qué
+
+| Módulo | Motivo |
+| --- | --- |
+| `assets` | No existe función de composición. `assets_routes.py` sólo define metadatos (`AssetRoute`, `visible_routes`, `grouped_routes`); `AssetsWorkspace` exige un `presenter` y un `page_factories` que nadie construye todavía. Cablearlo exige **escribir** esa composición, no conectarla. |
+| `pricing` | `PricingPresenter` necesita un `read_service_factory` que ningún módulo provee, y sobre todo **no tiene slot legacy**: no sustituye nada del menú actual. Es un módulo nuevo, no un reemplazo, así que no reduce la brecha del cutover. |
+
+## Estado
+
+**Brecha: 15 → 10.** Slots legacy sin contraparte canónica: ACTIVOS, CONFIG_HARDWARE,
+CONFIG_MODULOS, CONFIG_SEGURIDAD, COTIZACIONES, DASHBOARD, ETIQUETAS, PLANEACION_COMPRAS,
+PROVEEDORES, WHATSAPP.
+
+`main.py` sigue sin cambiar. El shell canónico monta 16 módulos y sigue dormido.

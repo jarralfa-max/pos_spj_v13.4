@@ -27,6 +27,26 @@ from frontend.desktop.modules.business_intelligence.shell_registration import (
     build_business_intelligence_module_descriptor,
     build_business_intelligence_route_definition,
 )
+from frontend.desktop.modules.losses.shell_registration import (
+    build_losses_module_descriptor,
+    build_losses_route_definition,
+)
+from frontend.desktop.modules.meat_processing.shell_registration import (
+    build_meat_processing_module_descriptor,
+    build_meat_processing_route_definition,
+)
+from frontend.desktop.modules.orders_delivery.shell_registration import (
+    build_orders_delivery_module_descriptor,
+    build_orders_delivery_route_definition,
+)
+from frontend.desktop.modules.fidelidad.shell_registration import (
+    build_fidelidad_module_descriptor,
+    build_fidelidad_route_definition,
+)
+from frontend.desktop.modules.tarjetas_fidelidad.shell_registration import (
+    build_tarjetas_fidelidad_module_descriptor,
+    build_tarjetas_fidelidad_route_definition,
+)
 from frontend.desktop.modules.cash_register.shell_registration import (  # noqa: E402
     build_cash_register_module_descriptor, build_cash_register_route_definition,
 )
@@ -80,6 +100,11 @@ _MODULE_BUILDERS = (
     (build_cash_register_module_descriptor, build_cash_register_route_definition),
     (build_configuracion_module_descriptor, build_configuracion_route_definition),
     (build_business_intelligence_module_descriptor, build_business_intelligence_route_definition),
+    (build_losses_module_descriptor, build_losses_route_definition),
+    (build_meat_processing_module_descriptor, build_meat_processing_route_definition),
+    (build_orders_delivery_module_descriptor, build_orders_delivery_route_definition),
+    (build_fidelidad_module_descriptor, build_fidelidad_route_definition),
+    (build_tarjetas_fidelidad_module_descriptor, build_tarjetas_fidelidad_route_definition),
 )
 
 
@@ -121,7 +146,7 @@ def test_all_migrated_items_resolve_when_every_permission_is_granted(app):
     resolver, _modules, _routes = _wire_all_migrated()
     context = _context(permissions={"*"})
     resolved = resolver.resolve(context=context, health_report=_healthy_report())
-    assert len(resolved) == 11
+    assert len(resolved) == 16
 
 
 def test_only_permitted_items_resolve_with_a_narrow_permission_set(app):
@@ -153,4 +178,4 @@ def test_global_sidebar_renders_the_resolved_items_as_real_rows(app):
 
     sidebar = GlobalSidebar()
     sidebar.set_items(resolved)
-    assert sidebar.visible_item_count == 11
+    assert sidebar.visible_item_count == 16

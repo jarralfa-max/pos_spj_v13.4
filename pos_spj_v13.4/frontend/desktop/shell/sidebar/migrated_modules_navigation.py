@@ -34,6 +34,31 @@ from frontend.desktop.modules.business_intelligence.shell_registration import (
     BUSINESS_INTELLIGENCE_REQUIRED_PERMISSION,
     BUSINESS_INTELLIGENCE_ROUTE_ID,
 )
+from frontend.desktop.modules.losses.shell_registration import (
+    LOSSES_MODULE_ID,
+    LOSSES_REQUIRED_PERMISSION,
+    LOSSES_ROUTE_ID,
+)
+from frontend.desktop.modules.meat_processing.shell_registration import (
+    MEAT_PROCESSING_MODULE_ID,
+    MEAT_PROCESSING_REQUIRED_PERMISSION,
+    MEAT_PROCESSING_ROUTE_ID,
+)
+from frontend.desktop.modules.orders_delivery.shell_registration import (
+    ORDERS_DELIVERY_MODULE_ID,
+    ORDERS_DELIVERY_REQUIRED_PERMISSION,
+    ORDERS_DELIVERY_ROUTE_ID,
+)
+from frontend.desktop.modules.fidelidad.shell_registration import (
+    FIDELIDAD_MODULE_ID,
+    FIDELIDAD_REQUIRED_PERMISSION,
+    FIDELIDAD_ROUTE_ID,
+)
+from frontend.desktop.modules.tarjetas_fidelidad.shell_registration import (
+    TARJETAS_FIDELIDAD_MODULE_ID,
+    TARJETAS_FIDELIDAD_REQUIRED_PERMISSION,
+    TARJETAS_FIDELIDAD_ROUTE_ID,
+)
 from frontend.desktop.modules.cash_register.shell_registration import (
     CASH_REGISTER_MODULE_ID,
     CASH_REGISTER_REQUIRED_PERMISSION,
@@ -145,6 +170,31 @@ MIGRATED_MODULES_NAVIGATION_ITEMS: tuple[NavigationItemDefinition, ...] = (
         route_id=BUSINESS_INTELLIGENCE_ROUTE_ID, label="Inteligencia de Negocios",
         icon=Icons.ANALYTICS, order=110, group=MIGRATED_MODULES_GROUP,
         required_permission=BUSINESS_INTELLIGENCE_REQUIRED_PERMISSION,
+    ),
+    NavigationItemDefinition(
+        item_id="nav.losses", module_id=LOSSES_MODULE_ID, route_id=LOSSES_ROUTE_ID,
+        label="Mermas y Pérdidas", icon=Icons.WARNING, order=120, group=MIGRATED_MODULES_GROUP,
+        required_permission=LOSSES_REQUIRED_PERMISSION,
+    ),
+    NavigationItemDefinition(
+        item_id="nav.meat_processing", module_id=MEAT_PROCESSING_MODULE_ID, route_id=MEAT_PROCESSING_ROUTE_ID,
+        label="Producción", icon=Icons.PRODUCTION, order=130, group=MIGRATED_MODULES_GROUP,
+        required_permission=MEAT_PROCESSING_REQUIRED_PERMISSION,
+    ),
+    NavigationItemDefinition(
+        item_id="nav.orders_delivery", module_id=ORDERS_DELIVERY_MODULE_ID, route_id=ORDERS_DELIVERY_ROUTE_ID,
+        label="Pedidos y Reparto", icon=Icons.DELIVERY, order=140, group=MIGRATED_MODULES_GROUP,
+        required_permission=ORDERS_DELIVERY_REQUIRED_PERMISSION,
+    ),
+    NavigationItemDefinition(
+        item_id="nav.fidelidad", module_id=FIDELIDAD_MODULE_ID, route_id=FIDELIDAD_ROUTE_ID,
+        label="Fidelización", icon=Icons.LOYALTY, order=150, group=MIGRATED_MODULES_GROUP,
+        required_permission=FIDELIDAD_REQUIRED_PERMISSION,
+    ),
+    NavigationItemDefinition(
+        item_id="nav.tarjetas_fidelidad", module_id=TARJETAS_FIDELIDAD_MODULE_ID, route_id=TARJETAS_FIDELIDAD_ROUTE_ID,
+        label="Tarjetas de Fidelidad", icon=Icons.LOYALTY_CARDS, order=160, group=MIGRATED_MODULES_GROUP,
+        required_permission=TARJETAS_FIDELIDAD_REQUIRED_PERMISSION,
     ),
 )
 

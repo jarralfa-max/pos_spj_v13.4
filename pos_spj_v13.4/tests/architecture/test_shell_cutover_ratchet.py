@@ -4,19 +4,19 @@ Estado real medido, no supuesto:
 
 * `interfaz/main_window.py` registra **26** módulos vía `_conectar(...)` y es el
   único shell que el usuario ve — `main.py` lo construye directamente.
-* `frontend/desktop/shell/desktop_shell_window_composition.py` cablea **11**
+* `frontend/desktop/shell/desktop_shell_window_composition.py` cablea **16**
   módulos y **no lo llama ningún código productivo**: sólo pruebas. El shell
   canónico existe pero está DORMIDO.
-* Los 11 canónicos tienen contraparte viva en MainWindow, así que esos dominios
+* Los 16 canónicos tienen contraparte viva en MainWindow, así que esos dominios
   están compuestos dos veces. No son dos rutas vivas — la canónica no arranca —
   pero sí es el "existe pero no gobierna" que §49 declara hallazgo abierto.
 
 Por qué este archivo es un ratchet y no un `assert` de corte:
 
-Cambiar `main.py` al shell canónico hoy **perdería 15 módulos operativos**
-(Activos, Delivery, Producción, Mermas, WhatsApp…), y §2
+Cambiar `main.py` al shell canónico hoy **perdería 10 módulos operativos**
+(Activos, Proveedores, Etiquetas, WhatsApp, Cotizaciones…), y §2
 prohíbe explícitamente eliminar funcionalidad operativa sin migración completa.
-El corte exige migrar esos 15 primero. Mientras tanto, lo que sí se puede
+El corte exige migrar esos 10 primero. Mientras tanto, lo que sí se puede
 garantizar es que la brecha **no crezca**: ningún módulo nuevo puede nacer en el
 shell legacy, y el registro canónico no puede encoger.
 
@@ -52,6 +52,8 @@ _CANONICAL_MODULE_IDS = frozenset({
     "HR_MODULE_ID", "INVENTORY_MODULE_ID", "PRODUCTS_MODULE_ID",
     "PURCHASING_MODULE_ID", "TRANSFERS_MODULE_ID", "CASH_REGISTER_MODULE_ID",
     "CONFIGURACION_MODULE_ID", "BUSINESS_INTELLIGENCE_MODULE_ID",
+    "LOSSES_MODULE_ID", "MEAT_PROCESSING_MODULE_ID", "ORDERS_DELIVERY_MODULE_ID",
+    "FIDELIDAD_MODULE_ID", "TARJETAS_FIDELIDAD_MODULE_ID",
 })
 
 # Correspondencia canónico -> slot legacy. Cuando un módulo complete su cutover,
@@ -74,6 +76,28 @@ _CUTOVER_PAIRS = {
     # `business_intelligence` construye páginas reales en 10 de sus 13 rutas
     # (`_REAL_ROUTE_BUILDERS`); las 3 restantes caen a placeholder explícito.
     "BUSINESS_INTELLIGENCE_MODULE_ID": "INTELIGENCIA_BI",
+    # Cableados por decisión explícita del usuario sabiendo que su contenido
+    # todavía es parcial o placeholder; ver _PLACEHOLDER_BACKED.
+    "LOSSES_MODULE_ID": "MERMAS",
+    "MEAT_PROCESSING_MODULE_ID": "PRODUCCION",
+    "ORDERS_DELIVERY_MODULE_ID": "DELIVERY",
+    "FIDELIDAD_MODULE_ID": "GROWTH_ENGINE",
+    "TARJETAS_FIDELIDAD_MODULE_ID": "TARJETAS_FIDELIDAD",
+}
+
+# Módulos cableados al shell canónico cuyo contenido es total o mayoritariamente
+# placeholder. Están aquí por decisión explícita del usuario ("cablealos, en otra
+# sesión se corregirán los módulos"), no por descuido.
+#
+# Mientras esta lista no esté vacía, `main.py` NO puede cortar al shell canónico:
+# hacerlo convertiría estas pantallas en relleno para el usuario final. La prueba
+# `test_main_is_not_cut_over_while_placeholder_modules_are_wired` lo impide.
+_PLACEHOLDER_BACKED = {
+    "LOSSES_MODULE_ID": "todas sus rutas devuelven LossesPlaceholderPage",
+    "MEAT_PROCESSING_MODULE_ID": "todas sus rutas devuelven MeatProcessingPlaceholderPage",
+    "ORDERS_DELIVERY_MODULE_ID": "20 de 23 rutas son placeholder (3 reales)",
+    "FIDELIDAD_MODULE_ID": "parte de sus páginas son placeholder",
+    "TARJETAS_FIDELIDAD_MODULE_ID": "parte de sus páginas son placeholder",
 }
 
 
@@ -150,8 +174,38 @@ def test_every_canonical_module_still_has_its_legacy_twin_documented() -> None:
 def test_remaining_cutover_gap_is_explicit() -> None:
     """La brecha real que bloquea las fases 5 y 6, medida y visible."""
     legacy_only = _legacy_modules() - set(_CUTOVER_PAIRS.values())
-    assert len(legacy_only) == 15, (
+    assert len(legacy_only) == 10, (
         f"La brecha del cutover cambió: {len(legacy_only)} módulos sólo-legacy "
-        f"(antes 15). Actualiza este número y 09_SHELL_CUTOVER_GAP.md:\n  "
+        f"(antes 10). Actualiza este número y 09_SHELL_CUTOVER_GAP.md:\n  "
         + "\n  ".join(sorted(legacy_only))
+    )
+
+
+def test_main_is_not_cut_over_while_placeholder_modules_are_wired() -> None:
+    """`main.py` no puede cortar al shell canónico con módulos placeholder dentro.
+
+    Los cinco módulos de `_PLACEHOLDER_BACKED` se cablearon a propósito para que
+    el shell nuevo quede completo estructuralmente, con el contenido pendiente
+    para una sesión posterior. Eso es seguro **sólo mientras el shell siga
+    dormido**: si `main.py` corta ahora, Mermas, Producción y Delivery pasan a
+    ser pantallas de relleno para el usuario final, que es justo lo que §2
+    prohíbe.
+
+    Esta prueba es el pestillo: o se rellenan las páginas y se vacía
+    `_PLACEHOLDER_BACKED`, o `main.py` no corta. Falla en cuanto alguien intente
+    lo segundo sin lo primero.
+    """
+    if not _PLACEHOLDER_BACKED:
+        return  # ya no hay placeholders: el corte deja de estar bloqueado por esto
+
+    main_source = (APP_ROOT / "main.py").read_text(encoding="utf-8", errors="ignore")
+    cutover_markers = ("build_application_window", "ApplicationWindow", "CompositionRoot")
+    used = [marker for marker in cutover_markers if marker in main_source]
+    detail = "; ".join(
+        f"{module}: {reason}" for module, reason in sorted(_PLACEHOLDER_BACKED.items())
+    )
+    assert not used, (
+        "main.py está cortando al shell canónico, pero siguen cableados módulos con "
+        "contenido placeholder — el usuario final vería pantallas de relleno. "
+        f"Pendientes: {detail}. Marcadores encontrados en main.py: {used}"
     )
