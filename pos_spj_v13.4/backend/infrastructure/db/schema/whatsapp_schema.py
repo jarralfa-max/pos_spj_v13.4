@@ -267,9 +267,9 @@ _DDL = (
         draft_id TEXT NOT NULL REFERENCES whatsapp_order_drafts(id),
         product_external_id TEXT NOT NULL,
         product_name TEXT NOT NULL,
-        quantity REAL NOT NULL,
+        quantity TEXT NOT NULL,
         unit TEXT NOT NULL,
-        unit_price REAL NOT NULL
+        unit_price TEXT NOT NULL
     )
     """,
     # ── QuoteDraft (WA-11, §37) ──────────────────────────────────────────────
@@ -292,9 +292,9 @@ _DDL = (
         draft_id TEXT NOT NULL REFERENCES whatsapp_quote_drafts(id),
         product_external_id TEXT NOT NULL,
         product_name TEXT NOT NULL,
-        quantity REAL NOT NULL,
+        quantity TEXT NOT NULL,
         unit TEXT NOT NULL,
-        unit_price REAL NOT NULL
+        unit_price TEXT NOT NULL
     )
     """,
     # ── DeliveryRequest (WA-13) — rastro conversacional de "programar

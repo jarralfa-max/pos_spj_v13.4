@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
+from decimal import Decimal
 
 import pytest
 
@@ -102,3 +103,47 @@ class TestSqliteWhatsAppIdempotencyRepository:
         )
         with pytest.raises(sqlite3.IntegrityError):
             repo.save(second)
+
+
+class TestMoneyIsStoredAsDecimalText:
+    """§9: el dinero se persiste como TEXT decimal, nunca como REAL.
+
+    Las columnas eran `quantity REAL` / `unit_price REAL`. Un REAL no puede
+    representar 0.1 exactamente, así que el valor recuperado no era el guardado.
+    """
+
+    def test_round_trip_preserves_the_exact_decimal(self, conn):
+        repository = SqliteWhatsAppOrderDraftRepository(conn)
+        draft = OrderDraft.start(conversation_id="C-money")
+        draft.add_line(product_external_id="P1", product_name="Arrachera",
+                       quantity="1.5", unit="kg", unit_price="0.1")
+        repository.save(draft)
+
+        restored = repository.get_by_id(draft.id)
+        line = restored.lines[0]
+        assert line.unit_price == Decimal("0.1")
+        assert line.quantity == Decimal("1.5")
+        assert isinstance(line.unit_price, Decimal)
+        assert str(line.unit_price) == "0.1"
+
+    def test_columns_are_text_not_real(self, conn):
+        for table in ("whatsapp_order_draft_lines", "whatsapp_quote_draft_lines"):
+            types = {
+                row[1]: row[2]
+                for row in conn.execute(f'PRAGMA table_info("{table}")').fetchall()
+            }
+            assert types["unit_price"] == "TEXT", f"{table}.unit_price debe ser TEXT"
+            assert types["quantity"] == "TEXT", f"{table}.quantity debe ser TEXT"
+
+    def test_stored_value_is_the_literal_decimal_string(self, conn):
+        repository = SqliteWhatsAppOrderDraftRepository(conn)
+        draft = OrderDraft.start(conversation_id="C-literal")
+        draft.add_line(product_external_id="P2", product_name="Chorizo",
+                       quantity="2", unit="kg", unit_price="19.99")
+        repository.save(draft)
+
+        stored = conn.execute(
+            "SELECT quantity, unit_price FROM whatsapp_order_draft_lines WHERE draft_id=?",
+            (draft.id,),
+        ).fetchone()
+        assert stored == ("2", "19.99")

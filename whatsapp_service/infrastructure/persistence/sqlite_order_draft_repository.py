@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Optional
+from decimal import Decimal
 
 from domain.whatsapp.entities.order_draft import OrderDraft, OrderDraftLine
 from domain.whatsapp.enums import DeliveryMethod, OrderDraftStatus
@@ -60,7 +61,7 @@ class SqliteWhatsAppOrderDraftRepository:
         for line in draft.lines:
             self._conn.execute(
                 f"INSERT INTO whatsapp_order_draft_lines ({_LINE_COLUMNS}) VALUES (?,?,?,?,?,?,?)",
-                (line.id, draft.id, line.product_external_id, line.product_name, line.quantity, line.unit, line.unit_price),
+                (line.id, draft.id, line.product_external_id, line.product_name, str(line.quantity), line.unit, str(line.unit_price)),
             )
         self._conn.commit()
 
@@ -68,7 +69,7 @@ class SqliteWhatsAppOrderDraftRepository:
         lines = [
             OrderDraftLine(
                 id=r[0], product_external_id=r[2], product_name=r[3],
-                quantity=r[4], unit=r[5], unit_price=r[6],
+                quantity=Decimal(r[4]), unit=r[5], unit_price=Decimal(r[6]),
             )
             for r in self._conn.execute(
                 f"SELECT {_LINE_COLUMNS} FROM whatsapp_order_draft_lines WHERE draft_id=?", (row[0],)

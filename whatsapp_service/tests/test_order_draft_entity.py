@@ -1,6 +1,8 @@
 # tests/test_order_draft_entity.py — WA-10
 from __future__ import annotations
 
+from decimal import Decimal
+
 import pytest
 
 from domain.whatsapp.entities.order_draft import (
@@ -124,3 +126,63 @@ class TestOrderDraftConfirmation:
         draft.confirm()
         with pytest.raises(OrderDraftAlreadyFinalizedError):
             draft.cancel()
+
+
+# ── Dinero en Decimal (§9): estas pruebas fallarían con la implementación float ──
+
+def test_subtotal_uses_commercial_rounding_not_binary_float():
+    """Con float, `round(1 * 2.675, 2)` da 2.67 y el cobro pierde un centavo.
+
+    No es un detalle teórico: 2.675 no es representable en binario, se almacena
+    como 2.67499999999999982236431605997495353221893310546875, y `round()`
+    redondea hacia abajo. Decimal + ROUND_HALF_UP da 2.68, que es lo que un
+    cliente espera ver cobrado.
+    """
+    line = OrderDraftLine.create(
+        product_external_id="P1", product_name="Arrachera",
+        quantity=1, unit="kg", unit_price="2.675",
+    )
+    assert line.subtotal == Decimal("2.68")
+    assert round(1 * 2.675, 2) == 2.67  # lo que hacía la implementación anterior
+
+
+def test_subtotal_is_exact_for_quantities_that_float_cannot_represent():
+    """3 x 0.145 = 0.435 exacto. En float da 0.43 (un centavo menos)."""
+    line = OrderDraftLine.create(
+        product_external_id="P2", product_name="Especias",
+        quantity="3", unit="kg", unit_price="0.145",
+    )
+    assert line.subtotal == Decimal("0.44")
+    assert round(3 * 0.145, 2) == 0.43  # lo que hacía la implementación anterior
+
+
+def test_float_input_is_normalised_through_str_not_binary():
+    """Un precio que llega como float desde el catálogo del ERP no debe
+    arrastrar el error binario a la aritmética posterior."""
+    line = OrderDraftLine.create(
+        product_external_id="P3", product_name="Chorizo",
+        quantity=1, unit="kg", unit_price=0.1,
+    )
+    assert line.unit_price == Decimal("0.1")
+    assert str(line.unit_price) == "0.1"          # no 0.1000000000000000055511151231257827
+    assert Decimal(0.1) != Decimal("0.1")          # la conversión insegura que se evita
+
+
+def test_total_accumulates_in_decimal_without_drift():
+    draft = OrderDraft.start(conversation_id="C1")
+    for _ in range(10):
+        draft.add_line(product_external_id="P", product_name="Bistec",
+                       quantity=1, unit="kg", unit_price="0.1")
+    assert draft.total == Decimal("1.00")
+    assert isinstance(draft.total, Decimal)
+
+
+def test_money_fields_are_decimal_never_float():
+    line = OrderDraftLine.create(
+        product_external_id="P4", product_name="Costilla",
+        quantity=2, unit="kg", unit_price=150.5,
+    )
+    assert isinstance(line.quantity, Decimal)
+    assert isinstance(line.unit_price, Decimal)
+    assert isinstance(line.subtotal, Decimal)
+    assert not isinstance(line.unit_price, float)

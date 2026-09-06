@@ -19,7 +19,9 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from domain.whatsapp._ids import new_id
-from domain.whatsapp.entities.order_draft import OrderDraftLine
+from decimal import Decimal
+
+from domain.whatsapp.entities.order_draft import Money, OrderDraftLine, quantize_money
 from domain.whatsapp.enums import TERMINAL_QUOTE_DRAFT_STATUSES, QuoteDraftStatus
 from domain.whatsapp.exceptions import WhatsAppDomainError
 
@@ -82,7 +84,8 @@ class QuoteDraft:
             )
 
     def add_line(
-        self, *, product_external_id: str, product_name: str, quantity: float, unit: str, unit_price: float
+        self, *, product_external_id: str, product_name: str,
+        quantity: Money, unit: str, unit_price: Money,
     ) -> OrderDraftLine:
         self._assert_capturing()
         line = OrderDraftLine.create(
@@ -99,8 +102,8 @@ class QuoteDraft:
         self.updated_at = _utcnow()
 
     @property
-    def total(self) -> float:
-        return round(sum(line.subtotal for line in self.lines), 2)
+    def total(self) -> Decimal:
+        return quantize_money(sum((line.subtotal for line in self.lines), Decimal("0")))
 
     def mark_created(self, *, quote_external_id: str, folio: str = "") -> None:
         self._assert_capturing()
