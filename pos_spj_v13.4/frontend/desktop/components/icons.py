@@ -35,6 +35,7 @@ class Icons:
     LOYALTY_CARDS = "loyalty_cards"
     ASSETS = "assets"
     MAINTENANCE = "maintenance"
+    ANALYTICS = "analytics"
     # actions
     ADD = "add"
     EDIT = "edit"
@@ -68,6 +69,7 @@ _ACCESSIBLE_NAMES = {
     Icons.SETTINGS: "Configuración", Icons.TRANSFERS: "Transferencias",
     Icons.LOYALTY: "Fidelización", Icons.LOYALTY_CARDS: "Tarjetas de fidelidad",
     Icons.ASSETS: "Activos", Icons.MAINTENANCE: "Mantenimiento",
+    Icons.ANALYTICS: "Inteligencia de Negocios",
     Icons.ADD: "Agregar", Icons.EDIT: "Editar",
     Icons.DELETE: "Eliminar", Icons.SEARCH: "Buscar", Icons.REFRESH: "Actualizar",
     Icons.EXPORT: "Exportar", Icons.PRINT: "Imprimir", Icons.CLOSE: "Cerrar",

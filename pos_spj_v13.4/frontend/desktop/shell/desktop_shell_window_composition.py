@@ -33,6 +33,12 @@ from __future__ import annotations
 
 from backend.bootstrap.application_context import ApplicationContext
 from backend.bootstrap.health.health_status import HealthReport
+from frontend.desktop.modules.business_intelligence.shell_registration import (
+    BUSINESS_INTELLIGENCE_MODULE_ID,
+    BusinessIntelligenceModuleActivator,
+    build_business_intelligence_module_descriptor,
+    build_business_intelligence_route_definition,
+)
 from frontend.desktop.modules.cash_register.shell_registration import (
     CASH_REGISTER_MODULE_ID, CashRegisterModuleActivator,
     build_cash_register_module_descriptor, build_cash_register_route_definition,
@@ -127,13 +133,14 @@ _MIGRATED_MODULE_WIRINGS = (
     (TRANSFERS_MODULE_ID, build_transfers_module_descriptor, build_transfers_route_definition, _standard_activator_factory(TransfersModuleActivator)),
     (CASH_REGISTER_MODULE_ID, build_cash_register_module_descriptor, build_cash_register_route_definition, _standard_activator_factory(CashRegisterModuleActivator)),
     (CONFIGURACION_MODULE_ID, build_configuracion_module_descriptor, build_configuracion_route_definition, _standard_activator_factory(ConfiguracionModuleActivator)),
+    (BUSINESS_INTELLIGENCE_MODULE_ID, build_business_intelligence_module_descriptor, build_business_intelligence_route_definition, _standard_activator_factory(BusinessIntelligenceModuleActivator)),
 )
 
 
 def build_application_window(
     *, context: ApplicationContext, connection, session_context, health_report: HealthReport,
 ) -> ApplicationWindow:
-    """Build a real, live `ApplicationWindow` with all 10 migrated modules
+    """Build a real, live `ApplicationWindow` with all 11 migrated modules
     registered, routable, and represented in the sidebar — the same
     `connection`/`session_context` every migrated module's own
     `shell_registration.py` already expects (see that module's docstring

@@ -162,3 +162,68 @@ El ratchet **falló primero** exigiendo registrar el avance
 `main.py` sigue sin cambiar. La brecha es de **16 slots legacy**, de los cuales 14 tienen
 módulo canónico esperando contrato de shell y 2 no tienen módulo. El corte sigue bloqueado,
 pero el trabajo restante es bastante menor de lo que este documento afirmaba antes.
+
+---
+
+## Segunda corrección: "existe el módulo" no equivale a "reemplaza al legacy"
+
+Al abrir los 8 paquetes para darles contrato de shell apareció algo que ni mi medición
+anterior ni la premisa de partida recogían: **varios son cascarones de UI con páginas
+placeholder**, no reemplazos funcionales.
+
+Medido leyendo `_REAL_ROUTE_BUILDERS` de cada módulo, no por inspección visual:
+
+| Módulo | Rutas | Con página real | Placeholder |
+| --- | ---: | ---: | ---: |
+| `business_intelligence` | 13 | **10** | 3 |
+| `orders_delivery` | 23 | **3** | 20 |
+| `losses` | todas | **0** | todas |
+| `meat_processing` | todas | **0** | todas |
+
+`losses_routes.build_page()` y `meat_processing_routes.build_page()` devuelven
+`LossesPlaceholderPage` / `MeatProcessingPlaceholderPage` **en todos los casos**, sin
+ninguna rama alternativa.
+
+Consecuencia directa: **cablear `losses` o `meat_processing` al shell canónico sería
+registrar pantallas vacías**. Si después `main.py` corta, MERMAS y PRODUCCIÓN se
+convertirían en pantallas de relleno. Eso es exactamente lo que §2 prohíbe, y el hecho de
+que el módulo "exista en la arquitectura nueva" no lo evita.
+
+Por eso este lote cablea **uno** de los ocho, no los ocho.
+
+## Módulo cableado: `business_intelligence` (brecha 16 → 15)
+
+Es el único del lote que reemplaza funcionalidad real: 10 de sus 13 rutas construyen
+páginas con presenter y conexión (ejecutivo, ventas, inventario, compras, finanzas,
+forecast, recomendaciones, escenarios, alertas, reportes); las 3 restantes caen a un
+placeholder explícito y acotado.
+
+`BusinessIntelligenceView` ya acepta `connection`/`branch_id`/`actor_user_id` y arma su
+propio `page_builder`, así que el activator **no reimplementa** esa composición: le entrega
+los tres valores que la vista ya sabe usar. Sin duplicar lógica.
+
+Dos decisiones que conviene dejar por escrito:
+
+- **`_has_permission` niega por defecto sin sesión.** El `SidebarResolver` ya filtra la
+  entrada del módulo por `required_permission`; este callback gobierna el sidebar *interno*.
+  Negar sin contexto es lo correcto: lo contrario mostraría secciones que la persona quizá
+  no puede ver.
+- **`Icons.ANALYTICS` es nuevo en el catálogo central**, con su nombre accesible
+  ("Inteligencia de Negocios"). §20 exige que los iconos salgan de un catálogo; añadirlo
+  ahí es lo correcto, y no se usó un icono ajeno para evitar el trámite.
+
+## Estado del lote de 8
+
+| Módulo | Estado | Qué falta |
+| --- | --- | --- |
+| `business_intelligence` | **cableado** | — |
+| `orders_delivery` | bloqueado | 20 de 23 rutas son placeholder |
+| `losses` | bloqueado | todas sus rutas son placeholder |
+| `meat_processing` | bloqueado | todas sus rutas son placeholder |
+| `fidelidad` / `tarjetas_fidelidad` | por evaluar | tienen páginas placeholder; falta medir la proporción |
+| `assets` | por evaluar | `assets_routes.py` sólo define metadatos de ruta, no construye páginas |
+| `pricing` | no aplica como reemplazo | 5 páginas reales, pero **no tiene slot legacy**: es módulo nuevo, no sustituye nada |
+
+El trabajo pendiente de esos 7 **no es escribir `shell_registration.py`** — eso es la parte
+trivial. Es construir las páginas reales que hoy son placeholder. Presentarlo como
+"cablear 8 módulos" subestimaría el esfuerzo por un orden de magnitud.

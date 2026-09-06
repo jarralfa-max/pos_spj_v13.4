@@ -29,6 +29,11 @@ this module importing and mutating a registry at import time.
 from __future__ import annotations
 
 from frontend.desktop.components.icons import Icons
+from frontend.desktop.modules.business_intelligence.shell_registration import (
+    BUSINESS_INTELLIGENCE_MODULE_ID,
+    BUSINESS_INTELLIGENCE_REQUIRED_PERMISSION,
+    BUSINESS_INTELLIGENCE_ROUTE_ID,
+)
 from frontend.desktop.modules.cash_register.shell_registration import (
     CASH_REGISTER_MODULE_ID,
     CASH_REGISTER_REQUIRED_PERMISSION,
@@ -134,6 +139,12 @@ MIGRATED_MODULES_NAVIGATION_ITEMS: tuple[NavigationItemDefinition, ...] = (
         item_id="nav.configuracion", module_id=CONFIGURACION_MODULE_ID, route_id=CONFIGURACION_ROUTE_ID,
         label="Configuración", icon=Icons.SETTINGS, order=100, group=MIGRATED_MODULES_GROUP,
         required_permission=CONFIGURACION_REQUIRED_PERMISSION,
+    ),
+    NavigationItemDefinition(
+        item_id="nav.business_intelligence", module_id=BUSINESS_INTELLIGENCE_MODULE_ID,
+        route_id=BUSINESS_INTELLIGENCE_ROUTE_ID, label="Inteligencia de Negocios",
+        icon=Icons.ANALYTICS, order=110, group=MIGRATED_MODULES_GROUP,
+        required_permission=BUSINESS_INTELLIGENCE_REQUIRED_PERMISSION,
     ),
 )
 

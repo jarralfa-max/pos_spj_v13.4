@@ -23,6 +23,10 @@ from PyQt5.QtWidgets import QApplication  # noqa: E402
 
 from backend.bootstrap.application_context import ApplicationContext, FeatureContext  # noqa: E402
 from backend.bootstrap.health.health_status import HealthReport, HealthStatus  # noqa: E402
+from frontend.desktop.modules.business_intelligence.shell_registration import (
+    build_business_intelligence_module_descriptor,
+    build_business_intelligence_route_definition,
+)
 from frontend.desktop.modules.cash_register.shell_registration import (  # noqa: E402
     build_cash_register_module_descriptor, build_cash_register_route_definition,
 )
@@ -75,6 +79,7 @@ _MODULE_BUILDERS = (
     (build_transfers_module_descriptor, build_transfers_route_definition),
     (build_cash_register_module_descriptor, build_cash_register_route_definition),
     (build_configuracion_module_descriptor, build_configuracion_route_definition),
+    (build_business_intelligence_module_descriptor, build_business_intelligence_route_definition),
 )
 
 
@@ -116,7 +121,7 @@ def test_all_migrated_items_resolve_when_every_permission_is_granted(app):
     resolver, _modules, _routes = _wire_all_migrated()
     context = _context(permissions={"*"})
     resolved = resolver.resolve(context=context, health_report=_healthy_report())
-    assert len(resolved) == 10
+    assert len(resolved) == 11
 
 
 def test_only_permitted_items_resolve_with_a_narrow_permission_set(app):
@@ -148,4 +153,4 @@ def test_global_sidebar_renders_the_resolved_items_as_real_rows(app):
 
     sidebar = GlobalSidebar()
     sidebar.set_items(resolved)
-    assert sidebar.visible_item_count == 10
+    assert sidebar.visible_item_count == 11

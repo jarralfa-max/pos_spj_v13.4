@@ -123,7 +123,7 @@ def test_login_builds_a_real_navigable_application_window(app, provisioned_conn,
 
     # The owner role must carry admin-level access — PermissionEvaluator's
     # is_admin() bypass — so every migrated module's sidebar item resolves.
-    assert window.sidebar.visible_item_count == 10
+    assert window.sidebar.visible_item_count == 11
 
     result = window.navigate(TRANSFERS_ROUTE_ID)
     assert isinstance(result.view, TransfersView)
