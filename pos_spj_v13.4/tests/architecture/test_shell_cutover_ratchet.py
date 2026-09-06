@@ -100,7 +100,13 @@ _PLACEHOLDER_BACKED = {
     # Sigue en esta lista porque 12 de 16 rutas siguen sin página propia.
     "LOSSES_MODULE_ID": "12 de 16 rutas son placeholder (4 reales: registro, "
                         "investigaciones, resumen y análisis)",
-    "MEAT_PROCESSING_MODULE_ID": "todas sus rutas devuelven MeatProcessingPlaceholderPage",
+    # Corregido tras auditar la composición real, igual que en losses: el
+    # activator devolvía 29 placeholders porque recomponía el módulo por su
+    # cuenta e ignoraba la página de Órdenes, que sí es real. Sigue aquí
+    # porque 28 de 29 rutas siguen sin página propia — y porque el slot
+    # PRODUCCION lo sirve todavía el legacy `modulos/produccion.py`.
+    "MEAT_PROCESSING_MODULE_ID": "28 de 29 rutas son placeholder "
+                                 "(1 real: mp_processing_orders)",
     "ORDERS_DELIVERY_MODULE_ID": "20 de 23 rutas son placeholder (3 reales)",
     "FIDELIDAD_MODULE_ID": "parte de sus páginas son placeholder",
     "TARJETAS_FIDELIDAD_MODULE_ID": "parte de sus páginas son placeholder",

@@ -59,27 +59,24 @@ class MeatProcessingModuleActivator:
         self._session_context = session_context
         self._view_factories = view_factory_registry
 
-    def _has_permission(self, permission: str) -> bool:
-        """Sin sesión no se concede nada: gobierna el sidebar interno del
-        módulo y mostrar de más sería peor que mostrar de menos."""
-        session = self._session_context
-        if session is None:
-            return False
-        checker = getattr(session, "has_permission", None)
-        if callable(checker):
-            return bool(checker(permission))
-        permissions = getattr(session, "permissions", None)
-        if permissions is None:
-            return False
-        return "*" in permissions or permission.upper() in {str(p).upper() for p in permissions}
-
     def _build_view(self):
-        from frontend.desktop.modules.meat_processing.meat_processing_routes import build_page
-        from frontend.desktop.modules.meat_processing.meat_processing_view import (
-            MeatProcessingView,
+        """Delega en la ÚNICA composición del dominio, la misma que consume
+        el `MeatProcessingModuleHost` del slot legacy.
+
+        Antes este activator armaba su propio
+        `MeatProcessingView(page_builder=build_page)`, y eso era una SEGUNDA
+        composición estrictamente peor que la canónica (§3): las 29 rutas en
+        placeholder —incluida `mp_processing_orders`, que sí tiene página
+        real con presenter y casos de uso—, y un `_has_permission` que
+        sondeaba `has_permission`/`permissions`, atributos que ni
+        `SessionContext` ni `LegacySessionAdapter` definen (ambos hablan
+        `tiene_permiso`/`permisos`), de modo que el sidebar salía vacío.
+        """
+        from backend.infrastructure.desktop.meat_processing_factory import (
+            create_meat_processing_view,
         )
 
-        return MeatProcessingView(has_permission=self._has_permission, page_builder=build_page)
+        return create_meat_processing_view(self._connection, self._session_context)
 
 
     def activate(self, module: ModuleDescriptor) -> None:
