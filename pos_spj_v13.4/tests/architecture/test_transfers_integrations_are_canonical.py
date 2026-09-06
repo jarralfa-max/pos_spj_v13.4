@@ -1,8 +1,9 @@
 from pathlib import Path
+from tests.architecture.architecture_guardrails import APP_ROOT
 
 
 def test_transfer_integrations_have_no_legacy_or_direct_engine_fallbacks():
-    root = Path("pos_spj_v13.4/backend/application/transfers/integrations")
+    root = (APP_ROOT / "backend/application/transfers/integrations")
     source = "\n".join(path.read_text() for path in root.glob("*.py"))
 
     assert "sqlite3" not in source

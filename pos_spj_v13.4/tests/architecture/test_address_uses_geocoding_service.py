@@ -1,8 +1,9 @@
 from pathlib import Path
+from tests.architecture.architecture_guardrails import APP_ROOT
 
-CONFIGURATION_MODULE = Path("pos_spj_v13.4/modulos/configuracion.py")
-ADDRESS_COMPONENT = Path("pos_spj_v13.4/modulos/components/address_autocomplete_input.py")
-GEOCODING_SERVICE = Path("pos_spj_v13.4/core/services/geocoding_service.py")
+CONFIGURATION_MODULE = (APP_ROOT / "modulos/configuracion.py")
+ADDRESS_COMPONENT = (APP_ROOT / "modulos/components/address_autocomplete_input.py")
+GEOCODING_SERVICE = (APP_ROOT / "core/services/geocoding_service.py")
 
 
 def test_configuracion_uses_async_address_autocomplete_component() -> None:

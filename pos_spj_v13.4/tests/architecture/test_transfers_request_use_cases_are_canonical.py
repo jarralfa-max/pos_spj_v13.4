@@ -1,17 +1,18 @@
 from pathlib import Path
+from tests.architecture.architecture_guardrails import APP_ROOT
 
 
 def test_transfer_request_use_cases_do_not_import_database_or_inventory_gateways():
-    request_source = Path("pos_spj_v13.4/backend/application/transfers/use_cases/transfer_request_use_cases.py").read_text()
-    reservation_source = Path("pos_spj_v13.4/backend/application/transfers/use_cases/transfer_reservation_use_cases.py").read_text()
-    picking_source = Path("pos_spj_v13.4/backend/application/transfers/use_cases/transfer_picking_use_cases.py").read_text()
-    packaging_source = Path("pos_spj_v13.4/backend/application/transfers/use_cases/transfer_packaging_use_cases.py").read_text()
-    dispatch_source = Path("pos_spj_v13.4/backend/application/transfers/use_cases/transfer_dispatch_use_cases.py").read_text()
-    receipt_source = Path("pos_spj_v13.4/backend/application/transfers/use_cases/transfer_receipt_use_cases.py").read_text()
-    blind_receipt_source = Path("pos_spj_v13.4/backend/application/transfers/use_cases/blind_receipt_use_cases.py").read_text()
-    difference_source = Path("pos_spj_v13.4/backend/application/transfers/use_cases/transfer_difference_use_cases.py").read_text()
-    return_source = Path("pos_spj_v13.4/backend/application/transfers/use_cases/transfer_return_use_cases.py").read_text()
-    suggestion_source = Path("pos_spj_v13.4/backend/application/transfers/use_cases/transfer_suggestion_use_cases.py").read_text()
+    request_source = (APP_ROOT / "backend/application/transfers/use_cases/transfer_request_use_cases.py").read_text()
+    reservation_source = (APP_ROOT / "backend/application/transfers/use_cases/transfer_reservation_use_cases.py").read_text()
+    picking_source = (APP_ROOT / "backend/application/transfers/use_cases/transfer_picking_use_cases.py").read_text()
+    packaging_source = (APP_ROOT / "backend/application/transfers/use_cases/transfer_packaging_use_cases.py").read_text()
+    dispatch_source = (APP_ROOT / "backend/application/transfers/use_cases/transfer_dispatch_use_cases.py").read_text()
+    receipt_source = (APP_ROOT / "backend/application/transfers/use_cases/transfer_receipt_use_cases.py").read_text()
+    blind_receipt_source = (APP_ROOT / "backend/application/transfers/use_cases/blind_receipt_use_cases.py").read_text()
+    difference_source = (APP_ROOT / "backend/application/transfers/use_cases/transfer_difference_use_cases.py").read_text()
+    return_source = (APP_ROOT / "backend/application/transfers/use_cases/transfer_return_use_cases.py").read_text()
+    suggestion_source = (APP_ROOT / "backend/application/transfers/use_cases/transfer_suggestion_use_cases.py").read_text()
     source = request_source + reservation_source + picking_source + packaging_source + dispatch_source + receipt_source + blind_receipt_source + difference_source + return_source + suggestion_source
 
     assert "sqlite3" not in source
@@ -44,16 +45,16 @@ def test_transfer_request_use_cases_do_not_import_database_or_inventory_gateways
 
 def test_transfer_request_use_cases_validate_granular_request_permissions():
     source = (
-        Path("pos_spj_v13.4/backend/application/transfers/use_cases/transfer_request_use_cases.py").read_text()
-        + Path("pos_spj_v13.4/backend/application/transfers/use_cases/transfer_reservation_use_cases.py").read_text()
-        + Path("pos_spj_v13.4/backend/application/transfers/use_cases/transfer_picking_use_cases.py").read_text()
-        + Path("pos_spj_v13.4/backend/application/transfers/use_cases/transfer_packaging_use_cases.py").read_text()
-        + Path("pos_spj_v13.4/backend/application/transfers/use_cases/transfer_dispatch_use_cases.py").read_text()
-        + Path("pos_spj_v13.4/backend/application/transfers/use_cases/transfer_receipt_use_cases.py").read_text()
-        + Path("pos_spj_v13.4/backend/application/transfers/use_cases/blind_receipt_use_cases.py").read_text()
-        + Path("pos_spj_v13.4/backend/application/transfers/use_cases/transfer_difference_use_cases.py").read_text()
-        + Path("pos_spj_v13.4/backend/application/transfers/use_cases/transfer_return_use_cases.py").read_text()
-        + Path("pos_spj_v13.4/backend/application/transfers/use_cases/transfer_suggestion_use_cases.py").read_text()
+        (APP_ROOT / "backend/application/transfers/use_cases/transfer_request_use_cases.py").read_text()
+        + (APP_ROOT / "backend/application/transfers/use_cases/transfer_reservation_use_cases.py").read_text()
+        + (APP_ROOT / "backend/application/transfers/use_cases/transfer_picking_use_cases.py").read_text()
+        + (APP_ROOT / "backend/application/transfers/use_cases/transfer_packaging_use_cases.py").read_text()
+        + (APP_ROOT / "backend/application/transfers/use_cases/transfer_dispatch_use_cases.py").read_text()
+        + (APP_ROOT / "backend/application/transfers/use_cases/transfer_receipt_use_cases.py").read_text()
+        + (APP_ROOT / "backend/application/transfers/use_cases/blind_receipt_use_cases.py").read_text()
+        + (APP_ROOT / "backend/application/transfers/use_cases/transfer_difference_use_cases.py").read_text()
+        + (APP_ROOT / "backend/application/transfers/use_cases/transfer_return_use_cases.py").read_text()
+        + (APP_ROOT / "backend/application/transfers/use_cases/transfer_suggestion_use_cases.py").read_text()
     )
 
     assert "TransferPermissions.REQUEST_CREATE" in source

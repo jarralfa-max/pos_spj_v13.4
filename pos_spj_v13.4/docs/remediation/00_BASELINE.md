@@ -85,3 +85,29 @@ Hay 7 rutas en el inventario de consumidores legacy CRM. Parte del inventario sc
 ## Validación y límites
 
 Este baseline no declara cierre Enterprise ni tests aprobados. Las pruebas se registrarán por fase con comandos y resultados reales. Ninguna excepción productiva relevante equivale a PASS. La validación visual/manual y el CI remoto se reportarán por separado de pruebas locales.
+
+---
+
+## Revalidación 2026-09-05 (mismo HEAD `51112b59`, árbol de trabajo avanzado)
+
+El baseline anterior se levantó sobre el commit. Desde entonces el árbol de trabajo
+acumula las fases 1 a 3 sin publicar. Reevaluación de cada hallazgo contra el código
+actual, sin revertir nada:
+
+| Hallazgo | Estado 2026-09-04 | Estado 2026-09-05 | Evidencia |
+| --- | --- | --- | --- |
+| CI inválido | ABIERTO | **CERRADO** | Conflicto resuelto por unión; marcadores solo en `.claude/worktrees/` y falsos positivos de `.venv` |
+| Guardrules no se ejecutan | no detectado | **CERRADO** | 32 archivos reanclados a `APP_ROOT`; 86→47 fallos, 39 resueltos, 0 nuevos |
+| Credencial conocida | ABIERTO | **CERRADO** | `admin123` solo existe como contraseña prohibida y en sus pruebas |
+| Identidad empresa/estación paralela | no detectado | **CERRADO** | `company_profiles`/`workstations` canónicos; copias KV retiradas |
+| Migraciones omiten errores | ABIERTO | **CERRADO** | `MigrationImportError`/`ContractError`/`ExecutionError` propagan; 232 migraciones terminan en base nueva |
+| AppContainer productivo | ABIERTO | ABIERTO | `main.py:47,166` |
+| Shell legacy productivo | ABIERTO | ABIERTO | `main.py:48,191`, `interfaz/main_window.py` |
+| SalesService legacy | ABIERTO | ABIERTO (acotado) | `procesar_venta` y escritura mínima ya vallados tras `ALLOW_LEGACY_*`; la clase sigue construida por `AppContainer` y consumida por `api/routers/ventas.py` y `cotizacion_service.py` |
+| Dinero REAL | ABIERTO | ABIERTO | `migrations/m000_base_schema.py` |
+| Relaciones funcionales enteras | ABIERTO | ABIERTO | `test_no_int_id_casts`, `test_uuidv7_cutover_protection` fallan |
+| Autorización por rol | ABIERTO | ABIERTO | sin cambios |
+
+Los 47 fallos vigentes de `tests/architecture` son el inventario real de deuda abierta y
+sustituyen al conteo de allowlists como medida de avance: las allowlists declaran
+tolerancia, los fallos declaran infracción evaluada.

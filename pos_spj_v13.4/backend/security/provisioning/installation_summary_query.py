@@ -3,9 +3,12 @@
 Read-only, display-only data for `LoginWindow` — the company/branch name to
 show above the login form. Deliberately not `InstallationStatusQuery`
 (SHELL-2): that answers "what state is the installation in," this answers
-"what should the screen say." Reads `configuraciones` (where
-`ProvisionInstallationUseCase` wrote `empresa_nombre`) and `sucursales`
-directly — no new table, nothing to migrate.
+"what should the screen say." Reads the company name from the canonical
+`company_profiles` record `installation.company_id` points at, and the branch
+name from `sucursales`. It used to read a `configuraciones.empresa_nombre`
+copy that provisioning wrote alongside the real profile; that copy is gone,
+so renaming the company in Configuración now shows up here instead of leaving
+the login screen on a stale name forever.
 """
 from __future__ import annotations
 
@@ -23,14 +26,18 @@ class InstallationSummaryQueryService:
         self._conn = conn
 
     def get_summary(self) -> InstallationSummary:
-        company_row = self._conn.execute(
-            "SELECT valor FROM configuraciones WHERE clave = 'empresa_nombre'"
-        ).fetchone()
-        company_name = (company_row[0] if company_row else "") or ""
-
         installation_row = self._conn.execute(
-            "SELECT initial_branch_id FROM installation LIMIT 1"
+            "SELECT company_id, initial_branch_id FROM installation LIMIT 1"
         ).fetchone()
+
+        company_name = ""
+        if installation_row and installation_row["company_id"]:
+            company_row = self._conn.execute(
+                "SELECT legal_name FROM company_profiles WHERE id = ?",
+                (installation_row["company_id"],),
+            ).fetchone()
+            company_name = (company_row[0] if company_row else "") or ""
+
         branch_name = ""
         if installation_row and installation_row["initial_branch_id"]:
             branch_row = self._conn.execute(

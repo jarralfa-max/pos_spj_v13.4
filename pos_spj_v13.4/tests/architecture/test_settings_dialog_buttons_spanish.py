@@ -1,6 +1,7 @@
 from pathlib import Path
+from tests.architecture.architecture_guardrails import APP_ROOT
 
-CONFIGURATION_MODULE = Path("pos_spj_v13.4/modulos/configuracion.py")
+CONFIGURATION_MODULE = (APP_ROOT / "modulos/configuracion.py")
 
 
 def test_settings_dialog_buttons_are_styled_by_helper() -> None:

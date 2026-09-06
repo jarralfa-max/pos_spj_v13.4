@@ -2,10 +2,11 @@ import os
 from pathlib import Path
 
 import pytest
+from tests.architecture.architecture_guardrails import APP_ROOT
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-MENU = Path("pos_spj_v13.4/interfaz/menu_lateral.py")
+MENU = (APP_ROOT / "interfaz/menu_lateral.py")
 
 
 def _button(menu, code: str):

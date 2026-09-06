@@ -1,8 +1,9 @@
 from pathlib import Path
+from tests.architecture.architecture_guardrails import APP_ROOT
 
 
 def test_transfers_offline_sync_has_no_database_or_inventory_fallback():
-    source = Path("pos_spj_v13.4/backend/application/transfers/offline_sync.py").read_text()
+    source = (APP_ROOT / "backend/application/transfers/offline_sync.py").read_text()
     assert "sqlite3" not in source
     assert "InventoryEngine" not in source
     assert "repositories." not in source

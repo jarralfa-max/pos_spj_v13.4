@@ -1,22 +1,41 @@
 """ProvisionInstallationUseCase — SHELL-2 security foundation.
 
 Top-level orchestrator behind `InitialSetupWizard`'s "finish" step: creates
-the initial branch (reusing the existing `sucursales` schema — this app is
-single-tenant/single-company, so "company" has no dedicated table yet and is
-recorded as `configuraciones` entries plus a minted `company_id`), the first
-owner account (`CreateInitialOwnerUseCase`), the installation's recovery kit,
-and transitions `Installation` from UNINITIALIZED to PROVISIONED.
+the initial branch (reusing the existing `sucursales` schema), the canonical
+`CompanyProfile` and `Workstation` records the installation then points at,
+the first owner account (`CreateInitialOwnerUseCase`), the installation's
+recovery kit, and transitions `Installation` from UNINITIALIZED to
+PROVISIONED.
 
-Runs inside the caller's transaction (`conn`) — commit/rollback is the
-caller's responsibility, matching "toda operación crítica debe pasar por Use
-Case" + "servicios no deben crear ni alterar schema" (this only inserts
-rows; migration 206 owns the schema).
+`company_id`/`workstation_id` used to be minted here as bare UUIDs whose
+identity lived in `configuraciones` key/value rows, so they referenced no
+record at all while the Settings bounded context owned real
+`company_profiles`/`workstations` tables that provisioning never wrote — two
+parallel homes for the same identity. Both are now created through their
+canonical repositories inside this same UnitOfWork, and the KV copies are
+gone; `sucursal_instalacion_id` stays because `core/services/branch_resolution.py`
+is a real consumer of it.
+
+Owns an exclusive UnitOfWork: success is returned only after commit. A failed
+attempt rolls back identity, installation state, configuration and recovery
+codes together; a retry starts from the last committed state.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable, Optional
+
+from backend.domain.settings.entities.company_profile import CompanyProfile
+from backend.domain.settings.entities.workstation import Workstation
+from backend.domain.settings.enums import WorkstationType
+from backend.infrastructure.db.repositories.security.provisioning_unit_of_work import ProvisioningUnitOfWork
+from backend.infrastructure.db.repositories.settings.company_profile_repository import (
+    SqliteCompanyProfileRepository,
+)
+from backend.infrastructure.db.repositories.settings.workstation_repository import (
+    SqliteWorkstationRepository,
+)
 
 from backend.security.audit.security_events import (
     INSTALLATION_PROVISIONED,
@@ -36,6 +55,22 @@ from backend.security.provisioning.recovery_code_repository import RecoveryCodeR
 from backend.shared.ids import new_uuid
 
 AuditSink = Callable[[str, dict], None]
+
+# The setup wizard does not collect locale/currency yet; these stay overridable
+# per call so it can start doing so without another provisioning path.
+DEFAULT_CURRENCY = "MXN"
+DEFAULT_TIMEZONE = "America/Mexico_City"
+DEFAULT_LOCALE = "es-MX"
+
+
+def _workstation_code(workstation_name: str) -> str:
+    """`workstations.code` is NOT NULL UNIQUE and the wizard only asks for a
+    display name, so derive a slug from it. A name made entirely of
+    punctuation would slug to the empty string, which the CHECK constraint
+    rejects — fall back to a minted, guaranteed-non-empty code."""
+    slug = "".join(ch if ch.isalnum() else "-" for ch in workstation_name.strip().upper())
+    slug = "-".join(part for part in slug.split("-") if part)
+    return slug or f"POS-{new_uuid()[:8].upper()}"
 
 
 @dataclass(frozen=True)
@@ -76,7 +111,32 @@ class ProvisionInstallationUseCase:
         owner_full_name: str,
         owner_recovery_contact: str = "",
         recovery_code_count: int = 10,
+        default_currency: str = DEFAULT_CURRENCY,
+        default_timezone: str = DEFAULT_TIMEZONE,
+        default_locale: str = DEFAULT_LOCALE,
         now: datetime | None = None,
+    ) -> ProvisioningResult:
+        for field, value in (("company_name", company_name), ("branch_name", branch_name),
+                             ("workstation_name", workstation_name)):
+            if not value or not value.strip():
+                raise ValueError(f"{field} es obligatorio.")
+        with ProvisioningUnitOfWork(self._conn):
+            return self._provision(
+                company_name=company_name, company_rfc=company_rfc,
+                branch_name=branch_name, branch_address=branch_address,
+                workstation_name=workstation_name, owner_username=owner_username,
+                owner_password=owner_password, owner_full_name=owner_full_name,
+                owner_recovery_contact=owner_recovery_contact,
+                recovery_code_count=recovery_code_count,
+                default_currency=default_currency, default_timezone=default_timezone,
+                default_locale=default_locale, now=now,
+            )
+
+    def _provision(
+        self, *, company_name, company_rfc, branch_name, branch_address,
+        workstation_name, owner_username, owner_password, owner_full_name,
+        owner_recovery_contact, recovery_code_count, default_currency,
+        default_timezone, default_locale, now,
     ) -> ProvisioningResult:
         now = now or datetime.now(timezone.utc)
         installation = self._installations.get() or Installation.uninitialized(
@@ -102,27 +162,27 @@ class ProvisionInstallationUseCase:
 
         branch_id = new_uuid()
         self._conn.execute(
-            "INSERT OR IGNORE INTO sucursales (id, nombre, direccion, activa) VALUES (?,?,?,1)",
+            "INSERT INTO sucursales (id, nombre, direccion, activa) VALUES (?,?,?,1)",
             (branch_id, branch_name.strip(), (branch_address or "").strip()),
         )
 
-        company_id = new_uuid()
-        for clave, valor in (
-            ("company_id", company_id),
-            ("empresa_nombre", company_name.strip()),
-            ("empresa_rfc", (company_rfc or "").strip()),
-        ):
-            self._conn.execute(
-                "INSERT INTO configuraciones (clave, valor) VALUES (?, ?) "
-                "ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
-                (clave, valor),
-            )
+        company = CompanyProfile.create(
+            legal_name=company_name, tax_id=(company_rfc or ""),
+            default_currency=default_currency, default_timezone=default_timezone,
+            default_locale=default_locale,
+        )
+        SqliteCompanyProfileRepository(self._conn).save(company)
 
-        workstation_id = new_uuid()
+        workstation = Workstation.create(
+            branch_id=branch_id, code=_workstation_code(workstation_name),
+            name=workstation_name, workstation_type=WorkstationType.POS,
+        )
+        SqliteWorkstationRepository(self._conn).save(workstation)
+
         self._conn.execute(
             "INSERT INTO configuraciones (clave, valor) VALUES (?, ?) "
             "ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
-            ("workstation_nombre", (workstation_name or "").strip()),
+            ("sucursal_instalacion_id", branch_id),
         )
 
         owner_use_case = CreateInitialOwnerUseCase(
@@ -141,7 +201,7 @@ class ProvisionInstallationUseCase:
         )
 
         installation = installation.complete_provisioning(
-            company_id=company_id, initial_branch_id=branch_id, workstation_id=workstation_id,
+            company_id=company.id, initial_branch_id=branch_id, workstation_id=workstation.id,
             provisioned_by_user_id=owner_user_id, now=now,
         )
         self._installations.save(installation)

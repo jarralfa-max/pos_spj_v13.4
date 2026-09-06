@@ -2,8 +2,9 @@ import re
 from pathlib import Path
 
 from core.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS, module_view_permission, permission_code, normalize_permission
+from tests.architecture.architecture_guardrails import APP_ROOT
 
-MENU = Path("pos_spj_v13.4/interfaz/menu_lateral.py")
+MENU = (APP_ROOT / "interfaz/menu_lateral.py")
 
 
 def test_permission_catalog_has_all_menu_modules() -> None:

@@ -1,7 +1,8 @@
 import re
 from pathlib import Path
+from tests.architecture.architecture_guardrails import APP_ROOT
 
-CONFIGURATION_MODULE = Path("pos_spj_v13.4/modulos/configuracion.py")
+CONFIGURATION_MODULE = (APP_ROOT / "modulos/configuracion.py")
 
 SILENT_EXCEPTION_PATTERNS = [
     re.compile(r"except\s+Exception\s*:\s*pass"),

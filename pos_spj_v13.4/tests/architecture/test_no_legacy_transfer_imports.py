@@ -1,7 +1,8 @@
 from pathlib import Path
+from tests.architecture.architecture_guardrails import APP_ROOT
 
 
-ROOT = Path("pos_spj_v13.4")
+ROOT = APP_ROOT
 
 
 def test_no_legacy_transfer_modules_imports_routes_or_events():

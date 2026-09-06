@@ -83,8 +83,9 @@ def provisioned_conn(unprovisioned_conn):
         recovery_code_repository=SqliteRecoveryCodeRepository(conn),
         password_hasher=BcryptPasswordHasher(), password_policy=PasswordPolicy(),
     ).execute(
-        company_name="Carnicería SPJ", branch_name="Sucursal Centro", owner_username=OWNER_USERNAME,
-        owner_password=PASSWORD, owner_full_name="Jose Alfaro", now=T0,
+        company_name="Carnicería SPJ", branch_name="Sucursal Centro", workstation_name="Caja 1",
+        owner_username=OWNER_USERNAME, owner_password=PASSWORD, owner_full_name="Jose Alfaro",
+        now=T0,
     )
     conn.commit()
     return conn

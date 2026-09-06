@@ -1,8 +1,9 @@
 from pathlib import Path
+from tests.architecture.architecture_guardrails import APP_ROOT
 
 
 def _source():
-    root = Path("pos_spj_v13.4/frontend/desktop/modules/transfers")
+    root = (APP_ROOT / "frontend/desktop/modules/transfers")
     return "\n".join(path.read_text() for path in root.rglob("*.py"))
 
 

@@ -1,8 +1,9 @@
 import re
 from pathlib import Path
+from tests.architecture.architecture_guardrails import APP_ROOT
 
-CONFIGURATION_MODULE = Path("pos_spj_v13.4/modulos/configuracion.py")
-PHONE_WRAPPER = Path("pos_spj_v13.4/frontend/desktop/components/phone_input.py")
+CONFIGURATION_MODULE = (APP_ROOT / "modulos/configuracion.py")
+PHONE_WRAPPER = (APP_ROOT / "frontend/desktop/components/phone_input.py")
 
 
 def test_configuracion_uses_phone_widget_for_phones() -> None:

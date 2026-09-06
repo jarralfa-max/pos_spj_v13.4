@@ -1,8 +1,9 @@
 from pathlib import Path
+from tests.architecture.architecture_guardrails import APP_ROOT
 
 
 def test_transfer_notifications_are_gateway_driven_and_have_no_direct_channels():
-    root = Path("pos_spj_v13.4/backend/application/transfers/notification_handlers")
+    root = (APP_ROOT / "backend/application/transfers/notification_handlers")
     source = "\n".join(path.read_text() for path in root.glob("*.py"))
     assert "sqlite3" not in source
     assert "requests." not in source

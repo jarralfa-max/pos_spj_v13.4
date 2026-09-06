@@ -1,7 +1,8 @@
 from pathlib import Path
+from tests.architecture.architecture_guardrails import APP_ROOT
 
-CONFIGURATION_MODULE = Path("pos_spj_v13.4/modulos/configuracion.py")
-UI_COMPONENTS = Path("pos_spj_v13.4/modulos/ui_components.py")
+CONFIGURATION_MODULE = (APP_ROOT / "modulos/configuracion.py")
+UI_COMPONENTS = (APP_ROOT / "modulos/ui_components.py")
 
 
 def test_settings_uses_compact_page_header() -> None:

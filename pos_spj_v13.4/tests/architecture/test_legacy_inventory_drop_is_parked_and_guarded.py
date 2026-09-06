@@ -8,8 +8,9 @@ This guardrail keeps that safety in place until the consumers reach zero.
 """
 
 from pathlib import Path
+from tests.architecture.architecture_guardrails import APP_ROOT
 
-ROOT = Path("pos_spj_v13.4")
+ROOT = APP_ROOT
 DROP = ROOT / "migrations/deferred/legacy_inventory_drop.py"
 
 

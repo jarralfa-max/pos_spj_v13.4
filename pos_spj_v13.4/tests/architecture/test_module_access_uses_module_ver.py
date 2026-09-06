@@ -1,8 +1,9 @@
 from pathlib import Path
 
 from core.permissions import verificar_acceso_modulo
+from tests.architecture.architecture_guardrails import APP_ROOT
 
-PERMISSIONS = Path("pos_spj_v13.4/core/permissions.py")
+PERMISSIONS = (APP_ROOT / "core/permissions.py")
 
 
 class _Session:

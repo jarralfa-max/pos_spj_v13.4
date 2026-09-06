@@ -1,8 +1,9 @@
 from pathlib import Path
+from tests.architecture.architecture_guardrails import APP_ROOT
 
-MENU = Path("pos_spj_v13.4/interfaz/menu_lateral.py")
-MAIN_WINDOW = Path("pos_spj_v13.4/interfaz/main_window.py")
-CONFIGURATION_MODULE = Path("pos_spj_v13.4/modulos/configuracion.py")
+MENU = (APP_ROOT / "interfaz/menu_lateral.py")
+MAIN_WINDOW = (APP_ROOT / "interfaz/main_window.py")
+CONFIGURATION_MODULE = (APP_ROOT / "modulos/configuracion.py")
 
 
 def test_menu_lateral_uses_configured_permissions_not_hardcoded_roles() -> None:

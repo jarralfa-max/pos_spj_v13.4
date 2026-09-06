@@ -8,8 +8,9 @@ coming back.
 """
 
 from pathlib import Path
+from tests.architecture.architecture_guardrails import APP_ROOT
 
-ROOT = Path("pos_spj_v13.4")
+ROOT = APP_ROOT
 
 
 def test_legacy_recipe_explosion_handler_file_is_removed():

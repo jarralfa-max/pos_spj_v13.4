@@ -1,9 +1,10 @@
 from pathlib import Path
+from tests.architecture.architecture_guardrails import APP_ROOT
 
 
 def test_transfers_printing_has_no_ui_database_or_direct_printer_dependency():
-    files = [Path("pos_spj_v13.4/backend/application/transfers/printing.py")]
-    files += list(Path("pos_spj_v13.4/backend/infrastructure/printing").glob("*.py"))
+    files = [(APP_ROOT / "backend/application/transfers/printing.py")]
+    files += list((APP_ROOT / "backend/infrastructure/printing").glob("*.py"))
     source = "\n".join(path.read_text() for path in files)
     for forbidden in ("sqlite3", "PyQt", "win32print", "escpos", "repositories."):
         assert forbidden not in source

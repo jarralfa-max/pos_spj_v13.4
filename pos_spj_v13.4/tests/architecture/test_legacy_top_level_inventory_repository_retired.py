@@ -11,8 +11,9 @@ back and removes another blocker from the ``movimientos_inventario`` DROP list.
 """
 
 from pathlib import Path
+from tests.architecture.architecture_guardrails import APP_ROOT
 
-ROOT = Path("pos_spj_v13.4")
+ROOT = APP_ROOT
 
 
 def test_legacy_top_level_inventory_repository_file_is_removed():

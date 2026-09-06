@@ -7,9 +7,10 @@ from backend.domain.transfers.events import ALL_TRANSFER_EVENTS
 from backend.infrastructure.db.schema.transfers_schema import (
     TRANSFER_TABLES, create_transfers_schema,
 )
+from tests.architecture.architecture_guardrails import APP_ROOT
 
 
-ROOT = Path("pos_spj_v13.4")
+ROOT = APP_ROOT
 
 
 def test_transfer_schema_is_uuid_text_decimal_text_and_not_duplicated():

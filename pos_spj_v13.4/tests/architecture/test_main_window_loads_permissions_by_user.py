@@ -1,8 +1,9 @@
 from pathlib import Path
+from tests.architecture.architecture_guardrails import APP_ROOT
 
-MAIN_WINDOW = Path("pos_spj_v13.4/interfaz/main_window.py")
-SERVICE = Path("pos_spj_v13.4/core/services/configuration_settings_service.py")
-REPOSITORY = Path("pos_spj_v13.4/repositories/config_repository.py")
+MAIN_WINDOW = (APP_ROOT / "interfaz/main_window.py")
+SERVICE = (APP_ROOT / "core/services/configuration_settings_service.py")
+REPOSITORY = (APP_ROOT / "repositories/config_repository.py")
 
 
 def test_main_window_uses_user_permissions_not_role_name_for_menu() -> None:
