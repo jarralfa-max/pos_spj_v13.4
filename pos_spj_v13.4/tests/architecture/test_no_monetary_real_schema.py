@@ -60,11 +60,62 @@ def _monetary_float_columns() -> list[str]:
     return offenders
 
 
+# Deuda legacy medida por este mismo detector: `migrations/` declara 379 columnas
+# REAL de dinero o de magnitudes que se multiplican por dinero, la mayoría en
+# `m000_base_schema.py` (credit_limit, precio, precio_compra, limite_credito,
+# saldo_pendiente… las que §9 del prompt maestro enumera). De ellas, 292 son
+# importes en sentido estricto y el resto son cantidades/pesos: ambas contaminan
+# el resultado en cuanto se multiplican, así que el detector las trata igual.
+#
+# NO se convierten en esta fase, y la razón es de semántica, no de tamaño: pasar
+# esas columnas a TEXT cambia el resultado de cada `SUM(precio)`, `AVG(total)` y
+# comparación numérica que el SQL legacy hace sobre ellas — silenciosamente y sin
+# que ninguna prueba lo note. Es un corte con su propia migración y su propia
+# validación, no una sustitución de tipos. Mientras tanto queda medida y
+# congelada: puede bajar, nunca subir.
+_MIGRATIONS_LEGACY_BASELINE = 379
+
+
 def test_no_monetary_real_columns_in_canonical_schema() -> None:
     offenders = _monetary_float_columns()
     assert not offenders, (
         "Columnas monetarias en coma flotante (§9 exige TEXT decimal / NUMERIC):\n"
         + "\n".join(offenders)
+    )
+
+
+def _migration_monetary_float_columns() -> list[str]:
+    offenders: list[str] = []
+    for path in sorted((APP_ROOT / "migrations").rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
+        source = path.read_text(encoding="utf-8", errors="ignore")
+        for match in _FLOAT_COLUMN_RE.finditer(source):
+            column = match.group(1).lower()
+            if column in _GEO_EXEMPT:
+                continue
+            if not any(token in column for token in _MONETARY_TOKENS):
+                continue
+            line = source.count("\n", 0, match.start()) + 1
+            offenders.append(f"{path.relative_to(APP_ROOT).as_posix()}:{line}: {match.group(0).strip()}")
+    return offenders
+
+
+def test_legacy_migration_monetary_real_debt_does_not_increase() -> None:
+    offenders = _migration_monetary_float_columns()
+    assert len(offenders) <= _MIGRATIONS_LEGACY_BASELINE, (
+        f"La deuda de dinero REAL en migrations/ AUMENTÓ: {len(offenders)} "
+        f"(base {_MIGRATIONS_LEGACY_BASELINE}). El esquema nuevo debe usar TEXT decimal.\n"
+        + "\n".join(offenders[_MIGRATIONS_LEGACY_BASELINE:])
+    )
+
+
+def test_legacy_migration_baseline_is_not_stale() -> None:
+    """Si un corte reduce la deuda, hay que registrarlo bajando la base."""
+    offenders = _migration_monetary_float_columns()
+    assert len(offenders) == _MIGRATIONS_LEGACY_BASELINE, (
+        f"Baseline desactualizado: real {len(offenders)}, base {_MIGRATIONS_LEGACY_BASELINE}. "
+        f"Ajusta _MIGRATIONS_LEGACY_BASELINE a {len(offenders)} para dejar constancia del avance."
     )
 
 

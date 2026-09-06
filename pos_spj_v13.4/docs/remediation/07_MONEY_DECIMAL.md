@@ -141,3 +141,82 @@ es cero y no se ha probado sobre una base con datos previos.
 `test_no_monetary_float.py` para medir el `float()` sobre dinero en código productivo, y
 clasificar las 653 apariciones de `REAL` en `migrations/` separando dinero de magnitudes
 legítimas. Después, el corte del `erp/bridge.py`.
+
+---
+
+## Anexo — el segundo guardrail de §39, y por qué no es un cero
+
+`tests/architecture/test_no_monetary_float.py` cubre el **código**; el anterior cubría el
+**esquema**. Con esto quedan implementados los dos que §39 pedía.
+
+### La medición
+
+`float(<identificador monetario>)` en código productivo: **308 ocurrencias**.
+
+| Área | Ocurrencias |
+| --- | ---: |
+| `core/` | 201 |
+| `backend/` | 37 |
+| `repositories/` | 31 |
+| `modulos/` | 9 |
+| `application/` | 8 |
+| resto | 22 |
+| **`backend/domain/`** | **0** |
+
+Los focos son `core/services/sales_service.py` (34) y
+`core/services/enterprise/finance_service.py` (20) — el SalesService legacy que §11 manda
+eliminar.
+
+### Por qué dos garantías y no un assert a cero
+
+Un assert a cero con 308 violaciones sería un test rojo permanente: nadie lo lee y deja de
+comunicar. Eso es precisamente el falso gate que §40 describe. En su lugar:
+
+1. **`backend/domain/` se fija en CERO duro.** Ya está limpio hoy, y es la capa que §4
+   obliga a mantener pura. Una regla que ya se cumple puede exigirse sin tolerancias.
+2. **El resto queda bajo ratchet por área**: la deuda existente queda medida y **no puede
+   crecer**. Una tercera prueba obliga a bajar la base cuando un contexto migra, para que
+   el progreso quede registrado — es lo que evita que estas cifras se conviertan en las
+   allowlists obsoletas que `05_IDENTITY_GUARDRAILS.md` documenta.
+
+El gate de dominio se verificó introduciendo una violación real
+(`float(row["precio_unitario"])` en un archivo temporal bajo `backend/domain/`): **falla**,
+y vuelve a pasar al retirarla. No es un guard que sólo sabe pasar.
+
+### `migrations/`: 379 columnas REAL, medidas y congeladas
+
+El detector de esquema aplicado a `migrations/` encuentra **379** columnas REAL de dinero o
+de magnitudes que se multiplican por dinero (292 son importes en sentido estricto; el resto
+cantidades y pesos, que contaminan igual en cuanto se multiplican). La mayoría está en
+`m000_base_schema.py`, e incluye literalmente las que §9 del prompt maestro enumera:
+`credit_limit`, `credit_balance`, `precio`, `precio_compra`, `precio_minimo_venta`,
+`limite_credito`, `saldo_pendiente`.
+
+**No se convierten aquí, y la razón es de semántica, no de tamaño.** Pasar esas columnas a
+TEXT cambia el resultado de cada `SUM(precio)`, `AVG(total)` y comparación numérica que el
+SQL legacy hace sobre ellas — en silencio y sin que ninguna prueba lo detecte. A diferencia
+del cambio de PK, que sólo endurecía una restricción, esto altera el **valor** devuelto. Es
+un corte con su propia migración, su propio inventario de consultas afectadas y su propia
+validación.
+
+Mientras tanto queda medido y congelado en 379: puede bajar, nunca subir.
+
+### Evidencia
+
+```text
+python -m pytest tests/architecture -q -p no:cacheprovider --tb=no
+```
+
+| Momento | Resultado |
+| --- | --- |
+| Tras `3a5698b0` | 28 failed, 746 passed, 1 skipped |
+| Ahora | **28 failed, 752 passed**, 1 skipped |
+
+Diferencia de conjuntos: **0 nuevos**. Los +6 son los guardrules añadidos.
+
+### Lo que sigue abierto
+
+La deuda de dinero en float **no se ha reducido**: se ha medido y acotado. 308 conversiones
+en código y 379 columnas en migraciones siguen ahí. El siguiente paso real es el corte de
+`core/services/sales_service.py` (§11), que concentra el mayor foco y que el prompt maestro
+ya marca para eliminación.
