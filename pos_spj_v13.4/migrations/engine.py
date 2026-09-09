@@ -258,6 +258,7 @@ MIGRATIONS = [
     _Migration("252",  "migrations.standalone.252_meat_processing_resources_schema"),
     _Migration("253",  "migrations.standalone.253_purchase_orders_payment_terms"),
     _Migration("254",  "migrations.standalone.254_forecasting_schema"),
+    _Migration("255",  "migrations.standalone.255_sales_legacy_backfill"),
 ]
 
 def _ensure_tracking_table(conn):
