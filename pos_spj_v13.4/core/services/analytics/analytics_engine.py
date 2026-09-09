@@ -125,50 +125,6 @@ class AnalyticsEngine:
 
     # ── BI Query API ─────────────────────────────────────────────────────────
 
-    def sales_metrics(self, fecha: str, sucursal_id: int = 1) -> dict:
-        """
-        Returns aggregated sales metrics for a given date from bi_sales_daily.
-        Falls back to computing from ventas table if bi table has no data yet.
-        """
-        try:
-            row = self._db.execute(
-                "SELECT total_ventas, num_transacciones, promedio_ticket "
-                "FROM bi_sales_daily WHERE fecha=? AND sucursal_id=?",
-                (fecha[:10], sucursal_id),
-            ).fetchone()
-            if row:
-                return {
-                    "fecha": fecha[:10],
-                    "sucursal_id": sucursal_id,
-                    "total_ventas": float(row[0] or 0),
-                    "num_transacciones": int(row[1] or 0),
-                    "promedio_ticket": float(row[2] or 0),
-                    "fuente": "bi_sales_daily",
-                }
-        except Exception:
-            pass
-        # Fallback: aggregate from ventas table directly
-        try:
-            row2 = self._db.execute(
-                "SELECT COALESCE(SUM(total),0), COUNT(*), "
-                "COALESCE(AVG(total),0) FROM __SRC_H__ "
-                "WHERE DATE(fecha)=? AND sucursal_id=? AND estado='completada'",
-                (fecha[:10], sucursal_id),
-            ).fetchone()
-            if row2:
-                return {
-                    "fecha": fecha[:10],
-                    "sucursal_id": sucursal_id,
-                    "total_ventas": float(row2[0]),
-                    "num_transacciones": int(row2[1]),
-                    "promedio_ticket": float(row2[2]),
-                    "fuente": "ventas",
-                }
-        except Exception as e:
-            logger.warning("sales_metrics fallback failed: %s", e)
-        return {"fecha": fecha[:10], "sucursal_id": sucursal_id,
-                "total_ventas": 0.0, "num_transacciones": 0, "promedio_ticket": 0.0,
-                "fuente": "empty"}
 
     def product_profitability(
         self, fecha_ini: str, fecha_fin: str, sucursal_id: int = 1, limit: int = 20
@@ -283,117 +239,7 @@ class AnalyticsEngine:
             logger.warning("product_profitability_detail: %s", e)
             return []
 
-    def dashboard_charts(self, fecha_ini: str, fecha_fin: str) -> dict:
-        """Series agregadas (todas las sucursales) para el dashboard visual.
 
-        Devuelve listas de tuplas listas para graficar: ventas por sucursal,
-        top productos, métodos de pago, horas pico, rentabilidad por categoría y
-        evolución mensual (ventas y utilidad bruta) del año en curso.
-        """
-        fi, ff = fecha_ini[:10], fecha_fin[:10]
-        cl = self._COSTO_LINE
-        out: dict = {
-            "ventas_por_sucursal": [], "top_productos": [], "metodos_pago": [],
-            "horas_pico": [], "rentabilidad_categoria": [],
-            "evolucion": {"labels": [], "ventas": [], "utilidad": []},
-        }
-
-        def _q(sql, params=()):
-            try:
-                return self._db.execute(sql, params).fetchall()
-            except Exception as e:
-                logger.warning("dashboard_charts: %s", e)
-                return []
-
-        out["ventas_por_sucursal"] = [
-            (r[0], float(r[1] or 0)) for r in _q(
-                "SELECT COALESCE(s.nombre,'(sin sucursal)') n, COALESCE(SUM(v.total),0) t "
-                "FROM __SRC_H__ v LEFT JOIN sucursales s ON s.id=v.sucursal_id "
-                "WHERE v.estado='completada' AND DATE(v.fecha) BETWEEN ? AND ? "
-                "GROUP BY v.sucursal_id ORDER BY t DESC LIMIT 8", (fi, ff))
-        ]
-        out["top_productos"] = [
-            (r[0], float(r[1] or 0)) for r in _q(
-                "SELECT COALESCE(p.nombre, dv.nombre,'—') n, SUM(dv.subtotal) ing "
-                "FROM __SRC_L__ dv JOIN __SRC_H__ v ON v.id=dv.venta_id "
-                "LEFT JOIN productos p ON p.id=dv.producto_id "
-                "WHERE v.estado='completada' AND DATE(v.fecha) BETWEEN ? AND ? "
-                "GROUP BY dv.producto_id ORDER BY ing DESC LIMIT 8", (fi, ff))
-        ]
-        out["metodos_pago"] = [
-            (r[0], float(r[1] or 0)) for r in _q(
-                "SELECT COALESCE(NULLIF(forma_pago,''),'Otro') m, COALESCE(SUM(total),0) t "
-                "FROM __SRC_H__ WHERE estado='completada' AND DATE(fecha) BETWEEN ? AND ? "
-                "GROUP BY m ORDER BY t DESC", (fi, ff))
-        ]
-        out["horas_pico"] = [
-            (f"{r[0]}:00", float(r[1] or 0)) for r in _q(
-                "SELECT strftime('%H', fecha) h, COALESCE(SUM(total),0) ing "
-                "FROM __SRC_H__ WHERE estado='completada' AND DATE(fecha) BETWEEN ? AND ? "
-                "GROUP BY h ORDER BY h", (fi, ff))
-        ]
-        out["rentabilidad_categoria"] = [
-            (r[0], float(r[1] or 0)) for r in _q(
-                f"SELECT COALESCE(NULLIF(p.categoria,''),'(sin categoría)') cat, "
-                f"COALESCE(SUM(dv.subtotal - dv.cantidad*{cl}),0) margen "
-                "FROM __SRC_L__ dv JOIN __SRC_H__ v ON v.id=dv.venta_id "
-                "LEFT JOIN productos p ON p.id=dv.producto_id "
-                "WHERE v.estado='completada' AND DATE(v.fecha) BETWEEN ? AND ? "
-                "GROUP BY cat ORDER BY margen DESC LIMIT 8", (fi, ff))
-        ]
-        # Evolución mensual del año en curso (ventas + utilidad bruta)
-        ev = _q(
-            f"SELECT strftime('%m', v.fecha) mes, COALESCE(SUM(dv.subtotal),0) ing, "
-            f"COALESCE(SUM(dv.cantidad*{cl}),0) cogs "
-            "FROM __SRC_H__ v JOIN __SRC_L__ dv ON dv.venta_id=v.id "
-            "LEFT JOIN productos p ON p.id=dv.producto_id "
-            "WHERE v.estado='completada' AND strftime('%Y', v.fecha)=strftime('%Y','now') "
-            "GROUP BY mes ORDER BY mes")
-        meses_nom = ["ene", "feb", "mar", "abr", "may", "jun",
-                     "jul", "ago", "sep", "oct", "nov", "dic"]
-        by_mes = {r[0]: (float(r[1] or 0), float(r[2] or 0)) for r in ev}
-        for i in range(1, 13):
-            key = f"{i:02d}"
-            ing, cogs = by_mes.get(key, (0.0, 0.0))
-            out["evolucion"]["labels"].append(meses_nom[i - 1])
-            out["evolucion"]["ventas"].append(round(ing, 2))
-            out["evolucion"]["utilidad"].append(round(ing - cogs, 2))
-        return out
-
-    def branch_ranking(self, fecha: str) -> list:
-        """
-        Returns branch ranking for a given date from bi_branch_ranking,
-        or computes it from ventas if not yet populated.
-        """
-        try:
-            rows = self._db.execute(
-                "SELECT sucursal_id, rank_ventas, rank_margen, score "
-                "FROM bi_branch_ranking WHERE fecha=? ORDER BY score DESC",
-                (fecha[:10],),
-            ).fetchall()
-            if rows:
-                return [
-                    {"sucursal_id": r[0], "rank_ventas": r[1],
-                     "rank_margen": r[2], "score": float(r[3] or 0)}
-                    for r in rows
-                ]
-        except Exception:
-            pass
-        try:
-            rows2 = self._db.execute(
-                "SELECT sucursal_id, COALESCE(SUM(total),0) AS total_dia "
-                "FROM __SRC_H__ WHERE DATE(fecha)=? AND estado='completada' "
-                "GROUP BY sucursal_id ORDER BY total_dia DESC",
-                (fecha[:10],),
-            ).fetchall()
-            return [
-                {"sucursal_id": r[0], "rank_ventas": i + 1,
-                 "rank_margen": i + 1, "score": float(r[1] or 0)}
-                for i, r in enumerate(rows2 or [])
-            ]
-        except Exception as e:
-            logger.warning("branch_ranking fallback failed: %s", e)
-            return []
 
     def inventory_intelligence(self, sucursal_id: int = 1, top: int = 10) -> dict:
         """
@@ -435,33 +281,6 @@ class AnalyticsEngine:
             logger.warning("inventory_intelligence top_consumed: %s", e)
         return result
 
-    def forecast(self, sucursal_id: int = 1, dias_proyeccion: int = 7) -> list:
-        """
-        Simple moving-average sales forecast for the next N days.
-        Uses last 30 days of bi_sales_daily as training window.
-        Returns a list of {fecha, proyeccion} dicts.
-        """
-        from datetime import date, timedelta
-        try:
-            rows = self._db.execute(
-                "SELECT total_ventas FROM bi_sales_daily "
-                "WHERE sucursal_id=? AND fecha >= DATE('now','-30 days') "
-                "ORDER BY fecha DESC",
-                (sucursal_id,),
-            ).fetchall()
-            if not rows:
-                return []
-            valores = [float(r[0] or 0) for r in rows]
-            promedio = sum(valores) / len(valores) if valores else 0.0
-            hoy = date.today()
-            return [
-                {"fecha": (hoy + timedelta(days=i + 1)).isoformat(),
-                 "proyeccion": round(promedio, 2)}
-                for i in range(dias_proyeccion)
-            ]
-        except Exception as e:
-            logger.warning("forecast non-fatal: %s", e)
-            return []
 
     # ── Unified BI Dashboard API (consolida BIService + BIRepository) ────────
 
@@ -668,23 +487,6 @@ class AnalyticsEngine:
         return [dict(row) for row in self._db.execute(
             query, (sucursal_id, fecha_inicio, fecha_fin, limite)).fetchall()]
 
-    def get_scan_telemetria(self, sucursal_id: int, fecha_inicio: str, fecha_fin: str) -> list:
-        """
-        Resumen de eventos de escaneo por tipo y acción.
-        """
-        try:
-            query = """
-                SELECT tipo, accion, COUNT(*) AS total
-                FROM scan_event_log
-                WHERE sucursal_id = ?
-                  AND date(created_at) BETWEEN date(?) AND date(?)
-                GROUP BY tipo, accion
-                ORDER BY total DESC
-            """
-            return [dict(row) for row in self._db.execute(
-                query, (sucursal_id, fecha_inicio, fecha_fin)).fetchall()]
-        except Exception:
-            return []
 
     def _get_comparativa(self, sucursal_id: int, rango: str) -> dict:
         """KPIs del período anterior: hoy→ayer, semana→semana pasada, mes→mes pasado."""

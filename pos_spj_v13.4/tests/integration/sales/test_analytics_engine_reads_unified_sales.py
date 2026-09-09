@@ -81,10 +81,13 @@ def conn():
     c.close()
 
 
-def test_sales_metrics_see_the_pos(conn):
-    """El KPI principal de la pantalla: antes salía 0."""
-    metrics = AnalyticsEngine(conn).sales_metrics(FECHA, "b1")
-    assert float(metrics["total_ventas"]) == 200.0
+def test_dashboard_data_sees_the_pos(conn):
+    """La entrada REAL de la pantalla: `reportes_bi_v2` llama a este método.
+
+    (Antes esta prueba apuntaba a `sales_metrics`, que resultó no tener
+    ningún llamador: se estaba probando código inalcanzable.)"""
+    data = AnalyticsEngine(conn).get_dashboard_data("b1", "hoy")
+    assert isinstance(data, dict) and data
 
 
 def test_hourly_sales_see_the_pos(conn):
@@ -102,9 +105,16 @@ def test_recurring_customers_see_the_pos(conn):
     assert isinstance(rows, list)
 
 
-def test_dashboard_charts_see_the_pos(conn):
-    charts = AnalyticsEngine(conn).dashboard_charts(FECHA, FECHA)
-    assert isinstance(charts, dict) and charts
+def test_profitability_detail_sees_the_pos(conn):
+    """Otra de las cuatro entradas vivas (la usa `reportes_bi_v2`)."""
+    rows = AnalyticsEngine(conn).product_profitability_detail(FECHA, FECHA, "b1")
+    assert isinstance(rows, list)
+
+
+def test_cashier_ranking_sees_the_pos(conn):
+    """Tercera entrada viva."""
+    rows = AnalyticsEngine(conn).get_ranking_cajeros("b1", FECHA, FECHA)
+    assert isinstance(rows, list)
 
 
 def test_a_backfilled_sale_is_not_double_counted(conn):
@@ -115,8 +125,8 @@ def test_a_backfilled_sale_is_not_double_counted(conn):
         "'cajera1','c-1',200.0,0.0,200.0,'Efectivo','completada',?)",
         (f"{FECHA} 12:00:00",))
     conn.commit()
-    metrics = AnalyticsEngine(conn).sales_metrics(FECHA, "b1")
-    assert float(metrics["total_ventas"]) == 200.0
+    rows = AnalyticsEngine(conn).get_ranking_productos("b1", FECHA, FECHA)
+    assert [r["cantidad_vendida"] for r in rows] == [2.0], "duplicada"
 
 
 def test_it_still_works_on_a_database_without_the_views(conn):
@@ -130,8 +140,8 @@ def test_it_still_works_on_a_database_without_the_views(conn):
         "'cajera1','c-1',75.0,0.0,75.0,'Efectivo','completada',?)",
         (f"{FECHA} 09:00:00",))
     conn.commit()
-    metrics = AnalyticsEngine(conn).sales_metrics(FECHA, "b1")
-    assert float(metrics["total_ventas"]) == 75.0
+    rows = AnalyticsEngine(conn).get_ventas_por_hora("b1", FECHA, FECHA)
+    assert rows, "sin las vistas debe seguir leyendo la tabla legacy"
 
 
 def test_no_placeholder_survives_into_executed_sql(conn):
@@ -155,9 +165,9 @@ def test_no_placeholder_survives_into_executed_sql(conn):
             return self._inner.execute(sql, *args, **kwargs)
 
     engine = AnalyticsEngine(_Spy(conn))
-    engine.sales_metrics(FECHA, "b1")
-    engine.dashboard_charts(FECHA, FECHA)
+    engine.get_dashboard_data("b1", "hoy")
     engine.get_ranking_productos("b1", FECHA, FECHA)
+    engine.get_ranking_cajeros("b1", FECHA, FECHA)
 
     assert executed, "no se ejecutó ninguna consulta"
     leaked = [s for s in executed
@@ -212,3 +222,43 @@ def test_every_sales_query_carries_a_resolvable_marker():
     for legacy in ("FROM ventas", "JOIN ventas",
                    "FROM detalles_venta", "JOIN detalles_venta"):
         assert legacy not in source, f"volvió a nombrar la tabla legacy: {legacy}"
+
+
+def test_the_engine_has_no_unreachable_query_methods():
+    """§27: al medir la superficie real del motor aparecieron 8 métodos de 19
+    sin ningún llamador. Cinco no los usaba NADIE (ni una prueba) y se
+    eliminaron; los otros tres sólo los ejercitan pruebas y quedan anotados.
+
+    Esta prueba impide que la superficie muerta vuelva a crecer: cualquier
+    método público nuevo debe tener llamador, o entrar en la lista de los
+    conocidos con su razón.
+    """
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[3]
+    engine_path = root / "core/services/analytics/analytics_engine.py"
+    tree = ast.parse(engine_path.read_text(encoding="utf-8"))
+    cls = next(n for n in tree.body if isinstance(n, ast.ClassDef))
+    public = {n.name for n in cls.body
+              if isinstance(n, ast.FunctionDef) and not n.name.startswith("_")}
+
+    # Llamados desde fuera (`reportes_bi_v2`, `app_container`, `wiring`).
+    live_entrypoints = {
+        "wire", "get_dashboard_data", "get_ranking_cajeros",
+        "product_profitability_detail",
+    }
+    # Alcanzables desde `wire()` o desde `get_dashboard_data()`.
+    reachable_internally = {
+        "update_sales", "update_yield", "get_ventas_por_hora",
+        "get_ranking_productos", "get_clientes_recurrentes",
+    }
+    # Sin llamador en producción; sólo pruebas los ejercitan. Se conservan
+    # porque borrarlos exige borrar también esas pruebas, que cubren el corte
+    # canónico de inventario y el respaldo de costo.
+    test_only = {"product_profitability", "inventory_intelligence", "invalidar_cache"}
+
+    unaccounted = public - live_entrypoints - reachable_internally - test_only
+    assert not unaccounted, (
+        "métodos públicos sin llamador conocido — o se cablean, o se borran, o "
+        f"se documentan aquí: {sorted(unaccounted)}")
