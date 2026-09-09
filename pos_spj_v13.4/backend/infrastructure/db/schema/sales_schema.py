@@ -19,8 +19,20 @@ Rules (REGLA CERO / §8 / §9):
 Canonical English names (``sales``, ``sale_lines``) do NOT collide with the
 legacy operational tables this bounded context does not touch or replace
 yet (``ventas``, ``detalles_venta`` — see ``migrations/m000_base_schema.py``
-``_create_ventas``, still REAL-typed money, still the only live write path
-per ``docs/refactor/SALES-0_auditoria.md``). ``payments``/``sale_refunds``
+``_create_ventas``, still REAL-typed money).
+
+CORRECCIÓN (2026-09-08): este docstring decía que ``ventas`` era "the only
+live write path per docs/refactor/SALES-0_auditoria.md". Fue cierto en
+SALES-4 y dejó de serlo en SALES-19..22, cuando ``modulos/ventas.py`` se
+borró y ``sales_pos`` pasó a ser la única pantalla de POS viva: hoy una
+venta cobrada en el POS persiste AQUÍ, vía ``CheckoutSaleUseCase`` ->
+``SalesUnitOfWork``. La tabla legacy sigue recibiendo el tráfico de la API
+REST, cotizaciones, pedidos, anticipos y Delivery, y sigue siendo la que
+leen BI, forecasting e historial de cliente — es decir, los dos modelos
+están vivos a la vez y sin puente. La brecha está medida y congelada en
+``tests/architecture/test_sales_persistence_split_ratchet.py``.
+
+``payments``/``sale_refunds``
 are ALREADY legacy table names taken by ``_create_ventas`` — this schema
 uses ``sale_payments`` if/when a payments table is needed by a future phase,
 never the bare ``payments`` name.
