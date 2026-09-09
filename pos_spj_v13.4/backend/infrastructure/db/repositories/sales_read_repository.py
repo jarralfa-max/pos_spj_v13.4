@@ -28,6 +28,21 @@ class SalesReadRepository:
             return None
         return {"uuid_qr": row[0], "descripcion": row[1]}
 
+    # NO se repunta a `v_ventas_unificada`/`v_detalles_venta_unificada`
+    # (migraciones 256/257), a diferencia del resto de lectores de la capa
+    # canónica, y por dos razones concretas:
+    #
+    #   * `get_sale_ticket_header` pide `efectivo_recibido` y `cambio`. La
+    #     vista no los expone porque el agregado canónico NO los guarda: el
+    #     cambio se calcula en `CheckoutSaleUseCase` y no se persiste.
+    #     Exponerlos como 0 imprimiría un ticket con un cambio falso.
+    #   * `get_sale_items_with_product` ordena por `dv.rowid`, y una VISTA no
+    #     tiene rowid. Cambiarlo a `dv.id` alteraría el orden de las líneas
+    #     del ticket (ids UUID, orden arbitrario) en vez de conservarlo.
+    #
+    # Cerrar esto exige que el agregado guarde el desglose de efectivo y un
+    # orden de línea explícito; hasta entonces el ticket se imprime desde la
+    # tabla legacy, que sí los tiene. Anotado en el corte de Ventas.
     def get_sale_ticket_header(self, sale_id: str) -> dict[str, Any] | None:
         row = self._connection.execute(
             "SELECT folio, fecha, usuario, forma_pago, efectivo_recibido, cambio, total "

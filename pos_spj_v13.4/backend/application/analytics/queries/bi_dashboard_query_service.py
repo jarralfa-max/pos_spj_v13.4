@@ -13,6 +13,7 @@ from backend.application.analytics.queries.bi_inventory_query_service import BiI
 from backend.application.analytics.queries.bi_finance_query_service import BiFinanceQueryService
 from backend.application.analytics.queries.bi_forecast_query_service import BiForecastQueryService
 from backend.application.analytics.queries.bi_cash_query_service import BiCashQueryService
+from backend.infrastructure.db.sales_read_source import sales_source
 
 
 class BiDashboardQueryService:
@@ -68,7 +69,7 @@ class BiDashboardQueryService:
             "SELECT name FROM product_categories "
             "WHERE COALESCE(active,1)=1 ORDER BY name")]
         payments = [r[0] for r in _q(
-            "SELECT DISTINCT forma_pago FROM ventas "
+            f"SELECT DISTINCT forma_pago FROM {sales_source(self.sales._conn)} "
             "WHERE COALESCE(forma_pago,'')<>'' ORDER BY forma_pago")]
         return {"branches": branches, "categories": categories,
                 "payment_methods": payments}

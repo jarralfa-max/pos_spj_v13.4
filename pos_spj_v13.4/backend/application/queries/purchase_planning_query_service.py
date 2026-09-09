@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from backend.application.queries.base_query_service import BaseQueryService, KpiMetric, QueryFilters, SearchResult, TableRow
+from backend.infrastructure.db.sales_read_source import sale_lines_source, sales_source
 
 
 class PurchasePlanningQueryService(BaseQueryService):
@@ -63,9 +64,9 @@ class PurchasePlanningReadService:
     def sales_history(self, product_id: str, branch_id: str, days: int) -> list[dict]:
         """Ventas diarias del producto: [{fecha, total_vendido}, ...]."""
         rows = self.db.execute(
-            """SELECT date(v.fecha) AS fecha, SUM(d.cantidad) AS total_vendido
-               FROM ventas v
-               JOIN detalles_venta d ON v.id = d.venta_id
+            f"""SELECT date(v.fecha) AS fecha, SUM(d.cantidad) AS total_vendido
+               FROM {sales_source(self.db)} v
+               JOIN {sale_lines_source(self.db)} d ON v.id = d.venta_id
                WHERE d.producto_id = ?
                  AND v.sucursal_id = ?
                  AND v.estado = 'completada'

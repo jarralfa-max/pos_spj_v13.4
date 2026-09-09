@@ -1,8 +1,10 @@
 """SQLite implementation of TimeSeriesReaderPort for `daily_sales_by_product`
 (BI-8).
 
-Reads the same canonical tables `BiSalesQueryService` already reads
-(`detalles_venta`/`ventas`, BI-4) — no new schema, no snapshot table. Any
+Lee las mismas vistas unificadas que `BiSalesQueryService`
+(`v_ventas_unificada`/`v_detalles_venta_unificada`, migraciones 256/257) y no
+las tablas legacy, que dejaban la demanda del POS fuera del forecast. Sin
+esquema nuevo ni tabla de snapshots. Any
 calendar day in the requested range with no matching sales row comes back as
 an explicit imputed-zero `TimeSeriesObservation` (§18) — the reader never
 silently drops a gap day, and never claims a gap was genuine zero demand
@@ -15,6 +17,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from backend.domain.forecasting.value_objects.time_series import TimeSeriesObservation
+from backend.infrastructure.db.sales_read_source import sale_lines_source, sales_source
 
 SERIES_KEY = "daily_sales_by_product"
 
@@ -48,7 +51,8 @@ class SqliteDailyProductSalesReader:
 
         rows = self._conn.execute(
             "SELECT DATE(v.fecha) AS d, SUM(dv.cantidad) AS qty "
-            "FROM detalles_venta dv JOIN ventas v ON v.id = dv.venta_id "
+            f"FROM {sale_lines_source(self._conn)} dv"
+            f" JOIN {sales_source(self._conn)} v ON v.id = dv.venta_id "
             f"WHERE {where} GROUP BY d",
             params,
         ).fetchall()

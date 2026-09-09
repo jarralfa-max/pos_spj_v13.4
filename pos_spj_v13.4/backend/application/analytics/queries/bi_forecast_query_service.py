@@ -6,6 +6,8 @@ forward. No heavy ML — deterministic and testable.
 from __future__ import annotations
 
 import logging
+
+from backend.infrastructure.db.sales_read_source import sales_source
 from datetime import date, timedelta
 
 logger = logging.getLogger("spj.bi.forecast")
@@ -16,7 +18,7 @@ class BiForecastQueryService:
         self._conn = conn
 
     def _daily_sales(self, branch_id: str, days: int) -> list[float]:
-        sql = ("SELECT DATE(fecha) d, COALESCE(SUM(total),0) t FROM ventas "
+        sql = (f"SELECT DATE(fecha) d, COALESCE(SUM(total),0) t FROM {sales_source(self._conn)} "
                "WHERE estado='completada' AND DATE(fecha) >= DATE('now', ?) ")
         params: list = [f"-{int(days)} days"]
         if branch_id:

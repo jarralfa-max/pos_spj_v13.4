@@ -1,7 +1,12 @@
 """Read-only price/quantity OBSERVATION history for pricing-elasticity
-estimation (BI-16/BI-27). Reads the same `detalles_venta`/`ventas` tables
-`BiSalesQueryService` already reads: one (price, quantity) point per day the
-product actually sold at a given unit price.
+estimation (BI-16/BI-27). One (price, quantity) point per day the product
+actually sold at a given unit price.
+
+Lee las mismas vistas unificadas que `BiSalesQueryService`
+(`v_ventas_unificada`/`v_detalles_venta_unificada`, migraciones 256/257) y no
+las tablas legacy: éstas dejan fuera las ventas del POS, que nacen en el
+agregado canónico `sales`, y la elasticidad estimada sobre media muestra
+sería sencillamente otra.
 
 Not the same concern as `PricingReadService.list_price_history()`
 (`backend/application/pricing/`) — that reads `price_change_log`, a log of
@@ -12,6 +17,8 @@ customers were actually charged and how much they bought at it, the input
 from __future__ import annotations
 
 import logging
+
+from backend.infrastructure.db.sales_read_source import sale_lines_source, sales_source
 
 logger = logging.getLogger("spj.bi.price_history")
 
@@ -29,7 +36,8 @@ class PriceHistoryQueryService:
         fila — nunca None (§16's `estimate_price_elasticity` filtra sus
         propios puntos inválidos)."""
         sql = ("SELECT dv.precio_unitario, SUM(dv.cantidad) "
-               "FROM detalles_venta dv JOIN ventas v ON v.id=dv.venta_id "
+               f"FROM {sale_lines_source(self._conn)} dv"
+               f" JOIN {sales_source(self._conn)} v ON v.id=dv.venta_id "
                "WHERE v.estado='completada' AND dv.producto_id=? "
                "AND dv.precio_unitario IS NOT NULL")
         params: list = [product_id]
@@ -47,8 +55,8 @@ class PriceHistoryQueryService:
             return []
 
     def latest_price(self, *, product_id: str, branch_id: str | None = None) -> float | None:
-        sql = ("SELECT dv.precio_unitario FROM detalles_venta dv "
-               "JOIN ventas v ON v.id=dv.venta_id "
+        sql = (f"SELECT dv.precio_unitario FROM {sale_lines_source(self._conn)} dv "
+               f"JOIN {sales_source(self._conn)} v ON v.id=dv.venta_id "
                "WHERE v.estado='completada' AND dv.producto_id=? "
                "AND dv.precio_unitario IS NOT NULL")
         params: list = [product_id]
