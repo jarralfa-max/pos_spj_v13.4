@@ -145,13 +145,28 @@ class CustomerHistoryQueryService:
             reason=r[2] or "", source_entity_id=r[4]) for r in rows]
 
     def _sales_entries(self, customer_id: str) -> list[CustomerTimelineEntry]:
-        if not (self._table_exists("ventas") and self._table_exists("customers")):
+        """Lee `v_ventas_unificada`, no `ventas` (migración 256).
+
+        Leer la tabla legacy dejaba fuera del historial del cliente TODAS las
+        ventas del POS: desde SALES-19..22 nacen en el agregado canónico
+        (`sales`) y nunca pasan por `ventas`. La vista es la única fuente que
+        contiene ambas, y las seis columnas que este método usa mapean sin
+        pérdida (a diferencia de, p. ej., `loyalty_points`, que no tiene
+        equivalente canónico y por eso su lector sigue sin repuntarse).
+
+        Se conserva el respaldo a `ventas` para una BD que aún no haya
+        aplicado la 256; desaparece con la vista.
+        """
+        source = ("v_ventas_unificada" if self._relation_exists("v_ventas_unificada")
+                  else "ventas")
+        if not (self._relation_exists(source) and self._table_exists("customers")):
             return []
         legacy_customer_id = self._legacy_customer_id(customer_id)
         if not legacy_customer_id:
             return []
         rows = self._conn.execute(
-            "SELECT id, folio, total, estado, usuario, fecha FROM ventas WHERE cliente_id=?",
+            f"SELECT id, folio, total, estado, usuario, fecha FROM {source}"
+            " WHERE cliente_id=?",
             (legacy_customer_id,)).fetchall()
         action_by_estado = {
             "cancelada": "VENTA_CANCELADA", "cancelado": "VENTA_CANCELADA",
@@ -218,4 +233,17 @@ class CustomerHistoryQueryService:
         table means "nothing to contribute", not an error."""
         return self._conn.execute(
             "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)
+        ).fetchone() is not None
+
+    def _relation_exists(self, name: str) -> bool:
+        """Como `_table_exists`, pero también acepta vistas.
+
+        Separado a propósito en vez de ensanchar `_table_exists`: sus otras
+        ocho llamadas comprueban tablas reales, y `type='table'` filtraría la
+        vista `v_ventas_unificada` haciendo que el repunte de lectura fuera un
+        no-op silencioso (se cayó en ello al escribirlo).
+        """
+        return self._conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type IN ('table','view') AND name=?",
+            (name,),
         ).fetchone() is not None
