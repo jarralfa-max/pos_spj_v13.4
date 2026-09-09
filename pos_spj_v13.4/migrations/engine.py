@@ -260,6 +260,7 @@ MIGRATIONS = [
     _Migration("254",  "migrations.standalone.254_forecasting_schema"),
     _Migration("255",  "migrations.standalone.255_sales_legacy_backfill"),
     _Migration("256",  "migrations.standalone.256_sales_unified_read_view"),
+    _Migration("257",  "migrations.standalone.257_sale_lines_unified_read_view"),
 ]
 
 def _ensure_tracking_table(conn):

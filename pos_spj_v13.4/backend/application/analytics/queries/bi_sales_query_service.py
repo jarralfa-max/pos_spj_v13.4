@@ -3,6 +3,18 @@
 All SQL for the sales side of the dashboard lives here (backend layer). The UI
 consumes the returned read models only. Cost of goods uses the real captured
 line cost with a fallback to product cost columns.
+
+FUENTE: `v_ventas_unificada` / `v_detalles_venta_unificada` (migraciones
+256/257), no las tablas legacy. Leer `ventas`/`detalles_venta` dejaba fuera de
+TODOS estos KPIs las ventas del POS, que desde SALES-19..22 nacen en el
+agregado canónico `sales` y nunca pasan por la tabla legacy. Las vistas son la
+única fuente que contiene ambas mientras queden escritores legacy; su criterio
+de eliminación está en las propias migraciones.
+
+`COST_LINE` no cambia y sigue siendo correcto sobre la vista: su primer término
+(`dv.costo_unitario_real`) está vacío en la práctica —ningún código productivo
+escribe esa columna— así que el costo real de toda venta, canónica o legacy,
+lo aporta el fallback a `product_cost.average_cost`.
 """
 from __future__ import annotations
 
@@ -40,7 +52,7 @@ def _sales_where(f, alias: str = "v") -> tuple[str, list]:
         params.append(str(f.customer_id))
     if f.category:
         clauses.append(
-            f"EXISTS (SELECT 1 FROM detalles_venta dv JOIN products p "
+            f"EXISTS (SELECT 1 FROM v_detalles_venta_unificada dv JOIN products p "
             f"ON p.id=dv.producto_id "
             f"JOIN product_categories pcat ON pcat.id=p.category_id "
             f"WHERE dv.venta_id={alias}.id AND pcat.name=?)")
@@ -69,7 +81,7 @@ class BiSalesQueryService:
         """Ventas netas, número de órdenes y ticket promedio del periodo."""
         where, params = _sales_where(f)
         row = self._one(
-            f"SELECT COALESCE(SUM(v.total),0), COUNT(*) FROM ventas v WHERE {where}",
+            f"SELECT COALESCE(SUM(v.total),0), COUNT(*) FROM v_ventas_unificada v WHERE {where}",
             params)
         ventas = float(row[0]) if row else 0.0
         ordenes = int(row[1]) if row else 0
@@ -81,7 +93,7 @@ class BiSalesQueryService:
         where, params = _sales_where(f)
         row = self._one(
             f"SELECT COALESCE(SUM(dv.cantidad*{COST_LINE}),0) "
-            "FROM detalles_venta dv JOIN ventas v ON v.id=dv.venta_id "
+            "FROM v_detalles_venta_unificada dv JOIN v_ventas_unificada v ON v.id=dv.venta_id "
             f"{_COST_JOIN} "
             f"WHERE {where}", params)
         return float(row[0]) if row else 0.0
@@ -92,14 +104,14 @@ class BiSalesQueryService:
         where, params = _sales_where(f)
         return [(r[0], float(r[1] or 0)) for r in self._q(
             "SELECT COALESCE(s.nombre,'(sin sucursal)') n, COALESCE(SUM(v.total),0) t "
-            "FROM ventas v LEFT JOIN sucursales s ON s.id=v.sucursal_id "
+            "FROM v_ventas_unificada v LEFT JOIN sucursales s ON s.id=v.sucursal_id "
             f"WHERE {where} GROUP BY v.sucursal_id ORDER BY t DESC LIMIT 12", params)]
 
     def top_products(self, f, limit: int = 10) -> list[tuple[str, float]]:
         where, params = _sales_where(f)
         return [(r[0], float(r[1] or 0)) for r in self._q(
             "SELECT COALESCE(p.name, dv.nombre,'—') n, SUM(dv.subtotal) ing "
-            "FROM detalles_venta dv JOIN ventas v ON v.id=dv.venta_id "
+            "FROM v_detalles_venta_unificada dv JOIN v_ventas_unificada v ON v.id=dv.venta_id "
             "LEFT JOIN products p ON p.id=dv.producto_id "
             f"WHERE {where} GROUP BY dv.producto_id ORDER BY ing DESC LIMIT ?",
             params + [limit])]
@@ -108,7 +120,7 @@ class BiSalesQueryService:
         where, params = _sales_where(f)
         return [(r[0], float(r[1] or 0)) for r in self._q(
             "SELECT COALESCE(NULLIF(pcat.name,''),'(sin categoría)') c, SUM(dv.subtotal) ing "
-            "FROM detalles_venta dv JOIN ventas v ON v.id=dv.venta_id "
+            "FROM v_detalles_venta_unificada dv JOIN v_ventas_unificada v ON v.id=dv.venta_id "
             "LEFT JOIN products p ON p.id=dv.producto_id "
             "LEFT JOIN product_categories pcat ON pcat.id=p.category_id "
             f"WHERE {where} GROUP BY c ORDER BY ing DESC LIMIT 10", params)]
@@ -117,13 +129,13 @@ class BiSalesQueryService:
         where, params = _sales_where(f)
         return [(r[0], float(r[1] or 0)) for r in self._q(
             "SELECT COALESCE(NULLIF(v.forma_pago,''),'Otro') m, COALESCE(SUM(v.total),0) t "
-            f"FROM ventas v WHERE {where} GROUP BY m ORDER BY t DESC", params)]
+            f"FROM v_ventas_unificada v WHERE {where} GROUP BY m ORDER BY t DESC", params)]
 
     def peak_hours(self, f) -> list[tuple[str, float]]:
         where, params = _sales_where(f)
         return [(f"{r[0]}:00", float(r[1] or 0)) for r in self._q(
             "SELECT strftime('%H', v.fecha) h, COALESCE(SUM(v.total),0) t "
-            f"FROM ventas v WHERE {where} GROUP BY h ORDER BY h", params)]
+            f"FROM v_ventas_unificada v WHERE {where} GROUP BY h ORDER BY h", params)]
 
     def profitability_by_category(self, f) -> list[tuple[str, float, float]]:
         """(categoría, margen $, margen %) del periodo."""
@@ -132,7 +144,7 @@ class BiSalesQueryService:
             f"SELECT COALESCE(NULLIF(pcat.name,''),'(sin categoría)') c, "
             "COALESCE(SUM(dv.subtotal),0) ing, "
             f"COALESCE(SUM(dv.cantidad*{COST_LINE}),0) cogs "
-            "FROM detalles_venta dv JOIN ventas v ON v.id=dv.venta_id "
+            "FROM v_detalles_venta_unificada dv JOIN v_ventas_unificada v ON v.id=dv.venta_id "
             "LEFT JOIN products p ON p.id=dv.producto_id "
             "LEFT JOIN product_categories pcat ON pcat.id=p.category_id "
             f"{_COST_JOIN} "
@@ -153,7 +165,7 @@ class BiSalesQueryService:
         rows = self._q(
             "SELECT strftime('%m', v.fecha) mes, COALESCE(SUM(dv.subtotal),0) ing, "
             f"COALESCE(SUM(dv.cantidad*{COST_LINE}),0) cogs "
-            "FROM ventas v JOIN detalles_venta dv ON dv.venta_id=v.id "
+            "FROM v_ventas_unificada v JOIN v_detalles_venta_unificada dv ON dv.venta_id=v.id "
             f"{_COST_JOIN} "
             f"WHERE v.estado='completada' AND {year_clause} "
             "GROUP BY mes ORDER BY mes", params)
@@ -174,6 +186,6 @@ class BiSalesQueryService:
                 for r in self._q(
             "SELECT COALESCE(c.nombre,'Público General') n, COUNT(v.id) vis, "
             "COALESCE(SUM(v.total),0) tot "
-            "FROM ventas v LEFT JOIN clientes c ON c.id=v.cliente_id "
+            "FROM v_ventas_unificada v LEFT JOIN clientes c ON c.id=v.cliente_id "
             f"WHERE {where} GROUP BY v.cliente_id ORDER BY tot DESC LIMIT ?",
             params + [limit])]
