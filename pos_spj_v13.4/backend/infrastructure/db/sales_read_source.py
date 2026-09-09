@@ -51,3 +51,54 @@ def sale_lines_source(conn) -> str:
     """Nombre de relación para las LÍNEAS de venta."""
     return (UNIFIED_SALE_LINES_VIEW if _exists(conn, UNIFIED_SALE_LINES_VIEW)
             else LEGACY_SALE_LINES_TABLE)
+
+
+#: Marcadores que los lectores legacy dejan en su SQL para que el reescritor
+#: los sustituya por la relación vigente. Se usan en `analytics_engine.py`,
+#: cuyas 21 consultas viven en literales que ya interpolan otras cosas: pasar
+#: cada una a f-string era el camino con más probabilidad de romper SQL en
+#: silencio, así que la sustitución ocurre en un solo sitio.
+#:
+#: NO llevan llaves a propósito: un marcador `{...}` colisiona con los
+#: f-strings y con `.format()` que esas mismas consultas ya usan — se
+#: comprobó con un KeyError '_SRC_L' real en `product_profitability`.
+SALES_PLACEHOLDER = "__SRC_H__"
+SALE_LINES_PLACEHOLDER = "__SRC_L__"
+
+
+class SalesSourceRewritingConnection:
+    """Envoltura de conexión que resuelve los marcadores de relación de venta.
+
+    Sólo toca el TEXTO del SQL, y sólo esos dos marcadores: no interpreta la
+    consulta, no añade cláusulas y no cambia parámetros. Todo lo demás se
+    delega intacto a la conexión real (`__getattr__`), incluidos `commit`,
+    `row_factory` y los PRAGMA.
+
+    Adaptador de transición (§4): desaparece cuando las vistas se reduzcan a
+    `sales`/`sale_lines` y los lectores puedan nombrarlas directamente.
+    """
+
+    def __init__(self, connection) -> None:
+        self._connection = connection
+
+    def __getattr__(self, name):
+        return getattr(self._connection, name)
+
+    def _rewrite(self, sql):
+        if not isinstance(sql, str):
+            return sql
+        if SALES_PLACEHOLDER in sql:
+            sql = sql.replace(SALES_PLACEHOLDER, sales_source(self._connection))
+        if SALE_LINES_PLACEHOLDER in sql:
+            sql = sql.replace(
+                SALE_LINES_PLACEHOLDER, sale_lines_source(self._connection))
+        return sql
+
+    def execute(self, sql, *args, **kwargs):
+        return self._connection.execute(self._rewrite(sql), *args, **kwargs)
+
+    def executemany(self, sql, *args, **kwargs):
+        return self._connection.executemany(self._rewrite(sql), *args, **kwargs)
+
+    def executescript(self, sql, *args, **kwargs):
+        return self._connection.executescript(self._rewrite(sql), *args, **kwargs)

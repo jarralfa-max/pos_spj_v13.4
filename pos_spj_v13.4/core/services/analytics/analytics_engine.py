@@ -20,7 +20,24 @@ class AnalyticsEngine:
     """Suscriptor de eventos que alimenta las tablas BI de agregación."""
 
     def __init__(self, db_conn):
-        self._db = db_conn
+        # Este motor sirve la pantalla VIVA de Inteligencia de Negocios
+        # (`modulos/reportes_bi_v2.py`, slot INTELIGENCIA_BI). Sus consultas
+        # leían `ventas`/`detalles_venta`, así que el BI que el usuario abre
+        # no veía NINGUNA venta del POS: desde SALES-19..22 nacen en el
+        # agregado canónico `sales` y no pasan por la tabla legacy.
+        #
+        # Las 21 consultas llevan los marcadores `__SRC_H__`/`__SRC_L__` y esta
+        # envoltura los resuelve a las vistas unificadas (256/257), o a la
+        # tabla legacy si la base aún no las tiene. Se hace en un único punto
+        # y no convirtiendo 21 literales a f-string: varios ya interpolan
+        # otras piezas con f-string o `.format()`, y un marcador con LLAVES
+        # colisionaba con ambos (se comprobó: KeyError '_SRC_L' en
+        # `product_profitability`). Por eso el marcador no lleva llaves.
+        from backend.infrastructure.db.sales_read_source import (
+            SalesSourceRewritingConnection,
+        )
+
+        self._db = SalesSourceRewritingConnection(db_conn)
         self._subscribed = False
 
     def wire(self) -> None:
@@ -134,7 +151,7 @@ class AnalyticsEngine:
         try:
             row2 = self._db.execute(
                 "SELECT COALESCE(SUM(total),0), COUNT(*), "
-                "COALESCE(AVG(total),0) FROM ventas "
+                "COALESCE(AVG(total),0) FROM __SRC_H__ "
                 "WHERE DATE(fecha)=? AND sucursal_id=? AND estado='completada'",
                 (fecha[:10], sucursal_id),
             ).fetchone()
@@ -197,8 +214,8 @@ class AnalyticsEngine:
                        SUM(dv.subtotal) AS ingresos,
                        SUM(dv.cantidad * {costo_expr}) AS costo,
                        SUM(dv.subtotal - dv.cantidad * {costo_expr}) AS margen
-                FROM detalles_venta dv
-                JOIN ventas v ON v.id = dv.venta_id
+                FROM __SRC_L__ dv
+                JOIN __SRC_H__ v ON v.id = dv.venta_id
                 LEFT JOIN productos p ON p.id = dv.producto_id
                 WHERE DATE(v.fecha) BETWEEN ? AND ?
                   AND v.sucursal_id = ?
@@ -242,8 +259,8 @@ class AnalyticsEngine:
                        SUM(dv.cantidad)                   AS unidades,
                        SUM(dv.subtotal)                   AS ingresos,
                        SUM(dv.cantidad * {cl})            AS costo
-                FROM detalles_venta dv
-                JOIN ventas v ON v.id = dv.venta_id
+                FROM __SRC_L__ dv
+                JOIN __SRC_H__ v ON v.id = dv.venta_id
                 LEFT JOIN productos p ON p.id = dv.producto_id
                 WHERE DATE(v.fecha) BETWEEN ? AND ?
                   AND v.sucursal_id = ?
@@ -291,14 +308,14 @@ class AnalyticsEngine:
         out["ventas_por_sucursal"] = [
             (r[0], float(r[1] or 0)) for r in _q(
                 "SELECT COALESCE(s.nombre,'(sin sucursal)') n, COALESCE(SUM(v.total),0) t "
-                "FROM ventas v LEFT JOIN sucursales s ON s.id=v.sucursal_id "
+                "FROM __SRC_H__ v LEFT JOIN sucursales s ON s.id=v.sucursal_id "
                 "WHERE v.estado='completada' AND DATE(v.fecha) BETWEEN ? AND ? "
                 "GROUP BY v.sucursal_id ORDER BY t DESC LIMIT 8", (fi, ff))
         ]
         out["top_productos"] = [
             (r[0], float(r[1] or 0)) for r in _q(
                 "SELECT COALESCE(p.nombre, dv.nombre,'—') n, SUM(dv.subtotal) ing "
-                "FROM detalles_venta dv JOIN ventas v ON v.id=dv.venta_id "
+                "FROM __SRC_L__ dv JOIN __SRC_H__ v ON v.id=dv.venta_id "
                 "LEFT JOIN productos p ON p.id=dv.producto_id "
                 "WHERE v.estado='completada' AND DATE(v.fecha) BETWEEN ? AND ? "
                 "GROUP BY dv.producto_id ORDER BY ing DESC LIMIT 8", (fi, ff))
@@ -306,20 +323,20 @@ class AnalyticsEngine:
         out["metodos_pago"] = [
             (r[0], float(r[1] or 0)) for r in _q(
                 "SELECT COALESCE(NULLIF(forma_pago,''),'Otro') m, COALESCE(SUM(total),0) t "
-                "FROM ventas WHERE estado='completada' AND DATE(fecha) BETWEEN ? AND ? "
+                "FROM __SRC_H__ WHERE estado='completada' AND DATE(fecha) BETWEEN ? AND ? "
                 "GROUP BY m ORDER BY t DESC", (fi, ff))
         ]
         out["horas_pico"] = [
             (f"{r[0]}:00", float(r[1] or 0)) for r in _q(
                 "SELECT strftime('%H', fecha) h, COALESCE(SUM(total),0) ing "
-                "FROM ventas WHERE estado='completada' AND DATE(fecha) BETWEEN ? AND ? "
+                "FROM __SRC_H__ WHERE estado='completada' AND DATE(fecha) BETWEEN ? AND ? "
                 "GROUP BY h ORDER BY h", (fi, ff))
         ]
         out["rentabilidad_categoria"] = [
             (r[0], float(r[1] or 0)) for r in _q(
                 f"SELECT COALESCE(NULLIF(p.categoria,''),'(sin categoría)') cat, "
                 f"COALESCE(SUM(dv.subtotal - dv.cantidad*{cl}),0) margen "
-                "FROM detalles_venta dv JOIN ventas v ON v.id=dv.venta_id "
+                "FROM __SRC_L__ dv JOIN __SRC_H__ v ON v.id=dv.venta_id "
                 "LEFT JOIN productos p ON p.id=dv.producto_id "
                 "WHERE v.estado='completada' AND DATE(v.fecha) BETWEEN ? AND ? "
                 "GROUP BY cat ORDER BY margen DESC LIMIT 8", (fi, ff))
@@ -328,7 +345,7 @@ class AnalyticsEngine:
         ev = _q(
             f"SELECT strftime('%m', v.fecha) mes, COALESCE(SUM(dv.subtotal),0) ing, "
             f"COALESCE(SUM(dv.cantidad*{cl}),0) cogs "
-            "FROM ventas v JOIN detalles_venta dv ON dv.venta_id=v.id "
+            "FROM __SRC_H__ v JOIN __SRC_L__ dv ON dv.venta_id=v.id "
             "LEFT JOIN productos p ON p.id=dv.producto_id "
             "WHERE v.estado='completada' AND strftime('%Y', v.fecha)=strftime('%Y','now') "
             "GROUP BY mes ORDER BY mes")
@@ -365,7 +382,7 @@ class AnalyticsEngine:
         try:
             rows2 = self._db.execute(
                 "SELECT sucursal_id, COALESCE(SUM(total),0) AS total_dia "
-                "FROM ventas WHERE DATE(fecha)=? AND estado='completada' "
+                "FROM __SRC_H__ WHERE DATE(fecha)=? AND estado='completada' "
                 "GROUP BY sucursal_id ORDER BY total_dia DESC",
                 (fecha[:10],),
             ).fetchall()
@@ -569,7 +586,7 @@ class AnalyticsEngine:
                 SUM(total) as ingresos_totales,
                 AVG(total) as ticket_promedio,
                 COUNT(DISTINCT cliente_id) as clientes_unicos
-            FROM ventas 
+            FROM __SRC_H__ 
             WHERE sucursal_id = ? AND estado = 'completada'
             AND date(fecha) BETWEEN date(?) AND date(?)
         """
@@ -583,7 +600,7 @@ class AnalyticsEngine:
                 strftime('%H', fecha) as hora,
                 COUNT(id) as cantidad_ventas,
                 SUM(total) as ingresos
-            FROM ventas
+            FROM __SRC_H__
             WHERE sucursal_id = ? AND estado = 'completada'
             AND date(fecha) BETWEEN date(?) AND date(?)
             GROUP BY hora
@@ -600,8 +617,8 @@ class AnalyticsEngine:
                 p.nombre,
                 SUM(d.cantidad) as cantidad_vendida,
                 SUM(d.subtotal) as ingresos_generados
-            FROM detalles_venta d
-            JOIN ventas v ON d.venta_id = v.id
+            FROM __SRC_L__ d
+            JOIN __SRC_H__ v ON d.venta_id = v.id
             JOIN productos p ON d.producto_id = p.id
             WHERE v.sucursal_id = ? AND v.estado = 'completada'
             AND date(v.fecha) BETWEEN date(?) AND date(?)
@@ -618,7 +635,7 @@ class AnalyticsEngine:
                 c.nombre,
                 COUNT(v.id) as visitas,
                 SUM(v.total) as valor_vida
-            FROM ventas v
+            FROM __SRC_H__ v
             JOIN clientes c ON v.cliente_id = c.id
             WHERE v.sucursal_id = ? AND v.estado = 'completada' AND c.nombre != 'Público General'
             AND date(v.fecha) BETWEEN date(?) AND date(?)
@@ -640,7 +657,7 @@ class AnalyticsEngine:
                 AVG(total)         AS ticket_promedio,
                 SUM(descuento)     AS total_descuentos,
                 COUNT(DISTINCT DATE(fecha)) AS dias_activo
-            FROM ventas
+            FROM __SRC_H__
             WHERE sucursal_id = ?
               AND estado = 'completada'
               AND date(fecha) BETWEEN date(?) AND date(?)
