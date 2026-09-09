@@ -319,6 +319,22 @@ class DatabaseWrapper:
         object.__setattr__(self, "_conn", conn)
 
     # ── Delegación básica ─────────────────────────────────────────────────────
+    @property
+    def conn(self):
+        """Conexión SQLite envuelta.
+
+        Sin esta propiedad, `wrapper.conn` caía en `__getattr__` y terminaba
+        en `getattr(sqlite3.Connection, "conn")` → AttributeError. Eso dejaba
+        INUTILIZABLE a `SalesReversalService`, cuyos tres métodos públicos
+        empiezan con `conn = self.db.conn`: cancelar, devolver o emitir una
+        nota de crédito reventaba antes de tocar la base.
+
+        El único otro consumidor del nombre es el propio
+        `SalesReversalService.__init__` (`getattr(db, "conn", db)`), que
+        busca exactamente esto: la conexión cruda que hay dentro.
+        """
+        return self._conn
+
     def __getattr__(self, name):
         return getattr(self._conn, name)
 

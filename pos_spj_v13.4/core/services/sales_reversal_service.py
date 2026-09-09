@@ -9,7 +9,7 @@
 #   ✔  Sin estados intermedios observables desde fuera de la transacción
 #
 # MÉTODOS PÚBLICOS:
-#   cancel_sale(sale_id, usuario)
+#   cancel_sale(sale_id, usuario, motivo='')
 #   refund_items(sale_id, items, usuario)
 #   issue_credit_note(sale_id, amount, reason, usuario)
 #
@@ -275,9 +275,14 @@ class SalesReversalService:
     # 1. CANCELACIÓN TOTAL
     # ═════════════════════════════════════════════════════════════════════════
 
-    def cancel_sale(self, sale_id: int, usuario: str) -> CancelResultDTO:
+    def cancel_sale(self, sale_id, usuario: str, motivo: str = "") -> CancelResultDTO:
         """
         Cancela totalmente una venta completada.
+
+        `motivo` es opcional y se ANEXA a `ventas.notas` (nunca las
+        sobrescribe) y viaja en el evento VENTA_CANCELADA. Se añadió para que
+        `POST /ventas/{id}/anular` pudiera delegar aquí sin perder el motivo
+        que ya aceptaba.
 
         Flujo atómico (BEGIN IMMEDIATE):
             1. Validar: venta existe, está 'completada', no cancelada antes
@@ -381,10 +386,20 @@ class SalesReversalService:
                     ))
 
             # ── PASO 6: Marcar cancelada (fin de transacción) ─────────────────
-            conn.execute(
-                "UPDATE ventas SET estado = 'cancelada' WHERE id = ?",
-                (sale_id,)
-            )
+            # `motivo` se ANEXA a las notas, nunca las sobrescribe: la garantía
+            # de esta clase es "ningún histórico se modifica". El endpoint
+            # `POST /ventas/{id}/anular` sí las sobrescribía.
+            if motivo and motivo.strip():
+                conn.execute(
+                    "UPDATE ventas SET estado = 'cancelada', "
+                    "notas = TRIM(COALESCE(notas, '') || ?) WHERE id = ?",
+                    (f"\n[CANCELACIÓN] {motivo.strip()}", sale_id)
+                )
+            else:
+                conn.execute(
+                    "UPDATE ventas SET estado = 'cancelada' WHERE id = ?",
+                    (sale_id,)
+                )
 
         # COMMIT automático al salir del with
 
@@ -397,6 +412,7 @@ class SalesReversalService:
             "sale_id":        sale_id,
             "folio":          venta["folio"],
             "total":          total,
+            "motivo":         (motivo or "").strip(),
             "operation_id":   operation_id,
             "payment_method": forma_pago,
             "cliente_id":     venta.get("cliente_id"),

@@ -4,7 +4,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from api.deps import get_db, get_uc_venta
+from api.deps import get_db, get_sales_reversal_service, get_uc_venta
 from api.auth import verify_api_key
 
 router = APIRouter(prefix="/ventas", tags=["ventas"])
@@ -120,26 +120,59 @@ async def listar_ventas(
 @router.post("/{venta_id}/anular")
 async def anular_venta(
     venta_id: str,
+    usuario:  str,
     motivo:   str = "",
     _key: str = Depends(verify_api_key),
-    db=Depends(get_db),
+    reversal=Depends(get_sales_reversal_service),
 ):
-    """Anula una venta existente."""
-    # NOTA: este endpoint marca la venta como cancelada con SQL directo y no
-    # genera reversa contable, ni devuelve inventario, ni registra evento.
-    # El import de SalesService que habia aqui estaba MUERTO (nunca se usaba),
-    # asi que se retira; la deuda real de este endpoint queda documentada en
-    # docs/remediation/08_SALES_CUTOVER.md, no la crea esta limpieza.
-    row = db.execute("SELECT estado FROM ventas WHERE id=?", (venta_id,)).fetchone()
-    if not row:
-        raise HTTPException(404, f"Venta {venta_id} no encontrada")
-    if row["estado"] in ("cancelada", "anulada"):
-        raise HTTPException(409, "La venta ya está anulada")
+    """Anula (cancela totalmente) una venta completada.
+
+    Adaptador delgado (§19): delega en `SalesReversalService.cancel_sale()`,
+    el único punto de entrada de cancelaciones. Antes hacía
+    `UPDATE ventas SET estado='cancelada'` con SQL directo, lo que dejaba la
+    venta anulada PERO con su asiento contable y su cuenta por cobrar
+    vigentes, el inventario sin devolver, la caja sin compensar, los puntos
+    de fidelidad sin revertir y sin emitir evento — los libros y el ledger
+    de ventas divergían en silencio (§11/§31).
+
+    El servicio hace todo eso en una sola transacción `BEGIN IMMEDIATE`, con
+    `operation_id` idempotente y reversa contable vía `finance_service`.
+
+    Cambios de contrato que esto implica, deliberados:
+      * `usuario` pasa a ser OBLIGATORIO — es el actor del audit trail, y
+        `cancel_sale()` rechaza una cancelación anónima.
+      * sólo se cancela una venta en estado `completada`. Antes se aceptaba
+        cualquier estado; cancelar una venta no completada por esta vía
+        producía un registro incoherente. Los demás estados responden 409.
+    """
+    from core.services.sales_reversal_service import (
+        ReversalError,
+        UsuarioRequeridoError,
+        VentaNoCompletadaError,
+        VentaNoEncontradaError,
+        VentaYaCanceladaError,
+    )
+
     try:
-        db.execute(
-            "UPDATE ventas SET estado='cancelada', notas=? WHERE id=?",
-            (motivo, venta_id)
-        )
-        return {"ok": True, "venta_id": venta_id, "estado": "cancelada"}
-    except Exception as e:
-        raise HTTPException(500, str(e))
+        result = reversal.cancel_sale(venta_id, usuario, motivo)
+    except VentaNoEncontradaError:
+        raise HTTPException(404, f"Venta {venta_id} no encontrada")
+    except VentaYaCanceladaError:
+        raise HTTPException(409, "La venta ya está anulada")
+    except VentaNoCompletadaError as exc:
+        raise HTTPException(409, str(exc))
+    except UsuarioRequeridoError as exc:
+        raise HTTPException(422, str(exc))
+    except ReversalError as exc:
+        # Falla de negocio conocida del servicio: 409, no 500. La transacción
+        # ya hizo rollback completo.
+        raise HTTPException(409, str(exc))
+
+    return {
+        "ok": True,
+        "venta_id": venta_id,
+        "estado": "cancelada",
+        "operation_id": result.operation_id,
+        "total_revertido": result.total_revertido,
+        "inventario_restaurado": result.inventario_restaurado,
+    }

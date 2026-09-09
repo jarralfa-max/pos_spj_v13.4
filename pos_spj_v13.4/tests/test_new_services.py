@@ -41,7 +41,8 @@ def db():
             subtotal REAL, descuento REAL DEFAULT 0, total REAL,
             forma_pago TEXT DEFAULT 'Efectivo',
             efectivo_recibido REAL DEFAULT 0, cambio REAL DEFAULT 0,
-            estado TEXT DEFAULT 'completada', fecha DATETIME DEFAULT (datetime('now')));
+            estado TEXT DEFAULT 'completada', notas TEXT,
+            fecha DATETIME DEFAULT (datetime('now')));
         CREATE TABLE detalles_venta(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             venta_id INTEGER, producto_id INTEGER,
@@ -110,6 +111,12 @@ def db():
             cuenta_haber TEXT, referencia_id INTEGER, usuario TEXT,
             sucursal_id INTEGER DEFAULT 1, fecha DATETIME DEFAULT (datetime('now')));
     """)
+    # INV-27: `SalesReversalService._restore_stock_canonical()` postea al
+    # ledger canónico, que este fixture (anterior a ese corte) no creaba —
+    # de ahí "no such table: inventory_ledger" en las pruebas de cancelación.
+    from backend.infrastructure.db.schema.inventory_schema import create_inventory_schema
+    create_inventory_schema(conn)
+    conn.commit()
     yield conn
     conn.close()
 
@@ -262,3 +269,28 @@ class TestSalesReversalService:
         from core.services.sales_reversal_service import UsuarioRequeridoError
         vid = self._venta(db)
         with pytest.raises(UsuarioRequeridoError): self._svc(db).cancel_sale(vid, "")
+
+    def test_motivo_se_anexa_a_las_notas_sin_borrarlas(self, db):
+        """`motivo` se añadió para que `POST /ventas/{id}/anular` pudiera
+        delegar aquí sin perder el motivo que ya aceptaba. El endpoint viejo
+        SOBRESCRIBÍA `notas`; la garantía de esta clase es que ningún
+        histórico se modifica, así que se anexa."""
+        vid = self._venta(db)
+        db.execute("UPDATE ventas SET notas='nota original' WHERE id=?", (vid,))
+        db.commit()
+
+        self._svc(db).cancel_sale(vid, "admin", "cliente se arrepintió")
+
+        notas = db.execute("SELECT notas FROM ventas WHERE id=?", (vid,)).fetchone()["notas"]
+        assert "nota original" in notas
+        assert "[CANCELACIÓN] cliente se arrepintió" in notas
+
+    def test_sin_motivo_las_notas_no_se_tocan(self, db):
+        vid = self._venta(db)
+        db.execute("UPDATE ventas SET notas='nota original' WHERE id=?", (vid,))
+        db.commit()
+
+        self._svc(db).cancel_sale(vid, "admin")
+
+        assert db.execute(
+            "SELECT notas FROM ventas WHERE id=?", (vid,)).fetchone()["notas"] == "nota original"

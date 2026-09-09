@@ -408,12 +408,15 @@ class AppContainer:
         # CAPA 4: EL ORQUESTADOR PRINCIPAL (Ventas)
         # =========================================================
         # Servicio de devoluciones / reversiones (cancel_sale, refund_items, credit_note)
-        # SalesReversalService usa db.transaction() y db.conn — lo envolvemos en el shim
+        # SalesReversalService usa db.transaction() y db.conn.
+        # `self.db` YA es el DatabaseWrapper que expone ambos. Antes se pasaba
+        # `_DatabaseShim(self.db_path)` — es decir, un wrapper alrededor de la
+        # RUTA (un str), no de la conexión —, así que el servicio quedaba
+        # inutilizable: `self.db.conn` devolvía el string y cualquier método
+        # moría con "'str' object has no attribute 'execute'".
         from core.services.sales_reversal_service import SalesReversalService
-        from core.db.connection import _DatabaseShim
-        _db_shim = _DatabaseShim(self.db_path)
         self.sales_reversal_service = SalesReversalService(
-            db=_db_shim, branch_id="",
+            db=self.db, branch_id="",
             finance_service=self.finance_service,
         )
 

@@ -32,6 +32,21 @@ def get_sales_service(request: Request):
     return svc
 
 
+def get_sales_reversal_service(request: Request):
+    """`SalesReversalService` — único punto de entrada para cancelaciones,
+    devoluciones y notas de crédito sobre las tablas legacy (`ventas`).
+
+    El contenedor ya lo construye con el `finance_service` real, así que
+    cancelar por esta vía genera asiento contable, restaura inventario por
+    el ledger canónico y compensa caja, todo en una transacción (§11/§22).
+    """
+    container = get_container(request)
+    svc = getattr(container, "sales_reversal_service", None)
+    if not svc:
+        raise HTTPException(503, "SalesReversalService no disponible")
+    return svc
+
+
 def get_uc_venta(request: Request):
     container = get_container(request)
     uc = getattr(container, "uc_venta", None)
