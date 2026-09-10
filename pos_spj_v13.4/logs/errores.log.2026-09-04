@@ -1,0 +1,4 @@
+{"ts": "2026-09-05T05:19:12.746235", "level": "ERROR", "logger": "spj.migrations", "msg": "Migración 024 falló: no such column: venta_id — haciendo rollback.", "module": "engine", "line": 316}
+{"ts": "2026-09-05T05:19:12.841722", "level": "ERROR", "logger": "spj.migrations", "msg": "Migración 029 falló: no such table: movimientos_caja — haciendo rollback.", "module": "engine", "line": 316}
+{"ts": "2026-09-05T05:19:12.845771", "level": "ERROR", "logger": "spj.migrations", "msg": "Migración 080 falló: no such table: main.cierres_caja — haciendo rollback.", "module": "engine", "line": 316}
+{"ts": "2026-09-05T05:20:06.178947", "level": "ERROR", "logger": "spj.audit_repo", "msg": "audit insert_audit_log failed: NOT NULL constraint failed: audit_logs.id", "module": "audit_repository", "line": 47}
