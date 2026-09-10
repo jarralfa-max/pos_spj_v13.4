@@ -201,3 +201,47 @@ def test_the_engine_has_no_unreachable_query_methods():
     assert not unaccounted, (
         "métodos públicos sin llamador conocido — o se cablean, o se borran, o "
         f"se documentan aquí: {sorted(unaccounted)}")
+
+
+def test_the_remaining_projections_write_tables_nobody_reads():
+    """Lo que le queda al motor son DOS CALLEJONES SIN SALIDA. Medido, no supuesto.
+
+    `wire()` suscribe `update_sales` a SALE_CREATED y `update_yield` a
+    PRODUCTION_EXECUTED, que escriben `bi_sales_daily` y `bi_transformations`.
+    Hoy:
+
+      * NINGÚN archivo productivo LEE esas dos tablas. Su último lector era el
+        atajo de `get_dashboard_data`, que desapareció al mover el tablero a
+        `BiDashboardQueryService.operational_dashboard`;
+      * `SALE_CREATED` es alias de `VENTA_COMPLETADA`, y el ÚNICO que la
+        publica es `core/services/sales_service.py` — el servicio legacy que
+        sirve la API REST. El POS canónico emite `SALE_COMPLETED` a
+        `sales_outbox`, otro canal. Es decir, `bi_sales_daily` nunca contuvo
+        ventas del POS, y el atajo que la leía devolvía KPIs incompletos.
+
+    Por eso NO se construyó un equivalente canónico de estas proyecciones:
+    sería backend nuevo sin consumidor (§27). Esta prueba deja la medición
+    escrita para que la próxima sesión no lo reconstruya por error, y falla si
+    alguien le da un lector — momento en que habrá que decidir de verdad si la
+    proyección debe existir y sobre qué evento.
+    """
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[3]
+    productivos = ("api", "backend", "core", "frontend", "infrastructure",
+                   "integrations", "interfaz", "modulos", "repositories", "sync")
+    lectores = []
+    for carpeta in productivos:
+        base = root / carpeta
+        if not base.is_dir():
+            continue
+        for archivo in base.rglob("*.py"):
+            if "__pycache__" in archivo.parts:
+                continue
+            texto = archivo.read_text(encoding="utf-8", errors="ignore")
+            for tabla in ("bi_sales_daily", "bi_transformations"):
+                if f"FROM {tabla}" in texto or f"JOIN {tabla}" in texto:
+                    lectores.append(f"{archivo.relative_to(root).as_posix()} -> {tabla}")
+    assert not lectores, (
+        "alguien volvió a leer una tabla de proyección BI; revisa si la "
+        f"proyección debe existir y sobre qué evento:\n  " + "\n  ".join(lectores))

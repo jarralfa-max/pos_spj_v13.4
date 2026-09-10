@@ -5,6 +5,27 @@ AnalyticsEngine — Motor de Inteligencia de Negocios Reactivo.
 Prioridad 5 = BI/analytics (la más baja per convenio).
 Reacciona a eventos y agrega datos en tablas bi_*.
 Non-fatal: nunca cancela la operación que originó el evento.
+
+ESTADO: EN RETIRO. Todas sus consultas se movieron a
+`backend/application/analytics/queries/` y la pantalla de BI
+(`modulos/reportes_bi_v2.py`) ya no lo referencia. De 700 líneas quedan estas.
+
+Lo que queda NO tiene consumidor, medido y fijado en
+`tests/integration/sales/test_analytics_engine_reads_unified_sales.py`:
+
+  * `update_sales`/`update_yield` escriben `bi_sales_daily` y
+    `bi_transformations`, que NINGÚN archivo productivo lee. Su último lector
+    era el atajo de `get_dashboard_data`, retirado al mover el tablero.
+  * Además `update_sales` escucha `SALE_CREATED` (alias de
+    `VENTA_COMPLETADA`), que sólo publica el `SalesService` legacy de la API
+    REST: el POS canónico emite `SALE_COMPLETED` a `sales_outbox`. Esa
+    proyección nunca vio una venta de mostrador.
+  * `product_profitability`, `inventory_intelligence` e `invalidar_cache` no
+    los llama producción; sólo pruebas.
+
+Por eso NO se construyó un equivalente canónico de las proyecciones: sería
+backend nuevo sin consumidor (§27). Retirar el archivo entero implica retirar
+también esas pruebas, decisión que queda pendiente de confirmación explícita.
 """
 from __future__ import annotations
 import json
