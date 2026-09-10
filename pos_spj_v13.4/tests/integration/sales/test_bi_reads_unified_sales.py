@@ -188,5 +188,8 @@ def test_the_service_no_longer_reads_the_legacy_tables(conn):
     for legacy in ("FROM ventas ", "JOIN ventas ", "FROM detalles_venta ",
                    "JOIN detalles_venta "):
         assert legacy not in body, f"volvió a leer la tabla legacy: {legacy!r}"
-    assert body.count("v_ventas_unificada") >= 1
-    assert body.count("v_detalles_venta_unificada") >= 1
+    # La fuente ya no se nombra fija: se resuelve con los helpers, que
+    # prefieren la vista unificada y sólo caen a la tabla legacy si la base
+    # aún no aplicó las migraciones 256/257.
+    assert "sales_source(self._conn)" in body
+    assert "sale_lines_source(self._conn)" in body

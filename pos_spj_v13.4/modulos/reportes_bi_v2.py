@@ -31,6 +31,7 @@ class ModuloReportesBIv2(QWidget):
         self.container = container
         self.sucursal_id = getattr(container, "sucursal_id", "") or ""
         self._last_data = {}
+        self._dashboard_cache: dict = {}
         self.init_ui()
         self._wire_business_events()
 
@@ -63,6 +64,40 @@ class ModuloReportesBIv2(QWidget):
             preset="custom", date_from=fecha_inicio, date_to=fecha_fin,
             branch_id=str(self.sucursal_id or ""),
         )
+
+    _DASHBOARD_TTL = {"hoy": 60, "semana": 300, "mes": 300}
+
+    def _dashboard_payload(self, rango: str) -> dict:
+        """Tablero operativo canónico, con memoria por pantalla.
+
+        Los TTL son los que ya usaba el motor (60 s para 'hoy', 5 min para los
+        rangos históricos). La diferencia es el alcance: este caché vive en la
+        instancia y muere con la pantalla, en vez de en atributos de clase
+        compartidos por todas.
+        """
+        import time
+
+        from backend.application.analytics.queries.bi_dashboard_query_service import (
+            BiDashboardQueryService,
+        )
+
+        key = f"{self.sucursal_id}:{rango}"
+        ttl = self._DASHBOARD_TTL.get(rango, 300)
+        now = time.monotonic()
+        cached = self._dashboard_cache.get(key)
+        if cached and now - cached[0] < ttl:
+            return cached[1]
+
+        preset = {"hoy": "today", "semana": "week", "mes": "month"}.get(rango, "month")
+        payload = BiDashboardQueryService(self.container.db).operational_dashboard(
+            self._bi_filters_preset(preset))
+        self._dashboard_cache[key] = (now, payload)
+        return payload
+
+    def _bi_filters_preset(self, preset: str):
+        from backend.application.analytics.dto.bi_dashboard_dto import DashboardFilters
+
+        return DashboardFilters(preset=preset, branch_id=str(self.sucursal_id or ""))
 
     def set_usuario_actual(self, usuario: str, rol: str = "cajero") -> None:
         """Recibe el usuario activo al cambiar de sesión."""
@@ -792,16 +827,19 @@ class ModuloReportesBIv2(QWidget):
             QMessageBox.critical(self, "Error al exportar", str(e))
 
     def cargar_dashboard(self):
-        """Pide los datos al AnalyticsEngine (BI unificado) y actualiza la UI."""
+        """Pide el tablero a la capa canónica de BI y actualiza la UI.
+
+        Antes lo servía `AnalyticsEngine.get_dashboard_data`. La composición
+        del paquete se movió a `BiDashboardQueryService.operational_dashboard`;
+        aquí sólo queda resolver el rango que el combo muestra y memorizar el
+        resultado (el motor cacheaba en dicts de CLASE, compartidos entre
+        instancias: la memoria pertenece a la pantalla, no al servicio).
+        """
         rango_str = self.cmb_rango.currentText().lower().split(' ')[-1] # 'hoy', 'semana', 'mes'
         self.loading_dashboard.setVisible(True)
-        
+
         try:
-            # BI unificado: fuente única analytics_engine
-            analytics = getattr(self.container, 'analytics_engine', None)
-            if not analytics:
-                raise RuntimeError("AnalyticsEngine no disponible en el contenedor")
-            data = analytics.get_dashboard_data(self.sucursal_id, rango_str)
+            data = self._dashboard_payload(rango_str)
             self._last_data = data
 
             # Los KPIs se renderizan en el Dashboard Visual desde el payload

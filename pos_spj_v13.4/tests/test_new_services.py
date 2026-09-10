@@ -156,12 +156,25 @@ class TestNotificationService:
         assert "adm2" in users and "inv" not in users
 
 
-class TestAnalyticsEngine:
+class TestBiOperationalDashboard:
+    """El tablero operativo se movió de `AnalyticsEngine.get_dashboard_data` a
+    `BiDashboardQueryService.operational_dashboard`. Las pruebas se mueven con
+    él: el motor legacy ya no expone ese método.
+
+    Este fixture NO crea las vistas unificadas, así que además comprueba el
+    respaldo: sobre una base sólo-legacy el servicio canónico sigue leyendo
+    `ventas`/`detalles_venta` en vez de devolver ceros en silencio.
+    """
+
     def _svc(self, db):
-        # Nota: bi_repository y bi_service fueron eliminados en v13.4
-        # Tests ahora usan analytics_engine directamente
-        from core.services.analytics.analytics_engine import AnalyticsEngine
-        return AnalyticsEngine(db)
+        from backend.application.analytics.queries.bi_dashboard_query_service import (
+            BiDashboardQueryService,
+        )
+        return BiDashboardQueryService(db)
+
+    def _filters(self, preset="today"):
+        from backend.application.analytics.dto.bi_dashboard_dto import DashboardFilters
+        return DashboardFilters(preset=preset, branch_id="1")
 
     def _ventas(self, db):
         db.executescript("""
@@ -171,15 +184,28 @@ class TestAnalyticsEngine:
 
     def test_dashboard_hoy(self, db):
         self._ventas(db)
-        assert "kpis" in self._svc(db).get_dashboard_data(1, "hoy")
-
-    def test_cache_invalida(self, db):
-        svc = self._svc(db)
-        svc.get_dashboard_data(1, "hoy"); svc.invalidar_cache(1); svc.get_dashboard_data(1, "hoy")
+        data = self._svc(db).operational_dashboard(self._filters("today"))
+        assert data["kpis"]["ingresos"] == 1450.0
+        assert data["kpis"]["tickets"] == 2
 
     def test_rangos(self, db):
         self._ventas(db); svc = self._svc(db)
-        assert svc.get_dashboard_data(1,"semana") and svc.get_dashboard_data(1,"mes")
+        for preset in ("week", "month"):
+            assert svc.operational_dashboard(self._filters(preset))["kpis"]["tickets"] == 2
+
+    def test_incluye_comparativa_y_rankings(self, db):
+        self._ventas(db)
+        data = self._svc(db).operational_dashboard(self._filters("today"))
+        for clave in ("periodo", "ventas_por_hora", "top_productos",
+                      "productos_lentos", "clientes_recurrentes", "comparativa"):
+            assert clave in data, clave
+
+    def test_el_motor_legacy_ya_no_expone_el_tablero(self):
+        """Movido, no copiado (§3)."""
+        from core.services.analytics.analytics_engine import AnalyticsEngine
+        assert not hasattr(AnalyticsEngine, "get_dashboard_data")
+        assert not hasattr(AnalyticsEngine, "get_ranking_productos")
+        assert not hasattr(AnalyticsEngine, "get_clientes_recurrentes")
 
 
 class TestCotizacionService:

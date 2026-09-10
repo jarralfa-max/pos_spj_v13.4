@@ -81,56 +81,6 @@ def conn():
     c.close()
 
 
-def test_dashboard_data_sees_the_pos(conn):
-    """La entrada REAL de la pantalla: `reportes_bi_v2` llama a este método.
-
-    (Antes esta prueba apuntaba a `sales_metrics`, que resultó no tener
-    ningún llamador: se estaba probando código inalcanzable.)"""
-    data = AnalyticsEngine(conn).get_dashboard_data("b1", "hoy")
-    assert isinstance(data, dict) and data
-
-
-def test_hourly_sales_see_the_pos(conn):
-    rows = AnalyticsEngine(conn).get_ventas_por_hora("b1", FECHA, FECHA)
-    assert rows, "la curva por hora estaba vacía con ventas del POS"
-
-
-def test_product_ranking_sees_the_pos(conn):
-    rows = AnalyticsEngine(conn).get_ranking_productos("b1", FECHA, FECHA)
-    assert rows, "el ranking de productos ignoraba el POS"
-
-
-def test_recurring_customers_see_the_pos(conn):
-    rows = AnalyticsEngine(conn).get_clientes_recurrentes("b1", FECHA, FECHA)
-    assert isinstance(rows, list)
-
-
-def test_a_backfilled_sale_is_not_double_counted(conn):
-    """La 255 deja la venta en las dos tablas; el KPI no debe duplicarla."""
-    conn.execute(
-        "INSERT INTO ventas (id,folio,sucursal_id,usuario,cliente_id,subtotal,"
-        "descuento,total,forma_pago,estado,fecha) VALUES ('s-pos','F-1','b1',"
-        "'cajera1','c-1',200.0,0.0,200.0,'Efectivo','completada',?)",
-        (f"{FECHA} 12:00:00",))
-    conn.commit()
-    rows = AnalyticsEngine(conn).get_ranking_productos("b1", FECHA, FECHA)
-    assert [r["cantidad_vendida"] for r in rows] == [2.0], "duplicada"
-
-
-def test_it_still_works_on_a_database_without_the_views(conn):
-    """Respaldo: una base que aún no aplicó 256/257 se comporta como antes,
-    en vez de quedarse sin datos."""
-    conn.execute("DROP VIEW v_ventas_unificada")
-    conn.execute("DROP VIEW v_detalles_venta_unificada")
-    conn.execute(
-        "INSERT INTO ventas (id,folio,sucursal_id,usuario,cliente_id,subtotal,"
-        "descuento,total,forma_pago,estado,fecha) VALUES ('v-api','F-9','b1',"
-        "'cajera1','c-1',75.0,0.0,75.0,'Efectivo','completada',?)",
-        (f"{FECHA} 09:00:00",))
-    conn.commit()
-    rows = AnalyticsEngine(conn).get_ventas_por_hora("b1", FECHA, FECHA)
-    assert rows, "sin las vistas debe seguir leyendo la tabla legacy"
-
 
 def test_no_placeholder_survives_into_executed_sql(conn):
     """Si un marcador llegara sin resolver, SQLite fallaría con un error de
@@ -153,9 +103,8 @@ def test_no_placeholder_survives_into_executed_sql(conn):
             return self._inner.execute(sql, *args, **kwargs)
 
     engine = AnalyticsEngine(_Spy(conn))
-    engine.get_dashboard_data("b1", "hoy")
-    engine.get_ranking_productos("b1", FECHA, FECHA)
-    engine.get_clientes_recurrentes("b1", FECHA, FECHA)
+    engine.product_profitability(FECHA, FECHA, "b1")
+    engine.inventory_intelligence(sucursal_id="b1")
 
     assert executed, "no se ejecutó ninguna consulta"
     leaked = [s for s in executed
@@ -232,12 +181,9 @@ def test_the_engine_has_no_unreachable_query_methods():
               if isinstance(n, ast.FunctionDef) and not n.name.startswith("_")}
 
     # Llamados desde fuera (`reportes_bi_v2`, `app_container`, `wiring`).
-    live_entrypoints = {"wire", "get_dashboard_data"}
+    live_entrypoints = {"wire"}
     # Alcanzables desde `wire()` o desde `get_dashboard_data()`.
-    reachable_internally = {
-        "update_sales", "update_yield", "get_ventas_por_hora",
-        "get_ranking_productos", "get_clientes_recurrentes",
-    }
+    reachable_internally = {"update_sales", "update_yield"}
     # Sin llamador en producción; sólo pruebas los ejercitan. Se conservan
     # porque borrarlos exige borrar también esas pruebas, que cubren el corte
     # canónico de inventario y el respaldo de costo.
@@ -246,8 +192,10 @@ def test_the_engine_has_no_unreachable_query_methods():
     # `get_ranking_cajeros` y `product_profitability_detail` YA NO están:
     # su consulta se movió a `BiSalesQueryService.cashier_ranking` /
     # `.profitability_by_product` y la pantalla llama allí.
-    assert "get_ranking_cajeros" not in public
-    assert "product_profitability_detail" not in public
+    for movido in ("get_ranking_cajeros", "product_profitability_detail",
+                   "get_dashboard_data", "get_ventas_por_hora",
+                   "get_ranking_productos", "get_clientes_recurrentes"):
+        assert movido not in public, f"{movido} debía haberse movido al backend"
 
     unaccounted = public - live_entrypoints - reachable_internally - test_only
     assert not unaccounted, (

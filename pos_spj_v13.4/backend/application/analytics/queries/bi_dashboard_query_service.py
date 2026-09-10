@@ -74,6 +74,47 @@ class BiDashboardQueryService:
         return {"branches": branches, "categories": categories,
                 "payment_methods": payments}
 
+    def operational_dashboard(self, f) -> dict:
+        """Paquete del tablero operativo: KPIs, horas pico, rankings y VIPs.
+
+        MOVIDO desde `core/services/analytics/analytics_engine.py::
+        get_dashboard_data` (§33 PASO 4). Tres diferencias frente al original,
+        todas deliberadas:
+
+        * el rango llega YA resuelto en `DashboardFilters` en vez de derivarse
+          aquí de un `rango` de texto ('hoy'/'semana'/'mes'): resolver fechas
+          es trabajo del filtro canónico, que además es el que ve la UI;
+        * la comparativa reutiliza `f.previous_period()`, la misma ventana
+          anterior que ya usa `previous_metrics`, en lugar de una segunda
+          implementación con restas de días propias;
+        * NO cachea. El original guardaba en dos dicts a nivel de CLASE
+          (`_cache`/`_cache_ts`), compartidos por todas las instancias del
+          motor y sin invalidación fiable. Un servicio de consulta es sin
+          estado; si hace falta memoria, va en quien pinta la pantalla y con
+          su ciclo de vida.
+        """
+        f = f.resolved()
+        kpis = self.sales.operational_kpis(f)
+        previous_from, previous_to = f.previous_period()
+        previous = self.sales.operational_kpis(
+            replace(f, preset="custom", date_from=previous_from, date_to=previous_to))
+        return {
+            "periodo": f"{f.date_from} al {f.date_to}",
+            "fuente": "canonico",
+            "kpis": kpis,
+            "ventas_por_hora": self.sales.hourly_sales(f),
+            "top_productos": self.sales.products_ranking(f, limit=5),
+            "productos_lentos": self.sales.products_ranking(
+                f, limit=5, ascending=True),
+            "clientes_recurrentes": self.sales.recurring_customers(f),
+            "comparativa": {
+                "ingresos": previous["ingresos"],
+                "num_ventas": previous["tickets"],
+                "ticket_prom": previous["ticket_promedio"],
+                "periodo": f"{previous_from} → {previous_to}",
+            },
+        }
+
     def chart_bundle(self, f) -> dict:
         """Series para los charts del dashboard."""
         return {

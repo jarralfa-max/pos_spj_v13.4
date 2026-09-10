@@ -264,3 +264,55 @@ def test_the_legacy_screen_calls_the_canonical_service():
     assert "profitability_by_product" in called
     assert "get_ranking_cajeros" not in called
     assert "product_profitability_detail" not in called
+
+
+def test_operational_dashboard_compares_against_the_previous_window(conn):
+    """La comparativa debe mirar el periodo ANTERIOR, no el mismo.
+
+    Se siembra una venta SÓLO en la ventana previa: si la comparativa usara el
+    mismo rango que los KPIs, saldría en cero. (Escrito porque una mutación que
+    igualaba ambas ventanas no la detectaba ninguna prueba.)
+    """
+    from backend.application.analytics.dto.bi_dashboard_dto import DashboardFilters
+    from backend.application.analytics.queries.bi_dashboard_query_service import (
+        BiDashboardQueryService,
+    )
+
+    conn.execute(
+        "INSERT INTO ventas (id,folio,sucursal_id,usuario,cliente_id,subtotal,"
+        "descuento,total,forma_pago,estado,fecha) VALUES ('v-prev','F0','b1',"
+        "'cajera1','c-1',80.0,0.0,80.0,'Efectivo','completada','2026-05-15 10:00:00')")
+    conn.commit()
+
+    f = DashboardFilters(preset="custom", date_from="2026-06-01",
+                         date_to="2026-06-30", branch_id="b1")
+    data = BiDashboardQueryService(conn).operational_dashboard(f)
+
+    assert data["kpis"]["ingresos"] == 100.0, "junio: sólo la venta del POS"
+    assert data["comparativa"]["ingresos"] == 80.0, "mayo: la ventana anterior"
+    assert data["comparativa"]["num_ventas"] == 1
+
+
+def test_the_legacy_bi_screen_is_off_the_legacy_engine():
+    """La pantalla ya no consume `AnalyticsEngine` para NADA.
+
+    Sobre el AST: sus docstrings citan los métodos retirados para explicar de
+    dónde vienen, y un `in source` los daría por vivos.
+    """
+    import ast
+
+    tree = ast.parse((ROOT / "modulos/reportes_bi_v2.py").read_text(encoding="utf-8"))
+    called = {
+        node.func.attr for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    }
+    assert "operational_dashboard" in called
+    for retirado in ("get_dashboard_data", "get_ranking_cajeros",
+                     "product_profitability_detail"):
+        assert retirado not in called, f"volvió al motor legacy: {retirado}"
+
+    attributes = {
+        node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)
+    }
+    assert "analytics_engine" not in attributes, (
+        "la pantalla volvió a tomar el motor del contenedor")
