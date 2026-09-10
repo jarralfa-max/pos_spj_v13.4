@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from core.security.permission_catalog import permission_code
+from backend.security.permissions.codes import permission_code
 from frontend.desktop.modules.purchasing.direct_purchase_routes import build_direct_purchase_presenter
 from frontend.desktop.modules.purchasing.direct_purchase_view import (
     DirectPurchaseCreateView,

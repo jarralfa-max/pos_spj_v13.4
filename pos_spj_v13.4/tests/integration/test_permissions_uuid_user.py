@@ -40,7 +40,7 @@ def test_permissions_resolve_for_uuid_user_without_int_cast():
     repo = ConfigRepository(conn)
     # Antes: int(row[0]) → ValueError con UUID. Ahora resuelve sin castear.
     permisos = repo.permission_codes_for_user(uid)
-    from core.security.permission_catalog import normalize_permission
+    from backend.security.permissions.codes import normalize_permission
     assert normalize_permission("POS.ver") in permisos
     assert normalize_permission("DASHBOARD.ver") in permisos
 
@@ -62,7 +62,7 @@ def test_user_permission_overrides_use_uuid():
         "VALUES (?, ?, 'POS', 'ver', 0)",
         (new_uuid(), uid),
     )
-    from core.security.permission_catalog import normalize_permission
+    from backend.security.permissions.codes import normalize_permission
     permisos = ConfigRepository(conn).permission_codes_for_user(uid)
     assert normalize_permission("CLIENTES.ver") in permisos
     assert normalize_permission("POS.ver") not in permisos

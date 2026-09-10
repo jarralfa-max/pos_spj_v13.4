@@ -5,12 +5,8 @@ already used by POS, CAJA, CRM, FINANZAS, PRODUCTOS, COMPRAS — not the flat
 `CASH_*`-style codes (decision recorded in
 docs/refactor/settings_refactor_execution_plan.md, "Avance SET-1").
 """
-from core.security.permission_catalog import (
-    CANONICAL_MODULE_PERMISSIONS,
-    module_view_permission,
-    normalize_permission,
-    permission_code,
-)
+from backend.security.permissions.codes import module_view_permission, normalize_permission, permission_code
+from backend.application.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
 
 NEW_BOUNDED_CONTEXT_MODULES = ("CONFIGURACION", "DISPOSITIVOS", "DOCUMENTOS", "PANTALLA_CLIENTE")
 

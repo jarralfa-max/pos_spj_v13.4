@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from core.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
+from backend.application.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
 
 
 ROOT = Path(__file__).resolve().parents[2]

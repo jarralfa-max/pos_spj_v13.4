@@ -10,7 +10,7 @@ from backend.application.loyalty_cards.permissions import (
     ALL_LOYALTY_CARDS_PERMISSIONS,
     LoyaltyCardsPermissions,
 )
-from core.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
+from backend.application.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
 
 
 def test_loyalty_cards_permissions_are_granular():

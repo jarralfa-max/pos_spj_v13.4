@@ -1,5 +1,6 @@
 from backend.application.cash_register.permissions import ALL_CASH_PERMISSIONS, CashPermissions
-from core.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS, permission_code
+from backend.security.permissions.codes import permission_code
+from backend.application.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
 from frontend.desktop.modules.cash_register.cash_register_routes import CASH_REGISTER_ROUTES
 
 

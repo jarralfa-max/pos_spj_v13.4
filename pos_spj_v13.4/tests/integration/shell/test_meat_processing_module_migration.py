@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import QApplication  # noqa: E402
 
 from backend.application.meat_processing.permissions import MeatProcessingPermissions  # noqa: E402
 from backend.bootstrap.application_context import ApplicationContext, FeatureContext  # noqa: E402
-from core.security.permission_catalog import normalize_permission  # noqa: E402
+
 from backend.domain.meat_processing.slaughter.feature_flag import SLAUGHTER_ENABLED  # noqa: E402
 from backend.infrastructure.desktop.meat_processing_factory import (  # noqa: E402
     create_meat_processing_view,

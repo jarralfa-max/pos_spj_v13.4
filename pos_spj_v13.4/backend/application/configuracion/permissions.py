@@ -12,7 +12,7 @@ never invents a new scheme.
 
 from __future__ import annotations
 
-from core.security.permission_catalog import permission_code
+from backend.security.permissions.codes import permission_code
 
 
 class ConfiguracionPermissions:

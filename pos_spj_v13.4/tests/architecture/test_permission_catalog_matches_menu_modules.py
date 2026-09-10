@@ -1,7 +1,8 @@
 import re
 from pathlib import Path
 
-from core.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS, module_view_permission, permission_code, normalize_permission
+from backend.security.permissions.codes import module_view_permission, permission_code, normalize_permission
+from backend.application.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
 from tests.architecture.architecture_guardrails import APP_ROOT
 
 MENU = (APP_ROOT / "interfaz/menu_lateral.py")

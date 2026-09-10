@@ -26,10 +26,8 @@ from backend.application.products.permissions import (
     ALL_PRODUCT_PERMISSIONS,
     ProductPermissions,
 )
-from core.security.permission_catalog import (
-    CANONICAL_MODULE_PERMISSIONS,
-    permission_code,
-)
+from backend.security.permissions.codes import permission_code
+from backend.application.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
 
 
 def test_products_permissions_are_granular():

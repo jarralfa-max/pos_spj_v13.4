@@ -1,6 +1,6 @@
 import sqlite3
 
-from core.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
+from backend.application.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
 from repositories.config_repository import ConfigRepository
 
 

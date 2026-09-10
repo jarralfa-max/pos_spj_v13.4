@@ -8,13 +8,14 @@ from backend.application.inventory.permissions import (
 from backend.application.inventory.session_authorization import (
     InventorySessionPermissionChecker,
 )
-from core.security.permission_catalog import (
-    CANONICAL_MODULE_PERMISSIONS,
-    permission_code,
-)
+from backend.security.permissions.codes import permission_code
+from backend.application.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
 
 ROOT = Path(__file__).resolve().parents[2]
-INVENTORY_UI = ROOT / "modulos/inventario_enterprise.py"
+#: La UI enterprise legacy (`modulos/inventario_enterprise.py`) ya no existe.
+#: El guardrail no se borra por eso: apunta ahora a la UI canónica viva, que es
+#: donde hoy podría reaparecer el vocabulario grueso que INV-27 retiró.
+INVENTORY_UI_PACKAGE = ROOT / "frontend/desktop/modules/inventory"
 
 _LEGACY_CODES = (
     "inventario.ver", "inventario.editar", "inventario.ajustar",
@@ -26,11 +27,12 @@ def test_inventory_uses_canonical_permissions() -> None:
     # INV-27 corte: la UI enterprise es de solo lectura (presenter); no lleva
     # cadenas de permiso legacy. Los permisos granulares viven en la navegación
     # canónica (InventoryPermissions), verificada por los tests de INV-25.
-    content = INVENTORY_UI.read_text(encoding="utf-8")
-    assert '"inventario.entrada"' not in content
-    assert '"inventario.ajustar"' not in content
-    assert 'INVENTARIO.entrada' not in content
-    assert 'INVENTARIO.ajustar' not in content
+    assert INVENTORY_UI_PACKAGE.is_dir(), INVENTORY_UI_PACKAGE
+    for path in sorted(INVENTORY_UI_PACKAGE.rglob("*.py")):
+        content = path.read_text(encoding="utf-8")
+        for legacy in ('"inventario.entrada"', '"inventario.ajustar"',
+                       "INVENTARIO.entrada", "INVENTARIO.ajustar"):
+            assert legacy not in content, f"{path}: {legacy}"
 
 
 # ── INV-1 §60-61: sin vocabulario legacy en runtime ─────────────────────────

@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from core.security.permission_catalog import permission_code
+from backend.security.permissions.codes import permission_code
 from frontend.desktop.modules.finance.finance_routes import build_finance_presenter
 from frontend.desktop.modules.finance.finance_view import FinanceView
 from frontend.desktop.shell.modules.module_descriptor import ModuleDescriptor

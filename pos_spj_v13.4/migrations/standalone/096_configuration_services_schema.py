@@ -8,7 +8,6 @@ from __future__ import annotations
 import sqlite3
 
 from backend.shared.ids import new_uuid
-from core.module_config import DEFAULT_TOGGLES
 
 
 def run(conn: sqlite3.Connection) -> None:

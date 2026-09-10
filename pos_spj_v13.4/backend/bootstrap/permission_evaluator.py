@@ -10,7 +10,7 @@ used (admin bypass, exact code, `MODULE.*`, global `*`) — reusing
 """
 from __future__ import annotations
 
-from core.security.permission_catalog import normalize_permission
+from backend.security.permissions.codes import normalize_permission
 
 from backend.bootstrap.application_context import ApplicationContext
 

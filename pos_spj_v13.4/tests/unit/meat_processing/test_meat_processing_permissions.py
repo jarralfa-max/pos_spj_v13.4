@@ -2,7 +2,8 @@ from backend.application.meat_processing.permissions import (
     ALL_MEAT_PROCESSING_PERMISSIONS,
     MeatProcessingPermissions,
 )
-from core.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS, normalize_permission
+from backend.security.permissions.codes import normalize_permission
+from backend.application.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
 
 
 def test_all_permission_values_are_unique_and_use_canonical_produccion_module():

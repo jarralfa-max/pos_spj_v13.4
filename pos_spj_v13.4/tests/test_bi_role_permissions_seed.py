@@ -1,6 +1,6 @@
 """Los roles por defecto reciben los permisos del módulo BI (INTELIGENCIA_BI.*)."""
 from backend.application.analytics.services.bi_dashboard_service import SECTION_PERMISSION
-from core.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
+from backend.application.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
 from security.rbac import _get_default_permisos
 
 

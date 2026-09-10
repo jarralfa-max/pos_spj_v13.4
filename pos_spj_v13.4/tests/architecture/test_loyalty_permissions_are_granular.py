@@ -7,7 +7,7 @@ route per functional area, §3/§64)."""
 from __future__ import annotations
 
 from backend.application.loyalty.permissions import ALL_LOYALTY_PERMISSIONS, LoyaltyPermissions
-from core.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
+from backend.application.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
 
 
 def test_loyalty_permissions_are_granular():

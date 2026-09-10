@@ -33,7 +33,7 @@ from PyQt5.QtWidgets import QApplication  # noqa: E402
 
 from backend.application.orders_delivery.permissions import OrdersDeliveryPermissions  # noqa: E402
 from backend.bootstrap.application_context import ApplicationContext, FeatureContext  # noqa: E402
-from core.security.permission_catalog import normalize_permission  # noqa: E402
+
 from frontend.desktop.modules.business_intelligence.navigation.business_intelligence_sidebar import (  # noqa: E402
     BUSINESS_INTELLIGENCE_NAV,
 )

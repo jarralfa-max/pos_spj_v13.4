@@ -30,7 +30,7 @@ def test_cajero_sin_finanzas_no_ve_finanzas():
 
 
 def test_permisos_usan_codigos_del_catalogo():
-    from core.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
+    from backend.application.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
     from backend.application.analytics.services.bi_dashboard_service import SECTION_PERMISSION
     acciones = set(CANONICAL_MODULE_PERMISSIONS["INTELIGENCIA_BI"])
     for code in SECTION_PERMISSION.values():

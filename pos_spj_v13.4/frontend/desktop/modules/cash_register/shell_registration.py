@@ -44,7 +44,7 @@ from __future__ import annotations
 from typing import Optional
 
 from backend.infrastructure.desktop.cash_register_factory import create_cash_register_view
-from core.security.permission_catalog import permission_code
+from backend.security.permissions.codes import permission_code
 from frontend.desktop.shell.modules.module_descriptor import ModuleDescriptor
 from frontend.desktop.shell.modules.startup_mode import StartupMode
 from frontend.desktop.shell.routing.route_definition import RouteDefinition

@@ -7,7 +7,7 @@ not a parallel "VENTAS" key — one canonical route per functional area,
 from __future__ import annotations
 
 from backend.application.sales.permissions import ALL_SALES_PERMISSIONS, SalesPermissions
-from core.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
+from backend.application.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
 
 
 def test_sales_permissions_are_granular():

@@ -10,7 +10,7 @@ from backend.application.orders_delivery.permissions import (
     ALL_ORDERS_DELIVERY_PERMISSIONS,
     OrdersDeliveryPermissions,
 )
-from core.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
+from backend.application.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
 
 
 def test_orders_delivery_permissions_are_granular():
