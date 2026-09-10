@@ -64,7 +64,16 @@ class DecisionEngine:
     def __init__(self, db_conn, treasury_service=None,
                  loyalty_service=None, alert_engine=None,
                  module_config=None):
-        self.db = db_conn
+        # Lector de sólo lectura: sus consultas llevan los marcadores
+        # `__SRC_H__`/`__SRC_L__` y esta envoltura los resuelve a las vistas
+        # unificadas (256/257), o a la tabla legacy si la base aún no las
+        # tiene. Sin esto el servicio no veía NINGUNA venta del POS, que desde
+        # SALES-19..22 nace en el agregado canónico `sales`.
+        from backend.infrastructure.db.sales_read_source import (
+            SalesSourceRewritingConnection,
+        )
+
+        self.db = SalesSourceRewritingConnection(db_conn)
         self.treasury = treasury_service
         self.loyalty = loyalty_service
         self.alerts = alert_engine
@@ -176,7 +185,7 @@ class DecisionEngine:
             r = self.db.execute("""
                 SELECT COALESCE(s.nombre, '(sin sucursal)') AS nombre,
                        COALESCE(SUM(v.total), 0) AS tot
-                FROM ventas v
+                FROM __SRC_H__ v
                 LEFT JOIN sucursales s ON s.id = v.sucursal_id
                 WHERE v.estado='completada'
                   AND v.fecha > datetime('now','-30 days')
@@ -198,8 +207,8 @@ class DecisionEngine:
             r = self.db.execute("""
                 SELECT COALESCE(NULLIF(p.categoria,''), '(sin categoría)') AS cat,
                        COALESCE(SUM(dv.subtotal), 0) AS ing
-                FROM detalles_venta dv
-                JOIN ventas v ON v.id = dv.venta_id
+                FROM __SRC_L__ dv
+                JOIN __SRC_H__ v ON v.id = dv.venta_id
                 JOIN productos p ON p.id = dv.producto_id
                 WHERE v.estado='completada'
                   AND v.fecha > datetime('now','-30 days')
@@ -220,8 +229,8 @@ class DecisionEngine:
             rows = self.db.execute("""
                 SELECT p.nombre, p.existencia, p.unidad,
                        COALESCE((
-                           SELECT AVG(dv.cantidad) FROM detalles_venta dv
-                           JOIN ventas v ON v.id=dv.venta_id
+                           SELECT AVG(dv.cantidad) FROM __SRC_L__ dv
+                           JOIN __SRC_H__ v ON v.id=dv.venta_id
                            WHERE dv.producto_id=p.id AND v.estado='completada'
                              AND v.fecha > datetime('now','-14 days')
                        ), 0) AS venta_dia
@@ -290,8 +299,8 @@ class DecisionEngine:
             rows = self.db.execute("""
                 SELECT p.nombre, p.precio, COALESCE(NULLIF(p.precio_compra,0), NULLIF(p.costo,0), NULLIF(p.costo_promedio,0), 0) as costo,
                        SUM(dv.cantidad) as vendido, p.id
-                FROM detalles_venta dv
-                JOIN ventas v ON v.id=dv.venta_id
+                FROM __SRC_L__ dv
+                JOIN __SRC_H__ v ON v.id=dv.venta_id
                 JOIN productos p ON p.id=dv.producto_id
                 WHERE v.estado='completada' AND v.fecha > datetime('now','-30 days')
                   AND COALESCE(NULLIF(p.precio_compra,0), NULLIF(p.costo,0), NULLIF(p.costo_promedio,0), 0) > 0
@@ -325,8 +334,8 @@ class DecisionEngine:
                 SELECT p.nombre, p.existencia, p.unidad, p.id,
                        COALESCE(NULLIF(p.precio_compra,0), NULLIF(p.costo,0), NULLIF(p.costo_promedio,0), 0) as costo,
                        COALESCE((
-                           SELECT AVG(dv.cantidad) FROM detalles_venta dv
-                           JOIN ventas v ON v.id=dv.venta_id
+                           SELECT AVG(dv.cantidad) FROM __SRC_L__ dv
+                           JOIN __SRC_H__ v ON v.id=dv.venta_id
                            WHERE dv.producto_id=p.id AND v.estado='completada'
                              AND v.fecha > datetime('now','-14 days')
                        ), 0) as venta_diaria_avg
@@ -552,7 +561,7 @@ class DecisionEngine:
             # Ventas por empleado
             empleados = self._q("SELECT COUNT(*) FROM personal WHERE activo=1")
             ingresos = self._q(
-                "SELECT COALESCE(SUM(total),0) FROM ventas "
+                "SELECT COALESCE(SUM(total),0) FROM __SRC_H__ "
                 "WHERE estado='completada' AND fecha > datetime('now','-30 days')")
             if empleados > 0 and ingresos > 0:
                 venta_por_emp = ingresos / empleados

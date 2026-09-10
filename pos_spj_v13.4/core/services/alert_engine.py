@@ -87,7 +87,16 @@ class AlertEngine:
     def __init__(self, db_conn, treasury_service=None,
                  loyalty_service=None, alertas_service=None,
                  module_config=None):
-        self.db = db_conn
+        # Lector de sólo lectura: sus consultas llevan los marcadores
+        # `__SRC_H__`/`__SRC_L__` y esta envoltura los resuelve a las vistas
+        # unificadas (256/257), o a la tabla legacy si la base aún no las
+        # tiene. Sin esto el servicio no veía NINGUNA venta del POS, que desde
+        # SALES-19..22 nace en el agregado canónico `sales`.
+        from backend.infrastructure.db.sales_read_source import (
+            SalesSourceRewritingConnection,
+        )
+
+        self.db = SalesSourceRewritingConnection(db_conn)
         self.treasury = treasury_service
         self.loyalty = loyalty_service
         self.alertas = alertas_service
@@ -328,8 +337,8 @@ class AlertEngine:
                 "SELECT COUNT(*) FROM productos p "
                 "WHERE p.activo=1 AND p.existencia > 0 "
                 "AND p.id NOT IN ("
-                "  SELECT DISTINCT producto_id FROM detalles_venta dv "
-                "  JOIN ventas v ON v.id=dv.venta_id "
+                "  SELECT DISTINCT producto_id FROM __SRC_L__ dv "
+                "  JOIN __SRC_H__ v ON v.id=dv.venta_id "
                 "  WHERE v.fecha > datetime('now','-30 days'))")
             if sin_mov > 5:
                 self._emit(AlertCategory.INVENTORY, Severity.MEDIUM,
@@ -388,7 +397,7 @@ class AlertEngine:
                 "WHERE estado='pagado' AND DATE(fecha) BETWEEN ? AND ?",
                 [df, hoy.isoformat()])
             ingresos = self._q(
-                "SELECT COALESCE(SUM(total),0) FROM ventas "
+                "SELECT COALESCE(SUM(total),0) FROM __SRC_H__ "
                 "WHERE estado='completada' AND DATE(fecha) BETWEEN ? AND ?",
                 [df, hoy.isoformat()])
 
@@ -413,10 +422,10 @@ class AlertEngine:
         # ── Cancelaciones frecuentes hoy ──────────────────────────────
         try:
             cancelaciones = self._q(
-                "SELECT COUNT(*) FROM ventas "
+                "SELECT COUNT(*) FROM __SRC_H__ "
                 "WHERE estado='cancelada' AND DATE(fecha)=DATE('now')")
             ventas_hoy = self._q(
-                "SELECT COUNT(*) FROM ventas WHERE DATE(fecha)=DATE('now')")
+                "SELECT COUNT(*) FROM __SRC_H__ WHERE DATE(fecha)=DATE('now')")
             if ventas_hoy > 5 and cancelaciones > 0:
                 ratio = cancelaciones / ventas_hoy * 100
                 if ratio > 10:
@@ -450,12 +459,12 @@ class AlertEngine:
         try:
             hoy = date.today()
             ventas_hoy = self._q(
-                "SELECT COALESCE(SUM(total),0) FROM ventas "
+                "SELECT COALESCE(SUM(total),0) FROM __SRC_H__ "
                 "WHERE estado='completada' AND DATE(fecha)=?",
                 [hoy.isoformat()])
             dia_semana_pasada = (hoy - timedelta(days=7)).isoformat()
             ventas_semana_pasada = self._q(
-                "SELECT COALESCE(SUM(total),0) FROM ventas "
+                "SELECT COALESCE(SUM(total),0) FROM __SRC_H__ "
                 "WHERE estado='completada' AND DATE(fecha)=?",
                 [dia_semana_pasada])
 
@@ -475,11 +484,11 @@ class AlertEngine:
         try:
             hoy_iso = date.today().isoformat()
             avg = self._q(
-                "SELECT AVG(total) FROM ventas "
+                "SELECT AVG(total) FROM __SRC_H__ "
                 "WHERE estado='completada' AND DATE(fecha)=? AND total > 0",
                 [hoy_iso])
             avg_mes = self._q(
-                "SELECT AVG(total) FROM ventas "
+                "SELECT AVG(total) FROM __SRC_H__ "
                 "WHERE estado='completada' AND total > 0 "
                 "AND fecha > datetime('now','-30 days')")
             if avg_mes > 0 and avg > 0 and avg < avg_mes * 0.5:

@@ -27,7 +27,16 @@ logger = logging.getLogger("spj.simulator")
 class FinancialSimulator:
 
     def __init__(self, db_conn, treasury_service=None, module_config=None):
-        self.db = db_conn
+        # Lector de sólo lectura: sus consultas llevan los marcadores
+        # `__SRC_H__`/`__SRC_L__` y esta envoltura los resuelve a las vistas
+        # unificadas (256/257), o a la tabla legacy si la base aún no las
+        # tiene. Sin esto el servicio no veía NINGUNA venta del POS, que desde
+        # SALES-19..22 nace en el agregado canónico `sales`.
+        from backend.infrastructure.db.sales_read_source import (
+            SalesSourceRewritingConnection,
+        )
+
+        self.db = SalesSourceRewritingConnection(db_conn)
         self.treasury = treasury_service
         self._module_config = module_config
         self._bus = None
@@ -103,7 +112,7 @@ class FinancialSimulator:
         # Datos base del negocio actual
         avg_venta_suc = self._q(
             "SELECT AVG(total_mes) FROM ("
-            "  SELECT sucursal_id, SUM(total) as total_mes FROM ventas "
+            "  SELECT sucursal_id, SUM(total) as total_mes FROM __SRC_H__ "
             "  WHERE estado='completada' AND fecha > datetime('now','-90 days') "
             "  GROUP BY sucursal_id, strftime('%Y-%m', fecha))")
         if avg_venta_suc <= 0:
@@ -116,8 +125,8 @@ class FinancialSimulator:
             "SELECT COALESCE(AVG(margen),25) FROM ("
             "  SELECT (SUM(v.total) - SUM(dv.cantidad*CAST(COALESCE(pc.average_cost,'0') AS REAL))) "
             "  / NULLIF(SUM(v.total),0) * 100 as margen "
-            "  FROM ventas v "
-            "  JOIN detalles_venta dv ON dv.venta_id=v.id "
+            "  FROM __SRC_H__ v "
+            "  JOIN __SRC_L__ dv ON dv.venta_id=v.id "
             "  JOIN products p ON p.id=dv.producto_id "
             "  LEFT JOIN product_cost pc ON pc.product_id=dv.producto_id AND pc.branch_id='' "
             "  WHERE v.estado='completada' AND v.fecha > datetime('now','-90 days'))") or 25
@@ -258,7 +267,7 @@ class FinancialSimulator:
             "SELECT COALESCE(SUM(total),0) FROM nomina_pagos "
             "WHERE estado='pagado' AND fecha > datetime('now','-30 days')")
         ingresos_actual = self._q(
-            "SELECT COALESCE(SUM(total),0) FROM ventas "
+            "SELECT COALESCE(SUM(total),0) FROM __SRC_H__ "
             "WHERE estado='completada' AND fecha > datetime('now','-30 days')")
 
         nueva_nomina = nomina_actual + costo_total_mensual
@@ -313,7 +322,7 @@ class FinancialSimulator:
         valor_estrella = float(self._cfg("loyalty_valor_estrella", "0.10"))
 
         ingresos_mes = self._q(
-            "SELECT COALESCE(SUM(total),0) FROM ventas "
+            "SELECT COALESCE(SUM(total),0) FROM __SRC_H__ "
             "WHERE estado='completada' AND fecha > datetime('now','-30 days')")
 
         emision_actual = ingresos_mes * tasa_actual * valor_estrella

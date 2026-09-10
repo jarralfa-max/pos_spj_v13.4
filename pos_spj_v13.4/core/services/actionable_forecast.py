@@ -34,7 +34,16 @@ class ActionableForecastService:
     """Convierte predicciones de demanda en planes de compra accionables."""
 
     def __init__(self, db_conn, treasury_service=None, module_config=None):
-        self.db = db_conn
+        # Lector de sólo lectura: sus consultas llevan los marcadores
+        # `__SRC_H__`/`__SRC_L__` y esta envoltura los resuelve a las vistas
+        # unificadas (256/257), o a la tabla legacy si la base aún no las
+        # tiene. Sin esto el servicio no veía NINGUNA venta del POS, que desde
+        # SALES-19..22 nace en el agregado canónico `sales`.
+        from backend.infrastructure.db.sales_read_source import (
+            SalesSourceRewritingConnection,
+        )
+
+        self.db = SalesSourceRewritingConnection(db_conn)
         self.treasury = treasury_service
         self._module_config = module_config
         self._forecast_engine = None
@@ -85,8 +94,8 @@ class ActionableForecastService:
                 # Ventas últimos N días
                 ventas = self.db.execute("""
                     SELECT DATE(v.fecha) as dia, SUM(dv.cantidad) as qty
-                    FROM detalles_venta dv
-                    JOIN ventas v ON v.id=dv.venta_id
+                    FROM __SRC_L__ dv
+                    JOIN __SRC_H__ v ON v.id=dv.venta_id
                     WHERE dv.producto_id=? AND v.estado='completada'
                       AND v.fecha > datetime('now', ?)
                     GROUP BY DATE(v.fecha)

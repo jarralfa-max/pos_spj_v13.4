@@ -27,7 +27,16 @@ class FranchiseManager:
     """Gestión multi-sucursal con métricas comparativas."""
 
     def __init__(self, db_conn, treasury_service=None, module_config=None):
-        self.db = db_conn
+        # Lector de sólo lectura: sus consultas llevan los marcadores
+        # `__SRC_H__`/`__SRC_L__` y esta envoltura los resuelve a las vistas
+        # unificadas (256/257), o a la tabla legacy si la base aún no las
+        # tiene. Sin esto el servicio no veía NINGUNA venta del POS, que desde
+        # SALES-19..22 nace en el agregado canónico `sales`.
+        from backend.infrastructure.db.sales_read_source import (
+            SalesSourceRewritingConnection,
+        )
+
+        self.db = SalesSourceRewritingConnection(db_conn)
         self.treasury = treasury_service
         self._module_config = module_config
         self._bus = None
@@ -63,11 +72,11 @@ class FranchiseManager:
         for suc in sucursales:
             sid = suc["id"]
             ingresos = self._q(
-                "SELECT COALESCE(SUM(total),0) FROM ventas "
+                "SELECT COALESCE(SUM(total),0) FROM __SRC_H__ "
                 "WHERE estado='completada' AND sucursal_id=? "
                 "AND DATE(fecha) BETWEEN ? AND ?", [sid, df, dt])
             tickets = int(self._q(
-                "SELECT COUNT(*) FROM ventas "
+                "SELECT COUNT(*) FROM __SRC_H__ "
                 "WHERE estado='completada' AND sucursal_id=? "
                 "AND DATE(fecha) BETWEEN ? AND ?", [sid, df, dt]))
             # Costo de ventas (COGS) por sucursal: costo real capturado en la
@@ -76,8 +85,8 @@ class FranchiseManager:
                 "SELECT COALESCE(SUM(dv.cantidad * COALESCE("
                 "  NULLIF(dv.costo_unitario_real,0), NULLIF(p.costo,0), "
                 "  NULLIF(p.precio_compra,0), NULLIF(p.costo_promedio,0), 0)),0) "
-                "FROM detalles_venta dv "
-                "JOIN ventas v ON v.id=dv.venta_id "
+                "FROM __SRC_L__ dv "
+                "JOIN __SRC_H__ v ON v.id=dv.venta_id "
                 "LEFT JOIN productos p ON p.id=dv.producto_id "
                 "WHERE v.estado='completada' AND v.sucursal_id=? "
                 "AND DATE(v.fecha) BETWEEN ? AND ?", [sid, df, dt])
@@ -255,11 +264,11 @@ class FranchiseManager:
         dt = hoy.isoformat()
 
         ingresos = self._q(
-            "SELECT COALESCE(SUM(total),0) FROM ventas "
+            "SELECT COALESCE(SUM(total),0) FROM __SRC_H__ "
             "WHERE estado='completada' AND sucursal_id=? "
             "AND DATE(fecha) BETWEEN ? AND ?", [sucursal_id, df, dt])
         tickets = int(self._q(
-            "SELECT COUNT(*) FROM ventas WHERE estado='completada' "
+            "SELECT COUNT(*) FROM __SRC_H__ WHERE estado='completada' "
             "AND sucursal_id=? AND DATE(fecha) BETWEEN ? AND ?",
             [sucursal_id, df, dt]))
         empleados = int(self._q(
@@ -269,7 +278,7 @@ class FranchiseManager:
             "SELECT COALESCE(SUM(cantidad*COALESCE(costo_unitario,0)),0) "
             "FROM merma WHERE DATE(fecha) BETWEEN ? AND ?", [df, dt])
         cancelaciones = int(self._q(
-            "SELECT COUNT(*) FROM ventas WHERE estado='cancelada' "
+            "SELECT COUNT(*) FROM __SRC_H__ WHERE estado='cancelada' "
             "AND sucursal_id=? AND DATE(fecha) BETWEEN ? AND ?",
             [sucursal_id, df, dt]))
 
