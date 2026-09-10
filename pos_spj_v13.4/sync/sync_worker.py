@@ -654,7 +654,7 @@ def crear_sync_worker(
 
     Uso en main.py:
         from sync.sync_worker import crear_sync_worker
-        from core.db.connection import get_connection
+        from backend.infrastructure.db.connection import get_connection
 
         worker = crear_sync_worker(get_connection, sucursal_id=1,
                                    url=config.SYNC_URL, api_key=config.SYNC_KEY)

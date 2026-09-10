@@ -9,7 +9,7 @@ try:
     from modulos.sistema.backup_engine import _get_db_path as _hm_get_db_path
 except Exception:
     try:
-        from core.db.connection import DB_PATH as _HM_DB_PATH
+        from backend.infrastructure.db.connection import DB_PATH as _HM_DB_PATH
         def _hm_get_db_path(): return _HM_DB_PATH
     except Exception:
         def _hm_get_db_path(): return "spj_pos_database.db" 

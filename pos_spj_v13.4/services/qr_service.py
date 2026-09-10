@@ -12,7 +12,7 @@ Genera, valida y registra QR para:
 from __future__ import annotations
 import uuid, json, logging, io, base64
 from datetime import datetime
-from core.db.connection import get_connection, transaction
+from backend.infrastructure.db.connection import get_connection, transaction
 
 logger = logging.getLogger("spj.qr")
 

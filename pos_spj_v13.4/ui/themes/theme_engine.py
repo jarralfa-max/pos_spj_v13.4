@@ -94,7 +94,7 @@ def load_saved_theme(widget=None) -> str:
     Si no hay widget, aplica solo a QApplication.
     """
     try:
-        from core.db.connection import get_connection
+        from backend.infrastructure.db.connection import get_connection
         conn = get_connection()
         row = conn.execute(
             "SELECT valor FROM configuraciones WHERE clave='tema'"
@@ -108,7 +108,7 @@ def load_saved_theme(widget=None) -> str:
 
 def _persist_theme(theme_name: str) -> None:
     try:
-        from core.db.connection import get_connection
+        from backend.infrastructure.db.connection import get_connection
         conn = get_connection()
         conn.execute(
             "INSERT OR REPLACE INTO configuraciones (clave, valor) VALUES (?,?)",

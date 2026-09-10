@@ -1,6 +1,6 @@
 """DatabaseModuleProvider wired through a real CompositionRoot — not a
 fake. Proves the registration resolves to the real, live connection pool
-(`core.db.connection.get_connection()`), that it's a working SQLite
+(`backend.infrastructure.db.connection.get_connection()`), that it's a working SQLite
 connection (schema query succeeds), and that resolving it twice returns
 the exact same object (SINGLETON, not a second connection to the file).
 """
@@ -12,7 +12,7 @@ import pytest
 
 from backend.bootstrap.composition_root import CompositionRoot
 from backend.bootstrap.wiring.database_wiring import DatabaseModuleProvider
-from core.db.connection import DatabaseWrapper, close_thread_connection, set_db_path
+from backend.infrastructure.db.connection import DatabaseWrapper, close_thread_connection, set_db_path
 
 
 @pytest.fixture

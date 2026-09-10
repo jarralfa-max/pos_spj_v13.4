@@ -1,9 +1,9 @@
 
 # database/conexion.py — SHIM de compatibilidad v6.1
-# Re-exporta todo desde core.db.connection (módulo canónico).
+# Re-exporta todo desde backend.infrastructure.db.connection (módulo canónico).
 # main.py y pos_adapter.py importan desde aquí — no romper.
 from __future__ import annotations
-from core.db.connection import (
+from backend.infrastructure.db.connection import (
     get_connection, get_db, close_connection, transaction,
     execute_with_retry, set_db_path, DB_PATH, BASE_DIR,
     Connection, Database,

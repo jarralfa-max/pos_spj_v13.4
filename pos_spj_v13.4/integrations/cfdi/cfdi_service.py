@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging, uuid, json
 from datetime import datetime
 from backend.shared.ids import new_uuid
-from core.db.connection import get_connection, transaction
+from backend.infrastructure.db.connection import get_connection, transaction
 
 logger = logging.getLogger("spj.cfdi")
 

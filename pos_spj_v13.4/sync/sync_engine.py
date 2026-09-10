@@ -11,7 +11,7 @@ Arquitectura offline-first:
 from __future__ import annotations
 import threading, time, json, logging, uuid, hashlib
 from datetime import datetime
-from core.db.connection import get_connection, close_thread_connection
+from backend.infrastructure.db.connection import get_connection, close_thread_connection
 
 logger = logging.getLogger("spj.sync")
 

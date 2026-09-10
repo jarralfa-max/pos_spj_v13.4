@@ -35,7 +35,7 @@ def test_main_no_longer_defines_the_legacy_triplicated_bootstrap_path():
 def test_main_does_not_call_migration_engine_directly():
     source = _source()
     # Nothing in main.py should reach into migrations.engine or
-    # core.db.connection.migrate_db directly anymore — that's
+    # backend.infrastructure.db.connection.migrate_db directly anymore — that's
     # run_database_bootstrap_sequence's job now, exclusively.
     assert "migrator.up(" not in source
     assert "migrate_db(" not in source

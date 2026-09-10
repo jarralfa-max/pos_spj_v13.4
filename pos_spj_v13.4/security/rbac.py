@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import functools
 from typing import Set, Optional, Callable
-from core.db.connection import get_connection
+from backend.infrastructure.db.connection import get_connection
 
 logger = logging.getLogger("spj.rbac")
 
@@ -128,7 +128,7 @@ def get_permisos(usuario_id: int, sucursal_id: int = 1) -> Set[str]:
     v13.1: Lee primero de rol_permisos (nueva tabla de 047).
     Fallback a tabla legacy permisos+roles_permisos.
     """
-    from core.db.connection import get_connection
+    from backend.infrastructure.db.connection import get_connection
     conn = get_connection()
 
     # ── Intentar nueva tabla rol_permisos (v13) ───────────────────────────

@@ -46,7 +46,7 @@ class RecetaRepository:
 
     def __init__(self, db):
         # Usar DatabaseWrapper para garantizar fetchall/fetchone/transaction
-        from core.db.connection import wrap
+        from backend.infrastructure.db.connection import wrap
         self.db = wrap(db)
 
         # Detect all columns in product_recipes

@@ -21,7 +21,7 @@ Novedades v13:
 from __future__ import annotations
 import json, logging, re, uuid
 from datetime import datetime, date, timedelta
-from core.db.connection import get_connection, transaction
+from backend.infrastructure.db.connection import get_connection, transaction
 
 logger = logging.getLogger("spj.bot")
 

@@ -10,7 +10,7 @@ Endpoints usados:
 from __future__ import annotations
 import json, logging, threading, uuid
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from core.db.connection import get_connection, transaction
+from backend.infrastructure.db.connection import get_connection, transaction
 
 logger = logging.getLogger("spj.mercadopago")
 

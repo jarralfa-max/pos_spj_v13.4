@@ -96,7 +96,7 @@ class ModuloProduccion(ModuloBase):
             self.container = None
             db_conn = conexion
         super().__init__(db_conn, parent)
-        from core.db.connection import wrap
+        from backend.infrastructure.db.connection import wrap
         self.conexion        = wrap(db_conn)
         self.main_window     = parent
         # Sucursal desde el contexto de sesión (UUID str); sin fallback a

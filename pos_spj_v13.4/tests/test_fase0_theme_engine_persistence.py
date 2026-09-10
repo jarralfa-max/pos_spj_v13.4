@@ -36,7 +36,7 @@ def test_load_saved_theme_respeta_tema_persistido():
     conn.execute("INSERT INTO configuraciones (clave, valor) VALUES ('tema', 'Light')")
     conn.commit()
 
-    with patch("core.db.connection.get_connection", return_value=conn), \
+    with patch("backend.infrastructure.db.connection.get_connection", return_value=conn), \
          patch.object(theme_engine, "_get_temas", return_value={"Oscuro": "QWidget{a:1;}", "Claro": "QWidget{a:2;}"}):
         tema = theme_engine.load_saved_theme(None)
         assert tema == "Light"

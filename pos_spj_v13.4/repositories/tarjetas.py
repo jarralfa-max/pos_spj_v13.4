@@ -32,7 +32,7 @@ class TarjetaYaAsignadaError(TarjetaError):
 class TarjetaRepository:
 
     def __init__(self, db):
-        from core.db.connection import wrap
+        from backend.infrastructure.db.connection import wrap
         self.db = wrap(db)
 
     def _now(self) -> str:

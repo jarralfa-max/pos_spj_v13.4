@@ -10,10 +10,10 @@ from PyQt5.QtWidgets import QDialog
 @pytest.fixture
 def entrypoint(monkeypatch, tmp_path):
     import core.logging_setup
-    import core.db.connection
+    import backend.infrastructure.db.connection
 
     monkeypatch.setattr(core.logging_setup, "setup_logging", lambda: None)
-    monkeypatch.setattr(core.db.connection, "set_db_path", lambda path: None)
+    monkeypatch.setattr(backend.infrastructure.db.connection, "set_db_path", lambda path: None)
     path = Path(__file__).resolve().parents[3] / "main.py"
     spec = importlib.util.spec_from_file_location("remediation_entrypoint", path)
     module = importlib.util.module_from_spec(spec)

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json, threading, logging
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
-from core.db.connection import get_connection, close_thread_connection
+from backend.infrastructure.db.connection import get_connection, close_thread_connection
 from core.services.delivery_service import DeliveryService
 
 logger = logging.getLogger("spj.pwa")
@@ -301,7 +301,7 @@ class PwaServerThread(threading.Thread):
     def run(self):
         try:
             if self.db_path:
-                from core.db.connection import set_db_path
+                from backend.infrastructure.db.connection import set_db_path
                 set_db_path(self.db_path)
             self._server = HTTPServer(("0.0.0.0", self.port), DeliveryAPIHandler)
             logger.info("PWA servidor en http://0.0.0.0:%d", self.port)

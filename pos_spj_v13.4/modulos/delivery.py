@@ -44,7 +44,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QRunnable, QThreadPool, QObject, pyqtSlot, QTime, QDate
 from PyQt5.QtGui import QFont, QColor
-from core.db.connection import get_connection
+from backend.infrastructure.db.connection import get_connection
 from core.services.delivery_service import DeliveryService
 from core.delivery.domain.state_machine import DeliveryStateMachine
 from core.services.order_badge_service import OrderBadgeService

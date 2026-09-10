@@ -120,7 +120,7 @@ def test_no_raw_sqlite_connect_outside_pool():
     nuevos = sorted(offending_files - ALLOWLIST)
     assert not nuevos, (
         "Conexiones SQLite crudas fuera del pool en archivos NO autorizados.\n"
-        "Usa el pool (`core.db.connection.get_connection`) o la conexión "
+        "Usa el pool (`backend.infrastructure.db.connection.get_connection`) o la conexión "
         "inyectada (AppContainer.db / repos). Si es infraestructura o un "
         "proceso independiente legítimo, justifícalo en la ALLOWLIST:\n"
         + "\n".join(f"  {f}: líneas {offenders[f]}" for f in nuevos)

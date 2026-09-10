@@ -1,6 +1,6 @@
 import sqlite3
 
-from core.db.connection import DatabaseWrapper
+from backend.infrastructure.db.connection import DatabaseWrapper
 
 
 def test_database_wrapper_transaction_accepts_name_parameter():

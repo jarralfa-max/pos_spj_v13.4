@@ -18,7 +18,7 @@ does not create a second layer of caching-that-could-drift: the pool is
 already a singleton-per-thread; resolving it through the container once
 per thread is simply the same object handed back, cached again.
 
-The connection's path is NOT this provider's concern — `core.db.connection.
+The connection's path is NOT this provider's concern — `backend.infrastructure.db.connection.
 set_db_path()` must already have been called (exactly as `main.py` already
 does today, before constructing the legacy `AppContainer`) by whatever
 composes this provider into a `CompositionRoot`.
@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from backend.bootstrap.service_lifetime import Lifetime
 from backend.bootstrap.service_registry import ServiceRegistry
-from core.db.connection import DatabaseWrapper, get_connection
+from backend.infrastructure.db.connection import DatabaseWrapper, get_connection
 
 
 class DatabaseModuleProvider:

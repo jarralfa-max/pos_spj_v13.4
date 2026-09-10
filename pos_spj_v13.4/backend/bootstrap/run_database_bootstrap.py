@@ -56,7 +56,7 @@ def run_database_bootstrap_sequence(db_path: str | Path) -> BootstrapResult:
     The returned `BootstrapResult.context.conn`, if not None, is a live
     connection the caller owns and must close before handing the same
     database file to a separate connection pool (e.g. `AppContainer`'s
-    `core.db.connection` pool) — this function never closes it itself,
+    `backend.infrastructure.db.connection` pool) — this function never closes it itself,
     since a caller inspecting a FATAL failure may still need it (e.g. to
     read `PRAGMA integrity_check` details) before deciding what to do next.
     """

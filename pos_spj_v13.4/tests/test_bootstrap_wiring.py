@@ -19,7 +19,7 @@ from unittest.mock import MagicMock, patch
 
 def test_verificar_tablas_raises_when_missing():
     """DB vacía debe levantar RuntimeError con las tablas faltantes."""
-    from core.db.connection import verificar_tablas
+    from backend.infrastructure.db.connection import verificar_tablas
     conn = sqlite3.connect(":memory:")
     with pytest.raises(RuntimeError) as exc_info:
         verificar_tablas(conn)
@@ -30,7 +30,7 @@ def test_verificar_tablas_raises_when_missing():
 
 def test_verificar_tablas_passes_with_all_required_tables():
     """DB con todas las tablas requeridas no debe levantar error."""
-    from core.db.connection import verificar_tablas, TABLAS_REQUERIDAS
+    from backend.infrastructure.db.connection import verificar_tablas, TABLAS_REQUERIDAS
     conn = sqlite3.connect(":memory:")
     for tabla in TABLAS_REQUERIDAS:
         conn.execute(f"CREATE TABLE {tabla} (id INTEGER PRIMARY KEY)")
@@ -42,7 +42,7 @@ def test_verificar_tablas_passes_with_all_required_tables():
 
 def test_verificar_tablas_partial_raises():
     """DB con algunas tablas debe listar solo las faltantes."""
-    from core.db.connection import verificar_tablas
+    from backend.infrastructure.db.connection import verificar_tablas
     conn = sqlite3.connect(":memory:")
     conn.execute("CREATE TABLE usuarios (id INTEGER PRIMARY KEY)")
     conn.execute("CREATE TABLE productos (id INTEGER PRIMARY KEY)")

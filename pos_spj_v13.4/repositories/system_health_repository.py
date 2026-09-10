@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 
-from core.db.connection import get_connection
+from backend.infrastructure.db.connection import get_connection
 
 logger = logging.getLogger("spj.health.repo")
 

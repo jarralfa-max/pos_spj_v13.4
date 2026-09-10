@@ -18,7 +18,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QColor, QFont
-from core.db.connection import get_connection
+from backend.infrastructure.db.connection import get_connection
 
 logger = logging.getLogger("spj.ui.pedidos")
 

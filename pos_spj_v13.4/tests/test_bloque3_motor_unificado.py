@@ -407,7 +407,7 @@ class TestLoadOutputsFromRecetaUsesCanonical:
 
         from core.production.production_engine import ProductionEngine
         eng = ProductionEngine.__new__(ProductionEngine)
-        from core.db.connection import wrap
+        from backend.infrastructure.db.connection import wrap
         eng.db = wrap(conn)
         eng.branch_id = 1
 

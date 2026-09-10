@@ -30,7 +30,7 @@ def _run_migrations(db_path: str) -> None:
     try:
         try:
             from migrations import engine as migration_engine  # path canónico
-            from core.db.connection import migrate_db
+            from backend.infrastructure.db.connection import migrate_db
             migration_engine.up(conn)
             migrate_db(conn)
         except Exception:
@@ -40,7 +40,7 @@ def _run_migrations(db_path: str) -> None:
             engine_mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(engine_mod)
             engine_mod.up(conn)
-            from core.db.connection import migrate_db
+            from backend.infrastructure.db.connection import migrate_db
             migrate_db(conn)
     finally:
         conn.close()

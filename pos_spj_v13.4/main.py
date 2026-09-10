@@ -51,7 +51,7 @@ _DATA_DIR = os.path.join(_BASE_DIR, "data")
 os.makedirs(_DATA_DIR, exist_ok=True)
 DB_PATH = os.path.join(_DATA_DIR, "spj_pos_database.db")
 # Align connection pool to same DB as bootstrap — prevents "no such table" on fresh start
-from core.db.connection import set_db_path as _set_db_path
+from backend.infrastructure.db.connection import set_db_path as _set_db_path
 _set_db_path(DB_PATH)
 _LOCAL_SERVER = None
 

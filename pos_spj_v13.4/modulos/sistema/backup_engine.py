@@ -4,9 +4,9 @@
 from __future__ import annotations
 import os, shutil, sqlite3, logging, zipfile
 from datetime import datetime
-from core.db.connection import get_connection
+from backend.infrastructure.db.connection import get_connection
 try:
-    from core.db.connection import DB_PATH as _DEFAULT_DB_PATH
+    from backend.infrastructure.db.connection import DB_PATH as _DEFAULT_DB_PATH
 except ImportError:
     _DEFAULT_DB_PATH = None
 
@@ -128,7 +128,7 @@ def restaurar(backup_path: str) -> bool:
         conn.close()
     except Exception:
         pass
-    from core.db.connection import close_connection
+    from backend.infrastructure.db.connection import close_connection
     close_connection()
     shutil.copy2(backup_path, _get_db_path())
     logger.info("BD restaurada desde: %s", backup_path)
