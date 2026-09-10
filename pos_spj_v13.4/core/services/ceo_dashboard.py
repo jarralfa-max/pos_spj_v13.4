@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 from datetime import date, datetime
 from typing import Dict, List, Any, Optional
+from backend.infrastructure.db.sales_read_source import sales_source
 
 logger = logging.getLogger("spj.ceo")
 
@@ -104,7 +105,7 @@ class CEODashboard:
         df = df or date(hoy.year, hoy.month, 1).isoformat()
         dt = dt or hoy.isoformat()
         ingresos = self._q(
-            "SELECT COALESCE(SUM(total),0) FROM ventas "
+            f"SELECT COALESCE(SUM(total),0) FROM {sales_source(self.db)} "
             "WHERE estado='completada' AND DATE(fecha) BETWEEN ? AND ?",
             [df, dt])
         gastos = self._q(
@@ -149,11 +150,11 @@ class CEODashboard:
         sp = [suc] if suc else []
         hoy = date.today().isoformat()
         total = self._q(
-            f"SELECT COALESCE(SUM(total),0) FROM ventas "
+            f"SELECT COALESCE(SUM(total),0) FROM {sales_source(self.db)} "
             f"WHERE estado='completada' AND DATE(fecha)=?{sf}",
             [hoy] + sp)
         tickets = int(self._q(
-            f"SELECT COUNT(*) FROM ventas "
+            f"SELECT COUNT(*) FROM {sales_source(self.db)} "
             f"WHERE estado='completada' AND DATE(fecha)=?{sf}",
             [hoy] + sp))
         avg = (total / tickets) if tickets else 0

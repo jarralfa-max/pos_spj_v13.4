@@ -7,6 +7,7 @@ Extrae toda la SQL de modulos/clientes.py a la capa de datos.
 from __future__ import annotations
 import logging
 from typing import Optional
+from backend.infrastructure.db.sales_read_source import sales_source
 
 logger = logging.getLogger("spj.repo.clientes")
 
@@ -147,6 +148,13 @@ class ClienteRepository:
 
     # ── Historial ────────────────────────────────────────────────────────────
 
+    # NO se repunta a `v_ventas_unificada`, a diferencia de `get_stats` más
+    # abajo: pide `v.puntos_ganados`, que la vista no expone porque el agregado
+    # canónico `sales` no guarda puntos — la fidelidad es su propio bounded
+    # context. Exponerlos como 0 mostraría un historial con todos los puntos en
+    # cero, y quitarlos del SELECT cambiaría lo que ve la pantalla. Es el mismo
+    # bloqueo que dejó fuera al gemelo
+    # `backend/application/queries/customer_history_query_service.py`.
     def get_historial_compras(self, cliente_id: str, limit: int = 30) -> list:
         try:
             rows = self.db.execute("""
@@ -177,12 +185,12 @@ class ClienteRepository:
     def get_stats(self, cliente_id: str) -> dict:
         """Devuelve estadísticas básicas del cliente."""
         try:
-            row = self.db.execute("""
+            row = self.db.execute(f"""
                 SELECT COUNT(*) AS num_compras,
                        COALESCE(SUM(total), 0) AS total_gastado,
                        COALESCE(AVG(total), 0) AS ticket_promedio,
                        MAX(fecha) AS ultima_compra
-                FROM ventas
+                FROM {sales_source(self.db)}
                 WHERE cliente_id=? AND estado='completada'
             """, (cliente_id,)).fetchone()
             return dict(row) if row else {}

@@ -8,6 +8,7 @@ user→employee link resolution and the global search box. All reads are defensi
 from __future__ import annotations
 
 import logging
+from backend.infrastructure.db.sales_read_source import sales_source
 
 logger = logging.getLogger("spj.mainwindow.repo")
 
@@ -85,7 +86,7 @@ class MainWindowReadRepository:
     def buscar_ventas_por_folio(self, texto: str, limit: int = 4) -> list:
         try:
             return self.db.execute(
-                "SELECT folio, total, fecha FROM ventas "
+                f"SELECT folio, total, fecha FROM {sales_source(self.db)} "
                 "WHERE folio LIKE ? ORDER BY fecha DESC LIMIT ?",
                 (f"%{texto}%", int(limit)),
             ).fetchall()

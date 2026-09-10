@@ -5,6 +5,7 @@ import hashlib
 import random
 
 from backend.shared.ids import new_uuid
+from backend.infrastructure.db.sales_read_source import sales_source
 
 
 class LoyaltyRepository:
@@ -177,14 +178,14 @@ class LoyaltyRepository:
     def list_at_risk_customers(self, days_without_sale: int = 30, limit: int = 200) -> List[Any]:
         days_without_sale = max(1, int(days_without_sale))
         return self.db.execute(
-            """
+            f"""
             SELECT c.nombre,
                    MAX(v.fecha) as ultima,
                    CAST(julianday('now') - julianday(MAX(v.fecha)) AS INTEGER) as dias_inactivo,
                    COALESCE(SUM(v.total), 0) as total_hist,
                    c.telefono
             FROM clientes c
-            LEFT JOIN ventas v ON v.cliente_id = c.id
+            LEFT JOIN {sales_source(self.db)} v ON v.cliente_id = c.id
             WHERE COALESCE(c.activo,1)=1
             GROUP BY c.id
             HAVING dias_inactivo >= ? OR ultima IS NULL
