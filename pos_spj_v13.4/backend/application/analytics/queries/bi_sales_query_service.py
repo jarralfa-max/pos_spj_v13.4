@@ -156,6 +156,74 @@ class BiSalesQueryService:
             out.append((r[0], margen, (margen / ing * 100) if ing else 0.0))
         return out
 
+    def profitability_by_product(self, f, limit: int = 50) -> list[dict]:
+        """Rentabilidad por producto para la tabla de la UI.
+
+        MOVIDO desde `core/services/analytics/analytics_engine.py::
+        product_profitability_detail` (§33 PASO 4: mover comportamiento, no
+        copiarlo). Dos cambios frente al original, ambos deliberados:
+
+        * une contra `products`/`product_categories` —los maestros canónicos—
+          en vez de la tabla legacy `productos`, igual que sus hermanas de
+          este servicio;
+        * el rango y la sucursal llegan en `DashboardFilters` a través de
+          `_sales_where`, así que hereda los demás filtros del dashboard
+          (método de pago, cliente, categoría) que el original ignoraba.
+
+        El costo sigue resolviéndose con `COST_LINE`: costo capturado por
+        línea y, si falta —que es siempre, porque nadie escribe esa columna—,
+        el promedio canónico de `product_cost`.
+        """
+        where, params = _sales_where(f)
+        rows = self._q(
+            "SELECT dv.producto_id, "
+            "COALESCE(NULLIF(p.name,''), dv.nombre, '—') AS nombre, "
+            "COALESCE(NULLIF(pcat.name,''),'') AS categoria, "
+            "COALESCE(SUM(dv.cantidad),0) AS unidades, "
+            "COALESCE(SUM(dv.subtotal),0) AS ingresos, "
+            f"COALESCE(SUM(dv.cantidad*{COST_LINE}),0) AS costo "
+            "FROM v_detalles_venta_unificada dv "
+            "JOIN v_ventas_unificada v ON v.id=dv.venta_id "
+            "LEFT JOIN products p ON p.id=dv.producto_id "
+            "LEFT JOIN product_categories pcat ON pcat.id=p.category_id "
+            f"{_COST_JOIN} "
+            f"WHERE {where} GROUP BY dv.producto_id "
+            "ORDER BY (ingresos - costo) DESC LIMIT ?", params + [limit])
+        out = []
+        for r in rows:
+            ingresos = float(r[4] or 0)
+            costo = float(r[5] or 0)
+            out.append({
+                "producto_id": r[0], "nombre": r[1], "categoria": r[2],
+                "unidades": float(r[3] or 0), "ingresos": ingresos,
+                "costo": costo, "margen": ingresos - costo,
+                "margen_pct": ((ingresos - costo) / ingresos * 100) if ingresos else 0.0,
+            })
+        return out
+
+    def cashier_ranking(self, f, limit: int = 20) -> list[dict]:
+        """Ranking de cajeros por transacciones, volumen y ticket promedio.
+
+        MOVIDO desde `AnalyticsEngine.get_ranking_cajeros`. Igual que el
+        anterior, el rango/sucursal llegan por `DashboardFilters`.
+        """
+        where, params = _sales_where(f)
+        rows = self._q(
+            "SELECT COALESCE(NULLIF(v.usuario,''),'(sin usuario)') AS cajero, "
+            "COUNT(v.id) AS num_ventas, "
+            "COALESCE(SUM(v.total),0) AS total_ventas, "
+            "COALESCE(AVG(v.total),0) AS ticket_promedio, "
+            "COALESCE(SUM(v.descuento),0) AS total_descuentos, "
+            "COUNT(DISTINCT DATE(v.fecha)) AS dias_activo "
+            "FROM v_ventas_unificada v "
+            f"WHERE {where} GROUP BY cajero "
+            "ORDER BY num_ventas DESC LIMIT ?", params + [limit])
+        return [{
+            "cajero": r[0], "num_ventas": int(r[1] or 0),
+            "total_ventas": float(r[2] or 0), "ticket_promedio": float(r[3] or 0),
+            "total_descuentos": float(r[4] or 0), "dias_activo": int(r[5] or 0),
+        } for r in rows]
+
     def monthly_evolution(self, year: str | None = None) -> dict:
         """Evolución mensual (ventas e utilidad bruta) del año dado o el actual."""
         yr = str(year) if year else None

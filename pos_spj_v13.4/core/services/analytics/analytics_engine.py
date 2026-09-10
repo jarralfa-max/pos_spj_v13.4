@@ -196,48 +196,6 @@ class AnalyticsEngine:
                    "NULLIF(p.costo,0), NULLIF(p.precio_compra,0), "
                    "NULLIF(p.costo_promedio,0), 0)")
 
-    def product_profitability_detail(
-        self, fecha_ini: str, fecha_fin: str, sucursal_id, limit: int = 50
-    ) -> list:
-        """Rentabilidad por producto con nombre, categoría y unidades para la tabla UI.
-
-        Devuelve dicts {producto_id, nombre, categoria, unidades, ingresos,
-        costo, margen}. El costo es robusto (ver _COSTO_LINE): usa el costo real
-        capturado por línea de venta y, si falta, las columnas de costo del
-        producto — evita que 'Costo Total' salga siempre en cero.
-        """
-        cl = self._COSTO_LINE
-        try:
-            rows = self._db.execute(f"""
-                SELECT dv.producto_id,
-                       COALESCE(p.nombre, dv.nombre, '—') AS nombre,
-                       COALESCE(p.categoria, '')          AS categoria,
-                       SUM(dv.cantidad)                   AS unidades,
-                       SUM(dv.subtotal)                   AS ingresos,
-                       SUM(dv.cantidad * {cl})            AS costo
-                FROM __SRC_L__ dv
-                JOIN __SRC_H__ v ON v.id = dv.venta_id
-                LEFT JOIN productos p ON p.id = dv.producto_id
-                WHERE DATE(v.fecha) BETWEEN ? AND ?
-                  AND v.sucursal_id = ?
-                  AND v.estado = 'completada'
-                GROUP BY dv.producto_id
-                ORDER BY (SUM(dv.subtotal) - SUM(dv.cantidad * {cl})) DESC
-                LIMIT ?
-            """, (fecha_ini[:10], fecha_fin[:10], sucursal_id, limit)).fetchall()
-            out = []
-            for r in rows:
-                ingresos = float(r[4] or 0)
-                costo = float(r[5] or 0)
-                out.append({
-                    "producto_id": r[0], "nombre": r[1], "categoria": r[2],
-                    "unidades": float(r[3] or 0), "ingresos": ingresos,
-                    "costo": costo, "margen": ingresos - costo,
-                })
-            return out
-        except Exception as e:
-            logger.warning("product_profitability_detail: %s", e)
-            return []
 
 
 
@@ -464,28 +422,6 @@ class AnalyticsEngine:
         """
         return [dict(row) for row in self._db.execute(query, (sucursal_id, fecha_inicio, fecha_fin)).fetchall()]
 
-    def get_ranking_cajeros(self, sucursal_id: int, fecha_inicio: str, fecha_fin: str, limite: int = 20) -> list:
-        """
-        Ranking de cajeros por número de transacciones, volumen y ticket promedio.
-        """
-        query = """
-            SELECT
-                COALESCE(usuario, '(sin usuario)') AS cajero,
-                COUNT(id)          AS num_ventas,
-                SUM(total)         AS total_ventas,
-                AVG(total)         AS ticket_promedio,
-                SUM(descuento)     AS total_descuentos,
-                COUNT(DISTINCT DATE(fecha)) AS dias_activo
-            FROM __SRC_H__
-            WHERE sucursal_id = ?
-              AND estado = 'completada'
-              AND date(fecha) BETWEEN date(?) AND date(?)
-            GROUP BY usuario
-            ORDER BY num_ventas DESC
-            LIMIT ?
-        """
-        return [dict(row) for row in self._db.execute(
-            query, (sucursal_id, fecha_inicio, fecha_fin, limite)).fetchall()]
 
 
     def _get_comparativa(self, sucursal_id: int, rango: str) -> dict:

@@ -105,18 +105,6 @@ def test_recurring_customers_see_the_pos(conn):
     assert isinstance(rows, list)
 
 
-def test_profitability_detail_sees_the_pos(conn):
-    """Otra de las cuatro entradas vivas (la usa `reportes_bi_v2`)."""
-    rows = AnalyticsEngine(conn).product_profitability_detail(FECHA, FECHA, "b1")
-    assert isinstance(rows, list)
-
-
-def test_cashier_ranking_sees_the_pos(conn):
-    """Tercera entrada viva."""
-    rows = AnalyticsEngine(conn).get_ranking_cajeros("b1", FECHA, FECHA)
-    assert isinstance(rows, list)
-
-
 def test_a_backfilled_sale_is_not_double_counted(conn):
     """La 255 deja la venta en las dos tablas; el KPI no debe duplicarla."""
     conn.execute(
@@ -167,7 +155,7 @@ def test_no_placeholder_survives_into_executed_sql(conn):
     engine = AnalyticsEngine(_Spy(conn))
     engine.get_dashboard_data("b1", "hoy")
     engine.get_ranking_productos("b1", FECHA, FECHA)
-    engine.get_ranking_cajeros("b1", FECHA, FECHA)
+    engine.get_clientes_recurrentes("b1", FECHA, FECHA)
 
     assert executed, "no se ejecutó ninguna consulta"
     leaked = [s for s in executed
@@ -244,10 +232,7 @@ def test_the_engine_has_no_unreachable_query_methods():
               if isinstance(n, ast.FunctionDef) and not n.name.startswith("_")}
 
     # Llamados desde fuera (`reportes_bi_v2`, `app_container`, `wiring`).
-    live_entrypoints = {
-        "wire", "get_dashboard_data", "get_ranking_cajeros",
-        "product_profitability_detail",
-    }
+    live_entrypoints = {"wire", "get_dashboard_data"}
     # Alcanzables desde `wire()` o desde `get_dashboard_data()`.
     reachable_internally = {
         "update_sales", "update_yield", "get_ventas_por_hora",
@@ -257,6 +242,12 @@ def test_the_engine_has_no_unreachable_query_methods():
     # porque borrarlos exige borrar también esas pruebas, que cubren el corte
     # canónico de inventario y el respaldo de costo.
     test_only = {"product_profitability", "inventory_intelligence", "invalidar_cache"}
+
+    # `get_ranking_cajeros` y `product_profitability_detail` YA NO están:
+    # su consulta se movió a `BiSalesQueryService.cashier_ranking` /
+    # `.profitability_by_product` y la pantalla llama allí.
+    assert "get_ranking_cajeros" not in public
+    assert "product_profitability_detail" not in public
 
     unaccounted = public - live_entrypoints - reachable_internally - test_only
     assert not unaccounted, (

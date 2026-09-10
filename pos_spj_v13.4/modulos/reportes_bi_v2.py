@@ -34,6 +34,36 @@ class ModuloReportesBIv2(QWidget):
         self.init_ui()
         self._wire_business_events()
 
+    # ── Puente a la capa canónica de BI ──────────────────────────────────
+    # Esta pantalla es legacy y se retirará cuando el módulo canónico de BI
+    # tenga sus páginas de rankings/rentabilidad/cajeros (hoy no las tiene,
+    # por eso el slot INTELIGENCIA_BI sigue apuntando aquí). Mientras tanto la
+    # LÓGICA sí se vacía hacia `backend/application/analytics` (§7: la UI se
+    # vacía de lógica progresivamente), en vez de seguir consumiendo el motor
+    # legacy `AnalyticsEngine`.
+
+    def _bi_sales(self):
+        """Servicio canónico de consultas de ventas para BI."""
+        from backend.application.analytics.queries.bi_sales_query_service import (
+            BiSalesQueryService,
+        )
+
+        return BiSalesQueryService(self.container.db)
+
+    def _bi_filters(self, fecha_inicio: str, fecha_fin: str):
+        """Traduce el rango ya resuelto por la pantalla al filtro canónico.
+
+        Se usa `preset="custom"` porque la fecha ya viene calculada aquí; que
+        el filtro la vuelva a derivar del preset daría un rango distinto al
+        que muestra la propia UI.
+        """
+        from backend.application.analytics.dto.bi_dashboard_dto import DashboardFilters
+
+        return DashboardFilters(
+            preset="custom", date_from=fecha_inicio, date_to=fecha_fin,
+            branch_id=str(self.sucursal_id or ""),
+        )
+
     def set_usuario_actual(self, usuario: str, rol: str = "cajero") -> None:
         """Recibe el usuario activo al cambiar de sesión."""
         self.usuario_actual = usuario
@@ -316,14 +346,14 @@ class ModuloReportesBIv2(QWidget):
         parent_layout.addWidget(grp)
 
     def _cargar_cajeros(self):
-        """Carga ranking de cajeros via AnalyticsEngine.get_ranking_cajeros() (BI unificado)."""
+        """Ranking de cajeros vía la capa canónica de BI.
+
+        Antes lo servía `AnalyticsEngine.get_ranking_cajeros`. La consulta se
+        movió a `BiSalesQueryService.cashier_ranking`, que lee las vistas
+        unificadas y hereda los demás filtros del dashboard.
+        """
         self._tbl_caj.setRowCount(0)
         try:
-            # BI unificado: fuente única analytics_engine
-            analytics = getattr(self.container, 'analytics_engine', None)
-            if analytics is None:
-                self._lbl_caj_estado.setText("AnalyticsEngine no disponible.")
-                return
             rango = self.cmb_rango.currentText()
             rango_key = "hoy" if "hoy" in rango.lower() else \
                         "semana" if "semana" in rango.lower() else "mes"
@@ -338,7 +368,8 @@ class ModuloReportesBIv2(QWidget):
             else:  # mes
                 fecha_inicio = hoy.replace(day=1).strftime('%Y-%m-%d')
                 fecha_fin = hoy.strftime('%Y-%m-%d')
-            rows = analytics.get_ranking_cajeros(self.sucursal_id, fecha_inicio, fecha_fin, limite=20)
+            rows = self._bi_sales().cashier_ranking(
+                self._bi_filters(fecha_inicio, fecha_fin), limit=20)
             self._lbl_caj_estado.setText(f"{len(rows)} cajeros encontrados.")
             for i, r in enumerate(rows):
                 self._tbl_caj.insertRow(i)
@@ -528,14 +559,9 @@ class ModuloReportesBIv2(QWidget):
             fecha_fin = hoy.strftime('%Y-%m-%d')
         
         try:
-            # ✅ FASE 2: Usar AnalyticsEngine para rentabilidad de productos
-            analytics = getattr(self.container, 'analytics_engine', None)
-            if not analytics:
-                raise RuntimeError("AnalyticsEngine no disponible")
-            
-            # Servicio unificado: incluye nombre, categoría, unidades y costo real.
-            rows_raw = analytics.product_profitability_detail(
-                fecha_inicio, fecha_fin, self.sucursal_id, limit=50)
+            # Capa canónica de BI: incluye nombre, categoría, unidades y costo.
+            rows_raw = self._bi_sales().profitability_by_product(
+                self._bi_filters(fecha_inicio, fecha_fin), limit=50)
             rows = [
                 (r['nombre'], r['categoria'], r['unidades'], r['ingresos'], r['costo'])
                 for r in rows_raw

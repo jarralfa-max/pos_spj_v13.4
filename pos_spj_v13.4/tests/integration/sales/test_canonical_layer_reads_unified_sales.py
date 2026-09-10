@@ -184,3 +184,83 @@ def test_the_ticket_repository_is_deliberately_left_on_legacy():
     assert "efectivo_recibido" in source
     assert "rowid" in source
     assert "NO se repunta" in source, "debe explicar por qué sigue en legacy"
+
+
+# ── Consultas MOVIDAS desde el motor legacy (§33 PASO 4) ──────────────────
+
+def _filters():
+    from backend.application.analytics.dto.bi_dashboard_dto import DashboardFilters
+
+    return DashboardFilters(preset="custom", date_from="2026-06-01",
+                            date_to="2026-06-01", branch_id="b1")
+
+
+def test_profitability_by_product_moved_from_the_legacy_engine(conn):
+    """Era `AnalyticsEngine.product_profitability_detail`. Ahora vive en la
+    capa canónica, lee las vistas unificadas y une contra `products`/
+    `product_categories` (los maestros canónicos) en vez de `productos`."""
+    from backend.application.analytics.queries.bi_sales_query_service import (
+        BiSalesQueryService,
+    )
+
+    conn.execute("INSERT INTO product_cost VALUES ('p-1','','10.0')")
+    conn.execute("INSERT INTO product_categories VALUES ('cat-1','Aves',1)")
+    conn.execute("UPDATE products SET category_id='cat-1' WHERE id='p-1'")
+    conn.commit()
+
+    rows = BiSalesQueryService(conn).profitability_by_product(_filters())
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["producto_id"] == "p-1"
+    assert row["nombre"] == "Pollo"
+    assert row["categoria"] == "Aves"
+    assert row["unidades"] == 4.0
+    assert row["ingresos"] == 100.0
+    assert row["costo"] == 40.0          # 4 uds * 10.0 de product_cost
+    assert row["margen"] == 60.0
+
+
+def test_cashier_ranking_moved_from_the_legacy_engine(conn):
+    """Era `AnalyticsEngine.get_ranking_cajeros`. La vista resuelve el id de
+    cajero a su nombre, así que el ranking sigue mostrando personas."""
+    from backend.application.analytics.queries.bi_sales_query_service import (
+        BiSalesQueryService,
+    )
+
+    rows = BiSalesQueryService(conn).cashier_ranking(_filters())
+    assert len(rows) == 1
+    assert rows[0]["cajero"] == "cajera1"
+    assert rows[0]["num_ventas"] == 1
+    assert rows[0]["total_ventas"] == 100.0
+    assert rows[0]["ticket_promedio"] == 100.0
+
+
+def test_the_legacy_engine_no_longer_exposes_the_moved_queries():
+    """Movido, no copiado: no pueden quedar dos implementaciones (§3)."""
+    import ast
+
+    tree = ast.parse(
+        (ROOT / "core/services/analytics/analytics_engine.py").read_text(
+            encoding="utf-8"))
+    cls = next(n for n in tree.body if isinstance(n, ast.ClassDef))
+    names = {n.name for n in cls.body if isinstance(n, ast.FunctionDef)}
+    assert "get_ranking_cajeros" not in names
+    assert "product_profitability_detail" not in names
+
+
+def test_the_legacy_screen_calls_the_canonical_service():
+    """La pantalla legacy ya no consume `AnalyticsEngine` para estas dos.
+
+    Sobre el AST y no sobre el texto: los docstrings de la pantalla CITAN los
+    métodos retirados para explicar de dónde vienen, y un `in source` los
+    marcaría como si siguieran llamándose.
+    """
+    tree = ast.parse((ROOT / "modulos/reportes_bi_v2.py").read_text(encoding="utf-8"))
+    called = {
+        node.func.attr for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    }
+    assert "cashier_ranking" in called
+    assert "profitability_by_product" in called
+    assert "get_ranking_cajeros" not in called
+    assert "product_profitability_detail" not in called
