@@ -4,14 +4,13 @@ onto the WhatsApp microservice (master prompt §27/§30, both deferred to
 (ORD-14) and the customer-approval use cases (ORD-10/11) both say
 notification "needs the real WhatsApp gateway, ORD-23").
 
-This is a thin adapter over the REAL, already-working
-`core.integrations.whatsapp_client.WhatsAppClient` — a dependency-free
-(`urllib`) REST client that already resolves the microservice's base URL and
-`X-Internal-Key` from `configuraciones.wa_*` (with `.env` fallback) and
-already POSTs to the microservice's live `/api/notify/pedido-listo` and
-`/api/notify/send` endpoints. Classified REUSE, not rebuilt — same "wrap the
-real, already-solid legacy implementation" reasoning SALES-0's audit applied
-to `StockReservationService`.
+Adaptador fino sobre `backend.infrastructure.integrations.whatsapp_client.
+WhatsAppClient`, el cliente REST (sólo `urllib`) hacia el microservicio.
+
+OJO CON LA AUTENTICACIÓN: el cliente que había antes usaba una cabecera
+`X-Internal-Key` de texto plano, forma que el microservicio ya NO acepta —
+WA-1 la sustituyó por firma HMAC. El cliente actual firma; reconstruirlo "como
+estaba" habría dado 401 en cada llamada.
 
 **Never raises.** A WhatsApp delivery failure (microservice down, invalid
 phone, network timeout) must never fail the order-side operation that
@@ -25,7 +24,7 @@ exception.
 
 from __future__ import annotations
 
-from core.integrations.whatsapp_client import WhatsAppClient
+from backend.infrastructure.integrations.whatsapp_client import WhatsAppClient
 
 
 class OrdersDeliveryWhatsAppClient:

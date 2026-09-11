@@ -1,5 +1,5 @@
 """SET-14 cutover — render_escpos_label: reuses
-`core.ticket_escpos_renderer`'s already-live command constants and
+las constantes de `backend/infrastructure/printing/escpos.py` y
 Code-128/QR raster rendering. Structural assertions (command bytes
 present/absent, title/lines encoded, copies repeated) — the raster
 byte-generation itself is already covered by the ticket renderer's own
@@ -8,7 +8,7 @@ tests.
 
 from __future__ import annotations
 
-from core.ticket_escpos_renderer import CUT_PARTIAL, INIT
+from backend.infrastructure.printing.escpos import CUT_PARTIAL, INIT
 from backend.domain.inventory.enums import LabelType
 from backend.domain.inventory.value_objects.label_document import LabelDocument
 from backend.infrastructure.hardware.label_rendering.escpos_label_renderer import render_escpos_label
