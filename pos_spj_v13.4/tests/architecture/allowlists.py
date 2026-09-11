@@ -17,7 +17,6 @@ SQL_IN_UI_ALLOWLIST = {
     # (logo/nombre/tema) → ConfigRepository.get_setting.
     # activos.py: SQL 100% extraído a AssetService (Remediación F) — lecturas de
     # tabla/depreciación/mantenimientos, bajas, borrados y la depreciación mensual.
-    'pos_spj_v13.4/modulos/base.py': 3,
     # clientes.py: 0 SQL real; el `d.update(` de dict → asignaciones de item (Rem. F).
     # compras/actions_bar.py: 0 SQL real; docstring "Update" → reescrito.
     # compras_pro.py: sin SQL real (delega 100% a use cases); los 7 antiguos eran
@@ -35,10 +34,8 @@ SQL_IN_UI_ALLOWLIST = {
     # ExportService.export_ventas_hoy_pdf (Remediación F).
     # rrhh.py: SQL 100% extraído a RRHHCatalogService (Remediación F).
     # rrhh_turnos.py: SQL 100% extraído a RRHHTurnosService (Remediación F).
-    'pos_spj_v13.4/modulos/sistema/backup_engine.py': 2,
     # health_monitor.py: SQL de diagnóstico → SystemHealthRepository (Remediación F):
     # ping, error_count_24h, pending_sync_count, recent_errors.
-    'pos_spj_v13.4/modulos/spj_styles.py': 2,
     # ticket_designer.py: SQL de configuraciones extraído a ConfigService (Remediación F).
     # ventas.py: sin SQL real (delega a use cases); el `payload.update(` restante →
     # asignaciones de item (Remediación F).
@@ -48,7 +45,6 @@ SQL_IN_UI_ALLOWLIST = {
 
 COMMIT_ROLLBACK_IN_UI_ALLOWLIST = {
     # activos.py: commit()/rollback() movidos a AssetService (Remediación F).
-    'pos_spj_v13.4/modulos/base.py': 4,
     # CRM-22: clientes.py tolerated 5 here but had 0 real commit()/rollback()
     # calls (only a stale docstring mention) — confirmed by direct grep
     # before AND after splitting the file into modulos/dialogs/cliente_*.py.
@@ -57,7 +53,6 @@ COMMIT_ROLLBACK_IN_UI_ALLOWLIST = {
     # CONFIGURACION FASE 1: config_hardware.py, config_modules.py and
     # configuracion.py no longer call commit()/rollback() in the UI.
     # cotizaciones.py: commit() movido a CotizacionService (Remediación F).
-    'pos_spj_v13.4/modulos/delivery.py': 3,
     # loyalty_card_designer.py: commit() movido a LoyaltyCardDesignerService (Remediación F).
     # recepcion_qr_widget.py: commit() movido a RecepcionQRService (Remediación F).
     # rrhh.py: commit()/rollback() movidos a RRHHCatalogService/repositorios (Remediación F).
@@ -272,45 +267,16 @@ SCHEMA_CHANGES_OUTSIDE_MIGRATIONS_ALLOWLIST = {
 }
 
 HARDCODED_NUMERIC_DEFAULTS_IN_UI_ALLOWLIST = {
-    'pos_spj_v13.4/interfaz/diagnostico.py': 3,
     # PUR-13: modulos/compras/totals_panel.py (era 1) y compras_pro.py (era 2)
     # eliminados — Compras es el módulo enterprise.
-    'pos_spj_v13.4/modulos/config_hardware.py': 1,
-    'pos_spj_v13.4/modulos/configuracion.py': 5,
-    'pos_spj_v13.4/modulos/cotizaciones.py': 1,
-    'pos_spj_v13.4/modulos/delivery.py': 3,
-    'pos_spj_v13.4/modulos/etiquetas.py': 2,
-    'pos_spj_v13.4/modulos/fidelidad_config.py': 5,
-    'pos_spj_v13.4/modulos/loyalty_card_designer.py': 1,
-    'pos_spj_v13.4/modulos/modulo_growth_engine.py': 3,
-    'pos_spj_v13.4/modulos/planeacion_compras.py': 2,
-    'pos_spj_v13.4/modulos/recepcion_qr_widget.py': 2,
-    'pos_spj_v13.4/modulos/rrhh.py': 3,
-    'pos_spj_v13.4/modulos/rrhh_turnos.py': 1,
-    'pos_spj_v13.4/modulos/ticket_designer.py': 2,
 }
 
 PLAIN_PHONE_INPUTS_ALLOWLIST = {
-    'pos_spj_v13.4/modulos/configuracion.py': 9,
-    'pos_spj_v13.4/modulos/whatsapp/panels/credentials_panel.py': 1,
-    'pos_spj_v13.4/modulos/whatsapp/panels/numbers_panel.py': 1,
 }
 
 ENTITY_COMBO_MASS_LOADING_ALLOWLIST = {
-    'pos_spj_v13.4/modulos/activos.py': 7,
     # PUR-13: modulos/compras_pro.py eliminado (era 14) — Compras es enterprise.
-    'pos_spj_v13.4/modulos/config_modules.py': 3,
-    'pos_spj_v13.4/modulos/configuracion.py': 13,
-    'pos_spj_v13.4/modulos/cotizaciones.py': 1,
-    'pos_spj_v13.4/modulos/delivery.py': 9,
-    'pos_spj_v13.4/modulos/loyalty_card_designer.py': 1,
-    'pos_spj_v13.4/modulos/planeacion_compras.py': 2,
-    'pos_spj_v13.4/modulos/produccion.py': 5,
-    'pos_spj_v13.4/modulos/recepcion_qr_widget.py': 5,
-    'pos_spj_v13.4/modulos/rrhh.py': 6,
-    'pos_spj_v13.4/modulos/ticket_designer.py': 1,
     # modulos/ventas.py: retirado (SALES-22).
-    'pos_spj_v13.4/modulos/whatsapp/panels/numbers_panel.py': 2,
 }
 
 HARDCODED_RELATIVE_PATHS_ALLOWLIST = {

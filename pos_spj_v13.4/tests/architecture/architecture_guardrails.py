@@ -36,11 +36,15 @@ SKIPPED_DIR_PARTS = {
 SOURCE_SUFFIXES = {".py", ".sql"}
 PYTHON_SUFFIXES = {".py"}
 
+#: La capa de presentación. Eran `interfaz/`, `modulos/`, `labels/` y
+#: `presentation/`; las cuatro se borraron en la reconstrucción, y con ellas
+#: estas guardias dejaron de mirar NADA — `_files()` no producía ni un archivo,
+#: así que ocho reglas de UI pasaban en verde revisando cero líneas mientras la
+#: UI nueva crecía sin que ninguna la tocara. Un guardrail vacío es peor que no
+#: tenerlo: da la señal de que se comprobó.
 UI_ROOTS = (
-    APP_ROOT / "interfaz",
-    APP_ROOT / "modulos",
-    APP_ROOT / "labels",
-    APP_ROOT / "presentation",
+    APP_ROOT / "frontend" / "desktop",
+    APP_ROOT / "frontend" / "web",
 )
 
 MIGRATION_DIR_NAMES = {"migrations"}
@@ -74,9 +78,41 @@ PHONE_TERMS = (
     "wa_",
 )
 
+# El patrón anterior era `\b(SELECT|...|UPDATE|...|PRAGMA)\b` con IGNORECASE.
+# Con eso, `update()` de Qt —que es una petición de repintado—, un método
+# llamado `select()` y cada `# pragma: no cover` contaban como SQL en la
+# interfaz. Sobre `frontend/desktop/` daba 59 coincidencias de las que CERO
+# eran SQL.
+#
+# No es un problema teórico: los comentarios de `allowlists.py` dejan
+# constancia de rondas anteriores que "arreglaron" el falso positivo
+# REESCRIBIENDO los docstrings ("Update"/"select") para no chocar con el
+# detector. Se estaba adaptando el código a la herramienta.
+#
+# Ahora las palabras en MAYÚSCULAS se aceptan sueltas —es la convención de la
+# casa para SQL, y ningún identificador de Python compite con ellas—, y en
+# minúsculas sólo cuando la línea tiene forma de SQL de verdad. Verificado
+# contra las 1751 líneas de SQL de `backend/infrastructure/db/repositories/`:
+# no se escapa ninguna.
 SQL_RE = re.compile(
-    r"\b(SELECT|INSERT\s+INTO|UPDATE|DELETE\s+FROM|WITH\s+\w+\s+AS|PRAGMA)\b",
-    re.IGNORECASE,
+    r"""(?x)
+      # Palabras sueltas en MAYUSCULAS: la convencion de la casa para SQL.
+      \b(?: SELECT | INSERT \s+ INTO | DELETE \s+ FROM
+          | WITH \s+ \w+ \s+ AS | PRAGMA ) \b
+    |
+      # UPDATE aparte: exige un identificador detras, para separar
+      # `UPDATE tabla SET ...` de `action="UPDATE"`, que es una etiqueta de
+      # auditoria y no SQL. (El \b final del grupo anterior no sirve aqui: tras
+      # el espacio no hay frontera de palabra que sostener.)
+      \b UPDATE \s+ (?= [\w"'`\[{] )
+    |
+      # En minusculas, solo con forma de SQL de verdad.
+      \b(?: select \b [^\n]*? \b from
+          | insert \s+ into
+          | update \s+ [\w."'`\[\]{}]+ \s+ set
+          | delete \s+ from
+          | pragma \s+ \w+ \s* [=(] ) \b
+    """,
 )
 COMMIT_ROLLBACK_RE = re.compile(r"\.(commit|rollback)\s*\(")
 SCHEMA_CHANGE_RE = re.compile(r"\b(CREATE\s+TABLE|ALTER\s+TABLE)\b", re.IGNORECASE)

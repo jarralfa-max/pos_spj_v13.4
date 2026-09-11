@@ -1,14 +1,18 @@
 """OrdersListPresenter (ORD-28) — "Todos los pedidos" worklist data source
 PLUS "Nuevo pedido" creation (one presenter per page with multiple methods —
 same convention `ExpensesPage`'s own presenter already follows for its list
-+ its "Solicitar gasto" dialog). The list query is lightweight, read-only
-SQL directly against `customer_orders` (never through the full
-`CustomerOrderRepository`/domain hydration, which has no `list_for_branch`
-— nothing needed it until this page) — same "query services do their own
-lightweight SQL" precedent already set by `OrdersDeliveryAnalyticsQueryService`/
-`OrdersDeliveryBadgeQueryService`. Order CREATION, unlike the list read,
-goes through the real `CreateCustomerOrderUseCase` — this presenter never
-writes SQL itself.
++ its "Solicitar gasto" dialog).
+
+The list read goes through `OrdersListQueryService`, which is where the
+lightweight SQL lives — the same precedent `OrdersDeliveryAnalyticsQueryService`
+and `OrdersDeliveryBadgeQueryService` already set. It used to live HERE, in the
+presenter, executing against the connection from the presentation layer; the
+precedent this docstring cited was about query SERVICES, and this file is not
+one. `test_no_sql_in_frontend` caught it the moment that guardrail stopped
+scanning deleted folders and started looking at the real UI.
+
+Order creation already went through `CreateCustomerOrderUseCase` and is
+unchanged. This presenter now holds no SQL at all.
 """
 
 from __future__ import annotations
@@ -17,6 +21,9 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from backend.application.orders_delivery.authorization import OrdersDeliveryAuthorizationPolicy
+from backend.application.orders_delivery.queries.orders_list_query_service import (
+    OrdersListQueryService,
+)
 from backend.application.orders_delivery.use_cases.order_capture_use_cases import (
     CreateCustomerOrderUseCase,
 )
@@ -49,35 +56,25 @@ class OrdersListPresenter:
         return result.success, result.message
 
     def orders(self, *, query: str = "", status: str | None = None, page: int = 0) -> OrdersTableModel:
-        where = ["branch_id=?"]
-        params: list = [self._branch_id]
-        if status:
-            where.append("status=?")
-            params.append(status)
-        if query:
-            where.append("(order_number LIKE ? OR contact_name LIKE ? OR contact_phone LIKE ?)")
-            like = f"%{query}%"
-            params += [like, like, like]
-        where_sql = " AND ".join(where)
+        """La consulta la hace `OrdersListQueryService`; aqui solo se da formato.
 
-        total = self._conn.execute(
-            f"SELECT COUNT(*) FROM customer_orders WHERE {where_sql}", params).fetchone()[0]
-        rows_raw = self._conn.execute(
-            f"SELECT id, order_number, channel, status, fulfillment_status, grand_total,"
-            f" contact_name, created_at FROM customer_orders WHERE {where_sql}"
-            f" ORDER BY created_at DESC LIMIT ? OFFSET ?",
-            [*params, self._page_size, page * self._page_size]).fetchall()
+        Antes este metodo armaba y ejecutaba el SQL contra la conexion, desde la
+        capa de presentacion. Lo senalo `test_no_sql_in_frontend` en cuanto la
+        guardia dejo de escanear carpetas borradas y empezo a mirar la UI real.
+        """
+        pagina = OrdersListQueryService(self._conn).list_for_branch(
+            self._branch_id, query=query, status=status,
+            page=page, page_size=self._page_size)
 
-        rows = [
+        filas = [
             [
-                order_number or order_id[:8],
-                channel, status_value, fulfillment_status,
-                f"${Decimal(str(grand_total or '0')):,.2f}",
-                contact_name or "—",
-                (created_at or "")[:16].replace("T", " "),
+                fila.order_number or fila.id[:8],
+                fila.channel, fila.status, fila.fulfillment_status,
+                f"${Decimal(fila.grand_total or '0'):,.2f}",
+                fila.contact_name or "—",
+                fila.created_at[:16].replace("T", " "),
             ]
-            for order_id, order_number, channel, status_value, fulfillment_status,
-                grand_total, contact_name, created_at in rows_raw
+            for fila in pagina.rows
         ]
-        row_ids = [row[0] for row in rows_raw]
-        return OrdersTableModel(rows=rows, row_ids=row_ids, total=total)
+        return OrdersTableModel(
+            rows=filas, row_ids=[fila.id for fila in pagina.rows], total=pagina.total)

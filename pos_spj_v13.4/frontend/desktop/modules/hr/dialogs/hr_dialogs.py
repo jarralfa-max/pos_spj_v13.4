@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import (
     QTimeEdit,
 )
 
+from frontend.desktop.components import PhoneInput
 from frontend.desktop.modules.hr.dialogs._form_dialog import HRFormDialog
 from frontend.desktop.modules.hr.hr_view_models import LEAVE_TYPE_ES
 
@@ -58,8 +59,11 @@ class EmployeeDialog(HRFormDialog):
         self._daily.setPlaceholderText("0.00")
         self._hire = QDateEdit(QDate.currentDate())
         self._hire.setCalendarPopup(True)
-        self._phone = QLineEdit()
-        self._phone.setPlaceholderText("+52...")
+        # El campo de destino se llama `phone_e164`, pero un QLineEdit acepta
+        # cualquier cosa: "55 1234 5678" se guardaria tal cual como si fuera
+        # E.164. `PhoneInput` quita separadores en `value()` y sabe validar el
+        # formato. Es el widget canonico para telefonos.
+        self._phone = PhoneInput()
         self._email = QLineEdit()
         self.form.addRow("Código", self._code)
         self.form.addRow("Nombre", self._first)
@@ -96,7 +100,7 @@ class EmployeeDialog(HRFormDialog):
             "base_salary": self._base.text().strip() or "0.00",
             "daily_salary": self._daily.text().strip() or "0.00",
             "hire_date": date(qd.year(), qd.month(), qd.day()),
-            "phone_e164": self._phone.text().strip() or None,
+            "phone_e164": self._phone.value() or None,
             "email": self._email.text().strip() or None,
         }
 
