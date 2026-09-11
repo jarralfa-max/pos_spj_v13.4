@@ -98,10 +98,18 @@ class UserSecurityService:
             (user_id,),
         )
         self._audit_unlock(user_id, estado, actor_id, operation_id)
-        try:
-            self.db.commit()
-        except Exception:
-            pass  # el caller puede ser dueño de la transacción
+        # Sin `try`: un commit que falla significa que el desbloqueo NO quedó
+        # guardado. Tragarlo devolvía `ok: True` y dejaba escrito el asiento
+        # USER_UNLOCKED, así que el usuario seguía bloqueado mientras el admin
+        # leía "Usuario desbloqueado" y una auditoría posterior encontraba el
+        # asiento del desbloqueo sin el desbloqueo.
+        #
+        # El comentario anterior temía que el llamador fuera dueño de la
+        # transacción; pero `commit()` sobre una conexión sin transacción
+        # abierta no lanza, es una operación vacía. Lo único que este `except`
+        # ocultaba eran los fallos de verdad. El único llamador —el presentador
+        # de Configuración— ya traduce la excepción a un mensaje de error.
+        self.db.commit()
 
         logger.info(
             "USER_UNLOCKED: usuario=%s actor=%s operation_id=%s",

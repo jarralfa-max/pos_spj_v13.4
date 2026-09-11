@@ -1,6 +1,10 @@
 """Un admin con permiso desbloquea a un usuario bloqueado y queda auditado."""
 from __future__ import annotations
 
+import sqlite3
+
+import pytest
+
 from backend.application.services.user_security_service import UserSecurityService
 from backend.shared.ids import new_uuid
 from tests.integration._born_clean_db import make_db
@@ -73,3 +77,41 @@ def test_list_users_dto_exposes_lock_state():
     assert dto.failed_attempts == 5
     assert dto.locked_until != ""
     assert dto.locked is True
+
+
+def test_a_failed_commit_is_not_reported_as_a_successful_unlock():
+    """Un `commit()` que falla no puede devolver `ok: True`.
+
+    Tragarse el error dejaba lo peor de los dos mundos: el usuario seguía
+    bloqueado —el UPDATE nunca se guardó— pero la llamada informaba éxito y
+    la bitácora registraba USER_UNLOCKED. Nadie tenía cómo enterarse: ni el
+    admin, que veía "Usuario desbloqueado", ni una auditoría posterior, que
+    encontraría el asiento del desbloqueo sin el desbloqueo.
+
+    El comentario que lo justificaba decía que el llamador puede ser dueño de
+    la transacción. Pero `commit()` sobre una conexión sin transacción abierta
+    no lanza: es una operación vacía. Lo único que este `except` llegaba a
+    ocultar eran los fallos de verdad. Y el único llamador —el presentador de
+    Configuración— ya traduce la excepción a "Error inesperado; revise el
+    log.", así que propagarla no deja a nadie sin respuesta.
+    """
+    conn = make_db()
+    uid = _make_locked_user(conn)
+
+    class _ConexionConCommitRoto:
+        """Todo igual salvo el commit, que falla como fallaría un disco lleno."""
+
+        def __init__(self, real):
+            self._real = real
+
+        def __getattr__(self, nombre):
+            return getattr(self._real, nombre)
+
+        def commit(self):
+            raise sqlite3.OperationalError("disk I/O error")
+
+    servicio = UserSecurityService(
+        _ConexionConCommitRoto(conn), permission_checker=lambda code: True)
+
+    with pytest.raises(sqlite3.OperationalError):
+        servicio.unlock_user(uid, operation_id=new_uuid(), actor_id=new_uuid())

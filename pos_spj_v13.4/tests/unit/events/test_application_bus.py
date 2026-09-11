@@ -246,3 +246,69 @@ def test_an_unknown_catalog_action_publishes_nothing_and_does_not_raise():
     _publish_catalog_change("accion_inventada", product_id="P1", product_name="X",
                             active=True)
     assert visto == []
+
+
+# ── paridad con el bus anterior ─────────────────────────────────────────────
+# Estas conductas las fijaba `tests/test_eventbus_strict.py`, que importa
+# `core.events.event_bus` y por tanto ya no se recoge. Se vuelven a fijar aquí
+# contra el bus canónico en vez de darlas por heredadas: un contrato que no
+# ejecuta nadie no es un contrato.
+
+
+def test_strict_stops_the_chain_at_the_first_failure(bus):
+    """En estricto el fallo ABORTA: los manejadores de menor prioridad no
+    corren. Es la diferencia entera con `strict=False`, y sin prueba propia
+    nada impediría que un `continue` mal puesto los siguiera ejecutando —
+    justo el escenario que el modo estricto existe para evitar."""
+    corridos = []
+    bus.subscribe("X", lambda p: (_ for _ in ()).throw(RuntimeError("boom")),
+                  priority=CRITICO)
+    bus.subscribe("X", lambda p: corridos.append("ledger"), priority=LEDGER)
+
+    with pytest.raises(RuntimeError):
+        bus.publish("X", {}, strict=True)
+    assert corridos == [], "el manejador de menor prioridad no debia correr"
+
+
+def test_strict_preserves_the_exact_exception_type(bus):
+    """Quien publica en estricto distingue por tipo: envolver el fallo en otra
+    excepción haría que su `except` específico dejara de coincidir y el error
+    subiera hasta arriba como si fuera desconocido."""
+    class ErrorDeInventario(Exception):
+        pass
+
+    bus.subscribe("X", lambda p: (_ for _ in ()).throw(
+        ErrorDeInventario("sin existencias")))
+
+    with pytest.raises(ErrorDeInventario, match="sin existencias"):
+        bus.publish("X", {}, strict=True)
+
+
+def test_strict_without_subscribers_is_not_an_error(bus):
+    """Publicar en estricto antes de que exista el suscriptor no es un fallo:
+    lo que estricto exige es que nadie falle EN SILENCIO, no que haya alguien."""
+    assert bus.publish("NADIE_ESCUCHA", {}, strict=True) == 0
+
+
+def test_strict_and_async_together_are_accepted(bus):
+    """El bus anterior rechazaba esta combinación con ValueError, y tenía
+    razón: no se puede relanzar hacia el publicador desde otro hilo. Aquí la
+    entrega es SIEMPRE síncrona, así que la contradicción desapareció con el
+    hilo. Se deja escrito el cambio en vez de heredar una prohibición que
+    perdió su motivo."""
+    bus.subscribe("X", lambda p: (_ for _ in ()).throw(RuntimeError("boom")))
+    with pytest.raises(RuntimeError):
+        bus.publish("X", {}, async_=True, strict=True)
+
+
+def test_the_bus_does_not_inject_event_type_into_the_payload(bus):
+    """El bus anterior añadía `event_type` a la carga antes de entregarla.
+    Aquí NO, y a propósito: el productor ya pone `event_name` dentro, y el
+    despachador de bandeja de salida lo valida contra su propia fila —si
+    `payload["event_name"]` no coincide con `row["event_type"]` la fila se va
+    a reintento. Inyectar un segundo campo con el mismo hecho daría dos
+    fuentes para el mismo dato y nada garantizaría que concuerden."""
+    visto = {}
+    bus.subscribe("VENTA_COMPLETADA", lambda p: visto.update(p))
+    bus.publish("VENTA_COMPLETADA", {"venta_id": "V-1"})
+    assert visto == {"venta_id": "V-1"}
