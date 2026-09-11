@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from frontend.desktop.modules.hr.dialogs.hr_dialogs import CatalogDialog
 from frontend.desktop.modules.hr.pages._page_base import HRPage
-from modulos.ui_components import create_primary_button, create_secondary_button
+from frontend.desktop.components.buttons import create_primary_button, create_secondary_button
 
 
 class SettingsPage(HRPage):

@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import QInputDialog, QMessageBox
 
 from frontend.desktop.components.tables import ColumnSpec
 from frontend.desktop.modules.finance.pages._page_base import FinancePage
-from modulos.ui_components import create_primary_button, create_secondary_button
+from frontend.desktop.components.buttons import create_primary_button, create_secondary_button
 
 
 class AccountsReceivablePage(FinancePage):

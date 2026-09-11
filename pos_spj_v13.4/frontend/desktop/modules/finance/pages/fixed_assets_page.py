@@ -6,7 +6,7 @@ from datetime import date
 
 from frontend.desktop.components.tables import ColumnSpec
 from frontend.desktop.modules.finance.pages._page_base import FinancePage
-from modulos.ui_components import create_primary_button
+from frontend.desktop.components.buttons import create_primary_button
 
 
 class FixedAssetsPage(FinancePage):

@@ -5,7 +5,7 @@ from __future__ import annotations
 from frontend.desktop.components.tables import ColumnSpec
 from frontend.desktop.modules.hr.dialogs.hr_dialogs import LeaveDialog
 from frontend.desktop.modules.hr.pages._page_base import HRPage
-from modulos.ui_components import (
+from frontend.desktop.components.buttons import (
     create_danger_button,
     create_primary_button,
     create_success_button,

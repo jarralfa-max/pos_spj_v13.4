@@ -19,6 +19,8 @@ from __future__ import annotations
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QSplitter, QStackedWidget, QVBoxLayout, QWidget
 
 from frontend.desktop.components.buttons import create_secondary_button
+from frontend.desktop.components.kpi_bar import KPIBar
+from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.search_input import SearchInput
 from frontend.desktop.components.searchable_combo import SearchableComboBox
@@ -47,7 +49,7 @@ class WorklistPage(QWidget):
         self._total = 0
         self._has_rows: bool | None = None
         self._loaded = False
-        self._kpi_container: QWidget | None = None
+        self._kpi_bar: KPIBar | None = None
 
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(Spacing.LG, Spacing.MD, Spacing.LG, Spacing.MD)
@@ -207,13 +209,30 @@ class WorklistPage(QWidget):
         self._has_rows = bool(model.rows)
 
     def set_kpis(self, kpis) -> None:
-        from modulos.ui_components import create_kpi_bar
-        if self._kpi_container is not None:
-            self._layout.removeWidget(self._kpi_container)
-            self._kpi_container.deleteLater()
-        items = [{"title": kpi.title, "value": kpi.value, "tone": kpi.variant} for kpi in kpis]
-        self._kpi_container = create_kpi_bar(self, items)
-        self._layout.insertWidget(1, self._kpi_container)
+        """Pinta la fila de KPIs sobre el `KPIBar` canónico.
+
+        La barra se crea UNA vez y después se reutiliza. La versión anterior
+        (`create_kpi_bar` de `modulos/ui_components.py`, borrado) destruía el
+        contenedor entero y lo reconstruía en cada refresco: un `deleteLater()`
+        por recarga sobre widgets que seguían en el layout. `KPIBar.set_cards()`
+        ya resuelve eso — si las tarjetas son las mismas y en el mismo orden,
+        actualiza los valores en sitio y no reconstruye nada.
+
+        Esa comparación se hace por `KPIDTO.key`, así que la clave tiene que ser
+        estable entre recargas: se usa el título, que es fijo por posición en
+        los presentadores (`KpiViewModel("Ingresos del mes", ...)`). Usar el
+        índice también sería estable, pero reordenar los KPIs actualizaría la
+        tarjeta equivocada en vez de reconstruir.
+        """
+        cards = [
+            KPIDTO(key=kpi.title, title=kpi.title, value=kpi.value, variant=kpi.variant)
+            for kpi in kpis
+        ]
+        if self._kpi_bar is None:
+            self._kpi_bar = KPIBar(self, cards=cards)
+            self._layout.insertWidget(1, self._kpi_bar)
+            return
+        self._kpi_bar.set_cards(cards)
 
     def _notify(self, ok, message) -> None:
         self._notice.setProperty("state", "SUCCESS" if ok else "WARNING")
