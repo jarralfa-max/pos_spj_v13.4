@@ -115,7 +115,16 @@ SQL_RE = re.compile(
     """,
 )
 COMMIT_ROLLBACK_RE = re.compile(r"\.(commit|rollback)\s*\(")
-SCHEMA_CHANGE_RE = re.compile(r"\b(CREATE\s+TABLE|ALTER\s+TABLE)\b", re.IGNORECASE)
+# Exige un nombre de tabla detras del DDL. Sin eso marcaba la prosa que HABLA
+# de DDL: un docstring que promete "never a CREATE TABLE/INSERT/UPDATE against
+# it" se contaba como si lo hiciera, y lo mismo cada comentario de migracion que
+# explica por que hace falta "un `ALTER TABLE` idempotente". Verificado contra
+# `migrations/`: de las 624 lineas que el patron anterior marcaba, el nuevo
+# detecta 615; las 9 que deja pasar son todas prosa en comentarios y docstrings.
+SCHEMA_CHANGE_RE = re.compile(
+    r"""\b(?:CREATE\s+TABLE|ALTER\s+TABLE)\s+(?:IF\s+NOT\s+EXISTS\s+)?[\w"'`\[{]""",
+    re.IGNORECASE,
+)
 NUMERIC_DEFAULT_RE = re.compile(
     r"\b(?:setValue|setProperty|setCurrentIndex)\s*\(\s*(?:1|7|10|30|50|100)\s*\)"
     r"|\b(?:default|default_value|initial|initial_value|valor_defecto)\s*=\s*(?:1|7|10|30|50|100)\b",

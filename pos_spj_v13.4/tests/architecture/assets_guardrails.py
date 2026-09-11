@@ -48,8 +48,6 @@ ALL_ASSET_CODE_ROOTS = ASSET_BACKEND_ROOTS + (ASSET_UI_ROOT,)
 # to the new assets module — they are the burn-down list this guardrail suite
 # exists to eventually make obsolete (a future ASSET-legacy-removal phase).
 LEGACY_ASSET_FILES = (
-    "pos_spj_v13.4/modulos/activos.py",
-    "pos_spj_v13.4/core/services/asset_service.py",
 )
 
 # Thin/likely-abandoned scaffolding flagged in the ASSET-0 audit as

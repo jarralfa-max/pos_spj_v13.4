@@ -1044,10 +1044,8 @@ DDL_ALLOWLIST = {
     "backend/infrastructure/db/uuid_cutover.py",
     # Bootstrap centralizado aprobado: espejo del esquema canónico para
     # conexiones nuevas (invoca migraciones, no define entidades propias).
-    "core/db/connection.py",
     # Migrador de esquema delivery: infra de schema (pendiente de fusión a
     # migrations/), no lógica de negocio.
-    "core/delivery/infrastructure/delivery_schema_migrator.py",
     # DDL canónico del bounded context financiero: única definición del esquema,
     # ejecutado exclusivamente por migrations/standalone/117.
     "backend/infrastructure/db/schema/finance_schema.py",

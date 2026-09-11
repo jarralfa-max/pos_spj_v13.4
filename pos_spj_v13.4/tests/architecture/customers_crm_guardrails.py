@@ -82,10 +82,6 @@ LEGACY_CUSTOMER_FILES = (
     # from here per this tuple's own rule ("no solo bajar de número").
     # core/services/cliente_service.py retired in CRM-34 (zero production
     # callers — see docs/refactor/CRM-34_legacy_purge.md).
-    "core/use_cases/cliente.py",
-    "repositories/cliente_repository.py",
-    "api/routers/clientes.py",
-    "application/services/customer_credit_service.py",
     "backend/application/use_cases/create_customer_use_case.py",
     "backend/application/commands/customer_commands.py",
     "backend/application/queries/customer_history_query_service.py",

@@ -36,37 +36,38 @@ EXCLUDE_DIRS = {
 # entrada es infraestructura/arranque o un proceso independiente que NO puede
 # consumir el pool del AppContainer.
 ALLOWLIST = {
-    # El pool canónico: la única fuente legítima de conexiones del ERP.
-    "core/db/connection.py",
-    # VACUUM no corre dentro de transacción → conexión separada (documentado in-line).
-    "core/app_container.py",
-    # Validador de arranque (diagnóstico), no ruta de negocio.
-    "core/migration_validator.py",
-    # Lee la BD del microservicio WhatsApp (DB foránea, distinta del pool).
-    "core/repositories/whatsapp_metrics_repository.py",
-    # Lectura de config antes de existir el AppContainer (bootstrap).
-    "core/integrations/whatsapp_client.py",
+    # El pool canónico: la única fuente legítima de conexiones del ERP. Una
+    # regla que prohíbe `sqlite3.connect` fuera del pool no puede señalar al
+    # pool — es quien lo implementa. Antes esta entrada era
+    # `core/db/connection.py`; el pool se mudó, la entrada se repunta.
+    "backend/infrastructure/db/connection.py",
     # ConnectionFactory de la capa de infraestructura (reservada API/backend).
     "backend/infrastructure/db/database.py",
-    # DB `:memory:` desechable de diagnóstico.
-    "interfaz/diagnostico.py",
-    # Respaldos a nivel de archivo: conexiones crudas src/dest de otra BD.
-    "modulos/sistema/backup_engine.py",
-    # Bootstrap de arranque: migraciones/integridad antes del AppContainer.
-    "main.py",
     # SHELL-3 DesktopApplicationBootstrapper: mismo caso que main.py — abre
     # la conexión de arranque antes de que exista el pool/AppContainer.
     "backend/bootstrap/steps/database_integrity_step.py",
-    # Microservicio web independiente (proceso propio, puerto 8769).
-    "webapp/api_pedidos.py",
-    # Herramientas CLI (diagnóstico/reparación/refactor), fuera del runtime.
+    # Herramientas CLI (diagnóstico/reparación/refactor/respaldo), procesos
+    # propios fuera del runtime del ERP.
     "tools/born_clean_audit.py",
+    "tools/crm/backfill_legacy_customers.py",
     "tools/fix_invalid_branch_identity.py",
     "tools/refactor_control/build_cutover_spec.py",
-    # Visores ad-hoc de desarrollo (CLI en la raíz).
-    "ver_datos.py",
-    "ver_table.py",
+    # `main.py` SALE del ratchet, y no por mudanza: dejó de abrir conexiones.
+    # Ahora es el lanzador de §0 —ajusta `sys.path` y llama a
+    # `frontend.desktop.app.main`— y el arranque de la base pasó a
+    # `backend/bootstrap/`. Esta guardia lo exige: una entrada que ya no
+    # infringe hay que retirarla, o el ratchet deja de bajar.
+    #
+    # RETIRADAS en la reconstrucción, con su justificación, porque los archivos
+    # ya no existen: `core/app_container.py` (VACUUM fuera de transacción),
+    # `core/migration_validator.py`, `core/repositories/whatsapp_metrics_
+    # repository.py` (BD foránea del microservicio), `core/integrations/
+    # whatsapp_client.py`, `interfaz/diagnostico.py`, `modulos/sistema/
+    # backup_engine.py` y `webapp/api_pedidos.py`. Se anotan aquí en vez de
+    # desaparecer sin rastro: si alguna de esas necesidades vuelve, el motivo
+    # por el que se toleraba está escrito.
 }
+
 
 
 def _sqlite_connect_lines(tree: ast.AST) -> list[int]:
