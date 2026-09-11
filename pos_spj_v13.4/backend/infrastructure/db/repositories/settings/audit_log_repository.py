@@ -21,8 +21,17 @@ además justo lo contrario de lo que pide la regla 12.
 
 from __future__ import annotations
 
+import json
+
 from backend.infrastructure.db.repositories.settings.base import SettingsRepositoryBase
 from backend.shared.ids import new_uuid
+
+
+def _as_json(value: dict | None) -> str | None:
+    """JSON, o `NULL` si no se registró nada. `{}` sí se guarda."""
+    if value is None:
+        return None
+    return json.dumps(value, ensure_ascii=False, default=str)
 
 #: Tope por defecto de filas devueltas. La tabla crece sin límite; traerla
 #: entera bloquearía la interfaz en una instalación con meses de historial.
@@ -44,7 +53,8 @@ class SqliteAuditLogRepository(SettingsRepositoryBase):
     def record(
         self, *, action: str, entity: str, entity_id: str,
         actor: str = "", operation_id: str = "", details: str = "",
-        module: str = CONFIGURACION_MODULE,
+        module: str = CONFIGURACION_MODULE, before: dict | None = None,
+        after: dict | None = None, branch_id: str | None = None,
     ) -> None:
         """Anota una operación.
 
@@ -57,12 +67,18 @@ class SqliteAuditLogRepository(SettingsRepositoryBase):
         `operation_id` viaja en `detalles` porque `audit_logs` no tiene columna
         propia para él; es lo que permite enlazar esta anotación con el resto
         de efectos de la misma operación.
+
+        `before`/`after` se serializan a JSON. Un diccionario vacío NO es lo
+        mismo que ausencia: "no había nada antes" (un alta) y "no se registró
+        el antes" son cosas distintas, así que sólo el segundo queda en NULL.
         """
         detalle = " ".join(part for part in (details, f"operation_id={operation_id}"
                                              if operation_id else "") if part)
         self._conn.execute(
-            "INSERT INTO audit_logs (id, accion, modulo, entidad, entidad_id, usuario, detalles)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO audit_logs (id, accion, modulo, entidad, entidad_id, usuario,"
+            " sucursal_id, valor_antes, valor_despues, detalles)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (new_uuid(), action, module, entity, entity_id,
-             (actor or "").strip() or "Sistema", detalle),
+             (actor or "").strip() or "Sistema", branch_id,
+             _as_json(before), _as_json(after), detalle),
         )

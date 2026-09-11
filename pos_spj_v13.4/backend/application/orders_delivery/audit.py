@@ -1,44 +1,33 @@
-"""Pedidos/Delivery audit trail writer (master prompt §73).
+"""Rastro de auditoría de Pedidos y reparto.
 
-Deliberately reuses the existing app-wide `core.services.auto_audit.audit_write`
-sink (backed by `container.audit_service`/the `audit_logs` table) instead of
-standing up a parallel `orders_delivery_audit_log` table — mirrors
-``backend/application/loyalty/audit.py``'s own reasoning (one canonical
-persistence route per functional area, master prompt §3/§64).
+Envoltorio fino sobre `backend/application/shared/audit_trail.py`, que escribe
+en `audit_logs` — el rastro transversal, no una tabla por contexto.
+
+Antes cada contexto repetía aquí el mismo bloque de veinticinco líneas y
+llamaba a `core.services.auto_audit.audit_write`, que pedía un `container`. Los
+casos de uso no lo tienen, y por eso este escritor nunca llegó a usarse. Ahora
+recibe la `connection` que sí tienen.
+
+SIGUE SIN LLAMARSE desde ningún caso de uso: conectarlo hace aparecer filas
+nuevas en la auditoría, que es un cambio de comportamiento y merece su propio
+paso.
 """
 
 from __future__ import annotations
 
-import json
-
+from backend.application.shared.audit_trail import record_audit_entry
 from backend.domain.orders_delivery.value_objects.orders_delivery_audit_entry import (
     OrdersDeliveryAuditEntry,
 )
 
+#: Módulo bajo el que aparece este contexto en la auditoría.
+AUDIT_MODULE = "DELIVERY"
+AUDIT_ENTITY = "pedido_delivery"
 
-def record_orders_delivery_audit_entry(container, entry: OrdersDeliveryAuditEntry) -> None:
-    """Persist an `OrdersDeliveryAuditEntry` via the canonical `audit_write` sink."""
-    from core.services.auto_audit import audit_write
 
-    extra = {
-        "operation_id": entry.operation_id,
-        "authorized_by": entry.authorized_by,
-        "reason": entry.reason,
-        "device_id": entry.device_id,
-        "occurred_at": entry.occurred_at,
-    }
-    detalles = json.dumps({k: v for k, v in extra.items() if v is not None},
-                           ensure_ascii=False)
-
-    audit_write(
-        container,
-        modulo="DELIVERY",
-        accion=entry.action,
-        entidad="pedido_delivery",
-        entidad_id=entry.entity_id or "",
-        usuario=entry.user_id,
-        detalles=detalles,
-        before=dict(entry.before),
-        after=dict(entry.after),
-        sucursal_id=entry.branch_id,
+def record_orders_delivery_audit_entry(connection, entry: OrdersDeliveryAuditEntry) -> None:
+    """Persiste una `OrdersDeliveryAuditEntry` en el rastro canónico."""
+    record_audit_entry(
+        connection, entry, module=AUDIT_MODULE, entity=AUDIT_ENTITY,
+        entity_id=getattr(entry, "entity_id", "") or "",
     )

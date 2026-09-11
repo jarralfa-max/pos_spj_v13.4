@@ -8,7 +8,12 @@ new layer from fragmenting again.
 from __future__ import annotations
 
 import re
+import json
 from pathlib import Path
+
+import pytest
+
+from tests.architecture.design_system_audit import BASELINE, regressions, scan_repository, scan_source
 
 REPO = Path(__file__).resolve().parents[2]
 FRONTEND = REPO / "frontend" / "desktop"
@@ -16,7 +21,7 @@ THEMES = FRONTEND / "themes"
 COMPONENTS = FRONTEND / "components"
 
 # The five official JUANIS brand colors (any casing).
-_BRAND_HEX = {"#1F3B2E", "#A52E2A", "#C7A254", "#F2E6CF", "#6B4A2E"}
+_BRAND_HEX = {"#18372B", "#FFFFFF", "#C6A15B", "#9D2927", "#252825", "#F8F8F5"}
 _HEX_RE = re.compile(r"#[0-9A-Fa-f]{6}\b")
 _SETSTYLE_RE = re.compile(r"\.setStyleSheet\s*\(\s*[^)\s]")  # non-empty argument
 _CHART_RE = re.compile(r"\bQtChart\b|\bQChart\b|matplotlib|pyqtgraph")
@@ -98,3 +103,62 @@ def test_theme_layer_is_the_single_qss_source():
     # components must not define their own build_qss
     for path in _py_files(COMPONENTS):
         assert "def build_qss" not in path.read_text(encoding="utf-8"), path.name
+
+
+def test_desktop_visual_debt_does_not_grow():
+    baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
+    findings = scan_repository()
+    new, _resolved = regressions(findings, baseline)
+    details = [f"{item.path}:{item.line}: {item.rule}: {item.expression[:150]}"
+               for item in findings if item.key in new]
+    assert not new, "New visual violations (existing exact debt is not a file exemption):\n" + "\n".join(details)
+
+
+@pytest.mark.parametrize(("source", "rule"), [
+    ('button.setStyleSheet(style)', "inline_qss"),
+    ('color = "#18372B"', "hardcoded_visual_hex"),
+    ('color = "#ffffff"', "hardcoded_visual_hex"),
+    ('from PyQt5.QtWidgets import QTableWidget as Grid\ntable = Grid()', "native_operational_table"),
+    ('class LocalTable(QtWidgets.QTableWidget):\n    pass', "native_operational_table"),
+    ('class KPICard(QWidget):\n    pass', "local_standard_component"),
+    ('class SalesPageHeader(QWidget):\n    pass', "local_standard_component"),
+    ('class LocalInput(QLineEdit):\n    def paintEvent(self, event):\n        pass', "local_visual_control"),
+    ('class LocalButton(QPushButton):\n    def setup(self):\n        self.setFont(font)', "local_visual_control"),
+    ('button = QPushButton("\\U0001f514 Notificaciones")', "unicode_icon_literal"),
+    ('button = QPushButton()\nbutton.setFixedHeight(32)', "fixed_control_below_touch_target"),
+    ('class SalesPage(QWidget):\n    pass', "screen_without_explicit_overflow"),
+    ('class EditDialog(QDialog):\n    pass', "noncanonical_dialog"),
+    ('class EditDialog(StandardDialog):\n    def setup(self):\n        self.setMinimumSize(1400, 900)', "dialog_geometry_exceeds_smallest_viewport"),
+])
+def test_ast_audit_detects_forbidden_module_patterns(source, rule):
+    assert rule in {item.rule for item in scan_source(source, "frontend/desktop/modules/new/page.py")}
+
+
+def test_ast_audit_accepts_canonical_composition_and_ignores_prose():
+    source = '''
+"""Do not call setStyleSheet('#18372B') or use a bell \\U0001f514 as an icon."""
+from frontend.desktop.components import WorklistPage, PrimaryButton, StandardTable
+class SalesPage(WorklistPage):
+    def setup(self):
+        self.table = StandardTable()
+        self.button = PrimaryButton("Guardar")
+'''
+    assert not scan_source(source, "frontend/desktop/modules/new/page.py")
+
+
+def test_ast_audit_accepts_explicit_scroll_and_keeps_web_colors_separate():
+    source = 'class SalesPage(QWidget):\n    def setup(self):\n        self.viewport = PageViewport()'
+    assert not scan_source(source, "frontend/desktop/modules/new/page.py")
+    assert not scan_source('WEB_STYLE = "background: #18372B"', "frontend/desktop/charts/renderer.py")
+    assert scan_source('widget.setStyleSheet("background: #18372B")', "frontend/desktop/charts/renderer.py")
+
+
+def test_existing_file_debt_cannot_hide_new_expressions_or_duplicate_occurrences():
+    path = "modulos/existing.py"
+    old = scan_source('button.setStyleSheet("old")', path)[0]
+    baseline = {"findings": [{"path": old.path, "rule": old.rule, "fingerprint": old.fingerprint, "count": 1}]}
+    assert not regressions([old], baseline)[0]
+    assert regressions([old, old], baseline)[0][old.key] == 1
+    changed = scan_source('button.setStyleSheet("new")', path)
+    assert regressions(changed, baseline)[0]
+    assert regressions(scan_source('button.setStyleSheet("old")', "modulos/new.py"), baseline)[0]

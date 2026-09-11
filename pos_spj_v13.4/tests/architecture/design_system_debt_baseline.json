@@ -1,0 +1,1862 @@
+{
+  "captured_on": "2026-09-10",
+  "policy": "Exact pre-existing AST findings only; no path-wide or rule-wide exclusions. Remove resolved entries; do not regenerate to accept regressions.",
+  "findings": [
+    {
+      "path": "frontend/desktop/modules/assets/pages/asset_detail_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "2b4fbfbf7ef8ea54d61e",
+      "count": 1,
+      "line": 22,
+      "expression": "class AssetDetailPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/assets/pages/assets_directory_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "57816e1fde2369c84249",
+      "count": 1,
+      "line": 42,
+      "expression": "class AssetsDirectoryPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/assets/pages/maintenance_agenda_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "18334f8d86094d1ac825",
+      "count": 1,
+      "line": 25,
+      "expression": "class MaintenanceAgendaPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/assets/pages/overview_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "de8bb5697f22fafca308",
+      "count": 1,
+      "line": 45,
+      "expression": "class AssetsOverviewPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/business_intelligence/pages/alert_explorer_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "d5524704978462b80d8a",
+      "count": 1,
+      "line": 31,
+      "expression": "class AlertExplorerPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/business_intelligence/pages/analytical_section_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "44694884123528d9066d",
+      "count": 1,
+      "line": 18,
+      "expression": "class AnalyticalSectionPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/business_intelligence/pages/executive_dashboard_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "2e7ef81a882d7f815a0f",
+      "count": 1,
+      "line": 12,
+      "expression": "class ExecutiveDashboardPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/business_intelligence/pages/forecast_explorer_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "bc68a2640cfb0e4ca499",
+      "count": 1,
+      "line": 28,
+      "expression": "class ForecastExplorerPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/business_intelligence/pages/placeholder_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "2a7cf62142b67efb7af2",
+      "count": 1,
+      "line": 13,
+      "expression": "class BusinessIntelligencePlaceholderPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/business_intelligence/pages/price_recommendation_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "ada7a21e6576fd024c3e",
+      "count": 1,
+      "line": 35,
+      "expression": "class PriceRecommendationPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/business_intelligence/pages/pricing_scenario_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "5e0d32ea3c0515fee1b7",
+      "count": 1,
+      "line": 25,
+      "expression": "class PricingScenarioPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/business_intelligence/pages/reports_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "b039d60f6573cd264128",
+      "count": 1,
+      "line": 21,
+      "expression": "class ReportsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/blind_count_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "f688d05b273d8c061d69",
+      "count": 1,
+      "line": 15,
+      "expression": "class BlindCountPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_configuration_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "1d101c35dc066f071329",
+      "count": 1,
+      "line": 13,
+      "expression": "class CashConfigurationPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_devices_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "31d153647d58c15143a5",
+      "count": 1,
+      "line": 17,
+      "expression": "class CashDevicesPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_differences_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "22ad54aaf37b25359913",
+      "count": 1,
+      "line": 20,
+      "expression": "class CashDifferencesPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_handovers_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "20f11b616ec4de06f58a",
+      "count": 1,
+      "line": 20,
+      "expression": "class CashHandoversPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_notifications_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "c46b566f2fef9214e29e",
+      "count": 1,
+      "line": 21,
+      "expression": "class CashNotificationsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_operational_read_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "34002745b8733ba894f5",
+      "count": 1,
+      "line": 17,
+      "expression": "class CashOperationalReadPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_overview_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "f6ce6119fe1e34815bd8",
+      "count": 1,
+      "line": 17,
+      "expression": "class CashOverviewPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_refunds_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "5457ffbd57fd0b0944f9",
+      "count": 1,
+      "line": 17,
+      "expression": "class CashRefundsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_shifts_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "07b9fe933f63d2555893",
+      "count": 1,
+      "line": 20,
+      "expression": "class CashShiftsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_sync_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "bb12abf1db803f53363b",
+      "count": 1,
+      "line": 21,
+      "expression": "class CashSyncPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_x_cuts_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "067ea44d072bea3dcbdc",
+      "count": 1,
+      "line": 17,
+      "expression": "class CashXCutsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_z_cuts_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "fbf04a8874926b5d877f",
+      "count": 1,
+      "line": 17,
+      "expression": "class CashZCutsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/configuracion/pages/base_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "257e0e7e373bfb2a77f2",
+      "count": 1,
+      "line": 19,
+      "expression": "class ConfiguracionWorkspacePage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/configuracion/pages/empresa_page.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "7fe8fb861dd460a9252b",
+      "count": 1,
+      "line": 89,
+      "expression": "'\ud83d\udccd Instalaci\u00f3n sin sucursal asignada'"
+    },
+    {
+      "path": "frontend/desktop/modules/configuracion/pages/empresa_page.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "06bd6ca3bcd10e39965c",
+      "count": 1,
+      "line": 87,
+      "expression": "'\ud83d\udccd Esta instalaci\u00f3n: '"
+    },
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/_directory_base.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "a79937d86bab0d6eb67a",
+      "count": 1,
+      "line": 46,
+      "expression": "class CustomerCrmDirectoryPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/create_customer_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "7b35f6c742a568f2f1a8",
+      "count": 1,
+      "line": 43,
+      "expression": "class CreateCustomerPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/customer_profile_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "f899c7a7fe6c211b5a1e",
+      "count": 1,
+      "line": 86,
+      "expression": "class CustomerProfilePage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/edit_customer_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "fdc24cc2b367a52beabf",
+      "count": 1,
+      "line": 35,
+      "expression": "class EditCustomerPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/overview_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "e58a30d2306476732468",
+      "count": 1,
+      "line": 58,
+      "expression": "class CustomersCrmOverviewPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/fidelidad/pages/coupons_vouchers_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "faab5034f7d4b9492ced",
+      "count": 1,
+      "line": 25,
+      "expression": "class CouponsVouchersPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/fidelidad/pages/member_profile_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "e67e20c334313c9dd3a5",
+      "count": 1,
+      "line": 28,
+      "expression": "class MemberProfilePage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/fidelidad/pages/overview_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "782ff562a68f29eb623a",
+      "count": 1,
+      "line": 16,
+      "expression": "class FidelidadOverviewPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/fidelidad/pages/programs_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "6537f095c31e8010a2d0",
+      "count": 1,
+      "line": 23,
+      "expression": "class ProgramsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/fidelidad/pages/rewards_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "e56b5720e9b9ecd9356a",
+      "count": 1,
+      "line": 25,
+      "expression": "class RewardsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/fidelidad/pages/sweepstakes_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "dbc98a075ed3769ce301",
+      "count": 1,
+      "line": 28,
+      "expression": "class SweepstakesPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/finance/dialogs/_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "1b6b3283da87138e89cf",
+      "count": 1,
+      "line": 8,
+      "expression": "class FinanceFormDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/finance/dialogs/commercial_posting_profile_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "b6c00d935ed882da331d",
+      "count": 1,
+      "line": 14,
+      "expression": "class CommercialPostingProfileDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/finance/dialogs/journal_entry_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "5e33f8238d31436efb26",
+      "count": 1,
+      "line": 10,
+      "expression": "class JournalEntryDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/finance/pages/suppliers_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "0f67452f9a935f83c6a1",
+      "count": 1,
+      "line": 17,
+      "expression": "class SuppliersPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/finance/suppliers/dialogs/supplier_dialogs.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "f3dbc680af32750ec179",
+      "count": 1,
+      "line": 64,
+      "expression": "class _SupplierDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/finance/suppliers/pages/supplier_detail_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "19626600d7f688c43573",
+      "count": 1,
+      "line": 40,
+      "expression": "class SupplierDetailDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/finance/suppliers/pages/supplier_list_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "f01a0c24b37e77c381e5",
+      "count": 1,
+      "line": 51,
+      "expression": "class SupplierListPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/hr/dialogs/_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "0a3823a69371f37c60a5",
+      "count": 1,
+      "line": 12,
+      "expression": "class HRFormDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/dialogs.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "25bd69e70bc35b24b95f",
+      "count": 1,
+      "line": 385,
+      "expression": "class ManageZonesDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/dialogs.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "3101fcd5642bc1cc957c",
+      "count": 1,
+      "line": 450,
+      "expression": "class MovementDetailDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/dialogs.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "83a59fdcf5ec4e2dea7e",
+      "count": 1,
+      "line": 678,
+      "expression": "class LotDetailDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/dialogs.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "6de7841063600794dbc0",
+      "count": 1,
+      "line": 882,
+      "expression": "class WeightHistoryDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/adjustments_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "d1a641c0786f5d6aeb44",
+      "count": 1,
+      "line": 34,
+      "expression": "class AdjustmentsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/alerts_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "044028a06205bf2ab3d0",
+      "count": 1,
+      "line": 28,
+      "expression": "class AlertsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/analytics_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "86d91dfa55dbd02b4c6f",
+      "count": 1,
+      "line": 28,
+      "expression": "class InventoryAnalyticsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/audit_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "ec0a3a53fe5fba47b628",
+      "count": 1,
+      "line": 17,
+      "expression": "class AuditPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/availability_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "0bf48834a5a9c6c2ff36",
+      "count": 1,
+      "line": 21,
+      "expression": "class AvailabilityPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/cold_chain_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "8506d05bd36605c57275",
+      "count": 1,
+      "line": 32,
+      "expression": "class ColdChainPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/counts_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "df4e502c675449dcf7b3",
+      "count": 1,
+      "line": 34,
+      "expression": "class CountsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/expiry_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "ecaf08a6f97abb2f3b31",
+      "count": 1,
+      "line": 29,
+      "expression": "class ExpiryPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/inventory_dashboard_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "d2c487b7463a43459bdc",
+      "count": 1,
+      "line": 25,
+      "expression": "class InventoryDashboardPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/locations_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "e05a5d649145d7e62a98",
+      "count": 1,
+      "line": 49,
+      "expression": "class LocationsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/lots_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "edc00b5fd2a21d5604b7",
+      "count": 1,
+      "line": 34,
+      "expression": "class LotsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/movements_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "262d49390e0f71d7217e",
+      "count": 1,
+      "line": 28,
+      "expression": "class MovementsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/placeholder_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "781b467a1fa7688628cc",
+      "count": 1,
+      "line": 19,
+      "expression": "class PlaceholderPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/quarantine_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "4c30f5de683a0a675d34",
+      "count": 1,
+      "line": 32,
+      "expression": "class QuarantinePage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/receipts_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "8aa9e06b6204220f8bfc",
+      "count": 1,
+      "line": 18,
+      "expression": "class ReceiptsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/replenishment_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "71d39c7ca84f93b0781a",
+      "count": 1,
+      "line": 21,
+      "expression": "class ReplenishmentPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/reservations_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "9cb1002e2b8231804e4b",
+      "count": 1,
+      "line": 35,
+      "expression": "class ReservationsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/settings_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "f9a2eb03140c852c3de6",
+      "count": 1,
+      "line": 18,
+      "expression": "class SettingsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/stock_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "ae015763925fd2a16d8f",
+      "count": 1,
+      "line": 33,
+      "expression": "class StockPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/traceability_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "25135bcfb31f8bd050ca",
+      "count": 1,
+      "line": 22,
+      "expression": "class TraceabilityPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/transfers_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "7ddc1e84bcdd26b809df",
+      "count": 1,
+      "line": 19,
+      "expression": "class TransfersPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/warehouses_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "47744538aad43d3ab3d9",
+      "count": 1,
+      "line": 41,
+      "expression": "class WarehousesPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/weight_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "25aa6be178f2130a500d",
+      "count": 1,
+      "line": 31,
+      "expression": "class WeightPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/losses/pages/analytics_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "755e151767287774bab9",
+      "count": 1,
+      "line": 5,
+      "expression": "class LossAnalyticsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/losses/pages/loss_registration_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "aba9e97aac7299867c76",
+      "count": 1,
+      "line": 12,
+      "expression": "class LossRegistrationPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/losses/pages/placeholder_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "aca31e312b0e84b331b4",
+      "count": 1,
+      "line": 10,
+      "expression": "class LossesPlaceholderPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/losses/pages/root_cause_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "7750e96805de72c841a3",
+      "count": 1,
+      "line": 10,
+      "expression": "class RootCausePage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/meat_processing/pages/placeholder_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "cf47e6bedbc94baa2886",
+      "count": 1,
+      "line": 12,
+      "expression": "class MeatProcessingPlaceholderPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/meat_processing/pages/processing_orders_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "9a6f8cab39342fc2b124",
+      "count": 1,
+      "line": 29,
+      "expression": "class ProcessingOrdersPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/orders_delivery/pages/analytics_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "be1b999f00215829b5bb",
+      "count": 1,
+      "line": 13,
+      "expression": "class OrdersAnalyticsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/orders_delivery/pages/overview_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "32faf898eeff02cab009",
+      "count": 1,
+      "line": 11,
+      "expression": "class OrdersOverviewPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/orders_delivery/pages/placeholder_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "e24b3bbb5f908144c861",
+      "count": 1,
+      "line": 13,
+      "expression": "class OrdersDeliveryPlaceholderPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/pricing/pages/costs_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "7b19970dfabd4ca7288b",
+      "count": 1,
+      "line": 15,
+      "expression": "class CostsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/pricing/pages/history_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "85d18576f4d49fa2ce0d",
+      "count": 1,
+      "line": 15,
+      "expression": "class PriceHistoryPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/pricing/pages/overview_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "674fc621933105cb442e",
+      "count": 1,
+      "line": 16,
+      "expression": "class PricingOverviewPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/pricing/pages/price_lists_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "41660d7d79cfc01ee14d",
+      "count": 1,
+      "line": 15,
+      "expression": "class PriceListsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/pricing/pages/product_prices_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "33416cef3b2f4eb1e9fd",
+      "count": 1,
+      "line": 21,
+      "expression": "class ProductPricesPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/attribute_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "b07665d7eae12d41675d",
+      "count": 1,
+      "line": 33,
+      "expression": "class AttributeFormDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/attribute_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "f8d0b9ea2f1f2d81c916",
+      "count": 1,
+      "line": 95,
+      "expression": "class _OptionEditor(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/attribute_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "3146dbd735f0cc923609",
+      "count": 1,
+      "line": 147,
+      "expression": "class AttributeOptionsDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/brand_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "9d504388f64e3f630dba",
+      "count": 1,
+      "line": 20,
+      "expression": "class BrandFormDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/bundle_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "2a265dce3906b7022bdc",
+      "count": 1,
+      "line": 38,
+      "expression": "class BundleFormDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/bundle_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "d7b3423a985953d16b3a",
+      "count": 1,
+      "line": 140,
+      "expression": "class _ComponentEditor(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/bundles_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "feb6550310bc9b624e99",
+      "count": 1,
+      "line": 27,
+      "expression": "class BundlesDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/category_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "6d4c98a6b0698fe93cc9",
+      "count": 1,
+      "line": 23,
+      "expression": "class CategoryFormDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/category_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "f4e3e8b02b45c53b7b77",
+      "count": 1,
+      "line": 92,
+      "expression": "class MoveCategoryDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/cutting_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "70f7ed5277059b7b2a8f",
+      "count": 1,
+      "line": 27,
+      "expression": "class CuttingSchemesDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/cutting_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "ca70273444f146792acf",
+      "count": 1,
+      "line": 49,
+      "expression": "class CuttingSchemeFormDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/cutting_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "70caf02cde7e449504db",
+      "count": 1,
+      "line": 163,
+      "expression": "class _OutputEditor(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/image_gallery_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "391020364d878e3370c5",
+      "count": 1,
+      "line": 25,
+      "expression": "class ImageGalleryDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/image_gallery_dialog.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "1d0dbddbc33e2f16c233",
+      "count": 1,
+      "line": 78,
+      "expression": "'\u2605'"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/product_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "11b013f4633e4b4ea584",
+      "count": 1,
+      "line": 56,
+      "expression": "class ProductFormDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/recipe_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "926ef4421587b93b0ef4",
+      "count": 1,
+      "line": 73,
+      "expression": "class RecipeFormDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/recipe_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "d7b3423a985953d16b3a",
+      "count": 1,
+      "line": 214,
+      "expression": "class _ComponentEditor(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/recipe_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "70caf02cde7e449504db",
+      "count": 1,
+      "line": 258,
+      "expression": "class _OutputEditor(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/recipes_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "6509d9416aad8fc1c5e5",
+      "count": 1,
+      "line": 28,
+      "expression": "class RecipesDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/variant_generator_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "41dc21c625b3a1364d71",
+      "count": 1,
+      "line": 23,
+      "expression": "class VariantGeneratorDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/yield_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "7c31d37ab76b689a5b4c",
+      "count": 1,
+      "line": 57,
+      "expression": "class YieldProfileFormDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/yield_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "70caf02cde7e449504db",
+      "count": 1,
+      "line": 223,
+      "expression": "class _OutputEditor(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/yields_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "1b91b4b3a545c96f81fd",
+      "count": 1,
+      "line": 27,
+      "expression": "class YieldProfilesDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/pages/attributes_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "01f13e048e3dfdb5caff",
+      "count": 1,
+      "line": 19,
+      "expression": "class ProductAttributesPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/pages/branch_channel_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "4773c5d08a59f8d94675",
+      "count": 1,
+      "line": 30,
+      "expression": "class BranchChannelPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/pages/brands_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "e22dddeafcc0c3e1f306",
+      "count": 1,
+      "line": 16,
+      "expression": "class ProductBrandsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/pages/categories_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "bf72683775a90796f6fe",
+      "count": 1,
+      "line": 25,
+      "expression": "class ProductCategoriesPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/pages/import_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "862e11fcf2e23649b845",
+      "count": 1,
+      "line": 29,
+      "expression": "class ProductImportPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/pages/overview_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "a5f6e2947499f594abdb",
+      "count": 1,
+      "line": 24,
+      "expression": "class ProductsOverviewPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/products/pages/product_catalog_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "c0722dd0dc42510fb17b",
+      "count": 1,
+      "line": 27,
+      "expression": "class ProductCatalogPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/purchasing/dialogs/enterprise_dialogs.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "1d0dbddbc33e2f16c233",
+      "count": 1,
+      "line": 282,
+      "expression": "'\u2605'"
+    },
+    {
+      "path": "frontend/desktop/modules/purchasing/pages/direct_purchase_create_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "a4968a9d26c55afed482",
+      "count": 1,
+      "line": 26,
+      "expression": "class DirectPurchaseCreatePage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/purchasing/pages/direct_purchase_history_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "069725bb207a2b9f06f3",
+      "count": 1,
+      "line": 24,
+      "expression": "class DirectPurchaseHistoryPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/purchasing/pages/direct_purchase_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "2c4c5bda610d6bbe4406",
+      "count": 1,
+      "line": 64,
+      "expression": "class DirectPurchasePage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/purchasing/pages/direct_purchase_page.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "230a57e0948de9a5dd55",
+      "count": 1,
+      "line": 303,
+      "expression": "'\\n\\n\u26a0 Variaci\u00f3n de costo detectada:\\n'"
+    },
+    {
+      "path": "frontend/desktop/modules/purchasing/pages/logistics_related_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "6f974f393d3a4b65b551",
+      "count": 1,
+      "line": 24,
+      "expression": "class LogisticsRelatedPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/purchasing/pages/procurement_dashboard_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "28af0e447521ace638a9",
+      "count": 1,
+      "line": 54,
+      "expression": "class ProcurementDashboardPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/purchasing/pages/purchase_history_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "d47474ebc4a587d075d5",
+      "count": 1,
+      "line": 10,
+      "expression": "class PurchaseHistoryPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/components/actions_panel.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "753c217a828d7a7e1624",
+      "count": 1,
+      "line": 44,
+      "expression": "'\ud83d\udcb3 COBRAR $0.00'"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/components/actions_panel.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "98a36d8d20769648ad59",
+      "count": 1,
+      "line": 61,
+      "expression": "'\u2715 Cancelar'"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/components/actions_panel.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "3056c66f316a90669364",
+      "count": 1,
+      "line": 74,
+      "expression": "'\ud83e\uddfe Factura'"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/components/actions_panel.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "5b113988080c310b1873",
+      "count": 1,
+      "line": 80,
+      "expression": "'\ud83d\udda8\ufe0f Reimpr.'"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/components/actions_panel.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "c306c2d4c8986e33ff25",
+      "count": 1,
+      "line": 88,
+      "expression": "'\ud83d\udcb3 COBRAR '"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/components/cashier_bar.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "a86175341d07cdbabb00",
+      "count": 1,
+      "line": 35,
+      "expression": "'\ud83d\uded2 Punto de Venta'"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/components/cashier_bar.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "fc995c6ce257bd78734a",
+      "count": 1,
+      "line": 47,
+      "expression": "'\u2699 Diagn\u00f3stico'"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/components/cashier_bar.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "1b72c50e8a9b2035d92f",
+      "count": 1,
+      "line": 51,
+      "expression": "'\ud83d\udda5 Pantalla del cliente'"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/dialogs/discount_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "2126a3460e741063cbfe",
+      "count": 1,
+      "line": 17,
+      "expression": "class DiscountDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/dialogs/payment_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "5d7e6e0dec8fe0f8cde1",
+      "count": 1,
+      "line": 67,
+      "expression": "class PaymentDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/dialogs/payment_dialog.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "56d5eb0cde29b981d1f1",
+      "count": 1,
+      "line": 125,
+      "expression": "'\ud83d\udcb0 Confirmar y cobrar'"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/dialogs/quick_customer_dialog.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "031ad4516aea1891b878",
+      "count": 1,
+      "line": 14,
+      "expression": "class QuickCustomerDialog(QDialog)"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/sales_pos_workspace.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "b3eff1a28b5607e08b9f",
+      "count": 1,
+      "line": 47,
+      "expression": "class SalesPosWorkspace(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/tarjetas_fidelidad/pages/cards_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "ad091668bb93242f94ed",
+      "count": 1,
+      "line": 23,
+      "expression": "class CardsPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/tarjetas_fidelidad/pages/overview_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "83a03c795f26c69810ad",
+      "count": 1,
+      "line": 17,
+      "expression": "class TarjetasFidelidadOverviewPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/tarjetas_fidelidad/pages/templates_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "3c124384a23d8bf6f473",
+      "count": 1,
+      "line": 35,
+      "expression": "class TemplatesPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/modules/tarjetas_fidelidad/pages/templates_page.py",
+      "rule": "hardcoded_visual_hex",
+      "fingerprint": "d2e8bb359bfdd9037c34",
+      "count": 1,
+      "line": 25,
+      "expression": "'#FFFFFF'"
+    },
+    {
+      "path": "frontend/desktop/modules/transfers/pages/base_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "a0ee1d47df8880af492f",
+      "count": 1,
+      "line": 13,
+      "expression": "class TransferWorkspacePage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/provisioning/pages/_wizard_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "caa74573f796b3f20654",
+      "count": 1,
+      "line": 16,
+      "expression": "class WizardPage(QWidget)"
+    },
+    {
+      "path": "frontend/desktop/shell/application_shell/application_window.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "ae1e25b87e7833f589ef",
+      "count": 1,
+      "line": 58,
+      "expression": "class ApplicationWindow(QMainWindow)"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "local_standard_component",
+      "fingerprint": "b8ae97b12002545c9607",
+      "count": 1,
+      "line": 102,
+      "expression": "class KPICard(QFrame)"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "032b89530f0839615735",
+      "count": 1,
+      "line": 82,
+      "expression": "lbl.setStyleSheet(f'color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_XS}; font-weight: {Typography.WEIGHT_SEMIBOLD}; letter-spacing: 0.1em; background: transparent; border: none;')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "6006f0aac342f589fcc2",
+      "count": 1,
+      "line": 96,
+      "expression": "line.setStyleSheet(f'background-color: rgba(255,255,255,10); border: none;')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "22bb2f806969604a9376",
+      "count": 1,
+      "line": 580,
+      "expression": "btn.setStyleSheet(f'QPushButton#quickActionBtn:hover {{  background-color: {accent}1A;  border-color: {accent}55;}}')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "ffc0c744539115ffb24a",
+      "count": 1,
+      "line": 47,
+      "expression": "'\u2713'"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "98bb7820f4e22f7a9762",
+      "count": 2,
+      "line": 59,
+      "expression": "'\ud83d\udcb0'"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "7b066aa7222e970ff2c0",
+      "count": 4,
+      "line": 60,
+      "expression": "'\ud83d\udcf2'"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "932aecd32f7efc9fb5e6",
+      "count": 2,
+      "line": 61,
+      "expression": "'\u26a0\ufe0f'"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "d9a8b6f01789d5654591",
+      "count": 1,
+      "line": 62,
+      "expression": "'\u2699\ufe0f'"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "ec55d89e9b676fb9a09a",
+      "count": 2,
+      "line": 63,
+      "expression": "'\ud83d\udce6'"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "da06aea142f244e76908",
+      "count": 3,
+      "line": 121,
+      "expression": "'\ud83d\udcca'"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "0445fe51ab8a15d5a90c",
+      "count": 1,
+      "line": 158,
+      "expression": "self._accent_bar.setStyleSheet(f'background-color: {accent}; border-top-left-radius: {Borders.RADIUS_XL}px; border-top-right-radius: {Borders.RADIUS_XL}px; border: none;')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "0815737cc4b17d70e738",
+      "count": 1,
+      "line": 178,
+      "expression": "lbl_titulo.setStyleSheet(f'color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_XS}; font-weight: {Typography.WEIGHT_SEMIBOLD}; letter-spacing: 0.08em; background: transparent; border: none;"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "8b10641e3b049849a2c0",
+      "count": 1,
+      "line": 190,
+      "expression": "self.lbl_valor.setStyleSheet(f'font-size: {val_size}; font-weight: {Typography.WEIGHT_BOLD}; letter-spacing: -0.02em; background: transparent; border: none;')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "e32a1b42ab1b52ed95fc",
+      "count": 1,
+      "line": 211,
+      "expression": "lbl_icono.setStyleSheet(f'font-size: {icon_font}; background-color: {accent}1A; border-radius: {icon_sz // 2}px; border: none;')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "b53739d27bdbde2d9632",
+      "count": 1,
+      "line": 257,
+      "expression": "self.lbl_tendencia.setStyleSheet(f'color: {fg}; background-color: {bg}; font-size: {Typography.SIZE_XS}; font-weight: {Typography.WEIGHT_SEMIBOLD}; border-radius: {Borders.RADIUS_FULL}px; padding: 2px"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "9a47ae7bfd8f3dd9426d",
+      "count": 1,
+      "line": 306,
+      "expression": "self.setStyleSheet(f'QFrame#alertaItem {{  background: {bg};  border-radius: {Borders.RADIUS_MD}px;  border: 1px solid {accent}33;  border-left: 4px solid {accent};}}QFrame#alertaItem QLabel {{  backg"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "f04e790c8b9ce60f5e68",
+      "count": 1,
+      "line": 325,
+      "expression": "lbl_icon.setStyleSheet(f'color: {accent}; font-size: 11px;')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "ab7b7798ebc574694a17",
+      "count": 1,
+      "line": 333,
+      "expression": "lbl_txt.setStyleSheet(f'color: {Colors.NEUTRAL.SLATE_900};')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "de074db3c8204a267cac",
+      "count": 1,
+      "line": 368,
+      "expression": "lbl_icon.setStyleSheet(f'font-size: 16px; background: {Colors.PRIMARY.BASE}1A; border-radius: 16px; border: none;')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "5f73999fad826ebf479c",
+      "count": 1,
+      "line": 383,
+      "expression": "lbl_id.setStyleSheet(f'font-weight: {Typography.WEIGHT_SEMIBOLD}; font-size: {Typography.SIZE_MD};')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "6cb18a64beb4e9d90f1b",
+      "count": 1,
+      "line": 392,
+      "expression": "badge.setStyleSheet(f'background: {badge_color}; color: white; padding: 2px 7px; border-radius: {Borders.RADIUS_MD}px; font-size: {Typography.SIZE_XS}; font-weight: {Typography.WEIGHT_SEMIBOLD}; borde"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "73a6cb688399d799ae11",
+      "count": 1,
+      "line": 404,
+      "expression": "lbl_total.setStyleSheet(f'font-weight: {Typography.WEIGHT_BOLD}; font-size: {Typography.SIZE_MD}; color: {Colors.SUCCESS.BASE};')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "19bb5af356150fcd1e84",
+      "count": 1,
+      "line": 417,
+      "expression": "sub.setStyleSheet(f'font-size: {Typography.SIZE_SM}; color: {Colors.NEUTRAL.SLATE_500};')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "f388233423f3424b860a",
+      "count": 1,
+      "line": 521,
+      "expression": "self.setStyleSheet(f'QFrame#actFeedItem {{  background: transparent; border: none;  border-bottom: 1px solid rgba(255,255,255,6);}}QFrame#actFeedItem QLabel {{ background: transparent; border: none; }"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "f787ea9ad6d84a4752b1",
+      "count": 1,
+      "line": 537,
+      "expression": "dot.setStyleSheet(f'color: {color}; font-size: 10px;')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "b609cf9524800d1fa9a3",
+      "count": 1,
+      "line": 542,
+      "expression": "lbl_desc.setStyleSheet(f'font-size: {Typography.SIZE_SM}; color: {Colors.NEUTRAL.SLATE_100};')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "0ac94c98baf61622b745",
+      "count": 1,
+      "line": 597,
+      "expression": "self.setStyleSheet(f'QFrame#driverCard {{  background: transparent;  border: none;  border-bottom: 1px solid rgba(255,255,255,6);}}QFrame#driverCard QLabel {{ background: transparent; border: none; }}"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "371afd0e2a5faee1d0b7",
+      "count": 1,
+      "line": 613,
+      "expression": "dot.setStyleSheet(f'color: {dot_color}; font-size: 9px;')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "9c9905f7790e4d20b9ef",
+      "count": 1,
+      "line": 618,
+      "expression": "lbl_nom.setStyleSheet(f'font-size: {Typography.SIZE_SM}; color: {Colors.NEUTRAL.SLATE_100};')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "d0bda2734b8d9c7f2096",
+      "count": 1,
+      "line": 627,
+      "expression": "lbl_status.setStyleSheet(f'font-size: {Typography.SIZE_XS}; color: {dot_color}; font-weight: {Typography.WEIGHT_SEMIBOLD};')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "77e8e066b3dbdcc1f68e",
+      "count": 1,
+      "line": 705,
+      "expression": "scroll.setStyleSheet('QScrollArea { background: transparent; border: none; }QScrollBar:vertical { width: 6px; background: transparent; }QScrollBar::handle:vertical { background: rgba(255,255,255,18); "
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "18c9ae00e6d050ea62c6",
+      "count": 1,
+      "line": 754,
+      "expression": "lbl_title.setStyleSheet(f'font-size: 20px; font-weight: {Typography.WEIGHT_BOLD}; letter-spacing: -0.01em; background: transparent; border: none;')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "95fc174ab049abf06a5b",
+      "count": 1,
+      "line": 763,
+      "expression": "self._lbl_subtitle.setStyleSheet(f'font-size: {Typography.SIZE_MD}; color: {Colors.NEUTRAL.SLATE_500}; background: transparent; border: none;')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "ae0534d25db84110ece5",
+      "count": 1,
+      "line": 774,
+      "expression": "self._status_dot.setStyleSheet(f'color: {Colors.SUCCESS.BASE}; font-size: {Typography.SIZE_SM}; font-weight: {Typography.WEIGHT_SEMIBOLD}; background: transparent; border: none;')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "199d33a52a8278d0791d",
+      "count": 1,
+      "line": 785,
+      "expression": "self.lbl_hora.setStyleSheet(f'color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_SM}; background: transparent; border: none;')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "8012f4d6c3e718d4c5c9",
+      "count": 1,
+      "line": 914,
+      "expression": "self._empty_actividad.setStyleSheet(f'color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_SM}; padding: 12px 0;')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "23f998f7e41250e59f20",
+      "count": 2,
+      "line": 950,
+      "expression": "scroll.setStyleSheet('QScrollArea { background: transparent; border: none; }QScrollBar:vertical { width: 4px; background: transparent; }QScrollBar::handle:vertical { background: rgba(255,255,255,20); "
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "de361a90959382b675db",
+      "count": 1,
+      "line": 1044,
+      "expression": "self._lbl_alerts_count.setStyleSheet(f'color: {Colors.DANGER.BASE}; font-size: {Typography.SIZE_XS}; font-weight: {Typography.WEIGHT_BOLD};')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "1417fffb38e653a7b7a3",
+      "count": 1,
+      "line": 281,
+      "expression": "self._accent_bar.setStyleSheet(f'background-color: {_color}; border-top-left-radius: {Borders.RADIUS_XL}px; border-top-right-radius: {Borders.RADIUS_XL}px; border: none;')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "8f47a1e38c0bce8bcb99",
+      "count": 1,
+      "line": 338,
+      "expression": "lbl_ts.setStyleSheet(f'color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_XS};')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "9b3a56b298338eaaf211",
+      "count": 1,
+      "line": 550,
+      "expression": "lbl_monto.setStyleSheet(f'font-size: {Typography.SIZE_SM}; font-weight: {Typography.WEIGHT_SEMIBOLD}; color: {Colors.SUCCESS.BASE};')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "4784aedd9de709fd7df5",
+      "count": 1,
+      "line": 562,
+      "expression": "lbl_hora.setStyleSheet(f'font-size: {Typography.SIZE_XS}; color: {Colors.NEUTRAL.SLATE_500};')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "3ecb1abeb9c9030486e8",
+      "count": 1,
+      "line": 639,
+      "expression": "lbl_p.setStyleSheet(f'background: {Colors.PRIMARY.BASE}; color: white; border-radius: 10px; font-size: {Typography.SIZE_XS}; font-weight: {Typography.WEIGHT_BOLD}; border: none;')"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "97acdab59d4228d5ce35",
+      "count": 2,
+      "line": 973,
+      "expression": "'\u2705'"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "dae1de0b794c33fe6b7e",
+      "count": 1,
+      "line": 813,
+      "expression": "'\ud83d\udcc8'"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "2a4603e05c4f925b7857",
+      "count": 1,
+      "line": 837,
+      "expression": "'\ud83e\uddfe'"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "d87c90e27eeb3870406f",
+      "count": 1,
+      "line": 839,
+      "expression": "'\ud83d\udc65'"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "03ce9ab507a48280e1b1",
+      "count": 1,
+      "line": 1013,
+      "expression": "'\ud83d\uded2'"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "432242a844a9b9450227",
+      "count": 1,
+      "line": 1015,
+      "expression": "'\ud83d\udcb3'"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "5ef41ec050616108646b",
+      "count": 1,
+      "line": 1017,
+      "expression": "'\ud83d\ude9a'"
+    },
+    {
+      "path": "ui/dashboard.py",
+      "rule": "inline_qss",
+      "fingerprint": "13236d3dde7aea296f8f",
+      "count": 1,
+      "line": 1421,
+      "expression": "no_driver.setStyleSheet(f'color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_SM}; padding: 8px 0;')"
+    },
+    {
+      "path": "ui/themes/theme_engine.py",
+      "rule": "inline_qss",
+      "fingerprint": "e2898dcface0229e22ad",
+      "count": 1,
+      "line": 73,
+      "expression": "app.setStyleSheet(qss)"
+    },
+    {
+      "path": "ui/themes/theme_engine.py",
+      "rule": "inline_qss",
+      "fingerprint": "3ab636ef9b7180b69079",
+      "count": 1,
+      "line": 76,
+      "expression": "widget.setStyleSheet(qss)"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "ff07417500bcc4035bed",
+      "count": 1,
+      "line": 260,
+      "expression": "class DialogAjustePeso(QDialog)"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "97f92d16e53500716aff",
+      "count": 1,
+      "line": 296,
+      "expression": "class DialogAsignarRepartidor(QDialog)"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "noncanonical_dialog",
+      "fingerprint": "7b42b98d9574bd486adf",
+      "count": 1,
+      "line": 330,
+      "expression": "class DialogDetallePedido(QDialog)"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "inline_qss",
+      "fingerprint": "d31b9156ce2471b5d7ec",
+      "count": 1,
+      "line": 57,
+      "expression": "self.lbl_count.setStyleSheet('color:#E74C3C; font-weight:bold; font-size:14px;')"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "native_operational_table",
+      "fingerprint": "5fe07da1778cbd23e2f0",
+      "count": 1,
+      "line": 65,
+      "expression": "QTableWidget()"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "79758f2b62cef1fd743a",
+      "count": 1,
+      "line": 52,
+      "expression": "'\ud83d\udcf2 Cola de Pedidos WhatsApp'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "hardcoded_visual_hex",
+      "fingerprint": "56307cf48643e8ab39bb",
+      "count": 1,
+      "line": 57,
+      "expression": "'color:#E74C3C; font-weight:bold; font-size:14px;'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "4a2a8b81f40194bd24c7",
+      "count": 1,
+      "line": 59,
+      "expression": "'\ud83d\udd04 Actualizar'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "inline_qss",
+      "fingerprint": "4a573c5d2745ff7dcbd1",
+      "count": 1,
+      "line": 88,
+      "expression": "btn.setStyleSheet(f'background:{color};color:white;font-weight:bold;border-radius:6px;')"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "hardcoded_visual_hex",
+      "fingerprint": "ce82d71716048f3c7066",
+      "count": 1,
+      "line": 111,
+      "expression": "'#FDEDEC'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "hardcoded_visual_hex",
+      "fingerprint": "24cbe1fcf04a430cd57f",
+      "count": 1,
+      "line": 112,
+      "expression": "'#EBF5FB'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "hardcoded_visual_hex",
+      "fingerprint": "14babb2e7ba7fb741c49",
+      "count": 1,
+      "line": 113,
+      "expression": "'#FEF9E7'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "hardcoded_visual_hex",
+      "fingerprint": "fdc6462fa98b8c6e7cdf",
+      "count": 1,
+      "line": 114,
+      "expression": "'#EAFAF1'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "4f2554a61cd14dd58dbc",
+      "count": 1,
+      "line": 81,
+      "expression": "'\u2696\ufe0f Ajustar Peso'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "hardcoded_visual_hex",
+      "fingerprint": "ad5ca2d872fd35c4dc8c",
+      "count": 1,
+      "line": 81,
+      "expression": "'#2ECC71'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "503780034c99b026b899",
+      "count": 1,
+      "line": 82,
+      "expression": "'\u2705 Confirmar'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "hardcoded_visual_hex",
+      "fingerprint": "2b9d06f56d771166668a",
+      "count": 1,
+      "line": 82,
+      "expression": "'#27AE60'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "2f1b594ede8675d95a84",
+      "count": 1,
+      "line": 83,
+      "expression": "'\ud83d\ude9a Asignar Reparto'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "hardcoded_visual_hex",
+      "fingerprint": "5b4908a7ca585d15773e",
+      "count": 1,
+      "line": 83,
+      "expression": "'#3498DB'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "4528d5bc80516adf0144",
+      "count": 1,
+      "line": 84,
+      "expression": "'\u274c Cancelar'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "hardcoded_visual_hex",
+      "fingerprint": "4e479e522fa8783f1a9c",
+      "count": 1,
+      "line": 84,
+      "expression": "'#E74C3C'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "cbc2704b2c46aeece6a9",
+      "count": 1,
+      "line": 163,
+      "expression": "' marcado como LISTO \u2705'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "984163ab0f5a86aa9395",
+      "count": 1,
+      "line": 266,
+      "expression": "'\u2696\ufe0f Ajustar Peso \u2014 Pedido #'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "495592604a55bfd3edcb",
+      "count": 1,
+      "line": 285,
+      "expression": "'\u2705 Guardar'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "61a061c83b4cd5d3bf17",
+      "count": 1,
+      "line": 302,
+      "expression": "'\ud83d\ude9a Asignar Repartidor \u2014 Pedido #'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "hardcoded_visual_hex",
+      "fingerprint": "d2e8bb359bfdd9037c34",
+      "count": 1,
+      "line": 124,
+      "expression": "'#FFFFFF'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "f50b427cb8deadf81218",
+      "count": 1,
+      "line": 210,
+      "expression": "'\u2696\ufe0f *Peso real de tu pedido #'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "a70745ad0737f589256c",
+      "count": 1,
+      "line": 211,
+      "expression": "'\\n\\n\ud83d\udcb0 *Total actualizado: $'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "f74aee9cd554e4a42643",
+      "count": 1,
+      "line": 244,
+      "expression": "'\ud83d\ude9a *Tu pedido #'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "83ad16c0b7c7aedec035",
+      "count": 1,
+      "line": 226,
+      "expression": "'\ud83d\udce6 *Pedido #'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "cb29296bfd088fe287e2",
+      "count": 1,
+      "line": 227,
+      "expression": "'\\nEn breve asignamos repartidor \ud83d\ude9a'"
+    },
+    {
+      "path": "ui/ventana_pedidos.py",
+      "rule": "unicode_icon_literal",
+      "fingerprint": "fe7ffb17e43df3ddd287",
+      "count": 1,
+      "line": 230,
+      "expression": "'\u2705 *Tu pedido #'"
+    }
+  ]
+}

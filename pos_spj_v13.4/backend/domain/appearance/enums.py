@@ -42,6 +42,7 @@ class DensityLevel(str, Enum):
     COMPACT = "COMPACT"
     NORMAL = "NORMAL"
     COMFORTABLE = "COMFORTABLE"
+    TOUCH = "TOUCH"
 
 
 class TokenCategory(str, Enum):

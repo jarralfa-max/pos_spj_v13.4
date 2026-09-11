@@ -1,40 +1,31 @@
-"""Loyalty Cards audit trail writer (master prompt §61).
+"""Rastro de auditoría de Tarjetas de fidelidad.
 
-Deliberately reuses the existing app-wide `core.services.auto_audit.audit_write`
-sink instead of standing up a parallel table — same reasoning as
-``backend/application/loyalty/audit.py``.
+Envoltorio fino sobre `backend/application/shared/audit_trail.py`, que escribe
+en `audit_logs` — el rastro transversal, no una tabla por contexto.
+
+Antes cada contexto repetía aquí el mismo bloque de veinticinco líneas y
+llamaba a `core.services.auto_audit.audit_write`, que pedía un `container`. Los
+casos de uso no lo tienen, y por eso este escritor nunca llegó a usarse. Ahora
+recibe la `connection` que sí tienen.
+
+SIGUE SIN LLAMARSE desde ningún caso de uso: conectarlo hace aparecer filas
+nuevas en la auditoría, que es un cambio de comportamiento y merece su propio
+paso.
 """
 
 from __future__ import annotations
 
-import json
-
+from backend.application.shared.audit_trail import record_audit_entry
 from backend.domain.loyalty_cards.value_objects.card_audit_entry import CardAuditEntry
 
+#: Módulo bajo el que aparece este contexto en la auditoría.
+AUDIT_MODULE = "TARJETAS_FIDELIDAD"
+AUDIT_ENTITY = "tarjeta_fidelidad"
 
-def record_card_audit_entry(container, entry: CardAuditEntry) -> None:
-    """Persist a `CardAuditEntry` via the canonical `audit_write` sink."""
-    from core.services.auto_audit import audit_write
 
-    extra = {
-        "operation_id": entry.operation_id,
-        "authorized_by": entry.authorized_by,
-        "reason": entry.reason,
-        "device_id": entry.device_id,
-        "occurred_at": entry.occurred_at,
-    }
-    detalles = json.dumps({k: v for k, v in extra.items() if v is not None},
-                           ensure_ascii=False)
-
-    audit_write(
-        container,
-        modulo="TARJETAS_FIDELIDAD",
-        accion=entry.action,
-        entidad="tarjeta_fidelidad",
-        entidad_id=entry.card_id or "",
-        usuario=entry.user_id,
-        detalles=detalles,
-        before=dict(entry.before),
-        after=dict(entry.after),
-        sucursal_id=entry.branch_id,
+def record_card_audit_entry(connection, entry: CardAuditEntry) -> None:
+    """Persiste una `CardAuditEntry` en el rastro canónico."""
+    record_audit_entry(
+        connection, entry, module=AUDIT_MODULE, entity=AUDIT_ENTITY,
+        entity_id=getattr(entry, "card_id", "") or "",
     )
