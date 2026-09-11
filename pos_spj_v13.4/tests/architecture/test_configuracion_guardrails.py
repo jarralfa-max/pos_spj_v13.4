@@ -37,23 +37,16 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 # ---------------------------------------------------------------------------
 # Scope inventory (mirrors docs/refactor/modules/configuracion_scope.json)
 # ---------------------------------------------------------------------------
-UI_FILES = [
-    "modulos/configuracion.py",
-    "modulos/config_modules.py",
-    "modulos/config_hardware.py",
-    # modulos/config_interfaz.py deleted in 6e35244c (legacy "Apariencia" screen,
-    # already broken); replaced by frontend/desktop/modules/configuracion/pages/
-    # apariencia_page.py over backend/domain/appearance/. Its 3 documented
-    # violations ratchet to zero by deletion.
-]
+# La extinción de la Configuración legacy SE COMPLETÓ: `modulos/configuracion.py`,
+# `config_modules.py`, `config_hardware.py`, `core/services/
+# configuration_settings_service.py`, `config_service.py`, `core/module_config.py`,
+# `repositories/config_repository.py` y `core/repositories/
+# hardware_config_repository.py` ya no existen. Sus contadores de línea base se
+# retiran con ellos: un trinquete sobre un archivo borrado no puede bajar más.
+UI_FILES: list[str] = []
 
+# Lo que queda vivo del alcance, y por eso este archivo no se borra entero.
 SERVICE_AND_PERSISTENCE_FILES = [
-    "core/services/configuration_settings_service.py",
-    "core/services/config_service.py",
-    "core/module_config.py",
-    "repositories/config_repository.py",
-    # repositories/settings_repository.py deleted in FASE 5 (dead dual-write legacy).
-    "core/repositories/hardware_config_repository.py",
     "backend/application/commands/settings_commands.py",
     "backend/application/queries/hardware_settings_query_service.py",
 ]
@@ -99,77 +92,13 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 # start of the CONFIGURACION refactor. These numbers MUST only decrease.
 # ---------------------------------------------------------------------------
 BASELINE: dict[str, dict[str, int]] = {
-    "modulos/configuracion.py": {
-        # FASE 1 removed the integer branch fallback; FASE 4 removed rule["id"]
-        # and all positional row indexing — entity rows are now consumed as DTOs.
-        "currentText": 1,     # role selected by name (roles are keyed by name) -> later
-        "system_settings": 4,
-    },
-    "modulos/config_modules.py": {
-        # FASE 1 removed all SQL, commit and direct feature_flags usage; the
-        # "Principal"/1 branch fallback was removed too (now logs on failure).
-        # Toggles go through FeatureFlagService; reads through the QueryService.
-        "except_pass": 1,     # menu-refresh swallow -> FASE 8
-        # get_branch_feature_flags(): nombre del método del ModuleSettingsQueryService
-        # (lectura canónica; NO es acceso directo a la tabla feature_flags).
-        "feature_flags": 1,
-    },
-    "modulos/config_hardware.py": {
-        # FASE 1 removed commit()x3, sucursal_id=1 and ensure_schema/seed_defaults
-        # from the UI; persistence now goes through HardwareSettingsService.
-        "currentText": 17,    # device value reads -> FASE 4
-        "except_pass": 1,     # ticket tipo_idx swallow -> FASE 8
-    },
-    "core/services/configuration_settings_service.py": {
-        # FASE 3: the application service owns the transaction boundary and
-        # commits via ConnectionUnitOfWork (uow.commit()) before publishing
-        # events. These are the canonical commits — not UI/repository commits.
-        "commit": 4,
-        "system_settings": 24,
-    },
-    "core/services/config_service.py": {},
-    "core/module_config.py": {
-        "except_pass": 1,
-    },
-    "repositories/config_repository.py": {
-        # FASE 2 added tolerant label resolvers (username_for_id/role_name_for_id
-        # via _resolve_label) so events carry names, not integer ids: +1 select,
-        # +1 execute vs the FASE 0 baseline.
-        # Plan B: reescritura born-clean del repo eliminó todo el SQL dual
-        # uuid/id (ratchet DOWN: select 43→40, insert 11→10, delete 2→1,
-        # execute 65→60, cast_as_text 1→0).
-        # +2: get/set de la sucursal de la instalación (frontera SQL aceptada
-        # del repositorio, CFG-SCOPE-001; funcionalidad nueva, no regresión UI).
-        "sql_select": 42,
-        "sql_insert": 10,
-        "sql_update": 11,
-        "sql_delete": 1,
-        # FASE 3 removed _commit() (and its except: pass) — the repository no
-        # longer commits/rolls back; services own the UnitOfWork boundary.
-        "cursor_execute": 62,
-        # Plan B: el fallback rowid del alta de usuarios fue eliminado (lastrowid 1->0).
-        # CONFIGURACION permisos slice: permission_codes_for_user dropped the
-        # int(user_id) cast and the "Accept legacy integer IDs" comment
-        # (int_id_cast 1->0, legacy_lower 1->0).
-        # Fix sucursal de instalación: list_users_v13 ya no inventa 'Principal'
-        # para usuarios cuya sucursal no resuelve (principal_fallback 1->0).
-        "principal_fallback": 0,
-    },
-    "core/repositories/hardware_config_repository.py": {
-        "sql_select": 3,
-        "sql_insert": 1,
-        "sql_update": 1,
-        # Plan B: el CREATE TABLE runtime fue eliminado (create_table 1->0).
-        "cursor_execute": 5,
-        # HARDWARE module born-cleaned the config table (natural key `tipo`):
-        # autoincrement 1->0, integer_pk 1->0.
-        "legacy_lower": 2,    # migrate_legacy_configuraciones_hardware bridge
-    },
     "backend/application/commands/settings_commands.py": {},
+    # Una sola lectura, documentada: el servicio de consulta de hardware.
     "backend/application/queries/hardware_settings_query_service.py": {
         "sql_select": 1,
     },
 }
+
 
 
 def _read(relative: str) -> str:
@@ -240,36 +169,12 @@ def test_configuracion_documented_findings_snapshot():
         "If you removed a violation, ratchet the baseline DOWN in this file:\n"
         + "\n".join(drift)
     )
-
-
-# ---------------------------------------------------------------------------
-# Explicit, human-readable headline guard rails (already-clean surfaces are
-# pinned to hard zero so they can never regress).
-# ---------------------------------------------------------------------------
-def test_configuracion_main_ui_has_no_direct_sql():
-    """modulos/configuracion.py must stay SQL-free."""
-    offenders = []
-    for relative in ("modulos/configuracion.py",):
-        live = _measure(relative)
-        for pattern in ("cursor_execute", "sql_insert", "sql_update", "sql_delete"):
-            if live.get(pattern):
-                offenders.append(f"{relative}:{pattern}={live[pattern]}")
-    assert not offenders, f"Direct SQL appeared in clean config UI files: {offenders}"
-
-
-def test_configuracion_ui_has_no_rollback():
-    """No UI scope file may call rollback() (none do today)."""
-    offenders = [rel for rel in UI_FILES if _measure(rel).get("rollback")]
-    assert not offenders, f"rollback() introduced in UI files: {offenders}"
-
-
-def test_configuracion_ui_does_not_introduce_create_table():
-    """PyQt UI must never create schema."""
-    offenders = [rel for rel in UI_FILES if _measure(rel).get("create_table")]
-    assert not offenders, f"CREATE TABLE introduced in UI files: {offenders}"
-
-
-def test_configuracion_ui_has_no_uuid4_identity():
-    """UI must not mint identity with uuid4 (use backend.shared.ids.new_uuid)."""
-    offenders = [rel for rel in UI_FILES if _measure(rel).get("uuid4")]
-    assert not offenders, f"uuid4 identity introduced in UI files: {offenders}"
+# Las cuatro reglas de UI que vivían aquí (sin SQL directo, sin rollback, sin
+# CREATE TABLE, sin identidad uuid4) se MUDARON a
+# `test_configuracion_ui_guardrails.py`, que mira la Configuración canónica en
+# `frontend/desktop/modules/configuracion/`.
+#
+# No fue una limpieza: `UI_FILES` se quedó sin un solo archivo vivo, y una
+# prueba que recorre una lista vacía pasa en verde sin comprobar nada. Cuatro
+# guardias decorativas es peor que ninguna, porque dan la señal de que se
+# comprobó.

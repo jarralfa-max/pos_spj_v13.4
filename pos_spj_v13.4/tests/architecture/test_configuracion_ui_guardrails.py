@@ -16,7 +16,11 @@ from frontend.desktop.modules.configuracion.navigation.configuracion_sidebar imp
 _ROOT = Path(__file__).resolve().parents[2]
 MODULE_DIR = _ROOT / "frontend" / "desktop" / "modules" / "configuracion"
 
-_SQL_RE = re.compile(r"\b(SELECT|INSERT|UPDATE|DELETE)\s", re.IGNORECASE)
+# El detector compartido, no uno local: el de aqui era
+# `\b(SELECT|INSERT|UPDATE|DELETE)\s` con IGNORECASE, que marca cualquier
+# docstring donde aparezca "update the list" o "select a branch". Hoy no salta
+# por casualidad, no por diseno.
+from .architecture_guardrails import SCHEMA_CHANGE_RE, SQL_RE as _SQL_RE  # noqa: E402
 _FORBIDDEN = ("sqlite3", ".commit(", ".rollback(", ".cursor(")
 # Inline literal colors — a hex triplet/sextet, the pattern DS-10 forbids
 # ("Sin colores literales ni setStyleSheet con color").
@@ -95,3 +99,43 @@ def test_shell_registration_is_not_wired_into_the_legacy_shell_yet():
         text = path.read_text(encoding="utf-8")
         assert "configuracion.shell_registration" not in text
         assert "ConfiguracionModuleActivator" not in text
+
+
+# ── reglas heredadas del trinquete de extinción legacy ──────────────────────
+# `test_configuracion_guardrails.py` medía estas dos sobre `modulos/
+# configuracion.py`, `config_modules.py` y `config_hardware.py`. Los tres se
+# borraron —la extinción se completó— y con ellos las reglas se quedaron sin
+# quien las vigilara. Valen igual para la Configuración canónica, así que se
+# recogen aquí antes de retirar aquel archivo.
+
+
+def test_no_schema_creation_in_configuracion_ui():
+    """Una pantalla no crea tablas.
+
+    Si la UI ejecutara su propio `CREATE TABLE`, el esquema dependería de qué
+    pantallas haya abierto el usuario: dos instalaciones con las mismas
+    migraciones acabarían con tablas distintas, y la que falte sólo se notaría
+    al abrir la pantalla que la crea.
+    """
+    offenders = [
+        str(path.relative_to(_ROOT))
+        for path in _module_files()
+        if SCHEMA_CHANGE_RE.search(path.read_text(encoding="utf-8"))
+    ]
+    assert not offenders, f"UI de Configuración que crea o altera tablas: {offenders}"
+
+
+def test_no_uuid4_identity_in_configuracion_ui():
+    """La identidad se acuña con `backend.shared.ids.new_uuid` (UUIDv7).
+
+    Un `uuid4` es aleatorio: no ordena por tiempo. Mezclarlo con identidades v7
+    no da ningún error —sigue siendo un UUID válido y único— pero rompe en
+    silencio el orden de inserción del que dependen los índices y cualquier
+    consulta que pagine por id.
+    """
+    offenders = [
+        str(path.relative_to(_ROOT))
+        for path in _module_files()
+        if "uuid4" in path.read_text(encoding="utf-8")
+    ]
+    assert not offenders, f"UI de Configuración que acuña identidad con uuid4: {offenders}"
