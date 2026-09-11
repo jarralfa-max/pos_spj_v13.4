@@ -81,17 +81,26 @@ def _seed_stock(conn, *, branch_id: str, product_id: str, quantity: str) -> None
     with InventoryUnitOfWork(conn) as uow:
         balance = InventoryBalance.empty(
             product_id=product_id, branch_id=branch_id, warehouse_id=branch_id,
-            inventory_status=InventoryStatus.AVAILABLE)
+            inventory_status=InventoryStatus.AVAILABLE, location_id=branch_id)
         balance.apply_delta(quantity=Decimal(quantity))
         uow.balances.upsert(balance)
     conn.commit()
+
+
+def _on_hand(conn, *, branch_id: str, product_id: str) -> Decimal:
+    """Existencia REAL. Distinto del disponible: `disponible = quantity - reserved`."""
+    with InventoryUnitOfWork(conn) as uow:
+        balance = uow.balances.get(
+            product_id=product_id, branch_id=branch_id, warehouse_id=branch_id,
+            inventory_status=InventoryStatus.AVAILABLE, location_id=branch_id, lot_id=None)
+    return balance.quantity if balance else Decimal("0")
 
 
 def _available(conn, *, branch_id: str, product_id: str) -> Decimal:
     with InventoryUnitOfWork(conn) as uow:
         balance = uow.balances.get(
             product_id=product_id, branch_id=branch_id, warehouse_id=branch_id,
-            inventory_status=InventoryStatus.AVAILABLE, location_id=None, lot_id=None)
+            inventory_status=InventoryStatus.AVAILABLE, location_id=branch_id, lot_id=None)
     return balance.available_quantity if balance else Decimal("0")
 
 
@@ -205,12 +214,33 @@ class TestSalesInventoryClient:
         assert len(_statuses(conn, sale_id)) == 1
         assert _available(conn, branch_id=branch_id, product_id=product_id) == Decimal("5")
 
-    def test_confirming_keeps_the_hold_because_the_goods_left(self, conn):
-        """Cumplir NO devuelve la mercancía a disponible: se vendió.
+    def test_confirming_takes_the_goods_out_of_stock(self, conn):
+        """Confirmar la venta BAJA la existencia real, no sólo el disponible.
 
-        Soltarla haría que lo ya cobrado volviera a aparecer vendible en la
-        caja. Ver `FulfillReservationUseCase` para por qué tampoco se descuenta
-        la existencia aquí.
+        Es el paso que faltaba: antes una venta completada no descontaba nada
+        mientras que las devoluciones sí reponían, así que el inventario sólo
+        podía subir.
+        """
+        branch_id, product_id = new_uuid(), new_uuid()
+        _seed_stock(conn, branch_id=branch_id, product_id=product_id, quantity="10")
+        sale_id, cashier = _sale_with_line(conn, branch_id=branch_id, product_id=product_id)
+        sale = SaleRepository(conn).get(sale_id)
+        client = _client(conn, branch_id=branch_id, actor=cashier)
+        handle = client.reserve_for_sale(sale)
+        assert _on_hand(conn, branch_id=branch_id, product_id=product_id) == Decimal("10")
+
+        client.confirm(handle, sale_id=sale.id, folio=sale.id)
+        conn.commit()
+
+        assert _statuses(conn, sale_id) == [ReservationStatus.FULFILLED]
+        assert _on_hand(conn, branch_id=branch_id, product_id=product_id) == Decimal("8")
+
+    def test_confirming_does_not_subtract_the_same_goods_twice(self, conn):
+        """La trampa del doble conteo.
+
+        `disponible = quantity - reserved`. Al confirmar baja `quantity`; si
+        además se dejara puesta la retención, la misma mercancía se restaría dos
+        veces y el sistema creería tener 6 de 10 tras vender 2.
         """
         branch_id, product_id = new_uuid(), new_uuid()
         _seed_stock(conn, branch_id=branch_id, product_id=product_id, quantity="10")
@@ -222,8 +252,93 @@ class TestSalesInventoryClient:
         client.confirm(handle, sale_id=sale.id, folio=sale.id)
         conn.commit()
 
-        assert _statuses(conn, sale_id) == [ReservationStatus.FULFILLED]
         assert _available(conn, branch_id=branch_id, product_id=product_id) == Decimal("8")
+
+    def test_confirming_twice_does_not_deduct_twice(self, conn):
+        """Reintentar el cobro no puede descontar dos veces: el movimiento es
+        idempotente por `operation_id`."""
+        branch_id, product_id = new_uuid(), new_uuid()
+        _seed_stock(conn, branch_id=branch_id, product_id=product_id, quantity="10")
+        sale_id, cashier = _sale_with_line(conn, branch_id=branch_id, product_id=product_id)
+        sale = SaleRepository(conn).get(sale_id)
+        client = _client(conn, branch_id=branch_id, actor=cashier)
+        handle = client.reserve_for_sale(sale)
+
+        client.confirm(handle, sale_id=sale.id, folio=sale.id)
+        client.confirm(handle, sale_id=sale.id, folio=sale.id)
+        conn.commit()
+
+        assert _on_hand(conn, branch_id=branch_id, product_id=product_id) == Decimal("8")
+        assert _available(conn, branch_id=branch_id, product_id=product_id) == Decimal("8")
+
+    def test_the_sale_issue_is_one_movement_for_the_whole_sale(self, conn):
+        """Una venta es UN documento en el libro de inventario, no uno por
+        producto: el libro tiene que poder reconstruirla como tal."""
+        branch_id, cashier = new_uuid(), new_uuid()
+        uno, dos = new_uuid(), new_uuid()
+        _seed_stock(conn, branch_id=branch_id, product_id=uno, quantity="10")
+        _seed_stock(conn, branch_id=branch_id, product_id=dos, quantity="10")
+        sale_id = StartSaleUseCase(_sales_auth()).execute(
+            conn, branch_id=branch_id, cashier_user_id=cashier,
+            operation_id=new_uuid(), actor_user_id=cashier).entity_id
+        for product_id in (uno, dos):
+            AddSaleLineUseCase(_sales_auth()).execute(
+                conn, sale_id=sale_id, product_id=product_id, quantity=Decimal("2"),
+                unit_price=Decimal("10.00"), actor_user_id=cashier, operation_id=new_uuid())
+        sale = SaleRepository(conn).get(sale_id)
+        client = _client(conn, branch_id=branch_id, actor=cashier)
+
+        client.confirm(client.reserve_for_sale(sale), sale_id=sale.id, folio=sale.id)
+        conn.commit()
+
+        movimientos = conn.execute(
+            "SELECT COUNT(*) FROM inventory_ledger WHERE source_document_id=?"
+            " AND movement_type='SALE_ISSUE'", (sale_id,)).fetchone()[0]
+        assert movimientos == 1
+        assert _on_hand(conn, branch_id=branch_id, product_id=uno) == Decimal("8")
+        assert _on_hand(conn, branch_id=branch_id, product_id=dos) == Decimal("8")
+
+    def test_releasing_does_not_touch_on_hand(self, conn):
+        """Cancelar no es vender: la mercancía nunca salió."""
+        branch_id, product_id = new_uuid(), new_uuid()
+        _seed_stock(conn, branch_id=branch_id, product_id=product_id, quantity="10")
+        sale_id, cashier = _sale_with_line(conn, branch_id=branch_id, product_id=product_id)
+        sale = SaleRepository(conn).get(sale_id)
+        client = _client(conn, branch_id=branch_id, actor=cashier)
+
+        client.release(client.reserve_for_sale(sale), reason="cancelada")
+        conn.commit()
+
+        assert _on_hand(conn, branch_id=branch_id, product_id=product_id) == Decimal("10")
+        assert _available(conn, branch_id=branch_id, product_id=product_id) == Decimal("10")
+
+    def test_sell_then_return_round_trips_on_the_same_balance_row(self, conn):
+        """Vender y devolver tienen que tocar LA MISMA fila de saldo.
+
+        Es la comprobación que hubiera detectado el error más caro de esta
+        migración: el saldo se identifica por (producto, sucursal, almacén,
+        estado, ubicación, lote), así que retener en una ubicación y descontar
+        o reponer en otra no da ningún error — parte el stock en dos filas y
+        los números dejan de cuadrar sin que nada falle.
+        """
+        branch_id, product_id = new_uuid(), new_uuid()
+        _seed_stock(conn, branch_id=branch_id, product_id=product_id, quantity="10")
+        sale_id, cashier = _sale_with_line(conn, branch_id=branch_id, product_id=product_id)
+        sale = SaleRepository(conn).get(sale_id)
+        client = _client(conn, branch_id=branch_id, actor=cashier)
+
+        client.confirm(client.reserve_for_sale(sale), sale_id=sale.id, folio=sale.id)
+        conn.commit()
+        assert _on_hand(conn, branch_id=branch_id, product_id=product_id) == Decimal("8")
+
+        client.restore_for_return(
+            product_id=product_id, quantity=Decimal("1"), sale_id=sale.id,
+            operation_id=new_uuid(), actor_user_id=cashier,
+            reason_code="DEVOLUCION", source_document_type="SALE_RETURN")
+        conn.commit()
+
+        assert _on_hand(conn, branch_id=branch_id, product_id=product_id) == Decimal("9")
+        assert _available(conn, branch_id=branch_id, product_id=product_id) == Decimal("9")
 
     def test_releasing_gives_the_stock_back(self, conn):
         branch_id, product_id = new_uuid(), new_uuid()

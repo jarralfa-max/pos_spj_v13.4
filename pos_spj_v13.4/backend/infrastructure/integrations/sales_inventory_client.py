@@ -42,20 +42,32 @@ reservas separadas para el mismo producto chocarían contra la unicidad de
 `operation_id`, que se deriva del par venta+producto para que reservar dos
 veces la misma venta sea idempotente de verdad.
 
-HALLAZGO PENDIENTE, NO RESUELTO AQUÍ
-------------------------------------
-Completar una venta NO descuenta la existencia. No es algo que rompiera esta
-migración: no existe un solo uso de `MovementType.SALE` en todo el repositorio,
-mientras que las devoluciones sí reponen con `SALE_RETURN` (`restore_for_return`,
-más abajo). Es decir, las devoluciones inflan el inventario y las ventas nunca
-lo bajan.
+EL CICLO COMPLETO, Y POR QUÉ ESTABA ROTO
+---------------------------------------
+    reservar   retiene         disponible baja, existencia intacta
+    confirmar  SALE_ISSUE      existencia baja y se suelta la retención
+    liberar    deshace         la mercancía vuelve a estar disponible
+    devolver   SALE_RETURN     la mercancía devuelta vuelve al stock
 
-Este cliente NO lo arregla por su cuenta: registrar la salida cambiaría la
-valuación del inventario y el costo de ventas, que es una decisión del negocio.
-Lo que sí hace es no disimularlo — al cumplirse una reserva la retención se
-mantiene (ver `FulfillReservationUseCase`), de modo que el número de
-"reservado" acumula exactamente lo vendido y no descontado, y el síntoma queda
-medible.
+Hasta ahora faltaba el segundo paso: completar una venta no descontaba nada,
+mientras que las devoluciones sí reponían. Las devoluciones inflaban el
+inventario y las ventas nunca lo bajaban.
+
+Existía un `CanonicalSaleInventoryHandler` que sí registraba `SALE_ISSUE`, pero
+quedó huérfano al desaparecer `core/`: nadie emite ya su evento
+(`SALE_ITEMS_PROCESS`), su suscripción vivía en `core/events/wiring.py` y su
+explosión de recetas depende de un `RecipeResolver` borrado. Por eso el
+descuento se hace aquí, de forma síncrona y atómica con la venta, en lugar de
+resucitar una ruta por eventos que ya no tiene ni emisor ni cableado.
+
+PRODUCTOS COMPUESTOS — LIMITACIÓN CONOCIDA. Ni reservar ni confirmar explotan
+recetas: se retiene y se descuenta el producto vendido, no sus componentes. El
+manejador huérfano sí lo hacía. La simetría es deliberada —descontar componentes
+de algo que se retuvo como compuesto dejaría la retención puesta para siempre—
+pero significa que vender un producto compuesto no consume hoy sus ingredientes.
+Cerrar esto es trabajo del contexto de Productos, que ya tiene
+`RecipeExplosionService` canónico; cuando `reserve_for_sale` lo use, `confirm`
+lo seguirá solo, porque descuenta lo que haya reservado.
 """
 
 from __future__ import annotations
@@ -122,6 +134,14 @@ class SalesInventoryClient:
                 # Este repositorio trata la sucursal como su propio almacén; es
                 # la simplificación ya establecida aquí, no una decisión nueva.
                 warehouse_id=self._branch_id,
+                # La sucursal hace también de ubicación. Es la misma clave que
+                # ya usa `restore_for_return` al reponer, y tiene que serlo:
+                # reservar, descontar y devolver deben caer en LA MISMA fila de
+                # saldo, que se identifica por (producto, sucursal, almacén,
+                # estado, ubicación, lote). Con ubicaciones distintas no salta
+                # ningún error — el stock se parte en dos filas y una de ellas
+                # se queda retenida para siempre.
+                location_id=self._branch_id,
                 source=ReservationSource.SALE, source_document_id=sale.id,
                 quantity=cantidad,
                 operation_id=_reserve_operation_id(sale.id, product_id),
@@ -150,16 +170,38 @@ class SalesInventoryClient:
 
     # ── confirmar / liberar ──────────────────────────────────────────────
     def confirm(self, reservation_handle: str, *, sale_id: str, folio: str) -> None:
-        """La venta se completó: la mercancía salió.
+        """La venta se completó: la mercancía SALE del inventario.
+
+        Dos pasos, en este orden y dentro de la transacción de la venta:
+
+          1. se registra UN movimiento `SALE_ISSUE` con una línea por producto,
+             que baja la existencia real;
+          2. se cumplen las reservas, lo que suelta su retención.
+
+        El orden no es indiferente. Soltar primero dejaría un instante en el que
+        la mercancía ya cobrada figura como disponible; y si el movimiento
+        fallara, se habría liberado stock que en realidad salió.
+
+        SE DESCUENTA EXACTAMENTE LO QUE SE RESERVÓ. Las líneas salen de las
+        reservas activas de la venta, no de `sale.lines`. Así lo retenido y lo
+        descontado no pueden divergir: si mañana `reserve_for_sale` explota
+        recetas de productos compuestos, el descuento las seguirá sin tocar este
+        método. Al revés —reservar el compuesto y descontar sus componentes—
+        dejaría la retención del compuesto puesta para siempre.
 
         `folio` se acepta por compatibilidad con los llamadores actuales pero ya
         no identifica nada: la identidad de la reserva es el documento origen.
-        Se conserva en el parámetro en lugar de cambiar cinco llamadores a la
-        vez; el día que se limpien, se quita de aquí también.
         """
         del folio
+        handle = reservation_handle or sale_id
+        reservations = self._active_reservations(handle)
+        if not reservations:
+            return
+
+        self._post_sale_issue(reservations, sale_id=sale_id)
+
         use_case = FulfillReservationUseCase(self._authorization)
-        for reservation in self._active_reservations(reservation_handle or sale_id):
+        for reservation in reservations:
             result = use_case.execute(
                 self._connection, reservation_id=reservation.id,
                 operation_id=f"{sale_id}:fulfill:{reservation.product_id}",
@@ -167,6 +209,58 @@ class SalesInventoryClient:
             )
             if not result.success:
                 raise InventoryReservationFailedError(result.message)
+
+    def _post_sale_issue(self, reservations, *, sale_id: str) -> None:
+        """Registra la salida de mercancía por venta.
+
+        Un solo movimiento con todas las líneas, no uno por producto: la venta
+        es UN documento, y el libro de inventario debe poder reconstruirla como
+        tal. Es idempotente por `operation_id`, así que reintentar el cobro no
+        descuenta dos veces.
+
+        Se une a la transacción abierta por la venta (`owns_transaction=False`)
+        en lugar de abrir la suya: el descuento y el cobro tienen que caer o
+        confirmarse juntos.
+        """
+        from backend.application.inventory.use_cases.post_inventory_movement import (
+            PostInventoryMovementUseCase,
+        )
+        from backend.domain.inventory.entities.inventory_movement import (
+            InventoryMovement,
+            InventoryMovementLine,
+        )
+        from backend.domain.inventory.enums import InventoryStatus, MovementType
+
+        # La ubicación y el lote salen de la RESERVA, no de la sucursal. El
+        # saldo se identifica por (producto, sucursal, almacén, estado,
+        # ubicación, lote): si el movimiento descontara de una ubicación
+        # distinta de la que retuvo la reserva, estaría tocando OTRA fila de
+        # saldo — la retenida se quedaría retenida para siempre y la otra se
+        # iría a negativo. No da error: parte el stock en dos filas.
+        lines = [
+            InventoryMovementLine.create(
+                product_id=reservation.product_id, quantity=reservation.quantity,
+                from_location_id=reservation.location_id, lot_id=reservation.lot_id,
+                from_status=InventoryStatus.AVAILABLE, reason_code="SALE")
+            for reservation in reservations if reservation.quantity > 0
+        ]
+        if not lines:
+            return
+
+        movement = InventoryMovement.create(
+            movement_type=MovementType.SALE_ISSUE, branch_id=self._branch_id,
+            warehouse_id=self._branch_id, source_module="sales",
+            source_document_type="SALE", source_document_id=str(sale_id),
+            operation_id=f"{sale_id}:sale-issue",
+            created_by_user_id=str(self._actor_user_id), lines=lines)
+        result = PostInventoryMovementUseCase().execute(
+            self._connection, movement, actor_user_id=str(self._actor_user_id),
+            owns_transaction=False)
+        if not result.success:
+            # Nunca se sigue adelante con un descuento fallido: cumplir las
+            # reservas soltaría la retención de mercancía que sigue contada.
+            raise InventoryReservationFailedError(
+                result.message or "No se pudo descontar el inventario de la venta.")
 
     def release(self, reservation_handle: str, *, reason: str = "cancelada") -> None:
         """La operación se canceló: la mercancía vuelve a estar disponible."""

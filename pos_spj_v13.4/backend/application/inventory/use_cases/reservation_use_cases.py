@@ -268,30 +268,29 @@ class AllocateReservationUseCase:
 
 
 class FulfillReservationUseCase:
-    """Marca una reserva como CUMPLIDA: el documento origen se completó.
+    """Marca una reserva como CUMPLIDA y suelta su retención.
 
-    NO ES LO MISMO QUE LIBERAR, y la diferencia es la parte que importa:
+    NO ES LO MISMO QUE LIBERAR, aunque las dos suelten la retención:
 
-      liberar  -> la operación se canceló. La retención se deshace y la
-                  mercancía vuelve a estar disponible para vender.
-      cumplir  -> la venta se completó. La mercancía SALIÓ. La retención se
-                  mantiene, porque soltarla haría que lo ya vendido volviera a
-                  aparecer como disponible en el punto de venta.
+      liberar  -> la operación se canceló. La mercancía NO salió, así que
+                  vuelve a estar disponible para vender.
+      cumplir  -> la venta se completó. La mercancía SALIÓ, y su salida se
+                  registra como un movimiento `SALE_ISSUE` que baja la
+                  existencia real.
 
-    POR QUÉ NO SE DESCUENTA LA EXISTENCIA AQUÍ. Lo coherente sería que al
-    cumplirse la reserva se registrara además un movimiento de inventario de
-    tipo venta que bajara la existencia real, y entonces sí soltar la
-    retención. No se hace, y no es un olvido: hoy NINGUNA parte del sistema
-    registra ese movimiento al completar una venta (verificado: no existe un
-    solo uso de `MovementType.SALE` en todo el repositorio), mientras que las
-    devoluciones sí reponen con `SALE_RETURN`. Hacerlo aquí cambiaría la
-    valuación del inventario y el costo de ventas, que es una decisión del
-    negocio y no de una migración de código.
+    POR QUÉ CUMPLIR TAMBIÉN SUELTA LA RETENCIÓN. El llamador registra el
+    movimiento de salida ANTES de cumplir: eso baja `quantity`. Si además se
+    dejara puesta la retención, la misma mercancía se estaría restando dos
+    veces del disponible (`disponible = quantity - reserved`), y el sistema
+    creería tener menos de lo que tiene. Partiendo de 10 con 2 reservadas:
 
-    Manteniendo la retención, el número de "reservado" acumula exactamente lo
-    vendido y no descontado: el síntoma queda visible y medible en lugar de
-    disolverse. Ver la nota de este hallazgo en
-    `backend/infrastructure/integrations/sales_inventory_client.py`.
+        reservar        quantity=10  reserved=2  disponible=8
+        SALE_ISSUE(-2)  quantity=8   reserved=2  disponible=6   <- transitorio
+        cumplir         quantity=8   reserved=0  disponible=8   <- correcto
+
+    De ahí que este caso de uso NO sea utilizable por sí solo para "cerrar" una
+    reserva: quien lo invoque debe haber registrado la salida. Hacerlo al revés
+    —soltar sin registrar— devolvería al mostrador mercancía ya cobrada.
     """
 
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
@@ -321,6 +320,17 @@ class FulfillReservationUseCase:
                                               entity_id=reservation_id,
                                               operation_id=operation_id,
                                               already_processed=True)
+                # Soltar la retención: la existencia ya bajó con el
+                # movimiento de salida que registró el llamador.
+                balance = uow.balances.get(
+                    product_id=reservation.product_id, branch_id=reservation.branch_id,
+                    warehouse_id=reservation.warehouse_id,
+                    inventory_status=InventoryStatus.AVAILABLE,
+                    location_id=reservation.location_id, lot_id=reservation.lot_id)
+                if balance is not None:
+                    balance.release_reservation(quantity=reservation.quantity,
+                                                weight=reservation.weight)
+                    uow.balances.upsert(balance)
                 uow.reservations.update_status(reservation.id, ReservationStatus.FULFILLED)
                 uow.audit.record(entity_type="RESERVATION", entity_id=reservation.id,
                                  action="FULFILLED", user_id=actor_user_id,
