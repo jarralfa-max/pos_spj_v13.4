@@ -126,4 +126,5 @@ def build_authentication_coordinator(
         on_authenticated=on_authenticated,
         recovery_required_dialog_factory=InstallationRecoveryRequiredDialog,
         locked_dialog_factory=InstallationLockedDialog,
+        revoke_session=session_manager.revoke,
     )

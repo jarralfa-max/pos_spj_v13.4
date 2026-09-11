@@ -74,7 +74,7 @@ def _post_commit_dispatcher(connection):
         from backend.application.procurement.integrations.procurement_outbox_dispatcher import (
             dispatch_procurement_outbox,
         )
-        from core.events.event_bus import get_bus
+        from backend.shared.events.application_bus import get_bus
         dispatch_procurement_outbox(connection, get_bus())
     return _dispatch
 

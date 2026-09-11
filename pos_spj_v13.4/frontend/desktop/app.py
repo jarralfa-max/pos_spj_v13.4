@@ -183,7 +183,7 @@ def main() -> int:
     try:
         from frontend.desktop.themes.theme_manager import ThemeManager
 
-        ThemeManager.instance().apply(app)
+        ThemeManager.instance().restore(app)
     except Exception as exc:
         logger.warning("No se pudo aplicar el tema guardado: %s", exc)
 

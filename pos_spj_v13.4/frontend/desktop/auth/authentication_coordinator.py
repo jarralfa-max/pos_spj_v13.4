@@ -45,6 +45,7 @@ class AuthenticationCoordinator:
         on_authenticated: Callable[[ApplicationContext], None],
         recovery_required_dialog_factory: Optional[Callable[[], QDialog]] = None,
         locked_dialog_factory: Optional[Callable[[], QDialog]] = None,
+        revoke_session: Optional[Callable[[str], object]] = None,
     ) -> None:
         self._installation_status_query = installation_status_query
         self._setup_wizard_factory = setup_wizard_factory
@@ -53,6 +54,13 @@ class AuthenticationCoordinator:
         self._on_authenticated = on_authenticated
         self._recovery_required_dialog_factory = recovery_required_dialog_factory
         self._locked_dialog_factory = locked_dialog_factory
+        self._revoke_session = revoke_session
+
+    def logout(self, session_id: str) -> None:
+        """Use the existing session service before reopening authentication."""
+        if self._revoke_session is None:
+            raise RuntimeError("Session revocation is not configured")
+        self._revoke_session(session_id)
 
     def run(self) -> bool:
         """Returns True iff `on_authenticated` was invoked. False covers

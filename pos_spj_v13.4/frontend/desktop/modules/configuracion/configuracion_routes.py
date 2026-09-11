@@ -161,7 +161,6 @@ def create_configuracion_view(container, parent=None):
     from backend.infrastructure.db.repositories.settings.configuracion_security_repositories import (
         ConfiguracionAuditLogRepository,
     )
-    from core.permissions import verificar_permiso
     from frontend.desktop.modules.configuracion.configuracion_presenter import ConfiguracionPresenter
     from frontend.desktop.modules.configuracion.configuracion_view import ConfiguracionView
 
@@ -266,7 +265,20 @@ def create_configuracion_view(container, parent=None):
     )
 
     def has_permission(permission: str) -> bool:
-        return verificar_permiso(container, permission, mostrar_alerta=False)
+        """Comprobación para OCULTAR opciones del menú, no para autorizar.
+
+        Usa la MISMA política que ya valida las operaciones (`authorization`,
+        construida arriba con el verificador de la sesión viva), no un camino
+        paralelo: dos formas distintas de responder "¿puede?" acaban
+        divergiendo, y entonces la interfaz muestra un botón que la operación
+        va a rechazar.
+
+        `has_permission` no lanza — devuelve False. Es lo correcto para pintar
+        una pantalla: quedarse sin una opción no es un error, y quien sí
+        autoriza de verdad es `require()` en cada caso de uso.
+        """
+        return authorization.has_permission(
+            getattr(session, "user_id", "") or "", permission)
 
     pending_flag_requests = len(presenter.list_pending_feature_flag_change_requests())
     badges = {"pending_flag_requests": pending_flag_requests} if pending_flag_requests else {}

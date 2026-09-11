@@ -56,16 +56,16 @@ class Light:
     INFO_BORDER = "#8FBFC7"
 
     # surfaces
-    BACKGROUND = "#FAF6EF"
-    SURFACE = "#FFFFFF"
-    SURFACE_ELEVATED = "#FFFFFF"
-    SURFACE_MUTED = "#F3EBDD"
+    BACKGROUND = BrandColors.WARM_WHITE
+    SURFACE = BrandColors.WHITE
+    SURFACE_ELEVATED = BrandColors.WHITE
+    SURFACE_MUTED = BrandScale.CREAM_300
 
     # text
-    TEXT_PRIMARY = "#1A241E"
-    TEXT_SECONDARY = "#544027"
-    TEXT_MUTED = "#6B5943"
-    TEXT_INVERSE = "#FBF7F0"
+    TEXT_PRIMARY = BrandColors.CHARCOAL
+    TEXT_SECONDARY = BrandScale.BROWN_400
+    TEXT_MUTED = BrandScale.BROWN_300
+    TEXT_INVERSE = BrandColors.WHITE
     TEXT_DISABLED = "#9C8F7B"
 
     # borders
@@ -124,10 +124,10 @@ class Dark:
     INFO_BORDER = "#356068"
 
     # surfaces (near-black green → elevated)
-    BACKGROUND = "#0F1512"
-    SURFACE = "#182420"
-    SURFACE_ELEVATED = "#22322B"
-    SURFACE_MUTED = "#131D19"
+    BACKGROUND = BrandScale.BROWN_800
+    SURFACE = BrandColors.CHARCOAL
+    SURFACE_ELEVATED = BrandScale.BROWN_400
+    SURFACE_MUTED = BrandScale.BROWN_700
 
     # text
     TEXT_PRIMARY = "#F1E9DA"

@@ -20,11 +20,13 @@ from frontend.desktop.themes.tokens import (
     Radii,
     TableMetrics,
     Typography,
+    density_metrics,
 )
 
 
-def build_qss(theme: str = "light") -> str:
+def build_qss(theme: str = "light", *, density="comfortable") -> str:
     c = SemanticColors.for_theme(theme)
+    metrics = density_metrics(density)
     parts = [
         _base(c),
         _buttons(c),
@@ -38,8 +40,69 @@ def build_qss(theme: str = "light") -> str:
         _tooltip(c),
         _dialogs(c),
         _forms(c),
+        _interaction(c, metrics),
     ]
     return "\n\n".join(parts)
+
+
+def _interaction(c, metrics) -> str:
+    """One density and interaction policy also covers native Qt controls."""
+    return f'''
+QPushButton, QToolButton {{
+    background: {c.SURFACE}; color: {c.TEXT_PRIMARY};
+    border: 1px solid {c.BORDER_DEFAULT}; border-radius: {Radii.MD}px;
+    min-height: {metrics.button_height - 2}px; padding: 0 10px;
+}}
+QPushButton[variant], QToolButton[variant] {{ min-height: {metrics.button_height - 2}px; }}
+QPushButton:hover, QToolButton:hover {{ background: {c.SURFACE_MUTED}; }}
+QPushButton:pressed, QToolButton:pressed {{ background: {c.SELECTION}; }}
+QPushButton[variant="ghost"], QPushButton[variant="icon"] {{
+    background: transparent; border: 1px solid transparent; border-radius: {Radii.MD}px;
+}}
+QPushButton[variant="ghost"]:hover, QPushButton[variant="icon"]:hover {{ background: {c.PRIMARY_SUBTLE}; }}
+QPushButton[variant="ghost"]:pressed, QPushButton[variant="icon"]:pressed {{ background: {c.SELECTION}; }}
+QPushButton[iconOnly="true"] {{
+    min-width: {metrics.icon_button_size - 2}px;
+    min-height: {metrics.icon_button_size - 2}px; padding: 0;
+}}
+QPushButton:disabled, QToolButton:disabled, QPushButton[variant="ghost"]:disabled,
+QPushButton[variant="icon"]:disabled {{
+    color: {c.TEXT_DISABLED}; background: {c.DISABLED_BACKGROUND}; border-color: {c.DISABLED_BORDER};
+}}
+QPushButton:focus, QPushButton[variant]:focus, QToolButton:focus {{
+    border: 2px solid {c.FOCUS_RING};
+}}
+QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QTimeEdit, QDateTimeEdit {{
+    min-height: {metrics.input_height - 2 * InputMetrics.PADDING_VERTICAL - 2}px;
+}}
+QAbstractSpinBox:disabled, QTextEdit:disabled, QPlainTextEdit:disabled {{
+    color: {c.TEXT_DISABLED}; background: {c.DISABLED_BACKGROUND}; border-color: {c.DISABLED_BORDER};
+}}
+QAbstractSpinBox[state="error"], QTextEdit[state="error"], QPlainTextEdit[state="error"] {{
+    border: 2px solid {c.DANGER_DEFAULT};
+}}
+QCheckBox, QRadioButton {{ min-height: {metrics.input_height}px; spacing: 8px; }}
+QCheckBox:focus, QRadioButton:focus {{ border: 2px solid {c.FOCUS_RING}; }}
+QTabWidget::pane {{ border: 1px solid {c.BORDER_DEFAULT}; background: {c.SURFACE}; }}
+QTabBar::tab {{
+    min-height: {metrics.tab_height - 2}px; padding: 0 16px;
+    color: {c.TEXT_SECONDARY}; background: {c.SURFACE_MUTED}; border: 1px solid {c.BORDER_DEFAULT};
+}}
+QTabBar::tab:selected {{ color: {c.PRIMARY_DEFAULT}; background: {c.SURFACE}; border-bottom: 3px solid {c.PRIMARY_DEFAULT}; }}
+QTabBar::tab:hover {{ background: {c.PRIMARY_SUBTLE}; }}
+QTabBar::tab:disabled {{ color: {c.TEXT_DISABLED}; }}
+QMenu {{ background: {c.SURFACE_ELEVATED}; border: 1px solid {c.BORDER_DEFAULT}; padding: 4px; }}
+QMenu::item {{ min-height: {metrics.sidebar_item_height - 8}px; padding: 4px 20px; }}
+QMenu::item:selected {{ background: {c.SELECTION}; color: {c.TEXT_PRIMARY}; }}
+QMenu::item:disabled {{ color: {c.TEXT_DISABLED}; }}
+QScrollBar:vertical {{ background: {c.SURFACE_MUTED}; width: 16px; margin: 0; }}
+QScrollBar:horizontal {{ background: {c.SURFACE_MUTED}; height: 16px; margin: 0; }}
+QScrollBar::handle {{ background: {c.BORDER_STRONG}; border-radius: 4px; min-width: 24px; min-height: 24px; }}
+QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; }}
+QFrame#topBar, QFrame#globalSidebar, QFrame#moduleSidebar {{ background: {c.SURFACE}; }}
+QPushButton[navActive="true"] {{ background: {c.SELECTION}; border-left: 3px solid {c.PRIMARY_DEFAULT}; }}
+QLabel[role="notificationBadge"] {{ color: {c.TEXT_INVERSE}; background: {c.DANGER_DEFAULT}; border-radius: 8px; padding: 2px 5px; }}
+'''.strip()
 
 
 def _base(c) -> str:

@@ -29,6 +29,7 @@ from backend.security.recovery.complete_account_recovery_use_case import Complet
 from backend.security.sessions.errors import AccountLockedError
 from frontend.desktop.auth.account_recovery_dialog import AccountRecoveryDialog
 from frontend.desktop.components.buttons import create_ghost_button, create_primary_button
+from frontend.desktop.components.branding import BrandLabel
 from frontend.desktop.components.dialogs import StandardDialog
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.text_inputs import PasswordInput, StandardLineEdit
@@ -54,6 +55,7 @@ class LoginWindow(StandardDialog):
         self.authentication_result: AuthenticationResult | None = None
 
         summary = installation_summary_query.get_summary()
+        self.content_layout().addWidget(BrandLabel(self))
         header_subtitle = summary.company_name
         if summary.branch_name:
             header_subtitle = f"{summary.company_name} — {summary.branch_name}"

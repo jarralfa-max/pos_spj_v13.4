@@ -6,12 +6,21 @@ quality profile, duplicate barcode, failed import, discontinued-still-active).
 Before this existed, `ProductNotificationGateway` had "a real channel to the
 repo's actual WhatsApp service" named as an explicit gap in this bounded
 context's own re-audit — only `InMemoryProductNotifier` (test double)
-implemented the Protocol. Delegates to the real, canonical
-`core/services/whatsapp_service.py::WhatsAppService` (the same service every
-other module's WhatsApp alerts go through) rather than talking to any
-transport directly — `send_message` enqueues onto that service's own
-persistent, offline-first queue; delivery timing/retries are its job, not
-this notifier's.
+implemented the Protocol. Delega en `backend.infrastructure.integrations.whatsapp_client.WhatsAppClient`,
+el mismo que usa Pedidos/Reparto desde la reconstrucción.
+
+SE PERDIÓ LA COLA, y conviene saberlo. El servicio anterior
+(`core/services/whatsapp_service.py`) encolaba en un almacén persistente y
+offline-first: entregar y reintentar eran problema suyo. Ese servicio
+desapareció con `core/` y el contexto canónico de notificaciones no tiene una
+cola equivalente — sólo cuentas, plantillas y rutas, que son configuración.
+
+El cliente actual hace una petición directa. Consecuencia concreta: una alerta
+que se dispare con el equipo sin conexión NO se reintenta, se pierde. Para
+alertas de producto —consultivas, no transaccionales— es un coste asumible
+mientras exista; para algo que no pueda perderse, haría falta una bandeja de
+salida antes de enrutarlo por aquí. El microservicio ya tiene su propio
+despachador de salida, así que ése es el sitio natural de esa cola.
 
 ``recipient_ref`` is an E.164-ish phone number, not a user id — WhatsApp has
 no other address space. This is a real, narrower scope than the IN_APP
@@ -33,11 +42,18 @@ class WhatsAppProductNotifier:
     enforces this)."""
 
     def __init__(self, connection) -> None:
-        from core.services.whatsapp_service import WhatsAppService
-        self._service = WhatsAppService(conn=connection)
+        from backend.infrastructure.integrations.whatsapp_client import WhatsAppClient
+
+        self._client = WhatsAppClient(connection=connection)
 
     def send(self, *, channel: str, recipient_ref: str, message: str,
              context: dict) -> None:
-        branch_id = (context or {}).get("branch_id")
-        self._service.send_message(
-            branch_id=branch_id, phone_number=recipient_ref, message=message)
+        """Entrega la alerta. Nunca lanza.
+
+        `context` ya no se usa: el endpoint del microservicio no recibe
+        sucursal — el número de teléfono es toda la dirección que necesita. Se
+        conserva el parámetro porque lo fija el `ProductNotificationGateway`
+        que esta clase implementa.
+        """
+        del context
+        self._client.enviar_mensaje(recipient_ref, message)

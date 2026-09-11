@@ -36,9 +36,11 @@ would drive `DesktopRouter` directly.
 """
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QHBoxLayout, QMainWindow, QVBoxLayout, QWidget
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
 
 from backend.bootstrap.application_context import ApplicationContext
+from frontend.desktop.components.standard_window import StandardWindow
 from frontend.desktop.shell.application_shell.content_host import ContentHost
 from frontend.desktop.shell.background.background_service_supervisor import BackgroundServiceSupervisor
 from frontend.desktop.shell.application_shell.notification_drawer import NotificationDrawer
@@ -55,7 +57,8 @@ from frontend.desktop.shell.shutdown.shutdown_result import ShutdownResult
 from frontend.desktop.shell.sidebar.global_sidebar import GlobalSidebar
 
 
-class ApplicationWindow(QMainWindow):
+class ApplicationWindow(StandardWindow):
+    logout_requested = pyqtSignal()
     def __init__(
         self, *, router: DesktopRouter, sidebar: GlobalSidebar | None = None,
         module_loader: ModuleLoader | None = None,
@@ -79,6 +82,9 @@ class ApplicationWindow(QMainWindow):
         self.sidebar = sidebar
 
         self.top_bar.notifications_toggled.connect(self.notification_drawer.toggle)
+        self.top_bar.logout_requested.connect(self._confirm_logout)
+        self.top_bar.exit_requested.connect(self.close)
+        self.top_bar.settings_requested.connect(self._open_settings)
         self.notification_drawer.unread_count_changed.connect(self.top_bar.set_unread_notification_count)
         if self.sidebar is not None:
             self.sidebar.item_activated.connect(self.navigate)
@@ -153,6 +159,23 @@ class ApplicationWindow(QMainWindow):
         self.top_bar.set_context(context)
         self.status_bar.set_workstation(context.workstation_id, context.branch_name)
         self.status_bar.set_offline_status(context.offline_status)
+        settings_route = self._router.route_registry.get("configuracion.home")
+        allowed = settings_route is not None and (
+            context.is_admin() or not settings_route.required_permission
+            or settings_route.required_permission in context.permissions or "*" in context.permissions
+        )
+        self.top_bar._settings_button.setEnabled(allowed)
+
+    def _open_settings(self) -> None:
+        self.navigate("configuracion.home")
+
+    def _confirm_logout(self) -> None:
+        result = QMessageBox.question(
+            self, "Cerrar sesión", "¿Desea cerrar la sesión actual? Guarde los cambios pendientes antes de continuar.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if result == QMessageBox.Yes:
+            self.logout_requested.emit()
 
     def _build_error_result(self, route: RouteDefinition, error: BaseException) -> NavigationResult:
         view = build_module_error_view(

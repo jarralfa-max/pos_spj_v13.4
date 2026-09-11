@@ -1,6 +1,6 @@
 """Official JUANIS brand identity palette (FASE DS-1).
 
-These five colors are the brand identity — not a direct mapping to every
+These six colors are the brand identity — not a direct mapping to every
 functional state. Semantic tokens (``semantic_colors.py``) derive accessible
 variants from these bases. Only the theme layer may hold explicit colors.
 """
@@ -11,13 +11,18 @@ from frontend.desktop.themes.color_utils import darken, lighten
 
 
 class BrandColors:
-    """The five canonical JUANIS colors."""
+    """Official assets and these anchors define the JUANIS identity."""
 
-    FOREST_GREEN = "#1F3B2E"      # identidad principal / primario
-    TRADITIONAL_RED = "#A52E2A"   # errores / acciones destructivas
-    PREMIUM_GOLD = "#C7A254"      # acentos / detalles premium
-    SOFT_CREAM = "#F2E6CF"        # fondos cálidos suaves
-    EARTH_BROWN = "#6B4A2E"       # bordes cálidos / texto secundario
+    FOREST_GREEN = "#18372B"
+    WHITE = "#FFFFFF"
+    PREMIUM_GOLD = "#C6A15B"
+    TRADITIONAL_RED = "#9D2927"
+    CHARCOAL = "#252825"
+    WARM_WHITE = "#F8F8F5"
+
+    # Existing scale consumers retain their API, derived from official anchors.
+    SOFT_CREAM = WARM_WHITE
+    EARTH_BROWN = CHARCOAL
 
 
 class BrandScale:

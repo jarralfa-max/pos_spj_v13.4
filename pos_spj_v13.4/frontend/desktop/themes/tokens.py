@@ -7,6 +7,40 @@ repeating raw pixel numbers. Colors live in ``semantic_colors.py``.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
+from backend.domain.appearance.enums import DensityLevel as Density
+
+
+@dataclass(frozen=True)
+class DensityMetrics:
+    input_height: int
+    button_height: int
+    table_row_height: int
+    sidebar_item_height: int
+    tab_height: int
+    icon_button_size: int
+
+
+DENSITY_PROFILES = {
+    "compact": DensityMetrics(34, 34, 32, 36, 36, 32),
+    "comfortable": DensityMetrics(42, 42, 42, 44, 42, 42),
+    "touch": DensityMetrics(52, 52, 52, 52, 48, 48),
+}
+
+
+def normalize_density(value) -> str:
+    name = str(getattr(value, "value", value)).lower()
+    # NORMAL is an existing persisted domain value, not a fourth UI profile.
+    return name if name in DENSITY_PROFILES else "comfortable"
+
+
+def density_metrics(value=None) -> DensityMetrics:
+    if value is None:
+        from frontend.desktop.themes.theme_manager import ThemeManager
+        value = ThemeManager.instance().density
+    return DENSITY_PROFILES[normalize_density(value)]
+
 
 class Spacing:
     XXS = 2
@@ -95,11 +129,11 @@ class TableMetrics:
 class TouchTarget:
     """Minimum touch-friendly targets for frequently used POS screens."""
 
-    MIN_HEIGHT = 40
-    BUTTON_HEIGHT = 40
-    TABLE_ROW_HEIGHT = 40
-    ICON_BUTTON_SIZE = 40
-    INPUT_HEIGHT = 40
+    MIN_HEIGHT = 48
+    BUTTON_HEIGHT = 52
+    TABLE_ROW_HEIGHT = 52
+    ICON_BUTTON_SIZE = 48
+    INPUT_HEIGHT = 52
 
 
 class DialogMetrics:
@@ -140,6 +174,7 @@ class TooltipMetrics:
 
 class SidebarMetrics:
     WIDTH = 240
+    COLLAPSED_WIDTH = 64
     ITEM_HEIGHT = 40
 
 
@@ -149,6 +184,8 @@ class ResponsiveBreakpoints:
     COMPACT = 1366
     STANDARD = 1440
     WIDE = 1920
+    VALIDATION_SIZES = ((1280, 720), (1366, 768), (1440, 900),
+                        (1600, 900), (1920, 1080))
 
 
 class AnimationDurations:

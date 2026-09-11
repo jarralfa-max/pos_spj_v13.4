@@ -81,10 +81,31 @@ class SalesCustomerClient:
             self._connection, legacy_customer_id=legacy_customer_id, source="sales_pos_scan")
 
     def lookup_by_card(self, card_code: str) -> dict | None:
-        """Legacy-table lookup (confirmed the only real card-scan path in
-        this repository) — returns a raw `clientes` row dict, a LEGACY id.
-        Callers must pass it through `resolve_legacy_customer()` before
-        using it as `Sale.customer_id`."""
-        from repositories.cliente_repository import ClienteRepository
+        """Busca un cliente por lo que trae el escáner. Fila LEGACY de `clientes`.
 
-        return ClienteRepository(self._connection).get_by_scanner(card_code)
+        Un escáner de mostrador puede leer cosas muy distintas —el id impreso
+        en una credencial, un teléfono, un QR, un código de fidelidad— y el
+        cajero no sabe cuál es cuál: por eso se prueban todas con el mismo
+        texto en lugar de pedirle que elija.
+
+        `codigo_fidelidad` sólo existe a partir de cierta migración, así que se
+        comprueba antes de nombrarla: en una base que no la tenga, la consulta
+        entera fallaría y el escáner dejaría de encontrar a NADIE, no sólo por
+        fidelidad.
+
+        Devuelve el id LEGACY. Quien llame debe pasarlo por
+        `resolve_legacy_customer()` antes de usarlo como `Sale.customer_id`.
+        """
+        columnas = {
+            fila[1] for fila in self._connection.execute("PRAGMA table_info(clientes)")
+        }
+        campos = ["CAST(id AS TEXT)", "telefono", "codigo_qr"]
+        if "codigo_fidelidad" in columnas:
+            campos.append("codigo_fidelidad")
+        condicion = " OR ".join(f"{campo}=?" for campo in campos)
+
+        row = self._connection.execute(
+            f"SELECT * FROM clientes WHERE ({condicion}) AND activo=1 LIMIT 1",
+            tuple(card_code for _ in campos),
+        ).fetchone()
+        return dict(row) if row is not None else None
