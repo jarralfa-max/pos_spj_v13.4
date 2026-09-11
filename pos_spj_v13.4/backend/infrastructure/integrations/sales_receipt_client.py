@@ -27,15 +27,15 @@ template_engine.TicketTemplateEngine.generar_ticket()`, a genuinely
 UI-independent engine (constructor takes a bare `db_conn`, no QWidget) that
 reads the SAME `configuraciones.ticket_template_html` template the UI's
 designer saves, with the SAME default-template fallback
-(`core.engines.template_engine.default_ticket_template()`) production uses when
-none is configured. `save_receipt_document()` below reuses that exact
-engine and that exact fallback — not a simplified stand-in, not a second
-competing implementation — so the saved document matches what
-`SalesService` itself would have produced for the same sale. `core.
-services.printer_service.save_ticket_pdf(html, filepath)` still does the
-actual file write (worth knowing, found while reading it: despite its
-name, it writes raw HTML bytes, not real PDF — a pre-existing characteristic
-of that function, not this client's bug to fix).
+(`backend.infrastructure.printing.ticket_template.default_ticket_template()`)
+que se usa cuando no hay ninguna configurada. `save_receipt_document()` reutiliza
+ese mismo motor y ese mismo respaldo — no un sustituto simplificado ni una
+segunda implementación que compita.
+
+La escritura la hace `save_ticket_document()`. Su predecesora se llamaba
+`save_ticket_pdf()` y escribía HTML crudo, no PDF, pese al nombre; se conservó
+el comportamiento y se corrigió el nombre, porque un `.pdf` que en realidad es
+HTML no lo abre el visor que le corresponde y el error aparece lejos de aquí.
 """
 
 from __future__ import annotations
@@ -215,11 +215,11 @@ class SalesReceiptClient:
         lookups)."""
         if self._connection is None:
             raise RuntimeError("save_receipt_document requiere una connection")
-        from core.engines.template_engine import (
+        from backend.infrastructure.printing.ticket_template import (
             TicketTemplateEngine,
             default_ticket_template,
         )
-        from core.services.printer_service import save_ticket_pdf
+        from backend.infrastructure.printing.transport import save_ticket_document
 
         try:
             row = self._connection.execute(
@@ -229,4 +229,4 @@ class SalesReceiptClient:
         template_html = (row[0] if row and row[0] else None) or default_ticket_template()
         html = TicketTemplateEngine(self._connection).generar_ticket(
             template_html, self._to_ticket_payload(receipt))
-        return save_ticket_pdf(html, filepath)
+        return save_ticket_document(html, filepath)

@@ -89,7 +89,7 @@ class NetworkLabelPrintGateway:
 
         transport, destination, baud = self._connection_target(profile)
 
-        from core.services.printer_service import PrintTransport
+        from backend.infrastructure.printing.transport import PrintTransport
 
         try:
             ok = PrintTransport.send(data, transport, destination, baud=baud)
@@ -125,7 +125,7 @@ class NetworkLabelPrintGateway:
 
     @staticmethod
     def _connection_target(profile: DeviceProfile):
-        from core.services.printer_service import TransportType
+        from backend.infrastructure.printing.transport import TransportType
 
         connection_type = profile.connection_profile.connection_type
         if connection_type in _NETWORK_TYPES:

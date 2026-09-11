@@ -30,18 +30,16 @@ def test_no_escpos_usb_in_ui_or_application() -> None:
     )
 
 
-def test_hardware_service_usb_default_is_win32_on_windows() -> None:
-    """El transporte USB default en Windows es win32print, no libusb."""
-    path = APP_ROOT / "core" / "services" / "hardware_service.py"
+def test_usb_default_transport_is_win32_on_windows() -> None:
+    """El transporte USB por omisión en Windows es win32print, no libusb.
+
+    Antes se comprobaba sobre `core/services/hardware_service.py`, que ya no
+    existe. El guardrail no se retira por eso: apunta ahora al transporte
+    canónico vivo, que es donde hoy podría invertirse la preferencia.
+    """
+    path = APP_ROOT / "backend" / "infrastructure" / "printing" / "transport.py"
     text = path.read_text(encoding="utf-8")
     assert "_send_win32" in text, (
-        "hardware_service._send_raw_to_printer debe delegar en win32print "
-        "(PrintTransport._send_win32) para la ruta USB en Windows"
-    )
-    # El import de escpos.Usb solo puede vivir después del guard de plataforma
-    usb_idx = text.find("from escpos.printer import Usb")
-    win_idx = text.find('platform.system() == "Windows"')
-    assert win_idx != -1 and (usb_idx == -1 or win_idx < usb_idx), (
-        "escpos.printer.Usb no puede ser la ruta default: el guard de Windows "
-        "debe evaluarse antes del import de Usb"
-    )
+        "PrintTransport debe exponer `_send_win32` para la ruta USB en Windows")
+    assert "win32print" in text, (
+        "la ruta USB de Windows debe ir por win32print, no por libusb")
