@@ -35,6 +35,8 @@ from pathlib import Path
 from backend.bootstrap.bootstrap_context import BootstrapContext
 from backend.bootstrap.bootstrap_result import BootstrapResult
 from backend.bootstrap.desktop_application_bootstrapper import DesktopApplicationBootstrapper
+from backend.bootstrap.health.application_health_check_runner import ApplicationHealthCheckRunner
+from backend.bootstrap.health.checks import default_health_checks
 from backend.bootstrap.steps.database_integrity_step import DatabaseIntegrityStep
 from backend.bootstrap.steps.database_migration_step import DatabaseMigrationStep
 from backend.bootstrap.steps.installation_state_step import InstallationStateStep
@@ -60,5 +62,18 @@ def run_database_bootstrap_sequence(db_path: str | Path) -> BootstrapResult:
     since a caller inspecting a FATAL failure may still need it (e.g. to
     read `PRAGMA integrity_check` details) before deciding what to do next.
     """
-    bootstrapper = DesktopApplicationBootstrapper(database_bootstrap_steps())
+    # El informe de salud NO es opcional para quien llama: el menú lateral lo
+    # exige para decidir qué módulos puede ofrecer
+    # (`ModuleHealthEvaluator.unmet_requirements()` lee `report.checks`, de modo
+    # que un `None` no degrada nada — revienta con AttributeError justo después
+    # del login, que es el peor momento posible para descubrirlo).
+    #
+    # Añadirlo aquí no cambia lo que se considera un arranque fallido: el
+    # `DesktopApplicationBootstrapper` ejecuta los chequeos DESPUÉS de los pasos
+    # y su resultado sólo viaja en `BootstrapResult.health_report`; ningún
+    # chequeo en mal estado convierte un arranque correcto en fallido.
+    bootstrapper = DesktopApplicationBootstrapper(
+        database_bootstrap_steps(),
+        health_check_runner=ApplicationHealthCheckRunner(default_health_checks()),
+    )
     return bootstrapper.bootstrap(BootstrapContext(db_path=Path(db_path)))

@@ -185,10 +185,18 @@ def get_permisos(usuario_id: int, sucursal_id: int = 1) -> Set[str]:
 
 def _bi_permissions() -> Set[str]:
     """Permisos completos del módulo BI, derivados del catálogo canónico."""
+    # El `except` de abajo degradaba en silencio: cuando `core/` desapareció,
+    # gerencia pasó de tener el BI completo a tener sólo `ver`, sin un solo
+    # mensaje. Se conserva el repliegue (fallar cerrado es correcto) pero ahora
+    # deja rastro, que es lo único que faltaba para poder notarlo.
     try:
-        from core.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
+        from backend.application.security.permission_catalog import (
+            CANONICAL_MODULE_PERMISSIONS,
+        )
         acciones = CANONICAL_MODULE_PERMISSIONS.get("INTELIGENCIA_BI", ["ver"])
     except Exception:
+        logger.exception(
+            "No se pudo leer el catálogo de permisos; BI queda limitado a 'ver'.")
         acciones = ["ver"]
     return {f"INTELIGENCIA_BI.{a}" for a in acciones}
 

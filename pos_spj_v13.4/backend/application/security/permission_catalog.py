@@ -122,7 +122,18 @@ _DECLARED_MODULE_ACTIONS: dict[str, tuple[str, ...]] = {
     # Códigos planos previos a BI-2 que siguen otorgados en instalaciones
     # existentes. Se conservan por compatibilidad hacia atrás, tal como exige
     # tests/architecture/test_analytics_permissions_are_granular.py.
-    "INTELIGENCIA_BI": ("ver", "ver_ventas", "ver_finanzas", "exportar", "configurar"),
+    #
+    # La lista NO es la del test, que sólo nombra cinco: es la de
+    # `SECTION_PERMISSION`
+    # (backend/application/analytics/services/bi_dashboard_service.py), que es
+    # código VIVO y decide qué secciones del tablero ve cada quien. Una sección
+    # cuyo código no esté aquí no es otorgable desde la matriz de permisos y
+    # queda invisible para todo el mundo salvo el administrador.
+    "INTELIGENCIA_BI": (
+        "ver", "ver_ventas", "ver_inventario", "ver_compras", "ver_caja",
+        "ver_clientes", "ver_proveedores", "ver_finanzas", "ver_merma",
+        "exportar", "configurar",
+    ),
 
     # Entrada gruesa de Transferencias. El valor exacto está documentado en el
     # docstring de backend/application/transfers/session_authorization.py, que

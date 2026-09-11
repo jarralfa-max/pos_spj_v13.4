@@ -177,7 +177,7 @@ class SupplierContactDialog(_SupplierDialog):
         return {
             "name": self._name.value(), "contact_type": self._type.current_id(),
             "role": self._role.value(),
-            "phone_e164": self._phone.get_e164() if hasattr(self._phone, "get_e164") else None,
+            "phone_e164": self._phone.value() or None,
             "email": self._email.email() or None, "is_primary": self._primary.isChecked(),
         }
 
