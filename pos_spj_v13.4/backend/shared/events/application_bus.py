@@ -117,6 +117,22 @@ class ApplicationEventBus:
                     suscripcion.label, event_name)
         return atendidos
 
+    def unsubscribe(self, event_name: str, handler: Callable[[dict], Any]) -> bool:
+        """Retira UNA suscripción. True si estaba.
+
+        Hace falta de verdad: una pantalla que se cierra debe dejar de recibir
+        eventos, o seguirá reaccionando a cambios sobre widgets ya destruidos.
+        """
+        with self._lock:
+            suscripciones = self._subscriptions.get(str(event_name))
+            if not suscripciones:
+                return False
+            quedan = [s for s in suscripciones if s.handler is not handler]
+            if len(quedan) == len(suscripciones):
+                return False
+            self._subscriptions[str(event_name)] = quedan
+            return True
+
     def unsubscribe_all(self) -> None:
         """Vacía el bus. Para pruebas: un bus de proceso conserva estado entre
         casos y una suscripción olvidada haría fallar al siguiente."""

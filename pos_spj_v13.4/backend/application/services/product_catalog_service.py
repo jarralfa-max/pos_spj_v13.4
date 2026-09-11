@@ -12,26 +12,54 @@ from backend.shared.events.event_contracts import create_domain_event
 from backend.shared.events.event_names import EventName
 from backend.shared.ids import new_uuid
 
+from backend.domain.products.events import ProductEvents
+from backend.shared.events.application_bus import get_bus
+
 logger = logging.getLogger("spj.products.catalog")
+
+
+#: Qué evento canónico corresponde a cada mutación del catálogo.
+_CATALOG_EVENT_BY_ACTION = {
+    "created": ProductEvents.PRODUCT_CREATED,
+    "updated": ProductEvents.PRODUCT_UPDATED,
+    "deactivated": ProductEvents.PRODUCT_DEACTIVATED,
+}
 
 
 def _publish_catalog_change(action: str, *, product_id: str, product_name: str,
                             active: bool, operation_id: str = "") -> None:
-    """POST-COMMIT: propaga el cambio de catálogo al EventBus del runtime.
+    """POST-COMMIT: avisa de que el catálogo cambió, para refrescar en caliente.
 
-    Emite product_created/updated/deactivated + products_changed + el canal
-    legacy (PRODUCTO_CREADO/...). Nunca lanza — el guardado ya fue confirmado.
+    Emite DOS eventos, y no es redundancia: el concreto
+    (`PRODUCT_CREATED`/`UPDATED`/`DEACTIVATED`) para quien reacciona a ese hecho
+    en particular, y `PRODUCTS_CHANGED` para quien sólo necesita saber que su
+    lista quedó vieja. Sin el segundo, cada pantalla que muestra productos
+    tendría que suscribirse a los tres y repetir la misma reacción.
+
+    YA NO SE EMITE EL CANAL EN ESPAÑOL (`PRODUCTO_CREADO`…). Sus suscriptores
+    vivían en `modulos/`, que ya no existe, y el propio `ProductEvents` declara
+    en su docstring que los nombres canónicos reemplazan esas señales. Seguir
+    emitiéndolo sería publicar para nadie.
+
+    NUNCA LANZA: el guardado ya se confirmó. Que falle el aviso no puede
+    deshacer un producto que ya está en la base.
     """
+    event_name = _CATALOG_EVENT_BY_ACTION.get(action)
+    if event_name is None:
+        logger.warning("Acción de catálogo desconocida, no se publica: %r", action)
+        return
+
+    payload = {
+        "product_id": str(product_id or ""),
+        "product_name": str(product_name or ""),
+        "active": bool(active),
+        "source_module": "product_catalog",
+        "operation_id": str(operation_id or ""),
+    }
     try:
-        from core.events.catalog_events import publish_product_event
-        publish_product_event(
-            action,
-            product_id=str(product_id or ""),
-            product_name=str(product_name or ""),
-            active=bool(active),
-            source_module="product_catalog",
-            operation_id=str(operation_id or ""),
-        )
+        bus = get_bus()
+        bus.publish(event_name, payload, async_=False)
+        bus.publish(ProductEvents.PRODUCTS_CHANGED, payload, async_=False)
     except Exception:
         logger.exception("No se pudo publicar el evento de catálogo (%s)", action)
 

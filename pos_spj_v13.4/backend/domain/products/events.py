@@ -15,6 +15,14 @@ from backend.shared.ids import new_uuid
 
 
 class ProductEvents:
+    #: Señal de REFRESCO, no un hecho de negocio: "el catálogo cambió, vuelve a
+    #: leerlo". La emiten por igual el alta, la edición y la baja, porque a una
+    #: pantalla que muestra productos le da igual cuál de las tres ocurrió — lo
+    #: que necesita saber es que su lista quedó vieja. Suscribirse sólo a los
+    #: eventos concretos obligaría a cada pantalla a escucharlos todos y a
+    #: repetir la misma reacción.
+    PRODUCTS_CHANGED = "PRODUCTS_CHANGED"
+
     # ── ciclo de vida del producto (§46) ──────────────────────────────────
     PRODUCT_CREATED = "PRODUCT_CREATED"
     PRODUCT_UPDATED = "PRODUCT_UPDATED"
