@@ -785,32 +785,39 @@ class ConfiguracionWorkspaceQueryService:
             ))
         return tuple(rows)
 
-    # Usuarios/Roles/Auditoría — thin passthroughs to the already-canonical
-    # "FASE 6" application-service layer (core/services/
-    # configuracion_settings_service.py), never re-implemented here.
+    # Usuarios/Roles/Auditoría — pasarelas finas hacia la capa de servicios de
+    # aplicación de Configuración; la lógica nunca se reimplementa aquí.
     def _user_management_service(self):
-        from repositories.config_repository import ConfigRepository
-        from core.services.configuration_settings_service import UserManagementService
+        from backend.application.configuracion.settings_services import UserManagementService
 
-        return UserManagementService(ConfigRepository(self._conn))
+        return UserManagementService(self._user_directory_repository())
 
     def _role_management_service(self):
-        from repositories.config_repository import ConfigRepository
-        from core.services.configuration_settings_service import RoleManagementService
+        from backend.application.configuracion.settings_services import RoleManagementService
 
-        return RoleManagementService(ConfigRepository(self._conn))
-
-    def _permission_query_service(self):
-        from repositories.config_repository import ConfigRepository
-        from core.services.configuration_settings_service import PermissionQueryService
-
-        return PermissionQueryService(ConfigRepository(self._conn))
+        return RoleManagementService(self._user_directory_repository())
 
     def _company_profile_service(self):
-        from repositories.config_repository import ConfigRepository
-        from core.services.configuration_settings_service import CompanyProfileService
+        from backend.application.configuracion.settings_services import CompanyProfileService
+        from backend.infrastructure.db.repositories.settings.installation_branch_repository import (
+            SqliteInstallationBranchRepository,
+        )
 
-        return CompanyProfileService(ConfigRepository(self._conn))
+        return CompanyProfileService(SqliteInstallationBranchRepository(self._conn))
+
+    def _user_directory_repository(self):
+        from backend.infrastructure.db.repositories.settings.user_directory_repository import (
+            SqliteUserDirectoryRepository,
+        )
+
+        return SqliteUserDirectoryRepository(self._conn)
+
+    def _audit_log_repository(self):
+        from backend.infrastructure.db.repositories.settings.audit_log_repository import (
+            SqliteAuditLogRepository,
+        )
+
+        return SqliteAuditLogRepository(self._conn)
 
     def list_users(self) -> tuple[UserSettingsDTO, ...]:
         return tuple(self._user_management_service().list_users())
@@ -834,7 +841,7 @@ class ConfiguracionWorkspaceQueryService:
         return self._company_profile_service().get_installation_branch()
 
     def audit_log_rows(self, limit: int = 200) -> tuple[AuditLogRowViewModel, ...]:
-        rows = self._permission_query_service().audit_log_rows(limit)
+        rows = self._audit_log_repository().recent(limit)
         return tuple(
             AuditLogRowViewModel(fecha=str(r[0] or ""), usuario=str(r[1] or ""), modulo=str(r[2] or ""),
                                   accion=str(r[3] or ""), detalle=str(r[4] or ""))

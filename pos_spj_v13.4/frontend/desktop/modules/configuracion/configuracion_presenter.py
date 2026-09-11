@@ -181,7 +181,7 @@ class ConfiguracionPresenter:
         create_cache_expiration_policy_uc=None, update_cache_expiration_policy_uc=None,
         change_cache_expiration_policy_status_uc=None,
         user_management_service=None, role_management_service=None,
-        user_security_service=None, permission_query_service=None,
+        user_security_service=None,
         save_user_uc=None, set_user_active_uc=None, save_role_uc=None,
         company_profile_service=None, set_installation_branch_uc=None,
         authorization=None, audit_log_repository=None,
@@ -264,7 +264,6 @@ class ConfiguracionPresenter:
         self._user_management_service = user_management_service
         self._role_management_service = role_management_service
         self._user_security_service = user_security_service
-        self._permission_query_service = permission_query_service
         self._save_user_uc = save_user_uc
         self._set_user_active_uc = set_user_active_uc
         self._save_role_uc = save_role_uc

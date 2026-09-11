@@ -116,14 +116,21 @@ def create_configuracion_view(container, parent=None):
     from backend.application.use_cases.set_installation_branch_use_case import (
         SetInstallationBranchUseCase,
     )
-    from core.services.configuration_settings_service import (
+    from backend.application.configuracion.settings_services import (
         CompanyProfileService,
-        PermissionQueryService,
         RoleManagementService,
         UserManagementService,
     )
+    from backend.infrastructure.db.repositories.settings.audit_log_repository import (
+        SqliteAuditLogRepository,
+    )
+    from backend.infrastructure.db.repositories.settings.installation_branch_repository import (
+        SqliteInstallationBranchRepository,
+    )
+    from backend.infrastructure.db.repositories.settings.user_directory_repository import (
+        SqliteUserDirectoryRepository,
+    )
     from backend.application.services.user_security_service import UserSecurityService
-    from repositories.config_repository import ConfigRepository
     from backend.security.secrets.default_secret_store import build_default_secret_store
     from backend.application.use_cases.configuracion.company_branch_use_cases import (
         RegisterBranchProfileUseCase,
@@ -163,11 +170,12 @@ def create_configuracion_view(container, parent=None):
     secret_store = build_default_secret_store()
     query_service = ConfiguracionWorkspaceQueryService(connection, secret_store)
     authorization = ConfiguracionAuthorizationPolicy(SessionPermissionChecker(session))
-    config_repository = ConfigRepository(connection)
-    user_management_service = UserManagementService(config_repository)
-    role_management_service = RoleManagementService(config_repository)
-    permission_query_service = PermissionQueryService(config_repository)
-    company_profile_service = CompanyProfileService(config_repository)
+    user_directory = SqliteUserDirectoryRepository(connection)
+    audit_log = SqliteAuditLogRepository(connection)
+    user_management_service = UserManagementService(user_directory, audit_log)
+    role_management_service = RoleManagementService(user_directory, audit_log)
+    company_profile_service = CompanyProfileService(
+        SqliteInstallationBranchRepository(connection))
     user_security_service = UserSecurityService(
         connection, permission_checker=session.tiene_permiso if session is not None else None)
     presenter = ConfiguracionPresenter(
@@ -250,7 +258,6 @@ def create_configuracion_view(container, parent=None):
         user_management_service=user_management_service,
         role_management_service=role_management_service,
         user_security_service=user_security_service,
-        permission_query_service=permission_query_service,
         save_user_uc=SaveUserUseCase(user_management_service),
         set_user_active_uc=SetUserActiveUseCase(user_management_service),
         save_role_uc=SaveRoleUseCase(role_management_service),
