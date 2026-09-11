@@ -56,9 +56,19 @@ def test_permission_matrix_includes_catalog_when_role_permissions_empty() -> Non
 
     # Con `rol_permisos` vacía, la matriz debe traer igualmente el catálogo.
     matriz = constructor(role_permissions={})
-    for modulo in ("POS", "CAJA", "CONFIG_SEGURIDAD"):
-        assert modulo in matriz, f"el catálogo no aporta {modulo}"
-        assert "ver" in matriz[modulo]
+
+    # El catálogo ENTERO, no una muestra: si la matriz trajera sólo los módulos
+    # que alguien se acordó de listar, un módulo nuevo quedaría invisible en la
+    # pantalla de Roles y nadie podría concederle permisos — sin que nada
+    # fallara. (Afirmación heredada de `tests/unit/
+    # test_permission_matrix_catalog_first.py`, que probaba lo mismo contra el
+    # `ConfigRepository` borrado; se recoge aquí para que viva en un solo sitio.)
+    assert set(CANONICAL_MODULE_PERMISSIONS) <= set(matriz), (
+        "faltan en la matriz: "
+        f"{sorted(set(CANONICAL_MODULE_PERMISSIONS) - set(matriz))}")
+
+    for modulo in ("POS", "CAJA", "CONFIG_SEGURIDAD", "CONFIG_MODULOS"):
+        assert "ver" in matriz[modulo], f"{modulo} sin acción 'ver'"
         assert set(matriz[modulo]) >= set(CANONICAL_MODULE_PERMISSIONS.get(modulo, ()))
 
 
