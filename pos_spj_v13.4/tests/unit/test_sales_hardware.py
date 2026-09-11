@@ -47,36 +47,11 @@ from backend.infrastructure.db.schema.sales_schema import create_sales_schema
 from backend.infrastructure.integrations.sales_cash_drawer_client import SalesCashDrawerGateway
 from backend.infrastructure.integrations.sales_payment_terminal_client import SalesPaymentTerminalClient
 from backend.infrastructure.integrations.sales_receipt_client import SalesReceiptClient
-from backend.infrastructure.integrations.sales_scale_client import SalesScaleGateway
 from backend.shared.ids import new_uuid
 
 
 def _allow_all_sales() -> SalesAuthorizationPolicy:
     return SalesAuthorizationPolicy(AllowAllSalesPermissionCheckerForTests())
-
-
-# ── Scale ────────────────────────────────────────────────────────────────
-
-class _FakeHardwareService:
-    def __init__(self, weight: float) -> None:
-        self._weight = weight
-
-    def read_scale(self) -> float:
-        return self._weight
-
-
-class TestSalesScaleGateway:
-    def test_read_translates_weight_into_reading(self):
-        gateway = SalesScaleGateway(_FakeHardwareService(1.250), device_id="bascula-1")
-        reading = gateway.read()
-        assert reading.gross == Decimal("1.250")
-        assert reading.stable is True
-        assert reading.source.value == "SCALE"
-
-    def test_read_raises_on_no_reading(self):
-        gateway = SalesScaleGateway(_FakeHardwareService(0.0))
-        with pytest.raises(InvalidCatchWeightError):
-            gateway.read()
 
 
 # ── Printer / Receipt ───────────────────────────────────────────────────

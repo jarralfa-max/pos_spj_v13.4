@@ -1,4 +1,17 @@
-"""Save hardware config use case — single canonical route."""
+"""Save hardware config use case — single canonical route.
+
+SIN COLABORADOR HOY. Su único `hardware_settings_service` posible era
+`backend/application/services/hardware_settings_service.py`, eliminado por ser
+una delegación a `core.repositories.hardware_config_repository` (borrado) sin
+ningún consumidor en producción. Este caso de uso no se borró con él porque no
+estaba en el alcance aprobado, pero tampoco es invocable: no queda nada que
+pasarle.
+
+Queda pendiente de una de dos decisiones, y conviene tomarla explícitamente en
+vez de dejarlo así: reconstruir la escritura de configuración de hardware sobre
+`hardware_config` dentro de `backend/infrastructure/` —cuando el panel de
+Configuración → Dispositivos la necesite de verdad— o retirarlo.
+"""
 
 from __future__ import annotations
 

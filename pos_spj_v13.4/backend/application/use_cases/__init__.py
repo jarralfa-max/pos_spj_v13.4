@@ -2,7 +2,6 @@
 
 from backend.application.use_cases.base_use_case import BaseUseCase
 from backend.application.use_cases.base_use_case import DelegatingUseCase
-from backend.application.use_cases.create_sale_use_case import CreateSaleUseCase
 from backend.application.use_cases.execute_meat_production_use_case import ExecuteMeatProductionUseCase
 from backend.application.use_cases.create_delivery_order_use_case import CreateDeliveryOrderUseCase
 from backend.application.use_cases.create_product_use_case import CreateProductUseCase
@@ -14,7 +13,6 @@ from backend.application.use_cases.generate_purchase_plan_use_case import Genera
 __all__ = [
     "BaseUseCase",
     "DelegatingUseCase",
-    "CreateSaleUseCase",
     "ExecuteMeatProductionUseCase",
     "CreateDeliveryOrderUseCase",
     "CreateProductUseCase",
