@@ -138,7 +138,7 @@ def _scan_code_handler(connection, auth):
 
 
 def _payment_handler(connection, auth):
-    run = RecordSalePaymentUseCase(auth).execute
+    run = RecordSalePaymentUseCase(auth, customer_authorization=customer_auth).execute
 
     def handler(*, sale_id, method, amount, actor_user_id, operation_id, reference=None):
         return run(

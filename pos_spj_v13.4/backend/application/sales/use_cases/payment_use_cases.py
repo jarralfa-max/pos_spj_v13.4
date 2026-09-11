@@ -83,7 +83,7 @@ class RecordSalePaymentUseCase(_SalesBaseUseCase):
                         CreditNotAuthorizedError(
                             "Una venta a crédito requiere un cliente asignado"),
                         operation_id=operation_id)
-                approved, reason = SalesCreditClient(connection).validate(
+                approved, reason = self._credit_client(connection, actor_user_id).validate(
                     customer_id=sale.customer_id, amount=amount)
                 if not approved:
                     return fail_from_domain_error(
@@ -97,7 +97,7 @@ class RecordSalePaymentUseCase(_SalesBaseUseCase):
                 return fail_from_domain_error(exc, operation_id=operation_id)
 
             if payment_method is PaymentMethod.CREDIT:
-                SalesCreditClient(connection).register(
+                self._credit_client(connection, actor_user_id).register(
                     customer_id=sale.customer_id, sale_id=sale.id,
                     folio=sale.sale_number or sale.id, amount=amount, branch_id=sale.branch_id)
 

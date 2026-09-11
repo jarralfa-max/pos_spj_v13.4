@@ -1,61 +1,103 @@
-"""SalesCreditClient — Sales' integration point onto the real credit
-authorization/CxC path (POS-13/§30-36, "Credit").
+"""SalesCreditClient — el punto por donde Ventas habla con Crédito y CxC.
 
-Research for this phase confirmed a genuine, real inconsistency risk
-already flagged by SALES-0: `modulos/ventas.py::procesar_pago` runs THREE
-(closer to four, counting a duplicate inner check) independently-written
-credit checks — a non-blocking CRM advisory query, the real enforcement
-path (`application/services/customer_credit_service.py::
-CustomerCreditService.validate_credit`), and an inline fallback re-deriving
-credit limit directly from `clientes` whenever `customer_credit_service`
-isn't wired on the container (which, per the same research, then makes the
-DEEPER `SalesService._validate_payment` check unconditionally block the
-sale anyway, since it shares the same `None` service reference — so that
-third path's approval is effectively moot whenever it would run).
+Dos preguntas, y sólo dos: ¿puede este cliente llevarse esto a crédito?, y
+—cuando la venta se cobra a crédito— apunta la deuda.
 
-This client does not touch or fix any of those three legacy paths (out of
-scope — `modulos/ventas.py` stays untouched per this pipeline's own
-discipline). What it gives the NEW `Sale` aggregate is ONE clean path onto
-the real enforcement service (`CustomerCreditService.validate_credit`,
-confirmed research path #2, the one that actually blocks), so any future
-caller building on `backend/application/sales/` never has to choose between
-three divergent implementations the way the legacy UI does today.
+QUÉ CAMBIÓ Y POR QUÉ
+--------------------
+Antes envolvía `application.services.customer_credit_service.CustomerCreditService`,
+que desapareció con la carpeta `application/`. No se reconstruyó: el contexto
+acotado canónico `customer_credit` ya responde a la primera pregunta mejor, y
+Finanzas a la segunda.
 
-`CustomerCreditService` only understands legacy `clientes.id`; `Sale.
-customer_id` holds a Customer Master `customers.id` — bridged via
-`EnsureLegacyCustomerBridgeUseCase`, the same new->legacy bridge direction
-`SalesLoyaltyClient` already uses (SALES-11), for the same reason.
+    legacy CustomerCreditService      canónico
+    ─────────────────────────────     ──────────────────────────────────────
+    sí/no a secas                     lista TODAS las reglas incumplidas
+    exposición de un valor guardado   la calcula viva desde CxC
+    hablaba en `clientes.id`          habla en `customers.id`
+    montos en float                   Decimal
+
+El cambio de identidad borra un puente entero: la versión anterior traducía
+`customers.id` → `clientes.id` con `EnsureLegacyCustomerBridgeUseCase` en CADA
+llamada, porque el servicio legacy sólo entendía la tabla vieja. El contexto
+canónico trabaja directamente sobre Customer Master, así que el puente sobra.
+
+LO QUE ESTABA ROTO, Y NO ERA EVIDENTE
+-------------------------------------
+El límite de crédito no se estaba aplicando. `CustomerAccountsReceivableSummaryQuery`
+calcula la exposición leyendo `cuentas_por_cobrar`, y desde que desapareció el
+servicio legacy NADIE escribe esa tabla: la exposición de cualquier cliente
+daba cero, así que toda venta a crédito resultaba elegible por mucho que el
+cliente ya debiera.
+
+Por eso `register()` apunta la deuda en el modelo canónico (`receivables`, vía
+`CreateReceivableUseCase`) Y la consulta de exposición pasó a leer las dos
+fuentes. Escribir en la canónica sin cambiar la lectura habría dejado el agujero
+exactamente igual de abierto, sólo que más difícil de ver.
 """
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 
-from application.services.customer_credit_service import CustomerCreditService
-from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
-    EnsureLegacyCustomerBridgeUseCase,
+from backend.application.customer_credit.use_cases.check_credit_sale_eligibility_use_case import (
+    CheckCreditSaleEligibilityUseCase,
 )
+from backend.application.customers.authorization import CustomerAuthorizationPolicy
+from backend.application.use_cases.finance.receivable_use_cases import CreateReceivableUseCase
 
 
 class SalesCreditClient:
-    def __init__(self, connection) -> None:
+    def __init__(
+        self, connection, *, actor_user_id: str = "",
+        authorization: CustomerAuthorizationPolicy | None = None,
+    ) -> None:
         self._connection = connection
-        self._service = CustomerCreditService(connection)
+        self._actor_user_id = actor_user_id
+        # Igual que en el cliente de inventario: sin política explícita se
+        # construye una sin verificador, que no concede nada. Nunca una
+        # permisiva por omisión (§23).
+        self._authorization = authorization or CustomerAuthorizationPolicy()
 
     def validate(self, *, customer_id: str, amount: Decimal) -> tuple[bool, str]:
-        """(True, "") if `customer_id` (a Customer Master id) is authorized
-        to place `amount` on credit; (False, reason) otherwise. Never
-        raises for a business rejection — same contract as the wrapped
-        legacy service, translated at this boundary, not hidden."""
-        legacy_id = EnsureLegacyCustomerBridgeUseCase().execute(
-            self._connection, customer_id=customer_id)
-        return self._service.validate_credit(legacy_id, float(amount))
+        """`(True, "")` si el cliente puede llevarse `amount` a crédito.
 
-    def register(self, *, customer_id: str, sale_id: str, folio: str, amount: Decimal,
-                 branch_id: str) -> None:
-        """Records the CxC debt for a completed credit sale — idempotent by
-        `sale_id` (the wrapped service's own `INSERT OR IGNORE` on a unique
-        index), so calling this more than once for the same sale is safe."""
-        legacy_id = EnsureLegacyCustomerBridgeUseCase().execute(
-            self._connection, customer_id=customer_id)
-        self._service.register_credit_sale(legacy_id, sale_id, folio, float(amount), branch_id)
+        Nunca lanza por un rechazo de negocio: un cliente sin crédito
+        suficiente no es un error del programa, es una respuesta. Cuando hay
+        varias reglas incumplidas se devuelven todas en el motivo — el cajero
+        necesita saber si es el límite, la documentación o la sucursal, no sólo
+        que "no se puede".
+        """
+        result = CheckCreditSaleEligibilityUseCase(self._authorization).execute(
+            self._connection, actor_user_id=self._actor_user_id, customer_id=customer_id,
+            amount=Decimal(str(amount)),
+            operation_id=f"{customer_id}:credit-check:{amount}",
+        )
+        if result.success:
+            return True, ""
+        violaciones = result.data.get("violations") or []
+        return False, "; ".join(str(v) for v in violaciones) or result.message
+
+    def register(
+        self, *, customer_id: str, sale_id: str, folio: str, amount: Decimal,
+        branch_id: str,
+    ) -> None:
+        """Apunta la deuda de una venta cobrada a crédito.
+
+        Idempotente por `operation_id`: derivado de la venta, así que reintentar
+        el cobro no duplica la cuenta por cobrar. Es la misma garantía que daba
+        el `INSERT OR IGNORE` del servicio anterior, pero explícita.
+
+        No se fija `due_date`: el plazo depende de las condiciones pactadas con
+        el cliente, que viven en su perfil de crédito. Inventarlo aquí —treinta
+        días, pongamos— haría que la consulta de vencidos marcara como morosos a
+        clientes que no lo son. Queda pendiente de que el cobro lea el plazo del
+        perfil.
+        """
+        CreateReceivableUseCase().execute(
+            self._connection, customer_id=customer_id, amount=str(amount),
+            document_number=folio or sale_id, issue_date=date.today(),
+            branch_id=branch_id, source_module="sales", source_document_id=sale_id,
+            operation_id=f"{sale_id}:receivable",
+        )

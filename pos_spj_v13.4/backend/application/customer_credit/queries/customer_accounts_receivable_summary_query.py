@@ -74,14 +74,59 @@ class CustomerAccountsReceivableSummaryQuery:
     def __init__(self, connection) -> None:
         self._conn = connection
 
+    def _table_exists(self, name: str) -> bool:
+        return bool(self._conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type IN ('table','view') AND name=?",
+            (name,)).fetchone())
+
+    def _legacy_rows(self, customer_id: str) -> list[tuple]:
+        """Deuda histórica en `cuentas_por_cobrar`.
+
+        Ya NADIE escribe esta tabla —su único escritor era el
+        `CustomerCreditService` legacy, eliminado—, pero una instalación en
+        marcha conserva ahí saldos reales que siguen debiéndose. Dejar de
+        leerla pondría a esos clientes a cero de exposición y les abriría
+        crédito que no tienen.
+        """
+        if not self._table_exists("cuentas_por_cobrar"):
+            return []
+        return list(self._conn.execute(
+            "SELECT saldo_pendiente, fecha, fecha_pago FROM cuentas_por_cobrar"
+            " WHERE cliente_id=? AND estado NOT IN ('pagado', 'cancelada', 'cancelado')",
+            (customer_id,)).fetchall())
+
+    def _canonical_rows(self, customer_id: str) -> list[tuple]:
+        """Deuda viva en `receivables`, el modelo canónico de Finanzas.
+
+        Es donde `CreateReceivableUseCase` apunta hoy toda venta a crédito. Sin
+        esta mitad, el límite de crédito no se aplicaría en absoluto: la
+        exposición daría cero por más que el cliente acumulara ventas a crédito.
+
+        Se traduce a la misma forma `(saldo, fecha, fecha_pago)` que la legacy
+        para que el cálculo de abajo sea uno solo. `fecha_pago` va a `None`
+        siempre: un cobro parcial ya baja `outstanding_amount`, y una cuenta
+        liquidada queda fuera por su estado, así que no hay nada que marcar
+        como pagado sin dejar de deberse.
+
+        No hay doble conteo: son tablas distintas y ninguna venta se apunta en
+        las dos — la legacy dejó de recibir escrituras antes de que la canónica
+        empezara.
+        """
+        if not self._table_exists("receivables"):
+            return []
+        return [
+            (row[0], row[1], None)
+            for row in self._conn.execute(
+                "SELECT outstanding_amount, issue_date FROM receivables"
+                " WHERE customer_id=? AND status IN ('OPEN','PARTIALLY_COLLECTED')",
+                (customer_id,)).fetchall()
+        ]
+
     def get_summary(
         self, customer_id: str, *, payment_terms_days: int = 0, as_of: date | None = None,
     ) -> CustomerAccountsReceivableSummary:
         as_of = as_of or date.today()
-        rows = self._conn.execute(
-            "SELECT saldo_pendiente, fecha, fecha_pago FROM cuentas_por_cobrar"
-            " WHERE cliente_id=? AND estado NOT IN ('pagado', 'cancelada', 'cancelado')",
-            (customer_id,)).fetchall()
+        rows = [*self._legacy_rows(customer_id), *self._canonical_rows(customer_id)]
 
         exposure = Decimal("0")
         overdue = Decimal("0")
