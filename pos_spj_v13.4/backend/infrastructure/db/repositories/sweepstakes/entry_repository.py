@@ -93,6 +93,31 @@ class SweepstakesTicketRepository(SweepstakesRepositoryBase):
             "SELECT COUNT(*) FROM sweepstakes_tickets WHERE campaign_id=? AND customer_id=?"
             " AND status != 'VOID'", (campaign_id, customer_id), default=0)
 
+    def list_for_sale(self, source_sale_id: str) -> list[SweepstakesTicket]:
+        """Boletos emitidos a partir de una venta concreta.
+
+        El enlace no es directo: el boleto apunta a su derecho
+        (`entry_id`) y es el DERECHO el que guarda de qué venta salió
+        (`source_sale_id`). Por eso hay que pasar por `sweepstakes_entries`
+        en vez de filtrar los boletos directamente.
+
+        Los anulados quedan fuera: reimprimir un boleto cancelado sería
+        entregarle al cliente un papel que ya no juega.
+        """
+        rows = self._query(
+            "SELECT t.* FROM sweepstakes_tickets t"
+            " JOIN sweepstakes_entries e ON e.id = t.entry_id"
+            " WHERE e.source_sale_id = ? AND t.status != 'VOID'"
+            " ORDER BY t.created_at, t.ticket_number",
+            (source_sale_id,))
+        return [self._hydrate(row) for row in rows]
+
+    def list_for_entry(self, entry_id: str) -> list[SweepstakesTicket]:
+        rows = self._query(
+            "SELECT * FROM sweepstakes_tickets WHERE entry_id=? ORDER BY ticket_number",
+            (entry_id,))
+        return [self._hydrate(row) for row in rows]
+
     def list_eligible_for_campaign(self, campaign_id: str) -> list[SweepstakesTicket]:
         rows = self._query(
             "SELECT * FROM sweepstakes_tickets WHERE campaign_id=? AND status IN"

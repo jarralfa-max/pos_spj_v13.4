@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from backend.application.loyalty.permissions import LoyaltyPermissions
 from backend.application.sweepstakes.result import SweepstakesResult, fail_from_domain_error
+from backend.shared.ids import new_uuid
 from backend.application.sweepstakes.use_cases._base import _SweepstakesBaseUseCase
 from backend.domain.loyalty.events import SYSTEM_ACTOR_ID
 from backend.domain.sweepstakes.entities.sweepstakes_entry import SweepstakesEntry
@@ -236,3 +237,73 @@ class VoidSweepstakesTicketUseCase(_SweepstakesBaseUseCase):
                                          operation_id=operation_id)
         except SweepstakesDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
+
+
+class IssueSweepstakesTicketsFromSaleUseCase(_SweepstakesBaseUseCase):
+    """Emite los boletos de un derecho otorgado por una compra.
+
+    Cierra el hueco entre `GrantSweepstakesEntryFromSaleUseCase` —que concede
+    los DERECHOS— y `IssueSweepstakesTicketUseCase` —que emite UN boleto—.
+    Sin este paso el cliente acumulaba derechos y no recibía ningún boleto:
+    nada fallaba, simplemente el ticket de compra salía sin boletos y la
+    consulta de imprimibles devolvía vacío siempre.
+
+    SIN PUERTA DE PERMISOS, igual que el otorgamiento del derecho y por la
+    misma razón ya documentada allí: lo dispara una venta completada, no una
+    persona; no hay sesión autenticada que esté "emitiendo boletos" como
+    acción propia. Por eso no se reutiliza `IssueSweepstakesTicketUseCase`,
+    que sí exige `SWEEPSTAKES_MANAGE` — llamarlo con una política permisiva
+    para saltarse esa puerta sería peor que no tenerla.
+
+    Emite EXACTAMENTE los que falten para completar el derecho, así que
+    reintentar el cobro de la misma venta no duplica boletos.
+    """
+
+    def execute(
+        self, connection, *, entry_id: str, actor_branch_id: str, operation_id: str,
+    ) -> SweepstakesResult:
+        emitidos: list[str] = []
+        try:
+            with SweepstakesUnitOfWork(connection) as uow:
+                entry = uow.entries.get(entry_id)
+                if entry is None:
+                    return fail_from_domain_error(
+                        SweepstakesEntryNotFoundError(f"Derecho {entry_id} no existe"),
+                        operation_id=operation_id)
+                campaign = uow.campaigns.get(entry.campaign_id)
+                if campaign is None:
+                    return fail_from_domain_error(
+                        SweepstakesCampaignNotFoundError(
+                            f"Campaña {entry.campaign_id} no existe"),
+                        operation_id=operation_id)
+
+                pendientes = entry.chances_granted - uow.tickets.count_for_entry(entry_id)
+                for _ in range(max(0, pendientes)):
+                    if campaign.max_tickets_per_customer > 0 and (
+                        uow.tickets.count_for_customer(campaign.id, entry.customer_id)
+                        >= campaign.max_tickets_per_customer
+                    ):
+                        # El tope por cliente se comprueba DENTRO del bucle: cada
+                        # boleto emitido cuenta para el siguiente.
+                        break
+                    sequence = uow.tickets.count_for_campaign(campaign.id) + 1
+                    ticket = SweepstakesTicket.issue(
+                        campaign.id, entry_id, entry.customer_id,
+                        f"{campaign.code}-{sequence:06d}")
+                    uow.tickets.save(ticket)
+                    emitidos.append(ticket.ticket_number)
+                    # Cada boleto emite su propio evento con identidad propia.
+                    # No se deriva del `operation_id` de la tanda (`...:{numero}`):
+                    # este contexto EXIGE un UUIDv7 canónico y una cadena
+                    # compuesta lo rechaza. La idempotencia no depende de este
+                    # identificador, sino de contar los boletos que al derecho
+                    # ya le faltan.
+                    self._emit(uow, SweepstakesEvents.TICKET_ISSUED, entity_id=ticket.id,
+                               operation_id=new_uuid(),
+                               branch_id=actor_branch_id, actor_user_id=SYSTEM_ACTOR_ID,
+                               ticket_number=ticket.ticket_number)
+        except SweepstakesDomainError as exc:
+            return fail_from_domain_error(exc, operation_id=operation_id)
+        return SweepstakesResult.ok(
+            f"{len(emitidos)} boletos emitidos", operation_id=operation_id,
+            ticket_numbers=emitidos)

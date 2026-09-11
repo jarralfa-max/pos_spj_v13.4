@@ -1,40 +1,37 @@
-"""SalesSweepstakesClient — Sales' integration point onto the real
-Sweepstakes/raffle capability (SET-15 cutover). Mirrors
-`sales_loyalty_client.py`'s shape: Sales' own boundary onto
-`core/services/loyalty_service.py::LoyaltyService` (the real owner of
-LEGACY raffle business rules), never re-derived here.
+"""SalesSweepstakesClient — el punto por donde Ventas habla con Sorteos.
 
-**Zero identity bridging needed** — unlike `SalesLoyaltyClient`, which
-must bridge Customer Master's UUID to a legacy `clientes.id` row.
-`LoyaltyService`'s raffle methods treat `venta_id`/`cliente_id`/
-`sucursal_id` as opaque strings throughout (confirmed by reading
-`issue_raffle_tickets_for_sale`'s body: it never joins against a legacy
-table by `venta_id`), so a real UUIDv7 `sale.id`/`sale.branch_id` works
-directly. `sucursal_id` is always passed explicitly — `LoyaltyService`'s
-own `sucursal_id: int = 1` constructor default is never relied on.
+Dos operaciones: al cobrar, otorgar los derechos que la compra genere y emitir
+sus boletos; al imprimir, recuperar los boletos de esa venta.
 
-Decimal -> float conversion happens here and only here (same boundary
-discipline as `SalesLoyaltyClient`/`SalesInventoryClient`) —
-`LoyaltyService`'s raffle methods are legacy-typed and never touch
-Sales' own Decimal totals directly.
+QUÉ CAMBIÓ
+----------
+Envolvía `core/services/loyalty_service.py::LoyaltyService`, borrado, para el
+modelo LEGACY de rifas. No se reconstruyó, y aquí la razón es más contundente
+que en otros casos: ese modelo **no tiene esquema en este repositorio**. No hay
+migración que cree sus tablas ni nada que las escriba — vivía entero dentro de
+`core/`. Las llamadas legacy no operaban ya sobre nada.
 
-**LOY-24**: also grants entries in the NEW `backend.domain.sweepstakes`
-bounded context (LOY-15) for any ACTIVE `SweepstakesCampaign` with a
-`PURCHASE_AMOUNT` rule — running alongside the legacy raffle call above,
-not replacing it, until LOY-27 can retire the legacy subsystem entirely
-(CLAUDE.md Prioridad 0: no legacy deletion without a proven replacement).
-`GrantSweepstakesEntryFromSaleUseCase` is itself best-effort/no-op-safe
-(never raises for "doesn't qualify"), and this method's own caller
-(`CheckoutSaleUseCase`) already wraps this whole call in a
-never-un-complete-the-sale `try/except` — no additional safety net needed
-here.
+El contexto acotado canónico `sweepstakes` sí existe, con campañas, reglas,
+derechos, boletos y sorteos. Este archivo YA lo usaba a medias: otorgaba los
+derechos por la vía canónica y, a la vez, llamaba al modelo legacy.
+
+EL HUECO QUE SE CIERRA
+----------------------
+Otorgar un derecho y emitir un boleto son pasos distintos, y sólo el primero
+estaba conectado. El cliente acumulaba derechos y no recibía ningún boleto: no
+fallaba nada, simplemente el ticket de compra salía sin boletos y la consulta
+de imprimibles devolvía vacío siempre. Ahora, tras otorgar, se emiten.
+
+NUNCA BLOQUEA EL COBRO. Un fallo de sorteos —campaña mal configurada, tope
+alcanzado, error de base— no puede tumbar una venta que ya se pagó. Lo mismo
+que ya hace el resto de integraciones de la caja.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from backend.application.sales.dto import SaleDTO
 
 
@@ -42,27 +39,19 @@ class SalesSweepstakesClient:
     def __init__(self, connection) -> None:
         self._connection = connection
 
+    # ── al cobrar ────────────────────────────────────────────────────────
     def issue_tickets_for_sale(self, *, sale: "SaleDTO") -> None:
-        from core.services.loyalty_service import LoyaltyService
+        """Otorga los derechos de esta venta y emite sus boletos.
 
-        service = LoyaltyService(self._connection, sucursal_id=sale.branch_id)
-        service.process_raffles_for_sale(
-            venta_id=sale.id,
-            cliente_id=sale.customer_id or "",
-            folio=sale.sale_number or sale.id,
-            total=float(sale.total),
-            sucursal_id=sale.branch_id,
-            payment_method=self._forma_pago(sale),
-            items=[{"product_id": line.product_id} for line in sale.lines],
-            discount=float(sale.discount_total),
-        )
-        self._grant_new_sweepstakes_entries(sale)
-
-    def _grant_new_sweepstakes_entries(self, sale: "SaleDTO") -> None:
+        Sin cliente identificado no hay a quién otorgarle nada: una venta a
+        público general no participa, y eso es normal, no un error.
+        """
         if not sale.customer_id:
             return
+
         from backend.application.sweepstakes.use_cases.entry_use_cases import (
             GrantSweepstakesEntryFromSaleUseCase,
+            IssueSweepstakesTicketsFromSaleUseCase,
         )
         from backend.infrastructure.db.repositories.sweepstakes.unit_of_work import (
             SweepstakesUnitOfWork,
@@ -71,26 +60,93 @@ class SalesSweepstakesClient:
 
         with SweepstakesUnitOfWork(self._connection) as uow:
             campaigns = uow.campaigns.list_active()
+
+        conceder = GrantSweepstakesEntryFromSaleUseCase()
+        emitir = IssueSweepstakesTicketsFromSaleUseCase()
         for campaign in campaigns:
-            GrantSweepstakesEntryFromSaleUseCase().execute(
+            resultado = conceder.execute(
                 self._connection, campaign_id=campaign.id, customer_id=sale.customer_id,
-                source_sale_id=sale.id, sale_amount=sale.total, actor_branch_id=sale.branch_id,
-                operation_id=new_uuid())
+                source_sale_id=sale.id, sale_amount=sale.total,
+                actor_branch_id=sale.branch_id, operation_id=new_uuid())
+            # `granted=False` es una respuesta normal: la venta no alcanzó el
+            # monto, la campaña no otorga por compra, o el cliente ya llegó a
+            # su tope. No hay derecho que convertir en boletos.
+            if not resultado.success or not resultado.data.get("granted"):
+                continue
+            emitir.execute(
+                self._connection, entry_id=resultado.entity_id,
+                actor_branch_id=sale.branch_id, operation_id=new_uuid())
 
+    # ── al imprimir ──────────────────────────────────────────────────────
     def get_printable_tickets_for_sale(self, *, sale_id: str) -> list[dict]:
-        from core.services.loyalty_service import LoyaltyService
+        """Boletos de esta venta, listos para imprimir.
 
-        service = LoyaltyService(self._connection)
-        return service.get_printable_tickets_for_sale(sale_id)
+        Devuelve diccionarios y no entidades porque quien llama se los pasa
+        tal cual al servicio de impresión, que es código de frontera.
+        """
+        from backend.infrastructure.db.repositories.sweepstakes.unit_of_work import (
+            SweepstakesUnitOfWork,
+        )
+
+        with SweepstakesUnitOfWork(self._connection) as uow:
+            tickets = uow.tickets.list_for_sale(sale_id)
+            if not tickets:
+                return []
+            # Las campañas se resuelven una sola vez: una venta puede generar
+            # varios boletos de la MISMA campaña, y consultarla por boleto
+            # sería una consulta por papel impreso.
+            campañas = {}
+            for ticket in tickets:
+                if ticket.campaign_id not in campañas:
+                    campañas[ticket.campaign_id] = uow.campaigns.get(ticket.campaign_id)
+            premios = {
+                campaign_id: uow.prizes.list_for_campaign(campaign_id)
+                for campaign_id in campañas
+            }
+            # La fecha del sorteo NO está en la campaña: vive en su
+            # `SweepstakesDraw`, que es otra entidad. Buscarla en la campaña
+            # devolvería vacío siempre y el boleto saldría impreso sin fecha.
+            sorteos = {
+                campaign_id: self._scheduled_draw(uow, campaign_id)
+                for campaign_id in campañas
+            }
+
+        return [
+            self._printable(ticket, campañas.get(ticket.campaign_id),
+                            premios.get(ticket.campaign_id) or [],
+                            sorteos.get(ticket.campaign_id), sale_id)
+            for ticket in tickets
+        ]
 
     @staticmethod
-    def _forma_pago(sale: "SaleDTO") -> str:
-        """Same derivation `SalesReceiptClient.build_receipt_data_from_sale`
-        already established for the receipt — kept consistent rather than
-        re-invented, since raffle payment-method rules should see the same
-        label the printed receipt shows."""
-        if sale.is_mixed_payment:
-            return "Mixto"
-        if len(sale.payments) == 1:
-            return sale.payments[0].method
-        return ""
+    def _scheduled_draw(uow, campaign_id: str):
+        """El sorteo pendiente más próximo de la campaña, si hay alguno.
+
+        Una campaña puede tener varios sorteos programados; al boleto le
+        corresponde el siguiente, no el primero que devuelva la base.
+        """
+        pendientes = [
+            draw for draw in uow.draws.list_for_campaign(campaign_id)
+            if draw.scheduled_at and not draw.executed_at
+        ]
+        return min(pendientes, key=lambda d: d.scheduled_at) if pendientes else None
+
+    @staticmethod
+    def _printable(ticket, campaign, prizes, draw, sale_id: str) -> dict[str, Any]:
+        """Carga del boleto, con los campos que el renderizador espera.
+
+        Se nombra el PRIMER premio de la campaña, que es el mayor por
+        convención de la pantalla que los captura. Un boleto sin premio
+        nombrado o sin sorteo programado sigue siendo válido —participa
+        igual— así que la ausencia se deja vacía en vez de impedir la
+        impresión.
+        """
+        return {
+            "raffle_id": ticket.campaign_id,
+            "raffle_name": getattr(campaign, "name", "") if campaign else "",
+            "ticket_number": ticket.ticket_number,
+            "prize": getattr(prizes[0], "name", "") if prizes else "",
+            "draw_date": getattr(draw, "scheduled_at", "") or "" if draw else "",
+            "customer_id": ticket.customer_id,
+            "sale_reference": sale_id,
+        }
