@@ -1,223 +1,141 @@
-"""§49: el shell canónico y el legacy no pueden divergir más.
+"""§49 — el shell canónico y lo que quedó fuera de él.
 
-Estado real medido, no supuesto:
+LA PREMISA ANTERIOR SE ANULÓ, Y CONVIENE DEJARLA ESCRITA
+---------------------------------------------------------
+Este archivo medía la brecha entre dos shells: `interfaz/main_window.py`
+registraba 26 módulos y era el único que el usuario veía, mientras
+`desktop_shell_window_composition.py` cableaba 16 y no lo llamaba ningún código
+productivo. El corte estaba prohibido porque perdería 10 módulos operativos, y
+§2 no permite eliminar funcionalidad operativa sin migración completa.
 
-* `interfaz/main_window.py` registra **26** módulos vía `_conectar(...)` y es el
-  único shell que el usuario ve — `main.py` lo construye directamente.
-* `frontend/desktop/shell/desktop_shell_window_composition.py` cablea **16**
-  módulos y **no lo llama ningún código productivo**: sólo pruebas. El shell
-  canónico existe pero está DORMIDO.
-* Los 16 canónicos tienen contraparte viva en MainWindow, así que esos dominios
-  están compuestos dos veces. No son dos rutas vivas — la canónica no arranca —
-  pero sí es el "existe pero no gobierna" que §49 declara hallazgo abierto.
+El shell legacy ya no existe. Es decir: **el corte ocurrió por borrado, no por
+migración** — exactamente el camino que este archivo existía para impedir. Sus
+cuatro pruebas fallaban con `FileNotFoundError`, que no dice nada de eso.
 
-Por qué este archivo es un ratchet y no un `assert` de corte:
+Lo que sigue vivo de la pregunta original es lo que ahora se mide, y son dos
+cosas distintas que conviene no mezclar:
 
-Cambiar `main.py` al shell canónico hoy **perdería 10 módulos operativos**
-(Activos, Proveedores, Etiquetas, WhatsApp, Cotizaciones…), y §2
-prohíbe explícitamente eliminar funcionalidad operativa sin migración completa.
-El corte exige migrar esos 10 primero. Mientras tanto, lo que sí se puede
-garantizar es que la brecha **no crezca**: ningún módulo nuevo puede nacer en el
-shell legacy, y el registro canónico no puede encoger.
+  1. Módulos CONSTRUIDOS que no se pueden abrir. Una pantalla completa sin
+     entrada de menú no falla nunca: simplemente no existe para el usuario, y
+     el esfuerzo de construirla está parado en el aire.
+  2. Módulos del shell anterior SIN reemplazo canónico. Eso es funcionalidad
+     que el producto tenía y ya no tiene. No la borró esta suite y no le toca
+     decidirlo, pero sí dejarla contada en vez de que se diluya.
 
-Cuando un módulo migre, ambos conjuntos cambian y las pruebas de "no obsoleto"
-obligan a actualizar este archivo — que es lo que convierte el corte en
-inevitable en vez de perpetuo.
+Ambos conjuntos son trinquetes: sólo pueden ENCOGER. Si un módulo se cablea o
+se reconstruye, la prueba de "sin entradas obsoletas" obliga a venir aquí a
+quitarlo, que es lo que impide que el hueco se vuelva permanente por olvido.
 """
 
 from __future__ import annotations
 
+import os
 import re
 
 from .architecture_guardrails import APP_ROOT
 
+_MODULES_DIR = APP_ROOT / "frontend" / "desktop" / "modules"
+_NAVIGATION = (APP_ROOT / "frontend" / "desktop" / "shell" / "sidebar"
+               / "migrated_modules_navigation.py")
 _LEGACY_SHELL = APP_ROOT / "interfaz" / "main_window.py"
-_CANONICAL_SHELL = (
-    APP_ROOT / "frontend" / "desktop" / "shell" / "desktop_shell_window_composition.py"
-)
 
-# Módulos registrados por el shell legacy, medidos en ad155c2f. Puede ENCOGER
-# (a medida que migran), nunca crecer.
-_LEGACY_MODULES = frozenset({
-    "ACTIVOS", "CAJA", "CLIENTES_CRM", "COMPRAS", "CONFIGURACION", "CONFIG_HARDWARE",
-    "CONFIG_MODULOS", "CONFIG_SEGURIDAD", "COTIZACIONES", "DASHBOARD", "DELIVERY",
-    "ETIQUETAS", "FINANZAS_UNIFICADAS", "GROWTH_ENGINE", "INTELIGENCIA_BI", "INVENTARIO",
-    "MERMAS", "PLANEACION_COMPRAS", "POS", "PRODUCCION", "PRODUCTOS", "PROVEEDORES",
-    "RRHH", "TARJETAS_FIDELIDAD", "TRANSFERENCIAS", "WHATSAPP",
+#: Construidos y sin entrada de menú, medidos hoy. `assets` tiene 12 archivos y
+#: sólo `assets_routes.py`; `pricing` tiene 11 y un `navigation.py`/`routes.py`
+#: propios — pero a ninguno de los dos le falta sólo la entrada: les falta el
+#: `shell_registration.py` que el shell importa, como sí hace `inventory`.
+_UNREACHABLE_MODULES = frozenset({"assets", "pricing"})
+
+#: Módulos que el shell anterior ofrecía y que no tienen reemplazo canónico en
+#: `frontend/desktop/modules/`. Comprobado uno a uno, no supuesto:
+#:
+#:   COTIZACIONES        sin módulo ni pantalla.
+#:   ETIQUETAS           sin módulo ni pantalla.
+#:   PLANEACION_COMPRAS  `PurchasePlanningQueryService` existe en el backend y
+#:                       no tiene ni un consumidor (ver
+#:                       test_no_forecast_sql_in_pyqt.py, que lo vigila con su
+#:                       propio trinquete de hueco).
+#:   WHATSAPP            no hay pantalla de escritorio. El microservicio
+#:                       `whatsapp_service/` vive aparte y no la reemplaza: es
+#:                       el backend del canal, no su administración.
+#:
+#: DASHBOARD no está en la lista a propósito: lo cubre
+#: `business_intelligence/pages/executive_dashboard_page.py`.
+_LOST_IN_RECONSTRUCTION = frozenset({
+    "COTIZACIONES", "ETIQUETAS", "PLANEACION_COMPRAS", "WHATSAPP",
 })
 
-# Identificadores cableados en el shell canónico. Puede CRECER, nunca encoger.
-_CANONICAL_MODULE_IDS = frozenset({
-    "SALES_POS_MODULE_ID", "CUSTOMERS_CRM_MODULE_ID", "FINANCE_MODULE_ID",
-    "HR_MODULE_ID", "INVENTORY_MODULE_ID", "PRODUCTS_MODULE_ID",
-    "PURCHASING_MODULE_ID", "TRANSFERS_MODULE_ID", "CASH_REGISTER_MODULE_ID",
-    "CONFIGURACION_MODULE_ID", "BUSINESS_INTELLIGENCE_MODULE_ID",
-    "LOSSES_MODULE_ID", "MEAT_PROCESSING_MODULE_ID", "ORDERS_DELIVERY_MODULE_ID",
-    "FIDELIDAD_MODULE_ID", "TARJETAS_FIDELIDAD_MODULE_ID",
-})
 
-# Correspondencia canónico -> slot legacy. Cuando un módulo complete su cutover,
-# su entrada sale de `_LEGACY_MODULES` y de este mapa a la vez.
-_CUTOVER_PAIRS = {
-    "SALES_POS_MODULE_ID": "POS",
-    "CUSTOMERS_CRM_MODULE_ID": "CLIENTES_CRM",
-    "FINANCE_MODULE_ID": "FINANZAS_UNIFICADAS",
-    "HR_MODULE_ID": "RRHH",
-    "INVENTORY_MODULE_ID": "INVENTARIO",
-    "PRODUCTS_MODULE_ID": "PRODUCTOS",
-    "PURCHASING_MODULE_ID": "COMPRAS",
-    "TRANSFERS_MODULE_ID": "TRANSFERENCIAS",
-    "CASH_REGISTER_MODULE_ID": "CAJA",
-    # `configuracion` ya tenía shell_registration.py completo y sólo faltaba
-    # cablearlo. Cubre el slot CONFIGURACION; CONFIG_HARDWARE, CONFIG_MODULOS y
-    # CONFIG_SEGURIDAD siguen siendo slots legacy propios hasta que el módulo
-    # canónico absorba sus secciones.
-    "CONFIGURACION_MODULE_ID": "CONFIGURACION",
-    # `business_intelligence` construye páginas reales en 10 de sus 13 rutas
-    # (`_REAL_ROUTE_BUILDERS`); las 3 restantes caen a placeholder explícito.
-    "BUSINESS_INTELLIGENCE_MODULE_ID": "INTELIGENCIA_BI",
-    # Cableados por decisión explícita del usuario sabiendo que su contenido
-    # todavía es parcial o placeholder; ver _PLACEHOLDER_BACKED.
-    "LOSSES_MODULE_ID": "MERMAS",
-    "MEAT_PROCESSING_MODULE_ID": "PRODUCCION",
-    "ORDERS_DELIVERY_MODULE_ID": "DELIVERY",
-    "FIDELIDAD_MODULE_ID": "GROWTH_ENGINE",
-    "TARJETAS_FIDELIDAD_MODULE_ID": "TARJETAS_FIDELIDAD",
-}
-
-# Módulos cableados al shell canónico cuyo contenido es total o mayoritariamente
-# placeholder. Están aquí por decisión explícita del usuario ("cablealos, en otra
-# sesión se corregirán los módulos"), no por descuido.
-#
-# Mientras esta lista no esté vacía, `main.py` NO puede cortar al shell canónico:
-# hacerlo convertiría estas pantallas en relleno para el usuario final. La prueba
-# `test_main_is_not_cut_over_while_placeholder_modules_are_wired` lo impide.
-_PLACEHOLDER_BACKED = {
-    # Corregido tras auditar la composición real: NO son "todas". El activator
-    # devolvía 16 placeholders porque recomponía el módulo por su cuenta
-    # ignorando las 4 páginas reales que ya existían; ahora delega en
-    # `build_losses_wiring` y sirve las mismas que el slot MERMAS.
-    # Sigue en esta lista porque 12 de 16 rutas siguen sin página propia.
-    "LOSSES_MODULE_ID": "12 de 16 rutas son placeholder (4 reales: registro, "
-                        "investigaciones, resumen y análisis)",
-    # Corregido tras auditar la composición real, igual que en losses: el
-    # activator devolvía 29 placeholders porque recomponía el módulo por su
-    # cuenta e ignoraba la página de Órdenes, que sí es real. Sigue aquí
-    # porque 28 de 29 rutas siguen sin página propia — y porque el slot
-    # PRODUCCION lo sirve todavía el legacy `modulos/produccion.py`.
-    "MEAT_PROCESSING_MODULE_ID": "28 de 29 rutas son placeholder "
-                                 "(1 real: mp_processing_orders)",
-    "ORDERS_DELIVERY_MODULE_ID": "20 de 23 rutas son placeholder (3 reales)",
-    "FIDELIDAD_MODULE_ID": "parte de sus páginas son placeholder",
-    "TARJETAS_FIDELIDAD_MODULE_ID": "parte de sus páginas son placeholder",
-}
-
-
-def _legacy_modules() -> set[str]:
-    source = _LEGACY_SHELL.read_text(encoding="utf-8", errors="ignore")
-    return set(re.findall(r'_conectar\(\s*"([A-Z_]+)"', source))
-
-
-def _canonical_module_ids() -> set[str]:
-    source = _CANONICAL_SHELL.read_text(encoding="utf-8", errors="ignore")
-    block = source[source.index("_MIGRATED_MODULE_WIRINGS"):]
-    block = block[: block.index("\n)")]
-    return set(re.findall(r"\b([A-Z_]+_MODULE_ID)\b", block))
-
-
-def test_legacy_shell_does_not_gain_modules() -> None:
-    """Ningún módulo nuevo puede nacer en el shell legacy."""
-    added = _legacy_modules() - _LEGACY_MODULES
-    assert not added, (
-        "Módulos NUEVOS en el shell legacy (deben nacer en el canónico, §49):\n  "
-        + "\n  ".join(sorted(added))
-    )
-
-
-def test_canonical_shell_does_not_lose_modules() -> None:
-    """El registro canónico sólo puede crecer."""
-    removed = _CANONICAL_MODULE_IDS - _canonical_module_ids()
-    assert not removed, (
-        "Módulos RETIRADOS del shell canónico — el cutover no puede retroceder:\n  "
-        + "\n  ".join(sorted(removed))
-    )
-
-
-def test_cutover_progress_is_recorded() -> None:
-    """Si un módulo migra, este archivo debe reflejarlo.
-
-    Sin esta prueba el ratchet sólo impediría empeorar y el avance quedaría sin
-    registrar — el fallo que `05_IDENTITY_GUARDRAILS.md` documenta cuando las
-    allowlists conservaron deuda que ya no existía.
-    """
-    live_legacy = _legacy_modules()
-    stale = _LEGACY_MODULES - live_legacy
-    assert not stale, (
-        "Estos módulos ya NO están en el shell legacy: retíralos de _LEGACY_MODULES "
-        "y de _CUTOVER_PAIRS para dejar constancia del cutover:\n  "
-        + "\n  ".join(sorted(stale))
-    )
-
-    grown = _canonical_module_ids() - _CANONICAL_MODULE_IDS
-    assert not grown, (
-        "Estos módulos ya están en el shell canónico: añádelos a "
-        "_CANONICAL_MODULE_IDS (y empareja su slot legacy):\n  "
-        + "\n  ".join(sorted(grown))
-    )
-
-
-def test_every_canonical_module_still_has_its_legacy_twin_documented() -> None:
-    """Mientras un módulo esté en ambos shells, la duplicación queda explícita.
-
-    Es el hallazgo §49 abierto: el mismo dominio compuesto dos veces. Que la
-    canónica esté dormida no lo cierra.
-    """
-    assert set(_CUTOVER_PAIRS) == _CANONICAL_MODULE_IDS
-    live_legacy = _legacy_modules()
-    undocumented = {
-        module_id: slot for module_id, slot in _CUTOVER_PAIRS.items() if slot not in live_legacy
+def _built_modules() -> set[str]:
+    return {
+        nombre for nombre in os.listdir(_MODULES_DIR)
+        if (_MODULES_DIR / nombre).is_dir() and nombre != "__pycache__"
     }
-    assert not undocumented, (
-        "El gemelo legacy de estos módulos desapareció: el cutover avanzó y hay que "
-        "registrarlo aquí:\n  " + "\n  ".join(f"{k} -> {v}" for k, v in sorted(undocumented.items()))
-    )
 
 
-def test_remaining_cutover_gap_is_explicit() -> None:
-    """La brecha real que bloquea las fases 5 y 6, medida y visible."""
-    legacy_only = _legacy_modules() - set(_CUTOVER_PAIRS.values())
-    assert len(legacy_only) == 10, (
-        f"La brecha del cutover cambió: {len(legacy_only)} módulos sólo-legacy "
-        f"(antes 10). Actualiza este número y 09_SHELL_CUTOVER_GAP.md:\n  "
-        + "\n  ".join(sorted(legacy_only))
-    )
+def _navigable_modules() -> set[str]:
+    return set(re.findall(r'item_id="nav\.([a-z_0-9]+)"',
+                          _NAVIGATION.read_text(encoding="utf-8")))
 
 
-def test_main_is_not_cut_over_while_placeholder_modules_are_wired() -> None:
-    """`main.py` no puede cortar al shell canónico con módulos placeholder dentro.
+# ── 1. nada nuevo puede nacer sin puerta ────────────────────────────────────
+def test_no_module_is_built_without_a_way_to_open_it():
+    """Construir una pantalla que nadie puede abrir no falla nunca.
 
-    Los cinco módulos de `_PLACEHOLDER_BACKED` se cablearon a propósito para que
-    el shell nuevo quede completo estructuralmente, con el contenido pendiente
-    para una sesión posterior. Eso es seguro **sólo mientras el shell siga
-    dormido**: si `main.py` corta ahora, Mermas, Producción y Delivery pasan a
-    ser pantallas de relleno para el usuario final, que es justo lo que §2
-    prohíbe.
-
-    Esta prueba es el pestillo: o se rellenan las páginas y se vacía
-    `_PLACEHOLDER_BACKED`, o `main.py` no corta. Falla en cuanto alguien intente
-    lo segundo sin lo primero.
+    No hay excepción, no hay traza, no hay nada raro en los registros: el
+    módulo simplemente no existe para el usuario. Este trinquete es lo único
+    que distingue "todavía no se cableó" de "se olvidó".
     """
-    if not _PLACEHOLDER_BACKED:
-        return  # ya no hay placeholders: el corte deja de estar bloqueado por esto
+    huerfanos = _built_modules() - _navigable_modules() - _UNREACHABLE_MODULES
+    assert not huerfanos, (
+        "Módulos construidos sin entrada de menú y sin declarar:\n  "
+        + "\n  ".join(sorted(huerfanos))
+        + "\nSi es deliberado, añádelo a _UNREACHABLE_MODULES con su motivo; "
+          "si no, cablea su `shell_registration.py` como hace `inventory`.")
 
-    main_source = (APP_ROOT / "main.py").read_text(encoding="utf-8", errors="ignore")
-    cutover_markers = ("build_application_window", "ApplicationWindow", "CompositionRoot")
-    used = [marker for marker in cutover_markers if marker in main_source]
-    detail = "; ".join(
-        f"{module}: {reason}" for module, reason in sorted(_PLACEHOLDER_BACKED.items())
+
+def test_the_unreachable_list_has_no_stale_entries():
+    """Cuando un módulo se cablea, su entrada aquí sobra — y retirarla es lo
+    que hace que el trinquete baje en vez de quedarse quieto."""
+    ya_navegables = sorted(_UNREACHABLE_MODULES & _navigable_modules())
+    assert not ya_navegables, (
+        f"Ya tienen entrada de menú, quítalos de _UNREACHABLE_MODULES: {ya_navegables}")
+
+    inexistentes = sorted(_UNREACHABLE_MODULES - _built_modules())
+    assert not inexistentes, (
+        f"Ya no existen como módulo, quítalos de _UNREACHABLE_MODULES: {inexistentes}")
+
+
+# ── 2. lo que el producto perdió, contado ───────────────────────────────────
+def test_the_functionality_lost_in_the_reconstruction_is_an_explicit_list():
+    """La pérdida se nombra, no se deduce.
+
+    §2 prohíbe eliminar funcionalidad operativa sin migración completa. Aquí ya
+    ocurrió, así que lo que queda por hacer es que no se diluya: cuatro nombres
+    concretos, no "algunos módulos del shell anterior".
+    """
+    assert _LOST_IN_RECONSTRUCTION, (
+        "La lista está vacía: o se reconstruyó todo —y entonces hay que retirar "
+        "esta prueba— o alguien la vació sin reconstruir nada.")
+
+    # Si alguno se reconstruyó, su nombre debe salir de la lista.
+    construidos_equivalentes = {
+        "COTIZACIONES": "quotes",
+        "ETIQUETAS": "labels",
+        "PLANEACION_COMPRAS": "purchase_planning",
+        "WHATSAPP": "whatsapp",
+    }
+    resucitados = sorted(
+        legacy for legacy, canonico in construidos_equivalentes.items()
+        if legacy in _LOST_IN_RECONSTRUCTION and canonico in _built_modules()
     )
-    assert not used, (
-        "main.py está cortando al shell canónico, pero siguen cableados módulos con "
-        "contenido placeholder — el usuario final vería pantallas de relleno. "
-        f"Pendientes: {detail}. Marcadores encontrados en main.py: {used}"
-    )
+    assert not resucitados, (
+        f"Ya tienen módulo canónico, quítalos de _LOST_IN_RECONSTRUCTION: {resucitados}")
+
+
+# ── 3. el shell anterior no vuelve ──────────────────────────────────────────
+def test_the_legacy_shell_does_not_come_back():
+    """Reaparecer sería tener dos shells otra vez, y esta vez sin nadie
+    midiendo la brecha: este archivo ya no la mide porque no la hay."""
+    assert not _LEGACY_SHELL.exists(), (
+        f"{_LEGACY_SHELL} volvió a existir. Si es deliberado, esta suite tiene "
+        "que volver a medir la brecha entre los dos shells.")
