@@ -108,7 +108,7 @@ def build_sales_pos_presenter(
         "scan_code": _scan_code_handler(connection, auth),
         "apply_sale_discount": _h(ApplySaleDiscountUseCase(auth).execute),
         "apply_line_discount": _h(ApplyLineDiscountUseCase(auth).execute),
-        "record_payment": _payment_handler(connection, auth),
+        "record_payment": _payment_handler(connection, auth, customer_auth),
         "begin_checkout": _h(BeginSaleCheckoutUseCase(auth).execute),
         "checkout_sale": _h(CheckoutSaleUseCase(auth, inventory_auth).execute),
         "suspend_sale": _h(SuspendSaleUseCase(auth, inventory_auth).execute),
@@ -137,7 +137,19 @@ def _scan_code_handler(connection, auth):
     return handler
 
 
-def _payment_handler(connection, auth):
+def _payment_handler(connection, auth, customer_auth):
+    """`customer_auth` se RECIBE; no estaba en el alcance de esta función.
+
+    Lo introduje en `bf615bea` (PASS 3, crédito y CxC): añadí
+    `customer_authorization=customer_auth` aquí, donde ese nombre sólo existe
+    dentro de `build_sales_pos_presenter`. Y no era un fallo latente que
+    esperara a que alguien cobrara — esta línea corre AL CONSTRUIR el
+    diccionario de manejadores, así que `build_sales_pos_presenter` reventaba
+    con `NameError` y el Punto de Venta no llegaba a abrirse.
+
+    Una venta a crédito exige el permiso de crédito del contexto de Clientes,
+    que es lo que esta política aporta; por eso se pasa en vez de quitarse.
+    """
     run = RecordSalePaymentUseCase(auth, customer_authorization=customer_auth).execute
 
     def handler(*, sale_id, method, amount, actor_user_id, operation_id, reference=None):

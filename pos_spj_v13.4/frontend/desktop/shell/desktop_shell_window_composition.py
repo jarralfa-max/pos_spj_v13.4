@@ -69,6 +69,14 @@ from frontend.desktop.modules.tarjetas_fidelidad.shell_registration import (
     build_tarjetas_fidelidad_module_descriptor,
     build_tarjetas_fidelidad_route_definition,
 )
+from frontend.desktop.modules.assets.shell_registration import (
+    ASSETS_MODULE_ID, AssetsModuleActivator,
+    build_assets_module_descriptor, build_assets_route_definition,
+)
+from frontend.desktop.modules.pricing.shell_registration import (
+    PRICING_MODULE_ID, PricingModuleActivator,
+    build_pricing_module_descriptor, build_pricing_route_definition,
+)
 from frontend.desktop.modules.cash_register.shell_registration import (
     CASH_REGISTER_MODULE_ID, CashRegisterModuleActivator,
     build_cash_register_module_descriptor, build_cash_register_route_definition,
@@ -169,6 +177,8 @@ _MIGRATED_MODULE_WIRINGS = (
     (ORDERS_DELIVERY_MODULE_ID, build_orders_delivery_module_descriptor, build_orders_delivery_route_definition, _standard_activator_factory(OrdersDeliveryModuleActivator)),
     (FIDELIDAD_MODULE_ID, build_fidelidad_module_descriptor, build_fidelidad_route_definition, _standard_activator_factory(FidelidadModuleActivator)),
     (TARJETAS_FIDELIDAD_MODULE_ID, build_tarjetas_fidelidad_module_descriptor, build_tarjetas_fidelidad_route_definition, _standard_activator_factory(TarjetasFidelidadModuleActivator)),
+    (ASSETS_MODULE_ID, build_assets_module_descriptor, build_assets_route_definition, _standard_activator_factory(AssetsModuleActivator)),
+    (PRICING_MODULE_ID, build_pricing_module_descriptor, build_pricing_route_definition, _standard_activator_factory(PricingModuleActivator)),
 )
 
 

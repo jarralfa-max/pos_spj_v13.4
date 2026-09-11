@@ -39,6 +39,9 @@ from frontend.desktop.modules.purchasing.shell_registration import PURCHASING_RO
 from frontend.desktop.modules.transfers.shell_registration import TRANSFERS_ROUTE_ID  # noqa: E402
 from frontend.desktop.modules.transfers.transfers_view import TransfersView  # noqa: E402
 from frontend.desktop.shell.application_shell.application_window import ApplicationWindow  # noqa: E402
+from frontend.desktop.shell.sidebar.migrated_modules_navigation import (
+    MIGRATED_MODULES_NAVIGATION_ITEMS,
+)
 from frontend.desktop.shell.desktop_shell_window_composition import build_application_window  # noqa: E402
 from frontend.desktop.shell.loading.module_load_state import ModuleLoadState  # noqa: E402
 
@@ -94,7 +97,12 @@ def test_sidebar_shows_all_migrated_modules_when_fully_permitted(app, conn):
         health_report=_healthy_report(),
     )
     assert window.sidebar is not None
-    assert window.sidebar.visible_item_count == 16
+    # Derivado de la definición, no un 16 escrito a mano: cada módulo que se
+    # cablea cambia este número, y un literal obliga a venir a editarlo o deja
+    # la prueba roja por un motivo que no es el suyo. Lo que importa aquí es que
+    # la barra muestre TODOS los módulos registrados cuando la sesión los
+    # permite — no cuántos hay hoy.
+    assert window.sidebar.visible_item_count == len(MIGRATED_MODULES_NAVIGATION_ITEMS)
 
 
 def test_no_module_is_constructed_until_navigated_to(app, conn):

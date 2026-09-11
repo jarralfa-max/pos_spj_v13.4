@@ -45,6 +45,9 @@ from frontend.desktop.shell.application_shell.application_window import Applicat
 from frontend.desktop.shell.desktop_shell_authentication_composition import (  # noqa: E402
     build_authentication_coordinator,
 )
+from frontend.desktop.shell.sidebar.migrated_modules_navigation import (
+    MIGRATED_MODULES_NAVIGATION_ITEMS,
+)
 from frontend.desktop.shell.desktop_shell_window_composition import build_application_window  # noqa: E402
 from tests.integration._born_clean_db import make_db  # noqa: E402
 
@@ -123,7 +126,12 @@ def test_login_builds_a_real_navigable_application_window(app, provisioned_conn,
 
     # The owner role must carry admin-level access — PermissionEvaluator's
     # is_admin() bypass — so every migrated module's sidebar item resolves.
-    assert window.sidebar.visible_item_count == 16
+    # Derivado de la definición, no un 16 escrito a mano: cada módulo que se
+    # cablea cambia este número, y un literal obliga a venir a editarlo o deja
+    # la prueba roja por un motivo que no es el suyo. Lo que importa aquí es que
+    # la barra muestre TODOS los módulos registrados cuando la sesión los
+    # permite — no cuántos hay hoy.
+    assert window.sidebar.visible_item_count == len(MIGRATED_MODULES_NAVIGATION_ITEMS)
 
     result = window.navigate(TRANSFERS_ROUTE_ID)
     assert isinstance(result.view, TransfersView)

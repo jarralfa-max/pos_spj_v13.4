@@ -39,11 +39,17 @@ _NAVIGATION = (APP_ROOT / "frontend" / "desktop" / "shell" / "sidebar"
                / "migrated_modules_navigation.py")
 _LEGACY_SHELL = APP_ROOT / "interfaz" / "main_window.py"
 
-#: Construidos y sin entrada de menú, medidos hoy. `assets` tiene 12 archivos y
-#: sólo `assets_routes.py`; `pricing` tiene 11 y un `navigation.py`/`routes.py`
-#: propios — pero a ninguno de los dos le falta sólo la entrada: les falta el
-#: `shell_registration.py` que el shell importa, como sí hace `inventory`.
-_UNREACHABLE_MODULES = frozenset({"assets", "pricing"})
+#: VACÍO. Eran `assets` y `pricing`: 23 archivos de UI construidos que nadie
+#: podía abrir porque les faltaba el `shell_registration.py` que el shell
+#: importa. Los dos quedaron cableados —módulo, ruta, activador, entrada de
+#: menú— y `pricing` necesitó además el widget contenedor que juntaba sus
+#: páginas, que tampoco existía.
+#:
+#: Vacío significa que hoy TODO módulo construido se puede abrir. Si vuelve a
+#: aparecer uno sin puerta, la prueba de abajo lo dirá en vez de que se quede
+#: ahí indefinidamente: es la única señal que distingue "todavía no se cableó"
+#: de "se olvidó".
+_UNREACHABLE_MODULES: frozenset[str] = frozenset()
 
 #: Módulos que el shell anterior ofrecía y que no tienen reemplazo canónico en
 #: `frontend/desktop/modules/`. Comprobado uno a uno, no supuesto:

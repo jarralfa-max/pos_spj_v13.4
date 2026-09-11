@@ -29,6 +29,16 @@ this module importing and mutating a registry at import time.
 from __future__ import annotations
 
 from frontend.desktop.components.icons import Icons
+from frontend.desktop.modules.assets.shell_registration import (
+    ASSETS_MODULE_ID,
+    ASSETS_REQUIRED_PERMISSION,
+    ASSETS_ROUTE_ID,
+)
+from frontend.desktop.modules.pricing.shell_registration import (
+    PRICING_MODULE_ID,
+    PRICING_REQUIRED_PERMISSION,
+    PRICING_ROUTE_ID,
+)
 from frontend.desktop.modules.business_intelligence.shell_registration import (
     BUSINESS_INTELLIGENCE_MODULE_ID,
     BUSINESS_INTELLIGENCE_REQUIRED_PERMISSION,
@@ -195,6 +205,26 @@ MIGRATED_MODULES_NAVIGATION_ITEMS: tuple[NavigationItemDefinition, ...] = (
         item_id="nav.tarjetas_fidelidad", module_id=TARJETAS_FIDELIDAD_MODULE_ID, route_id=TARJETAS_FIDELIDAD_ROUTE_ID,
         label="Tarjetas de Fidelidad", icon=Icons.LOYALTY_CARDS, order=160, group=MIGRATED_MODULES_GROUP,
         required_permission=TARJETAS_FIDELIDAD_REQUIRED_PERMISSION,
+    ),
+    # Activos estaba CONSTRUIDO y sin puerta: 12 archivos de UI que nadie podía
+    # abrir. Ojo con lo que muestra — el módulo no tiene capa de persistencia
+    # (ni repositorios ni tablas), así que abre en estado vacío. El motivo
+    # completo está en su `shell_registration.py`.
+    NavigationItemDefinition(
+        item_id="nav.assets", module_id=ASSETS_MODULE_ID, route_id=ASSETS_ROUTE_ID,
+        label="Activos", icon=Icons.ASSETS, order=170, group=MIGRATED_MODULES_GROUP,
+        required_permission=ASSETS_REQUIRED_PERMISSION,
+    ),
+    # Precios y Costos: mismo caso que Activos —construido y sin puerta— pero
+    # aquí SÍ hay datos detrás (esquema + migraciones 149/150 + servicio de
+    # lectura). Su permiso es plano (`PRICING_VIEW`), así que la entrada sólo la
+    # verá el administrador hasta que el contexto adopte `MODULO.accion`; el
+    # motivo completo está en su `shell_registration.py`.
+    NavigationItemDefinition(
+        item_id="nav.pricing", module_id=PRICING_MODULE_ID, route_id=PRICING_ROUTE_ID,
+        label="Precios y Costos", icon=Icons.FINANCE, order=180,
+        group=MIGRATED_MODULES_GROUP,
+        required_permission=PRICING_REQUIRED_PERMISSION,
     ),
 )
 
