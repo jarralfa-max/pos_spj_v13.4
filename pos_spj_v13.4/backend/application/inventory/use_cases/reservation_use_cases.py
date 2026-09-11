@@ -9,6 +9,7 @@ operation_id.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from backend.application.inventory.authorization import InventoryAuthorizationPolicy
@@ -40,6 +41,16 @@ from backend.domain.inventory.services.lot_allocation_service import (
 from backend.infrastructure.db.repositories.inventory.unit_of_work import (
     InventoryUnitOfWork,
 )
+
+
+def _utcnow_iso() -> str:
+    """Mismo formato que `InventoryReservation.is_expired()` compara.
+
+    La comparación de vencimiento es textual (`now >= expires_at`), así que un
+    formato distinto —con microsegundos, o sin zona— ordenaría mal y las
+    reservas caducarían antes o nunca.
+    """
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def _scope_fail(context, branch_id, warehouse_id, operation_id):
@@ -254,3 +265,128 @@ class AllocateReservationUseCase:
     @staticmethod
     def _to_decimal(value):
         return Decimal(str(value)) if value not in (None, "") else Decimal("0")
+
+
+class FulfillReservationUseCase:
+    """Marca una reserva como CUMPLIDA: el documento origen se completó.
+
+    NO ES LO MISMO QUE LIBERAR, y la diferencia es la parte que importa:
+
+      liberar  -> la operación se canceló. La retención se deshace y la
+                  mercancía vuelve a estar disponible para vender.
+      cumplir  -> la venta se completó. La mercancía SALIÓ. La retención se
+                  mantiene, porque soltarla haría que lo ya vendido volviera a
+                  aparecer como disponible en el punto de venta.
+
+    POR QUÉ NO SE DESCUENTA LA EXISTENCIA AQUÍ. Lo coherente sería que al
+    cumplirse la reserva se registrara además un movimiento de inventario de
+    tipo venta que bajara la existencia real, y entonces sí soltar la
+    retención. No se hace, y no es un olvido: hoy NINGUNA parte del sistema
+    registra ese movimiento al completar una venta (verificado: no existe un
+    solo uso de `MovementType.SALE` en todo el repositorio), mientras que las
+    devoluciones sí reponen con `SALE_RETURN`. Hacerlo aquí cambiaría la
+    valuación del inventario y el costo de ventas, que es una decisión del
+    negocio y no de una migración de código.
+
+    Manteniendo la retención, el número de "reservado" acumula exactamente lo
+    vendido y no descontado: el síntoma queda visible y medible en lugar de
+    disolverse. Ver la nota de este hallazgo en
+    `backend/infrastructure/integrations/sales_inventory_client.py`.
+    """
+
+    def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+
+    def execute(self, connection, *, reservation_id: str, operation_id: str,
+                actor_user_id: str,
+                context: InventoryExecutionContext | None = None) -> InventoryResult:
+        try:
+            self._auth.require(actor_user_id, InventoryPermissions.RESERVATION_CREATE)
+        except InventoryPermissionDeniedError as exc:
+            return InventoryResult.fail(str(exc), "PERMISSION_DENIED",
+                                        operation_id=operation_id)
+        try:
+            with InventoryUnitOfWork(connection) as uow:
+                reservation = uow.reservations.get(reservation_id)
+                if reservation is None:
+                    return InventoryResult.fail("Reserva no encontrada",
+                                                "RESERVATION_NOT_FOUND",
+                                                operation_id=operation_id)
+                denied = _scope_fail(context, reservation.branch_id,
+                                     reservation.warehouse_id, operation_id)
+                if denied is not None:
+                    return denied
+                if not reservation.is_active:
+                    return InventoryResult.ok("Reserva ya inactiva (idempotente)",
+                                              entity_id=reservation_id,
+                                              operation_id=operation_id,
+                                              already_processed=True)
+                uow.reservations.update_status(reservation.id, ReservationStatus.FULFILLED)
+                uow.audit.record(entity_type="RESERVATION", entity_id=reservation.id,
+                                 action="FULFILLED", user_id=actor_user_id,
+                                 operation_id=operation_id,
+                                 product_id=reservation.product_id,
+                                 branch_id=reservation.branch_id,
+                                 warehouse_id=reservation.warehouse_id)
+                _emit(uow, InventoryEvents.INVENTORY_RESERVATION_FULFILLED,
+                      operation_id=operation_id, entity_id=reservation.id,
+                      product_id=reservation.product_id, branch_id=reservation.branch_id,
+                      actor_user_id=actor_user_id)
+        except InventoryDomainError as exc:
+            return InventoryResult.fail(str(exc), "INVENTORY_RULE_VIOLATION",
+                                        operation_id=operation_id)
+        return InventoryResult.ok("Reserva cumplida", entity_id=reservation_id,
+                                  operation_id=operation_id)
+
+
+class ExpireReservationsUseCase:
+    """Caduca las reservas vencidas y devuelve la mercancía a disponible.
+
+    Una reserva vencida es una operación que quedó a medias — una venta
+    suspendida que nadie retomó, por ejemplo. Su mercancía tiene que volver a
+    venderse, así que aquí SÍ se suelta la retención: caducar es una forma de
+    liberar, no de cumplir.
+
+    Devuelve cuántas caducó. Cero es el resultado normal.
+    """
+
+    def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
+        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+
+    def execute(self, connection, *, operation_id: str, actor_user_id: str,
+                now: str | None = None) -> InventoryResult:
+        try:
+            self._auth.require(actor_user_id, InventoryPermissions.RESERVATION_RELEASE)
+        except InventoryPermissionDeniedError as exc:
+            return InventoryResult.fail(str(exc), "PERMISSION_DENIED",
+                                        operation_id=operation_id)
+        momento = now or _utcnow_iso()
+        caducadas = 0
+        try:
+            with InventoryUnitOfWork(connection) as uow:
+                for reservation in uow.reservations.list_active_expired(now=momento):
+                    balance = uow.balances.get(
+                        product_id=reservation.product_id, branch_id=reservation.branch_id,
+                        warehouse_id=reservation.warehouse_id,
+                        inventory_status=InventoryStatus.AVAILABLE,
+                        location_id=reservation.location_id, lot_id=reservation.lot_id)
+                    if balance is not None:
+                        balance.release_reservation(quantity=reservation.quantity,
+                                                    weight=reservation.weight)
+                        uow.balances.upsert(balance)
+                    uow.reservations.update_status(reservation.id, ReservationStatus.EXPIRED)
+                    uow.audit.record(entity_type="RESERVATION", entity_id=reservation.id,
+                                     action="EXPIRED", user_id=actor_user_id,
+                                     operation_id=operation_id,
+                                     product_id=reservation.product_id,
+                                     branch_id=reservation.branch_id)
+                    _emit(uow, InventoryEvents.INVENTORY_RESERVATION_EXPIRED,
+                          operation_id=operation_id, entity_id=reservation.id,
+                          product_id=reservation.product_id,
+                          branch_id=reservation.branch_id, actor_user_id=actor_user_id)
+                    caducadas += 1
+        except InventoryDomainError as exc:
+            return InventoryResult.fail(str(exc), "INVENTORY_RULE_VIOLATION",
+                                        operation_id=operation_id)
+        return InventoryResult.ok(f"{caducadas} reservas caducadas",
+                                  operation_id=operation_id, expired=caducadas)

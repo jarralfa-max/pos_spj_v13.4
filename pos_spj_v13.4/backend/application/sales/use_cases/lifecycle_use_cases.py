@@ -35,7 +35,6 @@ from backend.application.sales.use_cases._base import _SalesBaseUseCase
 from backend.domain.sales.events import SaleEvents
 from backend.domain.sales.exceptions import SalesDomainError, SaleNotFoundError
 from backend.infrastructure.db.repositories.sales.unit_of_work import SalesUnitOfWork
-from backend.infrastructure.integrations.sales_inventory_client import SalesInventoryClient
 
 
 class SuspendSaleUseCase(_SalesBaseUseCase):
@@ -62,7 +61,8 @@ class SuspendSaleUseCase(_SalesBaseUseCase):
             except SalesDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             if not sale.inventory_reservation_id:
-                client = SalesInventoryClient(connection, branch_id=sale.branch_id)
+                client = self._inventory_client(
+                    connection, branch_id=sale.branch_id, actor_user_id=actor_user_id)
                 try:
                     sale.inventory_reservation_id = client.reserve_for_sale(sale)
                 except SalesDomainError as exc:
@@ -121,7 +121,8 @@ class CancelSaleUseCase(_SalesBaseUseCase):
             except SalesDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             if sale.inventory_reservation_id:
-                client = SalesInventoryClient(connection, branch_id=sale.branch_id)
+                client = self._inventory_client(
+                    connection, branch_id=sale.branch_id, actor_user_id=actor_user_id)
                 client.release(sale.inventory_reservation_id, reason="cancelada")
                 sale.inventory_reservation_id = None
             uow.sales.save(sale)

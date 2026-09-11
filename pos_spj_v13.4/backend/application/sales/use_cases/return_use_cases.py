@@ -47,7 +47,6 @@ from backend.domain.sales.events import SaleEvents
 from backend.domain.sales.exceptions import SalesDomainError, SaleNotFoundError
 from backend.infrastructure.db.repositories.sales.unit_of_work import SalesUnitOfWork
 from backend.infrastructure.integrations.sales_cash_effects_client import SalesCashEffectsClient
-from backend.infrastructure.integrations.sales_inventory_client import SalesInventoryClient
 
 
 class ReturnSaleLineUseCase(_SalesBaseUseCase):
@@ -84,7 +83,9 @@ class ReturnSaleLineUseCase(_SalesBaseUseCase):
 
             product_id = next(l.product_id for l in sale.lines if l.id == line_id)
             try:
-                SalesInventoryClient(connection, branch_id=sale.branch_id).restore_for_return(
+                self._inventory_client(
+                    connection, branch_id=sale.branch_id,
+                    actor_user_id=actor_user_id).restore_for_return(
                     product_id=product_id, quantity=quantity, sale_id=sale.id,
                     operation_id=operation_id, actor_user_id=actor_user_id,
                     reason_code="SALE_RETURN", source_document_type="SALE_RETURN")
@@ -133,7 +134,8 @@ class ReverseSaleUseCase(_SalesBaseUseCase):
             except SalesDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
 
-            inv_client = SalesInventoryClient(connection, branch_id=sale.branch_id)
+            inv_client = self._inventory_client(
+                connection, branch_id=sale.branch_id, actor_user_id=actor_user_id)
             for line in sale.lines:
                 already_returned = sum(
                     (r.quantity for r in sale.returns if r.line_id == line.id), Decimal("0"))

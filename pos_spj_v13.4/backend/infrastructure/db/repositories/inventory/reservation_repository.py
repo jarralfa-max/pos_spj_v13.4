@@ -57,6 +57,39 @@ class ReservationRepository(InventoryRepositoryBase):
         self._execute("UPDATE inventory_reservation SET status=? WHERE id=?",
                       (enum_value(status), reservation_id))
 
+    def list_active_for_source_document(self, source_document_id: str) -> list[InventoryReservation]:
+        """Reservas ACTIVAS creadas por un mismo documento origen.
+
+        Una venta con varias líneas produce una reserva por producto, todas con
+        el mismo `source_document_id`. Es lo que permite tratarlas como un solo
+        bloque al confirmar o liberar la venta entera.
+
+        Filtra por estado activo a propósito: liberar una venta dos veces no
+        debe volver a tocar las reservas que ya se liberaron la primera vez.
+        """
+        rows = self._query(
+            "SELECT * FROM inventory_reservation WHERE source_document_id=?"
+            " AND status IN ('PENDING','CONFIRMED','PARTIALLY_ALLOCATED','ALLOCATED',"
+            "'PARTIALLY_FULFILLED') ORDER BY created_at", (source_document_id,))
+        return [_to_reservation(row) for row in rows]
+
+    def count_active_expired(self, *, now: str) -> int:
+        """Cuántas reservas activas ya vencieron."""
+        row = self._query_one(
+            "SELECT COUNT(*) AS n FROM inventory_reservation"
+            " WHERE expires_at IS NOT NULL AND expires_at != '' AND expires_at <= ?"
+            " AND status IN ('PENDING','CONFIRMED','PARTIALLY_ALLOCATED','ALLOCATED',"
+            "'PARTIALLY_FULFILLED')", (now,))
+        return int(row["n"]) if row else 0
+
+    def list_active_expired(self, *, now: str) -> list[InventoryReservation]:
+        rows = self._query(
+            "SELECT * FROM inventory_reservation"
+            " WHERE expires_at IS NOT NULL AND expires_at != '' AND expires_at <= ?"
+            " AND status IN ('PENDING','CONFIRMED','PARTIALLY_ALLOCATED','ALLOCATED',"
+            "'PARTIALLY_FULFILLED') ORDER BY expires_at", (now,))
+        return [_to_reservation(row) for row in rows]
+
     def list_active_for_product(self, product_id: str, branch_id: str) -> list[dict]:
         return self._query(
             "SELECT * FROM inventory_reservation WHERE product_id=? AND branch_id=?"

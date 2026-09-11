@@ -19,13 +19,47 @@ from __future__ import annotations
 
 import json
 
+from backend.application.inventory.authorization import InventoryAuthorizationPolicy
 from backend.application.sales.authorization import SalesAuthorizationPolicy
 from backend.domain.sales.events import sale_event_payload
 
+#: Identidad de las operaciones sin persona detrás (barridos programados).
+#: Mismo criterio que ya usan `cash_register_application_service` y
+#: `execute_meat_production_use_case` al quedarse sin usuario.
+SYSTEM_ACTOR = "sistema"
+
 
 class _SalesBaseUseCase:
-    def __init__(self, authorization: SalesAuthorizationPolicy | None = None) -> None:
+    """Fontanería común: autorización y emisión de eventos al outbox.
+
+    `inventory_authorization` es la política con la que Ventas habla con
+    Inventario. Se inyecta desde el mismo sitio que la de Ventas (la raíz de
+    composición del POS) en vez de construirse aquí: un adaptador que se fabrica
+    su propio permiso no es un permiso.
+    """
+
+    def __init__(
+        self, authorization: SalesAuthorizationPolicy | None = None,
+        inventory_authorization: InventoryAuthorizationPolicy | None = None,
+    ) -> None:
         self._auth = authorization or SalesAuthorizationPolicy()
+        self._inventory_auth = inventory_authorization
+
+    def _inventory_client(self, connection, *, branch_id: str, actor_user_id: str):
+        """Cliente de inventario con la identidad y el permiso del llamador.
+
+        Sin `inventory_authorization` inyectada, el cliente construye una
+        política sin verificador, que lanza `InventoryConfigurationError` en
+        cuanto se usa. Preferible a conceder de más, y sobre todo distinguible:
+        un cableado incompleto no debe confundirse con una falta de permiso.
+        """
+        from backend.infrastructure.integrations.sales_inventory_client import (
+            SalesInventoryClient,
+        )
+
+        return SalesInventoryClient(
+            connection, branch_id=branch_id, actor_user_id=actor_user_id,
+            authorization=self._inventory_auth)
 
     @staticmethod
     def _emit(uow, event_name: str, *, entity_id: str, operation_id: str,

@@ -47,7 +47,6 @@ from backend.domain.sales.policies.lifecycle_policies import SaleLifecyclePolicy
 from backend.domain.sales.policies.payment_policy import SalePaymentPolicy
 from backend.infrastructure.db.repositories.sales.unit_of_work import SalesUnitOfWork
 from backend.infrastructure.integrations.sales_cash_effects_client import SalesCashEffectsClient
-from backend.infrastructure.integrations.sales_inventory_client import SalesInventoryClient
 from backend.infrastructure.integrations.sales_sweepstakes_client import SalesSweepstakesClient
 
 logger = logging.getLogger("spj.sales.checkout")
@@ -76,7 +75,8 @@ class CheckoutSaleUseCase(_SalesBaseUseCase):
                 return fail_from_domain_error(exc, operation_id=operation_id)
 
             if sale.inventory_reservation_id:
-                inv_client = SalesInventoryClient(connection, branch_id=sale.branch_id)
+                inv_client = self._inventory_client(
+                    connection, branch_id=sale.branch_id, actor_user_id=actor_user_id)
                 try:
                     inv_client.confirm(sale.inventory_reservation_id, sale_id=sale.id,
                                        folio=sale.sale_number or sale.id)

@@ -20,6 +20,10 @@ from __future__ import annotations
 
 from backend.application.customers.authorization import CustomerAuthorizationPolicy
 from backend.application.customers.session_authorization import CustomerSessionPermissionChecker
+from backend.application.inventory.authorization import InventoryAuthorizationPolicy
+from backend.application.inventory.session_authorization import (
+    InventorySessionPermissionChecker,
+)
 from backend.application.sales.authorization import SalesAuthorizationPolicy
 from backend.application.sales.queries.benefit_evaluation_service import SaleBenefitEvaluationService
 from backend.application.customer_display.queries.advertising_query_service import AdvertisingQueryService
@@ -70,6 +74,12 @@ def build_sales_pos_presenter(
     checker = SalesSessionPermissionChecker(session_context)
     auth = SalesAuthorizationPolicy(checker)
     customer_auth = CustomerAuthorizationPolicy(CustomerSessionPermissionChecker(session_context))
+    # Ventas retiene y suelta stock a traves del contexto de Inventario, y esas
+    # operaciones exigen permisos `INVENTARIO.reserva.*` propios. Se construye
+    # con el verificador REAL de la sesion (§23): sin esto, el cliente de
+    # inventario cae en una politica que falla cerrada y el cobro se deniega.
+    inventory_auth = InventoryAuthorizationPolicy(
+        InventorySessionPermissionChecker(session_context))
 
     query_services = {
         "catalog": SalesCatalogQueryService(connection),
@@ -100,12 +110,12 @@ def build_sales_pos_presenter(
         "apply_line_discount": _h(ApplyLineDiscountUseCase(auth).execute),
         "record_payment": _payment_handler(connection, auth),
         "begin_checkout": _h(BeginSaleCheckoutUseCase(auth).execute),
-        "checkout_sale": _h(CheckoutSaleUseCase(auth).execute),
-        "suspend_sale": _h(SuspendSaleUseCase(auth).execute),
+        "checkout_sale": _h(CheckoutSaleUseCase(auth, inventory_auth).execute),
+        "suspend_sale": _h(SuspendSaleUseCase(auth, inventory_auth).execute),
         "resume_sale": _h(ResumeSaleUseCase(auth).execute),
-        "cancel_sale": _h(CancelSaleUseCase(auth).execute),
-        "return_line": _h(ReturnSaleLineUseCase(auth).execute),
-        "reverse_sale": _h(ReverseSaleUseCase(auth).execute),
+        "cancel_sale": _h(CancelSaleUseCase(auth, inventory_auth).execute),
+        "return_line": _h(ReturnSaleLineUseCase(auth, inventory_auth).execute),
+        "reverse_sale": _h(ReverseSaleUseCase(auth, inventory_auth).execute),
         "request_invoice": _h(RequestInvoiceUseCase(auth).execute),
         "reprint_receipt": _reprint_handler(connection, auth, printer_service),
         "push_customer_display": _customer_display_handler(connection),

@@ -27,15 +27,22 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 
+from backend.application.sales.use_cases._base import SYSTEM_ACTOR, _SalesBaseUseCase
 from backend.domain.sales.events import SaleEvents, sale_event_payload
 from backend.infrastructure.db.repositories.sales.unit_of_work import SalesUnitOfWork
-from backend.infrastructure.integrations.sales_inventory_client import SalesInventoryClient
 from backend.shared.ids import new_uuid
 
 _DEFAULT_REASON = "Expiración automática por tiempo de suspensión"
 
 
-class ExpireSuspendedSalesUseCase:
+class ExpireSuspendedSalesUseCase(_SalesBaseUseCase):
+    """Barrido de sistema: no lleva permiso por cajero.
+
+    Hereda de `_SalesBaseUseCase` sólo por la fontanería —el cliente de
+    inventario con su política inyectada—, no para añadir una puerta de
+    permisos que este barrido no tiene por diseño.
+    """
+
     def execute(self, connection, *, max_age_hours: int, reason: str = _DEFAULT_REASON) -> int:
         cutoff = (datetime.now(timezone.utc) - timedelta(hours=max_age_hours)).isoformat(
             timespec="seconds")
@@ -44,7 +51,9 @@ class ExpireSuspendedSalesUseCase:
             for sale in expired:
                 sale.cancel(reason)
                 if sale.inventory_reservation_id:
-                    client = SalesInventoryClient(connection, branch_id=sale.branch_id)
+                    client = self._inventory_client(
+                        connection, branch_id=sale.branch_id,
+                        actor_user_id=SYSTEM_ACTOR)
                     client.release(sale.inventory_reservation_id, reason="expirada")
                     sale.inventory_reservation_id = None
                 uow.sales.save(sale)

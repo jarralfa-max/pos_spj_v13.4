@@ -34,6 +34,12 @@ class InventoryEvents:
     # reservations
     INVENTORY_RESERVED = "INVENTORY_RESERVED"
     INVENTORY_RESERVATION_RELEASED = "INVENTORY_RESERVATION_RELEASED"
+    # Cumplida = el documento origen se completó y la mercancía salió. Es
+    # distinto de LIBERADA, que devuelve la mercancía a disponible porque la
+    # operación se canceló; confundirlos haría que una venta completada
+    # repusiera su propio stock.
+    INVENTORY_RESERVATION_FULFILLED = "INVENTORY_RESERVATION_FULFILLED"
+    INVENTORY_RESERVATION_EXPIRED = "INVENTORY_RESERVATION_EXPIRED"
     INVENTORY_ALLOCATED = "INVENTORY_ALLOCATED"
 
     # transfers

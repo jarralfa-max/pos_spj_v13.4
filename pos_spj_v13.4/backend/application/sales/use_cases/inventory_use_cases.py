@@ -24,10 +24,9 @@ from __future__ import annotations
 from backend.application.sales.dto import SaleDTO
 from backend.application.sales.permissions import SalesPermissions
 from backend.application.sales.result import SaleResult, fail_from_domain_error
-from backend.application.sales.use_cases._base import _SalesBaseUseCase
+from backend.application.sales.use_cases._base import SYSTEM_ACTOR, _SalesBaseUseCase
 from backend.domain.sales.exceptions import SalesDomainError, SaleNotFoundError
 from backend.infrastructure.db.repositories.sales.unit_of_work import SalesUnitOfWork
-from backend.infrastructure.integrations.sales_inventory_client import SalesInventoryClient
 
 
 class ReserveInventoryForSaleUseCase(_SalesBaseUseCase):
@@ -47,7 +46,8 @@ class ReserveInventoryForSaleUseCase(_SalesBaseUseCase):
                     "La venta ya tiene una reserva activa", entity_id=sale.id,
                     operation_id=operation_id, sale=SaleDTO.from_entity(sale),
                     reservation_id=sale.inventory_reservation_id)
-            client = SalesInventoryClient(connection, branch_id=sale.branch_id)
+            client = self._inventory_client(
+                connection, branch_id=sale.branch_id, actor_user_id=actor_user_id)
             try:
                 reservation_id = client.reserve_for_sale(sale)
             except SalesDomainError as exc:
@@ -75,7 +75,8 @@ class ConfirmInventoryReservationUseCase(_SalesBaseUseCase):
                     "La venta no tiene reserva de inventario que confirmar",
                     entity_id=sale.id, operation_id=operation_id,
                     sale=SaleDTO.from_entity(sale))
-            client = SalesInventoryClient(connection, branch_id=sale.branch_id)
+            client = self._inventory_client(
+                connection, branch_id=sale.branch_id, actor_user_id=actor_user_id)
             try:
                 client.confirm(sale.inventory_reservation_id, sale_id=sale.id,
                                folio=sale.sale_number or sale.id)
@@ -103,7 +104,8 @@ class ReleaseInventoryReservationUseCase(_SalesBaseUseCase):
                     "La venta no tiene reserva de inventario que liberar",
                     entity_id=sale.id, operation_id=operation_id,
                     sale=SaleDTO.from_entity(sale))
-            client = SalesInventoryClient(connection, branch_id=sale.branch_id)
+            client = self._inventory_client(
+                connection, branch_id=sale.branch_id, actor_user_id=actor_user_id)
             client.release(sale.inventory_reservation_id, reason=reason)
             sale.inventory_reservation_id = None
             uow.sales.save(sale)
@@ -111,18 +113,19 @@ class ReleaseInventoryReservationUseCase(_SalesBaseUseCase):
                              sale=SaleDTO.from_entity(sale))
 
 
-class ExpireOrphanedInventoryReservationsUseCase:
+class ExpireOrphanedInventoryReservationsUseCase(_SalesBaseUseCase):
     """A system sweep (§41's orphan-expiry requirement), not a per-sale user
     action — no `SalesPermissions` check the way the other three use cases
     have, same reasoning this repo already applies to other sweep-style
     entry points (e.g. CRM's time-based automation trigger sweep): it's a
     callable maintenance hook, not gated as if a cashier were invoking it
-    directly. Branch-scoped because `StockReservationService` itself is
-    constructed per-branch."""
+    directly. Sigue siendo por sucursal porque el cliente de inventario se
+    construye por sucursal."""
 
     def execute(self, connection, *, branch_id: str) -> int:
         """Does NOT commit — matches every other component in this stack
         (repositories/UoW own the transaction boundary, never a bare use
         case); the caller commits `connection` once this returns."""
-        client = SalesInventoryClient(connection, branch_id=branch_id)
+        client = self._inventory_client(
+            connection, branch_id=branch_id, actor_user_id=SYSTEM_ACTOR)
         return client.expire_orphaned()
