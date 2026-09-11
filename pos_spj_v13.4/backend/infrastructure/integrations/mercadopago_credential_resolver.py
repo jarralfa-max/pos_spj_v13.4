@@ -6,8 +6,7 @@ SET-19's own domain built with zero callers.
 Designed conservatively — this touches live payment credential
 resolution, the highest-risk surface this refactor track has cut over.
 The bootstrapped default `credential_references` points at the EXACT
-SAME secret name (`PaymentProviderSettingsService.SECRET_NAME`) already
-in use, so an already-configured MercadoPago token is found immediately
+SAME secret name (`_DEFAULT_SECRET_NAME`) already in use, so an already-configured MercadoPago token is found immediately
 on first use — no re-entry, no behavior change — until an admin
 deliberately repoints the reference via the real Configuración
 "Integraciones" UI. Any failure anywhere in this resolution (bootstrap,
@@ -35,11 +34,20 @@ logger = logging.getLogger(__name__)
 _DEFINITION_CODE = "MERCADOPAGO"
 _CREDENTIAL_NAME = "mp_access_token"
 
+#: Nombre del secreto bajo el que se guarda el token. Era
+#: `PaymentProviderSettingsService.SECRET_NAME`, que se fue con `core/`; el
+#: valor está fijado por `save_payment_provider_settings_use_case` (que guarda
+#: bajo esta clave) y por las pruebas de integraciones, que afirman
+#: `credential_references == {"mp_access_token": "mp_access_token"}`.
+#:
+#: NO RENOMBRAR: una instalación con MercadoPago ya configurado guarda su token
+#: bajo este nombre exacto. Cambiarlo no da error — el cobro simplemente deja de
+#: encontrar el token y el enlace de pago no se genera.
+_DEFAULT_SECRET_NAME = "mp_access_token"
+
 
 def resolve_mercadopago_secret_name(connection) -> str:
-    from core.services.configuration_settings_service import PaymentProviderSettingsService
-
-    fallback = PaymentProviderSettingsService.SECRET_NAME
+    fallback = _DEFAULT_SECRET_NAME
     try:
         definitions = SqliteIntegrationDefinitionRepository(connection)
         instances = SqliteIntegrationInstanceRepository(connection)

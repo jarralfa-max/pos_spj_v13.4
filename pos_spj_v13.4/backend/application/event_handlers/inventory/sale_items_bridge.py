@@ -1,14 +1,23 @@
-"""CanonicalSaleInventoryHandler — the sales flip (INV-27).
+"""CanonicalSaleInventoryHandler — el descuento de stock por venta (INV-27).
 
-Replaces the legacy SaleInventoryHandler on the live SALE_ITEMS_PROCESS event.
-The BOM/recipe explosion (composite product → component deductions) is preserved
-verbatim via RecipeResolver — only the final mutation changes: instead of the
-legacy inventory engine's decrease_stock, it posts ONE canonical SALE_ISSUE
-movement to the ledger through PostInventoryMovementUseCase (atomic with the
-sale's transaction, idempotent by operation_id).
+NO CONECTARLO SIN LEER ESTO. Hoy es una SEGUNDA ruta al mismo efecto que ya
+hace `SalesInventoryClient.confirm()`, que registra su propio `SALE_ISSUE` de
+forma síncrona al cobrar. Suscribir este manejador tal cual descontaría el
+inventario DOS VECES por cada venta — y no daría ningún error, sólo existencias
+que se hunden al doble de velocidad de lo que se vende.
 
-Payload (legacy shape): branch_id/sucursal_id, operation_id|sale_id, user, folio,
+Quien quiera conectarlo debe retirar antes el descuento directo de
+`sales_inventory_client.py`. Son alternativas, no complementos.
+
+ESTADO REAL: huérfano. Nadie emite ya su evento (`SALE_ITEMS_PROCESS`, que era
+del flujo legacy) y su suscripción vivía en `core/events/wiring.py`. Se conserva
+porque su explosión de recetas —el descuento de los componentes de un producto
+compuesto— es capacidad que la ruta directa NO tiene todavía: si algún día se
+prefiere esta vía, es por eso.
+
+Carga (forma legacy): branch_id/sucursal_id, operation_id|sale_id, user, folio,
 items:[{product_id, qty|cantidad, unit|unidad, es_compuesto}].
+
 """
 
 from __future__ import annotations
@@ -97,21 +106,32 @@ class CanonicalSaleInventoryHandler:
         return totals
 
     def _explode_bom(self, product_id: str, sale_qty: Decimal, branch_id: str) -> dict[str, Decimal]:
-        from core.services.recipes.recipe_resolver import RecipeResolver
-        explosion = RecipeResolver(self._conn()).resolve_for_sale(
-            product_id, float(sale_qty), branch_id)
-        if getattr(explosion, "cycle_detected", False):
-            raise ValueError(
-                f"El producto ID={product_id} tiene una receta con referencia circular.")
-        no_recipe = (not explosion.deductions or (
-            len(explosion.deductions) == 1
-            and str(explosion.deductions[0].product_id) == product_id
-            and explosion.deductions[0].is_virtual))
-        if no_recipe:
+        """Componentes que consume vender `sale_qty` de un producto compuesto.
+
+        Usa la receta ACTIVA. Una versión en borrador o retirada no puede
+        descontar inventario: sería consumir según una fórmula que nadie
+        aprobó.
+
+        Un compuesto sin receta activa es un ERROR, no un descuento de cero:
+        significa que se está vendiendo algo cuya composición nadie definió, y
+        dejarlo pasar descontaría nada mientras la mercancía sí sale.
+        """
+        del branch_id  # la receta es del producto, no de la sucursal
+        from backend.domain.products.services.recipe_explosion_service import (
+            RecipeExplosionService,
+        )
+        from backend.infrastructure.db.repositories.products.recipe_repository import (
+            RecipeRepository,
+        )
+
+        version = RecipeRepository(self._conn()).active_version_for_product(product_id)
+        if version is None:
             raise ValueError(
                 f"El producto compuesto ID={product_id} no tiene receta activa.")
+
         merged: dict[str, Decimal] = {}
-        for line in explosion.deductions:
-            merged[str(line.product_id)] = merged.get(
-                str(line.product_id), Decimal("0")) + _num(line.quantity)
+        for component in RecipeExplosionService().explode(version, sale_qty):
+            merged[str(component.component_product_id)] = (
+                merged.get(str(component.component_product_id), Decimal("0"))
+                + _num(component.quantity))
         return {pid: q for pid, q in merged.items() if q > 0}

@@ -80,11 +80,17 @@ class PurchasePlanningReadService:
     def current_stock(self, product_id: str, branch_id: str = "") -> float:
         """Existencia actual del producto (disponible canónico).
 
-        Repunte P0-B/INV-27: lee `inventory_balances` vía
-        `CanonicalStockReadAdapter` (gated) en vez de `productos.existencia`. Sin
-        sucursal agrega todas las sucursales (equivalente al cache legacy)."""
-        from core.services.inventory.canonical_stock_read_adapter import (
-            CanonicalStockReadAdapter,
+        Lee `inventory_balances` por la consulta canónica del contexto de
+        Inventario, no `productos.existencia` (INV-27). Sin sucursal agrega
+        todas.
+
+        DISPONIBLE, no existencia: descuenta lo reservado. Es lo correcto para
+        planear compras — reponer contando mercancía que ya está apartada para
+        otra venta llevaría a comprar de menos."""
+        from backend.application.inventory.queries.stock_aggregate_query_service import (
+            StockAggregateQueryService,
         )
-        return CanonicalStockReadAdapter(lambda: self.db).available_float(
-            str(product_id), str(branch_id) or None)
+
+        disponibles = StockAggregateQueryService(self.db).available_by_product(
+            branch_id=str(branch_id) or None)
+        return float(disponibles.get(str(product_id), 0))
