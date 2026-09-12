@@ -51,11 +51,20 @@ class CreateCustomerUseCase:
                     (customer_id, command.name.strip(), command.phone, command.email, command.address, command.loyalty_code),
                 )
             if command.loyalty_code:
+                # Las columnas eran `codigo` y `fecha_emision`, que NO EXISTEN en
+                # `tarjetas_fidelidad` (son `codigo_qr` y `fecha_creacion`), y
+                # faltaba `id`, que es la clave primaria TEXT de la tabla.
+                #
+                # El efecto no era perder la tarjeta: el `except` de abajo hace
+                # rollback, así que dar un código de fidelidad perdía la
+                # creación ENTERA del cliente. Y como el `except` vuelve a
+                # lanzar, el fallo llegaba arriba sin decir que el problema era
+                # la tarjeta.
                 self._db.execute(
                     "INSERT OR IGNORE INTO tarjetas_fidelidad "
-                    "(codigo, id_cliente, nivel, activa, fecha_emision) "
-                    "VALUES (?, ?, 'Bronce', 1, datetime('now'))",
-                    (command.loyalty_code, customer_id),
+                    "(id, codigo_qr, id_cliente, nivel, activa, fecha_creacion) "
+                    "VALUES (?, ?, ?, 'Bronce', 1, datetime('now'))",
+                    (new_uuid(), command.loyalty_code, customer_id),
                 )
             self._db.commit()
         except Exception:
@@ -70,9 +79,13 @@ class CreateCustomerUseCase:
     def find_customer_by_loyalty_code(self, loyalty_code: str) -> dict | None:
         try:
             row = self._db.execute(
+                # `t.codigo` tampoco existe. Aquí no reventaba a la vista: el
+                # `except` de abajo devuelve `None`, así que escanear una tarjeta
+                # NUNCA encontraba al cliente y se leía como "tarjeta no
+                # registrada".
                 "SELECT c.id, c.nombre FROM clientes c "
                 "JOIN tarjetas_fidelidad t ON t.id_cliente = c.id "
-                "WHERE t.codigo = ? AND t.activa = 1 LIMIT 1",
+                "WHERE t.codigo_qr = ? AND t.activa = 1 LIMIT 1",
                 (loyalty_code,),
             ).fetchone()
         except Exception:
