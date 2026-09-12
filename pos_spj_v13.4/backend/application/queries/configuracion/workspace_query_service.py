@@ -819,14 +819,29 @@ class ConfiguracionWorkspaceQueryService:
 
         return SqliteAuditLogRepository(self._conn)
 
+    # Los tres devolvian las FILAS del repositorio tal cual, aunque su firma
+    # prometiera DTOs y este archivo ya importara los tres constructores. La
+    # pantalla de Usuarios y Roles hace `r.id` y reventaba con
+    # `AttributeError: 'sqlite3.Row' object has no attribute 'id'` nada mas
+    # abrirse — no al usarla, al construirla.
+    #
+    # El mapeo va AQUI y no en `settings_services.py`: ahi las firmas dicen
+    # `list[tuple]`, que es honesto sobre lo que devuelven. La promesa de DTO
+    # se hace en este archivo, asi que es este el que tiene que cumplirla.
+
     def list_users(self) -> tuple[UserSettingsDTO, ...]:
-        return tuple(self._user_management_service().list_users())
+        return tuple(UserSettingsDTO.from_list_row(row)
+                     for row in self._user_management_service().list_users())
 
     def get_user_form_data(self, user_id: str) -> UserSettingsDTO | None:
-        return self._user_management_service().get_user_form_data(user_id)
+        row = self._user_management_service().get_user_form_data(user_id)
+        # Un usuario que no existe NO es un DTO vacio: devolver uno haria que el
+        # formulario se abriera en blanco como si fuera un alta.
+        return UserSettingsDTO.from_form_row(user_id, row) if row else None
 
     def list_roles(self) -> tuple[RoleSettingsDTO, ...]:
-        return tuple(self._role_management_service().list_roles())
+        return tuple(RoleSettingsDTO.from_row(row)
+                     for row in self._role_management_service().list_roles())
 
     def list_role_names(self) -> tuple[str, ...]:
         return tuple(self._role_management_service().role_names())
