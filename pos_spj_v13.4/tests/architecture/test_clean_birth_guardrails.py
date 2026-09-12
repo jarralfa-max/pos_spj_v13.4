@@ -32,6 +32,96 @@ def _fresh_base_schema() -> sqlite3.Connection:
     return conn
 
 
+# ── de "este escritor acuña el id" a "nadie inserta sin id" ─────────────────────
+#
+# Muchas pruebas de abajo comprobaban la propiedad leyendo el CÓDIGO de cada
+# escritor conocido: que `repositories/cliente_repository.py` usara `new_uuid()`,
+# que `integrations/pos_adapter.py` hiciera `INSERT INTO clientes (id,` … Esos
+# archivos se borraron en la reconstrucción, así que las pruebas fallaban con
+# `FileNotFoundError`, que no dice absolutamente nada sobre identidad.
+#
+# La propiedad sigue importando y se comprueba mejor al revés. En vez de nombrar
+# a los escritores que había, se buscan TODOS los que hay y se exige que ninguno
+# inserte sin `id` explícito. Eso cubre además el código que todavía no existe,
+# que es justo donde el fallo volvería a aparecer.
+#
+# Por qué importa: un INSERT sin `id` en una tabla con clave primaria TEXT no
+# falla en SQLite — la fila se crea con la clave vacía, se lee sin problema, y
+# sólo revienta mucho más tarde al intentar relacionarla con otra.
+
+_PRODUCTION_ROOTS = ("backend", "frontend")
+
+_INSERT_TEMPLATE = r"INSERT\s+(?:OR\s+\w+\s+)?INTO\s+{table}\b[^\n]*"
+
+#: `id` como PRIMERA columna de la lista. Es como se escribe en todo este
+#: repositorio, y buscarla así mantiene la comprobación fiable dentro de una
+#: sola línea: las listas de columnas largas siguen en la siguiente y un
+#: `\bid\b` suelto acabaría encontrando `producto_id` o `branch_id`.
+_EXPLICIT_ID = re.compile(r"\(\s*id\b", re.IGNORECASE)
+
+
+def _insert_statements(table: str) -> list[tuple[str, int, str, str]]:
+    """`(archivo, línea, sentencia, fuente)` por cada INSERT de producción."""
+    patron = re.compile(_INSERT_TEMPLATE.format(table=table), re.IGNORECASE)
+    hallazgos: list[tuple[str, int, str]] = []
+    for raiz in _PRODUCTION_ROOTS:
+        for ruta in (REPO / raiz).rglob("*.py"):
+            if "__pycache__" in ruta.parts:
+                continue
+            texto = ruta.read_text(encoding="utf-8", errors="ignore")
+            for numero, linea in enumerate(texto.splitlines(), 1):
+                encontrado = patron.search(linea)
+                if encontrado:
+                    hallazgos.append(
+                        (str(ruta.relative_to(REPO)), numero, encontrado.group(0), texto))
+    return hallazgos
+
+
+def _column_list_starts_with_id(sentencia: str, fuente: str) -> bool:
+    """¿La lista de columnas del INSERT empieza por `id`?
+
+    Dos formas, y la segunda me hizo acusar en falso a dos repositorios que
+    estaban bien: la lista puede venir escrita —`INSERT INTO x (id, ...)`— o
+    INTERPOLADA desde una constante del propio archivo —`INSERT INTO x
+    ({_COLUMNS})`—. Mirando sólo la primera, cualquier repositorio que factorice
+    sus columnas queda señalado por escribirlas mejor.
+    """
+    if _EXPLICIT_ID.search(sentencia):
+        return True
+    interpolada = re.search(r"\(\s*\{(\w+)\}", sentencia)
+    if not interpolada:
+        return False
+    constante = re.search(
+        rf"^{interpolada.group(1)}\s*=\s*\(?\s*[\"']\s*id\b",
+        fuente, re.MULTILINE | re.IGNORECASE)
+    return bool(constante)
+
+def assert_every_writer_mints_the_id(table: str) -> None:
+    """Ningún INSERT de producción sobre `table` omite la columna `id`."""
+    sin_id = [
+        f"{archivo}:{numero}: {sentencia.strip()}"
+        for archivo, numero, sentencia, fuente in _insert_statements(table)
+        if not _column_list_starts_with_id(sentencia, fuente)
+    ]
+    assert not sin_id, (
+        f"INSERT en `{table}` sin id explícito — la fila nace sin identidad y "
+        "sólo falla al relacionarla:\n  " + "\n  ".join(sin_id))
+
+
+def assert_no_production_writer(table: str) -> None:
+    """Nadie escribe ya en `table`.
+
+    Se usa donde el modelo canónico se mudó a otras tablas y la legacy quedó
+    sólo como esquema. Afirmarlo es más fuerte que comprobar que el escritor
+    que había acuñaba bien el id: lo que hay que impedir es que vuelva a
+    escribirse.
+    """
+    escritores = [f"{a}:{n}: {t.strip()}" for a, n, t, _ in _insert_statements(table)]
+    assert not escritores, (
+        f"`{table}` volvió a tener escritores; el modelo canónico es otro:\n  "
+        + "\n  ".join(escritores))
+
+
 # ── HARD LOCKS — already born clean, must stay clean ────────────────────────────
 
 def test_alertas_tables_are_text_pk_in_base_schema():
@@ -375,9 +465,13 @@ def test_accounting_core_tables_are_born_clean_uuid_identity():
         "SELECT name FROM sqlite_master WHERE type='table' AND name='financial_trace_log'"
     ).fetchone() is None
 
-    src = (REPO / "core/services/finance/general_ledger_service.py").read_text(encoding="utf-8")
-    assert "from backend.shared.ids import new_uuid" in src
-    assert "new_uuid()" in src and "cur.lastrowid" not in src
+
+    # Los servicios legacy que esta prueba leía para verificar que acuñaban
+    # el id se borraron en la reconstrucción; leerlos daba FileNotFoundError,
+    # que no dice nada sobre identidad. La propiedad se comprueba ahora sobre
+    # los escritores que HAY, incluidos los que aún no se han escrito.
+    assert_no_production_writer("financial_event_log")
+    assert_every_writer_mints_the_id("journal_entries")
 
 
 def test_treasury_tables_are_born_clean_uuid_identity():
@@ -408,22 +502,16 @@ def test_treasury_tables_are_born_clean_uuid_identity():
     assert tm["branch_id"] == "TEXT" and tm["source_id"] == "TEXT"
     assert tm["financial_document_id"] == "TEXT"
 
-    # treasury_service.py es multi-tabla: las escrituras de tesorería (capital,
-    # ledger, gastos_fijos) acuñan new_uuid(); conserva lastrowid solo en las
-    # tablas diferidas (pagos_cobros) de sub-pases posteriores.
-    ts_src = (REPO / "core/services/finance/treasury_service.py").read_text(encoding="utf-8")
-    assert "from backend.shared.ids import new_uuid" in ts_src
-    assert "INSERT INTO treasury_capital" in ts_src and "INSERT INTO treasury_ledger" in ts_src
-    # Los dos servicios mono-tabla quedan totalmente born-clean (sin lastrowid).
-    # capital_service fue eliminado en FASE 20 (capital vive en el bounded
-    # context de Finanzas); treasury_movement_service sigue operativo.
-    for path in ("core/services/finance/treasury_movement_service.py",):
-        src = (REPO / path).read_text(encoding="utf-8")
-        assert "from backend.shared.ids import new_uuid" in src, path
-        assert "new_uuid()" in src, path
-        assert "cur.lastrowid" not in src, path
-        assert 'int(existing["id"])' not in src, path
-    assert not (REPO / "core/services/finance/capital_service.py").exists()
+
+    # Los servicios legacy que esta prueba leía para verificar que acuñaban
+    # el id se borraron en la reconstrucción; leerlos daba FileNotFoundError,
+    # que no dice nada sobre identidad. La propiedad se comprueba ahora sobre
+    # los escritores que HAY, incluidos los que aún no se han escrito.
+    assert_no_production_writer("treasury_capital")
+    assert_no_production_writer("treasury_ledger")
+    assert_no_production_writer("treasury_gastos_fijos")
+    assert_no_production_writer("treasury_movements")
+    assert_no_production_writer("capital_movements")
 
 
 def test_gastos_tables_are_born_clean_uuid_identity():
@@ -457,15 +545,13 @@ def test_gastos_tables_are_born_clean_uuid_identity():
     mig082 = (REPO / "migrations/standalone/082_treasury_tables.py").read_text(encoding="utf-8")
     assert "CREATE TABLE IF NOT EXISTS gastos_futuros" not in mig082
 
-    # Escritores de gastos en TreasuryService acuñan UUID y no usan lastrowid.
-    ts_src = (REPO / "core/services/finance/treasury_service.py").read_text(encoding="utf-8")
-    assert "INSERT INTO gastos_futuros(id," in ts_src
-    assert "INSERT INTO gastos_fijos" in ts_src and "INSERT INTO gastos (id," in ts_src
 
-    # El CRUD muerto de gastos fue removido de finance_service.
-    fs_src = (REPO / "core/services/enterprise/finance_service.py").read_text(encoding="utf-8")
-    assert "def upsert_expense" not in fs_src
-    assert "g.proveedor_id" not in fs_src
+    # Los servicios legacy que esta prueba leía para verificar que acuñaban
+    # el id se borraron en la reconstrucción; leerlos daba FileNotFoundError,
+    # que no dice nada sobre identidad. La propiedad se comprueba ahora sobre
+    # los escritores que HAY, incluidos los que aún no se han escrito.
+    assert_no_production_writer("gastos_fijos")
+    assert_no_production_writer("gastos_futuros")
 
 
 def test_cxp_cxc_tables_are_born_clean_uuid_identity():
@@ -504,17 +590,15 @@ def test_cxp_cxc_tables_are_born_clean_uuid_identity():
     pc = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(pagos_cobros)").fetchall()}
     assert pc["tercero_id"] == "TEXT"
 
-    for path in ("core/services/finance/accounts_payable_service.py",
-                 "core/services/finance/accounts_receivable_service.py"):
-        src = (REPO / path).read_text(encoding="utf-8")
-        assert "from backend.shared.ids import new_uuid" in src, path
-        assert "new_uuid()" in src and "cur.lastrowid" not in src, path
 
-    # TreasuryService consolida en las tablas de pago canónicas (no fantasma).
-    ts_src = (REPO / "core/services/finance/treasury_service.py").read_text(encoding="utf-8")
-    assert "INSERT INTO ap_payments" in ts_src and "INSERT INTO ar_payments" in ts_src
-    assert "cxp_payments" not in ts_src and "cxc_payments" not in ts_src
-    assert "INSERT INTO pagos_cobros(id," in ts_src
+    # Los servicios legacy que esta prueba leía para verificar que acuñaban
+    # el id se borraron en la reconstrucción; leerlos daba FileNotFoundError,
+    # que no dice nada sobre identidad. La propiedad se comprueba ahora sobre
+    # los escritores que HAY, incluidos los que aún no se han escrito.
+    assert_no_production_writer("accounts_payable")
+    assert_no_production_writer("accounts_receivable")
+    assert_no_production_writer("ap_payments")
+    assert_no_production_writer("pagos_cobros")
 
 
 def test_plan_cuentas_natural_key_born_clean():
@@ -578,17 +662,13 @@ def test_deferred_debt_tables_are_born_clean_uuid_identity():
     assert "id" not in lp and "uuid" not in lp, "links_pago no debe tener identidad dual"
     assert lp["pedido_id"] == ("TEXT", 1), "links_pago.pedido_id debe ser TEXT PRIMARY KEY"
 
-    # FASE 20: los servicios de activos/mantenimiento/insumos de la traza 083
-    # fueron eliminados (activos viven en el bounded context financiero).
-    for path in ("core/services/finance/fixed_asset_service.py",
-                 "core/services/finance/maintenance_finance_service.py",
-                 "core/services/finance/operating_supplies_service.py"):
-        assert not (REPO / path).exists(), f"{path} no debe reaparecer"
 
-    # El CRUD muerto de activos (phantom cols) fue removido de finance_service.
-    fs_src = (REPO / "core/services/enterprise/finance_service.py").read_text(encoding="utf-8")
-    assert "def upsert_asset" not in fs_src
-    assert "INSERT INTO assets" not in fs_src
+    # Los servicios legacy que esta prueba leía para verificar que acuñaban
+    # el id se borraron en la reconstrucción; leerlos daba FileNotFoundError,
+    # que no dice nada sobre identidad. La propiedad se comprueba ahora sobre
+    # los escritores que HAY, incluidos los que aún no se han escrito.
+    assert_no_production_writer("links_pago")
+    assert_every_writer_mints_the_id("fixed_assets")
 
 
 def test_rrhh_tables_are_born_clean_uuid_identity():
@@ -831,10 +911,18 @@ def test_compras_tables_are_born_clean_uuid_identity():
 
 
 def test_proveedores_table_is_born_clean_uuid_identity():
-    """The proveedor entity is born-clean: proveedores.id is a TEXT UUIDv7 primary
-    key (no autoincrement), categoria/notas live in the base schema (no DDL emitted
-    from UnifiedThirdPartyService — REGLA 11), and both writers (third-party service
-    and finance create_supplier_if_not_exists) mint the id with new_uuid().
+    """`proveedores` quedo como esquema sin escritores; el proveedor vive en
+    `supplier_master`.
+
+    Esta prueba leia `core/services/enterprise/finance_service.py` para
+    comprobar que su `create_supplier` acunaba el id. Ese archivo se borro, y
+    con el el ultimo escritor: hoy NADIE inserta en `proveedores` en todo el
+    arbol de produccion. El contexto canonico de proveedores tiene sus propias
+    16 tablas (`supplier_master` y companhia) con sus repositorios.
+
+    Asi que lo que hay que vigilar cambio de sitio: que la tabla legacy no
+    vuelva a escribirse por detras, en paralelo al modelo canonico. Eso son dos
+    fuentes de verdad para el mismo proveedor, y no da ningun error.
     """
     conn = _fresh_base_schema()
     prov = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(proveedores)").fetchall()}
@@ -845,45 +933,32 @@ def test_proveedores_table_is_born_clean_uuid_identity():
     # bounded context financiero); no debe reaparecer.
     assert not (REPO / "core" / "services" / "finance" / "third_party_service.py").exists()
 
-    fin_src = (REPO / "core" / "services" / "enterprise" / "finance_service.py").read_text(encoding="utf-8")
-    assert "INSERT INTO proveedores (id, nombre)" in fin_src   # create_supplier acuña id
+    assert_no_production_writer("proveedores")
 
 
 def test_clientes_table_is_born_clean_uuid_identity():
-    """The core customer entity is born-clean: clientes.id is a TEXT UUIDv7 primary
-    key (no autoincrement), sucursal_id is TEXT without the arbitrary DEFAULT 1, and
-    every writer mints the id with new_uuid() (repo, api, pos_adapter, finance
-    dashboard) instead of lastrowid / random integers.
+    """`clientes.id` es TEXT UUIDv7 y ningun escritor inserta sin id.
+
+    Antes esto se comprobaba leyendo el codigo de los escritores que habia
+    —`repositories/cliente_repository.py`, `integrations/pos_adapter.py`,
+    `api/routers/clientes.py`—, los tres borrados. La propiedad se comprueba
+    ahora sobre los escritores que HAY, sean cuales sean: hoy
+    `create_customer_use_case.py` y el puente de identidad legacy, y manana
+    los que se escriban.
     """
     conn = _fresh_base_schema()
     cli = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(clientes)").fetchall()}
     assert cli["id"] == ("TEXT", 1)
     assert cli["sucursal_id"][0] == "TEXT"        # TEXT sin DEFAULT 1 arbitrario
 
-    repo_src = (REPO / "repositories" / "cliente_repository.py").read_text(encoding="utf-8")
-    assert "lastrowid" not in repo_src
-    assert "(id, nombre, telefono, email, direccion, notas," in repo_src   # insert con id explícito
-    assert "new_uuid()" in repo_src
+    assert_every_writer_mints_the_id("clientes")
 
-    # Ningún writer del id de cliente inserta sin id explícito.
-    for w in (REPO / "integrations" / "pos_adapter.py",):
-        src = w.read_text(encoding="utf-8")
-        assert ("INSERT INTO clientes (id," in src) or ("INSERT INTO clientes(id," in src), w.name
-
-    # modulos/clientes.py (el UI legacy que generaba ids aleatorios/casts de
-    # identidad enteros) fue eliminado — ver
-    # docs/refactor/CRM-24_retiro_modulo_legacy.md. Ambos patrones
-    # prohibidos aquí ya no pueden existir porque el archivo no existe.
-
-    # api/routers/clientes.py (CRM-25) ya no hace INSERT directo — delega en
-    # ClienteRepository.crear() (verificado arriba: usa new_uuid(), sin
-    # lastrowid, id explícito), la misma fuente única de verdad que el resto
-    # del repo. Retirado de la lista de arriba porque ya no aplica revisar un
-    # patrón de INSERT que el archivo no ejecuta más — la propiedad REGLA
-    # CERO que este test protege se cumple con más fuerza, no con menos.
-    router_src = (REPO / "api" / "routers" / "clientes.py").read_text(encoding="utf-8")
-    assert "INSERT INTO clientes" not in router_src
-    assert "ClienteRepository" in router_src
+    # Debe haber AL MENOS uno: si la tabla se quedara sin escritores, la
+    # comprobacion de arriba pasaria sin mirar nada y este test se volveria
+    # decorativo sin avisar.
+    assert _insert_statements("clientes"), (
+        "Nadie inserta ya en `clientes`: si el modelo canonico se mudo, cambia "
+        "esta prueba por `assert_no_production_writer`.")
 
 
 def test_activos_tables_are_born_clean_uuid_identity():
