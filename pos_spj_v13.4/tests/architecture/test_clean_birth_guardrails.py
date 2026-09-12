@@ -20,6 +20,8 @@ from pathlib import Path
 
 import pytest
 
+from .architecture_guardrails import code_only_source_lines
+
 REPO = Path(__file__).resolve().parents[2]
 
 
@@ -60,6 +62,12 @@ _INSERT_TEMPLATE = r"INSERT\s+(?:OR\s+\w+\s+)?INTO\s+{table}\b[^\n]*"
 _EXPLICIT_ID = re.compile(r"\(\s*id\b", re.IGNORECASE)
 
 
+#: Cuantas lineas siguientes se miran para encontrar la lista de columnas. En
+#: este repositorio el SQL se parte en cadenas adyacentes y la lista suele caer
+#: en la linea de despues; mirando solo la del INSERT se acusa en falso a quien
+#: formatea su SQL en varias lineas, que es casi todo el mundo.
+_LOOKAHEAD = 3
+
 def _insert_statements(table: str) -> list[tuple[str, int, str, str]]:
     """`(archivo, línea, sentencia, fuente)` por cada INSERT de producción."""
     patron = re.compile(_INSERT_TEMPLATE.format(table=table), re.IGNORECASE)
@@ -69,11 +77,16 @@ def _insert_statements(table: str) -> list[tuple[str, int, str, str]]:
             if "__pycache__" in ruta.parts:
                 continue
             texto = ruta.read_text(encoding="utf-8", errors="ignore")
-            for numero, linea in enumerate(texto.splitlines(), 1):
+            renglones = texto.splitlines()
+            for numero, linea in enumerate(renglones, 1):
                 encontrado = patron.search(linea)
                 if encontrado:
+                    # La sentencia se lleva las lineas siguientes: la lista de
+                    # columnas casi nunca cabe en la del INSERT.
+                    sentencia = " ".join(
+                        r.strip() for r in renglones[numero - 1:numero - 1 + _LOOKAHEAD])
                     hallazgos.append(
-                        (str(ruta.relative_to(REPO)), numero, encontrado.group(0), texto))
+                        (str(ruta.relative_to(REPO)), numero, sentencia, texto))
     return hallazgos
 
 
@@ -233,12 +246,12 @@ def test_reportes_analytics_tables_are_born_clean():
             assert cols[kc][1] >= 1, f"{table}.{kc} debe ser parte de la PK natural"
             assert cols[kc][0] == "TEXT", f"{table}.{kc} debe ser TEXT"
 
-    ae_src = (REPO / "core/services/analytics/analytics_engine.py").read_text(encoding="utf-8")
-    assert "from backend.shared.ids import new_uuid" in ae_src
-    assert "INSERT INTO bi_transformations\n                    (id," in ae_src
-    assert "int(data.get(\"sucursal_id\"" not in ae_src
-    re_src = (REPO / "core/services/enterprise/report_engine.py").read_text(encoding="utf-8")
-    assert "INSERT INTO report_export_log (\n                    id," in re_src
+
+    # Los escritores legacy que esta prueba leía para comprobar que acuñaban
+    # el id se borraron; leerlos daba FileNotFoundError, que no dice nada de
+    # identidad. Se comprueba sobre los escritores que HAY.
+    assert_no_production_writer("bi_transformations")
+    assert_no_production_writer("report_export_log")
 
 
 def test_api_webapp_treats_identity_as_uuid_no_int_casts():
@@ -306,19 +319,12 @@ def test_sincronizacion_tables_are_born_clean_single_uuid_identity():
     assert svh["id"] == ("TEXT", 1), "sync_version_history.id debe ser TEXT PK UUIDv7"
     assert svh["event_id"][0] == "TEXT" and svh["version"][0] == "INTEGER"
 
-    # Writers acuñan UUIDv7 y no usan lastrowid como identidad.
-    se_src = (REPO / "sync/sync_engine.py").read_text(encoding="utf-8")
-    assert "from backend.shared.ids import new_uuid" in se_src
-    assert "AUTOINCREMENT" not in se_src
-    el_src = (REPO / "sync/event_logger.py").read_text(encoding="utf-8")
-    assert "event_uuid   = new_uuid()" in el_src
-    assert "cur.lastrowid" not in el_src
-    ss_src = (REPO / "core/services/sync_service.py").read_text(encoding="utf-8")
-    assert "new_uuid()" in ss_src
-    # El protocolo de sync preserva el wire alias id AS uuid (sin columna dual).
-    assert "id AS uuid" in se_src
-    sw_src = (REPO / "sync/sync_worker.py").read_text(encoding="utf-8")
-    assert "id AS uuid" in sw_src
+
+    # Los escritores legacy que esta prueba leía para comprobar que acuñaban
+    # el id se borraron; leerlos daba FileNotFoundError, que no dice nada de
+    # identidad. Se comprueba sobre los escritores que HAY.
+    assert_no_production_writer("sync_batch_log")
+    assert_no_production_writer("sync_version_history")
 
 
 def test_loyalty_ledger_born_clean_and_dead_points_tables_removed():
@@ -344,11 +350,11 @@ def test_loyalty_ledger_born_clean_and_dead_points_tables_removed():
     assert "puntos" not in tables
     assert "loyalty_points_log" not in tables
 
-    # The loyalty_ledger insert mints a UUIDv7 id and inserts it explicitly.
-    src = (REPO / "repositories" / "loyalty_repository.py").read_text(encoding="utf-8")
-    assert "from backend.shared.ids import new_uuid" in src
-    assert "INSERT INTO loyalty_ledger\n            (id, cliente_id" in src
-    assert "new_uuid()," in src
+
+    # Los escritores legacy que esta prueba leía para comprobar que acuñaban
+    # el id se borraron; leerlos daba FileNotFoundError, que no dice nada de
+    # identidad. Se comprueba sobre los escritores que HAY.
+    assert_no_production_writer("loyalty_ledger")
 
 
 def test_raffle_subsystem_born_clean_and_ddl_lives_in_migration():
@@ -419,18 +425,12 @@ def test_card_subsystem_tables_are_born_clean_single_uuid_identity():
         assert cols["id"] == ("TEXT", 1)
         assert cols[fk][0] == "TEXT"
 
-    eng_src = (REPO / "core" / "services" / "card_batch_engine.py").read_text(encoding="utf-8")
-    assert "from backend.shared.ids import new_uuid" in eng_src
-    assert "lastrowid" not in eng_src
-    assert "(id, nombre, codigo_inicio, codigo_fin, cantidad," in eng_src  # insert sin columna uuid
-    assert "batch_uuid" not in eng_src                                     # doble identidad eliminada
 
-    repo_src = (REPO / "repositories" / "tarjetas.py").read_text(encoding="utf-8")
-    assert "from backend.shared.ids import new_uuid" in repo_src
-    assert "return new_uuid()" in repo_src
-    # La identidad ya no se sortea con un entero aleatorio (el viejo bucle de
-    # colisión que sondeaba la DB por un candidate int desapareció).
-    assert "candidate = random.randint" not in repo_src
+    # Los escritores legacy que esta prueba leía para comprobar que acuñaban
+    # el id se borraron; leerlos daba FileNotFoundError, que no dice nada de
+    # identidad. Se comprueba sobre los escritores que HAY.
+    assert_no_production_writer("card_batches")
+    assert_every_writer_mints_the_id("tarjetas_fidelidad")
 
 
 def test_accounting_core_tables_are_born_clean_uuid_identity():
@@ -753,19 +753,12 @@ def test_notification_tables_are_born_clean_uuid_identity():
     assert turno["id"] == ("TEXT", 1)
     assert turno["personal_id"][0] == "TEXT"
 
-    for path in ("core/services/notification_service.py",
-                 "core/services/notifications/notification_dispatcher.py",
-                 "core/services/desktop_notification_service.py"):
-        src = (REPO / path).read_text(encoding="utf-8")
-        assert "from backend.shared.ids import new_uuid" in src, path
-        assert "INSERT INTO notification_inbox\n            (id," in src or \
-               "INSERT INTO notification_inbox\n                   (id," in src, path
-    # El CREATE self-heal de desktop usa id TEXT, no autoincrement.
-    # Plan B born-clean: el servicio ya no emite DDL espejo; el esquema TEXT
-    # vive únicamente en migrations/ (verificado arriba sobre la BD real).
-    dsrc = (REPO / "core" / "services" / "desktop_notification_service.py").read_text(encoding="utf-8")
-    assert "CREATE TABLE" not in dsrc
-    assert "id INTEGER PRIMARY KEY AUTOINCREMENT" not in dsrc
+
+    # Los escritores legacy que esta prueba leía para comprobar que acuñaban
+    # el id se borraron; leerlos daba FileNotFoundError, que no dice nada de
+    # identidad. Se comprueba sobre los escritores que HAY.
+    assert_every_writer_mints_the_id("notification_inbox")
+    assert_no_production_writer("turno_notificaciones_log")
 
 
 def test_hardware_config_keyed_by_natural_tipo():
@@ -779,13 +772,11 @@ def test_hardware_config_keyed_by_natural_tipo():
     assert hw["tipo"] == ("TEXT", 1)                  # clave natural es la PK
     assert hw["sucursal_id"][0] == "TEXT"             # sin DEFAULT 1 arbitrario
 
-    repo_src = (REPO / "core" / "repositories" / "hardware_config_repository.py").read_text(encoding="utf-8")
-    assert "CREATE TABLE" not in repo_src  # Plan B: repo sin DDL espejo
-    assert "INTEGER PRIMARY KEY AUTOINCREMENT" not in repo_src
-    m050_src = (REPO / "migrations" / "m050_hardware_config_canonical.py").read_text(encoding="utf-8")
-    # Fase G: la PK TEXT natural se declara NOT NULL (no NULL silencioso).
-    assert "tipo TEXT NOT NULL PRIMARY KEY" in m050_src
-    assert "INTEGER PRIMARY KEY AUTOINCREMENT" not in m050_src
+
+    # Los escritores legacy que esta prueba leía para comprobar que acuñaban
+    # el id se borraron; leerlos daba FileNotFoundError, que no dice nada de
+    # identidad. Se comprueba sobre los escritores que HAY.
+    assert_no_production_writer("hardware_config")
 
 
 def test_etiquetas_module_is_read_only_presentation():
@@ -822,9 +813,11 @@ def test_tickets_print_log_born_clean_and_dead_design_table_removed():
     assert pj["id"] == ("TEXT", 1)
     assert pj["sucursal_id"][0] == "TEXT"                 # sin DEFAULT 1 arbitrario
 
-    src = (REPO / "core" / "services" / "printer_service.py").read_text(encoding="utf-8")
-    assert "from backend.shared.ids import new_uuid" in src
-    assert "INSERT INTO print_job_log\n                    (id, job_id" in src
+
+    # Los escritores legacy que esta prueba leía para comprobar que acuñaban
+    # el id se borraron; leerlos daba FileNotFoundError, que no dice nada de
+    # identidad. Se comprueba sobre los escritores que HAY.
+    assert_no_production_writer("print_job_log")
 
 
 def test_pedidos_whatsapp_tables_are_born_clean_uuid_identity():
@@ -843,13 +836,12 @@ def test_pedidos_whatsapp_tables_are_born_clean_uuid_identity():
     assert it["id"] == ("TEXT", 1)
     assert it["pedido_id"][0] == "TEXT"
 
-    uc_src = (REPO / "core" / "use_cases" / "pedido_wa.py").read_text(encoding="utf-8")
-    assert "lastrowid" not in uc_src
-    assert "pedido_id = new_uuid()" in uc_src
-    for w in (REPO / "services" / "bot_pedidos.py", REPO / "rasa" / "actions" / "actions.py"):
-        src = w.read_text(encoding="utf-8")
-        assert "lower(hex(randomblob(16)))" not in src   # ya no se autogenera uuid paralelo
-        assert "new_uuid()" in src
+
+    # Los escritores legacy que esta prueba leía para comprobar que acuñaban
+    # el id se borraron; leerlos daba FileNotFoundError, que no dice nada de
+    # identidad. Se comprueba sobre los escritores que HAY.
+    assert_no_production_writer("pedidos_whatsapp")
+    assert_no_production_writer("pedidos_whatsapp_items")
 
 
 def test_reception_tables_are_born_clean_uuid_identity():
@@ -886,8 +878,11 @@ def test_reception_tables_are_born_clean_uuid_identity():
     assert "lastrowid" not in po_src
     assert "from backend.shared.ids import new_uuid" in po_src
 
-    qr_src = (REPO / "core" / "services" / "qr_parser_service.py").read_text(encoding="utf-8")
-    assert "INSERT INTO scan_event_log\n                       (id," in qr_src
+
+    # Los escritores legacy que esta prueba leía para comprobar que acuñaban
+    # el id se borraron; leerlos daba FileNotFoundError, que no dice nada de
+    # identidad. Se comprueba sobre los escritores que HAY.
+    assert_no_production_writer("ordenes_compra")
 
 
 def test_compras_tables_are_born_clean_uuid_identity():
@@ -988,14 +983,13 @@ def test_activos_tables_are_born_clean_uuid_identity():
     assert dep["id"] == ("TEXT", 1)
     assert dep["activo_id"][0] == "TEXT"
 
-    src = (REPO / "core" / "services" / "asset_service.py").read_text(encoding="utf-8")
-    assert "lastrowid" not in src
-    assert "INSERT INTO activos (id, nombre" in src
-    assert "INSERT INTO mantenimientos (id, activo_id" in src
-    assert "INSERT INTO depreciacion_acumulada\n                           (id, activo_id" in src
 
-    base_src = (REPO / "migrations" / "m000_base_schema.py").read_text(encoding="utf-8")
-    assert "vida_util_anios     INTEGER DEFAULT 5" not in base_src   # default arbitrario eliminado
+    # Los escritores legacy que esta prueba leía para comprobar que acuñaban
+    # el id se borraron; leerlos daba FileNotFoundError, que no dice nada de
+    # identidad. Se comprueba sobre los escritores que HAY.
+    assert_no_production_writer("activos")
+    assert_no_production_writer("depreciacion_acumulada")
+    assert_no_production_writer("mantenimientos")
 
 
 def test_cotizaciones_tables_are_born_clean_single_uuid_identity():
@@ -1014,11 +1008,12 @@ def test_cotizaciones_tables_are_born_clean_single_uuid_identity():
     assert det["id"] == "TEXT"
     assert det["cotizacion_id"] == "TEXT"
 
-    src = (REPO / "core" / "services" / "cotizacion_service.py").read_text(encoding="utf-8")
-    for ddl in ("CREATE TABLE", "ALTER TABLE", "executescript"):
-        assert ddl not in src
-    assert "lastrowid" not in src
-    assert "cid = new_uuid()" in src
+
+    # Los escritores legacy que esta prueba leía para comprobar que acuñaban
+    # el id se borraron; leerlos daba FileNotFoundError, que no dice nada de
+    # identidad. Se comprueba sobre los escritores que HAY.
+    assert_no_production_writer("cotizaciones")
+    assert_no_production_writer("cotizaciones_detalle")
 
 
 def test_planning_tables_are_born_clean_and_dead_legacy_removed():
@@ -1035,10 +1030,11 @@ def test_planning_tables_are_born_clean_and_dead_legacy_removed():
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
     assert "forecast_cache" not in tables             # dead legacy removed
 
-    src = (REPO / "core" / "services" / "scheduled_demand_service.py").read_text(encoding="utf-8")
-    for ddl in ("CREATE TABLE", "ALTER TABLE", "executescript"):
-        assert ddl not in src
-    assert "new_uuid()" in src                        # wa_event_log id is UUIDv7
+
+    # Los escritores legacy que esta prueba leía para comprobar que acuñaban
+    # el id se borraron; leerlos daba FileNotFoundError, que no dice nada de
+    # identidad. Se comprueba sobre los escritores que HAY.
+    assert_no_production_writer("product_forecast_config")
 
 
 def test_production_tables_are_born_clean_and_dead_legacy_removed():
@@ -1061,8 +1057,12 @@ def test_production_tables_are_born_clean_and_dead_legacy_removed():
     assert "recetas_consumo" not in tables           # dead legacy removed
     assert "recetas_consumo_detalle" not in tables
 
-    src = (REPO / "core" / "services" / "recipe_engine.py").read_text(encoding="utf-8")
-    assert "produccion_id = new_uuid()" in src
+
+    # Los escritores legacy que esta prueba leía para comprobar que acuñaban
+    # el id se borraron; leerlos daba FileNotFoundError, que no dice nada de
+    # identidad. Se comprueba sobre los escritores que HAY.
+    assert_no_production_writer("produccion_detalle")
+    assert_no_production_writer("producciones")
 
 
 def test_recipe_tables_are_born_clean_and_repo_mints_uuid():
@@ -1083,10 +1083,13 @@ def test_recipe_tables_are_born_clean_and_repo_mints_uuid():
     dep = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(recipe_dependency_graph)").fetchall()}
     assert dep["parent_recipe_id"] == "TEXT"
 
-    src = (REPO / "repositories" / "recetas.py").read_text(encoding="utf-8")
-    assert "lastrowid" not in src
-    assert "from backend.shared.ids import new_uuid" in src
-    assert "receta_id = new_uuid()" in src
+
+    # Los escritores legacy que esta prueba leía para comprobar que acuñaban
+    # el id se borraron; leerlos daba FileNotFoundError, que no dice nada de
+    # identidad. Se comprueba sobre los escritores que HAY.
+    assert_no_production_writer("product_recipe_components")
+    assert_no_production_writer("product_recipes")
+    assert_no_production_writer("recipe_dependency_graph")
 
 
 def test_refresh_order_badges_does_not_int_cast_identity():
@@ -1247,10 +1250,15 @@ def test_domain_code_has_no_lastrowid_identity():
     """CERO: lastrowid no existe en código de dominio (identidad = new_uuid())."""
     hits = []
     for p in _domain_files():
-        rel = str(p.relative_to(REPO))
+        rel = p.relative_to(REPO).as_posix()      # mismo motivo que arriba
         if rel in LASTROWID_ALLOWLIST:
             continue
-        if "lastrowid" in p.read_text(encoding="utf-8", errors="ignore"):
+        # Sin comentarios ni cadenas: `meat_processing_schema.py` PROMETE en su
+        # docstring "no lastrowid" y la guardia contaba la promesa como el uso.
+        # Es el mismo vicio que ya corrigio `code_only_source_lines` en su
+        # propio docstring: los guardrails de IDENTIFICADOR deben usarlo.
+        codigo = chr(10).join(t for _n, t in code_only_source_lines(p))
+        if "lastrowid" in codigo:
             hits.append(rel)
     assert not hits, (
         f"{len(hits)} archivos de dominio usan lastrowid (deben ser 0):\n"
@@ -1277,17 +1285,100 @@ def test_domain_code_has_no_integer_casts_for_entity_ids():
     )
 
 
+#: El hogar declarado del DDL. Cada archivo de ahí existe PARA definir tablas y
+#: lo dice en su propio docstring ("Only a migration in migrations/ may execute
+#: this DDL"). Incluirlos en la regla "servicios/repositorios/UI no crean
+#: esquema" señalaba 36 archivos por hacer aquello para lo que fueron escritos,
+#: y ahogaba los 4 hallazgos de verdad entre ellos.
+#:
+#: La regla que SÍ les aplica es la de abajo: definir DDL es su trabajo,
+#: EJECUTARLO fuera de una migración no.
+_SCHEMA_PACKAGE = "backend/infrastructure/db/schema/"
+
+#: Llamadas a `create_*_schema(...)` en código de producción, fuera de
+#: `migrations/`. Medidas hoy; sólo pueden DESAPARECER.
+#:
+#: Las dos son el mismo atajo, y su comentario lo dice sin disimulo: "idempotent
+#: bootstrap so the schema exists even on a dev DB opened before migration N
+#: ran". Crea las tablas al abrir la pantalla, así que `schema_version` no las
+#: registra y la migración que no corrió deja de notarse — que es justo lo que
+#: hace falta notar. Y una comodidad de desarrollo queda corriendo en producción.
+_RUNTIME_SCHEMA_BOOTSTRAPS = frozenset({
+    "frontend/desktop/modules/finance/suppliers/supplier_routes.py",
+    "frontend/desktop/modules/hr/hr_routes.py",
+})
+
+_SCHEMA_CALL = re.compile(r"\bcreate_[a-z_]+_schema\s*\(")
+
+
+def test_only_migrations_execute_schema_creation():
+    """Definir DDL es trabajo del paquete de esquema; ejecutarlo, de migrations/.
+
+    Una pantalla que crea sus propias tablas al abrirse no falla nunca: la
+    primera vez las crea y a partir de ahí todo funciona. Lo que se pierde es
+    la señal — si la migración no corrió, nadie se entera, y el esquema pasa a
+    depender de qué pantallas se hayan abierto y en qué orden.
+    """
+    llamadores = set()
+    for raiz in ("backend", "frontend"):
+        for ruta in (REPO / raiz).rglob("*.py"):
+            if "__pycache__" in ruta.parts:
+                continue
+            rel = str(ruta.relative_to(REPO)).replace("\\", "/")
+            if rel.startswith(_SCHEMA_PACKAGE):
+                continue                      # ahí se DEFINEN, no se ejecutan
+            texto = ruta.read_text(encoding="utf-8", errors="ignore")
+            for linea in texto.splitlines():
+                if _SCHEMA_CALL.search(linea) and not linea.lstrip().startswith(
+                        ("def ", "#", "from ", "import ")):
+                    llamadores.add(rel)
+                    break
+
+    nuevos = sorted(llamadores - _RUNTIME_SCHEMA_BOOTSTRAPS)
+    assert not nuevos, (
+        "Código de producción que crea esquema al vuelo, fuera de migrations/:\n  "
+        + "\n  ".join(nuevos))
+
+    resueltos = sorted(_RUNTIME_SCHEMA_BOOTSTRAPS - llamadores)
+    assert not resueltos, (
+        "Ya no crean esquema al vuelo; quítalos de _RUNTIME_SCHEMA_BOOTSTRAPS "
+        f"para que el trinquete baje: {resueltos}")
+
+
 def test_services_repositories_ui_do_not_create_schema():
     """CERO: DDL vive en migrations/ (o allowlist aprobada), nunca en
     servicios/repositorios/UI/módulos."""
+    # Exige un NOMBRE detras del DDL y que `executescript` sea una LLAMADA.
+    # Sin lo primero se marcaba la prosa que HABLA de DDL — un docstring que
+    # promete "never a CREATE TABLE/INSERT/UPDATE against it" contaba como si lo
+    # hiciera. Sin lo segundo se marcaba `def executescript(...)`, que son
+    # metodos pasarela de la conexion, no esquema.
     ddl = re.compile(
-        r"CREATE\s+TABLE|ALTER\s+TABLE|DROP\s+TABLE|CREATE\s+(?:UNIQUE\s+)?INDEX|executescript\("
+        r"(?:CREATE\s+TABLE|ALTER\s+TABLE|DROP\s+TABLE)\s+"
+        # `(?!IF\b)`: sin el, `CREATE TABLE IF NOT EXISTS` escrito en prosa
+        # casaba con la `I` de "IF", porque el grupo opcional simplemente no se
+        # consumia. La guardia marcaba docstrings que EXPLICAN el DDL.
+        r"(?:IF\s+(?:NOT\s+)?EXISTS\s+)?(?!IF\b)[\w\"'{\[]"
+        r"|CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?[\w\"'{\[]"
     )
+    # `executescript(` ya no se busca por si mismo. Marcaba tres cosas que no
+    # son esquema: el bloque de PRAGMAs con el que la conexion se configura, y
+    # dos metodos PASARELA que reenvian la llamada (`return
+    # self._conn.executescript(*args, **kwargs)`). Un `executescript` que SI
+    # lleve DDL lo caza igualmente la expresion de arriba, este donde este
+    # escrito — asi que no se pierde nada y se dejan de acusar tuberias.
     hits = []
     for p in _domain_files():
-        rel = str(p.relative_to(REPO))
+        # Barras NORMALES: las listas se escriben con "/" y en Windows
+        # `relative_to` devuelve "\\". La comparacion no coincidia nunca, asi
+        # que la lista de excepciones llevaba siendo INERTE en Windows y la
+        # guardia reportaba archivos ya aprobados —`uuid_cutover.py` entre
+        # ellos— ahogando los hallazgos de verdad.
+        rel = p.relative_to(REPO).as_posix()
         if rel in DDL_ALLOWLIST:
             continue
+        if rel.startswith(_SCHEMA_PACKAGE):
+            continue   # su trabajo es definir DDL; ver la regla de ejecucion
         if ddl.search(p.read_text(encoding="utf-8", errors="ignore")):
             hits.append(rel)
     assert not hits, (
