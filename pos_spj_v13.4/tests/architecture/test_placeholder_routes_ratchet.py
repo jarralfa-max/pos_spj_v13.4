@@ -59,7 +59,7 @@ ROUTE_COVERAGE: dict[str, tuple[int, int]] = {
     "configuracion": (11, 11),
     "business_intelligence": (16, 17),
     "pricing": (5, 6),
-    "losses": (4, 16),
+    "losses": (5, 16),
     "orders_delivery": (3, 23),
     "products": (2, 21),
     "meat_processing": (1, 29),
@@ -257,4 +257,4 @@ def test_the_measurement_does_not_read_the_fallback_builder():
         _MODULES_DIR / "losses" / "losses_routes.py", "build_page") == set(), (
         "`losses_routes.build_page` ya distingue rutas: revisa si sigue siendo "
         "el respaldo o pasó a ser la vía viva.")
-    assert len(_real_routes("losses")) == 4
+    assert len(_real_routes("losses")) == ROUTE_COVERAGE["losses"][0]

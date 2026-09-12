@@ -14,6 +14,10 @@ from backend.application.losses.register_general_loss import RegisterGeneralLoss
 from backend.application.losses.loss_inventory_integration import LossInventoryIntegrationService
 from backend.application.losses.production_loss import ProductionLossAnalysisService
 from backend.application.losses.yield_queries import YieldMonitoringQueryService
+from frontend.desktop.modules.losses.pages.yield_monitoring_page import YieldMonitoringPage
+from frontend.desktop.modules.losses.presenters.yield_monitoring_presenter import (
+    YieldMonitoringPresenter,
+)
 from backend.application.losses.expiry_damage import ExpiryDamageWorkflowService
 from backend.application.losses.quality_control import QualityInspectionService
 from backend.application.losses.transfer_integration import TransferLossIntegrationService
@@ -190,6 +194,11 @@ def build_losses_wiring(
     root_cause_presenter = RootCausePresenter(
         LossRootCauseQueryService(LossRootCauseQueryRepository(connection)),
         services["loss_root_cause_service"], context_provider)
+    # Se reutiliza el servicio que ya está en `services`, no se construye otro:
+    # dos instancias sobre el mismo repositorio no rompen nada hoy, pero dejan
+    # dos sitios donde cambiar el día que lleve caché o política.
+    yield_presenter = YieldMonitoringPresenter(
+        services["yield_monitoring_query_service"], context_provider)
 
     def page_builder(page_id: str):
         if page_id == "losses_registration":
@@ -198,6 +207,8 @@ def build_losses_wiring(
             return RootCausePage(root_cause_presenter)
         if page_id in ("losses_overview", "losses_analysis"):
             return LossAnalyticsPage(analytics_presenter)
+        if page_id == "losses_yields":
+            return YieldMonitoringPage(yield_presenter)
         return build_page(page_id)
 
     return LossesWiring(has_permission, page_builder, services)

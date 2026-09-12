@@ -21,13 +21,24 @@ class LossesNavigationSmokeTest(unittest.TestCase):
             [("losses_overview", None), ("losses_pending", 4)],
         )
 
-    def test_global_navigation_uses_only_mermas(self):
-        root = Path(__file__).resolve().parents[3]
-        main = (root / "interfaz/main_window.py").read_text(encoding="utf-8")
-        menu = (root / "interfaz/menu_lateral.py").read_text(encoding="utf-8")
-        self.assertIn('self._conectar("MERMAS",', main)
-        self.assertNotIn("ModuloMerma", main)
-        self.assertEqual(menu.count('self._crear_boton("Mermas", "MERMAS")'), 1)
+    def test_global_navigation_has_exactly_one_losses_entry(self):
+        """Antes leía `interfaz/main_window.py` y `menu_lateral.py` buscando la
+        forma del shell anterior (`self._conectar("MERMAS", ...)`). Los dos
+        archivos se borraron en la reconstrucción, así que la prueba llevaba
+        fallando con `FileNotFoundError` — un fallo que no dice nada de Mermas.
+
+        Lo que protegía sigue importando y se comprueba contra el menú vivo:
+        dos entradas al mismo módulo confunden sin fallar, porque las dos
+        abren algo.
+        """
+        from frontend.desktop.shell.sidebar.migrated_modules_navigation import (
+            MIGRATED_MODULES_NAVIGATION_ITEMS,
+        )
+
+        entradas = [i for i in MIGRATED_MODULES_NAVIGATION_ITEMS
+                    if i.module_id == "losses"]
+        self.assertEqual(len(entradas), 1)
+        self.assertEqual(entradas[0].item_id, "nav.losses")
 
 
 if __name__ == "__main__":
