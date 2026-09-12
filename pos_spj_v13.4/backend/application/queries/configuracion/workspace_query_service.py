@@ -752,7 +752,9 @@ class ConfiguracionWorkspaceQueryService:
             ConfigColumnDTO("Sucursal"), ConfigColumnDTO("Estado", "status"),
             ConfigColumnDTO("Seguridad", "status"),
         )
-        users = self._user_management_service().list_users()
+        # Via `self.list_users()`, NO el servicio de aplicacion directo: el mapeo
+        # a DTO vive ahi. Saltarselo devuelve filas crudas y `u.id` revienta.
+        users = self.list_users()
         rows = tuple(
             ConfigRowViewModel(u.id, (
                 u.username, u.name, u.role, u.branch_name, "Activo" if u.active else "Inactivo",
