@@ -57,7 +57,7 @@ from .architecture_guardrails import APP_ROOT
 ROUTE_COVERAGE: dict[str, tuple[int, int]] = {
     "transfers": (15, 15),
     "configuracion": (11, 11),
-    "business_intelligence": (10, 13),
+    "business_intelligence": (12, 13),
     "pricing": (5, 6),
     "losses": (4, 16),
     "orders_delivery": (3, 23),

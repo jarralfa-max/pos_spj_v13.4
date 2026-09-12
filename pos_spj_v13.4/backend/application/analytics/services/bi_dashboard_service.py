@@ -231,6 +231,85 @@ class BiDashboardService:
                  "rows": [[s["nombre"], f"${s['total']:,.2f}"] for s in fin.top_suppliers(f)]}],
         }
 
+    def _section_sucursales(self, f) -> dict:
+        """Comparativa entre sucursales.
+
+        `bi_branches` llevaba a una página vacía porque, según el docstring de
+        `business_intelligence_routes.py`, no había "consulta agregada a nivel
+        de tablero" detrás. Sí la hay: `sales.by_branch(f)` devuelve
+        `[(sucursal, total)]` agrupado y ordenado. La evaluación era correcta
+        cuando se escribió y dejó de serlo.
+
+        La CONCENTRACIÓN es el dato que no se ve sumando columnas: que una
+        sucursal haga el 70% del total es una dependencia, no un éxito, y no
+        salta a la vista en una tabla ordenada por importe.
+        """
+        ventas = self._q.sales.by_branch(f)
+        total = sum(importe for _, importe in ventas)
+        mejor = max(ventas, key=lambda par: par[1], default=("—", 0.0))
+        return {
+            "section": "sucursales", "title": "Sucursales",
+            "kpis": [
+                self._mini("Sucursales con venta", len(ventas), unit="", icon="🏬",
+                           variant="info"),
+                self._mini("Venta total", total, icon="💰"),
+                self._mini(f"Mayor: {mejor[0]}", mejor[1], icon="🥇", variant="positive"),
+                self._mini("Concentración", (mejor[1] / total * 100) if total else 0,
+                           unit="%", icon="⚖️",
+                           variant="danger" if total and mejor[1] / total > 0.5 else "primary"),
+            ],
+            "charts": [self._bars("Venta por sucursal", ventas)],
+            "tables": [{
+                "title": "Detalle por sucursal",
+                "columns": ["Sucursal", "Venta $", "% del total"],
+                "rows": [[nombre, f"${importe:,.2f}",
+                          f"{(importe / total * 100) if total else 0:.1f}%"]
+                         for nombre, importe in ventas],
+            }],
+        }
+
+    def _section_precios(self, f) -> dict:
+        """Precios y márgenes: qué se vende con qué rentabilidad.
+
+        Misma historia que Sucursales: `sales.profitability_by_category(f)` y
+        `profitability_by_product(f)` ya calculaban margen e importe, y nadie
+        los estaba mostrando.
+
+        NO se marca ningún producto como "mal precio". Eso exige un margen
+        objetivo, que es una regla de negocio y no está declarada en ninguna
+        parte — inventarla aquí sería fabricar una política. La tabla ordena
+        por margen y deja el juicio a quien la lee.
+        """
+        ventas = self._q.sales
+        por_categoria = ventas.profitability_by_category(f)
+        por_producto = ventas.profitability_by_product(f, limit=25)
+        ingresos = sum(p["ingresos"] for p in por_producto)
+        margen = sum(p["margen"] for p in por_producto)
+        return {
+            "section": "precios", "title": "Precios",
+            "kpis": [
+                self._mini("Ingresos", ingresos, icon="🏷️"),
+                self._mini("Margen", margen, icon="📈",
+                           variant="positive" if margen >= 0 else "danger"),
+                self._mini("Margen %", (margen / ingresos * 100) if ingresos else 0,
+                           unit="%", icon="％",
+                           variant="positive" if margen >= 0 else "danger"),
+                self._mini("Categorías con margen", len(por_categoria), unit="",
+                           icon="🗂️", variant="info"),
+            ],
+            "charts": [self._bars("Margen por categoría",
+                                  [(c, m) for c, m, _pct in por_categoria], color=_GREEN)],
+            "tables": [{
+                "title": "Rentabilidad por producto",
+                "columns": ["Producto", "Categoría", "Unidades", "Ingresos $",
+                            "Costo $", "Margen $", "Margen %"],
+                "rows": [[p["nombre"], p["categoria"] or "—", f"{p['unidades']:,.2f}",
+                          f"${p['ingresos']:,.2f}", f"${p['costo']:,.2f}",
+                          f"${p['margen']:,.2f}", f"{p['margen_pct']:.1f}%"]
+                         for p in por_producto],
+            }],
+        }
+
     def _section_clientes(self, f) -> dict:
         s = self._q.sales
         return {

@@ -9,9 +9,21 @@ finanzas); BI-26 wires "Forecast" to a REAL `DemandPlanningService` run
 wires "Decision Intelligence" to a REAL `PricingIntelligenceService` run
 (product+branch search + generate + real BI-18 lifecycle transitions,
 session-only — no persistence exists for `BusinessRecommendation` yet).
-"Producción"/"Precios"/"Sucursales" (the top-level nav sections, not the
-Decision Intelligence page) have no dashboard-level aggregate query behind
-them today, and Purchase/Production/Branch recommendation types (BI-14/15/
+PASS 6 wires "Sucursales" y "Precios" a dos secciones NUEVAS
+(`_section_sucursales`/`_section_precios`) construidas sobre agregados que ya
+existían y que nadie mostraba: `BiSalesQueryService.by_branch()` devuelve venta
+por sucursal agrupada, y `profitability_by_category()`/
+`profitability_by_product()` devuelven margen por categoría y por producto. La
+frase que ocupaba este hueco —que esas tres secciones "no tienen consulta
+agregada detrás"— era cierta cuando se escribió y dejó de serlo para dos de las
+tres. "Producción" SIGUE sin ella: la fachada `BiDashboardQueryService` expone
+sales/inventory/finance/forecast/cash y ninguna fuente de producción;
+`ProductionQueryService` existe pero recibe `QueryFilters`, no
+`DashboardFilters`, así que conectarlo es adaptar un contrato y no mapear una
+clave. Purchase/Production/Branch recommendation types (BI-14/15/
+17) need real data (`InventoryPosition`, a per-branch product-set loop)
+this repo has no clean aggregate query for yet — only Pricing (BI-16) is
+wired. and Purchase/Production/Branch recommendation types (BI-14/15/
 17) need real data (`InventoryPosition`, a per-branch product-set loop)
 this repo has no clean aggregate query for yet — only Pricing (BI-16) is
 wired. BI-28 wires "Alertas" to the REAL `AnalyticalAlertEngine` (BI-20)
@@ -50,6 +62,9 @@ _REAL_ROUTE_BUILDERS: dict[str, str] = {
     "bi_alerts": "_build_alert_explorer",
     "bi_scenarios": "_build_pricing_scenario",
     "bi_reports": "_build_reports",
+    # PASS 6: las dos secciones que sí tenían datos agregados detrás.
+    "bi_branches": "_build_analytical_section",
+    "bi_pricing": "_build_analytical_section",
 }
 
 # BI module page_id -> BiDashboardService.section_data() section key.
@@ -58,6 +73,8 @@ _SECTION_KEY_BY_PAGE_ID: dict[str, str] = {
     "bi_inventory": "inventario",
     "bi_purchasing": "compras",
     "bi_finance": "finanzas",
+    "bi_branches": "sucursales",
+    "bi_pricing": "precios",
 }
 
 
