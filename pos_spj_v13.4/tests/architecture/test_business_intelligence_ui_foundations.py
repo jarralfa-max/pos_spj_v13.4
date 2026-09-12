@@ -63,11 +63,24 @@ def test_nav_entries_use_registered_analytics_permissions():
             f"{entry.page_id} references unregistered permission {entry.permission}")
 
 
-def test_module_not_yet_wired_into_main_window():
-    """Documents the deliberate coexistence decision (see the module's own
-    __init__.py docstring) — if this ever starts failing because someone
-    wired it in, that's a real cutover decision that needs its own review,
-    not something that should happen as an incidental side effect."""
-    source = (ROOT / "interfaz/main_window.py").read_text(encoding="utf-8")
-    assert "BusinessIntelligenceView" not in source
-    assert "business_intelligence_view" not in source
+def test_the_module_is_reachable_from_the_canonical_shell():
+    """Antes comprobaba lo contrario, y contra un archivo que ya no existe.
+
+    Leia `interfaz/main_window.py` para verificar que BI NO estuviera cableado
+    en el shell legacy — una decision de coexistencia deliberada en su momento.
+    Ese shell se borro en la reconstruccion, asi que la prueba llevaba fallando
+    con `FileNotFoundError`: un fallo que no dice nada de BI.
+
+    El corte ya ocurrio y BI vive en el shell canonico. Lo que hay que vigilar
+    ahora es lo opuesto: que siga siendo ALCANZABLE. Un modulo construido sin
+    entrada de menu no falla nunca, simplemente no existe para el usuario.
+    """
+    from frontend.desktop.shell.sidebar.migrated_modules_navigation import (
+        MIGRATED_MODULES_NAVIGATION_ITEMS,
+    )
+
+    entradas = {item.item_id for item in MIGRATED_MODULES_NAVIGATION_ITEMS}
+    assert "nav.business_intelligence" in entradas
+
+    assert not (ROOT / "interfaz" / "main_window.py").exists(), (
+        "Volvio el shell legacy: habria que decidir de nuevo la coexistencia.")

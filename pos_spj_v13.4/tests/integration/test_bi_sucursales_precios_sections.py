@@ -177,3 +177,122 @@ def test_every_mapped_section_key_has_a_real_builder():
         if not hasattr(BiDashboardService, f"_section_{clave}")
     ]
     assert not faltan, f"Secciones mapeadas sin método que las construya: {faltan}"
+
+
+# ── las cuatro secciones que estaban construidas y sin puerta ───────────────
+# `_section_merma`, `_section_caja`, `_section_clientes` y `_section_proveedores`
+# llevaban implementadas desde FASE 8 y NINGUNA ruta las abría. Exponerlas no
+# necesitó backend nuevo: sólo la entrada de navegación y el mapeo. Estas
+# pruebas comprueban que lo que ahora se abre trae datos reales, porque el
+# fallback vacío de `section_data()` haría que un mapeo mal escrito pasara
+# desapercibido igual que con las dos anteriores.
+
+
+def test_the_waste_section_reports_value_and_share_of_sales(conn):
+    """La merma sola no dice nada: 22 pesos son mucho o poco segun lo vendido.
+    El porcentaje sobre venta es el dato accionable.
+
+    Se siembra `loss_cases` a mano y no con `bi_seed.add_waste`, y el motivo es
+    un hallazgo en si: ese ayudante escribe en la tabla LEGACY `mermas`, que
+    `fresh_db()` ni siquiera crea, mientras `BiInventoryQueryService.
+    waste_value()` ya lee la CANONICA `loss_cases`. El ayudante se quedo atras
+    cuando la consulta se repunto. No lo corrijo aqui —lo comparten ~15
+    archivos— pero queda anotado.
+    """
+    _sembrar_merma(conn, 22.0)
+    kpis = _kpis(_mes(conn, "merma"))
+    assert kpis["Valor de merma"] == 22.0
+    assert kpis["Merma %"] == pytest.approx(22.0 / 220.0 * 100, abs=0.01)
+
+
+def test_the_waste_share_does_not_divide_by_zero_without_sales(conn):
+    _sembrar_merma(conn, 50.0)
+    kpis = _kpis(_servicio(conn).section_data("merma", DashboardFilters(preset="today")))
+    assert kpis["Merma %"] == 0
+
+
+def test_the_suppliers_section_reports_payables(conn):
+    from tests.integration import bi_seed as seed
+
+    seed.add_payable(conn, 1500.0)
+    conn.commit()
+    assert _kpis(_mes(conn, "proveedores"))["CxP"] == 1500.0
+
+
+def test_the_customers_section_reports_receivables(conn):
+    from tests.integration import bi_seed as seed
+
+    seed.add_receivable(conn, 800.0)
+    conn.commit()
+    assert _kpis(_mes(conn, "clientes"))["CxC"] == 800.0
+
+
+def test_the_cash_section_degrades_to_zero_without_the_cash_table(conn):
+    """`bi_seed.fresh_db()` no crea `movimientos_caja`.
+
+    `BiCashQueryService._q` captura el error, lo registra y devuelve `[]`, así
+    que la sección abre con ceros en vez de reventar. Se fija a propósito: es
+    la diferencia entre una pantalla que dice "no hay movimientos" y una que
+    se rompe en una instalación con esquema antiguo.
+    """
+    kpis = _kpis(_mes(conn, "caja"))
+    assert kpis["Ingresos directos"] == 0
+    assert kpis["Egresos directos"] == 0
+    assert kpis["Saldo"] == 0
+
+
+@pytest.mark.parametrize("page_id,seccion", [
+    ("bi_customers", "clientes"), ("bi_waste", "merma"),
+    ("bi_suppliers", "proveedores"), ("bi_cash", "caja"),
+])
+def test_each_reopened_route_points_at_its_existing_section(page_id, seccion):
+    from frontend.desktop.modules.business_intelligence.business_intelligence_routes import (
+        _REAL_ROUTE_BUILDERS,
+        _SECTION_KEY_BY_PAGE_ID,
+    )
+
+    assert _SECTION_KEY_BY_PAGE_ID[page_id] == seccion
+    assert _REAL_ROUTE_BUILDERS[page_id] == "_build_analytical_section"
+
+
+def test_only_production_is_left_without_a_real_page():
+    """El estado de BI tras esta tanda, fijado: 16 de 17 rutas reales.
+
+    `bi_production` sigue vacía porque la fachada `BiDashboardQueryService` no
+    expone ninguna fuente de producción — no por falta de página.
+    """
+    from frontend.desktop.modules.business_intelligence.business_intelligence_routes import (
+        BUSINESS_INTELLIGENCE_ROUTES,
+        _REAL_ROUTE_BUILDERS,
+    )
+
+    sin_pagina = sorted(set(BUSINESS_INTELLIGENCE_ROUTES) - set(_REAL_ROUTE_BUILDERS))
+    assert sin_pagina == ["bi_production"]
+
+
+def _primera_sucursal(conn) -> str:
+    return conn.execute("SELECT id FROM sucursales ORDER BY nombre LIMIT 1").fetchone()[0]
+
+
+def _sembrar_merma(conn, valor: float, *, cuando=None) -> None:
+    """Un caso de pérdida canónico, con los NOT NULL que la tabla exige."""
+    from backend.shared.ids import new_uuid
+
+    fecha = (cuando or S.this_month_day()).isoformat()
+    # `classification_id`/`reason_id` tienen clave foranea contra catalogos que
+    # la base ya trae sembrados (28 filas cada uno). Inventar UUIDs ahi falla
+    # con `FOREIGN KEY constraint failed`, asi que se toma una pareja real.
+    motivo, clasificacion = conn.execute(
+        "SELECT id, classification_id FROM loss_reasons LIMIT 1").fetchone()
+    # La tabla impone `net_loss_value = gross_value - recoverable_value`. Es una
+    # invariante real y se respeta en vez de rodearla: nada recuperable, asi que
+    # el bruto y el neto coinciden.
+    conn.execute(
+        "INSERT INTO loss_cases (id, operation_id, branch_id, warehouse_id,"
+        " reported_by_user_id, classification_id, reason_id, origin, status,"
+        " requires_inventory_posting, gross_value, recoverable_value,"
+        " net_loss_value, occurred_at, created_at, updated_at)"
+        " VALUES (?,?,?,?,?,?,?,'MANUAL_AUTHORIZED','APPROVED',0,?,0,?,?,?,?)",
+        (new_uuid(), new_uuid(), _primera_sucursal(conn), new_uuid(), new_uuid(),
+         clasificacion, motivo, valor, valor, fecha, fecha, fecha))
+    conn.commit()

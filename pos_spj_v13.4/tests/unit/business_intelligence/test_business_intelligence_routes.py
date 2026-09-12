@@ -29,16 +29,29 @@ def test_executive_route_without_connection_also_falls_back_to_placeholder(qapp)
     assert isinstance(page, BusinessIntelligencePlaceholderPage)
 
 
-def test_production_pricing_and_branches_stay_placeholders_even_with_a_connection(qapp):
-    """BI-25 deliberately does not build these three — no dashboard-level
-    aggregate query exists behind them, only per-product/per-branch
-    recommendation services (BI-14..17) that BI-27's recommendations page
-    surfaces instead."""
+def test_only_production_stays_a_placeholder_with_a_connection(qapp):
+    """Eran tres; queda una.
+
+    Esta prueba fijaba que Produccion, Precios y Sucursales siguieran vacias
+    porque "no existe consulta agregada a nivel de tablero" detras. Para dos de
+    las tres dejo de ser cierto: `BiSalesQueryService.by_branch()` y
+    `profitability_by_category/product()` ya calculaban esos agregados y nadie
+    los mostraba (PASS 6).
+
+    Produccion SI sigue vacia, y por un motivo concreto: la fachada
+    `BiDashboardQueryService` expone sales/inventory/finance/forecast/cash y
+    ninguna fuente de produccion. `ProductionQueryService` existe pero recibe
+    `QueryFilters` en vez de `DashboardFilters`, asi que conectarlo es adaptar
+    un contrato, no anadir una clave.
+    """
     import sqlite3
     conn = sqlite3.connect(":memory:")
     try:
-        for page_id in ("bi_production", "bi_pricing", "bi_branches"):
-            page = build_page(page_id, conn)
-            assert isinstance(page, BusinessIntelligencePlaceholderPage)
+        assert isinstance(build_page("bi_production", conn),
+                          BusinessIntelligencePlaceholderPage)
+        for page_id in ("bi_pricing", "bi_branches"):
+            assert not isinstance(build_page(page_id, conn),
+                                  BusinessIntelligencePlaceholderPage), (
+                f"{page_id} volvio a ser placeholder")
     finally:
         conn.close()

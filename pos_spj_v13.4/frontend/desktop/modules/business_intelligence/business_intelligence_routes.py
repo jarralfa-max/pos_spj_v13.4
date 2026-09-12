@@ -65,6 +65,11 @@ _REAL_ROUTE_BUILDERS: dict[str, str] = {
     # PASS 6: las dos secciones que sí tenían datos agregados detrás.
     "bi_branches": "_build_analytical_section",
     "bi_pricing": "_build_analytical_section",
+    # Cuatro secciones que YA estaban implementadas y que ninguna ruta abria.
+    "bi_customers": "_build_analytical_section",
+    "bi_waste": "_build_analytical_section",
+    "bi_suppliers": "_build_analytical_section",
+    "bi_cash": "_build_analytical_section",
 }
 
 # BI module page_id -> BiDashboardService.section_data() section key.
@@ -75,6 +80,10 @@ _SECTION_KEY_BY_PAGE_ID: dict[str, str] = {
     "bi_finance": "finanzas",
     "bi_branches": "sucursales",
     "bi_pricing": "precios",
+    "bi_customers": "clientes",
+    "bi_waste": "merma",
+    "bi_suppliers": "proveedores",
+    "bi_cash": "caja",
 }
 
 
