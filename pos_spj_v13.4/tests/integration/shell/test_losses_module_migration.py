@@ -48,6 +48,9 @@ from frontend.desktop.modules.losses.pages import (  # noqa: E402
     LossRegistrationPage,
     RootCausePage,
 )
+from frontend.desktop.modules.losses.pages.yield_monitoring_page import (  # noqa: E402
+    YieldMonitoringPage,
+)
 from frontend.desktop.modules.losses.shell_registration import (  # noqa: E402
     LOSSES_MODULE_ID,
     LOSSES_ROUTE_ID,
@@ -72,6 +75,7 @@ REAL_PAGES = {
     "losses_investigations": RootCausePage,
     "losses_overview": LossAnalyticsPage,
     "losses_analysis": LossAnalyticsPage,
+    "losses_yields": YieldMonitoringPage,
 }
 
 # Sólo "Pendientes" visible: su página es placeholder y no dispara consultas
@@ -230,10 +234,15 @@ def test_the_four_real_pages_are_reachable_not_placeholders(app, conn):
 
 
 def test_the_remaining_routes_are_still_honest_placeholders(app, conn):
-    """No se declara más avance del real: 12 de 16 siguen sin página."""
+    """No se declara más avance del real: 11 de 16 siguen sin página.
+
+    Eran 12 hasta que `losses_yields` dejó de serlo. El número se actualiza a
+    mano A PROPÓSITO: derivarlo de `REAL_PAGES` haría que esta prueba pasara
+    siempre y dejara de decir cuánto falta, que es lo único que aporta.
+    """
     page_builder = build_losses_wiring(conn, _FakeSession()).page_builder
     pending = [entry.page_id for entry in LOSSES_NAV if entry.page_id not in REAL_PAGES]
-    assert len(pending) == 12
+    assert len(pending) == 11
     for page_id in pending:
         assert isinstance(page_builder(page_id), LossesPlaceholderPage), page_id
 
