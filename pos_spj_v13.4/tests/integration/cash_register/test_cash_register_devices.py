@@ -24,7 +24,10 @@ class _DeviceRows:
     def __init__(self, rows):
         self._rows = rows
 
-    def list_devices(self, kind: str):
+    def list_devices(self, kind: str, branch_id: str | None = None):
+        # `branch_id` se acepta y se ignora a proposito: este doble existe para
+        # probar el marcado de identidad contaminada, no el filtrado. La firma
+        # sigue a la del repositorio real, que ahora acota por sucursal.
         return list(self._rows)
 
 

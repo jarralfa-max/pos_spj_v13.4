@@ -13,6 +13,17 @@ from frontend.desktop.modules.cash_register.cash_register_dialogs import (
 )
 from frontend.desktop.modules.cash_register.presentation import status_label, user_facing_error
 
+#: Errores que esta pantalla convierte en aviso en vez de dejar caer.
+#:
+#: Se define UNA vez y la usan `_run` y `_branch_scope` porque el fallo que
+#: motivo esto fue justo que divergieran: `LookupError` —el que lanzan los casos
+#: de uso de dispositivos cuando el aparato queda fuera de alcance— no estaba en
+#: la lista de `_run`, asi que en vez de un dialogo tumbaba la aplicacion.
+#:
+#: `CashContextError` hereda de `RuntimeError`, no de `CashRegisterError`: por
+#: eso `RuntimeError` tiene que seguir aqui.
+_ERRORES_ESPERADOS = (CashRegisterError, RuntimeError, ValueError, LookupError)
+
 
 class CashDevicesPage(QWidget):
     SECTIONS = (("register", "Cajas"), ("drawer", "Cajones"), ("terminal", "Terminales"))
@@ -79,17 +90,32 @@ class CashDevicesPage(QWidget):
                 "Actualiza la pantalla o recrea el registro."
             )
             return None
-            self._show_error(
-                "El dispositivo seleccionado tiene una identidad inválida. "
-                "Caja requiere UUIDv7 canónico; recrea el registro desde una base born-clean."
-            )
-            return None
         return device_id
+
+    def _branch_scope(self) -> str | None:
+        """Sucursal de la sesion, o None si no hay contexto.
+
+        Se resuelve aqui y no en cada llamada porque `refresh()` corre desde el
+        `__init__`: dejar escapar el `CashContextError` impediria que la
+        pantalla llegara a abrirse.
+        """
+        try:
+            return self._presenter.active_branch_id()
+        except _ERRORES_ESPERADOS:
+            return None
 
     def refresh(self):
         self._rows_by_id = {}
+        branch_id = self._branch_scope()
+        if not branch_id:
+            # Fail-closed: sin sucursal no se puede operar NINGUN dispositivo,
+            # asi que no se ensena ninguno. Listar de mas seria ofrecer botones
+            # que el backend rechaza siempre.
+            for kind, _label in self.SECTIONS:
+                self._tables[kind].load_rows([], row_ids=[])
+            return
         for kind, _label in self.SECTIONS:
-            rows = self._query.list_devices(kind)
+            rows = self._query.list_devices(kind, branch_id=branch_id)
             for row in rows:
                 self._rows_by_id[row.id] = row
             self._tables[kind].load_rows(
@@ -102,7 +128,12 @@ class CashDevicesPage(QWidget):
 
     def _create_device(self) -> None:
         kind = self._active_kind()
-        registers = tuple(self._query.list_devices("register")) if kind in {"drawer", "terminal"} else ()
+        # Acotado a la sucursal por el mismo motivo: `CreateCashDeviceUseCase`
+        # NO comprueba que la registradora elegida sea de la sucursal del alta,
+        # asi que un desplegable sin filtrar deja crear un cajon colgando de la
+        # caja de otra sucursal — y eso no falla, queda mal enlazado.
+        registers = tuple(self._query.list_devices(
+            "register", branch_id=self._branch_scope())) if kind in {"drawer", "terminal"} else ()
         dialog = CashDeviceDialog(
             self,
             kind=kind,
@@ -178,7 +209,7 @@ class CashDevicesPage(QWidget):
     def _run(self, command, success: str) -> None:
         try:
             result = command()
-        except (CashRegisterError, RuntimeError, ValueError) as exc:
+        except _ERRORES_ESPERADOS as exc:
             self._show_error(user_facing_error(exc))
             return
         self._show_result(getattr(result, "message", success))

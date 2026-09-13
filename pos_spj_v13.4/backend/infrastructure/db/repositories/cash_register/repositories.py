@@ -134,7 +134,15 @@ class CashDeviceRepository(_Repository):
         self.execute(f"UPDATE {self._TABLES[kind]} SET register_id=?,updated_at=? WHERE id=?",
                      (register_id, now, device_id))
 
-    def list_devices(self, kind: str) -> list[dict]:
+    def list_devices(self, kind: str, branch_id: str | None = None) -> list[dict]:
+        """Dispositivos de un tipo. Con `branch_id`, solo los de esa sucursal.
+
+        El filtro es opcional porque listar sin acotar es una capacidad legitima
+        de un repositorio de lectura, pero QUIEN OFRECE ACCIONES tiene que
+        acotarlo: los casos de uso de Caja exigen que el dispositivo pertenezca
+        a la sucursal del actor, asi que una pantalla que liste de mas ofrece
+        botones que el backend rechazara siempre.
+        """
         table = self._TABLES[kind]
         assignment = "''" if kind == "register" else "register_id"
         has_branches = self.execute(
@@ -142,12 +150,16 @@ class CashDeviceRepository(_Repository):
         ).fetchone() is not None
         branch_label = "COALESCE(s.nombre,d.branch_id)" if has_branches else "d.branch_id"
         join = "LEFT JOIN sucursales s ON s.id=d.branch_id" if has_branches else ""
+        where, params = "", []
+        if branch_id:
+            where, params = "WHERE d.branch_id = ?", [str(branch_id)]
         cursor = self.execute(
             f"""SELECT d.id,d.name,{branch_label} branch_name,
                       {assignment if kind == "register" else "d.register_id"} assignment,
                       d.status,'No verificado' hardware_status
             FROM {table} d {join}
-            ORDER BY d.name""")
+            {where}
+            ORDER BY d.name""", params)
         columns = [item[0] for item in cursor.description]
         return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
