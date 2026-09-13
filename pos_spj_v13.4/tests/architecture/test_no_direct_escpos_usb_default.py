@@ -9,20 +9,47 @@ from __future__ import annotations
 
 import re
 
-from .architecture_guardrails import APP_ROOT, collect_regex_violations
+from .architecture_guardrails import APP_ROOT, PYTHON_SUFFIXES, collect_regex_violations, iter_files
 
-ESC_POS_USB_RE = re.compile(r"from\s+escpos\.printer\s+import\s+Usb|escpos\.printer\.Usb")
+#: Tambien la forma con varios nombres —`from escpos.printer import Network, Usb`—,
+#: que la version anterior no veia porque exigia `Usb` justo tras `import`.
+#: La importacion entre parentesis repartida en varias lineas sigue fuera de
+#: alcance: el recorrido es linea a linea.
+ESC_POS_USB_RE = re.compile(
+    r"from\s+escpos\.printer\s+import\s+[^\n#]*\bUsb\b|escpos\.printer\.Usb")
 
+#: Donde viven HOY la UI y la aplicacion.
+#:
+#: Antes eran `modulos/`, `interfaz/`, `presentation/`, `application/` y
+#: `backend/`. Las cuatro primeras se borraron, y como `iter_files` salta las
+#: raices inexistentes, la guardia llevaba sin leer UNA SOLA linea de interfaz:
+#: la regla existe precisamente para la UI y solo miraba `backend/`.
+#: `frontend/` cubre escritorio y web.
 UI_AND_SERVICES = (
-    APP_ROOT / "modulos",
-    APP_ROOT / "interfaz",
-    APP_ROOT / "presentation",
-    APP_ROOT / "application",
+    APP_ROOT / "frontend",
     APP_ROOT / "backend",
 )
 
 
 def test_no_escpos_usb_in_ui_or_application() -> None:
+    """Ni la UI ni la aplicacion importan `escpos.printer.Usb`.
+
+    Antes de buscar se exige que cada raiz APORTE archivos: sin eso, una ruta
+    renombrada o borrada deja la prueba en verde leyendo cero lineas, que es
+    como esta guardia dejo de vigilar la interfaz sin que nada fallara.
+
+    La capa de hardware (`backend/infrastructure/printing`, `.../hardware`) NO
+    se excluye, aunque el contrato permita alli el fallback no-Windows. Hoy
+    ningun archivo del proyecto importa `escpos` —la impresion usa su propio
+    `backend/infrastructure/printing/escpos.py`—, asi que el primer uso tiene
+    que ser un cambio deliberado de esta guardia, no algo que pase solo.
+    """
+    vacias = [r.relative_to(APP_ROOT).as_posix() for r in UI_AND_SERVICES
+              if not any(True for _ in iter_files(suffixes=PYTHON_SUFFIXES, roots=(r,)))]
+    assert not vacias, (
+        "Raices que no aportan ningun archivo; la prueba pasaria sin leerlas:\n  "
+        + "\n  ".join(vacias))
+
     violations = collect_regex_violations(pattern=ESC_POS_USB_RE, roots=UI_AND_SERVICES)
     assert not violations, (
         "escpos.printer.Usb usado fuera de la capa de hardware:\n"
