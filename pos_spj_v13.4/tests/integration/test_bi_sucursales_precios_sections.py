@@ -192,12 +192,12 @@ def test_the_waste_section_reports_value_and_share_of_sales(conn):
     """La merma sola no dice nada: 22 pesos son mucho o poco segun lo vendido.
     El porcentaje sobre venta es el dato accionable.
 
-    Se siembra `loss_cases` a mano y no con `bi_seed.add_waste`, y el motivo es
-    un hallazgo en si: ese ayudante escribe en la tabla LEGACY `mermas`, que
-    `fresh_db()` ni siquiera crea, mientras `BiInventoryQueryService.
-    waste_value()` ya lee la CANONICA `loss_cases`. El ayudante se quedo atras
-    cuando la consulta se repunto. No lo corrijo aqui —lo comparten ~15
-    archivos— pero queda anotado.
+    Se siembra `loss_cases` a mano con `_sembrar_merma` por motivos historicos:
+    `bi_seed.add_waste` escribia en la tabla LEGACY `mermas`, que `fresh_db()`
+    ni siquiera crea, y esta prueba nacio rodeandolo. Ese ayudante YA esta
+    corregido —siembra `loss_cases` y `loss_lines` canonicos—, asi que el
+    ayudante local podria delegar en el; se deja como esta porque no toma
+    `product_id` y aqui no hace falta linea.
     """
     _sembrar_merma(conn, 22.0)
     kpis = _kpis(_mes(conn, "merma"))
@@ -227,18 +227,32 @@ def test_the_customers_section_reports_receivables(conn):
     assert _kpis(_mes(conn, "clientes"))["CxC"] == 800.0
 
 
-def test_the_cash_section_degrades_to_zero_without_the_cash_table(conn):
-    """`bi_seed.fresh_db()` no crea `movimientos_caja`.
+def test_the_cash_section_reports_a_real_zero_not_a_swallowed_error(conn, caplog):
+    """Sin movimientos, la caja da cero. Y ese cero tiene que ser un DATO.
 
-    `BiCashQueryService._q` captura el error, lo registra y devuelve `[]`, así
-    que la sección abre con ceros en vez de reventar. Se fija a propósito: es
-    la diferencia entre una pantalla que dice "no hay movimientos" y una que
-    se rompe en una instalación con esquema antiguo.
+    Esta prueba decía otra cosa: que la sección "degrada a cero" porque
+    `fresh_db()` no crea `movimientos_caja`. Era cierto y era el problema —el
+    servicio consultaba una tabla inexistente, `_q` se tragaba el error y
+    devolvía `[]`, así que el tablero pintaba ceros en TODA instalación—. Ya
+    lee `cash_ledger_entries`, que sí existe.
+
+    O sea que seguía pasando, pero por un motivo distinto del que decía. La
+    afirmación útil no es el cero —lo daba igual rota— sino que NO haya nada
+    tragado en el log: es lo único que separa "no hubo movimientos" de "la
+    consulta falló".
     """
+    import logging
+
+    caplog.set_level(logging.WARNING, logger="spj.bi.cash")
+
     kpis = _kpis(_mes(conn, "caja"))
+
     assert kpis["Ingresos directos"] == 0
     assert kpis["Egresos directos"] == 0
     assert kpis["Saldo"] == 0
+    assert not caplog.records, (
+        "el cero viene de una consulta que fallo, no de una caja sin "
+        f"movimientos: {[r.getMessage() for r in caplog.records]}")
 
 
 @pytest.mark.parametrize("page_id,seccion", [

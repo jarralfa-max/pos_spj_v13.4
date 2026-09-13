@@ -54,6 +54,23 @@ def test_section_merma(svc):
     assert any(k["title"] == "Valor de merma" and k["value"] == 40.0 for k in d["kpis"])
 
 
+def test_section_merma_grafica_por_categoria(svc):
+    """La gráfica de la sección, que NO estaba cubierta por nada.
+
+    `waste_value()` suma sobre `loss_cases`, pero `waste_by_category()` agrupa
+    uniendo `loss_lines` con la categoría del producto. Comprobado con mutación:
+    quitando la línea de pérdida del sembrador, el KPI de arriba seguía en 40.0
+    y las 31 pruebas de este lote pasaban igual —la gráfica podía quedarse vacía
+    para siempre sin que nadie se enterara—.
+    """
+    d = svc.section_data("merma", DashboardFilters(preset="month"))
+
+    grafica = next(g for g in d["charts"] if "categoría" in g["title"].lower())
+    assert grafica["labels"] == ["Aves"], (
+        "la merma no llegó agrupada por categoría del producto")
+    assert grafica["series"][0]["values"] == [40.0]
+
+
 def test_section_desconocida_es_vacia(svc):
     d = svc.section_data("inexistente", DashboardFilters())
     assert d["kpis"] == [] and d["charts"] == [] and d["tables"] == []

@@ -128,11 +128,42 @@ def add_expense(conn, monto, when: date | None = None):
 
 
 def add_waste(conn, product_id, branch_id, cantidad, valor, when: date | None = None):
+    """Una pérdida canónica: su caso y su línea.
+
+    Escribía en `mermas`, tabla LEGACY que `fresh_db()` ni siquiera crea,
+    mientras `BiInventoryQueryService` ya leía la canónica `loss_cases`: el
+    ayudante se quedó atrás cuando la consulta se repuntó, y dejaba en ERROR
+    todo test de la sección Merma —reventaba en la fixture, antes de afirmar
+    nada—.
+
+    Se siembra también `loss_lines`, que `_sembrar_merma` de
+    `test_bi_sucursales_precios_sections.py` no tenía: `waste_value()` suma
+    sobre el CASO, pero `waste_by_category()` agrupa por categoría del producto
+    uniendo `loss_lines`. Sin línea, el KPI salía bien y la gráfica vacía.
+    """
+    fecha = (when or date.today()).isoformat()
+    # `classification_id`/`reason_id` apuntan a catálogos que las migraciones ya
+    # traen sembrados (28 razones). Inventar UUIDs ahí da FOREIGN KEY failed, así
+    # que se toma una pareja real.
+    motivo, clasificacion = conn.execute(
+        "SELECT id, classification_id FROM loss_reasons LIMIT 1").fetchone()
+    caso = new_uuid()
+    # La tabla impone `net_loss_value = gross_value - recoverable_value`. Es una
+    # invariante real y se respeta en vez de rodearla: nada recuperable, así que
+    # bruto y neto coinciden.
     conn.execute(
-        "INSERT INTO mermas (id,producto_id,sucursal_id,cantidad,motivo,usuario,operation_id,"
-        "valor_perdida,fecha) VALUES (?,?,?,?,?,?,?,?,?)",
-        (new_uuid(), product_id, branch_id, cantidad, "caducidad", "sys", new_uuid(),
-         valor, (when or date.today()).isoformat()))
+        "INSERT INTO loss_cases (id, operation_id, branch_id, warehouse_id,"
+        " reported_by_user_id, classification_id, reason_id, origin, status,"
+        " requires_inventory_posting, gross_value, recoverable_value,"
+        " net_loss_value, occurred_at, created_at, updated_at)"
+        " VALUES (?,?,?,?,?,?,?,'MANUAL_AUTHORIZED','APPROVED',0,?,0,?,?,?,?)",
+        (caso, new_uuid(), branch_id, new_uuid(), new_uuid(), clasificacion,
+         motivo, valor, valor, fecha, fecha, fecha))
+    conn.execute(
+        "INSERT INTO loss_lines (id, loss_case_id, product_id, quantity, unit,"
+        " gross_value, recoverable_value, net_loss_value, created_at)"
+        " VALUES (?,?,?,?,'kg',?,0,?,?)",
+        (new_uuid(), caso, product_id, cantidad, valor, valor, fecha))
 
 
 def this_month_day(day=2) -> date:
