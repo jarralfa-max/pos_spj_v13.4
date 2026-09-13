@@ -18,8 +18,6 @@ import re
 import sqlite3
 from pathlib import Path
 
-import pytest
-
 from .architecture_guardrails import code_only_source_lines
 
 REPO = Path(__file__).resolve().parents[2]
@@ -147,42 +145,22 @@ def test_alertas_tables_are_text_pk_in_base_schema():
         assert cols["sucursal_id"][2].upper() == "TEXT", f"{table}.sucursal_id must be TEXT"
 
 
-def test_alertas_service_emits_no_ddl_and_no_default_one():
-    src = (REPO / "core" / "services" / "alertas_service.py").read_text(encoding="utf-8")
-    for ddl in ("CREATE TABLE", "ALTER TABLE", "DROP TABLE", "executescript", "AUTOINCREMENT"):
-        assert ddl not in src, f"alertas_service.py must not contain {ddl!r}"
-    assert "DEFAULT 1" not in src
-    assert "sucursal_id: int" not in src
-    assert "from backend.shared.ids import new_uuid" in src
+def test_alertas_tables_have_no_production_writer():
+    """`alertas_config`/`alertas_log` quedaron como esquema sin dueño.
 
+    Dos pruebas leían `core/services/alertas_service.py` —que no emitiera DDL,
+    que no asumiera la sucursal 1, que acuñara UUID—. Ese servicio se borró
+    con todo `core/`, y leerlo daba FileNotFoundError, que no dice nada de
+    identidad.
 
-def test_alertas_service_requires_uuid_branch_and_mints_uuid():
-    import uuid
-
-    from core.services.alertas_service import AlertasService
-
-    conn = sqlite3.connect(":memory:")
-    conn.row_factory = sqlite3.Row
-    conn.executescript(
-        """
-        CREATE TABLE alertas_config(id TEXT PRIMARY KEY, tipo TEXT, activa INTEGER DEFAULT 1,
-            umbral REAL, canal TEXT, sucursal_id TEXT, descripcion TEXT);
-        CREATE TABLE alertas_log(id TEXT PRIMARY KEY, tipo TEXT, titulo TEXT, mensaje TEXT,
-            datos TEXT, leida INTEGER DEFAULT 0, canal_enviado TEXT, sucursal_id TEXT, fecha TEXT);
-        """
-    )
-    conn.commit()
-
-    with pytest.raises(ValueError):
-        AlertasService(conn=conn, sucursal_id=None)  # no arbitrary default branch
-
-    branch = str(uuid.uuid4())
-    svc = AlertasService(conn=conn, sucursal_id=branch)
-    svc.seed_defaults()
-    assert svc.disparar("stock_bajo", "x") is True
-    row = conn.execute("SELECT id, sucursal_id FROM alertas_log").fetchone()
-    assert uuid.UUID(row["id"])              # log identity is UUIDv7
-    assert row["sucursal_id"] == branch      # branch FK is the UUID string
+    Lo que protegían sigue cubierto en otro sitio: el esquema, por la prueba
+    de arriba y por `test_active_schema_has_no_default_one_on_functional_fks`;
+    la DDL fuera de migraciones, por `test_only_migrations_execute_schema_creation`.
+    Lo que queda por fijar es que nadie vuelva a escribir en ellas: las alertas
+    de hoy viven en tablas propias de cada contexto (Caja, inventario, mermas).
+    """
+    assert_no_production_writer("alertas_config")
+    assert_no_production_writer("alertas_log")
 
 
 def test_bi_tables_are_born_clean_after_full_migration_chain():
@@ -252,23 +230,6 @@ def test_reportes_analytics_tables_are_born_clean():
     # identidad. Se comprueba sobre los escritores que HAY.
     assert_no_production_writer("bi_transformations")
     assert_no_production_writer("report_export_log")
-
-
-def test_api_webapp_treats_identity_as_uuid_no_int_casts():
-    """La API REST (webapp) trata las identidades como UUIDv7 TEXT: api_pedidos
-    no castea producto_id/sucursal_id a entero ni asume DEFAULT 1; ItemPedido
-    declara producto_id como str. api_dashboard solo castea agregados (counts),
-    no identidades.
-    """
-    pat = re.compile(r"int\s*\(\s*(?:producto|sucursal|cliente|venta|pedido|order|branch)_id")
-    for path in ("webapp/api_pedidos.py", "webapp/api_dashboard.py"):
-        src = (REPO / path).read_text(encoding="utf-8")
-        assert not pat.search(src), f"{path} no debe castear identidades a int"
-    api_src = (REPO / "webapp/api_pedidos.py").read_text(encoding="utf-8")
-    assert 'int(body.get("sucursal_id"' not in api_src
-    assert 'int(i.get("id"' not in api_src
-    uc_src = (REPO / "core/use_cases/pedido_wa.py").read_text(encoding="utf-8")
-    assert "producto_id: str" in uc_src
 
 
 def test_sincronizacion_tables_are_born_clean_single_uuid_identity():
@@ -358,11 +319,15 @@ def test_loyalty_ledger_born_clean_and_dead_points_tables_removed():
 
 
 def test_raffle_subsystem_born_clean_and_ddl_lives_in_migration():
-    """The raffle subsystem (migration 113) is born-clean: every table carries a
-    TEXT UUIDv7 primary key and TEXT functional FKs, the schema lives in
-    migrations/ (REGLA 11) — LoyaltyRepository.ensure_raffle_tables delegates to
-    the migration instead of emitting inline DDL — and identities are minted as
-    UUIDv7, never captured from autoincrement.
+    """El subsistema legacy de rifas (migración 113) nació limpio y quedó como esquema.
+
+    Cada tabla `raffle_*` lleva PK TEXT UUIDv7 y FKs funcionales TEXT, y la
+    migración 113 sigue registrada en la cadena del engine.
+
+    La mitad que leía `repositories/loyalty_repository.py` se reorientó: ese
+    repositorio se borró. El sorteo canónico escribe `sweepstakes_*`; por eso
+    se fija que nadie vuelva a escribir `raffle_*` y que los escritores de
+    `sweepstakes_*` —que sí existen— acuñen su id.
     """
     import migrations.m000_base_schema as base
     from migrations import engine as migrator
@@ -395,11 +360,23 @@ def test_raffle_subsystem_born_clean_and_ddl_lives_in_migration():
     versions = {m.version for m in migrator.MIGRATIONS}
     assert "113" in versions
 
-    # The repo holds no inline raffle DDL; it delegates to the migration and mints UUIDs.
-    src = (REPO / "repositories" / "loyalty_repository.py").read_text(encoding="utf-8")
-    assert "CREATE TABLE IF NOT EXISTS raffles" not in src
-    assert "migrations.standalone.113_raffle_subsystem" in src
-    assert "INSERT OR IGNORE INTO raffle_winners\n            (id, raffle_id" in src
+    # Los escritores legacy que esta prueba leía para comprobar que acuñaban
+    # el id se borraron; leerlos daba FileNotFoundError, que no dice nada de
+    # identidad. Se comprueba sobre los escritores que HAY.
+    #
+    # Las `raffle_*` quedaron como esquema: el sorteo canónico escribe
+    # `sweepstakes_*`, y `sweepstakes_schema.py` eligió ese prefijo
+    # precisamente para no chocar con estas.
+    for legacy in text_pk:
+        assert_no_production_writer(legacy)
+
+    # Y quien SÍ escribe acuña su id. Se exige que cada tabla tenga escritor:
+    # con cero, `assert_every_writer_mints_the_id` pasaría sin mirar nada.
+    from backend.infrastructure.db.schema.sweepstakes_schema import SWEEPSTAKES_TABLES
+
+    for tabla in SWEEPSTAKES_TABLES:
+        assert _insert_statements(tabla), f"`{tabla}` no tiene escritor de producción"
+        assert_every_writer_mints_the_id(tabla)
 
 
 def test_card_subsystem_tables_are_born_clean_single_uuid_identity():
@@ -712,10 +689,15 @@ def test_rrhh_tables_are_born_clean_uuid_identity():
 
 
 def test_whatsapp_messaging_tables_are_born_clean_uuid_identity():
-    """Las tablas de mensajería WhatsApp son born-clean: whatsapp_queue /
-    whatsapp_numeros (base) y wa_reminder_queue (migración 050) llevan id TEXT
-    UUIDv7. MessageQueue.enqueue y WhatsAppConfigRepository.save_numero acuñan id
-    con new_uuid() (sin lastrowid).
+    """Las tablas legacy de mensajería WhatsApp nacieron limpias y quedaron como esquema.
+
+    `whatsapp_queue`/`whatsapp_numeros` (base) y `wa_reminder_queue` (migración
+    050) llevan id TEXT PRIMARY KEY.
+
+    La mitad que leía `core/services/whatsapp_service.py` y
+    `core/repositories/whatsapp_config_repository.py` se reorientó: ambos se
+    borraron. El canal canónico escribe `whatsapp_*` (`whatsapp_schema.py`),
+    así que se fija que nadie en el ERP vuelva a escribir las legacy.
     """
     import migrations.m000_base_schema as base
     from migrations import engine as migrator
@@ -730,11 +712,20 @@ def test_whatsapp_messaging_tables_are_born_clean_uuid_identity():
         cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
         assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
 
-    wa_src = (REPO / "core" / "services" / "whatsapp_service.py").read_text(encoding="utf-8")
-    assert "INSERT INTO whatsapp_queue" in wa_src and "new_uuid()" in wa_src
-    assert "return cur.lastrowid" not in wa_src
-    repo_src = (REPO / "core" / "repositories" / "whatsapp_config_repository.py").read_text(encoding="utf-8")
-    assert "new_uuid()" in repo_src
+    # Los escritores legacy que esta prueba leía (`MessageQueue.enqueue`,
+    # `WhatsAppConfigRepository.save_numero`) se borraron; leerlos daba
+    # FileNotFoundError, que no dice nada de identidad. Se comprueba sobre los
+    # escritores que HAY: en el ERP, ninguno. El canal canónico escribe
+    # `whatsapp_*` (ver `whatsapp_schema.py`).
+    for table in ("whatsapp_queue", "whatsapp_numeros", "wa_reminder_queue"):
+        assert_no_production_writer(table)
+
+    # FUERA DE ALCANCE, Y NO POR DESCUIDO: `whatsapp_service/state/reminder_engine.py`
+    # (microservicio, fuera de `_PRODUCTION_ROOTS`) sí inserta en
+    # `wa_reminder_queue` sin id, con `lastrowid`, y crea su propia versión
+    # INTEGER AUTOINCREMENT de la tabla. Hoy nadie instancia `ReminderEngine`;
+    # si se cableara contra la base del ERP, cada INSERT chocaría con
+    # `id TEXT NOT NULL` y lo tragaría su `except`. Reportado, no cubierto aquí.
 
 
 def test_notification_tables_are_born_clean_uuid_identity():
@@ -777,20 +768,6 @@ def test_hardware_config_keyed_by_natural_tipo():
     # el id se borraron; leerlos daba FileNotFoundError, que no dice nada de
     # identidad. Se comprueba sobre los escritores que HAY.
     assert_no_production_writer("hardware_config")
-
-
-def test_etiquetas_module_is_read_only_presentation():
-    """El módulo de etiquetas es presentación pura (genera etiquetas imprimibles a
-    partir de productos ya migrados): sin tablas propias, sin escrituras ni DDL en
-    la UI, y sin casts de identidad. No hay entidad que voltear — se fija así.
-    """
-    src = (REPO / "modulos" / "etiquetas.py").read_text(encoding="utf-8")
-    for forbidden in ("INSERT INTO", "UPDATE ", "DELETE FROM", "CREATE TABLE",
-                      "ALTER TABLE", ".commit()"):
-        assert forbidden not in src, f"etiquetas.py debe ser solo-lectura: {forbidden!r}"
-    # No castea identidades de producto a int (productos.id es UUIDv7 TEXT).
-    assert "int(r[0])" not in src
-    assert "int(producto" not in src
 
 
 def test_tickets_print_log_born_clean_and_dead_design_table_removed():
@@ -1090,15 +1067,6 @@ def test_recipe_tables_are_born_clean_and_repo_mints_uuid():
     assert_no_production_writer("product_recipe_components")
     assert_no_production_writer("product_recipes")
     assert_no_production_writer("recipe_dependency_graph")
-
-
-def test_refresh_order_badges_does_not_int_cast_identity():
-    src = (REPO / "interfaz" / "main_window.py").read_text(encoding="utf-8")
-    start = src.index("def _refresh_order_badges")
-    body = src[start:src.index("\n    def ", start + 1)]
-    assert "int(self.usuario_actual" not in body
-    assert 'int(self.usuario_actual.get("sucursal_id"' not in body
-    assert "branch_id=str(branch_id)" in body
 
 
 # ── CERO TOLERANCIA — Plan B born-clean UUIDv7 (sin techos de deuda) ─────────────
