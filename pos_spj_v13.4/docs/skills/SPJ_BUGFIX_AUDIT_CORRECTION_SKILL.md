@@ -277,7 +277,7 @@ tests/architecture/test_no_lastrowid_entity_identity.py
 tests/architecture/test_no_schema_changes_outside_migrations.py
 tests/architecture/test_no_sql_in_pyqt_modules.py
 tests/architecture/test_no_commit_rollback_in_pyqt.py
-tests/architecture/test_no_purchase_writes_to_movimientos_caja.py
+tests/architecture/test_procurement_does_not_write_cash_tables.py
 tests/architecture/test_no_direct_escpos_usb_default.py
 tests/architecture/test_no_forecast_sql_in_pyqt.py
 tests/architecture/test_no_finance_kpi_reads_unknown_tables_without_guard.py
@@ -1005,7 +1005,7 @@ Las compras no se registran desde Caja. Use Tesorería/Capital o CxP.
 ```text
 tests/integration/test_purchase_does_not_touch_cash_register.py
 tests/integration/test_cash_module_direct_movements_only.py
-tests/architecture/test_no_purchase_writes_to_movimientos_caja.py
+tests/architecture/test_procurement_does_not_write_cash_tables.py
 ```
 
 ---
