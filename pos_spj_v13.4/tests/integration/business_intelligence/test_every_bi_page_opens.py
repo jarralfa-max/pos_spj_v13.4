@@ -71,31 +71,25 @@ TODOS_LOS_PERMISOS = frozenset(
     if not nombre.startswith("_") and isinstance(valor, str)
 )
 
-#: HALLAZGO DE ESTE RECORRIDO, no una excepcion de conveniencia.
+#: Secciones cuya consulta falla y queda tapada por el `_q` que devuelve [].
+#: VACIO, y llego a estarlo bajando: este recorrido nacio con `bi_cash` dentro.
 #:
-#: `bi_cash` consulta `movimientos_caja` y `cierres_caja`, que NO EXISTEN en una
-#: base migrada entera. El contexto de Caja se reconstruyo con nombres
-#: canonicos en ingles —`cash_ledger_entries`, `cash_cuts`, `cash_counts`,
-#: `cash_shifts`...— y el servicio de consulta de BI se quedo apuntando a los
-#: nombres legacy en español.
+#: `bi_cash` consultaba `movimientos_caja` y `cierres_caja`, que no existen —el
+#: contexto de Caja se reconstruyo con nombres canonicos en ingles y el servicio
+#: de BI se quedo en los legacy—, asi que la seccion "Caja" del tablero pintaba
+#: CEROS: indistinguible de un negocio que no movio efectivo. Ya lee
+#: `cash_ledger_entries` y `cash_cuts`.
 #:
-#: Como `BiCashQueryService._q` traga el error y devuelve `[]`, la seccion
-#: "Caja" del tablero pinta CEROS. No hay aviso, no hay hueco visible: se lee
-#: como un negocio que no movio efectivo.
-#:
-#: El alcance esta medido: SOLO `bi_cash_query_service.py` lee esos nombres, en
-#: 5 consultas, todas muertas. Los candidatos canonicos existen y tienen las
-#: columnas necesarias —`cash_ledger_entries` (amount/direction/movement_type/
-#: branch_id) para los movimientos y `cash_cuts` (expected_cash/counted_cash/
-#: difference/cut_type) para los cortes—, pero el mapeo no es un renombrado:
-#: `direction` sustituye al signo del importe y `cash_cuts` distingue tipos de
-#: corte donde `cierres_caja` tenia apertura/cierre. Elegirlo es una decision
-#: de dominio, asi que se deja fijado para que se VEA, y la prueba de abajo
-#: obliga a quitarlo de aqui en cuanto se arregle.
-SECCIONES_ROTAS = {"bi_cash"}
+#: El conjunto se conserva vacio en vez de borrar la comprobacion, porque
+#: `test_no_other_section_is_silently_broken` lo usa de trinquete: asi
+#: CUALQUIER seccion que empiece a tragar una consulta rota se nombra, en lugar
+#: de sumarse al silencio de fondo.
+SECCIONES_ROTAS: frozenset[str] = frozenset()
 
-#: Las tablas que `bi_cash` busca y que ninguna migracion crea.
-TABLAS_INEXISTENTES = ("movimientos_caja", "cierres_caja")
+#: Los nombres legacy que `bi_cash` consultaba y que ninguna migracion crea. Se
+#: vigila que sigan sin existir: recrearlos haria que el servicio pudiera
+#: volver a leer datos muertos sin que nadie lo notara.
+TABLAS_LEGACY_DIFUNTAS = ("movimientos_caja", "cierres_caja")
 
 
 class _Sesion:
@@ -297,32 +291,39 @@ def test_the_real_route_reaches_its_presenter_without_swallowing(
         f"{page_id} fallo al reabrirse: {_errores(dialogos)}")
 
 
-# -- el hallazgo, fijado para que se vea -----------------------------------
-def test_the_cash_section_still_queries_tables_that_do_not_exist(
-        app, vistas, conn, sesion, dialogos, tragados):
-    """La seccion "Caja" del tablero pinta ceros contra una base migrada.
+# -- el hallazgo, ya cerrado ------------------------------------------------
+def test_the_cash_section_reads_the_canonical_tables(app, vistas, conn, sesion,
+                                                     dialogos, tragados):
+    """`bi_cash` ERA el hallazgo de este recorrido y ya no lo es.
 
-    Esto NO bendice el fallo: lo hace visible. Mientras siga roto, esta prueba
-    pasa y describe el problema; en cuanto se arregle, falla y obliga a sacar
-    `bi_cash` de `SECCIONES_ROTAS`, de modo que el trinquete no pueda quedarse
-    mintiendo.
+    Consultaba `movimientos_caja` y `cierres_caja`, que no existen, y como su
+    `_q` traga el error y devuelve [], la seccion pintaba CEROS. Ahora lee
+    `cash_ledger_entries` y `cash_cuts`.
+
+    Aqui solo se comprueba que la ruta abre sin tragar nada; que las CIFRAS
+    sean las correctas se prueba con datos sembrados en
+    `test_bi_cash_section_reads_canonical_tables.py`, porque una base recien
+    migrada esta vacia y un cero no distingue "sin movimientos" de "roto".
+
+    Se deja tambien fijado que las tablas legacy siguen sin existir: si alguien
+    las recreara, este servicio volveria a leer datos muertos sin que nadie lo
+    note.
     """
     existentes = {
         fila[0] for fila in conn.execute(
             "SELECT name FROM sqlite_master WHERE type IN ('table','view')")
     }
-    faltan = [t for t in TABLAS_INEXISTENTES if t not in existentes]
-    assert faltan == list(TABLAS_INEXISTENTES), (
-        "Alguna de las tablas que busca bi_cash ya existe; revisa si la "
-        f"seccion quedo arreglada y actualiza SECCIONES_ROTAS. Faltan: {faltan}")
+    assert not (existentes & set(TABLAS_LEGACY_DIFUNTAS)), (
+        "Reaparecio una tabla legacy de caja; el servicio canonico no debe "
+        f"volver a ellas: {sorted(existentes & set(TABLAS_LEGACY_DIFUNTAS))}")
 
     vista = vistas(conn, sesion)
+    tragados.clear()
     _abrir_desde_cero(vista, "bi_cash")
 
-    mensajes = [r.getMessage() for r in tragados.records]
-    assert any("no such table" in m for m in mensajes), (
-        "bi_cash ya no traga un fallo de tabla inexistente; quitalo de "
-        f"SECCIONES_ROTAS para que el trinquete baje. Log: {mensajes}")
+    assert not tragados.records, (
+        "bi_cash volvio a tragar un fallo de consulta: "
+        f"{[r.getMessage() for r in tragados.records]}")
 
 
 def test_no_other_section_is_silently_broken(app, vistas, conn, sesion, dialogos,

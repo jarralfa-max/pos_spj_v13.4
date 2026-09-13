@@ -137,3 +137,76 @@ def add_waste(conn, product_id, branch_id, cantidad, valor, when: date | None = 
 
 def this_month_day(day=2) -> date:
     return date.today().replace(day=1) + timedelta(days=day - 1)
+
+
+# -- Caja canónica ----------------------------------------------------------
+# `movimientos_caja` y `cierres_caja` NO EXISTEN: el contexto de Caja se
+# reconstruyó con nombres canónicos en inglés. Sembrar ahí era lo que dejaba
+# rojos los tests de la sección Caja. Las claves foráneas están ACTIVAS en
+# `fresh_db()`, así que un turno exige caja registradora, cajón y terminal, y un
+# corte Z exige además un conteo confirmado: la cadena se siembra entera porque
+# es la única forma de que estos datos se parezcan a los que el dominio escribe.
+
+
+def open_cash_shift(conn, branch_id, *, cashier_user_id=None, when: date | None = None):
+    """Turno de caja abierto, con su registradora, cajón y terminal."""
+    reg, drawer, term = new_uuid(), new_uuid(), new_uuid()
+    shift = new_uuid()
+    cajero = cashier_user_id or new_uuid()
+    # Sufijo desde la COLA del uuid: en UUIDv7 la cabeza es la marca de tiempo,
+    # así que dos generados en el mismo milisegundo chocarían con el índice
+    # único (branch_id, name).
+    sufijo = reg[-12:]
+    ts = f"{(when or date.today()).isoformat()}T08:00:00+00:00"
+    conn.execute("INSERT INTO cash_registers (id,branch_id,name,status,created_at,"
+                 "updated_at) VALUES (?,?,?,'ACTIVE',?,?)",
+                 (reg, branch_id, f"Caja {sufijo}", ts, ts))
+    conn.execute("INSERT INTO cash_drawers (id,branch_id,register_id,name,status,"
+                 "created_at,updated_at) VALUES (?,?,?,?,'ACTIVE',?,?)",
+                 (drawer, branch_id, reg, f"Cajon {sufijo}", ts, ts))
+    conn.execute("INSERT INTO pos_terminals (id,branch_id,register_id,name,status,"
+                 "created_at,updated_at) VALUES (?,?,?,?,'ACTIVE',?,?)",
+                 (term, branch_id, reg, f"Terminal {sufijo}", ts, ts))
+    conn.execute(
+        "INSERT INTO cash_shifts (id,branch_id,register_id,drawer_id,terminal_id,"
+        "cashier_user_id,opening_amount,opening_operation_id,status,opened_at)"
+        " VALUES (?,?,?,?,?,?,?,?,'OPEN',?)",
+        (shift, branch_id, reg, drawer, term, cajero, "0", new_uuid(), ts))
+    return shift
+
+
+def add_cash_movement(conn, shift_id, branch_id, monto, *, direction="INFLOW",
+                      movement_type=None, when: date | None = None):
+    """Asiento del libro de caja. El tipo por defecto respeta el CHECK que liga
+    `movement_type` con `direction`."""
+    if movement_type is None:
+        movement_type = "MANUAL_INCOME" if direction == "INFLOW" else "MANUAL_WITHDRAWAL"
+    conn.execute(
+        "INSERT INTO cash_ledger_entries (id,shift_id,branch_id,movement_type,"
+        "direction,amount,operation_id,recorded_by,concept,recorded_at)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (new_uuid(), shift_id, branch_id, movement_type, direction, str(monto),
+         new_uuid(), new_uuid(), "seed",
+         f"{(when or date.today()).isoformat()}T10:00:00+00:00"))
+
+
+def add_cash_cut(conn, shift_id, branch_id, *, esperado="0", contado="0",
+                 diferencia="0", when: date | None = None):
+    """Corte Z (cierre). Los X son lecturas intermedias y el tablero no los
+    cuenta, así que aquí sólo se siembra el que sí significa un cierre."""
+    fecha = (when or date.today()).isoformat()
+    usuario = new_uuid()
+    conteo = new_uuid()
+    conn.execute(
+        "INSERT INTO cash_counts (id,shift_id,branch_id,counter_user_id,"
+        "operation_id,total_counted,status,confirmed_at)"
+        " VALUES (?,?,?,?,?,?,'CONFIRMED',?)",
+        (conteo, shift_id, branch_id, usuario, new_uuid(), contado,
+         f"{fecha}T21:55:00+00:00"))
+    conn.execute(
+        "INSERT INTO cash_cuts (id,shift_id,branch_id,cut_type,document_number,"
+        "generated_by,expected_cash,counted_cash,difference,blind_count_id,"
+        "operation_id,is_final,generated_at) VALUES (?,?,?,'Z',?,?,?,?,?,?,?,1,?)",
+        (new_uuid(), shift_id, branch_id, f"DOC-{conteo[-8:]}", usuario,
+         esperado, contado, diferencia, conteo, new_uuid(),
+         f"{fecha}T22:00:00+00:00"))

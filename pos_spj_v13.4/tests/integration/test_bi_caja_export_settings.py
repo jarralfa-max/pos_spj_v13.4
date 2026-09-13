@@ -1,6 +1,4 @@
 """FASE 8/11 — sección Caja, configuración BI (umbrales) y exportación."""
-from datetime import date
-
 import pytest
 
 from backend.application.analytics.dto.bi_dashboard_dto import DashboardFilters
@@ -8,7 +6,6 @@ from backend.application.analytics.queries.bi_dashboard_query_service import BiD
 from backend.application.analytics.services.bi_dashboard_service import BiDashboardService
 from backend.application.analytics.services.bi_export_service import BiExportService
 from backend.application.analytics.services.bi_settings_service import BiSettingsService
-from backend.shared.ids import new_uuid
 from tests.integration import bi_seed as S
 
 
@@ -18,12 +15,13 @@ def conn():
     b = S.add_branch(c)
     p = S.add_product(c, "Pollo", "Aves", 18.0, branch_id=b)
     S.add_sale(c, b, [(p, 3, 30.0, 18.0)], when=S.this_month_day())
-    # movimientos de caja
-    hoy = S.this_month_day().isoformat()
-    c.execute("INSERT INTO movimientos_caja (id,tipo,monto,descripcion,usuario,sucursal_id,fecha) "
-              "VALUES (?,?,?,?,?,?,?)", (new_uuid(), "ingreso", 500.0, "venta efvo", "u", b, hoy))
-    c.execute("INSERT INTO movimientos_caja (id,tipo,monto,descripcion,usuario,sucursal_id,fecha) "
-              "VALUES (?,?,?,?,?,?,?)", (new_uuid(), "egreso", 120.0, "retiro", "u", b, hoy))
+    # Movimientos de caja, en el esquema CANONICO. Antes se sembraba
+    # `movimientos_caja`, que no existe, asi que este archivo llevaba en error
+    # —no en fallo: la fixture reventaba antes de llegar a ninguna afirmacion—.
+    hoy = S.this_month_day()
+    turno = S.open_cash_shift(c, b, when=hoy)
+    S.add_cash_movement(c, turno, b, 500.0, direction="INFLOW", when=hoy)
+    S.add_cash_movement(c, turno, b, 120.0, direction="OUTFLOW", when=hoy)
     c.commit()
     return c
 

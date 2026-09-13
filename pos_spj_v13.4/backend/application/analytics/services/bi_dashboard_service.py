@@ -211,10 +211,14 @@ class BiDashboardService:
                                    {"name": "Egresos", "color": _RED,
                                     "values": [e for _, _, e in daily]}]}],
             "tables": [
-                {"title": "Cortes recientes",
-                 "columns": ["Fecha", "Ventas $", "Efectivo $", "Diferencia $"],
-                 "rows": [[c["fecha"], f"${c['total_ventas']:,.2f}",
-                           f"${c['efectivo']:,.2f}", f"${c['diferencia']:,.2f}"]
+                # "Ventas" ya no se muestra porque `cash_cuts` no la guarda: lo
+                # que tiene es `expected_cash`, que es lo que DEBERIA haber en
+                # el cajon, no la venta del periodo. Esperado/contado/diferencia
+                # es lo que un corte de caja realmente compara.
+                {"title": "Cortes de cierre recientes",
+                 "columns": ["Fecha", "Esperado $", "Contado $", "Diferencia $"],
+                 "rows": [[c["fecha"], f"${c['esperado']:,.2f}",
+                           f"${c['contado']:,.2f}", f"${c['diferencia']:,.2f}"]
                           for c in cash.recent_cortes(f)]}],
         }
 
