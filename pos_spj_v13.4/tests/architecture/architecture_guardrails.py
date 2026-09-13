@@ -170,6 +170,15 @@ def iter_files(*, suffixes: set[str], roots: Iterable[Path] | None = None) -> It
     for root in search_roots:
         if not root.exists():
             continue
+        if root.is_file():
+            # `Path(file).rglob("*")` returns an EMPTY iterator without error, so a
+            # root that was a file was never scanned and any guard passing one
+            # stayed green without reading it. That is what happened to
+            # `test_no_int_id_casts_in_permissions_and_session`: three of its four
+            # roots were files. Same filters as the directory branch below.
+            if root.suffix in suffixes and not _is_skipped(root):
+                yield root
+            continue
         for path in root.rglob("*"):
             if not path.is_file() or path.suffix not in suffixes or _is_skipped(path):
                 continue
