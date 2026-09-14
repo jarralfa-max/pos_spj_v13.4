@@ -4,19 +4,24 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_cash_module_loader_uses_canonical_factory():
-    loader = (ROOT / "core/ui/module_loader.py").read_text(encoding="utf-8")
-    assert '"caja":             ("CashRegisterModuleHost"' in loader
-    assert "backend.infrastructure.desktop.cash_register_factory" in loader
-    assert "modulos.caja" not in loader
-    assert "ModuloCaja" not in loader
+def test_desktop_shell_wires_cash_through_canonical_registration():
+    """El cableado vivo de Caja, en positivo.
 
+    Sustituye a dos pruebas que leían `core/ui/module_loader.py` e
+    `interfaz/main_window.py`, borrados. Hoy el shell compone los módulos en
+    `desktop_shell_window_composition.py`: registra el activador de Caja, y el
+    activador construye la vista con `create_cash_register_view` de la factory
+    canónica. La ausencia de `ModuloCaja`/`modulos.caja` en todo el runtime la
+    fija `test_cash_legacy_removed.py`.
+    """
+    shell = (ROOT / "frontend/desktop/shell/desktop_shell_window_composition.py").read_text(encoding="utf-8")
+    assert "from frontend.desktop.modules.cash_register.shell_registration import (" in shell
+    assert "_standard_activator_factory(CashRegisterModuleActivator)" in shell
 
-def test_main_window_uses_cash_register_host_not_legacy_workspace_alias():
-    source = (ROOT / "interfaz/main_window.py").read_text(encoding="utf-8")
-    assert "CashRegisterModuleHost" in source
-    assert "CashRegisterWorkspace as ModuloCaja" not in source
-    assert "ModuloCaja" not in source
+    registration = (ROOT / "frontend/desktop/modules/cash_register/shell_registration.py").read_text(encoding="utf-8")
+    assert ("from backend.infrastructure.desktop.cash_register_factory import create_cash_register_view"
+            in registration)
+    assert "create_cash_register_view(_CashRegisterCompositionStandIn(" in registration
 
 
 def test_cash_factory_is_only_layer_that_receives_composition_root():

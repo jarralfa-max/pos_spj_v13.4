@@ -12,10 +12,12 @@ def test_legacy_caja_module_was_removed():
     assert not (REPO / "modulos" / "caja.py").exists()
 
 
-def test_main_window_uses_cash_register_workspace():
-    src = (REPO / "interfaz" / "main_window.py").read_text(encoding="utf-8")
-    assert "frontend.desktop.modules.cash_register" in src
-    assert "from modulos.caja import" not in src
+# `test_main_window_uses_cash_register_workspace` leía `interfaz/main_window.py`,
+# borrado. Lo que comprobaba vive ahora en dos sitios:
+#   - que el shell cablea Caja por la vía canónica:
+#     test_cash_register_composition_root.py::test_desktop_shell_wires_cash_through_canonical_registration
+#   - que nada vivo importa `modulos.caja`:
+#     test_cash_legacy_removed.py::test_no_live_code_references_the_legacy_cash_module
 
 
 def test_cash_workspace_uses_canonical_pages_and_no_sql():
