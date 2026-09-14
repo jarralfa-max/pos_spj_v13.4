@@ -12,55 +12,64 @@ it never raises into the UI.
 
 from __future__ import annotations
 
+from backend.application.orders_delivery.queries.order_worklists import (
+    OrderWorklist,
+    worklist_filter,
+)
+
+#: Badges que SON bandejas de pedido: su definición vive en `order_worklists`, la
+#: misma que usa la lista. Ese módulo documenta los tres que estaban mal
+#: (preparación, ajustes de peso, programados).
+_ORDER_WORKLIST_BADGES = (
+    OrderWorklist.SCHEDULED_PENDING_ACTIVATION,
+    OrderWorklist.PENDING_CONFIRMATION,
+    OrderWorklist.PREPARATION_QUEUE,
+    OrderWorklist.WEIGHT_ADJUSTMENTS_PENDING,
+)
+
 
 class OrdersDeliveryBadgeQueryService:
     def __init__(self, db) -> None:
         self.db = db
 
     def get_badge_counts(self, branch_id: str) -> dict[str, int]:
-        return {
-            "scheduled_pending_activation": self._safe_count(
-                "SELECT COUNT(*) FROM customer_orders "
-                "WHERE branch_id=? AND status='CONFIRMED' AND order_type='SCHEDULED'",
-                branch_id),
-            "pending_confirmation": self._safe_count(
-                "SELECT COUNT(*) FROM customer_orders "
-                "WHERE branch_id=? AND status='PENDING_CONFIRMATION'",
-                branch_id),
-            "preparation_queue": self._safe_count(
-                "SELECT COUNT(*) FROM customer_orders "
-                "WHERE branch_id=? AND fulfillment_status IN ('PENDING','PREPARING')"
-                " AND status='IN_FULFILLMENT'",
-                branch_id),
-            "weight_adjustments_pending": self._safe_count(
-                "SELECT COUNT(*) FROM customer_orders "
-                "WHERE branch_id=? AND customer_approval_status='PENDING'",
-                branch_id),
-            "active_deliveries": self._safe_count(
-                "SELECT COUNT(*) FROM customer_orders "
-                "WHERE branch_id=? AND fulfillment_status='DISPATCHED'",
-                branch_id),
-            "failed_deliveries": self._safe_count(
-                "SELECT COUNT(*) FROM customer_orders "
-                "WHERE branch_id=? AND fulfillment_status='FAILED'",
-                branch_id),
-            # ORD-21 built driver_settlements and ORD-26 built the
-            # notification_inbox-backed internal alert — both placeholders
-            # below were 0 only because neither existed yet when ORD-4 wrote
-            # this service.
-            "settlements_pending_review": self._safe_count(
-                "SELECT COUNT(*) FROM driver_settlements "
-                "WHERE branch_id=? AND status='PENDING_REVIEW'",
-                branch_id),
-            "critical_alerts": self._safe_count(
-                "SELECT COUNT(*) FROM notification_inbox "
-                "WHERE sucursal_id=? AND tipo='entrega_fallida' AND leido=0",
-                branch_id),
-        }
+        counts: dict[str, int] = {}
+        for worklist in _ORDER_WORKLIST_BADGES:
+            filtro = worklist_filter(worklist)
+            counts[worklist.value] = self._safe_count(
+                "SELECT COUNT(*) FROM customer_orders o"
+                f" WHERE o.branch_id=? AND ({filtro.sql})",
+                (branch_id, *filtro.params))
 
-    def _safe_count(self, sql: str, branch_id: str) -> int:
+        # Estos NO son bandejas de pedido y conservan su consulta. Ojo con los dos
+        # primeros: cuentan mal hoy. `fulfillment_status='FAILED'` sólo lo escribe
+        # la reserva de inventario fallida, y un intento de entrega fallido deja el
+        # pedido en DISPATCHED. Su fuente correcta es `delivery_jobs`; se corrigen
+        # junto con las rutas de reparto, no aquí.
+        counts["active_deliveries"] = self._safe_count(
+            "SELECT COUNT(*) FROM customer_orders "
+            "WHERE branch_id=? AND fulfillment_status='DISPATCHED'",
+            (branch_id,))
+        counts["failed_deliveries"] = self._safe_count(
+            "SELECT COUNT(*) FROM customer_orders "
+            "WHERE branch_id=? AND fulfillment_status='FAILED'",
+            (branch_id,))
+        # ORD-21 built driver_settlements and ORD-26 built the
+        # notification_inbox-backed internal alert — both were 0 only because
+        # neither existed yet when ORD-4 wrote this service.
+        counts["settlements_pending_review"] = self._safe_count(
+            "SELECT COUNT(*) FROM driver_settlements "
+            "WHERE branch_id=? AND status='PENDING_REVIEW'",
+            (branch_id,))
+        counts["critical_alerts"] = self._safe_count(
+            "SELECT COUNT(*) FROM notification_inbox "
+            "WHERE sucursal_id=? AND tipo='entrega_fallida' AND leido=0",
+            (branch_id,))
+        return counts
+
+    def _safe_count(self, sql: str, params: tuple) -> int:
         try:
-            row = self.db.execute(sql, (branch_id,)).fetchone()
+            row = self.db.execute(sql, params).fetchone()
             return int(row[0] or 0) if row else 0
         except Exception:
             return 0

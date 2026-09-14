@@ -65,16 +65,25 @@ class OrdersListPresenter:
         pagina = OrdersListQueryService(self._conn).list_for_branch(
             self._branch_id, query=query, status=status,
             page=page, page_size=self._page_size)
+        return format_orders_page(pagina)
 
-        filas = [
-            [
-                fila.order_number or fila.id[:8],
-                fila.channel, fila.status, fila.fulfillment_status,
-                f"${Decimal(fila.grand_total or '0'):,.2f}",
-                fila.contact_name or "—",
-                fila.created_at[:16].replace("T", " "),
-            ]
-            for fila in pagina.rows
+
+def format_orders_page(pagina) -> OrdersTableModel:
+    """Da formato a una página de pedidos para la rejilla.
+
+    Compartida con las bandejas (`OrderWorklistPresenter`): dos copias del
+    formato divergirían en silencio —una columna en otro orden y la tabla
+    muestra el dato equivocado bajo el encabezado correcto—.
+    """
+    filas = [
+        [
+            fila.order_number or fila.id[:8],
+            fila.channel, fila.status, fila.fulfillment_status,
+            f"${Decimal(fila.grand_total or '0'):,.2f}",
+            fila.contact_name or "—",
+            fila.created_at[:16].replace("T", " "),
         ]
-        return OrdersTableModel(
-            rows=filas, row_ids=[fila.id for fila in pagina.rows], total=pagina.total)
+        for fila in pagina.rows
+    ]
+    return OrdersTableModel(
+        rows=filas, row_ids=[fila.id for fila in pagina.rows], total=pagina.total)

@@ -17,6 +17,11 @@ _PICKUP_FULFILLMENT_TYPES = frozenset({FulfillmentType.COUNTER, FulfillmentType.
 
 
 class PickupPolicy:
+    #: Modalidades de mostrador/recolección. Público para que las lecturas
+    #: (bandejas "Listos para recoger"/"Listos para despacho") usen el MISMO
+    #: conjunto que esta política aplica, en vez de redeclararlo.
+    PICKUP_FULFILLMENT_TYPES = _PICKUP_FULFILLMENT_TYPES
+
     @staticmethod
     def ensure_is_pickup_order(fulfillment_type: FulfillmentType) -> None:
         if fulfillment_type not in _PICKUP_FULFILLMENT_TYPES:

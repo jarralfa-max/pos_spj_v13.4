@@ -25,6 +25,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from backend.application.orders_delivery.queries.order_worklists import (
+    OrderWorklist,
+    worklist_filter,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class OrderListRow:
@@ -70,32 +75,52 @@ class OrdersListQueryService:
         pedidos sin filtro de sucursal mostraría los de todas, que es una fuga
         de datos entre sucursales, no un fallo visible.
         """
-        where = ["branch_id=?"]
-        params: list = [branch_id]
+        condiciones: list[str] = []
+        params: list = []
         if status:
-            where.append("status=?")
+            condiciones.append("o.status=?")
             params.append(status)
+        return self._pagina(branch_id, condiciones, params,
+                            query=query, page=page, page_size=page_size)
+
+    def list_worklist(
+        self, branch_id: str, worklist: OrderWorklist, *, query: str = "",
+        page: int = 0, page_size: int = 50,
+    ) -> OrderListPage:
+        """Una bandeja de trabajo del sidebar.
+
+        El filtro sale de `order_worklists`, el MISMO que cuenta su badge: si
+        divergieran, el contador y la lista discreparían sin ningún error
+        visible. Sucursal, búsqueda y paginación son las de siempre.
+        """
+        filtro = worklist_filter(worklist)
+        return self._pagina(branch_id, [f"({filtro.sql})"], list(filtro.params),
+                            query=query, page=page, page_size=page_size)
+
+    def _pagina(self, branch_id: str, condiciones: list[str], params: list, *,
+                query: str, page: int, page_size: int) -> OrderListPage:
+        where = ["o.branch_id=?", *condiciones]
+        valores: list = [branch_id, *params]
         if query:
             where.append(
-                "(order_number LIKE ? OR contact_name LIKE ? OR contact_phone LIKE ?)")
+                "(o.order_number LIKE ? OR o.contact_name LIKE ? OR o.contact_phone LIKE ?)")
             like = f"%{query}%"
-            params += [like, like, like]
+            valores += [like, like, like]
         where_sql = " AND ".join(where)
 
-        # El WHERE se interpola porque se arma con literales de este archivo;
-        # todo VALOR va como parámetro enlazado, nunca dentro de la cadena.
+        # El WHERE se interpola porque se arma con literales de este módulo y de
+        # `order_worklists`; todo VALOR va como parámetro enlazado.
         total = self.db.execute(
-            f"SELECT COUNT(*) FROM customer_orders WHERE {where_sql}",
-            params).fetchone()[0]
+            f"SELECT COUNT(*) FROM customer_orders o WHERE {where_sql}",
+            valores).fetchone()[0]
 
         filas = self.db.execute(
-            f"SELECT {', '.join(_COLUMNS)} FROM customer_orders"
-            f" WHERE {where_sql}"
-            f" ORDER BY created_at DESC LIMIT ? OFFSET ?",
-            [*params, page_size, page * page_size]).fetchall()
+            f"SELECT {', '.join('o.' + columna for columna in _COLUMNS)}"
+            f" FROM customer_orders o WHERE {where_sql}"
+            f" ORDER BY o.created_at DESC LIMIT ? OFFSET ?",
+            [*valores, page_size, page * page_size]).fetchall()
 
         return OrderListPage(rows=[_a_fila(fila) for fila in filas], total=total)
-
 
 def _a_fila(fila) -> OrderListRow:
     """Convierte la fila cruda en el DTO.

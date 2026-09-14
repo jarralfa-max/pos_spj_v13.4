@@ -97,11 +97,56 @@ class TestOrdersDeliveryBadgeQueryService:
         counts = OrdersDeliveryBadgeQueryService(conn).get_badge_counts("b1")
         assert counts["pending_confirmation"] == 1
 
+    def _insert_line(self, conn, **overrides):
+        row = dict(id="l1", order_id="o1", product_id="p1", status="PENDING",
+                   created_at="t", updated_at="t")
+        row.update(overrides)
+        cols = ", ".join(row)
+        placeholders = ", ".join("?" for _ in row)
+        conn.execute(
+            f"INSERT INTO customer_order_lines ({cols}) VALUES ({placeholders})",
+            list(row.values()))
+
     def test_counts_weight_adjustments_pending(self):
+        """PASS 6: la aprobación pendiente del pedido NO basta, porque la
+        comparten peso y sustitución. Es ajuste de peso sólo si hay una línea
+        pendiente de aprobación SIN producto sustituto. Antes esta prueba
+        insertaba el pedido sin líneas y fijaba la versión imprecisa."""
         conn = self._db()
         self._insert_order(conn, customer_approval_status="PENDING")
+        self._insert_line(conn, status="PENDING_CUSTOMER_APPROVAL")
         counts = OrdersDeliveryBadgeQueryService(conn).get_badge_counts("b1")
         assert counts["weight_adjustments_pending"] == 1
+
+    def test_a_pending_substitution_is_not_a_weight_adjustment(self):
+        """`propose_substitution()` pone la misma aprobación pendiente; sólo la
+        sustitución rellena `substitute_product_id`."""
+        conn = self._db()
+        self._insert_order(conn, customer_approval_status="PENDING")
+        self._insert_line(conn, status="PENDING_CUSTOMER_APPROVAL", substitute_product_id="p2")
+        counts = OrdersDeliveryBadgeQueryService(conn).get_badge_counts("b1")
+        assert counts["weight_adjustments_pending"] == 0
+
+    def test_preparation_queue_counts_reserved_orders(self):
+        """PASS 6: `assign_preparation()` exige RESERVED; el badge lo excluía y
+        contaba PENDING, que el dominio prohíbe preparar."""
+        conn = self._db()
+        self._insert_order(conn, id="o1", operation_id="op-1", status="IN_FULFILLMENT",
+                            fulfillment_status="RESERVED")
+        self._insert_order(conn, id="o2", operation_id="op-2", status="IN_FULFILLMENT",
+                            fulfillment_status="PENDING")
+        counts = OrdersDeliveryBadgeQueryService(conn).get_badge_counts("b1")
+        assert counts["preparation_queue"] == 1
+
+    def test_scheduled_badge_reads_schedule_status_not_order_type(self):
+        """PASS 6: `schedule()` pone `schedule_status` y no toca `order_type`;
+        uno ya activado no está pendiente de activación."""
+        conn = self._db()
+        self._insert_order(conn, id="o1", operation_id="op-1", schedule_status="SCHEDULED")
+        self._insert_order(conn, id="o2", operation_id="op-2", status="CONFIRMED",
+                            order_type="SCHEDULED", schedule_status="ACTIVATED")
+        counts = OrdersDeliveryBadgeQueryService(conn).get_badge_counts("b1")
+        assert counts["scheduled_pending_activation"] == 1
 
     def test_degrades_to_zero_on_missing_table(self):
         conn = sqlite3.connect(":memory:")  # no schema created at all
