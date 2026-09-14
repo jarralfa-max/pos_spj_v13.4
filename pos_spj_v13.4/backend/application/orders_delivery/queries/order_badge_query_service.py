@@ -12,6 +12,10 @@ it never raises into the UI.
 
 from __future__ import annotations
 
+from backend.application.orders_delivery.queries.delivery_worklists import (
+    DeliveryWorklist,
+    delivery_worklist_filter,
+)
 from backend.application.orders_delivery.queries.order_worklists import (
     OrderWorklist,
     worklist_filter,
@@ -25,6 +29,13 @@ _ORDER_WORKLIST_BADGES = (
     OrderWorklist.PENDING_CONFIRMATION,
     OrderWorklist.PREPARATION_QUEUE,
     OrderWorklist.WEIGHT_ADJUSTMENTS_PENDING,
+)
+
+#: Badges que son bandejas de REPARTO: cuentan `delivery_jobs`, con la misma
+#: definición que su lista (`delivery_worklists`).
+_DELIVERY_WORKLIST_BADGES = (
+    DeliveryWorklist.ACTIVE_DELIVERIES,
+    DeliveryWorklist.FAILED_DELIVERIES,
 )
 
 
@@ -41,19 +52,16 @@ class OrdersDeliveryBadgeQueryService:
                 f" WHERE o.branch_id=? AND ({filtro.sql})",
                 (branch_id, *filtro.params))
 
-        # Estos NO son bandejas de pedido y conservan su consulta. Ojo con los dos
-        # primeros: cuentan mal hoy. `fulfillment_status='FAILED'` sólo lo escribe
-        # la reserva de inventario fallida, y un intento de entrega fallido deja el
-        # pedido en DISPATCHED. Su fuente correcta es `delivery_jobs`; se corrigen
-        # junto con las rutas de reparto, no aquí.
-        counts["active_deliveries"] = self._safe_count(
-            "SELECT COUNT(*) FROM customer_orders "
-            "WHERE branch_id=? AND fulfillment_status='DISPATCHED'",
-            (branch_id,))
-        counts["failed_deliveries"] = self._safe_count(
-            "SELECT COUNT(*) FROM customer_orders "
-            "WHERE branch_id=? AND fulfillment_status='FAILED'",
-            (branch_id,))
+        # "Entregas activas" y "fallidas" son bandejas de REPARTO. Antes contaban
+        # sobre `customer_orders`: `fulfillment_status='FAILED'` sólo lo escribe la
+        # reserva de inventario fallida, y un intento de entrega fallido deja el
+        # pedido en DISPATCHED. Ver `delivery_worklists`.
+        for worklist in _DELIVERY_WORKLIST_BADGES:
+            filtro = delivery_worklist_filter(worklist)
+            counts[worklist.value] = self._safe_count(
+                "SELECT COUNT(*) FROM delivery_jobs j"
+                f" WHERE j.branch_id=? AND ({filtro.sql})",
+                (branch_id, *filtro.params))
         # ORD-21 built driver_settlements and ORD-26 built the
         # notification_inbox-backed internal alert — both were 0 only because
         # neither existed yet when ORD-4 wrote this service.

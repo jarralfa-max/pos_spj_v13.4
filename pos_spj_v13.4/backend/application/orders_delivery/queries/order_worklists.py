@@ -41,7 +41,8 @@ LO QUE NO ESTÁ AQUÍ, A PROPÓSITO
 "Entregas activas" y "Entregas fallidas" no son bandejas de pedido. El único
 escritor de `fulfillment_status=FAILED` es la reserva de inventario fallida
 (`mark_reservation_failed`), y un intento de entrega fallido no toca el pedido:
-queda `DISPATCHED`. Su fuente es `delivery_jobs.status`.
+queda `DISPATCHED`. Su fuente es `delivery_jobs.status`, y se definen en
+`delivery_worklists.py`.
 """
 
 from __future__ import annotations

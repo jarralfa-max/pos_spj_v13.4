@@ -28,6 +28,12 @@ _REAL_ROUTE_BUILDERS: dict[str, str] = {
     "orders_weight_adjustments": "_build_order_worklist",
     "orders_ready_pickup": "_build_order_worklist",
     "orders_ready_dispatch": "_build_order_worklist",
+    # PASS 6: bandejas de reparto, sobre delivery_jobs y no sobre pedidos;
+    # la bandeja la decide la ruta, via _DELIVERY_WORKLIST_BY_ROUTE.
+    "orders_driver_assignment": "_build_delivery_worklist",
+    "orders_active_deliveries": "_build_delivery_worklist",
+    "orders_failed_deliveries": "_build_delivery_worklist",
+    "orders_returns": "_build_delivery_worklist",
 }
 
 
@@ -106,4 +112,35 @@ def _build_order_worklist(connection, *, page_id: str, branch_id: str,
     presenter = OrderWorklistPresenter(
         connection, branch_id=branch_id, worklist=OrderWorklist[nombre])
     return OrderWorklistPage(
+        presenter, title=entrada.title, subtitle=entrada.tooltip, empty_message=vacio)
+
+
+#: Qué bandeja de REPARTO abre cada ruta. Van sobre `delivery_jobs`, no sobre
+#: pedidos: ver `delivery_worklists.py`.
+_DELIVERY_WORKLIST_BY_ROUTE: dict[str, tuple[str, str]] = {
+    "orders_driver_assignment": (
+        "PENDING_DRIVER_ASSIGNMENT", "No hay entregas esperando repartidor."),
+    "orders_active_deliveries": (
+        "ACTIVE_DELIVERIES", "No hay entregas en curso."),
+    "orders_failed_deliveries": (
+        "FAILED_DELIVERIES", "No hay entregas fallidas pendientes de decisión."),
+    "orders_returns": (
+        "RETURNED_TO_BRANCH", "No hay devoluciones a sucursal."),
+}
+
+
+def _build_delivery_worklist(connection, *, page_id: str, branch_id: str,
+                             actor_user_id: str | None):
+    from backend.application.orders_delivery.queries.delivery_worklists import DeliveryWorklist
+    from frontend.desktop.modules.orders_delivery.pages.delivery_job_worklist_page import (
+        DeliveryJobWorklistPage,
+    )
+    from frontend.desktop.modules.orders_delivery.presenters.delivery_job_worklist_presenter import (
+        DeliveryJobWorklistPresenter,
+    )
+    nombre, vacio = _DELIVERY_WORKLIST_BY_ROUTE[page_id]
+    entrada = ORDERS_DELIVERY_ROUTES[page_id]
+    presenter = DeliveryJobWorklistPresenter(
+        connection, branch_id=branch_id, worklist=DeliveryWorklist[nombre])
+    return DeliveryJobWorklistPage(
         presenter, title=entrada.title, subtitle=entrada.tooltip, empty_message=vacio)
