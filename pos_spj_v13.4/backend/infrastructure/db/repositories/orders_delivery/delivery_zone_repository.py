@@ -44,6 +44,10 @@ class DeliveryZoneRepository(OrdersDeliveryRepositoryBase):
             ),
         )
 
+    def get(self, zone_id: str) -> DeliveryZone | None:
+        row = self._query_one("SELECT * FROM delivery_zones WHERE id=?", (zone_id,))
+        return self._hydrate(row) if row else None
+
     def list_active_for_branch(self, branch_id: str) -> list[DeliveryZone]:
         rows = self._query(
             "SELECT * FROM delivery_zones WHERE branch_id=? AND active=1", (branch_id,))

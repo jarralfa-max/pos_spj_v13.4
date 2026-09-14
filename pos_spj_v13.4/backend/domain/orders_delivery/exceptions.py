@@ -127,6 +127,20 @@ class DeliveryZoneNotAvailableError(OrdersDeliveryDomainError):
     order total is below the zone's minimum order (master prompt §21-22)."""
 
 
+class DeliveryZoneNotFoundError(OrdersDeliveryDomainError):
+    """No DeliveryZone with the given id exists in the acting branch."""
+
+
+class InvalidDeliveryZoneError(OrdersDeliveryDomainError):
+    """A delivery zone's configuration is incomplete or out of range."""
+
+
+class DeliveryZoneOverlapError(OrdersDeliveryDomainError):
+    """Two ACTIVE zones of the same branch would cover the same postal code:
+    `DeliveryFeePolicy.resolve_zone` takes the first match, so the fee would
+    depend on row order."""
+
+
 # ── ORD-8: inventory (master prompt §23-24) ──────────────────────────────
 
 class OrderInventoryReservationFailedError(OrdersDeliveryDomainError):

@@ -71,7 +71,7 @@ ORDERS_DELIVERY_NAV: tuple[OrdersDeliveryNavEntry, ...] = (
     OrdersDeliveryNavEntry("orders_audit", "Auditoría", "audit", P.VIEW_AUDIT,
                            "Trazabilidad inmutable de pedidos y entregas."),
     OrdersDeliveryNavEntry("orders_settings", "Configuración", "settings", P.SETTINGS_VIEW,
-                           "Canales, modalidades, tolerancias, zonas y notificaciones."),
+                           "Zonas de entrega: códigos postales, pedido mínimo y costo de envío."),
 )
 
 

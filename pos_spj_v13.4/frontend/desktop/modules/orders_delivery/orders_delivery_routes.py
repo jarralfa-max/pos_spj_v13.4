@@ -45,6 +45,9 @@ _REAL_ROUTE_BUILDERS: dict[str, str] = {
     "orders_tracking": "_build_delivery_record",
     "orders_incidents": "_build_delivery_record",
     "orders_alerts": "_build_delivery_record",
+    # PASS 6: Configuración = zonas de entrega, la única configuración del
+    # área con datos y reglas reales (ver delivery_settings_page.py).
+    "orders_settings": "_build_delivery_settings",
 }
 
 
@@ -198,3 +201,21 @@ def _build_delivery_record(connection, *, page_id: str, branch_id: str,
         recipient_user_id=actor_user_id)
     return DeliveryRecordPage(
         presenter, title=entrada.title, subtitle=entrada.tooltip, empty_message=vacio)
+
+
+def _build_delivery_settings(connection, *, page_id: str, branch_id: str,
+                             actor_user_id: str | None, authorization=None):
+    from frontend.desktop.modules.orders_delivery.pages.delivery_settings_page import (
+        DeliverySettingsPage,
+    )
+    from frontend.desktop.modules.orders_delivery.presenters.delivery_settings_presenter import (
+        DeliverySettingsPresenter,
+    )
+    entrada = ORDERS_DELIVERY_ROUTES[page_id]
+    presenter = DeliverySettingsPresenter(
+        connection, branch_id=branch_id, actor_user_id=actor_user_id,
+        authorization=authorization)
+    return DeliverySettingsPage(
+        presenter, title=entrada.title, subtitle=entrada.tooltip,
+        empty_message=("No hay zonas de entrega. Sin zonas, ningún pedido a domicilio "
+                       "puede resolver su costo de envío."))
