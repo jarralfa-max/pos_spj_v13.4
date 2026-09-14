@@ -2,7 +2,9 @@
 Started (ORD-4) mirroring `frontend/desktop/modules/losses/losses_routes.py`
 exactly — every route resolved to the same placeholder. ORD-28 wires the
 first REAL pages (Resumen/Todos los pedidos/Análisis) behind an optional
-`connection`; PASS 6 adds the six order worklists (see `order_worklists.py`); the rest
+`connection`; PASS 6 adds the order and delivery worklists (`order_worklists.py`,
+`delivery_worklists.py`) and the delivery records
+(`delivery_records_query_service.py`); the rest
 stay placeholders, an honest,
 documented gap (see docs/refactor/ORD-28_ui_ux.md), not a silent one.
 """
@@ -34,6 +36,12 @@ _REAL_ROUTE_BUILDERS: dict[str, str] = {
     "orders_active_deliveries": "_build_delivery_worklist",
     "orders_failed_deliveries": "_build_delivery_worklist",
     "orders_returns": "_build_delivery_worklist",
+    # PASS 6: registros de reparto (no bandejas): todo lo de la sucursal, con
+    # filtro por estado; via _DELIVERY_RECORD_BY_ROUTE.
+    "orders_routes": "_build_delivery_record",
+    "orders_redeliveries": "_build_delivery_record",
+    "orders_cash_collections": "_build_delivery_record",
+    "orders_settlements": "_build_delivery_record",
 }
 
 
@@ -143,4 +151,32 @@ def _build_delivery_worklist(connection, *, page_id: str, branch_id: str,
     presenter = DeliveryJobWorklistPresenter(
         connection, branch_id=branch_id, worklist=DeliveryWorklist[nombre])
     return DeliveryJobWorklistPage(
+        presenter, title=entrada.title, subtitle=entrada.tooltip, empty_message=vacio)
+
+
+#: Qué registro de reparto abre cada ruta, y qué dice cuando está vacío.
+_DELIVERY_RECORD_BY_ROUTE: dict[str, tuple[str, str]] = {
+    "orders_routes": ("ROUTES", "No hay rutas de reparto."),
+    "orders_redeliveries": ("REDELIVERIES", "No hay solicitudes de reentrega."),
+    "orders_cash_collections": ("CASH_COLLECTIONS", "No hay cobros en ruta registrados."),
+    "orders_settlements": ("SETTLEMENTS", "No hay liquidaciones de repartidores."),
+}
+
+
+def _build_delivery_record(connection, *, page_id: str, branch_id: str,
+                           actor_user_id: str | None):
+    from backend.application.orders_delivery.queries.delivery_records_query_service import (
+        DeliveryRecord,
+    )
+    from frontend.desktop.modules.orders_delivery.pages.delivery_record_page import (
+        DeliveryRecordPage,
+    )
+    from frontend.desktop.modules.orders_delivery.presenters.delivery_record_presenter import (
+        DeliveryRecordPresenter,
+    )
+    nombre, vacio = _DELIVERY_RECORD_BY_ROUTE[page_id]
+    entrada = ORDERS_DELIVERY_ROUTES[page_id]
+    presenter = DeliveryRecordPresenter(
+        connection, branch_id=branch_id, record=DeliveryRecord[nombre])
+    return DeliveryRecordPage(
         presenter, title=entrada.title, subtitle=entrada.tooltip, empty_message=vacio)
