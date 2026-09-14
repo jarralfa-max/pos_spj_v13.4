@@ -107,6 +107,7 @@ def _pedido_despachado(etiqueta, *, branch_id):
     fallido posterior no lo cambia; por eso el badge viejo lo seguía contando
     como entrega activa."""
     pedido, linea = _pedido(etiqueta, branch_id=branch_id)
+    pedido.set_delivery_address(new_uuid())
     pedido.confirm(confirmed_by_user_id=USUARIO)
     pedido.mark_reserved()
     pedido.assign_preparation(assigned_to_user_id=USUARIO)
@@ -121,6 +122,7 @@ def _reserva_fallida(etiqueta, *, branch_id):
     """Pedido sin trabajo de reparto cuya reserva de inventario falló: el único
     escritor de `fulfillment_status=FAILED`."""
     pedido, _ = _pedido(etiqueta, branch_id=branch_id)
+    pedido.set_delivery_address(new_uuid())
     pedido.confirm(confirmed_by_user_id=USUARIO)
     pedido.mark_reservation_failed()
     return pedido

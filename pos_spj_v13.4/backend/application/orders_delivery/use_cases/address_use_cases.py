@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from backend.application.orders_delivery.dto import CustomerOrderDTO
 from backend.application.orders_delivery.audit import OrdersDeliveryAuditActions
+from backend.domain.orders_delivery.policies.order_lifecycle_policy import OrderConfirmationPolicy
 from backend.application.orders_delivery.permissions import OrdersDeliveryPermissions
 from backend.application.orders_delivery.result import OrderResult, fail_from_domain_error
 from backend.application.orders_delivery.use_cases._base import _OrdersDeliveryBaseUseCase
@@ -24,11 +25,8 @@ from backend.infrastructure.db.repositories.orders_delivery.unit_of_work import 
     OrdersDeliveryUnitOfWork,
 )
 
-_ZONE_REQUIRED_FULFILLMENT_TYPES = frozenset({
-    FulfillmentType.HOME_DELIVERY, FulfillmentType.BRANCH_DELIVERY,
-    FulfillmentType.WHOLESALE_DELIVERY, FulfillmentType.SCHEDULED_DELIVERY,
-    FulfillmentType.EXPRESS_DELIVERY, FulfillmentType.ROUTE_DELIVERY,
-})
+#: Las mismas modalidades que exigen dirección para confirmar: una sola definición.
+_ZONE_REQUIRED_FULFILLMENT_TYPES = OrderConfirmationPolicy.ADDRESS_REQUIRED_FULFILLMENT_TYPES
 
 
 class SetOrderDeliveryAddressUseCase(_OrdersDeliveryBaseUseCase):

@@ -51,6 +51,7 @@ from backend.infrastructure.db.schema.orders_delivery_schema import (
 )
 from backend.shared.ids import new_uuid
 from tests.integration._audit_trail_table import create_audit_logs_table
+from backend.domain.orders_delivery.policies.order_lifecycle_policy import OrderConfirmationPolicy
 
 SUCURSAL = new_uuid()
 OTRA_SUCURSAL = new_uuid()
@@ -126,6 +127,9 @@ def _pedido(etiqueta, *, branch_id, tipo=FulfillmentType.PICKUP, peso=False):
 
 
 def _reservar(pedido):
+    # Un pedido con entrega no se confirma sin dirección.
+    if pedido.fulfillment_type in OrderConfirmationPolicy.ADDRESS_REQUIRED_FULFILLMENT_TYPES:
+        pedido.set_delivery_address(new_uuid())
     pedido.confirm(confirmed_by_user_id=USUARIO)
     pedido.mark_reserved()
 

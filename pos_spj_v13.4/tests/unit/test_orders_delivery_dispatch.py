@@ -117,6 +117,7 @@ class TestCustomerOrderDispatchDelivery:
         order.add_line(CustomerOrderLine.create(
             order_id=order.id, product_id=new_uuid(), unit_price=Decimal("10"),
             requested_quantity=OrderQuantity(Decimal("1"))))
+        order.set_delivery_address(new_uuid())
         order.confirm(confirmed_by_user_id=new_uuid())
         order.mark_reserved()
         order.fulfillment_status = FulfillmentStatus.READY  # ORD-9's own step

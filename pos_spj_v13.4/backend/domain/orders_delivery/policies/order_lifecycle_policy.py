@@ -8,8 +8,9 @@ while `CustomerOrder` itself reuses the same table (§16: "OrderStateMachine
 
 from __future__ import annotations
 
-from backend.domain.orders_delivery.enums import OrderStatus
+from backend.domain.orders_delivery.enums import FulfillmentType, OrderStatus
 from backend.domain.orders_delivery.exceptions import (
+    DeliveryAddressRequiredError,
     InvalidOrderStateError,
     OrderCancellationNotAllowedError,
     OrderConfirmationRequiredError,
@@ -68,13 +69,28 @@ class OrderConfirmationPolicy:
     """Master prompt §17: a draft order cannot be confirmed without at least
     one line and a positive total — mirrors `CheckoutPolicy` in Sales."""
 
+    #: Modalidades que llevan el pedido a un domicilio: sin dirección no hay a dónde
+    #: entregar ni zona que fije el costo de envío. `SetOrderDeliveryAddressUseCase`
+    #: resuelve la zona para estas mismas.
+    ADDRESS_REQUIRED_FULFILLMENT_TYPES = frozenset({
+        FulfillmentType.HOME_DELIVERY, FulfillmentType.BRANCH_DELIVERY,
+        FulfillmentType.WHOLESALE_DELIVERY, FulfillmentType.SCHEDULED_DELIVERY,
+        FulfillmentType.EXPRESS_DELIVERY, FulfillmentType.ROUTE_DELIVERY,
+    })
+
     @staticmethod
-    def ensure_can_confirm(*, status: OrderStatus, line_count: int, total) -> None:
+    def ensure_can_confirm(*, status: OrderStatus, line_count: int, total,
+                           fulfillment_type: FulfillmentType,
+                           has_delivery_address: bool) -> None:
         OrderLifecyclePolicy.ensure_transition(current=status, target=OrderStatus.CONFIRMED)
         if line_count <= 0:
             raise OrderEmptyError("No se puede confirmar un pedido sin artículos")
         if total <= 0:
             raise OrderEmptyError("El total del pedido debe ser mayor a cero")
+        if (fulfillment_type in OrderConfirmationPolicy.ADDRESS_REQUIRED_FULFILLMENT_TYPES
+                and not has_delivery_address):
+            raise DeliveryAddressRequiredError(
+                "Un pedido con entrega requiere dirección antes de confirmarse")
 
 
 class OrderCancellationPolicy:

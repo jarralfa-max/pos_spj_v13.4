@@ -410,7 +410,9 @@ class CustomerOrder:
     def confirm(self, *, confirmed_by_user_id: str) -> None:
         _ids(confirmed_by_user_id)
         OrderConfirmationPolicy.ensure_can_confirm(
-            status=self.status, line_count=len(self.lines), total=self.totals.grand_total)
+            status=self.status, line_count=len(self.lines), total=self.totals.grand_total,
+            fulfillment_type=self.fulfillment_type,
+            has_delivery_address=self.delivery_address_id is not None)
         self.status = OrderStatus.CONFIRMED
         self.confirmed_by_user_id = confirmed_by_user_id
         self.updated_at = _now()

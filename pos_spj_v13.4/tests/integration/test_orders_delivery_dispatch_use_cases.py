@@ -48,6 +48,7 @@ from backend.infrastructure.db.schema.inventory_schema import create_inventory_s
 from backend.infrastructure.db.schema.orders_delivery_schema import create_orders_delivery_schema
 from backend.shared.ids import new_uuid
 from tests.integration._audit_trail_table import create_audit_logs_table
+from tests.integration._delivery_address import give_delivery_address
 
 
 class _NoOpWhatsAppClient:
@@ -97,6 +98,7 @@ def _dispatch_ready_job(conn) -> tuple[str, str, str]:
         lines=[{"product_id": product_id, "unit_price": "10.00", "requested_quantity": "1"}],
         actor_user_id=new_uuid(), operation_id=new_uuid())
     order_id = result.entity_id
+    give_delivery_address(conn, order_id, branch_id=branch_id, authorization=_allow_all())
     ConfirmCustomerOrderUseCase(_allow_all()).execute(
         conn, order_id=order_id, actor_user_id=new_uuid(), operation_id=new_uuid())
     ReserveOrderInventoryUseCase(_allow_all()).execute(
@@ -148,6 +150,7 @@ class TestDispatchDeliveryJobUseCase:
             lines=[{"product_id": product_id, "unit_price": "10.00", "requested_quantity": "1"}],
             actor_user_id=new_uuid(), operation_id=new_uuid())
         order_id = result.entity_id
+        give_delivery_address(conn, order_id, branch_id=branch_id, authorization=_allow_all())
         ConfirmCustomerOrderUseCase(_allow_all()).execute(
             conn, order_id=order_id, actor_user_id=new_uuid(), operation_id=new_uuid())
         job_result = CreateDeliveryJobUseCase(_allow_all()).execute(
