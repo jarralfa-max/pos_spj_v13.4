@@ -169,9 +169,14 @@ class TestBuildPageWiring(object):
         assert isinstance(
             build_page("orders_analytics", conn, branch_id=branch_id), OrdersAnalyticsPage)
 
-    def test_unwired_routes_still_fall_back_to_placeholder(self, app, conn):
-        page = build_page("orders_new", conn, branch_id=new_uuid())
-        assert isinstance(page, OrdersDeliveryPlaceholderPage)
+    def test_every_route_has_a_real_page_with_a_connection(self, app, conn):
+        """PASS 6 terminó de construir las 23 rutas: con conexión ninguna cae a
+        placeholder. Sin conexión sí (ver la prueba siguiente)."""
+        from frontend.desktop.modules.orders_delivery.orders_delivery_routes import (
+            _REAL_ROUTE_BUILDERS,
+            ORDERS_DELIVERY_ROUTES,
+        )
+        assert set(_REAL_ROUTE_BUILDERS) == set(ORDERS_DELIVERY_ROUTES)
 
     def test_no_connection_keeps_ord4_placeholder_behavior(self, app):
         page = build_page("orders_overview")

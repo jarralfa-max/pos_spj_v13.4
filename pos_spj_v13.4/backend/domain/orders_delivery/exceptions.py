@@ -127,6 +127,11 @@ class DeliveryZoneNotAvailableError(OrdersDeliveryDomainError):
     order total is below the zone's minimum order (master prompt §21-22)."""
 
 
+class ProductNotAvailableForOrderError(OrdersDeliveryDomainError):
+    """The product cannot be ordered in the branch: not sellable/enabled there,
+    or Pricing has no current price for it."""
+
+
 class DeliveryZoneNotFoundError(OrdersDeliveryDomainError):
     """No DeliveryZone with the given id exists in the acting branch."""
 
