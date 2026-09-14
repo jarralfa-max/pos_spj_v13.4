@@ -1,4 +1,5 @@
-"""DeliveryRecordPresenter (PASS 6) — reentregas, cobros, liquidaciones y rutas.
+"""DeliveryRecordPresenter (PASS 6) — reentregas, cobros, liquidaciones, rutas,
+seguimiento, incidencias y alertas.
 
 No arma SQL: pide la página a `DeliveryRecordsQueryService` y le da formato. Las
 etiquetas de estado viven aquí, y la página arma su filtro con ellas: el combo y
@@ -20,6 +21,15 @@ from frontend.desktop.modules.orders_delivery.presenters.orders_list_presenter i
     OrdersTableModel,
 )
 
+DELIVERY_STATUS_LABELS: dict[str, str] = {
+    "PENDING_ASSIGNMENT": "Sin repartidor", "ASSIGNED": "Asignada",
+    "READY_TO_DISPATCH": "Lista para salir", "DISPATCHED": "Despachada",
+    "IN_TRANSIT": "En camino", "ARRIVED": "En domicilio", "DELIVERY_ATTEMPT": "Entregando",
+    "DELIVERED": "Entregada", "FAILED": "Fallida", "REDELIVERY_PENDING": "Reentrega pendiente",
+    "RETURNING": "Regresando", "RETURNED_TO_BRANCH": "Devuelta a sucursal",
+    "CANCELLED": "Cancelada", "CLOSED": "Cerrada",
+}
+
 STATUS_LABELS: dict[DeliveryRecord, dict[str, str]] = {
     DeliveryRecord.REDELIVERIES: {
         "PENDING": "Pendiente", "APPROVED": "Aprobada", "REJECTED": "Rechazada",
@@ -39,6 +49,17 @@ STATUS_LABELS: dict[DeliveryRecord, dict[str, str]] = {
         "DRAFT": "Borrador", "PLANNED": "Planificada", "ASSIGNED": "Asignada",
         "ACTIVE": "En curso", "COMPLETED": "Completada", "CANCELLED": "Cancelada",
     },
+    DeliveryRecord.TRACKING: DELIVERY_STATUS_LABELS,
+    # En incidencias el "estado" del filtro es el motivo de la falla.
+    DeliveryRecord.INCIDENTS: {
+        "CUSTOMER_NOT_HOME": "Cliente ausente", "ADDRESS_NOT_FOUND": "Domicilio no encontrado",
+        "CUSTOMER_REJECTED": "Cliente rechazó", "PAYMENT_FAILED": "Pago fallido",
+        "PRODUCT_DAMAGED": "Producto dañado", "TEMPERATURE_FAILURE": "Falla de temperatura",
+        "SECURITY_RISK": "Riesgo de seguridad", "VEHICLE_FAILURE": "Falla del vehículo",
+        "WRONG_ADDRESS": "Domicilio incorrecto", "CONTACT_UNAVAILABLE": "Contacto no disponible",
+        "OTHER": "Otro",
+    },
+    DeliveryRecord.ALERTS: {"UNREAD": "Sin leer", "READ": "Leída"},
 }
 
 PAYMENT_METHOD_LABELS: dict[str, str] = {
@@ -110,20 +131,54 @@ def _fila_ruta(fila: dict, estados: dict[str, str]) -> list[str]:
     ]
 
 
+def _fila_seguimiento(fila: dict, estados: dict[str, str]) -> list[str]:
+    return [
+        _texto(fila["order_number"]), _texto(fila["contact_name"]),
+        _texto(fila["contact_phone"]), _texto(fila["order_status"]),
+        estados.get(fila["job_status"], fila["job_status"]),
+        _corto(fila["assigned_driver_id"], "Sin asignar"),
+        _fecha(fila["dispatched_at"]), _fecha(fila["estimated_arrival_at"]),
+        # Una entrega termina entregada O fallida; nunca las dos.
+        _fecha(fila["delivered_at"] or fila["failed_at"]), str(fila["attempts"]),
+    ]
+
+
+def _fila_incidencia(fila: dict, estados: dict[str, str]) -> list[str]:
+    return [
+        _fecha(fila["attempted_at"]), _texto(fila["delivery_number"]),
+        _texto(fila["order_number"]), _texto(fila["contact_name"]),
+        _corto(fila["driver_id"], "Sin asignar"),
+        estados.get(fila["failure_reason"], _texto(fila["failure_reason"])),
+        _texto(fila["notes"]),
+        DELIVERY_STATUS_LABELS.get(fila["job_status"], fila["job_status"]),
+    ]
+
+
+def _fila_alerta(fila: dict, estados: dict[str, str]) -> list[str]:
+    return [
+        _fecha(fila["created_at"]), _texto(fila["title"]), _texto(fila["body"]),
+        estados.get(fila["status"], fila["status"]), _fecha(fila["read_at"]),
+    ]
+
+
 _FORMATO = {
     DeliveryRecord.REDELIVERIES: _fila_reentrega,
     DeliveryRecord.CASH_COLLECTIONS: _fila_cobro,
     DeliveryRecord.SETTLEMENTS: _fila_liquidacion,
     DeliveryRecord.ROUTES: _fila_ruta,
+    DeliveryRecord.TRACKING: _fila_seguimiento,
+    DeliveryRecord.INCIDENTS: _fila_incidencia,
+    DeliveryRecord.ALERTS: _fila_alerta,
 }
 
 
 class DeliveryRecordPresenter:
     def __init__(self, connection, *, branch_id: str, record: DeliveryRecord,
-                 page_size: int = 50) -> None:
+                 recipient_user_id: str | None = None, page_size: int = 50) -> None:
         self._conn = connection
         self._branch_id = branch_id
         self._record = DeliveryRecord(record)
+        self._recipient_user_id = recipient_user_id
         self._page_size = page_size
 
     @property
@@ -134,7 +189,7 @@ class DeliveryRecordPresenter:
              page: int = 0) -> OrdersTableModel:
         pagina = DeliveryRecordsQueryService(self._conn).list_records(
             self._branch_id, self._record, status=status, query=query, page=page,
-            page_size=self._page_size)
+            page_size=self._page_size, recipient_user_id=self._recipient_user_id)
         formato = _FORMATO[self._record]
         estados = STATUS_LABELS[self._record]
         return OrdersTableModel(

@@ -42,6 +42,9 @@ _REAL_ROUTE_BUILDERS: dict[str, str] = {
     "orders_redeliveries": "_build_delivery_record",
     "orders_cash_collections": "_build_delivery_record",
     "orders_settlements": "_build_delivery_record",
+    "orders_tracking": "_build_delivery_record",
+    "orders_incidents": "_build_delivery_record",
+    "orders_alerts": "_build_delivery_record",
 }
 
 
@@ -160,6 +163,9 @@ _DELIVERY_RECORD_BY_ROUTE: dict[str, tuple[str, str]] = {
     "orders_redeliveries": ("REDELIVERIES", "No hay solicitudes de reentrega."),
     "orders_cash_collections": ("CASH_COLLECTIONS", "No hay cobros en ruta registrados."),
     "orders_settlements": ("SETTLEMENTS", "No hay liquidaciones de repartidores."),
+    "orders_tracking": ("TRACKING", "No hay pedidos con reparto que seguir."),
+    "orders_incidents": ("INCIDENTS", "No hay intentos de entrega fallidos."),
+    "orders_alerts": ("ALERTS", "No tienes alertas de reparto."),
 }
 
 
@@ -177,6 +183,8 @@ def _build_delivery_record(connection, *, page_id: str, branch_id: str,
     nombre, vacio = _DELIVERY_RECORD_BY_ROUTE[page_id]
     entrada = ORDERS_DELIVERY_ROUTES[page_id]
     presenter = DeliveryRecordPresenter(
-        connection, branch_id=branch_id, record=DeliveryRecord[nombre])
+        connection, branch_id=branch_id, record=DeliveryRecord[nombre],
+        # Sólo Alertas lo usa: la bandeja de notificaciones es por persona.
+        recipient_user_id=actor_user_id)
     return DeliveryRecordPage(
         presenter, title=entrada.title, subtitle=entrada.tooltip, empty_message=vacio)

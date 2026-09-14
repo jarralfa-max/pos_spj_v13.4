@@ -16,6 +16,7 @@ from backend.application.orders_delivery.queries.delivery_worklists import (
     DeliveryWorklist,
     delivery_worklist_filter,
 )
+from backend.domain.orders_delivery.policies.notification_policy import DELIVERY_ALERT_TYPES
 from backend.application.orders_delivery.queries.order_worklists import (
     OrderWorklist,
     worklist_filter,
@@ -69,10 +70,17 @@ class OrdersDeliveryBadgeQueryService:
             "SELECT COUNT(*) FROM driver_settlements "
             "WHERE branch_id=? AND status='PENDING_REVIEW'",
             (branch_id,))
+        # OJO, cuenta de más: el notificador escribe UN renglón por destinatario
+        # (cada admin/gerente), así que una entrega fallida con tres gerentes
+        # suma 3. La bandeja es por persona; la pantalla de Alertas lo respeta
+        # (`DeliveryRecord.ALERTS`), pero este badge es de sucursal y no recibe
+        # usuario. Queda documentado, no corregido: cambiarlo es cambiar la firma.
+        tipos = sorted(DELIVERY_ALERT_TYPES)
         counts["critical_alerts"] = self._safe_count(
-            "SELECT COUNT(*) FROM notification_inbox "
-            "WHERE sucursal_id=? AND tipo='entrega_fallida' AND leido=0",
-            (branch_id,))
+            "SELECT COUNT(*) FROM notification_inbox"
+            f" WHERE sucursal_id=? AND tipo IN ({','.join('?' for _ in tipos)})"
+            " AND leido=0",
+            (branch_id, *tipos))
         return counts
 
     def _safe_count(self, sql: str, params: tuple) -> int:

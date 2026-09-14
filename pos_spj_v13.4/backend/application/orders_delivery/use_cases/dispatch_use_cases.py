@@ -20,7 +20,10 @@ from backend.domain.orders_delivery.exceptions import (
     OrdersDeliveryDomainError,
 )
 from backend.domain.orders_delivery.policies.dispatch_policy import DispatchPolicy
-from backend.domain.orders_delivery.policies.notification_policy import DeliveryNotificationPolicy
+from backend.domain.orders_delivery.policies.notification_policy import (
+    DELIVERY_FAILED_ALERT_TYPE,
+    DeliveryNotificationPolicy,
+)
 from backend.domain.orders_delivery.value_objects.delivery_evidence import DeliveryEvidence
 from backend.infrastructure.db.repositories.orders_delivery.unit_of_work import (
     OrdersDeliveryUnitOfWork,
@@ -214,7 +217,7 @@ class RecordDeliveryAttemptUseCase(_OrdersDeliveryBaseUseCase):
             try:
                 self._internal_notifier_factory(connection).notify_roles(
                     roles=("admin", "gerente"), branch_id=job.branch_id,
-                    tipo="entrega_fallida",
+                    tipo=DELIVERY_FAILED_ALERT_TYPE,
                     titulo=f"Entrega fallida — pedido {order.order_number or order.id}",
                     cuerpo=failure_reason or "Sin motivo especificado",
                     datos={"delivery_job_id": job.id, "order_id": order.id})

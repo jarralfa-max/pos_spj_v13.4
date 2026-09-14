@@ -26,6 +26,15 @@ _CUSTOMER_MESSAGE_TEMPLATES: dict[str, str] = {
                            "contacto para reprogramar.",
 }
 
+#: `notification_inbox.tipo` de la alerta interna de entrega fallida. Lo escribe
+#: `RecordDeliveryAttemptUseCase` y lo leen el badge y la pantalla de Alertas:
+#: si cada uno escribiera su literal, bastaría una errata para que la alerta
+#: se escribiera y nadie la viera.
+DELIVERY_FAILED_ALERT_TYPE = "entrega_fallida"
+
+#: Todos los tipos de alerta interna de este contexto.
+DELIVERY_ALERT_TYPES: frozenset[str] = frozenset({DELIVERY_FAILED_ALERT_TYPE})
+
 _INTERNAL_ALERT_EVENTS: frozenset[str] = frozenset({
     DeliveryEvents.FAILED,
     DeliveryEvents.DRIVER_SETTLEMENT_DIFFERENCE_DETECTED,

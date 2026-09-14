@@ -1,5 +1,5 @@
 """DeliveryRecordPage (PASS 6) — un registro de reparto: reentregas, cobros en
-ruta, liquidaciones o rutas.
+ruta, liquidaciones, rutas, seguimiento, incidencias o alertas.
 
 Una sola clase; las columnas dependen del registro y el orden de cada fila lo
 decide el presenter. Filtro por estado siempre; búsqueda sólo donde la consulta
@@ -41,6 +41,22 @@ COLUMNS: dict[DeliveryRecord, list[ColumnSpec]] = {
         ColumnSpec("Ruta"), ColumnSpec("Estado", "status"), ColumnSpec("Repartidor"),
         ColumnSpec("Paradas", "numeric"), ColumnSpec("Creada", "date"),
         ColumnSpec("Actualización", "date"),
+    ],
+    DeliveryRecord.TRACKING: [
+        ColumnSpec("Pedido"), ColumnSpec("Cliente"), ColumnSpec("Teléfono"),
+        ColumnSpec("Estado del pedido", "status"), ColumnSpec("Entrega", "status"),
+        ColumnSpec("Repartidor"), ColumnSpec("Despachado", "date"),
+        ColumnSpec("Llegada estimada", "date"), ColumnSpec("Terminó", "date"),
+        ColumnSpec("Intentos", "numeric"),
+    ],
+    DeliveryRecord.INCIDENTS: [
+        ColumnSpec("Fecha", "date"), ColumnSpec("Entrega"), ColumnSpec("Pedido"),
+        ColumnSpec("Cliente"), ColumnSpec("Repartidor"), ColumnSpec("Motivo", "status"),
+        ColumnSpec("Notas"), ColumnSpec("Estado de la entrega", "status"),
+    ],
+    DeliveryRecord.ALERTS: [
+        ColumnSpec("Fecha", "date"), ColumnSpec("Alerta"), ColumnSpec("Detalle"),
+        ColumnSpec("Estado", "status"), ColumnSpec("Leída el", "date"),
     ],
 }
 
