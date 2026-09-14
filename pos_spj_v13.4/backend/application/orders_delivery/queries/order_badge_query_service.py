@@ -44,7 +44,8 @@ class OrdersDeliveryBadgeQueryService:
     def __init__(self, db) -> None:
         self.db = db
 
-    def get_badge_counts(self, branch_id: str) -> dict[str, int]:
+    def get_badge_counts(self, branch_id: str, *,
+                         recipient_user_id: str | None = None) -> dict[str, int]:
         counts: dict[str, int] = {}
         for worklist in _ORDER_WORKLIST_BADGES:
             filtro = worklist_filter(worklist)
@@ -70,17 +71,18 @@ class OrdersDeliveryBadgeQueryService:
             "SELECT COUNT(*) FROM driver_settlements "
             "WHERE branch_id=? AND status='PENDING_REVIEW'",
             (branch_id,))
-        # OJO, cuenta de más: el notificador escribe UN renglón por destinatario
-        # (cada admin/gerente), así que una entrega fallida con tres gerentes
-        # suma 3. La bandeja es por persona; la pantalla de Alertas lo respeta
-        # (`DeliveryRecord.ALERTS`), pero este badge es de sucursal y no recibe
-        # usuario. Queda documentado, no corregido: cambiarlo es cambiar la firma.
+        # La bandeja es POR PERSONA: el notificador escribe un renglón por cada
+        # destinatario (cada admin/gerente). Con `recipient_user_id` se cuentan las
+        # alertas sin leer de ESA persona, lo mismo que su pantalla de Alertas. Sin
+        # usuario se cuentan renglones de la sucursal, y eso suma una vez por
+        # destinatario: sirve de volumen, no de "pendientes".
         tipos = sorted(DELIVERY_ALERT_TYPES)
+        destinatario = (recipient_user_id,) if recipient_user_id else ()
         counts["critical_alerts"] = self._safe_count(
             "SELECT COUNT(*) FROM notification_inbox"
             f" WHERE sucursal_id=? AND tipo IN ({','.join('?' for _ in tipos)})"
-            " AND leido=0",
-            (branch_id, *tipos))
+            " AND leido=0" + (" AND empleado_id=?" if destinatario else ""),
+            (branch_id, *tipos, *destinatario))
         return counts
 
     def _safe_count(self, sql: str, params: tuple) -> int:

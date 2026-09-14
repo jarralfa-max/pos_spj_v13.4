@@ -53,6 +53,24 @@ def build_orders_delivery_route_definition() -> RouteDefinition:
     )
 
 
+def _sidebar_badges(connection, branch_id: str | None,
+                    user_id: str | None) -> dict[str, int]:
+    """Conteos del sidebar interno, calculados al construir la vista.
+
+    Antes no se calculaban: `OrdersDeliveryView` aceptaba `badges` y el
+    activator no los pasaba, así que ningún contador del módulo se veía. No se
+    refrescan solos —la vista aún no tiene cómo recargarlos—; se leen al abrir
+    el módulo.
+    """
+    if connection is None or not branch_id:
+        return {}
+    from backend.application.orders_delivery.queries.order_badge_query_service import (
+        OrdersDeliveryBadgeQueryService,
+    )
+    return OrdersDeliveryBadgeQueryService(connection).get_badge_counts(
+        branch_id, recipient_user_id=user_id)
+
+
 class OrdersDeliveryModuleActivator:
     """`ModuleActivator` estructural (SHELL-13), misma convención que los
     once activators ya migrados."""
@@ -99,6 +117,8 @@ class OrdersDeliveryModuleActivator:
             # siempre "requiere un PermissionChecker" en la aplicación.
             authorization=OrdersDeliveryAuthorizationPolicy(
                 OrdersDeliverySessionPermissionChecker(session)),
+            badges=_sidebar_badges(
+                self._connection, active_branch_id(session), actor_user_id(session)),
         )
 
 
