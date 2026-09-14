@@ -21,7 +21,7 @@ from frontend.desktop.themes.tokens import ResponsiveBreakpoints
 class OrdersDeliveryView(QWidget):
     def __init__(self, *, has_permission, badges=None, page_builder=None, parent=None,
                  connection=None, branch_id: str | None = None,
-                 actor_user_id: str | None = None) -> None:
+                 actor_user_id: str | None = None, authorization=None) -> None:
         super().__init__(parent)
         self.setObjectName("ordersDeliveryModule")
         self.setAccessibleName("Módulo de Pedidos y Delivery")
@@ -39,7 +39,8 @@ class OrdersDeliveryView(QWidget):
             # matching every existing caller/test) keeps the exact ORD-4
             # placeholder-only behavior.
             self._page_builder = lambda page_id: build_page(
-                page_id, connection, branch_id=branch_id, actor_user_id=actor_user_id)
+                page_id, connection, branch_id=branch_id, actor_user_id=actor_user_id,
+                authorization=authorization)
         self._pages = {}
         self._active_route = None
 

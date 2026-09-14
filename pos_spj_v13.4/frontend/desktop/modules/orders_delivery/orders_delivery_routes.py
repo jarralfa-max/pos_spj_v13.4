@@ -49,7 +49,9 @@ _REAL_ROUTE_BUILDERS: dict[str, str] = {
 
 
 def build_page(page_id: str, connection=None, *, branch_id: str | None = None,
-                actor_user_id: str | None = None):
+                actor_user_id: str | None = None, authorization=None):
+    """`authorization` es la `OrdersDeliveryAuthorizationPolicy` de la sesión.
+    Sin ella las páginas se construyen igual, pero toda escritura falla cerrada."""
     try:
         entry = ORDERS_DELIVERY_ROUTES[page_id]
     except KeyError as exc:
@@ -58,13 +60,15 @@ def build_page(page_id: str, connection=None, *, branch_id: str | None = None,
     builder_name = _REAL_ROUTE_BUILDERS.get(page_id)
     if connection is not None and branch_id is not None and builder_name is not None:
         return globals()[builder_name](
-            connection, page_id=page_id, branch_id=branch_id, actor_user_id=actor_user_id)
+            connection, page_id=page_id, branch_id=branch_id, actor_user_id=actor_user_id,
+            authorization=authorization)
 
     from frontend.desktop.modules.orders_delivery.pages import OrdersDeliveryPlaceholderPage
     return OrdersDeliveryPlaceholderPage(title=entry.title, subtitle=entry.tooltip)
 
 
-def _build_overview(connection, *, page_id: str, branch_id: str, actor_user_id: str | None):
+def _build_overview(connection, *, page_id: str, branch_id: str, actor_user_id: str | None,
+                authorization=None):
     from frontend.desktop.modules.orders_delivery.pages.overview_page import OrdersOverviewPage
     from frontend.desktop.modules.orders_delivery.presenters.overview_presenter import (
         OrdersOverviewPresenter,
@@ -72,17 +76,20 @@ def _build_overview(connection, *, page_id: str, branch_id: str, actor_user_id: 
     return OrdersOverviewPage(OrdersOverviewPresenter(connection, branch_id=branch_id))
 
 
-def _build_orders_list(connection, *, page_id: str, branch_id: str, actor_user_id: str | None):
+def _build_orders_list(connection, *, page_id: str, branch_id: str, actor_user_id: str | None,
+                authorization=None):
     from frontend.desktop.modules.orders_delivery.pages.orders_list_page import OrdersListPage
     from frontend.desktop.modules.orders_delivery.presenters.orders_list_presenter import (
         OrdersListPresenter,
     )
     presenter = OrdersListPresenter(
-        connection, branch_id=branch_id, actor_user_id=actor_user_id or "")
+        connection, branch_id=branch_id, actor_user_id=actor_user_id or "",
+        authorization=authorization)
     return OrdersListPage(presenter)
 
 
-def _build_analytics(connection, *, page_id: str, branch_id: str, actor_user_id: str | None):
+def _build_analytics(connection, *, page_id: str, branch_id: str, actor_user_id: str | None,
+                authorization=None):
     from frontend.desktop.modules.orders_delivery.pages.analytics_page import OrdersAnalyticsPage
     from frontend.desktop.modules.orders_delivery.presenters.analytics_presenter import (
         OrdersAnalyticsPresenter,
@@ -110,7 +117,8 @@ _WORKLIST_BY_ROUTE: dict[str, tuple[str, str]] = {
 
 
 def _build_order_worklist(connection, *, page_id: str, branch_id: str,
-                          actor_user_id: str | None):
+                          actor_user_id: str | None,
+                authorization=None):
     from backend.application.orders_delivery.queries.order_worklists import OrderWorklist
     from frontend.desktop.modules.orders_delivery.pages.order_worklist_page import (
         OrderWorklistPage,
@@ -141,7 +149,8 @@ _DELIVERY_WORKLIST_BY_ROUTE: dict[str, tuple[str, str]] = {
 
 
 def _build_delivery_worklist(connection, *, page_id: str, branch_id: str,
-                             actor_user_id: str | None):
+                             actor_user_id: str | None,
+                authorization=None):
     from backend.application.orders_delivery.queries.delivery_worklists import DeliveryWorklist
     from frontend.desktop.modules.orders_delivery.pages.delivery_job_worklist_page import (
         DeliveryJobWorklistPage,
@@ -170,7 +179,8 @@ _DELIVERY_RECORD_BY_ROUTE: dict[str, tuple[str, str]] = {
 
 
 def _build_delivery_record(connection, *, page_id: str, branch_id: str,
-                           actor_user_id: str | None):
+                           actor_user_id: str | None,
+                authorization=None):
     from backend.application.orders_delivery.queries.delivery_records_query_service import (
         DeliveryRecord,
     )

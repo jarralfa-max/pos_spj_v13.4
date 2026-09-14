@@ -80,12 +80,25 @@ class OrdersDeliveryModuleActivator:
             OrdersDeliveryView,
         )
 
+        from backend.application.orders_delivery.authorization import (
+            OrdersDeliveryAuthorizationPolicy,
+        )
+        from backend.application.orders_delivery.session_authorization import (
+            OrdersDeliverySessionPermissionChecker,
+        )
+
         session = self._session_context
         return OrdersDeliveryView(
             has_permission=sidebar_permission_checker(session),
             connection=self._connection,
             branch_id=active_branch_id(session),
             actor_user_id=actor_user_id(session),
+            # La autorización REAL de los casos de uso, revalidada contra la
+            # sesión viva en cada operación. Antes no se pasaba ninguna: la
+            # política sin checker falla cerrada, y "Nuevo pedido" devolvía
+            # siempre "requiere un PermissionChecker" en la aplicación.
+            authorization=OrdersDeliveryAuthorizationPolicy(
+                OrdersDeliverySessionPermissionChecker(session)),
         )
 
 
