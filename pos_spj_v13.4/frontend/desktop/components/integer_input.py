@@ -5,7 +5,7 @@ from __future__ import annotations
 from PyQt5.QtWidgets import QSpinBox
 
 from frontend.desktop.components.virtual_keyboard import attach_virtual_keyboard_action
-from frontend.desktop.themes.tokens import TouchTarget
+from frontend.desktop.themes.theme_manager import bind_input_density
 
 
 class IntegerInput(QSpinBox):
@@ -14,5 +14,5 @@ class IntegerInput(QSpinBox):
         self.setRange(minimum, maximum)
         self.setValue(0)
         self.setKeyboardTracking(False)
-        self.setMinimumHeight(TouchTarget.INPUT_HEIGHT)
+        bind_input_density(self)
         attach_virtual_keyboard_action(self.lineEdit(), numeric=True)

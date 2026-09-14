@@ -88,7 +88,13 @@ class TopBar(QWidget):
         self._breadcrumb_label.setAccessibleName(self._breadcrumb_label.text())
 
     def set_context(self, context: ApplicationContext) -> None:
-        self._context_label.setText(f"{context.branch_name} — {context.user_name}")
+        self._context_label.setText(f"{context.user_name}\n{context.branch_name}")
+        self._context_label.setToolTip(f"{context.user_name} — {context.branch_name}")
+        metrics = self._context_label.fontMetrics()
+        self._context_label.setMinimumWidth(min(
+            self._context_label.maximumWidth(),
+            max(metrics.horizontalAdvance(context.user_name), metrics.horizontalAdvance(context.branch_name)),
+        ))
         self._context_label.setAccessibleName(f"Usuario: {context.user_name}. Sucursal: {context.branch_name}")
         self.set_session_state("offline" if context.offline_status == "OFFLINE" else "connected")
 

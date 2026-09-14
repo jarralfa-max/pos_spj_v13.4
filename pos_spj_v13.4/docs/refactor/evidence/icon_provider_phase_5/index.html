@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JUANIS · IconProvider</title>
+<style>body{font:16px system-ui,sans-serif;margin:24px;background:#f8f8f5;color:#252825}h1{font-size:24px}
+form{display:flex;gap:20px;flex-wrap:wrap;margin:24px 0}label{display:grid;gap:6px}select{font:inherit;padding:10px}
+img{display:block;max-width:100%;height:auto}p{max-width:900px;line-height:1.5}a{color:#18372b}figure{margin:0}</style>
+<h1>JUANIS · Catálogo IconProvider</h1>
+<p>138 identificadores semánticos y 99 vectores. Diez láminas Qt muestran todos los símbolos en
+Claro/Oscuro y ocho estados. La deshabilitación también se aplica al control nativo.</p>
+<p><a href="shell.html">Ver las 200 capturas de shell, navegación y componentes</a> ·
+<a href="validation.json">Resultados y hashes</a></p>
+<p>Validación automatizada con datos de ejemplo. Revisión de hardware y referencias visuales aprobadas pendiente.</p>
+<form><label>Tema<select id="theme"><option value="light">Claro</option><option value="dark">Oscuro</option></select></label>
+<label>Lámina<select id="page"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label></form>
+<figure><figcaption><a id="original">Abrir original</a></figcaption><img id="capture" alt="Catálogo de iconos JUANIS"></figure>
+<script>const theme=document.getElementById('theme'),page=document.getElementById('page');
+function update(){const name='catalog-'+theme.value+'-'+page.value+'.png';document.getElementById('capture').src=name;
+document.getElementById('original').href=name;document.getElementById('capture').alt='IconProvider · '+theme.selectedOptions[0].text+' · Lámina '+page.value;}
+theme.addEventListener('change',update);page.addEventListener('change',update);update();</script></html>

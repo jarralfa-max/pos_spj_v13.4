@@ -1,0 +1,1874 @@
+{
+  "phase": "5. IconProvider",
+  "date": "2026-09-13",
+  "passed_unique": 385,
+  "runs": [
+    {
+      "name": "icon-provider-runtime",
+      "tests": 65,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "tests.architecture.test_icon_catalog::test_catalog_has_vector_and_spanish_accessibility_name_for_every_constant",
+        "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[IconButton(\"missing\", \"Descripci\\xf3n\")-expected7]",
+        "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[IconProvider.icon(\"missing\")-expected4]",
+        "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[PageHeader(icon=getattr(Icons, \"MISSING\", None))-expected2]",
+        "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[PageHeader(title=\"missing\", icon=\"search\")-expected1]",
+        "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[class SectionNavEntry:\\n page_id: str\\n title: str\\n icon: str\\nSectionNavEntry(\"page\", \"Etiqueta\", \"missing\")-expected0]",
+        "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[from frontend.desktop.components.icons import IconProvider as IP\\nIP.bind(button, \"missing\")-expected5]",
+        "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[from frontend.desktop.components.icons import Icons as I\\nPageHeader(icon=I.MISSING)-expected6]",
+        "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[nav.add_section(\"Etiqueta\", \"search\")-expected3]",
+        "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[text = \"Icons.MISSING\"\\nvalue = {\"icon\": \"external data\"}-expected8]",
+        "tests.architecture.test_icon_catalog::test_navigation_and_headers_only_request_registered_icons",
+        "tests.ui.test_icon_provider_runtime::test_binding_preserves_custom_accessibility_text",
+        "tests.ui.test_icon_provider_runtime::test_checked_icon_uses_selected_color_and_disabled_wins[dark]",
+        "tests.ui.test_icon_provider_runtime::test_checked_icon_uses_selected_color_and_disabled_wins[light]",
+        "tests.ui.test_icon_provider_runtime::test_deleted_binding_disconnects_and_rebinding_leaves_one_observer",
+        "tests.ui.test_icon_provider_runtime::test_icon_only_filled_button_uses_inverse_icon[dark-danger]",
+        "tests.ui.test_icon_provider_runtime::test_icon_only_filled_button_uses_inverse_icon[dark-primary]",
+        "tests.ui.test_icon_provider_runtime::test_icon_only_filled_button_uses_inverse_icon[light-danger]",
+        "tests.ui.test_icon_provider_runtime::test_icon_only_filled_button_uses_inverse_icon[light-primary]",
+        "tests.ui.test_icon_provider_runtime::test_label_binding_tracks_enabled_state_and_accessible_name",
+        "tests.ui.test_icon_provider_runtime::test_label_refreshes_when_its_window_changes_screen",
+        "tests.ui.test_icon_provider_runtime::test_pixmap_preserves_logical_size_at_device_pixel_ratio[1.0]",
+        "tests.ui.test_icon_provider_runtime::test_pixmap_preserves_logical_size_at_device_pixel_ratio[1.25]",
+        "tests.ui.test_icon_provider_runtime::test_pixmap_preserves_logical_size_at_device_pixel_ratio[1.5]",
+        "tests.ui.test_icon_provider_runtime::test_pixmap_preserves_logical_size_at_device_pixel_ratio[2.0]",
+        "tests.ui.test_icon_provider_runtime::test_pixmap_preserves_logical_size_at_device_pixel_ratio[3.0]",
+        "tests.ui.test_icon_provider_runtime::test_rebinding_disconnects_the_original_manager",
+        "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[danger-DANGER_DEFAULT-dark]",
+        "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[danger-DANGER_DEFAULT-light]",
+        "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[info-INFO_DEFAULT-dark]",
+        "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[info-INFO_DEFAULT-light]",
+        "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[inverse-TEXT_INVERSE-dark]",
+        "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[inverse-TEXT_INVERSE-light]",
+        "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[success-SUCCESS_DEFAULT-dark]",
+        "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[success-SUCCESS_DEFAULT-light]",
+        "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[warning-WARNING_DEFAULT-dark]",
+        "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[warning-WARNING_DEFAULT-light]",
+        "tests.ui.test_icon_provider_runtime::test_vector_icon_renders_at_requested_size_without_raster_cap[128]",
+        "tests.ui.test_icon_provider_runtime::test_vector_icon_renders_at_requested_size_without_raster_cap[16]",
+        "tests.ui.test_icon_provider_runtime::test_vector_icon_renders_at_requested_size_without_raster_cap[20]",
+        "tests.ui.test_icon_provider_runtime::test_vector_icon_renders_at_requested_size_without_raster_cap[32]",
+        "tests.ui.test_icon_provider_runtime::test_vector_icon_renders_at_requested_size_without_raster_cap[64]",
+        "tests.ui.test_side_nav_icon_binding::test_open_flyout_refreshes_icons_and_preserves_destinations",
+        "tests.ui.test_theme_density_icons::test_all_catalog_icons_render_in_every_qicon_mode[dark]",
+        "tests.ui.test_theme_density_icons::test_all_catalog_icons_render_in_every_qicon_mode[light]",
+        "tests.ui.test_theme_density_icons::test_bound_icon_refreshes_with_theme",
+        "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[comfortable-dark]",
+        "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[comfortable-light]",
+        "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[compact-dark]",
+        "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[compact-light]",
+        "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[touch-dark]",
+        "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[touch-light]",
+        "tests.ui.test_theme_density_icons::test_keyboard_action_uses_keyboard_vector_instead_of_fallback_file",
+        "tests.ui.test_theme_density_icons::test_official_palette_anchors",
+        "tests.ui.test_theme_density_icons::test_responsive_kpis_remain_visible_and_keep_identity_after_resize",
+        "tests.ui.test_theme_density_icons::test_small_catalog_combobox_displays_selected_label",
+        "tests.ui.test_theme_density_icons::test_stale_qt_singleton_is_recreated",
+        "tests.ui.test_theme_density_icons::test_terminal_preferences_restore_before_constructing_controls",
+        "tests.ui.test_theme_manager_runtime::test_apply_notifies_only_after_theme_and_density_reach_qt",
+        "tests.ui.test_theme_manager_runtime::test_configuration_changes_live_theme_and_restores_it_on_restart",
+        "tests.ui.test_theme_manager_runtime::test_reapplying_the_same_theme_does_not_emit_duplicate_changes",
+        "tests.ui.test_theme_manager_runtime::test_restore_keeps_only_two_official_themes[ DARK -dark]",
+        "tests.ui.test_theme_manager_runtime::test_restore_keeps_only_two_official_themes[LIGHT-light]",
+        "tests.ui.test_theme_manager_runtime::test_restore_keeps_only_two_official_themes[sepia-light]",
+        "tests.ui.test_theme_manager_runtime::test_restore_refreshes_existing_icons_and_preserves_input_values"
+      ]
+    },
+    {
+      "name": "icon-provider-visuals",
+      "tests": 50,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[comfortable-dark-size0]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[comfortable-dark-size1]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[comfortable-dark-size2]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[comfortable-dark-size3]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[comfortable-dark-size4]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[comfortable-light-size0]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[comfortable-light-size1]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[comfortable-light-size2]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[comfortable-light-size3]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[comfortable-light-size4]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[touch-dark-size0]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[touch-dark-size1]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[touch-dark-size2]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[touch-dark-size3]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[touch-dark-size4]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[touch-light-size0]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[touch-light-size1]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[touch-light-size2]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[touch-light-size3]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[touch-light-size4]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[comfortable-dark-size0]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[comfortable-dark-size1]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[comfortable-dark-size2]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[comfortable-dark-size3]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[comfortable-dark-size4]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[comfortable-light-size0]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[comfortable-light-size1]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[comfortable-light-size2]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[comfortable-light-size3]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[comfortable-light-size4]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[touch-dark-size0]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[touch-dark-size1]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[touch-dark-size2]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[touch-dark-size3]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[touch-dark-size4]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[touch-light-size0]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[touch-light-size1]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[touch-light-size2]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[touch-light-size3]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[touch-light-size4]",
+        "tests.ui.test_icon_catalog_visuals::test_icon_catalog_states_render[0-dark]",
+        "tests.ui.test_icon_catalog_visuals::test_icon_catalog_states_render[0-light]",
+        "tests.ui.test_icon_catalog_visuals::test_icon_catalog_states_render[1-dark]",
+        "tests.ui.test_icon_catalog_visuals::test_icon_catalog_states_render[1-light]",
+        "tests.ui.test_icon_catalog_visuals::test_icon_catalog_states_render[2-dark]",
+        "tests.ui.test_icon_catalog_visuals::test_icon_catalog_states_render[2-light]",
+        "tests.ui.test_icon_catalog_visuals::test_icon_catalog_states_render[3-dark]",
+        "tests.ui.test_icon_catalog_visuals::test_icon_catalog_states_render[3-light]",
+        "tests.ui.test_icon_catalog_visuals::test_icon_catalog_states_render[4-dark]",
+        "tests.ui.test_icon_catalog_visuals::test_icon_catalog_states_render[4-light]"
+      ]
+    },
+    {
+      "name": "icon-provider-regression",
+      "tests": 270,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_accepts_canonical_composition_and_ignores_prose",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_accepts_explicit_scroll_and_keeps_web_colors_separate",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[button = QPushButton(\"\\\\U0001f514 Notificaciones\")-unicode_icon_literal]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[button = QPushButton()\\nbutton.setFixedHeight(32)-fixed_control_below_touch_target]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[button.setStyleSheet(style)-inline_qss]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class EditDialog(QDialog):\\n    pass-noncanonical_dialog]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class EditDialog(StandardDialog):\\n    def setup(self):\\n        self.setMinimumSize(1400, 900)-dialog_geometry_exceeds_smallest_viewport]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class KPICard(QWidget):\\n    pass-local_standard_component]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class LocalButton(QPushButton):\\n    def setup(self):\\n        self.setFont(font)-local_visual_control]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class LocalInput(QLineEdit):\\n    def paintEvent(self, event):\\n        pass-local_visual_control]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class LocalTable(QtWidgets.QTableWidget):\\n    pass-native_operational_table]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class OrdersView(QWidget):\\n    pass-screen_without_explicit_overflow]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class SalesPage(QWidget):\\n    pass-screen_without_explicit_overflow]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class SalesPageHeader(QWidget):\\n    pass-local_standard_component]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[color = \"#18372B\"-hardcoded_visual_hex]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[color = \"#ffffff\"-hardcoded_visual_hex]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[from PyQt5.QtWidgets import QTableWidget as Grid\\ntable = Grid()-native_operational_table]",
+        "tests.architecture.test_design_system_guardrails::test_brand_colors_only_in_theme_layer",
+        "tests.architecture.test_design_system_guardrails::test_charts_render_via_html_js_not_native",
+        "tests.architecture.test_design_system_guardrails::test_desktop_visual_debt_does_not_grow",
+        "tests.architecture.test_design_system_guardrails::test_existing_file_debt_cannot_hide_new_expressions_or_duplicate_occurrences",
+        "tests.architecture.test_design_system_guardrails::test_no_hardcoded_hex_in_components",
+        "tests.architecture.test_design_system_guardrails::test_no_inline_stylesheets_in_components",
+        "tests.architecture.test_design_system_guardrails::test_no_native_pyqt_charts_in_frontend",
+        "tests.architecture.test_design_system_guardrails::test_print_canvas_white_is_data_and_does_not_exempt_widget_colors",
+        "tests.architecture.test_design_system_guardrails::test_theme_layer_is_the_single_qss_source",
+        "tests.architecture.test_design_system_guardrails::test_time_input_builds_on_qtimeedit_not_qlineedit",
+        "tests.architecture.test_design_system_guardrails::test_visual_debt_baseline_is_exact_and_kept_pruned",
+        "tests.architecture.test_theme_contrast::test_categorical_chart_colors_are_distinct",
+        "tests.architecture.test_theme_contrast::test_disabled_text_is_dimmer_than_primary_text",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[DEFAULT-DANGER-Dark]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[DEFAULT-DANGER-Light]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[DEFAULT-PRIMARY-Dark]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[DEFAULT-PRIMARY-Light]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[HOVER-DANGER-Dark]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[HOVER-DANGER-Light]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[HOVER-PRIMARY-Dark]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[HOVER-PRIMARY-Light]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[PRESSED-DANGER-Dark]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[PRESSED-DANGER-Light]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[PRESSED-PRIMARY-Dark]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[PRESSED-PRIMARY-Light]",
+        "tests.architecture.test_theme_contrast::test_input_boundary_meets_ui_contrast_on_both_sides[BACKGROUND-Dark]",
+        "tests.architecture.test_theme_contrast::test_input_boundary_meets_ui_contrast_on_both_sides[BACKGROUND-Light]",
+        "tests.architecture.test_theme_contrast::test_input_boundary_meets_ui_contrast_on_both_sides[SURFACE-Dark]",
+        "tests.architecture.test_theme_contrast::test_input_boundary_meets_ui_contrast_on_both_sides[SURFACE-Light]",
+        "tests.architecture.test_theme_contrast::test_large_and_ui_pairs_meet_aa[dark-BORDER_STRONG-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_large_and_ui_pairs_meet_aa[dark-FOCUS_RING-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_large_and_ui_pairs_meet_aa[dark-TEXT_INVERSE-ACCENT_DEFAULT]",
+        "tests.architecture.test_theme_contrast::test_large_and_ui_pairs_meet_aa[light-BORDER_STRONG-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_large_and_ui_pairs_meet_aa[light-FOCUS_RING-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_light_primary_focus_ring_contrasts_with_fill_and_host[BACKGROUND]",
+        "tests.architecture.test_theme_contrast::test_light_primary_focus_ring_contrasts_with_fill_and_host[PRIMARY_DEFAULT]",
+        "tests.architecture.test_theme_contrast::test_light_primary_focus_ring_contrasts_with_fill_and_host[PRIMARY_HOVER]",
+        "tests.architecture.test_theme_contrast::test_light_primary_focus_ring_contrasts_with_fill_and_host[PRIMARY_PRESSED]",
+        "tests.architecture.test_theme_contrast::test_light_primary_focus_ring_contrasts_with_fill_and_host[SURFACE]",
+        "tests.architecture.test_theme_contrast::test_light_primary_focus_ring_contrasts_with_fill_and_host[SURFACE_ELEVATED]",
+        "tests.architecture.test_theme_contrast::test_light_primary_focus_ring_contrasts_with_fill_and_host[SURFACE_MUTED]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-ACCENT_TEXT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-DANGER_DEFAULT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-INFO_DEFAULT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-PRIMARY_DEFAULT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-SUCCESS_DEFAULT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-TEXT_MUTED-BACKGROUND]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-TEXT_MUTED-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-TEXT_PRIMARY-BACKGROUND]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-TEXT_PRIMARY-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-TEXT_SECONDARY-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-TOOLTIP_TEXT-TOOLTIP_BACKGROUND]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-WARNING_DEFAULT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-ACCENT_TEXT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-DANGER_DEFAULT-DANGER_SUBTLE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-DANGER_DEFAULT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-INFO_DEFAULT-INFO_SUBTLE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-INFO_DEFAULT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-PRIMARY_DEFAULT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-SUCCESS_DEFAULT-SUCCESS_SUBTLE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-SUCCESS_DEFAULT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-TEXT_MUTED-BACKGROUND]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-TEXT_MUTED-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-TEXT_MUTED-SURFACE_MUTED]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-TEXT_PRIMARY-ACCENT_DEFAULT]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-TEXT_PRIMARY-BACKGROUND]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-TEXT_PRIMARY-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-TEXT_SECONDARY-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-TOOLTIP_TEXT-TOOLTIP_BACKGROUND]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-WARNING_DEFAULT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-WARNING_DEFAULT-WARNING_SUBTLE]",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestChangeAppearancePreferenceStatusUseCase::test_activate_rejects_when_scope_already_occupied",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestChangeAppearancePreferenceStatusUseCase::test_deactivate_then_reactivate",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestChangeAppearancePreferenceStatusUseCase::test_raises_when_missing",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestChangeDensityProfileStatusUseCase::test_deactivate_then_activate",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestChangeThemeStatusUseCase::test_deactivate_then_activate",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateAppearancePreferenceUseCase::test_allows_different_scopes",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateAppearancePreferenceUseCase::test_creates_global_preference",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateAppearancePreferenceUseCase::test_rejects_second_active_preference_in_same_scope",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDensityProfileUseCase::test_creates_and_persists",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDensityProfileUseCase::test_rejects_duplicate_level",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDesignTokenUseCase::test_allows_same_key_in_different_scopes",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDesignTokenUseCase::test_creates_global_token",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDesignTokenUseCase::test_creates_theme_scoped_token",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDesignTokenUseCase::test_rejects_duplicate_key_in_same_scope",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateThemeUseCase::test_creates_and_persists",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateThemeUseCase::test_rejects_duplicate_code",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateDensityProfileUseCase::test_raises_when_missing",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateDensityProfileUseCase::test_updates_fields",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateDesignTokenUseCase::test_raises_when_missing",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateDesignTokenUseCase::test_updates_value",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateThemeUseCase::test_raises_when_missing",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateThemeUseCase::test_updates_name",
+        "tests.integration.appearance.test_appearance_repositories.TestAppearancePreferenceRepository::test_composes_with_resolution_policy_end_to_end",
+        "tests.integration.appearance.test_appearance_repositories.TestAppearancePreferenceRepository::test_save_get_roundtrip",
+        "tests.integration.appearance.test_appearance_repositories.TestAppearancePreferenceRepository::test_unique_index_blocks_two_active_preferences_for_same_scope",
+        "tests.integration.appearance.test_appearance_repositories.TestDensityProfileRepository::test_get_by_level",
+        "tests.integration.appearance.test_appearance_repositories.TestDensityProfileRepository::test_level_is_unique",
+        "tests.integration.appearance.test_appearance_repositories.TestDensityProfileRepository::test_save_get_roundtrip_preserves_decimal_scale_factor",
+        "tests.integration.appearance.test_appearance_repositories.TestDesignTokenRepository::test_composes_with_token_resolution_policy_end_to_end",
+        "tests.integration.appearance.test_appearance_repositories.TestDesignTokenRepository::test_save_get_roundtrip",
+        "tests.integration.appearance.test_appearance_repositories.TestDesignTokenRepository::test_scope_uniqueness_blocks_duplicate_key_for_same_theme",
+        "tests.integration.appearance.test_appearance_repositories.TestThemeRepository::test_code_is_unique",
+        "tests.integration.appearance.test_appearance_repositories.TestThemeRepository::test_get_by_code",
+        "tests.integration.appearance.test_appearance_repositories.TestThemeRepository::test_get_default",
+        "tests.integration.appearance.test_appearance_repositories.TestThemeRepository::test_list_active_excludes_inactive",
+        "tests.integration.appearance.test_appearance_repositories.TestThemeRepository::test_only_one_default_theme_allowed_at_schema_level",
+        "tests.integration.appearance.test_appearance_repositories.TestThemeRepository::test_save_get_roundtrip",
+        "tests.ui.shell.test_application_window::test_adding_notification_updates_top_bar_unread_count",
+        "tests.ui.shell.test_application_window::test_construction_applies_initial_context_to_chrome",
+        "tests.ui.shell.test_application_window::test_go_back_and_go_forward_update_content_host",
+        "tests.ui.shell.test_application_window::test_keep_alive_route_view_persists_across_navigation",
+        "tests.ui.shell.test_application_window::test_navigate_marks_degraded_offline_in_status_bar",
+        "tests.ui.shell.test_application_window::test_navigate_updates_content_host_and_breadcrumb",
+        "tests.ui.shell.test_application_window::test_notifications_toggle_button_opens_and_closes_drawer",
+        "tests.ui.shell.test_application_window::test_update_context_evicts_recreate_on_context_change_cache",
+        "tests.ui.shell.test_application_window::test_update_context_refreshes_top_bar_and_status_bar",
+        "tests.ui.shell.test_application_window_background::test_bound_service_is_started_at_construction",
+        "tests.ui.shell.test_application_window_background::test_supervisor_is_reachable_from_the_window_for_health_inspection",
+        "tests.ui.shell.test_application_window_background::test_unbound_registered_service_is_left_not_started",
+        "tests.ui.shell.test_application_window_background::test_window_without_service_supervisor_still_works",
+        "tests.ui.shell.test_application_window_loading::test_background_preload_module_is_loaded_with_default_synchronous_scheduler",
+        "tests.ui.shell.test_application_window_loading::test_eager_module_is_activated_at_construction",
+        "tests.ui.shell.test_application_window_loading::test_error_view_retry_button_re_navigates",
+        "tests.ui.shell.test_application_window_loading::test_failed_load_does_not_advance_router_history",
+        "tests.ui.shell.test_application_window_loading::test_failed_load_still_updates_breadcrumb_to_the_attempted_route",
+        "tests.ui.shell.test_application_window_loading::test_navigating_to_a_lazy_module_activates_it_on_first_navigation",
+        "tests.ui.shell.test_application_window_loading::test_navigating_to_a_module_that_fails_to_load_shows_an_error_view",
+        "tests.ui.shell.test_application_window_loading::test_retrying_after_activation_recovers_succeeds",
+        "tests.ui.shell.test_application_window_loading::test_window_without_module_loader_still_works",
+        "tests.ui.shell.test_application_window_shutdown::test_close_event_captures_a_failed_shutdown_result_without_raising",
+        "tests.ui.shell.test_application_window_shutdown::test_close_event_runs_the_shutdown_coordinator",
+        "tests.ui.shell.test_application_window_shutdown::test_close_event_stores_the_shutdown_result",
+        "tests.ui.shell.test_application_window_shutdown::test_window_without_shutdown_coordinator_close_event_does_not_raise",
+        "tests.ui.shell.test_application_window_sidebar::test_clicking_sidebar_item_navigates_the_window",
+        "tests.ui.shell.test_application_window_sidebar::test_navigating_the_window_highlights_the_matching_sidebar_row",
+        "tests.ui.shell.test_application_window_sidebar::test_navigating_via_window_does_not_trigger_a_second_navigation_from_the_sidebar",
+        "tests.ui.shell.test_application_window_sidebar::test_sidebar_is_mounted_when_provided",
+        "tests.ui.shell.test_application_window_sidebar::test_window_without_sidebar_still_works",
+        "tests.ui.shell.test_content_host::test_cached_oversized_page_does_not_force_overflow_on_the_next_page",
+        "tests.ui.shell.test_content_host::test_clear_empties_cache_and_current_route",
+        "tests.ui.shell.test_content_host::test_display_mounts_the_view_as_current_widget",
+        "tests.ui.shell.test_content_host::test_keep_alive_reuses_first_widget_on_later_navigation",
+        "tests.ui.shell.test_content_host::test_non_qwidget_view_does_not_raise_and_still_tracks_route_id",
+        "tests.ui.shell.test_content_host::test_on_context_changed_does_not_touch_keep_alive_routes",
+        "tests.ui.shell.test_content_host::test_page_with_own_scroll_and_wrapped_header_does_not_add_outer_scroll",
+        "tests.ui.shell.test_content_host::test_recreate_on_context_change_is_evicted_by_on_context_changed",
+        "tests.ui.shell.test_content_host::test_recreate_on_context_change_survives_ordinary_navigation",
+        "tests.ui.shell.test_content_host::test_recreate_on_navigation_replaces_widget_and_discards_old_one",
+        "tests.ui.shell.test_content_host::test_repeated_navigation_to_recreate_on_navigation_route_does_not_leak_stack_entries",
+        "tests.ui.shell.test_content_host::test_singleton_reuses_first_widget_forever",
+        "tests.ui.shell.test_content_host_loading::test_after_load_failed_a_successful_retry_caches_normally",
+        "tests.ui.shell.test_content_host_loading::test_display_after_preload_reuses_the_preloaded_widget",
+        "tests.ui.shell.test_content_host_loading::test_load_failed_does_not_evict_a_previously_cached_good_view",
+        "tests.ui.shell.test_content_host_loading::test_load_failed_view_is_not_cached",
+        "tests.ui.shell.test_content_host_loading::test_load_failed_view_is_shown",
+        "tests.ui.shell.test_content_host_loading::test_preload_caches_without_changing_current_route",
+        "tests.ui.shell.test_content_host_loading::test_preload_of_non_sticky_policy_discards_the_view",
+        "tests.ui.shell.test_content_host_loading::test_preloading_a_second_route_does_not_steal_focus_from_a_displayed_one",
+        "tests.ui.shell.test_content_host_loading::test_preloading_an_already_cached_route_is_a_no_op",
+        "tests.ui.shell.test_content_host_loading::test_repeated_load_failures_do_not_leak_error_widgets",
+        "tests.ui.shell.test_global_sidebar::test_badge_count_is_reflected_in_the_underlying_side_nav_item_text",
+        "tests.ui.shell.test_global_sidebar::test_clearing_search_restores_full_list",
+        "tests.ui.shell.test_global_sidebar::test_clicking_a_group_header_row_does_not_emit_item_activated",
+        "tests.ui.shell.test_global_sidebar::test_clicking_a_row_emits_item_activated_with_its_route_id",
+        "tests.ui.shell.test_global_sidebar::test_grouped_items_add_a_non_interactive_header_row",
+        "tests.ui.shell.test_global_sidebar::test_search_changed_filters_visible_items",
+        "tests.ui.shell.test_global_sidebar::test_set_active_route_selects_the_matching_row_without_reemitting",
+        "tests.ui.shell.test_global_sidebar::test_set_active_route_with_unknown_route_id_is_a_no_op",
+        "tests.ui.shell.test_global_sidebar::test_set_items_after_search_is_applied_reapplies_the_active_query",
+        "tests.ui.shell.test_global_sidebar::test_set_items_populates_the_list",
+        "tests.ui.shell.test_global_sidebar::test_starts_empty",
+        "tests.ui.shell.test_module_error_view::test_shows_module_id_and_error_in_message",
+        "tests.ui.shell.test_module_error_view::test_with_on_retry_clicking_the_button_invokes_the_callback",
+        "tests.ui.shell.test_module_error_view::test_without_on_retry_there_is_no_retry_button",
+        "tests.ui.shell.test_notification_drawer::test_activating_list_item_marks_read_and_emits_notification_activated",
+        "tests.ui.shell.test_notification_drawer::test_add_notification_already_read_does_not_count_as_unread",
+        "tests.ui.shell.test_notification_drawer::test_add_notification_increases_unread_count",
+        "tests.ui.shell.test_notification_drawer::test_clear_removes_everything",
+        "tests.ui.shell.test_notification_drawer::test_close_when_already_closed_does_not_emit_closed_signal",
+        "tests.ui.shell.test_notification_drawer::test_close_when_open_emits_closed_signal",
+        "tests.ui.shell.test_notification_drawer::test_mark_read_decreases_unread_count",
+        "tests.ui.shell.test_notification_drawer::test_mark_read_unknown_id_is_a_no_op",
+        "tests.ui.shell.test_notification_drawer::test_open_close_toggle_track_is_open_without_show",
+        "tests.ui.shell.test_notification_drawer::test_starts_closed_and_empty",
+        "tests.ui.shell.test_notification_drawer::test_unread_count_changed_emits_on_add_and_mark_read",
+        "tests.ui.shell.test_shell_ui_contracts::test_module_group_collapses_without_changing_route_indices",
+        "tests.ui.shell.test_shell_ui_contracts::test_module_sidebar_persists_collapsed_groups",
+        "tests.ui.shell.test_shell_ui_contracts::test_settings_button_opens_registered_route_and_respects_permissions[permissions0]",
+        "tests.ui.shell.test_shell_ui_contracts::test_settings_button_opens_registered_route_and_respects_permissions[permissions1]",
+        "tests.ui.shell.test_shell_ui_contracts::test_settings_button_opens_registered_route_and_respects_permissions[permissions2]",
+        "tests.ui.shell.test_shell_ui_contracts::test_settings_denial_from_router_is_handled_in_qt_slot",
+        "tests.ui.shell.test_shell_ui_contracts::test_sidebar_collapse_restores_route_and_keeps_toggle_reachable",
+        "tests.ui.shell.test_shell_ui_contracts::test_sidebar_search_render_does_not_emit_navigation",
+        "tests.ui.shell.test_shell_ui_contracts::test_topbar_actions_and_session_are_accessible",
+        "tests.ui.shell.test_status_bar::test_default_connectivity_text_is_online",
+        "tests.ui.shell.test_status_bar::test_degraded_flag_takes_priority_over_offline_status",
+        "tests.ui.shell.test_status_bar::test_offline_status_shows_sin_conexion",
+        "tests.ui.shell.test_status_bar::test_online_but_degraded_route_shows_conexion_limitada",
+        "tests.ui.shell.test_status_bar::test_online_not_degraded_shows_en_linea",
+        "tests.ui.shell.test_status_bar::test_set_workstation_shows_branch_and_workstation_id",
+        "tests.ui.shell.test_top_bar::test_breadcrumb_starts_empty",
+        "tests.ui.shell.test_top_bar::test_notifications_button_click_emits_toggle_signal",
+        "tests.ui.shell.test_top_bar::test_set_breadcrumb_empty_tuple_clears_text",
+        "tests.ui.shell.test_top_bar::test_set_breadcrumb_joins_with_separator",
+        "tests.ui.shell.test_top_bar::test_set_context_shows_branch_and_user",
+        "tests.ui.shell.test_top_bar::test_set_unread_notification_count_updates_tooltip",
+        "tests.ui.shell.test_top_bar::test_unread_notification_count_starts_at_zero",
+        "tests.ui.test_responsive_components::test_keyboard_attach_is_idempotent_and_destructive_default_is_cancel",
+        "tests.ui.test_responsive_components::test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[decimal]",
+        "tests.ui.test_responsive_components::test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[email]",
+        "tests.ui.test_responsive_components::test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[integer]",
+        "tests.ui.test_responsive_components::test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[money]",
+        "tests.ui.test_responsive_components::test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[phone]",
+        "tests.ui.test_responsive_components::test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[text]",
+        "tests.ui.test_responsive_components::test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[weight]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution0]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution1]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution2]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution3]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution4]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution0]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution1]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution2]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution3]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution4]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution0]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution1]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution2]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution3]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution4]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution0]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution1]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution2]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution3]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution4]",
+        "tests.ui.test_responsive_components::test_page_viewport_scrolls_oversized_content_in_both_directions",
+        "tests.ui.test_responsive_components::test_pricing_scroll_preserves_lazy_routes_when_opened_out_of_order",
+        "tests.ui.test_responsive_components::test_runtime_density_updates_existing_inputs_tables_and_tabs",
+        "tests.ui.test_responsive_components::test_table_filter_loading_and_manual_population_state",
+        "tests.ui.test_responsive_components::test_table_minimum_width_scroll_visibility_and_saved_width_survive_resize",
+        "tests.ui.test_responsive_components::test_table_rejects_incomplete_rows_without_destroying_existing_data",
+        "tests.ui.test_responsive_components::test_table_reload_while_sorted_keeps_each_uuid_with_all_of_its_values",
+        "tests.ui.test_responsive_components::test_virtual_keyboard_keeps_touch_targets_after_global_density_changes",
+        "tests.ui.test_responsive_components::test_virtual_keyboard_preserves_validation_selection_and_read_only",
+        "tests.ui.test_responsive_components::test_wizard_prevents_navigation_past_first_or_last_step",
+        "tests.ui.test_responsive_components::test_yield_monitoring_uses_page_scroll_without_eager_queries",
+        "tests.unit.test_apariencia_page.TestAparienciaFullLoop::test_create_theme_token_density_and_preference",
+        "tests.unit.test_apariencia_page.TestAparienciaPageLoadsRealData::test_density_profiles_table_loads_real_profiles",
+        "tests.unit.test_apariencia_page.TestAparienciaPageLoadsRealData::test_selecting_a_theme_loads_its_tokens",
+        "tests.unit.test_apariencia_page.TestAparienciaPageLoadsRealData::test_themes_table_loads_all_themes_including_inactive",
+        "tests.unit.test_apariencia_page.TestAparienciaPageStructure::test_builds_via_the_real_route",
+        "tests.unit.test_apariencia_page.TestAparienciaPageStructure::test_buttons_present"
+      ]
+    },
+    {
+      "name": "icon-provider-catalog-label",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "tests.ui.test_icon_catalog_visuals::test_icon_catalog_states_render[1-dark]",
+        "tests.ui.test_icon_catalog_visuals::test_icon_catalog_states_render[1-light]"
+      ]
+    },
+    {
+      "name": "icon-provider-catalog-guard",
+      "tests": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "tests.architecture.test_icon_catalog::test_catalog_has_vector_and_spanish_accessibility_name_for_every_constant",
+        "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[IconButton(\"missing\", \"Descripci\\xf3n\")-expected7]",
+        "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[IconProvider.icon(\"missing\")-expected4]",
+        "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[PageHeader(icon=getattr(Icons, \"MISSING\", None))-expected2]",
+        "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[PageHeader(title=\"missing\", icon=\"search\")-expected1]",
+        "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[class SectionNavEntry:\\n page_id: str\\n title: str\\n icon: str\\nSectionNavEntry(\"page\", \"Etiqueta\", \"missing\")-expected0]",
+        "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[from frontend.desktop.components.icons import IconProvider as IP\\nIP.bind(button, \"missing\")-expected5]",
+        "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[from frontend.desktop.components.icons import Icons as I\\nPageHeader(icon=I.MISSING)-expected6]",
+        "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[nav.add_section(\"Etiqueta\", \"search\")-expected3]",
+        "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[text = \"Icons.MISSING\"\\nvalue = {\"icon\": \"external data\"}-expected8]",
+        "tests.architecture.test_icon_catalog::test_navigation_and_headers_only_request_registered_icons"
+      ]
+    }
+  ],
+  "icons": [
+    {
+      "identifier": "home",
+      "accessible_name": "Inicio"
+    },
+    {
+      "identifier": "chevron_left",
+      "accessible_name": "Contraer"
+    },
+    {
+      "identifier": "chevron_right",
+      "accessible_name": "Expandir"
+    },
+    {
+      "identifier": "chevron_down",
+      "accessible_name": "Desplegar"
+    },
+    {
+      "identifier": "user",
+      "accessible_name": "Usuario"
+    },
+    {
+      "identifier": "logout",
+      "accessible_name": "Cerrar sesión"
+    },
+    {
+      "identifier": "lock",
+      "accessible_name": "Bloquear sesión"
+    },
+    {
+      "identifier": "file",
+      "accessible_name": "Archivo"
+    },
+    {
+      "identifier": "check",
+      "accessible_name": "Confirmar"
+    },
+    {
+      "identifier": "products",
+      "accessible_name": "Productos"
+    },
+    {
+      "identifier": "inventory",
+      "accessible_name": "Inventario"
+    },
+    {
+      "identifier": "production",
+      "accessible_name": "Producción"
+    },
+    {
+      "identifier": "purchases",
+      "accessible_name": "Compras"
+    },
+    {
+      "identifier": "sales",
+      "accessible_name": "Ventas"
+    },
+    {
+      "identifier": "customers",
+      "accessible_name": "Clientes"
+    },
+    {
+      "identifier": "cash",
+      "accessible_name": "Caja"
+    },
+    {
+      "identifier": "finance",
+      "accessible_name": "Finanzas"
+    },
+    {
+      "identifier": "delivery",
+      "accessible_name": "Reparto"
+    },
+    {
+      "identifier": "hr",
+      "accessible_name": "Recursos Humanos"
+    },
+    {
+      "identifier": "settings",
+      "accessible_name": "Configuración"
+    },
+    {
+      "identifier": "transfers",
+      "accessible_name": "Transferencias"
+    },
+    {
+      "identifier": "loyalty",
+      "accessible_name": "Fidelización"
+    },
+    {
+      "identifier": "loyalty_cards",
+      "accessible_name": "Tarjetas de fidelidad"
+    },
+    {
+      "identifier": "assets",
+      "accessible_name": "Activos"
+    },
+    {
+      "identifier": "maintenance",
+      "accessible_name": "Mantenimiento"
+    },
+    {
+      "identifier": "analytics",
+      "accessible_name": "Inteligencia de Negocios"
+    },
+    {
+      "identifier": "add",
+      "accessible_name": "Agregar"
+    },
+    {
+      "identifier": "edit",
+      "accessible_name": "Editar"
+    },
+    {
+      "identifier": "delete",
+      "accessible_name": "Eliminar"
+    },
+    {
+      "identifier": "search",
+      "accessible_name": "Buscar"
+    },
+    {
+      "identifier": "refresh",
+      "accessible_name": "Actualizar"
+    },
+    {
+      "identifier": "export",
+      "accessible_name": "Exportar"
+    },
+    {
+      "identifier": "print",
+      "accessible_name": "Imprimir"
+    },
+    {
+      "identifier": "close",
+      "accessible_name": "Cerrar"
+    },
+    {
+      "identifier": "notifications",
+      "accessible_name": "Notificaciones"
+    },
+    {
+      "identifier": "warning",
+      "accessible_name": "Advertencia"
+    },
+    {
+      "identifier": "success",
+      "accessible_name": "Éxito"
+    },
+    {
+      "identifier": "error",
+      "accessible_name": "Error"
+    },
+    {
+      "identifier": "info",
+      "accessible_name": "Información"
+    },
+    {
+      "identifier": "calendar",
+      "accessible_name": "Calendario"
+    },
+    {
+      "identifier": "clock",
+      "accessible_name": "Hora"
+    },
+    {
+      "identifier": "phone",
+      "accessible_name": "Teléfono"
+    },
+    {
+      "identifier": "address",
+      "accessible_name": "Dirección"
+    },
+    {
+      "identifier": "keyboard",
+      "accessible_name": "Mostrar teclado en pantalla"
+    },
+    {
+      "identifier": "numeric_keypad",
+      "accessible_name": "Mostrar teclado numérico"
+    },
+    {
+      "identifier": "activity",
+      "accessible_name": "Actividad"
+    },
+    {
+      "identifier": "adjustment",
+      "accessible_name": "Ajustes"
+    },
+    {
+      "identifier": "alert",
+      "accessible_name": "Alerta"
+    },
+    {
+      "identifier": "animal_lot",
+      "accessible_name": "Lote de animales"
+    },
+    {
+      "identifier": "approval",
+      "accessible_name": "Aprobación"
+    },
+    {
+      "identifier": "audit",
+      "accessible_name": "Auditoría"
+    },
+    {
+      "identifier": "barcode",
+      "accessible_name": "Código de barras"
+    },
+    {
+      "identifier": "bell",
+      "accessible_name": "Notificaciones"
+    },
+    {
+      "identifier": "branch",
+      "accessible_name": "Sucursal"
+    },
+    {
+      "identifier": "bundle",
+      "accessible_name": "Paquete de productos"
+    },
+    {
+      "identifier": "carcass",
+      "accessible_name": "Canal cárnica"
+    },
+    {
+      "identifier": "catalog",
+      "accessible_name": "Catálogo"
+    },
+    {
+      "identifier": "category",
+      "accessible_name": "Categorías"
+    },
+    {
+      "identifier": "chart",
+      "accessible_name": "Gráfica"
+    },
+    {
+      "identifier": "checklist",
+      "accessible_name": "Lista de verificación"
+    },
+    {
+      "identifier": "cold",
+      "accessible_name": "Enfriamiento"
+    },
+    {
+      "identifier": "company",
+      "accessible_name": "Empresa"
+    },
+    {
+      "identifier": "condemn",
+      "accessible_name": "Decomiso"
+    },
+    {
+      "identifier": "cost",
+      "accessible_name": "Costo"
+    },
+    {
+      "identifier": "count",
+      "accessible_name": "Conteo"
+    },
+    {
+      "identifier": "cut",
+      "accessible_name": "Corte"
+    },
+    {
+      "identifier": "cutting",
+      "accessible_name": "Despiece"
+    },
+    {
+      "identifier": "dashboard",
+      "accessible_name": "Resumen"
+    },
+    {
+      "identifier": "derived",
+      "accessible_name": "Productos derivados"
+    },
+    {
+      "identifier": "device",
+      "accessible_name": "Dispositivos"
+    },
+    {
+      "identifier": "difference",
+      "accessible_name": "Diferencias"
+    },
+    {
+      "identifier": "dispatch",
+      "accessible_name": "Despacho"
+    },
+    {
+      "identifier": "display",
+      "accessible_name": "Pantalla"
+    },
+    {
+      "identifier": "disposal",
+      "accessible_name": "Disposición"
+    },
+    {
+      "identifier": "document",
+      "accessible_name": "Documento"
+    },
+    {
+      "identifier": "driver",
+      "accessible_name": "Repartidor"
+    },
+    {
+      "identifier": "expiry",
+      "accessible_name": "Caducidad"
+    },
+    {
+      "identifier": "external",
+      "accessible_name": "Catálogo externo"
+    },
+    {
+      "identifier": "failed",
+      "accessible_name": "Fallido"
+    },
+    {
+      "identifier": "flag",
+      "accessible_name": "Bandera"
+    },
+    {
+      "identifier": "forecast",
+      "accessible_name": "Pronóstico"
+    },
+    {
+      "identifier": "grade",
+      "accessible_name": "Clasificación"
+    },
+    {
+      "identifier": "import",
+      "accessible_name": "Importación"
+    },
+    {
+      "identifier": "incident",
+      "accessible_name": "Incidencia"
+    },
+    {
+      "identifier": "inspection",
+      "accessible_name": "Inspección"
+    },
+    {
+      "identifier": "integration",
+      "accessible_name": "Integraciones"
+    },
+    {
+      "identifier": "internal",
+      "accessible_name": "Producto interno"
+    },
+    {
+      "identifier": "investigation",
+      "accessible_name": "Investigación"
+    },
+    {
+      "identifier": "kitchen",
+      "accessible_name": "Preparación"
+    },
+    {
+      "identifier": "list",
+      "accessible_name": "Lista"
+    },
+    {
+      "identifier": "location",
+      "accessible_name": "Ubicación"
+    },
+    {
+      "identifier": "lot",
+      "accessible_name": "Lote"
+    },
+    {
+      "identifier": "lots",
+      "accessible_name": "Lotes"
+    },
+    {
+      "identifier": "material",
+      "accessible_name": "Materiales"
+    },
+    {
+      "identifier": "meat",
+      "accessible_name": "Producto cárnico"
+    },
+    {
+      "identifier": "movements",
+      "accessible_name": "Movimientos"
+    },
+    {
+      "identifier": "offline",
+      "accessible_name": "Sin conexión"
+    },
+    {
+      "identifier": "orders",
+      "accessible_name": "Órdenes"
+    },
+    {
+      "identifier": "package",
+      "accessible_name": "Empaque"
+    },
+    {
+      "identifier": "pending",
+      "accessible_name": "Pendiente"
+    },
+    {
+      "identifier": "picking",
+      "accessible_name": "Preparar mercancía"
+    },
+    {
+      "identifier": "pickup",
+      "accessible_name": "Recoger pedido"
+    },
+    {
+      "identifier": "price",
+      "accessible_name": "Precio"
+    },
+    {
+      "identifier": "purchase",
+      "accessible_name": "Compra"
+    },
+    {
+      "identifier": "quality",
+      "accessible_name": "Calidad"
+    },
+    {
+      "identifier": "receipt",
+      "accessible_name": "Recepción"
+    },
+    {
+      "identifier": "receiving",
+      "accessible_name": "Recibir mercancía"
+    },
+    {
+      "identifier": "recipe",
+      "accessible_name": "Receta"
+    },
+    {
+      "identifier": "recommendation",
+      "accessible_name": "Recomendación"
+    },
+    {
+      "identifier": "recovery",
+      "accessible_name": "Recuperación"
+    },
+    {
+      "identifier": "redo",
+      "accessible_name": "Reintentar"
+    },
+    {
+      "identifier": "replenishment",
+      "accessible_name": "Reposición"
+    },
+    {
+      "identifier": "report",
+      "accessible_name": "Reporte"
+    },
+    {
+      "identifier": "request",
+      "accessible_name": "Solicitud"
+    },
+    {
+      "identifier": "reservation",
+      "accessible_name": "Reserva"
+    },
+    {
+      "identifier": "return",
+      "accessible_name": "Devolución"
+    },
+    {
+      "identifier": "rework",
+      "accessible_name": "Reproceso"
+    },
+    {
+      "identifier": "route",
+      "accessible_name": "Ruta"
+    },
+    {
+      "identifier": "scale",
+      "accessible_name": "Báscula"
+    },
+    {
+      "identifier": "scenario",
+      "accessible_name": "Escenario"
+    },
+    {
+      "identifier": "schedule",
+      "accessible_name": "Programación"
+    },
+    {
+      "identifier": "settlement",
+      "accessible_name": "Liquidación"
+    },
+    {
+      "identifier": "species",
+      "accessible_name": "Especie"
+    },
+    {
+      "identifier": "suggestion",
+      "accessible_name": "Sugerencia"
+    },
+    {
+      "identifier": "supplier",
+      "accessible_name": "Proveedor"
+    },
+    {
+      "identifier": "tasks",
+      "accessible_name": "Tareas"
+    },
+    {
+      "identifier": "temperature",
+      "accessible_name": "Temperatura"
+    },
+    {
+      "identifier": "theme",
+      "accessible_name": "Apariencia"
+    },
+    {
+      "identifier": "trace",
+      "accessible_name": "Trazabilidad"
+    },
+    {
+      "identifier": "traceability",
+      "accessible_name": "Trazabilidad"
+    },
+    {
+      "identifier": "tracking",
+      "accessible_name": "Seguimiento"
+    },
+    {
+      "identifier": "transfer",
+      "accessible_name": "Transferencia"
+    },
+    {
+      "identifier": "transit",
+      "accessible_name": "En tránsito"
+    },
+    {
+      "identifier": "unit",
+      "accessible_name": "Unidad de medida"
+    },
+    {
+      "identifier": "users",
+      "accessible_name": "Usuarios"
+    },
+    {
+      "identifier": "warehouse",
+      "accessible_name": "Almacén"
+    },
+    {
+      "identifier": "waste",
+      "accessible_name": "Merma"
+    },
+    {
+      "identifier": "yield",
+      "accessible_name": "Rendimiento"
+    }
+  ],
+  "identifiers": 138,
+  "unique_vectors": 99,
+  "navigation_declarations": 159,
+  "audit": {
+    "new_violations": 0,
+    "stale_baseline_entries": 0,
+    "existing_occurrences": 159,
+    "rules": {
+      "noncanonical_dialog": {
+        "occurrences": 35,
+        "files": 24
+      },
+      "screen_without_explicit_overflow": {
+        "occurrences": 110,
+        "files": 109
+      },
+      "unicode_icon_literal": {
+        "occurrences": 14,
+        "files": 7
+      }
+    }
+  },
+  "screenshots": [
+    {
+      "name": "catalog-dark-1.png",
+      "sha256": "d4b847bb54a831f4f7082315da2fdd042442dfa2f94a287c889c83450ba8f456"
+    },
+    {
+      "name": "catalog-dark-2.png",
+      "sha256": "49f8c0792c436d00bd2d10509ff9bf38b391d96bc8b4c84aa4fdfa4e27f6a0b9"
+    },
+    {
+      "name": "catalog-dark-3.png",
+      "sha256": "e5db55fb0f5f4554f10c0fbaf346845fc2e937a0a52cb65577541043f79c8848"
+    },
+    {
+      "name": "catalog-dark-4.png",
+      "sha256": "4459d36b6b5fb1b207bb5cc997b1c89433f5a6f7cef72e4265ef85897987c784"
+    },
+    {
+      "name": "catalog-dark-5.png",
+      "sha256": "bf17ee81baa4ecf159508a867cdf2143d13d43a8a8ad36241b5ad036719fc13c"
+    },
+    {
+      "name": "catalog-light-1.png",
+      "sha256": "bd8dea6ad7e53577436c5effc2567ba9b1ba6b15c1495a6ea49915cdf7993e45"
+    },
+    {
+      "name": "catalog-light-2.png",
+      "sha256": "eb115b1714dfa923ff7b1c6e01711e36c0610ea6e75a4de7bd9d4f1087bdeb3c"
+    },
+    {
+      "name": "catalog-light-3.png",
+      "sha256": "b456ad6e041fdba61602ab30be60474396f6f063b917ca66e9b4422dcc581e22"
+    },
+    {
+      "name": "catalog-light-4.png",
+      "sha256": "2e94c65851b63e6b5b3b1bab2ee95ceb6fb1a4db35b9761ca1f8d720d5811be7"
+    },
+    {
+      "name": "catalog-light-5.png",
+      "sha256": "89aeb05296aba2f153abb4f2e8d3e4599f36d9a0a9c0863aebb8f0c2bbc2ea5b"
+    },
+    {
+      "name": "dark-comfortable-1280x720-collapsed-notifications.png",
+      "sha256": "00f7eb5d9d7f47341fb35ebeb33016f0b3ea90df59ddd80cc500588191da7e7d"
+    },
+    {
+      "name": "dark-comfortable-1280x720-expanded.png",
+      "sha256": "54058391986465c70f691785816e0789804e5629f2e8d6197e98dd05998ed309"
+    },
+    {
+      "name": "dark-comfortable-1280x720-file-menu.png",
+      "sha256": "78f7c7da78031079dd60049fbea242203a3c7480e637db55e7613763a762edf2"
+    },
+    {
+      "name": "dark-comfortable-1280x720-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "name": "dark-comfortable-1280x720-login.png",
+      "sha256": "f92251db78a9eea682631340868cb0e4893f67790ee1dfba6d96e577698d027f"
+    },
+    {
+      "name": "dark-comfortable-1280x720-module-collapsed-form.png",
+      "sha256": "f86462258c9895a461648149d1cb7deff35590f358f7b9c57db751ea87a82c79"
+    },
+    {
+      "name": "dark-comfortable-1280x720-module-expanded.png",
+      "sha256": "d4b382d1f9ec13b78318000daf6d2d3b7e61547149e49402b6d8fd65bdd93313"
+    },
+    {
+      "name": "dark-comfortable-1280x720-module-flyout.png",
+      "sha256": "1fbad5e86dbbc362abe8af912e7dfd789dc7dc957df1c2c0c765331dbf754c40"
+    },
+    {
+      "name": "dark-comfortable-1280x720-module-group-collapsed.png",
+      "sha256": "83bfc5f96a10a1bc49a1f97e76edca6dd1910986ef3dd892c5a9425d672d8510"
+    },
+    {
+      "name": "dark-comfortable-1280x720-scrolled.png",
+      "sha256": "02e3065da0e73ad57743666cf30a40b15aab1d8c1e832e30b8ef1013af8ef56c"
+    },
+    {
+      "name": "dark-comfortable-1366x768-collapsed-notifications.png",
+      "sha256": "2157c0cf352e949393741d3a413699caf3cccbe281d70ca01687969564eff753"
+    },
+    {
+      "name": "dark-comfortable-1366x768-expanded.png",
+      "sha256": "587f7ba8f108e18f0f79e94334827dde6035badf3b8bdcaf917281884ddc4e49"
+    },
+    {
+      "name": "dark-comfortable-1366x768-file-menu.png",
+      "sha256": "78f7c7da78031079dd60049fbea242203a3c7480e637db55e7613763a762edf2"
+    },
+    {
+      "name": "dark-comfortable-1366x768-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "name": "dark-comfortable-1366x768-login.png",
+      "sha256": "f92251db78a9eea682631340868cb0e4893f67790ee1dfba6d96e577698d027f"
+    },
+    {
+      "name": "dark-comfortable-1366x768-module-collapsed-form.png",
+      "sha256": "28ba708a60adaa6647138fff536e5e1f9098f4cf5c423b21936e715153e1da44"
+    },
+    {
+      "name": "dark-comfortable-1366x768-module-expanded.png",
+      "sha256": "ab1da044969754d7503af76d01f2ff625a8e32d34540164cf9ae141edbe9eadd"
+    },
+    {
+      "name": "dark-comfortable-1366x768-module-flyout.png",
+      "sha256": "1fbad5e86dbbc362abe8af912e7dfd789dc7dc957df1c2c0c765331dbf754c40"
+    },
+    {
+      "name": "dark-comfortable-1366x768-module-group-collapsed.png",
+      "sha256": "29ef91964d55773a2c15b8b8a2adee8570f293ba90f8d6cf9ada460a668ab97f"
+    },
+    {
+      "name": "dark-comfortable-1366x768-scrolled.png",
+      "sha256": "74dc0ea8ecf2dd1cdca0e99499992ed2dc692ee9f90c3922e21c8cad94ef5be5"
+    },
+    {
+      "name": "dark-comfortable-1440x900-collapsed-notifications.png",
+      "sha256": "373e325714fc3371451712abd1ec8e6c2c1aac3d303cbfaec4b3f0fc1e6781c4"
+    },
+    {
+      "name": "dark-comfortable-1440x900-expanded.png",
+      "sha256": "d0a9f69fd48aca69b45e78ef9d661e2c094ae4ea4c5be26574432afaad2ad95b"
+    },
+    {
+      "name": "dark-comfortable-1440x900-file-menu.png",
+      "sha256": "78f7c7da78031079dd60049fbea242203a3c7480e637db55e7613763a762edf2"
+    },
+    {
+      "name": "dark-comfortable-1440x900-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "name": "dark-comfortable-1440x900-login.png",
+      "sha256": "f92251db78a9eea682631340868cb0e4893f67790ee1dfba6d96e577698d027f"
+    },
+    {
+      "name": "dark-comfortable-1440x900-module-collapsed-form.png",
+      "sha256": "39ef4e7ad2cce35fa05e20cabfa60645d93a378a576f18550955470e2b18ca56"
+    },
+    {
+      "name": "dark-comfortable-1440x900-module-expanded.png",
+      "sha256": "afac3b75eedb705fe453b947d08aef606c8799e46f384277db5b1f8fb234beb4"
+    },
+    {
+      "name": "dark-comfortable-1440x900-module-flyout.png",
+      "sha256": "1fbad5e86dbbc362abe8af912e7dfd789dc7dc957df1c2c0c765331dbf754c40"
+    },
+    {
+      "name": "dark-comfortable-1440x900-module-group-collapsed.png",
+      "sha256": "a9d6139162f9e035466f855c41e82b00ed9a130fe740439102f4719f3ee2ec9c"
+    },
+    {
+      "name": "dark-comfortable-1440x900-scrolled.png",
+      "sha256": "33d601dde84b7f0d91cda80e49f3afe541a9939dae33a7123fb77ece41a59219"
+    },
+    {
+      "name": "dark-comfortable-1600x900-collapsed-notifications.png",
+      "sha256": "7f9a0d642bad198c067f72f73a1eb40285566d351ec88262a986338964d99139"
+    },
+    {
+      "name": "dark-comfortable-1600x900-expanded.png",
+      "sha256": "4b7fc2395e4ab3942175a10cd5925f04c3db05e8f27dabefeda0938d355c4c72"
+    },
+    {
+      "name": "dark-comfortable-1600x900-file-menu.png",
+      "sha256": "78f7c7da78031079dd60049fbea242203a3c7480e637db55e7613763a762edf2"
+    },
+    {
+      "name": "dark-comfortable-1600x900-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "name": "dark-comfortable-1600x900-login.png",
+      "sha256": "f92251db78a9eea682631340868cb0e4893f67790ee1dfba6d96e577698d027f"
+    },
+    {
+      "name": "dark-comfortable-1600x900-module-collapsed-form.png",
+      "sha256": "6472ce5e46e4fde05c125a91db40c5bc86693ec6213ddb875622829a7343c6d5"
+    },
+    {
+      "name": "dark-comfortable-1600x900-module-expanded.png",
+      "sha256": "3464d6a9d147a7296cd103acdfa9adb30e2220867ac92592b24a5c670d3eebed"
+    },
+    {
+      "name": "dark-comfortable-1600x900-module-flyout.png",
+      "sha256": "1fbad5e86dbbc362abe8af912e7dfd789dc7dc957df1c2c0c765331dbf754c40"
+    },
+    {
+      "name": "dark-comfortable-1600x900-module-group-collapsed.png",
+      "sha256": "2b67b9995f07c8f3c9ab7efddf0c1b5c9f812e87de2a97df65d31e604585ef0b"
+    },
+    {
+      "name": "dark-comfortable-1600x900-scrolled.png",
+      "sha256": "ee63eba05ac531f4764379bc316a59ac34e6a2398870d0f77c1fda5f655d1836"
+    },
+    {
+      "name": "dark-comfortable-1920x1080-collapsed-notifications.png",
+      "sha256": "1853b4dece5493e85a7fe2d5db3cb6846aea0e9ee566ab56987d65073605e140"
+    },
+    {
+      "name": "dark-comfortable-1920x1080-expanded.png",
+      "sha256": "a50c7f764bc52d7395180abc6e2e8d80b17019d9bd71ce49e8c9f2993a38c1db"
+    },
+    {
+      "name": "dark-comfortable-1920x1080-file-menu.png",
+      "sha256": "78f7c7da78031079dd60049fbea242203a3c7480e637db55e7613763a762edf2"
+    },
+    {
+      "name": "dark-comfortable-1920x1080-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "name": "dark-comfortable-1920x1080-login.png",
+      "sha256": "f92251db78a9eea682631340868cb0e4893f67790ee1dfba6d96e577698d027f"
+    },
+    {
+      "name": "dark-comfortable-1920x1080-module-collapsed-form.png",
+      "sha256": "b7d717302db3de5b18bca5c2aa36755f0c2bfacd612ad95e7ba0afa7a4112f44"
+    },
+    {
+      "name": "dark-comfortable-1920x1080-module-expanded.png",
+      "sha256": "c249c7c5e49f84908ea291727f2e8512ab57f9a502029c349f3fb2a9ece76dfd"
+    },
+    {
+      "name": "dark-comfortable-1920x1080-module-flyout.png",
+      "sha256": "1fbad5e86dbbc362abe8af912e7dfd789dc7dc957df1c2c0c765331dbf754c40"
+    },
+    {
+      "name": "dark-comfortable-1920x1080-module-group-collapsed.png",
+      "sha256": "0e717d1a9fa34c1f75d7e84567162d2f52d4d5f26d6480298434b7dc23d080d4"
+    },
+    {
+      "name": "dark-comfortable-1920x1080-scrolled.png",
+      "sha256": "5ee8307ae5df7b4423189994d687848e56dc3d1422595c39e01451d2a664faae"
+    },
+    {
+      "name": "dark-touch-1280x720-collapsed-notifications.png",
+      "sha256": "bf94c4d8ca07fa1468af1cce066987037599ce04f2a2ea1f6cfad3e02d555ddd"
+    },
+    {
+      "name": "dark-touch-1280x720-expanded.png",
+      "sha256": "617c1c813c187234128a57af040ba5da5623831c604a476832c72785ff52d900"
+    },
+    {
+      "name": "dark-touch-1280x720-file-menu.png",
+      "sha256": "415c033ccaff8490fada4c5c12897255e7987f8efa9f615b63153b5d3762aa8d"
+    },
+    {
+      "name": "dark-touch-1280x720-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "name": "dark-touch-1280x720-login.png",
+      "sha256": "167e09e69dc11dc0121b800ebbe2fd4c39bc3e0fcc5a7138debd3d85fbdffffa"
+    },
+    {
+      "name": "dark-touch-1280x720-module-collapsed-form.png",
+      "sha256": "df1c793b28b326d32a81bef75488b706702fd419c49ffb59fb763188db67089f"
+    },
+    {
+      "name": "dark-touch-1280x720-module-expanded.png",
+      "sha256": "c8d2a6732ef1fdee7d359735330bcaa15e22489c8e8f9f1b92689154f4c6147a"
+    },
+    {
+      "name": "dark-touch-1280x720-module-flyout.png",
+      "sha256": "ddc052ba9eb08d218d890abe5c9485d1ad908ae66c2f31f177fdbb0c86adf6d3"
+    },
+    {
+      "name": "dark-touch-1280x720-module-group-collapsed.png",
+      "sha256": "9a44f59e72603f43fb48c2739b1d2fdc9668011e91f7847f992c981a2ea4ff18"
+    },
+    {
+      "name": "dark-touch-1280x720-scrolled.png",
+      "sha256": "e18666fbcd663b2b753fde5be3c8c2a3276ea63e39532f55caa414039ef969d4"
+    },
+    {
+      "name": "dark-touch-1366x768-collapsed-notifications.png",
+      "sha256": "bb9f261bf5d19ba4640848975009f3e7e38bb287ffe3179ec91985c5ab7fd60e"
+    },
+    {
+      "name": "dark-touch-1366x768-expanded.png",
+      "sha256": "b7af1af329d590c0e9cf26844968f6486fda0ec5222b0da05f5bc92982cc357d"
+    },
+    {
+      "name": "dark-touch-1366x768-file-menu.png",
+      "sha256": "415c033ccaff8490fada4c5c12897255e7987f8efa9f615b63153b5d3762aa8d"
+    },
+    {
+      "name": "dark-touch-1366x768-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "name": "dark-touch-1366x768-login.png",
+      "sha256": "167e09e69dc11dc0121b800ebbe2fd4c39bc3e0fcc5a7138debd3d85fbdffffa"
+    },
+    {
+      "name": "dark-touch-1366x768-module-collapsed-form.png",
+      "sha256": "6dcfe4fb6b2cea17b891dd811a15fe9184b86915d8570b4068056c19689f55d7"
+    },
+    {
+      "name": "dark-touch-1366x768-module-expanded.png",
+      "sha256": "feac90ce8f401ece85bae3da978974410afc8b2bb3ba4f63741c2373ac489481"
+    },
+    {
+      "name": "dark-touch-1366x768-module-flyout.png",
+      "sha256": "ddc052ba9eb08d218d890abe5c9485d1ad908ae66c2f31f177fdbb0c86adf6d3"
+    },
+    {
+      "name": "dark-touch-1366x768-module-group-collapsed.png",
+      "sha256": "04741c4d2d2b2f2535cfbe662b074796207c32634112bdccbbd589c41d8cd3c5"
+    },
+    {
+      "name": "dark-touch-1366x768-scrolled.png",
+      "sha256": "c4292126c62ba870ee6e18d9e26ed43bda3e0890352bd034eede1bb28140e3b5"
+    },
+    {
+      "name": "dark-touch-1440x900-collapsed-notifications.png",
+      "sha256": "aa19fcc129db463ea3a2cbacdff31e4f722f09df759fb3fc388aff934d7c528c"
+    },
+    {
+      "name": "dark-touch-1440x900-expanded.png",
+      "sha256": "a66f5e311b70f978b91074be567f86ab8f6079fdafdd69943fb742c779cad4c7"
+    },
+    {
+      "name": "dark-touch-1440x900-file-menu.png",
+      "sha256": "415c033ccaff8490fada4c5c12897255e7987f8efa9f615b63153b5d3762aa8d"
+    },
+    {
+      "name": "dark-touch-1440x900-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "name": "dark-touch-1440x900-login.png",
+      "sha256": "167e09e69dc11dc0121b800ebbe2fd4c39bc3e0fcc5a7138debd3d85fbdffffa"
+    },
+    {
+      "name": "dark-touch-1440x900-module-collapsed-form.png",
+      "sha256": "6b4b38b2f9c5a135a2834f82e4688f5f2d7f1e7c7e2470c7efe6d119d42e5c66"
+    },
+    {
+      "name": "dark-touch-1440x900-module-expanded.png",
+      "sha256": "a5c6b466edc19e80b3c1d259755ec34fd58a7bf485d2cb6845f43490179cecdf"
+    },
+    {
+      "name": "dark-touch-1440x900-module-flyout.png",
+      "sha256": "ddc052ba9eb08d218d890abe5c9485d1ad908ae66c2f31f177fdbb0c86adf6d3"
+    },
+    {
+      "name": "dark-touch-1440x900-module-group-collapsed.png",
+      "sha256": "e9b29951a347bdac527c2444a4694de86b99a58090ee87c354e741a9ca14aaf3"
+    },
+    {
+      "name": "dark-touch-1440x900-scrolled.png",
+      "sha256": "56fdf5a857852c4acd75b44382e893e252a6e6cba3b0c852490adeb121ac37b4"
+    },
+    {
+      "name": "dark-touch-1600x900-collapsed-notifications.png",
+      "sha256": "d29d9d99a54512af64ac20427bc020fe7362d8b0ef7fb8e2987c9da545259d42"
+    },
+    {
+      "name": "dark-touch-1600x900-expanded.png",
+      "sha256": "d2b0b8f458400517430e9d2c7c9962f233ee3c86b092412b3ba3c539c2eabfe1"
+    },
+    {
+      "name": "dark-touch-1600x900-file-menu.png",
+      "sha256": "415c033ccaff8490fada4c5c12897255e7987f8efa9f615b63153b5d3762aa8d"
+    },
+    {
+      "name": "dark-touch-1600x900-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "name": "dark-touch-1600x900-login.png",
+      "sha256": "167e09e69dc11dc0121b800ebbe2fd4c39bc3e0fcc5a7138debd3d85fbdffffa"
+    },
+    {
+      "name": "dark-touch-1600x900-module-collapsed-form.png",
+      "sha256": "c607061f30ea1761bb3844775acd08aed60b3d1cd7d25153ee5d096a879da93f"
+    },
+    {
+      "name": "dark-touch-1600x900-module-expanded.png",
+      "sha256": "efb4dbf2893a32a89d5d25e4d387a9d17d98f02e98c77bea4c11b42ccfc98c63"
+    },
+    {
+      "name": "dark-touch-1600x900-module-flyout.png",
+      "sha256": "ddc052ba9eb08d218d890abe5c9485d1ad908ae66c2f31f177fdbb0c86adf6d3"
+    },
+    {
+      "name": "dark-touch-1600x900-module-group-collapsed.png",
+      "sha256": "78c49e7a233211039c2fce5df7ef74b26d33f8966cebf418fa63ba704e6a1a0a"
+    },
+    {
+      "name": "dark-touch-1600x900-scrolled.png",
+      "sha256": "748fb267925317d2b83ff08c5667274ce5e3566db49ce3fdff89e3f8f1f1a8b2"
+    },
+    {
+      "name": "dark-touch-1920x1080-collapsed-notifications.png",
+      "sha256": "d7ee9869695fa1d5c847c824a7b58f00ae082546b694567dbf187e443521592e"
+    },
+    {
+      "name": "dark-touch-1920x1080-expanded.png",
+      "sha256": "300059708e38b4d56ac46981bb478db20d11158a85f27eed62d9881adf4510be"
+    },
+    {
+      "name": "dark-touch-1920x1080-file-menu.png",
+      "sha256": "415c033ccaff8490fada4c5c12897255e7987f8efa9f615b63153b5d3762aa8d"
+    },
+    {
+      "name": "dark-touch-1920x1080-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "name": "dark-touch-1920x1080-login.png",
+      "sha256": "167e09e69dc11dc0121b800ebbe2fd4c39bc3e0fcc5a7138debd3d85fbdffffa"
+    },
+    {
+      "name": "dark-touch-1920x1080-module-collapsed-form.png",
+      "sha256": "66f2d798ee88e3ff89826c1f412f003992d0848424ce065494ee47a469712f3b"
+    },
+    {
+      "name": "dark-touch-1920x1080-module-expanded.png",
+      "sha256": "56a6ce25d88899c081611339cf257341123115f95028ee31cc71db31f5eed2a3"
+    },
+    {
+      "name": "dark-touch-1920x1080-module-flyout.png",
+      "sha256": "ddc052ba9eb08d218d890abe5c9485d1ad908ae66c2f31f177fdbb0c86adf6d3"
+    },
+    {
+      "name": "dark-touch-1920x1080-module-group-collapsed.png",
+      "sha256": "3698e45c43ae2289a207e864c28de3d93d6d6fe41915f1fd0d48d67ba7d74f1b"
+    },
+    {
+      "name": "dark-touch-1920x1080-scrolled.png",
+      "sha256": "f6450276a1767ce32571f8f88775c2a13aa606a0674aa6d8ab8047125a2e8958"
+    },
+    {
+      "name": "light-comfortable-1280x720-collapsed-notifications.png",
+      "sha256": "aec4e7be34442bf5427c08de228d94d33603321575ed37f09192f80a3c3265e1"
+    },
+    {
+      "name": "light-comfortable-1280x720-expanded.png",
+      "sha256": "0886eca3dbfc1212667250e926e4c87db0a222b1baf5ac42c6295a9767632036"
+    },
+    {
+      "name": "light-comfortable-1280x720-file-menu.png",
+      "sha256": "c728d99392f92463de9a693f35e607b9e1601ff9536e05e7fed8310ee466b0b9"
+    },
+    {
+      "name": "light-comfortable-1280x720-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "name": "light-comfortable-1280x720-login.png",
+      "sha256": "04b6f682ac152dae9e70578054ad845980ca78e288019c7e279cf1fa54bb20f5"
+    },
+    {
+      "name": "light-comfortable-1280x720-module-collapsed-form.png",
+      "sha256": "8c0c1f899fa9daad002a71418f81e22e298b10c4f329ab26e08c8697cf365409"
+    },
+    {
+      "name": "light-comfortable-1280x720-module-expanded.png",
+      "sha256": "fd3409326e73b3bd20c162deeb14851dd283b1584e5d9dae557fe046710dd239"
+    },
+    {
+      "name": "light-comfortable-1280x720-module-flyout.png",
+      "sha256": "b385e4ad311c4ebd6f1c0c44adfb26b89d0763da341420dee502b130535cf7dc"
+    },
+    {
+      "name": "light-comfortable-1280x720-module-group-collapsed.png",
+      "sha256": "12092455189eb34925316a4fc5424abd3494d48d878f69d841af9f36d3e1d664"
+    },
+    {
+      "name": "light-comfortable-1280x720-scrolled.png",
+      "sha256": "db3ee8dc40a274c95bdfa38ed5e10329af5ca0837c7297f6186b45641646864e"
+    },
+    {
+      "name": "light-comfortable-1366x768-collapsed-notifications.png",
+      "sha256": "7f3ca6c6bc64d887c78a81069fd61afbaa550d68a658eb5ad7594ca9dcfdb2f4"
+    },
+    {
+      "name": "light-comfortable-1366x768-expanded.png",
+      "sha256": "b82ac583808309acc612483e1bb8db57a00e437955e4cb3d9eed398c8bbf3e43"
+    },
+    {
+      "name": "light-comfortable-1366x768-file-menu.png",
+      "sha256": "c728d99392f92463de9a693f35e607b9e1601ff9536e05e7fed8310ee466b0b9"
+    },
+    {
+      "name": "light-comfortable-1366x768-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "name": "light-comfortable-1366x768-login.png",
+      "sha256": "04b6f682ac152dae9e70578054ad845980ca78e288019c7e279cf1fa54bb20f5"
+    },
+    {
+      "name": "light-comfortable-1366x768-module-collapsed-form.png",
+      "sha256": "5247d79b5039cf989a4ddc8794c2ca25644f6ca6bdc58ffe997974e3037896e6"
+    },
+    {
+      "name": "light-comfortable-1366x768-module-expanded.png",
+      "sha256": "0ab8041bba4c529bbc35dc7a6a2b5b77b442c497f8184aaf4481d98a1a684574"
+    },
+    {
+      "name": "light-comfortable-1366x768-module-flyout.png",
+      "sha256": "b385e4ad311c4ebd6f1c0c44adfb26b89d0763da341420dee502b130535cf7dc"
+    },
+    {
+      "name": "light-comfortable-1366x768-module-group-collapsed.png",
+      "sha256": "c769e5de5d951e7b4b7354f90782f8a11762d3c341d23f8c73c2b4947488968a"
+    },
+    {
+      "name": "light-comfortable-1366x768-scrolled.png",
+      "sha256": "7b34eaef1afa58ce30e56e1af0a71177b88d6041ce15377aa423e41f12f055f1"
+    },
+    {
+      "name": "light-comfortable-1440x900-collapsed-notifications.png",
+      "sha256": "bed2c77bad277384202c277ff0844e2a9822ff2d16ec22e59ecf8926add96d3a"
+    },
+    {
+      "name": "light-comfortable-1440x900-expanded.png",
+      "sha256": "219b7124b6df7f8cd6f4edc44d13f79c2176de672c019b7de828ec74f6bd2afb"
+    },
+    {
+      "name": "light-comfortable-1440x900-file-menu.png",
+      "sha256": "c728d99392f92463de9a693f35e607b9e1601ff9536e05e7fed8310ee466b0b9"
+    },
+    {
+      "name": "light-comfortable-1440x900-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "name": "light-comfortable-1440x900-login.png",
+      "sha256": "04b6f682ac152dae9e70578054ad845980ca78e288019c7e279cf1fa54bb20f5"
+    },
+    {
+      "name": "light-comfortable-1440x900-module-collapsed-form.png",
+      "sha256": "7e8f8b344b788ed3ee3c85bc68b2570b665324d9f90437a9fcc2af6d9a97c583"
+    },
+    {
+      "name": "light-comfortable-1440x900-module-expanded.png",
+      "sha256": "625de2b597fc4516379d63b08814b37972d898c86b1f9614fccd20b6c5d2dcb0"
+    },
+    {
+      "name": "light-comfortable-1440x900-module-flyout.png",
+      "sha256": "b385e4ad311c4ebd6f1c0c44adfb26b89d0763da341420dee502b130535cf7dc"
+    },
+    {
+      "name": "light-comfortable-1440x900-module-group-collapsed.png",
+      "sha256": "7141213babc32434f36b9487b23374cb7826c16cdc22c2069daf992fc3c8b882"
+    },
+    {
+      "name": "light-comfortable-1440x900-scrolled.png",
+      "sha256": "fb6eb8c9a591626e5719d6ad8c818c0cdfcb4d7c706afadec35effc07a520150"
+    },
+    {
+      "name": "light-comfortable-1600x900-collapsed-notifications.png",
+      "sha256": "87820f6e05233be575a16b6da8aff7e2d1eae612ffa4caed5638ce285e478ac9"
+    },
+    {
+      "name": "light-comfortable-1600x900-expanded.png",
+      "sha256": "fb02a8986fc22a688f3c4450a785cc4d74f0416d9a5ac872e7d0606aeccd3d6a"
+    },
+    {
+      "name": "light-comfortable-1600x900-file-menu.png",
+      "sha256": "c728d99392f92463de9a693f35e607b9e1601ff9536e05e7fed8310ee466b0b9"
+    },
+    {
+      "name": "light-comfortable-1600x900-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "name": "light-comfortable-1600x900-login.png",
+      "sha256": "04b6f682ac152dae9e70578054ad845980ca78e288019c7e279cf1fa54bb20f5"
+    },
+    {
+      "name": "light-comfortable-1600x900-module-collapsed-form.png",
+      "sha256": "16ab72eac1332aeec43662502c012feac7b881419e72bc9c1e707781f21f09d6"
+    },
+    {
+      "name": "light-comfortable-1600x900-module-expanded.png",
+      "sha256": "07157177c8f34a5341b38666cc3f474887cd53337b4eb926175eab199a6973b0"
+    },
+    {
+      "name": "light-comfortable-1600x900-module-flyout.png",
+      "sha256": "b385e4ad311c4ebd6f1c0c44adfb26b89d0763da341420dee502b130535cf7dc"
+    },
+    {
+      "name": "light-comfortable-1600x900-module-group-collapsed.png",
+      "sha256": "806f2215c87d7355cac4d194416bdd086f8ba1a4ab71db0769a5d3a2cdb46226"
+    },
+    {
+      "name": "light-comfortable-1600x900-scrolled.png",
+      "sha256": "52be3b22ff267a001243ef052a2fd4bd1280e0e2f434924592047cbee5106690"
+    },
+    {
+      "name": "light-comfortable-1920x1080-collapsed-notifications.png",
+      "sha256": "0877b2d6bbb86af6f2a5cac7c9fc1908e7321afeda0bf90ccd558ee26a55a772"
+    },
+    {
+      "name": "light-comfortable-1920x1080-expanded.png",
+      "sha256": "3e9c586f41de2b9b0ca3b527f8b51b4912f36db355dee6aed37b87c60513114b"
+    },
+    {
+      "name": "light-comfortable-1920x1080-file-menu.png",
+      "sha256": "c728d99392f92463de9a693f35e607b9e1601ff9536e05e7fed8310ee466b0b9"
+    },
+    {
+      "name": "light-comfortable-1920x1080-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "name": "light-comfortable-1920x1080-login.png",
+      "sha256": "04b6f682ac152dae9e70578054ad845980ca78e288019c7e279cf1fa54bb20f5"
+    },
+    {
+      "name": "light-comfortable-1920x1080-module-collapsed-form.png",
+      "sha256": "82ac7f50f35170ee62d00a0c388d35eb5ee6e8fcf44343922527e46d17bd1c22"
+    },
+    {
+      "name": "light-comfortable-1920x1080-module-expanded.png",
+      "sha256": "04a2a2c6b44464cc21084da7f1638fe2151abafa43f5fe8ce0f84be8a6c55170"
+    },
+    {
+      "name": "light-comfortable-1920x1080-module-flyout.png",
+      "sha256": "b385e4ad311c4ebd6f1c0c44adfb26b89d0763da341420dee502b130535cf7dc"
+    },
+    {
+      "name": "light-comfortable-1920x1080-module-group-collapsed.png",
+      "sha256": "19611612a98816ccc688cd545529a6601a8deed0d211c8a3268c963a7263ab6e"
+    },
+    {
+      "name": "light-comfortable-1920x1080-scrolled.png",
+      "sha256": "4fa7aa8afa688f9a4dc879a0267c61da88794cd1a67b53e39070511898ee3a7e"
+    },
+    {
+      "name": "light-touch-1280x720-collapsed-notifications.png",
+      "sha256": "b7c77a0c1db1bbaae51a449b9a869704056b2e30e88c1de594804253694db123"
+    },
+    {
+      "name": "light-touch-1280x720-expanded.png",
+      "sha256": "14f66cd2e0d488fbc75cac3df7a422266aec2e9f3a2f48c1c56ab39c2c5d70a6"
+    },
+    {
+      "name": "light-touch-1280x720-file-menu.png",
+      "sha256": "dce4165626421206347efb0c83748d0953053062a6e3f6f3aea9a2eb8e8c84b9"
+    },
+    {
+      "name": "light-touch-1280x720-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "name": "light-touch-1280x720-login.png",
+      "sha256": "f38e874edcc1055b4a409eacbed858fdc9169054aa4156e0c51c0fffefc97dfc"
+    },
+    {
+      "name": "light-touch-1280x720-module-collapsed-form.png",
+      "sha256": "5a8253482890c26063826d0ce2beaecec705eb4f040476b4732cde8b249e0043"
+    },
+    {
+      "name": "light-touch-1280x720-module-expanded.png",
+      "sha256": "3648de7abd127a143e97bfc8490909a808cf05c8f7ab8bdc91ed2f2a13dd71fb"
+    },
+    {
+      "name": "light-touch-1280x720-module-flyout.png",
+      "sha256": "c05e2da52d57fd7ece69b7eac53f5d4f69cdcda339a06759a1fe4be7a97c4b7c"
+    },
+    {
+      "name": "light-touch-1280x720-module-group-collapsed.png",
+      "sha256": "48d10bb45eef5b28a8074578436f01713e1b43ab2a99cdfc507d7b2922e24349"
+    },
+    {
+      "name": "light-touch-1280x720-scrolled.png",
+      "sha256": "4b453d9386d9552c4182e25d708ee893d0250205ae1fba42f57a1073cf1081ab"
+    },
+    {
+      "name": "light-touch-1366x768-collapsed-notifications.png",
+      "sha256": "a27e0ac25ff07cdd95d4333c36f2966aee30768bccfe2c4e359e16e3add4616f"
+    },
+    {
+      "name": "light-touch-1366x768-expanded.png",
+      "sha256": "fe2eda906def42e21048e688da749df9df361ce0b82ed9d7e791937dbdd5e749"
+    },
+    {
+      "name": "light-touch-1366x768-file-menu.png",
+      "sha256": "dce4165626421206347efb0c83748d0953053062a6e3f6f3aea9a2eb8e8c84b9"
+    },
+    {
+      "name": "light-touch-1366x768-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "name": "light-touch-1366x768-login.png",
+      "sha256": "f38e874edcc1055b4a409eacbed858fdc9169054aa4156e0c51c0fffefc97dfc"
+    },
+    {
+      "name": "light-touch-1366x768-module-collapsed-form.png",
+      "sha256": "1add7555aeb4db09a882d2beffaf8eb937ab991dd9d57bd2c19ced88b0f34235"
+    },
+    {
+      "name": "light-touch-1366x768-module-expanded.png",
+      "sha256": "57a70643fdc17a9f7f97efeba712e2484b852b01a347448db08e23d837296fbd"
+    },
+    {
+      "name": "light-touch-1366x768-module-flyout.png",
+      "sha256": "c05e2da52d57fd7ece69b7eac53f5d4f69cdcda339a06759a1fe4be7a97c4b7c"
+    },
+    {
+      "name": "light-touch-1366x768-module-group-collapsed.png",
+      "sha256": "6290453a5a904e5c62c9a5de1bcc8c811ecdbee2ad8ee9d8e99e62f5cdbfe712"
+    },
+    {
+      "name": "light-touch-1366x768-scrolled.png",
+      "sha256": "2eca50a2f5eae30044719c038912a16c425cfbeb80fcb0798f97c7cd0bbad1ea"
+    },
+    {
+      "name": "light-touch-1440x900-collapsed-notifications.png",
+      "sha256": "3b9271af4395762cbe016a3b0e967604ba2d6af0ef4e926251d47ea2981b1b68"
+    },
+    {
+      "name": "light-touch-1440x900-expanded.png",
+      "sha256": "89457dc34cc9d83bf9fe0f726be264fcdff55c1cd4c033be73477fbc00f6d569"
+    },
+    {
+      "name": "light-touch-1440x900-file-menu.png",
+      "sha256": "dce4165626421206347efb0c83748d0953053062a6e3f6f3aea9a2eb8e8c84b9"
+    },
+    {
+      "name": "light-touch-1440x900-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "name": "light-touch-1440x900-login.png",
+      "sha256": "f38e874edcc1055b4a409eacbed858fdc9169054aa4156e0c51c0fffefc97dfc"
+    },
+    {
+      "name": "light-touch-1440x900-module-collapsed-form.png",
+      "sha256": "19279d6af3dd43e04b61fc88e05e64e27fa8725b4d875f8dfb7bd5e2e25b92d4"
+    },
+    {
+      "name": "light-touch-1440x900-module-expanded.png",
+      "sha256": "36190691091def47d6c0ca199cd341d3729f9fc8664ba4c18838bd41fe1270b3"
+    },
+    {
+      "name": "light-touch-1440x900-module-flyout.png",
+      "sha256": "c05e2da52d57fd7ece69b7eac53f5d4f69cdcda339a06759a1fe4be7a97c4b7c"
+    },
+    {
+      "name": "light-touch-1440x900-module-group-collapsed.png",
+      "sha256": "c1d97bd999b3801fba60f025f38e359622c9aed02efcd7b1976c8b10c8933cca"
+    },
+    {
+      "name": "light-touch-1440x900-scrolled.png",
+      "sha256": "1ca9683d63cd274795d5165a8d40b8ed10339c2bfe72a623ef9aa5a178dca408"
+    },
+    {
+      "name": "light-touch-1600x900-collapsed-notifications.png",
+      "sha256": "979f6a9f89155ca44cf60da0a34ea8022c3f208d9e3e944b63edc1e6981fe4ce"
+    },
+    {
+      "name": "light-touch-1600x900-expanded.png",
+      "sha256": "6cdc3601c2d930b1813595a07bd68f655f814c5caae3f725c6bad3be869fe5b8"
+    },
+    {
+      "name": "light-touch-1600x900-file-menu.png",
+      "sha256": "dce4165626421206347efb0c83748d0953053062a6e3f6f3aea9a2eb8e8c84b9"
+    },
+    {
+      "name": "light-touch-1600x900-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "name": "light-touch-1600x900-login.png",
+      "sha256": "f38e874edcc1055b4a409eacbed858fdc9169054aa4156e0c51c0fffefc97dfc"
+    },
+    {
+      "name": "light-touch-1600x900-module-collapsed-form.png",
+      "sha256": "2a59b9a740b2296bac03a3ceea11b72dc224c43c56b46b63d44309188e77b94f"
+    },
+    {
+      "name": "light-touch-1600x900-module-expanded.png",
+      "sha256": "dead20b4e73bd730e2fcd7ec245288090a50ad8c4b7e1e2460f35327a86a2b19"
+    },
+    {
+      "name": "light-touch-1600x900-module-flyout.png",
+      "sha256": "c05e2da52d57fd7ece69b7eac53f5d4f69cdcda339a06759a1fe4be7a97c4b7c"
+    },
+    {
+      "name": "light-touch-1600x900-module-group-collapsed.png",
+      "sha256": "f95b8420bb1930aa71a9130434c72e57c3cbf50381d4305b643b4b503e1955a6"
+    },
+    {
+      "name": "light-touch-1600x900-scrolled.png",
+      "sha256": "56d8e1be94ac9a3d25c1070b5e7fe8beac0b4d4895858389854eff734a82609f"
+    },
+    {
+      "name": "light-touch-1920x1080-collapsed-notifications.png",
+      "sha256": "45696d4e9ff80b7ddf46c0162f4a47ae83f0d586c232dd80343c2c6dff03e8c2"
+    },
+    {
+      "name": "light-touch-1920x1080-expanded.png",
+      "sha256": "e5649d2943985963663e9a9e8fae0df48d16d5c5959dc09359d422344c24d0cc"
+    },
+    {
+      "name": "light-touch-1920x1080-file-menu.png",
+      "sha256": "dce4165626421206347efb0c83748d0953053062a6e3f6f3aea9a2eb8e8c84b9"
+    },
+    {
+      "name": "light-touch-1920x1080-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "name": "light-touch-1920x1080-login.png",
+      "sha256": "f38e874edcc1055b4a409eacbed858fdc9169054aa4156e0c51c0fffefc97dfc"
+    },
+    {
+      "name": "light-touch-1920x1080-module-collapsed-form.png",
+      "sha256": "9847c3ec4be768e26fc4b6b6fa8c14c0918817627627dc811933378af4562b29"
+    },
+    {
+      "name": "light-touch-1920x1080-module-expanded.png",
+      "sha256": "3fda62462df186ed987b9eb51e3df4f761985b59fe9a75d21eee38809d5f90d9"
+    },
+    {
+      "name": "light-touch-1920x1080-module-flyout.png",
+      "sha256": "c05e2da52d57fd7ece69b7eac53f5d4f69cdcda339a06759a1fe4be7a97c4b7c"
+    },
+    {
+      "name": "light-touch-1920x1080-module-group-collapsed.png",
+      "sha256": "2f768f121d734f8b240ca852c68deda79bc7f9bc2aaffab017f001d1510ff88c"
+    },
+    {
+      "name": "light-touch-1920x1080-scrolled.png",
+      "sha256": "8169a37333c9fb96bd950b27eaaeb5ac50e047922cbb42ddf0502eb199629106"
+    }
+  ],
+  "limitations": [
+    "Targeted test segments; previous full-suite failures remain in the global audit.",
+    "Fourteen preexisting Unicode findings remain for module adoption; not all are actionable icons.",
+    "Offscreen Qt geometry and state checks do not replace hardware/DPI acceptance or an approved pixel baseline.",
+    "Interface artwork is separate from the missing official JUANIS logo assets."
+  ]
+}

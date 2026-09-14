@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="6" time="2.709" timestamp="2026-09-13T18:03:34.412276-06:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_icon_provider_runtime" name="test_rebinding_updates_generated_accessibility_name[QLabel]" time="0.350"><failure message="AssertionError: assert 'Contraer' == 'Expandir'&#10;  &#10;  - Expandir&#10;  + Contraer">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x00000287AC3DF0B0&gt;
+control = &lt;class 'PyQt5.QtWidgets.QLabel'&gt;
+
+    @pytest.mark.parametrize("control", [QLabel, QPushButton])
+    def test_rebinding_updates_generated_accessibility_name(manager, control):
+        widget = control()
+        try:
+            IconProvider.bind(widget, Icons.CHEVRON_LEFT)
+            assert widget.accessibleName() == "Contraer"
+            IconProvider.bind(widget, Icons.CHEVRON_RIGHT)
+&gt;           assert widget.accessibleName() == "Expandir"
+E           AssertionError: assert 'Contraer' == 'Expandir'
+E             
+E             - Expandir
+E             + Contraer
+
+tests\ui\test_icon_provider_runtime.py:137: AssertionError</failure></testcase><testcase classname="tests.ui.test_icon_provider_runtime" name="test_rebinding_updates_generated_accessibility_name[QPushButton]" time="0.024"><failure message="AssertionError: assert 'Contraer' == 'Expandir'&#10;  &#10;  - Expandir&#10;  + Contraer">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x00000287AC3DEC30&gt;
+control = &lt;class 'PyQt5.QtWidgets.QPushButton'&gt;
+
+    @pytest.mark.parametrize("control", [QLabel, QPushButton])
+    def test_rebinding_updates_generated_accessibility_name(manager, control):
+        widget = control()
+        try:
+            IconProvider.bind(widget, Icons.CHEVRON_LEFT)
+            assert widget.accessibleName() == "Contraer"
+            IconProvider.bind(widget, Icons.CHEVRON_RIGHT)
+&gt;           assert widget.accessibleName() == "Expandir"
+E           AssertionError: assert 'Contraer' == 'Expandir'
+E             
+E             - Expandir
+E             + Contraer
+
+tests\ui\test_icon_provider_runtime.py:137: AssertionError</failure></testcase><testcase classname="tests.ui.test_icon_provider_runtime" name="test_rebinding_preserves_application_accessibility_name[True]" time="0.007" /><testcase classname="tests.ui.test_icon_provider_runtime" name="test_rebinding_preserves_application_accessibility_name[False]" time="0.016" /><testcase classname="tests.ui.test_icon_provider_runtime" name="test_binding_visible_label_follows_screen_changes[True]" time="0.049"><failure message="assert PyQt5.QtCore.QSize(20, 20) == PyQt5.QtCore.QSize(40, 40)&#10; +  where PyQt5.QtCore.QSize(20, 20) = &lt;built-in method size of QPixmap object at 0x00000287AC99D320&gt;()&#10; +    where &lt;built-in method size of QPixmap object at 0x00000287AC99D320&gt; = &lt;PyQt5.QtGui.QPixmap object at 0x00000287AC99D320&gt;.size&#10; +      where &lt;PyQt5.QtGui.QPixmap object at 0x00000287AC99D320&gt; = &lt;built-in method pixmap of QLabel object at 0x00000287AC3DDEB0&gt;()&#10; +        where &lt;built-in method pixmap of QLabel object at 0x00000287AC3DDEB0&gt; = &lt;PyQt5.QtWidgets.QLabel object at 0x00000287AC3DDEB0&gt;.pixmap&#10; +  and   PyQt5.QtCore.QSize(40, 40) = QSize(40, 40)">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x00000287AC3DEB10&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000287AC3DF020&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000287AC3BEE00&gt;
+bind_before_show = True
+
+    @pytest.mark.parametrize("bind_before_show", [True, False])
+    def test_binding_visible_label_follows_screen_changes(manager, qt_font_resources, monkeypatch, bind_before_show):
+        label = QLabel()
+        try:
+            if bind_before_show:
+                IconProvider.bind(label, Icons.ADD)
+            label.show()
+            qt_font_resources.processEvents()
+            IconProvider.bind(label, Icons.WARNING, state="warning")
+            window = label.windowHandle()
+            assert window is not None
+            monkeypatch.setattr(label, "devicePixelRatioF", lambda: 2.0)
+            window.screenChanged.emit(window.screen())
+&gt;           assert label.pixmap().size() == QSize(40, 40)
+E           assert PyQt5.QtCore.QSize(20, 20) == PyQt5.QtCore.QSize(40, 40)
+E            +  where PyQt5.QtCore.QSize(20, 20) = &lt;built-in method size of QPixmap object at 0x00000287AC99D320&gt;()
+E            +    where &lt;built-in method size of QPixmap object at 0x00000287AC99D320&gt; = &lt;PyQt5.QtGui.QPixmap object at 0x00000287AC99D320&gt;.size
+E            +      where &lt;PyQt5.QtGui.QPixmap object at 0x00000287AC99D320&gt; = &lt;built-in method pixmap of QLabel object at 0x00000287AC3DDEB0&gt;()
+E            +        where &lt;built-in method pixmap of QLabel object at 0x00000287AC3DDEB0&gt; = &lt;PyQt5.QtWidgets.QLabel object at 0x00000287AC3DDEB0&gt;.pixmap
+E            +  and   PyQt5.QtCore.QSize(40, 40) = QSize(40, 40)
+
+tests\ui\test_icon_provider_runtime.py:197: AssertionError</failure></testcase><testcase classname="tests.ui.test_icon_provider_runtime" name="test_binding_visible_label_follows_screen_changes[False]" time="0.012"><failure message="assert PyQt5.QtCore.QSize(20, 20) == PyQt5.QtCore.QSize(40, 40)&#10; +  where PyQt5.QtCore.QSize(20, 20) = &lt;built-in method size of QPixmap object at 0x00000287AC99E5F0&gt;()&#10; +    where &lt;built-in method size of QPixmap object at 0x00000287AC99E5F0&gt; = &lt;PyQt5.QtGui.QPixmap object at 0x00000287AC99E5F0&gt;.size&#10; +      where &lt;PyQt5.QtGui.QPixmap object at 0x00000287AC99E5F0&gt; = &lt;built-in method pixmap of QLabel object at 0x00000287AC991EB0&gt;()&#10; +        where &lt;built-in method pixmap of QLabel object at 0x00000287AC991EB0&gt; = &lt;PyQt5.QtWidgets.QLabel object at 0x00000287AC991EB0&gt;.pixmap&#10; +  and   PyQt5.QtCore.QSize(40, 40) = QSize(40, 40)">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x00000287AC991A30&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000287AC3DF020&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000287AC253B50&gt;
+bind_before_show = False
+
+    @pytest.mark.parametrize("bind_before_show", [True, False])
+    def test_binding_visible_label_follows_screen_changes(manager, qt_font_resources, monkeypatch, bind_before_show):
+        label = QLabel()
+        try:
+            if bind_before_show:
+                IconProvider.bind(label, Icons.ADD)
+            label.show()
+            qt_font_resources.processEvents()
+            IconProvider.bind(label, Icons.WARNING, state="warning")
+            window = label.windowHandle()
+            assert window is not None
+            monkeypatch.setattr(label, "devicePixelRatioF", lambda: 2.0)
+            window.screenChanged.emit(window.screen())
+&gt;           assert label.pixmap().size() == QSize(40, 40)
+E           assert PyQt5.QtCore.QSize(20, 20) == PyQt5.QtCore.QSize(40, 40)
+E            +  where PyQt5.QtCore.QSize(20, 20) = &lt;built-in method size of QPixmap object at 0x00000287AC99E5F0&gt;()
+E            +    where &lt;built-in method size of QPixmap object at 0x00000287AC99E5F0&gt; = &lt;PyQt5.QtGui.QPixmap object at 0x00000287AC99E5F0&gt;.size
+E            +      where &lt;PyQt5.QtGui.QPixmap object at 0x00000287AC99E5F0&gt; = &lt;built-in method pixmap of QLabel object at 0x00000287AC991EB0&gt;()
+E            +        where &lt;built-in method pixmap of QLabel object at 0x00000287AC991EB0&gt; = &lt;PyQt5.QtWidgets.QLabel object at 0x00000287AC991EB0&gt;.pixmap
+E            +  and   PyQt5.QtCore.QSize(40, 40) = QSize(40, 40)
+
+tests\ui\test_icon_provider_runtime.py:197: AssertionError</failure></testcase></testsuite></testsuites>

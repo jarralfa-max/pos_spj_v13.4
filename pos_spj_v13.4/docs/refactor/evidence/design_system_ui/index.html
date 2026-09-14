@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evidencia visual JUANIS — 12 septiembre 2026</title>
+<style>
+body{font:16px system-ui,sans-serif;margin:24px;background:#f8f8f5;color:#252825}
+h1{font-size:24px} form{display:flex;gap:16px;flex-wrap:wrap;margin:24px 0}
+label{display:grid;gap:6px}select{font:inherit;padding:10px;border:1px solid #687568;border-radius:6px}
+img{display:block;max-width:100%;height:auto;border:1px solid #687568}a{color:#18372b}
+p{max-width:1000px;line-height:1.5}figcaption{margin:12px 0}figure{margin:0}
+</style>
+<h1>JUANIS · Evidencia visual del Design System</h1>
+<p>200 capturas de Qt: cinco resoluciones, dos temas y dos densidades.
+Las ventanas se renderizaron con datos de ejemplo. Los recursos oficiales de marca siguen pendientes.
+Esta evidencia acompaña pruebas de geometría e interacción; no es una comparación de píxeles contra una referencia aprobada.</p>
+<form>
+<label>Tema<select id="theme"><option value="light">Claro</option><option value="dark">Oscuro</option></select></label>
+<label>Densidad<select id="density"><option value="comfortable">Cómoda</option><option value="touch">Táctil</option></select></label>
+<label>Resolución<select id="size"><option>1280x720</option><option>1366x768</option><option>1440x900</option><option>1600x900</option><option>1920x1080</option></select></label>
+<label>Vista<select id="scene">
+<option value="expanded">Shell y sidebar expandido</option>
+<option value="collapsed-notifications">Sidebar colapsado y notificaciones</option>
+<option value="scrolled">Galería desplazada hasta el final</option>
+<option value="login">Login</option>
+<option value="module-expanded">Módulo: sidebar, tabs y dashboard</option>
+<option value="module-group-collapsed">Grupo del módulo colapsado</option>
+<option value="module-collapsed-form">Sidebar del módulo colapsado y formulario</option>
+<option value="module-flyout">Flyout del módulo</option>
+<option value="file-menu">Archivo y Cerrar sesión</option>
+<option value="keyboard">Teclado virtual</option>
+</select></label>
+</form>
+<figure><figcaption><a id="original">Abrir captura original</a></figcaption><img id="capture" alt="Captura del sistema JUANIS"></figure>
+<script>
+const fields=['theme','density','size','scene'].map(id=>document.getElementById(id));
+function update(){
+ const name=fields.map(field=>field.value).join('-')+'.png';
+ const capture=document.getElementById('capture');
+ capture.src=name;
+ capture.alt=fields.map(field=>field.selectedOptions[0].text).join(' · ');
+ document.getElementById('original').href=name;
+ document.getElementById('original').textContent='Abrir original: '+name;
+}
+fields.forEach(field=>field.addEventListener('change',update));update();
+</script>
+</html>

@@ -12,26 +12,39 @@ import sys
 class AppPaths:
     """Resolve SPJ filesystem paths without relying on the process cwd.
 
-    `base_dir` points to the installed application bundle or source checkout.
+    `base_dir` points to the installed executable directory or source checkout.
     `data_dir` points to a writable user-data location for SQLite, backups,
     logs, updater downloads, and other persistent files.
+    `resource_dir` points to read-only bundled artwork and other resources,
+    which may be extracted separately from the installed executable.
     """
 
     app_name: str = "SPJ ERP POS"
     company_name: str = "SPJ"
     base_dir: Path | None = None
     data_dir: Path | None = None
+    resource_dir: Path | None = None
 
     @classmethod
     def from_environment(cls) -> "AppPaths":
         return cls(
             base_dir=_default_base_dir(),
             data_dir=_default_data_dir(cls.company_name, cls.app_name),
+            resource_dir=_default_resource_dir(),
         )
 
     @property
     def root(self) -> Path:
         return (self.base_dir or _default_base_dir()).resolve()
+
+    @property
+    def resource_root(self) -> Path:
+        """Read-only bundle root, with explicit paths taking precedence.
+
+        An injected base directory describes a complete installation unless
+        a separate resource directory is also supplied.
+        """
+        return (self.resource_dir or self.base_dir or _default_resource_dir()).resolve()
 
     @property
     def user_data_dir(self) -> Path:
@@ -86,6 +99,13 @@ def _default_base_dir() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parents[2]
+
+
+def _default_resource_dir() -> Path:
+    bundle_directory = getattr(sys, "_MEIPASS", None)
+    if getattr(sys, "frozen", False) and bundle_directory:
+        return Path(bundle_directory)
+    return _default_base_dir()
 
 
 def _default_data_dir(company_name: str, app_name: str) -> Path:

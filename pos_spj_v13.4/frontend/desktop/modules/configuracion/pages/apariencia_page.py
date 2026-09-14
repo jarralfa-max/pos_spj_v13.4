@@ -10,11 +10,12 @@ GLOBAL + theme-specific `DesignToken`s (mirrors `FeatureFlagsPage`'s
 always-visible shape `NotificacionesPage`'s Accounts/Templates cards
 use — neither is scoped to a Theme selection.
 """
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QWidget
+from PyQt5.QtCore import QSignalBlocker
+from PyQt5.QtWidgets import QApplication, QDialog, QHBoxLayout, QLabel, QMessageBox, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec, SectionCard, StandardTable, ViewState, create_primary_button, create_secondary_button,
-    create_state_widget, create_warning_button,
+    create_state_widget, create_warning_button, StandardComboBox, Toolbar,
 )
 from frontend.desktop.modules.configuracion.dialogs import (
     AppearancePreferenceCreateDialog,
@@ -27,6 +28,7 @@ from frontend.desktop.modules.configuracion.dialogs import (
     ThemeEditDialog,
 )
 from frontend.desktop.themes.tokens import Spacing
+from frontend.desktop.themes.theme_manager import ThemeManager
 
 from .base_page import ConfiguracionWorkspacePage
 
@@ -83,6 +85,34 @@ class AparienciaPage(ConfiguracionWorkspacePage):
         self._build_tokens_card()
         self._build_density_card()
         self._build_preferences_card()
+        self._build_terminal_theme_control()
+
+    def _build_terminal_theme_control(self) -> None:
+        manager = ThemeManager.instance()
+        card = SectionCard(self, title="Apariencia de esta terminal")
+        controls = Toolbar(card, title="Tema de esta terminal")
+        label = QLabel("Tema", controls)
+        self.theme_selector = StandardComboBox(controls, accessible_name="Tema de esta terminal")
+        self.theme_selector.addItem("Claro", "light")
+        self.theme_selector.addItem("Oscuro", "dark")
+        self.theme_selector.setCurrentIndex(self.theme_selector.findData(manager.theme))
+        label.setBuddy(self.theme_selector)
+        controls.addWidget(label)
+        controls.addWidget(self.theme_selector)
+        card.add(controls)
+        hint = QLabel("Se aplica al momento y se conserva al volver a abrir el sistema.", card)
+        hint.setWordWrap(True)
+        card.add(hint)
+        self.layout().insertWidget(1, card)
+        self.theme_selector.currentIndexChanged.connect(self._apply_terminal_theme)
+        manager.theme_changed.connect(self._sync_terminal_theme)
+
+    def _apply_terminal_theme(self, _index) -> None:
+        ThemeManager.instance().set_theme(self.theme_selector.currentData(), app=QApplication.instance())
+
+    def _sync_terminal_theme(self, theme) -> None:
+        with QSignalBlocker(self.theme_selector):
+            self.theme_selector.setCurrentIndex(self.theme_selector.findData(theme))
 
     # ── Temas (base inherited table) ────────────────────────────────────────
 

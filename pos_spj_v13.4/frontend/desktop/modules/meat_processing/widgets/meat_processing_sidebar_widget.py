@@ -3,7 +3,9 @@ frontend/desktop/modules/losses/widgets/losses_sidebar_widget.py.
 """
 
 from PyQt5.QtCore import QSize, Qt, pyqtSignal
-from PyQt5.QtWidgets import QAbstractItemView, QListWidget, QListWidgetItem
+from PyQt5.QtWidgets import QAbstractItemView
+
+from frontend.desktop.components.side_nav import SideNav
 
 from frontend.desktop.modules.meat_processing.navigation.meat_processing_sidebar import (
     visible_entries,
@@ -11,13 +13,13 @@ from frontend.desktop.modules.meat_processing.navigation.meat_processing_sidebar
 from frontend.desktop.themes.tokens import IconSizes, SidebarMetrics
 
 
-class MeatProcessingSidebarWidget(QListWidget):
+class MeatProcessingSidebarWidget(SideNav):
     route_requested = pyqtSignal(str)
 
     _TITLE_ROLE = Qt.UserRole + 1
 
     def __init__(self, *, has_permission, badges=None, has_feature=None, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, toggle_visible=False)
         self.setObjectName("moduleSidebar")
         self.setProperty("role", "nav")
         self.setAccessibleName("Navegación del módulo de procesamiento cárnico")
@@ -33,7 +35,8 @@ class MeatProcessingSidebarWidget(QListWidget):
         self._collapsed = False
         for entry, badge in visible_entries(has_permission, badges, has_feature):
             title = entry.title if badge is None else f"{entry.title} ({max(0, int(badge))})"
-            item = QListWidgetItem(title)
+            self.add_section(title, entry.icon)
+            item = self.item(self.count() - 1)
             item.setData(Qt.UserRole, entry.page_id)
             item.setData(self._TITLE_ROLE, title)
             item.setToolTip(entry.tooltip)
@@ -43,7 +46,6 @@ class MeatProcessingSidebarWidget(QListWidget):
                 accessible = f"{entry.title}, {max(0, int(badge))} pendientes"
             item.setData(Qt.AccessibleTextRole, accessible)
             item.setSizeHint(item.sizeHint().expandedTo(QSize(0, SidebarMetrics.ITEM_HEIGHT)))
-            self.addItem(item)
         self.currentItemChanged.connect(self._emit_route)
         if self.count():
             self.setCurrentRow(0)
@@ -62,7 +64,7 @@ class MeatProcessingSidebarWidget(QListWidget):
         for row in range(self.count()):
             item = self.item(row)
             title = str(item.data(self._TITLE_ROLE) or "")
-            item.setText(title[:1] if self._collapsed else title)
+            item.setText("" if self._collapsed else title)
             item.setTextAlignment(Qt.AlignCenter if self._collapsed else Qt.AlignLeft)
 
     def _emit_route(self, current, _previous) -> None:

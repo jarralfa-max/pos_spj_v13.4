@@ -74,6 +74,7 @@ from frontend.desktop.modules.customers_crm.pages.service_cases_directory_page i
     ServiceCasesDirectoryPage,
 )
 from frontend.desktop.modules.customers_crm.customers_crm_routes import (
+    GROUP_ICONS,
     CUSTOMER_CRM_ROUTES,
     grouped_routes,
     visible_routes,
@@ -141,16 +142,16 @@ class CustomersCrmWorkspace(QWidget):
         page_index = 0
         routes_by_group = self._visible_grouped_routes()
         if not routes_by_group:
-            self._nav.add_group("Clientes y CRM")
+            self._nav.add_group("Clientes y CRM", icon=Icons.CUSTOMERS)
             self._stack.addWidget(create_state_widget(
                 ViewState.NO_PERMISSION, self,
                 message="No tienes permiso para consultar el modulo de Clientes y CRM."))
             return
         for group, routes in routes_by_group:
-            self._nav.add_group(group)
+            self._nav.add_group(group, icon=GROUP_ICONS[group])
             row += 1
             for route in routes:
-                self._nav.add_section(route.label)
+                self._nav.add_section(route.label, icon=route.icon)
                 item = self._nav.item(row)
                 if item is not None:
                     item.setToolTip(route.tooltip)

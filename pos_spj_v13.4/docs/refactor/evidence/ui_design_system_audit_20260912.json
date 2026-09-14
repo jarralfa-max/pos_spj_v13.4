@@ -1,0 +1,1242 @@
+{
+  "files_scanned": 601,
+  "rules": {
+    "noncanonical_dialog": {
+      "occurrences": 35,
+      "files": 24
+    },
+    "screen_without_explicit_overflow": {
+      "occurrences": 110,
+      "files": 109
+    },
+    "unicode_icon_literal": {
+      "occurrences": 14,
+      "files": 7
+    }
+  },
+  "module_adoption": {
+    "assets": {
+      "files": 13,
+      "files_importing_canonical_components": 6,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 2
+    },
+    "business_intelligence": {
+      "files": 25,
+      "files_importing_canonical_components": 14,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 3
+    },
+    "cash_register": {
+      "files": 23,
+      "files_importing_canonical_components": 16,
+      "files_using_page_layouts": 2,
+      "files_using_standard_table": 13
+    },
+    "configuracion": {
+      "files": 38,
+      "files_importing_canonical_components": 26,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 11
+    },
+    "customers_crm": {
+      "files": 19,
+      "files_importing_canonical_components": 11,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 3
+    },
+    "fidelidad": {
+      "files": 15,
+      "files_importing_canonical_components": 7,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 4
+    },
+    "finance": {
+      "files": 50,
+      "files_importing_canonical_components": 30,
+      "files_using_page_layouts": 1,
+      "files_using_standard_table": 6
+    },
+    "hr": {
+      "files": 20,
+      "files_importing_canonical_components": 10,
+      "files_using_page_layouts": 1,
+      "files_using_standard_table": 0
+    },
+    "inventory": {
+      "files": 34,
+      "files_importing_canonical_components": 26,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 22
+    },
+    "losses": {
+      "files": 19,
+      "files_importing_canonical_components": 9,
+      "files_using_page_layouts": 1,
+      "files_using_standard_table": 1
+    },
+    "meat_processing": {
+      "files": 15,
+      "files_importing_canonical_components": 4,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 1
+    },
+    "orders_delivery": {
+      "files": 19,
+      "files_importing_canonical_components": 7,
+      "files_using_page_layouts": 1,
+      "files_using_standard_table": 0
+    },
+    "pricing": {
+      "files": 13,
+      "files_importing_canonical_components": 6,
+      "files_using_page_layouts": 1,
+      "files_using_standard_table": 4
+    },
+    "products": {
+      "files": 31,
+      "files_importing_canonical_components": 19,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 16
+    },
+    "purchasing": {
+      "files": 27,
+      "files_importing_canonical_components": 14,
+      "files_using_page_layouts": 1,
+      "files_using_standard_table": 8
+    },
+    "sales_pos": {
+      "files": 21,
+      "files_importing_canonical_components": 9,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 1
+    },
+    "tarjetas_fidelidad": {
+      "files": 12,
+      "files_importing_canonical_components": 3,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 0
+    },
+    "transfers": {
+      "files": 30,
+      "files_importing_canonical_components": 5,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 1
+    }
+  },
+  "findings": [
+    {
+      "path": "frontend/desktop/modules/assets/pages/asset_detail_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 22,
+      "expression": "class AssetDetailPage(QWidget)",
+      "fingerprint": "2b4fbfbf7ef8ea54d61e"
+    },
+    {
+      "path": "frontend/desktop/modules/assets/pages/assets_directory_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 42,
+      "expression": "class AssetsDirectoryPage(QWidget)",
+      "fingerprint": "57816e1fde2369c84249"
+    },
+    {
+      "path": "frontend/desktop/modules/assets/pages/maintenance_agenda_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 25,
+      "expression": "class MaintenanceAgendaPage(QWidget)",
+      "fingerprint": "18334f8d86094d1ac825"
+    },
+    {
+      "path": "frontend/desktop/modules/assets/pages/overview_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 45,
+      "expression": "class AssetsOverviewPage(QWidget)",
+      "fingerprint": "de8bb5697f22fafca308"
+    },
+    {
+      "path": "frontend/desktop/modules/business_intelligence/business_intelligence_view.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 19,
+      "expression": "class BusinessIntelligenceView(QWidget)",
+      "fingerprint": "2bf3ba99c641162b769c"
+    },
+    {
+      "path": "frontend/desktop/modules/business_intelligence/pages/alert_explorer_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 31,
+      "expression": "class AlertExplorerPage(QWidget)",
+      "fingerprint": "d5524704978462b80d8a"
+    },
+    {
+      "path": "frontend/desktop/modules/business_intelligence/pages/analytical_section_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 18,
+      "expression": "class AnalyticalSectionPage(QWidget)",
+      "fingerprint": "44694884123528d9066d"
+    },
+    {
+      "path": "frontend/desktop/modules/business_intelligence/pages/executive_dashboard_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 12,
+      "expression": "class ExecutiveDashboardPage(QWidget)",
+      "fingerprint": "2e7ef81a882d7f815a0f"
+    },
+    {
+      "path": "frontend/desktop/modules/business_intelligence/pages/forecast_explorer_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 28,
+      "expression": "class ForecastExplorerPage(QWidget)",
+      "fingerprint": "bc68a2640cfb0e4ca499"
+    },
+    {
+      "path": "frontend/desktop/modules/business_intelligence/pages/placeholder_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 13,
+      "expression": "class BusinessIntelligencePlaceholderPage(QWidget)",
+      "fingerprint": "2a7cf62142b67efb7af2"
+    },
+    {
+      "path": "frontend/desktop/modules/business_intelligence/pages/price_recommendation_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 35,
+      "expression": "class PriceRecommendationPage(QWidget)",
+      "fingerprint": "ada7a21e6576fd024c3e"
+    },
+    {
+      "path": "frontend/desktop/modules/business_intelligence/pages/pricing_scenario_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 25,
+      "expression": "class PricingScenarioPage(QWidget)",
+      "fingerprint": "5e0d32ea3c0515fee1b7"
+    },
+    {
+      "path": "frontend/desktop/modules/business_intelligence/pages/reports_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 21,
+      "expression": "class ReportsPage(QWidget)",
+      "fingerprint": "b039d60f6573cd264128"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/blind_count_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 15,
+      "expression": "class BlindCountPage(QWidget)",
+      "fingerprint": "f688d05b273d8c061d69"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_configuration_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 13,
+      "expression": "class CashConfigurationPage(QWidget)",
+      "fingerprint": "1d101c35dc066f071329"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_devices_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 17,
+      "expression": "class CashDevicesPage(QWidget)",
+      "fingerprint": "31d153647d58c15143a5"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_differences_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 20,
+      "expression": "class CashDifferencesPage(QWidget)",
+      "fingerprint": "22ad54aaf37b25359913"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_handovers_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 20,
+      "expression": "class CashHandoversPage(QWidget)",
+      "fingerprint": "20f11b616ec4de06f58a"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_notifications_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 21,
+      "expression": "class CashNotificationsPage(QWidget)",
+      "fingerprint": "c46b566f2fef9214e29e"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_operational_read_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 17,
+      "expression": "class CashOperationalReadPage(QWidget)",
+      "fingerprint": "34002745b8733ba894f5"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_overview_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 17,
+      "expression": "class CashOverviewPage(QWidget)",
+      "fingerprint": "f6ce6119fe1e34815bd8"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_refunds_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 17,
+      "expression": "class CashRefundsPage(QWidget)",
+      "fingerprint": "5457ffbd57fd0b0944f9"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_shifts_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 20,
+      "expression": "class CashShiftsPage(QWidget)",
+      "fingerprint": "07b9fe933f63d2555893"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_sync_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 21,
+      "expression": "class CashSyncPage(QWidget)",
+      "fingerprint": "bb12abf1db803f53363b"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_x_cuts_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 17,
+      "expression": "class CashXCutsPage(QWidget)",
+      "fingerprint": "067ea44d072bea3dcbdc"
+    },
+    {
+      "path": "frontend/desktop/modules/cash_register/cash_z_cuts_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 17,
+      "expression": "class CashZCutsPage(QWidget)",
+      "fingerprint": "fbf04a8874926b5d877f"
+    },
+    {
+      "path": "frontend/desktop/modules/configuracion/configuracion_view.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 11,
+      "expression": "class ConfiguracionView(QWidget)",
+      "fingerprint": "0f64b8b9ceeac523c1f0"
+    },
+    {
+      "path": "frontend/desktop/modules/configuracion/pages/base_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 19,
+      "expression": "class ConfiguracionWorkspacePage(QWidget)",
+      "fingerprint": "257e0e7e373bfb2a77f2"
+    },
+    {
+      "path": "frontend/desktop/modules/configuracion/pages/empresa_page.py",
+      "rule": "unicode_icon_literal",
+      "line": 89,
+      "expression": "'\ud83d\udccd Instalaci\u00f3n sin sucursal asignada'",
+      "fingerprint": "7fe8fb861dd460a9252b"
+    },
+    {
+      "path": "frontend/desktop/modules/configuracion/pages/empresa_page.py",
+      "rule": "unicode_icon_literal",
+      "line": 87,
+      "expression": "'\ud83d\udccd Esta instalaci\u00f3n: '",
+      "fingerprint": "06bd6ca3bcd10e39965c"
+    },
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/_directory_base.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 46,
+      "expression": "class CustomerCrmDirectoryPage(QWidget)",
+      "fingerprint": "a79937d86bab0d6eb67a"
+    },
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/_pill_tab_bar.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 28,
+      "expression": "class PillTabBar(QWidget)",
+      "fingerprint": "1ab419a762b3d76b0e50"
+    },
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/create_customer_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 43,
+      "expression": "class CreateCustomerPage(QWidget)",
+      "fingerprint": "7b35f6c742a568f2f1a8"
+    },
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/customer_profile_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 86,
+      "expression": "class CustomerProfilePage(QWidget)",
+      "fingerprint": "f899c7a7fe6c211b5a1e"
+    },
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/edit_customer_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 35,
+      "expression": "class EditCustomerPage(QWidget)",
+      "fingerprint": "fdc24cc2b367a52beabf"
+    },
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/overview_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 58,
+      "expression": "class CustomersCrmOverviewPage(QWidget)",
+      "fingerprint": "e58a30d2306476732468"
+    },
+    {
+      "path": "frontend/desktop/modules/fidelidad/pages/coupons_vouchers_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 25,
+      "expression": "class CouponsVouchersPage(QWidget)",
+      "fingerprint": "faab5034f7d4b9492ced"
+    },
+    {
+      "path": "frontend/desktop/modules/fidelidad/pages/member_profile_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 28,
+      "expression": "class MemberProfilePage(QWidget)",
+      "fingerprint": "e67e20c334313c9dd3a5"
+    },
+    {
+      "path": "frontend/desktop/modules/fidelidad/pages/overview_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 16,
+      "expression": "class FidelidadOverviewPage(QWidget)",
+      "fingerprint": "782ff562a68f29eb623a"
+    },
+    {
+      "path": "frontend/desktop/modules/fidelidad/pages/programs_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 23,
+      "expression": "class ProgramsPage(QWidget)",
+      "fingerprint": "6537f095c31e8010a2d0"
+    },
+    {
+      "path": "frontend/desktop/modules/fidelidad/pages/rewards_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 25,
+      "expression": "class RewardsPage(QWidget)",
+      "fingerprint": "e56b5720e9b9ecd9356a"
+    },
+    {
+      "path": "frontend/desktop/modules/fidelidad/pages/sweepstakes_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 28,
+      "expression": "class SweepstakesPage(QWidget)",
+      "fingerprint": "dbc98a075ed3769ce301"
+    },
+    {
+      "path": "frontend/desktop/modules/finance/dialogs/_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 8,
+      "expression": "class FinanceFormDialog(QDialog)",
+      "fingerprint": "1b6b3283da87138e89cf"
+    },
+    {
+      "path": "frontend/desktop/modules/finance/dialogs/commercial_posting_profile_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 14,
+      "expression": "class CommercialPostingProfileDialog(QDialog)",
+      "fingerprint": "b6c00d935ed882da331d"
+    },
+    {
+      "path": "frontend/desktop/modules/finance/dialogs/journal_entry_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 10,
+      "expression": "class JournalEntryDialog(QDialog)",
+      "fingerprint": "5e33f8238d31436efb26"
+    },
+    {
+      "path": "frontend/desktop/modules/finance/finance_view.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 64,
+      "expression": "class FinanceView(QWidget)",
+      "fingerprint": "4818c361e7a799832447"
+    },
+    {
+      "path": "frontend/desktop/modules/finance/pages/suppliers_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 17,
+      "expression": "class SuppliersPage(QWidget)",
+      "fingerprint": "0f67452f9a935f83c6a1"
+    },
+    {
+      "path": "frontend/desktop/modules/finance/suppliers/dialogs/supplier_dialogs.py",
+      "rule": "noncanonical_dialog",
+      "line": 64,
+      "expression": "class _SupplierDialog(QDialog)",
+      "fingerprint": "f3dbc680af32750ec179"
+    },
+    {
+      "path": "frontend/desktop/modules/finance/suppliers/pages/supplier_detail_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 40,
+      "expression": "class SupplierDetailDialog(QDialog)",
+      "fingerprint": "19626600d7f688c43573"
+    },
+    {
+      "path": "frontend/desktop/modules/finance/suppliers/pages/supplier_list_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 51,
+      "expression": "class SupplierListPage(QWidget)",
+      "fingerprint": "f01a0c24b37e77c381e5"
+    },
+    {
+      "path": "frontend/desktop/modules/finance/suppliers/suppliers_view.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 19,
+      "expression": "class SuppliersView(QWidget)",
+      "fingerprint": "a7eab93555d8e07394a6"
+    },
+    {
+      "path": "frontend/desktop/modules/hr/dialogs/_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 12,
+      "expression": "class HRFormDialog(QDialog)",
+      "fingerprint": "0a3823a69371f37c60a5"
+    },
+    {
+      "path": "frontend/desktop/modules/hr/hr_view.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 36,
+      "expression": "class HRView(QWidget)",
+      "fingerprint": "094b34a5ab941a2cbd79"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/dialogs.py",
+      "rule": "noncanonical_dialog",
+      "line": 385,
+      "expression": "class ManageZonesDialog(QDialog)",
+      "fingerprint": "25bd69e70bc35b24b95f"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/dialogs.py",
+      "rule": "noncanonical_dialog",
+      "line": 450,
+      "expression": "class MovementDetailDialog(QDialog)",
+      "fingerprint": "3101fcd5642bc1cc957c"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/dialogs.py",
+      "rule": "noncanonical_dialog",
+      "line": 678,
+      "expression": "class LotDetailDialog(QDialog)",
+      "fingerprint": "83a59fdcf5ec4e2dea7e"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/dialogs.py",
+      "rule": "noncanonical_dialog",
+      "line": 882,
+      "expression": "class WeightHistoryDialog(QDialog)",
+      "fingerprint": "6de7841063600794dbc0"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/inventory_view.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 28,
+      "expression": "class InventoryView(QWidget)",
+      "fingerprint": "2f4dfb30a8b0b1cba75e"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/adjustments_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 34,
+      "expression": "class AdjustmentsPage(QWidget)",
+      "fingerprint": "d1a641c0786f5d6aeb44"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/alerts_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 28,
+      "expression": "class AlertsPage(QWidget)",
+      "fingerprint": "044028a06205bf2ab3d0"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/analytics_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 28,
+      "expression": "class InventoryAnalyticsPage(QWidget)",
+      "fingerprint": "86d91dfa55dbd02b4c6f"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/audit_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 17,
+      "expression": "class AuditPage(QWidget)",
+      "fingerprint": "ec0a3a53fe5fba47b628"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/availability_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 21,
+      "expression": "class AvailabilityPage(QWidget)",
+      "fingerprint": "0bf48834a5a9c6c2ff36"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/cold_chain_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 32,
+      "expression": "class ColdChainPage(QWidget)",
+      "fingerprint": "8506d05bd36605c57275"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/counts_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 34,
+      "expression": "class CountsPage(QWidget)",
+      "fingerprint": "df4e502c675449dcf7b3"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/expiry_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 29,
+      "expression": "class ExpiryPage(QWidget)",
+      "fingerprint": "ecaf08a6f97abb2f3b31"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/inventory_dashboard_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 25,
+      "expression": "class InventoryDashboardPage(QWidget)",
+      "fingerprint": "d2c487b7463a43459bdc"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/locations_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 49,
+      "expression": "class LocationsPage(QWidget)",
+      "fingerprint": "e05a5d649145d7e62a98"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/lots_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 34,
+      "expression": "class LotsPage(QWidget)",
+      "fingerprint": "edc00b5fd2a21d5604b7"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/movements_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 28,
+      "expression": "class MovementsPage(QWidget)",
+      "fingerprint": "262d49390e0f71d7217e"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/placeholder_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 19,
+      "expression": "class PlaceholderPage(QWidget)",
+      "fingerprint": "781b467a1fa7688628cc"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/quarantine_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 32,
+      "expression": "class QuarantinePage(QWidget)",
+      "fingerprint": "4c30f5de683a0a675d34"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/receipts_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 18,
+      "expression": "class ReceiptsPage(QWidget)",
+      "fingerprint": "8aa9e06b6204220f8bfc"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/replenishment_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 21,
+      "expression": "class ReplenishmentPage(QWidget)",
+      "fingerprint": "71d39c7ca84f93b0781a"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/reservations_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 35,
+      "expression": "class ReservationsPage(QWidget)",
+      "fingerprint": "9cb1002e2b8231804e4b"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/settings_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 18,
+      "expression": "class SettingsPage(QWidget)",
+      "fingerprint": "f9a2eb03140c852c3de6"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/stock_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 33,
+      "expression": "class StockPage(QWidget)",
+      "fingerprint": "ae015763925fd2a16d8f"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/traceability_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 22,
+      "expression": "class TraceabilityPage(QWidget)",
+      "fingerprint": "25135bcfb31f8bd050ca"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/transfers_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 19,
+      "expression": "class TransfersPage(QWidget)",
+      "fingerprint": "7ddc1e84bcdd26b809df"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/warehouses_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 41,
+      "expression": "class WarehousesPage(QWidget)",
+      "fingerprint": "47744538aad43d3ab3d9"
+    },
+    {
+      "path": "frontend/desktop/modules/inventory/pages/weight_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 31,
+      "expression": "class WeightPage(QWidget)",
+      "fingerprint": "25aa6be178f2130a500d"
+    },
+    {
+      "path": "frontend/desktop/modules/losses/losses_view.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 11,
+      "expression": "class LossesView(QWidget)",
+      "fingerprint": "2ff1dd19a5abd02c03fb"
+    },
+    {
+      "path": "frontend/desktop/modules/losses/pages/analytics_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 5,
+      "expression": "class LossAnalyticsPage(QWidget)",
+      "fingerprint": "755e151767287774bab9"
+    },
+    {
+      "path": "frontend/desktop/modules/losses/pages/loss_registration_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 12,
+      "expression": "class LossRegistrationPage(QWidget)",
+      "fingerprint": "aba9e97aac7299867c76"
+    },
+    {
+      "path": "frontend/desktop/modules/losses/pages/placeholder_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 10,
+      "expression": "class LossesPlaceholderPage(QWidget)",
+      "fingerprint": "aca31e312b0e84b331b4"
+    },
+    {
+      "path": "frontend/desktop/modules/losses/pages/root_cause_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 10,
+      "expression": "class RootCausePage(QWidget)",
+      "fingerprint": "7750e96805de72c841a3"
+    },
+    {
+      "path": "frontend/desktop/modules/meat_processing/meat_processing_view.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 13,
+      "expression": "class MeatProcessingView(QWidget)",
+      "fingerprint": "4cde71084b72cc49fa22"
+    },
+    {
+      "path": "frontend/desktop/modules/meat_processing/pages/placeholder_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 12,
+      "expression": "class MeatProcessingPlaceholderPage(QWidget)",
+      "fingerprint": "cf47e6bedbc94baa2886"
+    },
+    {
+      "path": "frontend/desktop/modules/meat_processing/pages/processing_orders_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 29,
+      "expression": "class ProcessingOrdersPage(QWidget)",
+      "fingerprint": "9a6f8cab39342fc2b124"
+    },
+    {
+      "path": "frontend/desktop/modules/orders_delivery/orders_delivery_view.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 21,
+      "expression": "class OrdersDeliveryView(QWidget)",
+      "fingerprint": "7ba63dec04a6fed3f238"
+    },
+    {
+      "path": "frontend/desktop/modules/orders_delivery/pages/analytics_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 13,
+      "expression": "class OrdersAnalyticsPage(QWidget)",
+      "fingerprint": "be1b999f00215829b5bb"
+    },
+    {
+      "path": "frontend/desktop/modules/orders_delivery/pages/overview_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 11,
+      "expression": "class OrdersOverviewPage(QWidget)",
+      "fingerprint": "32faf898eeff02cab009"
+    },
+    {
+      "path": "frontend/desktop/modules/orders_delivery/pages/placeholder_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 13,
+      "expression": "class OrdersDeliveryPlaceholderPage(QWidget)",
+      "fingerprint": "e24b3bbb5f908144c861"
+    },
+    {
+      "path": "frontend/desktop/modules/pricing/pages/costs_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 15,
+      "expression": "class CostsPage(QWidget)",
+      "fingerprint": "7b19970dfabd4ca7288b"
+    },
+    {
+      "path": "frontend/desktop/modules/pricing/pages/history_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 15,
+      "expression": "class PriceHistoryPage(QWidget)",
+      "fingerprint": "85d18576f4d49fa2ce0d"
+    },
+    {
+      "path": "frontend/desktop/modules/pricing/pages/overview_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 16,
+      "expression": "class PricingOverviewPage(QWidget)",
+      "fingerprint": "674fc621933105cb442e"
+    },
+    {
+      "path": "frontend/desktop/modules/pricing/pages/price_lists_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 15,
+      "expression": "class PriceListsPage(QWidget)",
+      "fingerprint": "41660d7d79cfc01ee14d"
+    },
+    {
+      "path": "frontend/desktop/modules/pricing/pages/product_prices_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 21,
+      "expression": "class ProductPricesPage(QWidget)",
+      "fingerprint": "33416cef3b2f4eb1e9fd"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/attribute_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 33,
+      "expression": "class AttributeFormDialog(QDialog)",
+      "fingerprint": "b07665d7eae12d41675d"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/attribute_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 95,
+      "expression": "class _OptionEditor(QDialog)",
+      "fingerprint": "f8d0b9ea2f1f2d81c916"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/attribute_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 147,
+      "expression": "class AttributeOptionsDialog(QDialog)",
+      "fingerprint": "3146dbd735f0cc923609"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/brand_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 20,
+      "expression": "class BrandFormDialog(QDialog)",
+      "fingerprint": "9d504388f64e3f630dba"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/bundle_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 38,
+      "expression": "class BundleFormDialog(QDialog)",
+      "fingerprint": "2a265dce3906b7022bdc"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/bundle_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 140,
+      "expression": "class _ComponentEditor(QDialog)",
+      "fingerprint": "d7b3423a985953d16b3a"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/bundles_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 27,
+      "expression": "class BundlesDialog(QDialog)",
+      "fingerprint": "feb6550310bc9b624e99"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/category_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 23,
+      "expression": "class CategoryFormDialog(QDialog)",
+      "fingerprint": "6d4c98a6b0698fe93cc9"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/category_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 92,
+      "expression": "class MoveCategoryDialog(QDialog)",
+      "fingerprint": "f4e3e8b02b45c53b7b77"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/cutting_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 27,
+      "expression": "class CuttingSchemesDialog(QDialog)",
+      "fingerprint": "70f7ed5277059b7b2a8f"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/cutting_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 49,
+      "expression": "class CuttingSchemeFormDialog(QDialog)",
+      "fingerprint": "ca70273444f146792acf"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/cutting_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 163,
+      "expression": "class _OutputEditor(QDialog)",
+      "fingerprint": "70caf02cde7e449504db"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/image_gallery_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 25,
+      "expression": "class ImageGalleryDialog(QDialog)",
+      "fingerprint": "391020364d878e3370c5"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/image_gallery_dialog.py",
+      "rule": "unicode_icon_literal",
+      "line": 78,
+      "expression": "'\u2605'",
+      "fingerprint": "1d0dbddbc33e2f16c233"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/product_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 56,
+      "expression": "class ProductFormDialog(QDialog)",
+      "fingerprint": "11b013f4633e4b4ea584"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/recipe_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 73,
+      "expression": "class RecipeFormDialog(QDialog)",
+      "fingerprint": "926ef4421587b93b0ef4"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/recipe_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 214,
+      "expression": "class _ComponentEditor(QDialog)",
+      "fingerprint": "d7b3423a985953d16b3a"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/recipe_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 258,
+      "expression": "class _OutputEditor(QDialog)",
+      "fingerprint": "70caf02cde7e449504db"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/recipes_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 28,
+      "expression": "class RecipesDialog(QDialog)",
+      "fingerprint": "6509d9416aad8fc1c5e5"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/variant_generator_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 23,
+      "expression": "class VariantGeneratorDialog(QDialog)",
+      "fingerprint": "41dc21c625b3a1364d71"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/yield_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 57,
+      "expression": "class YieldProfileFormDialog(QDialog)",
+      "fingerprint": "7c31d37ab76b689a5b4c"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/yield_form_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 223,
+      "expression": "class _OutputEditor(QDialog)",
+      "fingerprint": "70caf02cde7e449504db"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/yields_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 27,
+      "expression": "class YieldProfilesDialog(QDialog)",
+      "fingerprint": "1b91b4b3a545c96f81fd"
+    },
+    {
+      "path": "frontend/desktop/modules/products/pages/attributes_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 19,
+      "expression": "class ProductAttributesPage(QWidget)",
+      "fingerprint": "01f13e048e3dfdb5caff"
+    },
+    {
+      "path": "frontend/desktop/modules/products/pages/branch_channel_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 30,
+      "expression": "class BranchChannelPage(QWidget)",
+      "fingerprint": "4773c5d08a59f8d94675"
+    },
+    {
+      "path": "frontend/desktop/modules/products/pages/brands_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 16,
+      "expression": "class ProductBrandsPage(QWidget)",
+      "fingerprint": "e22dddeafcc0c3e1f306"
+    },
+    {
+      "path": "frontend/desktop/modules/products/pages/categories_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 25,
+      "expression": "class ProductCategoriesPage(QWidget)",
+      "fingerprint": "bf72683775a90796f6fe"
+    },
+    {
+      "path": "frontend/desktop/modules/products/pages/import_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 29,
+      "expression": "class ProductImportPage(QWidget)",
+      "fingerprint": "862e11fcf2e23649b845"
+    },
+    {
+      "path": "frontend/desktop/modules/products/pages/overview_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 24,
+      "expression": "class ProductsOverviewPage(QWidget)",
+      "fingerprint": "a5f6e2947499f594abdb"
+    },
+    {
+      "path": "frontend/desktop/modules/products/pages/product_catalog_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 27,
+      "expression": "class ProductCatalogPage(QWidget)",
+      "fingerprint": "c0722dd0dc42510fb17b"
+    },
+    {
+      "path": "frontend/desktop/modules/products/products_view.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 28,
+      "expression": "class ProductsView(QWidget)",
+      "fingerprint": "039ffd95e2ef2e76fc86"
+    },
+    {
+      "path": "frontend/desktop/modules/purchasing/dialogs/enterprise_dialogs.py",
+      "rule": "unicode_icon_literal",
+      "line": 282,
+      "expression": "'\u2605'",
+      "fingerprint": "1d0dbddbc33e2f16c233"
+    },
+    {
+      "path": "frontend/desktop/modules/purchasing/direct_purchase_view.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 21,
+      "expression": "class DirectPurchaseCreateView(QWidget)",
+      "fingerprint": "07e8adaf9c3dcf2de1cd"
+    },
+    {
+      "path": "frontend/desktop/modules/purchasing/direct_purchase_view.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 41,
+      "expression": "class DirectPurchaseHistoryView(QWidget)",
+      "fingerprint": "e07c1465b0093efe98fd"
+    },
+    {
+      "path": "frontend/desktop/modules/purchasing/pages/direct_purchase_create_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 26,
+      "expression": "class DirectPurchaseCreatePage(QWidget)",
+      "fingerprint": "a4968a9d26c55afed482"
+    },
+    {
+      "path": "frontend/desktop/modules/purchasing/pages/direct_purchase_history_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 24,
+      "expression": "class DirectPurchaseHistoryPage(QWidget)",
+      "fingerprint": "069725bb207a2b9f06f3"
+    },
+    {
+      "path": "frontend/desktop/modules/purchasing/pages/direct_purchase_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 64,
+      "expression": "class DirectPurchasePage(QWidget)",
+      "fingerprint": "2c4c5bda610d6bbe4406"
+    },
+    {
+      "path": "frontend/desktop/modules/purchasing/pages/direct_purchase_page.py",
+      "rule": "unicode_icon_literal",
+      "line": 303,
+      "expression": "'\\n\\n\u26a0 Variaci\u00f3n de costo detectada:\\n'",
+      "fingerprint": "230a57e0948de9a5dd55"
+    },
+    {
+      "path": "frontend/desktop/modules/purchasing/pages/logistics_related_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 24,
+      "expression": "class LogisticsRelatedPage(QWidget)",
+      "fingerprint": "6f974f393d3a4b65b551"
+    },
+    {
+      "path": "frontend/desktop/modules/purchasing/pages/procurement_dashboard_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 54,
+      "expression": "class ProcurementDashboardPage(QWidget)",
+      "fingerprint": "28af0e447521ace638a9"
+    },
+    {
+      "path": "frontend/desktop/modules/purchasing/pages/purchase_history_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 10,
+      "expression": "class PurchaseHistoryPage(QWidget)",
+      "fingerprint": "d47474ebc4a587d075d5"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/components/actions_panel.py",
+      "rule": "unicode_icon_literal",
+      "line": 44,
+      "expression": "'\ud83d\udcb3 COBRAR $0.00'",
+      "fingerprint": "753c217a828d7a7e1624"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/components/actions_panel.py",
+      "rule": "unicode_icon_literal",
+      "line": 61,
+      "expression": "'\u2715 Cancelar'",
+      "fingerprint": "98a36d8d20769648ad59"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/components/actions_panel.py",
+      "rule": "unicode_icon_literal",
+      "line": 74,
+      "expression": "'\ud83e\uddfe Factura'",
+      "fingerprint": "3056c66f316a90669364"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/components/actions_panel.py",
+      "rule": "unicode_icon_literal",
+      "line": 80,
+      "expression": "'\ud83d\udda8\ufe0f Reimpr.'",
+      "fingerprint": "5b113988080c310b1873"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/components/actions_panel.py",
+      "rule": "unicode_icon_literal",
+      "line": 88,
+      "expression": "'\ud83d\udcb3 COBRAR '",
+      "fingerprint": "c306c2d4c8986e33ff25"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/components/cashier_bar.py",
+      "rule": "unicode_icon_literal",
+      "line": 35,
+      "expression": "'\ud83d\uded2 Punto de Venta'",
+      "fingerprint": "a86175341d07cdbabb00"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/components/cashier_bar.py",
+      "rule": "unicode_icon_literal",
+      "line": 47,
+      "expression": "'\u2699 Diagn\u00f3stico'",
+      "fingerprint": "fc995c6ce257bd78734a"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/components/cashier_bar.py",
+      "rule": "unicode_icon_literal",
+      "line": 51,
+      "expression": "'\ud83d\udda5 Pantalla del cliente'",
+      "fingerprint": "1b72c50e8a9b2035d92f"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/dialogs/discount_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 17,
+      "expression": "class DiscountDialog(QDialog)",
+      "fingerprint": "2126a3460e741063cbfe"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/dialogs/payment_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 67,
+      "expression": "class PaymentDialog(QDialog)",
+      "fingerprint": "5d7e6e0dec8fe0f8cde1"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/dialogs/payment_dialog.py",
+      "rule": "unicode_icon_literal",
+      "line": 125,
+      "expression": "'\ud83d\udcb0 Confirmar y cobrar'",
+      "fingerprint": "56d5eb0cde29b981d1f1"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/dialogs/quick_customer_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 14,
+      "expression": "class QuickCustomerDialog(QDialog)",
+      "fingerprint": "031ad4516aea1891b878"
+    },
+    {
+      "path": "frontend/desktop/modules/sales_pos/sales_pos_workspace.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 47,
+      "expression": "class SalesPosWorkspace(QWidget)",
+      "fingerprint": "b3eff1a28b5607e08b9f"
+    },
+    {
+      "path": "frontend/desktop/modules/tarjetas_fidelidad/pages/cards_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 23,
+      "expression": "class CardsPage(QWidget)",
+      "fingerprint": "ad091668bb93242f94ed"
+    },
+    {
+      "path": "frontend/desktop/modules/tarjetas_fidelidad/pages/overview_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 17,
+      "expression": "class TarjetasFidelidadOverviewPage(QWidget)",
+      "fingerprint": "83a03c795f26c69810ad"
+    },
+    {
+      "path": "frontend/desktop/modules/tarjetas_fidelidad/pages/templates_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 35,
+      "expression": "class TemplatesPage(QWidget)",
+      "fingerprint": "3c124384a23d8bf6f473"
+    },
+    {
+      "path": "frontend/desktop/modules/transfers/pages/base_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 13,
+      "expression": "class TransferWorkspacePage(QWidget)",
+      "fingerprint": "a0ee1d47df8880af492f"
+    },
+    {
+      "path": "frontend/desktop/modules/transfers/transfers_view.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 9,
+      "expression": "class TransfersView(QWidget)",
+      "fingerprint": "82c33c1a5318f4369530"
+    },
+    {
+      "path": "frontend/desktop/provisioning/pages/_wizard_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 16,
+      "expression": "class WizardPage(QWidget)",
+      "fingerprint": "caa74573f796b3f20654"
+    },
+    {
+      "path": "frontend/desktop/shell/loading/module_error_view.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 21,
+      "expression": "class ModuleErrorView(QWidget)",
+      "fingerprint": "2f6c7dc9e733df774d51"
+    }
+  ]
+}

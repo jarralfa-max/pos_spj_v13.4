@@ -1,0 +1,109 @@
+2026-09-13 00:10:09,520 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-13 14:06:15,216 SPJ.Boot INFO =======================================================
+2026-09-13 14:06:15,217 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-13 14:06:15,247 SPJ.Boot INFO =======================================================
+2026-09-13 14:06:19,586 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-13 14:06:21,256 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-13 14:06:21,355 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-13 14:07:07,228 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-13 14:08:06,472 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-13 18:08:37,223 SPJ.Boot INFO =======================================================
+2026-09-13 18:08:37,225 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-13 18:08:37,225 SPJ.Boot INFO =======================================================
+2026-09-13 18:08:39,962 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-13 18:08:40,558 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-13 18:08:40,560 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-13 18:09:30,952 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-13 18:11:12,889 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-13 18:19:26,976 SPJ.Boot INFO =======================================================
+2026-09-13 18:19:26,977 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-13 18:19:26,982 SPJ.Boot INFO =======================================================
+2026-09-13 18:19:32,250 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-13 18:19:34,021 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-13 18:19:34,022 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-13 18:20:19,516 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-13 18:24:07,614 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-09-13 18:24:58,814 frontend.desktop.components.icons WARNING Unknown icon identifier '💵'; using file symbol
+2026-09-13 18:24:58,818 frontend.desktop.components.icons WARNING Unknown icon identifier '💵'; using file symbol
+2026-09-13 18:24:58,820 frontend.desktop.components.icons WARNING Unknown icon identifier '🧮'; using file symbol
+2026-09-13 18:24:58,824 frontend.desktop.components.icons WARNING Unknown icon identifier '🧮'; using file symbol
+2026-09-13 18:24:58,826 frontend.desktop.components.icons WARNING Unknown icon identifier '🧾'; using file symbol
+2026-09-13 18:24:58,831 frontend.desktop.components.icons WARNING Unknown icon identifier '🧾'; using file symbol
+2026-09-13 18:25:07,763 frontend.desktop.components.icons WARNING Unknown icon identifier '📦'; using file symbol
+2026-09-13 18:25:07,770 frontend.desktop.components.icons WARNING Unknown icon identifier '📦'; using file symbol
+2026-09-13 18:25:07,777 frontend.desktop.components.icons WARNING Unknown icon identifier '🔄'; using file symbol
+2026-09-13 18:25:07,786 frontend.desktop.components.icons WARNING Unknown icon identifier '🔄'; using file symbol
+2026-09-13 18:25:07,793 frontend.desktop.components.icons WARNING Unknown icon identifier '🗑️'; using file symbol
+2026-09-13 18:25:07,800 frontend.desktop.components.icons WARNING Unknown icon identifier '🗑️'; using file symbol
+2026-09-13 18:25:13,475 frontend.desktop.components.icons WARNING Unknown icon identifier '💵'; using file symbol
+2026-09-13 18:25:13,477 frontend.desktop.components.icons WARNING Unknown icon identifier '🧮'; using file symbol
+2026-09-13 18:25:13,479 frontend.desktop.components.icons WARNING Unknown icon identifier '🧾'; using file symbol
+2026-09-13 18:25:21,158 frontend.desktop.components.icons WARNING Unknown icon identifier '🏷️'; using file symbol
+2026-09-13 18:25:21,170 frontend.desktop.components.icons WARNING Unknown icon identifier '🏷️'; using file symbol
+2026-09-13 18:25:21,176 frontend.desktop.components.icons WARNING Unknown icon identifier '📈'; using file symbol
+2026-09-13 18:25:21,186 frontend.desktop.components.icons WARNING Unknown icon identifier '📈'; using file symbol
+2026-09-13 18:25:21,191 frontend.desktop.components.icons WARNING Unknown icon identifier '％'; using file symbol
+2026-09-13 18:25:21,200 frontend.desktop.components.icons WARNING Unknown icon identifier '％'; using file symbol
+2026-09-13 18:25:21,203 frontend.desktop.components.icons WARNING Unknown icon identifier '🗂️'; using file symbol
+2026-09-13 18:25:21,207 frontend.desktop.components.icons WARNING Unknown icon identifier '🗂️'; using file symbol
+2026-09-13 18:25:22,895 frontend.desktop.components.icons WARNING Unknown icon identifier '🏬'; using file symbol
+2026-09-13 18:25:22,902 frontend.desktop.components.icons WARNING Unknown icon identifier '🏬'; using file symbol
+2026-09-13 18:25:22,908 frontend.desktop.components.icons WARNING Unknown icon identifier '💰'; using file symbol
+2026-09-13 18:25:22,917 frontend.desktop.components.icons WARNING Unknown icon identifier '💰'; using file symbol
+2026-09-13 18:25:22,923 frontend.desktop.components.icons WARNING Unknown icon identifier '🥇'; using file symbol
+2026-09-13 18:25:22,933 frontend.desktop.components.icons WARNING Unknown icon identifier '🥇'; using file symbol
+2026-09-13 18:25:22,938 frontend.desktop.components.icons WARNING Unknown icon identifier '⚖️'; using file symbol
+2026-09-13 18:25:22,943 frontend.desktop.components.icons WARNING Unknown icon identifier '⚖️'; using file symbol
+2026-09-13 18:25:24,869 frontend.desktop.components.icons WARNING Unknown icon identifier '💵'; using file symbol
+2026-09-13 18:25:24,877 frontend.desktop.components.icons WARNING Unknown icon identifier '💵'; using file symbol
+2026-09-13 18:25:24,882 frontend.desktop.components.icons WARNING Unknown icon identifier '🪙'; using file symbol
+2026-09-13 18:25:24,891 frontend.desktop.components.icons WARNING Unknown icon identifier '🪙'; using file symbol
+2026-09-13 18:25:24,897 frontend.desktop.components.icons WARNING Unknown icon identifier '📊'; using file symbol
+2026-09-13 18:25:24,908 frontend.desktop.components.icons WARNING Unknown icon identifier '📊'; using file symbol
+2026-09-13 18:25:24,915 frontend.desktop.components.icons WARNING Unknown icon identifier '💸'; using file symbol
+2026-09-13 18:25:24,920 frontend.desktop.components.icons WARNING Unknown icon identifier '💸'; using file symbol
+2026-09-13 18:25:24,923 frontend.desktop.components.icons WARNING Unknown icon identifier '👥'; using file symbol
+2026-09-13 18:25:24,927 frontend.desktop.components.icons WARNING Unknown icon identifier '👥'; using file symbol
+2026-09-13 18:25:24,930 frontend.desktop.components.icons WARNING Unknown icon identifier '🚚'; using file symbol
+2026-09-13 18:25:24,935 frontend.desktop.components.icons WARNING Unknown icon identifier '🚚'; using file symbol
+2026-09-13 18:25:28,342 frontend.desktop.components.icons WARNING Unknown icon identifier '💰'; using file symbol
+2026-09-13 18:25:28,349 frontend.desktop.components.icons WARNING Unknown icon identifier '💰'; using file symbol
+2026-09-13 18:25:28,356 frontend.desktop.components.icons WARNING Unknown icon identifier '💸'; using file symbol
+2026-09-13 18:25:28,365 frontend.desktop.components.icons WARNING Unknown icon identifier '💸'; using file symbol
+2026-09-13 18:25:28,371 frontend.desktop.components.icons WARNING Unknown icon identifier '🪙'; using file symbol
+2026-09-13 18:25:28,379 frontend.desktop.components.icons WARNING Unknown icon identifier '🪙'; using file symbol
+2026-09-13 18:25:28,384 frontend.desktop.components.icons WARNING Unknown icon identifier '🧾'; using file symbol
+2026-09-13 18:25:28,389 frontend.desktop.components.icons WARNING Unknown icon identifier '🧾'; using file symbol
+2026-09-13 18:28:22,745 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-13 18:28:31,707 SPJ.Boot INFO =======================================================
+2026-09-13 18:28:31,708 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-13 18:28:31,708 SPJ.Boot INFO =======================================================
+2026-09-13 18:28:34,299 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-13 18:28:34,688 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-13 18:28:34,723 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-13 18:29:05,488 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-13 18:29:46,569 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-13 20:08:50,120 SPJ.Boot INFO =======================================================
+2026-09-13 20:08:50,122 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-13 20:08:50,122 SPJ.Boot INFO =======================================================
+2026-09-13 20:08:53,913 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-13 20:08:55,266 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-13 20:08:55,276 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-13 20:09:53,677 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-13 21:01:31,460 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-13 21:01:48,495 SPJ.Boot INFO =======================================================
+2026-09-13 21:01:48,506 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-13 21:01:48,519 SPJ.Boot INFO =======================================================
+2026-09-13 21:01:55,879 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-13 21:01:57,390 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-13 21:01:58,643 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-13 21:03:10,022 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-13 21:05:47,339 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-13 21:33:44,359 SPJ.Boot INFO =======================================================
+2026-09-13 21:33:44,360 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-13 21:33:44,361 SPJ.Boot INFO =======================================================
+2026-09-13 21:33:49,902 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-13 21:33:50,653 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-13 21:33:50,665 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-13 21:34:33,192 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-13 21:38:41,716 SPJ.Boot INFO Sistema cerrado. Código: 0

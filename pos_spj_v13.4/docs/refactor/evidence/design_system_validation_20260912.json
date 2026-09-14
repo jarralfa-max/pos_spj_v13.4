@@ -1,0 +1,3017 @@
+{
+  "date": "2026-09-12",
+  "head": "a12b70b09d1305fcd3029b7259c9f4dd8561c067",
+  "scope": "Design system foundation, shell, component validation; global adoption remains incomplete",
+  "pytest_runs": {
+    "ds-components-shell-final.xml": {
+      "tests": 161,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 161,
+      "seconds": 19.383
+    },
+    "ds-architecture-appearance-final.xml": {
+      "tests": 184,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 184,
+      "seconds": 117.636
+    },
+    "design-system-visual-final.xml": {
+      "tests": 40,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 40,
+      "seconds": 70.263
+    },
+    "design-system-navigation-final.xml": {
+      "tests": 20,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 20,
+      "seconds": 30.776
+    },
+    "ds-responsive-final.xml": {
+      "tests": 40,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 40,
+      "seconds": 13.976
+    },
+    "architecture-ui-20260911-results.xml": {
+      "tests": 820,
+      "failures": 149,
+      "errors": 1,
+      "skipped": 3,
+      "passed": 667,
+      "seconds": 985.553
+    }
+  },
+  "distinct_passing_targeted_tests": 386,
+  "targeted_test_cases": [
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_ast_audit_accepts_canonical_composition_and_ignores_prose"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_ast_audit_accepts_explicit_scroll_and_keeps_web_colors_separate"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_ast_audit_detects_forbidden_module_patterns[button = QPushButton(\"\\\\U0001f514 Notificaciones\")-unicode_icon_literal]"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_ast_audit_detects_forbidden_module_patterns[button = QPushButton()\\nbutton.setFixedHeight(32)-fixed_control_below_touch_target]"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_ast_audit_detects_forbidden_module_patterns[button.setStyleSheet(style)-inline_qss]"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_ast_audit_detects_forbidden_module_patterns[class EditDialog(QDialog):\\n    pass-noncanonical_dialog]"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_ast_audit_detects_forbidden_module_patterns[class EditDialog(StandardDialog):\\n    def setup(self):\\n        self.setMinimumSize(1400, 900)-dialog_geometry_exceeds_smallest_viewport]"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_ast_audit_detects_forbidden_module_patterns[class KPICard(QWidget):\\n    pass-local_standard_component]"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_ast_audit_detects_forbidden_module_patterns[class LocalButton(QPushButton):\\n    def setup(self):\\n        self.setFont(font)-local_visual_control]"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_ast_audit_detects_forbidden_module_patterns[class LocalInput(QLineEdit):\\n    def paintEvent(self, event):\\n        pass-local_visual_control]"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_ast_audit_detects_forbidden_module_patterns[class LocalTable(QtWidgets.QTableWidget):\\n    pass-native_operational_table]"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_ast_audit_detects_forbidden_module_patterns[class OrdersView(QWidget):\\n    pass-screen_without_explicit_overflow]"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_ast_audit_detects_forbidden_module_patterns[class SalesPage(QWidget):\\n    pass-screen_without_explicit_overflow]"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_ast_audit_detects_forbidden_module_patterns[class SalesPageHeader(QWidget):\\n    pass-local_standard_component]"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_ast_audit_detects_forbidden_module_patterns[color = \"#18372B\"-hardcoded_visual_hex]"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_ast_audit_detects_forbidden_module_patterns[color = \"#ffffff\"-hardcoded_visual_hex]"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_ast_audit_detects_forbidden_module_patterns[from PyQt5.QtWidgets import QTableWidget as Grid\\ntable = Grid()-native_operational_table]"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_brand_colors_only_in_theme_layer"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_charts_render_via_html_js_not_native"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_desktop_visual_debt_does_not_grow"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_existing_file_debt_cannot_hide_new_expressions_or_duplicate_occurrences"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_no_hardcoded_hex_in_components"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_no_inline_stylesheets_in_components"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_no_native_pyqt_charts_in_frontend"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_print_canvas_white_is_data_and_does_not_exempt_widget_colors"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_theme_layer_is_the_single_qss_source"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_time_input_builds_on_qtimeedit_not_qlineedit"
+    },
+    {
+      "module": "tests.architecture.test_design_system_guardrails",
+      "test": "test_visual_debt_baseline_is_exact_and_kept_pruned"
+    },
+    {
+      "module": "tests.architecture.test_pricing_ui_has_no_database_access",
+      "test": "test_pricing_ui_has_no_database_access"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_categorical_chart_colors_are_distinct"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_disabled_text_is_dimmer_than_primary_text"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_filled_button_text_meets_aa_in_interactive_states[DEFAULT-DANGER-Dark]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_filled_button_text_meets_aa_in_interactive_states[DEFAULT-DANGER-Light]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_filled_button_text_meets_aa_in_interactive_states[DEFAULT-PRIMARY-Dark]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_filled_button_text_meets_aa_in_interactive_states[DEFAULT-PRIMARY-Light]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_filled_button_text_meets_aa_in_interactive_states[HOVER-DANGER-Dark]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_filled_button_text_meets_aa_in_interactive_states[HOVER-DANGER-Light]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_filled_button_text_meets_aa_in_interactive_states[HOVER-PRIMARY-Dark]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_filled_button_text_meets_aa_in_interactive_states[HOVER-PRIMARY-Light]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_filled_button_text_meets_aa_in_interactive_states[PRESSED-DANGER-Dark]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_filled_button_text_meets_aa_in_interactive_states[PRESSED-DANGER-Light]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_filled_button_text_meets_aa_in_interactive_states[PRESSED-PRIMARY-Dark]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_filled_button_text_meets_aa_in_interactive_states[PRESSED-PRIMARY-Light]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_large_and_ui_pairs_meet_aa[dark-BORDER_STRONG-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_large_and_ui_pairs_meet_aa[dark-FOCUS_RING-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_large_and_ui_pairs_meet_aa[dark-TEXT_INVERSE-ACCENT_DEFAULT]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_large_and_ui_pairs_meet_aa[dark-TEXT_MUTED-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_large_and_ui_pairs_meet_aa[light-BORDER_STRONG-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_large_and_ui_pairs_meet_aa[light-FOCUS_RING-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_large_and_ui_pairs_meet_aa[light-TEXT_MUTED-SURFACE_MUTED]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[dark-ACCENT_TEXT-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[dark-DANGER_DEFAULT-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[dark-INFO_DEFAULT-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[dark-PRIMARY_DEFAULT-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[dark-SUCCESS_DEFAULT-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[dark-TEXT_PRIMARY-BACKGROUND]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[dark-TEXT_PRIMARY-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[dark-TEXT_SECONDARY-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[dark-TOOLTIP_TEXT-TOOLTIP_BACKGROUND]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[dark-WARNING_DEFAULT-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[light-ACCENT_TEXT-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[light-DANGER_DEFAULT-DANGER_SUBTLE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[light-DANGER_DEFAULT-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[light-INFO_DEFAULT-INFO_SUBTLE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[light-INFO_DEFAULT-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[light-PRIMARY_DEFAULT-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[light-SUCCESS_DEFAULT-SUCCESS_SUBTLE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[light-SUCCESS_DEFAULT-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[light-TEXT_MUTED-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[light-TEXT_PRIMARY-ACCENT_DEFAULT]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[light-TEXT_PRIMARY-BACKGROUND]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[light-TEXT_PRIMARY-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[light-TEXT_SECONDARY-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[light-TOOLTIP_TEXT-TOOLTIP_BACKGROUND]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[light-WARNING_DEFAULT-SURFACE]"
+    },
+    {
+      "module": "tests.architecture.test_theme_contrast",
+      "test": "test_normal_text_pairs_meet_aa[light-WARNING_DEFAULT-WARNING_SUBTLE]"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestChangeAppearancePreferenceStatusUseCase",
+      "test": "test_activate_rejects_when_scope_already_occupied"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestChangeAppearancePreferenceStatusUseCase",
+      "test": "test_deactivate_then_reactivate"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestChangeAppearancePreferenceStatusUseCase",
+      "test": "test_raises_when_missing"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestChangeDensityProfileStatusUseCase",
+      "test": "test_deactivate_then_activate"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestChangeThemeStatusUseCase",
+      "test": "test_deactivate_then_activate"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateAppearancePreferenceUseCase",
+      "test": "test_allows_different_scopes"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateAppearancePreferenceUseCase",
+      "test": "test_creates_global_preference"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateAppearancePreferenceUseCase",
+      "test": "test_rejects_second_active_preference_in_same_scope"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDensityProfileUseCase",
+      "test": "test_creates_and_persists"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDensityProfileUseCase",
+      "test": "test_rejects_duplicate_level"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDesignTokenUseCase",
+      "test": "test_allows_same_key_in_different_scopes"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDesignTokenUseCase",
+      "test": "test_creates_global_token"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDesignTokenUseCase",
+      "test": "test_creates_theme_scoped_token"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDesignTokenUseCase",
+      "test": "test_rejects_duplicate_key_in_same_scope"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateThemeUseCase",
+      "test": "test_creates_and_persists"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateThemeUseCase",
+      "test": "test_rejects_duplicate_code"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateDensityProfileUseCase",
+      "test": "test_raises_when_missing"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateDensityProfileUseCase",
+      "test": "test_updates_fields"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateDesignTokenUseCase",
+      "test": "test_raises_when_missing"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateDesignTokenUseCase",
+      "test": "test_updates_value"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateThemeUseCase",
+      "test": "test_raises_when_missing"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateThemeUseCase",
+      "test": "test_updates_name"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_repositories.TestAppearancePreferenceRepository",
+      "test": "test_composes_with_resolution_policy_end_to_end"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_repositories.TestAppearancePreferenceRepository",
+      "test": "test_save_get_roundtrip"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_repositories.TestAppearancePreferenceRepository",
+      "test": "test_unique_index_blocks_two_active_preferences_for_same_scope"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_repositories.TestDensityProfileRepository",
+      "test": "test_get_by_level"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_repositories.TestDensityProfileRepository",
+      "test": "test_level_is_unique"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_repositories.TestDensityProfileRepository",
+      "test": "test_save_get_roundtrip_preserves_decimal_scale_factor"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_repositories.TestDesignTokenRepository",
+      "test": "test_composes_with_token_resolution_policy_end_to_end"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_repositories.TestDesignTokenRepository",
+      "test": "test_save_get_roundtrip"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_repositories.TestDesignTokenRepository",
+      "test": "test_scope_uniqueness_blocks_duplicate_key_for_same_theme"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_repositories.TestThemeRepository",
+      "test": "test_code_is_unique"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_repositories.TestThemeRepository",
+      "test": "test_get_by_code"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_repositories.TestThemeRepository",
+      "test": "test_get_default"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_repositories.TestThemeRepository",
+      "test": "test_list_active_excludes_inactive"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_repositories.TestThemeRepository",
+      "test": "test_only_one_default_theme_allowed_at_schema_level"
+    },
+    {
+      "module": "tests.integration.appearance.test_appearance_repositories.TestThemeRepository",
+      "test": "test_save_get_roundtrip"
+    },
+    {
+      "module": "tests.integration.shell.test_desktop_shell_window_composition",
+      "test": "test_builds_a_real_application_window"
+    },
+    {
+      "module": "tests.integration.shell.test_desktop_shell_window_composition",
+      "test": "test_navigating_to_purchasing_builds_the_real_purchasing_view"
+    },
+    {
+      "module": "tests.integration.shell.test_desktop_shell_window_composition",
+      "test": "test_navigating_to_transfers_builds_the_real_transfers_view"
+    },
+    {
+      "module": "tests.integration.shell.test_desktop_shell_window_composition",
+      "test": "test_no_module_is_constructed_until_navigated_to"
+    },
+    {
+      "module": "tests.integration.shell.test_desktop_shell_window_composition",
+      "test": "test_sidebar_shows_all_migrated_modules_when_fully_permitted"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window",
+      "test": "test_adding_notification_updates_top_bar_unread_count"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window",
+      "test": "test_construction_applies_initial_context_to_chrome"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window",
+      "test": "test_go_back_and_go_forward_update_content_host"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window",
+      "test": "test_keep_alive_route_view_persists_across_navigation"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window",
+      "test": "test_navigate_marks_degraded_offline_in_status_bar"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window",
+      "test": "test_navigate_updates_content_host_and_breadcrumb"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window",
+      "test": "test_notifications_toggle_button_opens_and_closes_drawer"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window",
+      "test": "test_update_context_evicts_recreate_on_context_change_cache"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window",
+      "test": "test_update_context_refreshes_top_bar_and_status_bar"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_background",
+      "test": "test_bound_service_is_started_at_construction"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_background",
+      "test": "test_supervisor_is_reachable_from_the_window_for_health_inspection"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_background",
+      "test": "test_unbound_registered_service_is_left_not_started"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_background",
+      "test": "test_window_without_service_supervisor_still_works"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_loading",
+      "test": "test_background_preload_module_is_loaded_with_default_synchronous_scheduler"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_loading",
+      "test": "test_eager_module_is_activated_at_construction"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_loading",
+      "test": "test_error_view_retry_button_re_navigates"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_loading",
+      "test": "test_failed_load_does_not_advance_router_history"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_loading",
+      "test": "test_failed_load_still_updates_breadcrumb_to_the_attempted_route"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_loading",
+      "test": "test_navigating_to_a_lazy_module_activates_it_on_first_navigation"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_loading",
+      "test": "test_navigating_to_a_module_that_fails_to_load_shows_an_error_view"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_loading",
+      "test": "test_retrying_after_activation_recovers_succeeds"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_loading",
+      "test": "test_window_without_module_loader_still_works"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_shutdown",
+      "test": "test_close_event_captures_a_failed_shutdown_result_without_raising"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_shutdown",
+      "test": "test_close_event_runs_the_shutdown_coordinator"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_shutdown",
+      "test": "test_close_event_stores_the_shutdown_result"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_shutdown",
+      "test": "test_window_without_shutdown_coordinator_close_event_does_not_raise"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_sidebar",
+      "test": "test_clicking_sidebar_item_navigates_the_window"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_sidebar",
+      "test": "test_navigating_the_window_highlights_the_matching_sidebar_row"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_sidebar",
+      "test": "test_navigating_via_window_does_not_trigger_a_second_navigation_from_the_sidebar"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_sidebar",
+      "test": "test_sidebar_is_mounted_when_provided"
+    },
+    {
+      "module": "tests.ui.shell.test_application_window_sidebar",
+      "test": "test_window_without_sidebar_still_works"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host",
+      "test": "test_cached_oversized_page_does_not_force_overflow_on_the_next_page"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host",
+      "test": "test_clear_empties_cache_and_current_route"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host",
+      "test": "test_display_mounts_the_view_as_current_widget"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host",
+      "test": "test_keep_alive_reuses_first_widget_on_later_navigation"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host",
+      "test": "test_non_qwidget_view_does_not_raise_and_still_tracks_route_id"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host",
+      "test": "test_on_context_changed_does_not_touch_keep_alive_routes"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host",
+      "test": "test_page_with_own_scroll_and_wrapped_header_does_not_add_outer_scroll"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host",
+      "test": "test_recreate_on_context_change_is_evicted_by_on_context_changed"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host",
+      "test": "test_recreate_on_context_change_survives_ordinary_navigation"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host",
+      "test": "test_recreate_on_navigation_replaces_widget_and_discards_old_one"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host",
+      "test": "test_repeated_navigation_to_recreate_on_navigation_route_does_not_leak_stack_entries"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host",
+      "test": "test_singleton_reuses_first_widget_forever"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host_loading",
+      "test": "test_after_load_failed_a_successful_retry_caches_normally"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host_loading",
+      "test": "test_display_after_preload_reuses_the_preloaded_widget"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host_loading",
+      "test": "test_load_failed_does_not_evict_a_previously_cached_good_view"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host_loading",
+      "test": "test_load_failed_view_is_not_cached"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host_loading",
+      "test": "test_load_failed_view_is_shown"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host_loading",
+      "test": "test_preload_caches_without_changing_current_route"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host_loading",
+      "test": "test_preload_of_non_sticky_policy_discards_the_view"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host_loading",
+      "test": "test_preloading_a_second_route_does_not_steal_focus_from_a_displayed_one"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host_loading",
+      "test": "test_preloading_an_already_cached_route_is_a_no_op"
+    },
+    {
+      "module": "tests.ui.shell.test_content_host_loading",
+      "test": "test_repeated_load_failures_do_not_leak_error_widgets"
+    },
+    {
+      "module": "tests.ui.shell.test_global_sidebar",
+      "test": "test_badge_count_is_reflected_in_the_underlying_side_nav_item_text"
+    },
+    {
+      "module": "tests.ui.shell.test_global_sidebar",
+      "test": "test_clearing_search_restores_full_list"
+    },
+    {
+      "module": "tests.ui.shell.test_global_sidebar",
+      "test": "test_clicking_a_group_header_row_does_not_emit_item_activated"
+    },
+    {
+      "module": "tests.ui.shell.test_global_sidebar",
+      "test": "test_clicking_a_row_emits_item_activated_with_its_route_id"
+    },
+    {
+      "module": "tests.ui.shell.test_global_sidebar",
+      "test": "test_grouped_items_add_a_non_interactive_header_row"
+    },
+    {
+      "module": "tests.ui.shell.test_global_sidebar",
+      "test": "test_search_changed_filters_visible_items"
+    },
+    {
+      "module": "tests.ui.shell.test_global_sidebar",
+      "test": "test_set_active_route_selects_the_matching_row_without_reemitting"
+    },
+    {
+      "module": "tests.ui.shell.test_global_sidebar",
+      "test": "test_set_active_route_with_unknown_route_id_is_a_no_op"
+    },
+    {
+      "module": "tests.ui.shell.test_global_sidebar",
+      "test": "test_set_items_after_search_is_applied_reapplies_the_active_query"
+    },
+    {
+      "module": "tests.ui.shell.test_global_sidebar",
+      "test": "test_set_items_populates_the_list"
+    },
+    {
+      "module": "tests.ui.shell.test_global_sidebar",
+      "test": "test_starts_empty"
+    },
+    {
+      "module": "tests.ui.shell.test_module_error_view",
+      "test": "test_shows_module_id_and_error_in_message"
+    },
+    {
+      "module": "tests.ui.shell.test_module_error_view",
+      "test": "test_with_on_retry_clicking_the_button_invokes_the_callback"
+    },
+    {
+      "module": "tests.ui.shell.test_module_error_view",
+      "test": "test_without_on_retry_there_is_no_retry_button"
+    },
+    {
+      "module": "tests.ui.shell.test_notification_drawer",
+      "test": "test_activating_list_item_marks_read_and_emits_notification_activated"
+    },
+    {
+      "module": "tests.ui.shell.test_notification_drawer",
+      "test": "test_add_notification_already_read_does_not_count_as_unread"
+    },
+    {
+      "module": "tests.ui.shell.test_notification_drawer",
+      "test": "test_add_notification_increases_unread_count"
+    },
+    {
+      "module": "tests.ui.shell.test_notification_drawer",
+      "test": "test_clear_removes_everything"
+    },
+    {
+      "module": "tests.ui.shell.test_notification_drawer",
+      "test": "test_close_when_already_closed_does_not_emit_closed_signal"
+    },
+    {
+      "module": "tests.ui.shell.test_notification_drawer",
+      "test": "test_close_when_open_emits_closed_signal"
+    },
+    {
+      "module": "tests.ui.shell.test_notification_drawer",
+      "test": "test_mark_read_decreases_unread_count"
+    },
+    {
+      "module": "tests.ui.shell.test_notification_drawer",
+      "test": "test_mark_read_unknown_id_is_a_no_op"
+    },
+    {
+      "module": "tests.ui.shell.test_notification_drawer",
+      "test": "test_open_close_toggle_track_is_open_without_show"
+    },
+    {
+      "module": "tests.ui.shell.test_notification_drawer",
+      "test": "test_starts_closed_and_empty"
+    },
+    {
+      "module": "tests.ui.shell.test_notification_drawer",
+      "test": "test_unread_count_changed_emits_on_add_and_mark_read"
+    },
+    {
+      "module": "tests.ui.shell.test_shell_ui_contracts",
+      "test": "test_module_group_collapses_without_changing_route_indices"
+    },
+    {
+      "module": "tests.ui.shell.test_shell_ui_contracts",
+      "test": "test_module_sidebar_persists_collapsed_groups"
+    },
+    {
+      "module": "tests.ui.shell.test_shell_ui_contracts",
+      "test": "test_settings_button_opens_registered_route_and_respects_permissions[permissions0]"
+    },
+    {
+      "module": "tests.ui.shell.test_shell_ui_contracts",
+      "test": "test_settings_button_opens_registered_route_and_respects_permissions[permissions1]"
+    },
+    {
+      "module": "tests.ui.shell.test_shell_ui_contracts",
+      "test": "test_settings_button_opens_registered_route_and_respects_permissions[permissions2]"
+    },
+    {
+      "module": "tests.ui.shell.test_shell_ui_contracts",
+      "test": "test_settings_denial_from_router_is_handled_in_qt_slot"
+    },
+    {
+      "module": "tests.ui.shell.test_shell_ui_contracts",
+      "test": "test_sidebar_collapse_restores_route_and_keeps_toggle_reachable"
+    },
+    {
+      "module": "tests.ui.shell.test_shell_ui_contracts",
+      "test": "test_sidebar_search_render_does_not_emit_navigation"
+    },
+    {
+      "module": "tests.ui.shell.test_shell_ui_contracts",
+      "test": "test_topbar_actions_and_session_are_accessible"
+    },
+    {
+      "module": "tests.ui.shell.test_status_bar",
+      "test": "test_default_connectivity_text_is_online"
+    },
+    {
+      "module": "tests.ui.shell.test_status_bar",
+      "test": "test_degraded_flag_takes_priority_over_offline_status"
+    },
+    {
+      "module": "tests.ui.shell.test_status_bar",
+      "test": "test_offline_status_shows_sin_conexion"
+    },
+    {
+      "module": "tests.ui.shell.test_status_bar",
+      "test": "test_online_but_degraded_route_shows_conexion_limitada"
+    },
+    {
+      "module": "tests.ui.shell.test_status_bar",
+      "test": "test_online_not_degraded_shows_en_linea"
+    },
+    {
+      "module": "tests.ui.shell.test_status_bar",
+      "test": "test_set_workstation_shows_branch_and_workstation_id"
+    },
+    {
+      "module": "tests.ui.shell.test_top_bar",
+      "test": "test_breadcrumb_starts_empty"
+    },
+    {
+      "module": "tests.ui.shell.test_top_bar",
+      "test": "test_notifications_button_click_emits_toggle_signal"
+    },
+    {
+      "module": "tests.ui.shell.test_top_bar",
+      "test": "test_set_breadcrumb_empty_tuple_clears_text"
+    },
+    {
+      "module": "tests.ui.shell.test_top_bar",
+      "test": "test_set_breadcrumb_joins_with_separator"
+    },
+    {
+      "module": "tests.ui.shell.test_top_bar",
+      "test": "test_set_context_shows_branch_and_user"
+    },
+    {
+      "module": "tests.ui.shell.test_top_bar",
+      "test": "test_set_unread_notification_count_updates_tooltip"
+    },
+    {
+      "module": "tests.ui.shell.test_top_bar",
+      "test": "test_unread_notification_count_starts_at_zero"
+    },
+    {
+      "module": "tests.ui.test_design_system_navigation_visuals",
+      "test": "test_navigation_authentication_and_keyboard_visuals[comfortable-dark-size0]"
+    },
+    {
+      "module": "tests.ui.test_design_system_navigation_visuals",
+      "test": "test_navigation_authentication_and_keyboard_visuals[comfortable-dark-size1]"
+    },
+    {
+      "module": "tests.ui.test_design_system_navigation_visuals",
+      "test": "test_navigation_authentication_and_keyboard_visuals[comfortable-dark-size2]"
+    },
+    {
+      "module": "tests.ui.test_design_system_navigation_visuals",
+      "test": "test_navigation_authentication_and_keyboard_visuals[comfortable-dark-size3]"
+    },
+    {
+      "module": "tests.ui.test_design_system_navigation_visuals",
+      "test": "test_navigation_authentication_and_keyboard_visuals[comfortable-dark-size4]"
+    },
+    {
+      "module": "tests.ui.test_design_system_navigation_visuals",
+      "test": "test_navigation_authentication_and_keyboard_visuals[comfortable-light-size0]"
+    },
+    {
+      "module": "tests.ui.test_design_system_navigation_visuals",
+      "test": "test_navigation_authentication_and_keyboard_visuals[comfortable-light-size1]"
+    },
+    {
+      "module": "tests.ui.test_design_system_navigation_visuals",
+      "test": "test_navigation_authentication_and_keyboard_visuals[comfortable-light-size2]"
+    },
+    {
+      "module": "tests.ui.test_design_system_navigation_visuals",
+      "test": "test_navigation_authentication_and_keyboard_visuals[comfortable-light-size3]"
+    },
+    {
+      "module": "tests.ui.test_design_system_navigation_visuals",
+      "test": "test_navigation_authentication_and_keyboard_visuals[comfortable-light-size4]"
+    },
+    {
+      "module": "tests.ui.test_design_system_navigation_visuals",
+      "test": "test_navigation_authentication_and_keyboard_visuals[touch-dark-size0]"
+    },
+    {
+      "module": "tests.ui.test_design_system_navigation_visuals",
+      "test": "test_navigation_authentication_and_keyboard_visuals[touch-dark-size1]"
+    },
+    {
+      "module": "tests.ui.test_design_system_navigation_visuals",
+      "test": "test_navigation_authentication_and_keyboard_visuals[touch-dark-size2]"
+    },
+    {
+      "module": "tests.ui.test_design_system_navigation_visuals",
+      "test": "test_navigation_authentication_and_keyboard_visuals[touch-dark-size3]"
+    },
+    {
+      "module": "tests.ui.test_design_system_navigation_visuals",
+      "test": "test_navigation_authentication_and_keyboard_visuals[touch-dark-size4]"
+    },
+    {
+      "module": "tests.ui.test_design_system_navigation_visuals",
+      "test": "test_navigation_authentication_and_keyboard_visuals[touch-light-size0]"
+    },
+    {
+      "module": "tests.ui.test_design_system_navigation_visuals",
+      "test": "test_navigation_authentication_and_keyboard_visuals[touch-light-size1]"
+    },
+    {
+      "module": "tests.ui.test_design_system_navigation_visuals",
+      "test": "test_navigation_authentication_and_keyboard_visuals[touch-light-size2]"
+    },
+    {
+      "module": "tests.ui.test_design_system_navigation_visuals",
+      "test": "test_navigation_authentication_and_keyboard_visuals[touch-light-size3]"
+    },
+    {
+      "module": "tests.ui.test_design_system_navigation_visuals",
+      "test": "test_navigation_authentication_and_keyboard_visuals[touch-light-size4]"
+    },
+    {
+      "module": "tests.ui.test_design_system_registry",
+      "test": "test_button_factories_are_exported"
+    },
+    {
+      "module": "tests.ui.test_design_system_registry",
+      "test": "test_every_contract_symbol_is_importable"
+    },
+    {
+      "module": "tests.ui.test_design_system_registry",
+      "test": "test_gallery_builds_in_both_themes[dark]"
+    },
+    {
+      "module": "tests.ui.test_design_system_registry",
+      "test": "test_gallery_builds_in_both_themes[light]"
+    },
+    {
+      "module": "tests.ui.test_design_system_visual_matrix",
+      "test": "test_shell_gallery_controls_remain_reachable[comfortable-dark-size0]"
+    },
+    {
+      "module": "tests.ui.test_design_system_visual_matrix",
+      "test": "test_shell_gallery_controls_remain_reachable[comfortable-dark-size1]"
+    },
+    {
+      "module": "tests.ui.test_design_system_visual_matrix",
+      "test": "test_shell_gallery_controls_remain_reachable[comfortable-dark-size2]"
+    },
+    {
+      "module": "tests.ui.test_design_system_visual_matrix",
+      "test": "test_shell_gallery_controls_remain_reachable[comfortable-dark-size3]"
+    },
+    {
+      "module": "tests.ui.test_design_system_visual_matrix",
+      "test": "test_shell_gallery_controls_remain_reachable[comfortable-dark-size4]"
+    },
+    {
+      "module": "tests.ui.test_design_system_visual_matrix",
+      "test": "test_shell_gallery_controls_remain_reachable[comfortable-light-size0]"
+    },
+    {
+      "module": "tests.ui.test_design_system_visual_matrix",
+      "test": "test_shell_gallery_controls_remain_reachable[comfortable-light-size1]"
+    },
+    {
+      "module": "tests.ui.test_design_system_visual_matrix",
+      "test": "test_shell_gallery_controls_remain_reachable[comfortable-light-size2]"
+    },
+    {
+      "module": "tests.ui.test_design_system_visual_matrix",
+      "test": "test_shell_gallery_controls_remain_reachable[comfortable-light-size3]"
+    },
+    {
+      "module": "tests.ui.test_design_system_visual_matrix",
+      "test": "test_shell_gallery_controls_remain_reachable[comfortable-light-size4]"
+    },
+    {
+      "module": "tests.ui.test_design_system_visual_matrix",
+      "test": "test_shell_gallery_controls_remain_reachable[touch-dark-size0]"
+    },
+    {
+      "module": "tests.ui.test_design_system_visual_matrix",
+      "test": "test_shell_gallery_controls_remain_reachable[touch-dark-size1]"
+    },
+    {
+      "module": "tests.ui.test_design_system_visual_matrix",
+      "test": "test_shell_gallery_controls_remain_reachable[touch-dark-size2]"
+    },
+    {
+      "module": "tests.ui.test_design_system_visual_matrix",
+      "test": "test_shell_gallery_controls_remain_reachable[touch-dark-size3]"
+    },
+    {
+      "module": "tests.ui.test_design_system_visual_matrix",
+      "test": "test_shell_gallery_controls_remain_reachable[touch-dark-size4]"
+    },
+    {
+      "module": "tests.ui.test_design_system_visual_matrix",
+      "test": "test_shell_gallery_controls_remain_reachable[touch-light-size0]"
+    },
+    {
+      "module": "tests.ui.test_design_system_visual_matrix",
+      "test": "test_shell_gallery_controls_remain_reachable[touch-light-size1]"
+    },
+    {
+      "module": "tests.ui.test_design_system_visual_matrix",
+      "test": "test_shell_gallery_controls_remain_reachable[touch-light-size2]"
+    },
+    {
+      "module": "tests.ui.test_design_system_visual_matrix",
+      "test": "test_shell_gallery_controls_remain_reachable[touch-light-size3]"
+    },
+    {
+      "module": "tests.ui.test_design_system_visual_matrix",
+      "test": "test_shell_gallery_controls_remain_reachable[touch-light-size4]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_keyboard_attach_is_idempotent_and_destructive_default_is_cancel"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[decimal]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[email]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[integer]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[money]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[phone]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[text]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[weight]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution0]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution1]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution2]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution3]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution4]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution0]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution1]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution2]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution3]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution4]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution0]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution1]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution2]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution3]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution4]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution0]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution1]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution2]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution3]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution4]"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_page_viewport_scrolls_oversized_content_in_both_directions"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_pricing_scroll_preserves_lazy_routes_when_opened_out_of_order"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_runtime_density_updates_existing_inputs_tables_and_tabs"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_table_filter_loading_and_manual_population_state"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_table_minimum_width_scroll_visibility_and_saved_width_survive_resize"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_table_rejects_incomplete_rows_without_destroying_existing_data"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_table_reload_while_sorted_keeps_each_uuid_with_all_of_its_values"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_virtual_keyboard_keeps_touch_targets_after_global_density_changes"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_virtual_keyboard_preserves_validation_selection_and_read_only"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_wizard_prevents_navigation_past_first_or_last_step"
+    },
+    {
+      "module": "tests.ui.test_responsive_components",
+      "test": "test_yield_monitoring_uses_page_scroll_without_eager_queries"
+    },
+    {
+      "module": "tests.ui.test_theme_density_icons",
+      "test": "test_all_catalog_icons_render_in_every_qicon_mode[dark]"
+    },
+    {
+      "module": "tests.ui.test_theme_density_icons",
+      "test": "test_all_catalog_icons_render_in_every_qicon_mode[light]"
+    },
+    {
+      "module": "tests.ui.test_theme_density_icons",
+      "test": "test_bound_icon_refreshes_with_theme"
+    },
+    {
+      "module": "tests.ui.test_theme_density_icons",
+      "test": "test_buttons_follow_density_after_creation[comfortable-dark]"
+    },
+    {
+      "module": "tests.ui.test_theme_density_icons",
+      "test": "test_buttons_follow_density_after_creation[comfortable-light]"
+    },
+    {
+      "module": "tests.ui.test_theme_density_icons",
+      "test": "test_buttons_follow_density_after_creation[compact-dark]"
+    },
+    {
+      "module": "tests.ui.test_theme_density_icons",
+      "test": "test_buttons_follow_density_after_creation[compact-light]"
+    },
+    {
+      "module": "tests.ui.test_theme_density_icons",
+      "test": "test_buttons_follow_density_after_creation[touch-dark]"
+    },
+    {
+      "module": "tests.ui.test_theme_density_icons",
+      "test": "test_buttons_follow_density_after_creation[touch-light]"
+    },
+    {
+      "module": "tests.ui.test_theme_density_icons",
+      "test": "test_keyboard_action_uses_keyboard_vector_instead_of_fallback_file"
+    },
+    {
+      "module": "tests.ui.test_theme_density_icons",
+      "test": "test_official_palette_anchors"
+    },
+    {
+      "module": "tests.ui.test_theme_density_icons",
+      "test": "test_responsive_kpis_remain_visible_and_keep_identity_after_resize"
+    },
+    {
+      "module": "tests.ui.test_theme_density_icons",
+      "test": "test_small_catalog_combobox_displays_selected_label"
+    },
+    {
+      "module": "tests.ui.test_theme_density_icons",
+      "test": "test_stale_qt_singleton_is_recreated"
+    },
+    {
+      "module": "tests.ui.test_theme_density_icons",
+      "test": "test_terminal_preferences_restore_before_constructing_controls"
+    },
+    {
+      "module": "tests.unit.appearance.test_appearance_preference_and_resolution.TestAppearancePreferenceCreate",
+      "test": "test_activate_deactivate"
+    },
+    {
+      "module": "tests.unit.appearance.test_appearance_preference_and_resolution.TestAppearancePreferenceCreate",
+      "test": "test_change_density"
+    },
+    {
+      "module": "tests.unit.appearance.test_appearance_preference_and_resolution.TestAppearancePreferenceCreate",
+      "test": "test_change_theme"
+    },
+    {
+      "module": "tests.unit.appearance.test_appearance_preference_and_resolution.TestAppearancePreferenceCreate",
+      "test": "test_global_scope_rejects_scope_id"
+    },
+    {
+      "module": "tests.unit.appearance.test_appearance_preference_and_resolution.TestAppearancePreferenceCreate",
+      "test": "test_mints_uuidv7_and_defaults_density"
+    },
+    {
+      "module": "tests.unit.appearance.test_appearance_preference_and_resolution.TestAppearancePreferenceCreate",
+      "test": "test_non_global_scope_requires_scope_id[BRANCH]"
+    },
+    {
+      "module": "tests.unit.appearance.test_appearance_preference_and_resolution.TestAppearancePreferenceCreate",
+      "test": "test_non_global_scope_requires_scope_id[USER]"
+    },
+    {
+      "module": "tests.unit.appearance.test_appearance_preference_and_resolution.TestAppearancePreferenceMatches",
+      "test": "test_inactive_preference_never_matches"
+    },
+    {
+      "module": "tests.unit.appearance.test_appearance_preference_and_resolution.TestAppearancePreferenceMatches",
+      "test": "test_matches_same_scope_when_active"
+    },
+    {
+      "module": "tests.unit.appearance.test_appearance_preference_and_resolution.TestResolveAppearance",
+      "test": "test_branch_preference_beats_global_preference"
+    },
+    {
+      "module": "tests.unit.appearance.test_appearance_preference_and_resolution.TestResolveAppearance",
+      "test": "test_falls_back_to_defaults_with_no_preferences"
+    },
+    {
+      "module": "tests.unit.appearance.test_appearance_preference_and_resolution.TestResolveAppearance",
+      "test": "test_global_preference_applies_to_any_context"
+    },
+    {
+      "module": "tests.unit.appearance.test_appearance_preference_and_resolution.TestResolveAppearance",
+      "test": "test_user_preference_beats_branch_and_global_preferences"
+    },
+    {
+      "module": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate",
+      "test": "test_activate_deactivate"
+    },
+    {
+      "module": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate",
+      "test": "test_compact_and_comfortable_profiles_are_independent_levels"
+    },
+    {
+      "module": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate",
+      "test": "test_mints_uuidv7_and_defaults"
+    },
+    {
+      "module": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate",
+      "test": "test_rejects_bool_for_pixel_metrics[control_height_px]"
+    },
+    {
+      "module": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate",
+      "test": "test_rejects_bool_for_pixel_metrics[spacing_unit_px]"
+    },
+    {
+      "module": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate",
+      "test": "test_rejects_bool_for_pixel_metrics[touch_target_px]"
+    },
+    {
+      "module": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate",
+      "test": "test_rejects_non_decimal_scale_factor"
+    },
+    {
+      "module": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate",
+      "test": "test_rejects_zero_or_negative_pixel_metrics[control_height_px]"
+    },
+    {
+      "module": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate",
+      "test": "test_rejects_zero_or_negative_pixel_metrics[spacing_unit_px]"
+    },
+    {
+      "module": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate",
+      "test": "test_rejects_zero_or_negative_pixel_metrics[touch_target_px]"
+    },
+    {
+      "module": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate",
+      "test": "test_rejects_zero_or_negative_scale_factor"
+    },
+    {
+      "module": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate",
+      "test": "test_requires_name"
+    },
+    {
+      "module": "tests.unit.appearance.test_density_profile.TestDensityProfileUpdateDetails",
+      "test": "test_does_not_touch_level"
+    },
+    {
+      "module": "tests.unit.appearance.test_density_profile.TestDensityProfileUpdateDetails",
+      "test": "test_rejects_invalid_scale_factor"
+    },
+    {
+      "module": "tests.unit.appearance.test_density_profile.TestDensityProfileUpdateDetails",
+      "test": "test_updates_fields_and_bumps_updated_at"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestDesignTokenCreate",
+      "test": "test_mints_uuidv7_global_token"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestDesignTokenCreate",
+      "test": "test_requires_token_key"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestDesignTokenCreate",
+      "test": "test_requires_token_value"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestDesignTokenCreate",
+      "test": "test_theme_scoped_token_validates_theme_id_as_uuidv7"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestDesignTokenCreate",
+      "test": "test_update_value"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestDesignTokenCreate",
+      "test": "test_update_value_rejects_blank"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestThemeCreate",
+      "test": "test_activate_deactivate"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestThemeCreate",
+      "test": "test_mark_unmark_default"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestThemeCreate",
+      "test": "test_mints_uuidv7_and_defaults"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestThemeCreate",
+      "test": "test_requires_code"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestThemeCreate",
+      "test": "test_requires_name"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestThemeDefaultPolicy",
+      "test": "test_allows_default_when_the_existing_default_is_inactive"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestThemeDefaultPolicy",
+      "test": "test_allows_first_default"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestThemeDefaultPolicy",
+      "test": "test_allows_setting_default_on_the_same_theme_again"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestThemeDefaultPolicy",
+      "test": "test_rejects_a_second_active_default"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestThemeUpdateDetails",
+      "test": "test_does_not_touch_code_or_mode"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestThemeUpdateDetails",
+      "test": "test_rejects_blank_name"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestThemeUpdateDetails",
+      "test": "test_updates_name_and_bumps_updated_at"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestTokenResolutionPolicy",
+      "test": "test_global_only_tokens_resolve_as_is"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestTokenResolutionPolicy",
+      "test": "test_global_token_still_applies_when_theme_has_no_override"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestTokenResolutionPolicy",
+      "test": "test_theme_scoped_token_overrides_global_token_with_same_key"
+    },
+    {
+      "module": "tests.unit.appearance.test_theme_and_design_token.TestTokenResolutionPolicy",
+      "test": "test_tokens_scoped_to_a_different_theme_are_ignored"
+    },
+    {
+      "module": "tests.unit.losses.test_yield_monitoring_presenter",
+      "test": "test_a_session_without_branch_asks_for_an_empty_one_instead_of_crashing"
+    },
+    {
+      "module": "tests.unit.losses.test_yield_monitoring_presenter",
+      "test": "test_an_alert_shows_the_tolerated_range_next_to_the_real_yield"
+    },
+    {
+      "module": "tests.unit.losses.test_yield_monitoring_presenter",
+      "test": "test_an_alert_without_message_shows_a_dash_not_an_empty_cell"
+    },
+    {
+      "module": "tests.unit.losses.test_yield_monitoring_presenter",
+      "test": "test_an_empty_period_shows_a_dash_instead_of_a_fake_zero"
+    },
+    {
+      "module": "tests.unit.losses.test_yield_monitoring_presenter",
+      "test": "test_both_reads_are_scoped_to_the_active_branch"
+    },
+    {
+      "module": "tests.unit.losses.test_yield_monitoring_presenter",
+      "test": "test_no_alerts_is_reported_as_good_not_as_neutral"
+    },
+    {
+      "module": "tests.unit.losses.test_yield_monitoring_presenter",
+      "test": "test_only_the_severities_the_domain_calls_serious_are_counted"
+    },
+    {
+      "module": "tests.unit.losses.test_yield_monitoring_presenter",
+      "test": "test_the_difference_carries_its_sign"
+    },
+    {
+      "module": "tests.unit.losses.test_yield_monitoring_presenter",
+      "test": "test_the_page_does_not_query_until_it_is_opened"
+    },
+    {
+      "module": "tests.unit.losses.test_yield_monitoring_presenter",
+      "test": "test_the_page_loads_both_tables"
+    },
+    {
+      "module": "tests.unit.losses.test_yield_monitoring_presenter",
+      "test": "test_the_worst_variance_is_the_biggest_in_absolute_value"
+    },
+    {
+      "module": "tests.unit.pricing.test_pricing_navigation",
+      "test": "test_nav_entries_use_pricing_permissions"
+    },
+    {
+      "module": "tests.unit.pricing.test_pricing_navigation",
+      "test": "test_presenter_overview_kpis"
+    },
+    {
+      "module": "tests.unit.pricing.test_pricing_navigation",
+      "test": "test_presenter_price_lists_table"
+    },
+    {
+      "module": "tests.unit.pricing.test_pricing_navigation",
+      "test": "test_presenter_swallows_read_errors"
+    },
+    {
+      "module": "tests.unit.pricing.test_pricing_navigation",
+      "test": "test_visible_entries_filters_by_permission"
+    },
+    {
+      "module": "tests.unit.shell.test_authentication_logout",
+      "test": "test_logout_uses_injected_session_revocation"
+    },
+    {
+      "module": "tests.unit.shell.test_desktop_logout_transition",
+      "test": "test_logout_transition_restores_quit_policy_and_never_reuses_shell[False]"
+    },
+    {
+      "module": "tests.unit.shell.test_desktop_logout_transition",
+      "test": "test_logout_transition_restores_quit_policy_and_never_reuses_shell[True]"
+    },
+    {
+      "module": "tests.unit.shell.test_desktop_logout_transition",
+      "test": "test_revocation_failure_keeps_current_session_visible"
+    }
+  ],
+  "full_architecture_failing_cases": [
+    {
+      "module": "tests.architecture.test_address_autocomplete_selects_click",
+      "test": "test_address_click_selection_updates_value_coords_and_verified"
+    },
+    {
+      "module": "tests.architecture.test_address_uses_geocoding_service",
+      "test": "test_configuracion_uses_async_address_autocomplete_component"
+    },
+    {
+      "module": "tests.architecture.test_app_container_inventory_canonical_route",
+      "test": "test_app_container_uses_only_canonical_inventory_route"
+    },
+    {
+      "module": "tests.architecture.test_app_container_inventory_canonical_route",
+      "test": "test_inventory_ui_is_read_only_over_canonical_presenter"
+    },
+    {
+      "module": "tests.architecture.test_bi_single_forecasting_platform_ratchet",
+      "test": "test_allowlist_entries_still_exist_or_were_intentionally_retired"
+    },
+    {
+      "module": "tests.architecture.test_business_intelligence_ui_foundations",
+      "test": "test_module_not_yet_wired_into_main_window"
+    },
+    {
+      "module": "tests.architecture.test_caja_canonical_route",
+      "test": "test_main_window_uses_cash_register_workspace"
+    },
+    {
+      "module": "tests.architecture.test_cash_app_container_born_clean_wiring.CashAppContainerBornCleanWiringTests",
+      "test": "test_cash_limit_policy_uses_effective_dates_not_legacy_active_flag"
+    },
+    {
+      "module": "tests.architecture.test_cash_legacy_removed.CashLegacyRemovedTests",
+      "test": "test_app_container_does_not_construct_legacy_cash_services"
+    },
+    {
+      "module": "tests.architecture.test_cash_legacy_removed.CashLegacyRemovedTests",
+      "test": "test_cash_legacy_events_have_no_runtime_bridge_or_constants"
+    },
+    {
+      "module": "tests.architecture.test_cash_legacy_removed.CashLegacyRemovedTests",
+      "test": "test_cash_module_loader_uses_canonical_factory_only"
+    },
+    {
+      "module": "tests.architecture.test_cash_legacy_removed.CashLegacyRemovedTests",
+      "test": "test_cash_runtime_permissions_do_not_use_cash_star_codes"
+    },
+    {
+      "module": "tests.architecture.test_cash_register_composition_root",
+      "test": "test_cash_module_loader_uses_canonical_factory"
+    },
+    {
+      "module": "tests.architecture.test_cash_register_composition_root",
+      "test": "test_main_window_uses_cash_register_host_not_legacy_workspace_alias"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_alertas_service_emits_no_ddl_and_no_default_one"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_alertas_service_requires_uuid_branch_and_mints_uuid"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_reportes_analytics_tables_are_born_clean"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_api_webapp_treats_identity_as_uuid_no_int_casts"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_sincronizacion_tables_are_born_clean_single_uuid_identity"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_loyalty_ledger_born_clean_and_dead_points_tables_removed"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_raffle_subsystem_born_clean_and_ddl_lives_in_migration"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_card_subsystem_tables_are_born_clean_single_uuid_identity"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_accounting_core_tables_are_born_clean_uuid_identity"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_treasury_tables_are_born_clean_uuid_identity"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_gastos_tables_are_born_clean_uuid_identity"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_cxp_cxc_tables_are_born_clean_uuid_identity"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_deferred_debt_tables_are_born_clean_uuid_identity"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_whatsapp_messaging_tables_are_born_clean_uuid_identity"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_notification_tables_are_born_clean_uuid_identity"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_hardware_config_keyed_by_natural_tipo"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_etiquetas_module_is_read_only_presentation"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_tickets_print_log_born_clean_and_dead_design_table_removed"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_pedidos_whatsapp_tables_are_born_clean_uuid_identity"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_reception_tables_are_born_clean_uuid_identity"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_proveedores_table_is_born_clean_uuid_identity"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_clientes_table_is_born_clean_uuid_identity"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_activos_tables_are_born_clean_uuid_identity"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_cotizaciones_tables_are_born_clean_single_uuid_identity"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_planning_tables_are_born_clean_and_dead_legacy_removed"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_production_tables_are_born_clean_and_dead_legacy_removed"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_recipe_tables_are_born_clean_and_repo_mints_uuid"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_refresh_order_badges_does_not_int_cast_identity"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_domain_code_has_no_lastrowid_identity"
+    },
+    {
+      "module": "tests.architecture.test_clean_birth_guardrails",
+      "test": "test_services_repositories_ui_do_not_create_schema"
+    },
+    {
+      "module": "tests.architecture.test_config_modules_mutations",
+      "test": "test_config_modules_ui_uses_service_boundary_for_mutations"
+    },
+    {
+      "module": "tests.architecture.test_config_modules_queries",
+      "test": "test_config_modules_ui_uses_query_service_for_reads"
+    },
+    {
+      "module": "tests.architecture.test_configuracion_module_architecture",
+      "test": "test_configuracion_ui_has_no_direct_sql"
+    },
+    {
+      "module": "tests.architecture.test_configuracion_module_architecture",
+      "test": "test_configuracion_ui_has_no_commit_or_rollback"
+    },
+    {
+      "module": "tests.architecture.test_configuracion_scope",
+      "test": "test_configuracion_scope_canonical_files_exist_inside_real_package"
+    },
+    {
+      "module": "tests.architecture.test_configuracion_single_source",
+      "test": "test_no_feature_flags_runtime_write_from_configuracion"
+    },
+    {
+      "module": "tests.architecture.test_delivery_architecture",
+      "test": "test_no_raw_sql_in_delivery_ui"
+    },
+    {
+      "module": "tests.architecture.test_delivery_architecture",
+      "test": "test_no_fstring_kg_in_delivery_ui"
+    },
+    {
+      "module": "tests.architecture.test_delivery_architecture",
+      "test": "test_no_kg_string_literal_in_delivery_ui"
+    },
+    {
+      "module": "tests.architecture.test_delivery_architecture",
+      "test": "test_no_duplicate_action_maps_in_delivery_ui"
+    },
+    {
+      "module": "tests.architecture.test_delivery_architecture",
+      "test": "test_no_commit_rollback_in_delivery_ui"
+    },
+    {
+      "module": "tests.architecture.test_delivery_architecture",
+      "test": "test_no_direct_estado_update_in_delivery_ui"
+    },
+    {
+      "module": "tests.architecture.test_delivery_architecture",
+      "test": "test_filter_combos_use_current_data"
+    },
+    {
+      "module": "tests.architecture.test_delivery_architecture",
+      "test": "test_filter_gate_uses_none_not_string"
+    },
+    {
+      "module": "tests.architecture.test_delivery_architecture",
+      "test": "test_delivery_service_delegates_update_status"
+    },
+    {
+      "module": "tests.architecture.test_delivery_architecture",
+      "test": "test_state_machine_used_in_change_status_use_case"
+    },
+    {
+      "module": "tests.architecture.test_delivery_architecture",
+      "test": "test_no_int_cast_on_order_id_in_delivery_ui"
+    },
+    {
+      "module": "tests.architecture.test_delivery_architecture",
+      "test": "test_assign_driver_routes_through_use_case"
+    },
+    {
+      "module": "tests.architecture.test_delivery_architecture",
+      "test": "test_board_read_uses_query_service_not_repository_route"
+    },
+    {
+      "module": "tests.architecture.test_delivery_architecture",
+      "test": "test_board_uses_single_shared_visual_state"
+    },
+    {
+      "module": "tests.architecture.test_delivery_architecture",
+      "test": "test_board_uses_single_dto_to_view_mapper"
+    },
+    {
+      "module": "tests.architecture.test_delivery_guardrails",
+      "test": "test_delivery_scope_files_exist"
+    },
+    {
+      "module": "tests.architecture.test_delivery_guardrails",
+      "test": "test_delivery_scope_has_no_new_violations"
+    },
+    {
+      "module": "tests.architecture.test_delivery_guardrails",
+      "test": "test_delivery_documented_findings_snapshot"
+    },
+    {
+      "module": "tests.architecture.test_direct_purchase_ui_guardrails",
+      "test": "test_enterprise_ui_exists_and_is_registered"
+    },
+    {
+      "module": "tests.architecture.test_expiry_damage_contract",
+      "test": "test_loss10_schema_and_inventory_boundary_are_explicit"
+    },
+    {
+      "module": "tests.architecture.test_fase_a_identity_clean_modules",
+      "test": "test_clean_modules_have_no_arbitrary_branch_default"
+    },
+    {
+      "module": "tests.architecture.test_fase_a_identity_clean_modules",
+      "test": "test_int_clean_modules_have_no_int_identity_cast"
+    },
+    {
+      "module": "tests.architecture.test_feature_flags_do_not_override_permissions",
+      "test": "test_feature_flags_only_hide_and_never_grant_access"
+    },
+    {
+      "module": "tests.architecture.test_hr_architecture",
+      "test": "test_modulos_rrhh_is_a_thin_wrapper"
+    },
+    {
+      "module": "tests.architecture.test_inventory_authorization_fail_closed",
+      "test": "test_inventory_ui_has_no_fabricated_identity_fallback"
+    },
+    {
+      "module": "tests.architecture.test_inventory_does_not_use_legacy_permissions",
+      "test": "test_inventory_does_not_use_legacy_permissions"
+    },
+    {
+      "module": "tests.architecture.test_inventory_isolation",
+      "test": "test_delivery_ui_no_direct_inventory_sql"
+    },
+    {
+      "module": "tests.architecture.test_inventory_isolation",
+      "test": "test_delivery_ui_no_commit"
+    },
+    {
+      "module": "tests.architecture.test_inventory_isolation",
+      "test": "test_change_status_uc_accepts_inventory_service"
+    },
+    {
+      "module": "tests.architecture.test_inventory_isolation",
+      "test": "test_delivery_service_wires_inventory_balance_service"
+    },
+    {
+      "module": "tests.architecture.test_inventory_legacy_recipe_handler_retired",
+      "test": "test_canonical_recipe_bridge_is_the_wired_handler"
+    },
+    {
+      "module": "tests.architecture.test_inventory_no_silent_pass",
+      "test": "test_inventory_has_no_silent_exception_pass"
+    },
+    {
+      "module": "tests.architecture.test_inventory_ui_guardrails",
+      "test": "test_no_sql_or_db_access_in_inventory_shell_container"
+    },
+    {
+      "module": "tests.architecture.test_legacy_top_level_inventory_repository_retired",
+      "test": "test_app_container_uses_only_the_canonical_adjacent_module"
+    },
+    {
+      "module": "tests.architecture.test_logistics_bounded_context",
+      "test": "test_logistics_runtime_wiring_is_called_from_composition_root"
+    },
+    {
+      "module": "tests.architecture.test_logistics_bounded_context",
+      "test": "test_origin_purchase_workspace_is_operational_not_placeholder"
+    },
+    {
+      "module": "tests.architecture.test_losses_permissions_are_granular",
+      "test": "test_current_legacy_permissions_remain_explicit_debt_until_ui_cutover"
+    },
+    {
+      "module": "tests.architecture.test_main_database_bootstrap_is_single_sequence",
+      "test": "test_main_calls_the_single_canonical_bootstrap_sequence"
+    },
+    {
+      "module": "tests.architecture.test_main_window_loads_permissions_by_user",
+      "test": "test_main_window_uses_user_permissions_not_role_name_for_menu"
+    },
+    {
+      "module": "tests.architecture.test_main_window_loads_permissions_by_user",
+      "test": "test_permission_query_and_repository_expose_user_permissions"
+    },
+    {
+      "module": "tests.architecture.test_meat_processing_sidebar_navigation",
+      "test": "test_legacy_produccion_menu_entry_and_module_are_not_touched_yet"
+    },
+    {
+      "module": "tests.architecture.test_menu_lateral_respects_role_permissions",
+      "test": "test_menu_lateral_respects_permissions_and_hidden_reasons"
+    },
+    {
+      "module": "tests.architecture.test_menu_lateral_uses_permissions_not_roles",
+      "test": "test_menu_source_has_no_role_visibility_matrix"
+    },
+    {
+      "module": "tests.architecture.test_menu_lateral_uses_permissions_not_roles",
+      "test": "test_menu_visibility_uses_permissions"
+    },
+    {
+      "module": "tests.architecture.test_menu_uses_configured_permissions",
+      "test": "test_menu_lateral_uses_configured_permissions_not_hardcoded_roles"
+    },
+    {
+      "module": "tests.architecture.test_menu_uses_configured_permissions",
+      "test": "test_main_window_and_settings_refresh_configured_permissions"
+    },
+    {
+      "module": "tests.architecture.test_merma_no_legacy_permissions",
+      "test": "test_merma_uses_canonical_permissions_only"
+    },
+    {
+      "module": "tests.architecture.test_no_deprecated_services_with_business_logic",
+      "test": "test_no_deprecated_services_with_business_logic"
+    },
+    {
+      "module": "tests.architecture.test_no_hardcoded_numeric_defaults_in_ui",
+      "test": "test_no_hardcoded_numeric_defaults_in_ui"
+    },
+    {
+      "module": "tests.architecture.test_no_lastrowid_entity_identity",
+      "test": "test_code_only_scan_still_catches_executable_lastrowid"
+    },
+    {
+      "module": "tests.architecture.test_no_legacy_imports",
+      "test": "test_no_forbidden_root_namespace_imports"
+    },
+    {
+      "module": "tests.architecture.test_no_legacy_stock_sources_for_operational_reads",
+      "test": "test_no_legacy_stock_sources_for_operational_reads"
+    },
+    {
+      "module": "tests.architecture.test_no_monetary_float",
+      "test": "test_baseline_has_no_stale_entries"
+    },
+    {
+      "module": "tests.architecture.test_no_new_legacy_pricing_reads",
+      "test": "test_no_new_legacy_pricing_reads"
+    },
+    {
+      "module": "tests.architecture.test_no_schema_changes_outside_migrations",
+      "test": "test_no_create_or_alter_table_outside_migrations"
+    },
+    {
+      "module": "tests.architecture.test_page_header_compact",
+      "test": "test_settings_uses_compact_page_header"
+    },
+    {
+      "module": "tests.architecture.test_page_header_compact",
+      "test": "test_page_header_supports_compact_mode"
+    },
+    {
+      "module": "tests.architecture.test_permission_catalog_matches_menu_modules",
+      "test": "test_every_sidebar_permission_belongs_to_a_catalog_module"
+    },
+    {
+      "module": "tests.architecture.test_permission_catalog_matches_menu_modules",
+      "test": "test_sidebar_permissions_use_the_dotted_module_action_format"
+    },
+    {
+      "module": "tests.architecture.test_phone_widget_is_standard",
+      "test": "test_configuracion_uses_phone_widget_for_phones"
+    },
+    {
+      "module": "tests.architecture.test_phone_widget_is_standard",
+      "test": "test_deprecated_phone_input_wraps_phone_widget"
+    },
+    {
+      "module": "tests.architecture.test_procurement_legacy_allowlist",
+      "test": "test_allowlisted_paths_exist"
+    },
+    {
+      "module": "tests.architecture.test_procurement_legacy_is_removed",
+      "test": "test_navigation_has_one_canonical_purchasing_route"
+    },
+    {
+      "module": "tests.architecture.test_products_legacy_consumers_ratchet",
+      "test": "test_no_new_legacy_productos_consumers"
+    },
+    {
+      "module": "tests.architecture.test_products_legacy_consumers_ratchet",
+      "test": "test_allowlist_has_no_stale_entries"
+    },
+    {
+      "module": "tests.architecture.test_purchase_inventory_canonical_route",
+      "test": "test_purchase_and_reception_use_canonical_inventory_service"
+    },
+    {
+      "module": "tests.architecture.test_refactor_orchestrator",
+      "test": "test_refactor_orchestrator_runs_each_turn_in_fresh_subprocess"
+    },
+    {
+      "module": "tests.architecture.test_refactor_orchestrator",
+      "test": "test_refactor_orchestrator_times_out_and_terminates_worker_tree"
+    },
+    {
+      "module": "tests.architecture.test_refactor_orchestrator",
+      "test": "test_refactor_orchestrator_cli_supports_timeout_and_retry_controls"
+    },
+    {
+      "module": "tests.architecture.test_refactor_orchestrator",
+      "test": "test_parent_orchestrator_does_not_call_codex_sdk_directly"
+    },
+    {
+      "module": "tests.architecture.test_refactor_state_json_is_valid",
+      "test": "test_done_modules_are_complete"
+    },
+    {
+      "module": "tests.architecture.test_remediacion0_guardrails",
+      "test": "test_wiring_no_compara_raffle_id_str_con_int"
+    },
+    {
+      "module": "tests.architecture.test_remediacion0_guardrails",
+      "test": "test_inbox_login_filtra_por_usuario"
+    },
+    {
+      "module": "tests.architecture.test_remediacion0_guardrails",
+      "test": "test_badges_e_inbox_arrancan_en_propagar_usuario"
+    },
+    {
+      "module": "tests.architecture.test_remediacion0_guardrails",
+      "test": "test_aplicar_sucursal_activa_no_arranca_inbox"
+    },
+    {
+      "module": "tests.architecture.test_remediacion0_guardrails",
+      "test": "test_on_pedido_nuevo_es_pyqtslot"
+    },
+    {
+      "module": "tests.architecture.test_remediacion0_guardrails",
+      "test": "test_produccion_sin_sucursal_uno"
+    },
+    {
+      "module": "tests.architecture.test_remediacion0_guardrails",
+      "test": "test_bi_v2_no_escucha_canales_fantasma"
+    },
+    {
+      "module": "tests.architecture.test_remediacion0_guardrails",
+      "test": "test_accounts_services_publican_eventos"
+    },
+    {
+      "module": "tests.architecture.test_sales_persistence_split_ratchet",
+      "test": "test_legacy_writer_list_is_not_stale"
+    },
+    {
+      "module": "tests.architecture.test_sales_persistence_split_ratchet",
+      "test": "test_the_gap_is_an_explicit_number_not_prose"
+    },
+    {
+      "module": "tests.architecture.test_sales_persistence_split_ratchet",
+      "test": "test_the_live_pos_persists_through_the_canonical_aggregate"
+    },
+    {
+      "module": "tests.architecture.test_settings_branch_selector_no_default_principal",
+      "test": "test_company_branch_selector_starts_with_explicit_placeholder"
+    },
+    {
+      "module": "tests.architecture.test_settings_branch_selector_no_default_principal",
+      "test": "test_company_branch_selector_must_be_selected_before_save"
+    },
+    {
+      "module": "tests.architecture.test_settings_dialog_buttons_spanish",
+      "test": "test_settings_dialog_buttons_are_styled_by_helper"
+    },
+    {
+      "module": "tests.architecture.test_settings_dialog_buttons_spanish",
+      "test": "test_settings_dialog_buttons_use_spanish_visible_text"
+    },
+    {
+      "module": "tests.architecture.test_settings_header_compact",
+      "test": "test_settings_header_uses_compact_page_header"
+    },
+    {
+      "module": "tests.architecture.test_settings_module_no_forbidden_sections",
+      "test": "test_settings_module_has_no_forbidden_sections_or_legacy_routes"
+    },
+    {
+      "module": "tests.architecture.test_settings_module_no_hardcoded_defaults",
+      "test": "test_settings_module_has_no_arbitrary_ui_defaults"
+    },
+    {
+      "module": "tests.architecture.test_settings_module_no_hardcoded_permission_matrix",
+      "test": "test_settings_module_does_not_hardcode_permission_matrix"
+    },
+    {
+      "module": "tests.architecture.test_settings_module_no_silent_fallbacks",
+      "test": "test_settings_module_has_no_silent_exception_branches"
+    },
+    {
+      "module": "tests.architecture.test_settings_module_scope",
+      "test": "test_settings_module_scope_has_exact_canonical_tabs"
+    },
+    {
+      "module": "tests.architecture.test_settings_module_uses_new_architecture",
+      "test": "test_settings_module_uses_only_canonical_services_for_persistence"
+    },
+    {
+      "module": "tests.architecture.test_settings_module_uses_standard_inputs",
+      "test": "test_settings_module_uses_standard_company_inputs"
+    },
+    {
+      "module": "tests.architecture.test_settings_ui_tables_actions",
+      "test": "test_settings_tables_use_standard_action_helpers"
+    },
+    {
+      "module": "tests.architecture.test_settings_ui_tables_actions",
+      "test": "test_settings_action_columns_have_minimum_width"
+    },
+    {
+      "module": "tests.architecture.test_supplier_ui_guardrails",
+      "test": "test_no_standalone_supplier_menu"
+    },
+    {
+      "module": "tests.architecture.test_transfers_printing_uses_gateway",
+      "test": "test_transfers_printing_has_no_ui_database_or_direct_printer_dependency"
+    },
+    {
+      "module": "tests.architecture.test_transfers_ui_uses_design_system",
+      "test": "test_transfers_ui_uses_canonical_components_and_routes"
+    },
+    {
+      "module": "tests.architecture.test_uuidv7_cutover_protection",
+      "test": "test_uuidv7_cutover_forbidden_identity_patterns_do_not_increase"
+    }
+  ],
+  "full_unit_collection_errors": 13,
+  "full_integration_collection_errors": 59,
+  "new_visual_violations": 0,
+  "existing_visual_occurrences": 159,
+  "screenshots": [
+    {
+      "file": "dark-comfortable-1280x720-collapsed-notifications.png",
+      "sha256": "c49ae09d57b6bfceadcbb6cec52f6af0c97041da1bca2db22460a4e7659c22af"
+    },
+    {
+      "file": "dark-comfortable-1280x720-expanded.png",
+      "sha256": "cf9b6638a8c3ee4972c5fd18e94f921e5786573cb0aef18591dd4bcbf06c6f59"
+    },
+    {
+      "file": "dark-comfortable-1280x720-file-menu.png",
+      "sha256": "ebc2c1f53262b9e40c2bc84eb58ac374da20106395baba5daea5435115f0ca12"
+    },
+    {
+      "file": "dark-comfortable-1280x720-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "file": "dark-comfortable-1280x720-login.png",
+      "sha256": "e75db867d4241c42f8d7818cf869ad1edac0327d6613b2a77dbcd57aea20dbb3"
+    },
+    {
+      "file": "dark-comfortable-1280x720-module-collapsed-form.png",
+      "sha256": "c8856871a8b6dbee04f199667470fd52557c6fd692d240e7b8040432239d7e2e"
+    },
+    {
+      "file": "dark-comfortable-1280x720-module-expanded.png",
+      "sha256": "73079f22b8ee4658af34f4c292162fc013ba0e8b38a6c5d17d2dee2bc8695560"
+    },
+    {
+      "file": "dark-comfortable-1280x720-module-flyout.png",
+      "sha256": "d936cb479558d63e784fc4b30b77b8a18326c4dfc5cd5f9ec20113dbd47b401e"
+    },
+    {
+      "file": "dark-comfortable-1280x720-module-group-collapsed.png",
+      "sha256": "4d0a8f254281fecc5a1de984db86659c611a9da4db8a2a1f2aee33457f3ced25"
+    },
+    {
+      "file": "dark-comfortable-1280x720-scrolled.png",
+      "sha256": "0ad495126fa581118f4e9d9e9e021382f0daa0d8e5fa8ff6c7788d00db2e2ad4"
+    },
+    {
+      "file": "dark-comfortable-1366x768-collapsed-notifications.png",
+      "sha256": "9d98026d73f8ee86e7eee5632301a268b9421fa8105691c9c7d071521982c48b"
+    },
+    {
+      "file": "dark-comfortable-1366x768-expanded.png",
+      "sha256": "1aa4234fad125fe80ed1fae2c66e1ec1345d2c80d5f76eb45930484eed89c092"
+    },
+    {
+      "file": "dark-comfortable-1366x768-file-menu.png",
+      "sha256": "ebc2c1f53262b9e40c2bc84eb58ac374da20106395baba5daea5435115f0ca12"
+    },
+    {
+      "file": "dark-comfortable-1366x768-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "file": "dark-comfortable-1366x768-login.png",
+      "sha256": "e75db867d4241c42f8d7818cf869ad1edac0327d6613b2a77dbcd57aea20dbb3"
+    },
+    {
+      "file": "dark-comfortable-1366x768-module-collapsed-form.png",
+      "sha256": "661ef98c7b36806ebfbbdbd95447a5c664a36f039f42786e4c9c81055ed82605"
+    },
+    {
+      "file": "dark-comfortable-1366x768-module-expanded.png",
+      "sha256": "ca997997eaae9e827e50ab326bc53503f151baa3e69f8afb2622e2dda8280f35"
+    },
+    {
+      "file": "dark-comfortable-1366x768-module-flyout.png",
+      "sha256": "d936cb479558d63e784fc4b30b77b8a18326c4dfc5cd5f9ec20113dbd47b401e"
+    },
+    {
+      "file": "dark-comfortable-1366x768-module-group-collapsed.png",
+      "sha256": "33b7f17619ab3a16ddff38d0577fa15cfbae1e3aa5209b029913046104823731"
+    },
+    {
+      "file": "dark-comfortable-1366x768-scrolled.png",
+      "sha256": "a7a48c9310bd97a2ec7f9e191097b31a8f7d8c0ff57695c8f8948ce8ec58ef8e"
+    },
+    {
+      "file": "dark-comfortable-1440x900-collapsed-notifications.png",
+      "sha256": "2b23c1b1d9983c7d4adeec8786ed082a717cf46061659730e32a105656be57af"
+    },
+    {
+      "file": "dark-comfortable-1440x900-expanded.png",
+      "sha256": "3b1bb8bb1bce803a3d43057ba5477128deba736c3172be543a3d4dd787b8c38d"
+    },
+    {
+      "file": "dark-comfortable-1440x900-file-menu.png",
+      "sha256": "ebc2c1f53262b9e40c2bc84eb58ac374da20106395baba5daea5435115f0ca12"
+    },
+    {
+      "file": "dark-comfortable-1440x900-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "file": "dark-comfortable-1440x900-login.png",
+      "sha256": "e75db867d4241c42f8d7818cf869ad1edac0327d6613b2a77dbcd57aea20dbb3"
+    },
+    {
+      "file": "dark-comfortable-1440x900-module-collapsed-form.png",
+      "sha256": "cf69fa96dacd7c53e7d58cc15d4156b6b8f24827d67a547dc6735f5ff9bee9a2"
+    },
+    {
+      "file": "dark-comfortable-1440x900-module-expanded.png",
+      "sha256": "c5403346c63de3b36e7b6616e10bbb6529a2c9b29e1d70ce87c43ef729cdab71"
+    },
+    {
+      "file": "dark-comfortable-1440x900-module-flyout.png",
+      "sha256": "d936cb479558d63e784fc4b30b77b8a18326c4dfc5cd5f9ec20113dbd47b401e"
+    },
+    {
+      "file": "dark-comfortable-1440x900-module-group-collapsed.png",
+      "sha256": "ec3365f57b8500b496e74a9d5f99736e9ff0608ca3315b87d1d266547281d226"
+    },
+    {
+      "file": "dark-comfortable-1440x900-scrolled.png",
+      "sha256": "afcc6287c1bb0493db599470c66750e80f07bcd80c84f4e9aafeca851ef7ec4d"
+    },
+    {
+      "file": "dark-comfortable-1600x900-collapsed-notifications.png",
+      "sha256": "c07db28d258bff68a7ede6f330853cbd6bca44d310b282d7dff1cb789b892d40"
+    },
+    {
+      "file": "dark-comfortable-1600x900-expanded.png",
+      "sha256": "0f75e0a4e78008a3bcf61d753af84a7b3a87ff073613d37a0ad0b70389eb30e5"
+    },
+    {
+      "file": "dark-comfortable-1600x900-file-menu.png",
+      "sha256": "ebc2c1f53262b9e40c2bc84eb58ac374da20106395baba5daea5435115f0ca12"
+    },
+    {
+      "file": "dark-comfortable-1600x900-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "file": "dark-comfortable-1600x900-login.png",
+      "sha256": "e75db867d4241c42f8d7818cf869ad1edac0327d6613b2a77dbcd57aea20dbb3"
+    },
+    {
+      "file": "dark-comfortable-1600x900-module-collapsed-form.png",
+      "sha256": "d228459ab4a1f7d96c586bbc968d3d57dfad589fc172b73d5b263fb78edb124d"
+    },
+    {
+      "file": "dark-comfortable-1600x900-module-expanded.png",
+      "sha256": "3a723f903a427a1c0a2b83578c2b202705dc96143d310a9d732eec6350741d35"
+    },
+    {
+      "file": "dark-comfortable-1600x900-module-flyout.png",
+      "sha256": "d936cb479558d63e784fc4b30b77b8a18326c4dfc5cd5f9ec20113dbd47b401e"
+    },
+    {
+      "file": "dark-comfortable-1600x900-module-group-collapsed.png",
+      "sha256": "9aa02b6a52049d35a7fab8dc43533df9e4c049b8b0c622c804bc6098102c1d33"
+    },
+    {
+      "file": "dark-comfortable-1600x900-scrolled.png",
+      "sha256": "785acb097274270cfb9b855ac2e1081bfbf731b12bf34fa20e519ff46ce3161b"
+    },
+    {
+      "file": "dark-comfortable-1920x1080-collapsed-notifications.png",
+      "sha256": "581fe142bdbeb426c8020228346f9ab297bb2d00671fe7ed16dba1e8190ddc5c"
+    },
+    {
+      "file": "dark-comfortable-1920x1080-expanded.png",
+      "sha256": "24eb5db3b76e669e3249714d02b8063aae29d3e838f830664a2524ef76f7e498"
+    },
+    {
+      "file": "dark-comfortable-1920x1080-file-menu.png",
+      "sha256": "ebc2c1f53262b9e40c2bc84eb58ac374da20106395baba5daea5435115f0ca12"
+    },
+    {
+      "file": "dark-comfortable-1920x1080-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "file": "dark-comfortable-1920x1080-login.png",
+      "sha256": "e75db867d4241c42f8d7818cf869ad1edac0327d6613b2a77dbcd57aea20dbb3"
+    },
+    {
+      "file": "dark-comfortable-1920x1080-module-collapsed-form.png",
+      "sha256": "ebaf5b51d2c971fd3ba6a3fa88adb5132e7fe2d79831eb4f21d4d647c697a98d"
+    },
+    {
+      "file": "dark-comfortable-1920x1080-module-expanded.png",
+      "sha256": "132d3da2e0c284e18972effffb88c9923ba833bd1a91a81f47dbb94bd5a0407d"
+    },
+    {
+      "file": "dark-comfortable-1920x1080-module-flyout.png",
+      "sha256": "d936cb479558d63e784fc4b30b77b8a18326c4dfc5cd5f9ec20113dbd47b401e"
+    },
+    {
+      "file": "dark-comfortable-1920x1080-module-group-collapsed.png",
+      "sha256": "bcec396c09401de14c468996cea7761ef68447f5c3cd51696e9e724aeafb3a2f"
+    },
+    {
+      "file": "dark-comfortable-1920x1080-scrolled.png",
+      "sha256": "422e50ec73d09176d8a9d2a8d029623f67f60c73e3ca94c1f1afeeb513a2f92a"
+    },
+    {
+      "file": "dark-touch-1280x720-collapsed-notifications.png",
+      "sha256": "afae118e418f328f47273babb855a7f873cdeb64a39ddebb6e25e959b351d0c0"
+    },
+    {
+      "file": "dark-touch-1280x720-expanded.png",
+      "sha256": "bc234adf5aa49909ec507a8dff6eb3d20db4bcef3262cd4670812c08d796c4f0"
+    },
+    {
+      "file": "dark-touch-1280x720-file-menu.png",
+      "sha256": "ae0daaf291ef14a1e3eda16b6b79c68a74da458b90f6b0647edc3a3ef13199b5"
+    },
+    {
+      "file": "dark-touch-1280x720-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "file": "dark-touch-1280x720-login.png",
+      "sha256": "876edf806b59e709a299080352690d1c0a3f4e7992ce1729eb668a55de97629b"
+    },
+    {
+      "file": "dark-touch-1280x720-module-collapsed-form.png",
+      "sha256": "851327cd9db886be04f317c1eb369bb152e66c55775ec40e30019fcd4efadd02"
+    },
+    {
+      "file": "dark-touch-1280x720-module-expanded.png",
+      "sha256": "d1896e17af703b274169308884e292b258c50c7a2043cfe608d77cf86d2d6ca8"
+    },
+    {
+      "file": "dark-touch-1280x720-module-flyout.png",
+      "sha256": "1ee13a985dc1cfe2bfc9062db6be555099cda6c83f742c18d5b050e3ab6ab3d2"
+    },
+    {
+      "file": "dark-touch-1280x720-module-group-collapsed.png",
+      "sha256": "2f44aea8715b8c8cd4f9da4ca2ce8bcda9b3bcfd32cb154c4f70a61a396f5c32"
+    },
+    {
+      "file": "dark-touch-1280x720-scrolled.png",
+      "sha256": "4deaf85277b0b4e0f0d065b3eaec48a66d71fe2082e6fc51b35752b56424301e"
+    },
+    {
+      "file": "dark-touch-1366x768-collapsed-notifications.png",
+      "sha256": "6ddb5290b2bc0c0cf1d9359285691c7fae6b5b077d998b5abb33f10ff92c297a"
+    },
+    {
+      "file": "dark-touch-1366x768-expanded.png",
+      "sha256": "46509be8830b281e432ea28a66b64ec2a619c97860a1a35b01884c7577920f9e"
+    },
+    {
+      "file": "dark-touch-1366x768-file-menu.png",
+      "sha256": "ae0daaf291ef14a1e3eda16b6b79c68a74da458b90f6b0647edc3a3ef13199b5"
+    },
+    {
+      "file": "dark-touch-1366x768-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "file": "dark-touch-1366x768-login.png",
+      "sha256": "876edf806b59e709a299080352690d1c0a3f4e7992ce1729eb668a55de97629b"
+    },
+    {
+      "file": "dark-touch-1366x768-module-collapsed-form.png",
+      "sha256": "8a685880d140920ac696a4306c8863029806b395a6fad44b81d17b1ef41fd7cf"
+    },
+    {
+      "file": "dark-touch-1366x768-module-expanded.png",
+      "sha256": "140381b867a6ed2576bc65aabc5f657338131abf59e4527b7592b358e228a9ad"
+    },
+    {
+      "file": "dark-touch-1366x768-module-flyout.png",
+      "sha256": "1ee13a985dc1cfe2bfc9062db6be555099cda6c83f742c18d5b050e3ab6ab3d2"
+    },
+    {
+      "file": "dark-touch-1366x768-module-group-collapsed.png",
+      "sha256": "c3ca032364d731f6a0755d518bf71110d39448f98de1b7d0ffc0b994f8d625cb"
+    },
+    {
+      "file": "dark-touch-1366x768-scrolled.png",
+      "sha256": "3462da5023f9877b8170153d7f4292466c41fc21bfe29a53a5ab33eb5b54164e"
+    },
+    {
+      "file": "dark-touch-1440x900-collapsed-notifications.png",
+      "sha256": "2cfaaa6ee5bace6119142ceda88d88b627b9a281f6a6865510dde8d836da0a6f"
+    },
+    {
+      "file": "dark-touch-1440x900-expanded.png",
+      "sha256": "2d3a051e24c436ab079759c000322e6c26f3a98d88ae02804126968ab58b87e2"
+    },
+    {
+      "file": "dark-touch-1440x900-file-menu.png",
+      "sha256": "ae0daaf291ef14a1e3eda16b6b79c68a74da458b90f6b0647edc3a3ef13199b5"
+    },
+    {
+      "file": "dark-touch-1440x900-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "file": "dark-touch-1440x900-login.png",
+      "sha256": "876edf806b59e709a299080352690d1c0a3f4e7992ce1729eb668a55de97629b"
+    },
+    {
+      "file": "dark-touch-1440x900-module-collapsed-form.png",
+      "sha256": "580fe5e8da1ee4fb2551ceace99a3ddaf2f33fa0ec2d23f33f71a9f4fa9b9b83"
+    },
+    {
+      "file": "dark-touch-1440x900-module-expanded.png",
+      "sha256": "9fb4cb3716bdfb01a12a8a5745d54ad36cb90e05831016e50d0bb09b63bd3e13"
+    },
+    {
+      "file": "dark-touch-1440x900-module-flyout.png",
+      "sha256": "1ee13a985dc1cfe2bfc9062db6be555099cda6c83f742c18d5b050e3ab6ab3d2"
+    },
+    {
+      "file": "dark-touch-1440x900-module-group-collapsed.png",
+      "sha256": "100d27b4c88b737f1d705d0c96927e5554ce37d7cc7e9854430efd05fe5a9534"
+    },
+    {
+      "file": "dark-touch-1440x900-scrolled.png",
+      "sha256": "c1702e38f683cfd1292e56fb0cc76c88e6ef2332570e67c3f659cfdd298b25fc"
+    },
+    {
+      "file": "dark-touch-1600x900-collapsed-notifications.png",
+      "sha256": "b706c93e7d96ef31a541a706bdf1a8eb7bb547324abfaf2d169a7dbb9b894600"
+    },
+    {
+      "file": "dark-touch-1600x900-expanded.png",
+      "sha256": "9b01905d606149f4429f3410a0d57874e2534524d90036edc42dc3d84a27af2b"
+    },
+    {
+      "file": "dark-touch-1600x900-file-menu.png",
+      "sha256": "ae0daaf291ef14a1e3eda16b6b79c68a74da458b90f6b0647edc3a3ef13199b5"
+    },
+    {
+      "file": "dark-touch-1600x900-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "file": "dark-touch-1600x900-login.png",
+      "sha256": "876edf806b59e709a299080352690d1c0a3f4e7992ce1729eb668a55de97629b"
+    },
+    {
+      "file": "dark-touch-1600x900-module-collapsed-form.png",
+      "sha256": "f825c5e8dd7b3f55037087b52a31dd5f0d189e7c252a92179a9df698eb537e9d"
+    },
+    {
+      "file": "dark-touch-1600x900-module-expanded.png",
+      "sha256": "dc8259c6fa27a66102817eab730e34c9103c88705fc96decb01613e23a3eded2"
+    },
+    {
+      "file": "dark-touch-1600x900-module-flyout.png",
+      "sha256": "1ee13a985dc1cfe2bfc9062db6be555099cda6c83f742c18d5b050e3ab6ab3d2"
+    },
+    {
+      "file": "dark-touch-1600x900-module-group-collapsed.png",
+      "sha256": "9a7bab902bf27956b12ca8a87ce83f4ff08de294e429bcee214922d61601184b"
+    },
+    {
+      "file": "dark-touch-1600x900-scrolled.png",
+      "sha256": "28b0277948b8b1581c1546fcbd0b8e313316752a4882b11dc8f055c5a63b7ba1"
+    },
+    {
+      "file": "dark-touch-1920x1080-collapsed-notifications.png",
+      "sha256": "34928b333b95fae467eccc11d8cb02145f7945935fcba6a5e7048091c6e5ab18"
+    },
+    {
+      "file": "dark-touch-1920x1080-expanded.png",
+      "sha256": "2b7b4b26240a4f335f99697d79744f5d58d89d2613c2cdee651b42a893c6137c"
+    },
+    {
+      "file": "dark-touch-1920x1080-file-menu.png",
+      "sha256": "ae0daaf291ef14a1e3eda16b6b79c68a74da458b90f6b0647edc3a3ef13199b5"
+    },
+    {
+      "file": "dark-touch-1920x1080-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "file": "dark-touch-1920x1080-login.png",
+      "sha256": "876edf806b59e709a299080352690d1c0a3f4e7992ce1729eb668a55de97629b"
+    },
+    {
+      "file": "dark-touch-1920x1080-module-collapsed-form.png",
+      "sha256": "8ce9582b0237407b783df5a4f0707d5ab56fee4f858f13aef704c3d84a7b3d25"
+    },
+    {
+      "file": "dark-touch-1920x1080-module-expanded.png",
+      "sha256": "9cb6fb9b643d43da7e8585afc9700f2165a47315c507ecf4d84ec4efdbc6a8dc"
+    },
+    {
+      "file": "dark-touch-1920x1080-module-flyout.png",
+      "sha256": "1ee13a985dc1cfe2bfc9062db6be555099cda6c83f742c18d5b050e3ab6ab3d2"
+    },
+    {
+      "file": "dark-touch-1920x1080-module-group-collapsed.png",
+      "sha256": "bb79617a447a4da48fb4db5514e178e5da019d23031124b13d1a330e7f54df7e"
+    },
+    {
+      "file": "dark-touch-1920x1080-scrolled.png",
+      "sha256": "c8106fe22e5d61827c017bb79c0b435e9f6b04c683c29be362c1d0aafb3cd298"
+    },
+    {
+      "file": "light-comfortable-1280x720-collapsed-notifications.png",
+      "sha256": "dd29c653ebb567987b55b183207f2378e9b6549a086abb87c9a694b3c2005a0a"
+    },
+    {
+      "file": "light-comfortable-1280x720-expanded.png",
+      "sha256": "4a4f0f4c91e3679047ceecb454a5f66d8a5cbfae2618ca3944ac81e177110ad9"
+    },
+    {
+      "file": "light-comfortable-1280x720-file-menu.png",
+      "sha256": "b7c9db1abdbe62168ec3503ec10cd597e5a37ee253290cff4f72d3012d69e092"
+    },
+    {
+      "file": "light-comfortable-1280x720-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "file": "light-comfortable-1280x720-login.png",
+      "sha256": "e7748b1f68f4012b1aafd1628036c64687c42e47416032cefe1c6f61a6a13271"
+    },
+    {
+      "file": "light-comfortable-1280x720-module-collapsed-form.png",
+      "sha256": "9dfe1b1035cabbb57f9c5544be5a974f7231999f015957cddb42ee55eae830bd"
+    },
+    {
+      "file": "light-comfortable-1280x720-module-expanded.png",
+      "sha256": "52b98080f8cccca46e982ff7b7b76d0a1abb746570a3aa5dcf37d91c7761c8d3"
+    },
+    {
+      "file": "light-comfortable-1280x720-module-flyout.png",
+      "sha256": "4de08996a6f0c3ee41c68d90cf686951b5dc7d5c50a92efa4e03e0597a564563"
+    },
+    {
+      "file": "light-comfortable-1280x720-module-group-collapsed.png",
+      "sha256": "e107e4cccafe19d9dddc20f8a52ce383a6ea199fa78c4f25aa11d6fc31f654f7"
+    },
+    {
+      "file": "light-comfortable-1280x720-scrolled.png",
+      "sha256": "63996f3d2048a6f1a3767a571c5f701e16ed8ef74f701b9e24f9f4c070873c6f"
+    },
+    {
+      "file": "light-comfortable-1366x768-collapsed-notifications.png",
+      "sha256": "cddb51769f537644915dc1087ff007349fd5d60bdfe6382c562eb9f570ccbce7"
+    },
+    {
+      "file": "light-comfortable-1366x768-expanded.png",
+      "sha256": "65cf0a91fb17d06a12a3bfdd049b0cda08e11a9fa3a3b99fbe99c6d9a505161f"
+    },
+    {
+      "file": "light-comfortable-1366x768-file-menu.png",
+      "sha256": "b7c9db1abdbe62168ec3503ec10cd597e5a37ee253290cff4f72d3012d69e092"
+    },
+    {
+      "file": "light-comfortable-1366x768-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "file": "light-comfortable-1366x768-login.png",
+      "sha256": "e7748b1f68f4012b1aafd1628036c64687c42e47416032cefe1c6f61a6a13271"
+    },
+    {
+      "file": "light-comfortable-1366x768-module-collapsed-form.png",
+      "sha256": "5206d392f6cf299fe9736b24bb5fa1162dc3a85e3e6cd4e121ac327cafd16c14"
+    },
+    {
+      "file": "light-comfortable-1366x768-module-expanded.png",
+      "sha256": "a0de9c835e6574cfbaa2a493852320dce2dce14d2f8c7d866d4b41afbd7eccaf"
+    },
+    {
+      "file": "light-comfortable-1366x768-module-flyout.png",
+      "sha256": "4de08996a6f0c3ee41c68d90cf686951b5dc7d5c50a92efa4e03e0597a564563"
+    },
+    {
+      "file": "light-comfortable-1366x768-module-group-collapsed.png",
+      "sha256": "0bd91c8e1006a0c8bb43b18eb6e0320d63dc6594e2092d5434da5c751819efbd"
+    },
+    {
+      "file": "light-comfortable-1366x768-scrolled.png",
+      "sha256": "3d643f6d102ebc4b983dfa8bc9d7b950ace0a3b9b500c8b08e3744793e3624d8"
+    },
+    {
+      "file": "light-comfortable-1440x900-collapsed-notifications.png",
+      "sha256": "0204a59cd77e1d6127ab9dd38b4fc55ae1c63f74bca48148d080e0b5c9465269"
+    },
+    {
+      "file": "light-comfortable-1440x900-expanded.png",
+      "sha256": "3fea2e72c84e76c4a2b5a393cd3b9aa839b63a6830f98593d1c45026a9997102"
+    },
+    {
+      "file": "light-comfortable-1440x900-file-menu.png",
+      "sha256": "b7c9db1abdbe62168ec3503ec10cd597e5a37ee253290cff4f72d3012d69e092"
+    },
+    {
+      "file": "light-comfortable-1440x900-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "file": "light-comfortable-1440x900-login.png",
+      "sha256": "e7748b1f68f4012b1aafd1628036c64687c42e47416032cefe1c6f61a6a13271"
+    },
+    {
+      "file": "light-comfortable-1440x900-module-collapsed-form.png",
+      "sha256": "00a0c18f2e2060effb775d506dd12380faab9bca43b1fc680c67c17cf3c83b9d"
+    },
+    {
+      "file": "light-comfortable-1440x900-module-expanded.png",
+      "sha256": "3b4219dbfd4cde7226ea8171838f9f25a7dcfbb2a489fc493d8c30d7e5c4e4dd"
+    },
+    {
+      "file": "light-comfortable-1440x900-module-flyout.png",
+      "sha256": "4de08996a6f0c3ee41c68d90cf686951b5dc7d5c50a92efa4e03e0597a564563"
+    },
+    {
+      "file": "light-comfortable-1440x900-module-group-collapsed.png",
+      "sha256": "22fcda0f3e15e05a30696acb8cad9eb748951808634646ba8e3601ace4950b62"
+    },
+    {
+      "file": "light-comfortable-1440x900-scrolled.png",
+      "sha256": "d99049de3f3a655268819e0f6de73437322701d6690bca0ac4d372c425a28f98"
+    },
+    {
+      "file": "light-comfortable-1600x900-collapsed-notifications.png",
+      "sha256": "9188dce391e4a95540441c62c274e2f6ac9e23ed578888712a59cc3342509341"
+    },
+    {
+      "file": "light-comfortable-1600x900-expanded.png",
+      "sha256": "9e58458bb9747d46342d122ea088de0e9ee8d63f0c17132d3100b076ebe70baf"
+    },
+    {
+      "file": "light-comfortable-1600x900-file-menu.png",
+      "sha256": "b7c9db1abdbe62168ec3503ec10cd597e5a37ee253290cff4f72d3012d69e092"
+    },
+    {
+      "file": "light-comfortable-1600x900-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "file": "light-comfortable-1600x900-login.png",
+      "sha256": "e7748b1f68f4012b1aafd1628036c64687c42e47416032cefe1c6f61a6a13271"
+    },
+    {
+      "file": "light-comfortable-1600x900-module-collapsed-form.png",
+      "sha256": "116e629098f3358a88e8d3caa8b80956cfcfe05e9e02a73381790a49794f11bf"
+    },
+    {
+      "file": "light-comfortable-1600x900-module-expanded.png",
+      "sha256": "6e27b279ea24fefada8dd743126b4929e043958f26735bfd94aaefb19a4ca137"
+    },
+    {
+      "file": "light-comfortable-1600x900-module-flyout.png",
+      "sha256": "4de08996a6f0c3ee41c68d90cf686951b5dc7d5c50a92efa4e03e0597a564563"
+    },
+    {
+      "file": "light-comfortable-1600x900-module-group-collapsed.png",
+      "sha256": "6a32b175b79e0c43bf5d860f6cad2a39f09a0a90c1fc283133b0d94121993479"
+    },
+    {
+      "file": "light-comfortable-1600x900-scrolled.png",
+      "sha256": "c8ffde36a7f02780e8761a2cb3c958a4b9e9d6b417764e67c42fafa22e246d57"
+    },
+    {
+      "file": "light-comfortable-1920x1080-collapsed-notifications.png",
+      "sha256": "e4d3cc23fd0d4bafdecbc53ed39c1eb649714dcbb89e2b793672c45a95113f4a"
+    },
+    {
+      "file": "light-comfortable-1920x1080-expanded.png",
+      "sha256": "3935ebc54d13f04d745c56d0d74ab65d670453e7c35d4927025ae4c3c62477c5"
+    },
+    {
+      "file": "light-comfortable-1920x1080-file-menu.png",
+      "sha256": "b7c9db1abdbe62168ec3503ec10cd597e5a37ee253290cff4f72d3012d69e092"
+    },
+    {
+      "file": "light-comfortable-1920x1080-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "file": "light-comfortable-1920x1080-login.png",
+      "sha256": "e7748b1f68f4012b1aafd1628036c64687c42e47416032cefe1c6f61a6a13271"
+    },
+    {
+      "file": "light-comfortable-1920x1080-module-collapsed-form.png",
+      "sha256": "373aaa3ab0b548afa42642db1416bbc285467ed65e284b7b885581180ceca5bd"
+    },
+    {
+      "file": "light-comfortable-1920x1080-module-expanded.png",
+      "sha256": "b7f5746461223543e652c4d0762587a04d7e4c6c4ffca2abacba3adeeb8ea8af"
+    },
+    {
+      "file": "light-comfortable-1920x1080-module-flyout.png",
+      "sha256": "4de08996a6f0c3ee41c68d90cf686951b5dc7d5c50a92efa4e03e0597a564563"
+    },
+    {
+      "file": "light-comfortable-1920x1080-module-group-collapsed.png",
+      "sha256": "07a287712b57b7fdd5f73f0eb4756c0eeba48f3780506ad0a7d2ff8c66235bf2"
+    },
+    {
+      "file": "light-comfortable-1920x1080-scrolled.png",
+      "sha256": "f95863925023e44028180723d745dbb8b4bc16ed4f3c4c0528c3351720e8d6aa"
+    },
+    {
+      "file": "light-touch-1280x720-collapsed-notifications.png",
+      "sha256": "8d88b920276436576d53f7ce44b5c1507baccdf83bdc66124546f0ee2a508b7a"
+    },
+    {
+      "file": "light-touch-1280x720-expanded.png",
+      "sha256": "121d7c1f677093fed5616ad8c908635c40f87e58155d9aeb4c215d3543396c94"
+    },
+    {
+      "file": "light-touch-1280x720-file-menu.png",
+      "sha256": "f61e561a15e10adc6b7884e632458b3beea80520b00963be29216ecf68d67c79"
+    },
+    {
+      "file": "light-touch-1280x720-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "file": "light-touch-1280x720-login.png",
+      "sha256": "cbcbfe4d62c10851c3c56c0bc3f59fa6ab375c9c858ae018bb9c4755b925dc67"
+    },
+    {
+      "file": "light-touch-1280x720-module-collapsed-form.png",
+      "sha256": "3a0914e0586f2a577c9175a24d6e927a7ce7e997ce7be275c38332921c7b29a3"
+    },
+    {
+      "file": "light-touch-1280x720-module-expanded.png",
+      "sha256": "c3057daf71b16f9ca54333a76a1ff15539ef43ddda38e32d4636304e48298395"
+    },
+    {
+      "file": "light-touch-1280x720-module-flyout.png",
+      "sha256": "4a2ff3f956f2e57a63ac010929cc54162f4425fe76fbb405fb6cb8c167a423a1"
+    },
+    {
+      "file": "light-touch-1280x720-module-group-collapsed.png",
+      "sha256": "5d799c88a91dffdd68732cc4543f46439f31b78e7b7efff82e7fa790358e728a"
+    },
+    {
+      "file": "light-touch-1280x720-scrolled.png",
+      "sha256": "cef2d2647a707eb54a8ee6017ca4778601de465a3571cf851473ff77085b1f8f"
+    },
+    {
+      "file": "light-touch-1366x768-collapsed-notifications.png",
+      "sha256": "70cb4e5ec288542a82901f91580ef49699219ec30cf43fdd9dcb70f7369fbb2e"
+    },
+    {
+      "file": "light-touch-1366x768-expanded.png",
+      "sha256": "3371a0e396418b295e800788b3207e7fbaa12983c1545d845afb8351ef63b55e"
+    },
+    {
+      "file": "light-touch-1366x768-file-menu.png",
+      "sha256": "f61e561a15e10adc6b7884e632458b3beea80520b00963be29216ecf68d67c79"
+    },
+    {
+      "file": "light-touch-1366x768-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "file": "light-touch-1366x768-login.png",
+      "sha256": "cbcbfe4d62c10851c3c56c0bc3f59fa6ab375c9c858ae018bb9c4755b925dc67"
+    },
+    {
+      "file": "light-touch-1366x768-module-collapsed-form.png",
+      "sha256": "148a90a2285953c7bfe1deeb25f9d6c33fac719af5776f4127669b7b793eca9d"
+    },
+    {
+      "file": "light-touch-1366x768-module-expanded.png",
+      "sha256": "d7aadb1cbacbbe0f5c010113d030a844a402c110a6e3c9271861bf4b4e2f35be"
+    },
+    {
+      "file": "light-touch-1366x768-module-flyout.png",
+      "sha256": "4a2ff3f956f2e57a63ac010929cc54162f4425fe76fbb405fb6cb8c167a423a1"
+    },
+    {
+      "file": "light-touch-1366x768-module-group-collapsed.png",
+      "sha256": "27c832529246c2c69b31ab1964225b937785fa0109c839797a0dbcd34820b8c7"
+    },
+    {
+      "file": "light-touch-1366x768-scrolled.png",
+      "sha256": "633a19b633302347380b0d99f340ec14610b5c35e05ba90233d6bafaf1ef15a7"
+    },
+    {
+      "file": "light-touch-1440x900-collapsed-notifications.png",
+      "sha256": "cefc94c9635084077ef4cdb85c351058cc00d5d4037a48b29d668acd83a991bb"
+    },
+    {
+      "file": "light-touch-1440x900-expanded.png",
+      "sha256": "b3cc64359b1e60c8ac54bb71dfd5cc4c35264c4bc3c3f5fa36d2bfdf488fac33"
+    },
+    {
+      "file": "light-touch-1440x900-file-menu.png",
+      "sha256": "f61e561a15e10adc6b7884e632458b3beea80520b00963be29216ecf68d67c79"
+    },
+    {
+      "file": "light-touch-1440x900-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "file": "light-touch-1440x900-login.png",
+      "sha256": "cbcbfe4d62c10851c3c56c0bc3f59fa6ab375c9c858ae018bb9c4755b925dc67"
+    },
+    {
+      "file": "light-touch-1440x900-module-collapsed-form.png",
+      "sha256": "0a2b2188d625faf317d68bf0808ff649c452686e4b020554dae02debbe5c0cde"
+    },
+    {
+      "file": "light-touch-1440x900-module-expanded.png",
+      "sha256": "762cf983c6a7420c07db14b5c818ff1aebb2e7dca2df05f7283c86e309166d10"
+    },
+    {
+      "file": "light-touch-1440x900-module-flyout.png",
+      "sha256": "4a2ff3f956f2e57a63ac010929cc54162f4425fe76fbb405fb6cb8c167a423a1"
+    },
+    {
+      "file": "light-touch-1440x900-module-group-collapsed.png",
+      "sha256": "659b4b757e1d74b73ab6d200a84eee10ce1b5a235bf52b66f87d9f09e6bbdfd4"
+    },
+    {
+      "file": "light-touch-1440x900-scrolled.png",
+      "sha256": "10a893a45a70aff1942b7bcd0a820f6ffdd87795c2ca7c44b8c5eae967f6dcd8"
+    },
+    {
+      "file": "light-touch-1600x900-collapsed-notifications.png",
+      "sha256": "2e685d113db33e7b11b6a8384a5d6be53cf6a40bae0b80784a983851c70ac16a"
+    },
+    {
+      "file": "light-touch-1600x900-expanded.png",
+      "sha256": "c868d3405c71a26c25ff538362e41199c8c7d7bebaa06797274f75514a077d4c"
+    },
+    {
+      "file": "light-touch-1600x900-file-menu.png",
+      "sha256": "f61e561a15e10adc6b7884e632458b3beea80520b00963be29216ecf68d67c79"
+    },
+    {
+      "file": "light-touch-1600x900-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "file": "light-touch-1600x900-login.png",
+      "sha256": "cbcbfe4d62c10851c3c56c0bc3f59fa6ab375c9c858ae018bb9c4755b925dc67"
+    },
+    {
+      "file": "light-touch-1600x900-module-collapsed-form.png",
+      "sha256": "ed85e941e79da3d0954d5a4e62ea536a5eab44d823fa2b8ae0e0c969c4c708c2"
+    },
+    {
+      "file": "light-touch-1600x900-module-expanded.png",
+      "sha256": "8a8ebc2e1275a73688f439efae248b2797b9b9ce848154ea02f4fee03aaaad5c"
+    },
+    {
+      "file": "light-touch-1600x900-module-flyout.png",
+      "sha256": "4a2ff3f956f2e57a63ac010929cc54162f4425fe76fbb405fb6cb8c167a423a1"
+    },
+    {
+      "file": "light-touch-1600x900-module-group-collapsed.png",
+      "sha256": "8b4fde499a719fc095165c06564047b0229ebb6436b216e392621e791d43b6d7"
+    },
+    {
+      "file": "light-touch-1600x900-scrolled.png",
+      "sha256": "eccb5cedd78bb1ac35b530dcf4195236b38731ddf3ae14230653cece010631b4"
+    },
+    {
+      "file": "light-touch-1920x1080-collapsed-notifications.png",
+      "sha256": "70aadaecf198de14808b5fabb7f8c5bd7fd5dbd335de6de9713c6b70126ec03a"
+    },
+    {
+      "file": "light-touch-1920x1080-expanded.png",
+      "sha256": "46b938c73a200796425fe7a43e7ade89481b4b7e15666fc820805fcff311ca48"
+    },
+    {
+      "file": "light-touch-1920x1080-file-menu.png",
+      "sha256": "f61e561a15e10adc6b7884e632458b3beea80520b00963be29216ecf68d67c79"
+    },
+    {
+      "file": "light-touch-1920x1080-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "file": "light-touch-1920x1080-login.png",
+      "sha256": "cbcbfe4d62c10851c3c56c0bc3f59fa6ab375c9c858ae018bb9c4755b925dc67"
+    },
+    {
+      "file": "light-touch-1920x1080-module-collapsed-form.png",
+      "sha256": "d179e74867c0d43a643a4079a44bfe22650e9f155f7dc82fdc5f6f97597829c3"
+    },
+    {
+      "file": "light-touch-1920x1080-module-expanded.png",
+      "sha256": "6346f4fb0806aa09ca13c0d43e545cff6fe4a3932b2801fcee192d4835d429fc"
+    },
+    {
+      "file": "light-touch-1920x1080-module-flyout.png",
+      "sha256": "4a2ff3f956f2e57a63ac010929cc54162f4425fe76fbb405fb6cb8c167a423a1"
+    },
+    {
+      "file": "light-touch-1920x1080-module-group-collapsed.png",
+      "sha256": "453fc31ad94a5b857dab6cf7d76b4264a48bdb0fc8326a3122e5a4bed13b4d5c"
+    },
+    {
+      "file": "light-touch-1920x1080-scrolled.png",
+      "sha256": "6bde3f5976f57ba503e1fe59ebf6268f069d9be836f49ded93b9b253a359615c"
+    }
+  ],
+  "limitations": [
+    "Official branding assets absent",
+    "Production notification source not connected to drawer",
+    "No approved pixel regression baseline",
+    "Physical touch/scanner/scale acceptance pending",
+    "Full repository test suites are not green"
+  ]
+}

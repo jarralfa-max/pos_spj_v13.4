@@ -1,0 +1,167 @@
+2026-09-12 08:19:31,059 SPJ.Boot INFO =======================================================
+2026-09-12 08:19:31,063 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-12 08:19:31,065 SPJ.Boot INFO =======================================================
+2026-09-12 08:19:34,288 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-12 08:19:35,986 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-12 08:19:35,988 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-12 08:20:16,447 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-12 08:21:26,231 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-09-12 08:21:40,514 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-09-12 08:26:14,931 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-09-12 08:46:41,959 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-12 08:48:34,572 SPJ.Boot INFO =======================================================
+2026-09-12 08:48:34,574 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-12 08:48:34,575 SPJ.Boot INFO =======================================================
+2026-09-12 08:48:38,187 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-12 08:48:38,901 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-12 08:48:38,923 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-12 08:55:24,646 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-12 08:56:55,647 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-09-12 09:02:10,368 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-12 09:18:02,537 SPJ.Boot INFO =======================================================
+2026-09-12 09:18:02,538 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-12 09:18:02,541 SPJ.Boot INFO =======================================================
+2026-09-12 09:18:04,682 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-12 09:18:05,090 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-12 09:18:05,156 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-12 09:19:00,155 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-12 09:19:12,541 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\configuracion_view.py", line 38, in show_route
+    page.ensure_loaded()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\base_page.py", line 46, in ensure_loaded
+    self.reload("")
+    ~~~~~~~~~~~^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 82, in reload
+    super().reload(search)
+    ~~~~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\base_page.py", line 49, in reload
+    model = self._presenter.load_page(self.page_id, search)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\configuracion_presenter.py", line 310, in load_page
+    return self._query_service.page(page_id=page_id, search=search)
+           ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\queries\configuracion\workspace_query_service.py", line 495, in page
+    return handler(self, search)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\queries\configuracion\workspace_query_service.py", line 756, in _page_usuarios_roles
+    rows = tuple(
+        ConfigRowViewModel(u.id, (
+    ...<4 lines>...
+        for u in users
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\queries\configuracion\workspace_query_service.py", line 757, in <genexpr>
+    ConfigRowViewModel(u.id, (
+                       ^^^^
+AttributeError: 'sqlite3.Row' object has no attribute 'id'
+
+2026-09-12 09:22:46,496 spj.configuracion.presenter ERROR ConfiguracionPresenter.create_user failed
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\configuracion_presenter.py", line 821, in create_user
+    result = self._save_user_uc.execute(cmd)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\use_cases\save_user_use_case.py", line 18, in execute
+    user_id = self._service.save_user(
+        user_id=command.user_id or None,
+    ...<9 lines>...
+        actor=command.user_name or "",
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\configuracion\settings_services.py", line 50, in save_user
+    persisted_id = self._repository.save_user(
+        user_id=user_id, username=username, name=name, email=email, role=role,
+        branch_id=branch_id, active=active, employee_id=employee_id,
+        password_hash=password_hash,
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\db\repositories\settings\user_directory_repository.py", line 100, in save_user
+    self._conn.execute(
+    ~~~~~~~~~~~~~~~~~~^
+        f"INSERT INTO usuarios ({', '.join(columns)}) VALUES ({placeholders})",
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        (persisted_id, *values),
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+sqlite3.IntegrityError: UNIQUE constraint failed: usuarios.usuario
+2026-09-12 09:22:55,093 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-12 09:44:25,983 SPJ.Boot INFO =======================================================
+2026-09-12 09:44:25,984 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-12 09:44:25,985 SPJ.Boot INFO =======================================================
+2026-09-12 09:44:28,841 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-12 09:44:29,294 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-12 09:44:29,302 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-12 09:45:23,419 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-12 09:48:29,356 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-12 09:49:12,715 SPJ.Boot INFO Sesión iniciada: Anai Pichardo en Principal.
+2026-09-12 10:00:13,690 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-12 17:57:31,694 SPJ.Boot INFO =======================================================
+2026-09-12 17:57:31,696 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-12 17:57:31,696 SPJ.Boot INFO =======================================================
+2026-09-12 17:57:35,539 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-12 17:57:36,202 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-12 17:57:36,218 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-12 17:58:59,056 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-12 18:06:54,387 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-12 19:16:16,295 SPJ.Boot INFO =======================================================
+2026-09-12 19:16:16,296 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-12 19:16:16,296 SPJ.Boot INFO =======================================================
+2026-09-12 19:16:26,569 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-12 19:16:31,359 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-12 19:16:31,751 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-12 19:17:36,581 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-12 19:18:51,551 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\cash_register\cash_devices_page.py", line 43, in <lambda>
+    activate.clicked.connect(lambda: self._set_status(True))
+                                     ~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\cash_register\cash_devices_page.py", line 134, in _set_status
+    self._run(
+    ~~~~~~~~~^
+        lambda: self._presenter.set_cash_device_status(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+        "Estado actualizado",
+        ^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\cash_register\cash_devices_page.py", line 180, in _run
+    result = command()
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\cash_register\cash_devices_page.py", line 135, in <lambda>
+    lambda: self._presenter.set_cash_device_status(
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        kind=self._active_kind(),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+        target_status=target_status,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ),
+    ^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\cash_register\cash_register_presenter.py", line 193, in set_cash_device_status
+    return handler(
+        kind=kind,
+    ...<5 lines>...
+        target_status=target_status,
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\desktop\cash_register_factory.py", line 677, in set_cash_device_status_handler
+    result = use_cases["cash_device_status_uc"].execute(
+        connection,
+    ...<7 lines>...
+        target_status=target_status,
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\cash_register\device_use_cases.py", line 97, in execute
+    raise LookupError("Dispositivo no encontrado o fuera de alcance")
+LookupError: Dispositivo no encontrado o fuera de alcance
+
+2026-09-12 19:21:31,830 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-12 19:37:26,515 SPJ.Boot INFO =======================================================
+2026-09-12 19:37:26,516 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-12 19:37:26,517 SPJ.Boot INFO =======================================================
+2026-09-12 19:37:30,695 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-12 19:37:32,967 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-12 19:37:33,072 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-12 19:38:39,071 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-12 19:44:50,347 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-12 23:18:39,748 SPJ.Boot INFO =======================================================
+2026-09-12 23:18:39,749 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-12 23:18:39,749 SPJ.Boot INFO =======================================================
+2026-09-12 23:18:42,007 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-12 23:18:44,340 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-12 23:18:44,361 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-12 23:19:41,064 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.

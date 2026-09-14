@@ -6,12 +6,12 @@ conexión, como el resto del módulo.
 La ruta `losses_yields` abría un placeholder. No le faltaban datos:
 `YieldMonitoringQueryService` ya existía y `losses_factory.py` ya lo construía.
 """
-from PyQt5.QtWidgets import QHBoxLayout, QLabel, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QLabel, QMessageBox
 
 from frontend.desktop.components import (
     ColumnSpec,
     KPIBar,
-    PageHeader,
+    StandardPage,
     StandardTable,
     create_secondary_button,
 )
@@ -37,20 +37,18 @@ _COLUMNAS_ALERTA = [
 ]
 
 
-class YieldMonitoringPage(QWidget):
+class YieldMonitoringPage(StandardPage):
     def __init__(self, presenter, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(
+            parent, title="Rendimientos",
+            subtitle="Desviaciones entre lo esperado y lo producido, y las que superaron la tolerancia.",
+        )
         self._presenter = presenter
         self._loaded = False
         self.setObjectName("lossesYieldMonitoringPage")
         self.setAccessibleName("Rendimientos de producción")
 
-        root = QVBoxLayout(self)
-        root.addWidget(PageHeader(
-            title="Rendimientos",
-            subtitle="Desviaciones entre lo esperado y lo producido, y las que "
-                     "superaron la tolerancia.",
-            parent=self))
+        root = self.content_layout
 
         acciones = QHBoxLayout()
         acciones.addStretch(1)

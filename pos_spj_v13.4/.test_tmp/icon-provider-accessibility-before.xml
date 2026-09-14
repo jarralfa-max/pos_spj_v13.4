@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="4" time="2.935" timestamp="2026-09-13T18:02:37.733900-06:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_icon_provider_runtime" name="test_rebinding_updates_generated_accessibility_name[QLabel]" time="0.158"><failure message="AssertionError: assert 'Contraer' == 'Expandir'&#10;  &#10;  - Expandir&#10;  + Contraer">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001CCD50B2F00&gt;
+control = &lt;class 'PyQt5.QtWidgets.QLabel'&gt;
+
+    @pytest.mark.parametrize("control", [QLabel, QPushButton])
+    def test_rebinding_updates_generated_accessibility_name(manager, control):
+        widget = control()
+        try:
+            IconProvider.bind(widget, Icons.CHEVRON_LEFT)
+            assert widget.accessibleName() == "Contraer"
+            IconProvider.bind(widget, Icons.CHEVRON_RIGHT)
+&gt;           assert widget.accessibleName() == "Expandir"
+E           AssertionError: assert 'Contraer' == 'Expandir'
+E             
+E             - Expandir
+E             + Contraer
+
+tests\ui\test_icon_provider_runtime.py:137: AssertionError</failure></testcase><testcase classname="tests.ui.test_icon_provider_runtime" name="test_rebinding_updates_generated_accessibility_name[QPushButton]" time="0.018"><failure message="AssertionError: assert 'Contraer' == 'Expandir'&#10;  &#10;  - Expandir&#10;  + Contraer">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001CCD50B2B10&gt;
+control = &lt;class 'PyQt5.QtWidgets.QPushButton'&gt;
+
+    @pytest.mark.parametrize("control", [QLabel, QPushButton])
+    def test_rebinding_updates_generated_accessibility_name(manager, control):
+        widget = control()
+        try:
+            IconProvider.bind(widget, Icons.CHEVRON_LEFT)
+            assert widget.accessibleName() == "Contraer"
+            IconProvider.bind(widget, Icons.CHEVRON_RIGHT)
+&gt;           assert widget.accessibleName() == "Expandir"
+E           AssertionError: assert 'Contraer' == 'Expandir'
+E             
+E             - Expandir
+E             + Contraer
+
+tests\ui\test_icon_provider_runtime.py:137: AssertionError</failure></testcase><testcase classname="tests.ui.test_icon_provider_runtime" name="test_rebinding_preserves_application_accessibility_name[True]" time="0.008" /><testcase classname="tests.ui.test_icon_provider_runtime" name="test_rebinding_preserves_application_accessibility_name[False]" time="0.036" /></testsuite></testsuites>

@@ -1,0 +1,127 @@
+{
+  "files_scanned": 601,
+  "rules": {
+    "noncanonical_dialog": {
+      "occurrences": 35,
+      "files": 24
+    },
+    "screen_without_explicit_overflow": {
+      "occurrences": 112,
+      "files": 111
+    },
+    "unicode_icon_literal": {
+      "occurrences": 14,
+      "files": 7
+    }
+  },
+  "module_adoption": {
+    "assets": {
+      "files": 13,
+      "files_importing_canonical_components": 6,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 2
+    },
+    "business_intelligence": {
+      "files": 25,
+      "files_importing_canonical_components": 14,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 3
+    },
+    "cash_register": {
+      "files": 23,
+      "files_importing_canonical_components": 16,
+      "files_using_page_layouts": 2,
+      "files_using_standard_table": 13
+    },
+    "configuracion": {
+      "files": 38,
+      "files_importing_canonical_components": 26,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 11
+    },
+    "customers_crm": {
+      "files": 19,
+      "files_importing_canonical_components": 11,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 3
+    },
+    "fidelidad": {
+      "files": 15,
+      "files_importing_canonical_components": 7,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 4
+    },
+    "finance": {
+      "files": 50,
+      "files_importing_canonical_components": 30,
+      "files_using_page_layouts": 1,
+      "files_using_standard_table": 6
+    },
+    "hr": {
+      "files": 20,
+      "files_importing_canonical_components": 10,
+      "files_using_page_layouts": 1,
+      "files_using_standard_table": 0
+    },
+    "inventory": {
+      "files": 34,
+      "files_importing_canonical_components": 26,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 22
+    },
+    "losses": {
+      "files": 19,
+      "files_importing_canonical_components": 9,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 1
+    },
+    "meat_processing": {
+      "files": 15,
+      "files_importing_canonical_components": 4,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 1
+    },
+    "orders_delivery": {
+      "files": 19,
+      "files_importing_canonical_components": 7,
+      "files_using_page_layouts": 1,
+      "files_using_standard_table": 0
+    },
+    "pricing": {
+      "files": 13,
+      "files_importing_canonical_components": 6,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 4
+    },
+    "products": {
+      "files": 31,
+      "files_importing_canonical_components": 19,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 16
+    },
+    "purchasing": {
+      "files": 27,
+      "files_importing_canonical_components": 14,
+      "files_using_page_layouts": 1,
+      "files_using_standard_table": 8
+    },
+    "sales_pos": {
+      "files": 21,
+      "files_importing_canonical_components": 9,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 1
+    },
+    "tarjetas_fidelidad": {
+      "files": 12,
+      "files_importing_canonical_components": 3,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 0
+    },
+    "transfers": {
+      "files": 30,
+      "files_importing_canonical_components": 5,
+      "files_using_page_layouts": 0,
+      "files_using_standard_table": 1
+    }
+  }
+}

@@ -10,7 +10,9 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QFrame, QLabel, QVBoxLayout
+from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
+
+from frontend.desktop.components.icons import IconProvider
 
 from frontend.desktop.components.tooltip import apply_tooltip
 from frontend.desktop.themes.tokens import KpiMetrics, Spacing
@@ -53,7 +55,7 @@ class KPIDTO:
     tooltip: str | None = None
 
 
-_ARROW = {"up": "▲", "down": "▼", "flat": "→"}
+_TREND = {"up": "Aumenta", "down": "Disminuye", "flat": "Sin cambio"}
 
 
 def _value_text(dto: KPIDTO) -> str:
@@ -65,7 +67,7 @@ def _value_text(dto: KPIDTO) -> str:
 def _subtitle_text(dto: KPIDTO) -> str:
     sub_bits = []
     if dto.trend_value and dto.trend_direction:
-        sub_bits.append(f"{_ARROW.get(dto.trend_direction, '')} {dto.trend_value}"
+        sub_bits.append(f"{_TREND.get(dto.trend_direction, '')} {dto.trend_value}"
                         + (f" {dto.trend_label}" if dto.trend_label else ""))
     if dto.subtitle:
         sub_bits.append(dto.subtitle)
@@ -79,7 +81,6 @@ class KPICard(QFrame):
         super().__init__(parent)
         self.setObjectName("kpiCard")
         self.setMinimumHeight(KpiMetrics.MIN_HEIGHT)
-        self.setMaximumHeight(KpiMetrics.MAX_HEIGHT)
         self.setMinimumWidth(KpiMetrics.MIN_WIDTH)
 
         layout = QVBoxLayout(self)
@@ -87,12 +88,18 @@ class KPICard(QFrame):
         layout.setSpacing(Spacing.XXS)
         self._title = QLabel(self)
         self._title.setObjectName("kpiTitle")
-        layout.addWidget(self._title)
+        self._title.setWordWrap(True)
+        heading = QHBoxLayout()
+        heading.addWidget(self._title, 1)
+        self._icon_label = QLabel(self)
+        heading.addWidget(self._icon_label)
+        layout.addLayout(heading)
         self._value = QLabel(self)
         self._value.setObjectName("kpiValue")
         layout.addWidget(self._value)
         self._subtitle = QLabel(self)
         self._subtitle.setObjectName("kpiSubtitle")
+        self._subtitle.setWordWrap(True)
         self._subtitle.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         layout.addWidget(self._subtitle)
         self.update(dto)
@@ -107,6 +114,9 @@ class KPICard(QFrame):
         self.dto = dto
         self.setProperty("variant", dto.variant)
         self._title.setText(dto.title)
+        self._icon_label.setVisible(bool(dto.icon))
+        if dto.icon:
+            IconProvider.bind(self._icon_label, dto.icon, state=dto.variant)
         value_text = _value_text(dto)
         self._value.setText(value_text)
         sub = _subtitle_text(dto)

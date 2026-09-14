@@ -162,6 +162,34 @@ def _build_services():
     ]).build()
 
 
+def _logout_and_reauthenticate(app, window, coordinator) -> bool:
+    """Discard session-owned widgets and rebuild them only after a fresh login."""
+    try:
+        coordinator.logout(window.router.current_context.session_id)
+    except Exception:
+        logger.exception("No se pudo revocar la sesión")
+        QMessageBox.critical(window, "Cerrar sesión", "No se pudo cerrar la sesión. Intente nuevamente.")
+        return False
+    quit_on_close = app.quitOnLastWindowClosed()
+    app.setQuitOnLastWindowClosed(False)
+    try:
+        window.setEnabled(False)
+        window.hide()
+        if window.service_supervisor is not None:
+            window.service_supervisor.stop_all()
+        window.deleteLater()
+        accepted = coordinator.run()
+        if not accepted:
+            app.quit()
+        return accepted
+    except Exception:
+        logger.exception("Falló la reapertura del login tras cerrar sesión")
+        app.quit()
+        return False
+    finally:
+        app.setQuitOnLastWindowClosed(quit_on_close)
+
+
 def main() -> int:
     """Arranca la aplicación. Devuelve el código de salida del proceso."""
     from pathlib import Path
@@ -179,6 +207,9 @@ def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(VERSION)
+
+    from frontend.desktop.components.branding import BrandAssetProvider
+    BrandAssetProvider.apply_to_application(app)
 
     try:
         from frontend.desktop.themes.theme_manager import ThemeManager
@@ -213,6 +244,9 @@ def main() -> int:
             health_report=bootstrap.health_report,
         )
         window.setWindowTitle(f"{APP_NAME} v{VERSION}")
+        window.logout_requested.connect(lambda: _logout_and_reauthenticate(app, window, coordinator))
+        if window.sidebar is not None and window.sidebar.active_route:
+            window.navigate(window.sidebar.active_route)
         window.show()
         ventana["window"] = window
         logger.info("Sesión iniciada: %s en %s.", context.user_name, context.branch_name)

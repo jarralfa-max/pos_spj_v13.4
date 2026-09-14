@@ -36,11 +36,12 @@ def test_sidebar_emits_route_requested_on_selection_change(qapp):
     assert emitted == [BUSINESS_INTELLIGENCE_NAV[1].page_id]
 
 
-def test_sidebar_collapse_shows_only_first_letter(qapp):
+def test_sidebar_collapse_shows_section_icon(qapp):
     widget = BusinessIntelligenceSidebarWidget(has_permission=lambda perm: True)
     widget.set_collapsed(True)
     assert widget.collapsed is True
-    assert widget.item(0).text() == BUSINESS_INTELLIGENCE_NAV[0].title[:1]
+    assert widget.item(0).text() == ""
+    assert not widget.item(0).icon().isNull()
     widget.set_collapsed(False)
     assert widget.item(0).text() == BUSINESS_INTELLIGENCE_NAV[0].title
 

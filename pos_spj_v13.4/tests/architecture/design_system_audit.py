@@ -99,6 +99,27 @@ def scan_source(source: str, path: str) -> list[Finding]:
                 return node
         return None
 
+    def is_print_canvas_data(node):
+        # This is the white physical card stock in the existing declarative
+        # print example, not a native-widget color. Keep the exception tied to
+        # its path, JSON schema assignment, exact value, and canvas structure.
+        if path != "frontend/desktop/modules/tarjetas_fidelidad/pages/templates_page.py" or node.value != "#FFFFFF":
+            return False
+        container = parents.get(node)
+        if not isinstance(container, ast.Dict):
+            return False
+        entries = {key.value: value for key, value in zip(container.keys, container.values)
+                   if isinstance(key, ast.Constant)}
+        if entries.get("background_color") is not node or not {"width_mm", "height_mm"} <= entries.keys():
+            return False
+        current = container
+        while current in parents:
+            current = parents[current]
+            if isinstance(current, ast.Assign):
+                return (any(isinstance(target, ast.Name) and target.id == "_EXAMPLE_SCHEMA" for target in current.targets)
+                        and isinstance(current.value, ast.Call) and _name(current.value.func) == "json.dumps")
+        return False
+
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
             call = symbol(node.func)
@@ -145,13 +166,15 @@ def scan_source(source: str, path: str) -> list[Finding]:
                                   for child in node.body)
                 if customized:
                     add("local_visual_control", node, identity)
-            if bases & {"QWidget", "QMainWindow"} and node.name.endswith(("Page", "Window", "Workspace")):
+            screen_location = "/pages/" in path or Path(path).stem.endswith(("_page", "_view", "_window", "_workspace"))
+            screen_name = node.name.endswith(("Page", "Window", "Workspace", "View", "Screen"))
+            if bases & {"QWidget", "QMainWindow"} and (screen_name or screen_location):
                 uses_overflow = any(isinstance(child, ast.Call) and symbol(child.func) in OVERFLOW_HOSTS
                                     for child in ast.walk(node))
                 if not uses_overflow:
                     add("screen_without_explicit_overflow", node, identity)
         elif isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in docstrings:
-            if not theme_infrastructure and not web_infrastructure and HEX.search(node.value):
+            if not theme_infrastructure and not web_infrastructure and HEX.search(node.value) and not is_print_canvas_data(node):
                 add("hardcoded_visual_hex", node)
             if not theme_infrastructure and EMOJI.search(node.value):
                 add("unicode_icon_literal", node)
@@ -210,13 +233,19 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="Print every finding and measured totals.")
+    parser.add_argument("--output", type=Path, help="Write the measured report as UTF-8 JSON.")
     args = parser.parse_args()
     findings = scan_repository()
     payload = {"files_scanned": sum(1 for _ in sources()), "rules": summarize(findings),
                "module_adoption": module_adoption()}
     if args.json:
         payload["findings"] = [asdict(item) for item in findings]
-    print(json.dumps(payload, ensure_ascii=True, indent=2))
+    serialized = json.dumps(payload, ensure_ascii=True, indent=2) + "\n"
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(serialized, encoding="utf-8")
+    else:
+        print(serialized, end="")
 
 
 if __name__ == "__main__":

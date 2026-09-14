@@ -32,7 +32,7 @@ from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QLineEdit
 
 from frontend.desktop.components.virtual_keyboard import attach_virtual_keyboard_action
-from frontend.desktop.themes.tokens import TouchTarget
+from frontend.desktop.themes.theme_manager import bind_input_density
 
 #: Separadores que la gente teclea y que no forman parte del número.
 _SEPARATORS = re.compile(r"[\s\-().]")
@@ -57,7 +57,7 @@ class PhoneInput(QLineEdit):
         self._required = required
         self.setPlaceholderText(placeholder)
         self.setMaxLength(MAX_LENGTH)
-        self.setMinimumHeight(TouchTarget.INPUT_HEIGHT)
+        bind_input_density(self)
         self.textChanged.connect(lambda _t: self.value_changed.emit())
         attach_virtual_keyboard_action(self)
 

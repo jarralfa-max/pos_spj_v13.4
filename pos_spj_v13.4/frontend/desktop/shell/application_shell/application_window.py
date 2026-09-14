@@ -40,7 +40,9 @@ from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
 
 from backend.bootstrap.application_context import ApplicationContext
+from backend.bootstrap.permission_evaluator import PermissionEvaluator
 from frontend.desktop.components.standard_window import StandardWindow
+from frontend.desktop.components.side_nav import SideNav
 from frontend.desktop.shell.application_shell.content_host import ContentHost
 from frontend.desktop.shell.background.background_service_supervisor import BackgroundServiceSupervisor
 from frontend.desktop.shell.application_shell.notification_drawer import NotificationDrawer
@@ -50,6 +52,7 @@ from frontend.desktop.shell.loading.module_error_view import build_module_error_
 from frontend.desktop.shell.loading.module_load_state import ModuleLoadState
 from frontend.desktop.shell.loading.module_loader import ModuleLoader, Scheduler, immediate_scheduler
 from frontend.desktop.shell.router.desktop_router import DesktopRouter
+from frontend.desktop.shell.router.errors import NavigationDeniedError
 from frontend.desktop.shell.router.navigation_result import NavigationResult
 from frontend.desktop.shell.routing.route_definition import RouteDefinition
 from frontend.desktop.shell.shutdown.shutdown_coordinator import ShutdownCoordinator
@@ -149,6 +152,12 @@ class ApplicationWindow(StandardWindow):
         self._apply_context(context)
 
     def _show(self, result: NavigationResult) -> None:
+        if self.sidebar is not None and self.sidebar._settings is not None and isinstance(result.view, QWidget):
+            for nav in result.view.findChildren(SideNav):
+                nav.set_persistence(
+                    self.sidebar._settings,
+                    f"{self.sidebar._settings_key}/modules/{result.route.route_id}/{nav.objectName()}",
+                )
         self.content_host.display(result)
         self.top_bar.set_breadcrumb(result.route.breadcrumb)
         self.status_bar.set_offline_status(result.context.offline_status, degraded=result.degraded_offline)
@@ -159,15 +168,21 @@ class ApplicationWindow(StandardWindow):
         self.top_bar.set_context(context)
         self.status_bar.set_workstation(context.workstation_id, context.branch_name)
         self.status_bar.set_offline_status(context.offline_status)
-        settings_route = self._router.route_registry.get("configuracion.home")
+        settings_route = self._router.route_registry.get("configuracion.workspace")
         allowed = settings_route is not None and (
-            context.is_admin() or not settings_route.required_permission
-            or settings_route.required_permission in context.permissions or "*" in context.permissions
+            not settings_route.required_permission
+            or PermissionEvaluator(context).has_permission(settings_route.required_permission)
         )
         self.top_bar._settings_button.setEnabled(allowed)
 
     def _open_settings(self) -> None:
-        self.navigate("configuracion.home")
+        try:
+            self.navigate("configuracion.workspace")
+        except NavigationDeniedError:
+            QMessageBox.information(
+                self, "Configuración no disponible",
+                "No se puede abrir Configuración con los permisos y la conexión actuales.",
+            )
 
     def _confirm_logout(self) -> None:
         result = QMessageBox.question(

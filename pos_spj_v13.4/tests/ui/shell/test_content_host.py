@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QLabel
+from PyQt5.QtWidgets import QApplication, QLabel, QWidget
 
 from frontend.desktop.shell.application_shell.content_host import ContentHost
 from frontend.desktop.shell.router.navigation_result import NavigationResult
@@ -115,3 +115,40 @@ def test_repeated_navigation_to_recreate_on_navigation_route_does_not_leak_stack
     for i in range(5):
         host.display(_result(route, QLabel(f"view-{i}")))
     assert host._stack.count() == 1
+
+
+def test_cached_oversized_page_does_not_force_overflow_on_the_next_page():
+    host = ContentHost()
+    host.resize(640, 480)
+    large = QWidget()
+    large.setMinimumSize(1600, 1200)
+    host.display(_result(_route("large", cache_policy=CachePolicy.KEEP_ALIVE), large))
+    host.show()
+    for _ in range(4):
+        QApplication.processEvents()
+    assert host.page_viewport.horizontalScrollBar().maximum() > 0
+    assert host.page_viewport.verticalScrollBar().maximum() > 0
+    host.display(_result(_route("small"), QLabel("Vista pequeña")))
+    for _ in range(4):
+        QApplication.processEvents()
+    assert host.page_viewport.horizontalScrollBar().maximum() == 0
+    assert host.page_viewport.verticalScrollBar().maximum() == 0
+    host.close()
+
+
+def test_page_with_own_scroll_and_wrapped_header_does_not_add_outer_scroll():
+    from frontend.desktop.components.pages import FormPage
+    from frontend.desktop.components.text_inputs import StandardLineEdit
+
+    page = FormPage(title="Formulario", subtitle="Datos de la operación")
+    for _ in range(20):
+        page.add_content(StandardLineEdit(keyboard_enabled=False))
+    host = ContentHost()
+    host.display(_result(_route("form"), page))
+    host.resize(1000, 500)
+    host.show()
+    for _ in range(4):
+        QApplication.processEvents()
+    assert page.viewport.verticalScrollBar().maximum() > 0
+    assert host.page_viewport.verticalScrollBar().maximum() == 0
+    host.close()

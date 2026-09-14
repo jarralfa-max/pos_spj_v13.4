@@ -7,7 +7,7 @@ can't silently drift. Adding a component means registering it here.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
@@ -20,8 +20,7 @@ class ComponentContract:
     states: tuple[str, ...] = ()
 
 
-_BUTTON_VARIANTS = ("primary", "secondary", "success", "warning", "danger",
-                    "outline", "ghost", "table_action", "icon")
+_BUTTON_VARIANTS = ("primary", "secondary", "ghost", "danger", "icon")
 _CARD_VARIANTS = ("standard", "section", "summary", "info", "alert", "chart")
 _KPI_VARIANTS = ("neutral", "primary", "success", "warning", "danger", "info", "accent")
 _KPI_STATES = ("LOADING", "READY", "EMPTY", "STALE", "ERROR", "NO_PERMISSION",
@@ -31,6 +30,64 @@ _VIEW_STATES = ("LOADING", "READY", "EMPTY", "ERROR", "NO_PERMISSION", "OFFLINE"
 _BADGE_VARIANTS = ("neutral", "info", "success", "warning", "danger", "accent")
 
 CONTRACTS: tuple[ComponentContract, ...] = (
+    *(ComponentContract(name, "frontend.desktop.components.view_states", name, "Estado accesible de presentación.")
+      for name in ("LoadingState", "EmptyState", "ErrorState", "Toast")),
+    ComponentContract("ApplicationWindow", "frontend.desktop.shell.application_shell.application_window",
+                      "ApplicationWindow", "Ventana empresarial con navegación y sesión."),
+    ComponentContract("AppSidebar", "frontend.desktop.shell.sidebar.global_sidebar",
+                      "AppSidebar", "Navegación primaria horizontalmente colapsable."),
+    ComponentContract("ModuleSidebar", "frontend.desktop.components.side_nav",
+                      "ModuleSidebar", "Grupos de navegación secundaria y flyouts."),
+    ComponentContract("NavItem", "frontend.desktop.components.side_nav", "NavItem", "Destino de navegación."),
+    ComponentContract("NavGroup", "frontend.desktop.components.side_nav", "NavGroup", "Grupo expandible."),
+    ComponentContract("NotificationDrawer", "frontend.desktop.shell.application_shell.notification_drawer",
+                      "NotificationDrawer", "Panel de notificaciones."),
+    ComponentContract("StatusBar", "frontend.desktop.shell.application_shell.status_bar",
+                      "StatusBar", "Estado de conexión y terminal."),
+    ComponentContract("TopBar", "frontend.desktop.shell.application_shell.top_bar",
+                      "TopBar", "Archivo, usuario, sesión, notificaciones y configuración."),
+    ComponentContract("StandardWindow", "frontend.desktop.components.standard_window",
+                      "StandardWindow", "Geometría, límites del monitor y marca."),
+    ComponentContract("PageViewport", "frontend.desktop.components.page_viewport",
+                      "PageViewport", "Desplazamiento y overflow bidireccional."),
+    ComponentContract("WorklistPage", "frontend.desktop.components.worklist_page",
+                      "WorklistPage", "Listado con cabecera, filtros, tabla y paginación."),
+    ComponentContract("ColumnSpec", "frontend.desktop.components.tables",
+                      "ColumnSpec", "Anchos, prioridades, alineación y visibilidad de columnas."),
+    ComponentContract("IconProvider", "frontend.desktop.components.icons", "IconProvider",
+                      "Catálogo SVG, QIcon escalable y bindings de tema/estado/DPI."),
+    ComponentContract("BrandAssetProvider", "frontend.desktop.components.branding", "BrandAssetProvider",
+                      "Recursos oficiales JUANIS sin reinterpretación."),
+    ComponentContract("KeyboardAwareInput", "frontend.desktop.components.virtual_keyboard",
+                      "KeyboardAwareInput", "Controlador táctil de inputs existentes."),
+    ComponentContract("VirtualKeyboard", "frontend.desktop.components.virtual_keyboard",
+                      "VirtualKeyboard", "Teclado respetuoso de validadores y dispositivos físicos."),
+    *(ComponentContract(name, "frontend.desktop.components.pages", name, purpose)
+      for name, purpose in (
+          ("StandardPage", "Cabecera y contenido desplazable."),
+          ("ScrollablePage", "Documento desplazable."),
+          ("DashboardPage", "Contexto, KPIs y grid de dashboard."),
+          ("FormPage", "Formulario con acciones persistentes."),
+          ("MasterDetailPage", "Maestro y detalle."),
+          ("SplitPage", "Paneles ajustables."),
+          ("TabbedPage", "Vistas internas relacionadas."),
+          ("WizardPage", "Captura secuencial."),
+          ("POSPage", "Paneles de operación POS."),
+      )),
+    *(ComponentContract(name, "frontend.desktop.components.buttons", name, "Botón canónico.",
+                        variants=_BUTTON_VARIANTS,
+                        states=("normal", "hover", "pressed", "disabled", "focus"))
+      for name in ("PrimaryButton", "SecondaryButton", "GhostButton", "DangerButton", "IconButton")),
+    *(ComponentContract(name, "frontend.desktop.components.tabs", name, "Pestañas con overflow horizontal.")
+      for name in ("Tabs", "TabBar")),
+    *(ComponentContract(name, "frontend.desktop.components.toolbar", name, "Barra estándar con overflow.")
+      for name in ("Toolbar", "FilterBar", "ContextBar", "Breadcrumbs")),
+    *(ComponentContract(name, "frontend.desktop.components.selection_controls", name, "Selector accesible.")
+      for name in ("StandardComboBox", "StandardCheckBox", "StandardRadioButton")),
+    ComponentContract("WeightInput", "frontend.desktop.components.weight_input", "WeightInput",
+                      "Peso en kilogramos con validación numérica canónica."),
+    ComponentContract("StandardLineEdit", "frontend.desktop.components.text_inputs", "StandardLineEdit",
+                      "Texto de una línea con densidad global."),
     ComponentContract("PageHeader", "frontend.desktop.components.page_header",
                       "PageHeader", "Encabezado canónico de página."),
     ComponentContract("KPICard", "frontend.desktop.components.kpi_card", "KPICard",

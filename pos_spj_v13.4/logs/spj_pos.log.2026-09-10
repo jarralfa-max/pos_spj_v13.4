@@ -1,0 +1,415 @@
+2026-09-10 18:06:03,098 SPJ.Boot INFO =======================================================
+2026-09-10 18:06:03,100 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-10 18:06:03,101 SPJ.Boot INFO =======================================================
+2026-09-10 18:06:10,558 spj.migrations.255 INFO 255: backfill de ventas legacy -> agregado canónico. Migradas=0 | omitidas por estado de pedido/entrega=0 | omitidas por identidad no resoluble=0
+2026-09-10 18:06:10,850 spj.migrations INFO Migración 255 ejecutada.
+2026-09-10 18:06:10,945 spj.migrations.256 INFO 256: vista v_ventas_unificada creada (canónico ∪ legacy no migrado).
+2026-09-10 18:06:10,962 spj.migrations INFO Migración 256 ejecutada.
+2026-09-10 18:06:10,979 spj.migrations.257 INFO 257: vista v_detalles_venta_unificada creada (canónico ∪ legacy no migrado).
+2026-09-10 18:06:10,997 spj.migrations INFO Migración 257 ejecutada.
+2026-09-10 18:06:11,021 spj.migrations INFO Migraciones completadas: 3 ejecutadas.
+2026-09-10 18:06:11,710 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-10 18:06:11,778 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-10 18:07:27,390 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\main.py", line 13, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\app.py", line 231, in main
+    if not coordinator.run():
+           ~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\auth\authentication_coordinator.py", line 74, in run
+    self._on_authenticated(context)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\app.py", line 205, in _on_authenticated
+    from frontend.desktop.shell.desktop_shell_window_composition import (
+        build_application_window,
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\desktop_shell_window_composition.py", line 76, in <module>
+    from frontend.desktop.modules.configuracion.shell_registration import (
+    ...<4 lines>...
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\shell_registration.py", line 25, in <module>
+    from backend.application.queries.configuracion.workspace_query_service import (
+        ConfiguracionWorkspaceQueryService,
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\queries\__init__.py", line 20, in <module>
+    from backend.application.queries.production_query_service import ProductionQueryService
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\queries\production_query_service.py", line 8, in <module>
+    import core.services.production_query_service as _core_pqs
+ModuleNotFoundError: No module named 'core'
+
+2026-09-10 18:19:26,726 SPJ.Boot INFO =======================================================
+2026-09-10 18:19:26,727 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-10 18:19:26,728 SPJ.Boot INFO =======================================================
+2026-09-10 18:19:29,490 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-10 18:19:30,465 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-10 18:19:30,465 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-10 18:23:43,930 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\main.py", line 13, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\app.py", line 231, in main
+    if not coordinator.run():
+           ~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\auth\authentication_coordinator.py", line 74, in run
+    self._on_authenticated(context)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\app.py", line 205, in _on_authenticated
+    from frontend.desktop.shell.desktop_shell_window_composition import (
+        build_application_window,
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\desktop_shell_window_composition.py", line 76, in <module>
+    from frontend.desktop.modules.configuracion.shell_registration import (
+    ...<4 lines>...
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\shell_registration.py", line 28, in <module>
+    from backend.application.use_cases.configuracion.feature_flag_change_request_use_cases import (
+    ...<3 lines>...
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\use_cases\__init__.py", line 5, in <module>
+    from backend.application.use_cases.create_sale_use_case import CreateSaleUseCase
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\use_cases\create_sale_use_case.py", line 7, in <module>
+    from backend.application.services.sales_application_service import SalesApplicationService
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\services\__init__.py", line 3, in <module>
+    from backend.application.services.sales_application_service import SalesApplicationService
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\services\sales_application_service.py", line 13, in <module>
+    from core.use_cases.venta import DatosPago, ItemCarrito, ResultadoVenta
+ModuleNotFoundError: No module named 'core'
+
+2026-09-10 18:52:05,564 SPJ.Boot INFO =======================================================
+2026-09-10 18:52:05,565 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-10 18:52:05,566 SPJ.Boot INFO =======================================================
+2026-09-10 18:52:07,275 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-10 18:52:07,677 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-10 18:52:07,678 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-10 18:52:36,987 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\main.py", line 13, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\app.py", line 231, in main
+    if not coordinator.run():
+           ~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\auth\authentication_coordinator.py", line 74, in run
+    self._on_authenticated(context)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\app.py", line 205, in _on_authenticated
+    from frontend.desktop.shell.desktop_shell_window_composition import (
+        build_application_window,
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\desktop_shell_window_composition.py", line 105, in <module>
+    from frontend.desktop.modules.sales_pos.shell_registration import (
+    ...<2 lines>...
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\shell_registration.py", line 27, in <module>
+    from frontend.desktop.modules.sales_pos.composition import create_sales_pos_view
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 41, in <module>
+    from backend.application.sales.use_cases.checkout_use_cases import CheckoutSaleUseCase
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\sales\use_cases\checkout_use_cases.py", line 50, in <module>
+    from backend.infrastructure.integrations.sales_inventory_client import SalesInventoryClient
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\integrations\sales_inventory_client.py", line 22, in <module>
+    from core.services.stock_reservation_service import StockReservationService
+ModuleNotFoundError: No module named 'core'
+
+2026-09-10 19:30:38,056 SPJ.Boot INFO =======================================================
+2026-09-10 19:30:39,427 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-10 19:30:39,508 SPJ.Boot INFO =======================================================
+2026-09-10 19:30:45,369 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-10 19:30:46,089 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-10 19:30:46,185 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-10 19:31:28,331 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\main.py", line 13, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\app.py", line 231, in main
+    if not coordinator.run():
+           ~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\auth\authentication_coordinator.py", line 74, in run
+    self._on_authenticated(context)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\app.py", line 205, in _on_authenticated
+    from frontend.desktop.shell.desktop_shell_window_composition import (
+        build_application_window,
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\desktop_shell_window_composition.py", line 105, in <module>
+    from frontend.desktop.modules.sales_pos.shell_registration import (
+    ...<2 lines>...
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\shell_registration.py", line 27, in <module>
+    from frontend.desktop.modules.sales_pos.composition import create_sales_pos_view
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 62, in <module>
+    from backend.application.sales.use_cases.payment_use_cases import RecordSalePaymentUseCase
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\sales\use_cases\payment_use_cases.py", line 40, in <module>
+    from backend.infrastructure.integrations.sales_credit_client import SalesCreditClient
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\integrations\sales_credit_client.py", line 34, in <module>
+    from application.services.customer_credit_service import CustomerCreditService
+ModuleNotFoundError: No module named 'application'
+
+2026-09-10 19:51:50,762 SPJ.Boot INFO =======================================================
+2026-09-10 19:51:50,764 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-10 19:51:50,766 SPJ.Boot INFO =======================================================
+2026-09-10 19:51:53,675 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-10 19:51:54,068 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-10 19:51:54,068 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-10 19:52:14,350 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-10 19:52:28,161 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\application_shell\application_window.py", line 126, in navigate
+    result = self._router.navigate(route_id)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\router\desktop_router.py", line 109, in navigate
+    result = self._build_result(route)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\router\desktop_router.py", line 133, in _build_result
+    view = self._views.create_view(route.view_factory_id)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\routing\view_factory_registry.py", line 49, in create_view
+    return self.require(view_factory_id)()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\shell_registration.py", line 85, in <lambda>
+    lambda: create_sales_pos_view(self._connection, self._session_context, self._printer_service),
+            ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 179, in create_sales_pos_view
+    presenter = build_sales_pos_presenter(connection, session_context, printer_service)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 111, in build_sales_pos_presenter
+    "record_payment": _payment_handler(connection, auth),
+                      ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 141, in _payment_handler
+    run = RecordSalePaymentUseCase(auth, customer_authorization=customer_auth).execute
+                                                                ^^^^^^^^^^^^^
+NameError: name 'customer_auth' is not defined
+
+2026-09-10 19:53:09,420 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\application_shell\application_window.py", line 126, in navigate
+    result = self._router.navigate(route_id)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\router\desktop_router.py", line 109, in navigate
+    result = self._build_result(route)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\router\desktop_router.py", line 133, in _build_result
+    view = self._views.create_view(route.view_factory_id)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\routing\view_factory_registry.py", line 49, in create_view
+    return self.require(view_factory_id)()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\shell_registration.py", line 85, in <lambda>
+    lambda: create_sales_pos_view(self._connection, self._session_context, self._printer_service),
+            ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 179, in create_sales_pos_view
+    presenter = build_sales_pos_presenter(connection, session_context, printer_service)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 111, in build_sales_pos_presenter
+    "record_payment": _payment_handler(connection, auth),
+                      ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 141, in _payment_handler
+    run = RecordSalePaymentUseCase(auth, customer_authorization=customer_auth).execute
+                                                                ^^^^^^^^^^^^^
+NameError: name 'customer_auth' is not defined
+
+2026-09-10 19:53:24,568 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\application_shell\application_window.py", line 126, in navigate
+    result = self._router.navigate(route_id)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\router\desktop_router.py", line 109, in navigate
+    result = self._build_result(route)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\router\desktop_router.py", line 133, in _build_result
+    view = self._views.create_view(route.view_factory_id)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\routing\view_factory_registry.py", line 49, in create_view
+    return self.require(view_factory_id)()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\inventory\shell_registration.py", line 81, in <lambda>
+    lambda: create_inventory_view(self._connection, self._session_context),
+            ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\inventory\composition.py", line 267, in create_inventory_view
+    presenter = build_inventory_presenter(connection, session_context)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\inventory\composition.py", line 99, in build_inventory_presenter
+    from backend.infrastructure.hardware.label_rendering.network_label_gateway import (
+        NetworkLabelPrintGateway,
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\hardware\label_rendering\network_label_gateway.py", line 45, in <module>
+    from backend.infrastructure.hardware.label_rendering.escpos_label_renderer import render_escpos_label
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\hardware\label_rendering\escpos_label_renderer.py", line 15, in <module>
+    from core.ticket_escpos_renderer import ALIGN_CENTER, ALIGN_LEFT, BOLD_OFF, BOLD_ON, CUT_PARTIAL, INIT, TicketESCPOSRenderer
+ModuleNotFoundError: No module named 'core'
+
+2026-09-10 19:56:43,862 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-09-10 20:10:16,377 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\application_shell\application_window.py", line 126, in navigate
+    result = self._router.navigate(route_id)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\router\desktop_router.py", line 109, in navigate
+    result = self._build_result(route)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\router\desktop_router.py", line 133, in _build_result
+    view = self._views.create_view(route.view_factory_id)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\routing\view_factory_registry.py", line 49, in create_view
+    return self.require(view_factory_id)()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\shell_registration.py", line 85, in <lambda>
+    lambda: create_sales_pos_view(self._connection, self._session_context, self._printer_service),
+            ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 179, in create_sales_pos_view
+    presenter = build_sales_pos_presenter(connection, session_context, printer_service)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 111, in build_sales_pos_presenter
+    "record_payment": _payment_handler(connection, auth),
+                      ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 141, in _payment_handler
+    run = RecordSalePaymentUseCase(auth, customer_authorization=customer_auth).execute
+                                                                ^^^^^^^^^^^^^
+NameError: name 'customer_auth' is not defined
+
+2026-09-10 20:10:26,288 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-10 21:37:00,080 SPJ.Boot INFO =======================================================
+2026-09-10 21:37:00,091 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-10 21:37:00,100 SPJ.Boot INFO =======================================================
+2026-09-10 21:37:04,585 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-10 21:37:05,526 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-10 21:37:05,527 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-10 21:37:56,149 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-10 21:38:14,620 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\application_shell\application_window.py", line 132, in navigate
+    result = self._router.navigate(route_id)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\router\desktop_router.py", line 109, in navigate
+    result = self._build_result(route)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\router\desktop_router.py", line 133, in _build_result
+    view = self._views.create_view(route.view_factory_id)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\routing\view_factory_registry.py", line 49, in create_view
+    return self.require(view_factory_id)()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\shell_registration.py", line 85, in <lambda>
+    lambda: create_sales_pos_view(self._connection, self._session_context, self._printer_service),
+            ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 179, in create_sales_pos_view
+    presenter = build_sales_pos_presenter(connection, session_context, printer_service)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 111, in build_sales_pos_presenter
+    "record_payment": _payment_handler(connection, auth),
+                      ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 141, in _payment_handler
+    run = RecordSalePaymentUseCase(auth, customer_authorization=customer_auth).execute
+                                                                ^^^^^^^^^^^^^
+NameError: name 'customer_auth' is not defined
+
+2026-09-10 21:40:44,596 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\components\virtual_keyboard.py", line 38, in <lambda>
+    action.triggered.connect(lambda: open_virtual_keyboard(numeric=numeric))
+                                     ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\components\virtual_keyboard.py", line 25, in open_virtual_keyboard
+    return bool(os.spawnlp(os.P_NOWAIT, command, command))
+                ^^^^^^^^^^
+AttributeError: module 'os' has no attribute 'spawnlp'. Did you mean: 'spawnl'?
+
+2026-09-10 21:45:28,174 spj.products.presenter ERROR Acción de ciclo de vida activate falló
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\products\presenter.py", line 88, in _run_lifecycle
+    result = self._lifecycle_factory()[action].execute(
+        product_id=product_id, user_id=user_id or "")
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\use_cases\product_lifecycle_use_cases.py", line 74, in execute
+    self._check_extra(row, user_id)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\use_cases\product_lifecycle_use_cases.py", line 118, in _check_extra
+    self._auth.ensure_segregation(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        actor_user_id=user_id, creator_user_id=row.get("created_by"),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        approval_permission=ProductPermissions.APPROVE)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\authorization\policy.py", line 117, in ensure_segregation
+    raise SegregationOfDutiesError(
+        "Quien creó el registro no puede aprobarlo ni activarlo "
+        f"({approval_permission}): se requiere un segundo usuario")
+backend.domain.products.exceptions.SegregationOfDutiesError: Quien creó el registro no puede aprobarlo ni activarlo (PRODUCTOS.aprobar): se requiere un segundo usuario
+2026-09-10 21:54:04,948 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\components\virtual_keyboard.py", line 38, in <lambda>
+    action.triggered.connect(lambda: open_virtual_keyboard(numeric=numeric))
+                                     ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\components\virtual_keyboard.py", line 25, in open_virtual_keyboard
+    return bool(os.spawnlp(os.P_NOWAIT, command, command))
+                ^^^^^^^^^^
+AttributeError: module 'os' has no attribute 'spawnlp'. Did you mean: 'spawnl'?
+
+2026-09-10 21:58:34,126 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\components\virtual_keyboard.py", line 38, in <lambda>
+    action.triggered.connect(lambda: open_virtual_keyboard(numeric=numeric))
+                                     ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\components\virtual_keyboard.py", line 25, in open_virtual_keyboard
+    return bool(os.spawnlp(os.P_NOWAIT, command, command))
+                ^^^^^^^^^^
+AttributeError: module 'os' has no attribute 'spawnlp'. Did you mean: 'spawnl'?
+
+2026-09-10 21:59:51,339 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\components\virtual_keyboard.py", line 38, in <lambda>
+    action.triggered.connect(lambda: open_virtual_keyboard(numeric=numeric))
+                                     ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\components\virtual_keyboard.py", line 25, in open_virtual_keyboard
+    return bool(os.spawnlp(os.P_NOWAIT, command, command))
+                ^^^^^^^^^^
+AttributeError: module 'os' has no attribute 'spawnlp'. Did you mean: 'spawnl'?
+
+2026-09-10 22:00:05,987 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\components\virtual_keyboard.py", line 38, in <lambda>
+    action.triggered.connect(lambda: open_virtual_keyboard(numeric=numeric))
+                                     ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\components\virtual_keyboard.py", line 25, in open_virtual_keyboard
+    return bool(os.spawnlp(os.P_NOWAIT, command, command))
+                ^^^^^^^^^^
+AttributeError: module 'os' has no attribute 'spawnlp'. Did you mean: 'spawnl'?
+
+2026-09-10 22:01:25,809 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\components\virtual_keyboard.py", line 38, in <lambda>
+    action.triggered.connect(lambda: open_virtual_keyboard(numeric=numeric))
+                                     ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\components\virtual_keyboard.py", line 25, in open_virtual_keyboard
+    return bool(os.spawnlp(os.P_NOWAIT, command, command))
+                ^^^^^^^^^^
+AttributeError: module 'os' has no attribute 'spawnlp'. Did you mean: 'spawnl'?
+
+2026-09-10 22:04:11,642 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\components\virtual_keyboard.py", line 38, in <lambda>
+    action.triggered.connect(lambda: open_virtual_keyboard(numeric=numeric))
+                                     ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\components\virtual_keyboard.py", line 25, in open_virtual_keyboard
+    return bool(os.spawnlp(os.P_NOWAIT, command, command))
+                ^^^^^^^^^^
+AttributeError: module 'os' has no attribute 'spawnlp'. Did you mean: 'spawnl'?
+
+2026-09-10 22:04:36,403 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\configuracion_view.py", line 34, in show_route
+    page = build_page(page_id, self._presenter)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\configuracion_routes.py", line 16, in build_page
+    return PAGE_CLASSES[page_id](presenter)
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 78, in __init__
+    self._build_roles_card()
+    ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 187, in _build_roles_card
+    self._reload_roles()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 191, in _reload_roles
+    self._roles_by_id = {r.id: r for r in roles}
+                         ^^^^
+AttributeError: 'sqlite3.Row' object has no attribute 'id'
+
+2026-09-10 22:04:44,625 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\configuracion_view.py", line 34, in show_route
+    page = build_page(page_id, self._presenter)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\configuracion_routes.py", line 16, in build_page
+    return PAGE_CLASSES[page_id](presenter)
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 78, in __init__
+    self._build_roles_card()
+    ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 187, in _build_roles_card
+    self._reload_roles()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 191, in _reload_roles
+    self._roles_by_id = {r.id: r for r in roles}
+                         ^^^^
+AttributeError: 'sqlite3.Row' object has no attribute 'id'
+
+2026-09-10 22:05:28,162 SPJ.Boot INFO Sistema cerrado. Código: 0

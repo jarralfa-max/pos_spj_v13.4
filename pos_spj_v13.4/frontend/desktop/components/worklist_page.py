@@ -44,6 +44,9 @@ class WorklistPage(QWidget):
 
     def __init__(self, presenter, parent=None) -> None:
         super().__init__(parent)
+        # ContentHost supplies PageViewport; the operational table owns its
+        # internal scrolling and the host keeps oversized page actions reachable.
+        self.setProperty("overflowPolicy", "auto")
         self._presenter = presenter
         self._page = 0
         self._total = 0

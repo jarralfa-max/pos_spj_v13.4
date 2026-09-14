@@ -23,6 +23,7 @@ class KPIBar(QWidget):
         self._grid.setSpacing(Spacing.MD)
         self._cards: list[KPIDTO] = []
         self._widgets: list[KPICard] = []
+        self._column_count = None
         if cards:
             self.set_cards(cards)
 
@@ -52,6 +53,7 @@ class KPIBar(QWidget):
             item = self._grid.takeAt(0)
             w = item.widget()
             if w is not None:
+                w.hide()
                 w.deleteLater()
         self._widgets = []
         cols = self._columns()
@@ -60,8 +62,22 @@ class KPIBar(QWidget):
             card = KPICard(dto, self)
             self._grid.addWidget(card, row, col)
             self._widgets.append(card)
+            card.show()
+        self._column_count = cols
+
+    def _reflow(self, columns: int) -> None:
+        # Resizing only repositions existing cards. Recreating children from
+        # resizeEvent can cause perpetual relayout and leave a blank KPI bar.
+        while self._grid.count():
+            self._grid.takeAt(0)
+        for index, card in enumerate(self._widgets):
+            row, column = divmod(index, columns)
+            self._grid.addWidget(card, row, column)
+        self._column_count = columns
 
     def resizeEvent(self, event):  # noqa: N802 (Qt override)
         super().resizeEvent(event)
         if self._responsive and self._cards:
-            self._rebuild()
+            columns = self._columns()
+            if columns != self._column_count:
+                self._reflow(columns)

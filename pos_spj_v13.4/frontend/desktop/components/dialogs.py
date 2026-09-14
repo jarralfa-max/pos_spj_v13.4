@@ -6,7 +6,7 @@ safe sizing, initial focus, Escape when safe, theme-aware via `#standardDialog`.
 
 from __future__ import annotations
 
-from PyQt5.QtCore import QEvent, QSize, QTimer
+from PyQt5.QtCore import QSize, QTimer
 from PyQt5.QtWidgets import (
     QApplication,
     QDialog,

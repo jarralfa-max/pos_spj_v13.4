@@ -1,0 +1,1334 @@
+{
+  "phase": "3. Light / Dark",
+  "date": "2026-09-12",
+  "passed_unique": 333,
+  "runs": [
+    {
+      "name": "light-dark-runtime",
+      "tests": 145,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "tests.ui.test_charts.TestChartAssets::test_renderer_reads_payload_theme_not_hardcoded_colors",
+        "tests.ui.test_charts.TestChartAssets::test_template_and_renderer_exist",
+        "tests.ui.test_charts.TestChartAssets::test_template_uses_payload_token_and_echarts",
+        "tests.ui.test_charts.TestChartBridge::test_palette_assigned_from_theme_not_dto",
+        "tests.ui.test_charts.TestChartBridge::test_theme_affects_text_color",
+        "tests.ui.test_charts.TestChartBridge::test_to_json_is_valid_and_script_safe",
+        "tests.ui.test_charts.TestChartBridge::test_to_table_accessible_alternative",
+        "tests.ui.test_charts.TestChartDataDTO::test_dto_carries_no_color_field",
+        "tests.ui.test_charts.TestChartDataDTO::test_empty_helper",
+        "tests.ui.test_charts.TestChartDataDTO::test_rejects_unknown_type",
+        "tests.ui.test_charts.TestHtmlChartView::test_empty_dto_shows_state",
+        "tests.ui.test_charts.TestHtmlChartView::test_view_builds_and_falls_back_to_table_headless",
+        "tests.ui.test_charts::test_chart_table_fallback_keeps_selection_during_theme_change",
+        "tests.ui.test_charts::test_chart_theme_change_preserves_visible_state[EMPTY]",
+        "tests.ui.test_charts::test_chart_theme_change_preserves_visible_state[ERROR]",
+        "tests.ui.test_charts::test_chart_theme_change_preserves_visible_state[LOADING]",
+        "tests.ui.test_charts::test_chart_theme_change_preserves_visible_state[OFFLINE]",
+        "tests.ui.test_charts::test_chart_theme_changes_before_first_data_and_after_deletion_are_safe",
+        "tests.ui.test_charts::test_chart_theme_refresh_preserves_injected_provider_contract",
+        "tests.ui.test_charts::test_open_chart_rebuilds_html_theme_without_requerying_data",
+        "tests.ui.test_responsive_components::test_keyboard_attach_is_idempotent_and_destructive_default_is_cancel",
+        "tests.ui.test_responsive_components::test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[decimal]",
+        "tests.ui.test_responsive_components::test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[email]",
+        "tests.ui.test_responsive_components::test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[integer]",
+        "tests.ui.test_responsive_components::test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[money]",
+        "tests.ui.test_responsive_components::test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[phone]",
+        "tests.ui.test_responsive_components::test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[text]",
+        "tests.ui.test_responsive_components::test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[weight]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution0]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution1]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution2]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution3]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution4]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution0]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution1]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution2]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution3]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution4]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution0]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution1]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution2]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution3]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution4]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution0]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution1]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution2]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution3]",
+        "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution4]",
+        "tests.ui.test_responsive_components::test_page_viewport_scrolls_oversized_content_in_both_directions",
+        "tests.ui.test_responsive_components::test_pricing_scroll_preserves_lazy_routes_when_opened_out_of_order",
+        "tests.ui.test_responsive_components::test_runtime_density_updates_existing_inputs_tables_and_tabs",
+        "tests.ui.test_responsive_components::test_table_filter_loading_and_manual_population_state",
+        "tests.ui.test_responsive_components::test_table_minimum_width_scroll_visibility_and_saved_width_survive_resize",
+        "tests.ui.test_responsive_components::test_table_rejects_incomplete_rows_without_destroying_existing_data",
+        "tests.ui.test_responsive_components::test_table_reload_while_sorted_keeps_each_uuid_with_all_of_its_values",
+        "tests.ui.test_responsive_components::test_virtual_keyboard_keeps_touch_targets_after_global_density_changes",
+        "tests.ui.test_responsive_components::test_virtual_keyboard_preserves_validation_selection_and_read_only",
+        "tests.ui.test_responsive_components::test_wizard_prevents_navigation_past_first_or_last_step",
+        "tests.ui.test_responsive_components::test_yield_monitoring_uses_page_scroll_without_eager_queries",
+        "tests.ui.test_theme_density_icons::test_all_catalog_icons_render_in_every_qicon_mode[dark]",
+        "tests.ui.test_theme_density_icons::test_all_catalog_icons_render_in_every_qicon_mode[light]",
+        "tests.ui.test_theme_density_icons::test_bound_icon_refreshes_with_theme",
+        "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[comfortable-dark]",
+        "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[comfortable-light]",
+        "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[compact-dark]",
+        "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[compact-light]",
+        "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[touch-dark]",
+        "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[touch-light]",
+        "tests.ui.test_theme_density_icons::test_keyboard_action_uses_keyboard_vector_instead_of_fallback_file",
+        "tests.ui.test_theme_density_icons::test_official_palette_anchors",
+        "tests.ui.test_theme_density_icons::test_responsive_kpis_remain_visible_and_keep_identity_after_resize",
+        "tests.ui.test_theme_density_icons::test_small_catalog_combobox_displays_selected_label",
+        "tests.ui.test_theme_density_icons::test_stale_qt_singleton_is_recreated",
+        "tests.ui.test_theme_density_icons::test_terminal_preferences_restore_before_constructing_controls",
+        "tests.ui.test_theme_manager_runtime::test_apply_notifies_only_after_theme_and_density_reach_qt",
+        "tests.ui.test_theme_manager_runtime::test_configuration_changes_live_theme_and_restores_it_on_restart",
+        "tests.ui.test_theme_manager_runtime::test_reapplying_the_same_theme_does_not_emit_duplicate_changes",
+        "tests.ui.test_theme_manager_runtime::test_restore_keeps_only_two_official_themes[ DARK -dark]",
+        "tests.ui.test_theme_manager_runtime::test_restore_keeps_only_two_official_themes[LIGHT-light]",
+        "tests.ui.test_theme_manager_runtime::test_restore_keeps_only_two_official_themes[sepia-light]",
+        "tests.ui.test_theme_manager_runtime::test_restore_refreshes_existing_icons_and_preserves_input_values",
+        "tests.unit.test_apariencia_page.TestAparienciaFullLoop::test_create_theme_token_density_and_preference",
+        "tests.unit.test_apariencia_page.TestAparienciaPageLoadsRealData::test_density_profiles_table_loads_real_profiles",
+        "tests.unit.test_apariencia_page.TestAparienciaPageLoadsRealData::test_selecting_a_theme_loads_its_tokens",
+        "tests.unit.test_apariencia_page.TestAparienciaPageLoadsRealData::test_themes_table_loads_all_themes_including_inactive",
+        "tests.unit.test_apariencia_page.TestAparienciaPageStructure::test_builds_via_the_real_route",
+        "tests.unit.test_apariencia_page.TestAparienciaPageStructure::test_buttons_present",
+        "tests.unit.test_configuracion_ui_workspace.TestAparienciaPage::test_set_default_button_present_and_wired",
+        "tests.unit.test_configuracion_ui_workspace.TestCompanyBranchDialogs::test_branch_create_dialog_populates_branch_options_and_hours",
+        "tests.unit.test_configuracion_ui_workspace.TestCompanyBranchDialogs::test_branch_edit_dialog_leaves_hours_unset_when_none_prefilled",
+        "tests.unit.test_configuracion_ui_workspace.TestCompanyBranchDialogs::test_branch_edit_dialog_prefills_hours_when_set",
+        "tests.unit.test_configuracion_ui_workspace.TestCompanyBranchDialogs::test_company_dialog_prefills_from_existing_profile",
+        "tests.unit.test_configuracion_ui_workspace.TestConfiguracionView::test_empty_page_shows_empty_state_not_a_blank_table",
+        "tests.unit.test_configuracion_ui_workspace.TestConfiguracionView::test_page_with_rows_shows_table_not_empty_state",
+        "tests.unit.test_configuracion_ui_workspace.TestConfiguracionView::test_sidebar_filters_by_permission",
+        "tests.unit.test_configuracion_ui_workspace.TestConfiguracionView::test_workspace_builds_all_permitted_routes_lazily_and_supports_target_sizes",
+        "tests.unit.test_configuracion_ui_workspace.TestDeviceAssignmentDialogs::test_assign_dialog_exposes_role_and_device",
+        "tests.unit.test_configuracion_ui_workspace.TestDeviceAssignmentDialogs::test_nothing_selected_yields_none_values",
+        "tests.unit.test_configuracion_ui_workspace.TestDeviceDialogs::test_block_device_dialog_disables_confirm_until_reason_is_entered",
+        "tests.unit.test_configuracion_ui_workspace.TestDeviceDialogs::test_device_create_dialog_populates_branch_and_profile_options",
+        "tests.unit.test_configuracion_ui_workspace.TestDeviceDialogs::test_device_edit_dialog_prefills_values",
+        "tests.unit.test_configuracion_ui_workspace.TestDeviceDialogs::test_profile_create_dialog_exposes_all_fields",
+        "tests.unit.test_configuracion_ui_workspace.TestDeviceDialogs::test_profile_create_dialog_exposes_printer_fields",
+        "tests.unit.test_configuracion_ui_workspace.TestDeviceDialogs::test_profile_create_dialog_payment_capability_checkboxes_default_unchecked",
+        "tests.unit.test_configuracion_ui_workspace.TestDeviceDialogs::test_profile_create_dialog_protocol_combo_offers_scale_protocols",
+        "tests.unit.test_configuracion_ui_workspace.TestDialogs::test_reject_dialog_disables_confirm_until_reason_is_entered",
+        "tests.unit.test_configuracion_ui_workspace.TestDialogs::test_set_default_theme_dialog_shows_theme_name",
+        "tests.unit.test_configuracion_ui_workspace.TestDispositivosPage::test_action_buttons_present_and_wired",
+        "tests.unit.test_configuracion_ui_workspace.TestDispositivosPage::test_actions_without_selection_warn_instead_of_crashing",
+        "tests.unit.test_configuracion_ui_workspace.TestDispositivosPage::test_new_device_warns_when_no_profiles_exist",
+        "tests.unit.test_configuracion_ui_workspace.TestDispositivosPage::test_new_route_warns_when_no_devices_exist",
+        "tests.unit.test_configuracion_ui_workspace.TestDispositivosPage::test_routes_table_loads_from_presenter",
+        "tests.unit.test_configuracion_ui_workspace.TestDocumentTemplateDialogs::test_create_dialog_exposes_all_fields",
+        "tests.unit.test_configuracion_ui_workspace.TestDocumentTemplateDialogs::test_edit_dialog_prefills_values",
+        "tests.unit.test_configuracion_ui_workspace.TestDocumentTemplateDialogs::test_new_version_dialog_prefills_previous_content",
+        "tests.unit.test_configuracion_ui_workspace.TestDocumentTemplateDialogs::test_reject_version_dialog_disables_confirm_until_reason_is_entered",
+        "tests.unit.test_configuracion_ui_workspace.TestDocumentosPage::test_actions_without_selection_warn_instead_of_crashing",
+        "tests.unit.test_configuracion_ui_workspace.TestDocumentosPage::test_campaigns_table_loads_from_presenter",
+        "tests.unit.test_configuracion_ui_workspace.TestDocumentosPage::test_edit_campaign_prefills_from_selection",
+        "tests.unit.test_configuracion_ui_workspace.TestDocumentosPage::test_edit_template_prefills_from_get_template",
+        "tests.unit.test_configuracion_ui_workspace.TestDocumentosPage::test_new_template_button_present_and_wired",
+        "tests.unit.test_configuracion_ui_workspace.TestDocumentosPage::test_selecting_a_template_loads_its_versions",
+        "tests.unit.test_configuracion_ui_workspace.TestEmpresaPage::test_action_buttons_present_and_wired",
+        "tests.unit.test_configuracion_ui_workspace.TestEmpresaPage::test_edit_branch_without_selection_warns_instead_of_crashing",
+        "tests.unit.test_configuracion_ui_workspace.TestEmpresaPage::test_new_branch_warns_when_no_unregistered_branches_exist",
+        "tests.unit.test_configuracion_ui_workspace.TestEmpresaPage::test_shows_company_summary_when_configured",
+        "tests.unit.test_configuracion_ui_workspace.TestEmpresaPage::test_shows_unconfigured_message_when_no_company_exists",
+        "tests.unit.test_configuracion_ui_workspace.TestFeatureFlagsPage::test_actions_without_selection_warn_instead_of_crashing",
+        "tests.unit.test_configuracion_ui_workspace.TestFeatureFlagsPage::test_pending_requests_render_and_action_buttons_exist",
+        "tests.unit.test_configuracion_ui_workspace.TestGeneralPage::test_action_buttons_present_and_wired",
+        "tests.unit.test_configuracion_ui_workspace.TestGeneralPage::test_actions_without_selection_warn_instead_of_crashing",
+        "tests.unit.test_configuracion_ui_workspace.TestGeneralPage::test_assign_requires_role_and_device",
+        "tests.unit.test_configuracion_ui_workspace.TestGeneralPage::test_assign_warns_when_no_devices_exist",
+        "tests.unit.test_configuracion_ui_workspace.TestGeneralPage::test_new_requires_branch_type_code_and_name",
+        "tests.unit.test_configuracion_ui_workspace.TestGeneralPage::test_selecting_a_workstation_loads_its_assignments",
+        "tests.unit.test_configuracion_ui_workspace.TestMarketingCampaignDialogs::test_create_dialog_defaults_priority_to_zero_on_blank_input",
+        "tests.unit.test_configuracion_ui_workspace.TestMarketingCampaignDialogs::test_create_dialog_exposes_all_fields",
+        "tests.unit.test_configuracion_ui_workspace.TestMarketingCampaignDialogs::test_create_dialog_ignores_malformed_rule_entries",
+        "tests.unit.test_configuracion_ui_workspace.TestMarketingCampaignDialogs::test_edit_dialog_prefills_values",
+        "tests.unit.test_configuracion_ui_workspace.TestPrintRouteDialogs::test_create_dialog_exposes_all_fields",
+        "tests.unit.test_configuracion_ui_workspace.TestPrintRouteDialogs::test_create_dialog_ignores_unknown_fallback_codes",
+        "tests.unit.test_configuracion_ui_workspace.TestPrintRouteDialogs::test_edit_dialog_prefills_primary_and_fallback",
+        "tests.unit.test_configuracion_ui_workspace.TestWorkstationDialogs::test_block_dialog_disables_confirm_until_reason_is_entered",
+        "tests.unit.test_configuracion_ui_workspace.TestWorkstationDialogs::test_create_dialog_exposes_all_fields",
+        "tests.unit.test_configuracion_ui_workspace.TestWorkstationDialogs::test_edit_dialog_prefills_values"
+      ],
+      "source": ".test_tmp/light-dark-runtime.xml"
+    },
+    {
+      "name": "light-dark-contrast",
+      "tests": 65,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "tests.architecture.test_theme_contrast::test_categorical_chart_colors_are_distinct",
+        "tests.architecture.test_theme_contrast::test_disabled_text_is_dimmer_than_primary_text",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[DEFAULT-DANGER-Dark]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[DEFAULT-DANGER-Light]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[DEFAULT-PRIMARY-Dark]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[DEFAULT-PRIMARY-Light]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[HOVER-DANGER-Dark]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[HOVER-DANGER-Light]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[HOVER-PRIMARY-Dark]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[HOVER-PRIMARY-Light]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[PRESSED-DANGER-Dark]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[PRESSED-DANGER-Light]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[PRESSED-PRIMARY-Dark]",
+        "tests.architecture.test_theme_contrast::test_filled_button_text_meets_aa_in_interactive_states[PRESSED-PRIMARY-Light]",
+        "tests.architecture.test_theme_contrast::test_input_boundary_meets_ui_contrast_on_both_sides[BACKGROUND-Dark]",
+        "tests.architecture.test_theme_contrast::test_input_boundary_meets_ui_contrast_on_both_sides[BACKGROUND-Light]",
+        "tests.architecture.test_theme_contrast::test_input_boundary_meets_ui_contrast_on_both_sides[SURFACE-Dark]",
+        "tests.architecture.test_theme_contrast::test_input_boundary_meets_ui_contrast_on_both_sides[SURFACE-Light]",
+        "tests.architecture.test_theme_contrast::test_large_and_ui_pairs_meet_aa[dark-BORDER_STRONG-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_large_and_ui_pairs_meet_aa[dark-FOCUS_RING-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_large_and_ui_pairs_meet_aa[dark-TEXT_INVERSE-ACCENT_DEFAULT]",
+        "tests.architecture.test_theme_contrast::test_large_and_ui_pairs_meet_aa[light-BORDER_STRONG-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_large_and_ui_pairs_meet_aa[light-FOCUS_RING-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_light_primary_focus_ring_contrasts_with_fill_and_host[BACKGROUND]",
+        "tests.architecture.test_theme_contrast::test_light_primary_focus_ring_contrasts_with_fill_and_host[PRIMARY_DEFAULT]",
+        "tests.architecture.test_theme_contrast::test_light_primary_focus_ring_contrasts_with_fill_and_host[PRIMARY_HOVER]",
+        "tests.architecture.test_theme_contrast::test_light_primary_focus_ring_contrasts_with_fill_and_host[PRIMARY_PRESSED]",
+        "tests.architecture.test_theme_contrast::test_light_primary_focus_ring_contrasts_with_fill_and_host[SURFACE]",
+        "tests.architecture.test_theme_contrast::test_light_primary_focus_ring_contrasts_with_fill_and_host[SURFACE_ELEVATED]",
+        "tests.architecture.test_theme_contrast::test_light_primary_focus_ring_contrasts_with_fill_and_host[SURFACE_MUTED]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-ACCENT_TEXT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-DANGER_DEFAULT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-INFO_DEFAULT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-PRIMARY_DEFAULT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-SUCCESS_DEFAULT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-TEXT_MUTED-BACKGROUND]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-TEXT_MUTED-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-TEXT_PRIMARY-BACKGROUND]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-TEXT_PRIMARY-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-TEXT_SECONDARY-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-TOOLTIP_TEXT-TOOLTIP_BACKGROUND]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[dark-WARNING_DEFAULT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-ACCENT_TEXT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-DANGER_DEFAULT-DANGER_SUBTLE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-DANGER_DEFAULT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-INFO_DEFAULT-INFO_SUBTLE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-INFO_DEFAULT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-PRIMARY_DEFAULT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-SUCCESS_DEFAULT-SUCCESS_SUBTLE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-SUCCESS_DEFAULT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-TEXT_MUTED-BACKGROUND]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-TEXT_MUTED-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-TEXT_MUTED-SURFACE_MUTED]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-TEXT_PRIMARY-ACCENT_DEFAULT]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-TEXT_PRIMARY-BACKGROUND]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-TEXT_PRIMARY-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-TEXT_SECONDARY-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-TOOLTIP_TEXT-TOOLTIP_BACKGROUND]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-WARNING_DEFAULT-SURFACE]",
+        "tests.architecture.test_theme_contrast::test_normal_text_pairs_meet_aa[light-WARNING_DEFAULT-WARNING_SUBTLE]",
+        "tests.ui.test_theme_contrast_rendering::test_light_primary_focus_changes_the_visible_border",
+        "tests.ui.test_theme_contrast_rendering::test_rendered_input_border_identifies_the_field[dark]",
+        "tests.ui.test_theme_contrast_rendering::test_rendered_input_border_identifies_the_field[light]",
+        "tests.ui.test_theme_contrast_rendering::test_small_form_helper_keeps_normal_text_contrast[dark]",
+        "tests.ui.test_theme_contrast_rendering::test_small_form_helper_keeps_normal_text_contrast[light]"
+      ],
+      "source": ".test_tmp/light-dark-contrast.xml"
+    },
+    {
+      "name": "light-dark-guardrails-integration",
+      "tests": 67,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_accepts_canonical_composition_and_ignores_prose",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_accepts_explicit_scroll_and_keeps_web_colors_separate",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[button = QPushButton(\"\\\\U0001f514 Notificaciones\")-unicode_icon_literal]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[button = QPushButton()\\nbutton.setFixedHeight(32)-fixed_control_below_touch_target]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[button.setStyleSheet(style)-inline_qss]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class EditDialog(QDialog):\\n    pass-noncanonical_dialog]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class EditDialog(StandardDialog):\\n    def setup(self):\\n        self.setMinimumSize(1400, 900)-dialog_geometry_exceeds_smallest_viewport]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class KPICard(QWidget):\\n    pass-local_standard_component]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class LocalButton(QPushButton):\\n    def setup(self):\\n        self.setFont(font)-local_visual_control]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class LocalInput(QLineEdit):\\n    def paintEvent(self, event):\\n        pass-local_visual_control]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class LocalTable(QtWidgets.QTableWidget):\\n    pass-native_operational_table]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class OrdersView(QWidget):\\n    pass-screen_without_explicit_overflow]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class SalesPage(QWidget):\\n    pass-screen_without_explicit_overflow]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class SalesPageHeader(QWidget):\\n    pass-local_standard_component]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[color = \"#18372B\"-hardcoded_visual_hex]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[color = \"#ffffff\"-hardcoded_visual_hex]",
+        "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[from PyQt5.QtWidgets import QTableWidget as Grid\\ntable = Grid()-native_operational_table]",
+        "tests.architecture.test_design_system_guardrails::test_brand_colors_only_in_theme_layer",
+        "tests.architecture.test_design_system_guardrails::test_charts_render_via_html_js_not_native",
+        "tests.architecture.test_design_system_guardrails::test_desktop_visual_debt_does_not_grow",
+        "tests.architecture.test_design_system_guardrails::test_existing_file_debt_cannot_hide_new_expressions_or_duplicate_occurrences",
+        "tests.architecture.test_design_system_guardrails::test_no_hardcoded_hex_in_components",
+        "tests.architecture.test_design_system_guardrails::test_no_inline_stylesheets_in_components",
+        "tests.architecture.test_design_system_guardrails::test_no_native_pyqt_charts_in_frontend",
+        "tests.architecture.test_design_system_guardrails::test_print_canvas_white_is_data_and_does_not_exempt_widget_colors",
+        "tests.architecture.test_design_system_guardrails::test_theme_layer_is_the_single_qss_source",
+        "tests.architecture.test_design_system_guardrails::test_time_input_builds_on_qtimeedit_not_qlineedit",
+        "tests.architecture.test_design_system_guardrails::test_visual_debt_baseline_is_exact_and_kept_pruned",
+        "tests.architecture.test_no_commit_rollback_in_frontend::test_no_commit_rollback_in_frontend",
+        "tests.architecture.test_no_sql_in_frontend::test_no_sql_in_frontend",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestChangeAppearancePreferenceStatusUseCase::test_activate_rejects_when_scope_already_occupied",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestChangeAppearancePreferenceStatusUseCase::test_deactivate_then_reactivate",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestChangeAppearancePreferenceStatusUseCase::test_raises_when_missing",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestChangeDensityProfileStatusUseCase::test_deactivate_then_activate",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestChangeThemeStatusUseCase::test_deactivate_then_activate",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateAppearancePreferenceUseCase::test_allows_different_scopes",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateAppearancePreferenceUseCase::test_creates_global_preference",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateAppearancePreferenceUseCase::test_rejects_second_active_preference_in_same_scope",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDensityProfileUseCase::test_creates_and_persists",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDensityProfileUseCase::test_rejects_duplicate_level",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDesignTokenUseCase::test_allows_same_key_in_different_scopes",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDesignTokenUseCase::test_creates_global_token",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDesignTokenUseCase::test_creates_theme_scoped_token",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDesignTokenUseCase::test_rejects_duplicate_key_in_same_scope",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateThemeUseCase::test_creates_and_persists",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestCreateThemeUseCase::test_rejects_duplicate_code",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateDensityProfileUseCase::test_raises_when_missing",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateDensityProfileUseCase::test_updates_fields",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateDesignTokenUseCase::test_raises_when_missing",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateDesignTokenUseCase::test_updates_value",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateThemeUseCase::test_raises_when_missing",
+        "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateThemeUseCase::test_updates_name",
+        "tests.integration.appearance.test_appearance_repositories.TestAppearancePreferenceRepository::test_composes_with_resolution_policy_end_to_end",
+        "tests.integration.appearance.test_appearance_repositories.TestAppearancePreferenceRepository::test_save_get_roundtrip",
+        "tests.integration.appearance.test_appearance_repositories.TestAppearancePreferenceRepository::test_unique_index_blocks_two_active_preferences_for_same_scope",
+        "tests.integration.appearance.test_appearance_repositories.TestDensityProfileRepository::test_get_by_level",
+        "tests.integration.appearance.test_appearance_repositories.TestDensityProfileRepository::test_level_is_unique",
+        "tests.integration.appearance.test_appearance_repositories.TestDensityProfileRepository::test_save_get_roundtrip_preserves_decimal_scale_factor",
+        "tests.integration.appearance.test_appearance_repositories.TestDesignTokenRepository::test_composes_with_token_resolution_policy_end_to_end",
+        "tests.integration.appearance.test_appearance_repositories.TestDesignTokenRepository::test_save_get_roundtrip",
+        "tests.integration.appearance.test_appearance_repositories.TestDesignTokenRepository::test_scope_uniqueness_blocks_duplicate_key_for_same_theme",
+        "tests.integration.appearance.test_appearance_repositories.TestThemeRepository::test_code_is_unique",
+        "tests.integration.appearance.test_appearance_repositories.TestThemeRepository::test_get_by_code",
+        "tests.integration.appearance.test_appearance_repositories.TestThemeRepository::test_get_default",
+        "tests.integration.appearance.test_appearance_repositories.TestThemeRepository::test_list_active_excludes_inactive",
+        "tests.integration.appearance.test_appearance_repositories.TestThemeRepository::test_only_one_default_theme_allowed_at_schema_level",
+        "tests.integration.appearance.test_appearance_repositories.TestThemeRepository::test_save_get_roundtrip"
+      ],
+      "source": ".test_tmp/light-dark-guardrails-integration.xml"
+    },
+    {
+      "name": "light-dark-visuals",
+      "tests": 50,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "tests.ui.test_appearance_theme_visuals::test_theme_selector_is_reachable_and_preserves_live_page[comfortable-size0]",
+        "tests.ui.test_appearance_theme_visuals::test_theme_selector_is_reachable_and_preserves_live_page[comfortable-size1]",
+        "tests.ui.test_appearance_theme_visuals::test_theme_selector_is_reachable_and_preserves_live_page[comfortable-size2]",
+        "tests.ui.test_appearance_theme_visuals::test_theme_selector_is_reachable_and_preserves_live_page[comfortable-size3]",
+        "tests.ui.test_appearance_theme_visuals::test_theme_selector_is_reachable_and_preserves_live_page[comfortable-size4]",
+        "tests.ui.test_appearance_theme_visuals::test_theme_selector_is_reachable_and_preserves_live_page[touch-size0]",
+        "tests.ui.test_appearance_theme_visuals::test_theme_selector_is_reachable_and_preserves_live_page[touch-size1]",
+        "tests.ui.test_appearance_theme_visuals::test_theme_selector_is_reachable_and_preserves_live_page[touch-size2]",
+        "tests.ui.test_appearance_theme_visuals::test_theme_selector_is_reachable_and_preserves_live_page[touch-size3]",
+        "tests.ui.test_appearance_theme_visuals::test_theme_selector_is_reachable_and_preserves_live_page[touch-size4]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[comfortable-dark-size0]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[comfortable-dark-size1]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[comfortable-dark-size2]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[comfortable-dark-size3]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[comfortable-dark-size4]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[comfortable-light-size0]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[comfortable-light-size1]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[comfortable-light-size2]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[comfortable-light-size3]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[comfortable-light-size4]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[touch-dark-size0]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[touch-dark-size1]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[touch-dark-size2]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[touch-dark-size3]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[touch-dark-size4]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[touch-light-size0]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[touch-light-size1]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[touch-light-size2]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[touch-light-size3]",
+        "tests.ui.test_design_system_navigation_visuals::test_navigation_authentication_and_keyboard_visuals[touch-light-size4]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[comfortable-dark-size0]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[comfortable-dark-size1]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[comfortable-dark-size2]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[comfortable-dark-size3]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[comfortable-dark-size4]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[comfortable-light-size0]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[comfortable-light-size1]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[comfortable-light-size2]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[comfortable-light-size3]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[comfortable-light-size4]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[touch-dark-size0]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[touch-dark-size1]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[touch-dark-size2]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[touch-dark-size3]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[touch-dark-size4]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[touch-light-size0]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[touch-light-size1]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[touch-light-size2]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[touch-light-size3]",
+        "tests.ui.test_design_system_visual_matrix::test_shell_gallery_controls_remain_reachable[touch-light-size4]"
+      ],
+      "source": ".test_tmp/light-dark-visuals.xml"
+    },
+    {
+      "name": "light-dark-combo",
+      "tests": 28,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "tests.ui.test_combo_dropdown_rendering::test_combo_arrow_remains_visible_and_opens_options[comfortable-dark]",
+        "tests.ui.test_combo_dropdown_rendering::test_combo_arrow_remains_visible_and_opens_options[comfortable-light]",
+        "tests.ui.test_combo_dropdown_rendering::test_combo_arrow_remains_visible_and_opens_options[compact-dark]",
+        "tests.ui.test_combo_dropdown_rendering::test_combo_arrow_remains_visible_and_opens_options[compact-light]",
+        "tests.ui.test_combo_dropdown_rendering::test_combo_arrow_remains_visible_and_opens_options[touch-dark]",
+        "tests.ui.test_combo_dropdown_rendering::test_combo_arrow_remains_visible_and_opens_options[touch-light]",
+        "tests.ui.test_theme_density_icons::test_all_catalog_icons_render_in_every_qicon_mode[dark]",
+        "tests.ui.test_theme_density_icons::test_all_catalog_icons_render_in_every_qicon_mode[light]",
+        "tests.ui.test_theme_density_icons::test_bound_icon_refreshes_with_theme",
+        "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[comfortable-dark]",
+        "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[comfortable-light]",
+        "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[compact-dark]",
+        "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[compact-light]",
+        "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[touch-dark]",
+        "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[touch-light]",
+        "tests.ui.test_theme_density_icons::test_keyboard_action_uses_keyboard_vector_instead_of_fallback_file",
+        "tests.ui.test_theme_density_icons::test_official_palette_anchors",
+        "tests.ui.test_theme_density_icons::test_responsive_kpis_remain_visible_and_keep_identity_after_resize",
+        "tests.ui.test_theme_density_icons::test_small_catalog_combobox_displays_selected_label",
+        "tests.ui.test_theme_density_icons::test_stale_qt_singleton_is_recreated",
+        "tests.ui.test_theme_density_icons::test_terminal_preferences_restore_before_constructing_controls",
+        "tests.ui.test_theme_manager_runtime::test_apply_notifies_only_after_theme_and_density_reach_qt",
+        "tests.ui.test_theme_manager_runtime::test_configuration_changes_live_theme_and_restores_it_on_restart",
+        "tests.ui.test_theme_manager_runtime::test_reapplying_the_same_theme_does_not_emit_duplicate_changes",
+        "tests.ui.test_theme_manager_runtime::test_restore_keeps_only_two_official_themes[ DARK -dark]",
+        "tests.ui.test_theme_manager_runtime::test_restore_keeps_only_two_official_themes[LIGHT-light]",
+        "tests.ui.test_theme_manager_runtime::test_restore_keeps_only_two_official_themes[sepia-light]",
+        "tests.ui.test_theme_manager_runtime::test_restore_refreshes_existing_icons_and_preserves_input_values"
+      ],
+      "source": ".test_tmp/light-dark-combo.xml"
+    }
+  ],
+  "audit": {
+    "new_violations": 0,
+    "stale_baseline_entries": 0,
+    "existing_occurrences": 159,
+    "rules": {
+      "noncanonical_dialog": {
+        "occurrences": 35,
+        "files": 24
+      },
+      "screen_without_explicit_overflow": {
+        "occurrences": 110,
+        "files": 109
+      },
+      "unicode_icon_literal": {
+        "occurrences": 14,
+        "files": 7
+      }
+    }
+  },
+  "measured_contrast": {
+    "light": {
+      "helper_on_background": 4.624910282700602,
+      "helper_on_surface": 4.920923308819231,
+      "input_border_on_surface": 4.184092488365496,
+      "input_border_on_background": 3.9324027542821414,
+      "focus_on_primary": 3.665222296608199
+    },
+    "dark": {
+      "helper_on_background": 6.044384195140418,
+      "helper_on_surface": 4.965769803707619,
+      "input_border_on_surface": 4.202067116759438,
+      "input_border_on_background": 5.114797719478719
+    }
+  },
+  "screenshots": [
+    {
+      "name": "dark-comfortable-1280x720-appearance.png",
+      "sha256": "8fde08a20c6fca7a3c13aab1bb0f1890dd677bec5f95d700e82dcbf69a6d38d4"
+    },
+    {
+      "name": "dark-comfortable-1280x720-collapsed-notifications.png",
+      "sha256": "6b06b280a96a20e79c08249ac8b6dbdad620c2847726c615607645c4ff5fb454"
+    },
+    {
+      "name": "dark-comfortable-1280x720-expanded.png",
+      "sha256": "0043f7999832c2c54e0f773627a3ec5a52c21838d87f1fd08d2bbcf6c6e6a962"
+    },
+    {
+      "name": "dark-comfortable-1280x720-file-menu.png",
+      "sha256": "ebc2c1f53262b9e40c2bc84eb58ac374da20106395baba5daea5435115f0ca12"
+    },
+    {
+      "name": "dark-comfortable-1280x720-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "name": "dark-comfortable-1280x720-login.png",
+      "sha256": "9ead4be51df4cbc10c52d1dd53f6b25ffca8e4dc60c6233d5a424e6d89c4b1ff"
+    },
+    {
+      "name": "dark-comfortable-1280x720-module-collapsed-form.png",
+      "sha256": "687eda96062928de944300c55cc3b0af7283444d4e9a0b049a2bd6ff28ba9082"
+    },
+    {
+      "name": "dark-comfortable-1280x720-module-expanded.png",
+      "sha256": "73079f22b8ee4658af34f4c292162fc013ba0e8b38a6c5d17d2dee2bc8695560"
+    },
+    {
+      "name": "dark-comfortable-1280x720-module-flyout.png",
+      "sha256": "d936cb479558d63e784fc4b30b77b8a18326c4dfc5cd5f9ec20113dbd47b401e"
+    },
+    {
+      "name": "dark-comfortable-1280x720-module-group-collapsed.png",
+      "sha256": "4d0a8f254281fecc5a1de984db86659c611a9da4db8a2a1f2aee33457f3ced25"
+    },
+    {
+      "name": "dark-comfortable-1280x720-scrolled.png",
+      "sha256": "ee86df6c02231cb0153c6966680b8bbd5ea9f6f33f76af6506e2c35a57353891"
+    },
+    {
+      "name": "dark-comfortable-1366x768-appearance.png",
+      "sha256": "4e594e566b6c21dc7e04f001ec01b8d8f5ede8863599624485425053bf17ed8f"
+    },
+    {
+      "name": "dark-comfortable-1366x768-collapsed-notifications.png",
+      "sha256": "82a2b6db1f15c4d834c659c551359341cc78e1274e5876ff1e4d5fa126536291"
+    },
+    {
+      "name": "dark-comfortable-1366x768-expanded.png",
+      "sha256": "4379001b73b8ba05d5f30fb8064a146195ae79c05c5ed43cabcda22c5ebb7b0c"
+    },
+    {
+      "name": "dark-comfortable-1366x768-file-menu.png",
+      "sha256": "ebc2c1f53262b9e40c2bc84eb58ac374da20106395baba5daea5435115f0ca12"
+    },
+    {
+      "name": "dark-comfortable-1366x768-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "name": "dark-comfortable-1366x768-login.png",
+      "sha256": "9ead4be51df4cbc10c52d1dd53f6b25ffca8e4dc60c6233d5a424e6d89c4b1ff"
+    },
+    {
+      "name": "dark-comfortable-1366x768-module-collapsed-form.png",
+      "sha256": "b4848e5c430958f2969a8b3bf3237c20e16c02beb2f3c2f813307759959eafe7"
+    },
+    {
+      "name": "dark-comfortable-1366x768-module-expanded.png",
+      "sha256": "ca997997eaae9e827e50ab326bc53503f151baa3e69f8afb2622e2dda8280f35"
+    },
+    {
+      "name": "dark-comfortable-1366x768-module-flyout.png",
+      "sha256": "d936cb479558d63e784fc4b30b77b8a18326c4dfc5cd5f9ec20113dbd47b401e"
+    },
+    {
+      "name": "dark-comfortable-1366x768-module-group-collapsed.png",
+      "sha256": "33b7f17619ab3a16ddff38d0577fa15cfbae1e3aa5209b029913046104823731"
+    },
+    {
+      "name": "dark-comfortable-1366x768-scrolled.png",
+      "sha256": "7d1f8e2276c32a94ff8a02b541f1bb3dcb93ac1f8f8f18542f41f7276afcfb89"
+    },
+    {
+      "name": "dark-comfortable-1440x900-appearance.png",
+      "sha256": "1ad96fa326fa2b91067eb5e532f17e36531a991cc7455cca743335e6be943a14"
+    },
+    {
+      "name": "dark-comfortable-1440x900-collapsed-notifications.png",
+      "sha256": "133e13e8490f76c62539f7ad8266b6cea4f70dd159986ad59ba02639eec0c9fa"
+    },
+    {
+      "name": "dark-comfortable-1440x900-expanded.png",
+      "sha256": "348d0b7fab4e542f2151626e71143992a2179138be8a617ba75143d90b82b3d8"
+    },
+    {
+      "name": "dark-comfortable-1440x900-file-menu.png",
+      "sha256": "ebc2c1f53262b9e40c2bc84eb58ac374da20106395baba5daea5435115f0ca12"
+    },
+    {
+      "name": "dark-comfortable-1440x900-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "name": "dark-comfortable-1440x900-login.png",
+      "sha256": "9ead4be51df4cbc10c52d1dd53f6b25ffca8e4dc60c6233d5a424e6d89c4b1ff"
+    },
+    {
+      "name": "dark-comfortable-1440x900-module-collapsed-form.png",
+      "sha256": "e25b7d45aea17cb25979d8c69da5cd7c55ee9c803ec1334b8a8a6d7d57b03123"
+    },
+    {
+      "name": "dark-comfortable-1440x900-module-expanded.png",
+      "sha256": "c5403346c63de3b36e7b6616e10bbb6529a2c9b29e1d70ce87c43ef729cdab71"
+    },
+    {
+      "name": "dark-comfortable-1440x900-module-flyout.png",
+      "sha256": "d936cb479558d63e784fc4b30b77b8a18326c4dfc5cd5f9ec20113dbd47b401e"
+    },
+    {
+      "name": "dark-comfortable-1440x900-module-group-collapsed.png",
+      "sha256": "ec3365f57b8500b496e74a9d5f99736e9ff0608ca3315b87d1d266547281d226"
+    },
+    {
+      "name": "dark-comfortable-1440x900-scrolled.png",
+      "sha256": "1fb779bb68ac3ef58d13a0e846ea3594b574a8aae831a93cbfff913a602bbf5d"
+    },
+    {
+      "name": "dark-comfortable-1600x900-appearance.png",
+      "sha256": "a421415d7355081352151c0b468ad96cd6820dfd316563811fcc76d85d91217f"
+    },
+    {
+      "name": "dark-comfortable-1600x900-collapsed-notifications.png",
+      "sha256": "8cd545d5d7d982538255ce2d20988a4d2f8875082ac2599a2423bb8bfa81f3a3"
+    },
+    {
+      "name": "dark-comfortable-1600x900-expanded.png",
+      "sha256": "7b10f5aa8373e63059bf8804122c6a74f5362ed39ba8bd109f89f11183c08ba1"
+    },
+    {
+      "name": "dark-comfortable-1600x900-file-menu.png",
+      "sha256": "ebc2c1f53262b9e40c2bc84eb58ac374da20106395baba5daea5435115f0ca12"
+    },
+    {
+      "name": "dark-comfortable-1600x900-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "name": "dark-comfortable-1600x900-login.png",
+      "sha256": "9ead4be51df4cbc10c52d1dd53f6b25ffca8e4dc60c6233d5a424e6d89c4b1ff"
+    },
+    {
+      "name": "dark-comfortable-1600x900-module-collapsed-form.png",
+      "sha256": "69b6099bceaa06405e78e04282df9509e068922fddb6a10e11bfb9d0db46ab53"
+    },
+    {
+      "name": "dark-comfortable-1600x900-module-expanded.png",
+      "sha256": "3a723f903a427a1c0a2b83578c2b202705dc96143d310a9d732eec6350741d35"
+    },
+    {
+      "name": "dark-comfortable-1600x900-module-flyout.png",
+      "sha256": "d936cb479558d63e784fc4b30b77b8a18326c4dfc5cd5f9ec20113dbd47b401e"
+    },
+    {
+      "name": "dark-comfortable-1600x900-module-group-collapsed.png",
+      "sha256": "9aa02b6a52049d35a7fab8dc43533df9e4c049b8b0c622c804bc6098102c1d33"
+    },
+    {
+      "name": "dark-comfortable-1600x900-scrolled.png",
+      "sha256": "613caf7f32eeabeedc5b9f1eb6250c4bc0add192d6ff891e946da4f77f1a6891"
+    },
+    {
+      "name": "dark-comfortable-1920x1080-appearance.png",
+      "sha256": "3239dd287dfd4fa1992f71e53045014d7450508eb9e11b4130a54cc7c08c69df"
+    },
+    {
+      "name": "dark-comfortable-1920x1080-collapsed-notifications.png",
+      "sha256": "87ea14e02f44b11545eb88b8d636454c431de7cdf0e7c537203e275b25b93c79"
+    },
+    {
+      "name": "dark-comfortable-1920x1080-expanded.png",
+      "sha256": "e424d82646fb8b95f9a845a80ee39bd0f4ef6af1ffda389e8149cdca158a2815"
+    },
+    {
+      "name": "dark-comfortable-1920x1080-file-menu.png",
+      "sha256": "ebc2c1f53262b9e40c2bc84eb58ac374da20106395baba5daea5435115f0ca12"
+    },
+    {
+      "name": "dark-comfortable-1920x1080-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "name": "dark-comfortable-1920x1080-login.png",
+      "sha256": "9ead4be51df4cbc10c52d1dd53f6b25ffca8e4dc60c6233d5a424e6d89c4b1ff"
+    },
+    {
+      "name": "dark-comfortable-1920x1080-module-collapsed-form.png",
+      "sha256": "169847f05d9aca8c237cc5bb5245d2dc75fd10e42d04235873793d0102c1e8ef"
+    },
+    {
+      "name": "dark-comfortable-1920x1080-module-expanded.png",
+      "sha256": "132d3da2e0c284e18972effffb88c9923ba833bd1a91a81f47dbb94bd5a0407d"
+    },
+    {
+      "name": "dark-comfortable-1920x1080-module-flyout.png",
+      "sha256": "d936cb479558d63e784fc4b30b77b8a18326c4dfc5cd5f9ec20113dbd47b401e"
+    },
+    {
+      "name": "dark-comfortable-1920x1080-module-group-collapsed.png",
+      "sha256": "bcec396c09401de14c468996cea7761ef68447f5c3cd51696e9e724aeafb3a2f"
+    },
+    {
+      "name": "dark-comfortable-1920x1080-scrolled.png",
+      "sha256": "f28e4f93904931d52aca646b300ec5ea5d9b52c2dec0e5c0c2d494ff409dab01"
+    },
+    {
+      "name": "dark-touch-1280x720-appearance.png",
+      "sha256": "1bd4ff763b75ce73467f975299b971d07686630a9b5305127aeffdd44d9c05e3"
+    },
+    {
+      "name": "dark-touch-1280x720-collapsed-notifications.png",
+      "sha256": "25368bb609bd8873d99b95c97b57f97bd56600df1b74b2498204d3698a24145b"
+    },
+    {
+      "name": "dark-touch-1280x720-expanded.png",
+      "sha256": "468ede38a96d477ffc45c23651eba18201114c224999450f2822bb8022707c2f"
+    },
+    {
+      "name": "dark-touch-1280x720-file-menu.png",
+      "sha256": "ae0daaf291ef14a1e3eda16b6b79c68a74da458b90f6b0647edc3a3ef13199b5"
+    },
+    {
+      "name": "dark-touch-1280x720-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "name": "dark-touch-1280x720-login.png",
+      "sha256": "bc2a9acb2080539702b2b086b96fafc87b9a1fc4e7d4dce1d5466392f783ce40"
+    },
+    {
+      "name": "dark-touch-1280x720-module-collapsed-form.png",
+      "sha256": "8e6ff3d3be076f1c949bd0b23ed465610a18ebd398160d631f655018d1f39f8b"
+    },
+    {
+      "name": "dark-touch-1280x720-module-expanded.png",
+      "sha256": "d1896e17af703b274169308884e292b258c50c7a2043cfe608d77cf86d2d6ca8"
+    },
+    {
+      "name": "dark-touch-1280x720-module-flyout.png",
+      "sha256": "1ee13a985dc1cfe2bfc9062db6be555099cda6c83f742c18d5b050e3ab6ab3d2"
+    },
+    {
+      "name": "dark-touch-1280x720-module-group-collapsed.png",
+      "sha256": "2f44aea8715b8c8cd4f9da4ca2ce8bcda9b3bcfd32cb154c4f70a61a396f5c32"
+    },
+    {
+      "name": "dark-touch-1280x720-scrolled.png",
+      "sha256": "b1c71ce9c9abce764281ad9b29da91764e5900a512c7a72c47fc3744a20f5073"
+    },
+    {
+      "name": "dark-touch-1366x768-appearance.png",
+      "sha256": "8364798b16905af4882c4c56e73611aa05bf7ba70385aa12b0d96c64c92a534a"
+    },
+    {
+      "name": "dark-touch-1366x768-collapsed-notifications.png",
+      "sha256": "c0d6851cc3bf74c036e75059aabeed64dcf073c7b18c11dc37173991b4eba824"
+    },
+    {
+      "name": "dark-touch-1366x768-expanded.png",
+      "sha256": "afe9c0f22ba87bf49621b740d1bb4ad717d52fecb45cfdc2ef7ad9195cc86595"
+    },
+    {
+      "name": "dark-touch-1366x768-file-menu.png",
+      "sha256": "ae0daaf291ef14a1e3eda16b6b79c68a74da458b90f6b0647edc3a3ef13199b5"
+    },
+    {
+      "name": "dark-touch-1366x768-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "name": "dark-touch-1366x768-login.png",
+      "sha256": "bc2a9acb2080539702b2b086b96fafc87b9a1fc4e7d4dce1d5466392f783ce40"
+    },
+    {
+      "name": "dark-touch-1366x768-module-collapsed-form.png",
+      "sha256": "2e90d95f88a18cfa3dbe2dc79b9b8b91b3b8e06256e7364f4403ff1840b867f7"
+    },
+    {
+      "name": "dark-touch-1366x768-module-expanded.png",
+      "sha256": "140381b867a6ed2576bc65aabc5f657338131abf59e4527b7592b358e228a9ad"
+    },
+    {
+      "name": "dark-touch-1366x768-module-flyout.png",
+      "sha256": "1ee13a985dc1cfe2bfc9062db6be555099cda6c83f742c18d5b050e3ab6ab3d2"
+    },
+    {
+      "name": "dark-touch-1366x768-module-group-collapsed.png",
+      "sha256": "c3ca032364d731f6a0755d518bf71110d39448f98de1b7d0ffc0b994f8d625cb"
+    },
+    {
+      "name": "dark-touch-1366x768-scrolled.png",
+      "sha256": "75bc45786f53367e5b594fe4083c0ef6d3f68e1e2a1fba3a1128f511ea465fa1"
+    },
+    {
+      "name": "dark-touch-1440x900-appearance.png",
+      "sha256": "a33ac2e5d0d60de0eac75791fd8a896a67007417945a236e4ecacb93830d598a"
+    },
+    {
+      "name": "dark-touch-1440x900-collapsed-notifications.png",
+      "sha256": "eaf1c007413fde1aaef9f66b1d5e1e5f246d4bb0a67fd25159916fd2f33b2fd4"
+    },
+    {
+      "name": "dark-touch-1440x900-expanded.png",
+      "sha256": "20c9f6a37b64b4bffca4d81bc2cb62562ef72443dde51c7a3a8a0850f6ff9bb1"
+    },
+    {
+      "name": "dark-touch-1440x900-file-menu.png",
+      "sha256": "ae0daaf291ef14a1e3eda16b6b79c68a74da458b90f6b0647edc3a3ef13199b5"
+    },
+    {
+      "name": "dark-touch-1440x900-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "name": "dark-touch-1440x900-login.png",
+      "sha256": "bc2a9acb2080539702b2b086b96fafc87b9a1fc4e7d4dce1d5466392f783ce40"
+    },
+    {
+      "name": "dark-touch-1440x900-module-collapsed-form.png",
+      "sha256": "a0f49233327e4ae3698990652aaf081cf27461e4f300fd1250c513a994ed2851"
+    },
+    {
+      "name": "dark-touch-1440x900-module-expanded.png",
+      "sha256": "9fb4cb3716bdfb01a12a8a5745d54ad36cb90e05831016e50d0bb09b63bd3e13"
+    },
+    {
+      "name": "dark-touch-1440x900-module-flyout.png",
+      "sha256": "1ee13a985dc1cfe2bfc9062db6be555099cda6c83f742c18d5b050e3ab6ab3d2"
+    },
+    {
+      "name": "dark-touch-1440x900-module-group-collapsed.png",
+      "sha256": "100d27b4c88b737f1d705d0c96927e5554ce37d7cc7e9854430efd05fe5a9534"
+    },
+    {
+      "name": "dark-touch-1440x900-scrolled.png",
+      "sha256": "6f8297c519fe7e1ca94eb44d631b30c12c6d8d0a997c4771bd35fd3759d330e8"
+    },
+    {
+      "name": "dark-touch-1600x900-appearance.png",
+      "sha256": "4111bd116865b10bc036c655b4d0e07da2796e3376f1b20e541d6fb35e52f78f"
+    },
+    {
+      "name": "dark-touch-1600x900-collapsed-notifications.png",
+      "sha256": "136c1a114ce40c6074c210ff0cd9016522af4f94ee25cec6a481105897818ca2"
+    },
+    {
+      "name": "dark-touch-1600x900-expanded.png",
+      "sha256": "063e87285aebe69e62c1f283c5c9e36640abf07ba8b9098eda7626c580b53825"
+    },
+    {
+      "name": "dark-touch-1600x900-file-menu.png",
+      "sha256": "ae0daaf291ef14a1e3eda16b6b79c68a74da458b90f6b0647edc3a3ef13199b5"
+    },
+    {
+      "name": "dark-touch-1600x900-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "name": "dark-touch-1600x900-login.png",
+      "sha256": "bc2a9acb2080539702b2b086b96fafc87b9a1fc4e7d4dce1d5466392f783ce40"
+    },
+    {
+      "name": "dark-touch-1600x900-module-collapsed-form.png",
+      "sha256": "71f9d399005f8714dc60920d467c40bb4c66e34c40e9d206ff1a172e4a55075d"
+    },
+    {
+      "name": "dark-touch-1600x900-module-expanded.png",
+      "sha256": "dc8259c6fa27a66102817eab730e34c9103c88705fc96decb01613e23a3eded2"
+    },
+    {
+      "name": "dark-touch-1600x900-module-flyout.png",
+      "sha256": "1ee13a985dc1cfe2bfc9062db6be555099cda6c83f742c18d5b050e3ab6ab3d2"
+    },
+    {
+      "name": "dark-touch-1600x900-module-group-collapsed.png",
+      "sha256": "9a7bab902bf27956b12ca8a87ce83f4ff08de294e429bcee214922d61601184b"
+    },
+    {
+      "name": "dark-touch-1600x900-scrolled.png",
+      "sha256": "ae12687295c1165a6664761454414f6ee95b477c1ad27707fec22adc94f3cf08"
+    },
+    {
+      "name": "dark-touch-1920x1080-appearance.png",
+      "sha256": "cc25488a3676ab677ec4d1c58808c904fcf72f46aa98fd284ae55dbc87d9093b"
+    },
+    {
+      "name": "dark-touch-1920x1080-collapsed-notifications.png",
+      "sha256": "0fdc9c275530de08bc247743b9335af227a1406784cc64955092ea0406c2e09d"
+    },
+    {
+      "name": "dark-touch-1920x1080-expanded.png",
+      "sha256": "3c70e6df656e6cb1555d4eb814c00051d56c8b78eab28e51ca7dc89e1d2aa749"
+    },
+    {
+      "name": "dark-touch-1920x1080-file-menu.png",
+      "sha256": "ae0daaf291ef14a1e3eda16b6b79c68a74da458b90f6b0647edc3a3ef13199b5"
+    },
+    {
+      "name": "dark-touch-1920x1080-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "name": "dark-touch-1920x1080-login.png",
+      "sha256": "bc2a9acb2080539702b2b086b96fafc87b9a1fc4e7d4dce1d5466392f783ce40"
+    },
+    {
+      "name": "dark-touch-1920x1080-module-collapsed-form.png",
+      "sha256": "93fb6badf35e2040b4a80159f1aec482e413ae07d2e81f517f2861f974b09fff"
+    },
+    {
+      "name": "dark-touch-1920x1080-module-expanded.png",
+      "sha256": "9cb6fb9b643d43da7e8585afc9700f2165a47315c507ecf4d84ec4efdbc6a8dc"
+    },
+    {
+      "name": "dark-touch-1920x1080-module-flyout.png",
+      "sha256": "1ee13a985dc1cfe2bfc9062db6be555099cda6c83f742c18d5b050e3ab6ab3d2"
+    },
+    {
+      "name": "dark-touch-1920x1080-module-group-collapsed.png",
+      "sha256": "bb79617a447a4da48fb4db5514e178e5da019d23031124b13d1a330e7f54df7e"
+    },
+    {
+      "name": "dark-touch-1920x1080-scrolled.png",
+      "sha256": "8c2a1a249397baebed4a47d2a3b863a99f038e9b630e116afb7decdc2d77d2b3"
+    },
+    {
+      "name": "light-comfortable-1280x720-appearance.png",
+      "sha256": "7ed189d7f8ed76567ef9794471fcba3bb5274cda5597c2bdbd0795ada24f01a1"
+    },
+    {
+      "name": "light-comfortable-1280x720-collapsed-notifications.png",
+      "sha256": "e242f48fae835c14ee7717f3ce419ce4cf50a0c63c3a7207c79b781c2c5f7f7f"
+    },
+    {
+      "name": "light-comfortable-1280x720-expanded.png",
+      "sha256": "11576bb4250aa0a3bcd637871cf162f9b04881f00d2b87f395100af7967f0a8d"
+    },
+    {
+      "name": "light-comfortable-1280x720-file-menu.png",
+      "sha256": "b7c9db1abdbe62168ec3503ec10cd597e5a37ee253290cff4f72d3012d69e092"
+    },
+    {
+      "name": "light-comfortable-1280x720-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "name": "light-comfortable-1280x720-login.png",
+      "sha256": "3fb400217c3df2cf9c704d83e7a96ed5f68a8a8383873f62cda535e108ae8aab"
+    },
+    {
+      "name": "light-comfortable-1280x720-module-collapsed-form.png",
+      "sha256": "1f4fc8b4dd2b96bf04c81e3dcd3342cc6621a6f52ee623f569ab1fc80abd5a7c"
+    },
+    {
+      "name": "light-comfortable-1280x720-module-expanded.png",
+      "sha256": "f6cbbf5ebde25662721f9971e6281ad027c4613eb360dffc26adea0574d772f1"
+    },
+    {
+      "name": "light-comfortable-1280x720-module-flyout.png",
+      "sha256": "4de08996a6f0c3ee41c68d90cf686951b5dc7d5c50a92efa4e03e0597a564563"
+    },
+    {
+      "name": "light-comfortable-1280x720-module-group-collapsed.png",
+      "sha256": "21aca6ca6b743bde40de5c55fb6aa8900da7fb14ffda1ab6029405b4df3342d9"
+    },
+    {
+      "name": "light-comfortable-1280x720-scrolled.png",
+      "sha256": "e666c6e6d4ea6403573e6b60ec6d46c3c12080d41759b262d7f3bf43c4144f24"
+    },
+    {
+      "name": "light-comfortable-1366x768-appearance.png",
+      "sha256": "0d41e8928b84fcfc3094950055111a5120c65e6f8309221c0b661e4af565ba2a"
+    },
+    {
+      "name": "light-comfortable-1366x768-collapsed-notifications.png",
+      "sha256": "d3632939ac86f2c5fc4e2ed8f2dd06025f191e066e59c00fdf8d7f8e809220e0"
+    },
+    {
+      "name": "light-comfortable-1366x768-expanded.png",
+      "sha256": "09ae11cc1bcb315bda5680dfa4391d490ded70e1abb38de7ca9be46873976f6d"
+    },
+    {
+      "name": "light-comfortable-1366x768-file-menu.png",
+      "sha256": "b7c9db1abdbe62168ec3503ec10cd597e5a37ee253290cff4f72d3012d69e092"
+    },
+    {
+      "name": "light-comfortable-1366x768-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "name": "light-comfortable-1366x768-login.png",
+      "sha256": "3fb400217c3df2cf9c704d83e7a96ed5f68a8a8383873f62cda535e108ae8aab"
+    },
+    {
+      "name": "light-comfortable-1366x768-module-collapsed-form.png",
+      "sha256": "dfb15fe4cc413284ad9855cc8f58a8f96f13f206881c92f10878289c2eccc501"
+    },
+    {
+      "name": "light-comfortable-1366x768-module-expanded.png",
+      "sha256": "3ebae1cb5d57503247a3678fea83f438e51cf99d867fa361ff5456f86ff9c823"
+    },
+    {
+      "name": "light-comfortable-1366x768-module-flyout.png",
+      "sha256": "4de08996a6f0c3ee41c68d90cf686951b5dc7d5c50a92efa4e03e0597a564563"
+    },
+    {
+      "name": "light-comfortable-1366x768-module-group-collapsed.png",
+      "sha256": "368788ea970aeb8e6646641d7f91800d6caf71937c8987d0befd6fedc5fdca2b"
+    },
+    {
+      "name": "light-comfortable-1366x768-scrolled.png",
+      "sha256": "7b6b157cb52138d72dddefde1e7fdcc422fcc2c316dd8d9af75a9d0f73c6fd1c"
+    },
+    {
+      "name": "light-comfortable-1440x900-appearance.png",
+      "sha256": "0dc5c9bd39d255f845655cb6fbfa1aada8a29ef3ffbad510dafd2b5440a6d460"
+    },
+    {
+      "name": "light-comfortable-1440x900-collapsed-notifications.png",
+      "sha256": "c3b449dc84d76d73d09553e65724bd018f282b7135f4d15f13345034132feaeb"
+    },
+    {
+      "name": "light-comfortable-1440x900-expanded.png",
+      "sha256": "de5e9f283c1aa5f9fa94b2c529de5774597c7f9f7bf46adccacbb57d6580c736"
+    },
+    {
+      "name": "light-comfortable-1440x900-file-menu.png",
+      "sha256": "b7c9db1abdbe62168ec3503ec10cd597e5a37ee253290cff4f72d3012d69e092"
+    },
+    {
+      "name": "light-comfortable-1440x900-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "name": "light-comfortable-1440x900-login.png",
+      "sha256": "3fb400217c3df2cf9c704d83e7a96ed5f68a8a8383873f62cda535e108ae8aab"
+    },
+    {
+      "name": "light-comfortable-1440x900-module-collapsed-form.png",
+      "sha256": "e449871cba9f37d36fc9ba13db33b3297a69f7f45031379ee9c7bd9211ee9f4d"
+    },
+    {
+      "name": "light-comfortable-1440x900-module-expanded.png",
+      "sha256": "92108beedadafb750a6bcf32e57743ad957793f38bd2581ef93b2877789d770a"
+    },
+    {
+      "name": "light-comfortable-1440x900-module-flyout.png",
+      "sha256": "4de08996a6f0c3ee41c68d90cf686951b5dc7d5c50a92efa4e03e0597a564563"
+    },
+    {
+      "name": "light-comfortable-1440x900-module-group-collapsed.png",
+      "sha256": "e76f7fcb279884c59a7ef77957cbde26004595fcbe18545e2c60928a16d1d606"
+    },
+    {
+      "name": "light-comfortable-1440x900-scrolled.png",
+      "sha256": "b74c9dfdaff1f8a9c40f62db955382c999430d80852798bd2e62795c6cea587b"
+    },
+    {
+      "name": "light-comfortable-1600x900-appearance.png",
+      "sha256": "b1986c767904aa6a8408bf9671572739781149b3f7e138a652ed2d0f1a5ae6b3"
+    },
+    {
+      "name": "light-comfortable-1600x900-collapsed-notifications.png",
+      "sha256": "c86f9da877feef1ab5f797523cd1d4f810c2b540fc653c5a64ee29c02bfe9716"
+    },
+    {
+      "name": "light-comfortable-1600x900-expanded.png",
+      "sha256": "9b7ffc2c6cdcd314dceabf40e9d4bf9dba0f8da41b102f0d1ec69a2d58cd391b"
+    },
+    {
+      "name": "light-comfortable-1600x900-file-menu.png",
+      "sha256": "b7c9db1abdbe62168ec3503ec10cd597e5a37ee253290cff4f72d3012d69e092"
+    },
+    {
+      "name": "light-comfortable-1600x900-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "name": "light-comfortable-1600x900-login.png",
+      "sha256": "3fb400217c3df2cf9c704d83e7a96ed5f68a8a8383873f62cda535e108ae8aab"
+    },
+    {
+      "name": "light-comfortable-1600x900-module-collapsed-form.png",
+      "sha256": "d1429c88b45e1aa1bdec51755dd54a0100a99f1b1b7949534405e0640eeb1b5e"
+    },
+    {
+      "name": "light-comfortable-1600x900-module-expanded.png",
+      "sha256": "dad65d9ea6d8807f506b9171e506420313ea25a220f9ed6890de4c20890c96e5"
+    },
+    {
+      "name": "light-comfortable-1600x900-module-flyout.png",
+      "sha256": "4de08996a6f0c3ee41c68d90cf686951b5dc7d5c50a92efa4e03e0597a564563"
+    },
+    {
+      "name": "light-comfortable-1600x900-module-group-collapsed.png",
+      "sha256": "115abef9c9fc8cd7ba0c690baafd7570d87f8dbad7590df5c103759aa0b8f6fb"
+    },
+    {
+      "name": "light-comfortable-1600x900-scrolled.png",
+      "sha256": "ae755602aea67f4c2644aeda6c8fca280beddd2d19fd1afd4eff7b94e8d49007"
+    },
+    {
+      "name": "light-comfortable-1920x1080-appearance.png",
+      "sha256": "36b24c5e4c3b0dda6fa716074c68f79cf8b50c787ca8fb2e46ec9a116da20c13"
+    },
+    {
+      "name": "light-comfortable-1920x1080-collapsed-notifications.png",
+      "sha256": "ac4a9131995387aa54737ddb580600ba98ac72b3f9536d4a35713e516bb4e219"
+    },
+    {
+      "name": "light-comfortable-1920x1080-expanded.png",
+      "sha256": "411b1c05ae94c55ba434eaa3d29fcaf4120de63f8905eacb5aa4e419c833dd00"
+    },
+    {
+      "name": "light-comfortable-1920x1080-file-menu.png",
+      "sha256": "b7c9db1abdbe62168ec3503ec10cd597e5a37ee253290cff4f72d3012d69e092"
+    },
+    {
+      "name": "light-comfortable-1920x1080-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "name": "light-comfortable-1920x1080-login.png",
+      "sha256": "3fb400217c3df2cf9c704d83e7a96ed5f68a8a8383873f62cda535e108ae8aab"
+    },
+    {
+      "name": "light-comfortable-1920x1080-module-collapsed-form.png",
+      "sha256": "79990cdbd9ba39f74b9e6a1dba1afb825a9828603589685cb3f5b279e561d695"
+    },
+    {
+      "name": "light-comfortable-1920x1080-module-expanded.png",
+      "sha256": "5a265028103230051557999752c87cc7df25a6cf9016fb0b0c5089935752663a"
+    },
+    {
+      "name": "light-comfortable-1920x1080-module-flyout.png",
+      "sha256": "4de08996a6f0c3ee41c68d90cf686951b5dc7d5c50a92efa4e03e0597a564563"
+    },
+    {
+      "name": "light-comfortable-1920x1080-module-group-collapsed.png",
+      "sha256": "cc2cb4d1aa5dee1410b6f5d977a913e3d34c6f8c676504499a4dd51b5e6985cb"
+    },
+    {
+      "name": "light-comfortable-1920x1080-scrolled.png",
+      "sha256": "d0dc98ff4ffed72d900470f9b267437a4569579188fd78805623287f57059d8a"
+    },
+    {
+      "name": "light-touch-1280x720-appearance.png",
+      "sha256": "e6af013a3a0d0dc92c56e13f98f5e6ce8d0b45bb5d10874e7bb82e6a9a5c0f12"
+    },
+    {
+      "name": "light-touch-1280x720-collapsed-notifications.png",
+      "sha256": "dea6e305c3a6f73032b27afc1f9ff615e4a184c7e1bdf6ec9ff854f1a017e58f"
+    },
+    {
+      "name": "light-touch-1280x720-expanded.png",
+      "sha256": "1d231aed9123560f7f16c290edee77f39c5516f993e7444ec36f79d3cfcd16ba"
+    },
+    {
+      "name": "light-touch-1280x720-file-menu.png",
+      "sha256": "f61e561a15e10adc6b7884e632458b3beea80520b00963be29216ecf68d67c79"
+    },
+    {
+      "name": "light-touch-1280x720-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "name": "light-touch-1280x720-login.png",
+      "sha256": "2bb0ea6a89ce290f28d15abc786590b1fbd90663c1f676757434116fcb9d3370"
+    },
+    {
+      "name": "light-touch-1280x720-module-collapsed-form.png",
+      "sha256": "ca0659395d69b160e08b7c86194463521be6df9ceebaff23dbae2d39aa2b8c4d"
+    },
+    {
+      "name": "light-touch-1280x720-module-expanded.png",
+      "sha256": "ac22712031c9e655295cd24b5afdc37009cb73407d4852b7efce57379918793d"
+    },
+    {
+      "name": "light-touch-1280x720-module-flyout.png",
+      "sha256": "4a2ff3f956f2e57a63ac010929cc54162f4425fe76fbb405fb6cb8c167a423a1"
+    },
+    {
+      "name": "light-touch-1280x720-module-group-collapsed.png",
+      "sha256": "b4660eaba68c8b4a367a108b9b99f707973c5dbeac31afe09329a79c705a4070"
+    },
+    {
+      "name": "light-touch-1280x720-scrolled.png",
+      "sha256": "4d3e2d02c2abcbd960cf48956d0ae3b05db94ba3e8be6fc32217b5783f114779"
+    },
+    {
+      "name": "light-touch-1366x768-appearance.png",
+      "sha256": "da4049b3264a565cfcc40d817a0ca133b1b658397236036014d17bc0b45ab85c"
+    },
+    {
+      "name": "light-touch-1366x768-collapsed-notifications.png",
+      "sha256": "1389c515ff61187e3571b68941ec7a5520d5020740b5821b412aeb0f89c0f600"
+    },
+    {
+      "name": "light-touch-1366x768-expanded.png",
+      "sha256": "36abd01b9bedd7d3358be4e8e3607168a454e197d8ea7a90ed288b599b94247a"
+    },
+    {
+      "name": "light-touch-1366x768-file-menu.png",
+      "sha256": "f61e561a15e10adc6b7884e632458b3beea80520b00963be29216ecf68d67c79"
+    },
+    {
+      "name": "light-touch-1366x768-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "name": "light-touch-1366x768-login.png",
+      "sha256": "2bb0ea6a89ce290f28d15abc786590b1fbd90663c1f676757434116fcb9d3370"
+    },
+    {
+      "name": "light-touch-1366x768-module-collapsed-form.png",
+      "sha256": "d5557b5dfa73a1dac6f2d3515074a130249f9de733212306037d77046d7eee21"
+    },
+    {
+      "name": "light-touch-1366x768-module-expanded.png",
+      "sha256": "334c9ffcb254df349a631c278e681035c37a0b995f1a5745e9f649b00638e545"
+    },
+    {
+      "name": "light-touch-1366x768-module-flyout.png",
+      "sha256": "4a2ff3f956f2e57a63ac010929cc54162f4425fe76fbb405fb6cb8c167a423a1"
+    },
+    {
+      "name": "light-touch-1366x768-module-group-collapsed.png",
+      "sha256": "05ab692ddedebca2ad26ebd575df5db402dca8a66d097ca037df455d756cca31"
+    },
+    {
+      "name": "light-touch-1366x768-scrolled.png",
+      "sha256": "e982fc4b7b8e8b192c8132ccf2e325c51dff08b8da9179941fbd76a4758e201e"
+    },
+    {
+      "name": "light-touch-1440x900-appearance.png",
+      "sha256": "ce934641e8d999a18b3a75fbefbe80babe5ad6c2264dae42864bca37e0b64374"
+    },
+    {
+      "name": "light-touch-1440x900-collapsed-notifications.png",
+      "sha256": "87e4979b8ef410d0f6b4605d9e1e33eb16cbfde63c4f89671012c0326da07c54"
+    },
+    {
+      "name": "light-touch-1440x900-expanded.png",
+      "sha256": "86ea46304be139fbaa2ffcec5d095e8883a573ab7b1a4b21edf1ba7aac4830b6"
+    },
+    {
+      "name": "light-touch-1440x900-file-menu.png",
+      "sha256": "f61e561a15e10adc6b7884e632458b3beea80520b00963be29216ecf68d67c79"
+    },
+    {
+      "name": "light-touch-1440x900-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "name": "light-touch-1440x900-login.png",
+      "sha256": "2bb0ea6a89ce290f28d15abc786590b1fbd90663c1f676757434116fcb9d3370"
+    },
+    {
+      "name": "light-touch-1440x900-module-collapsed-form.png",
+      "sha256": "146c0b46220db6d79dc7d48c20959fd1c9fa84ba5d618080a19b7a0c2b881518"
+    },
+    {
+      "name": "light-touch-1440x900-module-expanded.png",
+      "sha256": "10453949811dd1bdc5e1b5a8249f665c20f837297fe567343427197ad9d18b52"
+    },
+    {
+      "name": "light-touch-1440x900-module-flyout.png",
+      "sha256": "4a2ff3f956f2e57a63ac010929cc54162f4425fe76fbb405fb6cb8c167a423a1"
+    },
+    {
+      "name": "light-touch-1440x900-module-group-collapsed.png",
+      "sha256": "6744b755f84fd764afd79b06660b2e7ea9ec332ce2ce8c765533944c676f0596"
+    },
+    {
+      "name": "light-touch-1440x900-scrolled.png",
+      "sha256": "e7a8cb7b06f6bc60e64d99873b27bdfa47a4af461c8c5677fc9361a0b6100824"
+    },
+    {
+      "name": "light-touch-1600x900-appearance.png",
+      "sha256": "3a3f63d2dbd9d04c5109db0697ed44aadcec54e3c589a978e86bfaaf49c0faac"
+    },
+    {
+      "name": "light-touch-1600x900-collapsed-notifications.png",
+      "sha256": "046853c1f7ac6afc39a3084a0371dd6967ed5f7e18d7ea3ed67311c62e1f7d05"
+    },
+    {
+      "name": "light-touch-1600x900-expanded.png",
+      "sha256": "626da739b7874d0c0146f8fa65fd6bed6c4992c2b9da020c03ffe6a3d466340c"
+    },
+    {
+      "name": "light-touch-1600x900-file-menu.png",
+      "sha256": "f61e561a15e10adc6b7884e632458b3beea80520b00963be29216ecf68d67c79"
+    },
+    {
+      "name": "light-touch-1600x900-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "name": "light-touch-1600x900-login.png",
+      "sha256": "2bb0ea6a89ce290f28d15abc786590b1fbd90663c1f676757434116fcb9d3370"
+    },
+    {
+      "name": "light-touch-1600x900-module-collapsed-form.png",
+      "sha256": "ebdf1b5bef1cf6769836bbb7dfc359191e6db3b959f1c398c03c9ef66230de60"
+    },
+    {
+      "name": "light-touch-1600x900-module-expanded.png",
+      "sha256": "2108f04c8b194e68b70e2c945a6f58875161865c15ea5c73cfcbcedd0eb0b5ff"
+    },
+    {
+      "name": "light-touch-1600x900-module-flyout.png",
+      "sha256": "4a2ff3f956f2e57a63ac010929cc54162f4425fe76fbb405fb6cb8c167a423a1"
+    },
+    {
+      "name": "light-touch-1600x900-module-group-collapsed.png",
+      "sha256": "c98f339012aa66da9f53d74d4d5ea74a476802600b132c9fd9d2a0b5086a59f7"
+    },
+    {
+      "name": "light-touch-1600x900-scrolled.png",
+      "sha256": "c71a42bddd5a9c9d5e91e1919d5ae7626a0ef9b721ac30010804f8bdcb861ce5"
+    },
+    {
+      "name": "light-touch-1920x1080-appearance.png",
+      "sha256": "b5ec385c4aaceddeb0b2b141d990fc54208cc6c5e1a2997408fe349ddc626a4b"
+    },
+    {
+      "name": "light-touch-1920x1080-collapsed-notifications.png",
+      "sha256": "d8bf29e49da0c8c7a5240e1ef1aa39327dd6cbfd4bb73c0178abe572e87085a9"
+    },
+    {
+      "name": "light-touch-1920x1080-expanded.png",
+      "sha256": "a88ef052d0b410008d909d285c7cc320a1ea8b43d0267e151a6fc18d06810ad4"
+    },
+    {
+      "name": "light-touch-1920x1080-file-menu.png",
+      "sha256": "f61e561a15e10adc6b7884e632458b3beea80520b00963be29216ecf68d67c79"
+    },
+    {
+      "name": "light-touch-1920x1080-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "name": "light-touch-1920x1080-login.png",
+      "sha256": "2bb0ea6a89ce290f28d15abc786590b1fbd90663c1f676757434116fcb9d3370"
+    },
+    {
+      "name": "light-touch-1920x1080-module-collapsed-form.png",
+      "sha256": "23b827d1bcaf7451f689a02a9ac3a873bfc1a837c54f0b61a871c208514b77bd"
+    },
+    {
+      "name": "light-touch-1920x1080-module-expanded.png",
+      "sha256": "00392bc2fd129f61781e9281b2bddc513a8d81bd81b298e3072a798409b53d22"
+    },
+    {
+      "name": "light-touch-1920x1080-module-flyout.png",
+      "sha256": "4a2ff3f956f2e57a63ac010929cc54162f4425fe76fbb405fb6cb8c167a423a1"
+    },
+    {
+      "name": "light-touch-1920x1080-module-group-collapsed.png",
+      "sha256": "d5df1cd2ce2dbb012d9d9069f7c842315126ccd69c58ac96b699de622c203aae"
+    },
+    {
+      "name": "light-touch-1920x1080-scrolled.png",
+      "sha256": "c98e9c4716df123692db92fb77c60b582796b88ebb7d59a854ae7f2fded0c5f7"
+    }
+  ],
+  "limitations": [
+    "Targeted suites only; previous complete-suite failures remain documented in the global audit.",
+    "Screenshots use real Qt widgets and example data, without an approved pixel baseline.",
+    "QtWebEngine/ECharts rendering unavailable; HTML refresh is covered through an HTML receiver.",
+    "Real terminal DPI, touch hardware and official brand assets require acceptance."
+  ]
+}

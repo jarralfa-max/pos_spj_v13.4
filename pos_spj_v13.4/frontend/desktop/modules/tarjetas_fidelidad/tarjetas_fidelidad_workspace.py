@@ -22,6 +22,7 @@ from frontend.desktop.modules.tarjetas_fidelidad.pages.overview_page import (
 )
 from frontend.desktop.modules.tarjetas_fidelidad.pages.templates_page import TemplatesPage
 from frontend.desktop.modules.tarjetas_fidelidad.tarjetas_fidelidad_routes import (
+    GROUP_ICONS,
     grouped_routes,
     visible_routes,
 )
@@ -80,16 +81,16 @@ class TarjetasFidelidadWorkspace(QWidget):
         page_index = 0
         routes_by_group = self._visible_grouped_routes()
         if not routes_by_group:
-            self._nav.add_group("Tarjetas Fidelidad")
+            self._nav.add_group("Tarjetas Fidelidad", icon=Icons.LOYALTY_CARDS)
             self._stack.addWidget(create_state_widget(
                 ViewState.NO_PERMISSION, self,
                 message="No tienes permiso para consultar el modulo de Tarjetas Fidelidad."))
             return
         for group, routes in routes_by_group:
-            self._nav.add_group(group)
+            self._nav.add_group(group, icon=GROUP_ICONS[group])
             row += 1
             for route in routes:
-                self._nav.add_section(route.label)
+                self._nav.add_section(route.label, icon=route.icon)
                 item = self._nav.item(row)
                 if item is not None:
                     item.setToolTip(route.tooltip)

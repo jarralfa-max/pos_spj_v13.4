@@ -10,11 +10,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PyQt5.QtCore import QSettings, Qt, QTimer
+from decimal import Decimal, InvalidOperation
+
+from PyQt5.QtCore import QSettings, Qt
 from PyQt5.QtWidgets import QAbstractItemView, QHeaderView, QLabel, QTableWidget, QTableWidgetItem
 
 from frontend.desktop.themes.theme_manager import ThemeManager
-from frontend.desktop.themes.tokens import TableMetrics, density_metrics
+from frontend.desktop.themes.tokens import density_metrics
 
 
 @dataclass(frozen=True)
@@ -83,6 +85,9 @@ class StandardTable(QTableWidget):
         ThemeManager.instance().density_changed.connect(self._density_changed)
         self._density_changed()
         self.restore_column_layout()
+        self.model().rowsInserted.connect(self._update_state)
+        self.model().rowsRemoved.connect(self._update_state)
+        self.model().modelReset.connect(self._update_state)
 
     def _density_changed(self, _density=None):
         metrics = density_metrics(self._density)
@@ -110,7 +115,7 @@ class StandardTable(QTableWidget):
 
     def save_column_layout(self):
         if self._settings_key:
-            value = {self._column_key(index): {"width": self._saved_widths.get(index, col.preferred_width),
+            value = {self._column_key(index): {**({"width": self._saved_widths[index]} if index in self._saved_widths else {}),
                      **({"visible": self._visibility[index]} if index in self._visibility else {})}
                      for index, col in enumerate(self._columns)}
             self._settings.setValue(f"tables/{self._settings_key}/columns", value)
@@ -178,7 +183,7 @@ class StandardTable(QTableWidget):
                 for col in range(self.columnCount())))
         self._update_state()
 
-    def _update_state(self):
+    def _update_state(self, *_args):
         empty = not any(not self.isRowHidden(row) for row in range(self.rowCount()))
         message = "Cargando…" if self._loading else ("Sin resultados" if self._filter_text else "Sin registros")
         self._state_label.setText(message)
@@ -209,23 +214,24 @@ class StandardTable(QTableWidget):
         self.set_filter(self._filter_text)
 
     def _set_value(self, row_index, col_index, value, row_ids):
-                text = "" if value is None else str(value)
-                item = _TableItem(text)
-                item.setToolTip(text)
-                col = self._columns[col_index]
-                if col.alignment is not None:
-                    item.setTextAlignment(int(col.alignment))
-                elif col.kind == "numeric":
-                    item.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
-                if col.kind == "numeric":
-                    from decimal import Decimal, InvalidOperation
-                    try:
-                        item.setData(Qt.UserRole + 1, Decimal(text.replace(",", "").replace("$", "").strip()))
-                    except InvalidOperation:
-                        pass
-                if row_ids is not None:
-                    item.setData(Qt.UserRole, row_ids[row_index])
-                self.setItem(row_index, col_index, item)
+        text = "" if value is None else str(value)
+        item = _TableItem(text)
+        item.setToolTip(text)
+        col = self._columns[col_index]
+        if col.alignment is not None:
+            item.setTextAlignment(int(col.alignment))
+        elif col.kind == "numeric":
+            item.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
+        if col.kind == "numeric":
+            try:
+                number = Decimal(text.replace(",", "").replace("$", "").strip())
+                if number.is_finite():
+                    item.setData(Qt.UserRole + 1, number)
+            except InvalidOperation:
+                pass
+        if row_ids is not None:
+            item.setData(Qt.UserRole, row_ids[row_index])
+        self.setItem(row_index, col_index, item)
 
     def selected_row_id(self) -> str | None:
         row = self.currentRow()

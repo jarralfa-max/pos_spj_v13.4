@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from frontend.desktop.components.icons import Icons
+
 from backend.application.loyalty.permissions import LoyaltyPermissions
 from frontend.desktop.modules.fidelidad.view_models import FidelidadCapabilities
 
@@ -26,82 +28,95 @@ class FidelidadRoute:
     tooltip: str
     required_permission: str
     capability: str
+    icon: str
+
+
+GROUP_ICONS: dict[str, str] = {
+    "Resumen": Icons.DASHBOARD,
+    "Programas": Icons.LOYALTY,
+    "Miembros": Icons.CUSTOMERS,
+    "Recompensas y retos": Icons.GRADE,
+    "Referidos y ciclo de vida": Icons.SCENARIO,
+    "Instrumentos comerciales": Icons.PRICE,
+    "Sorteos": Icons.FLAG,
+    "Control": Icons.AUDIT,
+}
 
 
 FIDELIDAD_ROUTES: tuple[FidelidadRoute, ...] = (
     # -- Resumen --------------------------------------------------------
     FidelidadRoute(
-        route_id="fidelidad.overview", label="Resumen", group="Resumen",
+        route_id="fidelidad.overview", icon=Icons.DASHBOARD, label="Resumen", group="Resumen",
         tooltip="Estado general del programa de fidelidad.",
         required_permission=LoyaltyPermissions.VIEW, capability="module_view"),
 
     # -- Programas --------------------------------------------------------
     FidelidadRoute(
-        route_id="loyalty.programs", label="Programas", group="Programas",
+        route_id="loyalty.programs", icon=Icons.LOYALTY, label="Programas", group="Programas",
         tooltip="Programas de fidelidad activos.",
         required_permission=LoyaltyPermissions.PROGRAM_VIEW, capability="programs"),
 
     # -- Miembros ---------------------------------------------------------
     FidelidadRoute(
-        route_id="loyalty.member_profile", label="Perfil de miembro", group="Miembros",
+        route_id="loyalty.member_profile", icon=Icons.USER, label="Perfil de miembro", group="Miembros",
         tooltip="Cuenta, membresías, saldo de puntos y movimientos de un cliente.",
         required_permission=LoyaltyPermissions.MEMBERSHIP_VIEW, capability="members"),
     FidelidadRoute(
-        route_id="loyalty.tiers", label="Niveles", group="Miembros",
+        route_id="loyalty.tiers", icon=Icons.GRADE, label="Niveles", group="Miembros",
         tooltip="Niveles de membresía del programa.",
         required_permission=LoyaltyPermissions.TIER_VIEW, capability="members"),
 
     # -- Recompensas y retos ------------------------------------------------
     FidelidadRoute(
-        route_id="loyalty.rewards", label="Recompensas", group="Recompensas y retos",
+        route_id="loyalty.rewards", icon=Icons.PACKAGE, label="Recompensas", group="Recompensas y retos",
         tooltip="Catálogo de recompensas y canje.",
         required_permission=LoyaltyPermissions.REWARD_VIEW, capability="rewards"),
     FidelidadRoute(
-        route_id="loyalty.challenges", label="Retos", group="Recompensas y retos",
+        route_id="loyalty.challenges", icon=Icons.FLAG, label="Retos", group="Recompensas y retos",
         tooltip="Retos, misiones y metas.",
         required_permission=LoyaltyPermissions.CHALLENGE_VIEW, capability="challenges"),
 
     # -- Referidos y ciclo de vida -------------------------------------------
     FidelidadRoute(
-        route_id="loyalty.referrals", label="Referidos", group="Referidos y ciclo de vida",
+        route_id="loyalty.referrals", icon=Icons.SCENARIO, label="Referidos", group="Referidos y ciclo de vida",
         tooltip="Programa de referidos.",
         required_permission=LoyaltyPermissions.REFERRAL_VIEW, capability="referrals"),
     FidelidadRoute(
-        route_id="loyalty.birthdays", label="Cumpleaños", group="Referidos y ciclo de vida",
+        route_id="loyalty.birthdays", icon=Icons.CALENDAR, label="Cumpleaños", group="Referidos y ciclo de vida",
         tooltip="Configuración de beneficios de cumpleaños.",
         required_permission=LoyaltyPermissions.BIRTHDAY_VIEW, capability="birthdays"),
     FidelidadRoute(
-        route_id="loyalty.campaigns", label="Campañas", group="Referidos y ciclo de vida",
+        route_id="loyalty.campaigns", icon=Icons.RECOVERY, label="Campañas", group="Referidos y ciclo de vida",
         tooltip="Campañas de retención y win-back.",
         required_permission=LoyaltyPermissions.CAMPAIGN_VIEW, capability="campaigns"),
 
     # -- Instrumentos comerciales --------------------------------------------
     FidelidadRoute(
-        route_id="instruments.coupons", label="Cupones", group="Instrumentos comerciales",
+        route_id="instruments.coupons", icon=Icons.PRICE, label="Cupones", group="Instrumentos comerciales",
         tooltip="Emisión y canje de cupones.",
         required_permission=LoyaltyPermissions.COUPON_VIEW, capability="coupons"),
     FidelidadRoute(
-        route_id="instruments.vouchers", label="Vales", group="Instrumentos comerciales",
+        route_id="instruments.vouchers", icon=Icons.DOCUMENT, label="Vales", group="Instrumentos comerciales",
         tooltip="Emisión y canje de vales.",
         required_permission=LoyaltyPermissions.VOUCHER_VIEW, capability="vouchers"),
 
     # -- Sorteos ------------------------------------------------------------
     FidelidadRoute(
-        route_id="sweepstakes.campaigns", label="Campañas de sorteo", group="Sorteos",
+        route_id="sweepstakes.campaigns", icon=Icons.SCHEDULE, label="Campañas de sorteo", group="Sorteos",
         tooltip="Campañas, reglas, premios y derechos de sorteo.",
         required_permission=LoyaltyPermissions.SWEEPSTAKES_VIEW, capability="sweepstakes"),
     FidelidadRoute(
-        route_id="sweepstakes.draws", label="Sorteo y ganadores", group="Sorteos",
+        route_id="sweepstakes.draws", icon=Icons.SUCCESS, label="Sorteo y ganadores", group="Sorteos",
         tooltip="Ejecución del sorteo y validación de ganadores.",
         required_permission=LoyaltyPermissions.SWEEPSTAKES_VIEW, capability="sweepstakes"),
 
     # -- Control -------------------------------------------------------------
     FidelidadRoute(
-        route_id="fidelidad.fraud", label="Antifraude", group="Control",
+        route_id="fidelidad.fraud", icon=Icons.INVESTIGATION, label="Antifraude", group="Control",
         tooltip="Casos de fraude y revisión.",
         required_permission=LoyaltyPermissions.FRAUD_VIEW, capability="fraud"),
     FidelidadRoute(
-        route_id="fidelidad.settings", label="Configuración", group="Control",
+        route_id="fidelidad.settings", icon=Icons.SETTINGS, label="Configuración", group="Control",
         tooltip="Configuración general del módulo.",
         required_permission=LoyaltyPermissions.CONFIG_VIEW, capability="settings"),
 )

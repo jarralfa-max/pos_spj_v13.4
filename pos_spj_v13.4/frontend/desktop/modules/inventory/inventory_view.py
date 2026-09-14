@@ -21,6 +21,8 @@ from PyQt5.QtWidgets import (
 )
 
 from frontend.desktop.components import SideNav
+from frontend.desktop.components.icons import Icons
+from frontend.desktop.modules.inventory.navigation import INVENTORY_NAV
 
 logger = logging.getLogger("spj.inventory.view")
 
@@ -37,8 +39,9 @@ class InventoryView(QWidget):
 
         self.nav = SideNav()
         self.stack = QStackedWidget()
+        icons_by_title = {entry.title: entry.icon for entry in INVENTORY_NAV}
         for _factory, title in self._specs:
-            self.nav.add_section(title)
+            self.nav.add_section(title, icons_by_title.get(title, Icons.FILE))
             slot = QWidget()
             slot_layout = QVBoxLayout(slot)
             slot_layout.setContentsMargins(0, 0, 0, 0)

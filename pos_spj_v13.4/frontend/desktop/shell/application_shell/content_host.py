@@ -40,22 +40,58 @@ SHELL-13 adds two things:
 """
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QStackedWidget, QVBoxLayout, QWidget
+from PyQt5.QtCore import QSize
+from PyQt5.QtWidgets import QLayout, QStackedWidget, QVBoxLayout, QWidget
 
+from frontend.desktop.components.page_viewport import PageViewport
 from frontend.desktop.shell.router.navigation_result import NavigationResult
 from frontend.desktop.shell.routing.cache_policy import CachePolicy
 
 _STICKY_POLICIES = (CachePolicy.KEEP_ALIVE, CachePolicy.RECREATE_ON_CONTEXT_CHANGE, CachePolicy.SINGLETON)
 
 
+class _PageStack(QStackedWidget):
+    """Only the active page contributes minimum size to the scroll viewport."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.layout().setSizeConstraint(QLayout.SetNoConstraint)
+        self.currentChanged.connect(self._page_changed)
+
+    def minimumSizeHint(self):
+        page = self.currentWidget()
+        return page.minimumSizeHint().expandedTo(page.minimumSize()) if page else QSize(0, 0)
+
+    def sizeHint(self):
+        page = self.currentWidget()
+        return page.sizeHint() if page else QSize(0, 0)
+
+    def heightForWidth(self, width):
+        # QScrollArea treats heightForWidth as a minimum. QStackedLayout's
+        # preferred height includes an inner viewport's sizeHint and would
+        # force a redundant outer scrollbar on otherwise scrollable pages.
+        page = self.currentWidget()
+        if page is None:
+            return 0
+        layout = page.layout()
+        height = layout.minimumHeightForWidth(width) if layout is not None else page.heightForWidth(width)
+        return max(height, self.minimumSizeHint().height())
+
+    def _page_changed(self, _index):
+        self.updateGeometry()
+
+
 class ContentHost(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("contentHost")
-        self._stack = QStackedWidget(self)
+        self._stack = _PageStack(self)
+        self.page_viewport = PageViewport(self)
+        self.page_viewport.set_page(self._stack)
+        self.setProperty("overflowPolicy", "auto")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self._stack)
+        layout.addWidget(self.page_viewport)
 
         self._cache: dict[str, object] = {}
         self._policy_by_route: dict[str, CachePolicy] = {}

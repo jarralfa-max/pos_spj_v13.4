@@ -19,10 +19,12 @@ a su vez llama al servicio de lectura de la capa de aplicación.
 
 from __future__ import annotations
 
+from PyQt5.QtCore import QSignalBlocker
 from PyQt5.QtWidgets import QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
 
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.components.page_header import PageHeader
+from frontend.desktop.components.page_viewport import PageViewport
 from frontend.desktop.components.side_nav import SideNav
 from frontend.desktop.components.view_states import ViewState, create_state_widget
 from frontend.desktop.modules.pricing.navigation import visible_entries
@@ -73,7 +75,9 @@ class PricingWorkspace(QWidget):
         self._stack = QStackedWidget(self)
         self._stack.setObjectName("pricingStack")
         self._stack.setAccessibleName("Páginas del módulo de Precios y Costos")
-        shell.addWidget(self._stack, stretch=1)
+        self.viewport = PageViewport(self)
+        self.viewport.set_page(self._stack)
+        shell.addWidget(self.viewport, stretch=1)
 
         self._build_routes()
 
@@ -96,7 +100,7 @@ class PricingWorkspace(QWidget):
             return
 
         for fila, entrada in enumerate(entradas):
-            self._nav.add_section(entrada.title)
+            self._nav.add_section(entrada.title, entrada.icon)
             item = self._nav.item(fila)
             if item is not None:
                 item.setToolTip(entrada.tooltip)
@@ -127,11 +131,16 @@ class PricingWorkspace(QWidget):
                 pagina = create_state_widget(
                     ViewState.EMPTY, message="Esta sección aún no está construida.")
             self._pages[page_id] = pagina
+            marcador = self._stack.widget(indice)
+            self._stack.removeWidget(marcador)
+            marcador.deleteLater()
             self._stack.insertWidget(indice, pagina)
             self._index_by_page_id[page_id] = self._stack.indexOf(pagina)
             indice = self._index_by_page_id[page_id]
 
         self._stack.setCurrentIndex(indice)
+        with QSignalBlocker(self._nav):
+            self._nav.select(indice)
         cargar = getattr(pagina, "ensure_loaded", None)
         if callable(cargar):
             cargar()

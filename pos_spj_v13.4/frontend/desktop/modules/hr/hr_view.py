@@ -9,6 +9,7 @@ from __future__ import annotations
 from PyQt5.QtWidgets import QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
 
 from frontend.desktop.components.side_nav import SideNav
+from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.hr.pages.adjustments_page import AdjustmentsPage
 from frontend.desktop.modules.hr.pages.attendance_page import AttendancePage
 from frontend.desktop.modules.hr.pages.employees_page import EmployeesPage
@@ -19,18 +20,23 @@ from frontend.desktop.modules.hr.pages.payroll_page import PayrollPage
 from frontend.desktop.modules.hr.pages.schedules_page import SchedulesPage
 from frontend.desktop.modules.hr.pages.settings_page import SettingsPage
 
-#: (section label or None, page label, page class)
+#: (section label or None, page label, page class, semantic icon)
 _NAVIGATION = [
-    (None, "Resumen", OverviewPage),
-    ("Personal", "Empleados", EmployeesPage),
-    ("Asistencia", "Jornadas", AttendancePage),
-    ("Asistencia", "Ajustes", AdjustmentsPage),
-    ("Horarios", "Turnos", SchedulesPage),
-    ("Ausencias", "Vacaciones y permisos", LeavePage),
-    ("Nómina", "Corridas de nómina", PayrollPage),
-    ("Desempeño", "Evaluaciones", EvaluationsPage),
-    (None, "Configuración", SettingsPage),
+    (None, "Resumen", OverviewPage, Icons.DASHBOARD),
+    ("Personal", "Empleados", EmployeesPage, Icons.USERS),
+    ("Asistencia", "Jornadas", AttendancePage, Icons.CHECKLIST),
+    ("Asistencia", "Ajustes", AdjustmentsPage, Icons.ADJUSTMENT),
+    ("Horarios", "Turnos", SchedulesPage, Icons.CLOCK),
+    ("Ausencias", "Vacaciones y permisos", LeavePage, Icons.CALENDAR),
+    ("Nómina", "Corridas de nómina", PayrollPage, Icons.CASH),
+    ("Desempeño", "Evaluaciones", EvaluationsPage, Icons.QUALITY),
+    (None, "Configuración", SettingsPage, Icons.SETTINGS),
 ]
+
+_GROUP_ICONS = {
+    "Personal": Icons.USERS, "Asistencia": Icons.CHECKLIST, "Horarios": Icons.CLOCK,
+    "Ausencias": Icons.CALENDAR, "Nómina": Icons.CASH, "Desempeño": Icons.QUALITY,
+}
 
 
 class HRView(QWidget):
@@ -67,11 +73,11 @@ class HRView(QWidget):
         self._row_to_page_index: dict[int, int] = {}
         self._first_page_row = 0
         first_set = False
-        for section, label, page_class in _NAVIGATION:
+        for section, label, page_class, icon in _NAVIGATION:
             if section is not None and section != current_section:
-                self._nav.add_group(section.upper())
+                self._nav.add_group(section.upper(), icon=_GROUP_ICONS[section])
             current_section = section if section is not None else current_section
-            self._nav.add_section(label.strip())
+            self._nav.add_section(label.strip(), icon=icon)
             page = page_class(self._presenter, self)
             self._stack.addWidget(page)
             self._pages.append(page)

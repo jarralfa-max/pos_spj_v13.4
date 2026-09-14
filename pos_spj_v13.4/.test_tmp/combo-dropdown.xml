@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="6" skipped="0" tests="28" time="12.632" timestamp="2026-09-13T05:04:54.119586+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_combo_dropdown_rendering" name="test_combo_arrow_remains_visible_and_opens_options[compact-light]" time="0.169"><failure message="assert not True&#10; +  where True = &lt;built-in method isVisible of QListView object at 0x000001D3AA430680&gt;()&#10; +    where &lt;built-in method isVisible of QListView object at 0x000001D3AA430680&gt; = &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA430680&gt;.isVisible&#10; +      where &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA430680&gt; = &lt;built-in method view of StandardComboBox object at 0x000001D3AA430320&gt;()&#10; +        where &lt;built-in method view of StandardComboBox object at 0x000001D3AA430320&gt; = &lt;frontend.desktop.components.selection_controls.StandardComboBox object at 0x000001D3AA430320&gt;.view">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001D3AA4309E0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D3AA434180&gt;
+theme = 'light', density = 'compact'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_combo_arrow_remains_visible_and_opens_options(qt_font_resources, monkeypatch, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        combo = StandardComboBox(accessible_name="Tema de esta terminal")
+        combo.addItems(["Claro", "Oscuro"])
+        other = QLineEdit()
+        layout.addWidget(combo)
+        layout.addWidget(other)
+        host.resize(260, 160)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            option = QStyleOptionComboBox()
+            combo.initStyleOption(option)
+            arrow = combo.style().subControlRect(QStyle.CC_ComboBox, option, QStyle.SC_ComboBoxArrow, combo)
+            center = arrow.center()
+            indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+            assert combo.rect().contains(indicator)
+            image = combo.grab().toImage()
+            background = manager.colors().SURFACE
+            visible_pixels = sum(
+                contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= AA_UI_COMPONENT
+                for x in range(indicator.left(), indicator.right() + 1)
+                for y in range(indicator.top(), indicator.bottom() + 1)
+            )
+            assert visible_pixels &gt;= 8, "El desplegable debe mostrar una flecha con contraste visible."
+            QTest.mouseClick(combo, Qt.LeftButton, pos=center)
+            app.processEvents()
+            assert combo.view().isVisible()
+            QTest.keyClick(combo, Qt.Key_Down)
+            QTest.keyClick(combo, Qt.Key_Return)
+            app.processEvents()
+            assert combo.currentText() == "Oscuro"
+&gt;           assert not combo.view().isVisible()
+E           assert not True
+E            +  where True = &lt;built-in method isVisible of QListView object at 0x000001D3AA430680&gt;()
+E            +    where &lt;built-in method isVisible of QListView object at 0x000001D3AA430680&gt; = &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA430680&gt;.isVisible
+E            +      where &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA430680&gt; = &lt;built-in method view of StandardComboBox object at 0x000001D3AA430320&gt;()
+E            +        where &lt;built-in method view of StandardComboBox object at 0x000001D3AA430320&gt; = &lt;frontend.desktop.components.selection_controls.StandardComboBox object at 0x000001D3AA430320&gt;.view
+
+tests\ui\test_combo_dropdown_rendering.py:53: AssertionError</failure></testcase><testcase classname="tests.ui.test_combo_dropdown_rendering" name="test_combo_arrow_remains_visible_and_opens_options[compact-dark]" time="0.046"><failure message="assert not True&#10; +  where True = &lt;built-in method isVisible of QListView object at 0x000001D3AA4970B0&gt;()&#10; +    where &lt;built-in method isVisible of QListView object at 0x000001D3AA4970B0&gt; = &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA4970B0&gt;.isVisible&#10; +      where &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA4970B0&gt; = &lt;built-in method view of StandardComboBox object at 0x000001D3AA496DE0&gt;()&#10; +        where &lt;built-in method view of StandardComboBox object at 0x000001D3AA496DE0&gt; = &lt;frontend.desktop.components.selection_controls.StandardComboBox object at 0x000001D3AA496DE0&gt;.view">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001D3AA4309E0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D3A9B84FC0&gt;
+theme = 'dark', density = 'compact'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_combo_arrow_remains_visible_and_opens_options(qt_font_resources, monkeypatch, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        combo = StandardComboBox(accessible_name="Tema de esta terminal")
+        combo.addItems(["Claro", "Oscuro"])
+        other = QLineEdit()
+        layout.addWidget(combo)
+        layout.addWidget(other)
+        host.resize(260, 160)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            option = QStyleOptionComboBox()
+            combo.initStyleOption(option)
+            arrow = combo.style().subControlRect(QStyle.CC_ComboBox, option, QStyle.SC_ComboBoxArrow, combo)
+            center = arrow.center()
+            indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+            assert combo.rect().contains(indicator)
+            image = combo.grab().toImage()
+            background = manager.colors().SURFACE
+            visible_pixels = sum(
+                contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= AA_UI_COMPONENT
+                for x in range(indicator.left(), indicator.right() + 1)
+                for y in range(indicator.top(), indicator.bottom() + 1)
+            )
+            assert visible_pixels &gt;= 8, "El desplegable debe mostrar una flecha con contraste visible."
+            QTest.mouseClick(combo, Qt.LeftButton, pos=center)
+            app.processEvents()
+            assert combo.view().isVisible()
+            QTest.keyClick(combo, Qt.Key_Down)
+            QTest.keyClick(combo, Qt.Key_Return)
+            app.processEvents()
+            assert combo.currentText() == "Oscuro"
+&gt;           assert not combo.view().isVisible()
+E           assert not True
+E            +  where True = &lt;built-in method isVisible of QListView object at 0x000001D3AA4970B0&gt;()
+E            +    where &lt;built-in method isVisible of QListView object at 0x000001D3AA4970B0&gt; = &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA4970B0&gt;.isVisible
+E            +      where &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA4970B0&gt; = &lt;built-in method view of StandardComboBox object at 0x000001D3AA496DE0&gt;()
+E            +        where &lt;built-in method view of StandardComboBox object at 0x000001D3AA496DE0&gt; = &lt;frontend.desktop.components.selection_controls.StandardComboBox object at 0x000001D3AA496DE0&gt;.view
+
+tests\ui\test_combo_dropdown_rendering.py:53: AssertionError</failure></testcase><testcase classname="tests.ui.test_combo_dropdown_rendering" name="test_combo_arrow_remains_visible_and_opens_options[comfortable-light]" time="0.166"><failure message="assert not True&#10; +  where True = &lt;built-in method isVisible of QListView object at 0x000001D3AA4972F0&gt;()&#10; +    where &lt;built-in method isVisible of QListView object at 0x000001D3AA4972F0&gt; = &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA4972F0&gt;.isVisible&#10; +      where &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA4972F0&gt; = &lt;built-in method view of StandardComboBox object at 0x000001D3AA4971D0&gt;()&#10; +        where &lt;built-in method view of StandardComboBox object at 0x000001D3AA4971D0&gt; = &lt;frontend.desktop.components.selection_controls.StandardComboBox object at 0x000001D3AA4971D0&gt;.view">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001D3AA4309E0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D3AA409130&gt;
+theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_combo_arrow_remains_visible_and_opens_options(qt_font_resources, monkeypatch, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        combo = StandardComboBox(accessible_name="Tema de esta terminal")
+        combo.addItems(["Claro", "Oscuro"])
+        other = QLineEdit()
+        layout.addWidget(combo)
+        layout.addWidget(other)
+        host.resize(260, 160)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            option = QStyleOptionComboBox()
+            combo.initStyleOption(option)
+            arrow = combo.style().subControlRect(QStyle.CC_ComboBox, option, QStyle.SC_ComboBoxArrow, combo)
+            center = arrow.center()
+            indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+            assert combo.rect().contains(indicator)
+            image = combo.grab().toImage()
+            background = manager.colors().SURFACE
+            visible_pixels = sum(
+                contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= AA_UI_COMPONENT
+                for x in range(indicator.left(), indicator.right() + 1)
+                for y in range(indicator.top(), indicator.bottom() + 1)
+            )
+            assert visible_pixels &gt;= 8, "El desplegable debe mostrar una flecha con contraste visible."
+            QTest.mouseClick(combo, Qt.LeftButton, pos=center)
+            app.processEvents()
+            assert combo.view().isVisible()
+            QTest.keyClick(combo, Qt.Key_Down)
+            QTest.keyClick(combo, Qt.Key_Return)
+            app.processEvents()
+            assert combo.currentText() == "Oscuro"
+&gt;           assert not combo.view().isVisible()
+E           assert not True
+E            +  where True = &lt;built-in method isVisible of QListView object at 0x000001D3AA4972F0&gt;()
+E            +    where &lt;built-in method isVisible of QListView object at 0x000001D3AA4972F0&gt; = &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA4972F0&gt;.isVisible
+E            +      where &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA4972F0&gt; = &lt;built-in method view of StandardComboBox object at 0x000001D3AA4971D0&gt;()
+E            +        where &lt;built-in method view of StandardComboBox object at 0x000001D3AA4971D0&gt; = &lt;frontend.desktop.components.selection_controls.StandardComboBox object at 0x000001D3AA4971D0&gt;.view
+
+tests\ui\test_combo_dropdown_rendering.py:53: AssertionError</failure></testcase><testcase classname="tests.ui.test_combo_dropdown_rendering" name="test_combo_arrow_remains_visible_and_opens_options[comfortable-dark]" time="0.064"><failure message="assert not True&#10; +  where True = &lt;built-in method isVisible of QListView object at 0x000001D3AA4976E0&gt;()&#10; +    where &lt;built-in method isVisible of QListView object at 0x000001D3AA4976E0&gt; = &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA4976E0&gt;.isVisible&#10; +      where &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA4976E0&gt; = &lt;built-in method view of StandardComboBox object at 0x000001D3AA497380&gt;()&#10; +        where &lt;built-in method view of StandardComboBox object at 0x000001D3AA497380&gt; = &lt;frontend.desktop.components.selection_controls.StandardComboBox object at 0x000001D3AA497380&gt;.view">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001D3AA4309E0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D3A9FCE360&gt;
+theme = 'dark', density = 'comfortable'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_combo_arrow_remains_visible_and_opens_options(qt_font_resources, monkeypatch, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        combo = StandardComboBox(accessible_name="Tema de esta terminal")
+        combo.addItems(["Claro", "Oscuro"])
+        other = QLineEdit()
+        layout.addWidget(combo)
+        layout.addWidget(other)
+        host.resize(260, 160)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            option = QStyleOptionComboBox()
+            combo.initStyleOption(option)
+            arrow = combo.style().subControlRect(QStyle.CC_ComboBox, option, QStyle.SC_ComboBoxArrow, combo)
+            center = arrow.center()
+            indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+            assert combo.rect().contains(indicator)
+            image = combo.grab().toImage()
+            background = manager.colors().SURFACE
+            visible_pixels = sum(
+                contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= AA_UI_COMPONENT
+                for x in range(indicator.left(), indicator.right() + 1)
+                for y in range(indicator.top(), indicator.bottom() + 1)
+            )
+            assert visible_pixels &gt;= 8, "El desplegable debe mostrar una flecha con contraste visible."
+            QTest.mouseClick(combo, Qt.LeftButton, pos=center)
+            app.processEvents()
+            assert combo.view().isVisible()
+            QTest.keyClick(combo, Qt.Key_Down)
+            QTest.keyClick(combo, Qt.Key_Return)
+            app.processEvents()
+            assert combo.currentText() == "Oscuro"
+&gt;           assert not combo.view().isVisible()
+E           assert not True
+E            +  where True = &lt;built-in method isVisible of QListView object at 0x000001D3AA4976E0&gt;()
+E            +    where &lt;built-in method isVisible of QListView object at 0x000001D3AA4976E0&gt; = &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA4976E0&gt;.isVisible
+E            +      where &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA4976E0&gt; = &lt;built-in method view of StandardComboBox object at 0x000001D3AA497380&gt;()
+E            +        where &lt;built-in method view of StandardComboBox object at 0x000001D3AA497380&gt; = &lt;frontend.desktop.components.selection_controls.StandardComboBox object at 0x000001D3AA497380&gt;.view
+
+tests\ui\test_combo_dropdown_rendering.py:53: AssertionError</failure></testcase><testcase classname="tests.ui.test_combo_dropdown_rendering" name="test_combo_arrow_remains_visible_and_opens_options[touch-light]" time="0.309"><failure message="assert not True&#10; +  where True = &lt;built-in method isVisible of QListView object at 0x000001D3AA497BF0&gt;()&#10; +    where &lt;built-in method isVisible of QListView object at 0x000001D3AA497BF0&gt; = &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA497BF0&gt;.isVisible&#10; +      where &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA497BF0&gt; = &lt;built-in method view of StandardComboBox object at 0x000001D3AA497920&gt;()&#10; +        where &lt;built-in method view of StandardComboBox object at 0x000001D3AA497920&gt; = &lt;frontend.desktop.components.selection_controls.StandardComboBox object at 0x000001D3AA497920&gt;.view">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001D3AA4309E0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D3A9FCFDF0&gt;
+theme = 'light', density = 'touch'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_combo_arrow_remains_visible_and_opens_options(qt_font_resources, monkeypatch, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        combo = StandardComboBox(accessible_name="Tema de esta terminal")
+        combo.addItems(["Claro", "Oscuro"])
+        other = QLineEdit()
+        layout.addWidget(combo)
+        layout.addWidget(other)
+        host.resize(260, 160)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            option = QStyleOptionComboBox()
+            combo.initStyleOption(option)
+            arrow = combo.style().subControlRect(QStyle.CC_ComboBox, option, QStyle.SC_ComboBoxArrow, combo)
+            center = arrow.center()
+            indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+            assert combo.rect().contains(indicator)
+            image = combo.grab().toImage()
+            background = manager.colors().SURFACE
+            visible_pixels = sum(
+                contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= AA_UI_COMPONENT
+                for x in range(indicator.left(), indicator.right() + 1)
+                for y in range(indicator.top(), indicator.bottom() + 1)
+            )
+            assert visible_pixels &gt;= 8, "El desplegable debe mostrar una flecha con contraste visible."
+            QTest.mouseClick(combo, Qt.LeftButton, pos=center)
+            app.processEvents()
+            assert combo.view().isVisible()
+            QTest.keyClick(combo, Qt.Key_Down)
+            QTest.keyClick(combo, Qt.Key_Return)
+            app.processEvents()
+            assert combo.currentText() == "Oscuro"
+&gt;           assert not combo.view().isVisible()
+E           assert not True
+E            +  where True = &lt;built-in method isVisible of QListView object at 0x000001D3AA497BF0&gt;()
+E            +    where &lt;built-in method isVisible of QListView object at 0x000001D3AA497BF0&gt; = &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA497BF0&gt;.isVisible
+E            +      where &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA497BF0&gt; = &lt;built-in method view of StandardComboBox object at 0x000001D3AA497920&gt;()
+E            +        where &lt;built-in method view of StandardComboBox object at 0x000001D3AA497920&gt; = &lt;frontend.desktop.components.selection_controls.StandardComboBox object at 0x000001D3AA497920&gt;.view
+
+tests\ui\test_combo_dropdown_rendering.py:53: AssertionError</failure></testcase><testcase classname="tests.ui.test_combo_dropdown_rendering" name="test_combo_arrow_remains_visible_and_opens_options[touch-dark]" time="0.118"><failure message="assert not True&#10; +  where True = &lt;built-in method isVisible of QListView object at 0x000001D3AA4B8170&gt;()&#10; +    where &lt;built-in method isVisible of QListView object at 0x000001D3AA4B8170&gt; = &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA4B8170&gt;.isVisible&#10; +      where &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA4B8170&gt; = &lt;built-in method view of StandardComboBox object at 0x000001D3AA497E30&gt;()&#10; +        where &lt;built-in method view of StandardComboBox object at 0x000001D3AA497E30&gt; = &lt;frontend.desktop.components.selection_controls.StandardComboBox object at 0x000001D3AA497E30&gt;.view">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001D3AA4309E0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D3AA445450&gt;
+theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_combo_arrow_remains_visible_and_opens_options(qt_font_resources, monkeypatch, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        combo = StandardComboBox(accessible_name="Tema de esta terminal")
+        combo.addItems(["Claro", "Oscuro"])
+        other = QLineEdit()
+        layout.addWidget(combo)
+        layout.addWidget(other)
+        host.resize(260, 160)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            option = QStyleOptionComboBox()
+            combo.initStyleOption(option)
+            arrow = combo.style().subControlRect(QStyle.CC_ComboBox, option, QStyle.SC_ComboBoxArrow, combo)
+            center = arrow.center()
+            indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+            assert combo.rect().contains(indicator)
+            image = combo.grab().toImage()
+            background = manager.colors().SURFACE
+            visible_pixels = sum(
+                contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= AA_UI_COMPONENT
+                for x in range(indicator.left(), indicator.right() + 1)
+                for y in range(indicator.top(), indicator.bottom() + 1)
+            )
+            assert visible_pixels &gt;= 8, "El desplegable debe mostrar una flecha con contraste visible."
+            QTest.mouseClick(combo, Qt.LeftButton, pos=center)
+            app.processEvents()
+            assert combo.view().isVisible()
+            QTest.keyClick(combo, Qt.Key_Down)
+            QTest.keyClick(combo, Qt.Key_Return)
+            app.processEvents()
+            assert combo.currentText() == "Oscuro"
+&gt;           assert not combo.view().isVisible()
+E           assert not True
+E            +  where True = &lt;built-in method isVisible of QListView object at 0x000001D3AA4B8170&gt;()
+E            +    where &lt;built-in method isVisible of QListView object at 0x000001D3AA4B8170&gt; = &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA4B8170&gt;.isVisible
+E            +      where &lt;PyQt5.QtWidgets.QListView object at 0x000001D3AA4B8170&gt; = &lt;built-in method view of StandardComboBox object at 0x000001D3AA497E30&gt;()
+E            +        where &lt;built-in method view of StandardComboBox object at 0x000001D3AA497E30&gt; = &lt;frontend.desktop.components.selection_controls.StandardComboBox object at 0x000001D3AA497E30&gt;.view
+
+tests\ui\test_combo_dropdown_rendering.py:53: AssertionError</failure></testcase><testcase classname="tests.ui.test_theme_density_icons" name="test_official_palette_anchors" time="0.001" /><testcase classname="tests.ui.test_theme_density_icons" name="test_terminal_preferences_restore_before_constructing_controls" time="0.212" /><testcase classname="tests.ui.test_theme_density_icons" name="test_stale_qt_singleton_is_recreated" time="0.051" /><testcase classname="tests.ui.test_theme_density_icons" name="test_buttons_follow_density_after_creation[compact-light]" time="0.212" /><testcase classname="tests.ui.test_theme_density_icons" name="test_buttons_follow_density_after_creation[compact-dark]" time="1.255" /><testcase classname="tests.ui.test_theme_density_icons" name="test_buttons_follow_density_after_creation[comfortable-light]" time="0.265" /><testcase classname="tests.ui.test_theme_density_icons" name="test_buttons_follow_density_after_creation[comfortable-dark]" time="0.257" /><testcase classname="tests.ui.test_theme_density_icons" name="test_buttons_follow_density_after_creation[touch-light]" time="0.212" /><testcase classname="tests.ui.test_theme_density_icons" name="test_buttons_follow_density_after_creation[touch-dark]" time="0.131" /><testcase classname="tests.ui.test_theme_density_icons" name="test_all_catalog_icons_render_in_every_qicon_mode[light]" time="0.142" /><testcase classname="tests.ui.test_theme_density_icons" name="test_all_catalog_icons_render_in_every_qicon_mode[dark]" time="0.156" /><testcase classname="tests.ui.test_theme_density_icons" name="test_bound_icon_refreshes_with_theme" time="0.279" /><testcase classname="tests.ui.test_theme_density_icons" name="test_keyboard_action_uses_keyboard_vector_instead_of_fallback_file" time="0.025" /><testcase classname="tests.ui.test_theme_density_icons" name="test_responsive_kpis_remain_visible_and_keep_identity_after_resize" time="0.134" /><testcase classname="tests.ui.test_theme_density_icons" name="test_small_catalog_combobox_displays_selected_label" time="0.082" /><testcase classname="tests.ui.test_theme_manager_runtime" name="test_apply_notifies_only_after_theme_and_density_reach_qt" time="0.288" /><testcase classname="tests.ui.test_theme_manager_runtime" name="test_restore_refreshes_existing_icons_and_preserves_input_values" time="0.217" /><testcase classname="tests.ui.test_theme_manager_runtime" name="test_restore_keeps_only_two_official_themes[ DARK -dark]" time="0.364" /><testcase classname="tests.ui.test_theme_manager_runtime" name="test_restore_keeps_only_two_official_themes[LIGHT-light]" time="0.226" /><testcase classname="tests.ui.test_theme_manager_runtime" name="test_restore_keeps_only_two_official_themes[sepia-light]" time="0.311" /><testcase classname="tests.ui.test_theme_manager_runtime" name="test_reapplying_the_same_theme_does_not_emit_duplicate_changes" time="0.261" /><testcase classname="tests.ui.test_theme_manager_runtime" name="test_configuration_changes_live_theme_and_restores_it_on_restart" time="1.764" /></testsuite></testsuites>

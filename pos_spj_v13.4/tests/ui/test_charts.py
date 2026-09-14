@@ -2,6 +2,7 @@
 
 import json
 import os
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
@@ -114,3 +115,116 @@ class TestHtmlChartView:
         app = QApplication.instance() or QApplication([])  # noqa: F841
         view = HtmlChartView()
         view.set_chart(ChartDataDTO.empty("k", ChartType.BAR, "Vacío"))
+
+
+@pytest.fixture
+def chart_theme_manager(monkeypatch):
+    from frontend.desktop.themes.theme_manager import ThemeManager
+
+    manager = ThemeManager()
+    monkeypatch.setattr(ThemeManager, "_instance", manager)
+    return manager
+
+
+@pytest.fixture
+def recording_web_chart(monkeypatch):
+    from PyQt5.QtWidgets import QWidget
+    from frontend.desktop.components import chart_view
+
+    class RecordingWebView(QWidget):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self.payloads = []
+
+        def setHtml(self, html, _base_url):
+            payload = html.split("window.__CHART__ = ", 1)[1]
+            self.payloads.append(json.JSONDecoder().raw_decode(payload)[0])
+
+    monkeypatch.setattr(chart_view, "QWebEngineView", RecordingWebView)
+    monkeypatch.setattr(chart_view.HtmlChartView, "_can_use_web", staticmethod(lambda: True))
+    return chart_view.HtmlChartView
+
+
+def test_open_chart_rebuilds_html_theme_without_requerying_data(recording_web_chart, chart_theme_manager):
+    from PyQt5.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    view = recording_web_chart()
+    view.set_chart(_sample())
+    view.show()
+    web = view._web
+    initial = web.payloads[-1]
+    assert initial["theme"]["name"] == "light"
+
+    chart_theme_manager.set_theme("dark", app=app)
+
+    assert len(web.payloads) == 2
+    assert view._web is web
+    assert web.payloads[-1]["theme"]["name"] == "dark"
+    assert web.payloads[-1]["theme"]["text"] != initial["theme"]["text"]
+    assert web.payloads[-1]["series"] == initial["series"]
+    assert web.payloads[-1]["categories"] == initial["categories"]
+    chart_theme_manager.set_theme("light", app=app)
+    assert len(web.payloads) == 3
+    assert web.payloads[-1] == initial
+    view.close()
+
+
+@pytest.mark.parametrize("state", [ChartState.LOADING, ChartState.ERROR, ChartState.OFFLINE, ChartState.EMPTY])
+def test_chart_theme_change_preserves_visible_state(recording_web_chart, chart_theme_manager, state):
+    from PyQt5.QtWidgets import QApplication
+
+    view = recording_web_chart()
+    view.set_chart(_sample())
+    dto = ChartDataDTO.empty("k", ChartType.BAR, "Vacío") if state == ChartState.EMPTY else replace(_sample(), state=state)
+    view.set_chart(dto)
+    visible_state = view._stack.currentWidget()
+
+    chart_theme_manager.set_theme("dark", app=QApplication.instance())
+
+    assert len(view._web.payloads) == 1
+    assert view._stack.currentWidget() is visible_state
+    assert visible_state is view._state
+
+
+def test_chart_table_fallback_keeps_selection_during_theme_change(monkeypatch, chart_theme_manager):
+    from PyQt5.QtWidgets import QApplication
+    from frontend.desktop.components.chart_view import HtmlChartView
+
+    monkeypatch.setattr(HtmlChartView, "_can_use_web", staticmethod(lambda: False))
+    view = HtmlChartView()
+    view.set_chart(_sample())
+    table = view._table
+    table.setCurrentCell(1, 1)
+
+    chart_theme_manager.set_theme("dark", app=QApplication.instance())
+
+    assert view._table is table
+    assert view._stack.currentWidget() is table
+    assert (table.currentRow(), table.currentColumn()) == (1, 1)
+
+
+def test_chart_theme_changes_before_first_data_and_after_deletion_are_safe(recording_web_chart, chart_theme_manager):
+    from PyQt5 import sip
+    from PyQt5.QtCore import QEvent
+    from PyQt5.QtWidgets import QApplication
+
+    view = recording_web_chart()
+    chart_theme_manager.set_theme("dark", app=QApplication.instance())
+    assert view._web.payloads == []
+    view.set_chart(_sample())
+    assert view._web.payloads[-1]["theme"]["name"] == "dark"
+    view.deleteLater()
+    QApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    assert sip.isdeleted(view)
+    chart_theme_manager.set_theme("light", app=QApplication.instance())
+
+
+def test_chart_theme_refresh_preserves_injected_provider_contract(recording_web_chart, chart_theme_manager):
+    from PyQt5.QtWidgets import QApplication
+
+    view = recording_web_chart(theme_provider=lambda: "light")
+    view.set_chart(_sample())
+    chart_theme_manager.set_theme("dark", app=QApplication.instance())
+    assert len(view._web.payloads) == 2
+    assert view._web.payloads[-1]["theme"]["name"] == "light"

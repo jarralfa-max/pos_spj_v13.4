@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="4.242" timestamp="2026-09-14T15:28:13.329740+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_purchasing_sidebar_icons" name="test_purchasing_routes_render_distinct_semantic_icons[light]" time="0.419"><failure message="AssertionError: assert 'home' == 'dashboard'&#10;  &#10;  - dashboard&#10;  + home">shell = (&lt;frontend.desktop.modules.purchasing.purchasing_module_shell.PurchasingModuleShell object at 0x000001B7BB7CB380&gt;, &lt;te...enter object at 0x000001B7BB3B2510&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001B7BB7CB140&gt;)
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001B7BB7CB1D0&gt;
+theme = 'light'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_purchasing_routes_render_distinct_semantic_icons(shell, qt_font_resources, theme):
+        view, presenter, manager = shell
+        expected = {Routes.DASHBOARD: Icons.DASHBOARD, Routes.REQUISITIONS: Icons.REQUEST,
+                    Routes.QUOTATIONS: Icons.PRICE, Routes.ORDERS: Icons.ORDERS,
+                    Routes.DIRECT_PURCHASE_CREATE: Icons.ADD, Routes.DIRECT_PURCHASE_HISTORY: Icons.CLOCK,
+                    Routes.ORIGIN_LOADING: Icons.PICKING, Routes.RECEIPTS: Icons.RECEIVING,
+                    Routes.INVOICES: Icons.DOCUMENT}
+        assert list(view._route_to_row) == list(expected)
+        manager.set_theme(theme, app=qt_font_resources)
+        view.reload()
+        for route, icon in expected.items():
+            row = view._route_to_row[route]
+            item = view.sidebar.item(row)
+&gt;           assert item.data(view.sidebar._ICON_ROLE) == icon
+E           AssertionError: assert 'home' == 'dashboard'
+E             
+E             - dashboard
+E             + home
+
+tests\ui\test_purchasing_sidebar_icons.py:78: AssertionError</failure></testcase><testcase classname="tests.ui.test_purchasing_sidebar_icons" name="test_purchasing_routes_render_distinct_semantic_icons[dark]" time="0.102"><failure message="AssertionError: assert 'home' == 'dashboard'&#10;  &#10;  - dashboard&#10;  + home">shell = (&lt;frontend.desktop.modules.purchasing.purchasing_module_shell.PurchasingModuleShell object at 0x000001B7BBC71490&gt;, &lt;te...enter object at 0x000001B7BB7BF110&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001B7BBC71640&gt;)
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001B7BB7CB1D0&gt;
+theme = 'dark'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_purchasing_routes_render_distinct_semantic_icons(shell, qt_font_resources, theme):
+        view, presenter, manager = shell
+        expected = {Routes.DASHBOARD: Icons.DASHBOARD, Routes.REQUISITIONS: Icons.REQUEST,
+                    Routes.QUOTATIONS: Icons.PRICE, Routes.ORDERS: Icons.ORDERS,
+                    Routes.DIRECT_PURCHASE_CREATE: Icons.ADD, Routes.DIRECT_PURCHASE_HISTORY: Icons.CLOCK,
+                    Routes.ORIGIN_LOADING: Icons.PICKING, Routes.RECEIPTS: Icons.RECEIVING,
+                    Routes.INVOICES: Icons.DOCUMENT}
+        assert list(view._route_to_row) == list(expected)
+        manager.set_theme(theme, app=qt_font_resources)
+        view.reload()
+        for route, icon in expected.items():
+            row = view._route_to_row[route]
+            item = view.sidebar.item(row)
+&gt;           assert item.data(view.sidebar._ICON_ROLE) == icon
+E           AssertionError: assert 'home' == 'dashboard'
+E             
+E             - dashboard
+E             + home
+
+tests\ui\test_purchasing_sidebar_icons.py:78: AssertionError</failure></testcase><testcase classname="tests.ui.test_purchasing_sidebar_icons" name="test_purchasing_permission_refresh_preserves_available_route_icons" time="0.104"><failure message="AssertionError: assert 'home' == 'request'&#10;  &#10;  - request&#10;  + home">shell = (&lt;frontend.desktop.modules.purchasing.purchasing_module_shell.PurchasingModuleShell object at 0x000001B7BBC93C80&gt;, &lt;te...enter object at 0x000001B7BB7BFD90&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001B7BBC93F50&gt;)
+
+    def test_purchasing_permission_refresh_preserves_available_route_icons(shell):
+        view, presenter, manager = shell
+        presenter.grants.order_view = False
+        view.refresh_permissions()
+        assert Routes.ORDERS not in view._route_to_row
+&gt;       assert view.sidebar.item(view._route_to_row[Routes.REQUISITIONS]).data(view.sidebar._ICON_ROLE) == Icons.REQUEST
+E       AssertionError: assert 'home' == 'request'
+E         
+E         - request
+E         + home
+
+tests\ui\test_purchasing_sidebar_icons.py:100: AssertionError</failure></testcase></testsuite></testsuites>

@@ -20,10 +20,6 @@ class BrandColors:
     CHARCOAL = "#252825"
     WARM_WHITE = "#F8F8F5"
 
-    # Existing scale consumers retain their API, derived from official anchors.
-    SOFT_CREAM = WARM_WHITE
-    EARTH_BROWN = CHARCOAL
-
 
 class BrandScale:
     """Accessible tints/shades derived from the JUANIS bases.
@@ -32,7 +28,7 @@ class BrandScale:
     (not hand-picked) so the whole scale stays internally consistent.
     """
 
-    # Verde Bosque
+    # Verde profundo
     GREEN_50 = lighten(BrandColors.FOREST_GREEN, 0.92)
     GREEN_100 = lighten(BrandColors.FOREST_GREEN, 0.84)
     GREEN_200 = lighten(BrandColors.FOREST_GREEN, 0.68)
@@ -44,7 +40,7 @@ class BrandScale:
     GREEN_800 = darken(BrandColors.FOREST_GREEN, 0.40)
     GREEN_900 = darken(BrandColors.FOREST_GREEN, 0.55)
 
-    # Rojo Tradicional
+    # Rojo profundo
     RED_50 = lighten(BrandColors.TRADITIONAL_RED, 0.90)
     RED_100 = lighten(BrandColors.TRADITIONAL_RED, 0.80)
     RED_200 = lighten(BrandColors.TRADITIONAL_RED, 0.60)
@@ -56,7 +52,7 @@ class BrandScale:
     RED_800 = darken(BrandColors.TRADITIONAL_RED, 0.38)
     RED_900 = darken(BrandColors.TRADITIONAL_RED, 0.52)
 
-    # Dorado Premium
+    # Dorado cálido
     GOLD_50 = lighten(BrandColors.PREMIUM_GOLD, 0.86)
     GOLD_100 = lighten(BrandColors.PREMIUM_GOLD, 0.74)
     GOLD_200 = lighten(BrandColors.PREMIUM_GOLD, 0.54)
@@ -68,22 +64,22 @@ class BrandScale:
     GOLD_800 = darken(BrandColors.PREMIUM_GOLD, 0.48)
     GOLD_900 = darken(BrandColors.PREMIUM_GOLD, 0.60)
 
-    # Crema Suave
-    CREAM_50 = lighten(BrandColors.SOFT_CREAM, 0.60)
-    CREAM_100 = lighten(BrandColors.SOFT_CREAM, 0.42)
-    CREAM_200 = lighten(BrandColors.SOFT_CREAM, 0.24)
-    CREAM_300 = lighten(BrandColors.SOFT_CREAM, 0.10)
-    CREAM_500 = BrandColors.SOFT_CREAM
-    CREAM_700 = darken(BrandColors.SOFT_CREAM, 0.18)
+    # Blanco cálido
+    WARM_WHITE_50 = lighten(BrandColors.WARM_WHITE, 0.60)
+    WARM_WHITE_100 = lighten(BrandColors.WARM_WHITE, 0.42)
+    WARM_WHITE_200 = lighten(BrandColors.WARM_WHITE, 0.24)
+    WARM_WHITE_300 = lighten(BrandColors.WARM_WHITE, 0.10)
+    WARM_WHITE_500 = BrandColors.WARM_WHITE
+    WARM_WHITE_700 = darken(BrandColors.WARM_WHITE, 0.18)
 
-    # Café Tierra
-    BROWN_50 = lighten(BrandColors.EARTH_BROWN, 0.88)
-    BROWN_100 = lighten(BrandColors.EARTH_BROWN, 0.76)
-    BROWN_200 = lighten(BrandColors.EARTH_BROWN, 0.56)
-    BROWN_300 = lighten(BrandColors.EARTH_BROWN, 0.36)
-    BROWN_400 = lighten(BrandColors.EARTH_BROWN, 0.16)
-    BROWN_500 = BrandColors.EARTH_BROWN
-    BROWN_600 = darken(BrandColors.EARTH_BROWN, 0.14)
-    BROWN_700 = darken(BrandColors.EARTH_BROWN, 0.28)
-    BROWN_800 = darken(BrandColors.EARTH_BROWN, 0.44)
-    BROWN_900 = darken(BrandColors.EARTH_BROWN, 0.60)
+    # Carbón
+    CHARCOAL_50 = lighten(BrandColors.CHARCOAL, 0.88)
+    CHARCOAL_100 = lighten(BrandColors.CHARCOAL, 0.76)
+    CHARCOAL_200 = lighten(BrandColors.CHARCOAL, 0.56)
+    CHARCOAL_300 = lighten(BrandColors.CHARCOAL, 0.36)
+    CHARCOAL_400 = lighten(BrandColors.CHARCOAL, 0.16)
+    CHARCOAL_500 = BrandColors.CHARCOAL
+    CHARCOAL_600 = darken(BrandColors.CHARCOAL, 0.14)
+    CHARCOAL_700 = darken(BrandColors.CHARCOAL, 0.28)
+    CHARCOAL_800 = darken(BrandColors.CHARCOAL, 0.44)
+    CHARCOAL_900 = darken(BrandColors.CHARCOAL, 0.60)

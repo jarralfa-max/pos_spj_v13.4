@@ -9,6 +9,7 @@ adds accessible categorical/sequential colors for multi-series charts.
 from __future__ import annotations
 
 from frontend.desktop.themes.brand_palette import BrandColors, BrandScale
+from frontend.desktop.themes.color_utils import lighten
 
 
 class Light:
@@ -16,8 +17,8 @@ class Light:
     PRIMARY = BrandColors.FOREST_GREEN
     ACCENT = BrandColors.PREMIUM_GOLD
     DANGER = BrandColors.TRADITIONAL_RED
-    WARM_SURFACE = BrandColors.SOFT_CREAM
-    EARTH_NEUTRAL = BrandColors.EARTH_BROWN
+    WARM_SURFACE = BrandColors.WARM_WHITE
+    EARTH_NEUTRAL = BrandColors.CHARCOAL
 
     # primary (green)
     PRIMARY_DEFAULT = BrandColors.FOREST_GREEN
@@ -59,12 +60,13 @@ class Light:
     BACKGROUND = BrandColors.WARM_WHITE
     SURFACE = BrandColors.WHITE
     SURFACE_ELEVATED = BrandColors.WHITE
-    SURFACE_MUTED = BrandScale.CREAM_300
+    SURFACE_MUTED = BrandScale.WARM_WHITE_300
 
     # text
     TEXT_PRIMARY = BrandColors.CHARCOAL
-    TEXT_SECONDARY = BrandScale.BROWN_400
-    TEXT_MUTED = BrandScale.BROWN_300
+    TEXT_SECONDARY = BrandScale.CHARCOAL_400
+    # Helper text is 11 px: it must meet normal-text contrast on warm surfaces.
+    TEXT_MUTED = lighten(BrandColors.CHARCOAL, 0.34)
     TEXT_INVERSE = BrandColors.WHITE
     TEXT_DISABLED = "#9C8F7B"
 
@@ -72,9 +74,11 @@ class Light:
     BORDER_DEFAULT = "#DAD0C1"
     BORDER_SUBTLE = "#E9E1D4"
     BORDER_STRONG = "#8A7A5C"
+    INPUT_BORDER = BORDER_STRONG
 
     # interaction
-    FOCUS_RING = BrandColors.FOREST_GREEN
+    # Visible against both the primary green fill and the surrounding surface.
+    FOCUS_RING = BrandScale.GOLD_600
     SELECTION = BrandScale.GREEN_100
     DISABLED_BACKGROUND = "#F0EAE0"
     DISABLED_BORDER = "#DDD3C4"
@@ -88,13 +92,13 @@ class Dark:
     PRIMARY = BrandColors.FOREST_GREEN
     ACCENT = BrandColors.PREMIUM_GOLD
     DANGER = BrandColors.TRADITIONAL_RED
-    WARM_SURFACE = BrandColors.SOFT_CREAM
-    EARTH_NEUTRAL = BrandColors.EARTH_BROWN
+    WARM_SURFACE = BrandColors.WARM_WHITE
+    EARTH_NEUTRAL = BrandColors.CHARCOAL
 
     # primary (lightened green for contrast on dark)
     PRIMARY_DEFAULT = "#5AA377"
     PRIMARY_HOVER = "#6BB588"
-    PRIMARY_PRESSED = "#4C8F68"
+    PRIMARY_PRESSED = "#529970"
     PRIMARY_SUBTLE = "#1B2C24"
     PRIMARY_BORDER = "#3B5A49"
 
@@ -115,7 +119,7 @@ class Dark:
 
     DANGER_DEFAULT = "#E0716D"
     DANGER_HOVER = "#EA8783"
-    DANGER_PRESSED = "#C85B57"
+    DANGER_PRESSED = "#D96965"
     DANGER_SUBTLE = "#2C1917"
     DANGER_BORDER = "#6B3936"
 
@@ -124,10 +128,10 @@ class Dark:
     INFO_BORDER = "#356068"
 
     # surfaces (near-black green → elevated)
-    BACKGROUND = BrandScale.BROWN_800
+    BACKGROUND = BrandScale.CHARCOAL_800
     SURFACE = BrandColors.CHARCOAL
-    SURFACE_ELEVATED = BrandScale.BROWN_400
-    SURFACE_MUTED = BrandScale.BROWN_700
+    SURFACE_ELEVATED = BrandScale.CHARCOAL_400
+    SURFACE_MUTED = BrandScale.CHARCOAL_700
 
     # text
     TEXT_PRIMARY = "#F1E9DA"
@@ -139,6 +143,7 @@ class Dark:
     BORDER_DEFAULT = "#3A4A42"
     BORDER_SUBTLE = "#2A3831"
     BORDER_STRONG = "#788D80"
+    INPUT_BORDER = BORDER_STRONG
 
     FOCUS_RING = "#D8B879"
     SELECTION = "#233A2E"
@@ -171,7 +176,7 @@ class ChartPalette:
         BrandColors.PREMIUM_GOLD,
         BrandColors.TRADITIONAL_RED,
         "#2A6F7A",   # teal
-        BrandColors.EARTH_BROWN,
+        BrandColors.CHARCOAL,
         "#4C8A66",   # sage green
         "#8A6D2F",   # dark gold
         "#7A4E7A",   # muted plum
@@ -189,11 +194,11 @@ class ChartPalette:
         "warning": "#9A5B12",
         "danger": BrandColors.TRADITIONAL_RED,
         "info": "#1F6470",
-        "neutral": BrandColors.EARTH_BROWN,
+        "neutral": BrandColors.CHARCOAL,
     }
     FINANCIAL = (BrandColors.FOREST_GREEN, BrandColors.TRADITIONAL_RED,
                  BrandColors.PREMIUM_GOLD)
     INVENTORY = ("#2A6F7A", BrandScale.GREEN_500, BrandColors.PREMIUM_GOLD,
                  BrandColors.TRADITIONAL_RED)
-    PRODUCTION = (BrandColors.EARTH_BROWN, BrandColors.PREMIUM_GOLD,
+    PRODUCTION = (BrandColors.CHARCOAL, BrandColors.PREMIUM_GOLD,
                   BrandColors.FOREST_GREEN)

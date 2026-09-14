@@ -117,5 +117,5 @@ class TestDetailDialog:
 class TestFinanceIntegration:
     def test_suppliers_page_registered_in_finance_nav(self):
         from frontend.desktop.modules.finance.finance_view import _NAVIGATION
-        labels = [label for _s, label, _p in _NAVIGATION]
+        labels = [label for _s, label, _p, _icon in _NAVIGATION]
         assert "Maestro de proveedores" in labels

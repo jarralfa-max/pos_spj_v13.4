@@ -1,0 +1,864 @@
+{
+  "phase": "5. IconProvider \u2014 follow-up",
+  "date": "2026-09-13",
+  "runs": [
+    {
+      "name": "icon-provider-followup-before",
+      "tests": 6,
+      "passed": 2,
+      "failures": 4,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_rebinding_updates_generated_accessibility_name[QLabel]",
+          "result": "failed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_rebinding_updates_generated_accessibility_name[QPushButton]",
+          "result": "failed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_rebinding_preserves_application_accessibility_name[True]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_rebinding_preserves_application_accessibility_name[False]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_binding_visible_label_follows_screen_changes[True]",
+          "result": "failed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_binding_visible_label_follows_screen_changes[False]",
+          "result": "failed"
+        }
+      ]
+    },
+    {
+      "name": "icon-provider-followup",
+      "tests": 195,
+      "passed": 195,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_vector_icon_renders_at_requested_size_without_raster_cap[16]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_vector_icon_renders_at_requested_size_without_raster_cap[20]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_vector_icon_renders_at_requested_size_without_raster_cap[32]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_vector_icon_renders_at_requested_size_without_raster_cap[64]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_vector_icon_renders_at_requested_size_without_raster_cap[128]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_checked_icon_uses_selected_color_and_disabled_wins[light]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_checked_icon_uses_selected_color_and_disabled_wins[dark]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[danger-DANGER_DEFAULT-light]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[danger-DANGER_DEFAULT-dark]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[success-SUCCESS_DEFAULT-light]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[success-SUCCESS_DEFAULT-dark]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[warning-WARNING_DEFAULT-light]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[warning-WARNING_DEFAULT-dark]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[info-INFO_DEFAULT-light]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[info-INFO_DEFAULT-dark]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[inverse-TEXT_INVERSE-light]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[inverse-TEXT_INVERSE-dark]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_icon_only_filled_button_uses_inverse_icon[light-primary]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_icon_only_filled_button_uses_inverse_icon[light-danger]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_icon_only_filled_button_uses_inverse_icon[dark-primary]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_icon_only_filled_button_uses_inverse_icon[dark-danger]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_label_binding_tracks_enabled_state_and_accessible_name",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_rebinding_disconnects_the_original_manager",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_deleted_binding_disconnects_and_rebinding_leaves_one_observer",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_binding_preserves_custom_accessibility_text",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_rebinding_updates_generated_accessibility_name[QLabel]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_rebinding_updates_generated_accessibility_name[QPushButton]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_rebinding_preserves_application_accessibility_name[True]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_rebinding_preserves_application_accessibility_name[False]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_pixmap_preserves_logical_size_at_device_pixel_ratio[1.0]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_pixmap_preserves_logical_size_at_device_pixel_ratio[1.25]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_pixmap_preserves_logical_size_at_device_pixel_ratio[1.5]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_pixmap_preserves_logical_size_at_device_pixel_ratio[2.0]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_pixmap_preserves_logical_size_at_device_pixel_ratio[3.0]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_label_refreshes_when_its_window_changes_screen",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_binding_visible_label_follows_screen_changes[True]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_binding_visible_label_follows_screen_changes[False]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_side_nav_icon_binding::test_open_flyout_refreshes_icons_and_preserves_destinations",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_density_icons::test_official_palette_anchors",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_density_icons::test_terminal_preferences_restore_before_constructing_controls",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_density_icons::test_stale_qt_singleton_is_recreated",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[compact-light]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[compact-dark]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[comfortable-light]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[comfortable-dark]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[touch-light]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_density_icons::test_buttons_follow_density_after_creation[touch-dark]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_density_icons::test_all_catalog_icons_render_in_every_qicon_mode[light]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_density_icons::test_all_catalog_icons_render_in_every_qicon_mode[dark]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_density_icons::test_bound_icon_refreshes_with_theme",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_density_icons::test_keyboard_action_uses_keyboard_vector_instead_of_fallback_file",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_density_icons::test_responsive_kpis_remain_visible_and_keep_identity_after_resize",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_density_icons::test_small_catalog_combobox_displays_selected_label",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_manager_runtime::test_apply_notifies_only_after_theme_and_density_reach_qt",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_manager_runtime::test_restore_refreshes_existing_icons_and_preserves_input_values",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_manager_runtime::test_restore_keeps_only_two_official_themes[ DARK -dark]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_manager_runtime::test_restore_keeps_only_two_official_themes[LIGHT-light]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_manager_runtime::test_restore_keeps_only_two_official_themes[sepia-light]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_manager_runtime::test_reapplying_the_same_theme_does_not_emit_duplicate_changes",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.test_theme_manager_runtime::test_configuration_changes_live_theme_and_restores_it_on_restart",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_navigation_and_headers_only_request_registered_icons",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_catalog_has_vector_and_spanish_accessibility_name_for_every_constant",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[class SectionNavEntry:\\n page_id: str\\n title: str\\n icon: str\\nSectionNavEntry(\"page\", \"Etiqueta\", \"missing\")-expected0]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[PageHeader(title=\"missing\", icon=\"search\")-expected1]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[PageHeader(icon=getattr(Icons, \"MISSING\", None))-expected2]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[nav.add_section(\"Etiqueta\", \"search\")-expected3]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[IconProvider.icon(\"missing\")-expected4]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[from frontend.desktop.components.icons import IconProvider as IP\\nIP.bind(button, \"missing\")-expected5]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[from frontend.desktop.components.icons import Icons as I\\nPageHeader(icon=I.MISSING)-expected6]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[IconButton(\"missing\", \"Descripci\\xf3n\")-expected7]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[text = \"Icons.MISSING\"\\nvalue = {\"icon\": \"external data\"}-expected8]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_brand_colors_only_in_theme_layer",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_no_hardcoded_hex_in_components",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_no_inline_stylesheets_in_components",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_no_native_pyqt_charts_in_frontend",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_time_input_builds_on_qtimeedit_not_qlineedit",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_charts_render_via_html_js_not_native",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_theme_layer_is_the_single_qss_source",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_desktop_visual_debt_does_not_grow",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[button.setStyleSheet(style)-inline_qss]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[color = \"#18372B\"-hardcoded_visual_hex]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[color = \"#ffffff\"-hardcoded_visual_hex]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[from PyQt5.QtWidgets import QTableWidget as Grid\\ntable = Grid()-native_operational_table]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class LocalTable(QtWidgets.QTableWidget):\\n    pass-native_operational_table]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class KPICard(QWidget):\\n    pass-local_standard_component]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class SalesPageHeader(QWidget):\\n    pass-local_standard_component]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class LocalInput(QLineEdit):\\n    def paintEvent(self, event):\\n        pass-local_visual_control]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class LocalButton(QPushButton):\\n    def setup(self):\\n        self.setFont(font)-local_visual_control]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[button = QPushButton(\"\\\\U0001f514 Notificaciones\")-unicode_icon_literal]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[button = QPushButton()\\nbutton.setFixedHeight(32)-fixed_control_below_touch_target]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class SalesPage(QWidget):\\n    pass-screen_without_explicit_overflow]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class OrdersView(QWidget):\\n    pass-screen_without_explicit_overflow]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class EditDialog(QDialog):\\n    pass-noncanonical_dialog]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class EditDialog(StandardDialog):\\n    def setup(self):\\n        self.setMinimumSize(1400, 900)-dialog_geometry_exceeds_smallest_viewport]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_accepts_canonical_composition_and_ignores_prose",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_accepts_explicit_scroll_and_keeps_web_colors_separate",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_print_canvas_white_is_data_and_does_not_exempt_widget_colors",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_existing_file_debt_cannot_hide_new_expressions_or_duplicate_occurrences",
+          "result": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_visual_debt_baseline_is_exact_and_kept_pruned",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_appearance_preference_and_resolution.TestAppearancePreferenceCreate::test_mints_uuidv7_and_defaults_density",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_appearance_preference_and_resolution.TestAppearancePreferenceCreate::test_global_scope_rejects_scope_id",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_appearance_preference_and_resolution.TestAppearancePreferenceCreate::test_non_global_scope_requires_scope_id[BRANCH]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_appearance_preference_and_resolution.TestAppearancePreferenceCreate::test_non_global_scope_requires_scope_id[USER]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_appearance_preference_and_resolution.TestAppearancePreferenceCreate::test_activate_deactivate",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_appearance_preference_and_resolution.TestAppearancePreferenceCreate::test_change_theme",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_appearance_preference_and_resolution.TestAppearancePreferenceCreate::test_change_density",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_appearance_preference_and_resolution.TestAppearancePreferenceMatches::test_matches_same_scope_when_active",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_appearance_preference_and_resolution.TestAppearancePreferenceMatches::test_inactive_preference_never_matches",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_appearance_preference_and_resolution.TestResolveAppearance::test_falls_back_to_defaults_with_no_preferences",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_appearance_preference_and_resolution.TestResolveAppearance::test_global_preference_applies_to_any_context",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_appearance_preference_and_resolution.TestResolveAppearance::test_branch_preference_beats_global_preference",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_appearance_preference_and_resolution.TestResolveAppearance::test_user_preference_beats_branch_and_global_preferences",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate::test_mints_uuidv7_and_defaults",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate::test_requires_name",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate::test_rejects_non_decimal_scale_factor",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate::test_rejects_zero_or_negative_scale_factor",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate::test_rejects_zero_or_negative_pixel_metrics[control_height_px]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate::test_rejects_zero_or_negative_pixel_metrics[touch_target_px]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate::test_rejects_zero_or_negative_pixel_metrics[spacing_unit_px]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate::test_rejects_bool_for_pixel_metrics[control_height_px]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate::test_rejects_bool_for_pixel_metrics[touch_target_px]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate::test_rejects_bool_for_pixel_metrics[spacing_unit_px]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate::test_compact_and_comfortable_profiles_are_independent_levels",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_density_profile.TestDensityProfileCreate::test_activate_deactivate",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_density_profile.TestDensityProfileUpdateDetails::test_updates_fields_and_bumps_updated_at",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_density_profile.TestDensityProfileUpdateDetails::test_rejects_invalid_scale_factor",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_density_profile.TestDensityProfileUpdateDetails::test_does_not_touch_level",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestThemeCreate::test_mints_uuidv7_and_defaults",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestThemeCreate::test_requires_code",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestThemeCreate::test_requires_name",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestThemeCreate::test_activate_deactivate",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestThemeCreate::test_mark_unmark_default",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestThemeUpdateDetails::test_updates_name_and_bumps_updated_at",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestThemeUpdateDetails::test_rejects_blank_name",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestThemeUpdateDetails::test_does_not_touch_code_or_mode",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestThemeDefaultPolicy::test_allows_first_default",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestThemeDefaultPolicy::test_allows_setting_default_on_the_same_theme_again",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestThemeDefaultPolicy::test_rejects_a_second_active_default",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestThemeDefaultPolicy::test_allows_default_when_the_existing_default_is_inactive",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestDesignTokenCreate::test_mints_uuidv7_global_token",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestDesignTokenCreate::test_theme_scoped_token_validates_theme_id_as_uuidv7",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestDesignTokenCreate::test_requires_token_key",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestDesignTokenCreate::test_requires_token_value",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestDesignTokenCreate::test_update_value",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestDesignTokenCreate::test_update_value_rejects_blank",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestTokenResolutionPolicy::test_global_only_tokens_resolve_as_is",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestTokenResolutionPolicy::test_theme_scoped_token_overrides_global_token_with_same_key",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestTokenResolutionPolicy::test_tokens_scoped_to_a_different_theme_are_ignored",
+          "result": "passed"
+        },
+        {
+          "name": "tests.unit.appearance.test_theme_and_design_token.TestTokenResolutionPolicy::test_global_token_still_applies_when_theme_has_no_override",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateThemeUseCase::test_creates_and_persists",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateThemeUseCase::test_rejects_duplicate_code",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateThemeUseCase::test_updates_name",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateThemeUseCase::test_raises_when_missing",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestChangeThemeStatusUseCase::test_deactivate_then_activate",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDesignTokenUseCase::test_creates_global_token",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDesignTokenUseCase::test_creates_theme_scoped_token",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDesignTokenUseCase::test_rejects_duplicate_key_in_same_scope",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDesignTokenUseCase::test_allows_same_key_in_different_scopes",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateDesignTokenUseCase::test_updates_value",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateDesignTokenUseCase::test_raises_when_missing",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDensityProfileUseCase::test_creates_and_persists",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateDensityProfileUseCase::test_rejects_duplicate_level",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateDensityProfileUseCase::test_updates_fields",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestUpdateDensityProfileUseCase::test_raises_when_missing",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestChangeDensityProfileStatusUseCase::test_deactivate_then_activate",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateAppearancePreferenceUseCase::test_creates_global_preference",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateAppearancePreferenceUseCase::test_rejects_second_active_preference_in_same_scope",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestCreateAppearancePreferenceUseCase::test_allows_different_scopes",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestChangeAppearancePreferenceStatusUseCase::test_deactivate_then_reactivate",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestChangeAppearancePreferenceStatusUseCase::test_activate_rejects_when_scope_already_occupied",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_management_use_cases.TestChangeAppearancePreferenceStatusUseCase::test_raises_when_missing",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_repositories.TestThemeRepository::test_save_get_roundtrip",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_repositories.TestThemeRepository::test_get_by_code",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_repositories.TestThemeRepository::test_code_is_unique",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_repositories.TestThemeRepository::test_get_default",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_repositories.TestThemeRepository::test_only_one_default_theme_allowed_at_schema_level",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_repositories.TestThemeRepository::test_list_active_excludes_inactive",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_repositories.TestDesignTokenRepository::test_save_get_roundtrip",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_repositories.TestDesignTokenRepository::test_scope_uniqueness_blocks_duplicate_key_for_same_theme",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_repositories.TestDesignTokenRepository::test_composes_with_token_resolution_policy_end_to_end",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_repositories.TestDensityProfileRepository::test_save_get_roundtrip_preserves_decimal_scale_factor",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_repositories.TestDensityProfileRepository::test_get_by_level",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_repositories.TestDensityProfileRepository::test_level_is_unique",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_repositories.TestAppearancePreferenceRepository::test_save_get_roundtrip",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_repositories.TestAppearancePreferenceRepository::test_unique_index_blocks_two_active_preferences_for_same_scope",
+          "result": "passed"
+        },
+        {
+          "name": "tests.integration.appearance.test_appearance_repositories.TestAppearancePreferenceRepository::test_composes_with_resolution_policy_end_to_end",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.shell.test_shell_ui_contracts::test_sidebar_collapse_restores_route_and_keeps_toggle_reachable",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.shell.test_shell_ui_contracts::test_sidebar_search_render_does_not_emit_navigation",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.shell.test_shell_ui_contracts::test_module_group_collapses_without_changing_route_indices",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.shell.test_shell_ui_contracts::test_topbar_actions_and_session_are_accessible",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.shell.test_shell_ui_contracts::test_settings_button_opens_registered_route_and_respects_permissions[permissions0]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.shell.test_shell_ui_contracts::test_settings_button_opens_registered_route_and_respects_permissions[permissions1]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.shell.test_shell_ui_contracts::test_settings_button_opens_registered_route_and_respects_permissions[permissions2]",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.shell.test_shell_ui_contracts::test_settings_denial_from_router_is_handled_in_qt_slot",
+          "result": "passed"
+        },
+        {
+          "name": "tests.ui.shell.test_shell_ui_contracts::test_module_sidebar_persists_collapsed_groups",
+          "result": "passed"
+        }
+      ]
+    }
+  ],
+  "new_test_cases": 6,
+  "audit": {
+    "existing_occurrences": 159,
+    "new_violations": 0,
+    "obsolete_fingerprints": 0,
+    "rules": {
+      "noncanonical_dialog": {
+        "occurrences": 35,
+        "files": 24
+      },
+      "screen_without_explicit_overflow": {
+        "occurrences": 110,
+        "files": 109
+      },
+      "unicode_icon_literal": {
+        "occurrences": 14,
+        "files": 7
+      }
+    }
+  },
+  "source_sha256": {
+    "frontend/desktop/components/icons.py": "96c784824116ddfa7550bf9b407e0e305657315597ab4d3f661837848cd5761b",
+    "tests/ui/test_icon_provider_runtime.py": "8a7ead4aac913b5c0535af6e0c3f5e97f4b60ab58c89f963d33be95ed63855c0",
+    "frontend/desktop/design_system/migration_guide.md": "089b76c105b46f58da0abb77bfd42e818ca653a0d5708b403a0da48d75b0c93d"
+  },
+  "visual_evidence": {
+    "reused_historical_manifest": "validation.json",
+    "new_captures": 0,
+    "reason": "Binding lifecycle and accessibility changes; artwork unchanged."
+  },
+  "limits": [
+    "Focused affected segments, not a global test run.",
+    "DPR screen changes simulated with real Qt offscreen; physical monitors pending."
+  ]
+}

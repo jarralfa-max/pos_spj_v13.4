@@ -9,7 +9,8 @@ from PyQt5.QtWidgets import QAction, QLineEdit, QPlainTextEdit
 from frontend.desktop.components.virtual_keyboard import (
     attach_virtual_keyboard_action,
 )
-from frontend.desktop.themes.tokens import TouchTarget
+from frontend.desktop.themes.theme_manager import ThemeManager
+from frontend.desktop.themes.tokens import density_metrics
 
 
 class StandardLineEdit(QLineEdit):
@@ -46,7 +47,8 @@ class StandardLineEdit(QLineEdit):
         super().__init__(parent)
 
         self.setObjectName("standardLineEdit")
-        self.setMinimumHeight(TouchTarget.INPUT_HEIGHT)
+        self.setMinimumHeight(density_metrics().input_height)
+        ThemeManager.instance().density_changed.connect(self._density_changed)
 
         self._required = bool(required)
         self._keyboard_numeric = bool(keyboard_numeric)
@@ -74,6 +76,9 @@ class StandardLineEdit(QLineEdit):
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+
+    def _density_changed(self, _density):
+        self.setMinimumHeight(density_metrics().input_height)
 
     def value(self) -> str:
         """Return the normalized value used by forms."""
@@ -192,7 +197,8 @@ class PasswordInput(QLineEdit):
         super().__init__(parent)
 
         self.setObjectName("passwordInput")
-        self.setMinimumHeight(TouchTarget.INPUT_HEIGHT)
+        self.setMinimumHeight(density_metrics().input_height)
+        ThemeManager.instance().density_changed.connect(self._density_changed)
         self.setEchoMode(QLineEdit.Password)
         self.setPlaceholderText(placeholder)
         self.setAccessibleName("Contraseña")
@@ -201,6 +207,9 @@ class PasswordInput(QLineEdit):
         self.setEchoMode(
             QLineEdit.Normal if revealed else QLineEdit.Password
         )
+
+    def _density_changed(self, _density):
+        self.setMinimumHeight(density_metrics().input_height)
 
     def value(self) -> str:
         return self.text()

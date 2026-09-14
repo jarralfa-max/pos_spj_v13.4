@@ -13,6 +13,7 @@ Usage:
 from __future__ import annotations
 
 from frontend.desktop.themes.semantic_colors import SemanticColors
+from frontend.desktop.themes.brand_palette import BrandColors
 from frontend.desktop.themes.tokens import (
     Borders,
     ControlHeights,
@@ -41,8 +42,18 @@ def build_qss(theme: str = "light", *, density="comfortable") -> str:
         _dialogs(c),
         _forms(c),
         _interaction(c, metrics),
+        _brand_swatches(),
     ]
     return "\n\n".join(parts)
+
+
+def _brand_swatches() -> str:
+    return "\n".join(
+        f'QFrame#brandSwatch[brandColor="{name}"] {{ background: {color}; border-radius: {Radii.SM}px; }}'
+        for name, color in (("green", BrandColors.FOREST_GREEN), ("white", BrandColors.WHITE),
+                            ("gold", BrandColors.PREMIUM_GOLD), ("red", BrandColors.TRADITIONAL_RED),
+                            ("charcoal", BrandColors.CHARCOAL), ("warm_white", BrandColors.WARM_WHITE))
+    )
 
 
 def _interaction(c, metrics) -> str:
@@ -54,6 +65,10 @@ QPushButton, QToolButton {{
     min-height: {metrics.button_height - 2}px; padding: 0 10px;
 }}
 QPushButton[variant], QToolButton[variant] {{ min-height: {metrics.button_height - 2}px; }}
+QDialog#virtualKeyboard QPushButton {{
+    min-height: {density_metrics("touch").button_height - 2}px;
+    min-width: {density_metrics("touch").icon_button_size - 22}px;
+}}
 QPushButton:hover, QToolButton:hover {{ background: {c.SURFACE_MUTED}; }}
 QPushButton:pressed, QToolButton:pressed {{ background: {c.SELECTION}; }}
 QPushButton[variant="ghost"], QPushButton[variant="icon"] {{
@@ -177,7 +192,7 @@ QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QTimeEdit,
 QDateTimeEdit, QPlainTextEdit, QTextEdit {{
     background-color: {c.SURFACE};
     color: {c.TEXT_PRIMARY};
-    border: {Borders.WIDTH_THIN}px solid {c.BORDER_DEFAULT};
+    border: {Borders.WIDTH_THIN}px solid {c.INPUT_BORDER};
     border-radius: {Radii.SM}px;
     min-height: {ControlHeights.MD - 8}px;
     padding: {InputMetrics.PADDING_VERTICAL}px {InputMetrics.PADDING_HORIZONTAL}px;
@@ -194,7 +209,6 @@ QLineEdit:disabled, QComboBox:disabled {{
 QLineEdit[state="error"], QComboBox[state="error"] {{ border-color: {c.DANGER_DEFAULT}; }}
 QLineEdit[state="warning"] {{ border-color: {c.WARNING_DEFAULT}; }}
 QLineEdit[readOnly="true"] {{ background-color: {c.SURFACE_MUTED}; color: {c.TEXT_SECONDARY}; }}
-QComboBox::drop-down {{ border: none; width: 20px; }}
 """.strip()
 
 

@@ -7,7 +7,7 @@ PARTIAL_DATA. They are presentation only.
 
 from __future__ import annotations
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from frontend.desktop.i18n.es_mx import ui
@@ -48,6 +48,7 @@ class StateWidget(QWidget):
         layout.setContentsMargins(Spacing.XL, Spacing.XXL, Spacing.XL, Spacing.XXL)
         layout.setAlignment(Qt.AlignCenter)
         label = QLabel(text, self)
+        self.message_label = label
         label.setObjectName("viewStateMessage")
         label.setProperty("role", "muted")
         label.setWordWrap(True)
@@ -58,3 +59,36 @@ class StateWidget(QWidget):
 
 def create_state_widget(state: str, parent=None, *, message: str | None = None) -> StateWidget:
     return StateWidget(state, parent, message=message)
+
+
+class LoadingState(StateWidget):
+    def __init__(self, parent=None, *, message=None):
+        super().__init__(ViewState.LOADING, parent, message=message)
+
+
+class EmptyState(StateWidget):
+    def __init__(self, parent=None, *, message=None):
+        super().__init__(ViewState.EMPTY, parent, message=message)
+
+
+class ErrorState(StateWidget):
+    def __init__(self, parent=None, *, message=None):
+        super().__init__(ViewState.ERROR, parent, message=message)
+
+
+class Toast(StateWidget):
+    """Inline nonmodal feedback. The caller places it in its page layout."""
+    def __init__(self, parent=None):
+        super().__init__(ViewState.READY, parent)
+        self.setObjectName("toast")
+        self.layout().setContentsMargins(Spacing.MD, Spacing.SM, Spacing.MD, Spacing.SM)
+        self._timer = QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.timeout.connect(self.hide)
+        self.hide()
+
+    def show_message(self, message: str, *, timeout_ms: int = 4000):
+        self.message_label.setText(message)
+        self.setAccessibleName(message)
+        self.show()
+        self._timer.start(max(0, timeout_ms))

@@ -209,7 +209,7 @@ def build_application_window(
         navigation_items=nav_items, route_registry=routes, module_registry=modules,
         badge_registry=BadgeRegistry(), health_evaluator=ModuleHealthEvaluator(),
     )
-    sidebar = GlobalSidebar()
+    sidebar = GlobalSidebar(settings_key=f"{context.workstation_id}/{context.user_id}")
     sidebar.set_items(resolver.resolve(context=context, health_report=health_report))
 
     return ApplicationWindow(router=router, sidebar=sidebar, module_loader=loader)

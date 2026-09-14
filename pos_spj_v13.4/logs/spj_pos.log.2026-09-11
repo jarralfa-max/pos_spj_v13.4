@@ -1,0 +1,291 @@
+2026-09-11 09:47:56,265 SPJ.Boot INFO =======================================================
+2026-09-11 09:47:56,270 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-11 09:47:56,272 SPJ.Boot INFO =======================================================
+2026-09-11 09:48:02,320 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-11 09:48:05,794 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-11 09:48:05,795 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-11 09:50:57,816 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-11 09:51:12,158 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\application_shell\application_window.py", line 132, in navigate
+    result = self._router.navigate(route_id)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\router\desktop_router.py", line 109, in navigate
+    result = self._build_result(route)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\router\desktop_router.py", line 133, in _build_result
+    view = self._views.create_view(route.view_factory_id)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\routing\view_factory_registry.py", line 49, in create_view
+    return self.require(view_factory_id)()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\shell_registration.py", line 85, in <lambda>
+    lambda: create_sales_pos_view(self._connection, self._session_context, self._printer_service),
+            ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 179, in create_sales_pos_view
+    presenter = build_sales_pos_presenter(connection, session_context, printer_service)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 111, in build_sales_pos_presenter
+    "record_payment": _payment_handler(connection, auth),
+                      ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 141, in _payment_handler
+    run = RecordSalePaymentUseCase(auth, customer_authorization=customer_auth).execute
+                                                                ^^^^^^^^^^^^^
+NameError: name 'customer_auth' is not defined
+
+2026-09-11 10:20:17,133 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-11 10:20:38,897 SPJ.Boot INFO =======================================================
+2026-09-11 10:20:38,899 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-11 10:20:38,900 SPJ.Boot INFO =======================================================
+2026-09-11 10:20:41,387 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-11 10:20:43,962 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-11 10:20:43,964 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-11 10:21:55,941 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-11 10:22:54,614 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\application_shell\application_window.py", line 133, in navigate
+    result = self._router.navigate(route_id)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\router\desktop_router.py", line 109, in navigate
+    result = self._build_result(route)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\router\desktop_router.py", line 133, in _build_result
+    view = self._views.create_view(route.view_factory_id)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\routing\view_factory_registry.py", line 49, in create_view
+    return self.require(view_factory_id)()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\shell_registration.py", line 85, in <lambda>
+    lambda: create_sales_pos_view(self._connection, self._session_context, self._printer_service),
+            ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 179, in create_sales_pos_view
+    presenter = build_sales_pos_presenter(connection, session_context, printer_service)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 111, in build_sales_pos_presenter
+    "record_payment": _payment_handler(connection, auth),
+                      ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 141, in _payment_handler
+    run = RecordSalePaymentUseCase(auth, customer_authorization=customer_auth).execute
+                                                                ^^^^^^^^^^^^^
+NameError: name 'customer_auth' is not defined
+
+2026-09-11 10:24:23,966 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-11 10:45:35,243 SPJ.Boot INFO =======================================================
+2026-09-11 10:45:35,245 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-11 10:45:35,245 SPJ.Boot INFO =======================================================
+2026-09-11 10:45:40,592 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-11 10:45:41,746 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-11 10:45:41,826 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-11 10:46:20,158 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-11 10:50:57,179 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-09-11 10:54:30,423 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-11 15:55:32,318 SPJ.Boot INFO =======================================================
+2026-09-11 15:55:32,320 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-11 15:55:32,321 SPJ.Boot INFO =======================================================
+2026-09-11 15:55:37,133 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-11 15:55:42,077 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-11 15:55:42,077 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-11 15:56:52,485 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-11 15:56:59,076 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\application_shell\application_window.py", line 133, in navigate
+    result = self._router.navigate(route_id)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\router\desktop_router.py", line 109, in navigate
+    result = self._build_result(route)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\router\desktop_router.py", line 133, in _build_result
+    view = self._views.create_view(route.view_factory_id)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\routing\view_factory_registry.py", line 49, in create_view
+    return self.require(view_factory_id)()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\shell_registration.py", line 85, in <lambda>
+    lambda: create_sales_pos_view(self._connection, self._session_context, self._printer_service),
+            ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 179, in create_sales_pos_view
+    presenter = build_sales_pos_presenter(connection, session_context, printer_service)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 111, in build_sales_pos_presenter
+    "record_payment": _payment_handler(connection, auth),
+                      ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\sales_pos\composition.py", line 141, in _payment_handler
+    run = RecordSalePaymentUseCase(auth, customer_authorization=customer_auth).execute
+                                                                ^^^^^^^^^^^^^
+NameError: name 'customer_auth' is not defined
+
+2026-09-11 15:57:35,290 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-11 16:38:03,947 SPJ.Boot INFO =======================================================
+2026-09-11 16:38:04,021 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-11 16:38:04,050 SPJ.Boot INFO =======================================================
+2026-09-11 16:38:10,559 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-11 16:38:11,245 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-11 16:38:11,314 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-11 16:40:10,087 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-11 16:43:28,538 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-11 17:22:37,075 SPJ.Boot INFO =======================================================
+2026-09-11 17:22:37,076 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-11 17:22:37,076 SPJ.Boot INFO =======================================================
+2026-09-11 17:22:39,398 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-11 17:22:39,892 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-11 17:22:39,943 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-11 17:23:20,494 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-11 17:52:33,942 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\configuracion_view.py", line 34, in show_route
+    page = build_page(page_id, self._presenter)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\configuracion_routes.py", line 16, in build_page
+    return PAGE_CLASSES[page_id](presenter)
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 78, in __init__
+    self._build_roles_card()
+    ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 187, in _build_roles_card
+    self._reload_roles()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 191, in _reload_roles
+    self._roles_by_id = {r.id: r for r in roles}
+                         ^^^^
+AttributeError: 'sqlite3.Row' object has no attribute 'id'
+
+2026-09-11 17:52:54,270 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\configuracion_view.py", line 34, in show_route
+    page = build_page(page_id, self._presenter)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\configuracion_routes.py", line 16, in build_page
+    return PAGE_CLASSES[page_id](presenter)
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 78, in __init__
+    self._build_roles_card()
+    ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 187, in _build_roles_card
+    self._reload_roles()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 191, in _reload_roles
+    self._roles_by_id = {r.id: r for r in roles}
+                         ^^^^
+AttributeError: 'sqlite3.Row' object has no attribute 'id'
+
+2026-09-11 17:52:57,488 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-11 18:23:58,605 SPJ.Boot INFO =======================================================
+2026-09-11 18:23:58,606 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-11 18:23:58,607 SPJ.Boot INFO =======================================================
+2026-09-11 18:24:01,209 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-11 18:24:02,106 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-11 18:24:02,143 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-11 18:24:33,266 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-11 18:24:36,811 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\configuracion_view.py", line 34, in show_route
+    page = build_page(page_id, self._presenter)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\configuracion_routes.py", line 16, in build_page
+    return PAGE_CLASSES[page_id](presenter)
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 78, in __init__
+    self._build_roles_card()
+    ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 187, in _build_roles_card
+    self._reload_roles()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 191, in _reload_roles
+    self._roles_by_id = {r.id: r for r in roles}
+                         ^^^^
+AttributeError: 'sqlite3.Row' object has no attribute 'id'
+
+2026-09-11 18:25:04,255 spj.products.presenter ERROR Acción de ciclo de vida activate falló
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\products\presenter.py", line 88, in _run_lifecycle
+    result = self._lifecycle_factory()[action].execute(
+        product_id=product_id, user_id=user_id or "")
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\use_cases\product_lifecycle_use_cases.py", line 74, in execute
+    self._check_extra(row, user_id)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\use_cases\product_lifecycle_use_cases.py", line 118, in _check_extra
+    self._auth.ensure_segregation(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        actor_user_id=user_id, creator_user_id=row.get("created_by"),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        approval_permission=ProductPermissions.APPROVE)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\authorization\policy.py", line 117, in ensure_segregation
+    raise SegregationOfDutiesError(
+        "Quien creó el registro no puede aprobarlo ni activarlo "
+        f"({approval_permission}): se requiere un segundo usuario")
+backend.domain.products.exceptions.SegregationOfDutiesError: Quien creó el registro no puede aprobarlo ni activarlo (PRODUCTOS.aprobar): se requiere un segundo usuario
+2026-09-11 18:45:27,873 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-09-11 18:50:18,452 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-11 20:21:27,466 SPJ.Boot INFO =======================================================
+2026-09-11 20:21:27,479 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-11 20:21:27,551 SPJ.Boot INFO =======================================================
+2026-09-11 20:21:29,770 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-11 20:21:31,166 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-11 20:21:31,225 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-11 20:22:14,381 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-11 20:27:20,395 spj.products.presenter ERROR Acción de ciclo de vida activate falló
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\products\presenter.py", line 88, in _run_lifecycle
+    result = self._lifecycle_factory()[action].execute(
+        product_id=product_id, user_id=user_id or "")
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\use_cases\product_lifecycle_use_cases.py", line 74, in execute
+    self._check_extra(row, user_id)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\use_cases\product_lifecycle_use_cases.py", line 118, in _check_extra
+    self._auth.ensure_segregation(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        actor_user_id=user_id, creator_user_id=row.get("created_by"),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        approval_permission=ProductPermissions.APPROVE)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\authorization\policy.py", line 117, in ensure_segregation
+    raise SegregationOfDutiesError(
+        "Quien creó el registro no puede aprobarlo ni activarlo "
+        f"({approval_permission}): se requiere un segundo usuario")
+backend.domain.products.exceptions.SegregationOfDutiesError: Quien creó el registro no puede aprobarlo ni activarlo (PRODUCTOS.aprobar): se requiere un segundo usuario
+2026-09-11 20:28:53,668 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-09-11 20:35:32,105 spj.hr.presenter ERROR HRPresenter: unexpected error
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\hr\hr_presenter.py", line 39, in _run
+    result = action(*args, **kwargs)
+TypeError: CreateEmployeeUseCase.execute() missing 1 required keyword-only argument: 'branch_id'
+2026-09-11 20:36:13,970 spj.hr.presenter ERROR HRPresenter: unexpected error
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\hr\hr_presenter.py", line 39, in _run
+    result = action(*args, **kwargs)
+TypeError: CreateEmployeeUseCase.execute() missing 1 required keyword-only argument: 'branch_id'
+2026-09-11 20:38:02,770 spj.bi.cash WARNING BiCashQueryService: no such table: movimientos_caja
+2026-09-11 20:38:02,771 spj.bi.cash WARNING BiCashQueryService: no such table: cierres_caja
+2026-09-11 20:38:02,772 spj.bi.cash WARNING BiCashQueryService: no such table: movimientos_caja
+2026-09-11 20:38:02,772 spj.bi.cash WARNING BiCashQueryService: no such table: cierres_caja
+2026-09-11 20:45:57,866 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-11 21:05:19,703 SPJ.Boot INFO =======================================================
+2026-09-11 21:05:19,704 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-11 21:05:19,705 SPJ.Boot INFO =======================================================
+2026-09-11 21:05:22,034 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-11 21:05:22,632 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-11 21:05:22,661 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-11 21:06:00,020 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-11 21:09:58,921 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\configuracion_view.py", line 34, in show_route
+    page = build_page(page_id, self._presenter)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\configuracion_routes.py", line 16, in build_page
+    return PAGE_CLASSES[page_id](presenter)
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 78, in __init__
+    self._build_roles_card()
+    ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 187, in _build_roles_card
+    self._reload_roles()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 191, in _reload_roles
+    self._roles_by_id = {r.id: r for r in roles}
+                         ^^^^
+AttributeError: 'sqlite3.Row' object has no attribute 'id'
+
+2026-09-11 21:25:16,321 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\configuracion_view.py", line 34, in show_route
+    page = build_page(page_id, self._presenter)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\configuracion_routes.py", line 16, in build_page
+    return PAGE_CLASSES[page_id](presenter)
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 78, in __init__
+    self._build_roles_card()
+    ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 187, in _build_roles_card
+    self._reload_roles()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\pages\usuarios_roles_page.py", line 191, in _reload_roles
+    self._roles_by_id = {r.id: r for r in roles}
+                         ^^^^
+AttributeError: 'sqlite3.Row' object has no attribute 'id'
+
+2026-09-11 21:25:26,306 SPJ.Boot INFO Sistema cerrado. Código: 0

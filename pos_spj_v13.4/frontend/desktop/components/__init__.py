@@ -20,9 +20,10 @@ from frontend.desktop.components.status_badge import StatusBadge
 from frontend.desktop.components.supplier_search_box import SupplierSearchBox
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
 # ── DS-3/DS-4 canonical components ────────────────────────────────────────────
-from frontend.desktop.components.icons import Icons, icon_accessible_name
+from frontend.desktop.components.icons import Icons, IconProvider, icon_accessible_name
 from frontend.desktop.components.tooltip import apply_tooltip, build_tooltip_text
 from frontend.desktop.components.buttons import (
+    PrimaryButton, SecondaryButton, GhostButton, DangerButton, IconButton,
     create_danger_button,
     create_ghost_button,
     create_icon_button,
@@ -45,6 +46,7 @@ from frontend.desktop.components.cards import (
 from frontend.desktop.components.kpi_card import KPICard, KPIDTO, KPIState
 from frontend.desktop.components.kpi_bar import KPIBar
 from frontend.desktop.components.view_states import (
+    LoadingState, EmptyState, ErrorState, Toast,
     StateWidget,
     ViewState,
     create_state_widget,
@@ -80,8 +82,28 @@ from frontend.desktop.components.chart_view import HtmlChartView
 from frontend.desktop.components.dashboard_grid import DashboardGrid
 # ── FASE 6 worklist scaffold ────────────────────────────────────────────────
 from frontend.desktop.components.worklist_page import WorklistPage
+from frontend.desktop.components.branding import BrandAssetProvider, BrandLabel
+from frontend.desktop.components.standard_window import StandardWindow
+from frontend.desktop.components.page_viewport import PageViewport
+from frontend.desktop.components.pages import (
+    StandardPage, ScrollablePage, DashboardPage, FormPage, MasterDetailPage,
+    SplitPage, TabbedPage, WizardPage, POSPage,
+)
+from frontend.desktop.components.tabs import TabBar, Tabs
+from frontend.desktop.components.virtual_keyboard import KeyboardAwareInput, VirtualKeyboard
+from frontend.desktop.components.selection_controls import StandardComboBox, StandardCheckBox, StandardRadioButton
+from frontend.desktop.components.toolbar import Toolbar, FilterBar, ContextBar, Breadcrumbs
+from frontend.desktop.components.weight_input import WeightInput
 
 __all__ = [
+    "LoadingState", "EmptyState", "ErrorState", "Toast",
+    "IconProvider", "BrandAssetProvider", "BrandLabel", "StandardWindow",
+    "PrimaryButton", "SecondaryButton", "GhostButton", "DangerButton", "IconButton",
+    "PageViewport", "StandardPage", "ScrollablePage", "DashboardPage", "FormPage",
+    "MasterDetailPage", "SplitPage", "TabbedPage", "WizardPage", "POSPage",
+    "TabBar", "Tabs", "KeyboardAwareInput", "VirtualKeyboard", "WeightInput",
+    "StandardComboBox", "StandardCheckBox", "StandardRadioButton",
+    "Toolbar", "FilterBar", "ContextBar", "Breadcrumbs",
     "AddressInput",
     "AddressSuggestion",
     "AssetSearchBox",

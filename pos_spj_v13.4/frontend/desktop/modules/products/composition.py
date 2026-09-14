@@ -340,6 +340,8 @@ def build_products_view(presenter, parent=None):
         BranchChannelPage,
     )
     from frontend.desktop.modules.products.products_view import ProductsView
+    from frontend.desktop.components.icons import Icons
+    from frontend.desktop.modules.products.navigation import PRODUCTS_NAV
 
     specs = (
         (ProductsOverviewPage, "Resumen"),
@@ -350,7 +352,17 @@ def build_products_view(presenter, parent=None):
         (BranchChannelPage, "Sucursales y canales"),
         (ProductImportPage, "Importar"),
     )
-    return ProductsView(presenter, specs, parent)
+    navigation = {entry.page_id: entry for entry in PRODUCTS_NAV}
+    section_icons = (
+        navigation["products_overview"].icon,
+        navigation["products_catalog"].icon,
+        navigation["products_categories"].icon,
+        Icons.COMPANY,
+        Icons.CHECKLIST,
+        navigation["products_branches"].icon,
+        navigation["products_imports"].icon,
+    )
+    return ProductsView(presenter, specs, parent, section_icons=section_icons)
 
 
 def create_products_view(connection, session_context=None, *, live_session=None, parent=None):

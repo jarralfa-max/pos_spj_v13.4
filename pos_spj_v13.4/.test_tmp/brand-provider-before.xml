@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="8" skipped="0" tests="13" time="1.681" timestamp="2026-09-13T19:39:04.620098+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_brand_asset_provider" name="test_artwork_keeps_colors_and_aspect_ratio[svg]" time="0.216" /><testcase classname="tests.ui.test_brand_asset_provider" name="test_artwork_keeps_colors_and_aspect_ratio[png]" time="0.042" /><testcase classname="tests.ui.test_brand_asset_provider" name="test_svg_renders_at_physical_resolution_with_logical_size[1.25]" time="0.011"><failure message="TypeError: BrandAssetProvider.pixmap() got an unexpected keyword argument 'device_pixel_ratio'">assets = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-vWTAXD/assets/branding')
+ratio = 1.25
+
+    @pytest.mark.parametrize("ratio", [1.25, 1.5, 2.0, 3.0])
+    def test_svg_renders_at_physical_resolution_with_logical_size(assets, ratio):
+        svg(assets, "logo_horizontal_light")
+&gt;       result = BrandAssetProvider.pixmap("logo_horizontal_light", QSize(160, 40), device_pixel_ratio=ratio)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: BrandAssetProvider.pixmap() got an unexpected keyword argument 'device_pixel_ratio'
+
+tests\ui\test_brand_asset_provider.py:52: TypeError</failure></testcase><testcase classname="tests.ui.test_brand_asset_provider" name="test_svg_renders_at_physical_resolution_with_logical_size[1.5]" time="0.013"><failure message="TypeError: BrandAssetProvider.pixmap() got an unexpected keyword argument 'device_pixel_ratio'">assets = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-jIKjHJ/assets/branding')
+ratio = 1.5
+
+    @pytest.mark.parametrize("ratio", [1.25, 1.5, 2.0, 3.0])
+    def test_svg_renders_at_physical_resolution_with_logical_size(assets, ratio):
+        svg(assets, "logo_horizontal_light")
+&gt;       result = BrandAssetProvider.pixmap("logo_horizontal_light", QSize(160, 40), device_pixel_ratio=ratio)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: BrandAssetProvider.pixmap() got an unexpected keyword argument 'device_pixel_ratio'
+
+tests\ui\test_brand_asset_provider.py:52: TypeError</failure></testcase><testcase classname="tests.ui.test_brand_asset_provider" name="test_svg_renders_at_physical_resolution_with_logical_size[2.0]" time="0.015"><failure message="TypeError: BrandAssetProvider.pixmap() got an unexpected keyword argument 'device_pixel_ratio'">assets = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-jVvgNT/assets/branding')
+ratio = 2.0
+
+    @pytest.mark.parametrize("ratio", [1.25, 1.5, 2.0, 3.0])
+    def test_svg_renders_at_physical_resolution_with_logical_size(assets, ratio):
+        svg(assets, "logo_horizontal_light")
+&gt;       result = BrandAssetProvider.pixmap("logo_horizontal_light", QSize(160, 40), device_pixel_ratio=ratio)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: BrandAssetProvider.pixmap() got an unexpected keyword argument 'device_pixel_ratio'
+
+tests\ui\test_brand_asset_provider.py:52: TypeError</failure></testcase><testcase classname="tests.ui.test_brand_asset_provider" name="test_svg_renders_at_physical_resolution_with_logical_size[3.0]" time="0.011"><failure message="TypeError: BrandAssetProvider.pixmap() got an unexpected keyword argument 'device_pixel_ratio'">assets = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-GSIZck/assets/branding')
+ratio = 3.0
+
+    @pytest.mark.parametrize("ratio", [1.25, 1.5, 2.0, 3.0])
+    def test_svg_renders_at_physical_resolution_with_logical_size(assets, ratio):
+        svg(assets, "logo_horizontal_light")
+&gt;       result = BrandAssetProvider.pixmap("logo_horizontal_light", QSize(160, 40), device_pixel_ratio=ratio)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: BrandAssetProvider.pixmap() got an unexpected keyword argument 'device_pixel_ratio'
+
+tests\ui\test_brand_asset_provider.py:52: TypeError</failure></testcase><testcase classname="tests.ui.test_brand_asset_provider" name="test_corrupt_preferred_format_does_not_hide_valid_sibling" time="0.029"><failure message="AssertionError: assert not True&#10; +  where True = &lt;built-in method isNull of QPixmap object at 0x0000024538E9E0B0&gt;()&#10; +    where &lt;built-in method isNull of QPixmap object at 0x0000024538E9E0B0&gt; = &lt;PyQt5.QtGui.QPixmap object at 0x0000024538E9E0B0&gt;.isNull&#10; +      where &lt;PyQt5.QtGui.QPixmap object at 0x0000024538E9E0B0&gt; = pixmap('logo_horizontal_light', PyQt5.QtCore.QSize(180, 72))&#10; +        where pixmap = BrandAssetProvider.pixmap&#10; +        and   PyQt5.QtCore.QSize(180, 72) = QSize(180, 72)">assets = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-yBBhlZ/assets/branding')
+
+    def test_corrupt_preferred_format_does_not_hide_valid_sibling(assets):
+        (assets / "logo_horizontal_light.svg").write_text("invalid", encoding="utf-8")
+        png(assets, "logo_horizontal_light")
+&gt;       assert not BrandAssetProvider.pixmap("logo_horizontal_light", QSize(180, 72)).isNull()
+E       AssertionError: assert not True
+E        +  where True = &lt;built-in method isNull of QPixmap object at 0x0000024538E9E0B0&gt;()
+E        +    where &lt;built-in method isNull of QPixmap object at 0x0000024538E9E0B0&gt; = &lt;PyQt5.QtGui.QPixmap object at 0x0000024538E9E0B0&gt;.isNull
+E        +      where &lt;PyQt5.QtGui.QPixmap object at 0x0000024538E9E0B0&gt; = pixmap('logo_horizontal_light', PyQt5.QtCore.QSize(180, 72))
+E        +        where pixmap = BrandAssetProvider.pixmap
+E        +        and   PyQt5.QtCore.QSize(180, 72) = QSize(180, 72)
+
+tests\ui\test_brand_asset_provider.py:60: AssertionError</failure></testcase><testcase classname="tests.ui.test_brand_asset_provider" name="test_window_icon_uses_decodable_app_icon_if_window_asset_is_corrupt" time="0.030"><failure message="assert not True&#10; +  where True = &lt;built-in method isNull of QPixmap object at 0x0000024538E9EC10&gt;()&#10; +    where &lt;built-in method isNull of QPixmap object at 0x0000024538E9EC10&gt; = &lt;PyQt5.QtGui.QPixmap object at 0x0000024538E9EC10&gt;.isNull&#10; +      where &lt;PyQt5.QtGui.QPixmap object at 0x0000024538E9EC10&gt; = &lt;built-in method pixmap of QIcon object at 0x000002453926CF80&gt;(32, 32)&#10; +        where &lt;built-in method pixmap of QIcon object at 0x000002453926CF80&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000002453926CF80&gt;.pixmap&#10; +          where &lt;PyQt5.QtGui.QIcon object at 0x000002453926CF80&gt; = window_icon()&#10; +            where window_icon = BrandAssetProvider.window_icon">assets = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-FxqFBT/assets/branding')
+
+    def test_window_icon_uses_decodable_app_icon_if_window_asset_is_corrupt(assets):
+        (assets / "window_icon.svg").write_text("invalid", encoding="utf-8")
+        png(assets, "app_icon")
+&gt;       assert not BrandAssetProvider.window_icon().pixmap(32, 32).isNull()
+E       assert not True
+E        +  where True = &lt;built-in method isNull of QPixmap object at 0x0000024538E9EC10&gt;()
+E        +    where &lt;built-in method isNull of QPixmap object at 0x0000024538E9EC10&gt; = &lt;PyQt5.QtGui.QPixmap object at 0x0000024538E9EC10&gt;.isNull
+E        +      where &lt;PyQt5.QtGui.QPixmap object at 0x0000024538E9EC10&gt; = &lt;built-in method pixmap of QIcon object at 0x000002453926CF80&gt;(32, 32)
+E        +        where &lt;built-in method pixmap of QIcon object at 0x000002453926CF80&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000002453926CF80&gt;.pixmap
+E        +          where &lt;PyQt5.QtGui.QIcon object at 0x000002453926CF80&gt; = window_icon()
+E        +            where window_icon = BrandAssetProvider.window_icon
+
+tests\ui\test_brand_asset_provider.py:66: AssertionError</failure></testcase><testcase classname="tests.ui.test_brand_asset_provider" name="test_missing_theme_variant_does_not_recolor_opposite_logo" time="0.033" /><testcase classname="tests.ui.test_brand_asset_provider" name="test_label_fits_available_width_and_preserves_theme_isotype" time="0.029"><failure message="assert 180 &lt;= 60&#10; +  where 180 = &lt;built-in method width of QPixmap object at 0x0000024538E9E4A0&gt;()&#10; +    where &lt;built-in method width of QPixmap object at 0x0000024538E9E4A0&gt; = &lt;PyQt5.QtGui.QPixmap object at 0x0000024538E9E4A0&gt;.width&#10; +      where &lt;PyQt5.QtGui.QPixmap object at 0x0000024538E9E4A0&gt; = &lt;built-in method pixmap of BrandLabel object at 0x000002453926D010&gt;()&#10; +        where &lt;built-in method pixmap of BrandLabel object at 0x000002453926D010&gt; = &lt;frontend.desktop.components.branding.BrandLabel object at 0x000002453926D010&gt;.pixmap&#10; +  and   60 = &lt;built-in method width of QRect object at 0x0000024538E9EA50&gt;()&#10; +    where &lt;built-in method width of QRect object at 0x0000024538E9EA50&gt; = PyQt5.QtCore.QRect(0, 0, 60, 72).width&#10; +      where PyQt5.QtCore.QRect(0, 0, 60, 72) = &lt;built-in method contentsRect of BrandLabel object at 0x000002453926D010&gt;()&#10; +        where &lt;built-in method contentsRect of BrandLabel object at 0x000002453926D010&gt; = &lt;frontend.desktop.components.branding.BrandLabel object at 0x000002453926D010&gt;.contentsRect">assets = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-Yzxehh/assets/branding')
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024538E1EB10&gt;
+
+    def test_label_fits_available_width_and_preserves_theme_isotype(assets, qt_font_resources):
+        svg(assets, "logo_horizontal_light")
+        svg(assets, "logo_horizontal_dark", color="#A06040")
+        svg(assets, "isotype_dark", color="#60A040", width=100, height=100)
+        label = BrandLabel()
+        try:
+            label.resize(60, 72)
+            label.show()
+            qt_font_resources.processEvents()
+&gt;           assert label.pixmap().width() &lt;= label.contentsRect().width()
+E           assert 180 &lt;= 60
+E            +  where 180 = &lt;built-in method width of QPixmap object at 0x0000024538E9E4A0&gt;()
+E            +    where &lt;built-in method width of QPixmap object at 0x0000024538E9E4A0&gt; = &lt;PyQt5.QtGui.QPixmap object at 0x0000024538E9E4A0&gt;.width
+E            +      where &lt;PyQt5.QtGui.QPixmap object at 0x0000024538E9E4A0&gt; = &lt;built-in method pixmap of BrandLabel object at 0x000002453926D010&gt;()
+E            +        where &lt;built-in method pixmap of BrandLabel object at 0x000002453926D010&gt; = &lt;frontend.desktop.components.branding.BrandLabel object at 0x000002453926D010&gt;.pixmap
+E            +  and   60 = &lt;built-in method width of QRect object at 0x0000024538E9EA50&gt;()
+E            +    where &lt;built-in method width of QRect object at 0x0000024538E9EA50&gt; = PyQt5.QtCore.QRect(0, 0, 60, 72).width
+E            +      where PyQt5.QtCore.QRect(0, 0, 60, 72) = &lt;built-in method contentsRect of BrandLabel object at 0x000002453926D010&gt;()
+E            +        where &lt;built-in method contentsRect of BrandLabel object at 0x000002453926D010&gt; = &lt;frontend.desktop.components.branding.BrandLabel object at 0x000002453926D010&gt;.contentsRect
+
+tests\ui\test_brand_asset_provider.py:90: AssertionError</failure></testcase><testcase classname="tests.ui.test_brand_asset_provider" name="test_label_rerenders_for_the_new_screen_dpi" time="0.029"><failure message="assert 1.0 == 2.0&#10; +  where 1.0 = &lt;built-in method devicePixelRatioF of QPixmap object at 0x0000024538E9DFD0&gt;()&#10; +    where &lt;built-in method devicePixelRatioF of QPixmap object at 0x0000024538E9DFD0&gt; = &lt;PyQt5.QtGui.QPixmap object at 0x0000024538E9DFD0&gt;.devicePixelRatioF&#10; +      where &lt;PyQt5.QtGui.QPixmap object at 0x0000024538E9DFD0&gt; = &lt;built-in method pixmap of BrandLabel object at 0x0000024538ACDAC0&gt;()&#10; +        where &lt;built-in method pixmap of BrandLabel object at 0x0000024538ACDAC0&gt; = &lt;frontend.desktop.components.branding.BrandLabel object at 0x0000024538ACDAC0&gt;.pixmap">assets = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-xCjznd/assets/branding')
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024538E1EB10&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000245392243D0&gt;
+
+    def test_label_rerenders_for_the_new_screen_dpi(assets, qt_font_resources, monkeypatch):
+        svg(assets, "logo_horizontal_light")
+        label = BrandLabel()
+        try:
+            label.resize(180, 72)
+            label.show()
+            qt_font_resources.processEvents()
+            monkeypatch.setattr(label, "devicePixelRatioF", lambda: 2.0)
+            label.windowHandle().screenChanged.emit(label.windowHandle().screen())
+&gt;           assert label.pixmap().devicePixelRatioF() == 2.0
+E           assert 1.0 == 2.0
+E            +  where 1.0 = &lt;built-in method devicePixelRatioF of QPixmap object at 0x0000024538E9DFD0&gt;()
+E            +    where &lt;built-in method devicePixelRatioF of QPixmap object at 0x0000024538E9DFD0&gt; = &lt;PyQt5.QtGui.QPixmap object at 0x0000024538E9DFD0&gt;.devicePixelRatioF
+E            +      where &lt;PyQt5.QtGui.QPixmap object at 0x0000024538E9DFD0&gt; = &lt;built-in method pixmap of BrandLabel object at 0x0000024538ACDAC0&gt;()
+E            +        where &lt;built-in method pixmap of BrandLabel object at 0x0000024538ACDAC0&gt; = &lt;frontend.desktop.components.branding.BrandLabel object at 0x0000024538ACDAC0&gt;.pixmap
+
+tests\ui\test_brand_asset_provider.py:112: AssertionError</failure></testcase><testcase classname="tests.ui.test_brand_asset_provider" name="test_standard_windows_and_dialogs_use_official_window_icon" time="0.039" /><testcase classname="tests.ui.test_brand_asset_provider" name="test_missing_assets_remain_absent_and_unknown_names_fail" time="0.023" /></testsuite></testsuites>

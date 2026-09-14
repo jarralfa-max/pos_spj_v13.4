@@ -18,8 +18,9 @@ from frontend.desktop.components import (
     DateRangeFilter, SearchableComboBox, SideNav,
     ViewState, create_primary_button, create_state_widget,
 )
+from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.purchasing.navigation import (
-    PurchasingRoutes, visible_routes,
+    PURCHASING_GROUP_ICONS, PurchasingRoutes, visible_routes,
 )
 from frontend.desktop.modules.purchasing.pages.enterprise_pages import (
     InvoicesPage, OrdersPage, QuotationsPage, RequisitionsPage,
@@ -113,11 +114,11 @@ class PurchasingModuleShell(QWidget):
         self.sidebar.setCurrentRow(next(iter(self._row_to_page)))
 
     def _group(self, label: str) -> None:
-        self.sidebar.add_group(label)
+        self.sidebar.add_group(label, icon=PURCHASING_GROUP_ICONS[label])
 
     def _route(self, key: str, label: str, page: QWidget,
-               *, badge_key: str | None = None) -> None:
-        self.sidebar.add_section(label)
+               *, icon: str, badge_key: str | None = None) -> None:
+        self.sidebar.add_section(label, icon=icon)
         row = self.sidebar.count() - 1
         page_index = self.content.addWidget(page)
         self._pages.append(page)
@@ -133,7 +134,7 @@ class PurchasingModuleShell(QWidget):
             self._group("COMPRAS")
             self._route("no_access", "Sin acceso", create_state_widget(
                 ViewState.NO_PERMISSION, self,
-                message="No tienes permiso para consultar el módulo de Compras."))
+                message="No tienes permiso para consultar el módulo de Compras."), icon=Icons.LOCK)
             return
         page_factories = {
             PurchasingRoutes.DASHBOARD: lambda: ProcurementDashboardPage(
@@ -163,7 +164,7 @@ class PurchasingModuleShell(QWidget):
                 self._group(definition.group)
                 current_group = definition.group
             self._route(definition.key, definition.label, page,
-                        badge_key=definition.badge_key)
+                        icon=definition.icon, badge_key=definition.badge_key)
 
     def _create_requisitions_page(self):
         page = RequisitionsPage(self._presenter, self)

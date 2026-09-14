@@ -1,8 +1,7 @@
 """FASE DS-8 — guardrails that keep the design system single-sourced.
 
-These lock the standard for NEW frontend code (frontend/desktop/). They do not
-police legacy modulos/ (that debt migrates module by module); they prevent the
-new layer from fragmenting again.
+The AST audit scans desktop, modulos and ui when present. Exact existing debt
+is tracked individually; new expressions or extra copies fail the guardrail.
 """
 
 from __future__ import annotations
@@ -20,7 +19,7 @@ FRONTEND = REPO / "frontend" / "desktop"
 THEMES = FRONTEND / "themes"
 COMPONENTS = FRONTEND / "components"
 
-# The five official JUANIS brand colors (any casing).
+# The six official JUANIS brand colors (any casing).
 _BRAND_HEX = {"#18372B", "#FFFFFF", "#C6A15B", "#9D2927", "#252825", "#F8F8F5"}
 _HEX_RE = re.compile(r"#[0-9A-Fa-f]{6}\b")
 _SETSTYLE_RE = re.compile(r"\.setStyleSheet\s*\(\s*[^)\s]")  # non-empty argument
@@ -35,7 +34,7 @@ def _py_files(root: Path):
 
 
 def test_brand_colors_only_in_theme_layer():
-    """The JUANIS brand hex values may appear only under themes/ (+ charts/)."""
+    """Brand literals are theme-owned; print-card stock is content data."""
     offenders = []
     allowed = {THEMES}
     charts = FRONTEND / "charts"
@@ -44,7 +43,9 @@ def test_brand_colors_only_in_theme_layer():
     for path in _py_files(FRONTEND):
         if any(str(path).startswith(str(a)) for a in allowed):
             continue
-        found = {h.upper() for h in _HEX_RE.findall(path.read_text(encoding="utf-8"))}
+        findings = scan_source(path.read_text(encoding="utf-8-sig"), path.relative_to(REPO).as_posix())
+        found = {h.upper() for item in findings if item.rule == "hardcoded_visual_hex"
+                 for h in _HEX_RE.findall(item.expression)}
         if found & _BRAND_HEX:
             offenders.append(str(path.relative_to(REPO)))
     assert not offenders, f"Brand hex outside theme layer: {offenders}"
@@ -127,6 +128,7 @@ def test_desktop_visual_debt_does_not_grow():
     ('button = QPushButton("\\U0001f514 Notificaciones")', "unicode_icon_literal"),
     ('button = QPushButton()\nbutton.setFixedHeight(32)', "fixed_control_below_touch_target"),
     ('class SalesPage(QWidget):\n    pass', "screen_without_explicit_overflow"),
+    ('class OrdersView(QWidget):\n    pass', "screen_without_explicit_overflow"),
     ('class EditDialog(QDialog):\n    pass', "noncanonical_dialog"),
     ('class EditDialog(StandardDialog):\n    def setup(self):\n        self.setMinimumSize(1400, 900)', "dialog_geometry_exceeds_smallest_viewport"),
 ])
@@ -153,6 +155,15 @@ def test_ast_audit_accepts_explicit_scroll_and_keeps_web_colors_separate():
     assert scan_source('widget.setStyleSheet("background: #18372B")', "frontend/desktop/charts/renderer.py")
 
 
+def test_print_canvas_white_is_data_and_does_not_exempt_widget_colors():
+    path = "frontend/desktop/modules/tarjetas_fidelidad/pages/templates_page.py"
+    source = '_EXAMPLE_SCHEMA = json.dumps({"canvas": {"width_mm": "85.6", "height_mm": "54", "background_color": "#FFFFFF"}})'
+    assert not scan_source(source, path)
+    assert scan_source(source + '\nwidget_color = "#FFFFFF"', path)
+    assert scan_source(source.replace("#FFFFFF", "#18372B"), path)
+    assert scan_source(source, "frontend/desktop/modules/new/page.py")
+
+
 def test_existing_file_debt_cannot_hide_new_expressions_or_duplicate_occurrences():
     path = "modulos/existing.py"
     old = scan_source('button.setStyleSheet("old")', path)[0]
@@ -162,3 +173,17 @@ def test_existing_file_debt_cannot_hide_new_expressions_or_duplicate_occurrences
     changed = scan_source('button.setStyleSheet("new")', path)
     assert regressions(changed, baseline)[0]
     assert regressions(scan_source('button.setStyleSheet("old")', "modulos/new.py"), baseline)[0]
+
+
+def test_visual_debt_baseline_is_exact_and_kept_pruned():
+    baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
+    entries = baseline["findings"]
+    keys = [(entry["path"], entry["rule"], entry["fingerprint"]) for entry in entries]
+    assert len(keys) == len(set(keys)), "Duplicate entries weaken debt counts"
+    for entry in entries:
+        assert "*" not in entry["path"] and (REPO / entry["path"]).is_file()
+        assert re.fullmatch(r"[a-f0-9]{20}", entry["fingerprint"])
+        assert type(entry["count"]) is int and entry["count"] > 0
+        assert entry["expression"]
+    _new, resolved = regressions(scan_repository(), baseline)
+    assert not resolved, "Remove resolved exact findings from the debt baseline: " + str(dict(resolved))

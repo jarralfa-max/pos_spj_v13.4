@@ -38,6 +38,7 @@ class HtmlChartView(QWidget):
         super().__init__(parent)
         self.setObjectName("htmlChartView")
         self._theme_provider = theme_provider or (lambda: ThemeManager.instance().theme)
+        self._chart: ChartDataDTO | None = None
         self._stack = QStackedLayout(self)
         self._stack.setContentsMargins(0, 0, 0, 0)
 
@@ -49,6 +50,7 @@ class HtmlChartView(QWidget):
             self._stack.addWidget(self._web)      # 0
         self._stack.addWidget(self._table)        # 0 or 1
         self._stack.addWidget(self._state)        # last
+        ThemeManager.instance().theme_changed.connect(self._refresh_theme)
 
     @staticmethod
     def _can_use_web() -> bool:
@@ -59,6 +61,7 @@ class HtmlChartView(QWidget):
 
     # public API --------------------------------------------------------------
     def set_chart(self, dto: ChartDataDTO) -> None:
+        self._chart = dto
         if dto.state in (ChartState.LOADING, ChartState.ERROR, ChartState.OFFLINE) \
                 or dto.is_empty():
             self._show_state(dto)
@@ -69,6 +72,13 @@ class HtmlChartView(QWidget):
             self._render_table(dto)
 
     # internals ---------------------------------------------------------------
+    def _refresh_theme(self, _theme: str) -> None:
+        # Native tables/states already inherit the global QSS. Only HTML needs
+        # a fresh payload, using the last DTO without asking services for data.
+        if (self._chart is not None and self._web is not None
+                and self._stack.currentWidget() is self._web):
+            self._render_web(self._chart)
+
     def _show_state(self, dto: ChartDataDTO) -> None:
         mapping = {
             ChartState.LOADING: ViewState.LOADING,

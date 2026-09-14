@@ -9,6 +9,7 @@ from __future__ import annotations
 from PyQt5.QtWidgets import QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
 
 from frontend.desktop.components.side_nav import SideNav
+from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.finance.pages.accounts_payable_page import AccountsPayablePage
 from frontend.desktop.modules.finance.pages.accounts_receivable_page import (
     AccountsReceivablePage,
@@ -37,28 +38,35 @@ from frontend.desktop.modules.finance.pages.payments_page import PaymentsPage
 from frontend.desktop.modules.finance.pages.suppliers_page import SuppliersPage
 from frontend.desktop.modules.finance.pages.treasury_page import TreasuryPage
 
-#: (section label or None, page label, page class) — §25 navigation
+#: (section label or None, page label, page class, semantic icon) — §25 navigation
 _NAVIGATION = [
-    (None, "Resumen financiero", OverviewPage),
-    ("Contabilidad", "Plan de cuentas", ChartOfAccountsPage),
-    ("Contabilidad", "Asientos", JournalEntriesPage),
-    ("Contabilidad", "Libro mayor", GeneralLedgerPage),
-    ("Contabilidad", "Periodos", FiscalPeriodsPage),
-    ("Cobranza", "Cuentas por cobrar", AccountsReceivablePage),
-    ("Cobranza", "Cobros", CollectionsPage),
-    ("Proveedores", "Maestro de proveedores", SuppliersPage),
-    ("Pagos", "Cuentas por pagar", AccountsPayablePage),
-    ("Pagos", "Programación y autorizaciones", PaymentsPage),
-    ("Tesorería", "Cuentas y transferencias", TreasuryPage),
-    ("Tesorería", "Conciliación", BankReconciliationPage),
-    ("Planeación financiera", "Presupuestos", BudgetsPage),
-    ("Planeación financiera", "Gastos", ExpensesPage),
-    ("Planeación financiera", "Capital y CAPEX", CapitalPage),
-    ("Activos", "Registro y depreciación", FixedAssetsPage),
-    ("Instrumentos comerciales", "Obligaciones y conciliación", CommercialInstrumentsPage),
-    ("Estados financieros", "Balanza, balance, resultados y flujo", FinancialStatementsPage),
-    (None, "Configuración", FinanceSettingsPage),
+    (None, "Resumen financiero", OverviewPage, Icons.DASHBOARD),
+    ("Contabilidad", "Plan de cuentas", ChartOfAccountsPage, Icons.CATALOG),
+    ("Contabilidad", "Asientos", JournalEntriesPage, Icons.EDIT),
+    ("Contabilidad", "Libro mayor", GeneralLedgerPage, Icons.LIST),
+    ("Contabilidad", "Periodos", FiscalPeriodsPage, Icons.CALENDAR),
+    ("Cobranza", "Cuentas por cobrar", AccountsReceivablePage, Icons.CUSTOMERS),
+    ("Cobranza", "Cobros", CollectionsPage, Icons.IMPORT),
+    ("Proveedores", "Maestro de proveedores", SuppliersPage, Icons.SUPPLIER),
+    ("Pagos", "Cuentas por pagar", AccountsPayablePage, Icons.RECEIPT),
+    ("Pagos", "Programación y autorizaciones", PaymentsPage, Icons.EXPORT),
+    ("Tesorería", "Cuentas y transferencias", TreasuryPage, Icons.TRANSFERS),
+    ("Tesorería", "Conciliación", BankReconciliationPage, Icons.CHECK),
+    ("Planeación financiera", "Presupuestos", BudgetsPage, Icons.FORECAST),
+    ("Planeación financiera", "Gastos", ExpensesPage, Icons.CASH),
+    ("Planeación financiera", "Capital y CAPEX", CapitalPage, Icons.FINANCE),
+    ("Activos", "Registro y depreciación", FixedAssetsPage, Icons.ASSETS),
+    ("Instrumentos comerciales", "Obligaciones y conciliación", CommercialInstrumentsPage, Icons.DOCUMENT),
+    ("Estados financieros", "Balanza, balance, resultados y flujo", FinancialStatementsPage, Icons.REPORT),
+    (None, "Configuración", FinanceSettingsPage, Icons.SETTINGS),
 ]
+
+_GROUP_ICONS = {
+    "Contabilidad": Icons.FINANCE, "Cobranza": Icons.CASH, "Proveedores": Icons.SUPPLIER,
+    "Pagos": Icons.EXPORT, "Tesorería": Icons.TRANSFERS, "Planeación financiera": Icons.FORECAST,
+    "Activos": Icons.ASSETS, "Instrumentos comerciales": Icons.DOCUMENT,
+    "Estados financieros": Icons.CHART,
+}
 
 
 class FinanceView(QWidget):
@@ -95,11 +103,11 @@ class FinanceView(QWidget):
         self._row_to_page_index: dict[int, int] = {}
         self._first_page_row = 0
         first_set = False
-        for section, label, page_class in _NAVIGATION:
+        for section, label, page_class, icon in _NAVIGATION:
             if section is not None and section != current_section:
-                self._nav.add_group(section.upper())
+                self._nav.add_group(section.upper(), icon=_GROUP_ICONS[section])
             current_section = section if section is not None else current_section
-            self._nav.add_section(label.strip())
+            self._nav.add_section(label.strip(), icon=icon)
             page = page_class(self._presenter, self)
             self._stack.addWidget(page)
             self._pages.append(page)

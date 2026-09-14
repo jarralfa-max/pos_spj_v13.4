@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from frontend.desktop.components.icons import Icons
+
 from backend.application.cash_register.permissions import CashPermissions
 from frontend.desktop.modules.cash_register.view_models import CashCapabilities
 
@@ -21,6 +23,14 @@ class CashRegisterRoute:
     tooltip: str
     required_permission: str
     capability: str
+    icon: str
+
+
+GROUP_ICONS: dict[str, str] = {
+    "OPERACION": Icons.CASH,
+    "CIERRE Y CONTROL": Icons.SETTLEMENT,
+    "ADMINISTRACION": Icons.SETTINGS,
+}
 
 
 CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
@@ -31,6 +41,7 @@ CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
         "Estado operativo de caja, alertas y pendientes del turno.",
         CashPermissions.ACCESS,
         "module_view",
+        icon=Icons.DASHBOARD,
     ),
     CashRegisterRoute(
         "shifts",
@@ -39,6 +50,7 @@ CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
         "Apertura y turnos: abrir, suspender, reanudar y cerrar preliminarmente.",
         CashPermissions.SHIFT_VIEW,
         "shift_view",
+        icon=Icons.CLOCK,
     ),
     CashRegisterRoute(
         "ledger",
@@ -47,6 +59,7 @@ CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
         "Ledger operacional: entradas, salidas y saldo actual del turno.",
         CashPermissions.MOVEMENT_VIEW,
         "movement_view",
+        icon=Icons.MOVEMENTS,
     ),
     CashRegisterRoute(
         "blind_count",
@@ -55,6 +68,7 @@ CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
         "Conteo ciego: captura de denominaciones sin revelar el esperado.",
         CashPermissions.BLIND_COUNT_VIEW,
         "count_view",
+        icon=Icons.COUNT,
     ),
     CashRegisterRoute(
         "x_cut",
@@ -63,6 +77,7 @@ CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
         "Consulta parcial imprimible sin cierre del turno.",
         CashPermissions.X_CUT_VIEW,
         "x_cut_view",
+        icon=Icons.REPORT,
     ),
     CashRegisterRoute(
         "z_cut",
@@ -71,6 +86,7 @@ CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
         "Consolidacion, diferencia, cierre, publicacion e impresion.",
         CashPermissions.Z_CUT_VIEW,
         "z_cut_view",
+        icon=Icons.SETTLEMENT,
     ),
     CashRegisterRoute(
         "differences",
@@ -79,6 +95,7 @@ CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
         "Clasificacion, tolerancias, revision, resolucion y reincidencia.",
         CashPermissions.DIFFERENCE_VIEW,
         "difference_view",
+        icon=Icons.DIFFERENCE,
     ),
     CashRegisterRoute(
         "handover",
@@ -87,6 +104,7 @@ CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
         "Entrega de valores: preparacion, doble confirmacion, tesoreria y disputas.",
         CashPermissions.HANDOVER_VIEW,
         "handover_view",
+        icon=Icons.TRANSFERS,
     ),
     CashRegisterRoute(
         "deposits",
@@ -95,6 +113,7 @@ CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
         "Valores preparados por Caja para entrega posterior a Tesoreria.",
         CashPermissions.DEPOSIT_VIEW,
         "deposit_view",
+        icon=Icons.FINANCE,
     ),
     CashRegisterRoute(
         "refunds",
@@ -103,6 +122,7 @@ CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
         "Metodo original, autorizacion, salida fisica y frontera financiera.",
         CashPermissions.REFUND_VIEW,
         "refund_view",
+        icon=Icons.RETURN,
     ),
     CashRegisterRoute(
         "payment_methods",
@@ -111,6 +131,7 @@ CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
         "Catalogo operativo de medios de pago y efecto fisico en cajon.",
         CashPermissions.PAYMENT_METHOD_VIEW,
         "payment_method_view",
+        icon=Icons.PRICE,
     ),
     CashRegisterRoute(
         "payment_terminals",
@@ -119,6 +140,7 @@ CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
         "Terminales de pago, estado operativo y conciliacion operacional.",
         CashPermissions.PAYMENT_TERMINAL_VIEW,
         "payment_terminal_view",
+        icon=Icons.LOYALTY_CARDS,
     ),
     CashRegisterRoute(
         "drawer_events",
@@ -127,6 +149,7 @@ CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
         "Aperturas de cajon auditadas con motivo y documento origen.",
         CashPermissions.DRAWER_EVENT_VIEW,
         "drawer_event_view",
+        icon=Icons.CASH,
     ),
     CashRegisterRoute(
         "hardware",
@@ -135,6 +158,7 @@ CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
         "Cajon, impresora, terminales, drivers, diagnostico y alertas.",
         CashPermissions.HARDWARE_VIEW,
         "hardware_view",
+        icon=Icons.DEVICE,
     ),
     CashRegisterRoute(
         "notifications",
@@ -143,6 +167,7 @@ CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
         "Policies, destinatarios, alertas in-app, WhatsApp, auditoria e idempotencia.",
         CashPermissions.NOTIFICATIONS_VIEW,
         "notification_view",
+        icon=Icons.NOTIFICATIONS,
     ),
     CashRegisterRoute(
         "audit",
@@ -151,6 +176,7 @@ CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
         "Bitacora operacional de Caja, autorizaciones, impresion y cambios sensibles.",
         CashPermissions.AUDIT_VIEW,
         "audit_view",
+        icon=Icons.AUDIT,
     ),
     CashRegisterRoute(
         "sync",
@@ -159,6 +185,7 @@ CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
         "Outbox, secuencias, reintentos, conflictos y estado offline-first.",
         CashPermissions.SYNC_VIEW,
         "sync_view",
+        icon=Icons.REFRESH,
     ),
     CashRegisterRoute(
         "configuration",
@@ -167,6 +194,7 @@ CASH_REGISTER_ROUTES: tuple[CashRegisterRoute, ...] = (
         "Jerarquia, vigencias, denominaciones, limites, alertas y permisos.",
         CashPermissions.SETTINGS_VIEW,
         "settings_view",
+        icon=Icons.SETTINGS,
     ),
 )
 

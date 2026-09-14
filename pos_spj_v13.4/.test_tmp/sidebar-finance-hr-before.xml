@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="4" time="4.215" timestamp="2026-09-13T18:16:17.874126-06:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_finance_hr_sidebar_icons" name="test_module_sidebar_keeps_semantic_icons_and_page_destinations[light-finance-FinanceView-examples0]" time="1.022"><failure message="AssertionError: assert 'home' == 'dashboard'&#10;  &#10;  - dashboard&#10;  + home">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024B4AFC1C70&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024B4AF8F230&gt;
+module_name = 'finance', view_name = 'FinanceView'
+examples = {'Resumen financiero': 'dashboard', 'Plan de cuentas': 'catalog', 'Asientos': 'edit'}
+theme = 'light'
+
+    @pytest.mark.parametrize("module_name,view_name,examples", [
+        ("finance", "FinanceView", {"Resumen financiero": Icons.DASHBOARD,
+                                   "Plan de cuentas": Icons.CATALOG, "Asientos": Icons.EDIT}),
+        ("hr", "HRView", {"Resumen": Icons.DASHBOARD, "Empleados": Icons.USERS,
+                         "Jornadas": Icons.CHECKLIST}),
+    ])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_module_sidebar_keeps_semantic_icons_and_page_destinations(
+            qt_font_resources, monkeypatch, module_name, view_name, examples, theme):
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(qt_font_resources, theme)
+        module = import_module(f"frontend.desktop.modules.{module_name}.{module_name}_view")
+        definitions = module._NAVIGATION
+        monkeypatch.setattr(module, "_NAVIGATION", [
+            (*entry[:2], PageBody, *entry[3:]) for entry in definitions])
+        view = getattr(module, view_name)(object())
+        try:
+            nav = view._nav
+            destinations = {str(nav.item(row).data(nav._BASE_LABEL_ROLE)): row
+                            for row in view._row_to_page_index}
+            assert list(destinations) == [entry[1] for entry in definitions]
+            for label, icon in examples.items():
+&gt;               assert nav.item(destinations[label]).data(nav._ICON_ROLE) == icon
+E               AssertionError: assert 'home' == 'dashboard'
+E                 
+E                 - dashboard
+E                 + home
+
+tests\ui\test_finance_hr_sidebar_icons.py:44: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_hr_sidebar_icons" name="test_module_sidebar_keeps_semantic_icons_and_page_destinations[light-hr-HRView-examples1]" time="0.132"><failure message="AssertionError: assert 'home' == 'dashboard'&#10;  &#10;  - dashboard&#10;  + home">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024B4AFC1C70&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024B4AB94E90&gt;
+module_name = 'hr', view_name = 'HRView'
+examples = {'Resumen': 'dashboard', 'Empleados': 'users', 'Jornadas': 'checklist'}
+theme = 'light'
+
+    @pytest.mark.parametrize("module_name,view_name,examples", [
+        ("finance", "FinanceView", {"Resumen financiero": Icons.DASHBOARD,
+                                   "Plan de cuentas": Icons.CATALOG, "Asientos": Icons.EDIT}),
+        ("hr", "HRView", {"Resumen": Icons.DASHBOARD, "Empleados": Icons.USERS,
+                         "Jornadas": Icons.CHECKLIST}),
+    ])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_module_sidebar_keeps_semantic_icons_and_page_destinations(
+            qt_font_resources, monkeypatch, module_name, view_name, examples, theme):
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(qt_font_resources, theme)
+        module = import_module(f"frontend.desktop.modules.{module_name}.{module_name}_view")
+        definitions = module._NAVIGATION
+        monkeypatch.setattr(module, "_NAVIGATION", [
+            (*entry[:2], PageBody, *entry[3:]) for entry in definitions])
+        view = getattr(module, view_name)(object())
+        try:
+            nav = view._nav
+            destinations = {str(nav.item(row).data(nav._BASE_LABEL_ROLE)): row
+                            for row in view._row_to_page_index}
+            assert list(destinations) == [entry[1] for entry in definitions]
+            for label, icon in examples.items():
+&gt;               assert nav.item(destinations[label]).data(nav._ICON_ROLE) == icon
+E               AssertionError: assert 'home' == 'dashboard'
+E                 
+E                 - dashboard
+E                 + home
+
+tests\ui\test_finance_hr_sidebar_icons.py:44: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_hr_sidebar_icons" name="test_module_sidebar_keeps_semantic_icons_and_page_destinations[dark-finance-FinanceView-examples0]" time="0.036"><failure message="AssertionError: assert 'home' == 'dashboard'&#10;  &#10;  - dashboard&#10;  + home">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024B4AFC1C70&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024B4B475C70&gt;
+module_name = 'finance', view_name = 'FinanceView'
+examples = {'Resumen financiero': 'dashboard', 'Plan de cuentas': 'catalog', 'Asientos': 'edit'}
+theme = 'dark'
+
+    @pytest.mark.parametrize("module_name,view_name,examples", [
+        ("finance", "FinanceView", {"Resumen financiero": Icons.DASHBOARD,
+                                   "Plan de cuentas": Icons.CATALOG, "Asientos": Icons.EDIT}),
+        ("hr", "HRView", {"Resumen": Icons.DASHBOARD, "Empleados": Icons.USERS,
+                         "Jornadas": Icons.CHECKLIST}),
+    ])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_module_sidebar_keeps_semantic_icons_and_page_destinations(
+            qt_font_resources, monkeypatch, module_name, view_name, examples, theme):
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(qt_font_resources, theme)
+        module = import_module(f"frontend.desktop.modules.{module_name}.{module_name}_view")
+        definitions = module._NAVIGATION
+        monkeypatch.setattr(module, "_NAVIGATION", [
+            (*entry[:2], PageBody, *entry[3:]) for entry in definitions])
+        view = getattr(module, view_name)(object())
+        try:
+            nav = view._nav
+            destinations = {str(nav.item(row).data(nav._BASE_LABEL_ROLE)): row
+                            for row in view._row_to_page_index}
+            assert list(destinations) == [entry[1] for entry in definitions]
+            for label, icon in examples.items():
+&gt;               assert nav.item(destinations[label]).data(nav._ICON_ROLE) == icon
+E               AssertionError: assert 'home' == 'dashboard'
+E                 
+E                 - dashboard
+E                 + home
+
+tests\ui\test_finance_hr_sidebar_icons.py:44: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_hr_sidebar_icons" name="test_module_sidebar_keeps_semantic_icons_and_page_destinations[dark-hr-HRView-examples1]" time="0.066"><failure message="AssertionError: assert 'home' == 'dashboard'&#10;  &#10;  - dashboard&#10;  + home">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024B4AFC1C70&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024B4B441590&gt;
+module_name = 'hr', view_name = 'HRView'
+examples = {'Resumen': 'dashboard', 'Empleados': 'users', 'Jornadas': 'checklist'}
+theme = 'dark'
+
+    @pytest.mark.parametrize("module_name,view_name,examples", [
+        ("finance", "FinanceView", {"Resumen financiero": Icons.DASHBOARD,
+                                   "Plan de cuentas": Icons.CATALOG, "Asientos": Icons.EDIT}),
+        ("hr", "HRView", {"Resumen": Icons.DASHBOARD, "Empleados": Icons.USERS,
+                         "Jornadas": Icons.CHECKLIST}),
+    ])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_module_sidebar_keeps_semantic_icons_and_page_destinations(
+            qt_font_resources, monkeypatch, module_name, view_name, examples, theme):
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(qt_font_resources, theme)
+        module = import_module(f"frontend.desktop.modules.{module_name}.{module_name}_view")
+        definitions = module._NAVIGATION
+        monkeypatch.setattr(module, "_NAVIGATION", [
+            (*entry[:2], PageBody, *entry[3:]) for entry in definitions])
+        view = getattr(module, view_name)(object())
+        try:
+            nav = view._nav
+            destinations = {str(nav.item(row).data(nav._BASE_LABEL_ROLE)): row
+                            for row in view._row_to_page_index}
+            assert list(destinations) == [entry[1] for entry in definitions]
+            for label, icon in examples.items():
+&gt;               assert nav.item(destinations[label]).data(nav._ICON_ROLE) == icon
+E               AssertionError: assert 'home' == 'dashboard'
+E                 
+E                 - dashboard
+E                 + home
+
+tests\ui\test_finance_hr_sidebar_icons.py:44: AssertionError</failure></testcase></testsuite></testsuites>

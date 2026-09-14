@@ -14,6 +14,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QFrame, QHBoxLayout, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
 
 from frontend.desktop.components.buttons import create_secondary_button
+from frontend.desktop.components.icons import Icons
 from frontend.desktop.components.kpi_bar import KPIBar
 from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
@@ -35,6 +36,7 @@ from frontend.desktop.modules.cash_register.cash_sync_page import CashSyncPage
 from frontend.desktop.modules.cash_register.cash_x_cuts_page import CashXCutsPage
 from frontend.desktop.modules.cash_register.cash_z_cuts_page import CashZCutsPage
 from frontend.desktop.modules.cash_register.cash_register_routes import (
+    GROUP_ICONS,
     CASH_REGISTER_ROUTES,
     grouped_routes,
     visible_routes,
@@ -106,7 +108,7 @@ class CashRegisterWorkspace(QWidget):
         page_index = 0
         routes_by_group = self._visible_grouped_routes()
         if not routes_by_group:
-            self._nav.add_group("CAJA")
+            self._nav.add_group("CAJA", icon=Icons.CASH)
             self._stack.addWidget(create_state_widget(
                 ViewState.NO_PERMISSION,
                 self,
@@ -114,10 +116,10 @@ class CashRegisterWorkspace(QWidget):
             ))
             return
         for group, routes in routes_by_group:
-            self._nav.add_group(group)
+            self._nav.add_group(group, icon=GROUP_ICONS[group])
             row += 1
             for route in routes:
-                self._nav.add_section(route.label)
+                self._nav.add_section(route.label, icon=route.icon)
                 item = self._nav.item(row)
                 if item is not None:
                     item.setToolTip(route.tooltip)

@@ -13,7 +13,7 @@ from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QLineEdit
 
 from frontend.desktop.components.virtual_keyboard import attach_virtual_keyboard_action
-from frontend.desktop.themes.tokens import TouchTarget
+from frontend.desktop.themes.theme_manager import bind_input_density
 
 # RFC: 3-4 letters + 6 digits (YYMMDD) + 3 homoclave chars.
 _RFC_RE = re.compile(r"^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$")
@@ -38,7 +38,7 @@ class TaxIdentifierInput(QLineEdit):
         self._required = required
         self.setPlaceholderText(kind)
         self.setMaxLength(20)
-        self.setMinimumHeight(TouchTarget.INPUT_HEIGHT)
+        bind_input_density(self)
         self.textChanged.connect(lambda _t: self.value_changed.emit())
         attach_virtual_keyboard_action(self)
 

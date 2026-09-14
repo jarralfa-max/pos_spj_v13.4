@@ -9,6 +9,7 @@ from frontend.desktop.components.kpi_bar import KPIBar
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.page_viewport import PageViewport
 from frontend.desktop.components.tabs import Tabs
+from frontend.desktop.components.toolbar import ContextBar
 from frontend.desktop.themes.tokens import Spacing
 
 
@@ -58,9 +59,7 @@ class FormPage(StandardPage):
 class DashboardPage(StandardPage):
     def __init__(self, parent=None, **kwargs) -> None:
         super().__init__(parent, **kwargs)
-        self.context_bar = QWidget(self)
-        self.context_layout = QHBoxLayout(self.context_bar)
-        self.context_layout.setContentsMargins(0, 0, 0, 0)
+        self.context_bar = ContextBar(self)
         self.add_content(self.context_bar)
         self.kpis = KPIBar(self)
         self.add_content(self.kpis)

@@ -27,7 +27,7 @@ from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.side_nav import SideNav
 from frontend.desktop.components.tooltip import apply_tooltip
 from frontend.desktop.components.view_states import ViewState, create_state_widget
-from frontend.desktop.modules.assets.assets_routes import grouped_routes, visible_routes
+from frontend.desktop.modules.assets.assets_routes import GROUP_ICONS, grouped_routes, visible_routes
 from frontend.desktop.modules.assets.pages.asset_detail_page import AssetDetailPage
 from frontend.desktop.modules.assets.pages.assets_directory_page import AssetsDirectoryPage
 from frontend.desktop.modules.assets.pages.maintenance_agenda_page import MaintenanceAgendaPage
@@ -88,16 +88,16 @@ class AssetsWorkspace(QWidget):
         page_index = 0
         routes_by_group = self._visible_grouped_routes()
         if not routes_by_group:
-            self._nav.add_group("Activos")
+            self._nav.add_group("Activos", icon=Icons.ASSETS)
             self._stack.addWidget(create_state_widget(
                 ViewState.NO_PERMISSION, self,
                 message="No tienes permiso para consultar el modulo de Activos."))
             return
         for group, routes in routes_by_group:
-            self._nav.add_group(group)
+            self._nav.add_group(group, icon=GROUP_ICONS[group])
             row += 1
             for route in routes:
-                self._nav.add_section(route.label)
+                self._nav.add_section(route.label, icon=route.icon)
                 item = self._nav.item(row)
                 if item is not None:
                     item.setToolTip(route.tooltip)

@@ -21,6 +21,8 @@ from PyQt5.QtWidgets import (
 )
 
 from frontend.desktop.components import SideNav
+from frontend.desktop.components.icons import Icons
+from frontend.desktop.modules.products.navigation import PRODUCTS_NAV
 
 logger = logging.getLogger("spj.products.view")
 
@@ -31,7 +33,7 @@ class ProductsView(QWidget):
     #: reflejar cambios sin navegar.
     product_data_changed = pyqtSignal()
 
-    def __init__(self, presenter, specs, parent=None) -> None:
+    def __init__(self, presenter, specs, parent=None, *, section_icons=None) -> None:
         """``specs``: lista de ``(page_factory, título)``. ``page_factory`` recibe el
         presenter y devuelve un ``QWidget``."""
         super().__init__(parent)
@@ -39,11 +41,16 @@ class ProductsView(QWidget):
         self._presenter = presenter
         self._specs = list(specs)
         self._built: dict[int, bool] = {}
+        icons_by_title = {entry.title: entry.icon for entry in PRODUCTS_NAV}
+        icons = (list(section_icons) if section_icons is not None else
+                 [icons_by_title.get(title, Icons.FILE) for _factory, title in self._specs])
+        if len(icons) != len(self._specs):
+            raise ValueError("Each product section must have one icon.")
 
         self.nav = SideNav()
         self.stack = QStackedWidget()
-        for _factory, title in self._specs:
-            self.nav.add_section(title)
+        for (_factory, title), icon in zip(self._specs, icons):
+            self.nav.add_section(title, icon)
             slot = QWidget()
             slot_layout = QVBoxLayout(slot)
             slot_layout.setContentsMargins(0, 0, 0, 0)

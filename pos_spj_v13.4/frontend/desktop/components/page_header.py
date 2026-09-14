@@ -7,9 +7,10 @@ menu handled by the page). Styled only via the global QSS (`#pageHeader`).
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QBoxLayout, QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from frontend.desktop.components.icons import icon_accessible_name
+from frontend.desktop.components.icons import IconProvider, icon_accessible_name
 from frontend.desktop.themes.tokens import Spacing
 
 
@@ -24,11 +25,17 @@ class PageHeader(QFrame):
         margin_v = Spacing.SM if compact else Spacing.MD
         root.setContentsMargins(0, margin_v, 0, margin_v)
         root.setSpacing(Spacing.MD)
+        if icon:
+            self._icon_label = QLabel(self)
+            self._icon_label.setAccessibleName(icon_accessible_name(icon))
+            IconProvider.bind(self._icon_label, icon, size=24)
+            root.addWidget(self._icon_label, 0, Qt.AlignTop)
 
         text_col = QVBoxLayout()
         text_col.setSpacing(Spacing.XXS)
         self._title = QLabel(title, self)
         self._title.setObjectName("pageHeaderTitle")
+        self._title.setWordWrap(True)
         if icon:
             self._title.setAccessibleName(f"{icon_accessible_name(icon)}: {title}")
         text_col.addWidget(self._title)
@@ -59,3 +66,9 @@ class PageHeader(QFrame):
     def set_subtitle(self, subtitle: str) -> None:
         self._subtitle.setText(subtitle)
         self._subtitle.setVisible(bool(subtitle))
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._actions_row.setDirection(
+            QBoxLayout.TopToBottom if self.width() < 600 else QBoxLayout.LeftToRight
+        )

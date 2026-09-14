@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="13" skipped="0" tests="13" time="0.774" timestamp="2026-09-13T13:37:55.957350-06:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.unit.test_app_paths_resources" name="test_source_resources_do_not_follow_working_directory[AppPaths]" time="0.004"><failure message="AttributeError: 'AppPaths' object has no attribute 'resource_root'">factory = &lt;class 'backend.shared.app_paths.AppPaths'&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001220FD05BA0&gt;
+
+    @pytest.mark.parametrize("factory", [AppPaths, AppPaths.from_environment])
+    def test_source_resources_do_not_follow_working_directory(factory, monkeypatch):
+        monkeypatch.chdir(PACKAGE_ROOT.parent)
+    
+        paths = factory()
+    
+        assert paths.root == PACKAGE_ROOT
+&gt;       assert paths.resource_root == PACKAGE_ROOT
+               ^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AppPaths' object has no attribute 'resource_root'
+
+C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\tests\unit\test_app_paths_resources.py:28: AttributeError</failure></testcase><testcase classname="tests.unit.test_app_paths_resources" name="test_source_resources_do_not_follow_working_directory[from_environment]" time="0.003"><failure message="AttributeError: 'AppPaths' object has no attribute 'resource_root'">factory = &lt;bound method AppPaths.from_environment of &lt;class 'backend.shared.app_paths.AppPaths'&gt;&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001220FD05E00&gt;
+
+    @pytest.mark.parametrize("factory", [AppPaths, AppPaths.from_environment])
+    def test_source_resources_do_not_follow_working_directory(factory, monkeypatch):
+        monkeypatch.chdir(PACKAGE_ROOT.parent)
+    
+        paths = factory()
+    
+        assert paths.root == PACKAGE_ROOT
+&gt;       assert paths.resource_root == PACKAGE_ROOT
+               ^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AppPaths' object has no attribute 'resource_root'
+
+C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\tests\unit\test_app_paths_resources.py:28: AttributeError</failure></testcase><testcase classname="tests.unit.test_app_paths_resources" name="test_frozen_resources_use_bundle_without_moving_binary_or_data[temporary/_MEI12345-AppPaths]" time="0.002"><failure message="AttributeError: 'AppPaths' object has no attribute 'resource_root'">factory = &lt;class 'backend.shared.app_paths.AppPaths'&gt;
+bundle = 'temporary/_MEI12345'
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001220FE884D0&gt;
+
+    @pytest.mark.parametrize("factory", [AppPaths, AppPaths.from_environment])
+    @pytest.mark.parametrize("bundle", ["temporary/_MEI12345", "installed/_internal"])
+    def test_frozen_resources_use_bundle_without_moving_binary_or_data(factory, bundle, monkeypatch):
+        install_root = CONTRACT_ROOT / "installed"
+        bundle_root = CONTRACT_ROOT / bundle
+        monkeypatch.setattr(sys, "frozen", True)
+        monkeypatch.setattr(sys, "executable", str(install_root / "spj.exe"))
+        monkeypatch.setattr(sys, "_MEIPASS", str(bundle_root), raising=False)
+    
+        paths = factory()
+    
+&gt;       assert paths.resource_root == bundle_root
+               ^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AppPaths' object has no attribute 'resource_root'
+
+tests\unit\test_app_paths_resources.py:43: AttributeError</failure></testcase><testcase classname="tests.unit.test_app_paths_resources" name="test_frozen_resources_use_bundle_without_moving_binary_or_data[temporary/_MEI12345-from_environment]" time="0.003"><failure message="AttributeError: 'AppPaths' object has no attribute 'resource_root'">factory = &lt;bound method AppPaths.from_environment of &lt;class 'backend.shared.app_paths.AppPaths'&gt;&gt;
+bundle = 'temporary/_MEI12345'
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001220FD31590&gt;
+
+    @pytest.mark.parametrize("factory", [AppPaths, AppPaths.from_environment])
+    @pytest.mark.parametrize("bundle", ["temporary/_MEI12345", "installed/_internal"])
+    def test_frozen_resources_use_bundle_without_moving_binary_or_data(factory, bundle, monkeypatch):
+        install_root = CONTRACT_ROOT / "installed"
+        bundle_root = CONTRACT_ROOT / bundle
+        monkeypatch.setattr(sys, "frozen", True)
+        monkeypatch.setattr(sys, "executable", str(install_root / "spj.exe"))
+        monkeypatch.setattr(sys, "_MEIPASS", str(bundle_root), raising=False)
+    
+        paths = factory()
+    
+&gt;       assert paths.resource_root == bundle_root
+               ^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AppPaths' object has no attribute 'resource_root'
+
+tests\unit\test_app_paths_resources.py:43: AttributeError</failure></testcase><testcase classname="tests.unit.test_app_paths_resources" name="test_frozen_resources_use_bundle_without_moving_binary_or_data[installed/_internal-AppPaths]" time="0.002"><failure message="AttributeError: 'AppPaths' object has no attribute 'resource_root'">factory = &lt;class 'backend.shared.app_paths.AppPaths'&gt;
+bundle = 'installed/_internal'
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001220FD31BF0&gt;
+
+    @pytest.mark.parametrize("factory", [AppPaths, AppPaths.from_environment])
+    @pytest.mark.parametrize("bundle", ["temporary/_MEI12345", "installed/_internal"])
+    def test_frozen_resources_use_bundle_without_moving_binary_or_data(factory, bundle, monkeypatch):
+        install_root = CONTRACT_ROOT / "installed"
+        bundle_root = CONTRACT_ROOT / bundle
+        monkeypatch.setattr(sys, "frozen", True)
+        monkeypatch.setattr(sys, "executable", str(install_root / "spj.exe"))
+        monkeypatch.setattr(sys, "_MEIPASS", str(bundle_root), raising=False)
+    
+        paths = factory()
+    
+&gt;       assert paths.resource_root == bundle_root
+               ^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AppPaths' object has no attribute 'resource_root'
+
+tests\unit\test_app_paths_resources.py:43: AttributeError</failure></testcase><testcase classname="tests.unit.test_app_paths_resources" name="test_frozen_resources_use_bundle_without_moving_binary_or_data[installed/_internal-from_environment]" time="0.003"><failure message="AttributeError: 'AppPaths' object has no attribute 'resource_root'">factory = &lt;bound method AppPaths.from_environment of &lt;class 'backend.shared.app_paths.AppPaths'&gt;&gt;
+bundle = 'installed/_internal'
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001220FD0F350&gt;
+
+    @pytest.mark.parametrize("factory", [AppPaths, AppPaths.from_environment])
+    @pytest.mark.parametrize("bundle", ["temporary/_MEI12345", "installed/_internal"])
+    def test_frozen_resources_use_bundle_without_moving_binary_or_data(factory, bundle, monkeypatch):
+        install_root = CONTRACT_ROOT / "installed"
+        bundle_root = CONTRACT_ROOT / bundle
+        monkeypatch.setattr(sys, "frozen", True)
+        monkeypatch.setattr(sys, "executable", str(install_root / "spj.exe"))
+        monkeypatch.setattr(sys, "_MEIPASS", str(bundle_root), raising=False)
+    
+        paths = factory()
+    
+&gt;       assert paths.resource_root == bundle_root
+               ^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AppPaths' object has no attribute 'resource_root'
+
+tests\unit\test_app_paths_resources.py:43: AttributeError</failure></testcase><testcase classname="tests.unit.test_app_paths_resources" name="test_frozen_installation_without_extraction_uses_binary_root[AppPaths]" time="0.002"><failure message="AttributeError: 'AppPaths' object has no attribute 'resource_root'">factory = &lt;class 'backend.shared.app_paths.AppPaths'&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001220FD0E550&gt;
+
+    @pytest.mark.parametrize("factory", [AppPaths, AppPaths.from_environment])
+    def test_frozen_installation_without_extraction_uses_binary_root(factory, monkeypatch):
+        install_root = CONTRACT_ROOT / "installed"
+        monkeypatch.setattr(sys, "frozen", True)
+        monkeypatch.setattr(sys, "executable", str(install_root / "spj.exe"))
+    
+        paths = factory()
+    
+&gt;       assert paths.resource_root == install_root
+               ^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AppPaths' object has no attribute 'resource_root'
+
+tests\unit\test_app_paths_resources.py:59: AttributeError</failure></testcase><testcase classname="tests.unit.test_app_paths_resources" name="test_frozen_installation_without_extraction_uses_binary_root[from_environment]" time="0.004"><failure message="AttributeError: 'AppPaths' object has no attribute 'resource_root'">factory = &lt;bound method AppPaths.from_environment of &lt;class 'backend.shared.app_paths.AppPaths'&gt;&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001220FD268A0&gt;
+
+    @pytest.mark.parametrize("factory", [AppPaths, AppPaths.from_environment])
+    def test_frozen_installation_without_extraction_uses_binary_root(factory, monkeypatch):
+        install_root = CONTRACT_ROOT / "installed"
+        monkeypatch.setattr(sys, "frozen", True)
+        monkeypatch.setattr(sys, "executable", str(install_root / "spj.exe"))
+    
+        paths = factory()
+    
+&gt;       assert paths.resource_root == install_root
+               ^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AppPaths' object has no attribute 'resource_root'
+
+tests\unit\test_app_paths_resources.py:59: AttributeError</failure></testcase><testcase classname="tests.unit.test_app_paths_resources" name="test_explicit_resource_directory_overrides_bundle_and_base" time="0.001"><failure message="TypeError: AppPaths.__init__() got an unexpected keyword argument 'resource_dir'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001220FD26120&gt;
+
+    def test_explicit_resource_directory_overrides_bundle_and_base(monkeypatch):
+        monkeypatch.setattr(sys, "frozen", True)
+        monkeypatch.setattr(sys, "_MEIPASS", str(CONTRACT_ROOT / "bundle"), raising=False)
+&gt;       paths = AppPaths(
+            base_dir=CONTRACT_ROOT / "binary",
+            resource_dir=CONTRACT_ROOT / "artwork",
+            data_dir=CONTRACT_ROOT / "persistent",
+        )
+E       TypeError: AppPaths.__init__() got an unexpected keyword argument 'resource_dir'
+
+tests\unit\test_app_paths_resources.py:66: TypeError</failure></testcase><testcase classname="tests.unit.test_app_paths_resources" name="test_explicit_base_directory_is_a_complete_bundle_override" time="0.002"><failure message="AttributeError: 'AppPaths' object has no attribute 'resource_root'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001220FE811D0&gt;
+
+    def test_explicit_base_directory_is_a_complete_bundle_override(monkeypatch):
+        monkeypatch.setattr(sys, "frozen", True)
+        monkeypatch.setattr(sys, "_MEIPASS", str(CONTRACT_ROOT / "bundle"), raising=False)
+        paths = AppPaths(base_dir=CONTRACT_ROOT / "test-installation")
+    
+&gt;       assert paths.resource_root == paths.root == CONTRACT_ROOT / "test-installation"
+               ^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AppPaths' object has no attribute 'resource_root'
+
+tests\unit\test_app_paths_resources.py:82: AttributeError</failure></testcase><testcase classname="tests.unit.test_app_paths_resources" name="test_unfrozen_process_ignores_stray_extraction_attribute" time="0.003"><failure message="AttributeError: 'AppPaths' object has no attribute 'resource_root'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001220FEA10F0&gt;
+
+    def test_unfrozen_process_ignores_stray_extraction_attribute(monkeypatch):
+        monkeypatch.setattr(sys, "_MEIPASS", str(CONTRACT_ROOT / "stray"), raising=False)
+    
+&gt;       assert AppPaths.from_environment().resource_root == PACKAGE_ROOT
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AppPaths' object has no attribute 'resource_root'
+
+tests\unit\test_app_paths_resources.py:88: AttributeError</failure></testcase><testcase classname="tests.unit.test_app_paths_resources" name="test_environment_paths_keep_resolved_bundle_after_environment_changes" time="0.002"><failure message="AttributeError: 'AppPaths' object has no attribute 'resource_root'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001220FF38940&gt;
+
+    def test_environment_paths_keep_resolved_bundle_after_environment_changes(monkeypatch):
+        monkeypatch.setattr(sys, "frozen", True)
+        monkeypatch.setattr(sys, "executable", str(CONTRACT_ROOT / "installed" / "spj.exe"))
+        monkeypatch.setattr(sys, "_MEIPASS", str(CONTRACT_ROOT / "bundle"), raising=False)
+        paths = AppPaths.from_environment()
+        monkeypatch.setattr(sys, "_MEIPASS", str(CONTRACT_ROOT / "changed"))
+    
+&gt;       assert paths.resource_root == CONTRACT_ROOT / "bundle"
+               ^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AppPaths' object has no attribute 'resource_root'
+
+tests\unit\test_app_paths_resources.py:98: AttributeError</failure></testcase><testcase classname="tests.unit.test_app_paths_resources" name="test_ensure_directories_never_creates_or_writes_bundle" time="0.002"><failure message="TypeError: AppPaths.__init__() got an unexpected keyword argument 'resource_dir'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001220FEE4410&gt;
+
+    def test_ensure_directories_never_creates_or_writes_bundle(monkeypatch):
+        created = []
+        monkeypatch.setattr(Path, "mkdir", lambda path, **kwargs: created.append(path))
+&gt;       paths = AppPaths(
+            base_dir=CONTRACT_ROOT / "binary",
+            resource_dir=CONTRACT_ROOT / "bundle",
+            data_dir=CONTRACT_ROOT / "persistent",
+        )
+E       TypeError: AppPaths.__init__() got an unexpected keyword argument 'resource_dir'
+
+tests\unit\test_app_paths_resources.py:105: TypeError</failure></testcase></testsuite></testsuites>
