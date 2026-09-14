@@ -6,6 +6,7 @@ permissions ORD-1 already defined for exactly this area.
 from __future__ import annotations
 
 from backend.application.orders_delivery.dto import CustomerOrderDTO
+from backend.application.orders_delivery.audit import OrdersDeliveryAuditActions
 from backend.application.orders_delivery.permissions import OrdersDeliveryPermissions
 from backend.application.orders_delivery.result import OrderResult, fail_from_domain_error
 from backend.application.orders_delivery.use_cases._base import _OrdersDeliveryBaseUseCase
@@ -41,6 +42,10 @@ class AssignPreparationUseCase(_OrdersDeliveryBaseUseCase):
             except OrdersDeliveryDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.orders.save(order)
+            self._audit(
+                uow, OrdersDeliveryAuditActions.ORDER_PREPARATION_ASSIGNED, entity="CustomerOrder", entity_id=order.id,
+                branch_id=order.branch_id, actor_user_id=actor_user_id, operation_id=operation_id,
+                assigned_to_user_id=assigned_to_user_id)
         return OrderResult.ok(
             "Preparación asignada", entity_id=order.id, operation_id=operation_id,
             order=CustomerOrderDTO.from_entity(order))
@@ -101,6 +106,10 @@ class RecordPreparedLineUseCase(_OrdersDeliveryBaseUseCase):
             except OrdersDeliveryDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.orders.save(order)
+            self._audit(
+                uow, OrdersDeliveryAuditActions.ORDER_LINE_PREPARED, entity="CustomerOrder", entity_id=order.id,
+                branch_id=order.branch_id, actor_user_id=actor_user_id, operation_id=operation_id,
+                line_id=line_id, quantity=quantity, weight=weight)
         return OrderResult.ok(
             "Cantidad preparada registrada", entity_id=order.id, operation_id=operation_id,
             order=CustomerOrderDTO.from_entity(order))

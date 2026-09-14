@@ -11,6 +11,7 @@ import logging
 import secrets
 
 from backend.application.orders_delivery.dto import CustomerOrderDTO
+from backend.application.orders_delivery.audit import OrdersDeliveryAuditActions
 from backend.application.orders_delivery.permissions import OrdersDeliveryPermissions
 from backend.application.orders_delivery.result import OrderResult, fail_from_domain_error
 from backend.application.orders_delivery.use_cases._base import _OrdersDeliveryBaseUseCase
@@ -55,6 +56,9 @@ class MarkReadyForPickupUseCase(_OrdersDeliveryBaseUseCase):
             except OrdersDeliveryDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.orders.save(order)
+            self._audit(
+                uow, OrdersDeliveryAuditActions.ORDER_READY_FOR_PICKUP, entity="CustomerOrder", entity_id=order.id,
+                branch_id=order.branch_id, actor_user_id=actor_user_id, operation_id=operation_id)
 
         notification_sent = False
         try:
@@ -86,6 +90,9 @@ class CompletePickupUseCase(_OrdersDeliveryBaseUseCase):
             except OrdersDeliveryDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.orders.save(order)
+            self._audit(
+                uow, OrdersDeliveryAuditActions.ORDER_PICKUP_COMPLETED, entity="CustomerOrder", entity_id=order.id,
+                branch_id=order.branch_id, actor_user_id=actor_user_id, operation_id=operation_id)
         return OrderResult.ok(
             "Pedido entregado en mostrador", entity_id=order.id, operation_id=operation_id,
             order=CustomerOrderDTO.from_entity(order))

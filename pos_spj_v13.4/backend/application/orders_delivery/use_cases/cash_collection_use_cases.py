@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from backend.application.orders_delivery.audit import OrdersDeliveryAuditActions
 from backend.application.orders_delivery.permissions import OrdersDeliveryPermissions
 from backend.application.orders_delivery.result import OrderResult, fail_from_domain_error
 from backend.application.orders_delivery.use_cases._base import _OrdersDeliveryBaseUseCase
@@ -60,6 +61,10 @@ class CreateCashCollectionRequestUseCase(_OrdersDeliveryBaseUseCase):
             except OrdersDeliveryDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.cash_collections.save(collection)
+            self._audit(
+                uow, OrdersDeliveryAuditActions.CASH_COLLECTION_REQUESTED, entity="DriverCashCollection", entity_id=collection.id,
+                branch_id=job.branch_id, actor_user_id=actor_user_id, operation_id=operation_id,
+                delivery_job_id=job.id, expected_amount=str(collection.expected_amount))
         return OrderResult.ok(
             "Solicitud de cobro creada", entity_id=collection.id, operation_id=operation_id)
 

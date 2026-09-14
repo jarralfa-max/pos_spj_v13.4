@@ -58,6 +58,10 @@ COLUMNS: dict[DeliveryRecord, list[ColumnSpec]] = {
         ColumnSpec("Fecha", "date"), ColumnSpec("Alerta"), ColumnSpec("Detalle"),
         ColumnSpec("Estado", "status"), ColumnSpec("Leída el", "date"),
     ],
+    DeliveryRecord.AUDIT: [
+        ColumnSpec("Fecha", "date"), ColumnSpec("Usuario"), ColumnSpec("Acción", "status"),
+        ColumnSpec("Entidad"), ColumnSpec("Identificador"), ColumnSpec("Detalle"),
+    ],
 }
 
 

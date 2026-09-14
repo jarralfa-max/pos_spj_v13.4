@@ -17,12 +17,14 @@ from backend.infrastructure.integrations.orders_delivery_internal_notifier impor
 from backend.shared.ids import new_uuid
 from migrations import m000_base_schema
 from tests.integration._born_clean_db import make_db
+from tests.integration._audit_trail_table import create_audit_logs_table
 
 
 @pytest.fixture
 def conn():
     connection = make_db()
     create_orders_delivery_schema(connection)
+    create_audit_logs_table(connection)
     create_inventory_schema(connection)
     yield connection
     connection.close()
@@ -78,6 +80,7 @@ class TestNotifyRoles:
         # delivery operation that triggered it.
         bare = sqlite3.connect(":memory:")
         create_orders_delivery_schema(bare)
+        create_audit_logs_table(bare)
         written = OrdersDeliveryInternalNotifier(bare).notify_roles(
             roles=("admin",), branch_id=new_uuid(), tipo="x", titulo="x", cuerpo="x")
         assert written == 0

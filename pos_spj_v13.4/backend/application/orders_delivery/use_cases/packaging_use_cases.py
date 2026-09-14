@@ -10,6 +10,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from backend.application.orders_delivery.dto import CustomerOrderDTO
+from backend.application.orders_delivery.audit import OrdersDeliveryAuditActions
 from backend.application.orders_delivery.permissions import OrdersDeliveryPermissions
 from backend.application.orders_delivery.result import OrderResult, fail_from_domain_error
 from backend.application.orders_delivery.use_cases._base import _OrdersDeliveryBaseUseCase
@@ -64,6 +65,10 @@ class CreatePackageUseCase(_OrdersDeliveryBaseUseCase):
                     line.set_package(package.id)
             uow.packages.save(package)
             uow.orders.save(order)
+            self._audit(
+                uow, OrdersDeliveryAuditActions.ORDER_PACKAGE_CREATED, entity="OrderPackage", entity_id=package.id,
+                branch_id=order.branch_id, actor_user_id=actor_user_id, operation_id=operation_id,
+                order_id=order.id, package_number=package_number)
         return OrderResult.ok(
             "Paquete creado", entity_id=package.id, operation_id=operation_id,
             order=CustomerOrderDTO.from_entity(order), package_id=package.id,
@@ -89,6 +94,10 @@ class SealPackageUseCase(_OrdersDeliveryBaseUseCase):
             except OrdersDeliveryDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.packages.save(package)
+            self._audit(
+                uow, OrdersDeliveryAuditActions.ORDER_PACKAGE_SEALED, entity="OrderPackage", entity_id=package.id,
+                branch_id=uow.orders.get(package.order_id).branch_id, actor_user_id=actor_user_id, operation_id=operation_id,
+                seal_number=seal_number)
         return OrderResult.ok(
             "Paquete sellado", entity_id=package.id, operation_id=operation_id,
             seal_number=package.seal_number)

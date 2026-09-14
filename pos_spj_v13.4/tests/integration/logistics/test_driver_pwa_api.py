@@ -48,6 +48,7 @@ from backend.infrastructure.db.repositories.orders_delivery.customer_order_repos
 from backend.infrastructure.db.schema.inventory_schema import create_inventory_schema
 from backend.infrastructure.db.schema.orders_delivery_schema import create_orders_delivery_schema
 from backend.shared.ids import new_uuid
+from tests.integration._audit_trail_table import create_audit_logs_table
 
 ALL_DELIVERY_PERMISSIONS = (
     "DELIVERY.repartidor.asignar", "DELIVERY.repartidor.estado_gestionar",
@@ -78,6 +79,7 @@ def conn():
     # own thread must be usable from there too, exactly like production.
     connection = sqlite3.connect(":memory:", check_same_thread=False)
     create_orders_delivery_schema(connection)
+    create_audit_logs_table(connection)
     create_inventory_schema(connection)
     yield connection
     connection.close()

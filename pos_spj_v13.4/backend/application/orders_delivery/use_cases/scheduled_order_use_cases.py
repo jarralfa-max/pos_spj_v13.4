@@ -12,6 +12,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from backend.application.orders_delivery.dto import CustomerOrderDTO
+from backend.application.orders_delivery.audit import OrdersDeliveryAuditActions
 from backend.application.orders_delivery.permissions import OrdersDeliveryPermissions
 from backend.application.orders_delivery.result import OrderResult, fail_from_domain_error
 from backend.application.orders_delivery.use_cases._base import _OrdersDeliveryBaseUseCase
@@ -72,6 +73,10 @@ class RescheduleOrderUseCase(_OrdersDeliveryBaseUseCase):
             except OrdersDeliveryDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.orders.save(order)
+            self._audit(
+                uow, OrdersDeliveryAuditActions.ORDER_RESCHEDULED, entity="CustomerOrder", entity_id=order.id,
+                branch_id=order.branch_id, actor_user_id=actor_user_id, operation_id=operation_id,
+                scheduled_for=scheduled_for, window_start=window_start, window_end=window_end)
         return OrderResult.ok(
             "Pedido reprogramado", entity_id=order.id, operation_id=operation_id,
             order=CustomerOrderDTO.from_entity(order))

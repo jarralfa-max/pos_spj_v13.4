@@ -24,6 +24,7 @@ from backend.infrastructure.db.repositories.orders_delivery.customer_order_repos
 )
 from backend.infrastructure.db.schema.orders_delivery_schema import create_orders_delivery_schema
 from backend.shared.ids import new_uuid
+from tests.integration._audit_trail_table import create_audit_logs_table
 
 
 class _NoOpWhatsAppClient:
@@ -38,6 +39,7 @@ class _NoOpWhatsAppClient:
 def conn():
     connection = sqlite3.connect(":memory:")
     create_orders_delivery_schema(connection)
+    create_audit_logs_table(connection)
     yield connection
     connection.close()
 

@@ -41,6 +41,7 @@ from backend.infrastructure.integrations.orders_delivery_internal_notifier impor
 )
 from backend.shared.ids import new_uuid
 from tests.integration._born_clean_db import make_db
+from tests.integration._audit_trail_table import create_audit_logs_table
 
 SUCURSAL = new_uuid()
 
@@ -63,6 +64,7 @@ def conn():
     c = sqlite3.connect(":memory:")
     c.row_factory = sqlite3.Row
     create_orders_delivery_schema(c)
+    create_audit_logs_table(c)
     c.commit()
     yield c
     c.close()
@@ -145,6 +147,7 @@ def _admin(conn):
 def conn_completa():
     c = make_db()
     create_orders_delivery_schema(c)
+    create_audit_logs_table(c)
     c.commit()
     yield c
     c.close()

@@ -32,6 +32,7 @@ from backend.infrastructure.db.schema.orders_delivery_schema import (
     create_orders_delivery_schema,
 )
 from backend.shared.ids import new_uuid
+from tests.integration._audit_trail_table import create_audit_logs_table
 
 SUCURSAL = new_uuid()
 USUARIO = new_uuid()
@@ -74,6 +75,7 @@ def conn():
     c = sqlite3.connect(":memory:")
     c.row_factory = sqlite3.Row
     create_orders_delivery_schema(c)
+    create_audit_logs_table(c)
     c.commit()
     yield c
     c.close()

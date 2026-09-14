@@ -19,6 +19,8 @@ tienen; `notification_inbox` la guarda como `sucursal_id`.
 
 QUÉ ES CADA REGISTRO NUEVO
 --------------------------
+- Auditoría: `audit_logs` del módulo DELIVERY en la sucursal. La escriben los
+  casos de uso en la misma transacción que su cambio (ver `audit.py`).
 - Seguimiento: un renglón por PEDIDO con reparto, con su trabajo MÁS RECIENTE.
   Aprobar una reentrega crea un trabajo nuevo y el viejo se queda en
   `REDELIVERY_PENDING` para siempre; enseñar ese estado diría que el pedido sigue
@@ -42,6 +44,7 @@ import json
 from dataclasses import dataclass
 from enum import Enum
 
+from backend.application.orders_delivery.audit import ALL_AUDIT_ACTIONS, AUDIT_MODULE
 from backend.domain.orders_delivery.enums import (
     CollectionStatus,
     DeliveryStatus,
@@ -61,6 +64,7 @@ class DeliveryRecord(str, Enum):
     TRACKING = "tracking"
     INCIDENTS = "incidents"
     ALERTS = "alerts"
+    AUDIT = "audit"
 
 
 class AlertStatus(str, Enum):
@@ -68,6 +72,11 @@ class AlertStatus(str, Enum):
 
     UNREAD = "UNREAD"
     READ = "READ"
+
+
+#: El filtro de Auditoría es la acción; su vocabulario lo fija `audit.py`.
+AuditAction = Enum("AuditAction", [(accion, accion) for accion in sorted(ALL_AUDIT_ACTIONS)],
+                   type=str)
 
 
 #: El enum de estados de cada registro: valida el filtro y da las opciones del combo.
@@ -80,6 +89,7 @@ STATUS_ENUM: dict[DeliveryRecord, type[Enum]] = {
     DeliveryRecord.TRACKING: DeliveryStatus,
     DeliveryRecord.INCIDENTS: FailureReason,
     DeliveryRecord.ALERTS: AlertStatus,
+    DeliveryRecord.AUDIT: AuditAction,
 }
 
 #: Estados que piden que alguien haga algo. Van arriba de la lista.
@@ -100,6 +110,8 @@ _ATENCION: dict[DeliveryRecord, tuple[Enum, ...]] = {
     # Una incidencia no se "atiende" en esta tabla: van por fecha, la más reciente arriba.
     DeliveryRecord.INCIDENTS: (),
     DeliveryRecord.ALERTS: (AlertStatus.UNREAD,),
+    # Un rastro no se atiende: va por fecha, lo más reciente arriba.
+    DeliveryRecord.AUDIT: (),
 }
 
 
@@ -216,6 +228,18 @@ _CONSULTAS: dict[DeliveryRecord, _Consulta] = {
         extra=f"n.tipo IN ({','.join('?' for _ in _TIPOS_ALERTA)})",
         extra_params=_TIPOS_ALERTA,
         destinatario="n.empleado_id",
+    ),
+    DeliveryRecord.AUDIT: _Consulta(
+        columnas=(
+            ("id", "a.id"), ("occurred_at", "a.fecha"), ("actor", "a.usuario"),
+            ("action", "a.accion"), ("entity", "a.entidad"),
+            ("entity_id", "a.entidad_id"), ("after", "a.valor_despues"),
+        ),
+        desde="audit_logs a",
+        sucursal="a.sucursal_id", estado="a.accion", orden="a.fecha DESC, a.id DESC",
+        buscar_en=("a.entidad_id", "a.usuario", "a.valor_despues"),
+        # `audit_logs` es transversal: sólo lo de este módulo.
+        extra="a.modulo = ?", extra_params=(AUDIT_MODULE,),
     ),
 }
 

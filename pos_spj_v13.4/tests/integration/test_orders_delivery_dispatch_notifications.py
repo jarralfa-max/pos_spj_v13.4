@@ -47,6 +47,7 @@ from backend.infrastructure.db.schema.inventory_schema import create_inventory_s
 from backend.infrastructure.db.schema.orders_delivery_schema import create_orders_delivery_schema
 from backend.shared.ids import new_uuid
 from tests.integration._born_clean_db import make_db
+from tests.integration._audit_trail_table import create_audit_logs_table
 
 
 class _FakeWhatsAppClient:
@@ -116,6 +117,7 @@ class TestDispatchNotifiesCustomer:
     def conn(self):
         connection = sqlite3.connect(":memory:")
         create_orders_delivery_schema(connection)
+        create_audit_logs_table(connection)
         create_inventory_schema(connection)
         yield connection
         connection.close()
@@ -142,6 +144,7 @@ class TestFailedDeliveryNotifiesCustomerAndStaff:
         # internal-alert write, not just its safe no-op path.
         connection = make_db()
         create_orders_delivery_schema(connection)
+        create_audit_logs_table(connection)
         create_inventory_schema(connection)
         yield connection
         connection.close()

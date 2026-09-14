@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from backend.application.orders_delivery.audit import OrdersDeliveryAuditActions
 from backend.application.orders_delivery.permissions import OrdersDeliveryPermissions
 from backend.application.orders_delivery.result import OrderResult, fail_from_domain_error
 from backend.application.orders_delivery.use_cases._base import _OrdersDeliveryBaseUseCase
@@ -51,6 +52,10 @@ class RegisterDriverProfileUseCase(_OrdersDeliveryBaseUseCase):
             except OrdersDeliveryDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.driver_profiles.save(profile)
+            self._audit(
+                uow, OrdersDeliveryAuditActions.DRIVER_PROFILE_REGISTERED, entity="DriverOperationalProfile", entity_id=profile.id,
+                branch_id=profile.branch_id, actor_user_id=actor_user_id, operation_id=operation_id,
+                driver_id=driver_id)
         return OrderResult.ok(
             "Perfil de repartidor registrado", entity_id=profile.id, operation_id=operation_id)
 
@@ -81,6 +86,10 @@ class ProposeAssignmentUseCase(_OrdersDeliveryBaseUseCase):
             profile.increment_assignments()
             uow.driver_profiles.save(profile)
             uow.assignments.save(assignment)
+            self._audit(
+                uow, OrdersDeliveryAuditActions.DRIVER_ASSIGNMENT_PROPOSED, entity="DeliveryAssignment", entity_id=assignment.id,
+                branch_id=profile.branch_id, actor_user_id=actor_user_id, operation_id=operation_id,
+                delivery_job_id=delivery_job_id, driver_id=driver_id)
         return OrderResult.ok(
             "Asignación propuesta", entity_id=assignment.id, operation_id=operation_id)
 
@@ -141,6 +150,12 @@ class RejectAssignmentUseCase(_OrdersDeliveryBaseUseCase):
                 profile.decrement_assignments()
                 uow.driver_profiles.save(profile)
             uow.assignments.save(assignment)
+            sucursal = (profile.branch_id if profile is not None
+                        else uow.delivery_jobs.get(assignment.delivery_job_id).branch_id)
+            self._audit(
+                uow, OrdersDeliveryAuditActions.DRIVER_ASSIGNMENT_REJECTED, entity="DeliveryAssignment", entity_id=assignment.id,
+                branch_id=sucursal, actor_user_id=actor_user_id, operation_id=operation_id,
+                delivery_job_id=assignment.delivery_job_id)
         return OrderResult.ok(
             "Asignación rechazada por el repartidor", entity_id=assignment.id,
             operation_id=operation_id)

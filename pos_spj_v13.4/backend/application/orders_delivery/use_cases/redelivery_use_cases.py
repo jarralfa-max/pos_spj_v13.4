@@ -11,6 +11,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from backend.application.orders_delivery.dto import DeliveryJobDTO
+from backend.application.orders_delivery.audit import OrdersDeliveryAuditActions
 from backend.application.orders_delivery.permissions import OrdersDeliveryPermissions
 from backend.application.orders_delivery.result import OrderResult, fail_from_domain_error
 from backend.application.orders_delivery.use_cases._base import _OrdersDeliveryBaseUseCase
@@ -62,6 +63,10 @@ class RequestRedeliveryUseCase(_OrdersDeliveryBaseUseCase):
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.redeliveries.save(request)
             uow.delivery_jobs.save(job)
+            self._audit(
+                uow, OrdersDeliveryAuditActions.REDELIVERY_REQUEST_CREATED, entity="RedeliveryRequest", entity_id=request.id,
+                branch_id=job.branch_id, actor_user_id=actor_user_id, operation_id=operation_id,
+                delivery_job_id=job.id, reason=reason)
         return OrderResult.ok(
             "Reentrega solicitada", entity_id=request.id, operation_id=operation_id)
 
@@ -130,6 +135,9 @@ class RejectRedeliveryUseCase(_OrdersDeliveryBaseUseCase):
             except OrdersDeliveryDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.redeliveries.save(request)
+            self._audit(
+                uow, OrdersDeliveryAuditActions.REDELIVERY_REQUEST_REJECTED, entity="RedeliveryRequest", entity_id=request.id,
+                branch_id=uow.delivery_jobs.get(request.original_delivery_job_id).branch_id, actor_user_id=actor_user_id, operation_id=operation_id)
         return OrderResult.ok(
             "Reentrega rechazada", entity_id=request.id, operation_id=operation_id)
 

@@ -23,6 +23,7 @@ from frontend.desktop.modules.orders_delivery.orders_delivery_routes import (
     ORDERS_DELIVERY_ROUTES,
     build_page,
 )
+from tests.integration._audit_trail_table import create_audit_logs_table
 
 
 def test_every_nav_entry_has_a_unique_page_id():
@@ -68,6 +69,7 @@ class TestOrdersDeliveryBadgeQueryService:
     def _db(self):
         conn = sqlite3.connect(":memory:")
         create_orders_delivery_schema(conn)
+        create_audit_logs_table(conn)
         return conn
 
     def _insert_order(self, conn, **overrides):

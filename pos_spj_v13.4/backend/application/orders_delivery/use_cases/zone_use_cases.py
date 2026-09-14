@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
 
+from backend.application.orders_delivery.audit import OrdersDeliveryAuditActions
 from backend.application.orders_delivery.permissions import OrdersDeliveryPermissions
 from backend.application.orders_delivery.result import OrderResult, fail_from_domain_error
 from backend.application.orders_delivery.use_cases._base import _OrdersDeliveryBaseUseCase
@@ -101,6 +102,10 @@ class CreateDeliveryZoneUseCase(_OrdersDeliveryBaseUseCase):
             except OrdersDeliveryDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.zones.save(zona)
+            self._audit(
+                uow, OrdersDeliveryAuditActions.DELIVERY_ZONE_CREATED, entity="DeliveryZone", entity_id=zona.id,
+                branch_id=zona.branch_id, actor_user_id=actor_user_id, operation_id=operation_id,
+                name=zona.name, postal_codes=list(zona.postal_codes), delivery_fee=str(zona.delivery_fee))
         return OrderResult.ok(
             "Zona de entrega creada", entity_id=zona.id, operation_id=operation_id)
 
@@ -130,6 +135,10 @@ class UpdateDeliveryZoneUseCase(_OrdersDeliveryBaseUseCase):
             except OrdersDeliveryDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.zones.save(zona)
+            self._audit(
+                uow, OrdersDeliveryAuditActions.DELIVERY_ZONE_UPDATED, entity="DeliveryZone", entity_id=zona.id,
+                branch_id=zona.branch_id, actor_user_id=actor_user_id, operation_id=operation_id,
+                name=zona.name, postal_codes=list(zona.postal_codes), delivery_fee=str(zona.delivery_fee))
         return OrderResult.ok(
             "Zona de entrega actualizada", entity_id=zona.id, operation_id=operation_id)
 
@@ -154,6 +163,10 @@ class SetDeliveryZoneActiveUseCase(_OrdersDeliveryBaseUseCase):
             except OrdersDeliveryDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.zones.save(zona)
+            self._audit(
+                uow, (OrdersDeliveryAuditActions.DELIVERY_ZONE_ACTIVATED if active
+                      else OrdersDeliveryAuditActions.DELIVERY_ZONE_DEACTIVATED), entity="DeliveryZone", entity_id=zona.id,
+                branch_id=zona.branch_id, actor_user_id=actor_user_id, operation_id=operation_id)
         return OrderResult.ok(
             "Zona de entrega activada" if active else "Zona de entrega desactivada",
             entity_id=zona.id, operation_id=operation_id)

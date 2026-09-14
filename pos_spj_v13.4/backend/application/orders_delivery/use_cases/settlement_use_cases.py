@@ -7,6 +7,7 @@ collection `SETTLED` in the same transaction — a collection is never left
 
 from __future__ import annotations
 
+from backend.application.orders_delivery.audit import OrdersDeliveryAuditActions
 from backend.application.orders_delivery.permissions import OrdersDeliveryPermissions
 from backend.application.orders_delivery.result import OrderResult, fail_from_domain_error
 from backend.application.orders_delivery.use_cases._base import _OrdersDeliveryBaseUseCase
@@ -88,6 +89,12 @@ class ApproveDriverSettlementUseCase(_OrdersDeliveryBaseUseCase):
             except OrdersDeliveryDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.settlements.save(settlement)
+            self._audit(
+                uow, (OrdersDeliveryAuditActions.DRIVER_SETTLEMENT_SUBMITTED_FOR_REVIEW
+                      if settlement.status == SettlementStatus.PENDING_REVIEW
+                      else OrdersDeliveryAuditActions.DRIVER_SETTLEMENT_APPROVED), entity="DriverSettlement", entity_id=settlement.id,
+                branch_id=settlement.branch_id, actor_user_id=actor_user_id, operation_id=operation_id,
+                status=settlement.status.value)
         return OrderResult.ok(
             "Liquidación procesada", entity_id=settlement.id, operation_id=operation_id,
             status=settlement.status.value)

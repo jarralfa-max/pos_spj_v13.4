@@ -60,7 +60,7 @@ ROUTE_COVERAGE: dict[str, tuple[int, int]] = {
     "business_intelligence": (16, 17),
     "pricing": (5, 6),
     "losses": (5, 16),
-    "orders_delivery": (21, 23),
+    "orders_delivery": (22, 23),
     "products": (2, 21),
     "meat_processing": (1, 29),
 }

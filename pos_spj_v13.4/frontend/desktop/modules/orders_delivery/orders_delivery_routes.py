@@ -45,6 +45,7 @@ _REAL_ROUTE_BUILDERS: dict[str, str] = {
     "orders_tracking": "_build_delivery_record",
     "orders_incidents": "_build_delivery_record",
     "orders_alerts": "_build_delivery_record",
+    "orders_audit": "_build_delivery_record",
     # PASS 6: Configuración = zonas de entrega, la única configuración del
     # área con datos y reglas reales (ver delivery_settings_page.py).
     "orders_settings": "_build_delivery_settings",
@@ -178,6 +179,7 @@ _DELIVERY_RECORD_BY_ROUTE: dict[str, tuple[str, str]] = {
     "orders_tracking": ("TRACKING", "No hay pedidos con reparto que seguir."),
     "orders_incidents": ("INCIDENTS", "No hay intentos de entrega fallidos."),
     "orders_alerts": ("ALERTS", "No tienes alertas de reparto."),
+    "orders_audit": ("AUDIT", "No hay movimientos auditados en esta sucursal."),
 }
 
 

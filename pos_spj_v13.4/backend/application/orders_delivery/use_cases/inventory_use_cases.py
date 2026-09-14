@@ -21,6 +21,7 @@ once an adjustment has happened.
 from __future__ import annotations
 
 from backend.application.orders_delivery.dto import CustomerOrderDTO
+from backend.application.orders_delivery.audit import OrdersDeliveryAuditActions
 from backend.application.orders_delivery.permissions import OrdersDeliveryPermissions
 from backend.application.orders_delivery.result import OrderResult, fail_from_domain_error
 from backend.application.orders_delivery.use_cases._base import _OrdersDeliveryBaseUseCase
@@ -122,6 +123,10 @@ class ReleaseOrderInventoryUseCase(_OrdersDeliveryBaseUseCase):
                 return fail_from_domain_error(exc, operation_id=operation_id)
 
             uow.orders.save(order)
+            self._audit(
+                uow, OrdersDeliveryAuditActions.ORDER_INVENTORY_RELEASED, entity="CustomerOrder", entity_id=order.id,
+                branch_id=order.branch_id, actor_user_id=actor_user_id, operation_id=operation_id,
+                reason=reason)
         return OrderResult.ok(
             "Reserva de inventario liberada", entity_id=order.id, operation_id=operation_id,
             order=CustomerOrderDTO.from_entity(order))

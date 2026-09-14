@@ -11,6 +11,7 @@ import sqlite3
 from decimal import Decimal
 
 import pytest
+from tests.integration._audit_trail_table import create_audit_logs_table
 
 pytest.importorskip("PyQt5")
 
@@ -48,6 +49,7 @@ def app():
 def conn():
     connection = sqlite3.connect(":memory:")
     create_orders_delivery_schema(connection)
+    create_audit_logs_table(connection)
     yield connection
     connection.close()
 
@@ -168,7 +170,7 @@ class TestBuildPageWiring(object):
             build_page("orders_analytics", conn, branch_id=branch_id), OrdersAnalyticsPage)
 
     def test_unwired_routes_still_fall_back_to_placeholder(self, app, conn):
-        page = build_page("orders_audit", conn, branch_id=new_uuid())
+        page = build_page("orders_new", conn, branch_id=new_uuid())
         assert isinstance(page, OrdersDeliveryPlaceholderPage)
 
     def test_no_connection_keeps_ord4_placeholder_behavior(self, app):

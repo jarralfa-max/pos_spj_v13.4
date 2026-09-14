@@ -1,5 +1,5 @@
 """Registros de reparto (PASS 6): reentregas, cobros en ruta, liquidaciones, rutas,
-seguimiento, incidencias y alertas.
+seguimiento, incidencias, alertas y auditoría.
 
 No son bandejas: enseñan todo lo de la sucursal, con filtro por estado, y ponen
 primero lo que pide atención. Lo que se fija aquí:
@@ -13,6 +13,8 @@ primero lo que pide atención. Lo que se fija aquí:
   trabajo viejo queda en REDELIVERY_PENDING para siempre.
 - Alertas es por persona: la bandeja guarda un renglón por destinatario, y lo que
   lee un colega no marca la mía.
+- Auditoría enseña lo que escribieron los CASOS DE USO; por eso se siembra
+  llamándolos, no insertando renglones.
 
 Como en las bandejas, todo se siembra CONDUCIENDO el dominio —`request_redelivery`,
 `record_collection`, `DriverSettlement.create`, `plan`…— y guardando con el
@@ -25,6 +27,8 @@ from decimal import Decimal
 
 import pytest
 
+from backend.application.orders_delivery.authorization import OrdersDeliveryAuthorizationPolicy
+from backend.application.orders_delivery.permissions import ALL_ORDERS_DELIVERY_PERMISSIONS
 from backend.application.orders_delivery.queries.delivery_records_query_service import (
     PER_RECIPIENT_RECORDS,
     SEARCHABLE_RECORDS,
@@ -34,6 +38,16 @@ from backend.application.orders_delivery.queries.delivery_records_query_service 
 )
 from backend.application.orders_delivery.queries.order_badge_query_service import (
     OrdersDeliveryBadgeQueryService,
+)
+from backend.application.orders_delivery.session_authorization import (
+    OrdersDeliverySessionPermissionChecker,
+)
+from backend.application.orders_delivery.use_cases.order_capture_use_cases import (
+    ConfirmCustomerOrderUseCase,
+    CreateCustomerOrderUseCase,
+)
+from backend.application.orders_delivery.use_cases.zone_use_cases import (
+    CreateDeliveryZoneUseCase,
 )
 from backend.domain.orders_delivery.cash_collection import DriverCashCollection
 from backend.domain.orders_delivery.delivery_job import DeliveryAttempt, DeliveryJob
@@ -80,6 +94,7 @@ from frontend.desktop.modules.orders_delivery.presenters.delivery_record_present
     DeliveryRecordPresenter,
 )
 from tests.integration._born_clean_db import make_db
+from tests.integration._audit_trail_table import create_audit_logs_table
 
 SUCURSAL = new_uuid()
 OTRA_SUCURSAL = new_uuid()
@@ -94,6 +109,7 @@ RUTA_A_REGISTRO = {
     "orders_tracking": DeliveryRecord.TRACKING,
     "orders_incidents": DeliveryRecord.INCIDENTS,
     "orders_alerts": DeliveryRecord.ALERTS,
+    "orders_audit": DeliveryRecord.AUDIT,
 }
 
 #: Estados sembrados por registro (uno de cada), y cuáles NO piden atención y por
@@ -105,6 +121,7 @@ SEMBRADOS = {
     DeliveryRecord.ROUTES: {"DRAFT", "PLANNED", "COMPLETED", "CANCELLED"},
     DeliveryRecord.TRACKING: {"ASSIGNED", "IN_TRANSIT", "DELIVERED", "PENDING_ASSIGNMENT"},
     DeliveryRecord.INCIDENTS: {"CUSTOMER_NOT_HOME", "ADDRESS_NOT_FOUND", "VEHICLE_FAILURE"},
+    DeliveryRecord.AUDIT: {"ORDER_CREATED", "ORDER_CONFIRMED", "DELIVERY_ZONE_CREATED"},
 }
 AL_FINAL = {
     DeliveryRecord.REDELIVERIES: {"APPROVED", "REJECTED"},
@@ -113,10 +130,12 @@ AL_FINAL = {
     DeliveryRecord.ROUTES: {"COMPLETED", "CANCELLED"},
     DeliveryRecord.TRACKING: {"DELIVERED"},
     DeliveryRecord.INCIDENTS: {"CUSTOMER_NOT_HOME", "ADDRESS_NOT_FOUND", "VEHICLE_FAILURE"},
+    DeliveryRecord.AUDIT: {"ORDER_CREATED", "ORDER_CONFIRMED", "DELIVERY_ZONE_CREATED"},
 }
 #: Columna que hace de "estado" en cada registro.
 _CLAVE_ESTADO = {DeliveryRecord.TRACKING: "job_status",
-                 DeliveryRecord.INCIDENTS: "failure_reason"}
+                 DeliveryRecord.INCIDENTS: "failure_reason",
+                 DeliveryRecord.AUDIT: "action"}
 
 
 @pytest.fixture
@@ -124,6 +143,7 @@ def conn():
     c = sqlite3.connect(":memory:")
     c.row_factory = sqlite3.Row
     create_orders_delivery_schema(c)
+    create_audit_logs_table(c)
     c.commit()
     yield c
     c.close()
@@ -134,6 +154,7 @@ def conn_completa():
     """Esquema canónico completo: alertas necesita usuarios, roles y la bandeja."""
     c = make_db()
     create_orders_delivery_schema(c)
+    create_audit_logs_table(c)
     c.commit()
     yield c
     c.close()
@@ -310,6 +331,36 @@ def _sembrar_incidencias(conn, branch_id):
     _trabajo(conn, "entregado", branch_id=branch_id, hasta="entregado")
 
 
+class _Sesion:
+    """Sesión con todos los permisos del área: la auditoría la escriben los casos
+    de uso, y éstos revalidan el permiso contra la sesión."""
+
+    is_active = True
+    user_id = USUARIO
+    active_branch_id = SUCURSAL
+
+    def tiene_permiso(self, code):
+        return code in ALL_ORDERS_DELIVERY_PERMISSIONS
+
+
+def _sembrar_auditoria(conn, branch_id):
+    """Tres operaciones reales, tres acciones distintas."""
+    politica = OrdersDeliveryAuthorizationPolicy(OrdersDeliverySessionPermissionChecker(_Sesion()))
+    pedido = CreateCustomerOrderUseCase(politica).execute(
+        conn, branch_id=branch_id, channel="POS", order_type="STANDARD",
+        fulfillment_type="COUNTER", contact_name="auditado",
+        lines=[{"product_id": new_uuid(), "unit_price": "80", "requested_quantity": "1"}],
+        actor_user_id=USUARIO, operation_id=new_uuid())
+    assert pedido.success, pedido.message
+    confirmado = ConfirmCustomerOrderUseCase(politica).execute(
+        conn, order_id=pedido.entity_id, actor_user_id=USUARIO, operation_id=new_uuid())
+    assert confirmado.success, confirmado.message
+    zona = CreateDeliveryZoneUseCase(politica).execute(
+        conn, branch_id=branch_id, name="Centro", postal_codes="06000", minimum_order="0",
+        delivery_fee="35", actor_user_id=USUARIO, operation_id=new_uuid())
+    assert zona.success, zona.message
+
+
 _SEMBRADORES = {
     DeliveryRecord.REDELIVERIES: _sembrar_reentregas,
     DeliveryRecord.CASH_COLLECTIONS: _sembrar_cobros,
@@ -317,6 +368,7 @@ _SEMBRADORES = {
     DeliveryRecord.ROUTES: _sembrar_rutas,
     DeliveryRecord.TRACKING: _sembrar_seguimiento,
     DeliveryRecord.INCIDENTS: _sembrar_incidencias,
+    DeliveryRecord.AUDIT: _sembrar_auditoria,
 }
 
 
@@ -456,6 +508,26 @@ def test_a_route_shows_how_many_stops_it_has(conn):
                          ids=lambda r: r.value)
 def test_every_status_has_a_label(record):
     assert set(STATUS_LABELS[record]) == {estado.value for estado in STATUS_ENUM[record]}
+
+
+def test_the_audit_row_names_who_did_what_to_which_entity(conn):
+    _sembrar(conn, DeliveryRecord.AUDIT)
+
+    [zona] = _filas(conn, DeliveryRecord.AUDIT, status="DELIVERY_ZONE_CREATED")
+
+    assert zona[1:4] == [USUARIO[:8], "Zona creada", "Zona"]
+    assert zona[5] == "name: Centro; postal_codes: ['06000']; delivery_fee: 35"
+
+
+def test_the_audit_only_shows_this_module(conn):
+    """`audit_logs` es transversal: lo de Configuración no aparece aquí."""
+    _sembrar(conn, DeliveryRecord.AUDIT)
+    conn.execute("INSERT INTO audit_logs (id, accion, modulo, usuario, sucursal_id)"
+                 " VALUES (?, 'ORDER_CREATED', 'CONFIGURACION', ?, ?)",
+                 (new_uuid(), USUARIO, SUCURSAL))
+    conn.commit()
+
+    assert _pagina(conn, DeliveryRecord.AUDIT, status="ORDER_CREATED").total == 1
 
 
 def test_every_payment_method_has_a_label():

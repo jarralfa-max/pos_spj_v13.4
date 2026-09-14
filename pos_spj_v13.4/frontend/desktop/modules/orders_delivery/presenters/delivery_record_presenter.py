@@ -11,6 +11,7 @@ se cruza con ninguna tabla de personas, así que no hay de dónde leer un nombre
 
 from __future__ import annotations
 
+import json
 from decimal import Decimal
 
 from backend.application.orders_delivery.queries.delivery_records_query_service import (
@@ -28,6 +29,68 @@ DELIVERY_STATUS_LABELS: dict[str, str] = {
     "DELIVERED": "Entregada", "FAILED": "Fallida", "REDELIVERY_PENDING": "Reentrega pendiente",
     "RETURNING": "Regresando", "RETURNED_TO_BRANCH": "Devuelta a sucursal",
     "CANCELLED": "Cancelada", "CLOSED": "Cerrada",
+}
+
+AUDIT_ACTION_LABELS: dict[str, str] = {
+    # eventos de pedido
+    "ORDER_CREATED": "Pedido creado", "ORDER_CONFIRMED": "Pedido confirmado",
+    "ORDER_SCHEDULED": "Pedido programado",
+    "ORDER_SCHEDULE_ACTIVATED": "Programación activada",
+    "ORDER_RESERVATION_REQUESTED": "Reserva solicitada",
+    "ORDER_RESERVED": "Inventario reservado", "ORDER_RESERVATION_FAILED": "Reserva fallida",
+    "ORDER_PREPARATION_STARTED": "Preparación iniciada",
+    "ORDER_ITEM_WEIGHT_ADJUSTED": "Peso ajustado",
+    "ORDER_CUSTOMER_APPROVAL_REQUIRED": "Aprobación del cliente requerida",
+    "ORDER_CUSTOMER_ADJUSTMENT_ACCEPTED": "Ajuste aceptado por el cliente",
+    "ORDER_CUSTOMER_ADJUSTMENT_REJECTED": "Ajuste rechazado por el cliente",
+    "ORDER_SUBSTITUTION_PROPOSED": "Sustitución propuesta",
+    "ORDER_SUBSTITUTION_ACCEPTED": "Sustitución aceptada",
+    "ORDER_SUBSTITUTION_REJECTED": "Sustitución rechazada",
+    "ORDER_READY": "Pedido listo", "ORDER_CANCELLED": "Pedido cancelado",
+    "ORDER_CLOSED": "Pedido cerrado", "ORDER_REVERSED": "Pedido reversado",
+    "ORDER_SALE_PROJECTED": "Venta generada", "ORDER_PAYMENT_RECORDED": "Pago registrado",
+    "ORDER_REFUNDED": "Reembolso",
+    # eventos de reparto
+    "DELIVERY_JOB_CREATED": "Entrega creada", "DELIVERY_DRIVER_ASSIGNED": "Repartidor asignado",
+    "DELIVERY_ROUTE_ASSIGNED": "Ruta asignada", "DELIVERY_DISPATCHED": "Entrega despachada",
+    "DELIVERY_OUT_FOR_DELIVERY": "En camino", "DELIVERY_ARRIVED": "Llegada al domicilio",
+    "DELIVERY_ATTEMPT_STARTED": "Intento de entrega iniciado",
+    "DELIVERY_COMPLETED": "Entrega completada", "DELIVERY_FAILED": "Entrega fallida",
+    "DELIVERY_REDELIVERY_REQUESTED": "Reentrega aprobada",
+    "DELIVERY_RETURNED_TO_BRANCH": "Devuelta a sucursal",
+    "DELIVERY_CANCELLED": "Entrega cancelada", "DELIVERY_CLOSED": "Entrega cerrada",
+    "DELIVERY_CASH_COLLECTION_RECORDED": "Cobro registrado",
+    "DRIVER_SETTLEMENT_CREATED": "Liquidación creada",
+    "DRIVER_SETTLEMENT_DIFFERENCE_DETECTED": "Diferencia en liquidación",
+    "DRIVER_SETTLEMENT_CLOSED": "Liquidación cerrada",
+    # acciones sin evento
+    "ORDER_DELIVERY_ADDRESS_SET": "Dirección de entrega registrada",
+    "ORDER_RESCHEDULED": "Pedido reprogramado",
+    "ORDER_INVENTORY_RELEASED": "Reserva liberada",
+    "ORDER_PREPARATION_ASSIGNED": "Preparación asignada",
+    "ORDER_LINE_PREPARED": "Cantidad preparada", "ORDER_PACKAGE_CREATED": "Paquete creado",
+    "ORDER_PACKAGE_SEALED": "Paquete sellado", "ORDER_READY_FOR_PICKUP": "Listo para recoger",
+    "ORDER_PICKUP_COMPLETED": "Entregado en mostrador",
+    "DRIVER_PROFILE_REGISTERED": "Repartidor registrado",
+    "DRIVER_ASSIGNMENT_PROPOSED": "Asignación propuesta",
+    "DRIVER_ASSIGNMENT_REJECTED": "Asignación rechazada",
+    "DELIVERY_ROUTE_CREATED": "Ruta creada", "DELIVERY_ROUTE_STOP_ADDED": "Parada agregada",
+    "DELIVERY_ROUTE_PLANNED": "Ruta planificada",
+    "REDELIVERY_REQUEST_CREATED": "Reentrega solicitada",
+    "REDELIVERY_REQUEST_REJECTED": "Reentrega rechazada",
+    "CASH_COLLECTION_REQUESTED": "Cobro solicitado",
+    "DRIVER_SETTLEMENT_SUBMITTED_FOR_REVIEW": "Liquidación enviada a revisión",
+    "DRIVER_SETTLEMENT_APPROVED": "Liquidación aprobada",
+    "DELIVERY_ZONE_CREATED": "Zona creada", "DELIVERY_ZONE_UPDATED": "Zona actualizada",
+    "DELIVERY_ZONE_ACTIVATED": "Zona activada", "DELIVERY_ZONE_DEACTIVATED": "Zona desactivada",
+}
+
+AUDIT_ENTITY_LABELS: dict[str, str] = {
+    "CustomerOrder": "Pedido", "DeliveryJob": "Entrega", "DeliveryZone": "Zona",
+    "DriverCashCollection": "Cobro", "DriverOperationalProfile": "Repartidor",
+    "DeliveryAssignment": "Asignación", "OrderPackage": "Paquete",
+    "RedeliveryRequest": "Reentrega", "DeliveryRoute": "Ruta",
+    "DriverSettlement": "Liquidación",
 }
 
 STATUS_LABELS: dict[DeliveryRecord, dict[str, str]] = {
@@ -60,6 +123,7 @@ STATUS_LABELS: dict[DeliveryRecord, dict[str, str]] = {
         "OTHER": "Otro",
     },
     DeliveryRecord.ALERTS: {"UNREAD": "Sin leer", "READ": "Leída"},
+    DeliveryRecord.AUDIT: AUDIT_ACTION_LABELS,
 }
 
 PAYMENT_METHOD_LABELS: dict[str, str] = {
@@ -161,6 +225,26 @@ def _fila_alerta(fila: dict, estados: dict[str, str]) -> list[str]:
     ]
 
 
+def _resumen(valor_json) -> str:
+    """El "después" de la auditoría en una línea: `clave: valor; …`."""
+    try:
+        datos = json.loads(valor_json) if valor_json else {}
+    except ValueError:
+        return _texto(valor_json)
+    if not isinstance(datos, dict) or not datos:
+        return "—"
+    return "; ".join(f"{clave}: {valor}" for clave, valor in datos.items())
+
+
+def _fila_auditoria(fila: dict, estados: dict[str, str]) -> list[str]:
+    return [
+        _fecha(fila["occurred_at"]), _corto(fila["actor"]),
+        estados.get(fila["action"], fila["action"]),
+        AUDIT_ENTITY_LABELS.get(fila["entity"], _texto(fila["entity"])),
+        _corto(fila["entity_id"]), _resumen(fila["after"]),
+    ]
+
+
 _FORMATO = {
     DeliveryRecord.REDELIVERIES: _fila_reentrega,
     DeliveryRecord.CASH_COLLECTIONS: _fila_cobro,
@@ -169,6 +253,7 @@ _FORMATO = {
     DeliveryRecord.TRACKING: _fila_seguimiento,
     DeliveryRecord.INCIDENTS: _fila_incidencia,
     DeliveryRecord.ALERTS: _fila_alerta,
+    DeliveryRecord.AUDIT: _fila_auditoria,
 }
 
 
