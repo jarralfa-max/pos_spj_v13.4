@@ -99,11 +99,29 @@ def app():
     yield application
 
 
+#: Las migraciones que crean el esquema del módulo. La vista cuenta sus badges al
+#: construirse y las páginas de registros leen esas tablas: una base vacía ya no
+#: representa ninguna instalación real.
+MEAT_PROCESSING_MIGRATIONS = (
+    "migrations.standalone.187_meat_processing_bounded_context_schema",
+    "migrations.standalone.248_meat_processing_preparation_execution_schema",
+    "migrations.standalone.249_meat_processing_packaging_schema",
+    "migrations.standalone.250_meat_processing_rework_schema",
+    "migrations.standalone.251_meat_processing_genealogy_schema",
+    "migrations.standalone.252_meat_processing_resources_schema",
+)
+
+
 @pytest.fixture
 def conn():
+    import importlib
+
     c = sqlite3.connect(":memory:")
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA foreign_keys = ON")
+    for migracion in MEAT_PROCESSING_MIGRATIONS:
+        importlib.import_module(migracion).run(c)
+    c.commit()
     return c
 
 
@@ -215,12 +233,21 @@ def test_the_orders_page_is_real_through_the_shell(app, conn):
 
 
 def test_the_remaining_routes_are_still_honest_placeholders(app, conn):
-    """No se declara más avance del real: 28 de 29 siguen sin página."""
+    """No se declara más avance del real. PASS 6 sumó los registros con tablas
+    reales detrás (`_RECORD_ROUTES` y Pesajes y consumos); las otras 16 —Resumen,
+    Plan de producción, Trazabilidad, Alertas, Análisis, Configuración y las 10
+    de sacrificio— siguen sin página."""
+    from backend.infrastructure.desktop import meat_processing_factory as factory
+
     view = _navigate(conn)
-    pending = [e.page_id for e in MEAT_PROCESSING_NAV if e.page_id != REAL_PAGE_ID]
-    assert len(pending) == 28
+    reales = {REAL_PAGE_ID, "mp_weighings_consumptions", *factory._RECORD_ROUTES}
+    pending = [e.page_id for e in MEAT_PROCESSING_NAV if e.page_id not in reales]
+    assert len(pending) == 16
     for page_id in pending:
         assert isinstance(
+            view._page_builder(page_id), MeatProcessingPlaceholderPage), page_id
+    for page_id in reales - {REAL_PAGE_ID}:
+        assert not isinstance(
             view._page_builder(page_id), MeatProcessingPlaceholderPage), page_id
 
 

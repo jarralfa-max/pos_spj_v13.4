@@ -59,7 +59,14 @@ RUTAS_SIEMPRE = [p for p in PAGE_IDS if p not in RUTAS_TRAS_FLAG]
 #: `build_page`. Medido, no supuesto: lo comprueba
 #: `test_the_route_is_the_kind_of_page_we_think_it_is` ruta por ruta.
 #: Solo puede CRECER — y cuando crezca, esa prueba obliga a actualizarlo.
-RUTAS_REALES = {"mp_processing_orders"}
+#: PASS 6 añadió los registros con tablas reales detrás (ver
+#: `_RECORD_ROUTES` en `meat_processing_factory.py`) y Pesajes y consumos.
+RUTAS_REALES = {
+    "mp_processing_orders", "mp_preparation", "mp_active_processing",
+    "mp_weighings_consumptions", "mp_cutting", "mp_derived_products",
+    "mp_packaging_labeling", "mp_produced_lots", "mp_yields", "mp_quality",
+    "mp_rework", "mp_incidents", "mp_audit",
+}
 
 TODOS_LOS_PERMISOS = frozenset(
     valor for nombre, valor in vars(MeatProcessingPermissions).items()

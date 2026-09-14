@@ -49,8 +49,15 @@ _ORDER_PERMISSIONS = (
 @pytest.fixture
 def conn():
     c = sqlite3.connect(":memory:")
-    importlib.import_module(
-        "migrations.standalone.187_meat_processing_bounded_context_schema").run(c)
+    # El esquema completo del módulo: la vista cuenta sus badges al construirse y
+    # esos contadores leen tablas de las migraciones 248-252, no sólo de la 187.
+    for migracion in ("187_meat_processing_bounded_context_schema",
+                      "248_meat_processing_preparation_execution_schema",
+                      "249_meat_processing_packaging_schema",
+                      "250_meat_processing_rework_schema",
+                      "251_meat_processing_genealogy_schema",
+                      "252_meat_processing_resources_schema"):
+        importlib.import_module(f"migrations.standalone.{migracion}").run(c)
     yield c
     c.close()
 

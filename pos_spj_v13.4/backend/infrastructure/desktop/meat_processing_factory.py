@@ -5,10 +5,12 @@ Una sola composición sirve a los DOS anfitriones: `create_meat_processing_view`
 `MeatProcessingModuleHost` (adaptador del `AppContainer` legacy). §3 prohíbe
 que cada uno arme el suyo.
 
-First functional page: Órdenes (mp_processing_orders). Every other
-MEAT_PROCESSING_NAV entry still falls back to the PROC-4 placeholder — full
-page-by-page buildout is incremental, matching every prior PROC phase's own
-scoping discipline. The sidebar's legacy "PRODUCCION" button
+Real pages: Órdenes (mp_processing_orders) and, since PASS 6, the record pages
+backed by real tables (`_RECORD_ROUTES` + Pesajes y consumos). They are built
+only when the session has an active branch: every record is branch-scoped.
+Still placeholders: Resumen, Plan de producción (the `ProductionPlan` entity has
+no persistence), Trazabilidad, Alertas, Análisis, Configuración and the 10
+slaughter routes (no slaughter tables exist; `SLAUGHTER_ENABLED` is False). The sidebar's legacy "PRODUCCION" button
 (interfaz/menu_lateral.py) still launches modulos/produccion.py; this host
 is not wired into main_window.py yet — cutover only happens once page
 parity is real (§4/PROC-4's own stated deferral), to avoid removing access
@@ -31,7 +33,10 @@ from backend.application.meat_processing.use_cases import (
 )
 from backend.application.queries.product_query_service import ProductQueryService
 from backend.domain.meat_processing.slaughter.feature_flag import SLAUGHTER_ENABLED
-from frontend.desktop.modules.meat_processing.meat_processing_routes import build_page
+from frontend.desktop.modules.meat_processing.meat_processing_routes import (
+    MEAT_PROCESSING_ROUTES,
+    build_page,
+)
 from frontend.desktop.modules.meat_processing.navigation.meat_processing_sidebar import (
     SLAUGHTER_FEATURE_FLAG,
 )
@@ -90,12 +95,91 @@ def _build_meat_processing_wiring(connection, session_context=None):
         context_provider=context_provider,
     )
 
+    branch_id = str(getattr(session_context, "active_branch_id", "") or "")
+
     def page_builder(page_id: str):
         if page_id == "mp_processing_orders":
             return ProcessingOrdersPage(orders_presenter)
+        # Literal a propósito: el trinquete de rutas reales lee esta tupla del
+        # código. `test_meat_processing_record_pages` exige que sea `_RECORD_ROUTES`.
+        if branch_id and page_id in (
+                "mp_preparation", "mp_active_processing", "mp_cutting",
+                "mp_derived_products", "mp_packaging_labeling", "mp_produced_lots",
+                "mp_yields", "mp_quality", "mp_rework", "mp_incidents", "mp_audit"):
+            return _record_page(connection, branch_id, page_id)
+        if branch_id and page_id == "mp_weighings_consumptions":
+            return _weighings_and_consumptions_page(connection, branch_id)
         return build_page(page_id)
 
     return has_permission, page_builder
+
+
+#: Ruta → (registro, mensaje vacío). Título y subtítulo salen del sidebar.
+_RECORD_ROUTES: dict[str, tuple[str, str]] = {
+    "mp_preparation": ("PREPARATION", "No hay requerimientos de material."),
+    "mp_active_processing": ("ACTIVE_PROCESSING", "No hay órdenes en ejecución."),
+    "mp_cutting": ("CUTTING", "No hay salidas de despiece."),
+    "mp_derived_products": ("DERIVED_PRODUCTS", "No hay salidas de productos derivados."),
+    "mp_packaging_labeling": ("PACKAGING", "No hay empaques registrados."),
+    "mp_produced_lots": ("PRODUCED_LOTS", "No hay lotes producidos."),
+    "mp_yields": ("YIELDS", "No hay conciliaciones de rendimiento."),
+    "mp_quality": ("QUALITY", "No hay salidas registradas."),
+    "mp_rework": ("REWORK", "No hay órdenes de reproceso."),
+    "mp_incidents": ("INCIDENTS", "No hay incidencias registradas."),
+    "mp_audit": ("AUDIT", "No hay movimientos auditados en esta sucursal."),
+}
+
+
+def _record_presenter(connection, branch_id: str, nombre: str):
+    from backend.application.meat_processing.queries.meat_processing_records_query_service import (
+        MeatProcessingRecord,
+    )
+    from frontend.desktop.modules.meat_processing.presenters.meat_processing_record_presenter import (
+        MeatProcessingRecordPresenter,
+    )
+    return MeatProcessingRecordPresenter(
+        connection, branch_id=branch_id, record=MeatProcessingRecord[nombre])
+
+
+def _record_page(connection, branch_id: str, page_id: str):
+    from frontend.desktop.modules.meat_processing.pages.meat_processing_record_page import (
+        MeatProcessingRecordPage,
+    )
+    nombre, vacio = _RECORD_ROUTES[page_id]
+    entrada = MEAT_PROCESSING_ROUTES[page_id]
+    return MeatProcessingRecordPage(
+        _record_presenter(connection, branch_id, nombre), title=entrada.title,
+        subtitle=entrada.tooltip, empty_message=vacio)
+
+
+def _weighings_and_consumptions_page(connection, branch_id: str):
+    from frontend.desktop.modules.meat_processing.pages.meat_processing_record_page import (
+        MeatProcessingRecordPage,
+        WeighingsAndConsumptionsPage,
+    )
+    entrada = MEAT_PROCESSING_ROUTES["mp_weighings_consumptions"]
+    pesajes = MeatProcessingRecordPage(
+        _record_presenter(connection, branch_id, "WEIGHINGS"), title="Pesajes",
+        subtitle="Pesajes de entrada, intermedios y de salida.",
+        empty_message="No hay pesajes registrados.")
+    consumos = MeatProcessingRecordPage(
+        _record_presenter(connection, branch_id, "CONSUMPTIONS"), title="Consumos",
+        subtitle="Insumos consumidos por las órdenes.",
+        empty_message="No hay consumos registrados.")
+    return WeighingsAndConsumptionsPage(
+        pesajes, consumos, title=entrada.title, subtitle=entrada.tooltip)
+
+
+def _sidebar_badges(connection, session_context) -> dict[str, int]:
+    """Contadores del sidebar al abrir el módulo; antes la vista recibía `{}`.
+    Sin sucursal no hay nada que contar. No se refrescan solos."""
+    branch_id = str(getattr(session_context, "active_branch_id", "") or "")
+    if connection is None or not branch_id:
+        return {}
+    from backend.application.meat_processing.queries.meat_processing_badge_query_service import (
+        MeatProcessingBadgeQueryService,
+    )
+    return MeatProcessingBadgeQueryService(connection).get_badge_counts(branch_id)
 
 
 def _has_slaughter_feature(flag: str) -> bool:
@@ -123,7 +207,8 @@ def create_meat_processing_view(
     has_permission, page_builder = _build_meat_processing_wiring(
         connection, session_context)
     return MeatProcessingView(
-        has_permission=has_permission, badges={},
+        has_permission=has_permission,
+        badges=_sidebar_badges(connection, session_context),
         has_feature=_has_slaughter_feature, page_builder=page_builder,
         parent=parent,
     )
@@ -138,7 +223,7 @@ class MeatProcessingModuleHost(MeatProcessingView):
             container.db, getattr(container, "session", None))
         super().__init__(
             has_permission=has_permission,
-            badges={},
+            badges=_sidebar_badges(container.db, getattr(container, "session", None)),
             has_feature=_has_slaughter_feature,
             page_builder=page_builder,
             parent=parent,

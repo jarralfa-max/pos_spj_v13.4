@@ -62,7 +62,7 @@ ROUTE_COVERAGE: dict[str, tuple[int, int]] = {
     "losses": (5, 16),
     "orders_delivery": (23, 23),
     "products": (2, 21),
-    "meat_processing": (1, 29),
+    "meat_processing": (13, 29),
 }
 
 #: Dónde vive el `page_builder` VIVO de los módulos que no lo resuelven en su
