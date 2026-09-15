@@ -72,8 +72,6 @@ _HANDLERS_DIR = APP_ROOT / "backend" / "application" / "event_handlers"
 DARK_HANDLERS = frozenset({
     # Inventario
     "CanonicalProductionInventoryHandler",
-    "CanonicalPurchaseRecipeExplosionHandler",
-    "CanonicalPurchaseStockEntryHandler",
     "SlaughterExecutedStubHandler",          # costura futura, SLAUGHTER_ENABLED=False
     # Caja  ⚠ `CheckoutSaleUseCase` ya llama a `SalesCashEffectsClient`
     "SaleCancelledCashHandler",
@@ -101,7 +99,6 @@ DARK_HANDLERS = frozenset({
     # Finanzas — operación
     "InventoryAdjustmentHandler",
     "PayrollPaidHandler",
-    "ProcurementPayableBridgeHandler",
     "ProductionCompletedHandler",
     "PurchaseReceivedHandler",
     "SaleCompletedHandler",                  # contrato desalineado, ver arriba
@@ -111,10 +108,16 @@ DARK_HANDLERS = frozenset({
 
 #: Funciones de cableado que existen y que nadie llama. Mismo trinquete: llamar
 #: a una obliga a retirarla de aquí.
+#:
+#: `wire_procurement` y `wire_pricing` se conectaron en
+#: `backend/bootstrap/wiring/event_wiring.py::wire_cross_context_events`,
+#: llamada una vez desde `frontend/desktop/app.py::main()`. `wire_logistics`
+#: sigue aquí: requiere un `PermanentContainerQrService` con un secreto de
+#: firma provisionado de verdad (ninguna ruta de producción lo construye hoy,
+#: y fabricar uno solo para pasar este trinquete sería el mismo atajo
+#: inseguro que la regla de "fallar cerrado" prohíbe).
 UNCALLED_WIRING = frozenset({
     "wire_logistics",
-    "wire_pricing",
-    "wire_procurement",
 })
 
 

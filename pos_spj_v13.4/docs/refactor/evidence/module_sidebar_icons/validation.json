@@ -1,0 +1,2779 @@
+{
+  "correction": "Module sidebars must display their route icons",
+  "date": "2026-09-14",
+  "affected_modules": 17,
+  "unique_results": {
+    "passed": 404,
+    "failure": 1,
+    "error": 0,
+    "skipped": 0
+  },
+  "runs": [
+    {
+      "name": "module-sidebar-final-regression",
+      "tests": 115,
+      "passed": 115,
+      "failure": 0,
+      "error": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "name": "tests.architecture.test_icon_catalog::test_navigation_and_headers_only_request_registered_icons",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_module_sidebars_supply_explicit_icons_for_sections_and_groups",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_inherited_sidebar_methods[SideNav-expected0]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_inherited_sidebar_methods[QWidget-expected1]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_catalog_has_vector_and_spanish_accessibility_name_for_every_constant",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[class SectionNavEntry:\\n page_id: str\\n title: str\\n icon: str\\nSectionNavEntry(\"page\", \"Etiqueta\", \"missing\")-expected0]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[PageHeader(title=\"missing\", icon=\"search\")-expected1]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[PageHeader(icon=getattr(Icons, \"MISSING\", None))-expected2]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[nav.add_section(\"Etiqueta\", \"search\")-expected3]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[IconProvider.icon(\"missing\")-expected4]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[from frontend.desktop.components.icons import IconProvider as IP\\nIP.bind(button, \"missing\")-expected5]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[from frontend.desktop.components.icons import Icons as I\\nPageHeader(icon=I.MISSING)-expected6]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[IconButton(\"missing\", \"Descripci\\xf3n\")-expected7]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[text = \"Icons.MISSING\"\\nvalue = {\"icon\": \"external data\"}-expected8]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[nav.add_section(\"Productos\")-expected0]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[nav.add_group(\"Cat\\xe1logo\")-expected1]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[nav.add_section(\"Productos\", None)-expected2]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[nav.add_group(\"Cat\\xe1logo\", icon=None)-expected3]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[nav.add_section(\"Productos\", \"\")-expected4]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[nav.add_section(\"Productos\", icon=\"  \")-expected5]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[nav.add_section(\"Productos\", Icons.PACKAGE)-expected6]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[nav.add_group(\"Cat\\xe1logo\", icon=group.icon)-expected7]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[nav.add_section(label=\"Productos\", icon=\"search\", badge=0)-expected8]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[nav.add_section(\"Productos\", icon=SECTION_ICONS[route.key])-expected9]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[registry.add_group(\"Grupo de permisos\")-expected10]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_tracks_navigation_receivers_and_aliases[from frontend.desktop.components import SideNav as Navigation\\nnav = Navigation()\\nnav.add_section(\"Productos\")-expected0]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_tracks_navigation_receivers_and_aliases[from frontend.desktop.components.side_nav import ModuleSidebar\\nnav = ModuleSidebar()\\nnav.add_group(\"Cat\\xe1logo\")-expected1]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_tracks_navigation_receivers_and_aliases[import frontend.desktop.components.side_nav as widgets\\nnav = widgets.SideNav()\\nnav.add_section(\"Productos\")-expected2]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_tracks_navigation_receivers_and_aliases[from frontend.desktop.components.side_nav import SideNav\\nnav = SideNav()\\nother = nav\\nother.add_section(\"Productos\")-expected3]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_tracks_navigation_receivers_and_aliases[from frontend.desktop.components.side_nav import SideNav\\nSideNav().add_section(\"Productos\")-expected4]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_tracks_navigation_receivers_and_aliases[from external_package import SideNav\\nnav = SideNav()\\nnav.add_group(\"Grupo externo\")-expected5]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_tracks_navigation_receivers_and_aliases[from frontend.desktop.components import SideNav\\ndef build():\\n nav = SideNav()\\ndef unrelated():\\n nav = Registry()\\n nav.add_group(\"Grupo de permisos\")-expected6]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_tracks_navigation_receivers_and_aliases[from frontend.desktop.components import SideNav\\nclass Workspace:\\n def populate(self):\\n  self.nav.add_section(\"Productos\")\\n def __init__(self):\\n  self.nav = SideNav()\\nclass Other:\\n def __init__(self):\\n  self.nav = Registry()\\n  self.nav.add_group(\"Permisos\")-expected7]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_brand_colors_only_in_theme_layer",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_no_hardcoded_hex_in_components",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_no_inline_stylesheets_in_components",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_no_native_pyqt_charts_in_frontend",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_time_input_builds_on_qtimeedit_not_qlineedit",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_charts_render_via_html_js_not_native",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_theme_layer_is_the_single_qss_source",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_desktop_visual_debt_does_not_grow",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[button.setStyleSheet(style)-inline_qss]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[color = \"#18372B\"-hardcoded_visual_hex]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[color = \"#ffffff\"-hardcoded_visual_hex]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[from PyQt5.QtWidgets import QTableWidget as Grid\\ntable = Grid()-native_operational_table]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class LocalTable(QtWidgets.QTableWidget):\\n    pass-native_operational_table]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class KPICard(QWidget):\\n    pass-local_standard_component]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class SalesPageHeader(QWidget):\\n    pass-local_standard_component]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class LocalInput(QLineEdit):\\n    def paintEvent(self, event):\\n        pass-local_visual_control]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class LocalButton(QPushButton):\\n    def setup(self):\\n        self.setFont(font)-local_visual_control]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[button = QPushButton(\"\\\\U0001f514 Notificaciones\")-unicode_icon_literal]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[button = QPushButton()\\nbutton.setFixedHeight(32)-fixed_control_below_touch_target]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class SalesPage(QWidget):\\n    pass-screen_without_explicit_overflow]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class OrdersView(QWidget):\\n    pass-screen_without_explicit_overflow]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class EditDialog(QDialog):\\n    pass-noncanonical_dialog]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class EditDialog(StandardDialog):\\n    def setup(self):\\n        self.setMinimumSize(1400, 900)-dialog_geometry_exceeds_smallest_viewport]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_accepts_canonical_composition_and_ignores_prose",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_ast_audit_accepts_explicit_scroll_and_keeps_web_colors_separate",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_print_canvas_white_is_data_and_does_not_exempt_widget_colors",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_existing_file_debt_cannot_hide_new_expressions_or_duplicate_occurrences",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_design_system_guardrails::test_visual_debt_baseline_is_exact_and_kept_pruned",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_vector_icon_renders_at_requested_size_without_raster_cap[16]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_vector_icon_renders_at_requested_size_without_raster_cap[20]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_vector_icon_renders_at_requested_size_without_raster_cap[32]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_vector_icon_renders_at_requested_size_without_raster_cap[64]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_vector_icon_renders_at_requested_size_without_raster_cap[128]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_checked_icon_uses_selected_color_and_disabled_wins[light]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_checked_icon_uses_selected_color_and_disabled_wins[dark]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[danger-DANGER_DEFAULT-light]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[danger-DANGER_DEFAULT-dark]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[success-SUCCESS_DEFAULT-light]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[success-SUCCESS_DEFAULT-dark]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[warning-WARNING_DEFAULT-light]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[warning-WARNING_DEFAULT-dark]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[info-INFO_DEFAULT-light]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[info-INFO_DEFAULT-dark]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[inverse-TEXT_INVERSE-light]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_semantic_states_keep_meaning_when_active_or_selected[inverse-TEXT_INVERSE-dark]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_icon_only_filled_button_uses_inverse_icon[light-primary]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_icon_only_filled_button_uses_inverse_icon[light-danger]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_icon_only_filled_button_uses_inverse_icon[dark-primary]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_icon_only_filled_button_uses_inverse_icon[dark-danger]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_label_binding_tracks_enabled_state_and_accessible_name",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_rebinding_disconnects_the_original_manager",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_deleted_binding_disconnects_and_rebinding_leaves_one_observer",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_binding_preserves_custom_accessibility_text",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_rebinding_updates_generated_accessibility_name[QLabel]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_rebinding_updates_generated_accessibility_name[QPushButton]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_rebinding_preserves_application_accessibility_name[True]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_rebinding_preserves_application_accessibility_name[False]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_pixmap_preserves_logical_size_at_device_pixel_ratio[1.0]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_pixmap_preserves_logical_size_at_device_pixel_ratio[1.25]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_pixmap_preserves_logical_size_at_device_pixel_ratio[1.5]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_pixmap_preserves_logical_size_at_device_pixel_ratio[2.0]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_pixmap_preserves_logical_size_at_device_pixel_ratio[3.0]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_label_refreshes_when_its_window_changes_screen",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_binding_visible_label_follows_screen_changes[True]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_icon_provider_runtime::test_binding_visible_label_follows_screen_changes[False]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_side_nav_icon_binding::test_open_flyout_refreshes_icons_and_preserves_destinations",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.shell.test_shell_ui_contracts::test_sidebar_collapse_restores_route_and_keeps_toggle_reachable",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.shell.test_shell_ui_contracts::test_sidebar_search_render_does_not_emit_navigation",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.shell.test_shell_ui_contracts::test_module_group_collapses_without_changing_route_indices",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.shell.test_shell_ui_contracts::test_topbar_actions_and_session_are_accessible",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.shell.test_shell_ui_contracts::test_settings_button_opens_registered_route_and_respects_permissions[permissions0]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.shell.test_shell_ui_contracts::test_settings_button_opens_registered_route_and_respects_permissions[permissions1]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.shell.test_shell_ui_contracts::test_settings_button_opens_registered_route_and_respects_permissions[permissions2]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.shell.test_shell_ui_contracts::test_settings_denial_from_router_is_handled_in_qt_slot",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.shell.test_shell_ui_contracts::test_module_sidebar_persists_collapsed_groups",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_finance_hr_sidebar_icons::test_module_sidebar_keeps_semantic_icons_and_page_destinations[light-finance-FinanceView-examples0]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_finance_hr_sidebar_icons::test_module_sidebar_keeps_semantic_icons_and_page_destinations[light-hr-HRView-examples1]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_finance_hr_sidebar_icons::test_module_sidebar_keeps_semantic_icons_and_page_destinations[dark-finance-FinanceView-examples0]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_finance_hr_sidebar_icons::test_module_sidebar_keeps_semantic_icons_and_page_destinations[dark-hr-HRView-examples1]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_purchasing_sidebar_icons::test_purchasing_routes_render_distinct_semantic_icons[light]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_purchasing_sidebar_icons::test_purchasing_routes_render_distinct_semantic_icons[dark]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_purchasing_sidebar_icons::test_purchasing_permission_refresh_preserves_available_route_icons",
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "name": "sidebar-finance-hr-purchasing-integration",
+      "tests": 26,
+      "passed": 26,
+      "failure": 0,
+      "error": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "name": "tests.integration.finance.test_finance_ui_shell::test_finance_view_uses_side_nav_not_raw_list_widget",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.finance.test_finance_ui_shell::test_every_finance_page_loads_without_crashing_on_empty_db",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.hr.test_hr_ui_shell::test_hr_view_uses_side_nav_not_raw_list_widget",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.hr.test_hr_ui_shell::test_every_hr_page_loads_without_crashing_on_empty_db",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.suppliers.test_supplier_ui.TestFinanceIntegration::test_suppliers_page_registered_in_finance_nav",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.procurement.test_enterprise_ui::test_enterprise_view_builds",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.procurement.test_enterprise_ui::test_sidebar_routes_and_dashboard_actions_follow_capabilities",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.procurement.test_enterprise_ui::test_requisition_flow_through_presenter",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.procurement.test_enterprise_ui::test_order_create_and_list",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.procurement.test_enterprise_ui::test_purchase_history_shows_supplier_name_not_uuid",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.procurement.test_enterprise_ui::test_invoices_table_shows_supplier_name_not_uuid",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.procurement.test_enterprise_ui::test_requisition_detail_returns_a_usable_dto",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.procurement.test_enterprise_ui::test_order_form_dialog_builds_from_requisition_detail_without_crashing",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.procurement.test_enterprise_ui::test_direct_purchase_create_page_starts_from_requisition_detail",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.procurement.test_enterprise_ui::test_add_cart_line_dialog_requires_a_catalog_selection_not_free_text",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.procurement.test_enterprise_ui::test_add_cart_line_dialog_prefill_resolves_scanned_code_via_catalog",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.procurement.test_enterprise_ui::test_add_cart_line_dialog_shows_reference_cost_once_product_and_cost_are_set",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.procurement.test_enterprise_ui::test_supplier_and_invoice_document_options_do_not_crash",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.procurement.test_enterprise_ui::test_order_form_dialog_captures_conversion_factor",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.procurement.test_enterprise_ui::test_analytics_kpis_and_charts",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.procurement.test_enterprise_ui::test_analytics_service_empty_is_graceful",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.procurement.test_enterprise_ui::test_shell_built_pre_login_shows_routes_after_refresh_permissions",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.procurement.test_enterprise_ui::test_refresh_permissions_reflects_reduced_grants_live",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.procurement.test_enterprise_ui::test_quotation_flow_end_to_end_through_the_presenter",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.procurement.test_enterprise_ui::test_quotations_page_builds_headless_and_shows_captured_quotes",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.procurement.test_enterprise_ui::test_award_dialog_builds_award_lines_from_selected_rows",
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "name": "sidebar-purchasing",
+      "tests": 7,
+      "passed": 7,
+      "failure": 0,
+      "error": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "name": "tests.ui.test_purchasing_sidebar_icons::test_purchasing_routes_render_distinct_semantic_icons[light]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_purchasing_sidebar_icons::test_purchasing_routes_render_distinct_semantic_icons[dark]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_purchasing_sidebar_icons::test_purchasing_permission_refresh_preserves_available_route_icons",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.procurement.test_purchasing_navigation::test_navigation_is_empty_without_module_view",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.procurement.test_purchasing_navigation::test_navigation_contains_only_granted_implemented_routes",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.procurement.test_purchasing_navigation::test_unimplemented_routes_are_not_in_navigation_catalog",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.procurement.test_purchasing_navigation::test_origin_loading_does_not_inherit_receiving_permission",
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "name": "operational-sidebar-icons-reviewed",
+      "tests": 17,
+      "passed": 17,
+      "failure": 0,
+      "error": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-losses-LossesSidebarWidget]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-meat_processing-MeatProcessingSidebarWidget]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-orders_delivery-OrdersDeliverySidebarWidget]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-business_intelligence-BusinessIntelligenceSidebarWidget]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-transfers-TransfersSidebarWidget]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-configuracion-ConfiguracionSidebarWidget]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-losses-LossesSidebarWidget]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-meat_processing-MeatProcessingSidebarWidget]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-orders_delivery-OrdersDeliverySidebarWidget]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-business_intelligence-BusinessIntelligenceSidebarWidget]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-transfers-TransfersSidebarWidget]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-configuracion-ConfiguracionSidebarWidget]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_inventory_icons_follow_filtered_registry_without_reordering_pages[False]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_inventory_icons_follow_filtered_registry_without_reordering_pages[True]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_pricing_icons_follow_visible_routes_and_keep_lazy_navigation[False]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_pricing_icons_follow_visible_routes_and_keep_lazy_navigation[True]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_products_real_composition_has_distinct_section_icons",
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "name": "operational-sidebar-regression-reviewed",
+      "tests": 155,
+      "passed": 154,
+      "failure": 1,
+      "error": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "name": "tests.unit.test_transfers_navigation::test_transfers_sidebar_is_canonical_and_permission_filtered_with_query_badges",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_transfers_navigation::test_transfers_routes_are_single_canonical_sidebar_routes",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_orders_delivery_navigation::test_every_nav_entry_has_a_unique_page_id",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_orders_delivery_navigation::test_every_nav_entry_permission_is_registered",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_orders_delivery_navigation::test_visible_entries_filters_by_permission",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_orders_delivery_navigation::test_visible_entries_empty_when_no_permissions",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_orders_delivery_navigation::test_visible_entries_attaches_badge_value",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_orders_delivery_navigation::test_routes_registry_covers_every_nav_entry",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_orders_delivery_navigation::test_build_page_unknown_route_raises",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_orders_delivery_navigation.TestOrdersDeliveryBadgeQueryService::test_degrades_to_zero_on_empty_db",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_orders_delivery_navigation.TestOrdersDeliveryBadgeQueryService::test_counts_pending_confirmation",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_orders_delivery_navigation.TestOrdersDeliveryBadgeQueryService::test_counts_weight_adjustments_pending",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_orders_delivery_navigation.TestOrdersDeliveryBadgeQueryService::test_a_pending_substitution_is_not_a_weight_adjustment",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_orders_delivery_navigation.TestOrdersDeliveryBadgeQueryService::test_preparation_queue_counts_reserved_orders",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_orders_delivery_navigation.TestOrdersDeliveryBadgeQueryService::test_scheduled_badge_reads_schedule_status_not_order_type",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_orders_delivery_navigation.TestOrdersDeliveryBadgeQueryService::test_degrades_to_zero_on_missing_table",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_orders_delivery_navigation.TestOrdersDeliveryBadgeQueryService::test_counts_settlements_pending_review",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_orders_delivery_navigation.TestOrdersDeliveryBadgeQueryService::test_counts_critical_alerts_from_notification_inbox",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_transfers_ui_workspace::test_workspace_builds_all_permitted_routes_lazily_and_supports_target_sizes",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_transfers_ui_workspace::test_sidebar_filters_permissions_and_dialogs_use_accessible_standard_inputs",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_transfers_ui_workspace::test_transfer_request_dialog_exposes_branch_and_product_accessors",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_transfers_ui_workspace::test_create_transfer_request_presenter_command_is_unavailable_without_a_use_case",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_transfers_ui_workspace::test_transfer_requests_page_wires_create_button_to_the_dialog_and_presenter",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestConfiguracionView::test_workspace_builds_all_permitted_routes_lazily_and_supports_target_sizes",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestConfiguracionView::test_sidebar_filters_by_permission",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestConfiguracionView::test_empty_page_shows_empty_state_not_a_blank_table",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestConfiguracionView::test_page_with_rows_shows_table_not_empty_state",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestGeneralPage::test_action_buttons_present_and_wired",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestGeneralPage::test_actions_without_selection_warn_instead_of_crashing",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestGeneralPage::test_selecting_a_workstation_loads_its_assignments",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestGeneralPage::test_assign_requires_role_and_device",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestGeneralPage::test_assign_warns_when_no_devices_exist",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestGeneralPage::test_new_requires_branch_type_code_and_name",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestWorkstationDialogs::test_create_dialog_exposes_all_fields",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestWorkstationDialogs::test_edit_dialog_prefills_values",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestWorkstationDialogs::test_block_dialog_disables_confirm_until_reason_is_entered",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDeviceAssignmentDialogs::test_assign_dialog_exposes_role_and_device",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDeviceAssignmentDialogs::test_nothing_selected_yields_none_values",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestFeatureFlagsPage::test_pending_requests_render_and_action_buttons_exist",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestFeatureFlagsPage::test_actions_without_selection_warn_instead_of_crashing",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestAparienciaPage::test_set_default_button_present_and_wired",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDispositivosPage::test_action_buttons_present_and_wired",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDispositivosPage::test_actions_without_selection_warn_instead_of_crashing",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDispositivosPage::test_new_device_warns_when_no_profiles_exist",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDispositivosPage::test_routes_table_loads_from_presenter",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDispositivosPage::test_new_route_warns_when_no_devices_exist",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDeviceDialogs::test_profile_create_dialog_exposes_all_fields",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDeviceDialogs::test_profile_create_dialog_exposes_printer_fields",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDeviceDialogs::test_profile_create_dialog_protocol_combo_offers_scale_protocols",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDeviceDialogs::test_profile_create_dialog_payment_capability_checkboxes_default_unchecked",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDeviceDialogs::test_device_create_dialog_populates_branch_and_profile_options",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDeviceDialogs::test_device_edit_dialog_prefills_values",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDeviceDialogs::test_block_device_dialog_disables_confirm_until_reason_is_entered",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestPrintRouteDialogs::test_create_dialog_exposes_all_fields",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestPrintRouteDialogs::test_create_dialog_ignores_unknown_fallback_codes",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestPrintRouteDialogs::test_edit_dialog_prefills_primary_and_fallback",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDocumentosPage::test_new_template_button_present_and_wired",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDocumentosPage::test_campaigns_table_loads_from_presenter",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDocumentosPage::test_selecting_a_template_loads_its_versions",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDocumentosPage::test_actions_without_selection_warn_instead_of_crashing",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDocumentosPage::test_edit_template_prefills_from_get_template",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDocumentosPage::test_edit_campaign_prefills_from_selection",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDocumentTemplateDialogs::test_create_dialog_exposes_all_fields",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDocumentTemplateDialogs::test_edit_dialog_prefills_values",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDocumentTemplateDialogs::test_new_version_dialog_prefills_previous_content",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDocumentTemplateDialogs::test_reject_version_dialog_disables_confirm_until_reason_is_entered",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestMarketingCampaignDialogs::test_create_dialog_exposes_all_fields",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestMarketingCampaignDialogs::test_create_dialog_ignores_malformed_rule_entries",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestMarketingCampaignDialogs::test_create_dialog_defaults_priority_to_zero_on_blank_input",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestMarketingCampaignDialogs::test_edit_dialog_prefills_values",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestEmpresaPage::test_shows_unconfigured_message_when_no_company_exists",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestEmpresaPage::test_shows_company_summary_when_configured",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestEmpresaPage::test_action_buttons_present_and_wired",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestEmpresaPage::test_new_branch_warns_when_no_unregistered_branches_exist",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestEmpresaPage::test_edit_branch_without_selection_warns_instead_of_crashing",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestCompanyBranchDialogs::test_company_dialog_prefills_from_existing_profile",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestCompanyBranchDialogs::test_branch_create_dialog_populates_branch_options_and_hours",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestCompanyBranchDialogs::test_branch_edit_dialog_prefills_hours_when_set",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestCompanyBranchDialogs::test_branch_edit_dialog_leaves_hours_unset_when_none_prefilled",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDialogs::test_reject_dialog_disables_confirm_until_reason_is_entered",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.test_configuracion_ui_workspace.TestDialogs::test_set_default_theme_dialog_shows_theme_name",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.pricing.test_pricing_navigation::test_nav_entries_use_pricing_permissions",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.pricing.test_pricing_navigation::test_visible_entries_filters_by_permission",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.pricing.test_pricing_navigation::test_presenter_overview_kpis",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.pricing.test_pricing_navigation::test_presenter_price_lists_table",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.pricing.test_pricing_navigation::test_presenter_swallows_read_errors",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.meat_processing.test_meat_processing_navigation::test_meat_processing_has_one_canonical_internal_navigation_contract",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.meat_processing.test_meat_processing_navigation::test_standard_sections_have_no_feature_flag",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.meat_processing.test_meat_processing_navigation::test_slaughter_sections_are_all_gated_by_the_same_feature_flag",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.meat_processing.test_meat_processing_navigation::test_slaughter_sections_are_hidden_by_default_even_with_full_permissions",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.meat_processing.test_meat_processing_navigation::test_slaughter_sections_appear_once_flag_and_permission_are_both_granted",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.meat_processing.test_meat_processing_navigation::test_visible_entries_are_least_privilege_and_badges_are_external",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.meat_processing.test_meat_processing_navigation::test_read_access_does_not_infer_sensitive_sections",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.meat_processing.test_meat_processing_navigation::test_feature_flag_alone_without_permission_does_not_reveal_slaughter_sections",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.losses.test_losses_navigation::test_losses_has_one_canonical_internal_navigation_contract",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.losses.test_losses_navigation::test_visible_entries_are_least_privilege_and_badges_are_external",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.losses.test_losses_navigation::test_read_access_does_not_infer_sensitive_sections",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.losses.test_losses_navigation_unittest.LossesNavigationSmokeTest::test_global_navigation_has_exactly_one_losses_entry",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.losses.test_losses_navigation_unittest.LossesNavigationSmokeTest::test_routes_are_unique_permission_aware_and_badged",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.business_intelligence.test_business_intelligence_navigation::test_nav_has_unique_page_ids",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.business_intelligence.test_business_intelligence_navigation::test_executive_dashboard_is_first_entry",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.business_intelligence.test_business_intelligence_navigation::test_visible_entries_filters_by_permission",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.business_intelligence.test_business_intelligence_navigation::test_visible_entries_grants_all_when_permission_check_allows_everything",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.business_intelligence.test_business_intelligence_navigation::test_visible_entries_denies_all_when_permission_check_denies_everything",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.business_intelligence.test_business_intelligence_navigation::test_badge_lookup_returns_none_when_no_badges_provided",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.business_intelligence.test_business_intelligence_navigation::test_badge_lookup_returns_count_when_provided",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.business_intelligence.test_business_intelligence_sidebar_widget::test_sidebar_lists_only_permitted_entries",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.business_intelligence.test_business_intelligence_sidebar_widget::test_sidebar_selecting_first_row_by_default",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.business_intelligence.test_business_intelligence_sidebar_widget::test_sidebar_emits_route_requested_on_selection_change",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.business_intelligence.test_business_intelligence_sidebar_widget::test_sidebar_collapse_shows_section_icon",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.unit.business_intelligence.test_business_intelligence_sidebar_widget::test_sidebar_respects_permission_filtering",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.products.test_products_view::test_side_nav_emits_navigated",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.products.test_products_view::test_view_builds_sidebar_and_selects_first",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.products.test_products_view::test_view_lazy_builds_on_navigation",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.products.test_products_view::test_view_is_resilient_to_failing_page",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.products.test_products_view_refresh::test_revisiting_page_triggers_refresh",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.products.test_products_view_refresh::test_refresh_failure_does_not_break_navigation",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.inventory.test_inventory_view_shell::test_registry_builds_one_spec_per_nav_section",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.inventory.test_inventory_view_shell::test_shell_shows_all_sections_and_lazy_builds",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.inventory.test_inventory_view_shell::test_every_section_has_a_real_page_no_placeholder",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.inventory.test_inventory_view_shell::test_disponibilidad_wires_the_real_availability_page",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.inventory.test_inventory_view_shell::test_lotes_wires_the_real_lots_page",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.inventory.test_inventory_view_shell::test_movimientos_wires_the_real_movements_page",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.inventory.test_inventory_view_shell::test_caducidades_wires_the_real_expiry_page",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.inventory.test_inventory_view_shell::test_trazabilidad_wires_the_real_traceability_page",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.inventory.test_inventory_view_shell::test_existencias_wires_the_real_stock_page",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.inventory.test_inventory_view_shell::test_cuarentena_wires_the_real_quarantine_page",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.inventory.test_inventory_view_shell::test_reservas_wires_the_real_reservations_page",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.inventory.test_inventory_view_shell::test_cadena_de_frio_wires_the_real_cold_chain_page",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.inventory.test_inventory_view_shell::test_auditoria_wires_the_real_audit_page",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.inventory.test_inventory_view_shell::test_transferencias_wires_the_real_transfers_page",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.inventory.test_inventory_view_shell::test_peso_variable_wires_the_real_weight_page",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.inventory.test_inventory_view_shell::test_recepciones_wires_the_real_receipts_page",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.inventory.test_inventory_view_shell::test_conteos_wires_the_real_counts_page",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.inventory.test_inventory_view_shell::test_ajustes_wires_the_real_adjustments_page",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.inventory.test_inventory_view_shell::test_alertas_wires_the_real_alerts_page",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.inventory.test_inventory_view_shell::test_configuracion_wires_the_real_settings_page",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.meat_processing.test_meat_processing_view_shell.TestModuleHost::test_builds_and_defaults_to_first_route",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.meat_processing.test_meat_processing_view_shell.TestModuleHost::test_orders_route_serves_the_real_page",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.meat_processing.test_meat_processing_view_shell.TestModuleHost::test_other_routes_still_serve_the_placeholder",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.meat_processing.test_meat_processing_view_shell.TestModuleHost::test_full_order_lifecycle_through_the_real_page",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.orders_delivery.test_orders_delivery_sidebar_badges::test_the_sidebar_shows_the_delivery_counts",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.orders_delivery.test_orders_delivery_sidebar_badges::test_without_an_active_branch_there_are_no_counts",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.orders_delivery.test_orders_delivery_sidebar_badges::test_the_alerts_count_is_my_unread_alerts_not_one_per_recipient",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.integration.orders_delivery.test_orders_delivery_sidebar_badges::test_the_sidebar_alerts_count_is_the_session_users",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_losses_sidebar_navigation::test_losses_view_uses_sidebar_and_stack_not_horizontal_tabs",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_losses_sidebar_navigation::test_the_shell_hosts_losses_through_the_canonical_factory_only",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_losses_sidebar_navigation::test_the_sidebar_has_exactly_one_losses_entry_without_emoji",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_losses_sidebar_navigation::test_losses_pages_do_not_access_database_or_repositories",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_meat_processing_sidebar_navigation::test_meat_processing_view_uses_sidebar_and_stack_not_horizontal_tabs",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_meat_processing_sidebar_navigation::test_meat_processing_pages_do_not_access_database_or_repositories",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_meat_processing_sidebar_navigation::test_meat_processing_module_does_not_use_emoji_icons",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_meat_processing_sidebar_navigation::test_legacy_produccion_menu_entry_and_module_are_not_touched_yet",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.architecture.test_meat_processing_sidebar_navigation::test_navigation_contract_has_no_pyqt_import",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_transfers_sidebar_is_canonical::test_transfers_sidebar_has_no_database_or_legacy_ui_dependencies",
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "name": "route-sidebar-icons",
+      "tests": 20,
+      "passed": 20,
+      "failure": 0,
+      "error": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_route_icons_survive_theme_collapse_and_flyout_navigation[cash_register]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_route_icons_survive_theme_collapse_and_flyout_navigation[customers_crm]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_route_icons_survive_theme_collapse_and_flyout_navigation[fidelidad]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_route_icons_survive_theme_collapse_and_flyout_navigation[tarjetas_fidelidad]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_route_icons_survive_theme_collapse_and_flyout_navigation[assets]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_sibling_routes_render_different_shapes[cash_register]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_sibling_routes_render_different_shapes[customers_crm]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_sibling_routes_render_different_shapes[fidelidad]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_sibling_routes_render_different_shapes[tarjetas_fidelidad]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_sibling_routes_render_different_shapes[assets]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_permission_refresh_keeps_allowed_routes_icons_and_destination[cash_register]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_permission_refresh_keeps_allowed_routes_icons_and_destination[customers_crm]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_permission_refresh_keeps_allowed_routes_icons_and_destination[fidelidad]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_permission_refresh_keeps_allowed_routes_icons_and_destination[tarjetas_fidelidad]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_permission_refresh_keeps_allowed_routes_icons_and_destination[assets]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_no_permission_group_uses_module_icon_without_exposing_routes[cash_register]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_no_permission_group_uses_module_icon_without_exposing_routes[customers_crm]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_no_permission_group_uses_module_icon_without_exposing_routes[fidelidad]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_no_permission_group_uses_module_icon_without_exposing_routes[tarjetas_fidelidad]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_no_permission_group_uses_module_icon_without_exposing_routes[assets]",
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "name": "module-sidebar-visuals",
+      "tests": 68,
+      "passed": 68,
+      "failure": 0,
+      "error": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-light-finance]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-light-hr]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-light-products]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-light-inventory]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-light-pricing]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-light-purchasing]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-light-losses]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-light-meat_processing]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-light-orders_delivery]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-light-business_intelligence]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-light-transfers]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-light-configuracion]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-light-cash_register]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-light-customers_crm]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-light-fidelidad]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-light-tarjetas_fidelidad]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-light-assets]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-dark-finance]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-dark-hr]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-dark-products]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-dark-inventory]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-dark-pricing]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-dark-purchasing]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-dark-losses]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-dark-meat_processing]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-dark-orders_delivery]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-dark-business_intelligence]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-dark-transfers]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-dark-configuracion]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-dark-cash_register]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-dark-customers_crm]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-dark-fidelidad]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-dark-tarjetas_fidelidad]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[comfortable-dark-assets]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-light-finance]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-light-hr]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-light-products]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-light-inventory]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-light-pricing]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-light-purchasing]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-light-losses]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-light-meat_processing]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-light-orders_delivery]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-light-business_intelligence]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-light-transfers]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-light-configuracion]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-light-cash_register]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-light-customers_crm]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-light-fidelidad]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-light-tarjetas_fidelidad]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-light-assets]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-dark-finance]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-dark-hr]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-dark-products]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-dark-inventory]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-dark-pricing]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-dark-purchasing]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-dark-losses]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-dark-meat_processing]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-dark-orders_delivery]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-dark-business_intelligence]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-dark-transfers]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-dark-configuracion]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-dark-cash_register]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-dark-customers_crm]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-dark-fidelidad]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-dark-tarjetas_fidelidad]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.ui.test_module_sidebar_icon_visuals::test_real_module_navigation_visuals[touch-dark-assets]",
+          "outcome": "passed"
+        }
+      ]
+    }
+  ],
+  "before_runs": [
+    {
+      "name": "sidebar-finance-hr-before",
+      "tests": 4,
+      "passed": 0,
+      "failure": 4,
+      "error": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "name": "tests.ui.test_finance_hr_sidebar_icons::test_module_sidebar_keeps_semantic_icons_and_page_destinations[light-finance-FinanceView-examples0]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_finance_hr_sidebar_icons::test_module_sidebar_keeps_semantic_icons_and_page_destinations[light-hr-HRView-examples1]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_finance_hr_sidebar_icons::test_module_sidebar_keeps_semantic_icons_and_page_destinations[dark-finance-FinanceView-examples0]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_finance_hr_sidebar_icons::test_module_sidebar_keeps_semantic_icons_and_page_destinations[dark-hr-HRView-examples1]",
+          "outcome": "failure"
+        }
+      ]
+    },
+    {
+      "name": "sidebar-purchasing-before",
+      "tests": 3,
+      "passed": 0,
+      "failure": 3,
+      "error": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "name": "tests.ui.test_purchasing_sidebar_icons::test_purchasing_routes_render_distinct_semantic_icons[light]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_purchasing_sidebar_icons::test_purchasing_routes_render_distinct_semantic_icons[dark]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_purchasing_sidebar_icons::test_purchasing_permission_refresh_preserves_available_route_icons",
+          "outcome": "failure"
+        }
+      ]
+    },
+    {
+      "name": "operational-sidebar-before",
+      "tests": 17,
+      "passed": 0,
+      "failure": 17,
+      "error": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-losses-LossesSidebarWidget]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-meat_processing-MeatProcessingSidebarWidget]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-orders_delivery-OrdersDeliverySidebarWidget]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-business_intelligence-BusinessIntelligenceSidebarWidget]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-transfers-TransfersSidebarWidget]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-configuracion-ConfiguracionSidebarWidget]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-losses-LossesSidebarWidget]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-meat_processing-MeatProcessingSidebarWidget]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-orders_delivery-OrdersDeliverySidebarWidget]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-business_intelligence-BusinessIntelligenceSidebarWidget]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-transfers-TransfersSidebarWidget]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-configuracion-ConfiguracionSidebarWidget]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_inventory_icons_follow_filtered_registry_without_reordering_pages[False]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_inventory_icons_follow_filtered_registry_without_reordering_pages[True]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_pricing_icons_follow_visible_routes_and_keep_lazy_navigation[False]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_pricing_icons_follow_visible_routes_and_keep_lazy_navigation[True]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_operational_sidebar_icons::test_products_real_composition_has_distinct_section_icons",
+          "outcome": "failure"
+        }
+      ]
+    },
+    {
+      "name": "route-sidebar-icons-before",
+      "tests": 15,
+      "passed": 0,
+      "failure": 15,
+      "error": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_route_icons_survive_theme_collapse_and_flyout_navigation[cash_register]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_route_icons_survive_theme_collapse_and_flyout_navigation[customers_crm]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_route_icons_survive_theme_collapse_and_flyout_navigation[fidelidad]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_route_icons_survive_theme_collapse_and_flyout_navigation[tarjetas_fidelidad]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_route_icons_survive_theme_collapse_and_flyout_navigation[assets]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_permission_refresh_keeps_allowed_routes_icons_and_destination[cash_register]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_permission_refresh_keeps_allowed_routes_icons_and_destination[customers_crm]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_permission_refresh_keeps_allowed_routes_icons_and_destination[fidelidad]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_permission_refresh_keeps_allowed_routes_icons_and_destination[tarjetas_fidelidad]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_permission_refresh_keeps_allowed_routes_icons_and_destination[assets]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_no_permission_group_uses_module_icon_without_exposing_routes[cash_register]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_no_permission_group_uses_module_icon_without_exposing_routes[customers_crm]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_no_permission_group_uses_module_icon_without_exposing_routes[fidelidad]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_no_permission_group_uses_module_icon_without_exposing_routes[tarjetas_fidelidad]",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.ui.test_route_sidebar_icons::test_no_permission_group_uses_module_icon_without_exposing_routes[assets]",
+          "outcome": "failure"
+        }
+      ]
+    },
+    {
+      "name": "sidebar-icon-guardrail",
+      "tests": 31,
+      "passed": 30,
+      "failure": 1,
+      "error": 0,
+      "skipped": 0,
+      "cases": [
+        {
+          "name": "tests.architecture.test_icon_catalog::test_navigation_and_headers_only_request_registered_icons",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_module_sidebars_supply_explicit_icons_for_sections_and_groups",
+          "outcome": "failure"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_catalog_has_vector_and_spanish_accessibility_name_for_every_constant",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[class SectionNavEntry:\\n page_id: str\\n title: str\\n icon: str\\nSectionNavEntry(\"page\", \"Etiqueta\", \"missing\")-expected0]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[PageHeader(title=\"missing\", icon=\"search\")-expected1]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[PageHeader(icon=getattr(Icons, \"MISSING\", None))-expected2]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[nav.add_section(\"Etiqueta\", \"search\")-expected3]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[IconProvider.icon(\"missing\")-expected4]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[from frontend.desktop.components.icons import IconProvider as IP\\nIP.bind(button, \"missing\")-expected5]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[from frontend.desktop.components.icons import Icons as I\\nPageHeader(icon=I.MISSING)-expected6]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[IconButton(\"missing\", \"Descripci\\xf3n\")-expected7]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_icon_reference_detection_is_scoped_to_icon_contracts[text = \"Icons.MISSING\"\\nvalue = {\"icon\": \"external data\"}-expected8]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[nav.add_section(\"Productos\")-expected0]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[nav.add_group(\"Cat\\xe1logo\")-expected1]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[nav.add_section(\"Productos\", None)-expected2]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[nav.add_group(\"Cat\\xe1logo\", icon=None)-expected3]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[nav.add_section(\"Productos\", \"\")-expected4]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[nav.add_section(\"Productos\", icon=\"  \")-expected5]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[nav.add_section(\"Productos\", Icons.PACKAGE)-expected6]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[nav.add_group(\"Cat\\xe1logo\", icon=group.icon)-expected7]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[nav.add_section(label=\"Productos\", icon=\"search\", badge=0)-expected8]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[nav.add_section(\"Productos\", icon=SECTION_ICONS[route.key])-expected9]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_checks_positional_and_keyword_icons[registry.add_group(\"Grupo de permisos\")-expected10]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_tracks_navigation_receivers_and_aliases[from frontend.desktop.components import SideNav as Navigation\\nnav = Navigation()\\nnav.add_section(\"Productos\")-expected0]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_tracks_navigation_receivers_and_aliases[from frontend.desktop.components.side_nav import ModuleSidebar\\nnav = ModuleSidebar()\\nnav.add_group(\"Cat\\xe1logo\")-expected1]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_tracks_navigation_receivers_and_aliases[import frontend.desktop.components.side_nav as widgets\\nnav = widgets.SideNav()\\nnav.add_section(\"Productos\")-expected2]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_tracks_navigation_receivers_and_aliases[from frontend.desktop.components.side_nav import SideNav\\nnav = SideNav()\\nother = nav\\nother.add_section(\"Productos\")-expected3]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_tracks_navigation_receivers_and_aliases[from frontend.desktop.components.side_nav import SideNav\\nSideNav().add_section(\"Productos\")-expected4]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_tracks_navigation_receivers_and_aliases[from external_package import SideNav\\nnav = SideNav()\\nnav.add_group(\"Grupo externo\")-expected5]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_tracks_navigation_receivers_and_aliases[from frontend.desktop.components import SideNav\\ndef build():\\n nav = SideNav()\\ndef unrelated():\\n nav = Registry()\\n nav.add_group(\"Grupo de permisos\")-expected6]",
+          "outcome": "passed"
+        },
+        {
+          "name": "tests.architecture.test_icon_catalog::test_sidebar_guardrail_tracks_navigation_receivers_and_aliases[from frontend.desktop.components import SideNav\\nclass Workspace:\\n def populate(self):\\n  self.nav.add_section(\"Productos\")\\n def __init__(self):\\n  self.nav = SideNav()\\nclass Other:\\n def __init__(self):\\n  self.nav = Registry()\\n  self.nav.add_group(\"Permisos\")-expected7]",
+          "outcome": "passed"
+        }
+      ]
+    }
+  ],
+  "audit": {
+    "new_violations": 0,
+    "obsolete_fingerprints": 0,
+    "existing_occurrences": 159,
+    "rules": {
+      "noncanonical_dialog": {
+        "occurrences": 35,
+        "files": 24
+      },
+      "screen_without_explicit_overflow": {
+        "occurrences": 110,
+        "files": 109
+      },
+      "unicode_icon_literal": {
+        "occurrences": 14,
+        "files": 7
+      }
+    }
+  },
+  "source_sha256": {
+    "frontend/desktop/modules/finance/finance_view.py": "d58bd549747489ab461627963372394c5edacda0f80c8a555f634393010fd41c",
+    "frontend/desktop/modules/hr/hr_view.py": "71b8d01ca4518c5008b5df0bb75921cbc442979ae760b5e13dfc5060d15fa293",
+    "frontend/desktop/modules/purchasing/navigation.py": "d0aa8daacee421fed4313653a24e54a525b0e53fdbc84694aaf6a908a4e26674",
+    "frontend/desktop/modules/purchasing/purchasing_module_shell.py": "f46d990acde3611f9e55d025ee1f5bcb232e957032906dec4f455895ec6fc02c",
+    "frontend/desktop/modules/products/products_view.py": "787595f795ded9c8c60c52f9aa427fdb71de20fcf1e432adea1f0a247d21655a",
+    "frontend/desktop/modules/products/composition.py": "e46b9269287e72d6356e16fd41d6b4b5b2360bdc0e225f4bc9a7478facc49f3a",
+    "frontend/desktop/modules/inventory/inventory_view.py": "641640eb1ea1999abfe6c3d6b99951c0135dd78d7e0f79fee9e2e270561ed59d",
+    "frontend/desktop/modules/pricing/pricing_workspace.py": "9db0c7d9a68bedbe5e3080c08c60fb22cab87e5b56e947fc100f32e046b3d9c9",
+    "frontend/desktop/modules/losses/widgets/losses_sidebar_widget.py": "feadc5231e51a8b5ea5ee17ab5f72498eae14f2ab58d180349101bf8c9ed334e",
+    "frontend/desktop/modules/meat_processing/widgets/meat_processing_sidebar_widget.py": "83fd041513bce08b186cf4114c1137b2199f6f0e17699cbd028992530d9c1bae",
+    "frontend/desktop/modules/orders_delivery/widgets/orders_delivery_sidebar_widget.py": "798c80e9b52375faa93bae409d4fc00f33af31dd8870422fda7f64ebc9513924",
+    "frontend/desktop/modules/business_intelligence/widgets/business_intelligence_sidebar_widget.py": "8244d539b3bdafcb55b09f17bdf07c2096f0711367d3cd9dcd4a2a91e76cd2e1",
+    "frontend/desktop/modules/transfers/widgets/transfers_sidebar_widget.py": "0963c65bd0d3fe8f33549619e801527ea664373c3a67919b1be2fba93f3b683c",
+    "frontend/desktop/modules/configuracion/widgets/configuracion_sidebar_widget.py": "76638341137ab5a24b416f9aea54d91cb98faa399c30f84bf683bc775ce44f9b",
+    "frontend/desktop/modules/cash_register/cash_register_routes.py": "e04cb9ba32966602d2934fa0c6d7be1a8acf980a9a2fefed966c2ad43afb619f",
+    "frontend/desktop/modules/cash_register/cash_register_workspace.py": "a6480f38f7a9d85d2a62fe3433f9b238a7711c633bac3dcd97cc7c5e2e9b5cb7",
+    "frontend/desktop/modules/customers_crm/customers_crm_routes.py": "7b3a751811bb0e131e79af69b500012d05ad18be7c17416114f332eab5d4b4c8",
+    "frontend/desktop/modules/customers_crm/customers_crm_workspace.py": "1e6b282507e041b5e74d4f1a7f39bb567440ce1f4ea55a578e0c62d2e46dc25c",
+    "frontend/desktop/modules/fidelidad/fidelidad_routes.py": "e59c0814754df6f1bd9205bac6249459f67c27b9276b882d5432dfdb5190800a",
+    "frontend/desktop/modules/fidelidad/fidelidad_workspace.py": "1a00a88907e85343052950e1fbf0e980be6d902fe5f6ae4cf01b1ab2ade5c2de",
+    "frontend/desktop/modules/tarjetas_fidelidad/tarjetas_fidelidad_routes.py": "a4b12710e5cca9980334cbe0be58adbf4375c5aa5aa1ffb1e6cb358ba4f5300a",
+    "frontend/desktop/modules/tarjetas_fidelidad/tarjetas_fidelidad_workspace.py": "649647516168e2cea7b5f365a0cbe6038e47cd5cb79109242025839a8a8b47d2",
+    "frontend/desktop/modules/assets/assets_routes.py": "3c5ecd870f042dbef0fe6e38161015d0dd103ed8a1d839d955e78f22189d97a5",
+    "frontend/desktop/modules/assets/assets_workspace.py": "d86ae3a464ec038151d772fddae555835aa3c56e0f1f2de8343bda1f0589479f",
+    "tests/architecture/test_icon_catalog.py": "b7c805150c0154c44322712279b05555e44125334fc5203c9588d80d4e8e37fa",
+    "tests/integration/suppliers/test_supplier_ui.py": "ed02949a73dd228dd792eb64a2c47d3f9227f0401ec609200821777550fa07e5",
+    "tests/ui/test_finance_hr_sidebar_icons.py": "d70f8fb80bc3e901e8675aeae402af7d35a315e2d7595fc629335b2c82a0e0ad",
+    "tests/ui/test_purchasing_sidebar_icons.py": "e9b19281546edacd7c0f2a91583a7025556ec982660904cd76b339a63451bb65",
+    "tests/ui/test_operational_sidebar_icons.py": "49a657d5b257452ff39ef9c59a29c73c163305c240e3eeabda9a4015b82c38f3",
+    "tests/ui/test_route_sidebar_icons.py": "3acd4169e81e0c3a5f914cfeed47219f694b7533f9d05d1a72ad0a3b110b6306",
+    "tests/ui/test_module_sidebar_icon_visuals.py": "11235a472b1c0610eaf4890b941e5135e7b58ed6d99ead275ffd65bdd72cff83"
+  },
+  "visual_artifacts": [
+    {
+      "path": "assets-dark-comfortable-collapsed.png",
+      "sha256": "fdb9c71302f18c4c697ff0200d7c927cbc86050cc623c9802ddda1d0e92dd59e"
+    },
+    {
+      "path": "assets-dark-comfortable-expanded.png",
+      "sha256": "98adffaca5ff9253119bb9b5b29d751562e31ca581a43715624a31858552680c"
+    },
+    {
+      "path": "assets-dark-comfortable-flyout.png",
+      "sha256": "d4077fe474260bf28be7811f0819f30ac7ec2d3f2138cf9fd55c88a9997da6b2"
+    },
+    {
+      "path": "assets-dark-touch-collapsed.png",
+      "sha256": "2f853148b89b7172279ac86324e1b8b8dfd37913f1ffab779d0f0badd82cca59"
+    },
+    {
+      "path": "assets-dark-touch-expanded.png",
+      "sha256": "7a53830666336c0f18bba011d51e047ac612d2b6e9e793752517cf35ced04d94"
+    },
+    {
+      "path": "assets-dark-touch-flyout.png",
+      "sha256": "a976d6f17179a786f93c36d690d88fa0a0289a37493052c621e9dff37a8accff"
+    },
+    {
+      "path": "assets-light-comfortable-collapsed.png",
+      "sha256": "93df620ef46ecdf4e2767d87b7025a8079bda250f2b35f1b922a18dc3eccfefa"
+    },
+    {
+      "path": "assets-light-comfortable-expanded.png",
+      "sha256": "9b01c0ead71daa6d39bc4fa570e77ca069e6674dad611d2b201fc2caaab45c92"
+    },
+    {
+      "path": "assets-light-comfortable-flyout.png",
+      "sha256": "171b5d96046cdbfeaaa5ba6fa401159aa0c344e156ef13372d3f94955bb1ac73"
+    },
+    {
+      "path": "assets-light-touch-collapsed.png",
+      "sha256": "a62e778d722a857dc7a446fb95ef7ab040b6248d203158b497c631e31bb59114"
+    },
+    {
+      "path": "assets-light-touch-expanded.png",
+      "sha256": "7a2819035e180af161f491f8fa1b9303bb0c8be5ba5448a7ebadf73282563174"
+    },
+    {
+      "path": "assets-light-touch-flyout.png",
+      "sha256": "93a3f6096bdf5606508210a65d8e4d1f5a5784d93631734e50f721a90a67cebf"
+    },
+    {
+      "path": "business_intelligence-dark-comfortable-collapsed.png",
+      "sha256": "e526063c0cb4a4d2b2b852681ed4a2de1549a6248fef7bd5f01e9d1710ccfd7b"
+    },
+    {
+      "path": "business_intelligence-dark-comfortable-expanded.png",
+      "sha256": "86bd8ae64803cfa3e8df55272c545193525a8d48aab20992f6ace852e85067cc"
+    },
+    {
+      "path": "business_intelligence-dark-touch-collapsed.png",
+      "sha256": "47c0e5dae702c3adde97c2503e823ec52e53c1d00e89364fa0e7c9cda03eac80"
+    },
+    {
+      "path": "business_intelligence-dark-touch-expanded.png",
+      "sha256": "a43f112125250bb25f0276cf1b029bbd4bfb966feb8fe86e7f9d85ca0ab04017"
+    },
+    {
+      "path": "business_intelligence-light-comfortable-collapsed.png",
+      "sha256": "9d48d0216267374f3ec20147f9c4e66f9664deac86c7662a95b2bdbd374851e7"
+    },
+    {
+      "path": "business_intelligence-light-comfortable-expanded.png",
+      "sha256": "067e343c56a1fc35ae93579cefdf57f682b6df2eae7d5fb4f2d68be3c54f83b0"
+    },
+    {
+      "path": "business_intelligence-light-touch-collapsed.png",
+      "sha256": "63bd726816112a5ac1c4b219fd37f91f7b7ae6bd07e15f907dd0a0f136edd203"
+    },
+    {
+      "path": "business_intelligence-light-touch-expanded.png",
+      "sha256": "093f4da2f8ddf72be849298ecaa1873b02e1b1849e314e3d47e266f92859a144"
+    },
+    {
+      "path": "cash_register-dark-comfortable-collapsed.png",
+      "sha256": "6452b3af858affe87d458f830eefff710c510ef1e4f39ac563ca2b12780ef9fc"
+    },
+    {
+      "path": "cash_register-dark-comfortable-expanded.png",
+      "sha256": "76f69e36ae97c45449a338632eb7ab9b7d6c44108b73565ec03753ce72c027df"
+    },
+    {
+      "path": "cash_register-dark-comfortable-flyout.png",
+      "sha256": "ae4b934f5d399d0a92a96a6b63c4deb3b799f86bd4ca2fc9dc72cb3829f2c3bb"
+    },
+    {
+      "path": "cash_register-dark-touch-collapsed.png",
+      "sha256": "bae96f39692e28b95b8e5988d598398aa9e3b579e4f33fd682db1c046885c93b"
+    },
+    {
+      "path": "cash_register-dark-touch-expanded.png",
+      "sha256": "90ea878b880a04afc4dc32a4aff5e1954034a7342c6bf3db7984aa982e22803c"
+    },
+    {
+      "path": "cash_register-dark-touch-flyout.png",
+      "sha256": "54c9a20086a29c47ed0ca3f8d276d202c3dfc7140de7ac19d9ac220e336fa6f0"
+    },
+    {
+      "path": "cash_register-light-comfortable-collapsed.png",
+      "sha256": "007079bf6cd93757b3414960dd0214d4d71f3ba0c72c3f08a1044290a9187f68"
+    },
+    {
+      "path": "cash_register-light-comfortable-expanded.png",
+      "sha256": "cc89226a195822be49601f077f56f44a6bbd835ab8096201b26ce589a78cf0b7"
+    },
+    {
+      "path": "cash_register-light-comfortable-flyout.png",
+      "sha256": "40170c8f805e1867776d699cb8f79c983e82dfc61bbb905914a10c26877e9e23"
+    },
+    {
+      "path": "cash_register-light-touch-collapsed.png",
+      "sha256": "aeeb800c2ed6a6e3d4542e466df2e341be18aaf7fd9db92d45672db4f903728d"
+    },
+    {
+      "path": "cash_register-light-touch-expanded.png",
+      "sha256": "a39118c60afed0ef8fb3a8e42c1db634c4e2f018d24dd1f153190dea4e1a77cf"
+    },
+    {
+      "path": "cash_register-light-touch-flyout.png",
+      "sha256": "563bf0737031b99c91f3a9e6378700df357ba56b0504ccd43e982f82dc399853"
+    },
+    {
+      "path": "configuracion-dark-comfortable-collapsed.png",
+      "sha256": "6329f78c22233070a0c520b15a1d06f69d155f793a022b33c056aa037a394854"
+    },
+    {
+      "path": "configuracion-dark-comfortable-expanded.png",
+      "sha256": "3d5bf5e38e4663f6412bcf99bb0a81c14f0a858480bbae184a43896151c8c34b"
+    },
+    {
+      "path": "configuracion-dark-touch-collapsed.png",
+      "sha256": "53ff076956571cb9a5b403c4b8c51da312cf679ba270e8122229503260c72332"
+    },
+    {
+      "path": "configuracion-dark-touch-expanded.png",
+      "sha256": "f25b7b6494fcdce53c2e6ed54e0ed9b278061a2e8b6a6bd17e0d7c212eab5606"
+    },
+    {
+      "path": "configuracion-light-comfortable-collapsed.png",
+      "sha256": "17ff0bc327aeacfe717c40b81c3e68e111bcee2b3907c7823cc69913bc6c4967"
+    },
+    {
+      "path": "configuracion-light-comfortable-expanded.png",
+      "sha256": "88faf85f175cf1474f1bf04c440a6bb7b91ae3009b8bceecd9a51412b826b5b2"
+    },
+    {
+      "path": "configuracion-light-touch-collapsed.png",
+      "sha256": "cb9d26cb9590b4925bf788a87712615a0402f6ba3b16fff3c9353b6fcee17522"
+    },
+    {
+      "path": "configuracion-light-touch-expanded.png",
+      "sha256": "e81e3ed349ce5b76a1a8592819947916054a1676069651f086c26580840d340c"
+    },
+    {
+      "path": "customers_crm-dark-comfortable-collapsed.png",
+      "sha256": "e4945eb1b8d680ba13810ee38e8962ef32678c0ce296962ceddab64922d7e74a"
+    },
+    {
+      "path": "customers_crm-dark-comfortable-expanded.png",
+      "sha256": "53fcfbfdc637e41e270a5a1d1f153be5390177101f6f953e254b6a3bd0b390be"
+    },
+    {
+      "path": "customers_crm-dark-comfortable-flyout.png",
+      "sha256": "f1a1a0df1d1eeeeb6227bc59adaf63c60b799ad11a8db872aafa2e108f749a2b"
+    },
+    {
+      "path": "customers_crm-dark-touch-collapsed.png",
+      "sha256": "37e3a6f5a570a88ce6b7abe98e7780028663af3a301035a7a7ad6aed982d4aaf"
+    },
+    {
+      "path": "customers_crm-dark-touch-expanded.png",
+      "sha256": "68f938c91313782c9e5bd19edab26343aa1c3011f0cd3a96cfcb6655d561e79f"
+    },
+    {
+      "path": "customers_crm-dark-touch-flyout.png",
+      "sha256": "be643378d09383f6e459a701d7e9edbb3a1088d6c10fb0b094fb4758f261fdbf"
+    },
+    {
+      "path": "customers_crm-light-comfortable-collapsed.png",
+      "sha256": "7be9ac279def40c0440d814e3760d1c5b4fa0a250b5d0acb4456e1d58a40fb34"
+    },
+    {
+      "path": "customers_crm-light-comfortable-expanded.png",
+      "sha256": "3fdf377fd0e1cf40c482655912cbedf4929b7a78b812e4ed0185969b51775e33"
+    },
+    {
+      "path": "customers_crm-light-comfortable-flyout.png",
+      "sha256": "32cfc907a9ac0d7dc2dc9e2a499fc2d3e87f76c4bb445d2a06abe868323eb773"
+    },
+    {
+      "path": "customers_crm-light-touch-collapsed.png",
+      "sha256": "aedb9748ad9516fb481daebf7ba78f35e84b22d8a4f05854e7e5c1e167d6713b"
+    },
+    {
+      "path": "customers_crm-light-touch-expanded.png",
+      "sha256": "a452366dcfae435007e3d3ab65a6aa1a81a9ef611eed023634546f5b20e6af21"
+    },
+    {
+      "path": "customers_crm-light-touch-flyout.png",
+      "sha256": "f9d457f92755e3f09bd37465d9eedbe8f280c50126b3ca4ee3e06bc406531ebd"
+    },
+    {
+      "path": "fidelidad-dark-comfortable-collapsed.png",
+      "sha256": "89c3b1195ddba538693ef6e24e1ebc5d3fe9e3821b89d2eb9b38a3748bb5020b"
+    },
+    {
+      "path": "fidelidad-dark-comfortable-expanded.png",
+      "sha256": "31c3d587d71e6e04f3616a456c4691511d989cd19e3840f3b62fa9a4ed28247b"
+    },
+    {
+      "path": "fidelidad-dark-comfortable-flyout.png",
+      "sha256": "421cfe6897018f01bd6a498ff8fd419a1e6794d56fd6c163e7e9d942921d703b"
+    },
+    {
+      "path": "fidelidad-dark-touch-collapsed.png",
+      "sha256": "3f10853aca5825724aa1fb149f3828f3fda9f805a550a1b95db6efb8c7b64c7e"
+    },
+    {
+      "path": "fidelidad-dark-touch-expanded.png",
+      "sha256": "43444ba7eaa251dd3893762f16dddaf19c240f038cdbf3eb1cece4817fedc423"
+    },
+    {
+      "path": "fidelidad-dark-touch-flyout.png",
+      "sha256": "fa663d73f4c9fe553de584403750d7f852928c117a4a5cf515e1549070de0af0"
+    },
+    {
+      "path": "fidelidad-light-comfortable-collapsed.png",
+      "sha256": "5c086d0524d1b37570e7d1071da6508a1d2ac8d37a07cc757d3861e2e40681fd"
+    },
+    {
+      "path": "fidelidad-light-comfortable-expanded.png",
+      "sha256": "92cfe1b5042a00f26fc6b87b0b6d7070b43b6732fa1a4b823b6e02df01ccab0e"
+    },
+    {
+      "path": "fidelidad-light-comfortable-flyout.png",
+      "sha256": "fe82c050dcfa3218922d78a472c75261751e70226d5890b88670d96c582626a5"
+    },
+    {
+      "path": "fidelidad-light-touch-collapsed.png",
+      "sha256": "12f5b43cfa9d263e5dc0f4986ac2efabee7dc6a9ae104370d2ed6fc52e3726f2"
+    },
+    {
+      "path": "fidelidad-light-touch-expanded.png",
+      "sha256": "8ac499b52e6fd03f556ccb8f88dfb13aa75c8657cf767892712d2ee9dfa675d2"
+    },
+    {
+      "path": "fidelidad-light-touch-flyout.png",
+      "sha256": "4f8d0fb0382c8ab950e7be6a4abb80a1bfd82301c85534c19a5826e267ec2f8b"
+    },
+    {
+      "path": "finance-dark-comfortable-collapsed.png",
+      "sha256": "831d1906b7335ad98fd460399bb71f105268e0a482510e2c669fb65cdaaf332a"
+    },
+    {
+      "path": "finance-dark-comfortable-expanded.png",
+      "sha256": "dd9e0eb590b8c6159b576752bb681a21aa7d551938d38a6319ad4d3961c3639c"
+    },
+    {
+      "path": "finance-dark-comfortable-flyout.png",
+      "sha256": "f2140fd69ba5a1a70015e7f55d73a0cd2242914643fcc1e6b0e374453dc26b0f"
+    },
+    {
+      "path": "finance-dark-touch-collapsed.png",
+      "sha256": "ad3262225c8012f99bbfb0a9b0d3e4dc9141cb69d7a2ee8235113cf3fffce949"
+    },
+    {
+      "path": "finance-dark-touch-expanded.png",
+      "sha256": "22312877abdcf7acbfb83436af8ec0accd32d41d0f425da391613b6118a64ebb"
+    },
+    {
+      "path": "finance-dark-touch-flyout.png",
+      "sha256": "efc6b87ce9c8402a70d93c98c152eeb1b97308f803347a05c3d4316132de3594"
+    },
+    {
+      "path": "finance-light-comfortable-collapsed.png",
+      "sha256": "3a7b3e5c2d03fe556f1de3e19b033c380b571f6831124150795c27646cbf6105"
+    },
+    {
+      "path": "finance-light-comfortable-expanded.png",
+      "sha256": "efde9dca442dfa5fe2dbe3e6486eb0b494ffe4308ef229ba31255b1050e3fab3"
+    },
+    {
+      "path": "finance-light-comfortable-flyout.png",
+      "sha256": "ec6396e3473888fc0696c061b3624505cb6412471cd3ee78f99535ff741f16aa"
+    },
+    {
+      "path": "finance-light-touch-collapsed.png",
+      "sha256": "0ff3d121e59b0b6263ca5f28c78d1062546fbc035b4fe5c229b10ea1c7db749b"
+    },
+    {
+      "path": "finance-light-touch-expanded.png",
+      "sha256": "f2146d678629197f5309f8b010b416e16edd3dcaf802d445e86bb6be47fe4516"
+    },
+    {
+      "path": "finance-light-touch-flyout.png",
+      "sha256": "b68188940254ccfe1ae65eb7412add975cd48288b84ac495665937ad775e4559"
+    },
+    {
+      "path": "hr-dark-comfortable-collapsed.png",
+      "sha256": "7f95e76aa13c9dcc4b68b566d544b59fc15ebfeb0f43048503d8cabac078cda2"
+    },
+    {
+      "path": "hr-dark-comfortable-expanded.png",
+      "sha256": "e776b78a10c37cfd132306e4bb6b9e057df4f7179abe92a18c3dee51a42f8fbf"
+    },
+    {
+      "path": "hr-dark-comfortable-flyout.png",
+      "sha256": "1805f00d9ac572884a9777e0496de18cf6ce382fe57c104a89d4a69d766a28dd"
+    },
+    {
+      "path": "hr-dark-touch-collapsed.png",
+      "sha256": "dcc06c4042c8f08a467d504be628617ecba30d3ebec8d81218b5c22af2a8bd45"
+    },
+    {
+      "path": "hr-dark-touch-expanded.png",
+      "sha256": "0d525e0c123f9251e6cea0b489a8b92dd1f8ba3bd08acb6325424397b82ae0bf"
+    },
+    {
+      "path": "hr-dark-touch-flyout.png",
+      "sha256": "aaf95ac57dbd4ef47485e09429a954d98f53f3ec659b62cef78e4079fcacd21d"
+    },
+    {
+      "path": "hr-light-comfortable-collapsed.png",
+      "sha256": "4da470a900229bbba7e682ad9ba31a2ce0d40eb7fd68957adef3ad6db04504eb"
+    },
+    {
+      "path": "hr-light-comfortable-expanded.png",
+      "sha256": "1bdf5fc93719abb95e72ed6ff34d6e31b4eba0ca304360bb0f5347eb2417452d"
+    },
+    {
+      "path": "hr-light-comfortable-flyout.png",
+      "sha256": "bc00eca7d20e6bc84ec9ecb3b86c5ddec6a019c01160eb8f02b5cfa42e8544de"
+    },
+    {
+      "path": "hr-light-touch-collapsed.png",
+      "sha256": "84acb488ef06db12d08f0b05a980000e8e8c30e6dee609444348b1aeb46df671"
+    },
+    {
+      "path": "hr-light-touch-expanded.png",
+      "sha256": "6d7ac057fcf7caeccdc26fa3fc6ebc69e2eedb9e39abef1e28c64d777fa4e6c9"
+    },
+    {
+      "path": "hr-light-touch-flyout.png",
+      "sha256": "c3ab850ca5793ba066fdb24b2cb42ef4dc9cb14e0a0a7ea41f7cbe054fec9913"
+    },
+    {
+      "path": "inventory-dark-comfortable-collapsed.png",
+      "sha256": "2cadf998497698097dc944664f170bed454e03486e3233c740e90e091000b91f"
+    },
+    {
+      "path": "inventory-dark-comfortable-expanded.png",
+      "sha256": "51138f4a7369096d79a6efb3212303971ded8786505177004d1b449967e05acc"
+    },
+    {
+      "path": "inventory-dark-touch-collapsed.png",
+      "sha256": "dbeacda172fcfac73ab40e2262d22fb6b0ba6da5e6fa38e6f094b74947270e35"
+    },
+    {
+      "path": "inventory-dark-touch-expanded.png",
+      "sha256": "6a15e1e46dba32d18ebceec7da03a93e9ce587bffee96c996feaa5a4391f6c7f"
+    },
+    {
+      "path": "inventory-light-comfortable-collapsed.png",
+      "sha256": "48166804dadefe0a8a69ffdb2b8ffc46998d11a0c42eeddd7fc2a92a5246b42e"
+    },
+    {
+      "path": "inventory-light-comfortable-expanded.png",
+      "sha256": "083fc81b8a877a2f27e053106a0c74ad604f7e91f9118b0a9211fe2d967e8c20"
+    },
+    {
+      "path": "inventory-light-touch-collapsed.png",
+      "sha256": "0c7943e217c2ed39a8a768ef3456e5877f58d5083b6449a445442658484976f6"
+    },
+    {
+      "path": "inventory-light-touch-expanded.png",
+      "sha256": "53be2ff005dd5337cd9a33821c5ed291e346acd267cabaa5bc75105eebe572b9"
+    },
+    {
+      "path": "losses-dark-comfortable-collapsed.png",
+      "sha256": "c08782de94e85efbf5a19e7822b46c2f058bc1ba3c86609cb95f4178437d6c78"
+    },
+    {
+      "path": "losses-dark-comfortable-expanded.png",
+      "sha256": "90101cc6a6e6434324999fc2fd5eae1ed39de7bf61142b6f15eb2dd598e4c5e0"
+    },
+    {
+      "path": "losses-dark-touch-collapsed.png",
+      "sha256": "9ff93bc18f0796fbbf4caf0106652e36468391bc92be80a834defc284e0ac8ba"
+    },
+    {
+      "path": "losses-dark-touch-expanded.png",
+      "sha256": "7d34599800c972292fb9b079548e463f37ca7fa6fb15c2ebfe1accaebb5880a8"
+    },
+    {
+      "path": "losses-light-comfortable-collapsed.png",
+      "sha256": "49d76f0b11459be3f223a679823a4950efbf3b704d4fe7caa122bc4bc0ce0392"
+    },
+    {
+      "path": "losses-light-comfortable-expanded.png",
+      "sha256": "357244a6df9244cf758b73b30f538fea2c8ad5c405e418442981cd84f97877d2"
+    },
+    {
+      "path": "losses-light-touch-collapsed.png",
+      "sha256": "401fc252b73f901f4f98b58c09c256b48064995a8170bc7ea19141e21bface51"
+    },
+    {
+      "path": "losses-light-touch-expanded.png",
+      "sha256": "1d6c63dc31be102ccd931176eedd78a9fea8f7bbe73db4b12d7df455d3d091e2"
+    },
+    {
+      "path": "meat_processing-dark-comfortable-collapsed.png",
+      "sha256": "937a318d58ddcb389bc13ffa6c2b8345e5989b2f408514fcb2a8f0d2afbd46e6"
+    },
+    {
+      "path": "meat_processing-dark-comfortable-expanded.png",
+      "sha256": "64bc1a4b2332f18020e6be6d5fff3544cca5e01a9e53ed4d19034f0cda69276f"
+    },
+    {
+      "path": "meat_processing-dark-touch-collapsed.png",
+      "sha256": "51015e88764119d9e7334401c95e421fd56c882d9d097d9615fdb88205bc5d96"
+    },
+    {
+      "path": "meat_processing-dark-touch-expanded.png",
+      "sha256": "442d8b6b061c4481870391e82f2fb56feef4e7712ef05ed91686b243cc58e42d"
+    },
+    {
+      "path": "meat_processing-light-comfortable-collapsed.png",
+      "sha256": "c41579de4196d20e13cc223ac348372436e6c3ee4d5956850e5cfeba7f2c52d3"
+    },
+    {
+      "path": "meat_processing-light-comfortable-expanded.png",
+      "sha256": "e31214acd81fc5f9dd3e276466d810323a3748ea3dda7220699a27add706c114"
+    },
+    {
+      "path": "meat_processing-light-touch-collapsed.png",
+      "sha256": "14d1c143da0293ba98d7fc7b1ecc17508483a1502ef5938cfdb7365425c6b2c8"
+    },
+    {
+      "path": "meat_processing-light-touch-expanded.png",
+      "sha256": "ef93d0d91a6ede918cc61688ade32cd9e5dbbc8bfcd70712a236bbd5109292aa"
+    },
+    {
+      "path": "orders_delivery-dark-comfortable-collapsed.png",
+      "sha256": "2437d94217e7d8daa14a757ab0caaea3e2522bcf439d6dcccb7aaf52b8fd5449"
+    },
+    {
+      "path": "orders_delivery-dark-comfortable-expanded.png",
+      "sha256": "250474801d2de161b3f1a3743066a896cbdb43cc7e0e00399760224be249897f"
+    },
+    {
+      "path": "orders_delivery-dark-touch-collapsed.png",
+      "sha256": "370e7bd0014b1cfa40c7901a4f6ea480aeeb224233fcac889ea4d4915277c63b"
+    },
+    {
+      "path": "orders_delivery-dark-touch-expanded.png",
+      "sha256": "e417e864f4a15217852f77e6f6fa2e48d275a4e1434867dc12ba751bad974305"
+    },
+    {
+      "path": "orders_delivery-light-comfortable-collapsed.png",
+      "sha256": "d726fb930e80671d7ddcff31ea8cde2cf5015e97d534de02bf39a65d4054d955"
+    },
+    {
+      "path": "orders_delivery-light-comfortable-expanded.png",
+      "sha256": "b27ec417186f488f3215c4a4d4815a30a192cd098da23447d74d16cd825767e6"
+    },
+    {
+      "path": "orders_delivery-light-touch-collapsed.png",
+      "sha256": "3a37c4fcb864b95848f10fc9c22bcb6baf93ee61ab701cdc63e08a00685bdd82"
+    },
+    {
+      "path": "orders_delivery-light-touch-expanded.png",
+      "sha256": "22da5e166afb3acbbc6f7c09f15e8b53858a164e9feccae0bfea1ff45bac43bf"
+    },
+    {
+      "path": "pricing-dark-comfortable-collapsed.png",
+      "sha256": "d754e28504b04c178f033d3ed00016fdb49b8aa3ffaf7686b38ec2be24a1c9a9"
+    },
+    {
+      "path": "pricing-dark-comfortable-expanded.png",
+      "sha256": "2180b1ba28320c749a605d4587dd893ff47111be8123e6e4cf3b66b03e6e8755"
+    },
+    {
+      "path": "pricing-dark-touch-collapsed.png",
+      "sha256": "71ebbfbe92edbb544579523f9ab6f1b8d2eeeb192ac067c114f57fd6f1ed26e4"
+    },
+    {
+      "path": "pricing-dark-touch-expanded.png",
+      "sha256": "05cc59bc93032ba7cc3d85b569ff21f4e9b87f7890762491b7bae14aa0869518"
+    },
+    {
+      "path": "pricing-light-comfortable-collapsed.png",
+      "sha256": "18fa40513f73fc9f5109ec1ddc34a522675d63aaff8df31bf6dc3874621e6526"
+    },
+    {
+      "path": "pricing-light-comfortable-expanded.png",
+      "sha256": "97786da9cb87aff033de90505d5aa38b2585a625ec62e60506293400af004c7b"
+    },
+    {
+      "path": "pricing-light-touch-collapsed.png",
+      "sha256": "b1c4b0d5094e6ef24c4a2366faba115fb8414b88835a98fbea7d55280922a397"
+    },
+    {
+      "path": "pricing-light-touch-expanded.png",
+      "sha256": "48625b971aa60df4cb2a2a91162f77b8ac3dcd9dc5082d9f1e090a40e30beb54"
+    },
+    {
+      "path": "products-dark-comfortable-collapsed.png",
+      "sha256": "6d8e10791f79d0a3842f960225a6cee5e3e99bbfb34d9e2f7978bf8f9daab424"
+    },
+    {
+      "path": "products-dark-comfortable-expanded.png",
+      "sha256": "3081e83db326f63be4660b1d83696221462fa7227086a9590c9ade91aa44d27e"
+    },
+    {
+      "path": "products-dark-touch-collapsed.png",
+      "sha256": "744835901b7bd90a8bdea12dd1650a5b0ec11a1fdcd92d30bcd582ffbec36de3"
+    },
+    {
+      "path": "products-dark-touch-expanded.png",
+      "sha256": "ffd07ef3d9ea27a62dbc0dfe4d001ae208e2efe25f3805b5187480e2a4470656"
+    },
+    {
+      "path": "products-light-comfortable-collapsed.png",
+      "sha256": "b27df336dfded121bff366dee699e632aa7268735f65aeb7c45eeb574f2482c3"
+    },
+    {
+      "path": "products-light-comfortable-expanded.png",
+      "sha256": "bf35ce4d9fefccb19dd2e3bd1b0ef01d044d86469a51d7b004eeb3e8df7172a9"
+    },
+    {
+      "path": "products-light-touch-collapsed.png",
+      "sha256": "ecc1a6819f8aa9b7b6bdd963b32373b10fdfc464b4c1f005b6ec5f39f118d166"
+    },
+    {
+      "path": "products-light-touch-expanded.png",
+      "sha256": "340bc8f091c91d2b0d67139234fe277a922ac4e3d927c458591f2989051c7148"
+    },
+    {
+      "path": "purchasing-dark-comfortable-collapsed.png",
+      "sha256": "451d1b420e1853d62535f5e30826f7ae353f2050e221816ab74ca31be4babd4d"
+    },
+    {
+      "path": "purchasing-dark-comfortable-expanded.png",
+      "sha256": "dea99c21b67f8066d8e3d7b5347c14d1aa867f856a02fcda8f8229820b615557"
+    },
+    {
+      "path": "purchasing-dark-comfortable-flyout.png",
+      "sha256": "d3fe21bd32c911d87db1cd120f1e25a96ad5a8fb32ff6e0e7e0570f307fe2cf9"
+    },
+    {
+      "path": "purchasing-dark-touch-collapsed.png",
+      "sha256": "f47e0855dc2b7c853e06fbe2046fc6550e1c7bf857f9655e29cc574856129295"
+    },
+    {
+      "path": "purchasing-dark-touch-expanded.png",
+      "sha256": "5cbf2065e90bb30fc06f27bafaa4127186230ec9fe6fad6e40f9f10f96ae0209"
+    },
+    {
+      "path": "purchasing-dark-touch-flyout.png",
+      "sha256": "a84152e4608a067a562e5db07ccf4328f6c896031019658fa4cf26d67e6c0616"
+    },
+    {
+      "path": "purchasing-light-comfortable-collapsed.png",
+      "sha256": "aff7f49f3fb07bed676fd5b713cec6324b90af4cba2bdf36a4b3677cf6675f84"
+    },
+    {
+      "path": "purchasing-light-comfortable-expanded.png",
+      "sha256": "11fa1d2cfafef90fa28af5c45bf445d69b252b2de89261570e1bbb79765a9ad9"
+    },
+    {
+      "path": "purchasing-light-comfortable-flyout.png",
+      "sha256": "1011a2ccc44c9716ec31c87aea26ee9d1869ba42bad2e81bef582dc5e4b9fc38"
+    },
+    {
+      "path": "purchasing-light-touch-collapsed.png",
+      "sha256": "f5b2495e7ee24c7a35aa4d3866417b5e42c4244d1e53bc2ddbf9bbf3f2f280ad"
+    },
+    {
+      "path": "purchasing-light-touch-expanded.png",
+      "sha256": "1654a0a54db8249bac836d38c9d22626dc6ed4b55f1f792fc5b0b5f1fe971a37"
+    },
+    {
+      "path": "purchasing-light-touch-flyout.png",
+      "sha256": "8214ef561cda4aac3083076d71d2e15be2c44709e09e8f72e3ac7ef4d368bc11"
+    },
+    {
+      "path": "tarjetas_fidelidad-dark-comfortable-collapsed.png",
+      "sha256": "b047f6a090db5eb2ea297f1e92b05a3c460a8c0750087d1b65a0a343efda498a"
+    },
+    {
+      "path": "tarjetas_fidelidad-dark-comfortable-expanded.png",
+      "sha256": "baf2d39d813f8597a5c91587c35f183bfd87e4751359514e59ef8613d75a4e84"
+    },
+    {
+      "path": "tarjetas_fidelidad-dark-comfortable-flyout.png",
+      "sha256": "fc8f851abcd6fb051820ccb6c161db04857fb22a9f71c2ac45f760f972cc35fe"
+    },
+    {
+      "path": "tarjetas_fidelidad-dark-touch-collapsed.png",
+      "sha256": "b51eb77b5a388a1fef772befc4d24dd37098d463885b239627e8bc33f94d1796"
+    },
+    {
+      "path": "tarjetas_fidelidad-dark-touch-expanded.png",
+      "sha256": "365318a4674dfe05fb838c46d7c4b89e52daf565df06f0ecb57d46dc707809c0"
+    },
+    {
+      "path": "tarjetas_fidelidad-dark-touch-flyout.png",
+      "sha256": "e460e808cf887adb825b9f1ecc0c0d5b67b0ac6507583b573807a3d002955d67"
+    },
+    {
+      "path": "tarjetas_fidelidad-light-comfortable-collapsed.png",
+      "sha256": "0e878bceca3c46261fb03542729d43df19a8952de29d35edcd1687ae58e7a549"
+    },
+    {
+      "path": "tarjetas_fidelidad-light-comfortable-expanded.png",
+      "sha256": "5b4988fc705dae932e7b98babc5ce60c78fa4dc4847e51c4f62beb6f26755e26"
+    },
+    {
+      "path": "tarjetas_fidelidad-light-comfortable-flyout.png",
+      "sha256": "2fb85efc597fb267d002868e383a27721f5f9ab4daadbb2a970c8df4a61ae553"
+    },
+    {
+      "path": "tarjetas_fidelidad-light-touch-collapsed.png",
+      "sha256": "f4ed61fa81a01aa009d4ce74dc7cfcdf070cfa63935a7e0548b6717a51f9302b"
+    },
+    {
+      "path": "tarjetas_fidelidad-light-touch-expanded.png",
+      "sha256": "7e9cdfdecf691c76cdc3a3930edb82909e2da96bcc7e9dae9b40e8f44ee17836"
+    },
+    {
+      "path": "tarjetas_fidelidad-light-touch-flyout.png",
+      "sha256": "bf124145c3ff797b83f92f9eee30c2bd7a7daecdca0b9d278c30948f241e0635"
+    },
+    {
+      "path": "transfers-dark-comfortable-collapsed.png",
+      "sha256": "daa2c3cfbadefdad3b66569811fcd72d720d2039844d31e034c24d834d2bdbd0"
+    },
+    {
+      "path": "transfers-dark-comfortable-expanded.png",
+      "sha256": "c89239c193ce7a21ba8ae025710f5c5422f0b6dec13df9689cb268c1a52a2ebe"
+    },
+    {
+      "path": "transfers-dark-touch-collapsed.png",
+      "sha256": "8511703f3d393255395eaa9f268b918589099b0ff072065fa09712cee61c71c9"
+    },
+    {
+      "path": "transfers-dark-touch-expanded.png",
+      "sha256": "2d53b994c2ca66698c86cb0267a12d60589c0834e6136d84db85aa3950215c63"
+    },
+    {
+      "path": "transfers-light-comfortable-collapsed.png",
+      "sha256": "44867285c2d5125fe74e81af4a40714deb976825eab45469700a869d08d34560"
+    },
+    {
+      "path": "transfers-light-comfortable-expanded.png",
+      "sha256": "92208742e32754811a657264fdee61cfa96c50c18ce6042bfdd100e0e2484f5a"
+    },
+    {
+      "path": "transfers-light-touch-collapsed.png",
+      "sha256": "5e2c9ba1c9893d54cd1703e1b74df2f56fb3ae53be03e8d57cb3451ffc815db5"
+    },
+    {
+      "path": "transfers-light-touch-expanded.png",
+      "sha256": "5ee0a4aeeb7baf1c363ab4638862cf7056378c01e6298538907df3ca0fa3cb31"
+    }
+  ],
+  "known_prior_failure": "test_legacy_produccion_menu_entry_and_module_are_not_touched_yet reads interfaz/menu_lateral.py, absent in the working tree and HEAD.",
+  "limits": [
+    "Affected segments, not the full project suite.",
+    "Screenshots show real module navigation with neutral page bodies and no business database.",
+    "Focused navigation at 768px height; not the full application resolution matrix or physical monitor acceptance."
+  ]
+}

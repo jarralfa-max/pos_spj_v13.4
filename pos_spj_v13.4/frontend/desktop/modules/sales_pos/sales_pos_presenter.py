@@ -16,6 +16,7 @@ contract CRM's presenter established.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from decimal import Decimal
 
@@ -24,6 +25,7 @@ from frontend.desktop.modules.sales_pos.capability_resolver import resolve_sales
 from frontend.desktop.modules.sales_pos.view_models import SalesPosCapabilities
 
 _NOT_WIRED = "Esta acción no está disponible: falta la conexión al backend."
+logger = logging.getLogger("spj.sales_pos.presenter")
 
 
 class SalesPosPresenter:
@@ -95,11 +97,41 @@ class SalesPosPresenter:
     def add_line(self, *, sale_id: str, product_id: str, quantity: Decimal,
                  unit_price: Decimal, product_snapshot: dict | None = None,
                  weight_source: str | None = None) -> SaleResult:
+        resolved = self._resolve_effective_price(
+            sale_id=sale_id, product_id=product_id, quantity=quantity)
         return self._run(
             "add_line", sale_id=sale_id, product_id=product_id, quantity=quantity,
-            unit_price=unit_price, actor_user_id=self.current_user_id(),
+            unit_price=unit_price if resolved is None else resolved,
+            actor_user_id=self.current_user_id(),
             operation_id=_new_op(), product_snapshot=product_snapshot,
             weight_source=weight_source)
+
+    def _resolve_effective_price(self, *, sale_id: str, product_id: str,
+                                 quantity: Decimal) -> Decimal | None:
+        """§20 (master prompt): the price actually charged must come from the
+        canonical Pricing engine (branch/customer/volume-aware), not from
+        whatever static BASE-list price the catalog grid showed for
+        browsing (`SalesCatalogQueryService.search()` stays on that flat
+        price deliberately — one bulk query for the whole grid, see its own
+        docstring). Resolving per-line here is cheap (one product) and is
+        exactly the moment `SalesPricingClient`'s own docstring names as its
+        intended call site. Returns None — caller's own price wins — when
+        pricing isn't wired, nothing is configured for this product, or the
+        lookup fails; never blocks a sale over a pricing lookup problem."""
+        service = self.query_service("pricing")
+        if service is None:
+            return None
+        sale = self.get_sale(sale_id)
+        customer_id = sale.customer_id if sale is not None else None
+        try:
+            return service.effective_price(
+                product_id, branch_id=self.current_branch_id(),
+                customer_id=customer_id, quantity=quantity)
+        except Exception:
+            logger.exception(
+                "No se pudo resolver el precio canónico de %s; se usa el precio "
+                "de catálogo.", product_id)
+            return None
 
     def update_line_quantity(self, *, sale_id: str, line_id: str, quantity: Decimal) -> SaleResult:
         return self._run(
@@ -123,7 +155,7 @@ class SalesPosPresenter:
         service = self.query_service("customer_search")
         if service is None:
             return []
-        return service.search(query, actor_user_id=self.current_user_id())
+        return service.lookup(query, actor_user_id=self.current_user_id())
 
     def assign_customer(self, *, sale_id: str, customer_id: str) -> SaleResult:
         return self._run(

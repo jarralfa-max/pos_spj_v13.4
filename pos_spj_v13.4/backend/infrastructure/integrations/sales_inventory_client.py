@@ -60,21 +60,40 @@ explosión de recetas depende de un `RecipeResolver` borrado. Por eso el
 descuento se hace aquí, de forma síncrona y atómica con la venta, en lugar de
 resucitar una ruta por eventos que ya no tiene ni emisor ni cableado.
 
-PRODUCTOS COMPUESTOS — LIMITACIÓN CONOCIDA. Ni reservar ni confirmar explotan
-recetas: se retiene y se descuenta el producto vendido, no sus componentes. El
-manejador huérfano sí lo hacía. La simetría es deliberada —descontar componentes
-de algo que se retuvo como compuesto dejaría la retención puesta para siempre—
-pero significa que vender un producto compuesto no consume hoy sus ingredientes.
-Cerrar esto es trabajo del contexto de Productos, que ya tiene
-`RecipeExplosionService` canónico; cuando `reserve_for_sale` lo use, `confirm`
-lo seguirá solo, porque descuenta lo que haya reservado.
+PRODUCTOS COMPUESTOS — LIMITACIÓN CONOCIDA, DISTINTA DE LA RECONSTRUCCIÓN DE
+ABAJO. Ni reservar ni confirmar explotan recetas de tipo PRODUCTION_BOM/FORMULA/
+etc.: se retiene y se descuenta el producto vendido, no sus componentes (vender
+un kit no consume hoy sus ingredientes). La simetría es deliberada —descontar
+componentes de algo que se retuvo como compuesto dejaría la retención puesta
+para siempre. Cerrar esto es trabajo del contexto de Productos, que ya tiene
+`RecipeExplosionService` canónico para esa dirección; cuando `reserve_for_sale`
+lo use, `confirm` lo seguirá solo, porque descuenta lo que haya reservado.
+NO confundir con la reconstrucción inversa de abajo, que es la dirección
+OPUESTA (parte → base) y una receta distinta (DISASSEMBLY/CUTTING_YIELD).
+
+RECONSTRUCCIÓN INVERSA (§15-19, Fase 7) — `_top_up_via_reconstruction_if_short`.
+Cuando el stock directo de un producto no alcanza para la línea pero tiene una
+receta DISASSEMBLY/CUTTING_YIELD marcada `reverse_reconstruction_allowed`
+(§16), se reconstruye el faltante desde sus partes (`ReconstructBaseProductUseCase`)
+ANTES del intento de reserva normal de abajo — que queda sin cambios, porque ya
+hay stock físico real cuando corre. Best-effort silencioso: si no aplica o las
+partes tampoco alcanzan, la reserva normal falla sola con su propio mensaje
+claro de "sin disponibilidad", nunca una segunda forma de bloquear o arreglar
+una venta en silencio.
 """
 
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 
 from backend.application.inventory.authorization import InventoryAuthorizationPolicy
+from backend.application.inventory.queries.availability_query_service import (
+    InventoryAvailabilityQueryService,
+)
+from backend.application.inventory.use_cases.reconstruction_use_cases import (
+    ReconstructBaseProductUseCase,
+)
 from backend.application.inventory.use_cases.reservation_use_cases import (
     CreateReservationUseCase,
     ExpireReservationsUseCase,
@@ -87,6 +106,8 @@ from backend.domain.sales.exceptions import InventoryReservationFailedError
 from backend.infrastructure.db.repositories.inventory.reservation_repository import (
     ReservationRepository,
 )
+
+logger = logging.getLogger("spj.sales.inventory_client")
 
 
 def _reserve_operation_id(sale_id: str, product_id: str) -> str:
@@ -129,6 +150,8 @@ class SalesInventoryClient:
         use_case = CreateReservationUseCase(self._authorization)
         creadas: list[str] = []
         for product_id, cantidad in self._quantities_by_product(sale).items():
+            self._top_up_via_reconstruction_if_short(
+                product_id=product_id, needed=cantidad, sale_id=sale.id)
             result = use_case.execute(
                 self._connection, product_id=product_id, branch_id=self._branch_id,
                 # Este repositorio trata la sucursal como su propio almacén; es
@@ -167,6 +190,47 @@ class SalesInventoryClient:
             totales[line.product_id] = (
                 totales.get(line.product_id, Decimal("0")) + line.quantity.value)
         return totales
+
+    def _top_up_via_reconstruction_if_short(
+        self, *, product_id: str, needed: Decimal, sale_id: str,
+    ) -> None:
+        """§15-19: when direct stock can't cover this line, try reconstructing
+        the shortfall from a reversible recipe's parts BEFORE the normal
+        reservation attempt below — real physical stock exists by the time
+        it runs, so that reservation logic is completely unchanged either
+        way. Best-effort only: if the product isn't reconstructible, or the
+        parts themselves are short, this quietly does nothing and the normal
+        reservation attempt fails on its own with its own clear
+        "insufficient availability" message — reconstruction is a top-up,
+        never a new way to block or silently fix a sale.
+        """
+        availability = InventoryAvailabilityQueryService(self._connection).get_availability(
+            product_id=product_id, branch_id=self._branch_id, warehouse_id=self._branch_id)
+        shortfall = needed - availability.available
+        if shortfall <= 0:
+            return
+        try:
+            result = ReconstructBaseProductUseCase(self._authorization).execute(
+                self._connection, product_id=product_id, quantity=shortfall,
+                branch_id=self._branch_id, warehouse_id=self._branch_id,
+                actor_user_id=self._actor_user_id,
+                operation_id=f"{sale_id}:reconstruct:{product_id}")
+        except Exception:
+            # Reconstruction reaches into Products' recipe tables — optional
+            # infrastructure a connection may legitimately not have (a
+            # narrower fixture, an environment where that migration hasn't
+            # landed yet). This integration point must never turn "recipes
+            # aren't set up" into "sales are broken": log it and let the
+            # normal reservation attempt below fail on its own, same as any
+            # other declined top-up.
+            logger.exception(
+                "sale %s: reconstruction top-up for %s raised; skipping",
+                sale_id, product_id)
+            return
+        if not result.success:
+            logger.info(
+                "sale %s: %s short by %s, reconstruction not applied (%s: %s)",
+                sale_id, product_id, shortfall, result.error_code, result.message)
 
     # ── confirmar / liberar ──────────────────────────────────────────────
     def confirm(self, reservation_handle: str, *, sale_id: str, folio: str) -> None:

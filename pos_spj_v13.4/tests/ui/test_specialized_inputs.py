@@ -157,6 +157,39 @@ class TestEntitySearch:
         w._choose(w._results.item(0))
         assert w.selected_id() == "uuid-1"
 
+    def test_provider_failure_is_visible_and_distinct_from_no_results(self, app):
+        from frontend.desktop.components.search_selector import (
+            NO_RESULTS_MESSAGE,
+            SEARCH_FAILED_MESSAGE,
+        )
+
+        def failing_provider(_q):
+            raise RuntimeError("boom")
+
+        w = EntitySearchInput(provider=failing_provider, debounce_ms=0)
+        failures = []
+        w.search_failed.connect(failures.append)
+
+        w._run_search("prod")
+
+        assert w.has_search_failed() is True
+        assert w._results.count() == 1
+        assert w._results.item(0).text() == SEARCH_FAILED_MESSAGE
+        assert failures == [SEARCH_FAILED_MESSAGE]
+
+        # Clicking the status row must never select a phantom entity.
+        selections = []
+        w.selected.connect(selections.append)
+        w._choose(w._results.item(0))
+        assert selections == []
+        assert w.selected_id() is None
+
+        # A genuinely empty (but successful) search shows the OTHER message.
+        w.set_provider(lambda _q: [])
+        w._run_search("nada")
+        assert w.has_search_failed() is False
+        assert w._results.item(0).text() == NO_RESULTS_MESSAGE
+
 
 class TestFormField:
     def test_error_toggles_state(self, app):

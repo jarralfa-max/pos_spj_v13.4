@@ -14,7 +14,12 @@ from frontend.desktop.components.percent_input import PercentInput
 from frontend.desktop.components.phone_input import PhoneInput
 from frontend.desktop.components.product_search_box import ProductSearchBox
 from frontend.desktop.components.quantity_input import QuantityInput
-from frontend.desktop.components.search_selector import SearchOption, SearchSelector
+from frontend.desktop.components.search_selector import (
+    NO_RESULTS_MESSAGE,
+    SEARCH_FAILED_MESSAGE,
+    SearchOption,
+    SearchSelector,
+)
 from frontend.desktop.components.side_nav import SideNav
 from frontend.desktop.components.status_badge import StatusBadge
 from frontend.desktop.components.supplier_search_box import SupplierSearchBox
@@ -115,11 +120,13 @@ __all__ = [
     "EmployeeSearchBox",
     "IntegerInput",
     "MoneyInput",
+    "NO_RESULTS_MESSAGE",
     "NumericInput",
     "PercentInput",
     "PhoneInput",
     "ProductSearchBox",
     "QuantityInput",
+    "SEARCH_FAILED_MESSAGE",
     "SearchOption",
     "SearchSelector",
     "SideNav",

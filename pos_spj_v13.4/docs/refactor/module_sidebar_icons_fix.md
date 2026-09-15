@@ -43,6 +43,14 @@ Resultados reproducibles, XML/logs, hashes y límites de las capturas en el
 Las capturas de navegación se pueden comparar en el
 [visor](evidence/module_sidebar_icons/index.html).
 
+Resultado final sin contar ejecuciones solapadas: **404 PASSED, 1 FAILED,
+0 ERROR y 0 SKIPPED**. Los 68 casos visuales producen **168 PNG**: 136 barras
+y 32 menús de grupos, en los 17 módulos, Claro/Oscuro y Cómoda/Táctil. Son
+recortes de navegación de 768 px de alto con scroll, no la matriz completa
+de resoluciones de la aplicación. Se inspeccionaron ejemplos de ambos temas.
+Compilación y `git diff --check` aprobados. Auditoría: **0 infracciones nuevas,
+0 huellas obsoletas y 159 ocurrencias preexistentes**.
+
 La regresión operacional conserva un fallo previo:
 `test_legacy_produccion_menu_entry_and_module_are_not_touched_yet` busca
 `interfaz/menu_lateral.py`, ausente también en HEAD. No se restaura esa ruta

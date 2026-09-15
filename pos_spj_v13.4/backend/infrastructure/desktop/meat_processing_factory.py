@@ -21,6 +21,9 @@ from backend.application.meat_processing.authorization import MeatProcessingAuth
 from backend.application.meat_processing.execution_context import (
     MeatProcessingExecutionContext,
 )
+from backend.application.meat_processing.integrations.products_recipe_snapshot_adapter import (
+    ProductsRecipeSnapshotAdapter,
+)
 from backend.application.meat_processing.queries import ProcessingOrderQueryService
 from backend.application.meat_processing.session_authorization import (
     MeatProcessingSessionPermissionChecker,
@@ -89,7 +92,8 @@ def _build_meat_processing_wiring(connection, session_context=None):
         product_query_factory=ProductQueryService.from_connection,
         create_uc=CreateProcessingOrderUseCase(authorization),
         approve_uc=ApproveProcessingOrderUseCase(authorization),
-        release_uc=ReleaseProcessingOrderUseCase(authorization),
+        release_uc=ReleaseProcessingOrderUseCase(
+            authorization, recipe_snapshot_port=ProductsRecipeSnapshotAdapter(connection)),
         close_uc=CloseProcessingOrderUseCase(authorization),
         session_context=session_context,
         context_provider=context_provider,

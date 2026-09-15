@@ -27,11 +27,13 @@ class RecipeRepository:
     # ── recipe ────────────────────────────────────────────────────────────
     def save_recipe(self, recipe: Recipe) -> None:
         self._conn.execute(
-            """INSERT INTO recipes (id, product_id, recipe_type, name, active)
-               VALUES (?,?,?,?,?)
-               ON CONFLICT(id) DO UPDATE SET name=excluded.name, active=excluded.active""",
+            """INSERT INTO recipes
+               (id, product_id, recipe_type, name, active, reverse_reconstruction_allowed)
+               VALUES (?,?,?,?,?,?)
+               ON CONFLICT(id) DO UPDATE SET name=excluded.name, active=excluded.active,
+                   reverse_reconstruction_allowed=excluded.reverse_reconstruction_allowed""",
             (recipe.id, recipe.product_id, recipe.recipe_type.value, recipe.name,
-             int(recipe.active)))
+             int(recipe.active), int(recipe.reverse_reconstruction_allowed)))
 
     def get_recipe(self, recipe_id: str) -> Recipe | None:
         row = self._conn.execute("SELECT * FROM recipes WHERE id=?", (recipe_id,)).fetchone()
@@ -39,7 +41,8 @@ class RecipeRepository:
             return None
         return Recipe(id=row["id"], product_id=row["product_id"],
                       recipe_type=RecipeType(row["recipe_type"]), name=row["name"],
-                      active=bool(row["active"]))
+                      active=bool(row["active"]),
+                      reverse_reconstruction_allowed=bool(row["reverse_reconstruction_allowed"]))
 
     # ── version + lines ───────────────────────────────────────────────────
     def save_version(self, version: RecipeVersion) -> None:
@@ -113,6 +116,26 @@ class RecipeRepository:
                WHERE r.product_id=? AND rv.status='ACTIVE'
                ORDER BY rv.version_number DESC LIMIT 1""", (product_id,)).fetchone()
         return self.get_version(row["id"]) if row else None
+
+    def reversible_active_version_for_product(self, product_id: str) -> RecipeVersion | None:
+        """§16: the ACTIVE version of the product's reversible DISASSEMBLY/
+        CUTTING_YIELD recipe, if — and only if — exactly one such recipe
+        exists. Deliberately narrower than `active_version_for_product`,
+        which picks the highest `version_number` across EVERY recipe type
+        for the product and would silently return the wrong recipe (e.g. a
+        PRODUCTION_BOM) if one happened to have a higher version number
+        than the actual reversible recipe. Ambiguous (more than one
+        qualifying recipe) or absent -> None, never a guess."""
+        rows = self._conn.execute(
+            """SELECT rv.id FROM recipe_versions rv
+               JOIN recipes r ON r.id = rv.recipe_id
+               WHERE r.product_id=? AND r.active=1 AND r.reverse_reconstruction_allowed=1
+                 AND r.recipe_type IN (?, ?) AND rv.status='ACTIVE'""",
+            (product_id, RecipeType.DISASSEMBLY.value, RecipeType.CUTTING_YIELD.value),
+        ).fetchall()
+        if len(rows) != 1:
+            return None
+        return self.get_version(rows[0]["id"])
 
     def active_version_for_recipe(self, recipe_id: str) -> RecipeVersion | None:
         row = self._conn.execute(

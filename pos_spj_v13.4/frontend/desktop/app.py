@@ -228,6 +228,17 @@ def main() -> int:
     connection = bootstrap.context.conn
     services = _build_services()
 
+    from backend.bootstrap.wiring.event_wiring import wire_cross_context_events
+
+    try:
+        wire_cross_context_events(connection)
+    except Exception:
+        # Un cableado fallido no debe tumbar el arranque: los use cases que
+        # publican directamente (ventas→inventario, ventas→caja) siguen
+        # funcionando sin el bus; se pierde la integración entre contextos,
+        # no la operación local.
+        logger.exception("No se pudo cablear la integración entre contextos.")
+
     ventana = {}
 
     def _on_authenticated(context) -> None:

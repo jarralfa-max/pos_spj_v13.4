@@ -1,0 +1,828 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="17" skipped="0" tests="17" time="6.771" timestamp="2026-09-13T18:16:34.928612-06:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-losses-LossesSidebarWidget]" time="0.302"><failure message="AssertionError: dashboard&#10;assert not True&#10; +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E7413920&gt;()&#10; +    where &lt;built-in method isNull of QIcon object at 0x000001C0E7413920&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7413920&gt;.isNull&#10; +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7413920&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E74128D0&gt;()&#10; +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E74128D0&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E74128D0&gt;.icon">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001C0E7411F40&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001C0E7412060&gt;
+module = 'losses', class_name = 'LossesSidebarWidget', filtered = False
+
+    @pytest.mark.parametrize("module,class_name", SIDEBARS)
+    @pytest.mark.parametrize("filtered", [False, True])
+    def test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals(
+        manager, qt_font_resources, module, class_name, filtered,
+    ):
+        root = f"frontend.desktop.modules.{module}"
+        navigation = import_module(f"{root}.navigation.{module}_sidebar")
+        sidebar_class = getattr(import_module(f"{root}.widgets.{module}_sidebar_widget"), class_name)
+        all_entries = navigation.visible_entries(lambda _permission: True)
+        denied = all_entries[0][0].permission if filtered else None
+        allowed = lambda permission: permission != denied
+        badges = {entry.badge_key: 3 for entry, _ in all_entries if entry.badge_key}
+        expected = navigation.visible_entries(allowed, badges)
+        sidebar = sidebar_class(has_permission=allowed, badges=badges)
+        try:
+            assert sidebar.count() == len(expected)
+            assert sidebar.currentRow() == 0
+            routes = []
+            sidebar.route_requested.connect(routes.append)
+            for theme in ("light", "dark"):
+                manager.set_theme(theme, app=qt_font_resources)
+                for row, (entry, badge) in enumerate(expected):
+                    item = sidebar.item(row)
+                    assert item.data(Qt.UserRole) == entry.page_id
+                    assert item.toolTip() == entry.tooltip
+                    assert item.text() == (entry.title if badge is None else f"{entry.title} ({badge})")
+&gt;                   assert_icon(item, entry.icon)
+
+tests\ui\test_operational_sidebar_icons.py:66: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+item = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E74128D0&gt;
+identifier = 'dashboard'
+
+    def assert_icon(item, identifier):
+&gt;       assert not item.icon().isNull(), identifier
+E       AssertionError: dashboard
+E       assert not True
+E        +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E7413920&gt;()
+E        +    where &lt;built-in method isNull of QIcon object at 0x000001C0E7413920&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7413920&gt;.isNull
+E        +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7413920&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E74128D0&gt;()
+E        +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E74128D0&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E74128D0&gt;.icon
+
+tests\ui\test_operational_sidebar_icons.py:23: AssertionError</failure></testcase><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-meat_processing-MeatProcessingSidebarWidget]" time="0.116"><failure message="AssertionError: dashboard&#10;assert not True&#10; +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E78CE060&gt;()&#10; +    where &lt;built-in method isNull of QIcon object at 0x000001C0E78CE060&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CE060&gt;.isNull&#10; +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CE060&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E74129F0&gt;()&#10; +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E74129F0&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E74129F0&gt;.icon">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001C0E7413890&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001C0E7412060&gt;
+module = 'meat_processing', class_name = 'MeatProcessingSidebarWidget'
+filtered = False
+
+    @pytest.mark.parametrize("module,class_name", SIDEBARS)
+    @pytest.mark.parametrize("filtered", [False, True])
+    def test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals(
+        manager, qt_font_resources, module, class_name, filtered,
+    ):
+        root = f"frontend.desktop.modules.{module}"
+        navigation = import_module(f"{root}.navigation.{module}_sidebar")
+        sidebar_class = getattr(import_module(f"{root}.widgets.{module}_sidebar_widget"), class_name)
+        all_entries = navigation.visible_entries(lambda _permission: True)
+        denied = all_entries[0][0].permission if filtered else None
+        allowed = lambda permission: permission != denied
+        badges = {entry.badge_key: 3 for entry, _ in all_entries if entry.badge_key}
+        expected = navigation.visible_entries(allowed, badges)
+        sidebar = sidebar_class(has_permission=allowed, badges=badges)
+        try:
+            assert sidebar.count() == len(expected)
+            assert sidebar.currentRow() == 0
+            routes = []
+            sidebar.route_requested.connect(routes.append)
+            for theme in ("light", "dark"):
+                manager.set_theme(theme, app=qt_font_resources)
+                for row, (entry, badge) in enumerate(expected):
+                    item = sidebar.item(row)
+                    assert item.data(Qt.UserRole) == entry.page_id
+                    assert item.toolTip() == entry.tooltip
+                    assert item.text() == (entry.title if badge is None else f"{entry.title} ({badge})")
+&gt;                   assert_icon(item, entry.icon)
+
+tests\ui\test_operational_sidebar_icons.py:66: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+item = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E74129F0&gt;
+identifier = 'dashboard'
+
+    def assert_icon(item, identifier):
+&gt;       assert not item.icon().isNull(), identifier
+E       AssertionError: dashboard
+E       assert not True
+E        +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E78CE060&gt;()
+E        +    where &lt;built-in method isNull of QIcon object at 0x000001C0E78CE060&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CE060&gt;.isNull
+E        +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CE060&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E74129F0&gt;()
+E        +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E74129F0&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E74129F0&gt;.icon
+
+tests\ui\test_operational_sidebar_icons.py:23: AssertionError</failure></testcase><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-orders_delivery-OrdersDeliverySidebarWidget]" time="0.043"><failure message="AssertionError: dashboard&#10;assert not True&#10; +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E78CE960&gt;()&#10; +    where &lt;built-in method isNull of QIcon object at 0x000001C0E78CE960&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CE960&gt;.isNull&#10; +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CE960&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CDD90&gt;()&#10; +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CDD90&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CDD90&gt;.icon">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001C0E7412D50&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001C0E7412060&gt;
+module = 'orders_delivery', class_name = 'OrdersDeliverySidebarWidget'
+filtered = False
+
+    @pytest.mark.parametrize("module,class_name", SIDEBARS)
+    @pytest.mark.parametrize("filtered", [False, True])
+    def test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals(
+        manager, qt_font_resources, module, class_name, filtered,
+    ):
+        root = f"frontend.desktop.modules.{module}"
+        navigation = import_module(f"{root}.navigation.{module}_sidebar")
+        sidebar_class = getattr(import_module(f"{root}.widgets.{module}_sidebar_widget"), class_name)
+        all_entries = navigation.visible_entries(lambda _permission: True)
+        denied = all_entries[0][0].permission if filtered else None
+        allowed = lambda permission: permission != denied
+        badges = {entry.badge_key: 3 for entry, _ in all_entries if entry.badge_key}
+        expected = navigation.visible_entries(allowed, badges)
+        sidebar = sidebar_class(has_permission=allowed, badges=badges)
+        try:
+            assert sidebar.count() == len(expected)
+            assert sidebar.currentRow() == 0
+            routes = []
+            sidebar.route_requested.connect(routes.append)
+            for theme in ("light", "dark"):
+                manager.set_theme(theme, app=qt_font_resources)
+                for row, (entry, badge) in enumerate(expected):
+                    item = sidebar.item(row)
+                    assert item.data(Qt.UserRole) == entry.page_id
+                    assert item.toolTip() == entry.tooltip
+                    assert item.text() == (entry.title if badge is None else f"{entry.title} ({badge})")
+&gt;                   assert_icon(item, entry.icon)
+
+tests\ui\test_operational_sidebar_icons.py:66: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+item = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CDD90&gt;
+identifier = 'dashboard'
+
+    def assert_icon(item, identifier):
+&gt;       assert not item.icon().isNull(), identifier
+E       AssertionError: dashboard
+E       assert not True
+E        +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E78CE960&gt;()
+E        +    where &lt;built-in method isNull of QIcon object at 0x000001C0E78CE960&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CE960&gt;.isNull
+E        +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CE960&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CDD90&gt;()
+E        +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CDD90&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CDD90&gt;.icon
+
+tests\ui\test_operational_sidebar_icons.py:23: AssertionError</failure></testcase><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-business_intelligence-BusinessIntelligenceSidebarWidget]" time="0.409"><failure message="AssertionError: dashboard&#10;assert not True&#10; +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E78CEBA0&gt;()&#10; +    where &lt;built-in method isNull of QIcon object at 0x000001C0E78CEBA0&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CEBA0&gt;.isNull&#10; +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CEBA0&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CE600&gt;()&#10; +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CE600&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CE600&gt;.icon">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001C0E78CE8D0&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001C0E7412060&gt;
+module = 'business_intelligence'
+class_name = 'BusinessIntelligenceSidebarWidget', filtered = False
+
+    @pytest.mark.parametrize("module,class_name", SIDEBARS)
+    @pytest.mark.parametrize("filtered", [False, True])
+    def test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals(
+        manager, qt_font_resources, module, class_name, filtered,
+    ):
+        root = f"frontend.desktop.modules.{module}"
+        navigation = import_module(f"{root}.navigation.{module}_sidebar")
+        sidebar_class = getattr(import_module(f"{root}.widgets.{module}_sidebar_widget"), class_name)
+        all_entries = navigation.visible_entries(lambda _permission: True)
+        denied = all_entries[0][0].permission if filtered else None
+        allowed = lambda permission: permission != denied
+        badges = {entry.badge_key: 3 for entry, _ in all_entries if entry.badge_key}
+        expected = navigation.visible_entries(allowed, badges)
+        sidebar = sidebar_class(has_permission=allowed, badges=badges)
+        try:
+            assert sidebar.count() == len(expected)
+            assert sidebar.currentRow() == 0
+            routes = []
+            sidebar.route_requested.connect(routes.append)
+            for theme in ("light", "dark"):
+                manager.set_theme(theme, app=qt_font_resources)
+                for row, (entry, badge) in enumerate(expected):
+                    item = sidebar.item(row)
+                    assert item.data(Qt.UserRole) == entry.page_id
+                    assert item.toolTip() == entry.tooltip
+                    assert item.text() == (entry.title if badge is None else f"{entry.title} ({badge})")
+&gt;                   assert_icon(item, entry.icon)
+
+tests\ui\test_operational_sidebar_icons.py:66: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+item = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CE600&gt;
+identifier = 'dashboard'
+
+    def assert_icon(item, identifier):
+&gt;       assert not item.icon().isNull(), identifier
+E       AssertionError: dashboard
+E       assert not True
+E        +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E78CEBA0&gt;()
+E        +    where &lt;built-in method isNull of QIcon object at 0x000001C0E78CEBA0&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CEBA0&gt;.isNull
+E        +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CEBA0&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CE600&gt;()
+E        +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CE600&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CE600&gt;.icon
+
+tests\ui\test_operational_sidebar_icons.py:23: AssertionError</failure></testcase><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-transfers-TransfersSidebarWidget]" time="0.248"><failure message="AssertionError: dashboard&#10;assert not True&#10; +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E78CEF00&gt;()&#10; +    where &lt;built-in method isNull of QIcon object at 0x000001C0E78CEF00&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CEF00&gt;.isNull&#10; +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CEF00&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CE2A0&gt;()&#10; +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CE2A0&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CE2A0&gt;.icon">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001C0E78CEA80&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001C0E7412060&gt;
+module = 'transfers', class_name = 'TransfersSidebarWidget', filtered = False
+
+    @pytest.mark.parametrize("module,class_name", SIDEBARS)
+    @pytest.mark.parametrize("filtered", [False, True])
+    def test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals(
+        manager, qt_font_resources, module, class_name, filtered,
+    ):
+        root = f"frontend.desktop.modules.{module}"
+        navigation = import_module(f"{root}.navigation.{module}_sidebar")
+        sidebar_class = getattr(import_module(f"{root}.widgets.{module}_sidebar_widget"), class_name)
+        all_entries = navigation.visible_entries(lambda _permission: True)
+        denied = all_entries[0][0].permission if filtered else None
+        allowed = lambda permission: permission != denied
+        badges = {entry.badge_key: 3 for entry, _ in all_entries if entry.badge_key}
+        expected = navigation.visible_entries(allowed, badges)
+        sidebar = sidebar_class(has_permission=allowed, badges=badges)
+        try:
+            assert sidebar.count() == len(expected)
+            assert sidebar.currentRow() == 0
+            routes = []
+            sidebar.route_requested.connect(routes.append)
+            for theme in ("light", "dark"):
+                manager.set_theme(theme, app=qt_font_resources)
+                for row, (entry, badge) in enumerate(expected):
+                    item = sidebar.item(row)
+                    assert item.data(Qt.UserRole) == entry.page_id
+                    assert item.toolTip() == entry.tooltip
+                    assert item.text() == (entry.title if badge is None else f"{entry.title} ({badge})")
+&gt;                   assert_icon(item, entry.icon)
+
+tests\ui\test_operational_sidebar_icons.py:66: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+item = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CE2A0&gt;
+identifier = 'dashboard'
+
+    def assert_icon(item, identifier):
+&gt;       assert not item.icon().isNull(), identifier
+E       AssertionError: dashboard
+E       assert not True
+E        +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E78CEF00&gt;()
+E        +    where &lt;built-in method isNull of QIcon object at 0x000001C0E78CEF00&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CEF00&gt;.isNull
+E        +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CEF00&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CE2A0&gt;()
+E        +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CE2A0&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CE2A0&gt;.icon
+
+tests\ui\test_operational_sidebar_icons.py:23: AssertionError</failure></testcase><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-configuracion-ConfiguracionSidebarWidget]" time="0.233"><failure message="AssertionError: company&#10;assert not True&#10; +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E78CF6E0&gt;()&#10; +    where &lt;built-in method isNull of QIcon object at 0x000001C0E78CF6E0&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CF6E0&gt;.isNull&#10; +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CF6E0&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CF1D0&gt;()&#10; +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CF1D0&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CF1D0&gt;.icon">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001C0E78CEE70&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001C0E7412060&gt;
+module = 'configuracion', class_name = 'ConfiguracionSidebarWidget'
+filtered = False
+
+    @pytest.mark.parametrize("module,class_name", SIDEBARS)
+    @pytest.mark.parametrize("filtered", [False, True])
+    def test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals(
+        manager, qt_font_resources, module, class_name, filtered,
+    ):
+        root = f"frontend.desktop.modules.{module}"
+        navigation = import_module(f"{root}.navigation.{module}_sidebar")
+        sidebar_class = getattr(import_module(f"{root}.widgets.{module}_sidebar_widget"), class_name)
+        all_entries = navigation.visible_entries(lambda _permission: True)
+        denied = all_entries[0][0].permission if filtered else None
+        allowed = lambda permission: permission != denied
+        badges = {entry.badge_key: 3 for entry, _ in all_entries if entry.badge_key}
+        expected = navigation.visible_entries(allowed, badges)
+        sidebar = sidebar_class(has_permission=allowed, badges=badges)
+        try:
+            assert sidebar.count() == len(expected)
+            assert sidebar.currentRow() == 0
+            routes = []
+            sidebar.route_requested.connect(routes.append)
+            for theme in ("light", "dark"):
+                manager.set_theme(theme, app=qt_font_resources)
+                for row, (entry, badge) in enumerate(expected):
+                    item = sidebar.item(row)
+                    assert item.data(Qt.UserRole) == entry.page_id
+                    assert item.toolTip() == entry.tooltip
+                    assert item.text() == (entry.title if badge is None else f"{entry.title} ({badge})")
+&gt;                   assert_icon(item, entry.icon)
+
+tests\ui\test_operational_sidebar_icons.py:66: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+item = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CF1D0&gt;
+identifier = 'company'
+
+    def assert_icon(item, identifier):
+&gt;       assert not item.icon().isNull(), identifier
+E       AssertionError: company
+E       assert not True
+E        +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E78CF6E0&gt;()
+E        +    where &lt;built-in method isNull of QIcon object at 0x000001C0E78CF6E0&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CF6E0&gt;.isNull
+E        +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CF6E0&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CF1D0&gt;()
+E        +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CF1D0&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CF1D0&gt;.icon
+
+tests\ui\test_operational_sidebar_icons.py:23: AssertionError</failure></testcase><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-losses-LossesSidebarWidget]" time="0.093"><failure message="AssertionError: add&#10;assert not True&#10; +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E78CFE30&gt;()&#10; +    where &lt;built-in method isNull of QIcon object at 0x000001C0E78CFE30&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CFE30&gt;.isNull&#10; +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CFE30&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CF410&gt;()&#10; +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CF410&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CF410&gt;.icon">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001C0E78CF530&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001C0E7412060&gt;
+module = 'losses', class_name = 'LossesSidebarWidget', filtered = True
+
+    @pytest.mark.parametrize("module,class_name", SIDEBARS)
+    @pytest.mark.parametrize("filtered", [False, True])
+    def test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals(
+        manager, qt_font_resources, module, class_name, filtered,
+    ):
+        root = f"frontend.desktop.modules.{module}"
+        navigation = import_module(f"{root}.navigation.{module}_sidebar")
+        sidebar_class = getattr(import_module(f"{root}.widgets.{module}_sidebar_widget"), class_name)
+        all_entries = navigation.visible_entries(lambda _permission: True)
+        denied = all_entries[0][0].permission if filtered else None
+        allowed = lambda permission: permission != denied
+        badges = {entry.badge_key: 3 for entry, _ in all_entries if entry.badge_key}
+        expected = navigation.visible_entries(allowed, badges)
+        sidebar = sidebar_class(has_permission=allowed, badges=badges)
+        try:
+            assert sidebar.count() == len(expected)
+            assert sidebar.currentRow() == 0
+            routes = []
+            sidebar.route_requested.connect(routes.append)
+            for theme in ("light", "dark"):
+                manager.set_theme(theme, app=qt_font_resources)
+                for row, (entry, badge) in enumerate(expected):
+                    item = sidebar.item(row)
+                    assert item.data(Qt.UserRole) == entry.page_id
+                    assert item.toolTip() == entry.tooltip
+                    assert item.text() == (entry.title if badge is None else f"{entry.title} ({badge})")
+&gt;                   assert_icon(item, entry.icon)
+
+tests\ui\test_operational_sidebar_icons.py:66: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+item = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CF410&gt;
+identifier = 'add'
+
+    def assert_icon(item, identifier):
+&gt;       assert not item.icon().isNull(), identifier
+E       AssertionError: add
+E       assert not True
+E        +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E78CFE30&gt;()
+E        +    where &lt;built-in method isNull of QIcon object at 0x000001C0E78CFE30&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CFE30&gt;.isNull
+E        +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E78CFE30&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CF410&gt;()
+E        +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CF410&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CF410&gt;.icon
+
+tests\ui\test_operational_sidebar_icons.py:23: AssertionError</failure></testcase><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-meat_processing-MeatProcessingSidebarWidget]" time="0.089"><failure message="AssertionError: calendar&#10;assert not True&#10; +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E7958320&gt;()&#10; +    where &lt;built-in method isNull of QIcon object at 0x000001C0E7958320&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7958320&gt;.isNull&#10; +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7958320&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CFD10&gt;()&#10; +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CFD10&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CFD10&gt;.icon">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001C0E78CF5C0&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001C0E7412060&gt;
+module = 'meat_processing', class_name = 'MeatProcessingSidebarWidget'
+filtered = True
+
+    @pytest.mark.parametrize("module,class_name", SIDEBARS)
+    @pytest.mark.parametrize("filtered", [False, True])
+    def test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals(
+        manager, qt_font_resources, module, class_name, filtered,
+    ):
+        root = f"frontend.desktop.modules.{module}"
+        navigation = import_module(f"{root}.navigation.{module}_sidebar")
+        sidebar_class = getattr(import_module(f"{root}.widgets.{module}_sidebar_widget"), class_name)
+        all_entries = navigation.visible_entries(lambda _permission: True)
+        denied = all_entries[0][0].permission if filtered else None
+        allowed = lambda permission: permission != denied
+        badges = {entry.badge_key: 3 for entry, _ in all_entries if entry.badge_key}
+        expected = navigation.visible_entries(allowed, badges)
+        sidebar = sidebar_class(has_permission=allowed, badges=badges)
+        try:
+            assert sidebar.count() == len(expected)
+            assert sidebar.currentRow() == 0
+            routes = []
+            sidebar.route_requested.connect(routes.append)
+            for theme in ("light", "dark"):
+                manager.set_theme(theme, app=qt_font_resources)
+                for row, (entry, badge) in enumerate(expected):
+                    item = sidebar.item(row)
+                    assert item.data(Qt.UserRole) == entry.page_id
+                    assert item.toolTip() == entry.tooltip
+                    assert item.text() == (entry.title if badge is None else f"{entry.title} ({badge})")
+&gt;                   assert_icon(item, entry.icon)
+
+tests\ui\test_operational_sidebar_icons.py:66: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+item = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CFD10&gt;
+identifier = 'calendar'
+
+    def assert_icon(item, identifier):
+&gt;       assert not item.icon().isNull(), identifier
+E       AssertionError: calendar
+E       assert not True
+E        +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E7958320&gt;()
+E        +    where &lt;built-in method isNull of QIcon object at 0x000001C0E7958320&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7958320&gt;.isNull
+E        +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7958320&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CFD10&gt;()
+E        +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CFD10&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CFD10&gt;.icon
+
+tests\ui\test_operational_sidebar_icons.py:23: AssertionError</failure></testcase><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-orders_delivery-OrdersDeliverySidebarWidget]" time="0.079"><failure message="AssertionError: list&#10;assert not True&#10; +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E7958950&gt;()&#10; +    where &lt;built-in method isNull of QIcon object at 0x000001C0E7958950&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7958950&gt;.isNull&#10; +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7958950&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CEDE0&gt;()&#10; +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CEDE0&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CEDE0&gt;.icon">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001C0E78CF380&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001C0E7412060&gt;
+module = 'orders_delivery', class_name = 'OrdersDeliverySidebarWidget'
+filtered = True
+
+    @pytest.mark.parametrize("module,class_name", SIDEBARS)
+    @pytest.mark.parametrize("filtered", [False, True])
+    def test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals(
+        manager, qt_font_resources, module, class_name, filtered,
+    ):
+        root = f"frontend.desktop.modules.{module}"
+        navigation = import_module(f"{root}.navigation.{module}_sidebar")
+        sidebar_class = getattr(import_module(f"{root}.widgets.{module}_sidebar_widget"), class_name)
+        all_entries = navigation.visible_entries(lambda _permission: True)
+        denied = all_entries[0][0].permission if filtered else None
+        allowed = lambda permission: permission != denied
+        badges = {entry.badge_key: 3 for entry, _ in all_entries if entry.badge_key}
+        expected = navigation.visible_entries(allowed, badges)
+        sidebar = sidebar_class(has_permission=allowed, badges=badges)
+        try:
+            assert sidebar.count() == len(expected)
+            assert sidebar.currentRow() == 0
+            routes = []
+            sidebar.route_requested.connect(routes.append)
+            for theme in ("light", "dark"):
+                manager.set_theme(theme, app=qt_font_resources)
+                for row, (entry, badge) in enumerate(expected):
+                    item = sidebar.item(row)
+                    assert item.data(Qt.UserRole) == entry.page_id
+                    assert item.toolTip() == entry.tooltip
+                    assert item.text() == (entry.title if badge is None else f"{entry.title} ({badge})")
+&gt;                   assert_icon(item, entry.icon)
+
+tests\ui\test_operational_sidebar_icons.py:66: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+item = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CEDE0&gt;
+identifier = 'list'
+
+    def assert_icon(item, identifier):
+&gt;       assert not item.icon().isNull(), identifier
+E       AssertionError: list
+E       assert not True
+E        +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E7958950&gt;()
+E        +    where &lt;built-in method isNull of QIcon object at 0x000001C0E7958950&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7958950&gt;.isNull
+E        +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7958950&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CEDE0&gt;()
+E        +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CEDE0&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CEDE0&gt;.icon
+
+tests\ui\test_operational_sidebar_icons.py:23: AssertionError</failure></testcase><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-business_intelligence-BusinessIntelligenceSidebarWidget]" time="0.015"><failure message="AssertionError: chart&#10;assert not True&#10; +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E7958170&gt;()&#10; +    where &lt;built-in method isNull of QIcon object at 0x000001C0E7958170&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7958170&gt;.isNull&#10; +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7958170&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CFB60&gt;()&#10; +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CFB60&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CFB60&gt;.icon">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001C0E78CFC80&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001C0E7412060&gt;
+module = 'business_intelligence'
+class_name = 'BusinessIntelligenceSidebarWidget', filtered = True
+
+    @pytest.mark.parametrize("module,class_name", SIDEBARS)
+    @pytest.mark.parametrize("filtered", [False, True])
+    def test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals(
+        manager, qt_font_resources, module, class_name, filtered,
+    ):
+        root = f"frontend.desktop.modules.{module}"
+        navigation = import_module(f"{root}.navigation.{module}_sidebar")
+        sidebar_class = getattr(import_module(f"{root}.widgets.{module}_sidebar_widget"), class_name)
+        all_entries = navigation.visible_entries(lambda _permission: True)
+        denied = all_entries[0][0].permission if filtered else None
+        allowed = lambda permission: permission != denied
+        badges = {entry.badge_key: 3 for entry, _ in all_entries if entry.badge_key}
+        expected = navigation.visible_entries(allowed, badges)
+        sidebar = sidebar_class(has_permission=allowed, badges=badges)
+        try:
+            assert sidebar.count() == len(expected)
+            assert sidebar.currentRow() == 0
+            routes = []
+            sidebar.route_requested.connect(routes.append)
+            for theme in ("light", "dark"):
+                manager.set_theme(theme, app=qt_font_resources)
+                for row, (entry, badge) in enumerate(expected):
+                    item = sidebar.item(row)
+                    assert item.data(Qt.UserRole) == entry.page_id
+                    assert item.toolTip() == entry.tooltip
+                    assert item.text() == (entry.title if badge is None else f"{entry.title} ({badge})")
+&gt;                   assert_icon(item, entry.icon)
+
+tests\ui\test_operational_sidebar_icons.py:66: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+item = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CFB60&gt;
+identifier = 'chart'
+
+    def assert_icon(item, identifier):
+&gt;       assert not item.icon().isNull(), identifier
+E       AssertionError: chart
+E       assert not True
+E        +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E7958170&gt;()
+E        +    where &lt;built-in method isNull of QIcon object at 0x000001C0E7958170&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7958170&gt;.isNull
+E        +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7958170&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CFB60&gt;()
+E        +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CFB60&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CFB60&gt;.icon
+
+tests\ui\test_operational_sidebar_icons.py:23: AssertionError</failure></testcase><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-transfers-TransfersSidebarWidget]" time="0.046"><failure message="AssertionError: request&#10;assert not True&#10; +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E7958C20&gt;()&#10; +    where &lt;built-in method isNull of QIcon object at 0x000001C0E7958C20&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7958C20&gt;.isNull&#10; +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7958C20&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CF920&gt;()&#10; +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CF920&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CF920&gt;.icon">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001C0E78CDB50&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001C0E7412060&gt;
+module = 'transfers', class_name = 'TransfersSidebarWidget', filtered = True
+
+    @pytest.mark.parametrize("module,class_name", SIDEBARS)
+    @pytest.mark.parametrize("filtered", [False, True])
+    def test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals(
+        manager, qt_font_resources, module, class_name, filtered,
+    ):
+        root = f"frontend.desktop.modules.{module}"
+        navigation = import_module(f"{root}.navigation.{module}_sidebar")
+        sidebar_class = getattr(import_module(f"{root}.widgets.{module}_sidebar_widget"), class_name)
+        all_entries = navigation.visible_entries(lambda _permission: True)
+        denied = all_entries[0][0].permission if filtered else None
+        allowed = lambda permission: permission != denied
+        badges = {entry.badge_key: 3 for entry, _ in all_entries if entry.badge_key}
+        expected = navigation.visible_entries(allowed, badges)
+        sidebar = sidebar_class(has_permission=allowed, badges=badges)
+        try:
+            assert sidebar.count() == len(expected)
+            assert sidebar.currentRow() == 0
+            routes = []
+            sidebar.route_requested.connect(routes.append)
+            for theme in ("light", "dark"):
+                manager.set_theme(theme, app=qt_font_resources)
+                for row, (entry, badge) in enumerate(expected):
+                    item = sidebar.item(row)
+                    assert item.data(Qt.UserRole) == entry.page_id
+                    assert item.toolTip() == entry.tooltip
+                    assert item.text() == (entry.title if badge is None else f"{entry.title} ({badge})")
+&gt;                   assert_icon(item, entry.icon)
+
+tests\ui\test_operational_sidebar_icons.py:66: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+item = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CF920&gt;
+identifier = 'request'
+
+    def assert_icon(item, identifier):
+&gt;       assert not item.icon().isNull(), identifier
+E       AssertionError: request
+E       assert not True
+E        +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E7958C20&gt;()
+E        +    where &lt;built-in method isNull of QIcon object at 0x000001C0E7958C20&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7958C20&gt;.isNull
+E        +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7958C20&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CF920&gt;()
+E        +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E78CF920&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E78CF920&gt;.icon
+
+tests\ui\test_operational_sidebar_icons.py:23: AssertionError</failure></testcase><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-configuracion-ConfiguracionSidebarWidget]" time="0.054"><failure message="AssertionError: dashboard&#10;assert not True&#10; +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E7958EF0&gt;()&#10; +    where &lt;built-in method isNull of QIcon object at 0x000001C0E7958EF0&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7958EF0&gt;.isNull&#10; +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7958EF0&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E7958A70&gt;()&#10; +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E7958A70&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E7958A70&gt;.icon">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001C0E78CFAD0&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001C0E7412060&gt;
+module = 'configuracion', class_name = 'ConfiguracionSidebarWidget'
+filtered = True
+
+    @pytest.mark.parametrize("module,class_name", SIDEBARS)
+    @pytest.mark.parametrize("filtered", [False, True])
+    def test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals(
+        manager, qt_font_resources, module, class_name, filtered,
+    ):
+        root = f"frontend.desktop.modules.{module}"
+        navigation = import_module(f"{root}.navigation.{module}_sidebar")
+        sidebar_class = getattr(import_module(f"{root}.widgets.{module}_sidebar_widget"), class_name)
+        all_entries = navigation.visible_entries(lambda _permission: True)
+        denied = all_entries[0][0].permission if filtered else None
+        allowed = lambda permission: permission != denied
+        badges = {entry.badge_key: 3 for entry, _ in all_entries if entry.badge_key}
+        expected = navigation.visible_entries(allowed, badges)
+        sidebar = sidebar_class(has_permission=allowed, badges=badges)
+        try:
+            assert sidebar.count() == len(expected)
+            assert sidebar.currentRow() == 0
+            routes = []
+            sidebar.route_requested.connect(routes.append)
+            for theme in ("light", "dark"):
+                manager.set_theme(theme, app=qt_font_resources)
+                for row, (entry, badge) in enumerate(expected):
+                    item = sidebar.item(row)
+                    assert item.data(Qt.UserRole) == entry.page_id
+                    assert item.toolTip() == entry.tooltip
+                    assert item.text() == (entry.title if badge is None else f"{entry.title} ({badge})")
+&gt;                   assert_icon(item, entry.icon)
+
+tests\ui\test_operational_sidebar_icons.py:66: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+item = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E7958A70&gt;
+identifier = 'dashboard'
+
+    def assert_icon(item, identifier):
+&gt;       assert not item.icon().isNull(), identifier
+E       AssertionError: dashboard
+E       assert not True
+E        +  where True = &lt;built-in method isNull of QIcon object at 0x000001C0E7958EF0&gt;()
+E        +    where &lt;built-in method isNull of QIcon object at 0x000001C0E7958EF0&gt; = &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7958EF0&gt;.isNull
+E        +      where &lt;PyQt5.QtGui.QIcon object at 0x000001C0E7958EF0&gt; = &lt;built-in method icon of QListWidgetItem object at 0x000001C0E7958A70&gt;()
+E        +        where &lt;built-in method icon of QListWidgetItem object at 0x000001C0E7958A70&gt; = &lt;PyQt5.QtWidgets.QListWidgetItem object at 0x000001C0E7958A70&gt;.icon
+
+tests\ui\test_operational_sidebar_icons.py:23: AssertionError</failure></testcase><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_inventory_icons_follow_filtered_registry_without_reordering_pages[False]" time="0.780"><failure message="AssertionError: dashboard&#10;assert &lt;PyQt5.QtGui.QImage object at 0x000001C0E79FDD30&gt; == &lt;PyQt5.QtGui.QImage object at 0x000001C0E79FDE10&gt;">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001C0E79580E0&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001C0E7412060&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001C0E79A4AD0&gt;
+filtered = False
+
+    @pytest.mark.parametrize("filtered", [False, True])
+    def test_inventory_icons_follow_filtered_registry_without_reordering_pages(
+        manager, qt_font_resources, monkeypatch, filtered,
+    ):
+        from frontend.desktop.modules.inventory import page_registry
+        from frontend.desktop.modules.inventory.inventory_view import InventoryView
+        from frontend.desktop.modules.inventory.navigation import INVENTORY_NAV, visible_entries
+    
+        denied = INVENTORY_NAV[0].permission if filtered else None
+        allowed = lambda permission: permission != denied
+        entries = visible_entries(allowed)
+        built = []
+    
+        def factory(entry):
+            def build(_presenter):
+                built.append(entry.page_id)
+                return QLabel(entry.page_id)
+            return build
+    
+        monkeypatch.setattr(page_registry, "_REAL_PAGES", {
+            entry.page_id: factory(entry) for entry in INVENTORY_NAV
+        })
+        view = InventoryView(object(), page_registry.build_page_specs(allowed))
+        try:
+            assert built == [entries[0].page_id]
+            assert view.nav.count() == len(entries)
+            for theme in ("light", "dark"):
+                manager.set_theme(theme, app=qt_font_resources)
+                for row, entry in enumerate(entries):
+                    assert view.nav.item(row).text() == entry.title
+&gt;                   assert_icon(view.nav.item(row), entry.icon)
+
+tests\ui\test_operational_sidebar_icons.py:112: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+item = &lt;frontend.desktop.components.side_nav.NavItem object at 0x000001C0E78CF530&gt;
+identifier = 'dashboard'
+
+    def assert_icon(item, identifier):
+        assert not item.icon().isNull(), identifier
+        for mode in (QIcon.Normal, QIcon.Selected, QIcon.Disabled):
+            actual = item.icon().pixmap(32, 32, mode).toImage()
+            expected = IconProvider.icon(identifier).pixmap(32, 32, mode).toImage()
+&gt;           assert actual == expected, identifier
+E           AssertionError: dashboard
+E           assert &lt;PyQt5.QtGui.QImage object at 0x000001C0E79FDD30&gt; == &lt;PyQt5.QtGui.QImage object at 0x000001C0E79FDE10&gt;
+
+tests\ui\test_operational_sidebar_icons.py:27: AssertionError</failure></testcase><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_inventory_icons_follow_filtered_registry_without_reordering_pages[True]" time="0.066"><failure message="AssertionError: warehouse&#10;assert &lt;PyQt5.QtGui.QImage object at 0x000001C0E79FEF20&gt; == &lt;PyQt5.QtGui.QImage object at 0x000001C0E79FE4A0&gt;">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001C0E7958A70&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001C0E7412060&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001C0E7A413D0&gt;
+filtered = True
+
+    @pytest.mark.parametrize("filtered", [False, True])
+    def test_inventory_icons_follow_filtered_registry_without_reordering_pages(
+        manager, qt_font_resources, monkeypatch, filtered,
+    ):
+        from frontend.desktop.modules.inventory import page_registry
+        from frontend.desktop.modules.inventory.inventory_view import InventoryView
+        from frontend.desktop.modules.inventory.navigation import INVENTORY_NAV, visible_entries
+    
+        denied = INVENTORY_NAV[0].permission if filtered else None
+        allowed = lambda permission: permission != denied
+        entries = visible_entries(allowed)
+        built = []
+    
+        def factory(entry):
+            def build(_presenter):
+                built.append(entry.page_id)
+                return QLabel(entry.page_id)
+            return build
+    
+        monkeypatch.setattr(page_registry, "_REAL_PAGES", {
+            entry.page_id: factory(entry) for entry in INVENTORY_NAV
+        })
+        view = InventoryView(object(), page_registry.build_page_specs(allowed))
+        try:
+            assert built == [entries[0].page_id]
+            assert view.nav.count() == len(entries)
+            for theme in ("light", "dark"):
+                manager.set_theme(theme, app=qt_font_resources)
+                for row, entry in enumerate(entries):
+                    assert view.nav.item(row).text() == entry.title
+&gt;                   assert_icon(view.nav.item(row), entry.icon)
+
+tests\ui\test_operational_sidebar_icons.py:112: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+item = &lt;frontend.desktop.components.side_nav.NavItem object at 0x000001C0E795BF50&gt;
+identifier = 'warehouse'
+
+    def assert_icon(item, identifier):
+        assert not item.icon().isNull(), identifier
+        for mode in (QIcon.Normal, QIcon.Selected, QIcon.Disabled):
+            actual = item.icon().pixmap(32, 32, mode).toImage()
+            expected = IconProvider.icon(identifier).pixmap(32, 32, mode).toImage()
+&gt;           assert actual == expected, identifier
+E           AssertionError: warehouse
+E           assert &lt;PyQt5.QtGui.QImage object at 0x000001C0E79FEF20&gt; == &lt;PyQt5.QtGui.QImage object at 0x000001C0E79FE4A0&gt;
+
+tests\ui\test_operational_sidebar_icons.py:27: AssertionError</failure></testcase><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_pricing_icons_follow_visible_routes_and_keep_lazy_navigation[False]" time="0.103"><failure message="AssertionError: dashboard&#10;assert &lt;PyQt5.QtGui.QImage object at 0x000001C0E79FF310&gt; == &lt;PyQt5.QtGui.QImage object at 0x000001C0E79FF230&gt;">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001C0E78CFE30&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001C0E7412060&gt;
+filtered = False
+
+    @pytest.mark.parametrize("filtered", [False, True])
+    def test_pricing_icons_follow_visible_routes_and_keep_lazy_navigation(
+        manager, qt_font_resources, filtered,
+    ):
+        from frontend.desktop.modules.pricing.navigation import PRICING_NAV, visible_entries
+        from frontend.desktop.modules.pricing.pricing_workspace import PricingWorkspace
+    
+        denied = PRICING_NAV[0].permission if filtered else None
+        allowed = lambda permission: permission != denied
+        entries = visible_entries(allowed)
+        built = []
+    
+        def build(page_id, _presenter):
+            built.append(page_id)
+            return QLabel(page_id)
+    
+        view = PricingWorkspace(None, has_permission=allowed, page_builder=build)
+        try:
+            assert built == [entries[0].page_id]
+            for theme in ("light", "dark"):
+                manager.set_theme(theme, app=qt_font_resources)
+                for row, entry in enumerate(entries):
+                    assert view._nav.item(row).text() == entry.title
+&gt;                   assert_icon(view._nav.item(row), entry.icon)
+
+tests\ui\test_operational_sidebar_icons.py:143: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+item = &lt;frontend.desktop.components.side_nav.NavItem object at 0x000001C0E7958EF0&gt;
+identifier = 'dashboard'
+
+    def assert_icon(item, identifier):
+        assert not item.icon().isNull(), identifier
+        for mode in (QIcon.Normal, QIcon.Selected, QIcon.Disabled):
+            actual = item.icon().pixmap(32, 32, mode).toImage()
+            expected = IconProvider.icon(identifier).pixmap(32, 32, mode).toImage()
+&gt;           assert actual == expected, identifier
+E           AssertionError: dashboard
+E           assert &lt;PyQt5.QtGui.QImage object at 0x000001C0E79FF310&gt; == &lt;PyQt5.QtGui.QImage object at 0x000001C0E79FF230&gt;
+
+tests\ui\test_operational_sidebar_icons.py:27: AssertionError</failure></testcase><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_pricing_icons_follow_visible_routes_and_keep_lazy_navigation[True]" time="0.117"><failure message="AssertionError: catalog&#10;assert &lt;PyQt5.QtGui.QImage object at 0x000001C0E79FF930&gt; == &lt;PyQt5.QtGui.QImage object at 0x000001C0E79FF7E0&gt;">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001C0E78CF800&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001C0E7412060&gt;
+filtered = True
+
+    @pytest.mark.parametrize("filtered", [False, True])
+    def test_pricing_icons_follow_visible_routes_and_keep_lazy_navigation(
+        manager, qt_font_resources, filtered,
+    ):
+        from frontend.desktop.modules.pricing.navigation import PRICING_NAV, visible_entries
+        from frontend.desktop.modules.pricing.pricing_workspace import PricingWorkspace
+    
+        denied = PRICING_NAV[0].permission if filtered else None
+        allowed = lambda permission: permission != denied
+        entries = visible_entries(allowed)
+        built = []
+    
+        def build(page_id, _presenter):
+            built.append(page_id)
+            return QLabel(page_id)
+    
+        view = PricingWorkspace(None, has_permission=allowed, page_builder=build)
+        try:
+            assert built == [entries[0].page_id]
+            for theme in ("light", "dark"):
+                manager.set_theme(theme, app=qt_font_resources)
+                for row, entry in enumerate(entries):
+                    assert view._nav.item(row).text() == entry.title
+&gt;                   assert_icon(view._nav.item(row), entry.icon)
+
+tests\ui\test_operational_sidebar_icons.py:143: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+item = &lt;frontend.desktop.components.side_nav.NavItem object at 0x000001C0E7A64950&gt;
+identifier = 'catalog'
+
+    def assert_icon(item, identifier):
+        assert not item.icon().isNull(), identifier
+        for mode in (QIcon.Normal, QIcon.Selected, QIcon.Disabled):
+            actual = item.icon().pixmap(32, 32, mode).toImage()
+            expected = IconProvider.icon(identifier).pixmap(32, 32, mode).toImage()
+&gt;           assert actual == expected, identifier
+E           AssertionError: catalog
+E           assert &lt;PyQt5.QtGui.QImage object at 0x000001C0E79FF930&gt; == &lt;PyQt5.QtGui.QImage object at 0x000001C0E79FF7E0&gt;
+
+tests\ui\test_operational_sidebar_icons.py:27: AssertionError</failure></testcase><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_products_real_composition_has_distinct_section_icons" time="0.126"><failure message="AssertionError: dashboard&#10;assert &lt;PyQt5.QtGui.QImage object at 0x000001C0E7A76510&gt; == &lt;PyQt5.QtGui.QImage object at 0x000001C0E7A76430&gt;">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001C0E78CE960&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001C0E7412060&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001C0E7A80050&gt;
+
+    def test_products_real_composition_has_distinct_section_icons(manager, qt_font_resources, monkeypatch):
+        from frontend.desktop.modules.products.composition import build_products_view
+        from frontend.desktop.modules.products.navigation import PRODUCTS_NAV
+    
+        pages = (
+            ("overview_page", "ProductsOverviewPage", "Resumen"),
+            ("product_catalog_page", "ProductCatalogPage", "Catálogo"),
+            ("categories_page", "ProductCategoriesPage", "Categorías"),
+            ("brands_page", "ProductBrandsPage", "Marcas"),
+            ("attributes_page", "ProductAttributesPage", "Atributos"),
+            ("branch_channel_page", "BranchChannelPage", "Sucursales y canales"),
+            ("import_page", "ProductImportPage", "Importar"),
+        )
+        built = []
+    
+        def factory(title):
+            def build(_presenter):
+                built.append(title)
+                return QLabel(title)
+            return build
+    
+        for module, name, title in pages:
+            monkeypatch.setattr(import_module(f"frontend.desktop.modules.products.pages.{module}"),
+                                name, factory(title))
+        metadata = {entry.page_id: entry for entry in PRODUCTS_NAV}
+        icons = (
+            metadata["products_overview"].icon,
+            metadata["products_catalog"].icon,
+            metadata["products_categories"].icon,
+            Icons.COMPANY,
+            Icons.CHECKLIST,
+            metadata["products_branches"].icon,
+            metadata["products_imports"].icon,
+        )
+        view = build_products_view(object())
+        try:
+            assert view.nav.count() == len(pages)
+            assert built == [pages[0][2]]
+            for theme in ("light", "dark"):
+                manager.set_theme(theme, app=qt_font_resources)
+                for row, ((_module, _name, title), icon) in enumerate(zip(pages, icons)):
+                    assert view.nav.item(row).text() == title
+&gt;                   assert_icon(view.nav.item(row), icon)
+
+tests\ui\test_operational_sidebar_icons.py:193: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+item = &lt;frontend.desktop.components.side_nav.NavItem object at 0x000001C0E7A65400&gt;
+identifier = 'dashboard'
+
+    def assert_icon(item, identifier):
+        assert not item.icon().isNull(), identifier
+        for mode in (QIcon.Normal, QIcon.Selected, QIcon.Disabled):
+            actual = item.icon().pixmap(32, 32, mode).toImage()
+            expected = IconProvider.icon(identifier).pixmap(32, 32, mode).toImage()
+&gt;           assert actual == expected, identifier
+E           AssertionError: dashboard
+E           assert &lt;PyQt5.QtGui.QImage object at 0x000001C0E7A76510&gt; == &lt;PyQt5.QtGui.QImage object at 0x000001C0E7A76430&gt;
+
+tests\ui\test_operational_sidebar_icons.py:27: AssertionError</failure></testcase></testsuite></testsuites>

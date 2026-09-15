@@ -52,6 +52,19 @@ from backend.infrastructure.db.repositories.procurement.unit_of_work import (
 )
 
 
+def _nature_subtotals(lines) -> dict[str, str]:
+    """Pre-tax subtotal per purchase_nature — same shape as
+    `supplier_invoice_use_cases.py::_nature_subtotals`, so the Finance-side
+    immediate-payment bridge can recognize the right debit account
+    (Inventario/Gasto/Activo) instead of guessing one."""
+    from decimal import Decimal
+    totals: dict[str, Decimal] = {}
+    for line in lines:
+        nature = line.purchase_nature.value
+        totals[nature] = totals.get(nature, Decimal("0")) + line.line_subtotal().amount
+    return {nature: str(amount) for nature, amount in totals.items()}
+
+
 class _BaseDirectPurchaseUseCase:
     def __init__(self, authorization: PurchaseAuthorizationPolicy | None = None) -> None:
         self._auth = authorization or PurchaseAuthorizationPolicy()
@@ -312,7 +325,12 @@ class ConfirmDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
                 self._emit(uow, ProcurementEvents.PURCHASE_PAYMENT_REQUESTED,
                            document_id=dp.id, operation_id=operation_id,
                            actor_user_id=actor_user_id, supplier_id=dp.supplier_id,
-                           amount=str(dp.total().amount), payment_source=payment_source)
+                           branch_id=dp.branch_id,
+                           amount=str(dp.total().amount),
+                           currency_code=dp.total().currency_code,
+                           payment_source=payment_source,
+                           nature_subtotals=_nature_subtotals(dp.lines),
+                           tax_total=str(dp.tax_total().amount))
             # Supplier credit records the commercial commitment only. The final
             # CxP is requested exclusively after invoice validation and matching.
         return ProcurementResult.ok("Compra directa confirmada", entity_id=dp.id,

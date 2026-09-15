@@ -51,3 +51,19 @@ class RecipeVersionTransitionCommand:
         missing = [f for f in ("operation_id", "version_id") if not getattr(self, f)]
         if missing:
             raise ValueError(f"Faltan campos requeridos: {', '.join(missing)}")
+
+
+@dataclass(frozen=True)
+class SetReverseReconstructionAllowedCommand:
+    """§16: toggles whether Sales/Delivery may reconstruct the recipe's base
+    product from its parts when direct stock is 0. Recipe-level, not
+    version-level — the policy applies regardless of which version is active."""
+    operation_id: str
+    recipe_id: str
+    allowed: bool
+    user_id: str | None = None
+
+    def validate(self) -> None:
+        missing = [f for f in ("operation_id", "recipe_id") if not getattr(self, f)]
+        if missing:
+            raise ValueError(f"Faltan campos requeridos: {', '.join(missing)}")

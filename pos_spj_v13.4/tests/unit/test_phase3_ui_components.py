@@ -79,7 +79,7 @@ def test_search_selector_uses_provider_without_mass_combo_loading() -> None:
 
     expected = components.SearchOption(id="p1", label="Producto res")
     item = selector._results.item(0)
-    selected = item.data(qt_core.Qt.UserRole)
+    selected = item.data(_qt_core.Qt.UserRole)
     assert selected == expected
     assert item.data(32) == expected
 
@@ -132,12 +132,39 @@ def test_search_selector_logs_provider_failures(caplog) -> None:
 
     selector = components.SearchSelector(provider=failing_provider)
 
+    failures = []
+    selector.search_failed.connect(failures.append)
+
     with caplog.at_level("ERROR", logger="spj.search_selector"):
         selector.refresh("x")
 
     assert selector.selected_option() is None
-    assert selector._results.count() == 0
     assert "SearchSelector provider failed" in caplog.text
+
+    # A failed query must be visibly DIFFERENT from "zero matches" (§35): a
+    # non-selectable status row appears, and it must never be emitted as a
+    # pick even if the row is clicked.
+    assert selector.has_search_failed() is True
+    assert selector._results.count() == 1
+    status_item = selector._results.item(0)
+    assert status_item.text() == components.SEARCH_FAILED_MESSAGE
+    assert failures == [components.SEARCH_FAILED_MESSAGE]
+
+    emitted = []
+    selector.selected.connect(emitted.append)
+    selector._results.itemClicked.emit(status_item)
+    assert emitted == []
+
+
+def test_search_selector_distinguishes_no_results_from_a_match() -> None:
+    _qt_core, components, _application = _qt_components()
+    selector = components.SearchSelector(provider=lambda _query: [])
+
+    selector.refresh("nada")
+
+    assert selector.has_search_failed() is False
+    assert selector._results.count() == 1
+    assert selector._results.item(0).text() == components.NO_RESULTS_MESSAGE
 
 
 def test_merma_uses_search_selector_public_selected_signal_only() -> None:

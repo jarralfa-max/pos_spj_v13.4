@@ -83,6 +83,80 @@ class TestSalesPosPresenterWiredHandlers:
         assert captured["unit_price"] == Decimal("10.00")
         assert captured["product_snapshot"] == {"name": "Bistec"}
 
+    def test_add_line_uses_the_canonical_pricing_engine_when_wired(self):
+        """§20: the charged price comes from Pricing (branch/customer/volume
+        -aware), not whatever the caller passed in from the catalog grid."""
+        captured = {}
+        priced = {}
+
+        def handler(**kwargs):
+            captured.update(kwargs)
+            return SaleResult.ok("added")
+
+        class _FakeSaleQuery:
+            def get(self, sale_id, *, requester_user_id):
+                return type("SaleDTO", (), {"customer_id": "cust-1"})()
+
+        class _FakePricing:
+            def effective_price(self, product_id, *, branch_id, customer_id, quantity):
+                priced.update(product_id=product_id, branch_id=branch_id,
+                              customer_id=customer_id, quantity=quantity)
+                return Decimal("8.50")
+
+        presenter = SalesPosPresenter(
+            session_context=_FakeSession(branch_id="branch-9"),
+            command_handlers={"add_line": handler},
+            query_services={"sale_query": _FakeSaleQuery(), "pricing": _FakePricing()})
+
+        presenter.add_line(
+            sale_id="sale-1", product_id="p1", quantity=Decimal("2"),
+            unit_price=Decimal("999.00"), product_snapshot={"name": "Bistec"})
+
+        assert captured["unit_price"] == Decimal("8.50")
+        assert priced == {"product_id": "p1", "branch_id": "branch-9",
+                          "customer_id": "cust-1", "quantity": Decimal("2")}
+
+    def test_add_line_falls_back_to_caller_price_when_nothing_configured(self):
+        captured = {}
+
+        def handler(**kwargs):
+            captured.update(kwargs)
+            return SaleResult.ok("added")
+
+        class _FakePricing:
+            def effective_price(self, product_id, **kw):
+                return None  # nothing configured for this product
+
+        presenter = SalesPosPresenter(
+            session_context=_FakeSession(), command_handlers={"add_line": handler},
+            query_services={"pricing": _FakePricing()})
+
+        presenter.add_line(sale_id="sale-1", product_id="p1", quantity=Decimal("1"),
+                           unit_price=Decimal("10.00"))
+
+        assert captured["unit_price"] == Decimal("10.00")
+
+    def test_add_line_falls_back_to_caller_price_when_pricing_lookup_fails(self):
+        captured = {}
+
+        def handler(**kwargs):
+            captured.update(kwargs)
+            return SaleResult.ok("added")
+
+        class _FailingPricing:
+            def effective_price(self, product_id, **kw):
+                raise RuntimeError("db unavailable")
+
+        presenter = SalesPosPresenter(
+            session_context=_FakeSession(), command_handlers={"add_line": handler},
+            query_services={"pricing": _FailingPricing()})
+
+        result = presenter.add_line(sale_id="sale-1", product_id="p1", quantity=Decimal("1"),
+                                    unit_price=Decimal("10.00"))
+
+        assert result.success is True
+        assert captured["unit_price"] == Decimal("10.00")
+
     def test_catalog_search_delegates_to_query_service_with_current_branch(self):
         captured = {}
 
@@ -100,6 +174,28 @@ class TestSalesPosPresenterWiredHandlers:
         assert results == ("p1", "p2")
         assert captured["branch_id"] == "branch-9"
         assert captured["search"] == "bistec"
+
+    def test_search_customers_delegates_to_lookup_not_search(self):
+        """`CustomerLookupQueryService` only exposes `.lookup(...)`; a call
+        to `.search(...)` used to raise `AttributeError` every time this
+        presenter method ran against the real query service."""
+        captured = {}
+
+        class _FakeCustomerLookup:
+            def lookup(self, query, **kwargs):
+                captured["query"] = query
+                captured.update(kwargs)
+                return ["r1"]
+
+        presenter = SalesPosPresenter(
+            session_context=_FakeSession(),
+            query_services={"customer_search": _FakeCustomerLookup()})
+
+        results = presenter.search_customers("Sol")
+
+        assert results == ["r1"]
+        assert captured["query"] == "Sol"
+        assert captured["actor_user_id"] == presenter.current_user_id()
 
 
 class TestSalesPosPresenterCapabilities:

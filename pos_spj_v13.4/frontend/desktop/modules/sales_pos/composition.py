@@ -11,14 +11,19 @@ in `modulos/ventas_pos.py`, exactly like `modulos/clientes_crm.py` does for
 Customer Master/CRM.
 
 Every use case here is real — nothing in this file fabricates behavior any
-SALES-N phase didn't already build and test. Parallel, NOT wired into the
-live app (`modulos/ventas.py` remains the operative POS screen) — see this
-package's own `docs/refactor/SALES-19_ui_decomposition.md` for why.
+SALES-N phase didn't already build and test. As of SALES-22 the legacy
+`modulos/ventas.py` was deleted; this is the only live POS screen (this
+docstring previously claimed otherwise — verify wiring claims like that
+against `frontend/desktop/shell/desktop_shell_window_composition.py`
+directly, not comments, since they go stale).
 """
 
 from __future__ import annotations
 
 from backend.application.customers.authorization import CustomerAuthorizationPolicy
+from backend.application.customers.queries.customer_lookup_query_service import (
+    CustomerLookupQueryService,
+)
 from backend.application.customers.session_authorization import CustomerSessionPermissionChecker
 from backend.application.inventory.authorization import InventoryAuthorizationPolicy
 from backend.application.inventory.session_authorization import (
@@ -65,6 +70,7 @@ from backend.application.sales.use_cases.return_use_cases import ReturnSaleLineU
 from backend.application.sales.use_cases.scan_use_cases import ScanCodeRouter
 from backend.domain.sales.enums import ScanContext
 from backend.infrastructure.integrations.sales_customer_display_client import SalesCustomerDisplayClient
+from backend.infrastructure.integrations.sales_pricing_client import SalesPricingClient
 from frontend.desktop.modules.sales_pos.sales_pos_presenter import SalesPosPresenter
 
 
@@ -88,6 +94,8 @@ def build_sales_pos_presenter(
         "device_health": DeviceHealthQueryService(connection, auth),
         "customer_display": CustomerDisplayQueryService(connection, auth),
         "advertising": AdvertisingQueryService(connection),
+        "customer_search": CustomerLookupQueryService(connection, customer_auth),
+        "pricing": SalesPricingClient(connection),
     }
 
     def _h(execute, **extra):

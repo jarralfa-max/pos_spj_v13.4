@@ -261,6 +261,7 @@ MIGRATIONS = [
     _Migration("255",  "migrations.standalone.255_sales_legacy_backfill"),
     _Migration("256",  "migrations.standalone.256_sales_unified_read_view"),
     _Migration("257",  "migrations.standalone.257_sale_lines_unified_read_view"),
+    _Migration("258",  "migrations.standalone.258_recipes_reverse_reconstruction_allowed"),
 ]
 
 def _ensure_tracking_table(conn):

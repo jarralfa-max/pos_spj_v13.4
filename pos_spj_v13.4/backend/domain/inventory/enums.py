@@ -275,6 +275,9 @@ class ReservationSource(str, Enum):
     TRANSFER = "TRANSFER"
     QUALITY_SAMPLE = "QUALITY_SAMPLE"
     INTERNAL_REQUEST = "INTERNAL_REQUEST"
+    #: §15-19 — reserving a disassembled part to reconstruct its base
+    #: product (whole chicken <- breast/leg/wing on hand).
+    RECONSTRUCTION = "RECONSTRUCTION"
 
 
 class ReservationStatus(str, Enum):

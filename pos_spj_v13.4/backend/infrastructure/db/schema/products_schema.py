@@ -825,12 +825,24 @@ _INDEXES = (
 )
 
 
+def _column_exists(conn, table: str, column: str) -> bool:
+    return any(r[1] == column for r in conn.execute(f"PRAGMA table_info({table})"))
+
+
 def create_products_schema(conn) -> None:
     """Create the canonical products schema (idempotent). DDL lives only here."""
     for statement in _DDL:
         conn.execute(statement)
     for index in _INDEXES:
         conn.execute(index)
+    # recipes.reverse_reconstruction_allowed (ERP integration master prompt
+    # §16) — CREATE TABLE IF NOT EXISTS above only covers a never-before-
+    # created table; a recipes table created by an earlier run of this same
+    # function still needs the ALTER.
+    if not _column_exists(conn, "recipes", "reverse_reconstruction_allowed"):
+        conn.execute(
+            "ALTER TABLE recipes ADD COLUMN reverse_reconstruction_allowed "
+            "INTEGER NOT NULL DEFAULT 0")
 
 
 def drop_products_schema(conn) -> list[str]:

@@ -66,7 +66,8 @@ class CustomerPanel(QFrame):
         if not query:
             return []
         return [
-            SearchOption(id=result.id, label=result.display_name, subtitle=result.phone_e164 or "")
+            SearchOption(id=result.customer_id, label=result.display_name,
+                         subtitle=result.phone_e164 or "")
             for result in self._presenter.search_customers(query)
         ]
 

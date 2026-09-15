@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="15" skipped="0" tests="15" time="16.434" timestamp="2026-09-14T09:27:47.682745-06:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_route_sidebar_icons" name="test_route_icons_survive_theme_collapse_and_flyout_navigation[cash_register]" time="1.280"><failure message="AssertionError: assert 'home' == 'dashboard'&#10;  &#10;  - dashboard&#10;  + home">workspace_case = namespace(workspace=&lt;frontend.desktop.modules.cash_register.cash_register_workspace.CashRegisterWorkspace object at 0x...', 'hardware': 'device', 'configuration': 'settings'}, app=&lt;PyQt5.QtWidgets.QApplication object at 0x0000026E9E6620F0&gt;)
+
+    def test_route_icons_survive_theme_collapse_and_flyout_navigation(workspace_case):
+        case = workspace_case
+        nav = case.workspace._nav
+        routes_by_id = {getattr(route, case.key): route for route in case.routes}
+        for route_id, icon in case.examples.items():
+            item = next(item for item in _destinations(nav) if item.data(Qt.UserRole) == route_id)
+&gt;           assert item.data(nav._ICON_ROLE) == icon
+E           AssertionError: assert 'home' == 'dashboard'
+E             
+E             - dashboard
+E             + home
+
+tests\ui\test_route_sidebar_icons.py:88: AssertionError</failure></testcase><testcase classname="tests.ui.test_route_sidebar_icons" name="test_route_icons_survive_theme_collapse_and_flyout_navigation[customers_crm]" time="1.527"><failure message="AssertionError: assert 'home' == 'customers'&#10;  &#10;  - customers&#10;  + home">workspace_case = namespace(workspace=&lt;frontend.desktop.modules.customers_crm.customers_crm_workspace.CustomersCrmWorkspace object at 0x...rm.calls': 'phone', 'customers.settings': 'settings'}, app=&lt;PyQt5.QtWidgets.QApplication object at 0x0000026E9E6620F0&gt;)
+
+    def test_route_icons_survive_theme_collapse_and_flyout_navigation(workspace_case):
+        case = workspace_case
+        nav = case.workspace._nav
+        routes_by_id = {getattr(route, case.key): route for route in case.routes}
+        for route_id, icon in case.examples.items():
+            item = next(item for item in _destinations(nav) if item.data(Qt.UserRole) == route_id)
+&gt;           assert item.data(nav._ICON_ROLE) == icon
+E           AssertionError: assert 'home' == 'customers'
+E             
+E             - customers
+E             + home
+
+tests\ui\test_route_sidebar_icons.py:88: AssertionError</failure></testcase><testcase classname="tests.ui.test_route_sidebar_icons" name="test_route_icons_survive_theme_collapse_and_flyout_navigation[fidelidad]" time="0.374"><failure message="AssertionError: assert 'home' == 'user'&#10;  &#10;  - user&#10;  + home">workspace_case = namespace(workspace=&lt;frontend.desktop.modules.fidelidad.fidelidad_workspace.FidelidadWorkspace object at 0x0000026E9EB...': 'investigation', 'fidelidad.settings': 'settings'}, app=&lt;PyQt5.QtWidgets.QApplication object at 0x0000026E9E6620F0&gt;)
+
+    def test_route_icons_survive_theme_collapse_and_flyout_navigation(workspace_case):
+        case = workspace_case
+        nav = case.workspace._nav
+        routes_by_id = {getattr(route, case.key): route for route in case.routes}
+        for route_id, icon in case.examples.items():
+            item = next(item for item in _destinations(nav) if item.data(Qt.UserRole) == route_id)
+&gt;           assert item.data(nav._ICON_ROLE) == icon
+E           AssertionError: assert 'home' == 'user'
+E             
+E             - user
+E             + home
+
+tests\ui\test_route_sidebar_icons.py:88: AssertionError</failure></testcase><testcase classname="tests.ui.test_route_sidebar_icons" name="test_route_icons_survive_theme_collapse_and_flyout_navigation[tarjetas_fidelidad]" time="0.359"><failure message="AssertionError: assert 'home' == 'loyalty_cards'&#10;  &#10;  - loyalty_cards&#10;  + home">workspace_case = namespace(workspace=&lt;frontend.desktop.modules.tarjetas_fidelidad.tarjetas_fidelidad_workspace.TarjetasFidelidadWorkspa...etas.designer': 'edit', 'tarjetas.printing': 'print'}, app=&lt;PyQt5.QtWidgets.QApplication object at 0x0000026E9E6620F0&gt;)
+
+    def test_route_icons_survive_theme_collapse_and_flyout_navigation(workspace_case):
+        case = workspace_case
+        nav = case.workspace._nav
+        routes_by_id = {getattr(route, case.key): route for route in case.routes}
+        for route_id, icon in case.examples.items():
+            item = next(item for item in _destinations(nav) if item.data(Qt.UserRole) == route_id)
+&gt;           assert item.data(nav._ICON_ROLE) == icon
+E           AssertionError: assert 'home' == 'loyalty_cards'
+E             
+E             - loyalty_cards
+E             + home
+
+tests\ui\test_route_sidebar_icons.py:88: AssertionError</failure></testcase><testcase classname="tests.ui.test_route_sidebar_icons" name="test_route_icons_survive_theme_collapse_and_flyout_navigation[assets]" time="0.673"><failure message="AssertionError: assert 'home' == 'assets'&#10;  &#10;  - assets&#10;  + home">workspace_case = namespace(workspace=&lt;frontend.desktop.modules.assets.assets_workspace.AssetsWorkspace object at 0x0000026E9EBB5910&gt;, r...nance.calendar': 'calendar', 'assets.audit': 'audit'}, app=&lt;PyQt5.QtWidgets.QApplication object at 0x0000026E9E6620F0&gt;)
+
+    def test_route_icons_survive_theme_collapse_and_flyout_navigation(workspace_case):
+        case = workspace_case
+        nav = case.workspace._nav
+        routes_by_id = {getattr(route, case.key): route for route in case.routes}
+        for route_id, icon in case.examples.items():
+            item = next(item for item in _destinations(nav) if item.data(Qt.UserRole) == route_id)
+&gt;           assert item.data(nav._ICON_ROLE) == icon
+E           AssertionError: assert 'home' == 'assets'
+E             
+E             - assets
+E             + home
+
+tests\ui\test_route_sidebar_icons.py:88: AssertionError</failure></testcase><testcase classname="tests.ui.test_route_sidebar_icons" name="test_permission_refresh_keeps_allowed_routes_icons_and_destination[cash_register]" time="0.226"><failure message="AttributeError: 'CashRegisterRoute' object has no attribute 'icon'">workspace_case = namespace(workspace=&lt;frontend.desktop.modules.cash_register.cash_register_workspace.CashRegisterWorkspace object at 0x...', 'hardware': 'device', 'configuration': 'settings'}, app=&lt;PyQt5.QtWidgets.QApplication object at 0x0000026E9E6620F0&gt;)
+
+    def test_permission_refresh_keeps_allowed_routes_icons_and_destination(workspace_case):
+        case = workspace_case
+        selected = case.routes[-1]
+        case.workspace.select_route(getattr(selected, case.key))
+        for name in vars(case.capabilities):
+            setattr(case.capabilities, name, name in {"module_view", selected.capability})
+        case.workspace.refresh_permissions()
+        nav = case.workspace._nav
+        expected = case.route_module.visible_routes(case.capabilities)
+        assert [item.data(Qt.UserRole) for item in _destinations(nav)] == [getattr(route, case.key) for route in expected]
+        for item, route in zip(_destinations(nav), expected):
+&gt;           assert item.data(nav._ICON_ROLE) == route.icon
+                                                ^^^^^^^^^^
+E           AttributeError: 'CashRegisterRoute' object has no attribute 'icon'
+
+tests\ui\test_route_sidebar_icons.py:141: AttributeError</failure></testcase><testcase classname="tests.ui.test_route_sidebar_icons" name="test_permission_refresh_keeps_allowed_routes_icons_and_destination[customers_crm]" time="0.545"><failure message="AttributeError: 'CustomerCrmRoute' object has no attribute 'icon'">workspace_case = namespace(workspace=&lt;frontend.desktop.modules.customers_crm.customers_crm_workspace.CustomersCrmWorkspace object at 0x...rm.calls': 'phone', 'customers.settings': 'settings'}, app=&lt;PyQt5.QtWidgets.QApplication object at 0x0000026E9E6620F0&gt;)
+
+    def test_permission_refresh_keeps_allowed_routes_icons_and_destination(workspace_case):
+        case = workspace_case
+        selected = case.routes[-1]
+        case.workspace.select_route(getattr(selected, case.key))
+        for name in vars(case.capabilities):
+            setattr(case.capabilities, name, name in {"module_view", selected.capability})
+        case.workspace.refresh_permissions()
+        nav = case.workspace._nav
+        expected = case.route_module.visible_routes(case.capabilities)
+        assert [item.data(Qt.UserRole) for item in _destinations(nav)] == [getattr(route, case.key) for route in expected]
+        for item, route in zip(_destinations(nav), expected):
+&gt;           assert item.data(nav._ICON_ROLE) == route.icon
+                                                ^^^^^^^^^^
+E           AttributeError: 'CustomerCrmRoute' object has no attribute 'icon'
+
+tests\ui\test_route_sidebar_icons.py:141: AttributeError</failure></testcase><testcase classname="tests.ui.test_route_sidebar_icons" name="test_permission_refresh_keeps_allowed_routes_icons_and_destination[fidelidad]" time="0.480"><failure message="AttributeError: 'FidelidadRoute' object has no attribute 'icon'">workspace_case = namespace(workspace=&lt;frontend.desktop.modules.fidelidad.fidelidad_workspace.FidelidadWorkspace object at 0x0000026E9EB...': 'investigation', 'fidelidad.settings': 'settings'}, app=&lt;PyQt5.QtWidgets.QApplication object at 0x0000026E9E6620F0&gt;)
+
+    def test_permission_refresh_keeps_allowed_routes_icons_and_destination(workspace_case):
+        case = workspace_case
+        selected = case.routes[-1]
+        case.workspace.select_route(getattr(selected, case.key))
+        for name in vars(case.capabilities):
+            setattr(case.capabilities, name, name in {"module_view", selected.capability})
+        case.workspace.refresh_permissions()
+        nav = case.workspace._nav
+        expected = case.route_module.visible_routes(case.capabilities)
+        assert [item.data(Qt.UserRole) for item in _destinations(nav)] == [getattr(route, case.key) for route in expected]
+        for item, route in zip(_destinations(nav), expected):
+&gt;           assert item.data(nav._ICON_ROLE) == route.icon
+                                                ^^^^^^^^^^
+E           AttributeError: 'FidelidadRoute' object has no attribute 'icon'
+
+tests\ui\test_route_sidebar_icons.py:141: AttributeError</failure></testcase><testcase classname="tests.ui.test_route_sidebar_icons" name="test_permission_refresh_keeps_allowed_routes_icons_and_destination[tarjetas_fidelidad]" time="0.353"><failure message="AttributeError: 'TarjetasFidelidadRoute' object has no attribute 'icon'">workspace_case = namespace(workspace=&lt;frontend.desktop.modules.tarjetas_fidelidad.tarjetas_fidelidad_workspace.TarjetasFidelidadWorkspa...etas.designer': 'edit', 'tarjetas.printing': 'print'}, app=&lt;PyQt5.QtWidgets.QApplication object at 0x0000026E9E6620F0&gt;)
+
+    def test_permission_refresh_keeps_allowed_routes_icons_and_destination(workspace_case):
+        case = workspace_case
+        selected = case.routes[-1]
+        case.workspace.select_route(getattr(selected, case.key))
+        for name in vars(case.capabilities):
+            setattr(case.capabilities, name, name in {"module_view", selected.capability})
+        case.workspace.refresh_permissions()
+        nav = case.workspace._nav
+        expected = case.route_module.visible_routes(case.capabilities)
+        assert [item.data(Qt.UserRole) for item in _destinations(nav)] == [getattr(route, case.key) for route in expected]
+        for item, route in zip(_destinations(nav), expected):
+&gt;           assert item.data(nav._ICON_ROLE) == route.icon
+                                                ^^^^^^^^^^
+E           AttributeError: 'TarjetasFidelidadRoute' object has no attribute 'icon'
+
+tests\ui\test_route_sidebar_icons.py:141: AttributeError</failure></testcase><testcase classname="tests.ui.test_route_sidebar_icons" name="test_permission_refresh_keeps_allowed_routes_icons_and_destination[assets]" time="1.224"><failure message="AttributeError: 'AssetRoute' object has no attribute 'icon'">workspace_case = namespace(workspace=&lt;frontend.desktop.modules.assets.assets_workspace.AssetsWorkspace object at 0x0000026E9FCA45F0&gt;, r...nance.calendar': 'calendar', 'assets.audit': 'audit'}, app=&lt;PyQt5.QtWidgets.QApplication object at 0x0000026E9E6620F0&gt;)
+
+    def test_permission_refresh_keeps_allowed_routes_icons_and_destination(workspace_case):
+        case = workspace_case
+        selected = case.routes[-1]
+        case.workspace.select_route(getattr(selected, case.key))
+        for name in vars(case.capabilities):
+            setattr(case.capabilities, name, name in {"module_view", selected.capability})
+        case.workspace.refresh_permissions()
+        nav = case.workspace._nav
+        expected = case.route_module.visible_routes(case.capabilities)
+        assert [item.data(Qt.UserRole) for item in _destinations(nav)] == [getattr(route, case.key) for route in expected]
+        for item, route in zip(_destinations(nav), expected):
+&gt;           assert item.data(nav._ICON_ROLE) == route.icon
+                                                ^^^^^^^^^^
+E           AttributeError: 'AssetRoute' object has no attribute 'icon'
+
+tests\ui\test_route_sidebar_icons.py:141: AttributeError</failure></testcase><testcase classname="tests.ui.test_route_sidebar_icons" name="test_no_permission_group_uses_module_icon_without_exposing_routes[cash_register]" time="0.199"><failure message="AssertionError: assert 'home' == 'cash'&#10;  &#10;  - cash&#10;  + home">workspace_case = namespace(workspace=&lt;frontend.desktop.modules.cash_register.cash_register_workspace.CashRegisterWorkspace object at 0x...', 'hardware': 'device', 'configuration': 'settings'}, app=&lt;PyQt5.QtWidgets.QApplication object at 0x0000026E9E6620F0&gt;)
+
+    def test_no_permission_group_uses_module_icon_without_exposing_routes(workspace_case):
+        case = workspace_case
+        case.capabilities.module_view = False
+        case.workspace.refresh_permissions()
+        nav = case.workspace._nav
+        assert nav.count() == 1
+        assert nav.item(0).data(nav._GROUP_ROLE)
+&gt;       assert nav.item(0).data(nav._ICON_ROLE) == case.module_icon
+E       AssertionError: assert 'home' == 'cash'
+E         
+E         - cash
+E         + home
+
+tests\ui\test_route_sidebar_icons.py:153: AssertionError</failure></testcase><testcase classname="tests.ui.test_route_sidebar_icons" name="test_no_permission_group_uses_module_icon_without_exposing_routes[customers_crm]" time="1.445"><failure message="AssertionError: assert 'home' == 'customers'&#10;  &#10;  - customers&#10;  + home">workspace_case = namespace(workspace=&lt;frontend.desktop.modules.customers_crm.customers_crm_workspace.CustomersCrmWorkspace object at 0x...rm.calls': 'phone', 'customers.settings': 'settings'}, app=&lt;PyQt5.QtWidgets.QApplication object at 0x0000026E9E6620F0&gt;)
+
+    def test_no_permission_group_uses_module_icon_without_exposing_routes(workspace_case):
+        case = workspace_case
+        case.capabilities.module_view = False
+        case.workspace.refresh_permissions()
+        nav = case.workspace._nav
+        assert nav.count() == 1
+        assert nav.item(0).data(nav._GROUP_ROLE)
+&gt;       assert nav.item(0).data(nav._ICON_ROLE) == case.module_icon
+E       AssertionError: assert 'home' == 'customers'
+E         
+E         - customers
+E         + home
+
+tests\ui\test_route_sidebar_icons.py:153: AssertionError</failure></testcase><testcase classname="tests.ui.test_route_sidebar_icons" name="test_no_permission_group_uses_module_icon_without_exposing_routes[fidelidad]" time="0.133"><failure message="AssertionError: assert 'home' == 'loyalty'&#10;  &#10;  - loyalty&#10;  + home">workspace_case = namespace(workspace=&lt;frontend.desktop.modules.fidelidad.fidelidad_workspace.FidelidadWorkspace object at 0x0000026E9EB...': 'investigation', 'fidelidad.settings': 'settings'}, app=&lt;PyQt5.QtWidgets.QApplication object at 0x0000026E9E6620F0&gt;)
+
+    def test_no_permission_group_uses_module_icon_without_exposing_routes(workspace_case):
+        case = workspace_case
+        case.capabilities.module_view = False
+        case.workspace.refresh_permissions()
+        nav = case.workspace._nav
+        assert nav.count() == 1
+        assert nav.item(0).data(nav._GROUP_ROLE)
+&gt;       assert nav.item(0).data(nav._ICON_ROLE) == case.module_icon
+E       AssertionError: assert 'home' == 'loyalty'
+E         
+E         - loyalty
+E         + home
+
+tests\ui\test_route_sidebar_icons.py:153: AssertionError</failure></testcase><testcase classname="tests.ui.test_route_sidebar_icons" name="test_no_permission_group_uses_module_icon_without_exposing_routes[tarjetas_fidelidad]" time="0.306"><failure message="AssertionError: assert 'home' == 'loyalty_cards'&#10;  &#10;  - loyalty_cards&#10;  + home">workspace_case = namespace(workspace=&lt;frontend.desktop.modules.tarjetas_fidelidad.tarjetas_fidelidad_workspace.TarjetasFidelidadWorkspa...etas.designer': 'edit', 'tarjetas.printing': 'print'}, app=&lt;PyQt5.QtWidgets.QApplication object at 0x0000026E9E6620F0&gt;)
+
+    def test_no_permission_group_uses_module_icon_without_exposing_routes(workspace_case):
+        case = workspace_case
+        case.capabilities.module_view = False
+        case.workspace.refresh_permissions()
+        nav = case.workspace._nav
+        assert nav.count() == 1
+        assert nav.item(0).data(nav._GROUP_ROLE)
+&gt;       assert nav.item(0).data(nav._ICON_ROLE) == case.module_icon
+E       AssertionError: assert 'home' == 'loyalty_cards'
+E         
+E         - loyalty_cards
+E         + home
+
+tests\ui\test_route_sidebar_icons.py:153: AssertionError</failure></testcase><testcase classname="tests.ui.test_route_sidebar_icons" name="test_no_permission_group_uses_module_icon_without_exposing_routes[assets]" time="0.718"><failure message="AssertionError: assert 'home' == 'assets'&#10;  &#10;  - assets&#10;  + home">workspace_case = namespace(workspace=&lt;frontend.desktop.modules.assets.assets_workspace.AssetsWorkspace object at 0x0000026E9EB32180&gt;, r...nance.calendar': 'calendar', 'assets.audit': 'audit'}, app=&lt;PyQt5.QtWidgets.QApplication object at 0x0000026E9E6620F0&gt;)
+
+    def test_no_permission_group_uses_module_icon_without_exposing_routes(workspace_case):
+        case = workspace_case
+        case.capabilities.module_view = False
+        case.workspace.refresh_permissions()
+        nav = case.workspace._nav
+        assert nav.count() == 1
+        assert nav.item(0).data(nav._GROUP_ROLE)
+&gt;       assert nav.item(0).data(nav._ICON_ROLE) == case.module_icon
+E       AssertionError: assert 'home' == 'assets'
+E         
+E         - assets
+E         + home
+
+tests\ui\test_route_sidebar_icons.py:153: AssertionError</failure></testcase></testsuite></testsuites>

@@ -122,6 +122,12 @@ class ProcurementDownstreamTranslators:
             "currency_code": payload.get("currency_code", "MXN"),
             "payment_source": source or None,
             "document_id": payload.get("document_id"),
+            "branch_id": payload.get("branch_id"),
+            # nature_subtotals/tax_total travel so Finance can recognize the
+            # immediate-payment journal entry's debit side correctly, same
+            # contract as ACCOUNT_PAYABLE_CREATE_REQUESTED -> PAYABLE_CREATED.
+            "nature_subtotals": payload.get("nature_subtotals"),
+            "tax_total": payload.get("tax_total"),
             "immediate": True,
         })
 
