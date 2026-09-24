@@ -179,6 +179,19 @@ class SalesPosPresenter:
 
     # ── discounts (SALES-8) ──────────────────────────────────────────────
 
+    def verify_authorizer(self, username: str, password: str) -> tuple[str | None, str]:
+        """(user_id, "") si usuario y clave son de un usuario activo; si no,
+        (None, motivo). El permiso para autorizar lo revalida el caso de uso."""
+        verifier = self.query_service("authorizer_credentials")
+        if verifier is None:
+            return None, "La verificación del autorizador no está disponible."
+        from backend.security.authentication.errors import AuthenticationFailedError
+        from backend.security.sessions.errors import AccountLockedError
+        try:
+            return verifier(username=username, password=password), ""
+        except (AuthenticationFailedError, AccountLockedError) as exc:
+            return None, str(exc)
+
     def apply_sale_discount(self, *, sale_id: str, discount_amount: Decimal,
                             authorizer_user_id: str | None = None,
                             reason: str | None = None) -> SaleResult:
@@ -208,10 +221,22 @@ class SalesPosPresenter:
             "begin_checkout", sale_id=sale_id, actor_user_id=self.current_user_id(),
             operation_id=_new_op())
 
-    def checkout_sale(self, *, sale_id: str) -> SaleResult:
+    def checkout_sale(self, *, sale_id: str, authorizer_user_id: str | None = None,
+                      reason: str | None = None) -> SaleResult:
+        """`authorizer_user_id`/`reason`: la autorización en caliente para
+        cobrar sin existencia (Fase 6); sólo se piden si el cobro la exige."""
         return self._run(
             "checkout_sale", sale_id=sale_id, actor_user_id=self.current_user_id(),
-            operation_id=_new_op())
+            operation_id=_new_op(), authorizer_user_id=authorizer_user_id, reason=reason)
+
+    def open_shift_problem(self) -> str | None:
+        """Por qué no se puede cobrar por falta de turno, o None. Se pregunta
+        ANTES de abrir el cobro: una vez registrados los pagos la venta ya no
+        vuelve al carrito."""
+        check = self.query_service("cash_shift")
+        if check is None:
+            return None
+        return check(branch_id=self.current_branch_id(), cashier_user_id=self.current_user_id())
 
     # ── suspend / resume / cancel (SALES-9/15) ───────────────────────────
 

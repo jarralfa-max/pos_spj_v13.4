@@ -135,6 +135,9 @@ class CreateTransferRequestUseCase:
             branch_id=command.origin_node.branch_id,
             warehouse_id=command.origin_node.warehouse_id,
             location_id=command.origin_node.location_id,
+            destination_branch_id=command.destination_node.branch_id,
+            destination_warehouse_id=command.destination_node.warehouse_id,
+            destination_location_id=command.destination_node.location_id,
         )
         transfer = StockTransfer(
             transfer_number=self._number_generator.next_transfer_number(),
@@ -186,6 +189,9 @@ class EditTransferRequestUseCase:
             branch_id=transfer.origin_node.branch_id,
             warehouse_id=transfer.origin_node.warehouse_id,
             location_id=transfer.origin_node.location_id,
+            destination_branch_id=transfer.destination_node.branch_id,
+            destination_warehouse_id=transfer.destination_node.warehouse_id,
+            destination_location_id=transfer.destination_node.location_id,
         )
         transfer.edit_request(
             lines=[_line_from_command(line) for line in command.lines],
@@ -221,6 +227,9 @@ class SubmitTransferRequestUseCase:
             branch_id=transfer.origin_node.branch_id,
             warehouse_id=transfer.origin_node.warehouse_id,
             location_id=transfer.origin_node.location_id,
+            destination_branch_id=transfer.destination_node.branch_id,
+            destination_warehouse_id=transfer.destination_node.warehouse_id,
+            destination_location_id=transfer.destination_node.location_id,
         )
         transfer.submit()
         self._repository.save(transfer)
@@ -266,6 +275,9 @@ class ApproveTransferRequestUseCase:
             branch_id=transfer.origin_node.branch_id,
             warehouse_id=transfer.origin_node.warehouse_id,
             location_id=transfer.origin_node.location_id,
+            destination_branch_id=transfer.destination_node.branch_id,
+            destination_warehouse_id=transfer.destination_node.warehouse_id,
+            destination_location_id=transfer.destination_node.location_id,
         )
         self._segregation.requester_cannot_approve(
             transfer.requested_by_user_id,
@@ -311,6 +323,9 @@ class RejectTransferRequestUseCase:
             branch_id=transfer.origin_node.branch_id,
             warehouse_id=transfer.origin_node.warehouse_id,
             location_id=transfer.origin_node.location_id,
+            destination_branch_id=transfer.destination_node.branch_id,
+            destination_warehouse_id=transfer.destination_node.warehouse_id,
+            destination_location_id=transfer.destination_node.location_id,
         )
         transfer.reject()
         self._repository.save(transfer)

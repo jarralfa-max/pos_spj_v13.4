@@ -50,8 +50,11 @@ class DirectPurchasePresenter:
                  variance_policy=None, event_dispatcher=None, product_catalog=None,
                  supplier_profile: SupplierProcurementProfilePort | None = None,
                  supplier_finance: ProcurementFinancePort | None = None,
-                 receipt_status: InventoryReceiptStatusPort | None = None) -> None:
+                 receipt_status: InventoryReceiptStatusPort | None = None,
+                 payment_booking=None) -> None:
         self._conn = connection_provider
+        #: `PaymentSourceBookingPort`: qué fuentes de pago sabe asentar Finanzas.
+        self._payment_booking = payment_booking
         self._reads = read_service
         self._suppliers = supplier_picker
         self._use_cases = use_cases
@@ -73,6 +76,36 @@ class DirectPurchasePresenter:
         if not user_id:
             raise PermissionError("Se requiere una sesión autenticada de Compras")
         return str(user_id)
+
+    def branch_options(self) -> list[tuple[str, str]]:
+        """Sucursales que este usuario PUEDE ver, como `(id, nombre)`.
+
+        NO EXISTÍA. Los dos diálogos de Compras capturaban la sucursal con una
+        caja de texto libre, así que para crear una solicitud había que escribir
+        a mano el UUID de la sucursal — en la práctica, imposible: el de
+        solicitud arranca vacío y no hay forma de elegir.
+
+        El orden es el mismo que exige Transferencias y por el mismo motivo:
+        `usuario -> permitidas -> consulta -> resultados`. Listar todas las
+        sucursales y dejar que la pantalla oculte las ajenas sería una fuga: el
+        dato ya habría viajado y el nombre de una sucursal fuera de alcance se
+        descubriría igual.
+
+        Devuelve `[]` si algo falla, nunca revienta el diálogo: sin sucursales
+        el combo queda vacío y el backend sigue siendo quien deniega.
+        """
+        from backend.application.security.branch_scope_query_service import (
+            BranchScopeQueryService, BranchSearchQuery,
+        )
+        if self._conn is None:
+            return []
+        try:
+            encontradas = BranchScopeQueryService(self._conn()).search(
+                BranchSearchQuery(allowed_for_user=self._actor(), page_size=200))
+        except Exception:
+            logger.exception("%s.branch_options failed", type(self).__name__)
+            return []
+        return [(o.branch_id, o.name) for o in encontradas]
 
     def default_branch(self) -> str:
         branch_id = (getattr(self._session, "active_branch_id", None)
@@ -127,10 +160,42 @@ class DirectPurchasePresenter:
         try:
             options = self._product_catalog.search(query, branch_id=self.default_branch())
         except Exception:
+            # §35: ver la nota equivalente en `enterprise_presenter`. Un fallo
+            # técnico debe verse distinto de cero coincidencias.
             logger.exception("product search failed")
-            return []
+            raise
         return [SearchOption(id=o.product_id, label=o.name, subtitle=o.code)
                 for o in options]
+
+    def supplier_search_reason(self, query: str) -> str | None:
+        """Por qué el buscador de proveedores no devolvió nada.
+
+        Mismo trato que ya tenían los productos: "Sin resultados" no distingue
+        "no hay proveedores dados de alta" de "ninguno está aprobado todavía" ni
+        de "el término no coincide", y son tres cosas que se arreglan de forma
+        distinta. Diagnóstico: nunca lanza.
+        """
+        explain = getattr(self._suppliers, "explain_empty", None)
+        if explain is None:
+            return None
+        try:
+            razon = explain(query)
+        except Exception:
+            logger.exception("supplier search reason failed")
+            return None
+        return razon.message if razon is not None else None
+
+    def product_search_reason(self, query: str) -> str | None:
+        """Ver la nota equivalente en `enterprise_presenter`: diagnóstico que
+        nunca lanza."""
+        explain = getattr(self._product_catalog, "explain_empty", None)
+        if explain is None:
+            return None
+        try:
+            return explain(query, branch_id=self.default_branch())
+        except Exception:
+            logger.exception("product search reason failed")
+            return None
 
     def purchases(self, *, status: str | None = None, search: str = "",
                   page: int = 0) -> TableViewModel:
@@ -166,6 +231,29 @@ class DirectPurchasePresenter:
         total = sum((ln.line_total() for ln in lines), Decimal("0"))
         return {"subtotal": money(subtotal), "tax": money(tax), "discount": money(discount),
                 "total": money(total)}
+
+    def payment_source_options(self) -> list[tuple[str, str]]:
+        """Sólo las fuentes de pago de contado que se pueden CONTABILIZAR.
+
+        La pantalla ofrecía las cinco siempre, y tres de ellas no tenían dónde
+        asentarse en esta instalación: la compra se confirmaba y el dinero salía
+        sin asiento. Ofrecerlas para que la confirmación las rechace después
+        sería otra forma de lo mismo; se filtran con la misma regla que valida
+        la confirmación. Si ninguna se puede asentar, la lista queda vacía y
+        sólo queda la compra a crédito — que es lo correcto hasta que Finanzas
+        configure una cuenta.
+        """
+        from frontend.desktop.modules.purchasing.direct_purchase_view_models import (
+            PAYMENT_SOURCE_OPTIONS,
+        )
+        if self._payment_booking is None:
+            return list(PAYMENT_SOURCE_OPTIONS)
+        try:
+            sucursal = self.default_branch()
+        except PermissionError:
+            sucursal = None
+        return [(clave, etiqueta) for clave, etiqueta in PAYMENT_SOURCE_OPTIONS
+                if not self._payment_booking.booking_problem(clave, sucursal)]
 
     # actions -----------------------------------------------------------------
     def create(self, *, supplier_id: str, lines: list[CartLineVM], mode: str,

@@ -100,10 +100,18 @@ class InvoiceMatchingPolicy:
                     Decimal(str(ordered["unit_price"])),
                     Decimal(str(invoice_line["unit_price"]))):
                 return MatchResult.PRICE_VARIANCE
-            expected_tax = Decimal(str(ordered.get("tax", "0")))
-            actual_tax = Decimal(str(invoice_line.get("tax", "0")))
-            if not self._tax_tol.within(expected_tax, actual_tax):
-                return MatchResult.TAX_VARIANCE
+            # Decisión del usuario (2026-09-18): el impuesto sólo se compara si
+            # el documento de compra lo DECLARÓ. La orden de compra no guarda
+            # impuesto y no hay catálogo fiscal por producto; comparar contra
+            # un "0" que nadie capturó hacía que TODA factura con IVA saliera
+            # como diferencia de impuesto y nunca generara la cuenta por pagar.
+            # `tax=None` significa "no declarado"; el IVA de la factura se
+            # acepta como viene (lo respalda el CFDI).
+            if ordered.get("tax") is not None:
+                expected_tax = Decimal(str(ordered["tax"]))
+                actual_tax = Decimal(str(invoice_line.get("tax", "0")))
+                if not self._tax_tol.within(expected_tax, actual_tax):
+                    return MatchResult.TAX_VARIANCE
         return MatchResult.MATCHED
 
 

@@ -4,14 +4,90 @@ from __future__ import annotations
 from pathlib import Path
 import logging
 import math
+import xml.etree.ElementTree as ET
 
-from PyQt5.QtCore import QRectF, QSize, Qt, pyqtSlot
-from PyQt5.QtGui import QIcon, QPainter, QPixmap
+from PyQt5.QtCore import QByteArray, QRectF, QSize, Qt, QUrl, pyqtSlot
+from PyQt5.QtGui import QIcon, QIconEngine, QPainter, QPixmap
 from PyQt5.QtSvg import QSvgRenderer
 from PyQt5.QtWidgets import QLabel, QSizePolicy
 
 from backend.shared.app_paths import AppPaths
 from frontend.desktop.themes.theme_manager import ThemeManager
+
+
+def _svg_source(path: Path) -> str | QByteArray:
+    """Adapt SVG2 references for Qt5 in memory, leaving original artwork intact."""
+    try:
+        source = path.read_bytes()
+    except OSError:
+        return QByteArray()
+    try:
+        root = ET.fromstring(source)
+    except ET.ParseError:
+        return str(path)  # QSvgRenderer rejects malformed artwork.
+    changed = False
+    xlink = "{http://www.w3.org/1999/xlink}href"
+    for element in root.iter():
+        if "href" in element.attrib and xlink not in element.attrib:
+            element.set(xlink, element.attrib["href"])
+            changed = True
+    if changed:
+        # Qt5's SVG reader expects the literal xlink prefix. ElementTree's
+        # generated ns1:href is XML-equivalent but not accepted by that reader.
+        root.set("xmlns:xlink", "http://www.w3.org/1999/xlink")
+        for element in root.iter():
+            if xlink in element.attrib:
+                reference = element.attrib.pop(xlink)
+                url = QUrl(reference)
+                if reference and not reference.startswith("#") and url.isRelative():
+                    # Loading bytes loses Qt's source directory. Keep local
+                    # image references anchored to their original SVG file.
+                    reference = (path.parent / url.path()).resolve().as_posix()
+                element.set("xlink:href", reference)
+        return QByteArray(ET.tostring(root, encoding="utf-8"))
+    return str(path)
+
+
+def _has_visible_artwork(pixmap: QPixmap) -> bool:
+    if pixmap.isNull():
+        return False
+    image = pixmap.toImage()
+    return any(image.pixelColor(x, y).alpha() for y in range(image.height()) for x in range(image.width()))
+
+
+class _BrandSvgIconEngine(QIconEngine):
+    """Render the unmodified artwork colors at each requested icon size."""
+
+    def __init__(self, data: str | QByteArray):
+        super().__init__()
+        self._data = data
+        self._renderer = QSvgRenderer(data)
+
+    def clone(self):
+        return _BrandSvgIconEngine(self._data)
+
+    def key(self):
+        return "spj.brand.svg"
+
+    def actualSize(self, size, mode, state):
+        return self._renderer.defaultSize().scaled(size, Qt.KeepAspectRatio)
+
+    def paint(self, painter, rect, mode, state):
+        fitted = self.actualSize(rect.size(), mode, state)
+        bounds = QRectF(rect.x() + (rect.width() - fitted.width()) / 2,
+                        rect.y() + (rect.height() - fitted.height()) / 2,
+                        fitted.width(), fitted.height())
+        self._renderer.render(painter, bounds)
+
+    def pixmap(self, size, mode, state):
+        pixmap = QPixmap(size)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        try:
+            self.paint(painter, pixmap.rect(), mode, state)
+        finally:
+            painter.end()
+        return pixmap
 
 
 class BrandAssetProvider:
@@ -53,7 +129,7 @@ class BrandAssetProvider:
                        max(1, round(size.height() * device_pixel_ratio)))
         for path in candidates:
             if path.suffix == ".svg":
-                renderer = QSvgRenderer(str(path))
+                renderer = QSvgRenderer(_svg_source(path))
                 if not renderer.isValid() or renderer.defaultSize().isEmpty():
                     logging.getLogger(__name__).warning("Unreadable brand artwork: %s", path)
                     continue
@@ -71,6 +147,9 @@ class BrandAssetProvider:
                     logging.getLogger(__name__).warning("Unreadable brand artwork: %s", path)
                     continue
                 artwork = artwork.scaled(pixels, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            if not _has_visible_artwork(artwork):
+                logging.getLogger(__name__).warning("Empty brand artwork: %s", path)
+                continue
             artwork.setDevicePixelRatio(device_pixel_ratio)
             return artwork
         return QPixmap()
@@ -79,8 +158,8 @@ class BrandAssetProvider:
     def _icon(cls, names, paths):
         for name in names:
             for path in cls._candidates(name, paths):
-                icon = QIcon(str(path))
-                if not icon.pixmap(32, 32).isNull():
+                icon = QIcon(_BrandSvgIconEngine(_svg_source(path))) if path.suffix == ".svg" else QIcon(str(path))
+                if _has_visible_artwork(icon.pixmap(32, 32)):
                     return icon
                 logging.getLogger(__name__).warning("Unreadable brand icon: %s", path)
         return QIcon()

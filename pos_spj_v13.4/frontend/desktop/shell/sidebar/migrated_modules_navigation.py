@@ -217,9 +217,12 @@ MIGRATED_MODULES_NAVIGATION_ITEMS: tuple[NavigationItemDefinition, ...] = (
     ),
     # Precios y Costos: mismo caso que Activos —construido y sin puerta— pero
     # aquí SÍ hay datos detrás (esquema + migraciones 149/150 + servicio de
-    # lectura). Su permiso es plano (`PRICING_VIEW`), así que la entrada sólo la
-    # verá el administrador hasta que el contexto adopte `MODULO.accion`; el
-    # motivo completo está en su `shell_registration.py`.
+    # lectura).
+    # ACTUALIZADO 2026-09-17: este comentario decía que su permiso era plano
+    # (`PRICING_VIEW`) y que la entrada "sólo la verá el administrador". Ya no:
+    # el contexto migró a `PRECIOS.<accion>`, salió de `FLAT_CODE_CONTEXTS` y sus
+    # acciones son otorgables desde Configuración → Seguridad → Permisos. La
+    # migración 260 las siembra para system_owner/admin/gerente.
     NavigationItemDefinition(
         item_id="nav.pricing", module_id=PRICING_MODULE_ID, route_id=PRICING_ROUTE_ID,
         label="Precios y Costos", icon=Icons.FINANCE, order=180,

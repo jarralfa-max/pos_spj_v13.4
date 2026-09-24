@@ -75,6 +75,11 @@ class PaymentDialog(QDialog):
         self._total_due = total_due
         self._lines: list[tuple[str, Decimal, str | None]] = []
         self.completed = False
+        #: Avance del cobro ya aplicado al backend. Reintentar tras un fallo
+        #: (sin existencia, sin turno) NO debe iniciar otra vez el cobro ni
+        #: registrar dos veces los pagos que ya entraron.
+        self._checkout_started = False
+        self._recorded = 0
 
         root = QVBoxLayout(self)
 
@@ -180,13 +185,16 @@ class PaymentDialog(QDialog):
     def _confirm(self) -> None:
         self._btn_confirm.setEnabled(False)
 
-        checkout = self._presenter.begin_checkout(sale_id=self._sale_id)
-        if not checkout.success:
-            QMessageBox.warning(self, "No se pudo iniciar el cobro", checkout.message)
-            self._btn_confirm.setEnabled(True)
-            return
+        if not self._checkout_started:
+            checkout = self._presenter.begin_checkout(sale_id=self._sale_id)
+            if not checkout.success:
+                QMessageBox.warning(self, "No se pudo iniciar el cobro", checkout.message)
+                self._btn_confirm.setEnabled(True)
+                return
+            self._checkout_started = True
 
-        for method, amount, reference in self._lines:
+        while self._recorded < len(self._lines):
+            method, amount, reference = self._lines[self._recorded]
             result = self._presenter.record_payment(
                 sale_id=self._sale_id, method=method, amount=amount, reference=reference)
             if not result.success:
@@ -197,8 +205,19 @@ class PaymentDialog(QDialog):
                     "\"Cancelar\" en la pantalla principal.")
                 self._btn_confirm.setEnabled(True)
                 return
+            self._recorded += 1
 
         result = self._presenter.checkout_sale(sale_id=self._sale_id)
+        if not result.success and result.error_code == "STOCK_AUTHORIZATION_REQUIRED":
+            # Fase 6: sin existencia suficiente, sólo con autorización en caliente.
+            from frontend.desktop.modules.sales_pos.dialogs.stock_authorization_dialog import (
+                StockAuthorizationDialog,
+            )
+            dialog = StockAuthorizationDialog(self._presenter, message=result.message, parent=self)
+            if dialog.exec_() and dialog.authorizer_user_id:
+                result = self._presenter.checkout_sale(
+                    sale_id=self._sale_id, authorizer_user_id=dialog.authorizer_user_id,
+                    reason=dialog.reason)
         if not result.success:
             QMessageBox.warning(self, "No se pudo finalizar la venta", result.message)
             self._btn_confirm.setEnabled(True)

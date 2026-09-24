@@ -35,13 +35,11 @@ from backend.application.products.authorization.policy import ProductsAuthorizat
 from backend.application.products.commands.product_recipe_commands import (
     CreateRecipeCommand,
     RecipeVersionTransitionCommand,
-    SetReverseReconstructionAllowedCommand,
 )
 from backend.application.products.use_cases.product_recipe_use_cases import (
     ActivateRecipeVersionUseCase,
     ApproveRecipeVersionUseCase,
     CreateProductRecipeUseCase,
-    SetReverseReconstructionAllowedUseCase,
     SubmitRecipeVersionUseCase,
 )
 from backend.application.inventory.permissions import InventoryPermissions
@@ -57,6 +55,8 @@ from backend.infrastructure.db.schema.pricing_schema import create_pricing_schem
 from backend.infrastructure.db.schema.products_schema import create_products_schema
 from backend.infrastructure.db.schema.sales_schema import create_sales_schema
 from backend.shared.ids import new_uuid
+from tests.integration._reversible_cutting import reversible_cutting_scheme
+from tests.integration._pos_ready import open_cash_shift, stock_product
 from frontend.desktop.modules.sales_pos.composition import build_sales_pos_presenter
 
 _UNIT = "unit-kg"
@@ -116,33 +116,17 @@ def _available(conn, product_id, branch_id) -> Decimal:
         product_id=product_id, branch_id=branch_id).available
 
 
-def _disassembly_recipe(conn, *, product_id, outputs, creator="alice", approver="bob") -> None:
-    auth = ProductsAuthorizationPolicy(_AllowAllChecker())
-    created = CreateProductRecipeUseCase(conn, auth).execute(CreateRecipeCommand(
-        operation_id=new_uuid(), product_id=product_id, recipe_type="DISASSEMBLY",
-        name="Despiece", user_id=creator, outputs=outputs))
-    assert created.success, created.message
-    recipe_id, version_id = created.recipe_id, created.version_id
-
-    def _transition(use_case_cls, user_id):
-        result = use_case_cls(conn, auth).execute(RecipeVersionTransitionCommand(
-            operation_id=new_uuid(), version_id=version_id, user_id=user_id))
-        assert result.success, result.message
-
-    _transition(SubmitRecipeVersionUseCase, creator)
-    _transition(ApproveRecipeVersionUseCase, approver)
-    _transition(ActivateRecipeVersionUseCase, approver)
-
-    toggled = SetReverseReconstructionAllowedUseCase(conn, auth).execute(
-        SetReverseReconstructionAllowedCommand(
-            operation_id=new_uuid(), recipe_id=recipe_id, allowed=True, user_id=approver))
-    assert toggled.success, toggled.message
+def _despiece(conn, *, product_id, outputs, reversible=True, **_) -> str:
+    """Despiece REVERSIBLE activo (esquema de corte, la fuente desde la Fase 7
+    del 2026-09-19). Devuelve el id de la versión."""
+    return reversible_cutting_scheme(conn, product_id=product_id, outputs=outputs,
+                                     reversible=reversible)[1]
 
 
 def test_checkout_reconstructs_a_zero_stock_product_from_its_parts(conn):
     branch_id = new_uuid()
     chicken, breast, leg, wing = new_uuid(), new_uuid(), new_uuid(), new_uuid()
-    _disassembly_recipe(conn, product_id=chicken, outputs=[
+    _despiece(conn, product_id=chicken, outputs=[
         {"product_id": breast, "output_type": "MAIN_PRODUCT", "quantity": "1.2", "unit_id": _UNIT},
         {"product_id": leg, "output_type": "CO_PRODUCT", "quantity": "0.8", "unit_id": _UNIT},
         {"product_id": wing, "output_type": "CO_PRODUCT", "quantity": "0.4", "unit_id": _UNIT},
@@ -156,7 +140,10 @@ def test_checkout_reconstructs_a_zero_stock_product_from_its_parts(conn):
     # chicken itself: zero direct stock, confirmed before the sale.
     assert _available(conn, chicken, branch_id) == Decimal("0")
 
-    presenter = build_sales_pos_presenter(conn, session_context=_all_permissions_session(branch_id))
+    session = _all_permissions_session(branch_id)
+    presenter = build_sales_pos_presenter(conn, session_context=session)
+    # Fase 6: cobrar exige turno de caja abierto.
+    open_cash_shift(conn, branch_id=branch_id, cashier_user_id=session.user_id)
     sale_id = presenter.start_sale().entity_id
 
     added = presenter.add_line(
@@ -196,7 +183,7 @@ def test_checkout_fails_cleanly_when_parts_are_also_insufficient(conn):
     availability" path still applies when reconstruction can't cover it."""
     branch_id = new_uuid()
     chicken, breast, leg, wing = new_uuid(), new_uuid(), new_uuid(), new_uuid()
-    _disassembly_recipe(conn, product_id=chicken, outputs=[
+    _despiece(conn, product_id=chicken, outputs=[
         {"product_id": breast, "output_type": "MAIN_PRODUCT", "quantity": "1.2", "unit_id": _UNIT},
         {"product_id": leg, "output_type": "CO_PRODUCT", "quantity": "0.8", "unit_id": _UNIT},
         {"product_id": wing, "output_type": "CO_PRODUCT", "quantity": "0.4", "unit_id": _UNIT},

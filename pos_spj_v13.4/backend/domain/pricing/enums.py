@@ -20,6 +20,21 @@ class PriceListKind(str, Enum):
     PROMOTIONAL = "PROMOTIONAL"
 
 
+#: Canales de venta en los que una lista de CANAL puede regir. Son los códigos
+#: con los que Ventas (`POS`) y Pedidos/Delivery (`OrderChannel`) piden precio:
+#: el motor compara el canal de la lista contra ÉSE código, así que un texto
+#: libre ("whats", "Mostrador") nunca coincidía con nada. Una prueba de
+#: arquitectura verifica que cada código exista en `OrderChannel`.
+SALE_CHANNELS = ("POS", "WHATSAPP", "COUNTER", "PHONE", "E_COMMERCE", "SALES_REP",
+                 "BACKOFFICE")
+
+
+def normalize_channel(value) -> str | None:
+    """Código canónico de canal (mayúsculas, sin espacios) o `None` si vacío."""
+    texto = str(value or "").strip().upper()
+    return texto or None
+
+
 class CostMethod(str, Enum):
     AVERAGE = "AVERAGE"           # costo promedio ponderado
     LAST = "LAST"                 # último costo

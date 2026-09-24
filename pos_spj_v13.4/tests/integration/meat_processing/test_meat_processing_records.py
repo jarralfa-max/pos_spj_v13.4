@@ -81,6 +81,7 @@ SEMBRADOS = {
     R.PACKAGING: {"UNLABELED", "LABELED"},
     R.PRODUCED_LOTS: {"PLANNED", "IN_PROGRESS", "COMPLETED"},
     R.YIELDS: {"PENDING_REVIEW", "WITHIN_TOLERANCE", "CRITICAL"},
+    R.OUTPUT_RESULTS: {"MAIN_PRODUCT", "CO_PRODUCT", "WASTE"},
     R.QUALITY: {"PENDING_INSPECTION", "QUARANTINED", "RELEASED"},
     R.REWORK: {"CREATED", "APPROVED", "CANCELLED"},
     R.INCIDENTS: {"OPEN", "UNDER_REVIEW", "RESOLVED"},
@@ -90,7 +91,7 @@ SEMBRADOS = {
 #: Columna que hace de "estado" en cada registro.
 _CLAVE = {R.WEIGHINGS: "weighing_type", R.CUTTING: "output_type",
           R.DERIVED_PRODUCTS: "output_type", R.QUALITY: "quality_status",
-          R.AUDIT: "entity_type"}
+          R.OUTPUT_RESULTS: "output_type", R.AUDIT: "entity_type"}
 
 
 @pytest.fixture
@@ -103,7 +104,8 @@ def conn():
                   esquema.create_meat_processing_packaging_schema,
                   esquema.create_meat_processing_rework_schema,
                   esquema.create_meat_processing_genealogy_schema,
-                  esquema.create_meat_processing_resources_schema):
+                  esquema.create_meat_processing_resources_schema,
+                  esquema.create_meat_processing_output_results_schema):
         crear(c)
     c.commit()
     yield c
@@ -243,6 +245,32 @@ def _rendimientos(s):
     s.guardar("yield_reconciliations", *conciliaciones)
 
 
+def _resultados_por_corte(s):
+    """El resultado por CORTE que deja la ejecución (Fase 10, §13)."""
+    from backend.infrastructure.db.repositories.meat_processing.output_results_repository import (
+        ProcessingOutputResultsRepository,
+    )
+
+    orden = s.orden()
+    filas = []
+    for tipo, esperado, real, costo in (("MAIN_PRODUCT", "3.5", "3.4", "283.33"),
+                                        ("CO_PRODUCT", "3.0", "3.0", "166.67"),
+                                        ("WASTE", "0.5", "0.5", "0")):
+        filas.append({
+            "product_id": s.producto(f"Corte {tipo}"), "output_type": tipo,
+            "input_product_id": new_uuid(), "input_weight": Decimal("10"),
+            "input_unit_cost": Decimal("50"), "expected_weight": Decimal(esperado),
+            "actual_weight": Decimal(real),
+            "difference_weight": Decimal(real) - Decimal(esperado),
+            "expected_yield_pct": Decimal("35"), "yield_pct": Decimal("34"),
+            "variance_pct": Decimal("-2.86"), "unit_price": Decimal("120"),
+            "allocated_cost": Decimal(costo), "unit_cost": Decimal("83.33"),
+            "input_lot_id": None, "output_lot_id": None,
+        })
+    ProcessingOutputResultsRepository(s.conn).replace_for_order(orden.id, filas)
+    s.conn.commit()
+
+
 def _calidad(s):
     orden = s.orden()
     pendiente, cuarentena, liberada = (s.salida(orden) for _ in range(3))
@@ -290,6 +318,7 @@ _SEMBRADORES = {
     R.PREPARATION: _preparacion, R.ACTIVE_PROCESSING: _ejecuciones, R.WEIGHINGS: _pesajes,
     R.CONSUMPTIONS: _consumos, R.CUTTING: _salidas, R.DERIVED_PRODUCTS: _salidas,
     R.PACKAGING: _empaques, R.PRODUCED_LOTS: _lotes, R.YIELDS: _rendimientos,
+    R.OUTPUT_RESULTS: _resultados_por_corte,
     R.QUALITY: _calidad, R.REWORK: _reprocesos, R.INCIDENTS: _incidencias, R.AUDIT: _auditoria,
 }
 

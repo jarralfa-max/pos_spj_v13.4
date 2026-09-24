@@ -79,8 +79,25 @@ class RequisitionsPage(_ListPageBase):
         return self._presenter.requisitions(status=self._status_id() or None,
                                             search=self._search.text().strip(), page=self._page)
 
+    def _default_branch_or_empty(self) -> str:
+        """Sucursal de la sesión para PRESELECCIONAR, o vacío.
+
+        `default_branch()` levanta `PermissionError` cuando la sesión no trae
+        sucursal activa. Eso es correcto para una operación, pero aquí sólo se
+        quiere una preselección: dejar que levante impediría abrir el diálogo y
+        elegir la sucursal a mano, que es justo lo que este arreglo habilita.
+        """
+        try:
+            return self._presenter.default_branch()
+        except Exception:
+            return ""
+
     def _create(self):
-        dialog = RequisitionFormDialog(self, product_provider=self._presenter.product_options)
+        dialog = RequisitionFormDialog(
+            self, product_provider=self._presenter.product_options,
+            empty_reason_provider=self._presenter.product_search_reason,
+            branch_options=self._presenter.branch_options(),
+            branch_id=self._default_branch_or_empty())
         if not dialog.exec_():
             return
         values = dialog.values()
@@ -155,7 +172,11 @@ class RequisitionsPage(_ListPageBase):
             self, source_requisition=detail,
             branch_id=self._presenter.default_branch(), warehouse_id=warehouse_id,
             supplier_provider=self._presenter.supplier_options,
-            product_provider=self._presenter.product_options)
+            product_provider=self._presenter.product_options,
+            empty_reason_provider=self._presenter.product_search_reason,
+            supplier_empty_reason=self._presenter.supplier_search_reason,
+            branch_options=self._presenter.branch_options(),
+            warehouse_options=self._presenter.warehouse_options())
         if not dialog.exec_():
             return
         values = dialog.values()
@@ -208,8 +229,10 @@ class QuotationsPage(_ListPageBase):
             self._notify(False, "La RFQ no tiene proveedores invitados.")
             return
         invited = [(inv.supplier_id, inv.supplier_name) for inv in detail.invitations]
-        dialog = QuoteCaptureDialog(self, invited_suppliers=invited,
-                                    product_provider=self._presenter.product_options)
+        dialog = QuoteCaptureDialog(
+            self, invited_suppliers=invited,
+            product_provider=self._presenter.product_options,
+            empty_reason_provider=self._presenter.product_search_reason)
         if not dialog.exec_():
             return
         values = dialog.values()
@@ -284,7 +307,15 @@ class OrdersPage(_ListPageBase):
         dialog = OrderFormDialog(
             self, branch_id=self._presenter.default_branch(),
             warehouse_id=warehouse_id,
-            supplier_provider=self._presenter.supplier_options)
+            supplier_provider=self._presenter.supplier_options,
+            # Cable muerto: esta ruta construía el diálogo SIN proveedor de
+            # productos, así que su buscador caía al `lambda _q: []` por
+            # omisión y devolvía cero siempre, hubiera o no catálogo.
+            product_provider=self._presenter.product_options,
+            empty_reason_provider=self._presenter.product_search_reason,
+            supplier_empty_reason=self._presenter.supplier_search_reason,
+            branch_options=self._presenter.branch_options(),
+            warehouse_options=self._presenter.warehouse_options())
         if not dialog.exec_():
             return
         values = dialog.values()
@@ -438,7 +469,8 @@ class InvoicesPage(_ListPageBase):
         dialog = InvoiceFormDialog(
             self, document_provider=self._presenter.invoice_document_options,
             document_profile=self._presenter.invoice_document_profile,
-            product_provider=self._presenter.product_options)
+            product_provider=self._presenter.product_options,
+            empty_reason_provider=self._presenter.product_search_reason)
         if not dialog.exec_():
             return
         values = dialog.values()

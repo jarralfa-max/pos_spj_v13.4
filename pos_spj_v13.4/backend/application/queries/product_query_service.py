@@ -23,44 +23,41 @@ class SQLiteProductQueryDataSource:
             pass
 
     def search(self, scope: str, query: str, filters: QueryFilters | None = None) -> Sequence[SearchResult]:
+        """Delega en el contrato compartido de búsqueda de productos.
+
+        Este adaptador tenía su PROPIO SQL (tercera variante viva del mismo
+        "buscar producto"), con su propia idea de qué coincide. Ahora usa
+        `ProductSearchQuery` como todos los demás: un solo constructor de SQL,
+        una sola semántica de coincidencia.
+
+        Usa el preset `inventory_managed`, que es la restricción que Inventario
+        y Cárnico —sus dos únicos consumidores— realmente necesitan: ambos
+        buscan productos que controlan existencia física. Antes no filtraba por
+        capacidad y ofrecía productos no inventariables en pantallas de
+        disponibilidad, lotes y reservas, donde no significan nada. Es un
+        estrechamiento de resultados deliberado y autorizado, no un efecto
+        colateral de la migración.
+
+        Se pierde la metadata `category`/`price`, que ningún consumidor lee
+        (ambos mapean sólo id/label/subtitle); además el precio es de Pricing y
+        no tenía por qué salir de aquí.
+        """
         if scope != "products":
             return []
-        like = f"%{query}%"
-        rows = self._connection.execute(
-            """
-            SELECT p.id AS id, p.name AS nombre, p.code AS codigo,
-                   COALESCE(cat.name,'') AS categoria,
-                   COALESCE(p.base_unit_id,'') AS unidad,
-                   CAST(COALESCE(pp.sale_price,'0') AS REAL) AS precio,
-                   p.product_type AS tipo_producto
-            FROM products p
-            LEFT JOIN product_categories cat ON cat.id = p.category_id
-            LEFT JOIN product_price pp
-                   ON pp.product_id = p.id AND pp.branch_id = ''
-                  AND pp.price_list_id = (SELECT id FROM price_list WHERE code='BASE')
-            WHERE p.lifecycle_status = 'ACTIVE'
-              AND (? = '' OR p.name LIKE ? OR COALESCE(p.code,'') LIKE ?
-                   OR EXISTS (SELECT 1 FROM product_barcodes b
-                              WHERE b.product_id = p.id AND b.active = 1
-                                AND b.barcode_value LIKE ?))
-            ORDER BY p.name ASC
-            LIMIT 50
-            """,
-            (query, like, like, like),
-        ).fetchall()
+        from backend.application.products.queries.product_selection_query_service import (
+            ProductSearchQuery,
+            SearchInventoryManagedProductsQueryService,
+        )
+        dtos = SearchInventoryManagedProductsQueryService(self._connection).search(
+            ProductSearchQuery(text=(query or "").strip() or None, page_size=50))
         return [
             SearchResult(
-                id=str(row["id"] if hasattr(row, "keys") else row[0]),
-                label=str(row["nombre"] if hasattr(row, "keys") else row[1]),
-                subtitle=str(row["codigo"] if hasattr(row, "keys") else row[2] or ""),
-                metadata={
-                    "category": row["categoria"] if hasattr(row, "keys") else row[3],
-                    "unit": row["unidad"] if hasattr(row, "keys") else row[4],
-                    "price": row["precio"] if hasattr(row, "keys") else row[5],
-                    "product_type": row["tipo_producto"] if hasattr(row, "keys") else row[6],
-                },
+                id=str(dto.product_id), label=str(dto.name),
+                subtitle=str(dto.code or ""),
+                metadata={"unit": dto.base_unit_id or "",
+                          "product_type": dto.product_type},
             )
-            for row in rows
+            for dto in dtos
         ]
 
     def list_rows(self, scope: str, filters: QueryFilters | None = None) -> Sequence[TableRow]:

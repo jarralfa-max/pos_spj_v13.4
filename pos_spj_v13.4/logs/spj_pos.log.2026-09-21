@@ -1,0 +1,91 @@
+2026-09-21 14:52:17,391 SPJ.Boot INFO =======================================================
+2026-09-21 14:52:17,396 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-21 14:52:17,405 SPJ.Boot INFO =======================================================
+2026-09-21 14:52:26,073 spj.migrations.269 INFO 269: cutting_schemes.reverse_reconstruction_allowed asegurada.
+2026-09-21 14:52:26,187 spj.migrations INFO Migración 269 ejecutada.
+2026-09-21 14:52:26,239 spj.migrations.270 INFO 270: resultados por salida y tolerancias de rendimiento listos.
+2026-09-21 14:52:26,251 spj.migrations INFO Migración 270 ejecutada.
+2026-09-21 14:52:26,368 spj.migrations.271 INFO 271: 316 permisos PRODUCCION concedidos; roles ausentes: ninguno
+2026-09-21 14:52:26,691 spj.migrations INFO Migración 271 ejecutada.
+2026-09-21 14:52:26,697 spj.migrations INFO Migraciones completadas: 3 ejecutadas.
+2026-09-21 14:52:33,533 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-21 14:52:33,814 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-21 14:52:34,903 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-09-21 14:52:35,232 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-09-21 14:52:35,565 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-09-21 14:52:35,565 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 1 subscriptions
+2026-09-21 14:52:35,566 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-09-21 14:52:35,566 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-09-21 14:54:23,234 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-21 14:59:38,632 SPJ.Boot INFO Sesión iniciada: Juana Rodriguez en Corregidora.
+2026-09-21 15:11:07,519 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-21 15:11:26,176 SPJ.Boot INFO =======================================================
+2026-09-21 15:11:26,177 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-21 15:11:26,177 SPJ.Boot INFO =======================================================
+2026-09-21 15:11:31,467 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-21 15:11:31,937 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-21 15:11:31,942 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-21 15:11:32,792 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-09-21 15:11:33,201 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-09-21 15:11:33,791 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-09-21 15:11:33,792 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 1 subscriptions
+2026-09-21 15:11:33,792 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-09-21 15:11:33,792 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-09-21 15:12:05,702 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-21 15:13:36,493 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-21 15:26:32,785 SPJ.Boot INFO =======================================================
+2026-09-21 15:26:33,088 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-21 15:26:33,098 SPJ.Boot INFO =======================================================
+2026-09-21 15:26:40,080 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-21 15:26:42,189 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-21 15:26:42,193 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-21 15:26:43,268 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-09-21 15:26:43,911 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-09-21 15:26:46,412 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-09-21 15:26:46,978 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 1 subscriptions
+2026-09-21 15:26:47,211 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-09-21 15:26:47,607 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-09-21 15:27:40,241 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-21 15:28:00,755 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-21 15:34:26,251 SPJ.Boot INFO =======================================================
+2026-09-21 15:34:26,252 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-21 15:34:26,253 SPJ.Boot INFO =======================================================
+2026-09-21 15:34:32,251 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-21 15:34:32,710 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-21 15:34:32,710 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-21 15:34:33,796 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-09-21 15:34:34,286 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-09-21 15:34:34,866 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-09-21 15:34:34,867 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 1 subscriptions
+2026-09-21 15:34:34,868 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-09-21 15:34:34,869 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-09-21 15:35:21,830 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-21 15:35:55,986 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-21 15:44:40,907 SPJ.Boot INFO =======================================================
+2026-09-21 15:44:40,948 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-21 15:44:41,676 SPJ.Boot INFO =======================================================
+2026-09-21 15:44:53,734 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-21 15:44:54,373 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-21 15:44:54,384 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-21 15:44:56,246 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-09-21 15:44:56,677 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-09-21 15:44:57,821 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-09-21 15:44:57,826 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 1 subscriptions
+2026-09-21 15:44:57,879 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-09-21 15:44:57,930 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-09-21 15:45:48,945 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-21 19:27:03,937 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-21 19:48:25,890 SPJ.Boot INFO =======================================================
+2026-09-21 19:48:25,892 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-21 19:48:25,892 SPJ.Boot INFO =======================================================
+2026-09-21 19:48:29,552 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-21 19:48:32,710 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-21 19:48:32,710 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-21 19:48:33,398 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-09-21 19:48:35,849 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-09-21 19:48:36,258 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-09-21 19:48:36,258 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 1 subscriptions
+2026-09-21 19:48:36,258 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-09-21 19:48:36,259 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-09-21 20:06:00,145 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-21 20:08:18,575 SPJ.Boot INFO Sistema cerrado. Código: 0

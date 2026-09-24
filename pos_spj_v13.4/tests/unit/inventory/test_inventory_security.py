@@ -248,34 +248,74 @@ class TestScope:
     def setup_method(self):
         self.pol = InventoryScopePolicy()
 
-    def test_all_branches(self):
+    def test_own_branch_needs_no_permission(self):
+        """CAMBIO 2026-09-17, por decisión del usuario tras medir.
+
+        Aquí vivía `test_no_scope_permission_denies`, que exigía denegar la
+        sucursal PROPIA cuando el usuario no tenía permisos de alcance. Ese test
+        era el artefacto que sostenía el fallo: pasaba en verde mientras la misma
+        llamada denegaba a los 4 usuarios reales de la instalación —incluido el
+        administrador— porque `VIEW_OWN_BRANCH` no está concedido a NADIE
+        (`rol_permisos` sólo tiene las 5 acciones gruesas; los códigos de alcance
+        suman cero filas en los seis módulos que los declaran).
+        """
+        self.pol.enforce_branch_access(
+            user_permissions=set(), user_branch_id="b1",
+            assigned_branch_ids=set(), target_branch_id="b1")
+
+    def test_other_branch_denied_without_permission(self):
+        """Permitir la propia NO es permitirlo todo: el aislamiento entre
+        sucursales sigue siendo la regla."""
+        with pytest.raises(BranchScopeError):
+            self.pol.enforce_branch_access(
+                user_permissions=set(), user_branch_id="b1",
+                assigned_branch_ids=set(), target_branch_id="b2")
+
+    def test_assigned_branches_are_reachable(self):
+        self.pol.enforce_branch_access(
+            user_permissions=set(), user_branch_id="b1",
+            assigned_branch_ids={"b2", "b3"}, target_branch_id="b2")
+        with pytest.raises(BranchScopeError):
+            self.pol.enforce_branch_access(
+                user_permissions=set(), user_branch_id="b1",
+                assigned_branch_ids={"b2"}, target_branch_id="b9")
+
+    def test_all_branches_permission_opens_any(self):
         self.pol.enforce_branch_access(
             user_permissions={InventoryPermissions.VIEW_ALL_BRANCHES},
             user_branch_id="b1", assigned_branch_ids=set(), target_branch_id="b9")
 
-    def test_assigned_branch(self):
-        self.pol.enforce_branch_access(
-            user_permissions={InventoryPermissions.VIEW_ASSIGNED_BRANCHES},
-            user_branch_id="b1", assigned_branch_ids={"b2", "b3"}, target_branch_id="b2")
+    def test_empty_target_is_rejected_even_with_global_scope(self):
         with pytest.raises(BranchScopeError):
             self.pol.enforce_branch_access(
-                user_permissions={InventoryPermissions.VIEW_ASSIGNED_BRANCHES},
-                user_branch_id="b1", assigned_branch_ids={"b2"}, target_branch_id="b9")
+                user_permissions={InventoryPermissions.VIEW_ALL_BRANCHES},
+                user_branch_id="b1", assigned_branch_ids=set(), target_branch_id="")
 
-    def test_own_branch_only(self):
-        self.pol.enforce_branch_access(
-            user_permissions={InventoryPermissions.VIEW_OWN_BRANCH},
-            user_branch_id="b1", assigned_branch_ids=set(), target_branch_id="b1")
-        with pytest.raises(BranchScopeError):
+    def test_matches_the_losses_rule(self):
+        """Ata las dos implementaciones que ANTES divergían.
+
+        Eran dos interpretaciones incompatibles del mismo vocabulario de tres
+        niveles; sólo la de Inventario era inviable contra datos reales. Si
+        alguna vuelve a separarse, este test lo señala en vez de dejar que se
+        descubra en producción.
+        """
+        from backend.application.losses.execution_context import LossExecutionContext
+
+        merma = LossExecutionContext(
+            actor_user_id="u1", active_branch_id="b1",
+            assigned_branch_ids=frozenset({"b2"}), permissions=frozenset())
+        for destino in ("b1", "b2"):
+            merma.enforce_branch(destino)
             self.pol.enforce_branch_access(
-                user_permissions={InventoryPermissions.VIEW_OWN_BRANCH},
-                user_branch_id="b1", assigned_branch_ids=set(), target_branch_id="b2")
+                user_permissions=set(), user_branch_id="b1",
+                assigned_branch_ids={"b2"}, target_branch_id=destino)
 
-    def test_no_scope_permission_denies(self):
+        with pytest.raises(Exception):
+            merma.enforce_branch("b9")
         with pytest.raises(BranchScopeError):
             self.pol.enforce_branch_access(
                 user_permissions=set(), user_branch_id="b1",
-                assigned_branch_ids=set(), target_branch_id="b1")
+                assigned_branch_ids={"b2"}, target_branch_id="b9")
 
     def test_warehouse_scope(self):
         self.pol.enforce_warehouse_access(

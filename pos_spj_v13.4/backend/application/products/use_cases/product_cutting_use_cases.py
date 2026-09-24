@@ -19,6 +19,7 @@ from backend.application.products.commands.product_cutting_commands import (
     CreateCuttingSchemeCommand,
     CuttingVersionTransitionCommand,
     UpdateCuttingVersionCommand,
+    SetCuttingReverseReconstructionCommand,
 )
 from backend.application.products.permissions import ProductPermissions
 from backend.domain.products.entities.cutting_output import CuttingOutput
@@ -246,3 +247,42 @@ def _emit(conn, event_name: str, command, *, entity_id: str, extra: dict) -> Non
         "entity_id, payload) VALUES (?,?,?,?,?,?)",
         (new_uuid(), event_id, event_name, command.operation_id, entity_id,
          json.dumps(payload)))
+
+
+class SetCuttingReverseReconstructionUseCase(_BaseCuttingUseCase):
+    """§16 — el ÚNICO lugar donde se fija la marca de reconstrucción inversa.
+
+    La fuente del despiece reversible es el esquema de corte (decisión del
+    usuario, Fase 7, 2026-09-19): el mismo que Cárnico ejecuta es el que el
+    mostrador revierte. Mismo permiso que editar el despiece.
+    """
+    name = "SetCuttingReverseReconstructionUseCase"
+
+    def execute(self, command: SetCuttingReverseReconstructionCommand) -> CuttingResult:
+        command.validate()
+        self._require(command.user_id)
+        scheme = self._repo.get_scheme(command.scheme_id)
+        if scheme is None:
+            return CuttingResult(False, None, None, "El esquema de despiece no existe")
+        antes = scheme.reverse_reconstruction_allowed
+        if antes == bool(command.allowed):
+            return CuttingResult(True, scheme.id, None, "Sin cambios")
+        scheme.reverse_reconstruction_allowed = bool(command.allowed)
+        try:
+            self._repo.save_scheme(scheme)
+            record_product_audit_entry(
+                self._conn, action="CUTTING_SCHEME_REVERSE_RECONSTRUCTION_CHANGED",
+                entity_id=scheme.id, user_id=command.user_id,
+                operation_id=command.operation_id,
+                before={"reverse_reconstruction_allowed": antes},
+                after={"reverse_reconstruction_allowed": bool(command.allowed)})
+            self._conn.commit()
+        except Exception:
+            self._rollback()
+            logger.exception("set cutting reverse reconstruction failed op=%s",
+                             command.operation_id)
+            raise
+        return CuttingResult(
+            True, scheme.id, None,
+            "Reconstrucción inversa habilitada" if command.allowed
+            else "Reconstrucción inversa deshabilitada")

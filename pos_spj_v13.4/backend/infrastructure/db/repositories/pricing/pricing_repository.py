@@ -30,15 +30,21 @@ class PricingRepository:
     # ── price list ────────────────────────────────────────────────────────
     def save_list(self, pl: PriceList) -> None:
         self._conn.execute(
+            # `created_by_user_id` NO se actualiza en el ON CONFLICT: el creador
+            # de una lista no cambia nunca, y dejar que un UPDATE lo reescriba
+            # permitiría que el aprobador se pusiera a sí mismo como creador y
+            # burlara la segregación de funciones.
             """INSERT INTO price_list (id, code, name, kind, status, channel,
-                discount_pct, inherits_from_id, approved_by_user_id, updated_at)
-               VALUES (?,?,?,?,?,?,?,?,?, datetime('now'))
+                discount_pct, inherits_from_id, created_by_user_id,
+                approved_by_user_id, updated_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?, datetime('now'))
                ON CONFLICT(id) DO UPDATE SET status=excluded.status,
                  discount_pct=excluded.discount_pct,
                  approved_by_user_id=excluded.approved_by_user_id,
                  updated_at=datetime('now')""",
             (pl.id, pl.code, pl.name, pl.kind.value, pl.status.value, pl.channel,
-             str(pl.discount_pct), pl.inherits_from_id, pl.approved_by_user_id))
+             str(pl.discount_pct), pl.inherits_from_id, pl.created_by_user_id,
+             pl.approved_by_user_id))
 
     def get_list(self, list_id: str) -> PriceList | None:
         row = self._conn.execute("SELECT * FROM price_list WHERE id=?", (list_id,)).fetchone()
@@ -57,6 +63,7 @@ class PricingRepository:
                          status=PriceListStatus(row["status"]), channel=row["channel"],
                          discount_pct=Decimal(row["discount_pct"]),
                          inherits_from_id=row["inherits_from_id"],
+                         created_by_user_id=row["created_by_user_id"],
                          approved_by_user_id=row["approved_by_user_id"])
 
     # ── product price ─────────────────────────────────────────────────────
@@ -89,6 +96,63 @@ class PricingRepository:
                 "SELECT * FROM product_price WHERE price_list_id=? AND product_id=? "
                 "AND branch_id=''", (price_list_id, product_id)).fetchone()
         return self._row_to_price(row) if row else None
+
+    def effective_price(self, *, price_list_id: str, product_id: str,
+                        branch_id: str | None, on_date: str) -> ProductPrice | None:
+        """El precio que RIGE en `on_date` (AAAA-MM-DD): el de la sucursal si
+        está vigente, si no el de todas las sucursales si está vigente.
+
+        `get_price` no mira fechas, y el motor lo usaba: un precio programado
+        con "Programar vigencia" se cobraba desde el día en que se capturaba, y
+        uno vencido se seguía cobrando (medido el 2026-09-18). `get_price` se
+        conserva tal cual para quien edita precios: ésos buscan la FILA guardada
+        (upsert por lista/producto/sucursal), no el precio vigente.
+        """
+        vigente = ("AND (effective_from IS NULL OR effective_from='' OR "
+                   "substr(effective_from,1,10) <= ?) "
+                   "AND (effective_to IS NULL OR effective_to='' OR "
+                   "substr(effective_to,1,10) >= ?)")
+        row = None
+        if branch_id:
+            row = self._conn.execute(
+                "SELECT * FROM product_price WHERE price_list_id=? AND product_id=? "
+                f"AND branch_id=? {vigente}",
+                (price_list_id, product_id, branch_id, on_date, on_date)).fetchone()
+        if row is None:
+            row = self._conn.execute(
+                "SELECT * FROM product_price WHERE price_list_id=? AND product_id=? "
+                f"AND branch_id='' {vigente}",
+                (price_list_id, product_id, on_date, on_date)).fetchone()
+        return self._row_to_price(row) if row else None
+
+    def active_channel_list(self, channel: str | None) -> PriceList | None:
+        """La lista de CANAL activa de ESE canal, o ninguna.
+
+        Antes el motor tomaba "la" lista de canal activa —cualquiera— y la
+        aplicaba a TODAS las ventas: una lista de WhatsApp se cobraba también
+        en el mostrador (medido: 120 en vez de 100). Sin canal pedido no se
+        aplica ninguna lista de canal.
+        """
+        canal = str(channel or "").strip().upper()
+        if not canal:
+            return None
+        row = self._conn.execute(
+            "SELECT * FROM price_list WHERE kind='CHANNEL' AND status='ACTIVE' "
+            "AND UPPER(TRIM(COALESCE(channel,'')))=? "
+            "ORDER BY updated_at DESC LIMIT 1", (canal,)).fetchone()
+        return self._row_to_list(row) if row else None
+
+    def prices_of_list(self, price_list_id: str) -> list[ProductPrice]:
+        """Todos los precios de una lista.
+
+        Existe para DUPLICAR. Sin esta lectura, una copia sólo podría clonar la
+        cabecera y dejaría una lista vacía haciéndose pasar por copia de otra —
+        que es peor que no ofrecer la acción.
+        """
+        rows = self._conn.execute(
+            "SELECT * FROM product_price WHERE price_list_id=? ORDER BY product_id",
+            (price_list_id,)).fetchall()
+        return [self._row_to_price(r) for r in rows]
 
     @staticmethod
     def _row_to_price(row) -> ProductPrice:
@@ -186,6 +250,31 @@ class PricingRepository:
             (new_uuid(), product_id, branch_id or None,
              None if old_value is None else str(old_value.amount),
              str(new_value.amount), new_value.currency, user_id, operation_id))
+
+    def log_price_change(self, *, product_id: str, branch_id: str | None, field: str,
+                         old_value: Money | None, new_value: Money, operation_id: str,
+                         user_id: str | None = None, authorized_by: str | None = None,
+                         reason: str | None = None) -> None:
+        """Auditoría de un cambio de PRECIO (`sale_price` | `min_price`).
+
+        `log_cost_change` fija `field='cost'`, así que no servía para esto: la
+        tabla `price_change_log` está diseñada para los tres campos —su propio
+        comentario en el DDL dice `sale_price | min_price | cost`— pero no había
+        manera de registrar los dos primeros. Un cambio de precio quedaba sin
+        rastro, que es justo lo que esa tabla existe para impedir.
+
+        `authorized_by` queda poblado cuando el cambio pasó por una
+        autorización en caliente (vender bajo el mínimo).
+        """
+        self._conn.execute(
+            """INSERT INTO price_change_log (id, product_id, branch_id, field,
+                old_value, new_value, currency, user_id, authorized_by,
+                operation_id, reason)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            (new_uuid(), product_id, branch_id or None, field,
+             None if old_value is None else str(old_value.amount),
+             str(new_value.amount), new_value.currency, user_id, authorized_by,
+             operation_id, reason))
 
     def enqueue_event(self, *, event_id: str, event_name: str, operation_id: str | None,
                       entity_id: str | None, payload: str) -> None:

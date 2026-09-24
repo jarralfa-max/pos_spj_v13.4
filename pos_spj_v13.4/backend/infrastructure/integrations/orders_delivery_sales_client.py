@@ -130,7 +130,11 @@ class OrdersDeliverySalesClient:
         side effects. A Caja-effect failure is logged by `CheckoutSaleUseCase`
         itself and never un-completes the sale; it is not this client's job
         to second-guess that."""
-        result = CheckoutSaleUseCase(self._auth).execute(
+        # Pedidos descuenta inventario por su propio cliente (ORD-8) y el
+        # efectivo lo liquida el repartidor, no un turno de mostrador: el
+        # cobro no debe volver a descontar ni exigir turno (Fase 6).
+        result = CheckoutSaleUseCase(
+            self._auth, settle_inventory=False, require_cash_shift=False).execute(
             self._connection, sale_id=sale_id, actor_user_id=actor_user_id,
             operation_id=operation_id)
         if not result.success:

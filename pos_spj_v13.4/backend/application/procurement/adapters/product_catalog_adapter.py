@@ -14,6 +14,7 @@ import sqlite3
 
 from backend.application.procurement.ports import ProcurementProductOption
 from backend.application.products.queries.product_selection_query_service import (
+    ProductSearchQuery,
     SearchPurchasableProductsQueryService,
 )
 
@@ -33,6 +34,19 @@ class ProcurementProductCatalogAdapter:
         except sqlite3.OperationalError:
             return []
         return [_to_option(row) for row in rows]
+
+    def explain_empty(self, query: str, *, branch_id: str | None = None) -> str | None:
+        """Por qué la búsqueda no trajo nada, en texto para el comprador.
+
+        Con habilitación deliberada por sucursal, "no aparece" es el caso
+        normal, no la excepción: el comprador necesita saber que el producto
+        existe pero no está habilitado aquí, y dónde se habilita."""
+        try:
+            razon = self._search_service.explain_empty(ProductSearchQuery(
+                text=(query or "").strip() or None, branch_id=branch_id))
+        except sqlite3.OperationalError:
+            return None
+        return razon.message if razon is not None else None
 
     def resolve(self, product_id: str) -> ProcurementProductOption | None:
         if not product_id:

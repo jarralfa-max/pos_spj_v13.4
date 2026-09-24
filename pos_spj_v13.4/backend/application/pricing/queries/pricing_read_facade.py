@@ -42,10 +42,11 @@ class PricingReadFacade:
         customer_id: str | None = None,
         channel: str | None = None,
         quantity: Decimal | int | str = 1,
+        on_date: str | None = None,
     ) -> ResolvedSalePrice:
         r = self._prices.get_sale_price(
             product_id, branch_id=branch_id, customer_id=customer_id,
-            channel=channel, quantity=Decimal(str(quantity)))
+            channel=channel, quantity=Decimal(str(quantity)), on_date=on_date)
         return ResolvedSalePrice(
             price=None if r.price is None else r.price.amount,
             source=r.source.value,

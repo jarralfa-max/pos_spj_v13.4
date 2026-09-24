@@ -15,6 +15,7 @@ from decimal import Decimal
 from PyQt5.QtWidgets import QFormLayout, QHBoxLayout, QLabel, QWidget
 
 from frontend.desktop.components import (
+    CustomerSearchBox,
     DecimalInput,
     PhoneInput,
     SearchableComboBox,
@@ -22,6 +23,7 @@ from frontend.desktop.components import (
     create_primary_button,
     create_secondary_button,
 )
+from frontend.desktop.components.address_input import AddressInput
 from frontend.desktop.components.pages import FormPage
 from frontend.desktop.components.product_search_box import ProductSearchBox
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
@@ -41,6 +43,8 @@ class NewOrderPage(FormPage):
         super().__init__(parent, title=title, subtitle=subtitle)
         self._presenter = presenter
         self._selected_product_id: str | None = None
+        #: Cliente registrado del pedido (opcional): sus listas de precio aplican.
+        self._customer_id: str | None = None
         #: (product_id, cantidad) en el orden capturado.
         self._lines: list[tuple[str, Decimal]] = []
         self.title = title
@@ -60,14 +64,32 @@ class NewOrderPage(FormPage):
         self.fulfillment.selection_changed.connect(lambda *_: self._sync_address())
         self.contact_name = StandardLineEdit(placeholder="Nombre del cliente")
         self.contact_phone = PhoneInput()
+        self.customer = CustomerSearchBox(self.content, provider=presenter.search_customers)
+        _motivo = getattr(presenter, "customer_search_reason", None)
+        if callable(_motivo):
+            self.customer.set_empty_reason_provider(_motivo)
+        self.customer.selected.connect(self._select_customer)
+        self.customer_label = QLabel("Sin cliente registrado: precio de lista del canal.",
+                                     self.content)
+        self.customer_label.setWordWrap(True)
+        self.clear_customer_button = create_secondary_button(self.content, "Quitar cliente")
+        self.clear_customer_button.clicked.connect(self.clear_customer)
+        self.clear_customer_button.setEnabled(False)
+        cliente = QHBoxLayout()
+        cliente.addWidget(self.customer_label, stretch=1)
+        cliente.addWidget(self.clear_customer_button)
         datos.addRow("Canal:", self.channel)
         datos.addRow("Modalidad:", self.fulfillment)
-        datos.addRow("Cliente:", self.contact_name)
+        datos.addRow("Cliente registrado:", self.customer)
+        datos.addRow("", cliente)
+        datos.addRow("Contacto:", self.contact_name)
         datos.addRow("Teléfono:", self.contact_phone)
         self.content_layout.addLayout(datos)
 
         captura = QHBoxLayout()
-        self.product = ProductSearchBox(parent=self.content, provider=presenter.search_products)
+        self.product = ProductSearchBox(
+            parent=self.content, provider=presenter.search_products,
+            empty_reason_provider=presenter.product_search_reason)
         self.product.selected.connect(self._select_product)
         self.quantity = DecimalInput(precision=3, minimum="0.001", nullable=True)
         self.add_button = create_secondary_button(self.content, "Agregar producto")
@@ -87,17 +109,18 @@ class NewOrderPage(FormPage):
         direccion = QFormLayout(self.address_group)
         self.recipient_name = StandardLineEdit(placeholder="Quién recibe")
         self.recipient_phone = PhoneInput()
-        self.street = StandardLineEdit(placeholder="Calle")
-        self.exterior_number = StandardLineEdit(placeholder="Número exterior")
-        self.interior_number = StandardLineEdit(placeholder="Número interior")
-        self.neighborhood = StandardLineEdit(placeholder="Colonia")
-        self.postal_code = StandardLineEdit(placeholder="Código postal")
-        self.references = StandardLineEdit(placeholder="Referencias")
-        for etiqueta, campo in (("Recibe:", self.recipient_name), ("Teléfono:", self.recipient_phone),
-                                ("Calle:", self.street), ("Exterior:", self.exterior_number),
-                                ("Interior:", self.interior_number), ("Colonia:", self.neighborhood),
-                                ("Código postal:", self.postal_code),
-                                ("Referencias:", self.references)):
+        # El componente estándar de dirección. Eran seis cajas de texto libre y
+        # el pedido nacía SIEMPRE sin coordenadas, pese a que `OrderAddress` las
+        # guarda y el dominio ya tenía `mark_geocoded`. Con coordenadas, la ruta
+        # del repartidor deja de depender de que alguien interprete el texto.
+        _servicio = getattr(presenter, "address_search_service", None)
+        self.address = AddressInput(
+            self.address_group,
+            search_service=_servicio() if callable(_servicio) else None,
+            with_references=True)
+        for etiqueta, campo in (("Recibe:", self.recipient_name),
+                                ("Teléfono:", self.recipient_phone),
+                                ("Dirección:", self.address)):
             direccion.addRow(etiqueta, campo)
         self.add_content(self.address_group)
 
@@ -115,6 +138,28 @@ class NewOrderPage(FormPage):
     # captura -------------------------------------------------------------------------
     def _select_product(self, option) -> None:
         self._selected_product_id = option.id if option is not None else None
+
+    def _select_customer(self, option) -> None:
+        if option is None:
+            return
+        self._customer_id = option.id
+        self.customer.set_selected_label(option.label)
+        self.customer_label.setText(
+            f"Cliente: {option.label}. Se cobra con sus listas de precio.")
+        self.clear_customer_button.setEnabled(True)
+        # El contacto se propone desde el cliente sólo si aún está vacío.
+        elegido = self._presenter.customer(option.id)
+        if elegido is not None:
+            if not self.contact_name.text().strip():
+                self.contact_name.setText(elegido.display_name or "")
+            if not self.contact_phone.value().strip() and elegido.phone_e164:
+                self.contact_phone.set_value(elegido.phone_e164)
+
+    def clear_customer(self) -> None:
+        self._customer_id = None
+        self.customer.clear()
+        self.customer_label.setText("Sin cliente registrado: precio de lista del canal.")
+        self.clear_customer_button.setEnabled(False)
 
     def _sync_address(self) -> None:
         self.address_group.setVisible(
@@ -154,20 +199,29 @@ class NewOrderPage(FormPage):
             "fulfillment_type": self.fulfillment.current_id(),
             "contact_name": self.contact_name.text().strip() or None,
             "contact_phone": self.contact_phone.value().strip() or None,
+            "customer_id": self._customer_id,
             "lines": [{"product_id": pid, "quantity": str(cantidad)}
                       for pid, cantidad in self._lines],
             "address": None,
         }
         if self._presenter.requires_address(datos["fulfillment_type"]):
+            d = self.address.value()
             datos["address"] = {
                 "recipient_name": self.recipient_name.text().strip(),
                 "recipient_phone": self.recipient_phone.value().strip(),
-                "street": self.street.text().strip(),
-                "exterior_number": self.exterior_number.text().strip(),
-                "interior_number": self.interior_number.text().strip() or None,
-                "neighborhood": self.neighborhood.text().strip() or None,
-                "postal_code": self.postal_code.text().strip(),
-                "references": self.references.text().strip() or None,
+                "street": d.street,
+                "exterior_number": d.exterior_number,
+                "interior_number": d.interior_number or None,
+                "neighborhood": d.neighborhood or None,
+                "postal_code": d.postal_code,
+                "municipality": d.municipality or None,
+                "state": d.state or None,
+                "references": d.references or None,
+                # Sólo coordenadas que vengan de un proveedor: si se corrigió a
+                # mano lo que ubica la dirección, el componente ya las descartó.
+                "latitude": d.latitude if d.is_geocoded else None,
+                "longitude": d.longitude if d.is_geocoded else None,
+                "address_source": d.source.value,
             }
         return datos
 
@@ -186,9 +240,10 @@ class NewOrderPage(FormPage):
         self._refresh_lines()
         self._selected_product_id = None
         self.product.clear()
-        for campo in (self.contact_name, self.recipient_name, self.street, self.exterior_number,
-                      self.interior_number, self.neighborhood, self.postal_code, self.references):
+        for campo in (self.contact_name, self.recipient_name):
             campo.clear()
+        self.clear_customer()
+        self.address.clear()
 
     def _show(self, ok: bool, mensaje: str) -> None:
         self.notice.setProperty("state", "SUCCESS" if ok else "ERROR")

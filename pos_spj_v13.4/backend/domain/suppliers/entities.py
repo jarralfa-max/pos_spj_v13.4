@@ -149,11 +149,20 @@ class Supplier:
         self._touch()
 
     def activate(self) -> None:
-        """Re-activate a suspended supplier (not a rejected one)."""
+        """Reactivar un proveedor suspendido, bloqueado o dado de baja.
+
+        INACTIVE se admite a propósito: la baja operativa conserva historial y
+        el ciclo comercial real contempla reactivar a un proveedor con el que
+        se vuelve a trabajar. Antes quedaba fuera, así que un proveedor dado de
+        baja no tenía NINGUNA vuelta atrás salvo crear otro registro —
+        duplicando el historial que `deactivate()` existe para preservar.
+        Un RECHAZADO sigue exigiendo un alta nueva.
+        """
         if self.status is SupplierStatus.REJECTED:
             raise RejectedSupplierReactivationError(
                 "Un proveedor rechazado requiere un nuevo workflow de alta")
-        if self.status not in (SupplierStatus.SUSPENDED, SupplierStatus.BLOCKED):
+        if self.status not in (SupplierStatus.SUSPENDED, SupplierStatus.BLOCKED,
+                               SupplierStatus.INACTIVE):
             raise InvalidSupplierStateError(
                 f"No se puede activar desde {self.status.value}")
         # only clear a general block on activation; process blocks are explicit
@@ -170,11 +179,18 @@ class Supplier:
         self.status = SupplierStatus.SUSPENDED
         self._touch()
 
-    def deactivate(self) -> None:
-        """Operational shutdown that preserves history (never a physical delete)."""
+    def deactivate(self, reason: str = "") -> None:
+        """Baja operativa que conserva historial (nunca un borrado físico).
+
+        El motivo queda en las notas, igual que hace `reject()`: una baja sin
+        causa registrada es indistinguible de un error de captura cuando
+        alguien la revisa meses después.
+        """
         if self.status is SupplierStatus.DRAFT:
             raise InvalidSupplierStateError("Un borrador no se da de baja; se descarta")
         self.status = SupplierStatus.INACTIVE
+        if reason:
+            self.notes = (self.notes + f"\n[Baja] {reason}").strip()
         self._touch()
 
     # blocks ------------------------------------------------------------------
@@ -230,6 +246,11 @@ class SupplierContact:
     contact_type: ContactType
     role: str = ""
     phone_e164: str | None = None
+    #: WhatsApp como campo PROPIO, no como el teléfono reutilizado: en la
+    #: práctica son números distintos (fijo de oficina vs. móvil del contacto),
+    #: y el canal de WhatsApp es el que de verdad se usa para pedidos y avisos.
+    #: E.164, igual que `phone_e164` — lo captura un `PhoneInput`.
+    whatsapp_e164: str | None = None
     email: str | None = None
     is_primary: bool = False
     receives_purchase_orders: bool = False

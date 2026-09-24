@@ -141,9 +141,12 @@ def test_creating_a_home_delivery_saves_it_and_resets_the_form(app, conn, catalo
     _elegir(pagina, "Refresco")
     pagina.quantity.setText("2")
     pagina.add_selected_product()
-    for campo, valor in ((pagina.recipient_name, "Ana"), (pagina.street, "Reforma"),
-                         (pagina.exterior_number, "100"), (pagina.postal_code, "06000")):
-        campo.setText(valor)
+    # La dirección se captura con el componente estándar (`AddressInput`); sus
+    # campos son también la captura manual.
+    pagina.recipient_name.setText("Ana")
+    for campo, valor in (("street", "Reforma"), ("exterior_number", "100"),
+                         ("postal_code", "06000")):
+        pagina.address.field(campo).setText(valor)
     pagina.recipient_phone.setText("5555555555")
 
     pagina.create_order()
@@ -154,3 +157,152 @@ def test_creating_a_home_delivery_saves_it_and_resets_the_form(app, conn, catalo
     pedido = CustomerOrderRepository(conn).get(fila[0])
     assert (pedido.totals.subtotal, pedido.delivery_fee) == (Decimal("50"), Decimal("35"))
     assert pedido.delivery_address_id is not None
+    # Capturada a mano: el dominio la marca MANUAL (estado terminal legítimo),
+    # no la deja "pendiente de geocodificar" para siempre.
+    estado = conn.execute("SELECT geocoding_status, latitude FROM order_addresses"
+                          " WHERE id=?", (pedido.delivery_address_id,)).fetchone()
+    assert (estado[0], estado[1]) == ("MANUAL", None)
+    # Y el formulario queda limpio para el siguiente pedido.
+    assert pagina.address.value().is_empty
+
+
+def test_a_geocoded_address_reaches_the_order_with_its_coordinates(app, conn, catalogo):
+    """EL HUECO: `OrderAddress` guardaba coordenadas y el dominio tenía
+    `mark_geocoded`, pero el caso de uso las tiraba — todo pedido con entrega
+    nacía sin ubicación. Aquí la dirección viene del buscador."""
+    from backend.application.addresses import AddressSource, StructuredAddress
+
+    _zona(conn, "06000", costo="35")
+    catalogo.producto("Refresco", precio="25")
+    pagina = _pagina(conn)
+    pagina.channel.set_current_id("WHATSAPP")
+    pagina.fulfillment.set_current_id("HOME_DELIVERY")
+    _elegir(pagina, "Refresco")
+    pagina.quantity.setText("1")
+    pagina.add_selected_product()
+    pagina.recipient_name.setText("Ana")
+    pagina.recipient_phone.setText("5555555555")
+    pagina.address.set_value(StructuredAddress(
+        street="Paseo de la Reforma", exterior_number="100", postal_code="06000",
+        municipality="Cuauhtémoc", state="Ciudad de México",
+        latitude=19.4326, longitude=-99.1332, source=AddressSource.MAPBOX))
+
+    pagina.create_order()
+
+    assert pagina.notice.property("state") == "SUCCESS", pagina.notice.text()
+    [fila] = conn.execute("SELECT delivery_address_id FROM customer_orders").fetchall()
+    guardada = conn.execute(
+        "SELECT geocoding_status, latitude, longitude, municipality FROM order_addresses"
+        " WHERE id=?", (fila[0],)).fetchone()
+    assert tuple(guardada) == ("GEOCODED", 19.4326, -99.1332, "Cuauhtémoc")
+
+
+# -- cliente del pedido (Fase 5, 2026-09-18) --------------------------------------
+class _BusquedaClientes:
+    """Doble de `CustomerLookupQueryService`: mismo contrato `lookup()`."""
+
+    def __init__(self, resultados=(), *, denegar=False):
+        self.resultados = list(resultados)
+        self.denegar = denegar
+
+    def lookup(self, query, *, actor_user_id, limit=20):
+        if self.denegar:
+            from backend.domain.customers.exceptions import CustomerPermissionDeniedError
+            raise CustomerPermissionDeniedError("sin permiso")
+        return [r for r in self.resultados if query.lower() in r.display_name.lower()]
+
+
+def _cliente(nombre="Carnicería Doña Ana", telefono="+525555555555"):
+    from backend.application.customers.queries.customer_lookup_query_service import (
+        CustomerLookupResult,
+    )
+    from backend.shared.ids import new_uuid
+    return CustomerLookupResult(customer_id=new_uuid(), code="C-1", display_name=nombre,
+                                legal_name=nombre, status="ACTIVE", phone_e164=telefono,
+                                email=None)
+
+
+def _pagina_con_clientes(conn, busqueda):
+    from frontend.desktop.modules.orders_delivery.orders_delivery_routes import build_page
+
+    politica = OrdersDeliveryAuthorizationPolicy(
+        OrdersDeliverySessionPermissionChecker(_Sesion(ALL_ORDERS_DELIVERY_PERMISSIONS)))
+    return build_page("orders_new", conn, branch_id=SUCURSAL, actor_user_id=USUARIO,
+                      authorization=politica, customer_lookup=busqueda)
+
+
+def test_the_order_is_created_for_the_chosen_customer_at_their_price(app, conn, catalogo):
+    """Antes el pedido nacía SIEMPRE sin cliente: sus listas de precio nunca
+    aplicaban en Delivery aunque el mostrador sí las cobraba."""
+    from backend.domain.pricing.entities.price_list import PriceList
+    from backend.domain.pricing.entities.product_price import ProductPrice
+    from backend.domain.pricing.enums import PriceListKind
+    from backend.domain.pricing.value_objects.money import Money
+    from backend.infrastructure.db.repositories.pricing.pricing_repository import (
+        PricingRepository,
+    )
+
+    refresco = catalogo.producto("Refresco", precio="25")
+    ana = _cliente()
+    mayoreo = PriceList(code="MAYOREO", name="Mayoreo", kind=PriceListKind.CUSTOMER)
+    mayoreo.submit()
+    mayoreo.approve(approved_by_user_id="mgr")
+    mayoreo.activate()
+    repo = PricingRepository(conn)
+    repo.save_list(mayoreo)
+    repo.save_price(ProductPrice(price_list_id=mayoreo.id, product_id=refresco,
+                                 sale_price=Money(Decimal("20"))))
+    repo.assign_customer_list(ana.customer_id, mayoreo.id)
+    conn.commit()
+
+    pagina = _pagina_con_clientes(conn, _BusquedaClientes([ana]))
+    pagina.channel.set_current_id("POS")
+    pagina.fulfillment.set_current_id("COUNTER")
+    [opcion] = pagina._presenter.search_customers("doña")
+    pagina.customer.selected.emit(opcion)
+
+    # El contacto se propone desde el cliente.
+    assert pagina.contact_name.text() == "Carnicería Doña Ana"
+    assert pagina.data()["customer_id"] == ana.customer_id
+
+    _elegir(pagina, "Refresco")
+    pagina.quantity.setText("2")
+    pagina.add_selected_product()
+    pagina.create_order()
+
+    assert pagina.notice.property("state") == "SUCCESS", pagina.notice.text()
+    [fila] = conn.execute("SELECT id FROM customer_orders").fetchall()
+    pedido = CustomerOrderRepository(conn).get(fila[0])
+    assert pedido.customer_id == ana.customer_id
+    assert pedido.lines[0].unit_price_snapshot == Decimal("20")
+    # El formulario queda sin cliente para el siguiente pedido.
+    assert pagina.data()["customer_id"] is None
+
+
+def test_the_customer_is_optional_and_can_be_removed(app, conn):
+    ana = _cliente()
+    pagina = _pagina_con_clientes(conn, _BusquedaClientes([ana]))
+    [opcion] = pagina._presenter.search_customers("ana")
+    pagina.customer.selected.emit(opcion)
+
+    pagina.clear_customer()
+
+    assert pagina.data()["customer_id"] is None
+    assert pagina.clear_customer_button.isEnabled() is False
+
+
+def test_without_search_permission_there_are_no_customers_and_it_says_why(app, conn):
+    pagina = _pagina_con_clientes(conn, _BusquedaClientes([_cliente()], denegar=True))
+
+    assert pagina._presenter.search_customers("ana") == []
+    assert "CLIENTES.buscar" in pagina._presenter.customer_search_reason("ana")
+
+
+def test_the_shell_builds_the_customer_search_with_the_session():
+    from backend.application.customers.queries.customer_lookup_query_service import (
+        CustomerLookupQueryService,
+    )
+    from frontend.desktop.modules.orders_delivery.shell_registration import _customer_lookup
+
+    assert _customer_lookup(None, object()) is None
+    assert isinstance(_customer_lookup(object(), object()), CustomerLookupQueryService)

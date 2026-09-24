@@ -41,11 +41,11 @@ class MobileOriginPurchaseWorkflow:
         ):
             placeholders = ",".join("?" for _ in statuses)
             rows.extend((doc_type, *row) for row in self._connection.execute(
-                f"SELECT d.id,d.{number},d.supplier_id,p.nombre,"
+                f"SELECT d.id,d.{number},d.supplier_id,p.legal_name,"
                 f" (SELECT COUNT(*) FROM {table[:-1]}_lines l WHERE l.{table[:-1]}_id=d.id)"
-                f" FROM {table} d JOIN proveedores p ON p.id=d.supplier_id"
+                f" FROM {table} d JOIN (SELECT id, legal_name FROM supplier_master) p ON p.id=d.supplier_id"
                 f" WHERE d.branch_id=? AND d.status IN ({placeholders})"
-                f" AND (d.{number} LIKE ? OR p.nombre LIKE ?) ORDER BY d.created_at DESC LIMIT 50",
+                f" AND (d.{number} LIKE ? OR p.legal_name LIKE ?) ORDER BY d.created_at DESC LIMIT 50",
                 (identity.branch_id, *statuses, like, like)))
         rows.extend(("PURCHASE_REQUISITION", *row) for row in self._connection.execute(
             "SELECT d.id,d.document_number,NULL,'Proveedor por confirmar',"

@@ -138,8 +138,8 @@ class OrderReadService(_Base):
         rows = self._query(
             "SELECT purchase_orders.id, document_number, supplier_id, branch_id, status, total,"
             " version, currency_code, purchase_orders.created_at,"
-            " COALESCE(p.nombre, '—') AS supplier_name FROM purchase_orders"
-            " LEFT JOIN proveedores p ON p.id = purchase_orders.supplier_id"
+            " COALESCE(p.legal_name, '—') AS supplier_name FROM purchase_orders"
+            " LEFT JOIN (SELECT id, legal_name FROM supplier_master) p ON p.id = purchase_orders.supplier_id"
             f"{where} ORDER BY purchase_orders.created_at DESC LIMIT ? OFFSET ?",
             (*params, limit, offset))
         return [OrderRowDTO(
@@ -151,8 +151,8 @@ class OrderReadService(_Base):
     def _supplier_name(self, supplier_id: str | None) -> str:
         if not supplier_id:
             return "—"
-        supplier = self._query_one("SELECT nombre FROM proveedores WHERE id=?", (supplier_id,))
-        return str(supplier["nombre"]) if supplier else "Proveedor no disponible"
+        supplier = self._query_one("SELECT legal_name FROM supplier_master WHERE id=?", (supplier_id,))
+        return str(supplier["legal_name"]) if supplier else "Proveedor no disponible"
 
     def detail(self, order_id: str) -> OrderDetailDTO | None:
         row = self._query_one("SELECT * FROM purchase_orders WHERE id=?", (order_id,))
@@ -200,14 +200,14 @@ class InvoiceReadService(_Base):
     def billable_documents(self, *, branch_id: str, search="", limit=50) -> list[dict]:
         like = f"%{search.strip()}%"
         return self._query(
-            "SELECT o.id,o.document_number,o.supplier_id,p.nombre,'PURCHASE_ORDER' document_type"
-            " FROM purchase_orders o JOIN proveedores p ON p.id=o.supplier_id"
+            "SELECT o.id,o.document_number,o.supplier_id,p.legal_name,'PURCHASE_ORDER' document_type"
+            " FROM purchase_orders o JOIN (SELECT id, legal_name FROM supplier_master) p ON p.id=o.supplier_id"
             " WHERE o.branch_id=? AND o.status IN ('PARTIALLY_RECEIVED','RECEIVED')"
-            " AND (o.document_number LIKE ? OR p.nombre LIKE ?) UNION ALL"
-            " SELECT d.id,d.document_number,d.supplier_id,p.nombre,'DIRECT_PURCHASE'"
-            " FROM direct_purchases d JOIN proveedores p ON p.id=d.supplier_id"
+            " AND (o.document_number LIKE ? OR p.legal_name LIKE ?) UNION ALL"
+            " SELECT d.id,d.document_number,d.supplier_id,p.legal_name,'DIRECT_PURCHASE'"
+            " FROM direct_purchases d JOIN (SELECT id, legal_name FROM supplier_master) p ON p.id=d.supplier_id"
             " WHERE d.branch_id=? AND d.status IN ('PARTIALLY_RECEIVED','RECEIVED')"
-            " AND (d.document_number LIKE ? OR p.nombre LIKE ?) LIMIT ?",
+            " AND (d.document_number LIKE ? OR p.legal_name LIKE ?) LIMIT ?",
             (branch_id, like, like, branch_id, like, like, limit))
 
     def billable_lines(self, document_type: str, document_id: str) -> list[dict]:
@@ -234,15 +234,15 @@ class InvoiceReadService(_Base):
         """Identify a billable document's type + supplier without the caller
         having to already know whether it's a PO or a direct purchase."""
         row = self._query_one(
-            "SELECT o.supplier_id, COALESCE(p.nombre,'—') AS supplier_name,"
+            "SELECT o.supplier_id, COALESCE(p.legal_name,'—') AS supplier_name,"
             " 'PURCHASE_ORDER' AS document_type FROM purchase_orders o"
-            " LEFT JOIN proveedores p ON p.id=o.supplier_id WHERE o.id=?", (document_id,))
+            " LEFT JOIN (SELECT id, legal_name FROM supplier_master) p ON p.id=o.supplier_id WHERE o.id=?", (document_id,))
         if row is not None:
             return row
         return self._query_one(
-            "SELECT d.supplier_id, COALESCE(p.nombre,'—') AS supplier_name,"
+            "SELECT d.supplier_id, COALESCE(p.legal_name,'—') AS supplier_name,"
             " 'DIRECT_PURCHASE' AS document_type FROM direct_purchases d"
-            " LEFT JOIN proveedores p ON p.id=d.supplier_id WHERE d.id=?", (document_id,))
+            " LEFT JOIN (SELECT id, legal_name FROM supplier_master) p ON p.id=d.supplier_id WHERE d.id=?", (document_id,))
 
     def count(self, *, status: str | None = None, search: str = "", branch_id=None,
               start_date=None, end_date=None) -> int:
@@ -264,9 +264,9 @@ class InvoiceReadService(_Base):
         rows = self._query(
             "SELECT supplier_invoices.id, document_number, supplier_id, invoice_number, total,"
             " currency_code, status, match_result, purchase_order_id,"
-            " supplier_invoices.created_at, COALESCE(p.nombre, '—') AS supplier_name"
+            " supplier_invoices.created_at, COALESCE(p.legal_name, '—') AS supplier_name"
             " FROM supplier_invoices"
-            " LEFT JOIN proveedores p ON p.id = supplier_invoices.supplier_id"
+            " LEFT JOIN (SELECT id, legal_name FROM supplier_master) p ON p.id = supplier_invoices.supplier_id"
             f"{where} ORDER BY supplier_invoices.created_at DESC LIMIT ? OFFSET ?",
             (*params, limit, offset))
         return [InvoiceRowDTO(
@@ -279,8 +279,8 @@ class InvoiceReadService(_Base):
     def _supplier_name(self, supplier_id: str | None) -> str:
         if not supplier_id:
             return "—"
-        supplier = self._query_one("SELECT nombre FROM proveedores WHERE id=?", (supplier_id,))
-        return str(supplier["nombre"]) if supplier else "Proveedor no disponible"
+        supplier = self._query_one("SELECT legal_name FROM supplier_master WHERE id=?", (supplier_id,))
+        return str(supplier["legal_name"]) if supplier else "Proveedor no disponible"
 
     def detail(self, invoice_id: str) -> InvoiceDetailDTO | None:
         row = self._query_one("SELECT * FROM supplier_invoices WHERE id=?", (invoice_id,))
@@ -334,9 +334,9 @@ class ReceiptReadService(_Base):
             " ORDER BY g.created_at DESC LIMIT ?", (branch_id, warehouse_id, limit))
         result = []
         for row in rows:
-            supplier = self._query_one("SELECT nombre FROM proveedores WHERE id=?",
+            supplier = self._query_one("SELECT legal_name FROM supplier_master WHERE id=?",
                                        (row["supplier_id"],))
-            supplier_name = supplier["nombre"] if supplier else "Proveedor no disponible"
+            supplier_name = supplier["legal_name"] if supplier else "Proveedor no disponible"
             result.append(ReceiptRowDTO(
                 id=row["id"], document_number=row["document_number"],
                 supplier_id=row["supplier_id"], supplier_name=supplier_name,

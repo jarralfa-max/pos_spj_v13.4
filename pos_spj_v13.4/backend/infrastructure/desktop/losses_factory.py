@@ -9,6 +9,9 @@ uno arme el suyo.
 from typing import Callable, Mapping, NamedTuple
 
 from backend.application.losses.authorization import LossAuthorizationPolicy
+from backend.application.security.session_branch_scope import (
+    assigned_branch_ids as _assigned_branches,
+)
 from backend.application.losses.execution_context import LossExecutionContext
 from backend.application.losses.register_general_loss import RegisterGeneralLossUseCase
 from backend.application.losses.loss_inventory_integration import LossInventoryIntegrationService
@@ -33,6 +36,9 @@ from backend.application.losses.analytics import LossAnalyticsQueryService
 from backend.application.transfers.integrations.outbound_handlers import TransferLossCaseRequestedHandler
 from backend.application.event_handlers.losses import ProductionCompletedLossHandler
 from backend.application.losses.session_authorization import LossSessionPermissionChecker
+from backend.application.products.queries.product_selection_query_service import (
+    SearchWasteEligibleProductsQueryService,
+)
 from backend.application.inventory.composition import InventoryUseCaseFactory
 from backend.infrastructure.integrations.losses_inventory_gateway import LossesInventoryGateway
 from backend.infrastructure.persistence.loss_inventory_repository import LossInventoryRepository
@@ -128,7 +134,7 @@ def build_losses_wiring(
             if isinstance(code, str))
         return LossExecutionContext(
             actor_user_id=actor, active_branch_id=branch,
-            assigned_branch_ids=frozenset({branch}),
+            assigned_branch_ids=_assigned_branches(session, branch),
             allowed_warehouse_ids=frozenset({warehouse_id}),
             permissions=permissions,
         )
@@ -137,6 +143,10 @@ def build_losses_wiring(
         LossRegistrationQueryRepository(connection),
         RegisterGeneralLossUseCase(LossRegistrationRepository(connection), authorization),
         context_provider,
+        # Búsqueda de productos por el contrato compartido, con el preset que
+        # Merma ya tenía declarado. Antes el repositorio la resolvía con SQL
+        # propio contra columnas inexistentes y reventaba en cada tecla.
+        SearchWasteEligibleProductsQueryService(connection),
     )
     inventory_factory = InventoryUseCaseFactory.from_session(session)
     inventory_gateway = LossesInventoryGateway(

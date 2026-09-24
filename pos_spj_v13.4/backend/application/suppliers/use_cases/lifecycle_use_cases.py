@@ -175,6 +175,24 @@ class SuspendSupplierUseCase(_TransitionUseCase):
         supplier.suspend(reason)
 
 
+class DeactivateSupplierUseCase(_TransitionUseCase):
+    """Baja operativa (ACTIVO/SUSPENDIDO/BLOQUEADO → INACTIVO).
+
+    `Supplier.deactivate()` existía en el dominio desde el principio, pero sin
+    caso de uso, sin evento y sin permiso: la transición a INACTIVO no era
+    alcanzable desde ninguna capa por encima de la entidad, así que dar de baja
+    a un proveedor simplemente no se podía. El motivo es obligatorio en la
+    práctica —queda en las notas— porque una baja sin causa es indistinguible
+    de un error de captura meses después.
+    """
+
+    permission = SupplierPermissions.DEACTIVATE
+    event_name = SupplierEvents.DEACTIVATED
+
+    def _apply(self, supplier, *, actor_user_id, reason):
+        supplier.deactivate(reason)
+
+
 class BlockSupplierUseCase(_BaseUseCase):
     def execute(self, connection, *, actor_user_id: str, supplier_id: str,
                 block_type: str, reason: str, operation_id: str,

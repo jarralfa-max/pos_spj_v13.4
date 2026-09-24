@@ -26,4 +26,9 @@ def build_page(page_id: str, presenter):
     if page_id == "pricing_history":
         from frontend.desktop.modules.pricing.pages.history_page import PriceHistoryPage
         return PriceHistoryPage(presenter)
+    if page_id == "pricing_settings":
+        from frontend.desktop.modules.pricing.pages.settings_page import (
+            PricingSettingsPage,
+        )
+        return PricingSettingsPage(presenter)
     return None

@@ -9,6 +9,7 @@ from datetime import time as time_type
 
 from PyQt5.QtWidgets import QCheckBox, QHBoxLayout, QWidget
 
+from frontend.desktop.components.address_input import AddressInput
 from frontend.desktop.components import (
     FormDialog,
     SearchableComboBox,
@@ -22,7 +23,7 @@ _DAYS = (("MON", "Lun"), ("TUE", "Mar"), ("WED", "Mié"), ("THU", "Jue"), ("FRI"
 
 
 class CompanyProfileDialog(FormDialog):
-    def __init__(self, parent=None, *, profile=None) -> None:
+    def __init__(self, parent=None, *, profile=None, address_search_service=None) -> None:
         super().__init__(parent, title="Empresa")
         self.legal_name = StandardLineEdit(self)
         self.legal_name.setAccessibleName("Razón social")
@@ -59,7 +60,9 @@ class CompanyProfileDialog(FormDialog):
         self.fiscal_regime_reference.setAccessibleName("Régimen fiscal")
         self.form.addRow("Régimen fiscal:", self.fiscal_regime_reference)
 
-        self.address = StandardLineEdit(self)
+        # Componente estándar de dirección (búsqueda con Mapbox/Nominatim y
+        # captura manual). Este módulo guarda UNA línea: se usa `one_line()`.
+        self.address = AddressInput(self, search_service=address_search_service)
         self.address.setAccessibleName("Dirección")
         self.form.addRow("Dirección:", self.address)
 
@@ -94,7 +97,7 @@ class CompanyProfileDialog(FormDialog):
             self.default_timezone.setText(profile.default_timezone)
             self.default_locale.setText(profile.default_locale)
             self.fiscal_regime_reference.setText(profile.fiscal_regime_reference or "")
-            self.address.setText(profile.address)
+            self.address.set_value(profile.address or "")
             self.phone.setText(profile.phone or "")
             self.email.setText(profile.email or "")
             self.website.setText(profile.website or "")
@@ -111,7 +114,7 @@ class CompanyProfileDialog(FormDialog):
             "default_timezone": self.default_timezone.text().strip(),
             "default_locale": self.default_locale.text().strip(),
             "fiscal_regime_reference": self.fiscal_regime_reference.text().strip(),
-            "address": self.address.text().strip(), "phone": self.phone.text().strip(),
+            "address": self.address.value().one_line(), "phone": self.phone.text().strip(),
             "email": self.email.text().strip(), "website": self.website.text().strip(),
             "logo_asset_id": self.logo_asset_id.text().strip(),
         }
@@ -196,7 +199,7 @@ class _BranchHoursFields:
 
 
 class BranchProfileCreateDialog(FormDialog, _BranchHoursFields):
-    def __init__(self, parent=None, *, branch_options=()) -> None:
+    def __init__(self, parent=None, *, branch_options=(), address_search_service=None) -> None:
         super().__init__(parent, title="Nueva sucursal")
         self.branch = SearchableComboBox(self, placeholder="Selecciona una sucursal…")
         self.branch.set_options([(o.entity_id, o.name) for o in branch_options])
@@ -215,7 +218,9 @@ class BranchProfileCreateDialog(FormDialog, _BranchHoursFields):
         self.name.setAccessibleName("Nombre")
         self.form.addRow("Nombre:", self.name)
 
-        self.address = StandardLineEdit(self)
+        # Componente estándar de dirección (búsqueda con Mapbox/Nominatim y
+        # captura manual). Este módulo guarda UNA línea: se usa `one_line()`.
+        self.address = AddressInput(self, search_service=address_search_service)
         self.address.setAccessibleName("Dirección")
         self.form.addRow("Dirección:", self.address)
 
@@ -246,7 +251,7 @@ class BranchProfileCreateDialog(FormDialog, _BranchHoursFields):
     def values(self) -> dict:
         return {
             "branch_id": self.branch.current_id(), "code": self.code.text().strip(),
-            "name": self.name.text().strip(), "address": self.address.text().strip(),
+            "name": self.name.text().strip(), "address": self.address.value().one_line(),
             "phone": self.phone.text().strip(), "timezone": self.timezone.text().strip(),
             "locale": self.locale.text().strip(), **self._hours_values(),
             "ticket_header": self.ticket_header.toPlainText().strip(),
@@ -255,13 +260,15 @@ class BranchProfileCreateDialog(FormDialog, _BranchHoursFields):
 
 
 class BranchProfileEditDialog(FormDialog, _BranchHoursFields):
-    def __init__(self, parent=None, *, profile=None) -> None:
+    def __init__(self, parent=None, *, profile=None, address_search_service=None) -> None:
         super().__init__(parent, title="Editar sucursal")
         self.name = StandardLineEdit(self)
         self.name.setAccessibleName("Nombre")
         self.form.addRow("Nombre:", self.name)
 
-        self.address = StandardLineEdit(self)
+        # Componente estándar de dirección (búsqueda con Mapbox/Nominatim y
+        # captura manual). Este módulo guarda UNA línea: se usa `one_line()`.
+        self.address = AddressInput(self, search_service=address_search_service)
         self.address.setAccessibleName("Dirección")
         self.form.addRow("Dirección:", self.address)
 
@@ -289,7 +296,7 @@ class BranchProfileEditDialog(FormDialog, _BranchHoursFields):
 
         if profile is not None:
             self.name.setText(profile.name)
-            self.address.setText(profile.address)
+            self.address.set_value(profile.address or "")
             self.phone.setText(profile.phone or "")
             self.timezone.setText(profile.timezone)
             self.locale.setText(profile.locale)
@@ -304,7 +311,7 @@ class BranchProfileEditDialog(FormDialog, _BranchHoursFields):
 
     def values(self) -> dict:
         return {
-            "name": self.name.text().strip(), "address": self.address.text().strip(),
+            "name": self.name.text().strip(), "address": self.address.value().one_line(),
             "phone": self.phone.text().strip(), "timezone": self.timezone.text().strip(),
             "locale": self.locale.text().strip(), **self._hours_values(),
             "ticket_header": self.ticket_header.toPlainText().strip(),

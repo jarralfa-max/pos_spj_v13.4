@@ -9,6 +9,11 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
+from backend.application.suppliers.queries.supplier_search_query_service import (
+    EmptySupplierReason,
+    SupplierDirectorySearchQueryService,
+    SupplierSearchQuery,
+)
 from backend.application.suppliers.dto.supplier_dtos import (
     SupplierDashboardDTO,
     SupplierRiskDTO,
@@ -38,45 +43,53 @@ class _Base:
 
 
 class SearchSuppliersQueryService(_Base):
+    """Búsqueda del módulo de Proveedores — delega en el contrato único.
+
+    Tenía su propio SQL, distinto del de Compras. Ahora no tiene ninguno: la
+    consulta la construye `SupplierDirectorySearchQueryService`, el mismo
+    constructor que usa Compras, con la única diferencia de que aquí NO hay
+    preset — este módulo existe para ver también borradores, pendientes de
+    aprobación, suspendidos y dados de baja.
+
+    De paso se corrige un fallo que traía: comparaba `normalized_name` contra el
+    texto en crudo (`LIKE '%carnes del%'`), pero el maestro lo guarda sin
+    espacios ni acentos (`carnesdelnortesa`), así que esa rama **no acertaba
+    nunca** en cuanto el término tenía un espacio o un punto. Sólo funcionaba
+    por `legal_name`.
+
+    Sigue devolviendo diccionarios porque el presentador y sus pruebas los
+    consumen así; es la misma consulta por dentro, no una segunda ruta.
+    """
+
+    def __init__(self, connection: Any) -> None:
+        super().__init__(connection)
+        self._search = SupplierDirectorySearchQueryService(connection)
+
     def search(self, *, query: str = "", status: str | None = None,
                category: str | None = None, risk_level: str | None = None,
                rating: str | None = None, limit: int = 50, offset: int = 0) -> list[dict]:
-        conditions, params = ["1=1"], []
-        if query:
-            conditions.append("(m.supplier_code LIKE ? OR m.legal_name LIKE ?"
-                              " OR m.trade_name LIKE ? OR m.tax_identifier LIKE ?"
-                              " OR m.normalized_name LIKE ?)")
-            like = f"%{query}%"
-            params += [like, like, like, like, f"%{query.lower()}%"]
-        if status:
-            conditions.append("m.status=?"); params.append(status)
-        if risk_level:
-            conditions.append("m.risk_level=?"); params.append(risk_level)
-        if rating:
-            conditions.append("m.rating_grade=?"); params.append(rating)
-        if category:
-            conditions.append(
-                "EXISTS (SELECT 1 FROM supplier_category_links l"
-                " WHERE l.supplier_id=m.id AND l.category_code=?)")
-            params.append(category)
-        params += [limit, offset]
-        return self._query(
-            "SELECT m.id, m.supplier_code, m.legal_name, m.trade_name, m.tax_identifier,"
-            " m.status, m.rating_grade, m.risk_level"
-            " FROM supplier_master m"
-            f" WHERE {' AND '.join(conditions)}"
-            " ORDER BY m.legal_name LIMIT ? OFFSET ?", tuple(params))
+        tamano = max(int(limit), 1)
+        encontrados = self._search.search(SupplierSearchQuery(
+            text=query or None, status=status, category=category,
+            risk_level=risk_level, rating=rating,
+            page=(int(offset) // tamano) + 1, page_size=tamano))
+        return [{"id": s.supplier_id, "supplier_code": s.supplier_code,
+                 "legal_name": s.legal_name, "trade_name": s.trade_name,
+                 "tax_identifier": s.tax_identifier, "status": s.status,
+                 "rating_grade": s.rating_grade, "risk_level": s.risk_level,
+                 "purchasing_blocked": s.purchasing_blocked}
+                for s in encontrados]
 
     def count(self, *, query: str = "", status: str | None = None) -> int:
-        conditions, params = ["1=1"], []
-        if query:
-            conditions.append("(supplier_code LIKE ? OR normalized_name LIKE ?)")
-            params += [f"%{query}%", f"%{query.lower()}%"]
-        if status:
-            conditions.append("status=?"); params.append(status)
-        return int(self._scalar(
-            f"SELECT COUNT(*) FROM supplier_master WHERE {' AND '.join(conditions)}",
-            tuple(params)))
+        return self._search.count(
+            SupplierSearchQuery(text=query or None, status=status))
+
+    def explain_empty(self, *, query: str = "", status: str | None = None
+                      ) -> EmptySupplierReason | None:
+        """Por qué el listado salió vacío. Antes la pantalla no podía
+        distinguir "no hay proveedores" de "ninguno coincide"."""
+        return self._search.explain_empty(
+            SupplierSearchQuery(text=query or None, status=status))
 
 
 class SupplierDetailQueryService(_Base):
@@ -102,8 +115,43 @@ class SupplierDetailQueryService(_Base):
 
     def contacts(self, supplier_id: str) -> list[dict]:
         return self._query(
-            "SELECT id, name, contact_type, role, phone_e164, email, is_primary, active"
+            "SELECT id, name, contact_type, role, phone_e164, whatsapp_e164, email,"
+            " is_primary, active"
             " FROM supplier_contacts WHERE supplier_id=? ORDER BY is_primary DESC", (supplier_id,))
+
+    def commercial_terms(self, supplier_id: str) -> dict | None:
+        """Condiciones comerciales vigentes.
+
+        NO existía: `UpdateSupplierCommercialTermsUseCase` guardaba y la pestaña
+        "Condiciones" de la ficha mostraba un texto FIJO ("Edita las condiciones
+        con el botón inferior"). Se capturaban y no se volvían a ver — el mismo
+        patrón que tenían los domicilios.
+        """
+        rows = self._query(
+            "SELECT credit_days, credit_limit, currency_code, is_credit,"
+            " preferred_payment_method, advance_required, advance_percentage,"
+            " lead_time_days, receiving_window_start, receiving_window_end"
+            " FROM supplier_commercial_terms WHERE supplier_id=?", (supplier_id,))
+        return rows[0] if rows else None
+
+    def addresses(self, supplier_id: str) -> list[dict]:
+        """Direcciones del proveedor.
+
+        NO existía, y su ausencia era asimétrica: el encabezado ya las CONTABA
+        (`COUNT(*) FROM supplier_addresses`) y el repositorio sabe leerlas
+        (`SupplierAddressRepository.list_by_supplier`), pero el servicio que
+        alimenta la ficha no las exponía. El efecto real es que una dirección se
+        podía guardar —`AddSupplierAddressUseCase` funciona desde el principio—
+        y no se podía volver a ver NUNCA.
+
+        `country_code` y `validation_state` se proyectan aunque la tabla de la
+        ficha no los pinte hoy: son parte del domicilio y pedirlos después
+        obligaría a tocar otra vez esta consulta.
+        """
+        return self._query(
+            "SELECT id, address_type, line, city, state, postal_code, country_code,"
+            " validation_state FROM supplier_addresses WHERE supplier_id=?"
+            " ORDER BY address_type", (supplier_id,))
 
     def bank_accounts(self, supplier_id: str, *, can_view_full: bool = False) -> list[dict]:
         rows = self._query(

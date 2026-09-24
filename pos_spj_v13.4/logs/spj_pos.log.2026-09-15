@@ -1,0 +1,12 @@
+2026-09-15 11:03:22,377 SPJ.Boot INFO =======================================================
+2026-09-15 11:03:22,558 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-15 11:03:22,758 SPJ.Boot INFO =======================================================
+2026-09-15 11:03:43,047 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-15 11:03:48,643 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-15 11:03:48,651 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-15 11:03:55,806 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-09-15 11:03:55,879 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-09-15 11:03:58,552 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-09-15 11:03:58,566 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-09-15 11:03:58,568 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-09-15 11:06:27,189 SPJ.Boot INFO Sesión iniciada: Administrador Maestro en Principal.

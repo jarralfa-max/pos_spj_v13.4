@@ -26,6 +26,14 @@ def _normalize_theme(theme) -> str:
     return value if value in VALID_THEMES else "light"
 
 
+def _current_application():
+    """Use the running GUI without creating one during non-GUI startup/tests."""
+    from PyQt5.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    return app if isinstance(app, QApplication) else None
+
+
 class ThemeManager(QObject):
     theme_changed = pyqtSignal(str)
     density_changed = pyqtSignal(str)
@@ -114,6 +122,8 @@ class ThemeManager(QObject):
             self.density_changed.emit(self._density)
 
     def set_theme(self, theme: str, *, app=None) -> None:
+        if app is None:
+            app = _current_application()
         if app is not None:
             self.apply(app, theme)
             return
@@ -133,6 +143,8 @@ class ThemeManager(QObject):
                 pass
 
     def set_density(self, density, *, app=None) -> None:
+        if app is None:
+            app = _current_application()
         if app is not None:
             self.apply(app, density=density)
             return

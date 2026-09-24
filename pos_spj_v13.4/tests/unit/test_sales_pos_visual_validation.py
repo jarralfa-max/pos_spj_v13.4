@@ -162,10 +162,12 @@ class TestKeyboardValidation:
     real `QShortcut` anywhere, `sales_pos_visual_contract.md` §4.1), these
     are real bindings wired to the exact same handlers the buttons trigger."""
 
-    def test_seven_real_shortcuts_are_registered(self, app):
+    def test_the_real_shortcuts_are_registered(self, app):
+        # F5 (descuento) se agregó en la Fase 5 (2026-09-18): el descuento no
+        # tenía ni botón ni atajo.
         workspace = _build(app)
         keys = {sc.key().toString() for sc in workspace._shortcuts}
-        assert keys == {"F6", "F7", "F8", "F9", "F10", "F11", "F12"}
+        assert keys == {"F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"}
         workspace.close()
 
     def test_f9_key_event_triggers_the_same_handler_as_clicking_cobrar(self, app, monkeypatch):

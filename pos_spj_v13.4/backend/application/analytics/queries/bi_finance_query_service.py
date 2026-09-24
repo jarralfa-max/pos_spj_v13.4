@@ -59,8 +59,8 @@ class BiFinanceQueryService:
     def top_suppliers(self, f, limit: int = 10) -> list[dict]:
         try:
             rows = self._conn.execute(
-                "SELECT COALESCE(pr.nombre,'—') n, COALESCE(SUM(c.total),0) t "
-                "FROM compras c LEFT JOIN proveedores pr ON pr.id=c.proveedor_id "
+                "SELECT COALESCE(pr.legal_name,'—') n, COALESCE(SUM(c.total),0) t "
+                "FROM compras c LEFT JOIN (SELECT id, legal_name FROM supplier_master) pr ON pr.id=c.proveedor_id "
                 "WHERE c.estado != 'cancelada' AND DATE(c.fecha) BETWEEN ? AND ? "
                 "GROUP BY c.proveedor_id ORDER BY t DESC LIMIT ?",
                 [f.date_from, f.date_to, limit]).fetchall()

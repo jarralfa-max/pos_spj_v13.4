@@ -26,9 +26,27 @@ class _Checker:
 
 
 class TestPermissionCatalog:
-    def test_no_coarse_precios_permission(self):
-        assert "PRECIOS" not in ALL_PRICING_PERMISSIONS
-        assert all(c.startswith("PRICING_") for c in ALL_PRICING_PERMISSIONS)
+    def test_codigos_punteados_otorgables(self):
+        """Antes este test fijaba lo contrario (`all(c.startswith("PRICING_"))`)
+        y con ello mantenía a Precios fuera del catálogo: sus acciones no eran
+        otorgables desde Configuración → Seguridad → Permisos, así que el módulo
+        quedaba de facto reservado al administrador. Migrado a `PRECIOS.<accion>`
+        el 2026-09-16 por decisión explícita del usuario."""
+        assert all(c.startswith("PRECIOS.") for c in ALL_PRICING_PERMISSIONS)
+        assert PricingPermissions.VIEW == "PRECIOS.ver"
+
+    def test_publicado_en_el_catalogo_canonico(self):
+        from backend.application.security.permission_catalog import (
+            CANONICAL_MODULE_PERMISSIONS,
+        )
+        acciones = set(CANONICAL_MODULE_PERMISSIONS["PRECIOS"])
+        for esperada in ("ver", "lista.aprobar", "lista.activar", "precio.editar",
+                         "costo.ver"):
+            assert esperada in acciones
+
+    def test_ya_no_figura_como_contexto_de_codigos_planos(self):
+        from backend.application.security.permission_catalog import FLAT_CODE_CONTEXTS
+        assert "backend.application.pricing.permissions" not in FLAT_CODE_CONTEXTS
 
     def test_key_codes_present(self):
         for c in (PricingPermissions.VIEW_COST, PricingPermissions.PRICE_MIN_OVERRIDE,

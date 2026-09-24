@@ -28,6 +28,7 @@ from backend.infrastructure.db.schema.pricing_schema import create_pricing_schem
 from backend.infrastructure.db.schema.products_schema import create_products_schema
 from backend.infrastructure.db.schema.sales_schema import create_sales_schema
 from backend.shared.ids import new_uuid
+from tests.integration._pos_ready import open_cash_shift, stock_product
 from frontend.desktop.modules.sales_pos.composition import build_sales_pos_presenter, create_sales_pos_view
 
 
@@ -43,7 +44,18 @@ class _FakeSession:
 
 
 def _all_permissions_session() -> _FakeSession:
-    return _FakeSession({v for v in vars(SalesPermissions).values() if isinstance(v, str)})
+    return _FakeSession({v for v in vars(SalesPermissions).values() if isinstance(v, str)}
+                        | {"INVENTARIO.reserva.crear", "INVENTARIO.reserva.liberar",
+                           "INVENTARIO.reserva.ver"})
+
+
+def _ready(conn, session) -> str:
+    """Fase 6: turno de caja abierto y un producto con existencia. Devuelve
+    el producto."""
+    open_cash_shift(conn, branch_id=session.active_branch_id, cashier_user_id=session.user_id)
+    product_id = new_uuid()
+    stock_product(conn, product_id=product_id, branch_id=session.active_branch_id, quantity="10")
+    return product_id
 
 
 @pytest.fixture
@@ -68,6 +80,7 @@ class TestPresenterCheckoutFlow:
 
     def test_single_cash_payment_completes_the_sale(self, conn):
         session = _all_permissions_session()
+        producto = _ready(conn, session)
         presenter = build_sales_pos_presenter(conn, session_context=session)
 
         start = presenter.start_sale()
@@ -75,7 +88,7 @@ class TestPresenterCheckoutFlow:
         sale_id = start.entity_id
 
         add = presenter.add_line(
-            sale_id=sale_id, product_id=new_uuid(), quantity=Decimal("1"),
+            sale_id=sale_id, product_id=producto, quantity=Decimal("1"),
             unit_price=Decimal("150.00"), product_snapshot={"name": "Producto"})
         assert add.success, add.message
 
@@ -97,11 +110,12 @@ class TestPresenterCheckoutFlow:
         methods is what makes `Sale.is_mixed_payment` true, exactly what
         `PaymentDialog` relies on by letting the cashier add two lines."""
         session = _all_permissions_session()
+        producto = _ready(conn, session)
         presenter = build_sales_pos_presenter(conn, session_context=session)
 
         sale_id = presenter.start_sale().entity_id
         presenter.add_line(
-            sale_id=sale_id, product_id=new_uuid(), quantity=Decimal("1"),
+            sale_id=sale_id, product_id=producto, quantity=Decimal("1"),
             unit_price=Decimal("200.00"), product_snapshot={"name": "Producto"})
         presenter.begin_checkout(sale_id=sale_id)
 
@@ -123,11 +137,12 @@ class TestPresenterCheckoutFlow:
         reaching a real cashier silently: clicking Cobrar with nothing
         recorded must fail with a real, readable error, not a crash."""
         session = _all_permissions_session()
+        producto = _ready(conn, session)
         presenter = build_sales_pos_presenter(conn, session_context=session)
 
         sale_id = presenter.start_sale().entity_id
         presenter.add_line(
-            sale_id=sale_id, product_id=new_uuid(), quantity=Decimal("1"),
+            sale_id=sale_id, product_id=producto, quantity=Decimal("1"),
             unit_price=Decimal("50.00"), product_snapshot={"name": "Producto"})
         presenter.begin_checkout(sale_id=sale_id)
 

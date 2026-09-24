@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from PyQt5.QtCore import QEvent, QPoint, QRect, QSettings
 from PyQt5.QtGui import QFontDatabase
+from PyQt5.QtTest import QTest
 from PyQt5.QtWidgets import QApplication, QPushButton
 
 from frontend.desktop.components.page_viewport import PageViewport
@@ -24,6 +25,7 @@ from frontend.desktop.shell.sidebar.global_sidebar import GlobalSidebar
 from frontend.desktop.shell.sidebar.sidebar_item_view_model import SidebarItemViewModel
 from frontend.desktop.themes.tokens import ResponsiveBreakpoints
 from tests.ui.shell.conftest import make_context
+from tests.ui.test_standard_window_geometry import DesktopScreen
 
 
 @pytest.fixture(scope="module")
@@ -34,6 +36,7 @@ def app():
 def settle(app):
     for _ in range(4):
         app.processEvents()
+    QTest.qWait(10)
 
 
 def save(window, directory, name):
@@ -46,7 +49,7 @@ def save(window, directory, name):
 @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
 @pytest.mark.parametrize("theme", ["light", "dark"])
 @pytest.mark.parametrize("density", ["comfortable", "touch"])
-def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, density):
+def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, monkeypatch, size, theme, density):
     assert QFontDatabase().families(), "Visual evidence requires real fonts"
     gallery = build_gallery(theme, density)
     registry = RouteRegistry()
@@ -60,13 +63,15 @@ def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, 
     sidebar = GlobalSidebar(settings=settings, settings_key="visual")
     sidebar.set_items((SidebarItemViewModel("gallery", "gallery", "Componentes", "settings", "", 0, None, True),))
     window = ApplicationWindow(router=router, sidebar=sidebar)
+    screen = DesktopScreen(QRect(0, 0, *size))
+    monkeypatch.setattr(window, "screen", lambda: screen)
     window.navigate("gallery")
     window.show()
-    # Resize after show to emulate each viewport independently of the actual
-    # offscreen plugin's synthetic monitor; dialog screen bounds have own tests.
+    # Model the available desktop instead of exceeding offscreen's 800x600
+    # screen; the native frame is part of the requested resolution.
     window.resize(*size)
     settle(app)
-    assert (window.width(), window.height()) == size
+    assert screen.availableGeometry().contains(window.frameGeometry())
     for button in window.top_bar.findChildren(QPushButton):
         if button.isVisible():
             assert window.rect().contains(QRect(button.mapTo(window, QPoint()), button.size())), button.accessibleName()

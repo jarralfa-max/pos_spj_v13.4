@@ -1,0 +1,185 @@
+[
+  {
+    "file": "app_icon.png",
+    "size": [
+      4096,
+      4096
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "visible_pixels": 3088319,
+    "transparent_pixels": 13688897,
+    "visible_bbox": [
+      358,
+      758,
+      3737,
+      3337
+    ],
+    "provider_size": [
+      40,
+      40
+    ]
+  },
+  {
+    "file": "isotype_dark.png",
+    "size": [
+      4096,
+      3124
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "visible_pixels": 4231717,
+    "transparent_pixels": 8564187,
+    "visible_bbox": [
+      0,
+      0,
+      4095,
+      3123
+    ],
+    "provider_size": [
+      40,
+      30
+    ]
+  },
+  {
+    "file": "isotype_light.png",
+    "size": [
+      4096,
+      3124
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "visible_pixels": 4231717,
+    "transparent_pixels": 8564187,
+    "visible_bbox": [
+      0,
+      0,
+      4095,
+      3123
+    ],
+    "provider_size": [
+      40,
+      30
+    ]
+  },
+  {
+    "file": "logo_horizontal_dark.png",
+    "size": [
+      4096,
+      1536
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "visible_pixels": 1469147,
+    "transparent_pixels": 4822309,
+    "visible_bbox": [
+      0,
+      206,
+      4011,
+      1329
+    ],
+    "provider_size": [
+      180,
+      67
+    ]
+  },
+  {
+    "file": "logo_horizontal_light.png",
+    "size": [
+      4096,
+      1536
+    ],
+    "alpha_range": [
+      0,
+      255
+    ],
+    "visible_pixels": 1469147,
+    "transparent_pixels": 4822309,
+    "visible_bbox": [
+      0,
+      206,
+      4011,
+      1329
+    ],
+    "provider_size": [
+      180,
+      67
+    ]
+  },
+  {
+    "file": "logo_vertical.svg",
+    "svg_root": {
+      "width": "1568",
+      "height": "1552",
+      "viewBox": "0 0 1568 1552"
+    },
+    "image_attributes": [
+      [
+        "width",
+        "height",
+        "href",
+        "preserveAspectRatio"
+      ]
+    ],
+    "qt_svg_valid": true,
+    "svg_size": [
+      1568,
+      1552
+    ],
+    "size": [
+      1568,
+      1552
+    ],
+    "alpha_range": [
+      0,
+      0
+    ],
+    "visible_pixels": 0,
+    "transparent_pixels": 2433536,
+    "visible_bbox": null
+  },
+  {
+    "file": "window_icon.svg",
+    "svg_root": {
+      "width": "512",
+      "height": "512",
+      "viewBox": "0 0 512 512"
+    },
+    "image_attributes": [
+      [
+        "width",
+        "height",
+        "href",
+        "preserveAspectRatio"
+      ]
+    ],
+    "qt_svg_valid": true,
+    "svg_size": [
+      512,
+      512
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "alpha_range": [
+      0,
+      0
+    ],
+    "visible_pixels": 0,
+    "transparent_pixels": 262144,
+    "visible_bbox": null,
+    "provider_size": [
+      40,
+      40
+    ]
+  }
+]

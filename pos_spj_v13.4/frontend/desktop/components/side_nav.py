@@ -238,10 +238,14 @@ class SideNav(QListWidget):
                 item.setHidden(group is not None and (hide_group or hide_children))
 
     def _apply_density(self, *_args) -> None:
-        height = density_metrics().sidebar_item_height
+        metrics = density_metrics()
+        height = metrics.sidebar_item_height
         for row in range(self.count()):
             self.item(row).setSizeHint(QSize(0, height))
         self.setViewportMargins(0, height + 8 if self._toggle_visible else 0, 0, 0)
+        # This child is positioned manually, so no layout shrinks it when the
+        # minimum size drops from touch to a smaller density.
+        self._toggle.resize(metrics.icon_button_size, metrics.icon_button_size)
         self._toggle.move(6, 4)
 
     def _refresh_icons(self, *_args) -> None:

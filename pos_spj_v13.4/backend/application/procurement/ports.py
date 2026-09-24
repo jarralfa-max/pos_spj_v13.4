@@ -103,3 +103,27 @@ class InventoryReceiptStatusPort(Protocol):
 
     def status_for_receipt(self, goods_receipt_id: str) -> InventoryReceiptStatus | None:
         ...
+
+
+class PaymentSourceBookingPort(Protocol):
+    """¿Se puede CONTABILIZAR un pago de contado desde esta fuente?
+
+    Owned by Finance. Compras sólo pregunta: devuelve `None` si el pago tiene
+    cuenta de tesorería y perfil contable donde asentarse, o el motivo si no.
+    Existe porque confirmar una compra de contado cuyo pago no se puede asentar
+    sacaba dinero sin asiento contable (CLAUDE.md §11).
+    """
+
+    def booking_problem(self, payment_source: str, branch_id: str | None) -> str | None:
+        ...
+
+
+class SupplierPaymentTermsPort(Protocol):
+    """Días de crédito pactados con el proveedor. Owned by Suppliers.
+
+    Para el vencimiento de la cuenta por pagar: fecha de factura + estos días.
+    `0` si el proveedor es de contado o no tiene condiciones capturadas.
+    """
+
+    def credit_days(self, supplier_id: str) -> int:
+        ...

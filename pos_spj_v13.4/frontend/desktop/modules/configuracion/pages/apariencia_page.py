@@ -85,12 +85,12 @@ class AparienciaPage(ConfiguracionWorkspacePage):
         self._build_tokens_card()
         self._build_density_card()
         self._build_preferences_card()
-        self._build_terminal_theme_control()
+        self._build_terminal_appearance_controls()
 
-    def _build_terminal_theme_control(self) -> None:
+    def _build_terminal_appearance_controls(self) -> None:
         manager = ThemeManager.instance()
         card = SectionCard(self, title="Apariencia de esta terminal")
-        controls = Toolbar(card, title="Tema de esta terminal")
+        controls = Toolbar(card, title="Apariencia de esta terminal")
         label = QLabel("Tema", controls)
         self.theme_selector = StandardComboBox(controls, accessible_name="Tema de esta terminal")
         self.theme_selector.addItem("Claro", "light")
@@ -99,13 +99,28 @@ class AparienciaPage(ConfiguracionWorkspacePage):
         label.setBuddy(self.theme_selector)
         controls.addWidget(label)
         controls.addWidget(self.theme_selector)
+        density_label = QLabel("Densidad", controls)
+        self.density_selector = StandardComboBox(controls, accessible_name="Densidad de esta terminal")
+        self.density_selector.addItem("Compacta", "compact")
+        self.density_selector.addItem("Cómoda", "comfortable")
+        self.density_selector.addItem("Táctil", "touch")
+        self.density_selector.setCurrentIndex(self.density_selector.findData(manager.density))
+        density_label.setBuddy(self.density_selector)
+        controls.addWidget(density_label)
+        controls.addWidget(self.density_selector)
         card.add(controls)
-        hint = QLabel("Se aplica al momento y se conserva al volver a abrir el sistema.", card)
+        hint = QLabel(
+            "Los cambios se aplican al momento y se conservan al volver a abrir el sistema. "
+            "Táctil se recomienda para POS, Inventario, Recepción y Producción.",
+            card,
+        )
         hint.setWordWrap(True)
         card.add(hint)
         self.layout().insertWidget(1, card)
         self.theme_selector.currentIndexChanged.connect(self._apply_terminal_theme)
+        self.density_selector.currentIndexChanged.connect(self._apply_terminal_density)
         manager.theme_changed.connect(self._sync_terminal_theme)
+        manager.density_changed.connect(self._sync_terminal_density)
 
     def _apply_terminal_theme(self, _index) -> None:
         ThemeManager.instance().set_theme(self.theme_selector.currentData(), app=QApplication.instance())
@@ -113,6 +128,13 @@ class AparienciaPage(ConfiguracionWorkspacePage):
     def _sync_terminal_theme(self, theme) -> None:
         with QSignalBlocker(self.theme_selector):
             self.theme_selector.setCurrentIndex(self.theme_selector.findData(theme))
+
+    def _apply_terminal_density(self, _index) -> None:
+        ThemeManager.instance().set_density(self.density_selector.currentData(), app=QApplication.instance())
+
+    def _sync_terminal_density(self, density) -> None:
+        with QSignalBlocker(self.density_selector):
+            self.density_selector.setCurrentIndex(self.density_selector.findData(density))
 
     # ── Temas (base inherited table) ────────────────────────────────────────
 

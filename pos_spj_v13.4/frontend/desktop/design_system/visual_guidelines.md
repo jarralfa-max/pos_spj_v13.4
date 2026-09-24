@@ -24,12 +24,19 @@ desde `ThemeManager` al `QApplication`. Los módulos usan componentes canónicos
 `objectName`, `variant` y `state`. CSS corresponde al contenido web embebido.
 No añadir `setStyleSheet`, paletas locales ni hex en widgets.
 
+Las tarjetas `info`, `alert` y `danger` usan superficies y bordes semánticos;
+`summary` usa la superficie elevada. Su variante prevalece sobre el estilo base
+de `StandardCard`. En campos, el estado deshabilitado prevalece visualmente
+sobre error, advertencia y solo lectura, conservando esas propiedades para
+cuando el control vuelva a habilitarse.
+
 El arranque restaura tema y densidad antes del login. Las preferencias visuales
 de terminal usan `QSettings`; la navegación se guarda con ámbito de usuario y
 terminal. Cambiar apariencia actualiza los controles ya construidos.
 
 En **Configuración → Apariencia → Apariencia de esta terminal**, el selector
-ofrece únicamente **Claro** y **Oscuro**. La elección se aplica inmediatamente
+de tema ofrece **Claro** y **Oscuro**. El selector de densidad ofrece
+**Compacta**, **Cómoda** y **Táctil**. La elección se aplica inmediatamente
 y se conserva para la cuenta de Windows en esta terminal, también antes del
 login siguiente. El catálogo administrativo de temas y preferencias por alcance
 mantiene su flujo independiente; este selector no crea ni modifica esos registros.
@@ -38,6 +45,10 @@ mantiene su flujo independiente; este selector no crea ni modifica esos registro
 el cambio. Los iconos siguen esa señal; `HtmlChartView` vuelve a generar el HTML
 desde su último DTO sin consultar servicios ni cambiar el estado de la vista.
 Los componentes nativos conservan valores y selección durante el cambio.
+
+`set_theme()`, `set_density()` y `toggle()` resuelven la `QApplication` activa
+si no se pasa explícitamente. El contrato y su matriz visual están documentados
+en el [informe de QSS global](../../../docs/refactor/qss_global_phase_4.md).
 
 Los campos utilizan `INPUT_BORDER` para distinguir su límite; `BORDER_DEFAULT`
 queda disponible para separadores decorativos. El texto de ayuda de 11 px cumple
@@ -60,7 +71,31 @@ Medidas en píxeles lógicos Qt, centralizadas en `density_metrics()` de
 objetivos táctiles aunque el escritorio cambie a Compacta. Priorizar Táctil en
 POS, recepción, inventario y producción según el puesto de trabajo.
 
+La densidad es global para la terminal: cambiar de módulo conserva el perfil
+elegido. `ThemeManager.set_density()` actualiza los controles existentes y
+persiste `appearance/density` en `QSettings`. La opción histórica `NORMAL` se
+normaliza a Cómoda; no constituye un cuarto perfil del escritorio.
+
+Las opciones desplegables de `StandardComboBox` siguen la altura del perfil.
+Las casillas usan toda su superficie como área clicable. El borde de selección
+de pestañas y el borde de foco de campos conservan la geometría del control.
+Al volver de Táctil a Compacta, el toggle del sidebar recupera su tamaño sin
+invadir la primera opción. El [informe del punto 7](../../../docs/refactor/density_profiles_phase_7.md)
+recoge pruebas de cambios en vivo, persistencia y las capturas de ambos temas.
+
 ## Estructura y navegación
+
+`StandardWindow` centraliza el icono oficial, el título predeterminado JUANIS,
+el mínimo nominal de 640×480 y el tamaño inicial de hasta 1440×900. Ajusta el
+marco completo al área disponible del monitor actual; sigue cambios de monitor
+y del área de trabajo y recupera su mínimo al volver a una pantalla mayor.
+La maximización, pantalla completa y minimización pertenecen al gestor de
+ventanas de Qt. Al restaurar, vuelve a comprobar los límites.
+
+Tema y densidad se heredan del `QApplication`; no se aplican estilos locales a
+la ventana. `ApplicationWindow` conserva su barra de estado y contexto de sesión.
+Los mensajes nativos de `statusBar()` no se borran al ajustar geometría o tema.
+Consultar el [punto 8](../../../docs/refactor/standard_window_phase_8.md).
 
 `ApplicationWindow → ContentHost → PageViewport → página actual` compone el
 shell. `StandardPage` mantiene cabecera y acciones fuera del scroll del cuerpo.
@@ -108,15 +143,25 @@ requiere interacción de puntero. Tab y escritura física no lo abren. Declarar
 
 ## Branding oficial
 
-`BrandAssetProvider` resuelve desde `AppPaths.root/assets/branding/` los nombres
+`BrandAssetProvider` resuelve desde `AppPaths.resource_root/assets/branding/` los nombres
 `logo_horizontal_light`, `logo_horizontal_dark`, `isotype_light`,
 `isotype_dark`, `app_icon` y `window_icon`, con extensión SVG, PNG o ICO.
 
-Los recursos oficiales no están presentes en el repositorio inspeccionado.
-`BrandLabel` muestra temporalmente JUANIS en texto; ese texto no es un logo
-aprobado. No dibujar ni reinterpretar la marca. Al incorporar los archivos, el
-provider los usa en login, sidebar y ventanas conservando su proporción.
+Los seis recursos suministrados están en `assets/branding/` desde el 2026-09-21.
+El provider los usa en login, sidebar y ventanas conservando su proporción.
+Si falta una variante o no puede leerse, `BrandLabel` muestra JUANIS en texto
+temporal. Ese texto no es un logo aprobado. No dibujar ni reinterpretar la marca.
 En diálogos operativos basta el icono de ventana.
+
+El proveedor dibuja SVG a la resolución física del monitor y conserva el DPR de
+la imagen. PNG e ICO mantienen proporción y transparencia. El recurso de ventana
+puede respaldarse con el icono de aplicación y viceversa; una variante ausente
+de logo o isotipo nunca se sustituye con otra de distinto tema. En el ejecutable,
+`resource_root` puede ser la carpeta de extracción de PyInstaller, distinta de
+la carpeta de instalación y de los datos del usuario.
+
+La validación de los archivos reales y sus consumidores se documenta en el
+[punto 6](../../../docs/refactor/brand_asset_provider_phase_6.md).
 
 ## Accesibilidad y aceptación
 

@@ -64,12 +64,19 @@ class ApplicationContextBuilder:
             SqliteFeatureFlagRuleRepository(self._conn),
         ).flags_for(credentials.branch_id, user_id=credentials.id)
 
+        # Una sola instancia para las dos preguntas que hoy se le hacen al
+        # directorio: cómo se llama la sucursal activa y a cuáles está asignado
+        # el usuario. Lo segundo no se leía de ningún sitio, y por eso el nivel
+        # "asignadas" del alcance por sucursal nunca concedía nada.
+        branches = SqliteBranchDirectoryRepository(self._conn)
+
         return ApplicationContext(
             installation_id=installation.id if installation else "",
             company_id=(installation.company_id or "") if installation else "",
             branch_id=credentials.branch_id,
-            branch_name=SqliteBranchDirectoryRepository(self._conn).name_for(
-                credentials.branch_id),
+            branch_name=branches.name_for(credentials.branch_id),
+            assigned_branch_ids=frozenset(
+                branches.assigned_branch_ids(credentials.id)),
             workstation_id=session.workstation_id or default_workstation_id(),
             workstation_type=workstation_type,
             user_id=credentials.id,

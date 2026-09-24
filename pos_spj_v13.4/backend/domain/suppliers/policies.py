@@ -44,10 +44,30 @@ class SupplierApprovalPolicy:
 
 
 class SupplierActivationPolicy:
+    """Qué debe cumplirse para que un proveedor pueda operar.
+
+    Activar no es marcar un booleano: además del estado, se exige la
+    información mínima sin la cual el proveedor no puede facturar ni cobrarse.
+    Hoy ese mínimo es el identificador fiscal — el mismo que ya exige
+    `Supplier.submit_for_approval()`, de modo que un alta que pasó por el
+    workflow siempre lo cumple; quien no lo cumple es un registro reactivado
+    desde INACTIVE que nunca lo tuvo.
+
+    Mínimos más ricos (al menos un contacto, una cuenta bancaria verificada,
+    domicilio fiscal) necesitan datos que viven en otras entidades y que esta
+    política no recibe: ampliarlos exige pasarle el repositorio, y eso es una
+    decisión de alcance, no un detalle. No se simula aquí.
+    """
+
     def enforce_can_activate(self, supplier: Supplier) -> None:
+        from backend.domain.suppliers.exceptions import InvalidSupplierStateError
+
         if supplier.status is SupplierStatus.REJECTED:
             raise RejectedSupplierReactivationError(
                 "Un proveedor rechazado requiere un nuevo workflow de alta")
+        if supplier.tax_identifier is None:
+            raise InvalidSupplierStateError(
+                "Falta el identificador fiscal: sin RFC el proveedor no puede operar")
 
 
 class SupplierBlockPolicy:

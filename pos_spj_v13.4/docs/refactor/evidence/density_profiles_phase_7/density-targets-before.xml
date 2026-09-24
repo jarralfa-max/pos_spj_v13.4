@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="12" skipped="0" tests="24" time="21.278" timestamp="2026-09-22T15:38:35.827885-06:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_density_control_targets" name="test_boolean_focus_does_not_resize_target[StandardCheckBox-compact-light]" time="1.822" /><testcase classname="tests.ui.test_density_control_targets" name="test_boolean_focus_does_not_resize_target[StandardCheckBox-compact-dark]" time="0.181" /><testcase classname="tests.ui.test_density_control_targets" name="test_boolean_focus_does_not_resize_target[StandardCheckBox-comfortable-light]" time="0.053" /><testcase classname="tests.ui.test_density_control_targets" name="test_boolean_focus_does_not_resize_target[StandardCheckBox-comfortable-dark]" time="0.119" /><testcase classname="tests.ui.test_density_control_targets" name="test_boolean_focus_does_not_resize_target[StandardCheckBox-touch-light]" time="0.110" /><testcase classname="tests.ui.test_density_control_targets" name="test_boolean_focus_does_not_resize_target[StandardCheckBox-touch-dark]" time="0.086" /><testcase classname="tests.ui.test_density_control_targets" name="test_boolean_focus_does_not_resize_target[StandardRadioButton-compact-light]" time="1.028" /><testcase classname="tests.ui.test_density_control_targets" name="test_boolean_focus_does_not_resize_target[StandardRadioButton-compact-dark]" time="0.231" /><testcase classname="tests.ui.test_density_control_targets" name="test_boolean_focus_does_not_resize_target[StandardRadioButton-comfortable-light]" time="0.306" /><testcase classname="tests.ui.test_density_control_targets" name="test_boolean_focus_does_not_resize_target[StandardRadioButton-comfortable-dark]" time="0.438" /><testcase classname="tests.ui.test_density_control_targets" name="test_boolean_focus_does_not_resize_target[StandardRadioButton-touch-light]" time="0.179" /><testcase classname="tests.ui.test_density_control_targets" name="test_boolean_focus_does_not_resize_target[StandardRadioButton-touch-dark]" time="0.084" /><testcase classname="tests.ui.test_density_control_targets" name="test_checkbox_whole_target_accepts_clicks[compact-light]" time="0.061"><failure message="AssertionError: La altura visible debe ser también el área clicable.&#10;assert 0 == (0 + 1)&#10; +  where 0 = len(&lt;PyQt5.QtTest.QSignalSpy object at 0x0000018FC1068200&gt;)">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000018FC0AE3F50&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000018FC0AE3EC0&gt;
+theme = 'light', density = 'compact'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_checkbox_whole_target_accepts_clicks(manager, qt_font_resources, theme, density):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        control = StandardCheckBox("Activar opción")
+        control.resize(240, density_metrics(density).input_height)
+        try:
+            control.show()
+            app.processEvents()
+            clicked = QSignalSpy(control.clicked)
+            for y in (2, control.height() - 3):
+                previous = len(clicked)
+                QTest.mouseClick(control, Qt.LeftButton, pos=QPoint(control.width() // 2, y))
+&gt;               assert len(clicked) == previous + 1, "La altura visible debe ser también el área clicable."
+E               AssertionError: La altura visible debe ser también el área clicable.
+E               assert 0 == (0 + 1)
+E                +  where 0 = len(&lt;PyQt5.QtTest.QSignalSpy object at 0x0000018FC1068200&gt;)
+
+tests\ui\test_density_control_targets.py:57: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_checkbox_whole_target_accepts_clicks[compact-dark]" time="0.038"><failure message="AssertionError: La altura visible debe ser también el área clicable.&#10;assert 0 == (0 + 1)&#10; +  where 0 = len(&lt;PyQt5.QtTest.QSignalSpy object at 0x0000018FC10A2570&gt;)">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000018FC10A2330&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000018FC0AE3EC0&gt;
+theme = 'dark', density = 'compact'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_checkbox_whole_target_accepts_clicks(manager, qt_font_resources, theme, density):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        control = StandardCheckBox("Activar opción")
+        control.resize(240, density_metrics(density).input_height)
+        try:
+            control.show()
+            app.processEvents()
+            clicked = QSignalSpy(control.clicked)
+            for y in (2, control.height() - 3):
+                previous = len(clicked)
+                QTest.mouseClick(control, Qt.LeftButton, pos=QPoint(control.width() // 2, y))
+&gt;               assert len(clicked) == previous + 1, "La altura visible debe ser también el área clicable."
+E               AssertionError: La altura visible debe ser también el área clicable.
+E               assert 0 == (0 + 1)
+E                +  where 0 = len(&lt;PyQt5.QtTest.QSignalSpy object at 0x0000018FC10A2570&gt;)
+
+tests\ui\test_density_control_targets.py:57: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_checkbox_whole_target_accepts_clicks[comfortable-light]" time="0.632"><failure message="AssertionError: La altura visible debe ser también el área clicable.&#10;assert 0 == (0 + 1)&#10; +  where 0 = len(&lt;PyQt5.QtTest.QSignalSpy object at 0x0000018FC10A2B10&gt;)">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000018FC10A28D0&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000018FC0AE3EC0&gt;
+theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_checkbox_whole_target_accepts_clicks(manager, qt_font_resources, theme, density):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        control = StandardCheckBox("Activar opción")
+        control.resize(240, density_metrics(density).input_height)
+        try:
+            control.show()
+            app.processEvents()
+            clicked = QSignalSpy(control.clicked)
+            for y in (2, control.height() - 3):
+                previous = len(clicked)
+                QTest.mouseClick(control, Qt.LeftButton, pos=QPoint(control.width() // 2, y))
+&gt;               assert len(clicked) == previous + 1, "La altura visible debe ser también el área clicable."
+E               AssertionError: La altura visible debe ser también el área clicable.
+E               assert 0 == (0 + 1)
+E                +  where 0 = len(&lt;PyQt5.QtTest.QSignalSpy object at 0x0000018FC10A2B10&gt;)
+
+tests\ui\test_density_control_targets.py:57: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_checkbox_whole_target_accepts_clicks[comfortable-dark]" time="0.272"><failure message="AssertionError: La altura visible debe ser también el área clicable.&#10;assert 0 == (0 + 1)&#10; +  where 0 = len(&lt;PyQt5.QtTest.QSignalSpy object at 0x0000018FC10A2D50&gt;)">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000018FC10A2060&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000018FC0AE3EC0&gt;
+theme = 'dark', density = 'comfortable'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_checkbox_whole_target_accepts_clicks(manager, qt_font_resources, theme, density):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        control = StandardCheckBox("Activar opción")
+        control.resize(240, density_metrics(density).input_height)
+        try:
+            control.show()
+            app.processEvents()
+            clicked = QSignalSpy(control.clicked)
+            for y in (2, control.height() - 3):
+                previous = len(clicked)
+                QTest.mouseClick(control, Qt.LeftButton, pos=QPoint(control.width() // 2, y))
+&gt;               assert len(clicked) == previous + 1, "La altura visible debe ser también el área clicable."
+E               AssertionError: La altura visible debe ser también el área clicable.
+E               assert 0 == (0 + 1)
+E                +  where 0 = len(&lt;PyQt5.QtTest.QSignalSpy object at 0x0000018FC10A2D50&gt;)
+
+tests\ui\test_density_control_targets.py:57: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_checkbox_whole_target_accepts_clicks[touch-light]" time="0.114"><failure message="AssertionError: La altura visible debe ser también el área clicable.&#10;assert 0 == (0 + 1)&#10; +  where 0 = len(&lt;PyQt5.QtTest.QSignalSpy object at 0x0000018FC10A30B0&gt;)">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000018FC10A2600&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000018FC0AE3EC0&gt;
+theme = 'light', density = 'touch'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_checkbox_whole_target_accepts_clicks(manager, qt_font_resources, theme, density):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        control = StandardCheckBox("Activar opción")
+        control.resize(240, density_metrics(density).input_height)
+        try:
+            control.show()
+            app.processEvents()
+            clicked = QSignalSpy(control.clicked)
+            for y in (2, control.height() - 3):
+                previous = len(clicked)
+                QTest.mouseClick(control, Qt.LeftButton, pos=QPoint(control.width() // 2, y))
+&gt;               assert len(clicked) == previous + 1, "La altura visible debe ser también el área clicable."
+E               AssertionError: La altura visible debe ser también el área clicable.
+E               assert 0 == (0 + 1)
+E                +  where 0 = len(&lt;PyQt5.QtTest.QSignalSpy object at 0x0000018FC10A30B0&gt;)
+
+tests\ui\test_density_control_targets.py:57: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_checkbox_whole_target_accepts_clicks[touch-dark]" time="0.160"><failure message="AssertionError: La altura visible debe ser también el área clicable.&#10;assert 0 == (0 + 1)&#10; +  where 0 = len(&lt;PyQt5.QtTest.QSignalSpy object at 0x0000018FC10A36E0&gt;)">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000018FC10A3800&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000018FC0AE3EC0&gt;
+theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_checkbox_whole_target_accepts_clicks(manager, qt_font_resources, theme, density):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        control = StandardCheckBox("Activar opción")
+        control.resize(240, density_metrics(density).input_height)
+        try:
+            control.show()
+            app.processEvents()
+            clicked = QSignalSpy(control.clicked)
+            for y in (2, control.height() - 3):
+                previous = len(clicked)
+                QTest.mouseClick(control, Qt.LeftButton, pos=QPoint(control.width() // 2, y))
+&gt;               assert len(clicked) == previous + 1, "La altura visible debe ser también el área clicable."
+E               AssertionError: La altura visible debe ser también el área clicable.
+E               assert 0 == (0 + 1)
+E                +  where 0 = len(&lt;PyQt5.QtTest.QSignalSpy object at 0x0000018FC10A36E0&gt;)
+
+tests\ui\test_density_control_targets.py:57: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_tab_selection_keeps_profile_height[compact-light]" time="0.196"><failure message="assert False&#10; +  where False = all(&lt;generator object test_tab_selection_keeps_profile_height.&lt;locals&gt;.&lt;genexpr&gt; at 0x0000018FC0C63970&gt;)">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000018FC10A3C80&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000018FC0AE3EC0&gt;
+theme = 'light', density = 'compact'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_tab_selection_keeps_profile_height(manager, qt_font_resources, theme, density):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        tabs = Tabs()
+        for label in ("Resumen", "Movimientos"):
+            tabs.addTab(QWidget(), label)
+        try:
+            tabs.resize(500, 240)
+            tabs.show()
+            for index in (0, 1, 0):
+                tabs.setCurrentIndex(index)
+                app.processEvents()
+&gt;               assert all(tabs.tabBar().tabRect(i).height() == density_metrics(density).tab_height
+                           for i in range(tabs.count()))
+E                          assert False
+E                           +  where False = all(&lt;generator object test_tab_selection_keeps_profile_height.&lt;locals&gt;.&lt;genexpr&gt; at 0x0000018FC0C63970&gt;)
+
+tests\ui\test_density_control_targets.py:79: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_tab_selection_keeps_profile_height[compact-dark]" time="0.169"><failure message="assert False&#10; +  where False = all(&lt;generator object test_tab_selection_keeps_profile_height.&lt;locals&gt;.&lt;genexpr&gt; at 0x0000018FC0C635B0&gt;)">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000018FC10A3410&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000018FC0AE3EC0&gt;
+theme = 'dark', density = 'compact'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_tab_selection_keeps_profile_height(manager, qt_font_resources, theme, density):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        tabs = Tabs()
+        for label in ("Resumen", "Movimientos"):
+            tabs.addTab(QWidget(), label)
+        try:
+            tabs.resize(500, 240)
+            tabs.show()
+            for index in (0, 1, 0):
+                tabs.setCurrentIndex(index)
+                app.processEvents()
+&gt;               assert all(tabs.tabBar().tabRect(i).height() == density_metrics(density).tab_height
+                           for i in range(tabs.count()))
+E                          assert False
+E                           +  where False = all(&lt;generator object test_tab_selection_keeps_profile_height.&lt;locals&gt;.&lt;genexpr&gt; at 0x0000018FC0C635B0&gt;)
+
+tests\ui\test_density_control_targets.py:79: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_tab_selection_keeps_profile_height[comfortable-light]" time="0.213"><failure message="assert False&#10; +  where False = all(&lt;generator object test_tab_selection_keeps_profile_height.&lt;locals&gt;.&lt;genexpr&gt; at 0x0000018FC0C63100&gt;)">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000018FC10A3EC0&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000018FC0AE3EC0&gt;
+theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_tab_selection_keeps_profile_height(manager, qt_font_resources, theme, density):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        tabs = Tabs()
+        for label in ("Resumen", "Movimientos"):
+            tabs.addTab(QWidget(), label)
+        try:
+            tabs.resize(500, 240)
+            tabs.show()
+            for index in (0, 1, 0):
+                tabs.setCurrentIndex(index)
+                app.processEvents()
+&gt;               assert all(tabs.tabBar().tabRect(i).height() == density_metrics(density).tab_height
+                           for i in range(tabs.count()))
+E                          assert False
+E                           +  where False = all(&lt;generator object test_tab_selection_keeps_profile_height.&lt;locals&gt;.&lt;genexpr&gt; at 0x0000018FC0C63100&gt;)
+
+tests\ui\test_density_control_targets.py:79: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_tab_selection_keeps_profile_height[comfortable-dark]" time="0.281"><failure message="assert False&#10; +  where False = all(&lt;generator object test_tab_selection_keeps_profile_height.&lt;locals&gt;.&lt;genexpr&gt; at 0x0000018FC0C62C50&gt;)">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000018FC10A3F50&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000018FC0AE3EC0&gt;
+theme = 'dark', density = 'comfortable'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_tab_selection_keeps_profile_height(manager, qt_font_resources, theme, density):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        tabs = Tabs()
+        for label in ("Resumen", "Movimientos"):
+            tabs.addTab(QWidget(), label)
+        try:
+            tabs.resize(500, 240)
+            tabs.show()
+            for index in (0, 1, 0):
+                tabs.setCurrentIndex(index)
+                app.processEvents()
+&gt;               assert all(tabs.tabBar().tabRect(i).height() == density_metrics(density).tab_height
+                           for i in range(tabs.count()))
+E                          assert False
+E                           +  where False = all(&lt;generator object test_tab_selection_keeps_profile_height.&lt;locals&gt;.&lt;genexpr&gt; at 0x0000018FC0C62C50&gt;)
+
+tests\ui\test_density_control_targets.py:79: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_tab_selection_keeps_profile_height[touch-light]" time="0.065"><failure message="assert False&#10; +  where False = all(&lt;generator object test_tab_selection_keeps_profile_height.&lt;locals&gt;.&lt;genexpr&gt; at 0x0000018FC0C627A0&gt;)">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000018FC10A2060&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000018FC0AE3EC0&gt;
+theme = 'light', density = 'touch'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_tab_selection_keeps_profile_height(manager, qt_font_resources, theme, density):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        tabs = Tabs()
+        for label in ("Resumen", "Movimientos"):
+            tabs.addTab(QWidget(), label)
+        try:
+            tabs.resize(500, 240)
+            tabs.show()
+            for index in (0, 1, 0):
+                tabs.setCurrentIndex(index)
+                app.processEvents()
+&gt;               assert all(tabs.tabBar().tabRect(i).height() == density_metrics(density).tab_height
+                           for i in range(tabs.count()))
+E                          assert False
+E                           +  where False = all(&lt;generator object test_tab_selection_keeps_profile_height.&lt;locals&gt;.&lt;genexpr&gt; at 0x0000018FC0C627A0&gt;)
+
+tests\ui\test_density_control_targets.py:79: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_tab_selection_keeps_profile_height[touch-dark]" time="0.085"><failure message="assert False&#10; +  where False = all(&lt;generator object test_tab_selection_keeps_profile_height.&lt;locals&gt;.&lt;genexpr&gt; at 0x0000018FC0C62200&gt;)">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000018FC10A2330&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000018FC0AE3EC0&gt;
+theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_tab_selection_keeps_profile_height(manager, qt_font_resources, theme, density):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        tabs = Tabs()
+        for label in ("Resumen", "Movimientos"):
+            tabs.addTab(QWidget(), label)
+        try:
+            tabs.resize(500, 240)
+            tabs.show()
+            for index in (0, 1, 0):
+                tabs.setCurrentIndex(index)
+                app.processEvents()
+&gt;               assert all(tabs.tabBar().tabRect(i).height() == density_metrics(density).tab_height
+                           for i in range(tabs.count()))
+E                          assert False
+E                           +  where False = all(&lt;generator object test_tab_selection_keeps_profile_height.&lt;locals&gt;.&lt;genexpr&gt; at 0x0000018FC0C62200&gt;)
+
+tests\ui\test_density_control_targets.py:79: AssertionError</failure></testcase></testsuite></testsuites>

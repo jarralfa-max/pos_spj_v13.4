@@ -1,0 +1,47 @@
+{
+  "files": 622,
+  "rules": {
+    "noncanonical_dialog": {
+      "occurrences": 35,
+      "files": 24
+    },
+    "screen_without_explicit_overflow": {
+      "occurrences": 112,
+      "files": 111
+    },
+    "unicode_icon_literal": {
+      "occurrences": 14,
+      "files": 7
+    }
+  },
+  "unallowlisted": [
+    {
+      "key": [
+        "frontend/desktop/modules/meat_processing/pages/meat_processing_settings_page.py",
+        "screen_without_explicit_overflow",
+        "ccda8fcb6a5694ec8cac"
+      ],
+      "count": 1
+    },
+    {
+      "key": [
+        "frontend/desktop/modules/pricing/pages/settings_page.py",
+        "screen_without_explicit_overflow",
+        "eecdb14c0a9c4a98cf33"
+      ],
+      "count": 1
+    }
+  ],
+  "obsolete": 0,
+  "source_sha256": {
+    "frontend/desktop/themes/tokens.py": "ed98eb946fc7da3549eebddde5a402286e582a9da6bb29b5f95abf78274bf931",
+    "frontend/desktop/themes/qss_builder.py": "febff0fba73ccc351bbf1a0a4462d8d2498773a396aa542b892931e28cb7f6a1",
+    "frontend/desktop/themes/theme_manager.py": "2c190425044f1bef753b9e00bfebd88485bd3b588658d10f1dacc7ecb72d3e6f",
+    "frontend/desktop/components/buttons.py": "679f141d832622069a9202c5a3dbd6e188b53c9bd6d69295149ec8b21cd811bb",
+    "frontend/desktop/components/tables.py": "b5aa73fae10a071c35747ba0d2003b8bb32437e0e32c074f346142e5e2f95d96",
+    "frontend/desktop/components/side_nav.py": "d1760f264aa35a5ead91d817ab3e839219263c3b6021ae2112566a9172244e13",
+    "frontend/desktop/components/tabs.py": "d9ce17e93186ccbdc69dd461cf34abd0e9f1fc08a0568a5d6c0b34b9c677109f",
+    "frontend/desktop/components/text_inputs.py": "cba71962d4bb6ad61ad77fcc52aea3c8f770dd1f2294183b125296b28efec753",
+    "frontend/desktop/components/selection_controls.py": "75eafeb2a9ef275e14f69e2e893c31114a764230f6c6c99e33074b369c5ebac6"
+  }
+}

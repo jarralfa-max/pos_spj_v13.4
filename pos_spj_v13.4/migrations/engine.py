@@ -262,6 +262,19 @@ MIGRATIONS = [
     _Migration("256",  "migrations.standalone.256_sales_unified_read_view"),
     _Migration("257",  "migrations.standalone.257_sale_lines_unified_read_view"),
     _Migration("258",  "migrations.standalone.258_recipes_reverse_reconstruction_allowed"),
+    _Migration("259",  "migrations.standalone.259_price_list_created_by"),
+    _Migration("260",  "migrations.standalone.260_seed_precios_permissions"),
+    _Migration("261",  "migrations.standalone.261_supplier_contact_whatsapp"),
+    _Migration("262",  "migrations.standalone.262_supplier_payment_terms_mode"),
+    _Migration("263",  "migrations.standalone.263_suppliers_legacy_into_master"),
+    _Migration("264",  "migrations.standalone.264_seed_address_search_integrations"),
+    _Migration("265",  "migrations.standalone.265_repair_backfilled_recipe_types"),
+    _Migration("266",  "migrations.standalone.266_seed_procurement_invoice_tolerances"),
+    _Migration("267",  "migrations.standalone.267_orders_delivery_schema_drift"),
+    _Migration("268",  "migrations.standalone.268_seed_pos_role_permissions"),
+    _Migration("269",  "migrations.standalone.269_cutting_scheme_reverse_reconstruction"),
+    _Migration("270",  "migrations.standalone.270_meat_processing_execution"),
+    _Migration("271",  "migrations.standalone.271_seed_meat_processing_role_permissions"),
 ]
 
 def _ensure_tracking_table(conn):

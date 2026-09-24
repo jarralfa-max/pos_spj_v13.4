@@ -86,6 +86,11 @@ def build_enterprise_presenter(connection, session_context=None, *,
         ProcurementSessionPermissionChecker(session_context))
     supplier_directory = SupplierDirectoryQueryService(connection)
     tolerance_settings = ProcurementToleranceSettingsQueryService(connection)
+    # Días de crédito del proveedor -> vencimiento de la cuenta por pagar.
+    from backend.application.procurement.adapters.supplier_payment_terms_adapter import (
+        SupplierPaymentTermsAdapter,
+    )
+    payment_terms = SupplierPaymentTermsAdapter(connection)
     # Reuse the canonical Logistics wiring built once at app startup
     # (core/events/wiring.py::_wire_logistics_pipeline) instead of constructing a
     # second, repository-less LogisticsShipmentQueryService here.
@@ -121,8 +126,10 @@ def build_enterprise_presenter(connection, session_context=None, *,
             "inv_capture": CaptureSupplierInvoiceUseCase(
                 authorization, supplier_directory),
             "inv_match": MatchSupplierInvoiceUseCase(
-                authorization, tolerance_settings=tolerance_settings),
-            "inv_release": ReleaseInvoiceVarianceUseCase(authorization),
+                authorization, tolerance_settings=tolerance_settings,
+                payment_terms=payment_terms),
+            "inv_release": ReleaseInvoiceVarianceUseCase(
+                authorization, payment_terms=payment_terms),
         },
         session_context=session_context,
         logistics_reads=logistics_reads,

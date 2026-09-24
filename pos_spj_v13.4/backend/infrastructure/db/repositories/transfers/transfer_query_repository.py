@@ -1,6 +1,6 @@
 """Read-only canonical Transfers workspace projection."""
 from backend.application.transfers.queries.workspace_query_service import (
-    BranchOptionViewModel, TransferKPIViewModel, TransferPageViewModel, TransferRowViewModel,
+    TransferKPIViewModel, TransferPageViewModel, TransferRowViewModel,
 )
 
 
@@ -55,10 +55,16 @@ class TransferWorkspaceQueryRepository:
             result.append(TransferKPIViewModel(title, str(count), variant))
         return tuple(result)
 
-    def list_active_branches(self) -> tuple[BranchOptionViewModel, ...]:
-        rows = self._db.execute(
-            "SELECT id, nombre FROM sucursales WHERE activa = 1 ORDER BY nombre").fetchall()
-        return tuple(BranchOptionViewModel(id=str(r[0]), name=str(r[1])) for r in rows)
+    # `list_active_branches` se ELIMINÓ el 2026-09-17. Devolvía TODAS las
+    # sucursales activas sin filtrar por usuario, y alimentaba los combos de
+    # origen y destino del diálogo de solicitudes: cualquiera que abriera
+    # Solicitudes veía el nombre de todas las sucursales, incluidas aquellas
+    # a las que sus permisos no le dan acceso.
+    #
+    # No se dejó como código muerto a propósito: una consulta sin alcance que
+    # sigue existiendo es una invitación a volver a cablearla. El sustituto es
+    # `BranchScopeQueryService` (backend/application/security/), que resuelve
+    # `usuario -> sucursales permitidas` ANTES de consultar.
 
     def product_base_unit_id(self, product_id: str) -> str | None:
         row = self._db.execute(

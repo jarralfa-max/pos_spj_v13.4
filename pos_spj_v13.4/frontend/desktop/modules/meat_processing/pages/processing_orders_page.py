@@ -52,6 +52,11 @@ class ProcessingOrdersPage(QWidget):
         self.release_button = create_secondary_button(text="Liberar")
         self.release_button.clicked.connect(self._on_release)
         actions.addWidget(self.release_button)
+        self.execute_button = create_primary_button(text="Ejecutar")
+        self.execute_button.setToolTip(
+            "Consumir la entrada, capturar los cortes, repartir el costo y cerrar la orden.")
+        self.execute_button.clicked.connect(self._on_execute)
+        actions.addWidget(self.execute_button)
         self.close_button = create_danger_button(text="Cerrar")
         self.close_button.clicked.connect(self._on_close)
         actions.addWidget(self.close_button)
@@ -125,6 +130,60 @@ class ProcessingOrdersPage(QWidget):
         (QMessageBox.information if ok else QMessageBox.warning)(self, "Órdenes", message)
         if ok:
             self.refresh()
+
+    def _on_execute(self) -> None:
+        """Fase 10: ejecutar la orden de punta a punta. Si falta existencia o un
+        corte sale fuera de tolerancia, se pide la autorización de otro usuario
+        y se reintenta — el caso de uso es reanudable."""
+        from frontend.desktop.modules.meat_processing.dialogs_execution import (
+            ExecuteProcessingOrderDialog,
+            ExecutionResultDialog,
+            ProductionAuthorizationDialog,
+        )
+
+        oid = self._selected_order_id()
+        if oid is None:
+            return
+        plan = self._presenter.execution_plan(oid)
+        if plan is None:
+            QMessageBox.warning(self, "Órdenes", "No se pudo leer la orden.")
+            return
+        if not plan.get("has_despiece"):
+            QMessageBox.warning(
+                self, "Órdenes",
+                "La orden no tiene despiece capturado. Libérala con un esquema de corte "
+                "activo del producto (Productos → Despiece).")
+            return
+        dlg = ExecuteProcessingOrderDialog(self, plan=plan)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+
+        datos = {"order_id": oid, "input_weight": dlg.input_weight_value(),
+                 "outputs": dlg.outputs()}
+        for _ in range(3):   # a lo sumo: sin existencia y fuera de tolerancia
+            ok, message, resultado = self._presenter.execute_order(**datos)
+            if ok:
+                ExecutionResultDialog(self, results=resultado.get("results") or [],
+                                      message=message).exec_()
+                self.refresh()
+                return
+            codigo = resultado.get("error_code")
+            if codigo not in ("STOCK_AUTHORIZATION_REQUIRED", "YIELD_AUTHORIZATION_REQUIRED"):
+                QMessageBox.warning(self, "Órdenes", message)
+                self.refresh()
+                return
+            auth = ProductionAuthorizationDialog(self, message=message,
+                                                 presenter=self._presenter)
+            if auth.exec_() != QDialog.Accepted or not auth.authorizer_user_id:
+                self.refresh()
+                return
+            if codigo == "STOCK_AUTHORIZATION_REQUIRED":
+                datos["stock_authorizer_user_id"] = auth.authorizer_user_id
+                datos["stock_reason"] = auth.reason
+            else:
+                datos["variance_authorizer_user_id"] = auth.authorizer_user_id
+                datos["variance_reason"] = auth.reason
+        QMessageBox.warning(self, "Órdenes", "No se pudo ejecutar la orden.")
 
     def _on_close(self) -> None:
         oid = self._selected_order_id()

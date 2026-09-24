@@ -59,15 +59,33 @@ def build_direct_purchase_presenter(connection, session_context=None) -> DirectP
     authorization = PurchaseAuthorizationPolicy(
         ProcurementSessionPermissionChecker(session_context))
     supplier_directory = SupplierDirectoryQueryService(connection)
+    # Los mismos puertos para CREAR y para CONFIRMAR: la confirmación revalida
+    # lo que pudo cambiar desde el borrador. Sin ellos la compra rápida se
+    # confirmaba con productos no activos, con el almacén de otra sucursal y con
+    # pagos de contado que Finanzas no sabe asentar (medido 2026-09-18).
+    from backend.application.logistics.warehouse_directory import (
+        WarehouseDirectoryQueryService,
+    )
+    from backend.infrastructure.integrations.procurement_payment_source_adapter import (
+        ProcurementPaymentSourceBookingAdapter,
+    )
+    product_catalog = ProcurementProductCatalogAdapter(connection)
+    warehouse_directory = WarehouseDirectoryQueryService(connection)
+    payment_booking = ProcurementPaymentSourceBookingAdapter(connection)
     return DirectPurchasePresenter(
         connection_provider=lambda: connection,
         read_service=DirectPurchaseReadService(connection),
         supplier_picker=SupplierPickerQueryService(connection),
-        product_catalog=ProcurementProductCatalogAdapter(connection),
+        product_catalog=product_catalog,
         use_cases={
-            "create": CreateDirectPurchaseUseCase(authorization, supplier_directory),
+            "create": CreateDirectPurchaseUseCase(
+                authorization, supplier_directory, product_catalog=product_catalog,
+                warehouse_directory=warehouse_directory),
             "authorize": AuthorizeDirectPurchaseUseCase(authorization),
-            "confirm": ConfirmDirectPurchaseUseCase(authorization),
+            "confirm": ConfirmDirectPurchaseUseCase(
+                authorization, supplier_directory=supplier_directory,
+                product_catalog=product_catalog, warehouse_directory=warehouse_directory,
+                payment_booking=payment_booking),
             "reverse": ReverseDirectPurchaseUseCase(authorization),
             "record_variance": RecordPurchasePriceVarianceUseCase(authorization),
         },
@@ -79,4 +97,5 @@ def build_direct_purchase_presenter(connection, session_context=None) -> DirectP
         supplier_profile=SupplierProfileAdapter(connection),
         supplier_finance=SupplierFinanceAdapter(connection),
         receipt_status=InventoryReceiptStatusAdapter(connection),
+        payment_booking=payment_booking,
     )

@@ -95,6 +95,12 @@ class InventoryReservationFailedError(SalesDomainError):
     longer active) — master prompt §64, §20."""
 
 
+class InventoryShortageError(InventoryReservationFailedError):
+    """La existencia no alcanza para la venta (Fase 6). Distinta de los demás
+    fallos de reserva (permiso, reglas de lote): sólo ésta admite la
+    autorización en caliente para vender sin existencia."""
+
+
 class SaleCustomerNotFoundError(SalesDomainError):
     """The customer id given to `assign_customer`/a card scan does not
     exist in the Customer Master bounded context (§6/§21) — distinct from

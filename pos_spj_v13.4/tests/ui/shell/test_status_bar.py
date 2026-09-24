@@ -36,3 +36,25 @@ def test_set_workstation_shows_branch_and_workstation_id():
     bar.set_workstation("ws-7", "Sucursal Norte")
     assert "Sucursal Norte" in bar.workstation_text
     assert "ws-7" in bar.workstation_text
+
+
+def test_startup_message_does_not_overlap_connectivity(qt_font_resources):
+    from PyQt5 import sip
+    from frontend.desktop.components.standard_window import StandardWindow
+    window = StandardWindow()
+    bar = StatusBar(window)
+    window.setStatusBar(bar)
+    bar.set_workstation("ws-7", "Sucursal Norte")
+    bar.showMessage("Lista para operar")
+    try:
+        window.show()
+        qt_font_resources.processEvents()
+        assert not bar._connectivity_badge.isVisible()
+        assert bar._workstation_label.isVisible()
+        assert bar.currentMessage() == "Lista para operar"
+        bar.clearMessage()
+        qt_font_resources.processEvents()
+        assert bar._connectivity_badge.isVisible()
+        assert bar.connectivity_text == "En línea"
+    finally:
+        sip.delete(window)

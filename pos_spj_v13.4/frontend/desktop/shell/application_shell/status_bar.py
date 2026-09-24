@@ -24,6 +24,15 @@ class StatusBar(QStatusBar):
 
         self.addWidget(self._connectivity_badge)
         self.addPermanentWidget(self._workstation_label)
+        self.messageChanged.connect(self._sync_message_visibility)
+
+    def _sync_message_visibility(self, message: str) -> None:
+        self._connectivity_badge.setVisible(not bool(message))
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        # Qt can show normal children over a message set before the first show.
+        self._sync_message_visibility(self.currentMessage())
 
     def set_offline_status(self, offline_status: str, *, degraded: bool = False) -> None:
         # `degraded` only ever fires when offline_status == "OFFLINE" (see

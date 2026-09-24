@@ -59,17 +59,36 @@ def test_resolver_builds_context_from_session():
 
 # ── scope enforcement (§5.3) ─────────────────────────────────────────────────
 def _ctx(**kw):
+    """Sin permisos de alcance A PROPÓSITO.
+
+    Es el estado REAL de todos los usuarios de la instalación: los códigos de
+    alcance suman cero filas en `rol_permisos`. Antes este helper concedía
+    `VIEW_OWN_BRANCH`, y esa concesión ficticia es justo lo que mantenía el test
+    en verde mientras la operación denegaba a todo el mundo.
+    """
     base = dict(actor_user_id="u1", active_branch_id="b1",
-                permissions=frozenset({InventoryPermissions.VIEW_OWN_BRANCH}))
+                permissions=frozenset())
     base.update(kw)
     return InventoryExecutionContext(**base)
 
 
-def test_enforce_branch_allows_own_and_denies_other():
+def test_enforce_branch_allows_own_without_any_permission():
     ctx = _ctx()
     ctx.enforce_branch("b1")
     with pytest.raises(BranchScopeError):
         ctx.enforce_branch("b9")
+
+
+def test_enforce_branch_reaches_assigned_branches():
+    ctx = _ctx(assigned_branch_ids=frozenset({"b2"}))
+    ctx.enforce_branch("b2")
+    with pytest.raises(BranchScopeError):
+        ctx.enforce_branch("b9")
+
+
+def test_global_scope_permission_opens_any_branch():
+    ctx = _ctx(permissions=frozenset({InventoryPermissions.VIEW_ALL_BRANCHES}))
+    ctx.enforce_branch("b9")
 
 
 def test_enforce_warehouse_denies_out_of_scope_and_empty():

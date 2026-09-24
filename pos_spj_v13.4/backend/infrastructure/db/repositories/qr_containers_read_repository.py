@@ -58,7 +58,7 @@ class QrContainersReadRepository:
     def get_container_products(self, container_id: str) -> list[dict[str, Any]]:
         return self._dicts(
             "SELECT cp.producto_id, cp.cantidad, cp.costo_unitario, "
-            "p.nombre, COALESCE(p.unidad,'pz') AS unidad "
+            "p.legal_name, COALESCE(p.unidad,'pz') AS unidad "
             "FROM contenedor_productos cp "
             "JOIN productos p ON p.id = cp.producto_id "
             "WHERE cp.contenedor_id=?",
@@ -68,8 +68,8 @@ class QrContainersReadRepository:
     def get_container_for_reception(self, codigo: str) -> dict[str, Any] | None:
         row = self._connection.execute(
             "SELECT c.id, c.codigo, c.tipo, c.estado, c.total, c.folio_factura, "
-            "c.comprador, COALESCE(p.nombre,'(sin proveedor)') AS proveedor "
-            "FROM contenedores c LEFT JOIN proveedores p ON p.id = c.proveedor_id "
+            "c.comprador, COALESCE(p.legal_name,'(sin proveedor)') AS proveedor "
+            "FROM contenedores c LEFT JOIN (SELECT id, legal_name FROM supplier_master) p ON p.id = c.proveedor_id "
             "WHERE c.codigo=?",
             (codigo,),
         ).fetchone()
@@ -79,7 +79,7 @@ class QrContainersReadRepository:
         return self._dicts(
             "SELECT cp.producto_id, cp.cantidad, cp.costo_unitario, "
             "COALESCE(cp.cantidad_recibida, cp.cantidad) AS recibida, "
-            "p.nombre, COALESCE(p.unidad,'pz') AS unidad "
+            "p.legal_name, COALESCE(p.unidad,'pz') AS unidad "
             "FROM contenedor_productos cp "
             "JOIN productos p ON p.id = cp.producto_id "
             "WHERE cp.contenedor_id=?",

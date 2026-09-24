@@ -2986,3 +2986,1010 @@ patrón, no solo documentar.
   vuelta; confirmado con `git status` que ambos archivos ya estaban
   presentes sin relación a los 5 archivos modificados aquí (shell, páginas
   de enterprise, panel de detalle, dashboard, test de arquitectura).
+
+## Precios — migración 260: las acciones de `PRECIOS` llegan a `rol_permisos` (2026-09-17)
+
+Migrar el vocabulario de Precios a `PRECIOS.<accion>` (decisión del usuario,
+misma vuelta) hizo sus permisos **otorgables** desde Configuración → Seguridad →
+Permisos, pero no se los otorgó a nadie. Medido en la base viva
+(`data/spj_pos_database.db`): `SELECT COUNT(*) FROM rol_permisos WHERE
+modulo='PRECIOS'` → **0**, y `SELECT COUNT(*) ... WHERE modulo='*' OR accion='*'`
+→ **0** (no existe mecanismo de comodín en los datos). El módulo seguía siendo
+operable sólo por el rol `admin`, que pasa por `ADMIN_ROLE_NAMES` en
+`PermissionQueryService` sin consultar la base.
+
+**El hallazgo que motivó la migración**: `system_owner` —el dueño de la
+instalación, creado por `CreateInitialOwnerUseCase`— tiene 95 filas enumeradas en
+`rol_permisos` y **ninguna de `PRECIOS`**, y NO está en `ADMIN_ROLE_NAMES`
+(admin/superadmin/administrador), aunque sí está en `_ADMIN_ROLES` de
+`backend/bootstrap/application_context.py`, que alimenta `is_admin()`. Dos listas
+distintas para la misma pregunta. Consecuencia concreta y medida: el dueño de la
+instalación **no podía autorizar un precio bajo mínimo** mientras que `admin` sí.
+La divergencia entre ambas listas es PREVIA a este cambio y no se tocó aquí:
+alinearlas concedería el comodín global `{"*"}` a ese rol en todo el ERP, que es
+un ensanchamiento de privilegio y una decisión aparte.
+
+**Deuda declarada, no resuelta**: la migración 206 siembra `system_owner` con un
+producto cartesiano `_MODULOS × _ACCIONES` congelado en el código. Como
+`INSERT OR IGNORE` ya corrió y esa lista no se deriva de
+`CANONICAL_MODULE_PERMISSIONS`, todo módulo nacido después queda fuera en
+silencio. `PRECIOS` es el primer caso; el próximo contexto acotado tendrá el
+mismo problema. Derivar el sembrado del catálogo es la solución de raíz y se
+descartó deliberadamente: aplicarla retroactivamente a instalaciones existentes
+es una decisión de escalamiento de privilegios por derecho propio.
+
+**Alcance**: `system_owner` y `admin` reciben las 23 acciones; `gerente` recibe
+el juego operativo (19) **incluida `precio.minimo.excepcion`**, que es lo único
+que vuelve alcanzable la autorización en caliente. `cajero` y `solo_lectura` no
+reciben nada. Un rol ausente se omite, nunca se crea. Idempotente por
+`UNIQUE(rol_id, modulo, accion)`, verificada en la base viva
+(`sqlite_autoindex_rol_permisos_2`).
+
+**Verificación**: `tests/integration/pricing/test_precios_permissions_seed.py`
+(10 casos) — incluye uno que compara la lista transcrita en la migración contra
+`ALL_PRICING_PERMISSIONS`, para que una errata o una acción olvidada se vean en
+el test y no en producción.
+
+## Proveedores — migración 261: `supplier_contacts.whatsapp_e164` (2026-09-17)
+
+WhatsApp era uno de los grupos de datos del proveedor que faltaban. El contacto
+sólo tenía `phone_e164`, y tratar ese número como WhatsApp es falso en la
+práctica: el fijo de oficina y el móvil del contacto no coinciden, y WhatsApp es
+el canal que esta instalación usa de verdad para pedidos y avisos.
+
+**Dos patas, porque el esquema no tiene mecanismo de columna guardada.**
+`backend/infrastructure/db/schema/supplier_schema.py` es DDL de creación pura
+(`_DDL` + `_INDEXES` aplicados por `create_supplier_schema()`, todo
+`CREATE TABLE IF NOT EXISTS`); medido: cero apariciones de `ALTER TABLE`,
+`_column_exists` o `PRAGMA table_info` en ese archivo. Así que la columna se
+añadió al `CREATE` —para instalaciones NUEVAS— y esta migración hace el `ALTER`
+guardado para las EXISTENTES, a las que un `CREATE TABLE IF NOT EXISTS` no les
+añade nada. Idempotente por `PRAGMA table_info`, no por `try/except`, que
+también taparía un error distinto.
+
+**Cadena completa, verificada eslabón por eslabón antes de escribir** (el riesgo
+real de este cambio no es el `ALTER`, es que el dato se pierda en un salto
+intermedio sin error visible): entidad `SupplierContact`, `_COLS` del
+repositorio (12 → 13 columnas y marcadores del `INSERT`), hidratación en
+`_to_entity`, `SELECT` de `SupplierDetailQueryService.contacts()`, fila del
+presentador, columna de la tabla en la ficha, y campo del diálogo.
+`AddSupplierContactUseCase` acepta `**fields` y `SupplierContact.create`
+reenvía `**kwargs` al constructor, así que la capa de aplicación no necesitó
+cambios.
+
+**Decisión de captura**: el campo usa `PhoneInput`, el mismo componente que el
+teléfono, porque es E.164 igual que él (regla §19); como texto libre entrarían
+números que el canal de WhatsApp no puede usar. De paso se añadió validación al
+TELÉFONO, que no se validaba (sólo el correo): `PhoneInput.is_valid()` acepta
+vacío cuando no es obligatorio, así que nada de lo que hoy se guarda deja de ser
+válido — sólo deja de aceptarse un número mal formado.
+
+**Verificación**: `tests/integration/suppliers/test_supplier_whatsapp_migration.py`
+(6 casos) prueba LAS DOS patas — que una instalación nueva ya trae la columna y
+que la migración la añade a una tabla antigua—, además de idempotencia,
+conservación de las filas existentes y el caso de tabla ausente.
+
+## Proveedores — migración 262: contado/crédito y forma de pago preferida (2026-09-17)
+
+Añade `is_credit` y `preferred_payment_method` a `supplier_commercial_terms`.
+Las formas de pago válidas fueron **decisión del usuario**: Transferencia (SPEI)
+y Efectivo — `PaymentMethod` sólo declara esas dos. Antes no existía ningún enum
+de formas de pago en `backend`.
+
+`PaymentTerms.is_credit` es `None` por defecto y se DERIVA de `credit_days > 0`,
+para que las condiciones ya capturadas sigan siendo válidas; contado con días de
+crédito o crédito sin días se rechazan. La migración RELLENA `is_credit = 1`
+donde `credit_days > 0`: sin eso esas filas se hidratarían como "contado con días
+de crédito" y la ficha del proveedor dejaría de abrir. `preferred_payment_method`
+queda NULL en filas viejas — no hay de dónde deducirlo.
+
+Mismo hallazgo de siempre: la pestaña "Condiciones" mostraba un texto FIJO; las
+condiciones se guardaban y no se veían nunca. Se añadió
+`SupplierDetailQueryService.commercial_terms()` y el resumen en la ficha.
+
+**Verificación**: `tests/integration/suppliers/test_supplier_payment_terms_mode.py`
+(11 casos). Suites de Proveedores 100 → 111. Ningún otro contexto importa el
+`PaymentTerms` de Proveedores (Compras y Crédito tienen homónimos propios).
+
+## Transferencias: el DESTINO también se comprueba contra las sucursales del usuario (2026-09-17)
+
+**Decisión del usuario**, tomada sobre el hueco que quedó señalado al cerrar el
+alcance por sucursal: el origen sí se comprobaba y el destino no.
+
+`TransferAuthorizationPolicy.require` acepta ahora `destination_branch_id` (más
+almacén y ubicación, ignorados igual que en el origen) y `CreateTransferRequest`,
+`Edit`, `Submit`, `Approve` y `Reject` lo pasan. Se eligieron ESOS CINCO y no
+todos los casos de uso: el resto ya seguía una regla correcta y distinta —cada
+operación pide la sucursal donde OCURRE físicamente, surtido/empaque/despacho/
+reserva el origen y recepción/recepción a ciegas/diferencias el destino—. Lo que
+no encajaba era el ciclo de la solicitud, que compromete stock en las DOS.
+
+**Consecuencia operativa, que no es menor**: quien alcance una sola sucursal ya
+no puede crear ninguna transferencia, porque el destino es por definición otra.
+Hace falta tener ambas sucursales en el alcance (`usuarios_sucursales`, o el
+comodín del administrador). Esto no es un efecto colateral del cambio: la
+pantalla ya lo imponía —`branch_options()` alimenta los dos desplegables con las
+sucursales permitidas— y el backend es el que iba por detrás. Una regla que sólo
+vive en la pantalla no protege a quien no usa la pantalla.
+
+El mensaje de error dejó de decir "origen o destino" sin saber cuál y ahora
+nombra la pata que falló, que es lo que permite pedir el permiso correcto.
+
+**Pendiente relacionado**: `TransferRequirementEventHandler` (reposición de POS y
+pedidos de cliente) crea solicitudes con `event["user_id"]`. Hoy NO está suscrito
+en ningún sitio, así que no le afecta; el día que se conecte, el usuario que
+dispara el evento necesitará alcance sobre ambas sucursales.
+
+**Verificación**: `tests/integration/transfers/test_create_transfer_request_e2e.py`
+(8 casos; el nuevo `test_a_destination_outside_the_users_branches_is_rejected`
+comprueba además que no queda ninguna transferencia escrita).
+
+## Precios: la sección "Configuración" deja de ser una ruta muerta (2026-09-17)
+
+`pricing_settings` estaba declarada en `navigation.py` desde PRC-7 y `build_page`
+devolvía `None`: la sección abría con "Esta sección aún no está construida". El
+contador de `test_placeholder_routes_ratchet.py` pasa de `(5, 6)` a `(6, 6)`.
+
+**No se creó tabla de configuración de Precios, a propósito.** Los parámetros de
+este módulo no son interruptores guardados aparte, son consecuencia de los datos:
+qué lista base rige, en qué moneda se cobra, con qué método se costea, cuántos
+precios tienen mínimo, cuántos están acotados a una sucursal. Inventar una tabla
+de ajustes habría producido controles que no gobiernan nada — peor que no tener
+la pantalla, porque el usuario cambiaría un valor y el módulo seguiría igual.
+
+La pantalla es de LECTURA y su columna de nota es la parte que importa: cero
+listas base activas, dos listas base activas, varias monedas conviviendo o ningún
+precio con mínimo son configuraciones rotas que, si sólo se imprime el valor, se
+ven idénticas a las correctas.
+
+**Verificación**: `tests/integration/pricing/test_pricing_settings_page.py`
+(13 casos), uno de ellos la guardia general de que ninguna sección declarada en
+el menú de Precios vuelva a quedarse sin página. Suites de Precios: 174 passed.
+
+## Menú lateral: el test de navegación exige TODOS los módulos (2026-09-17)
+
+`test_migrated_modules_navigation.py` fijaba nueve entradas (las de SHELL-16)
+mientras `MIGRATED_MODULES_NAVIGATION_ITEMS` ya tenía dieciocho: tres casos
+fallaban desde que se registraron Configuración, BI, Mermas, Producción, Pedidos,
+Fidelización, Tarjetas, Activos y Precios.
+
+Además de ampliarlo, los módulos **se descubren del disco**
+(`frontend/desktop/modules/*/shell_registration.py`, estático con `ast`). Una
+lista escrita a mano no puede detectar el fallo que este archivo existe para
+evitar, y que el repositorio ya cometió dos veces —Activos con 12 archivos de UI
+y Precios con seis páginas, ambos construidos y sin entrada en el menú—: el
+olvido consiste justamente en no añadirse a la lista.
+
+**Verificación**: 61 passed en `tests/unit/shell/sidebar/` y compañía; 371 passed
+en `tests/integration/shell` + `tests/unit/shell`.
+
+## SUP-6 — un solo maestro de proveedores (migración 263, 2026-09-17)
+
+**Decisión del usuario**: corte completo, migración sólo registrada (no ejecutada
+contra la base real).
+
+### Lo que estaba roto, medido ejecutándolo
+
+Había DOS buscadores de proveedores contra DOS tablas, con resultados
+**disjuntos**:
+
+    Módulo Proveedores -> `supplier_master`   (el maestro canónico)
+    Compras            -> `proveedores`       (la tabla heredada)
+
+y **nada en el código de producción escribía en `proveedores`** — sólo los tests.
+Consecuencia: un proveedor dado de alta y aprobado hoy **no se podía elegir al
+crear una compra**, y los heredados no aparecían en el módulo. No era un
+descuido: la migración 119 dejó escrito que esos lectores migrarían "en SUP-6";
+para Compras nunca ocurrió.
+
+Agravante: `SupplierDirectoryQueryService.require_eligible` —la puerta que
+autoriza la compra— leía también la tabla heredada. Aunque se arreglara sólo el
+buscador, la compra se habría rechazado con "El proveedor canónico no existe".
+Buscador y puerta tenían que moverse juntos, y ahora **comparten la misma
+definición de "comprable"** (`is_purchasable`).
+
+### Qué se hizo
+
+* `supplier_search_query_service.py`: UN contrato (`SupplierSearchQuery`) y UN
+  constructor de SQL, con presets que sólo AÑADEN restricciones — misma forma que
+  `product_selection_query_service`. `SupplierDirectorySearchQueryService` (el
+  módulo, ve borradores y pendientes) y `SearchProcurementSuppliersQueryService`
+  (Compras).
+* Migración **263**: copia los heredados al maestro **conservando el id**, porque
+  `purchase_orders`, `direct_purchases`, `compras`, `recepciones`,
+  `goods_receipts`, `supplier_invoices`, `contenedores` y las cotizaciones
+  guardan `supplier_id` apuntando ahí. `proveedores.id` ya era TEXT/UUID, así que
+  conservarlo no reintroduce identidades de otro tipo.
+* Los ~21 JOIN de nombre y la puerta de elegibilidad, migrados. **Cero lectores
+  de `proveedores` quedan en `backend/` ni `frontend/`.**
+
+### Tres cosas que costó ver
+
+1. **Los bloqueos.** `proveedores` los marca con dos columnas
+   (`compras_habilitadas`, `bloqueado_financiero`) y el maestro con filas de
+   `supplier_blocks`. Copiar sólo los datos habría **desbloqueado en silencio** a
+   quien estaba bloqueado, volviéndolo elegible para comprar. La 263 traduce cada
+   marca a su bloqueo. `PAYMENT_BLOCK` cuenta como impedimento para comprar
+   porque en el modelo heredado `bloqueado_financiero` lo era.
+2. **Columnas ambiguas.** `supplier_master` comparte nombres con las tablas de
+   compras (`status`, `notes`, `active`, `created_at`). Al cambiar el JOIN, un
+   `status` sin calificar volvía la consulta ambigua y `_query` se tragaba el
+   `OperationalError` devolviendo `[]`: la pantalla quedaba vacía **sin ningún
+   error**. Se resolvió uniendo una subconsulta acotada a `id, legal_name`, que
+   elimina todas las colisiones de golpe en vez de ir descubriéndolas una a una.
+3. **La normalización no acertaba nunca.** El maestro guarda `normalized_name`
+   sin acentos ni espacios (`carnesdelnortesa`), y la búsqueda comparaba contra
+   el texto en crudo (`LIKE '%carnes del%'`). Esa rama no coincidía jamás en
+   cuanto el término tenía un espacio o un punto; sólo funcionaba por
+   `legal_name`. Ahora el texto se normaliza igual que lo almacenado. Ojo: en
+   Productos NO se pliegan acentos — la regla es normalizar igual que escribe el
+   maestro de CADA contexto, no plegar siempre.
+
+### Un fallo abierto que se cerró de paso
+
+`SupplierProfileAdapter` devolvía, en el MISMO objeto, `active_blocks =
+("PAYMENT_BLOCK",)` y `purchasing_enabled = True`: reportaba el bloqueo y a la
+vez decía que se podía comprar, porque la elegibilidad se resolvía contra
+`proveedores`, donde ese proveedor no tenía fila, y la ausencia degradaba a
+permisivo. Un test fijaba ese comportamiento con el comentario "degrades to
+permissive defaults". Ahora ambas salen del maestro y coinciden.
+
+### Explicación del vacío
+
+Se añadió `explain_empty` (SIN_PROVEEDORES / SIN_APROBAR / NO_COINCIDE /
+BLOQUEADOS_PARA_COMPRAS) y se conectó a los campos de proveedor de Compras
+—que aceptaban `empty_reason_provider` y nunca lo recibían, al revés que los de
+producto— y al estado vacío del listado, que decía siempre "No hay proveedores
+que coincidan" incluso con el catálogo vacío.
+
+### Verificación
+
+`tests/integration/suppliers/test_supplier_search_contract.py` (23 casos, el
+central es `test_the_module_and_purchasing_see_the_same_suppliers`) y
+`test_supplier_legacy_cutover_migration.py` (15 casos: id preservado, bloqueos
+preservados, reejecución sin duplicar ni pisar lo capturado después).
+
+Las pruebas de Compras y Logística NO se reescribieron para sembrar el maestro:
+siguen sembrando lo heredado y pasan por la 263 mediante
+`tests/integration/_supplier_cutover.py`, así que cada una prueba además que el
+corte no rompe lo que ya funcionaba.
+
+Suites `suppliers` + `procurement` + `logistics`: **433 → 475 passed**, cero
+fallos.
+
+## Fase 1 — la sucursal se ELIGE en Compras y en Precios (2026-09-17)
+
+Reportado por el usuario: "en el módulo de compras no es posible seleccionar
+sucursales en los diálogos". Confirmado, y peor de lo que sugiere el reporte.
+
+### Lo que había
+
+`RequisitionFormDialog` y `OrderFormDialog` capturaban la sucursal con
+`StandardLineEdit`, una caja de TEXTO LIBRE. En la solicitud arrancaba **vacía**:
+para crear una solicitud de compra había que escribir a mano el UUID de la
+sucursal, así que en la práctica no se podía crear ninguna. En la orden venía
+rellenada con la sucursal de la sesión, pero cambiarla exigía teclear otro UUID.
+
+Viola §20 del prompt ("donde se seleccione … sucursal … debe usarse barra de
+búsqueda/autocomplete") y es justo lo que la Fase 1 exige.
+
+El almacén estaba igual, y con un agravante: `warehouse_options()` ya existía en
+el presentador, acotado a la sucursal activa, y **nadie la llamaba**.
+
+### Lo mismo en Precios
+
+El barrido por el mismo patrón encontró `ProductPriceFormDialog` y
+`BulkPriceDialog` con `StandardLineEdit(placeholder="Sucursal (vacío = todas)")`.
+El diálogo de lote dice en su propio docstring que pedir un identificador
+escrito a mano es pedirle al usuario un dato que no puede conocer — lo decía de
+la categoría, mientras la sucursal justo debajo era exactamente eso.
+
+### Qué se hizo
+
+`branch_options()` en los presentadores de Compras y de Precios, resuelto con
+`BranchScopeQueryService` y **acotado al alcance del usuario**: mismo orden que
+Transferencias (`usuario → permitidas → consulta → resultados`), nunca listar
+todas y esconder en la pantalla. Los cuatro diálogos usan ya `SearchableComboBox`.
+
+En Precios el vacío SIGNIFICA algo (el precio rige en todas las sucursales), así
+que "Todas las sucursales" es una opción explícita de la lista y no el resultado
+de dejar un campo en blanco.
+
+### Dos decisiones que evitan un daño silencioso
+
+1. **La orden no inventa una sucursal que no se le ofreció.** Si la sucursal de
+   la solicitud no está en el alcance del comprador, el campo queda VACÍO y el
+   backend rechaza. Sustituirla por otra sería surtir a una sucursal distinta de
+   la que pidió.
+2. **Editar un precio no ensancha su alcance.** Si el precio editado está acotado
+   a una sucursal fuera del alcance del usuario, esa sucursal se AÑADE a la lista
+   para conservarla. Sin eso el combo caería en "Todas" y, como el caso de uso
+   hace upsert por (lista, producto, sucursal), guardar habría creado un precio
+   para TODAS en vez de modificar el de esa sucursal. No es fuga: la sucursal
+   viene del renglón que el usuario acaba de abrir.
+
+La preselección en la solicitud usa un ayudante que traga el error de
+`default_branch()`: ese método LEVANTA cuando la sesión no trae sucursal activa,
+y dejarlo propagar impediría abrir el diálogo para elegirla a mano — que es justo
+lo que este arreglo habilita.
+
+### Verificación
+
+3 casos nuevos en `tests/integration/procurement/test_enterprise_ui.py` (incluido
+`test_the_order_dialog_does_not_invent_a_branch_it_was_not_offered`) y 9 en
+`tests/integration/pricing/test_pricing_branch_selector.py`. El fixture de
+Compras necesitó la tabla `usuarios`: sin ella el alcance sale vacío — el fallo
+cerrado correcto, pero deja el combo sin nada que ofrecer.
+
+Suites pricing + procurement + suppliers + logistics: **655 passed**.
+
+Barrido final: no queda ningún campo de texto libre para SELECCIONAR sucursal en
+`frontend/`. Los `StandardLineEdit` de Configuración son para CREAR una sucursal
+(razón social, RFC, dirección), no para elegirla.
+
+## Fase 1 — Direcciones: un estándar para todos los módulos (migración 264, 2026-09-17)
+
+**Decisiones del usuario**: un estándar utilizable en todos los módulos; API de
+mapas tipo Mapbox **configurable desde Configuración**; autocompletar **a partir
+del 5.º carácter**; cadena **Mapbox → Nominatim → manual**; conectar **todas las
+pantallas de una vez**.
+
+### Lo que había, medido
+
+* `AddressInput` existía y **ninguna pantalla lo construía** (sólo pruebas). Su
+  proveedor por omisión era `lambda _query: []`, disparaba desde la primera tecla,
+  y `value()` devolvía sólo la etiqueta: tiraba la latitud y la longitud.
+* **La geocodificación con Mapbox se construyó y se perdió.** El commit `42f0ed01`
+  tenía proveedor Mapbox v6, respaldo Nominatim, caché LRU+TTL, workers
+  asíncronos y **mínimo de 5 caracteres**. Vivía en `core/` y se borró con el
+  legacy; sólo quedó `tests/architecture/test_address_uses_geocoding_service.py`,
+  que apuntaba a tres archivos inexistentes y fallaba siempre.
+* Cada módulo capturaba la dirección a su manera: Delivery en seis cajas de texto,
+  Proveedores en cinco, Configuración en una (×3 diálogos), y Clientes en ninguna:
+  `AddCustomerAddressUseCase` estaba completo y **sin ningún llamador**.
+* Tres mecanismos construidos y nunca usados: las columnas `latitude`/`longitude`/
+  `geocoding_source`/`validation_state` de `supplier_addresses`; `OrderAddress.
+  mark_geocoded` (el caso de uso de captura de pedidos tiraba las coordenadas); y
+  el propio `AddCustomerAddressUseCase`.
+
+### Lo construido
+
+* `backend/application/addresses/address_search.py`: el valor `StructuredAddress`,
+  el puerto de proveedor, `AddressSearchService` con la cadena, y
+  `MIN_QUERY_CHARS = 5` como **única fuente** de la cifra.
+* `backend/infrastructure/maps/`: `MapboxAddressProvider` (v6, parsea el contexto
+  completo —calle, número, colonia, municipio, estado, C.P.—, no sólo la
+  etiqueta), `NominatimAddressProvider`, caché y la fábrica que lee
+  Integraciones.
+* `AddressInput` reescrito: consulta en `QThreadPool` con `request_id` para
+  descartar respuestas viejas, espera a que se deje de escribir, rellena campos
+  editables que son también la captura manual.
+* **Configuración sin inventar nada**: Integraciones ya tenía CRUD real de
+  definiciones, instancias y credenciales, `IntegrationCategory.LOCATION` ya
+  existía y el token vive en el almacén de secretos. La **migración 264** siembra
+  MAPBOX (instancia **inactiva**: todavía no hay token) y NOMINATIM (activa).
+  Para activar Mapbox: Integraciones → Mapbox → Credenciales →
+  `mapbox_access_token` → pegar el token → Activar.
+* Conectado en: Proveedores (domicilio), Delivery (nuevo pedido), Configuración
+  (empresa, alta y edición de sucursal) y **Clientes** (botón nuevo "Agregar
+  dirección" en la ficha).
+
+### Reglas que no son opcionales
+
+* **Nominatim prohíbe el autocompletado** del lado del cliente en su servidor
+  público, y limita a una petición por segundo. Por eso declara
+  `supports_autocomplete = False` y el servicio NO lo llama mientras se escribe:
+  responde `NEEDS_EXPLICIT_SEARCH` y la pantalla pide **Enter**. El respaldo
+  existe; sólo cambia el gesto. El límite de una por segundo se hace cumplir con
+  un candado de proceso.
+* **Mapbox: geocodificación permanente.** Los resultados por omisión de su API son
+  "temporales" y sus condiciones no permiten guardarlos. Este ERP guarda las
+  coordenadas, así que se pide `permanent=true`. Si la cuenta no lo tiene
+  contratado responde 403, la cadena pasa al respaldo y el motivo se ve.
+* **Falla ≠ cero coincidencias.** Sólo una FALLA pasa al siguiente proveedor. La
+  versión perdida devolvía `[]` ante todo, y un token caducado se veía igual que
+  una calle inexistente.
+* **Corregir a mano descarta las coordenadas.** Cambiar calle, número exterior,
+  colonia, municipio, estado o C.P. tras elegir una sugerencia invalida lat/lon;
+  guardarlas mandaría al repartidor a otro sitio. Interior y referencias no.
+
+### Defectos atrapados por las pruebas antes de llegar a producción
+
+1. **La caché compartida no se habría usado nunca.** `AddressSearchCache` define
+   `__len__`, así que una caché vacía es falsa en Python y `cache or _NoCache()`
+   la descartaba siempre.
+2. **Sin el esquema de Integraciones se perdía también el respaldo** Nominatim,
+   que no necesita configuración.
+3. **Enter cerraba el diálogo.** En un `QDialog`, Enter en un `QLineEdit` activa
+   el botón por defecto; como Enter es el gesto para buscar con Nominatim, buscar
+   una dirección habría cerrado Proveedores/Clientes/Configuración a medio
+   capturar. Comprobado con un `QLineEdit` normal antes de arreglarlo.
+
+### Verificación
+
+`tests/integration/addresses/` (66 casos: servicio, proveedores sin red,
+configuración desde Integraciones, componente con hilos reales, extremo a extremo
+por pantalla). La guardia de arquitectura se reescribió y ahora vigila el
+estándar (7 casos; se comprobó que habría atrapado el código anterior). Delivery
+ganó `test_a_geocoded_address_reaches_the_order_with_its_coordinates`.
+
+Regresión: todas las suites afectadas iguales a la línea base; los fallos previos
+(3 de MercadoPago en integraciones, 6+1 de `test_crm_21_*` en clientes) son
+**exactamente los mismos nombres**. Delivery pasó de 235+1 fallo a 237 sin
+fallos; el nombre del fallo previo no se imprimió, así que no se atribuye.
+
+**Verificado contra el servicio real — sólo Nominatim**: una consulta explícita
+("Avenida Juárez 100, Cuauhtémoc, CDMX") devolvió calle, número, colonia, C.P. y
+coordenadas correctas. Destapó un detalle que ninguna documentación dejaba ver:
+en la Ciudad de México la alcaldía viene en `borough` y `city` repite el estado,
+así que el municipio salía "Ciudad de México". Se corrigió poniendo `borough`
+primero y se fijó con una prueba sobre la forma real de la respuesta.
+
+**Pendiente, no hecho**: Mapbox NO se ha probado contra su servicio real —no hay
+token configurado—; su parseo se escribió contra el formato documentado de la
+API v6. Conviene hacer una búsqueda real en cuanto se cargue el token.
+
+## Fase 2 — Productos es la ÚNICA fuente de recetas (migración 265, 2026-09-18)
+
+Re-auditoría de la Fase 2 contra el §12/§13 del prompt ("No crear un segundo
+catálogo de recetas… `products` debe poseer la definición de receta/rendimiento;
+`meat_processing` debe ejecutar esas definiciones"). La sesión anterior había
+cerrado la otra mitad: Producción liberaba órdenes sin receta porque el puerto
+estaba conectado a un nulo. Eso sigue en pie (5/5 pruebas).
+
+### Lo que se midió
+
+* Producción NO tiene catálogo de recetas propio: sus tablas son de ejecución
+  (`process_outputs`, `yield_reconciliations`…). ✔
+* Pero existían **tres** catálogos de recetas, y la explosión de COMPRAS (viva:
+  se suscribe al arrancar) leía los dos que no eran el canónico:
+
+      recipes / recipe_versions / recipe_components   ← lo escribe Productos
+      product_recipes / product_recipe_components      ← nadie lo escribe
+      recetas / receta_componentes                     ← nadie lo escribe
+
+  Una receta creada hoy en Productos **nunca se aplicaba al comprar**.
+* Ventas, la reconstrucción inversa, Producción y Mermas ya leían el canónico.
+
+### Lo que se hizo
+
+1. `purchase_recipe_explosion_bridge.py` usa la MISMA pareja que Ventas
+   (`RecipeRepository.active_version_for_product` + `RecipeExplosionService`):
+   una sola regla de explosión y una sola fuente. Dos cambios deliberados: sólo
+   explota la versión ACTIVA (el legacy aceptaba cualquier receta con `activo=1`)
+   y se incluye la merma de la receta, igual que Ventas.
+2. **Migración 265.** Al llevar la explosión al canónico, las pruebas destaparon
+   que **la 152 —el backfill legacy→canónico— dejaba toda receta migrada
+   ilegible**: escribía `output_type='MAIN'` (el enum tiene `MAIN_PRODUCT`) y
+   copiaba `tipo_receta` legacy tal cual (`PRODUCCION`, `COMBINACION`,
+   `SUBPRODUCTO`, o `PROCESSING` por omisión), ninguno válido en `RecipeType`.
+   La 265 traduce SÓLO lo que el legacy deja escrito (migración 085):
+   `PRODUCCION→PRODUCTION_BOM`, `COMBINACION→SALES_EXPLOSION`,
+   `PROCESSING→PROCESSING_RECIPE`. **`SUBPRODUCTO` no se adivina**: según la 085
+   el dueño de esa receta es el producto que se DESPIEZA, y la 152 la copió al
+   revés; queda legible (`PROCESSING_RECIPE`) pero sus versiones activas pasan a
+   `UNDER_REVIEW` para que no consuman inventario hasta que alguien la
+   clasifique. La 152 no se tocó (ya aplicada en bases reales): la 265 corre
+   siempre justo después, en instalaciones nuevas y existentes.
+
+Sin riesgo de datos: en la base real los tres catálogos están vacíos y la 152 ya
+estaba aplicada (medido en sólo lectura).
+
+### Verificación
+
+`test_purchase_recipe_explosion_flip.py` 3 → 6 (los casos legacy ahora pasan por
+152+265 como en una base real; nuevos: receta creada en Productos, borrador que
+no explota, base sin esquema de Productos) y `test_recipe_backfill_type_repair.py`
+(10, incluido uno que fija que sin la 265 la receta migrada es ilegible).
+Productos 497 → 507, Inventario 585 → 588; los fallos previos (19+2 y 3+19) son
+los mismos nombres.
+
+### Hallado y NO hecho — pertenece a la Fase 10 (Meat Processing)
+
+El §13 también pide que Producción registre esperado, real, diferencia,
+rendimiento %, merma %, costo por output, lote origen y lote destino. Medido:
+
+* La raíz de composición de Producción sólo conecta 4 casos de uso (crear,
+  aprobar, liberar, cerrar orden). `RecordProcessOutputsUseCase` y
+  `ReconcileYieldUseCase` **no tienen ningún llamador**: capturar lo producido y
+  conciliar el rendimiento no es alcanzable desde la aplicación.
+* `ReconcileYieldUseCase` recibe lo ESPERADO como parámetro en vez de derivarlo
+  del perfil de rendimiento de Productos que la orden ya referencia; y concilia
+  TOTALES por orden, no por producto de salida como pide el ejemplo del §13.
+* Mermas (`production_loss_repository`) sí lee el esperado por salida
+  (`yield_outputs.expected_yield_pct`) del catálogo canónico: la fuente existe.
+
+Aparte: `backend/infrastructure/db/repositories/product_repository.py`
+(`ProductRepository`) lee `productos` y `product_recipes` y no lo importa ningún
+código de producción, sólo dos pruebas. Código muerto, no borrado aquí.
+
+## Fase 3 — Compras: "no permite crear solicitud" y "permite confirmar una compra rápida" (2026-09-18)
+
+Reportado por el usuario. Ambos síntomas se REPRODUJERON antes de tocar nada,
+contra una COPIA de la base real (`data/spj_pos_database.db` no se tocó), con la
+sesión construida como en el inicio de sesión real (`ApplicationContextBuilder` +
+`LegacySessionAdapter`) y el cableado de eventos del arranque.
+
+### "No permite crear nueva solicitud" — era la pantalla, no el backend
+
+El caso de uso creaba la solicitud sin problema. Simulando teclado y ratón:
+* Escribir el producto y pulsar **Enter cerraba el diálogo** sin líneas: el
+  buscador sólo elegía con CLIC, y en un `QDialog` Enter activa "Aceptar".
+* Escribir el producto sin clic en el resultado: "Agregar" **no hacía nada y no
+  avisaba**.
+* "Aceptar" sin líneas cerraba el diálogo y el aviso llegaba **después**, con la
+  captura perdida.
+* Además, editar el texto tras elegir no borraba la selección: "Agregar" añadía
+  el producto ANTERIOR.
+
+Arreglado en el componente compartido `EntitySearchInput` (↓/↑ recorren, Enter
+elige el resaltado —el primero se resalta tras cada búsqueda—, Enter nunca llega
+al diálogo, editar invalida la selección). Lo usan **14 pantallas de 7 módulos**,
+así que el arreglo vale para todas. En `_LinesEditor`: "Agregar" dice por qué no
+agrega, Enter en cantidad/precio agrega la línea. Los diálogos de solicitud y de
+orden validan ANTES de cerrarse, incluido "producto capturado sin agregar".
+
+### "Permite confirmar una compra rápida" — confirmaba lo que no debía
+
+Medido: se creaba Y confirmaba, y la mercancía entraba al inventario, con
+* un producto **en revisión** (no activo);
+* el almacén de **otra sucursal**;
+* **costo unitario cero** (hundía el costo promedio);
+* pagos de contado **que no se podían contabilizar**.
+
+El último es el más serio. La instalación tiene Caja general, Banco y Procesador;
+**no tiene caja chica**. Midiendo las 5 fuentes que ofrecía la pantalla: sólo
+Transferencia y Mercado Pago generaban asiento. Caja chica, Cuenta de tesorería y
+Tarjeta autorizada se confirmaban **sin asiento contable** (CLAUDE.md §11): el
+puente contable registraba una advertencia y la compra quedaba pagada. La
+decisión de no adivinar la cuenta (sesión anterior, aprobada por el usuario) era
+correcta; lo que faltaba es que la CONFIRMACIÓN se enterara.
+
+Arreglado:
+* `resolve_purchase_treasury_account` / `purchase_posting_problem`: la regla del
+  puente, extraída a una función que usan el puente al asentar, la confirmación
+  al validar (`PaymentSourceBookingPort` + `ProcurementPaymentSourceBookingAdapter`)
+  y la pantalla al ofrecer fuentes. No pueden discrepar. Incluye el perfil
+  contable PURCHASE, sin el cual el puente también fallaba después de confirmar.
+* Crear y confirmar validan producto ACTIVO y comprable y almacén de la sucursal
+  que admite compras; confirmar además revalida al proveedor (pudo bloquearse
+  desde el borrador). Puertos existentes, sin SQL nuevo.
+* **Costo > 0 en el dominio** (decisión del usuario), en `DirectPurchaseLine` y
+  en `PurchaseOrderLine` — ésta ni siquiera rechazaba precios NEGATIVOS.
+* La pantalla sólo ofrece las fuentes que se pueden asentar: en esta instalación,
+  Transferencia bancaria y Mercado Pago.
+
+### Pruebas que fijaban los defectos como contrato
+
+`test_direct_purchase_ui.py` usaba un producto inexistente (`p1`), un almacén
+inexistente (`wh-1`) y pagaba de caja chica sin contabilidad — y pasaba porque
+no se comprobaba nada de eso. Ahora siembra un contexto real
+(`tests/integration/procurement/_purchase_context.py`) y paga por transferencia.
+
+### Verificación
+
+Nuevos: `tests/ui/test_entity_search_keyboard.py` (8),
+`test_requisition_dialog_capture.py` (9, los escenarios reproducidos),
+`test_direct_purchase_ui.py` 5 → 13 (incluye que lo que se confirma SÍ deja su
+asiento, con un bus local para no contaminar el global).
+
+**Pendiente, deliberadamente**: la instalación no puede pagar de contado desde
+caja chica hasta que Finanzas dé de alta una cuenta de tesorería de ese tipo;
+`TREASURY_ACCOUNT` y `AUTHORIZED_CARD` siguen sin traducción (ambiguas, decisión
+anterior del usuario) y por eso ya no se ofrecen.
+
+Regresión amplia (2026-09-18): Compras 116 → 133, Finanzas, Proveedores,
+Logística, Precios y Cárnico sin cambios; Productos (19+2) e Inventario (3+19)
+con los mismos fallos previos por nombre. `tests/ui` destapó una regresión MÍA
+DEL DÍA ANTERIOR: al conectar `supplier_search_reason` a la pantalla de compra
+rápida, el doble de `test_purchasing_visual_closure.py` no lo tenía (ese día no
+se corrió `tests/ui`). Al completarlo apareció que el doble tampoco tenía
+`capabilities()`, que la pantalla ya pedía antes: ese caso fallaba de antes sin
+llegar a medir el recorte. Completado el doble, 8/8. El fallo que queda en
+`tests/ui` (asistente de instalación) es `No module named 'core'`, previo.
+
+## Fase 4 — Factura de proveedor → conciliación → CxP (migración 266, 2026-09-18)
+
+La sesión anterior dio la cadena a crédito por cerrada con UNA prueba que arma
+los casos de uso a mano (sin servicio de tolerancias, sin el bus de la app).
+Recorrida esta vez por la composición REAL sobre una copia de la base real,
+estaba **muerta en producción**:
+
+1. **La conciliación reventaba.** `ProcurementToleranceSettingsQueryService`
+   exige `procurement.tolerance.{quantity,price,tax}.default` y lanza
+   `LookupError` si faltan; nadie las sembraba. Ninguna factura podía conciliar
+   ni generar CxP. → **Migración 266**: 0 % en las tres (decisión del usuario),
+   `INSERT OR IGNORE` para no pisar valores del administrador.
+2. **Toda factura con IVA salía como diferencia de impuesto.** La orden no
+   guarda impuesto y la conciliación comparaba contra un `"0"` fijo; con
+   `Tolerance`, esperado 0 exige real 0 exacto, así que ninguna tolerancia lo
+   arreglaba. → Decisión del usuario: sólo se compara el impuesto que el
+   documento DECLARÓ (`tax=None` = no declarado). Contra la orden no se compara;
+   en compra rápida, que sí captura impuesto por línea, sí.
+3. **Doble registro de la compra de contado.** Conciliar su factura creaba una
+   CxP a un proveedor YA PAGADO y un segundo asiento (inventario cargado dos
+   veces). → Se concilia pero no emite `ACCOUNT_PAYABLE_CREATE_REQUESTED`
+   (§11: el contado termina en Tesorería). También en "liberar".
+4. **La CxP nacía sin vencimiento.** → Decisión del usuario: fecha de factura +
+   días de crédito de las condiciones comerciales del proveedor (0 si es de
+   contado o no hay condiciones). `SupplierPaymentTermsPort` +
+   `SupplierPaymentTermsAdapter` (lee la consulta de Proveedores, no la tabla);
+   el traductor reenvía `payment_term_days` — su lista de campos es FIJA y lo
+   perdía — y el puente de Finanzas calcula `due_date`.
+5. **"Liberar diferencia" generaba deuda desde cualquier estado**, incluso sin
+   recepción. → Decisión del usuario: sólo diferencias de precio, cantidad o
+   impuesto y la factura sin documento de compra (`RELEASABLE_MATCH_RESULTS`).
+
+Medido tras el cambio en la copia real: factura sin IVA → CxP 500 con
+vencimiento; factura con IVA → concilia → CxP 580 y su asiento; compra de
+contado + factura → concilia sin CxP ni segundo asiento.
+
+**Verificación**: `test_invoice_to_payable_chain.py` (11) por la composición
+real con bus LOCAL. Ninguna prueba previa cubría el IVA contra orden, la
+restricción de liberación, el contado, el vencimiento ni la falta de
+tolerancias. Compras 133 → 144; Finanzas, Proveedores, Logística y las de
+pantalla sin cambios.
+
+**Pendiente, no hecho** (§11 lo lista):
+* **Notas de crédito**: no existen en ninguna capa.
+* **Descuentos en factura**: la línea de factura no tiene campo de descuento.
+* **Tolerancias por proveedor en su ficha**: `supplier_commercial_terms` guarda
+  `quantity_tolerance`/`price_tolerance`, pero la conciliación las lee de
+  `configuraciones` (`procurement.tolerance.<tipo>.supplier.<id>`): las de la
+  ficha se ignoran. Mismo patrón de "capturado y no leído".
+* La captura de factura acepta una orden en BORRADOR (la conciliación luego
+  la frena con MISSING_RECEIPT, así que no genera deuda).
+
+## Fase 5 — Productos → Precios: lo que se cobra (migración 267, 2026-09-18)
+
+Medido sobre una copia de la base real con la sesión y la composición reales:
+
+1. **La vigencia no existía para el motor.** `get_price` no mira fechas, así
+   que un precio programado se cobraba desde que se capturaba y uno vencido se
+   seguía cobrando. → `PricingRepository.effective_price(..., on_date)` (la fila
+   de sucursal vigente, si no la de todas las sucursales vigente); el motor la
+   usa para las listas base, de canal y de cliente. `get_price` se queda para
+   quien EDITA precios (busca la fila guardada, no la vigente).
+2. **El canal no existía para el motor.** Tomaba "la" lista de canal activa,
+   cualquiera, en todas las ventas: la lista de WhatsApp a 120 se cobraba en el
+   mostrador. → `active_channel_list(channel)`; el POS pide `POS` y Delivery
+   el canal del pedido. Además el canal era texto libre en el diálogo: ahora
+   se elige de `SALE_CHANNELS` (dominio de Precios; una prueba verifica que
+   cada código exista en `OrderChannel`), se normaliza, y una lista de CANAL
+   sin canal válido no se crea ni se ACTIVA (sí se lee: la base real tiene una).
+3. **Delivery cobraba el precio de vitrina.** Sin cliente, sin cantidad, sin
+   canal: ni listas de cliente ni volumen. → `price_for()` en el catálogo de
+   captura, con las mismas entradas que el mostrador. Y el pedido guarda al
+   cliente (decisión del usuario: opcional): `CaptureOrderUseCase(customer_id=)`
+   y un buscador en "Nuevo pedido" con la MISMA búsqueda del mostrador
+   (`CustomerLookupQueryService`, permiso `CLIENTES.buscar` de la sesión).
+4. **El mínimo sólo existía en Precios.** Un descuento dejaba Pollo (mín. 95)
+   en 90 sin pedir nada. → Decisión del usuario: bajo el mínimo pide la
+   autorización en caliente de un descuento grande, exige motivo y queda en el
+   evento `SALE_DISCOUNT_APPLIED` (outbox) con las líneas afectadas.
+   `MinimumPricePolicy` (dominio de Ventas) calcula el precio efectivo con el
+   descuento de línea y la parte proporcional del de la venta; sólo cuenta una
+   línea que un DESCUENTO bajó (un precio de cliente ya bajo el mínimo es
+   decisión de Precios y no bloquea descontar otra línea).
+5. **La autorización en caliente era imposible en el mostrador.** El verificador
+   de sesión sólo responde por el cajero y el autorizador debe ser OTRO: todo
+   descuento que la necesitara se negaba siempre. Mismo defecto que Precios
+   cerró el 2026-09-17 con `PricingAuthorizerPermissionChecker`; se movió a
+   `backend/application/security/authorizer_permission_checker.py`
+   (`AuthorizerPermissionChecker`, estándar único) y Ventas lo usa.
+6. **El autorizador no se probaba con clave.** El POS pedía su UUID tecleado;
+   Caja captura la clave y la DESCARTA. → `VerifyAuthorizerCredentialsUseCase`
+   (mismas reglas y bloqueo por intentos que el login, sin abrir sesión); el
+   diálogo de descuento pide usuario y clave y muestra por qué se rechaza.
+7. **El descuento no tenía entrada en el mostrador.** Permiso, caso de uso y
+   diálogo existían; ningún botón ni atajo lo abría. → botón "% Descuento"
+   (sigue a `discount_apply`) y F5.
+8. **Migración 267 — "Nuevo pedido" reventaba en producción.** La base real
+   tiene la 226 aplicada con el esquema de entonces; `create_orders_delivery_schema`
+   creció después y `CREATE TABLE IF NOT EXISTS` no agrega columnas: faltaban
+   `customer_orders.pickup_verification_code`, `customer_order_lines.package_id`
+   y 10 tablas (paquetes, trabajos de entrega, rutas, liquidaciones). Crear
+   CUALQUIER pedido fallaba. Se midieron todas las `create_*_schema` contra la
+   base real: sólo Delivery tenía deriva. 267 agrega las columnas y vuelve a
+   correr el esquema. Sólo registrada.
+
+Medido tras el cambio en la copia real (jose.rodriguez cobra, admin autoriza):
+mostrador 100 (el 90 es de dentro de 30 días), pedido POS 100, pedido WhatsApp
+120; descuento a 90 sin autorización → `BELOW_MINIMUM`; con admin y motivo →
+aplicado y auditado; la búsqueda de clientes de "Nuevo pedido" encuentra al
+cliente real.
+
+**Verificación**: `test_pricing_channels_validity_minimum.py` (20),
+`test_verify_authorizer_credentials.py` (8), `test_schema_drift_267.py` (4),
+`test_pos_discount_and_price_list_ui.py` (9), `test_new_order_page.py` 11 → 15.
+Precios, Pedidos/Delivery y seguridad sin regresiones; la prueba de atajos del
+POS se actualizó (F5). Fallos previos, sin relación: módulos `core`/`config`
+borrados, `test_action_buttons_use_the_same_variants...` (el botón "success"
+ahora es variante `secondary`), y `inventory_balances` en las pruebas
+unitarias de suspender/cobrar (la reconstrucción de Fase 7 consulta inventario
+y esas pruebas no crean su esquema).
+
+**Pendiente, no hecho**:
+* **Caja descarta la clave del autorizador** (`HotAuthorizationDialog` de
+  `cash_register`) y Compras autoriza sin identificar a nadie: deben usar
+  `VerifyAuthorizerCredentialsUseCase`.
+* **Precios no captura al autorizador** del precio bajo el mínimo en su UI: el
+  caso de uso lo soporta, la pantalla no lo pide.
+* El descuento de LÍNEA no tiene pantalla (sólo el de la venta).
+* El mínimo que devuelve el motor es siempre el de la lista BASE; una lista de
+  cliente o de canal no puede fijar su propio mínimo.
+
+## Fase 6 — Ventas: Productos → Precios → Inventario → Finanzas (migración 268, 2026-09-18)
+
+La sesión del 2026-09-14/15 cerró esta fase "sin cambios" verificando código.
+Medida esta vez con una venta REAL (copia de la base, sesión de
+jose.rodriguez, 10 Pollos comprados a $50 por la compra rápida, venta de 2 a
+$100 en efectivo), la venta quedaba COMPLETED por $200 y:
+
+1. **El inventario no se movía** (seguía en 10). Dos causas apiladas:
+   - el cobro sólo confirmaba una reserva si la venta ya la traía, y sólo
+     SUSPENDER la creaba;
+   - aunque reservara, Ventas buscaba la existencia con la sucursal como
+     almacén (`warehouse_id = branch_id`, parche documentado en
+     `provision_default_warehouse.py` "hasta que las sucursales tengan
+     almacenes"). Ya los tienen, y Compras recibe en ellos (Cadenas).
+   → El cobro reserva y descuenta en su transacción. `SalesInventoryClient`
+   vende del almacén ACTIVO de la sucursal con `allow_sales_allocation`
+   (`WarehouseDirectoryQueryService.sales_warehouses_for_branch`). Si hay
+   varios, da un error claro; si no hay ninguno, usa la sucursal como
+   almacén, como antes. La salida lleva `unit_cost`.
+2. **Sin existencia** → decisión del usuario: autorización en caliente.
+   - Permiso nuevo `POS.venta.sin_existencia`; otro usuario lo valida
+     (`AuthorizerPermissionChecker`) y debe dar motivo.
+   - La salida queda negativa (`negative_allowed` + `authorized` de
+     `NegativeInventoryPolicy`) y auditada en `SALE_COMPLETED`.
+   - `InventoryShortageError` (subclase de `InventoryReservationFailedError`)
+     separa la falta de existencia de otros fallos (permiso, reglas de lote),
+     que no admiten esta autorización.
+   - Si el descuento falla después de reservar, la reserva se libera.
+3. **Caja**: sin turno, la venta se completaba igual y el efectivo quedaba
+   fuera de todo corte (el efecto de caja corre después del commit).
+   → Decisión del usuario: exigir turno ANTES de completar (`NO_OPEN_CASH_SHIFT`).
+   La pantalla avisa antes de abrir el cobro. El diálogo de pago ya no repite
+   `begin_checkout` ni duplica pagos al reintentar.
+4. **Finanzas no se enteraba.** `SaleCompletedHandler` estaba completo y sin
+   registrar; `sales_outbox` no tenía despachador; y el contrato estaba
+   desalineado (el trinquete `test_erp_chain_wiring_ratchet` lo había
+   anticipado).
+   → `SALE_COMPLETED` lleva totales, pagos, cambio y costo de venta.
+   `backend/application/sales/integrations/finance_translator.py` lo traduce:
+   efectivo neto del cambio y liquidación por método. `wire_sales` se registra
+   en `wire_cross_context_events`, y el POS despacha después del commit en
+   modo estricto: si Finanzas falla, el evento queda PENDIENTE.
+   `SALE_COMPLETED` sin consumidor no se marca despachado. El manejador no
+   duplica la CxC que `SalesCreditClient` ya registra al cobrar a crédito;
+   sólo agrega el asiento.
+5. **Migración 268 — nadie más que admin/system_owner podía vender.** Ana
+   (cajero) y demo (gerente) no tenían ni `POS.venta.linea_agregar`; los
+   permisos finos del POS eran otorgables y nunca otorgados (mismo patrón que
+   la 260). Decisión del usuario, "cajero vende, gerente autoriza":
+   - cajero: vender, cobrar de contado, descuento chico, reimprimir, báscula y
+     reservar/liberar inventario;
+   - gerente, admin y system_owner: todo el vocabulario.
+
+   Registrada, no aplicada.
+
+Medido tras el cambio, en la copia real con 267 y 268 aplicadas:
+
+| Caso | Resultado |
+| --- | --- |
+| Sin turno | `NO_OPEN_CASH_SHIFT`; la venta queda pendiente |
+| Con turno | Se completa; inventario de 10 a 8; `SALE_ISSUE` a $50; asientos Venta 200/200 y Costo 100/100; `CASH_SALE` 200 |
+| 20 con 8 en existencia | `STOCK_AUTHORIZATION_REQUIRED`; con admin y motivo, saldo −12 y auditado |
+| Ana y demo | Ya pueden vender; sólo demo autoriza |
+
+**Verificación**:
+- `test_sales_checkout_settles_everything.py` (19) y
+  `test_pos_checkout_dialogs.py` (6).
+- `tests/integration/_pos_ready.py`: turno de caja y existencia para las
+  pruebas que usan la composición real.
+- Las pruebas que sólo PREPARAN una venta completada (facturas, tickets,
+  devoluciones, rifas, reimpresión) construyen el cobro con
+  `settle_inventory=False, require_cash_shift=False`: su comportamiento
+  anterior, y no es su tema.
+- `test_cash_effects_error_is_captured_without_blocking_completion` fijaba el
+  contrato viejo; se reescribió con el nuevo.
+- Delivery 245, Precios 110, Compras 144 y Finanzas 122 en verde.
+- Fallos previos sin cambio: tablas legado en `test_sales_checkout`, y
+  `inventory_balances` en fixtures de suspender/listar.
+
+**Pendiente, no hecho**:
+* **Devoluciones y reversos no llegan a Finanzas**: `SaleReversedHandler` sigue
+  sin consumidor, así que el reverso no revierte ingreso ni costo. Es el
+  siguiente hueco de la regla 11.
+* **El canje de puntos se asienta como descuento**, no contra el pasivo de
+  puntos: la venta no identifica el instrumento canjeado.
+* **Las ventas no tienen folio** (`sale_number` nunca se asigna); el asiento usa
+  el final del UUID.
+* **`SaleCompletedCashHandler` NO debe cablearse**: el cobro ya registra Caja
+  en directo y se duplicaría.
+* **Productos compuestos (`SALES_EXPLOSION`)** siguen sin explotar al vender
+  (hallazgo de 2026-09-15).
+* **Con varios almacenes de venta por sucursal** no hay selector: error claro.
+* **En la base real**: el turno de jose en Corregidora está en CLOSING y hay 0
+  existencias. Hasta cargar inventario, toda venta pedirá autorización.
+
+## Fase 7 — Reconstrucción inversa: ATP y consumo inverso (migración 269, 2026-09-19)
+
+La Fase 7 original (2026-09-14/15) construyó el backend: explosión inversa,
+ATP y el caso de uso que arma el producto con sus partes. Medido esta vez con
+tu base y las pantallas reales, era inalcanzable:
+
+1. **Fuente equivocada.** Leía sólo recetas de tipo Desensamble. El despiece
+   que Productos captura y Cárnico EJECUTA es el **esquema de corte**: el mismo
+   despiece había que definirlo dos veces, y el que de verdad se usa no se
+   podía revertir.
+   → Decisión del usuario: el esquema de corte es la fuente única.
+   - `cutting_schemes.reverse_reconstruction_allowed` (migración **269**, por
+     omisión 0).
+   - `CuttingSchemeRepository.reversible_active_version_for_input`: exactamente
+     un esquema activo, reversible y con versión ACTIVA; ninguno o varios →
+     no se arma, nunca se adivina.
+   - Se retiró la vía por recetas: el campo en `Recipe`,
+     `SetReverseReconstructionAllowedUseCase` con su comando, y
+     `RecipeRepository.reversible_active_version_for_product`.
+     `recipes.reverse_reconstruction_allowed` (258) queda **inactiva**; no se
+     borra porque ya existe en bases reales.
+2. **La marca no se podía fijar** desde ninguna pantalla.
+   → `SetCuttingReverseReconstructionUseCase` (permiso de despiece, auditado).
+   En Productos → Despiece: columna "Armar con partes" y botón para
+   permitirlo o quitarlo.
+3. **El ATP no lo usaba nadie**, y un producto agotado **ni se podía
+   seleccionar** en la cuadrícula del POS. Eso dejaba inalcanzable también la
+   venta sin existencia con autorización de la Fase 6.
+   → El catálogo del POS suma lo armable (`reconstructible_quantity`, con el
+   aviso "N se arman con partes en existencia"). `ProductAvailabilityPolicy`
+   ya no bloquea lo agotado: lo avisa ("requiere autorización al cobrar") y
+   el cobro exige la autorización.
+4. **El armado era un AJUSTE** (`ADJUSTMENT_IN/OUT`): cada pollo armado salía
+   en los reportes de ajustes/merma.
+   → `PRODUCTION_CONSUMPTION` / `PRODUCTION_OUTPUT`.
+5. **Su costo no llegaba al costo promedio**, y el cobro de la Fase 6
+   costeaba ANTES de armar: un producto que sólo se arma se vendía sin costo.
+   → La reconstrucción alimenta `ProductCostProjectionHandler`, con el mismo
+   contrato que usa Producción, idempotente. El cobro costea DESPUÉS de
+   reservar.
+6. **El cajero no podía armar**: le pedía `INVENTARIO.movimiento.crear_manual`.
+   → El armado se somete a `INVENTARIO.reserva.crear`, el mismo permiso con
+   que el cobro reserva (la 268 lo da a cajero y gerente). La política de
+   autorización del caso de uso pasa a ser obligatoria; la guarda
+   `test_inventory_authorization_fail_closed` lo marcaba.
+
+**Medido en la copia real**:
+- Despiece de Pollo Entero por kg (0.35 pechuga, 0.30 pierna, 0.12 ala)
+  creado, aprobado, activado y marcado desde Productos.
+- Compradas 3.5 / 3 / 1.2 kg de partes → ATP de **10 kg armables**. El
+  catálogo muestra "Pollo Entero — disponible 10 — 10 se arman con partes".
+- Venta de 4 kg con 0 kg directos: se completa sin suspender. Las partes bajan
+  1.4 / 1.2 / 0.48 kg, con movimientos `PRODUCTION_*` de origen
+  `RECONSTRUCTION`.
+- Costo promedio del pollo $55.50/kg y costo de venta **$222** asentado.
+
+**Otro defecto encontrado**: `attach_virtual_keyboard_action` (teclado virtual
+compartido) reventaba de forma intermitente con "wrapped C/C++ object ... has
+been deleted" al construir diálogos. Sip reutilizaba el envoltorio viejo de un
+campo destruido. Se detecta con `sip.isdeleted` y se reemplaza. Explica la
+intermitencia en Delivery (día 18) y en Descuento (día 19);
+`test_virtual_keyboard_stale_controller.py` la reproduce sin el arreglo.
+
+**Verificación**:
+- `test_reverse_reconstruction_from_cutting_scheme.py` (8).
+- Las 3 suites de la Fase 7 reescritas sobre esquemas de corte (15; ahora
+  incluyen "una receta de Desensamble ya no reconstruye", "dos despieces
+  reversibles son ambiguos" y "una versión inactiva no cuenta").
+- `tests/integration/_reversible_cutting.py`: ayudante compartido.
+- Resultados: Cárnico 364, Productos 507+19+2 y Inventario 590+3+19 (fallos
+  previos idénticos), Delivery 245, Precios 110, Compras 144, Finanzas 122.
+  El lote de Ventas/POS, 209, pasó cinco veces seguidas tras el arreglo del
+  teclado.
+
+**Pendiente, no hecho**:
+* **Delivery no consulta el ATP** ni arma al capturar pedidos: es la Fase 8.
+* El ATP de productos por peso se redondea a unidades enteras hacia abajo.
+  Es una estimación conservadora de vitrina; el cobro arma el faltante
+  exacto.
+* El costo promedio usa un `tracked_quantity` que las ventas no descuentan
+  (limitación previa del costeo).
+* Las salidas `BY_PRODUCT` del despiece (p. ej. huacal) sí se exigen para
+  armar; sólo se excluyen merma y pérdida.
+
+---
+
+## Fase 10 — Recetas → producción → rendimientos → merma → costos (2026-09-19/21)
+
+**§10/§13/§14/§30 del prompt maestro.** Qué pasaba, medido con la sesión real
+sobre copia de `data/spj_pos_database.db`:
+
+* De ~50 casos de uso de Cárnico, la pantalla conectaba **4** (crear, aprobar,
+  liberar, cerrar). No había forma de consumir la entrada, pesar las salidas ni
+  conciliar; los puertos a Inventario, Costos y Mermas eran **nulos**, así que
+  ninguna orden podía cerrarse jamás (`consumptions_posted`,
+  `inventory_confirmed` y `costs_notified` nunca se ponían en verdadero).
+* Y ni siquiera podía **crearse** una orden: el presenter exigía almacén de la
+  sesión, y `LegacySessionAdapter.active_warehouse_id` es `""`.
+
+**Decisiones del usuario** (2026-09-19):
+1. **Casillas en Almacenes**: cada almacén declara para qué sirve
+   (Venta/Compra/Producción/Cuarentena). Cárnico produce en el ACTIVO marcado
+   «Producción»; si no hay, lo dice y manda a marcarlo. Mismo estándar de
+   Ventas — un solo `WarehouseDirectoryQueryService.resolve_for_purpose`.
+2. **Costo por valor de venta relativo**: cada corte bueno absorbe costo en
+   proporción a `kg × precio de venta`. La merma no absorbe: su costo lo cargan
+   los cortes buenos, que es lo que encarece el $/kg cuando baja el rendimiento.
+3. **Autorización en caliente** (mismo estándar que mostrador y Precios): sin
+   existencia de la entrada → otro usuario con `PRODUCCION.consumo.sobrescribir`;
+   corte fuera de tolerancia → otro con `PRODUCCION.rendimiento.sobrescribir`.
+   Siempre con usuario, clave y motivo, y nunca uno mismo.
+4. **Esquema de corte + tolerancia global**: lo esperado sale del despiece
+   capturado al liberar; la tolerancia (aviso/tolerancia/crítico %) es una sola,
+   configurable en Cárnico → Configuración.
+5. **Permisos**: "almacén produce, gerente aprueba".
+
+**Construido**:
+- `domain/meat_processing/services/cost_allocation_service.py`:
+  `RelativeSalesValueCostAllocation`. La última salida buena absorbe el
+  redondeo, así que lo repartido cuadra EXACTO con el costo de la entrada; una
+  salida buena sin precio es error explícito, nunca un cero silencioso (§18).
+- `application/meat_processing/use_cases/order_execution_use_cases.py`:
+  `ProcessingOrderExecutionQueryService` (el plan que captura la pantalla) y
+  `ExecuteProcessingOrderUseCase`, que **orquesta los casos de uso existentes**
+  en el orden del §14 — iniciar → consumir → registrar salidas → calidad →
+  recibir con lote y costo → resultado por corte → completar → conciliar (caso
+  de merma si sale de tolerancia) → cerrar. Todo se valida **antes de mutar** y
+  es **reanudable**: cada paso mira lo ya hecho en vez de duplicarlo.
+- `infrastructure/integrations/meat_processing_ports.py`: los cuatro puertos que
+  estaban nulos (consumo, recepción con lote y genealogía, costo proyectado,
+  caso de merma por variación).
+- `application/meat_processing/yield_settings.py` + página de Configuración.
+- `infrastructure/db/repositories/meat_processing/output_results_repository.py`
+  y el registro «Rendimientos → Por corte» (§13); la conciliación que ya existía
+  es por ORDEN.
+- UI: botón «Ejecutar» con reintento tras autorizar, diálogos de captura,
+  autorización y resultado; casillas de uso en el alta/edición de Almacenes y
+  columna «Usos» en la lista.
+
+**Migraciones**: **270** (tabla `processing_output_results` + tolerancias
+2/5/10 % en `configuraciones`, `INSERT OR IGNORE`) y **271** (siembra de los
+permisos `PRODUCCION.*` por rol — mismo hueco que la 260 y la 268: eran
+otorgables y nadie los tenía, sólo admin operaba por comodín de rol).
+
+**Dos huecos más, encontrados al reproducir de punta a punta**:
+1. **Corregidora tiene UN solo usuario.** Como quien crea una orden no la
+   aprueba, hoy ninguna orden de esa sucursal podría aprobarse. La palanca es
+   `usuarios_sucursales`, igual que en Transferencias: es dato, no código.
+2. Al asignar a otro usuario esa sucursal seguía sin poder aprobar:
+   **`assigned_branch_ids` se escribía desde el 2026-09-17 y NADIE lo leía**.
+   Los composition roots de Cárnico y Mermas armaban `frozenset({branch})`, de
+   modo que el nivel «sucursales asignadas» del alcance era hueco para todos.
+   Cerrado con un único lector, `application/security/session_branch_scope.py`,
+   usado por los dos; y los almacenes de alcance de Cárnico pasan a ser los de
+   producción de TODAS las sucursales de alcance, no sólo la activa.
+
+**Medido en la copia real** (jose crea, admin aprueba, 10 kg de pollo a $50):
+orden **CLOSED**; pollo 10 → 0; pechuga 3.4, pierna 3.0, ala 1.2 en existencia
+con **3 lotes** `OP-…`; merma no entra a existencia; ledger con
+`PRODUCTION_CONSUMPTION` ×1 y `PRODUCTION_OUTPUT` ×3; costo $500 repartido
+283.33 / 166.67 / 50.00 ($/kg 83.33 / 55.56 / 41.67) y variación de pechuga
+−2.86 %, dentro de tolerancia.
+
+**Verificación**: `test_cost_allocation_service.py` (9),
+`test_processing_order_execution.py` (26), `test_warehouse_purposes.py` (10),
+`test_meat_processing_execution_settings_and_seed.py` (11),
+`test_meat_processing_execution_ui.py` (15), `test_session_branch_scope.py` (7).
+Trinquetes de rutas actualizados: `mp_settings` deja de ser placeholder
+(pendientes 16 → 15) y `mp_yields` pasa a ser la página de dos pestañas. La
+suite genérica de registros (98) exige que TODO registro tenga sembrador, así
+que «Por corte» trajo el suyo — ese trinquete hizo su trabajo.
+
+**Pendiente, no hecho**:
+* La tolerancia es global; no hay tolerancia por corte ni por especie.
+* El caso de merma por variación NO postea inventario
+  (`requires_inventory_posting=0`) a propósito: la merma ya está reflejada al no
+  recibirla en existencia. Mermas la clasifica y valúa.
+* Empaque y etiquetado siguen fuera del orquestador (pasos aparte).
+* Reproceso (`REWORK`) no se dispara automáticamente desde una variación.

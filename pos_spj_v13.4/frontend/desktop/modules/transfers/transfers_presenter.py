@@ -38,13 +38,28 @@ class TransfersPresenter:
 
     # option providers ----------------------------------------------------------
     def branch_options(self):
+        """Sucursales que este usuario PUEDE ver.
+
+        Antes devolvía todas las activas sin filtrar, y el diálogo las pintaba
+        en los combos de origen y destino: cualquiera que abriera Solicitudes
+        veía el nombre de todas las sucursales. El orden correcto es
+        `usuario -> permitidas -> consulta -> resultados`; filtrar aquí en la
+        pantalla habría dejado la fuga intacta, porque el dato ya habría
+        viajado.
+        """
+        from backend.application.security.branch_scope_query_service import (
+            BranchScopeQueryService, BranchSearchQuery,
+        )
         from frontend.desktop.components.search_selector import SearchOption
+        if self._connection is None:
+            return []
         try:
-            options = self._query_service.list_active_branches()
+            options = BranchScopeQueryService(self._connection).search(
+                BranchSearchQuery(allowed_for_user=self._actor(), page_size=200))
         except Exception:
             logger.exception("TransfersPresenter.branch_options failed")
             return []
-        return [SearchOption(id=o.id, label=o.name) for o in options]
+        return [SearchOption(id=o.branch_id, label=o.name) for o in options]
 
     def product_options(self, query: str):
         from backend.application.products.queries.product_selection_query_service import (

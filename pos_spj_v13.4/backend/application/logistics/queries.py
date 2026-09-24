@@ -38,9 +38,9 @@ class LogisticsShipmentQueryService:
         result = []
         for table, lines, foreign_key, document_type, statuses in definitions:
             placeholders = ",".join("?" for _ in statuses)
-            supplier_join = " JOIN proveedores p ON p.id=d.supplier_id" if table != "purchase_requisitions" else ""
+            supplier_join = " JOIN (SELECT id, legal_name FROM supplier_master) p ON p.id=d.supplier_id" if table != "purchase_requisitions" else ""
             supplier_id = "d.supplier_id" if table != "purchase_requisitions" else "NULL"
-            supplier_name = "p.nombre" if table != "purchase_requisitions" else "'Por confirmar'"
+            supplier_name = "p.legal_name" if table != "purchase_requisitions" else "'Por confirmar'"
             try:
                 cursor = self._connection.execute(
                     f"SELECT d.id,d.document_number,{supplier_id},{supplier_name},d.status,"

@@ -97,6 +97,8 @@ MEAT_PROCESSING_TABLES: tuple[str, ...] = (
     "production_stations",
     "production_equipment",
     "equipment_assignments",
+    # ── Fase 10 (270) — resultado por salida (§13) ─────────────────────────
+    "processing_output_results",
 )
 
 _DDL = (
@@ -689,6 +691,52 @@ def create_meat_processing_resources_schema(conn) -> None:
     for statement in _DDL_RESOURCES:
         conn.execute(statement)
     for index in _INDEXES_RESOURCES:
+        conn.execute(index)
+
+
+# ── Fase 10 (2026-09-19) — resultado por salida, migración 270 ──────────────
+# §13: "El ERP debe registrar esperado, real, diferencia, rendimiento%, merma%,
+# costo por output, lote origen y lote destino". `yield_reconciliations`
+# concilia la ORDEN (salida principal contra lo esperado); aquí queda cada
+# salida con su costo repartido por valor de venta relativo.
+_DDL_OUTPUT_RESULTS = (
+    f"""
+    CREATE TABLE IF NOT EXISTS processing_output_results (
+        id TEXT NOT NULL PRIMARY KEY,
+        processing_order_id TEXT NOT NULL REFERENCES processing_orders(id),
+        product_id TEXT NOT NULL,
+        output_type TEXT NOT NULL,
+        input_product_id TEXT NOT NULL,
+        input_weight TEXT NOT NULL CHECK ({_DEC.format('input_weight')}),
+        input_unit_cost TEXT NOT NULL DEFAULT '0',
+        expected_weight TEXT NOT NULL DEFAULT '0',
+        actual_weight TEXT NOT NULL DEFAULT '0',
+        difference_weight TEXT NOT NULL DEFAULT '0',
+        expected_yield_pct TEXT NOT NULL DEFAULT '0',
+        yield_pct TEXT NOT NULL DEFAULT '0',
+        variance_pct TEXT,
+        unit_price TEXT,
+        allocated_cost TEXT NOT NULL DEFAULT '0',
+        unit_cost TEXT NOT NULL DEFAULT '0',
+        input_lot_id TEXT,
+        output_lot_id TEXT,
+        created_at TEXT NOT NULL,
+        UNIQUE (processing_order_id, product_id)
+    )
+    """,
+)
+
+_INDEXES_OUTPUT_RESULTS = (
+    "CREATE INDEX IF NOT EXISTS idx_processing_output_results_order"
+    " ON processing_output_results(processing_order_id)",
+)
+
+
+def create_meat_processing_output_results_schema(conn) -> None:
+    """Fase 10 (idempotente). La llama la migración 270."""
+    for statement in _DDL_OUTPUT_RESULTS:
+        conn.execute(statement)
+    for index in _INDEXES_OUTPUT_RESULTS:
         conn.execute(index)
 
 

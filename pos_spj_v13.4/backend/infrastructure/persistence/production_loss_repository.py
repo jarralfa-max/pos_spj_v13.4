@@ -158,6 +158,36 @@ class ProductionLossRepository:
             self._db.execute("RELEASE SAVEPOINT loss7_production")
             raise
 
+    def yield_variance_reason(self):
+        """(classification_id, reason_id) activos para variación de rendimiento,
+        o None si Mermas no tiene la causa configurada."""
+        return self._reason("YIELD_VARIANCE")
+
+    def record_production_variance_case(self, case, *, event=None) -> None:
+        """Registra un caso de merma originado en producción (Fase 10).
+
+        SIN movimiento de inventario (`requires_inventory_posting=0`): en una
+        orden de despiece la entrada ya se consumió completa y las salidas
+        entraron con su peso real, así que la merma YA está en existencias; un
+        movimiento aquí la descontaría dos veces. El caso existe para que Mermas
+        la clasifique, investigue y valúe (§30)."""
+        now = datetime.now(timezone.utc).isoformat()
+        self._db.execute("SAVEPOINT loss_production_variance")
+        try:
+            self._insert_case(case, now)
+            if event is not None:
+                self._db.execute(
+                    "INSERT INTO loss_outbox (id,event_id,event_name,aggregate_id,operation_id,"
+                    "correlation_id,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?)",
+                    (new_uuid(), event["event_id"], event["event_name"], event["entity_id"],
+                     case.operation_id, event["event_id"],
+                     json.dumps(event, ensure_ascii=False, sort_keys=True), now))
+            self._db.execute("RELEASE SAVEPOINT loss_production_variance")
+        except Exception:
+            self._db.execute("ROLLBACK TO SAVEPOINT loss_production_variance")
+            self._db.execute("RELEASE SAVEPOINT loss_production_variance")
+            raise
+
     def _insert_case(self, case, now):
         classification_id = self._db.execute(
             "SELECT id FROM loss_classifications WHERE code=? AND active=1",

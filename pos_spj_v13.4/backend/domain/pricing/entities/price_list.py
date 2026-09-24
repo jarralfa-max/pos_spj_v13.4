@@ -12,8 +12,10 @@ from decimal import Decimal, InvalidOperation
 
 from backend.domain.pricing.enums import (
     IMMUTABLE_LIST_STATES,
+    SALE_CHANNELS,
     PriceListKind,
     PriceListStatus,
+    normalize_channel,
 )
 from backend.domain.pricing.exceptions import InvalidPriceListError
 from backend.shared.ids import new_uuid
@@ -50,6 +52,9 @@ class PriceList:
     channel: str | None = None
     discount_pct: Decimal = Decimal("0")
     inherits_from_id: str | None = None
+    #: Quién creó la lista. Lo exige `ensure_segregation`: sin este dato, la
+    #: regla "quien crea no aprueba" no tiene contra qué comparar.
+    created_by_user_id: str | None = None
     approved_by_user_id: str | None = None
 
     def __post_init__(self) -> None:
@@ -65,7 +70,24 @@ class PriceList:
         if self.inherits_from_id == self.id:
             raise InvalidPriceListError("Una lista no puede heredar de sí misma")
         self.discount_pct = _pct(self.discount_pct)
+        self.channel = normalize_channel(self.channel)
         object.__setattr__(self, "code", code)
+
+    def ensure_channel_is_applicable(self) -> None:
+        """Una lista de CANAL necesita un canal de venta conocido.
+
+        Sin él no rige en ninguna venta (el motor sólo aplica la lista del canal
+        pedido). No se exige al rehidratar: la base real ya tiene una lista de
+        canal sin canal y leerla no debe reventar; se exige al crearla y al
+        activarla, que es cuando empezaría a cobrarse.
+        """
+        if self.kind is not PriceListKind.CHANNEL:
+            return
+        if not self.channel:
+            raise InvalidPriceListError(
+                "Una lista de canal requiere el canal de venta donde aplica")
+        if self.channel not in SALE_CHANNELS:
+            raise InvalidPriceListError(f"Canal de venta desconocido: {self.channel}")
 
     @property
     def is_editable(self) -> bool:
@@ -89,6 +111,7 @@ class PriceList:
         self.approved_by_user_id = approved_by_user_id
 
     def activate(self) -> None:
+        self.ensure_channel_is_applicable()
         self._transition(PriceListStatus.ACTIVE)
 
     def deactivate(self) -> None:

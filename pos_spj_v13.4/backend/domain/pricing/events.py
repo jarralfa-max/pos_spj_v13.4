@@ -13,8 +13,15 @@ from backend.shared.ids import new_uuid
 
 class PricingEvents:
     PRICE_LIST_CREATED = "PRICE_LIST_CREATED"
+    #: El dominio tiene las transiciones `submit()` y `deactivate()` desde el
+    #: principio, pero no tenían evento. Como `build_pricing_event_payload`
+    #: RECHAZA cualquier nombre no registrado aquí, un caso de uso que las
+    #: ejecutara no podía anunciarlas: el ciclo de vida quedaba a medias en la
+    #: bitácora y en el outbox.
+    PRICE_LIST_SUBMITTED = "PRICE_LIST_SUBMITTED"
     PRICE_LIST_APPROVED = "PRICE_LIST_APPROVED"
     PRICE_LIST_ACTIVATED = "PRICE_LIST_ACTIVATED"
+    PRICE_LIST_DEACTIVATED = "PRICE_LIST_DEACTIVATED"
     PRODUCT_PRICE_CHANGED = "PRODUCT_PRICE_CHANGED"
     VOLUME_PRICE_CHANGED = "VOLUME_PRICE_CHANGED"
     PRODUCT_COST_UPDATED = "PRODUCT_COST_UPDATED"

@@ -11,6 +11,11 @@ those SAME outputs as the recipe for how many parts one reconstructed unit
 consumes. No inventory access, no I/O — pure Decimal arithmetic over
 already-loaded domain objects, mirroring `RecipeExplosionService`'s own
 shape exactly.
+
+Fase 7 (2026-09-19): la versión que se revierte es la de un ESQUEMA DE CORTE
+(`CuttingSchemeVersion`), el despiece que ejecuta Cárnico — decisión del
+usuario. Sus salidas tienen la misma forma (producto, cantidad por unidad de
+entrada, unidad, tipo), así que el cálculo no cambia; sólo la fuente.
 """
 
 from __future__ import annotations
@@ -18,7 +23,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 
-from backend.domain.products.entities.recipe_version import RecipeVersion
 from backend.domain.products.exceptions import InvalidRecipeError
 from backend.domain.products.recipe_enums import OutputType
 
@@ -42,7 +46,7 @@ def _dec(value) -> Decimal:
 
 class ReverseRecipeExplosionService:
     def required_components_for(
-        self, version: RecipeVersion, target_quantity: Decimal | int | str = Decimal("1"),
+        self, version, target_quantity: Decimal | int | str = Decimal("1"),
     ) -> list[ExplodedComponent]:
         """The parts (and how much of each) needed to reconstruct
         `target_quantity` units of the recipe's base product, per this
@@ -61,7 +65,7 @@ class ReverseRecipeExplosionService:
                 for o in usable]
 
     def max_reconstructible_units(
-        self, version: RecipeVersion, available_by_product: dict[str, Decimal],
+        self, version, available_by_product: dict[str, Decimal],
     ) -> Decimal:
         """How many WHOLE units of the base product could be reconstructed
         right now, given `available_by_product` (product_id -> on-hand

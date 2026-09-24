@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="11" skipped="0" tests="11" time="2.558" timestamp="2026-09-22T21:36:46.495115+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_terminal_density_selector" name="test_selector_uses_restored_terminal_profile_and_explains_touch_use[compact]" time="0.249"><failure message="AttributeError: 'AparienciaPage' object has no attribute 'density_selector'">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001DBF0AD32F0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje... &lt;PyQt5.QtCore.QSettings object at 0x000001DBF0AD3260&gt;, &lt;function terminal.&lt;locals&gt;.create_page at 0x000001DBF0EBF9C0&gt;)
+density = 'compact'
+
+    @pytest.mark.parametrize("density", [value for _, value in PROFILES])
+    def test_selector_uses_restored_terminal_profile_and_explains_touch_use(terminal, density):
+        app, manager, settings, create_page = terminal
+        settings.setValue("appearance/density", density)
+        manager.restore(app)
+        changes = QSignalSpy(manager.density_changed)
+        page, presenter = create_page()
+    
+&gt;       selector = page.density_selector
+                   ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AparienciaPage' object has no attribute 'density_selector'
+
+tests\ui\test_terminal_density_selector.py:57: AttributeError</failure></testcase><testcase classname="tests.ui.test_terminal_density_selector" name="test_selector_uses_restored_terminal_profile_and_explains_touch_use[comfortable]" time="0.103"><failure message="AttributeError: 'AparienciaPage' object has no attribute 'density_selector'">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001DBF0AD32F0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje... &lt;PyQt5.QtCore.QSettings object at 0x000001DBF0F0A330&gt;, &lt;function terminal.&lt;locals&gt;.create_page at 0x000001DBF0F48AE0&gt;)
+density = 'comfortable'
+
+    @pytest.mark.parametrize("density", [value for _, value in PROFILES])
+    def test_selector_uses_restored_terminal_profile_and_explains_touch_use(terminal, density):
+        app, manager, settings, create_page = terminal
+        settings.setValue("appearance/density", density)
+        manager.restore(app)
+        changes = QSignalSpy(manager.density_changed)
+        page, presenter = create_page()
+    
+&gt;       selector = page.density_selector
+                   ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AparienciaPage' object has no attribute 'density_selector'
+
+tests\ui\test_terminal_density_selector.py:57: AttributeError</failure></testcase><testcase classname="tests.ui.test_terminal_density_selector" name="test_selector_uses_restored_terminal_profile_and_explains_touch_use[touch]" time="0.066"><failure message="AttributeError: 'AparienciaPage' object has no attribute 'density_selector'">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001DBF0AD32F0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje... &lt;PyQt5.QtCore.QSettings object at 0x000001DBF0AD36E0&gt;, &lt;function terminal.&lt;locals&gt;.create_page at 0x000001DBF0F49300&gt;)
+density = 'touch'
+
+    @pytest.mark.parametrize("density", [value for _, value in PROFILES])
+    def test_selector_uses_restored_terminal_profile_and_explains_touch_use(terminal, density):
+        app, manager, settings, create_page = terminal
+        settings.setValue("appearance/density", density)
+        manager.restore(app)
+        changes = QSignalSpy(manager.density_changed)
+        page, presenter = create_page()
+    
+&gt;       selector = page.density_selector
+                   ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AparienciaPage' object has no attribute 'density_selector'
+
+tests\ui\test_terminal_density_selector.py:57: AttributeError</failure></testcase><testcase classname="tests.ui.test_terminal_density_selector" name="test_keyboard_selection_applies_persists_and_preserves_live_page[compact-light]" time="0.085"><failure message="AttributeError: 'AparienciaPage' object has no attribute 'density_selector'">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001DBF0AD32F0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje... &lt;PyQt5.QtCore.QSettings object at 0x000001DBF0F4FDA0&gt;, &lt;function terminal.&lt;locals&gt;.create_page at 0x000001DBF0F49A80&gt;)
+theme = 'light', density = 'compact'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", [value for _, value in PROFILES])
+    def test_keyboard_selection_applies_persists_and_preserves_live_page(terminal, theme, density):
+        app, manager, settings, create_page = terminal
+        manager.apply(app, theme, density="touch" if density == "comfortable" else "comfortable")
+        page, presenter = create_page()
+        page.ensure_loaded()
+        page.table.selectRow(0)
+        page.search.blockSignals(True)
+        page.search.setText("Referencia en captura")
+        page.search.blockSignals(False)
+        selected_row = page.table.selected_row_id()
+        calls_before = list(presenter.mock_calls)
+        changes = QSignalSpy(manager.density_changed)
+&gt;       selector = page.density_selector
+                   ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AparienciaPage' object has no attribute 'density_selector'
+
+tests\ui\test_terminal_density_selector.py:83: AttributeError</failure></testcase><testcase classname="tests.ui.test_terminal_density_selector" name="test_keyboard_selection_applies_persists_and_preserves_live_page[compact-dark]" time="0.092"><failure message="AttributeError: 'AparienciaPage' object has no attribute 'density_selector'">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001DBF0AD32F0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje... &lt;PyQt5.QtCore.QSettings object at 0x000001DBF0F092E0&gt;, &lt;function terminal.&lt;locals&gt;.create_page at 0x000001DBF0F4A340&gt;)
+theme = 'dark', density = 'compact'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", [value for _, value in PROFILES])
+    def test_keyboard_selection_applies_persists_and_preserves_live_page(terminal, theme, density):
+        app, manager, settings, create_page = terminal
+        manager.apply(app, theme, density="touch" if density == "comfortable" else "comfortable")
+        page, presenter = create_page()
+        page.ensure_loaded()
+        page.table.selectRow(0)
+        page.search.blockSignals(True)
+        page.search.setText("Referencia en captura")
+        page.search.blockSignals(False)
+        selected_row = page.table.selected_row_id()
+        calls_before = list(presenter.mock_calls)
+        changes = QSignalSpy(manager.density_changed)
+&gt;       selector = page.density_selector
+                   ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AparienciaPage' object has no attribute 'density_selector'
+
+tests\ui\test_terminal_density_selector.py:83: AttributeError</failure></testcase><testcase classname="tests.ui.test_terminal_density_selector" name="test_keyboard_selection_applies_persists_and_preserves_live_page[comfortable-light]" time="0.140"><failure message="AttributeError: 'AparienciaPage' object has no attribute 'density_selector'">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001DBF0AD32F0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje... &lt;PyQt5.QtCore.QSettings object at 0x000001DBF0F4F6E0&gt;, &lt;function terminal.&lt;locals&gt;.create_page at 0x000001DBF0F4ACA0&gt;)
+theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", [value for _, value in PROFILES])
+    def test_keyboard_selection_applies_persists_and_preserves_live_page(terminal, theme, density):
+        app, manager, settings, create_page = terminal
+        manager.apply(app, theme, density="touch" if density == "comfortable" else "comfortable")
+        page, presenter = create_page()
+        page.ensure_loaded()
+        page.table.selectRow(0)
+        page.search.blockSignals(True)
+        page.search.setText("Referencia en captura")
+        page.search.blockSignals(False)
+        selected_row = page.table.selected_row_id()
+        calls_before = list(presenter.mock_calls)
+        changes = QSignalSpy(manager.density_changed)
+&gt;       selector = page.density_selector
+                   ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AparienciaPage' object has no attribute 'density_selector'
+
+tests\ui\test_terminal_density_selector.py:83: AttributeError</failure></testcase><testcase classname="tests.ui.test_terminal_density_selector" name="test_keyboard_selection_applies_persists_and_preserves_live_page[comfortable-dark]" time="0.081"><failure message="AttributeError: 'AparienciaPage' object has no attribute 'density_selector'">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001DBF0AD32F0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje... &lt;PyQt5.QtCore.QSettings object at 0x000001DBF0F8A210&gt;, &lt;function terminal.&lt;locals&gt;.create_page at 0x000001DBF0F4B4C0&gt;)
+theme = 'dark', density = 'comfortable'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", [value for _, value in PROFILES])
+    def test_keyboard_selection_applies_persists_and_preserves_live_page(terminal, theme, density):
+        app, manager, settings, create_page = terminal
+        manager.apply(app, theme, density="touch" if density == "comfortable" else "comfortable")
+        page, presenter = create_page()
+        page.ensure_loaded()
+        page.table.selectRow(0)
+        page.search.blockSignals(True)
+        page.search.setText("Referencia en captura")
+        page.search.blockSignals(False)
+        selected_row = page.table.selected_row_id()
+        calls_before = list(presenter.mock_calls)
+        changes = QSignalSpy(manager.density_changed)
+&gt;       selector = page.density_selector
+                   ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AparienciaPage' object has no attribute 'density_selector'
+
+tests\ui\test_terminal_density_selector.py:83: AttributeError</failure></testcase><testcase classname="tests.ui.test_terminal_density_selector" name="test_keyboard_selection_applies_persists_and_preserves_live_page[touch-light]" time="0.081"><failure message="AttributeError: 'AparienciaPage' object has no attribute 'density_selector'">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001DBF0AD32F0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje... &lt;PyQt5.QtCore.QSettings object at 0x000001DBF0F4EE70&gt;, &lt;function terminal.&lt;locals&gt;.create_page at 0x000001DBF0F4BBA0&gt;)
+theme = 'light', density = 'touch'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", [value for _, value in PROFILES])
+    def test_keyboard_selection_applies_persists_and_preserves_live_page(terminal, theme, density):
+        app, manager, settings, create_page = terminal
+        manager.apply(app, theme, density="touch" if density == "comfortable" else "comfortable")
+        page, presenter = create_page()
+        page.ensure_loaded()
+        page.table.selectRow(0)
+        page.search.blockSignals(True)
+        page.search.setText("Referencia en captura")
+        page.search.blockSignals(False)
+        selected_row = page.table.selected_row_id()
+        calls_before = list(presenter.mock_calls)
+        changes = QSignalSpy(manager.density_changed)
+&gt;       selector = page.density_selector
+                   ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AparienciaPage' object has no attribute 'density_selector'
+
+tests\ui\test_terminal_density_selector.py:83: AttributeError</failure></testcase><testcase classname="tests.ui.test_terminal_density_selector" name="test_keyboard_selection_applies_persists_and_preserves_live_page[touch-dark]" time="0.106"><failure message="AttributeError: 'AparienciaPage' object has no attribute 'density_selector'">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001DBF0AD32F0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje... &lt;PyQt5.QtCore.QSettings object at 0x000001DBF0F8A8D0&gt;, &lt;function terminal.&lt;locals&gt;.create_page at 0x000001DBF0F4BCE0&gt;)
+theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", [value for _, value in PROFILES])
+    def test_keyboard_selection_applies_persists_and_preserves_live_page(terminal, theme, density):
+        app, manager, settings, create_page = terminal
+        manager.apply(app, theme, density="touch" if density == "comfortable" else "comfortable")
+        page, presenter = create_page()
+        page.ensure_loaded()
+        page.table.selectRow(0)
+        page.search.blockSignals(True)
+        page.search.setText("Referencia en captura")
+        page.search.blockSignals(False)
+        selected_row = page.table.selected_row_id()
+        calls_before = list(presenter.mock_calls)
+        changes = QSignalSpy(manager.density_changed)
+&gt;       selector = page.density_selector
+                   ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AparienciaPage' object has no attribute 'density_selector'
+
+tests\ui\test_terminal_density_selector.py:83: AttributeError</failure></testcase><testcase classname="tests.ui.test_terminal_density_selector" name="test_external_density_change_updates_all_open_selectors_without_feedback" time="0.096"><failure message="AttributeError: 'AparienciaPage' object has no attribute 'density_selector'">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001DBF0AD32F0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje... &lt;PyQt5.QtCore.QSettings object at 0x000001DBF0F4F0B0&gt;, &lt;function terminal.&lt;locals&gt;.create_page at 0x000001DBF1010AE0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001DBF0FFE7B0&gt;
+
+    def test_external_density_change_updates_all_open_selectors_without_feedback(terminal, monkeypatch):
+        app, manager, settings, create_page = terminal
+        first, first_presenter = create_page()
+        second, second_presenter = create_page()
+        setter = MagicMock(wraps=manager.set_density)
+        monkeypatch.setattr(manager, "set_density", setter)
+&gt;       first_changes = QSignalSpy(first.density_selector.currentIndexChanged)
+                                   ^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AparienciaPage' object has no attribute 'density_selector'
+
+tests\ui\test_terminal_density_selector.py:113: AttributeError</failure></testcase><testcase classname="tests.ui.test_terminal_density_selector" name="test_density_selection_synchronizes_other_page_without_reapplying" time="0.156"><failure message="AttributeError: 'AparienciaPage' object has no attribute 'density_selector'">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001DBF0AD32F0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje... &lt;PyQt5.QtCore.QSettings object at 0x000001DBF1027EC0&gt;, &lt;function terminal.&lt;locals&gt;.create_page at 0x000001DBF1011580&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001DBF0FFF310&gt;
+
+    def test_density_selection_synchronizes_other_page_without_reapplying(terminal, monkeypatch):
+        app, manager, _, create_page = terminal
+        first, _ = create_page()
+        second, _ = create_page()
+        setter = MagicMock(wraps=manager.set_density)
+        monkeypatch.setattr(manager, "set_density", setter)
+&gt;       second_changes = QSignalSpy(second.density_selector.currentIndexChanged)
+                                    ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AparienciaPage' object has no attribute 'density_selector'
+
+tests\ui\test_terminal_density_selector.py:136: AttributeError</failure></testcase></testsuite></testsuites>

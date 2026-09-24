@@ -42,6 +42,11 @@ from backend.infrastructure.db.schema.customers_crm_schema import create_custome
 from backend.infrastructure.db.schema.sales_schema import create_sales_schema
 from backend.shared.ids import new_uuid
 
+# Fase 6: estas pruebas usan una venta completada como PREPARACIÓN; ni el
+# turno de caja ni el descuento de inventario son su tema (los prueba
+# test_sales_checkout_settles_everything.py).
+_PREP = {"settle_inventory": False, "require_cash_shift": False}
+
 
 def _allow_all() -> SalesAuthorizationPolicy:
     return SalesAuthorizationPolicy(AllowAllSalesPermissionCheckerForTests())
@@ -165,14 +170,14 @@ class TestCheckoutSaleUseCase:
 
     def test_completes_without_any_inventory_reservation(self, conn):
         sale_id, cashier, _branch = _sale_ready_and_paid(conn, price="100.00", reserve=False)
-        result = CheckoutSaleUseCase(_allow_all()).execute(
+        result = CheckoutSaleUseCase(_allow_all(), **_PREP).execute(
             conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid())
         assert result.success is True
         assert SaleRepository(conn).get(sale_id).status is SaleStatus.COMPLETED
 
     def test_emits_payment_confirmed_and_completed_to_outbox_atomically(self, conn):
         sale_id, cashier, _branch = _sale_ready_and_paid(conn, price="100.00")
-        CheckoutSaleUseCase(_allow_all()).execute(
+        CheckoutSaleUseCase(_allow_all(), **_PREP).execute(
             conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid())
         events = {row["event_name"] for row in conn.execute(
             "SELECT event_name FROM sales_outbox WHERE payload_json LIKE ?",
@@ -180,16 +185,17 @@ class TestCheckoutSaleUseCase:
         assert "SALE_PAYMENT_CONFIRMED" in events
         assert "SALE_COMPLETED" in events
 
-    def test_cash_effects_error_is_captured_without_blocking_completion(self, conn):
-        """No Caja shift schema/open shift exists in this fixture at all —
-        the honest, documented limit: cash effects are best-effort, a
-        missing/unopen shift never un-completes the sale."""
+    def test_without_an_open_cash_shift_the_sale_is_not_completed(self, conn):
+        """Fase 6 (decisión del usuario): antes, sin turno, la venta se
+        completaba igual y el efectivo quedaba fuera de todo corte (el efecto de
+        caja fallaba DESPUÉS del commit). Ahora se exige turno antes de
+        completar; la venta queda pendiente y se puede reintentar."""
         sale_id, cashier, _branch = _sale_ready_and_paid(conn, price="100.00")
-        result = CheckoutSaleUseCase(_allow_all()).execute(
+        result = CheckoutSaleUseCase(_allow_all(), settle_inventory=False).execute(
             conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid())
-        assert result.success is True
-        assert result.data.get("cash_effects_error")
-        assert SaleRepository(conn).get(sale_id).status is SaleStatus.COMPLETED
+        assert result.success is False
+        assert result.error_code == "NO_OPEN_CASH_SHIFT"
+        assert SaleRepository(conn).get(sale_id).status is SaleStatus.CHECKOUT_PENDING
 
 
 # ── Cash effects: real Caja schema ──────────────────────────────────────
@@ -245,7 +251,7 @@ class TestCheckoutSaleUseCaseCashEffects:
         sale_id, cashier, branch = _sale_ready_and_paid(cash_conn, price="100.00")
         _open_cash_shift(cash_conn, branch_id=branch, cashier_user_id=cashier)
 
-        result = CheckoutSaleUseCase(_allow_all()).execute(
+        result = CheckoutSaleUseCase(_allow_all(), settle_inventory=False).execute(
             cash_conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid())
         assert result.success is True
         assert result.data.get("cash_effects_error") is None

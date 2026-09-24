@@ -21,6 +21,9 @@ from backend.application.transfers.authorization import (
 from backend.application.transfers.session_authorization import (
     TransferSessionPermissionChecker,
 )
+from backend.application.transfers.session_scope_checker import (
+    TransferSessionScopeChecker,
+)
 from backend.application.transfers.use_cases.transfer_request_use_cases import (
     CreateTransferRequestUseCase,
 )
@@ -37,23 +40,35 @@ class TransferUseCaseFactory:
     """Builds Transfers use cases wired with a real authorization policy."""
 
     def __init__(self, *, connection, permission_checker: TransferPermissionChecker,
-                 session_context=None) -> None:
+                 session_context=None, scope_checker=None) -> None:
         if permission_checker is None:
             raise TransferConfigurationError(
                 "TransferUseCaseFactory requiere un TransferPermissionChecker real")
         self._connection = connection
         self._session = session_context
-        self._policy = TransferAuthorizationPolicy(permission_checker)
+        # `scopes` se pasa de verdad: construir la política con un solo
+        # argumento dejaba `_scopes=None`, y entonces el `require()` de los
+        # casos de uso NO evaluaba la sucursal — el alcance por sucursal de
+        # Transferencias no se comprobaba en producción.
+        self._policy = TransferAuthorizationPolicy(permission_checker, scope_checker)
         self._repository = TransferWriteRepository(connection)
         self._number_generator = SqlTransferRequestNumberGenerator(connection)
 
     @classmethod
     def from_session(cls, session, *, connection) -> "TransferUseCaseFactory":
-        """Productive factory over the live session (real RBAC via tiene_permiso)."""
+        """Productive factory over the live session (real RBAC via tiene_permiso).
+
+        A diferencia de `for_tests`, aquí SÍ se inyecta alcance por sucursal:
+        es la ruta productiva y es donde tiene que doler. `for_tests` se queda
+        deliberadamente sin él porque sus casos usan sucursales inventadas y
+        una base mínima; darle alcance real convertiría cada prueba aislada en
+        una prueba de permisos.
+        """
         return cls(
             connection=connection,
             permission_checker=TransferSessionPermissionChecker(session),
             session_context=session,
+            scope_checker=TransferSessionScopeChecker(connection),
         )
 
     @classmethod

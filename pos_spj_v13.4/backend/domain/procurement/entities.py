@@ -73,8 +73,13 @@ class DirectPurchaseLine:
         q = _dec(quantity)
         if q <= 0:
             raise ProcurementDomainError("La cantidad debe ser mayor a cero")
-        if unit_cost.is_negative():
-            raise ProcurementDomainError("El costo no puede ser negativo")
+        # Decisión del usuario (2026-09-18): el costo debe ser MAYOR a cero.
+        # Aceptaba cero, y una línea en cero —casi siempre un precio olvidado—
+        # entraba al inventario a costo 0 y hundía el costo promedio sin que
+        # nadie se enterara. La mercancía regalada se captura con su costo real
+        # y el descuento aparte.
+        if not unit_cost.is_positive():
+            raise ProcurementDomainError("El costo unitario debe ser mayor a cero")
         return cls(id=new_uuid(), product_id=product_id, description=description,
                    quantity=q, unit_cost=unit_cost, **kwargs)
 
@@ -475,6 +480,10 @@ class PurchaseOrderLine:
         q = _dec(ordered_quantity)
         if q <= 0:
             raise ProcurementDomainError("La cantidad ordenada debe ser mayor a cero")
+        # Misma regla que la compra rápida. Aquí ni siquiera se rechazaba un
+        # precio NEGATIVO; la recepción de la orden lo llevaría al costo.
+        if not unit_price.is_positive():
+            raise ProcurementDomainError("El precio unitario debe ser mayor a cero")
         return cls(id=new_uuid(), product_id=product_id, description=description,
                    ordered_quantity=q, unit_price=unit_price, **kwargs)
 

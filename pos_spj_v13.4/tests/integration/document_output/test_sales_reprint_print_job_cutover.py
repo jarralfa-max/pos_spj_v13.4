@@ -50,6 +50,11 @@ from backend.infrastructure.db.schema.sales_schema import create_sales_schema
 from backend.shared.ids import new_uuid
 from tests.integration._born_clean_db import make_db
 
+# Fase 6: estas pruebas usan una venta completada como PREPARACIÓN; ni el
+# turno de caja ni el descuento de inventario son su tema (los prueba
+# test_sales_checkout_settles_everything.py).
+_PREP = {"settle_inventory": False, "require_cash_shift": False}
+
 
 def _allow_all() -> SalesAuthorizationPolicy:
     return SalesAuthorizationPolicy(AllowAllSalesPermissionCheckerForTests())
@@ -117,7 +122,7 @@ def _completed_sale(conn, *, price="100.00", branch: str | None = None) -> tuple
     RecordSalePaymentUseCase(_allow_all()).execute(
         conn, sale_id=sale_id, method="CASH", amount=Decimal(price),
         actor_user_id=cashier, operation_id=new_uuid())
-    result = CheckoutSaleUseCase(_allow_all()).execute(
+    result = CheckoutSaleUseCase(_allow_all(), **_PREP).execute(
         conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid())
     assert result.success, result.message
     return sale_id, cashier, branch

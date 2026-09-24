@@ -85,6 +85,7 @@ STATUS_LABELS: dict[MeatProcessingRecord, dict[str, str]] = {
         "OUT_OF_TOLERANCE": "Fuera de tolerancia", "CRITICAL": "Crítico",
         "PENDING_REVIEW": "Por revisar", "APPROVED": "Aprobado",
     },
+    MeatProcessingRecord.OUTPUT_RESULTS: _OUTPUT_TYPES,
     MeatProcessingRecord.QUALITY: {
         "PENDING_INSPECTION": "Por inspeccionar", "QUARANTINED": "En cuarentena",
         "RELEASED": "Liberado", "REJECTED": "Rechazado",
@@ -215,6 +216,16 @@ def _fila_rendimiento(f, estados):
             f"{_numero(f['tolerance_pct'])}%", estados.get(f["status"], f["status"])]
 
 
+def _fila_resultado_corte(f, estados):
+    variacion = _decimal(f["variance_pct"])
+    return [_fecha(f["created_at"]), _texto(f["product_name"]),
+            estados.get(f["output_type"], f["output_type"]), _numero(f["input_weight"]),
+            _numero(f["expected_weight"]), _numero(f["actual_weight"]),
+            _numero(f["difference_weight"]), f"{_numero(f['yield_pct'])}%",
+            "—" if variacion is None else f"{'+' if variacion > 0 else ''}{variacion:.2f}%",
+            _numero(f["unit_cost"]), _numero(f["allocated_cost"]), _corto(f["output_lot_id"])]
+
+
 def _fila_reproceso(f, estados):
     return [_fecha(f["created_at"]), _texto(f["product_name"]),
             REWORK_ORIGIN_LABELS.get(f["origin"], _texto(f["origin"])), _numero(f["quantity"]),
@@ -245,6 +256,7 @@ _FORMATO = {
     MeatProcessingRecord.PACKAGING: _fila_empaque,
     MeatProcessingRecord.PRODUCED_LOTS: _fila_lote,
     MeatProcessingRecord.YIELDS: _fila_rendimiento,
+    MeatProcessingRecord.OUTPUT_RESULTS: _fila_resultado_corte,
     MeatProcessingRecord.QUALITY: _fila_salida,
     MeatProcessingRecord.REWORK: _fila_reproceso,
     MeatProcessingRecord.INCIDENTS: _fila_incidencia,

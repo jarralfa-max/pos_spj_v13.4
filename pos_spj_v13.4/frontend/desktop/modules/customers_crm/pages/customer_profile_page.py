@@ -243,7 +243,41 @@ class CustomerProfilePage(QWidget):
         table.setObjectName(f"{key}Table")
         card.add(table)
         self._tables[key] = table
+        if key == "direcciones":
+            # La pestaña era de SÓLO LECTURA: `AddCustomerAddressUseCase` existía
+            # y no había por dónde llamarlo.
+            self.add_address_button = create_primary_button(card, "Agregar dirección")
+            self.add_address_button.setEnabled(self._presenter_can_add_address())
+            self.add_address_button.clicked.connect(self._add_address)
+            card.add(self.add_address_button)
         return card
+
+    def _presenter_can_add_address(self) -> bool:
+        comprobar = getattr(self._presenter, "can_add_address", None)
+        return bool(callable(comprobar) and comprobar())
+
+    def _add_address(self) -> None:
+        from frontend.desktop.modules.customers_crm.dialogs import CustomerAddressDialog
+
+        if self._customer_id is None:
+            return
+        servicio = getattr(self._presenter, "address_search_service", None)
+        dialogo = CustomerAddressDialog(
+            self, search_service=servicio() if callable(servicio) else None)
+        if not dialogo.exec_():
+            return
+        resultado = self._presenter.add_customer_address(
+            self._customer_id, **dialogo.values())
+        self._report_address_result(resultado)
+
+    def _report_address_result(self, resultado) -> None:
+        if getattr(resultado, "success", False):
+            self._status.hide()
+            self.reload()
+            return
+        self._status.setText(
+            f"No se pudo agregar la dirección: {getattr(resultado, 'message', '')}")
+        self._status.show()
 
     def _table_of(self, key: str) -> StandardTable:
         return self._tables[key]

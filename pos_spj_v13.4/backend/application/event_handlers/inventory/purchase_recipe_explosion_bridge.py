@@ -8,8 +8,31 @@ canónico por evento con una línea por componente (cantidad_insumo × quantity)
 idempotente por operation_id. Permite negativo (igual que el trigger legacy no
 bloqueaba la transformación).
 
-La lectura de la receta es idéntica al legacy (receta_componentes / product_recipe
-_components). Solo cambia la mutación: al ledger canónico, no a tablas legacy.
+FASE 2 (2026-09-17) — LA RECETA SALE DEL CATÁLOGO CANÓNICO DE PRODUCTOS
+-----------------------------------------------------------------------
+Este puente leía `receta_componentes`/`recetas` y, si no, `product_recipe_
+components`/`product_recipes`: los DOS catálogos legacy. Medido: **nada en el
+código de producción escribe en ninguno de los dos**, y el que escribe el
+módulo de Productos —`recipes`/`recipe_versions`/`recipe_components`— no lo
+leía. Una receta creada hoy en Productos nunca se aplicaba al comprar. Es lo
+que el §13 del prompt prohíbe: más de un catálogo de recetas.
+
+Ahora usa la MISMA pareja que Ventas (`sale_items_bridge._explode_bom`):
+`RecipeRepository.active_version_for_product` + `RecipeExplosionService`. Una
+sola regla de explosión para vender y para comprar, y una sola fuente.
+
+Por qué no se pierde nada: la migración 152 ya copió ambos catálogos legacy al
+canónico CONSERVANDO los ids, y convirtió `producto_base_id` en
+`recipes.product_id` —justo la llave de `active_version_for_product`—. En la
+base real los tres catálogos están vacíos (medido en sólo lectura).
+
+Dos cambios de comportamiento, ambos deliberados:
+* **Sólo la versión ACTIVA explota.** El legacy aceptaba cualquier receta con
+  `activo=1`; el canónico distingue borrador, en revisión y activa, y consumir
+  según una fórmula que nadie aprobó es lo que Ventas ya se niega a hacer.
+* **Se incluye la merma de la receta** (`gross_quantity`), igual que Ventas. En
+  las recetas migradas no cambia nada: el legacy no tenía merma y la 152 la dejó
+  en cero.
 """
 
 from __future__ import annotations
@@ -87,20 +110,23 @@ class CanonicalPurchaseRecipeExplosionHandler:
             raise RuntimeError(result.message or "Fallo explosión de receta en compra.")
 
     def _recipe_components(self, product_id: str) -> list[dict]:
-        for sql in (
-            "SELECT rc.producto_id AS insumo_id, COALESCE(rc.cantidad,0) AS cantidad_insumo"
-            " FROM receta_componentes rc JOIN recetas r ON r.id=rc.receta_id"
-            " WHERE (r.producto_base_id=? OR r.producto_id=?) AND (r.activo=1 OR r.activa=1)",
-            "SELECT rc.component_product_id AS insumo_id, COALESCE(rc.cantidad,0) AS cantidad_insumo"
-            " FROM product_recipe_components rc JOIN product_recipes r ON r.id=rc.recipe_id"
-            " WHERE r.base_product_id=? AND r.is_active=1",
-        ):
-            params = (product_id, product_id) if "producto_base_id" in sql else (product_id,)
-            try:
-                rows = self._conn.execute(sql, params).fetchall()
-            except sqlite3.OperationalError:
-                continue
-            if rows:
-                cols = ["insumo_id", "cantidad_insumo"]
-                return [dict(zip(cols, r)) for r in rows]
-        return []
+        """Componentes POR UNIDAD de la versión activa de la receta canónica.
+
+        Sin receta activa no hay nada que consumir: comprar un producto sin
+        receta sólo da entrada al inventario (lo hace otro manejador).
+        """
+        from backend.domain.products.services.recipe_explosion_service import (
+            RecipeExplosionService,
+        )
+        from backend.infrastructure.db.repositories.products.recipe_repository import (
+            RecipeRepository,
+        )
+        try:
+            version = RecipeRepository(self._conn).active_version_for_product(product_id)
+        except sqlite3.OperationalError:
+            # Base sin el esquema de Productos: no hay recetas que aplicar.
+            return []
+        if version is None:
+            return []
+        return [{"insumo_id": str(c.component_product_id), "cantidad_insumo": c.quantity}
+                for c in RecipeExplosionService().explode(version, Decimal("1"))]

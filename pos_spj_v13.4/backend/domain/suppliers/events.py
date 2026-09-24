@@ -20,6 +20,10 @@ class SupplierEvents:
     REJECTED = "SUPPLIER_REJECTED"
     ACTIVATED = "SUPPLIER_ACTIVATED"
     SUSPENDED = "SUPPLIER_SUSPENDED"
+    #: Baja operativa (conserva historial). El dominio ya tenía
+    #: `Supplier.deactivate()`, pero sin evento ni caso de uso: la transición a
+    #: INACTIVE no existía por encima de la entidad.
+    DEACTIVATED = "SUPPLIER_DEACTIVATED"
     BLOCKED = "SUPPLIER_BLOCKED"
     UNBLOCKED = "SUPPLIER_UNBLOCKED"
     BANK_ACCOUNT_CHANGED = "SUPPLIER_BANK_ACCOUNT_CHANGED"

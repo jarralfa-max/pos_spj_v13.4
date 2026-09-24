@@ -1,0 +1,1141 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="30" skipped="0" tests="30" time="4.357" timestamp="2026-09-23T21:18:04.588197+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[primary-compact-light]" time="0.240"><failure message="assert 36 == 34&#10; +  where 36 = &lt;built-in method height of PrimaryButton object at 0x000001A495468A70&gt;()&#10; +    where &lt;built-in method height of PrimaryButton object at 0x000001A495468A70&gt; = &lt;frontend.desktop.components.buttons.PrimaryButton object at 0x000001A495468A70&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A495468950&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'light', density = 'compact', kind = 'primary'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 36 == 34
+E                +  where 36 = &lt;built-in method height of PrimaryButton object at 0x000001A495468A70&gt;()
+E                +    where &lt;built-in method height of PrimaryButton object at 0x000001A495468A70&gt; = &lt;frontend.desktop.components.buttons.PrimaryButton object at 0x000001A495468A70&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[primary-compact-dark]" time="0.407"><failure message="assert 36 == 34&#10; +  where 36 = &lt;built-in method height of PrimaryButton object at 0x000001A4954BEA80&gt;()&#10; +    where &lt;built-in method height of PrimaryButton object at 0x000001A4954BEA80&gt; = &lt;frontend.desktop.components.buttons.PrimaryButton object at 0x000001A4954BEA80&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954BEB10&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'dark', density = 'compact', kind = 'primary'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 36 == 34
+E                +  where 36 = &lt;built-in method height of PrimaryButton object at 0x000001A4954BEA80&gt;()
+E                +    where &lt;built-in method height of PrimaryButton object at 0x000001A4954BEA80&gt; = &lt;frontend.desktop.components.buttons.PrimaryButton object at 0x000001A4954BEA80&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[primary-comfortable-light]" time="0.085"><failure message="assert 44 == 42&#10; +  where 44 = &lt;built-in method height of PrimaryButton object at 0x000001A4954BF380&gt;()&#10; +    where &lt;built-in method height of PrimaryButton object at 0x000001A4954BF380&gt; = &lt;frontend.desktop.components.buttons.PrimaryButton object at 0x000001A4954BF380&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A495468950&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'light', density = 'comfortable', kind = 'primary'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 44 == 42
+E                +  where 44 = &lt;built-in method height of PrimaryButton object at 0x000001A4954BF380&gt;()
+E                +    where &lt;built-in method height of PrimaryButton object at 0x000001A4954BF380&gt; = &lt;frontend.desktop.components.buttons.PrimaryButton object at 0x000001A4954BF380&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[primary-comfortable-dark]" time="0.080"><failure message="assert 44 == 42&#10; +  where 44 = &lt;built-in method height of PrimaryButton object at 0x000001A4954BF020&gt;()&#10; +    where &lt;built-in method height of PrimaryButton object at 0x000001A4954BF020&gt; = &lt;frontend.desktop.components.buttons.PrimaryButton object at 0x000001A4954BF020&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954BEF00&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'dark', density = 'comfortable', kind = 'primary'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 44 == 42
+E                +  where 44 = &lt;built-in method height of PrimaryButton object at 0x000001A4954BF020&gt;()
+E                +    where &lt;built-in method height of PrimaryButton object at 0x000001A4954BF020&gt; = &lt;frontend.desktop.components.buttons.PrimaryButton object at 0x000001A4954BF020&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[primary-touch-light]" time="0.081"><failure message="assert 54 == 52&#10; +  where 54 = &lt;built-in method height of PrimaryButton object at 0x000001A4954BF920&gt;()&#10; +    where &lt;built-in method height of PrimaryButton object at 0x000001A4954BF920&gt; = &lt;frontend.desktop.components.buttons.PrimaryButton object at 0x000001A4954BF920&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954BEBA0&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'light', density = 'touch', kind = 'primary'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 54 == 52
+E                +  where 54 = &lt;built-in method height of PrimaryButton object at 0x000001A4954BF920&gt;()
+E                +    where &lt;built-in method height of PrimaryButton object at 0x000001A4954BF920&gt; = &lt;frontend.desktop.components.buttons.PrimaryButton object at 0x000001A4954BF920&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[primary-touch-dark]" time="0.067"><failure message="assert 54 == 52&#10; +  where 54 = &lt;built-in method height of PrimaryButton object at 0x000001A4954BFDA0&gt;()&#10; +    where &lt;built-in method height of PrimaryButton object at 0x000001A4954BFDA0&gt; = &lt;frontend.desktop.components.buttons.PrimaryButton object at 0x000001A4954BFDA0&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954BEC30&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'dark', density = 'touch', kind = 'primary'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 54 == 52
+E                +  where 54 = &lt;built-in method height of PrimaryButton object at 0x000001A4954BFDA0&gt;()
+E                +    where &lt;built-in method height of PrimaryButton object at 0x000001A4954BFDA0&gt; = &lt;frontend.desktop.components.buttons.PrimaryButton object at 0x000001A4954BFDA0&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[ghost-compact-light]" time="0.069"><failure message="assert 36 == 34&#10; +  where 36 = &lt;built-in method height of GhostButton object at 0x000001A4954EC050&gt;()&#10; +    where &lt;built-in method height of GhostButton object at 0x000001A4954EC050&gt; = &lt;frontend.desktop.components.buttons.GhostButton object at 0x000001A4954EC050&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954EC200&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'light', density = 'compact', kind = 'ghost'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 36 == 34
+E                +  where 36 = &lt;built-in method height of GhostButton object at 0x000001A4954EC050&gt;()
+E                +    where &lt;built-in method height of GhostButton object at 0x000001A4954EC050&gt; = &lt;frontend.desktop.components.buttons.GhostButton object at 0x000001A4954EC050&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[ghost-compact-dark]" time="0.067"><failure message="assert 36 == 34&#10; +  where 36 = &lt;built-in method height of GhostButton object at 0x000001A4954EC7A0&gt;()&#10; +    where &lt;built-in method height of GhostButton object at 0x000001A4954EC7A0&gt; = &lt;frontend.desktop.components.buttons.GhostButton object at 0x000001A4954EC7A0&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954EC680&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'dark', density = 'compact', kind = 'ghost'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 36 == 34
+E                +  where 36 = &lt;built-in method height of GhostButton object at 0x000001A4954EC7A0&gt;()
+E                +    where &lt;built-in method height of GhostButton object at 0x000001A4954EC7A0&gt; = &lt;frontend.desktop.components.buttons.GhostButton object at 0x000001A4954EC7A0&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[ghost-comfortable-light]" time="0.103"><failure message="assert 44 == 42&#10; +  where 44 = &lt;built-in method height of GhostButton object at 0x000001A4954ECD40&gt;()&#10; +    where &lt;built-in method height of GhostButton object at 0x000001A4954ECD40&gt; = &lt;frontend.desktop.components.buttons.GhostButton object at 0x000001A4954ECD40&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954EC5F0&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'light', density = 'comfortable', kind = 'ghost'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 44 == 42
+E                +  where 44 = &lt;built-in method height of GhostButton object at 0x000001A4954ECD40&gt;()
+E                +    where &lt;built-in method height of GhostButton object at 0x000001A4954ECD40&gt; = &lt;frontend.desktop.components.buttons.GhostButton object at 0x000001A4954ECD40&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[ghost-comfortable-dark]" time="0.073"><failure message="assert 44 == 42&#10; +  where 44 = &lt;built-in method height of GhostButton object at 0x000001A4954ED130&gt;()&#10; +    where &lt;built-in method height of GhostButton object at 0x000001A4954ED130&gt; = &lt;frontend.desktop.components.buttons.GhostButton object at 0x000001A4954ED130&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954EC560&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'dark', density = 'comfortable', kind = 'ghost'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 44 == 42
+E                +  where 44 = &lt;built-in method height of GhostButton object at 0x000001A4954ED130&gt;()
+E                +    where &lt;built-in method height of GhostButton object at 0x000001A4954ED130&gt; = &lt;frontend.desktop.components.buttons.GhostButton object at 0x000001A4954ED130&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[ghost-touch-light]" time="0.078"><failure message="assert 54 == 52&#10; +  where 54 = &lt;built-in method height of GhostButton object at 0x000001A4954ED5B0&gt;()&#10; +    where &lt;built-in method height of GhostButton object at 0x000001A4954ED5B0&gt; = &lt;frontend.desktop.components.buttons.GhostButton object at 0x000001A4954ED5B0&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954EC4D0&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'light', density = 'touch', kind = 'ghost'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 54 == 52
+E                +  where 54 = &lt;built-in method height of GhostButton object at 0x000001A4954ED5B0&gt;()
+E                +    where &lt;built-in method height of GhostButton object at 0x000001A4954ED5B0&gt; = &lt;frontend.desktop.components.buttons.GhostButton object at 0x000001A4954ED5B0&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[ghost-touch-dark]" time="0.068"><failure message="assert 54 == 52&#10; +  where 54 = &lt;built-in method height of GhostButton object at 0x000001A4954EDA30&gt;()&#10; +    where &lt;built-in method height of GhostButton object at 0x000001A4954EDA30&gt; = &lt;frontend.desktop.components.buttons.GhostButton object at 0x000001A4954EDA30&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954ED760&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'dark', density = 'touch', kind = 'ghost'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 54 == 52
+E                +  where 54 = &lt;built-in method height of GhostButton object at 0x000001A4954EDA30&gt;()
+E                +    where &lt;built-in method height of GhostButton object at 0x000001A4954EDA30&gt; = &lt;frontend.desktop.components.buttons.GhostButton object at 0x000001A4954EDA30&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[icon-compact-light]" time="0.096"><failure message="assert 34 == 32&#10; +  where 34 = &lt;built-in method height of IconButton object at 0x000001A4954EDF40&gt;()&#10; +    where &lt;built-in method height of IconButton object at 0x000001A4954EDF40&gt; = &lt;frontend.desktop.components.buttons.IconButton object at 0x000001A4954EDF40&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954ED6D0&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'light', density = 'compact', kind = 'icon'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 34 == 32
+E                +  where 34 = &lt;built-in method height of IconButton object at 0x000001A4954EDF40&gt;()
+E                +    where &lt;built-in method height of IconButton object at 0x000001A4954EDF40&gt; = &lt;frontend.desktop.components.buttons.IconButton object at 0x000001A4954EDF40&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[icon-compact-dark]" time="0.070"><failure message="assert 34 == 32&#10; +  where 34 = &lt;built-in method height of IconButton object at 0x000001A4954EE4E0&gt;()&#10; +    where &lt;built-in method height of IconButton object at 0x000001A4954EE4E0&gt; = &lt;frontend.desktop.components.buttons.IconButton object at 0x000001A4954EE4E0&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954EDAC0&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'dark', density = 'compact', kind = 'icon'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 34 == 32
+E                +  where 34 = &lt;built-in method height of IconButton object at 0x000001A4954EE4E0&gt;()
+E                +    where &lt;built-in method height of IconButton object at 0x000001A4954EE4E0&gt; = &lt;frontend.desktop.components.buttons.IconButton object at 0x000001A4954EE4E0&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[icon-comfortable-light]" time="0.082"><failure message="assert 44 == 42&#10; +  where 44 = &lt;built-in method height of IconButton object at 0x000001A4954BFDA0&gt;()&#10; +    where &lt;built-in method height of IconButton object at 0x000001A4954BFDA0&gt; = &lt;frontend.desktop.components.buttons.IconButton object at 0x000001A4954BFDA0&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954BFD10&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'light', density = 'comfortable', kind = 'icon'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 44 == 42
+E                +  where 44 = &lt;built-in method height of IconButton object at 0x000001A4954BFDA0&gt;()
+E                +    where &lt;built-in method height of IconButton object at 0x000001A4954BFDA0&gt; = &lt;frontend.desktop.components.buttons.IconButton object at 0x000001A4954BFDA0&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[icon-comfortable-dark]" time="0.072"><failure message="assert 44 == 42&#10; +  where 44 = &lt;built-in method height of IconButton object at 0x000001A4954BF410&gt;()&#10; +    where &lt;built-in method height of IconButton object at 0x000001A4954BF410&gt; = &lt;frontend.desktop.components.buttons.IconButton object at 0x000001A4954BF410&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954BFB60&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'dark', density = 'comfortable', kind = 'icon'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 44 == 42
+E                +  where 44 = &lt;built-in method height of IconButton object at 0x000001A4954BF410&gt;()
+E                +    where &lt;built-in method height of IconButton object at 0x000001A4954BF410&gt; = &lt;frontend.desktop.components.buttons.IconButton object at 0x000001A4954BF410&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[icon-touch-light]" time="0.073"><failure message="assert 50 == 48&#10; +  where 50 = &lt;built-in method height of IconButton object at 0x000001A495468710&gt;()&#10; +    where &lt;built-in method height of IconButton object at 0x000001A495468710&gt; = &lt;frontend.desktop.components.buttons.IconButton object at 0x000001A495468710&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954BF920&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'light', density = 'touch', kind = 'icon'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 50 == 48
+E                +  where 50 = &lt;built-in method height of IconButton object at 0x000001A495468710&gt;()
+E                +    where &lt;built-in method height of IconButton object at 0x000001A495468710&gt; = &lt;frontend.desktop.components.buttons.IconButton object at 0x000001A495468710&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[icon-touch-dark]" time="0.077"><failure message="assert 50 == 48&#10; +  where 50 = &lt;built-in method height of IconButton object at 0x000001A4954EDF40&gt;()&#10; +    where &lt;built-in method height of IconButton object at 0x000001A4954EDF40&gt; = &lt;frontend.desktop.components.buttons.IconButton object at 0x000001A4954EDF40&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954EE960&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'dark', density = 'touch', kind = 'icon'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 50 == 48
+E                +  where 50 = &lt;built-in method height of IconButton object at 0x000001A4954EDF40&gt;()
+E                +    where &lt;built-in method height of IconButton object at 0x000001A4954EDF40&gt; = &lt;frontend.desktop.components.buttons.IconButton object at 0x000001A4954EDF40&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[checkbox-compact-light]" time="0.080"><failure message="assert 38 == 34&#10; +  where 38 = &lt;built-in method height of StandardCheckBox object at 0x000001A4954EDD00&gt;()&#10; +    where &lt;built-in method height of StandardCheckBox object at 0x000001A4954EDD00&gt; = &lt;frontend.desktop.components.selection_controls.StandardCheckBox object at 0x000001A4954EDD00&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954EDE20&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'light', density = 'compact', kind = 'checkbox'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 38 == 34
+E                +  where 38 = &lt;built-in method height of StandardCheckBox object at 0x000001A4954EDD00&gt;()
+E                +    where &lt;built-in method height of StandardCheckBox object at 0x000001A4954EDD00&gt; = &lt;frontend.desktop.components.selection_controls.StandardCheckBox object at 0x000001A4954EDD00&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[checkbox-compact-dark]" time="0.072"><failure message="assert 38 == 34&#10; +  where 38 = &lt;built-in method height of StandardCheckBox object at 0x000001A4954EC560&gt;()&#10; +    where &lt;built-in method height of StandardCheckBox object at 0x000001A4954EC560&gt; = &lt;frontend.desktop.components.selection_controls.StandardCheckBox object at 0x000001A4954EC560&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954ED5B0&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'dark', density = 'compact', kind = 'checkbox'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 38 == 34
+E                +  where 38 = &lt;built-in method height of StandardCheckBox object at 0x000001A4954EC560&gt;()
+E                +    where &lt;built-in method height of StandardCheckBox object at 0x000001A4954EC560&gt; = &lt;frontend.desktop.components.selection_controls.StandardCheckBox object at 0x000001A4954EC560&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[checkbox-comfortable-light]" time="0.070"><failure message="assert 46 == 42&#10; +  where 46 = &lt;built-in method height of StandardCheckBox object at 0x000001A4954ECD40&gt;()&#10; +    where &lt;built-in method height of StandardCheckBox object at 0x000001A4954ECD40&gt; = &lt;frontend.desktop.components.selection_controls.StandardCheckBox object at 0x000001A4954ECD40&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954ECE60&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'light', density = 'comfortable', kind = 'checkbox'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 46 == 42
+E                +  where 46 = &lt;built-in method height of StandardCheckBox object at 0x000001A4954ECD40&gt;()
+E                +    where &lt;built-in method height of StandardCheckBox object at 0x000001A4954ECD40&gt; = &lt;frontend.desktop.components.selection_controls.StandardCheckBox object at 0x000001A4954ECD40&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[checkbox-comfortable-dark]" time="0.071"><failure message="assert 46 == 42&#10; +  where 46 = &lt;built-in method height of StandardCheckBox object at 0x000001A4954EC320&gt;()&#10; +    where &lt;built-in method height of StandardCheckBox object at 0x000001A4954EC320&gt; = &lt;frontend.desktop.components.selection_controls.StandardCheckBox object at 0x000001A4954EC320&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954ECCB0&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'dark', density = 'comfortable', kind = 'checkbox'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 46 == 42
+E                +  where 46 = &lt;built-in method height of StandardCheckBox object at 0x000001A4954EC320&gt;()
+E                +    where &lt;built-in method height of StandardCheckBox object at 0x000001A4954EC320&gt; = &lt;frontend.desktop.components.selection_controls.StandardCheckBox object at 0x000001A4954EC320&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[checkbox-touch-light]" time="0.065"><failure message="assert 56 == 52&#10; +  where 56 = &lt;built-in method height of StandardCheckBox object at 0x000001A4954EEB10&gt;()&#10; +    where &lt;built-in method height of StandardCheckBox object at 0x000001A4954EEB10&gt; = &lt;frontend.desktop.components.selection_controls.StandardCheckBox object at 0x000001A4954EEB10&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954EC9E0&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'light', density = 'touch', kind = 'checkbox'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 56 == 52
+E                +  where 56 = &lt;built-in method height of StandardCheckBox object at 0x000001A4954EEB10&gt;()
+E                +    where &lt;built-in method height of StandardCheckBox object at 0x000001A4954EEB10&gt; = &lt;frontend.desktop.components.selection_controls.StandardCheckBox object at 0x000001A4954EEB10&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[checkbox-touch-dark]" time="0.072"><failure message="assert 56 == 52&#10; +  where 56 = &lt;built-in method height of StandardCheckBox object at 0x000001A4954EF140&gt;()&#10; +    where &lt;built-in method height of StandardCheckBox object at 0x000001A4954EF140&gt; = &lt;frontend.desktop.components.selection_controls.StandardCheckBox object at 0x000001A4954EF140&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954EEE70&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'dark', density = 'touch', kind = 'checkbox'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 56 == 52
+E                +  where 56 = &lt;built-in method height of StandardCheckBox object at 0x000001A4954EF140&gt;()
+E                +    where &lt;built-in method height of StandardCheckBox object at 0x000001A4954EF140&gt; = &lt;frontend.desktop.components.selection_controls.StandardCheckBox object at 0x000001A4954EF140&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[radio-compact-light]" time="0.072"><failure message="assert 38 == 34&#10; +  where 38 = &lt;built-in method height of StandardRadioButton object at 0x000001A4954EF530&gt;()&#10; +    where &lt;built-in method height of StandardRadioButton object at 0x000001A4954EF530&gt; = &lt;frontend.desktop.components.selection_controls.StandardRadioButton object at 0x000001A4954EF530&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954EF260&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'light', density = 'compact', kind = 'radio'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 38 == 34
+E                +  where 38 = &lt;built-in method height of StandardRadioButton object at 0x000001A4954EF530&gt;()
+E                +    where &lt;built-in method height of StandardRadioButton object at 0x000001A4954EF530&gt; = &lt;frontend.desktop.components.selection_controls.StandardRadioButton object at 0x000001A4954EF530&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[radio-compact-dark]" time="0.070"><failure message="assert 38 == 34&#10; +  where 38 = &lt;built-in method height of StandardRadioButton object at 0x000001A4954EF920&gt;()&#10; +    where &lt;built-in method height of StandardRadioButton object at 0x000001A4954EF920&gt; = &lt;frontend.desktop.components.selection_controls.StandardRadioButton object at 0x000001A4954EF920&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954EF650&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'dark', density = 'compact', kind = 'radio'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 38 == 34
+E                +  where 38 = &lt;built-in method height of StandardRadioButton object at 0x000001A4954EF920&gt;()
+E                +    where &lt;built-in method height of StandardRadioButton object at 0x000001A4954EF920&gt; = &lt;frontend.desktop.components.selection_controls.StandardRadioButton object at 0x000001A4954EF920&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[radio-comfortable-light]" time="0.074"><failure message="assert 46 == 42&#10; +  where 46 = &lt;built-in method height of StandardRadioButton object at 0x000001A4954BF920&gt;()&#10; +    where &lt;built-in method height of StandardRadioButton object at 0x000001A4954BF920&gt; = &lt;frontend.desktop.components.selection_controls.StandardRadioButton object at 0x000001A4954BF920&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A495468710&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'light', density = 'comfortable', kind = 'radio'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 46 == 42
+E                +  where 46 = &lt;built-in method height of StandardRadioButton object at 0x000001A4954BF920&gt;()
+E                +    where &lt;built-in method height of StandardRadioButton object at 0x000001A4954BF920&gt; = &lt;frontend.desktop.components.selection_controls.StandardRadioButton object at 0x000001A4954BF920&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[radio-comfortable-dark]" time="0.069"><failure message="assert 46 == 42&#10; +  where 46 = &lt;built-in method height of StandardRadioButton object at 0x000001A4954BF650&gt;()&#10; +    where &lt;built-in method height of StandardRadioButton object at 0x000001A4954BF650&gt; = &lt;frontend.desktop.components.selection_controls.StandardRadioButton object at 0x000001A4954BF650&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954BEF00&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'dark', density = 'comfortable', kind = 'radio'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 46 == 42
+E                +  where 46 = &lt;built-in method height of StandardRadioButton object at 0x000001A4954BF650&gt;()
+E                +    where &lt;built-in method height of StandardRadioButton object at 0x000001A4954BF650&gt; = &lt;frontend.desktop.components.selection_controls.StandardRadioButton object at 0x000001A4954BF650&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[radio-touch-light]" time="0.063"><failure message="assert 56 == 52&#10; +  where 56 = &lt;built-in method height of StandardRadioButton object at 0x000001A4954BEC30&gt;()&#10; +    where &lt;built-in method height of StandardRadioButton object at 0x000001A4954BEC30&gt; = &lt;frontend.desktop.components.selection_controls.StandardRadioButton object at 0x000001A4954BEC30&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954BF4A0&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'light', density = 'touch', kind = 'radio'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 56 == 52
+E                +  where 56 = &lt;built-in method height of StandardRadioButton object at 0x000001A4954BEC30&gt;()
+E                +    where &lt;built-in method height of StandardRadioButton object at 0x000001A4954BEC30&gt; = &lt;frontend.desktop.components.selection_controls.StandardRadioButton object at 0x000001A4954BEC30&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_control_targets" name="test_reapplying_style_while_focused_keeps_target_size[radio-touch-dark]" time="0.076"><failure message="assert 56 == 52&#10; +  where 56 = &lt;built-in method height of StandardRadioButton object at 0x000001A4954EFA40&gt;()&#10; +    where &lt;built-in method height of StandardRadioButton object at 0x000001A4954EFA40&gt; = &lt;frontend.desktop.components.selection_controls.StandardRadioButton object at 0x000001A4954EFA40&gt;.height">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001A4954EFC80&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A4954685F0&gt;
+theme = 'dark', density = 'touch', kind = 'radio'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("kind", ["primary", "ghost", "icon", "checkbox", "radio"])
+    def test_reapplying_style_while_focused_keeps_target_size(manager, qt_font_resources, theme, density, kind):
+        app = qt_font_resources
+        manager.apply(app, theme, density=density)
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        factories = dict(primary=PrimaryButton, ghost=GhostButton,
+                         checkbox=StandardCheckBox, radio=StandardRadioButton)
+        control = IconButton(Icons.SEARCH, "Buscar") if kind == "icon" else factories[kind]("Consultar")
+        other = StandardLineEdit(keyboard_enabled=False)
+        layout.addWidget(control, 0, Qt.AlignLeft)
+        layout.addWidget(other)
+        layout.addStretch()
+        host.resize(500, 450)
+        metrics = density_metrics(density)
+        expected = metrics.icon_button_size if kind == "icon" else metrics.button_height
+        try:
+            host.show()
+            host.activateWindow()
+            for target in (other, control, other):
+                target.setFocus(Qt.TabFocusReason)
+                for _ in range(4):
+                    app.processEvents()
+                assert target.hasFocus()
+                manager.apply(app, theme, density=density)
+                for _ in range(4):
+                    app.processEvents()
+&gt;               assert control.height() == expected
+E               assert 56 == 52
+E                +  where 56 = &lt;built-in method height of StandardRadioButton object at 0x000001A4954EFA40&gt;()
+E                +    where &lt;built-in method height of StandardRadioButton object at 0x000001A4954EFA40&gt; = &lt;frontend.desktop.components.selection_controls.StandardRadioButton object at 0x000001A4954EFA40&gt;.height
+
+tests\ui\test_density_control_targets.py:169: AssertionError</failure></testcase></testsuite></testsuites>

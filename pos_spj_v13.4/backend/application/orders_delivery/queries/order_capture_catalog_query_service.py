@@ -24,6 +24,7 @@ from decimal import Decimal
 
 from backend.application.pricing.queries.pricing_read_facade import PricingReadFacade
 from backend.application.products.queries.product_selection_query_service import (
+    ProductSearchQuery,
     SearchSellableProductsQueryService,
 )
 from backend.application.products.queries.unit_catalog_query_service import (
@@ -57,6 +58,16 @@ class OrderCaptureCatalogQueryService:
         productos = self._products.search(query=query or None, branch_id=branch_id, limit=limit)
         return [self._item(producto, branch_id) for producto in productos]
 
+    def explain_empty(self, *, branch_id: str, query: str = "") -> str | None:
+        """Por qué no hay productos que ofrecer, en texto para quien captura.
+
+        La habilitación por sucursal es deliberada, así que un catálogo vacío
+        aquí casi siempre significa "nadie habilitó productos en esta
+        sucursal" — decirlo evita que se lea como un buscador roto."""
+        razon = self._products.explain_empty(
+            ProductSearchQuery(text=(query or "").strip() or None, branch_id=branch_id))
+        return razon.message if razon is not None else None
+
     def get(self, *, branch_id: str, product_id: str) -> CaptureCatalogItem | None:
         """El producto si se puede pedir en la sucursal; `None` si no existe, no es
         vendible o no está habilitado ahí. Pasa por la MISMA búsqueda que la
@@ -69,6 +80,21 @@ class OrderCaptureCatalogQueryService:
             if producto.product_id == product_id:
                 return self._item(producto, branch_id)
         return None
+
+    def price_for(self, product_id: str, *, branch_id: str, channel: str | None,
+                  customer_id: str | None, quantity) -> Decimal | None:
+        """El precio que se COBRA en la línea: mismo motor y mismas entradas que el
+        mostrador (canal, cliente, cantidad).
+
+        El precio de `_item` es el de vitrina (sucursal → lista base) y se sigue
+        usando para ENSEÑAR el catálogo. Cobrarlo era el defecto medido el
+        2026-09-18: Delivery no aplicaba la lista de su canal, ni la del
+        cliente, ni los precios por volumen — el §20 exige que Ventas y
+        Delivery usen exactamente el mismo motor.
+        """
+        return self._pricing.sale_price_amount(
+            product_id, branch_id=branch_id, channel=channel, customer_id=customer_id,
+            quantity=quantity)
 
     def _item(self, producto, branch_id: str) -> CaptureCatalogItem:
         unidad = self._units.get_unit(producto.base_unit_id) if producto.base_unit_id else None

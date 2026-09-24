@@ -101,6 +101,10 @@ class ProcurementDownstreamTranslators:
             "payment_condition": payload.get("payment_condition"),
             "nature_subtotals": payload.get("nature_subtotals"),
             "tax_total": payload.get("tax_total"),
+            # Días de crédito del proveedor: Finanzas calcula el vencimiento.
+            # El traductor reenvía una lista FIJA de campos; sin esta línea el
+            # dato se perdía aquí aunque Compras lo mandara.
+            "payment_term_days": payload.get("payment_term_days"),
         })
 
     # treasury / petty cash ---------------------------------------------------

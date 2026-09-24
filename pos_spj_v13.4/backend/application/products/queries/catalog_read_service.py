@@ -50,23 +50,29 @@ class ProductCatalogReadService:
 
     def list_catalog(self, *, query: str | None = None, product_type: str | None = None,
                      limit: int = 200) -> list[dict]:
-        sql = ("SELECT id, code, name, product_type, lifecycle_status, species_id "
-               "FROM products WHERE 1=1")
-        params: list = []
-        if query:
-            sql += " AND (name_normalized LIKE ? OR code LIKE ?)"
-            needle = f"%{query.strip().lower()}%"
-            params += [needle, f"%{query.strip().upper()}%"]
-        if product_type:
-            sql += " AND product_type=?"
-            params.append(product_type)
-        sql += " ORDER BY name LIMIT ?"
-        params.append(int(limit))
-        rows = self._conn.execute(sql, params).fetchall()
-        return [{"id": r["id"], "code": r["code"], "name": r["name"],
-                 "product_type": r["product_type"],
-                 "lifecycle_status": r["lifecycle_status"],
-                 "is_meat": r["product_type"] in _MEAT_VALUES} for r in rows]
+        """Listado del catálogo maestro, por el contrato compartido de búsqueda.
+
+        Tenía SQL propio con su PROPIA semántica de coincidencia
+        (`name_normalized LIKE minúsculas` / `code LIKE mayúsculas`), que es
+        justo lo que hacía que el mismo texto diera resultados distintos según
+        la pantalla. Ahora coincide igual que todos: nombre normalizado, nombre,
+        código y código de barras.
+
+        `active_only=False` es deliberado: esta tabla existe precisamente para
+        ver borradores y productos en revisión. Y conserva la forma de fila que
+        `catalog_table` pinta, incluidos estado y si es cárnico.
+        """
+        from backend.application.products.queries.product_selection_query_service import (
+            ProductCatalogSearchQueryService,
+            ProductSearchQuery,
+        )
+        dtos = ProductCatalogSearchQueryService(self._conn).search(ProductSearchQuery(
+            text=(query or "").strip() or None, product_type=product_type,
+            active_only=False, page_size=int(limit)))
+        return [{"id": d.product_id, "code": d.code, "name": d.name,
+                 "product_type": d.product_type,
+                 "lifecycle_status": d.lifecycle_status,
+                 "is_meat": d.product_type in _MEAT_VALUES} for d in dtos]
 
     def list_recent_alerts(self, *, limit: int = 50) -> list[dict]:
         rows = self._conn.execute(

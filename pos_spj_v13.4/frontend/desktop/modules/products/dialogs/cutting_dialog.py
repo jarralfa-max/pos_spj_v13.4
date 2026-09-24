@@ -43,6 +43,16 @@ class CuttingSchemesDialog(QDialog):
         self.btn_new.setEnabled(can_manage)
         self.btn_new.clicked.connect(self._new_scheme)
         sbar.addWidget(self.btn_new)
+        # §16/Fase 7: vender el producto de entrada armándolo con sus partes
+        # cuando no hay existencia directa. Por esquema; por omisión, no.
+        self.btn_reverse = QPushButton("Permitir armar con partes")
+        self.btn_reverse.setEnabled(False)
+        self.btn_reverse.setToolTip(
+            "Si no hay existencia del producto entero, el mostrador lo arma con sus "
+            "partes en existencia (según este despiece) al cobrar.")
+        self._can_manage = can_manage
+        self.btn_reverse.clicked.connect(self._toggle_reverse)
+        sbar.addWidget(self.btn_reverse)
         sbar.addStretch(1)
         layout.addLayout(sbar)
 
@@ -50,8 +60,10 @@ class CuttingSchemesDialog(QDialog):
             ColumnSpec("Nombre", "name"),
             ColumnSpec("Nivel", "cut_level"),
             ColumnSpec("Activo", "active"),
+            ColumnSpec("Armar con partes", "reverse"),
         ])
         self.schemes_table.itemSelectionChanged.connect(self._refresh_versions)
+        self.schemes_table.itemSelectionChanged.connect(self._sync_reverse_button)
         layout.addWidget(self.schemes_table, 1)
 
         layout.addWidget(QLabel("Versiones"))
@@ -90,10 +102,40 @@ class CuttingSchemesDialog(QDialog):
 
     def refresh_schemes(self) -> None:
         self._schemes = self._presenter.list_cutting_schemes(self._product_id)
-        rows = [[s["name"], s.get("cut_level", ""), "Sí" if s["active"] else "No"]
+        rows = [[s["name"], s.get("cut_level", ""), "Sí" if s["active"] else "No",
+                 "Sí" if s.get("reverse_reconstruction_allowed") else "No"]
                 for s in self._schemes]
         self.schemes_table.load_rows(rows, row_ids=[s["id"] for s in self._schemes])
         self._refresh_versions()
+
+    def _selected_scheme(self) -> dict | None:
+        scheme_id = self.schemes_table.selected_row_id()
+        return next((s for s in self._schemes if s["id"] == scheme_id), None)
+
+    def _sync_reverse_button(self) -> None:
+        esquema = self._selected_scheme()
+        self.btn_reverse.setEnabled(bool(esquema) and self._can_manage)
+        self.btn_reverse.setText(
+            "Dejar de armar con partes"
+            if esquema and esquema.get("reverse_reconstruction_allowed")
+            else "Permitir armar con partes")
+
+    def _toggle_reverse(self) -> None:
+        self._error.setText("")
+        esquema = self._selected_scheme()
+        if esquema is None:
+            return
+        ok, message = self._presenter.set_cutting_reverse_reconstruction(
+            esquema["id"], not bool(esquema.get("reverse_reconstruction_allowed")))
+        if not ok:
+            self._error.setText(message)
+            return
+        seleccion = esquema["id"]
+        self.refresh_schemes()
+        fila = next((i for i, s in enumerate(self._schemes) if s["id"] == seleccion), None)
+        if fila is not None:
+            self.schemes_table.selectRow(fila)
+        self._sync_reverse_button()
 
     def _refresh_versions(self) -> None:
         scheme_id = self.schemes_table.selected_row_id()

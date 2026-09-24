@@ -209,9 +209,21 @@ class RecordCountDialog(FormDialog):
         return self.quantity.decimal_value()
 
 
+#: Para qué sirve cada almacén (Fase 10). No es decoración: Ventas descuenta
+#: del almacén marcado «Venta», Compras recibe en el de «Compra» y Cárnico
+#: produce en el de «Producción». Sin la casilla, el módulo no tiene de dónde
+#: tomar ni a dónde dejar existencia, y lo dice en vez de adivinar.
+WAREHOUSE_PURPOSE_ES = {
+    "allow_sales_allocation": "Venta (el mostrador descuenta de aquí)",
+    "allow_purchase_receipt": "Compra (las recepciones entran aquí)",
+    "allow_production": "Producción (Cárnico despieza aquí)",
+    "allow_quarantine": "Cuarentena (retenciones de calidad)",
+}
+
+
 class CreateWarehouseDialog(FormDialog):
-    """Alta de almacén (§12): código, nombre, tipo, perfil de temperatura y
-    capacidad (opcionales). Sin ubicaciones técnicas aquí — eso lo hace el
+    """Alta de almacén (§12): código, nombre, tipo, usos, perfil de temperatura
+    y capacidad (opcionales). Sin ubicaciones técnicas aquí — eso lo hace el
     aprovisionamiento automático (§20, ver ``EnsureTechnicalLocationsUseCase``)
     tras crear el almacén; esta alta manual es para almacenes adicionales con
     nombre propio."""
@@ -229,9 +241,21 @@ class CreateWarehouseDialog(FormDialog):
         self.capacity_input = DecimalInput(self, precision=3, minimum="0", nullable=True)
         self.capacity_uom_input = StandardLineEdit(
             self, placeholder="Unidad (p.ej. m3, kg, tarimas)")
+        # Mismos valores iniciales que ``Warehouse`` en el dominio (venta y
+        # compra sí, producción y cuarentena no): la casilla refleja la regla,
+        # no inventa una.
+        self.purpose_checks: dict[str, QCheckBox] = {}
+        for campo, etiqueta in WAREHOUSE_PURPOSE_ES.items():
+            casilla = QCheckBox(etiqueta, self)
+            casilla.setChecked(campo in ("allow_sales_allocation",
+                                         "allow_purchase_receipt"))
+            self.purpose_checks[campo] = casilla
         self.form.addRow("Código:", self.code_input)
         self.form.addRow("Nombre:", self.name_input)
         self.form.addRow("Tipo:", self.type_combo)
+        self.form.addRow("Usos:", self.purpose_checks["allow_sales_allocation"])
+        for campo in ("allow_purchase_receipt", "allow_production", "allow_quarantine"):
+            self.form.addRow("", self.purpose_checks[campo])
         self.form.addRow("Perfil de temperatura:", self.temperature_input)
         self.form.addRow("Capacidad:", self.capacity_input)
         self.form.addRow("Unidad de capacidad:", self.capacity_uom_input)
@@ -255,6 +279,11 @@ class CreateWarehouseDialog(FormDialog):
     def capacity_uom(self) -> str:
         return self.capacity_uom_input.value()
 
+    def purposes(self) -> dict[str, bool]:
+        """Usos marcados, tal cual los nombra el dominio."""
+        return {campo: casilla.isChecked()
+                for campo, casilla in self.purpose_checks.items()}
+
     def set_warehouse_type(self, code: str) -> None:
         idx = self.type_combo.findData(str(code or ""))
         if idx >= 0:
@@ -274,6 +303,8 @@ class EditWarehouseDialog(CreateWarehouseDialog):
         self.temperature_input.setText(str(warehouse.get("temperature_profile") or ""))
         self.capacity_input.set_decimal(warehouse.get("capacity"))
         self.capacity_uom_input.setText(str(warehouse.get("capacity_uom") or ""))
+        for campo, casilla in self.purpose_checks.items():
+            casilla.setChecked(bool(warehouse.get(campo)))
 
 
 class CreateZoneDialog(FormDialog):

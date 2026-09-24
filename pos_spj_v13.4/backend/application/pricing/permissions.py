@@ -10,38 +10,53 @@ from __future__ import annotations
 
 
 class PricingPermissions:
+    """Vocabulario punteado `PRECIOS.<accion>` (migrado desde `PRICING_*`).
+
+    Los códigos PLANOS anteriores no eran otorgables desde Configuración →
+    Seguridad → Permisos: esa matriz se construye desde `permission_catalog.py`,
+    que sólo publica módulos con forma `MODULO.accion`. El efecto real era que
+    TODO el módulo quedaba reservado al administrador, que pasa por bypass.
+
+    La migración no deja nada inerte —a diferencia de la de Inventario
+    (migración 179)— porque `PRECIOS` nunca estuvo sembrado en `rol_permisos`:
+    no había concesiones gruesas que retirar. Es estrictamente aditivo.
+
+    Las acciones compuestas (`lista.aprobar`) son válidas: `split_permission`
+    corta sólo en el PRIMER punto, igual que `CONFIGURACION.valor.aprobar`.
+    """
+
     # ── consulta ──────────────────────────────────────────────────────────
-    ACCESS = "PRICING_ACCESS"
-    VIEW = "PRICING_VIEW"
-    VIEW_COST = "PRICING_VIEW_COST"
-    VIEW_MARGIN = "PRICING_VIEW_MARGIN"
-    VIEW_AUDIT = "PRICING_VIEW_AUDIT"
-    EXPORT = "PRICING_EXPORT"
+    ACCESS = "PRECIOS.acceder"
+    VIEW = "PRECIOS.ver"
+    VIEW_COST = "PRECIOS.costo.ver"
+    VIEW_MARGIN = "PRECIOS.margen.ver"
+    VIEW_AUDIT = "PRECIOS.auditoria.ver"
+    EXPORT = "PRECIOS.exportar"
 
     # ── precios de venta ──────────────────────────────────────────────────
-    PRICE_CREATE = "PRICING_PRICE_CREATE"
-    PRICE_EDIT = "PRICING_PRICE_EDIT"
-    PRICE_MIN_OVERRIDE = "PRICING_PRICE_MIN_OVERRIDE"   # vender bajo el mínimo
-    VOLUME_PRICE_MANAGE = "PRICING_VOLUME_PRICE_MANAGE"
-    BRANCH_PRICE_MANAGE = "PRICING_BRANCH_PRICE_MANAGE"
+    PRICE_CREATE = "PRECIOS.precio.crear"
+    PRICE_EDIT = "PRECIOS.precio.editar"
+    PRICE_MIN_OVERRIDE = "PRECIOS.precio.minimo.excepcion"  # vender bajo el mínimo
+    VOLUME_PRICE_MANAGE = "PRECIOS.volumen.gestionar"
+    BRANCH_PRICE_MANAGE = "PRECIOS.sucursal.gestionar"
 
     # ── listas de precio ──────────────────────────────────────────────────
-    LIST_VIEW = "PRICING_LIST_VIEW"
-    LIST_CREATE = "PRICING_LIST_CREATE"
-    LIST_EDIT = "PRICING_LIST_EDIT"
-    LIST_SUBMIT = "PRICING_LIST_SUBMIT"
-    LIST_APPROVE = "PRICING_LIST_APPROVE"
-    LIST_ACTIVATE = "PRICING_LIST_ACTIVATE"
-    LIST_DEACTIVATE = "PRICING_LIST_DEACTIVATE"
-    CUSTOMER_LIST_ASSIGN = "PRICING_CUSTOMER_LIST_ASSIGN"
+    LIST_VIEW = "PRECIOS.lista.ver"
+    LIST_CREATE = "PRECIOS.lista.crear"
+    LIST_EDIT = "PRECIOS.lista.editar"
+    LIST_SUBMIT = "PRECIOS.lista.enviar"
+    LIST_APPROVE = "PRECIOS.lista.aprobar"
+    LIST_ACTIVATE = "PRECIOS.lista.activar"
+    LIST_DEACTIVATE = "PRECIOS.lista.desactivar"
+    CUSTOMER_LIST_ASSIGN = "PRECIOS.lista.cliente.asignar"
 
     # ── costos ────────────────────────────────────────────────────────────
-    COST_MANAGE = "PRICING_COST_MANAGE"
-    COST_STANDARD_SET = "PRICING_COST_STANDARD_SET"
+    COST_MANAGE = "PRECIOS.costo.gestionar"
+    COST_STANDARD_SET = "PRECIOS.costo.estandar.fijar"
 
     # ── configuración ─────────────────────────────────────────────────────
-    SETTINGS_VIEW = "PRICING_SETTINGS_VIEW"
-    SETTINGS_MANAGE = "PRICING_SETTINGS_MANAGE"
+    SETTINGS_VIEW = "PRECIOS.configuracion.ver"
+    SETTINGS_MANAGE = "PRECIOS.configuracion.gestionar"
 
 
 ALL_PRICING_PERMISSIONS = frozenset(

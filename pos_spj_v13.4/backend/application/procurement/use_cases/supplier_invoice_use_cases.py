@@ -59,6 +59,43 @@ def _nature_subtotals(lines) -> dict[str, str]:
     return {nature: str(amount) for nature, amount in totals.items()}
 
 
+#: Diferencias que un segundo usuario PUEDE liberar (decisión del usuario,
+#: 2026-09-18): precio, cantidad o impuesto, y la factura sin documento de
+#: compra — el §11 la pide como caso autorizado. Nunca una factura SIN
+#: RECEPCIÓN (generaría deuda por mercancía que no llegó), una duplicada, una
+#: con líneas que no están en la orden, ni una que nunca se concilió.
+RELEASABLE_MATCH_RESULTS = frozenset({
+    "PRICE_VARIANCE", "QUANTITY_VARIANCE", "TAX_VARIANCE", "MISSING_PURCHASE_DOCUMENT",
+})
+
+
+def _already_paid_in_cash(direct) -> bool:
+    """¿La factura soporta una compra que YA se pagó de contado?
+
+    Medido el 2026-09-18: conciliar la factura de una compra de contado creaba
+    una cuenta por pagar a un proveedor YA PAGADO y un segundo asiento — el
+    inventario se cargaba dos veces y la deuda invitaba a pagarle otra vez. El
+    §11 lo dice explícito: la compra de contado termina como pago en Tesorería,
+    no como CxP. La factura se concilia (es el soporte fiscal del pago), pero
+    no genera deuda.
+    """
+    return (direct is not None
+            and getattr(direct.payment_condition, "value", direct.payment_condition)
+            == "IMMEDIATE_PAYMENT")
+
+
+def _payment_term_days(payment_terms, supplier_id: str) -> int:
+    """Días de crédito del proveedor para el vencimiento (decisión del usuario).
+    Sin condiciones capturadas, vence el mismo día."""
+    if payment_terms is None:
+        return 0
+    try:
+        dias = payment_terms.credit_days(supplier_id)
+    except Exception:
+        return 0
+    return max(0, int(dias or 0))
+
+
 class CaptureSupplierInvoiceUseCase:
     def __init__(self, authorization=None, supplier_directory=None) -> None:
         self._auth = authorization or PurchaseAuthorizationPolicy()
@@ -133,10 +170,12 @@ class MatchSupplierInvoiceUseCase:
     raises a payable; on a variance it stays WITH_DIFFERENCES pending release."""
 
     def __init__(self, authorization=None, *, price_tolerance: Tolerance | None = None,
-                 tolerance_settings=None) -> None:
+                 tolerance_settings=None, payment_terms=None) -> None:
         self._auth = authorization or PurchaseAuthorizationPolicy()
         self._matcher = InvoiceMatchingPolicy(price_tolerance=price_tolerance)
         self._tolerance_settings = tolerance_settings
+        #: `SupplierPaymentTermsPort`: días de crédito para el vencimiento.
+        self._payment_terms = payment_terms
 
     def execute(self, connection, *, actor_user_id: str, operation_id: str,
                 invoice_id: str) -> ProcurementResult:
@@ -182,7 +221,9 @@ class MatchSupplierInvoiceUseCase:
                     ordered_lines={line.id: {
                         "accepted_quantity": accepted.get(line.product_id, Decimal("0")),
                         "unit_price": line.unit_price.amount,
-                        "tax": "0",
+                        # La orden no declara impuesto: no se compara (ver la
+                        # política). Antes era "0" y rechazaba todo IVA.
+                        "tax": None,
                     } for line in po.lines},
                     invoice_lines=[{
                         "purchase_order_line_id": line.purchase_order_line_id,
@@ -216,10 +257,13 @@ class MatchSupplierInvoiceUseCase:
             _emit(uow, ProcurementEvents.SUPPLIER_INVOICE_MATCHED, document_id=inv.id,
                   operation_id=operation_id, actor_user_id=actor_user_id,
                   supplier_id=inv.supplier_id, match_result=result.value)
-            if result is MatchResult.MATCHED:
+            ya_pagada = _already_paid_in_cash(direct)
+            if result is MatchResult.MATCHED and not ya_pagada:
                 branch_id = (po.branch_id if po is not None
                             else direct.branch_id if direct is not None else None)
                 _emit(uow, ProcurementEvents.ACCOUNT_PAYABLE_CREATE_REQUESTED,
+                      payment_term_days=_payment_term_days(self._payment_terms,
+                                                           inv.supplier_id),
                       document_id=inv.id, document_number=inv.document_number,
                       branch_id=branch_id,
                       operation_id=operation_id, actor_user_id=actor_user_id,
@@ -229,7 +273,10 @@ class MatchSupplierInvoiceUseCase:
                       tax_total=str(inv.tax_total.amount if inv.tax_total else "0"),
                       source_type="SUPPLIER_INVOICE", source_id=inv.id,
                       deduplication_key=f"SUPPLIER_INVOICE:{inv.id}")
-        return ProcurementResult.ok("Factura conciliada", entity_id=inv.id,
+        mensaje = ("Factura conciliada; la compra ya se pagó de contado, no genera "
+                   "cuenta por pagar" if ya_pagada and result is MatchResult.MATCHED
+                   else "Factura conciliada")
+        return ProcurementResult.ok(mensaje, entity_id=inv.id,
                                     operation_id=operation_id, status=inv.status,
                                     match_result=result.value)
 
@@ -238,9 +285,10 @@ class ReleaseInvoiceVarianceUseCase:
     """Releases a variance so the invoice can become payable. The releaser must be
     different from whoever captured the invoice (segregation of duties)."""
 
-    def __init__(self, authorization=None) -> None:
+    def __init__(self, authorization=None, *, payment_terms=None) -> None:
         self._auth = authorization or PurchaseAuthorizationPolicy()
         self._sod = SegregationOfDutiesPolicy()
+        self._payment_terms = payment_terms
 
     def execute(self, connection, *, releaser_user_id: str, operation_id: str, invoice_id: str,
                 reason: str, captured_by_user_id: str | None = None) -> ProcurementResult:
@@ -260,6 +308,19 @@ class ReleaseInvoiceVarianceUseCase:
             if inv.status in ("APPROVED", "POSTED"):
                 return ProcurementResult.ok("Diferencia ya liberada", entity_id=inv.id,
                                             operation_id=operation_id, status=inv.status)
+            # Antes se liberaba DESDE CUALQUIER ESTADO, incluida una factura sin
+            # recepción: generaba deuda por mercancía que no había llegado.
+            if (inv.match_result or "") not in RELEASABLE_MATCH_RESULTS:
+                motivo = {
+                    "MISSING_RECEIPT": "no hay recepción de la mercancía; primero debe "
+                                       "recibirse",
+                    "DUPLICATE_INVOICE": "la factura está duplicada",
+                    "MISSING_ORDER": "tiene líneas que no están en la orden",
+                    "MATCHED": "la factura ya concilió sin diferencias",
+                }.get(inv.match_result or "", "la factura aún no se ha conciliado")
+                return ProcurementResult.fail(
+                    f"No se puede liberar: {motivo}.", "NOT_RELEASABLE",
+                    operation_id=operation_id)
             try:
                 self._sod.enforce_invoice_clerk_not_variance_releaser(
                     inv.captured_by_user_id, releaser_user_id)
@@ -278,7 +339,13 @@ class ReleaseInvoiceVarianceUseCase:
                      if inv.direct_purchase_id else None)
             branch_id = (po.branch_id if po is not None
                         else direct.branch_id if direct is not None else None)
+            if _already_paid_in_cash(direct):
+                return ProcurementResult.ok(
+                    "Diferencia liberada; la compra ya se pagó de contado, no genera "
+                    "cuenta por pagar", entity_id=inv.id, operation_id=operation_id,
+                    status=inv.status)
             _emit(uow, ProcurementEvents.ACCOUNT_PAYABLE_CREATE_REQUESTED,
+                  payment_term_days=_payment_term_days(self._payment_terms, inv.supplier_id),
                   document_id=inv.id, document_number=inv.document_number,
                   branch_id=branch_id,
                   operation_id=operation_id, actor_user_id=releaser_user_id,

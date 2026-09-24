@@ -222,7 +222,8 @@ class _ComponentEditor(QDialog):
         form = QFormLayout()
         self.product = EntitySearchInput(
             provider=_product_provider(presenter, self._labels),
-            placeholder="Buscar producto…")
+            placeholder="Buscar producto…",
+            empty_reason_provider=getattr(presenter, "product_search_reason", None))
         self.quantity = DecimalInput(precision=3)
         self.unit = SearchableComboBox(placeholder="Unidad…")
         self.unit.set_options(_unit_options(presenter))
@@ -266,7 +267,8 @@ class _OutputEditor(QDialog):
         form = QFormLayout()
         self.product = EntitySearchInput(
             provider=_product_provider(presenter, self._labels),
-            placeholder="Buscar producto…")
+            placeholder="Buscar producto…",
+            empty_reason_provider=getattr(presenter, "product_search_reason", None))
         self.output_type = QComboBox()
         for value, label in _OUTPUT_TYPES:
             self.output_type.addItem(label, value)

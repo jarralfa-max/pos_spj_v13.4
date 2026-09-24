@@ -39,6 +39,9 @@ from backend.application.customers.queries.customer_profile_query_service import
 from backend.application.customers.session_authorization import (
     CustomerSessionPermissionChecker,
 )
+from backend.application.customers.use_cases.address_use_cases import (
+    AddCustomerAddressUseCase,
+)
 from backend.application.customers.use_cases.lifecycle_use_cases import (
     CreateCustomerUseCase,
     UpdateCustomerUseCase,
@@ -74,15 +77,30 @@ def build_customers_crm_presenter(connection, session_context=None) -> CustomerC
         run = UpdateCustomerUseCase(customer_auth).execute
         return run(connection, **kwargs)
 
+    def _add_address_handler(**kwargs):
+        # `AddCustomerAddressUseCase` existía completo —permisos, auditoría,
+        # evento en outbox— y no tenía NINGÚN llamador: no había pantalla por
+        # donde capturar la dirección de un cliente.
+        run = AddCustomerAddressUseCase(customer_auth).execute
+        return run(connection, **kwargs)
+
     command_handlers = {
         "create_customer": _create_customer_handler,
         "update_customer": _update_customer_handler,
+        "add_address": _add_address_handler,
     }
+
+    def _address_search_factory():
+        from backend.infrastructure.maps.address_search_factory import (
+            build_address_search_service,
+        )
+        return build_address_search_service(connection)
 
     return CustomerCrmPresenter(
         session_context=session_context,
         query_services=query_services,
         command_handlers=command_handlers,
+        address_search_factory=_address_search_factory,
     )
 
 

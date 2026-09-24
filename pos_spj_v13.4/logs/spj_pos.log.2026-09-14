@@ -1,0 +1,33 @@
+2026-09-14 13:17:06,798 SPJ.Boot INFO =======================================================
+2026-09-14 13:17:06,800 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-14 13:17:06,801 SPJ.Boot INFO =======================================================
+2026-09-14 13:17:12,510 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-14 13:17:16,342 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-14 13:17:16,343 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-14 13:18:05,301 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-14 13:18:35,789 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-14 14:20:33,202 SPJ.Boot INFO =======================================================
+2026-09-14 14:20:33,204 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-14 14:20:33,207 SPJ.Boot INFO =======================================================
+2026-09-14 14:20:35,925 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-14 14:20:36,346 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-14 14:20:36,350 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-14 14:23:35,204 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-14 14:26:22,372 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-14 21:14:06,479 SPJ.Boot INFO =======================================================
+2026-09-14 21:14:06,485 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-14 21:14:06,507 SPJ.Boot INFO =======================================================
+2026-09-14 21:14:11,311 spj.migrations.258 INFO 258: recipes.reverse_reconstruction_allowed asegurada.
+2026-09-14 21:14:11,318 spj.migrations INFO Migración 258 ejecutada.
+2026-09-14 21:14:11,322 spj.migrations INFO Migraciones completadas: 1 ejecutadas.
+2026-09-14 21:14:14,994 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-14 21:14:15,001 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-14 21:14:17,086 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-09-14 21:14:17,095 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-09-14 21:14:17,705 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-09-14 21:14:17,710 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-09-14 21:14:17,710 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-09-14 21:14:59,294 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-14 21:32:57,078 SPJ.Boot INFO Sesión iniciada: Administrador Maestro en Principal.
+2026-09-14 21:33:01,570 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-09-14 21:38:21,516 SPJ.Boot INFO Sistema cerrado. Código: 0

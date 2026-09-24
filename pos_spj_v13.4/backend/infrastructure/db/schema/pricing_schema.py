@@ -38,6 +38,7 @@ _DDL = (
         channel TEXT,
         discount_pct TEXT NOT NULL DEFAULT '0',
         inherits_from_id TEXT,
+        created_by_user_id TEXT,
         approved_by_user_id TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT,
@@ -150,10 +151,26 @@ _INDEXES = (
 )
 
 
+def _column_exists(conn, table: str, column: str) -> bool:
+    return any(str(row[1]) == column
+               for row in conn.execute(f"PRAGMA table_info({table})").fetchall())
+
+
 def create_pricing_schema(conn) -> None:
     """Create the canonical pricing schema (idempotent). DDL lives only here."""
     for statement in _DDL:
         conn.execute(statement)
+    # `price_list.created_by_user_id` se añadió después. `CREATE TABLE IF NOT
+    # EXISTS` no toca una tabla que ya existe, así que las bases creadas por una
+    # ejecución anterior de esta misma función se quedarían sin la columna.
+    #
+    # No es cosmético: `PricingAuthorizationPolicy.ensure_segregation` compara
+    # al aprobador contra el CREADOR de la lista, y ese creador no se guardaba
+    # en ningún sitio. La protección estaba implementada y probada en
+    # aislamiento, pero ninguna ruta real podía suministrarle el dato — es
+    # decir, no podía dispararse nunca.
+    if not _column_exists(conn, "price_list", "created_by_user_id"):
+        conn.execute("ALTER TABLE price_list ADD COLUMN created_by_user_id TEXT")
     for index in _INDEXES:
         conn.execute(index)
 

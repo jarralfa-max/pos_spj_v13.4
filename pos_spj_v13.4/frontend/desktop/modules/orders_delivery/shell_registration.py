@@ -71,6 +71,21 @@ def _sidebar_badges(connection, branch_id: str | None,
         branch_id, recipient_user_id=user_id)
 
 
+def _customer_lookup(connection, session):
+    """`CustomerLookupQueryService` de la sesión, o `None` sin conexión."""
+    if connection is None:
+        return None
+    from backend.application.customers.authorization import CustomerAuthorizationPolicy
+    from backend.application.customers.queries.customer_lookup_query_service import (
+        CustomerLookupQueryService,
+    )
+    from backend.application.customers.session_authorization import (
+        CustomerSessionPermissionChecker,
+    )
+    return CustomerLookupQueryService(
+        connection, CustomerAuthorizationPolicy(CustomerSessionPermissionChecker(session)))
+
+
 class OrdersDeliveryModuleActivator:
     """`ModuleActivator` estructural (SHELL-13), misma convención que los
     once activators ya migrados."""
@@ -117,6 +132,9 @@ class OrdersDeliveryModuleActivator:
             # siempre "requiere un PermissionChecker" en la aplicación.
             authorization=OrdersDeliveryAuthorizationPolicy(
                 OrdersDeliverySessionPermissionChecker(session)),
+            # Cliente del pedido (Fase 5, 2026-09-18): la misma búsqueda que el
+            # mostrador, con SU permiso (`CLIENTES.buscar`) contra la sesión viva.
+            customer_lookup=_customer_lookup(self._connection, session),
             badges=_sidebar_badges(
                 self._connection, active_branch_id(session), actor_user_id(session)),
         )

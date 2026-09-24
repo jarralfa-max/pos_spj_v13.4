@@ -32,8 +32,8 @@ class PurchaseHistoryReadService:
         rows = self._rows(
             "SELECT document_number, goods_receipts.supplier_id, status, direct_purchase_id,"
             " purchase_order_id, goods_receipts.created_at,"
-            " COALESCE(p.nombre, '—') AS supplier_name FROM goods_receipts"
-            " LEFT JOIN proveedores p ON p.id = goods_receipts.supplier_id"
+            " COALESCE(p.legal_name, '—') AS supplier_name FROM goods_receipts"
+            " LEFT JOIN (SELECT id, legal_name FROM supplier_master) p ON p.id = goods_receipts.supplier_id"
             f"{where} ORDER BY goods_receipts.created_at DESC LIMIT ?", (*params, int(limit)))
         return [PurchaseHistoryRowDTO(
             document_number=r["document_number"], supplier_id=r["supplier_id"],
@@ -49,7 +49,7 @@ class PurchaseHistoryReadService:
             where += " AND r.sucursal_id=?"
             params.append(branch_id)
         return self._rows(
-            "SELECT r.folio, r.created_at, COALESCE(p.nombre,'—') AS supplier,"
+            "SELECT r.folio, r.created_at, COALESCE(p.legal_name,'—') AS supplier,"
             " r.condicion_pago, r.monto_total, r.monto_pagado, r.estado"
-            " FROM recepciones r LEFT JOIN proveedores p ON p.id=r.proveedor_id"
+            " FROM recepciones r LEFT JOIN (SELECT id, legal_name FROM supplier_master) p ON p.id=r.proveedor_id"
             f"{where} ORDER BY r.created_at DESC LIMIT ?", (*params, int(limit)))

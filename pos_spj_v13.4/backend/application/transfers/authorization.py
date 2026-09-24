@@ -41,16 +41,53 @@ class TransferAuthorizationPolicy:
 
     def require(self, *, user_id: str, permission_code: str,
                 branch_id: str | None = None, warehouse_id: str | None = None,
-                location_id: str | None = None) -> None:
+                location_id: str | None = None,
+                destination_branch_id: str | None = None,
+                destination_warehouse_id: str | None = None,
+                destination_location_id: str | None = None) -> None:
+        """Exige permiso y, cuando hay comprobador de alcance, las sucursales.
+
+        `branch_id` es la sucursal donde la operación OCURRE, que es el criterio
+        que ya seguían las operaciones de ejecución: surtido, empaque, despacho
+        y reserva piden el origen; recepción, recepción a ciegas y diferencias
+        piden el destino. Eso está bien y no cambia.
+
+        `destination_branch_id` es la segunda pata, y existe porque el ciclo de
+        la solicitud (crear, editar, enviar, aprobar, rechazar) compromete stock
+        en DOS sucursales: lo saca de una y lo mete en otra. Comprobar sólo el
+        origen dejaba que alguien dirigiera mercancía a una sucursal sobre la
+        que no tiene alcance. El diálogo ya ofrecía únicamente sucursales
+        permitidas en ambos combos, así que el backend no impone aquí una regla
+        nueva: alcanza a la pantalla, que era la única que la aplicaba — y una
+        regla que sólo vive en la pantalla no protege al que no usa la pantalla.
+
+        Ausente o vacía PERMITE, igual que el origen: `authorize_exception`
+        llama sin sucursal y denegar ahí rompería la autorización en caliente
+        por un dato que la operación no tiene.
+        """
         if permission_code not in ALL_TRANSFER_PERMISSIONS:
             raise PermissionDeniedError(f"Permiso de transferencias desconocido: {permission_code}")
         if not user_id:
             raise PermissionDeniedError("Operación de transferencias sin usuario autenticado")
         if self._permissions is not None and not self._permissions.has_permission(user_id, permission_code):
             raise PermissionDeniedError(f"El usuario no tiene el permiso {permission_code}")
-        if self._scopes is not None and not self._scopes.can_access_transfer_scope(
-                user_id=user_id, branch_id=branch_id, warehouse_id=warehouse_id, location_id=location_id):
-            raise PermissionDeniedError("El usuario no tiene alcance para el origen o destino de la transferencia")
+        if self._scopes is None:
+            return
+        self._require_scope(user_id, "origen", branch_id, warehouse_id, location_id)
+        self._require_scope(user_id, "destino", destination_branch_id,
+                            destination_warehouse_id, destination_location_id)
+
+    def _require_scope(self, user_id: str, leg: str, branch_id: str | None,
+                       warehouse_id: str | None, location_id: str | None) -> None:
+        """Nombra la pata que falló: el mensaje anterior decía "origen o
+        destino" sin saber cuál, y quien opera necesita saber cuál de las dos
+        sucursales le queda fuera para poder pedir el permiso que le falta."""
+        if self._scopes.can_access_transfer_scope(
+                user_id=user_id, branch_id=branch_id,
+                warehouse_id=warehouse_id, location_id=location_id):
+            return
+        raise PermissionDeniedError(
+            f"El usuario no tiene alcance sobre la sucursal de {leg} de la transferencia")
 
     def authorize_exception(self, *, requested_by: str, authorized_by: str,
                             permission_code: str, reason: str, operation_id: str,

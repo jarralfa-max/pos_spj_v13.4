@@ -23,22 +23,43 @@ class InventoryScopePolicy:
         assigned_branch_ids: Iterable[str],
         target_branch_id: str,
     ) -> None:
-        perms = set(user_permissions)
-        if InventoryPermissions.VIEW_ALL_BRANCHES in perms:
+        """La sucursal PROPIA se permite siempre; los permisos sólo ENSANCHAN.
+
+        CAMBIADO EL 2026-09-17 POR DECISIÓN DEL USUARIO, tras medir contra la
+        base viva. Antes esto exigía un permiso POSITIVO y explícito
+        (`VIEW_OWN_BRANCH`) incluso para la sucursal del propio usuario. Ese
+        permiso no está concedido a NADIE: `rol_permisos` sólo tiene las 5
+        acciones gruesas por módulo y los códigos de alcance suman CERO filas en
+        los seis módulos que los declaran. La matriz de roles canónica tampoco
+        lo otorga a ninguno de sus diez roles. Resultado real con los 4 usuarios
+        de la instalación —`admin` incluido, sobre su PROPIA sucursal—:
+        `BranchScopeError`.
+
+        `admin` fallaba además por una segunda causa: `PermissionQueryService`
+        devuelve `{"*"}` sin expandir y la comprobación de abajo es de
+        pertenencia LITERAL, que no entiende comodines (a diferencia de
+        `PermissionEvaluator`). Eso sigue afectando SÓLO al escape global
+        `VIEW_ALL_BRANCHES`, no al acceso a la sucursal propia, y se dejó
+        deliberadamente fuera de esta decisión.
+
+        La regla de abajo es la de `LossExecutionContext.enforce_branch` y
+        `MeatProcessingExecutionContext.enforce_branch`, copiada a propósito:
+        eran dos interpretaciones incompatibles del MISMO vocabulario de tres
+        niveles, dos de los tres módulos ya usaban ésta, y era la única viable
+        contra datos reales.
+        """
+        target = str(target_branch_id or "").strip()
+        if not target:
+            raise BranchScopeError("La operación requiere una sucursal válida")
+        if InventoryPermissions.VIEW_ALL_BRANCHES in set(user_permissions):
             return
-        if (
-            InventoryPermissions.VIEW_ASSIGNED_BRANCHES in perms
-            and target_branch_id in set(assigned_branch_ids)
-        ):
-            return
-        if (
-            InventoryPermissions.VIEW_OWN_BRANCH in perms
-            and target_branch_id
-            and target_branch_id == user_branch_id
-        ):
+        allowed = {str(user_branch_id or "").strip()}
+        allowed.update(str(branch or "").strip() for branch in assigned_branch_ids)
+        allowed.discard("")
+        if target in allowed:
             return
         raise BranchScopeError(
-            f"El usuario no tiene alcance sobre la sucursal {target_branch_id}")
+            f"El usuario no tiene alcance sobre la sucursal {target}")
 
     def enforce_warehouse_access(
         self,

@@ -1,0 +1,873 @@
+{
+  "phase": "6. BrandAssetProvider",
+  "date": "2026-09-21",
+  "status": "Official artwork supplied and infrastructure validated; operational visual acceptance pending",
+  "results": [
+    {
+      "name": "brand-phase6-regression",
+      "passed": 140,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "qss-global-visuals",
+      "passed": 40,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  ],
+  "distinct_totals": {
+    "passed": 180,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "official_assets": {
+    "logo_horizontal_light": [
+      "assets/branding/logo_horizontal_light.png"
+    ],
+    "logo_horizontal_dark": [
+      "assets/branding/logo_horizontal_dark.png"
+    ],
+    "isotype_light": [
+      "assets/branding/isotype_light.png"
+    ],
+    "isotype_dark": [
+      "assets/branding/isotype_dark.png"
+    ],
+    "app_icon": [
+      "assets/branding/app_icon.png"
+    ],
+    "window_icon": [
+      "assets/branding/window_icon.svg"
+    ]
+  },
+  "original_files_sha256": {
+    "app_icon.png": "0ada83b88566cfce0366e6644ea1b7d05646fca1c8177f490cc1057c16dc4869",
+    "isotype_dark.png": "bc4dcf6a57cf50818a30e3a5afdb08de5b362a68187ae44c3d292d66e80d39f1",
+    "isotype_light.png": "dae52992d3c5f7351c9bca6986296d6c810535f28e39d786294e57f153d401b9",
+    "logo_horizontal_dark.png": "99a92663d3dedec33fa3ee7480007e9c3079511bde058f268b1905cce6869056",
+    "logo_horizontal_light.png": "831b8597f6bab9268bff75ecfd318a62911d223a8ec47a72d325d7b3807619e3",
+    "logo_vertical.svg": "397c9a0cc12fd13792e40060dd50fa44e3e950bde331df78eb65bf28490748ba",
+    "window_icon.svg": "8f61257108c8371996f40b3c8e0724eda93864ed7f69ae3a5c6959649e6d3dca"
+  },
+  "shared_captures": [
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1280x720-collapsed-notifications.png",
+      "sha256": "714508e83fa42c6107371fa1185c135c13690a12800e41085292e898d997c863"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1280x720-expanded.png",
+      "sha256": "dcfbde220e952bd69d0c2eb4cd315225836b55a089f3c5f8dcbf308f1cc6bc11"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1280x720-file-menu.png",
+      "sha256": "78f7c7da78031079dd60049fbea242203a3c7480e637db55e7613763a762edf2"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1280x720-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1280x720-login.png",
+      "sha256": "6825e8049b272670c928faeb02dcf54b66398a0d4dfae966418f3d28ab660175"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1280x720-module-collapsed-form.png",
+      "sha256": "f86462258c9895a461648149d1cb7deff35590f358f7b9c57db751ea87a82c79"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1280x720-module-expanded.png",
+      "sha256": "d4b382d1f9ec13b78318000daf6d2d3b7e61547149e49402b6d8fd65bdd93313"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1280x720-module-flyout.png",
+      "sha256": "1fbad5e86dbbc362abe8af912e7dfd789dc7dc957df1c2c0c765331dbf754c40"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1280x720-module-group-collapsed.png",
+      "sha256": "83bfc5f96a10a1bc49a1f97e76edca6dd1910986ef3dd892c5a9425d672d8510"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1280x720-scrolled.png",
+      "sha256": "fad95a5bc2497236d4103249cdc6ac8f450c3b3a5a3f4a798e8b2fe35f8257e9"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1366x768-collapsed-notifications.png",
+      "sha256": "f395e31e7a10c232889ef0d2a692b97d49b9665ca62f36a2a5e7062006c07aa1"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1366x768-expanded.png",
+      "sha256": "ea7b9c7d194ec9f2bb6507e20e39788eea666082317b3bf45a1bf994480f4b90"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1366x768-file-menu.png",
+      "sha256": "78f7c7da78031079dd60049fbea242203a3c7480e637db55e7613763a762edf2"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1366x768-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1366x768-login.png",
+      "sha256": "6825e8049b272670c928faeb02dcf54b66398a0d4dfae966418f3d28ab660175"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1366x768-module-collapsed-form.png",
+      "sha256": "28ba708a60adaa6647138fff536e5e1f9098f4cf5c423b21936e715153e1da44"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1366x768-module-expanded.png",
+      "sha256": "ab1da044969754d7503af76d01f2ff625a8e32d34540164cf9ae141edbe9eadd"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1366x768-module-flyout.png",
+      "sha256": "1fbad5e86dbbc362abe8af912e7dfd789dc7dc957df1c2c0c765331dbf754c40"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1366x768-module-group-collapsed.png",
+      "sha256": "29ef91964d55773a2c15b8b8a2adee8570f293ba90f8d6cf9ada460a668ab97f"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1366x768-scrolled.png",
+      "sha256": "4830f8ac53e59abdcb8418840bd45edff7644a604c1598ecc2ed2d4c2dfc1977"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1440x900-collapsed-notifications.png",
+      "sha256": "a8a4dad14be03b4e75380db0c035c245c7b4f949b87b35fce2a9f69e71682b74"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1440x900-expanded.png",
+      "sha256": "02630858dd0d9e62ae94a29ddba9b6c0d36ca1069bdf498c6061f7ea84639e95"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1440x900-file-menu.png",
+      "sha256": "78f7c7da78031079dd60049fbea242203a3c7480e637db55e7613763a762edf2"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1440x900-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1440x900-login.png",
+      "sha256": "6825e8049b272670c928faeb02dcf54b66398a0d4dfae966418f3d28ab660175"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1440x900-module-collapsed-form.png",
+      "sha256": "39ef4e7ad2cce35fa05e20cabfa60645d93a378a576f18550955470e2b18ca56"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1440x900-module-expanded.png",
+      "sha256": "afac3b75eedb705fe453b947d08aef606c8799e46f384277db5b1f8fb234beb4"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1440x900-module-flyout.png",
+      "sha256": "1fbad5e86dbbc362abe8af912e7dfd789dc7dc957df1c2c0c765331dbf754c40"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1440x900-module-group-collapsed.png",
+      "sha256": "a9d6139162f9e035466f855c41e82b00ed9a130fe740439102f4719f3ee2ec9c"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1440x900-scrolled.png",
+      "sha256": "3fa0077a1115351b6b669a6dc0e3e29fba0b164a2fb0efb0c92592bd45d4913d"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1600x900-collapsed-notifications.png",
+      "sha256": "050e9b40e55df1089d0f883c846325c303d46fb1056501db83605e9c2683c6af"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1600x900-expanded.png",
+      "sha256": "0a6ec9036e35127c5299497d39fd9a43cfa85ec1a69cb853b4bba60fb888cd5a"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1600x900-file-menu.png",
+      "sha256": "78f7c7da78031079dd60049fbea242203a3c7480e637db55e7613763a762edf2"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1600x900-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1600x900-login.png",
+      "sha256": "6825e8049b272670c928faeb02dcf54b66398a0d4dfae966418f3d28ab660175"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1600x900-module-collapsed-form.png",
+      "sha256": "6472ce5e46e4fde05c125a91db40c5bc86693ec6213ddb875622829a7343c6d5"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1600x900-module-expanded.png",
+      "sha256": "3464d6a9d147a7296cd103acdfa9adb30e2220867ac92592b24a5c670d3eebed"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1600x900-module-flyout.png",
+      "sha256": "1fbad5e86dbbc362abe8af912e7dfd789dc7dc957df1c2c0c765331dbf754c40"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1600x900-module-group-collapsed.png",
+      "sha256": "2b67b9995f07c8f3c9ab7efddf0c1b5c9f812e87de2a97df65d31e604585ef0b"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1600x900-scrolled.png",
+      "sha256": "b3358a08a128210ce43d3228ce220a59b21fe3d6c8dd8f053762fbb78e93a56c"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1920x1080-collapsed-notifications.png",
+      "sha256": "0742b1f693a40498a71c52f994505a9341f8e367f90412a811621f7969e99952"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1920x1080-expanded.png",
+      "sha256": "d3cf754ea74c697bb68de3055490a8f42074fd4775b85bd5911bd05dc145892d"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1920x1080-file-menu.png",
+      "sha256": "78f7c7da78031079dd60049fbea242203a3c7480e637db55e7613763a762edf2"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1920x1080-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1920x1080-login.png",
+      "sha256": "6825e8049b272670c928faeb02dcf54b66398a0d4dfae966418f3d28ab660175"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1920x1080-module-collapsed-form.png",
+      "sha256": "b7d717302db3de5b18bca5c2aa36755f0c2bfacd612ad95e7ba0afa7a4112f44"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1920x1080-module-expanded.png",
+      "sha256": "c249c7c5e49f84908ea291727f2e8512ab57f9a502029c349f3fb2a9ece76dfd"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1920x1080-module-flyout.png",
+      "sha256": "1fbad5e86dbbc362abe8af912e7dfd789dc7dc957df1c2c0c765331dbf754c40"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1920x1080-module-group-collapsed.png",
+      "sha256": "0e717d1a9fa34c1f75d7e84567162d2f52d4d5f26d6480298434b7dc23d080d4"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-comfortable-1920x1080-scrolled.png",
+      "sha256": "474c870570e0391e272d3d6543836f879a3f2c46d92eb3747a85a846b1a49e85"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1280x720-collapsed-notifications.png",
+      "sha256": "b2979bcaa115b4d8feaf409a21708da67c6855bd15a414534e08494bacc325c9"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1280x720-expanded.png",
+      "sha256": "3b535a4b2e9548d7f3953005744eb1fd6408c544213f2f054b91e6758a05158c"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1280x720-file-menu.png",
+      "sha256": "415c033ccaff8490fada4c5c12897255e7987f8efa9f615b63153b5d3762aa8d"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1280x720-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1280x720-login.png",
+      "sha256": "c6313db8de2403fd7d316345711f961ccd2b7f8b32763cd103d1a536ef7c628b"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1280x720-module-collapsed-form.png",
+      "sha256": "df1c793b28b326d32a81bef75488b706702fd419c49ffb59fb763188db67089f"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1280x720-module-expanded.png",
+      "sha256": "c8d2a6732ef1fdee7d359735330bcaa15e22489c8e8f9f1b92689154f4c6147a"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1280x720-module-flyout.png",
+      "sha256": "ddc052ba9eb08d218d890abe5c9485d1ad908ae66c2f31f177fdbb0c86adf6d3"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1280x720-module-group-collapsed.png",
+      "sha256": "9a44f59e72603f43fb48c2739b1d2fdc9668011e91f7847f992c981a2ea4ff18"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1280x720-scrolled.png",
+      "sha256": "7ec7fcd6f3b4f7d8142f37a55b30b2be6f5213338ab6f41ef5a44cf89a0921a4"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1366x768-collapsed-notifications.png",
+      "sha256": "4ba39978404eee83af28a5148757d05955dce454919014141691fbfed2b4ba8b"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1366x768-expanded.png",
+      "sha256": "63a26acdb2897c9e188ccc9c9c23b4e89b5e378cf5dfded8604040a987108c81"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1366x768-file-menu.png",
+      "sha256": "415c033ccaff8490fada4c5c12897255e7987f8efa9f615b63153b5d3762aa8d"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1366x768-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1366x768-login.png",
+      "sha256": "c6313db8de2403fd7d316345711f961ccd2b7f8b32763cd103d1a536ef7c628b"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1366x768-module-collapsed-form.png",
+      "sha256": "6dcfe4fb6b2cea17b891dd811a15fe9184b86915d8570b4068056c19689f55d7"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1366x768-module-expanded.png",
+      "sha256": "feac90ce8f401ece85bae3da978974410afc8b2bb3ba4f63741c2373ac489481"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1366x768-module-flyout.png",
+      "sha256": "ddc052ba9eb08d218d890abe5c9485d1ad908ae66c2f31f177fdbb0c86adf6d3"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1366x768-module-group-collapsed.png",
+      "sha256": "04741c4d2d2b2f2535cfbe662b074796207c32634112bdccbbd589c41d8cd3c5"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1366x768-scrolled.png",
+      "sha256": "d193281fa89ce237d8f6bce4cf5a7782ea3796b4eb686ae31cf90990bb7397e2"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1440x900-collapsed-notifications.png",
+      "sha256": "0dc35fc07d08bffed5d59895cdd9e1ff8737be3a2c4fee43a46d81926c3fbebd"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1440x900-expanded.png",
+      "sha256": "faf3cb2dc0545ab1bc28a71aefca06ad47714ef3fa6ed6e1344182956a5beec5"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1440x900-file-menu.png",
+      "sha256": "415c033ccaff8490fada4c5c12897255e7987f8efa9f615b63153b5d3762aa8d"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1440x900-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1440x900-login.png",
+      "sha256": "c6313db8de2403fd7d316345711f961ccd2b7f8b32763cd103d1a536ef7c628b"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1440x900-module-collapsed-form.png",
+      "sha256": "6b4b38b2f9c5a135a2834f82e4688f5f2d7f1e7c7e2470c7efe6d119d42e5c66"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1440x900-module-expanded.png",
+      "sha256": "a5c6b466edc19e80b3c1d259755ec34fd58a7bf485d2cb6845f43490179cecdf"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1440x900-module-flyout.png",
+      "sha256": "ddc052ba9eb08d218d890abe5c9485d1ad908ae66c2f31f177fdbb0c86adf6d3"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1440x900-module-group-collapsed.png",
+      "sha256": "e9b29951a347bdac527c2444a4694de86b99a58090ee87c354e741a9ca14aaf3"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1440x900-scrolled.png",
+      "sha256": "db9178ae101491b70eeaddcfcf01b94ff610216745e1f0140998d10b340c1679"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1600x900-collapsed-notifications.png",
+      "sha256": "ab30cf881e5584da1cc5888eac4661ffebe9b01c0d0c77a8ce0a2d506003d3d8"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1600x900-expanded.png",
+      "sha256": "3bb16f9e86a6ecc665aeef6be55c4d5f2721c7b31ee83e1d20e9573637538fb3"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1600x900-file-menu.png",
+      "sha256": "415c033ccaff8490fada4c5c12897255e7987f8efa9f615b63153b5d3762aa8d"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1600x900-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1600x900-login.png",
+      "sha256": "c6313db8de2403fd7d316345711f961ccd2b7f8b32763cd103d1a536ef7c628b"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1600x900-module-collapsed-form.png",
+      "sha256": "c607061f30ea1761bb3844775acd08aed60b3d1cd7d25153ee5d096a879da93f"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1600x900-module-expanded.png",
+      "sha256": "efb4dbf2893a32a89d5d25e4d387a9d17d98f02e98c77bea4c11b42ccfc98c63"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1600x900-module-flyout.png",
+      "sha256": "ddc052ba9eb08d218d890abe5c9485d1ad908ae66c2f31f177fdbb0c86adf6d3"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1600x900-module-group-collapsed.png",
+      "sha256": "78c49e7a233211039c2fce5df7ef74b26d33f8966cebf418fa63ba704e6a1a0a"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1600x900-scrolled.png",
+      "sha256": "bfe6781fdc8a2538921fac68b749d70df284c946494d22752c770e72a1d38c13"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1920x1080-collapsed-notifications.png",
+      "sha256": "a85c5c607d3966fa0820186feca9c591344999d9c00018767213c8c3333e6092"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1920x1080-expanded.png",
+      "sha256": "47473501179a9d75435707aedfa9d5774ff7b3326b4047f9b9ae1dd9dcdddec9"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1920x1080-file-menu.png",
+      "sha256": "415c033ccaff8490fada4c5c12897255e7987f8efa9f615b63153b5d3762aa8d"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1920x1080-keyboard.png",
+      "sha256": "4078c70e862bef1476194ec9de1a04de69ab554cfdf9ffebc0895529e7d53c2c"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1920x1080-login.png",
+      "sha256": "c6313db8de2403fd7d316345711f961ccd2b7f8b32763cd103d1a536ef7c628b"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1920x1080-module-collapsed-form.png",
+      "sha256": "66f2d798ee88e3ff89826c1f412f003992d0848424ce065494ee47a469712f3b"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1920x1080-module-expanded.png",
+      "sha256": "56a6ce25d88899c081611339cf257341123115f95028ee31cc71db31f5eed2a3"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1920x1080-module-flyout.png",
+      "sha256": "ddc052ba9eb08d218d890abe5c9485d1ad908ae66c2f31f177fdbb0c86adf6d3"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1920x1080-module-group-collapsed.png",
+      "sha256": "3698e45c43ae2289a207e864c28de3d93d6d6fe41915f1fd0d48d67ba7d74f1b"
+    },
+    {
+      "file": "../qss_global_phase_4/dark-touch-1920x1080-scrolled.png",
+      "sha256": "517ddc370d2b15858d6c8638e4020fa64ef21c216e643250347177a75452200c"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1280x720-collapsed-notifications.png",
+      "sha256": "7f77c21ff246f8bb393cb6860342ebfd4b011055aee91e4f43e5669197fa0bc7"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1280x720-expanded.png",
+      "sha256": "10741b4a4cb55f4b2c62c64d2c9ea4a88dcba1998aeea3e4744dc91f46f5df2a"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1280x720-file-menu.png",
+      "sha256": "c728d99392f92463de9a693f35e607b9e1601ff9536e05e7fed8310ee466b0b9"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1280x720-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1280x720-login.png",
+      "sha256": "8d530d1f3d42381cf03e1e4b30139be831ffbefdffc9e1b225fa3b6de6bfe234"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1280x720-module-collapsed-form.png",
+      "sha256": "8c0c1f899fa9daad002a71418f81e22e298b10c4f329ab26e08c8697cf365409"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1280x720-module-expanded.png",
+      "sha256": "fd3409326e73b3bd20c162deeb14851dd283b1584e5d9dae557fe046710dd239"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1280x720-module-flyout.png",
+      "sha256": "b385e4ad311c4ebd6f1c0c44adfb26b89d0763da341420dee502b130535cf7dc"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1280x720-module-group-collapsed.png",
+      "sha256": "12092455189eb34925316a4fc5424abd3494d48d878f69d841af9f36d3e1d664"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1280x720-scrolled.png",
+      "sha256": "f92bf86157369e30c287569609935e7b754b34d25b2a46da3e4eb9d98be9bcfb"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1366x768-collapsed-notifications.png",
+      "sha256": "9657f2b1945bd7e4b848149967ac2aef61becd0d122aa53124b78a1100281ac3"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1366x768-expanded.png",
+      "sha256": "25452e104ee03f19a876f294d28a8b5c14522b63195fb8c1a4cc895ca009b7e4"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1366x768-file-menu.png",
+      "sha256": "c728d99392f92463de9a693f35e607b9e1601ff9536e05e7fed8310ee466b0b9"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1366x768-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1366x768-login.png",
+      "sha256": "8d530d1f3d42381cf03e1e4b30139be831ffbefdffc9e1b225fa3b6de6bfe234"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1366x768-module-collapsed-form.png",
+      "sha256": "5247d79b5039cf989a4ddc8794c2ca25644f6ca6bdc58ffe997974e3037896e6"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1366x768-module-expanded.png",
+      "sha256": "0ab8041bba4c529bbc35dc7a6a2b5b77b442c497f8184aaf4481d98a1a684574"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1366x768-module-flyout.png",
+      "sha256": "b385e4ad311c4ebd6f1c0c44adfb26b89d0763da341420dee502b130535cf7dc"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1366x768-module-group-collapsed.png",
+      "sha256": "c769e5de5d951e7b4b7354f90782f8a11762d3c341d23f8c73c2b4947488968a"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1366x768-scrolled.png",
+      "sha256": "04f64c8626afc1815149c3b2a9776f4bcea9608c8fb6345df95cd0a3e355ef60"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1440x900-collapsed-notifications.png",
+      "sha256": "1f9bb1f43d9c95ae2f47553336df14895e61199c77fd9fe3648c59a2a1736b78"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1440x900-expanded.png",
+      "sha256": "60f28f9f7e098e057932c5f6ec738749f365e088389f6e637177e43fd3cd3871"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1440x900-file-menu.png",
+      "sha256": "c728d99392f92463de9a693f35e607b9e1601ff9536e05e7fed8310ee466b0b9"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1440x900-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1440x900-login.png",
+      "sha256": "8d530d1f3d42381cf03e1e4b30139be831ffbefdffc9e1b225fa3b6de6bfe234"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1440x900-module-collapsed-form.png",
+      "sha256": "7e8f8b344b788ed3ee3c85bc68b2570b665324d9f90437a9fcc2af6d9a97c583"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1440x900-module-expanded.png",
+      "sha256": "625de2b597fc4516379d63b08814b37972d898c86b1f9614fccd20b6c5d2dcb0"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1440x900-module-flyout.png",
+      "sha256": "b385e4ad311c4ebd6f1c0c44adfb26b89d0763da341420dee502b130535cf7dc"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1440x900-module-group-collapsed.png",
+      "sha256": "7141213babc32434f36b9487b23374cb7826c16cdc22c2069daf992fc3c8b882"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1440x900-scrolled.png",
+      "sha256": "e38a38e133fbf01aefc5305064762c9051e48e63f6fc06b2b41bdf358eb09890"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1600x900-collapsed-notifications.png",
+      "sha256": "382188e2dc2daf13af42167c03f4c33be93c61185c38333526e872978d0e413b"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1600x900-expanded.png",
+      "sha256": "dfd17a062f4f67a68c6566ebad63a0c89a40ee7d3fefb5fad80b1a649f15a75e"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1600x900-file-menu.png",
+      "sha256": "c728d99392f92463de9a693f35e607b9e1601ff9536e05e7fed8310ee466b0b9"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1600x900-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1600x900-login.png",
+      "sha256": "8d530d1f3d42381cf03e1e4b30139be831ffbefdffc9e1b225fa3b6de6bfe234"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1600x900-module-collapsed-form.png",
+      "sha256": "16ab72eac1332aeec43662502c012feac7b881419e72bc9c1e707781f21f09d6"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1600x900-module-expanded.png",
+      "sha256": "07157177c8f34a5341b38666cc3f474887cd53337b4eb926175eab199a6973b0"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1600x900-module-flyout.png",
+      "sha256": "b385e4ad311c4ebd6f1c0c44adfb26b89d0763da341420dee502b130535cf7dc"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1600x900-module-group-collapsed.png",
+      "sha256": "806f2215c87d7355cac4d194416bdd086f8ba1a4ab71db0769a5d3a2cdb46226"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1600x900-scrolled.png",
+      "sha256": "3c3e5032b10a6b806f6aea21a73427a6f99a0a21e7761aa9a7f0209f40d31c9f"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1920x1080-collapsed-notifications.png",
+      "sha256": "d76cb3590ce2aa89eda7200d6f95e98107b7ecdadb4afdd29cf2c21d65493120"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1920x1080-expanded.png",
+      "sha256": "8b7e88e2eecf32b43f16ba730b99438d34a30f8daa53fb8ed084b1291b6719db"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1920x1080-file-menu.png",
+      "sha256": "c728d99392f92463de9a693f35e607b9e1601ff9536e05e7fed8310ee466b0b9"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1920x1080-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1920x1080-login.png",
+      "sha256": "8d530d1f3d42381cf03e1e4b30139be831ffbefdffc9e1b225fa3b6de6bfe234"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1920x1080-module-collapsed-form.png",
+      "sha256": "82ac7f50f35170ee62d00a0c388d35eb5ee6e8fcf44343922527e46d17bd1c22"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1920x1080-module-expanded.png",
+      "sha256": "04a2a2c6b44464cc21084da7f1638fe2151abafa43f5fe8ce0f84be8a6c55170"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1920x1080-module-flyout.png",
+      "sha256": "b385e4ad311c4ebd6f1c0c44adfb26b89d0763da341420dee502b130535cf7dc"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1920x1080-module-group-collapsed.png",
+      "sha256": "19611612a98816ccc688cd545529a6601a8deed0d211c8a3268c963a7263ab6e"
+    },
+    {
+      "file": "../qss_global_phase_4/light-comfortable-1920x1080-scrolled.png",
+      "sha256": "c25bc861e2ef2ef85b4561d5ded03e8a46f28414fa2f753844445d3e024b5c3f"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1280x720-collapsed-notifications.png",
+      "sha256": "e1f515c0d1f2563b57c288e6fb6b7f45695ce269cfac4d2b92ac172be9a49b60"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1280x720-expanded.png",
+      "sha256": "e394e132cc517493eb0f8485639735fc0081b5027545d80f018597a4f64b6b88"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1280x720-file-menu.png",
+      "sha256": "dce4165626421206347efb0c83748d0953053062a6e3f6f3aea9a2eb8e8c84b9"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1280x720-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1280x720-login.png",
+      "sha256": "a6b5ecc1d2733365e191399da29943cc662468de36c51075af61a429f4e558c4"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1280x720-module-collapsed-form.png",
+      "sha256": "5a8253482890c26063826d0ce2beaecec705eb4f040476b4732cde8b249e0043"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1280x720-module-expanded.png",
+      "sha256": "3648de7abd127a143e97bfc8490909a808cf05c8f7ab8bdc91ed2f2a13dd71fb"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1280x720-module-flyout.png",
+      "sha256": "c05e2da52d57fd7ece69b7eac53f5d4f69cdcda339a06759a1fe4be7a97c4b7c"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1280x720-module-group-collapsed.png",
+      "sha256": "48d10bb45eef5b28a8074578436f01713e1b43ab2a99cdfc507d7b2922e24349"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1280x720-scrolled.png",
+      "sha256": "21ae6a7d33814d23a8c7963a66dc94e8dea0a04e8f9ebf0ca9e774091ce5cc4a"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1366x768-collapsed-notifications.png",
+      "sha256": "d18bce017386d16e4c925cfdc26af83d13de16c0fd925566781e0cf8b43b396f"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1366x768-expanded.png",
+      "sha256": "cdbfb2be562fb1f86e0fce5a99042ff6ab0a2e19a6f4135641c40273d171a9a1"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1366x768-file-menu.png",
+      "sha256": "dce4165626421206347efb0c83748d0953053062a6e3f6f3aea9a2eb8e8c84b9"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1366x768-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1366x768-login.png",
+      "sha256": "a6b5ecc1d2733365e191399da29943cc662468de36c51075af61a429f4e558c4"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1366x768-module-collapsed-form.png",
+      "sha256": "1add7555aeb4db09a882d2beffaf8eb937ab991dd9d57bd2c19ced88b0f34235"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1366x768-module-expanded.png",
+      "sha256": "57a70643fdc17a9f7f97efeba712e2484b852b01a347448db08e23d837296fbd"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1366x768-module-flyout.png",
+      "sha256": "c05e2da52d57fd7ece69b7eac53f5d4f69cdcda339a06759a1fe4be7a97c4b7c"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1366x768-module-group-collapsed.png",
+      "sha256": "6290453a5a904e5c62c9a5de1bcc8c811ecdbee2ad8ee9d8e99e62f5cdbfe712"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1366x768-scrolled.png",
+      "sha256": "8795e3b92b669ce0331a5048634f66796325282367361b5553b2732cc5b98ab5"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1440x900-collapsed-notifications.png",
+      "sha256": "028fd943d893c8c930c816d015fd6df8343601122b66e8957f640eac9c0d3a77"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1440x900-expanded.png",
+      "sha256": "e71243b4c2ef7a6776b12bbcd027a0ca433dd993e18fba4bfa936b54ac10dd20"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1440x900-file-menu.png",
+      "sha256": "dce4165626421206347efb0c83748d0953053062a6e3f6f3aea9a2eb8e8c84b9"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1440x900-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1440x900-login.png",
+      "sha256": "a6b5ecc1d2733365e191399da29943cc662468de36c51075af61a429f4e558c4"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1440x900-module-collapsed-form.png",
+      "sha256": "19279d6af3dd43e04b61fc88e05e64e27fa8725b4d875f8dfb7bd5e2e25b92d4"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1440x900-module-expanded.png",
+      "sha256": "36190691091def47d6c0ca199cd341d3729f9fc8664ba4c18838bd41fe1270b3"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1440x900-module-flyout.png",
+      "sha256": "c05e2da52d57fd7ece69b7eac53f5d4f69cdcda339a06759a1fe4be7a97c4b7c"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1440x900-module-group-collapsed.png",
+      "sha256": "c1d97bd999b3801fba60f025f38e359622c9aed02efcd7b1976c8b10c8933cca"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1440x900-scrolled.png",
+      "sha256": "a46c9c6eec74042b6ee6c4ea8c924d352577cf030eea733eeff1636e4803e273"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1600x900-collapsed-notifications.png",
+      "sha256": "856b2902d7850a791284089cf9132060bdf9c3ad43eef506e86c413d215ef834"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1600x900-expanded.png",
+      "sha256": "e96ad7c7ef5eb20af5f5f44aef92b875e1fe93da20ce7fcc2f900000c118d134"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1600x900-file-menu.png",
+      "sha256": "dce4165626421206347efb0c83748d0953053062a6e3f6f3aea9a2eb8e8c84b9"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1600x900-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1600x900-login.png",
+      "sha256": "a6b5ecc1d2733365e191399da29943cc662468de36c51075af61a429f4e558c4"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1600x900-module-collapsed-form.png",
+      "sha256": "2a59b9a740b2296bac03a3ceea11b72dc224c43c56b46b63d44309188e77b94f"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1600x900-module-expanded.png",
+      "sha256": "dead20b4e73bd730e2fcd7ec245288090a50ad8c4b7e1e2460f35327a86a2b19"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1600x900-module-flyout.png",
+      "sha256": "c05e2da52d57fd7ece69b7eac53f5d4f69cdcda339a06759a1fe4be7a97c4b7c"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1600x900-module-group-collapsed.png",
+      "sha256": "f95b8420bb1930aa71a9130434c72e57c3cbf50381d4305b643b4b503e1955a6"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1600x900-scrolled.png",
+      "sha256": "2c04825387e92d64b25bb7b6dc5a1ec9c086c729acf3507520b8e3e9786de908"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1920x1080-collapsed-notifications.png",
+      "sha256": "d4c0fbc3b2d17475eebd4160b45c222f039f19d15099ee30bcf02188fc46f3d3"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1920x1080-expanded.png",
+      "sha256": "ea18c2a1229c4e57d15e1834e6ced9f21cb6bb9c218a7f69055ef5d54a1dba05"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1920x1080-file-menu.png",
+      "sha256": "dce4165626421206347efb0c83748d0953053062a6e3f6f3aea9a2eb8e8c84b9"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1920x1080-keyboard.png",
+      "sha256": "923da424be12a595d12b862dd2adb44648f836e89beba024aaa4d4c639ba6045"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1920x1080-login.png",
+      "sha256": "a6b5ecc1d2733365e191399da29943cc662468de36c51075af61a429f4e558c4"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1920x1080-module-collapsed-form.png",
+      "sha256": "9847c3ec4be768e26fc4b6b6fa8c14c0918817627627dc811933378af4562b29"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1920x1080-module-expanded.png",
+      "sha256": "3fda62462df186ed987b9eb51e3df4f761985b59fe9a75d21eee38809d5f90d9"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1920x1080-module-flyout.png",
+      "sha256": "c05e2da52d57fd7ece69b7eac53f5d4f69cdcda339a06759a1fe4be7a97c4b7c"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1920x1080-module-group-collapsed.png",
+      "sha256": "2f768f121d734f8b240ca852c68deda79bc7f9bc2aaffab017f001d1510ff88c"
+    },
+    {
+      "file": "../qss_global_phase_4/light-touch-1920x1080-scrolled.png",
+      "sha256": "727f9009dc5d4e8c0d362afc6f43d725ccfda8ba1f89d1a998b38801f00def8a"
+    }
+  ],
+  "fixture_artwork": "Temporary synthetic geometry only; no fixture is installed as JUANIS artwork",
+  "packaging": "AppPaths resource resolution simulated; no executable build performed",
+  "source_sha256": {
+    "frontend/desktop/components/branding.py": "199cd85f766f342f99fde75c9180d0fe7fb7e8d864e402ff432baa5cc17e83d7",
+    "backend/shared/app_paths.py": "3082a1e196ab888388b6e9ee6010e7a7297a53d6c4ff0a451f2f98d94cad9f9c",
+    "frontend/desktop/app.py": "eec9d5bb343cd30f103bbd01b5b8d619c967a93c1ac1967ebca713345d6551e1",
+    "frontend/desktop/auth/login_window.py": "30e06c72841fb7aaa481b12f5c7bee8a941e22964eb339014ba10a18a33fd537",
+    "frontend/desktop/shell/sidebar/global_sidebar.py": "975b336d3dbe6b71fff790ea71d5ddca76acaf19e38dfcd99b6e87511b4c6203",
+    "frontend/desktop/components/standard_window.py": "3db48466f2d24bf5416f204b8615061778c3fd1fc63ad91b8ae7910ba03bad4e",
+    "frontend/desktop/components/dialogs.py": "67f5bca0a201c2f2a40915ebe7cc063d7abf1af2339643ddab8fddb43c8c501e",
+    "tests/ui/test_brand_asset_provider.py": "f2f2b8b4092d5793eeacc2334413f2feab29e2a8217379aa78ab71e28dc0e8a3",
+    "tests/ui/test_brand_official_assets.py": "05144f32a39164ac4a4ee18d1932851f33b487b5f219f14dc3397869322d2bb6",
+    "tests/unit/test_app_paths_resources.py": "6d4674752800f67147460036d44e31e4fbeb3e09717700e531facc1f1965e88a"
+  },
+  "originals_unchanged_since_audit": true
+}

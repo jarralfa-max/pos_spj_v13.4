@@ -18,6 +18,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
 )
 
+from frontend.desktop.components.address_input import AddressInput
 from frontend.desktop.components import (
     EmailInput,
     IntegerInput,
@@ -48,6 +49,16 @@ _CONTACT_TYPES = [
     ("PURCHASING", "Compras"), ("SALES", "Ventas"), ("BILLING", "Facturación"),
     ("COLLECTIONS", "Cobranza"), ("LOGISTICS", "Logística"), ("QUALITY", "Calidad"),
     ("MANAGEMENT", "Gerencia"), ("EMERGENCY", "Emergencias"),
+]
+#: "Contado"/"Crédito" se traduce a la bandera `PaymentTerms.is_credit`; los
+#: ids de este combo son sólo de la pantalla.
+_PAYMENT_MODES = [("CASH_ON_DELIVERY", "Contado"), ("CREDIT", "Crédito")]
+#: Sólo las formas que el negocio usa (decisión del usuario, 2026-09-17).
+_PAYMENT_METHODS = [("TRANSFER", "Transferencia (SPEI)"), ("CASH", "Efectivo")]
+_ADDRESS_TYPES = [
+    ("FISCAL", "Fiscal"), ("BILLING", "Facturación"), ("SHIPPING", "Envío"),
+    ("WAREHOUSE", "Almacén"), ("PICKUP", "Recolección"), ("OFFICE", "Oficina"),
+    ("OTHER", "Otro"),
 ]
 _BLOCK_TYPES = [
     ("PURCHASING_BLOCK", "Compras"), ("PAYMENT_BLOCK", "Pagos"),
@@ -155,12 +166,17 @@ class SupplierContactDialog(_SupplierDialog):
         self._type = _combo(_CONTACT_TYPES)
         self._role = StandardLineEdit(placeholder="Cargo")
         self._phone = PhoneInput()
+        # WhatsApp con el MISMO componente que el teléfono: es E.164 igual que
+        # él (regla §19), y capturarlo como texto libre dejaría entrar números
+        # que el canal de WhatsApp luego no puede usar.
+        self._whatsapp = PhoneInput()
         self._email = EmailInput()
         self._primary = QCheckBox("Contacto principal")
         self.form.addRow("Nombre *", self._name)
         self.form.addRow("Área", self._type)
         self.form.addRow("Cargo", self._role)
         self.form.addRow("Teléfono", self._phone)
+        self.form.addRow("WhatsApp", self._whatsapp)
         self.form.addRow("Correo", self._email)
         self.form.addRow("", self._primary)
 
@@ -169,6 +185,14 @@ class SupplierContactDialog(_SupplierDialog):
             return "El nombre es obligatorio."
         if self._type.current_id() is None:
             return "Selecciona el área del contacto."
+        # El teléfono NO se validaba (sólo el correo). Se valida ahora junto con
+        # WhatsApp: `PhoneInput.is_valid()` acepta vacío cuando no es
+        # obligatorio, así que nada de lo que hoy se guarda deja de ser válido —
+        # sólo deja de aceptarse un número mal formado.
+        if not self._phone.is_valid():
+            return "El teléfono debe estar en formato internacional (+52...)."
+        if not self._whatsapp.is_valid():
+            return "El WhatsApp debe estar en formato internacional (+52...)."
         if not self._email.is_valid():
             return "El correo no tiene un formato válido."
         return None
@@ -178,6 +202,7 @@ class SupplierContactDialog(_SupplierDialog):
             "name": self._name.value(), "contact_type": self._type.current_id(),
             "role": self._role.value(),
             "phone_e164": self._phone.value() or None,
+            "whatsapp_e164": self._whatsapp.value() or None,
             "email": self._email.email() or None, "is_primary": self._primary.isChecked(),
         }
 
@@ -218,6 +243,8 @@ class SupplierTermsDialog(_SupplierDialog):
     dialog_title = "Condiciones comerciales"
 
     def _build(self) -> None:
+        self._payment_mode = _combo(_PAYMENT_MODES)
+        self._payment_method = _combo(_PAYMENT_METHODS)
         self._credit_days = IntegerInput(minimum=0, maximum=365)
         self._credit_limit = MoneyInput()
         self._advance_required = QCheckBox("Requiere anticipo")
@@ -225,6 +252,8 @@ class SupplierTermsDialog(_SupplierDialog):
         self._lead_time = IntegerInput(minimum=0, maximum=365)
         self._window = TimeRangeInput()
         self._window.set_range("08:00", "16:00")
+        self.form.addRow("Tipo de pago *", self._payment_mode)
+        self.form.addRow("Forma de pago preferida", self._payment_method)
         self.form.addRow("Días de crédito", self._credit_days)
         self.form.addRow("Límite de crédito", self._credit_limit)
         self.form.addRow("", self._advance_required)
@@ -233,6 +262,13 @@ class SupplierTermsDialog(_SupplierDialog):
         self.form.addRow("Ventana de recepción", self._window)
 
     def _error(self) -> str | None:
+        mode = self._payment_mode.current_id()
+        if mode is None:
+            return "Indica si el proveedor es de contado o de crédito."
+        if mode == "CREDIT" and self._credit_days.value() <= 0:
+            return "Un proveedor a crédito necesita días de crédito mayores a cero."
+        if mode == "CASH_ON_DELIVERY" and self._credit_days.value() > 0:
+            return "Un proveedor de contado no puede tener días de crédito."
         window_error = self._window.validate()
         if window_error:
             return window_error
@@ -242,6 +278,8 @@ class SupplierTermsDialog(_SupplierDialog):
 
     def values(self) -> dict:
         return {
+            "is_credit": self._payment_mode.current_id() == "CREDIT",
+            "preferred_payment_method": self._payment_method.current_id(),
             "credit_days": self._credit_days.value(),
             "credit_limit": str(self._credit_limit.decimal_value()),
             "advance_required": self._advance_required.isChecked(),
@@ -270,6 +308,90 @@ class SupplierBlockDialog(_SupplierDialog):
 
     def values(self) -> dict:
         return {"block_type": self._type.current_id(), "reason": self._reason.value()}
+
+
+class SupplierReasonDialog(_SupplierDialog):
+    """Motivo obligatorio para suspender o dar de baja.
+
+    Existe uno equivalente en el módulo de Compras, pero importarlo desde aquí
+    acoplaría dos módulos de UI por un formulario de tres líneas; éste reusa la
+    base y la validación que ya tiene este módulo.
+    """
+
+    dialog_title = "Motivo"
+
+    def __init__(self, parent=None, *, title: str = "Motivo",
+                 placeholder: str = "Motivo (obligatorio)") -> None:
+        self.dialog_title = title
+        self._placeholder = placeholder
+        super().__init__(parent)
+
+    def _build(self) -> None:
+        self._reason = StandardTextArea(placeholder=self._placeholder)
+        self.form.addRow("Motivo *", self._reason)
+
+    def _error(self) -> str | None:
+        if not self._reason.value():
+            return "El motivo es obligatorio."
+        return None
+
+    def reason(self) -> str:
+        return self._reason.value()
+
+    def values(self) -> dict:
+        return {"reason": self.reason()}
+
+
+class SupplierAddressDialog(_SupplierDialog):
+    """Domicilio del proveedor, con el componente estándar de dirección.
+
+    Eran cinco cajas de texto libre. Ahora es `AddressInput`: búsqueda con
+    Mapbox (o Nominatim de respaldo) desde el 5.º carácter y captura manual en
+    los mismos campos. Las columnas `latitude`, `longitude`, `geocoding_source`
+    y `validation_state` existían en `supplier_addresses` desde el esquema
+    original y NUNCA se llenaban: no había por dónde capturarlas.
+    """
+
+    dialog_title = "Nuevo domicilio"
+
+    def __init__(self, parent=None, *, search_service=None, runner=None) -> None:
+        # Antes de `super().__init__`, que es quien llama a `_build`.
+        self._search_service = search_service
+        self._runner = runner
+        super().__init__(parent, width=DialogMetrics.WIDTH_LG)
+
+    def _build(self) -> None:
+        self._type = _combo(_ADDRESS_TYPES)
+        self._address = AddressInput(self, search_service=self._search_service,
+                                     runner=self._runner)
+        self.form.addRow("Tipo *", self._type)
+        self.form.addRow("Domicilio *", self._address)
+
+    def _error(self) -> str | None:
+        if self._type.current_id() is None:
+            return "Selecciona el tipo de domicilio."
+        if not self._address.value().street_line():
+            return "La calle y número son obligatorios."
+        return None
+
+    def values(self) -> dict:
+        direccion = self._address.value()
+        # `SupplierAddress` no tiene columna de colonia: se antepone a la línea
+        # para no perder el dato mientras el dominio no la modele.
+        line = direccion.street_line()
+        if direccion.neighborhood:
+            line = f"{line}, Col. {direccion.neighborhood}"
+        return {
+            "address_type": self._type.current_id(),
+            "line": line,
+            "city": direccion.municipality, "state": direccion.state,
+            "postal_code": direccion.postal_code,
+            "country_code": direccion.country_code,
+            "latitude": direccion.latitude if direccion.is_geocoded else None,
+            "longitude": direccion.longitude if direccion.is_geocoded else None,
+            "geocoding_source": direccion.source.value if direccion.is_geocoded else None,
+            "validation_state": "GEOCODED" if direccion.is_geocoded else "MANUAL",
+        }
 
 
 class SupplierEvaluationDialog(_SupplierDialog):

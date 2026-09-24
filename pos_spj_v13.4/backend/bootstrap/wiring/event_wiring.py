@@ -35,10 +35,13 @@ def wire_cross_context_events(connection) -> dict:
     """
     from backend.application.pricing.integrations.wiring import wire_pricing
     from backend.application.procurement.integrations.wiring import wire_procurement
+    from backend.application.sales.integrations.wiring import wire_sales
 
     bus = get_bus()
     summary = {
         "procurement": wire_procurement(bus, connection),
+        # Fase 6 (2026-09-18): la venta completada llega a contabilidad.
+        "sales": wire_sales(bus, connection),
         "pricing": wire_pricing(bus, connection),
         "procurement_downstream_bridges": wire_procurement_downstream_bridges(bus, connection),
     }

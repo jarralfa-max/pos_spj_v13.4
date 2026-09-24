@@ -53,6 +53,8 @@ class MeatProcessingRecord(str, Enum):
     PACKAGING = "packaging"
     PRODUCED_LOTS = "produced_lots"
     YIELDS = "yields"
+    #: Fase 10: el resultado por CORTE (§13) — esperado, real, costo repartido.
+    OUTPUT_RESULTS = "output_results"
     QUALITY = "quality"
     REWORK = "rework"
     INCIDENTS = "incidents"
@@ -98,6 +100,7 @@ STATUS_ENUM: dict[MeatProcessingRecord, type[Enum]] = {
     MeatProcessingRecord.PACKAGING: PackagingLabelStatus,
     MeatProcessingRecord.PRODUCED_LOTS: ProcessingBatchStatus,
     MeatProcessingRecord.YIELDS: YieldStatus,
+    MeatProcessingRecord.OUTPUT_RESULTS: OutputType,
     MeatProcessingRecord.QUALITY: OutputQualityStatus,
     MeatProcessingRecord.REWORK: ReworkOrderStatus,
     MeatProcessingRecord.INCIDENTS: IncidentStatus,
@@ -120,6 +123,7 @@ ATTENTION: dict[MeatProcessingRecord, tuple[Enum, ...]] = {
     MeatProcessingRecord.YIELDS: (
         YieldStatus.CRITICAL, YieldStatus.OUT_OF_TOLERANCE, YieldStatus.WARNING,
         YieldStatus.PENDING_REVIEW),
+    MeatProcessingRecord.OUTPUT_RESULTS: (),
     MeatProcessingRecord.QUALITY: (
         OutputQualityStatus.PENDING_INSPECTION, OutputQualityStatus.QUARANTINED,
         OutputQualityStatus.REWORK_REQUIRED),
@@ -266,6 +270,20 @@ _CONSULTAS: dict[MeatProcessingRecord, _Consulta] = {
         ),
         desde="yield_reconciliations y" + _ORDEN.format(alias="y"), producto=_OBJETIVO,
         sucursal="o.branch_id", estado="y.status", orden="y.calculated_at DESC, y.id DESC",
+        buscar_en=("p.name",),
+    ),
+    MeatProcessingRecord.OUTPUT_RESULTS: _Consulta(
+        columnas=(
+            ("id", "r.id"), ("created_at", "r.created_at"), ("product_name", "p.name"),
+            ("output_type", "r.output_type"), ("input_weight", "r.input_weight"),
+            ("expected_weight", "r.expected_weight"), ("actual_weight", "r.actual_weight"),
+            ("difference_weight", "r.difference_weight"), ("yield_pct", "r.yield_pct"),
+            ("variance_pct", "r.variance_pct"), ("unit_cost", "r.unit_cost"),
+            ("allocated_cost", "r.allocated_cost"), ("output_lot_id", "r.output_lot_id"),
+        ),
+        desde="processing_output_results r" + _ORDEN.format(alias="r"),
+        producto=_PRODUCTO.format(columna="r.product_id"),
+        sucursal="o.branch_id", estado="r.output_type", orden="r.created_at DESC, r.id DESC",
         buscar_en=("p.name",),
     ),
     MeatProcessingRecord.QUALITY: _Consulta(

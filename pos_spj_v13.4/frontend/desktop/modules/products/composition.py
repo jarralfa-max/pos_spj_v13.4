@@ -64,6 +64,9 @@ def build_products_presenter(connection, session_context=None, *, live_session=N
     from backend.application.products.queries.catalog_read_service import (
         ProductCatalogReadService,
     )
+    from backend.application.products.queries.product_selection_query_service import (
+        ProductCatalogSearchQueryService,
+    )
     from backend.application.products.use_cases.product_master_use_cases import (
         CreateProductMasterUseCase,
         UpdateProductMasterUseCase,
@@ -159,6 +162,7 @@ def build_products_presenter(connection, session_context=None, *, live_session=N
         ActivateCuttingVersionUseCase,
         ApproveCuttingVersionUseCase,
         CreateCuttingSchemeUseCase,
+        SetCuttingReverseReconstructionUseCase,
         SubmitCuttingVersionUseCase,
         UpdateCuttingVersionUseCase,
     )
@@ -245,6 +249,9 @@ def build_products_presenter(connection, session_context=None, *, live_session=N
                if live_session is not None else None)
     return ProductsPresenter(
         read_service_factory=lambda: ProductCatalogReadService(conn),
+        # El SELECTOR de productos va por el contrato compartido; el listado
+        # del catálogo sigue en `ProductCatalogReadService`.
+        product_search_factory=lambda: ProductCatalogSearchQueryService(conn),
         write_service_factory=write_factory,
         units_service_factory=lambda: UnitCatalogQueryService(conn),
         lifecycle_service_factory=lifecycle_factory,
@@ -287,6 +294,8 @@ def build_products_presenter(connection, session_context=None, *, live_session=N
             "submit": SubmitCuttingVersionUseCase(conn, authorization),
             "approve": ApproveCuttingVersionUseCase(conn, authorization),
             "activate": ActivateCuttingVersionUseCase(conn, authorization),
+            # §16: armar el producto con sus partes (Fase 7).
+            "reverse": SetCuttingReverseReconstructionUseCase(conn, authorization),
         },
         bundles_read_factory=lambda: ProductBundleQueryService(conn),
         bundles_write_factory=lambda: {

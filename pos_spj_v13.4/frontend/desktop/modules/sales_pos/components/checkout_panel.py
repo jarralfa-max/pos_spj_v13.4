@@ -33,6 +33,7 @@ class CheckoutPanel(QWidget):
     return_requested = pyqtSignal()
     invoice_requested = pyqtSignal()
     reprint_requested = pyqtSignal()
+    discount_requested = pyqtSignal()
 
     def __init__(self, presenter, parent=None) -> None:
         super().__init__(parent)
@@ -74,6 +75,7 @@ class CheckoutPanel(QWidget):
         self.actions.return_requested.connect(self.return_requested)
         self.actions.invoice_requested.connect(self.invoice_requested)
         self.actions.reprint_requested.connect(self.reprint_requested)
+        self.actions.discount_requested.connect(self.discount_requested)
         root.addWidget(self.actions)
 
     def render_sale(self, sale) -> None:

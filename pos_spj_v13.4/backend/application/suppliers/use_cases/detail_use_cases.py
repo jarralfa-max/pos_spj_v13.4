@@ -142,7 +142,8 @@ class UpdateSupplierCommercialTermsUseCase(_BaseUseCase):
                 advance_required: bool = False, advance_percentage: str = "0",
                 prompt_payment_discount: str = "0", min_order_amount: str = "0",
                 lead_time_days: int = 0, receiving_window_start: str | None = None,
-                receiving_window_end: str | None = None) -> SupplierResult:
+                receiving_window_end: str | None = None, is_credit: bool | None = None,
+                preferred_payment_method: str | None = None) -> SupplierResult:
         try:
             self._auth.require(actor_user_id, SupplierPermissions.EDIT_TERMS)
         except PermissionDeniedError as exc:
@@ -158,7 +159,9 @@ class UpdateSupplierCommercialTermsUseCase(_BaseUseCase):
                     advance_required=advance_required,
                     advance_percentage=Decimal(advance_percentage),
                     prompt_payment_discount=Decimal(prompt_payment_discount),
-                    min_order_amount=Money(Decimal(min_order_amount), currency_code))
+                    min_order_amount=Money(Decimal(min_order_amount), currency_code),
+                    is_credit=is_credit,
+                    preferred_payment_method=preferred_payment_method or None)
                 terms = SupplierCommercialTerms.create(
                     supplier_id, pt, currency_code=currency_code, lead_time_days=lead_time_days,
                     receiving_window_start=receiving_window_start,

@@ -92,8 +92,10 @@ class CustomerCrmPresenter:
         use_cases: dict[str, object] | None = None,
         command_handlers: dict[str, Callable[..., object]] | None = None,
         team_member_ids: tuple[str, ...] = (),
+        address_search_factory: Callable[[], object] | None = None,
     ) -> None:
         self._session = session_context
+        self._address_search_factory = address_search_factory
         self._query_services = dict(query_services or {})
         self._use_cases = dict(use_cases or {})
         self._command_handlers = dict(command_handlers or {})
@@ -210,6 +212,52 @@ class CustomerCrmPresenter:
             actor_user_id=self.current_user_id(), customer_id=customer_id,
             operation_id=new_uuid(), display_name=display_name,
             legal_name=legal_name, commercial_name=commercial_name, source=source)
+
+    def address_search_service(self):
+        """Servicio estándar de direcciones (Configuración → Integraciones).
+        `None` si no está inyectado o falla: se captura a mano."""
+        if self._address_search_factory is None:
+            return None
+        try:
+            return self._address_search_factory()
+        except Exception:
+            import logging
+            logging.getLogger("spj.customers_crm.presenter").exception(
+                "No se pudo preparar la búsqueda de direcciones")
+            return None
+
+    def can_add_address(self) -> bool:
+        """Para habilitar el botón. Ocultar no es seguridad —el caso de uso
+        revalida con `require()`— pero ofrecer una acción que va a denegarse
+        es peor."""
+        from backend.application.customers.permissions import CustomerPermissions
+        return self.can(CustomerPermissions.ADDRESS_CREATE)
+
+    def add_customer_address(
+        self, customer_id: str, *, address, address_type: str, is_default: bool = False,
+    ) -> CustomerResult:
+        """Alta de dirección desde la ficha, con lo que devuelve `AddressInput`.
+
+        Las coordenadas sólo viajan si vienen de un proveedor de mapas: si el
+        usuario corrigió a mano lo que ubica la dirección, el componente ya las
+        descartó y aquí llegan vacías.
+        """
+        handler = self.command_handler("add_address")
+        if handler is None:
+            return CustomerResult.fail(
+                "El alta de direcciones no está disponible: falta la conexión al backend.",
+                "NOT_WIRED")
+        return handler(
+            actor_user_id=self.current_user_id(), customer_id=customer_id,
+            operation_id=new_uuid(), address_type=address_type,
+            street=address.street, external_number=address.exterior_number,
+            internal_number=address.interior_number, neighborhood=address.neighborhood,
+            postal_code=address.postal_code, municipality=address.municipality,
+            state=address.state, country=address.country_code,
+            references=address.references,
+            latitude=address.latitude if address.is_geocoded else None,
+            longitude=address.longitude if address.is_geocoded else None,
+            is_default=bool(is_default))
 
     @staticmethod
     def _filtered(entities, *, search: str, status: str | None, text_fields) -> list:

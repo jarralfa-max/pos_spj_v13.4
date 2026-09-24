@@ -84,6 +84,36 @@ class EnterprisePurchasingPresenter:
             raise PermissionError("Se requiere una sesión autenticada de Compras")
         return str(user_id)
 
+    def branch_options(self) -> list[tuple[str, str]]:
+        """Sucursales que este usuario PUEDE ver, como `(id, nombre)`.
+
+        NO EXISTÍA. Los dos diálogos de Compras capturaban la sucursal con una
+        caja de texto libre, así que para crear una solicitud había que escribir
+        a mano el UUID de la sucursal — en la práctica, imposible: el de
+        solicitud arranca vacío y no hay forma de elegir.
+
+        El orden es el mismo que exige Transferencias y por el mismo motivo:
+        `usuario -> permitidas -> consulta -> resultados`. Listar todas las
+        sucursales y dejar que la pantalla oculte las ajenas sería una fuga: el
+        dato ya habría viajado y el nombre de una sucursal fuera de alcance se
+        descubriría igual.
+
+        Devuelve `[]` si algo falla, nunca revienta el diálogo: sin sucursales
+        el combo queda vacío y el backend sigue siendo quien deniega.
+        """
+        from backend.application.security.branch_scope_query_service import (
+            BranchScopeQueryService, BranchSearchQuery,
+        )
+        if self._conn is None:
+            return []
+        try:
+            encontradas = BranchScopeQueryService(self._conn()).search(
+                BranchSearchQuery(allowed_for_user=self._actor(), page_size=200))
+        except Exception:
+            logger.exception("%s.branch_options failed", type(self).__name__)
+            return []
+        return [(o.branch_id, o.name) for o in encontradas]
+
     def default_branch(self) -> str:
         branch_id = (getattr(self._session, "active_branch_id", None)
                      or getattr(self._session, "branch_id", None))
@@ -245,10 +275,47 @@ class EnterprisePurchasingPresenter:
         try:
             options = self._product_catalog.search(query, branch_id=self.default_branch())
         except Exception:
+            # §35: un fallo técnico (sesión sin sucursal activa, SQL roto) NO
+            # puede verse igual que "sin resultados". `EntitySearchInput` ya
+            # distingue ambos casos; tragarse la excepción aquí anulaba ese
+            # mecanismo y dejaba al comprador mirando una lista vacía sin
+            # ninguna pista de que la búsqueda ni siquiera llegó a ejecutarse.
             logger.exception("product search failed")
-            return []
+            raise
         return [SearchOption(id=o.product_id, label=o.name, subtitle=o.code)
                 for o in options]
+
+    def supplier_search_reason(self, query: str) -> str | None:
+        """Por qué el buscador de proveedores no devolvió nada.
+
+        Mismo trato que ya tenían los productos: "Sin resultados" no distingue
+        "no hay proveedores dados de alta" de "ninguno está aprobado todavía" ni
+        de "el término no coincide", y son tres cosas que se arreglan de forma
+        distinta. Diagnóstico: nunca lanza.
+        """
+        explain = getattr(self._suppliers, "explain_empty", None)
+        if explain is None:
+            return None
+        try:
+            razon = explain(query)
+        except Exception:
+            logger.exception("supplier search reason failed")
+            return None
+        return razon.message if razon is not None else None
+
+    def product_search_reason(self, query: str) -> str | None:
+        """Por qué la búsqueda de productos no trajo nada.
+
+        Es un DIAGNÓSTICO: nunca lanza. Un mensaje explicativo que reviente
+        dejaría al comprador peor que el genérico "Sin resultados"."""
+        explain = getattr(self._product_catalog, "explain_empty", None)
+        if explain is None:
+            return None
+        try:
+            return explain(query, branch_id=self.default_branch())
+        except Exception:
+            logger.exception("product search reason failed")
+            return None
 
     # ── orders ────────────────────────────────────────────────────────────────
     def orders(self, *, status=None, search="", page=0) -> TableViewModel:

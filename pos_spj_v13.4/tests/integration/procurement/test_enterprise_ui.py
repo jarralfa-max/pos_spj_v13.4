@@ -28,6 +28,7 @@ from frontend.desktop.modules.purchasing.enterprise_routes import (  # noqa: E40
     build_enterprise_presenter,
 )
 from backend.application.procurement.permissions import ALL_PURCHASE_PERMISSIONS  # noqa: E402
+from tests.integration._supplier_cutover import apply_supplier_cutover
 
 
 class Session:
@@ -53,8 +54,14 @@ def conn():
     create_document_numbering_schema(c)
     c.execute("CREATE TABLE proveedores(id TEXT PRIMARY KEY, nombre TEXT, activo INTEGER)")
     c.execute("INSERT INTO proveedores VALUES ('s1','Proveedor Uno',1)")
+    apply_supplier_cutover(c)
     c.execute("CREATE TABLE sucursales(id TEXT PRIMARY KEY, nombre TEXT, activa INTEGER)")
     c.execute("INSERT INTO sucursales VALUES ('br-1','Sucursal Centro',1)")
+    # `usuarios` hace falta desde que la sucursal se ELIGE: el alcance sale del
+    # usuario, y sin esta tabla `branch_options()` devuelve vacío — que es el
+    # fallo cerrado correcto, pero deja el combo sin nada que ofrecer.
+    c.execute("CREATE TABLE usuarios(id TEXT PRIMARY KEY, sucursal_id TEXT)")
+    c.execute("INSERT INTO usuarios VALUES ('user-1','br-1')")
     yield c
     c.close()
 
@@ -234,13 +241,57 @@ def test_order_form_dialog_builds_from_requisition_detail_without_crashing(app, 
         source_requisition=detail, branch_id=presenter.default_branch(),
         warehouse_id=presenter.default_warehouse(),
         supplier_provider=presenter.supplier_options,
-        product_provider=presenter.product_options)
+        product_provider=presenter.product_options,
+        # La sucursal dejó de ser texto libre: si no se ofrecen opciones no hay
+        # nada que seleccionar, igual que en la pantalla real.
+        branch_options=presenter.branch_options())
 
     values = dialog.values()
     assert values["branch_id"] == "br-1"
     assert values["lines"] == [{
         "product_id": "p1", "quantity": "10", "purchase_nature": "INVENTORY",
         "unit_price": "0"}]
+
+
+def test_the_order_dialog_does_not_invent_a_branch_it_was_not_offered(app, conn):
+    """Si la sucursal de la solicitud NO está en el alcance del comprador, el
+    campo queda VACÍO y el backend rechaza; nunca se sustituye en silencio por
+    otra, que sería surtir a una sucursal distinta de la que pidió."""
+    from frontend.desktop.modules.purchasing.dialogs.enterprise_dialogs import (
+        OrderFormDialog,
+    )
+
+    presenter = build_enterprise_presenter(conn, Session())
+    rid = _approved_requisition(conn, presenter)
+    detail = presenter.requisition_detail(rid)
+
+    dialog = OrderFormDialog(
+        source_requisition=detail, branch_id="br-1",
+        supplier_provider=presenter.supplier_options,
+        product_provider=presenter.product_options,
+        branch_options=[("br-9", "Otra Sucursal")])
+
+    assert dialog.values()["branch_id"] == ""
+
+
+def test_the_requisition_dialog_offers_branches_instead_of_free_text(app, conn):
+    """EL FALLO REPORTADO: la sucursal era una caja de texto que arrancaba
+    vacía, así que había que teclear el UUID a mano para crear una solicitud."""
+    from frontend.desktop.modules.purchasing.dialogs.enterprise_dialogs import (
+        RequisitionFormDialog,
+    )
+
+    presenter = build_enterprise_presenter(conn, Session())
+    dialog = RequisitionFormDialog(
+        product_provider=presenter.product_options,
+        branch_options=presenter.branch_options(),
+        branch_id=presenter.default_branch())
+
+    # Se ELIGE de una lista, y viene preseleccionada la sucursal de la sesión.
+    from frontend.desktop.components.searchable_combo import SearchableComboBox
+
+    assert isinstance(dialog._branch, SearchableComboBox)
+    assert dialog.values()["branch_id"] == "br-1"
 
 
 def test_direct_purchase_create_page_starts_from_requisition_detail(app, conn):
@@ -467,6 +518,7 @@ def test_quotation_flow_end_to_end_through_the_presenter(app, conn):
     fully implemented and tested in isolation, but the desktop app had no
     screen for them at all — this is the regression test for that gap."""
     conn.execute("INSERT INTO proveedores VALUES ('s2','Proveedor Dos',1)")
+    apply_supplier_cutover(conn)
     presenter = build_enterprise_presenter(conn, Session())
 
     ok, _msg, data = presenter.create_requisition(
@@ -517,6 +569,7 @@ def test_quotations_page_builds_headless_and_shows_captured_quotes(app, conn):
     from frontend.desktop.modules.purchasing.pages.enterprise_pages import QuotationsPage
 
     conn.execute("INSERT INTO proveedores VALUES ('s2','Proveedor Dos',1)")
+    apply_supplier_cutover(conn)
     presenter = build_enterprise_presenter(conn, Session())
     ok, _m, data = presenter.create_requisition(
         branch_id="br-1", purchase_type="INVENTORY", priority="NORMAL",

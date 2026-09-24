@@ -34,22 +34,31 @@ class ProductPriceQueryService:
         customer_id: str | None = None,
         channel: str | None = None,
         quantity: Decimal | int | str = Decimal("1"),
+        on_date: str | None = None,
     ) -> PriceResolution:
         qty = Decimal(str(quantity))
+        # Fecha para la vigencia de cada precio (hoy si no se indica).
+        from datetime import date as _date
+        dia = (on_date or _date.today().isoformat())[:10]
+
+        def _vigente(lista_id: str):
+            return self._repo.effective_price(price_list_id=lista_id, product_id=product_id,
+                                              branch_id=branch_id, on_date=dia)
 
         base_list = self._repo.active_list_of_kind(PriceListKind.BASE)
-        base_pp = (self._repo.get_price(price_list_id=base_list.id, product_id=product_id,
-                                        branch_id=branch_id) if base_list else None)
+        base_pp = _vigente(base_list.id) if base_list else None
         base_price = base_pp.sale_price if base_pp else None
         min_price = base_pp.min_price if base_pp else None
 
         # lista de canal (opcional) sustituye la lista si existe precio
         list_price = None
         discount_pct = base_list.discount_pct if base_list else Decimal("0")
-        channel_list = self._repo.active_list_of_kind(PriceListKind.CHANNEL)
+        # Sólo la lista del canal PEDIDO (antes: cualquier lista de canal, en
+        # todos los canales).
+        channel_list = self._repo.active_channel_list(channel)
+        ch_pp = None
         if channel_list is not None:
-            ch_pp = self._repo.get_price(price_list_id=channel_list.id,
-                                         product_id=product_id, branch_id=branch_id)
+            ch_pp = _vigente(channel_list.id)
             if ch_pp is not None:
                 list_price = ch_pp.sale_price
                 discount_pct = channel_list.discount_pct
@@ -60,8 +69,7 @@ class ProductPriceQueryService:
         if customer_id:
             cl_id = self._repo.customer_list_id(customer_id)
             if cl_id:
-                customer_pp = self._repo.get_price(price_list_id=cl_id,
-                                                   product_id=product_id, branch_id=branch_id)
+                customer_pp = _vigente(cl_id)
                 if customer_pp is not None:
                     customer_price = customer_pp.sale_price
                     cl = self._repo.get_list(cl_id)

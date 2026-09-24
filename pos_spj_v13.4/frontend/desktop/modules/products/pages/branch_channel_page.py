@@ -51,6 +51,14 @@ class BranchChannelPage(QWidget):
         self.products = StandardTable(columns=[
             ColumnSpec("Código", "code"), ColumnSpec("Nombre", "name")])
         layout.addWidget(self.products, 1)
+        # Esta pantalla pinta los resultados en una TABLA, no en un selector con
+        # fila de estado, así que el motivo del vacío necesita sitio propio: sin
+        # él, "no hay catálogo" y "no coincide la búsqueda" se ven igual.
+        self.empty_reason = QLabel("")
+        self.empty_reason.setProperty("role", "muted")
+        self.empty_reason.setWordWrap(True)
+        self.empty_reason.setVisible(False)
+        layout.addWidget(self.empty_reason)
         row = QHBoxLayout()
         self.btn_load = QPushButton("Ver asignaciones del producto")
         self.btn_load.clicked.connect(self._load_selected_product)
@@ -94,6 +102,23 @@ class BranchChannelPage(QWidget):
         rows = self._presenter.search_products_for_assignment(query=text or None)
         self.products.load_rows([[r["code"], r["name"]] for r in rows],
                                 row_ids=[r["id"] for r in rows])
+        self._show_empty_reason(rows, text)
+
+    def _show_empty_reason(self, rows, text) -> None:
+        """Explica una tabla vacía. Diagnóstico: si falla, no se enseña nada —
+        nunca rompe la pantalla."""
+        if rows:
+            self.empty_reason.setVisible(False)
+            return
+        reason = None
+        provider = getattr(self._presenter, "product_search_reason", None)
+        if callable(provider):
+            try:
+                reason = provider(text or "")
+            except Exception:  # pragma: no cover - defensivo
+                reason = None
+        self.empty_reason.setText(reason or "Sin resultados.")
+        self.empty_reason.setVisible(True)
 
     def _load_selected_product(self) -> None:
         pid = self.products.selected_row_id()

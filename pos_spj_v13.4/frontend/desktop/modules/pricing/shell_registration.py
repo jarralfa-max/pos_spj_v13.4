@@ -7,24 +7,27 @@ aquí SÍ hay datos detrás: `pricing_schema.py` crea las tablas, las migracione
 `PricingReadService` las consulta. Lo que faltaba era el widget que junta las
 páginas —ahora `PricingWorkspace`— y este archivo.
 
-UNA CONSECUENCIA QUE HAY QUE SABER ANTES DE BUSCAR LA ENTRADA EN EL MENÚ
--------------------------------------------------------------------------
-Los permisos de este contexto son PLANOS (`PRICING_VIEW`), no `MODULO.accion`.
-`permission_catalog.py` lo declara como deuda conocida y los deja fuera del
-catálogo a propósito: inventarles un módulo sería fabricar vocabulario.
+PERMISOS — CERRADO EL 2026-09-16 (esta nota documentaba lo contrario)
+---------------------------------------------------------------------
+Los permisos de este contexto ERAN planos (`PRICING_VIEW`) y quedaban fuera del
+catálogo, así que la entrada del menú sólo la veía el administrador (por comodín
+global) y ningún otro rol podía recibirlos desde Configuración → Seguridad →
+Permisos.
 
-El efecto práctico: esta entrada del menú **sólo la verá el administrador**, que
-lleva el comodín global. Para cualquier otro rol el código no es otorgable desde
-Configuración → Seguridad → Permisos, porque esa matriz se construye desde el
-catálogo. No es un fallo de este archivo — es el estado real del contexto, y es
-el mismo que ya tiene `losses` (`LOSSES_VIEW`), que la guardia
-`test_permission_catalog_matches_menu_modules` viene reportando.
+Ya no: el vocabulario migró a `PRECIOS.<accion>`, `pricing` salió de
+`FLAT_CODE_CONTEXTS` y el catálogo lo publica solo. Sus acciones son otorgables
+como las de cualquier otro módulo. La migración no dejó nada inerte porque
+`PRECIOS` nunca estuvo sembrado en `rol_permisos` — no había concesiones gruesas
+que retirar, a diferencia de lo que hizo la migración 179 con Inventario.
 
-Cerrarlo es convertir el vocabulario de Pricing a `PRECIOS.accion`, y eso NO se
-hizo aquí a propósito: `tests/unit/pricing/test_pricing_authorization.py::
-test_no_coarse_precios_permission` fija hoy lo contrario
-(`all(c.startswith("PRICING_"))`). Los dos artefactos se contradicen y resolverlo
-es una decisión, no una limpieza.
+Una corrección a lo que decía esta nota: `test_no_coarse_precios_permission`
+fijaba `all(c.startswith("PRICING_"))` y era el artefacto que sostenía la deuda;
+se reemplazó al tomar la decisión.
+
+La guardia `tests/architecture/test_permission_catalog_matches_menu_modules.py`
+que citaba esta nota SÍ existe (sus funciones tienen otro nombre que el archivo,
+que es lo que despista al buscarla) y era correcta: reportaba Precios junto con
+Mermas. Tras la migración ya sólo reporta `LOSSES_VIEW`.
 """
 from __future__ import annotations
 
@@ -85,12 +88,71 @@ def create_pricing_view(connection, session_context):
     no se guarda: `PricingReadService` sólo envuelve la conexión, y retenerlo
     ataría la vista a la conexión que había cuando se abrió.
     """
+    from backend.application.pricing.authorization.policy import (
+        PricingAuthorizationPolicy,
+    )
     from backend.application.pricing.queries.pricing_read_service import PricingReadService
+    from backend.application.pricing.session_authorization import (
+        PricingSessionPermissionChecker,
+    )
+    from backend.application.pricing.use_cases import (
+        ActivatePriceListUseCase,
+        ApplyPriceToSelectionUseCase,
+        ApprovePriceListUseCase,
+        CreatePriceListUseCase,
+        DeactivatePriceListUseCase,
+        DuplicatePriceListUseCase,
+        SetProductPriceUseCase,
+        SetVolumePriceUseCase,
+        SubmitPriceListUseCase,
+    )
+    from backend.application.products.queries.product_category_query_service import (
+        ProductCategoryQueryService,
+    )
+    from backend.application.products.queries.product_selection_query_service import (
+        ProductCatalogSearchQueryService,
+    )
     from frontend.desktop.modules.pricing.presenter import PricingPresenter
     from frontend.desktop.modules.pricing.pricing_workspace import PricingWorkspace
 
+    # RBAC real: la política sin checker PERMITE todo, y este módulo mueve
+    # dinero. Ver `PricingSessionPermissionChecker` para por qué aquí NO hay
+    # traducción de códigos y qué implica (sólo el administrador opera).
+    authorization = PricingAuthorizationPolicy(
+        PricingSessionPermissionChecker(session_context))
+
+    # Autorización EN CALIENTE (vender bajo el mínimo): la valida otra persona
+    # sobre el terminal de quien vende, así que no puede resolverse contra la
+    # sesión. Este verificador consulta `rol_permisos` para cualquier usuario,
+    # acotado a la sucursal activa.
+    from backend.application.security.authorizer_permission_checker import (
+        AuthorizerPermissionChecker,
+    )
+    authorizer_authorization = PricingAuthorizationPolicy(
+        AuthorizerPermissionChecker(
+            connection,
+            branch_id=str(getattr(session_context, "active_branch_id", "") or "") or None))
+
     presenter = PricingPresenter(
         read_service_factory=lambda: PricingReadService(connection),
+        connection_provider=lambda: connection,
+        use_cases={
+            "create_list": CreatePriceListUseCase(authorization),
+            "submit_list": SubmitPriceListUseCase(authorization),
+            "approve_list": ApprovePriceListUseCase(authorization),
+            "activate_list": ActivatePriceListUseCase(authorization),
+            "deactivate_list": DeactivatePriceListUseCase(authorization),
+            "duplicate_list": DuplicatePriceListUseCase(authorization),
+            "set_price": SetProductPriceUseCase(authorization, authorizer_authorization),
+            "set_volume": SetVolumePriceUseCase(authorization),
+            # La selección por categoría se resuelve con el contrato compartido
+            # de Productos, no con una consulta propia de Precios.
+            "apply_bulk": ApplyPriceToSelectionUseCase(
+                authorization,
+                lambda: ProductCatalogSearchQueryService(connection)),
+        },
+        product_search_factory=lambda: ProductCatalogSearchQueryService(connection),
+        category_query_factory=lambda: ProductCategoryQueryService(connection),
         session_context=session_context,
     )
     return PricingWorkspace(

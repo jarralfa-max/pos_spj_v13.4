@@ -225,6 +225,7 @@ class ConfiguracionModuleActivator:
             connection, permission_checker=getattr(self._session_context, "tiene_permiso", None))
         presenter = ConfiguracionPresenter(
             query_service, session_context=self._session_context,
+            address_search_factory=_address_search_factory(connection),
             authorization=authorization,
             audit_log_repository=ConfiguracionAuditLogRepository(connection),
             approve_change_request_uc=ApproveFeatureFlagChangeRequestUseCase(connection),
@@ -313,3 +314,15 @@ class ConfiguracionModuleActivator:
         pending_flag_requests = len(presenter.list_pending_feature_flag_change_requests())
         badges = {"pending_flag_requests": pending_flag_requests} if pending_flag_requests else {}
         return ConfiguracionView(presenter, has_permission=self._has_permission, badges=badges)
+
+
+def _address_search_factory(connection):
+    """El servicio estándar de direcciones, leído de Integraciones cada vez que
+    se abre un diálogo: así un token de Mapbox recién guardado se usa sin
+    reiniciar la aplicación."""
+    def _build():
+        from backend.infrastructure.maps.address_search_factory import (
+            build_address_search_service,
+        )
+        return build_address_search_service(connection)
+    return _build

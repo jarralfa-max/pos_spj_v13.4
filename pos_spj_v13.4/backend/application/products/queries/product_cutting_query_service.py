@@ -9,7 +9,8 @@ class ProductCuttingQueryService:
 
     def list_schemes(self, input_product_id: str) -> list[dict]:
         rows = self._conn.execute(
-            "SELECT id, name, species_id, cut_level, active FROM cutting_schemes "
+            "SELECT id, name, species_id, cut_level, active, reverse_reconstruction_allowed "
+            "FROM cutting_schemes "
             "WHERE input_product_id=? ORDER BY name", (input_product_id,)).fetchall()
         return [dict(r) for r in rows]
 

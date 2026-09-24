@@ -1,0 +1,2731 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="50" skipped="0" tests="50" time="313.117" timestamp="2026-09-23T21:36:17.178811+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_design_system_visual_matrix" name="test_shell_gallery_controls_remain_reachable[comfortable-light-size0]" time="4.812"><failure message="assert (796, 596) == (1280, 720)&#10;  &#10;  At index 0 diff: 796 != 1280&#10;  Use -v to get more diff">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-eXCMdC')
+size = (1280, 720), theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, density):
+        assert QFontDatabase().families(), "Visual evidence requires real fonts"
+        gallery = build_gallery(theme, density)
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(route_id="gallery", module_id="gallery",
+                                          title="Componentes JUANIS", view_factory_id="gallery"))
+        factories = ViewFactoryRegistry()
+        factories.register("gallery", lambda: gallery)
+        router = DesktopRouter(route_registry=registry, view_factory_registry=factories,
+                               initial_context=make_context())
+        settings = QSettings(str(ui_tmp_path / "navigation.ini"), QSettings.IniFormat)
+        sidebar = GlobalSidebar(settings=settings, settings_key="visual")
+        sidebar.set_items((SidebarItemViewModel("gallery", "gallery", "Componentes", "settings", "", 0, None, True),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("gallery")
+        window.show()
+        # Resize after show to emulate each viewport independently of the actual
+        # offscreen plugin's synthetic monitor; dialog screen bounds have own tests.
+        window.resize(*size)
+        settle(app)
+&gt;       assert (window.width(), window.height()) == size
+E       assert (796, 596) == (1280, 720)
+E         
+E         At index 0 diff: 796 != 1280
+E         Use -v to get more diff
+
+tests\ui\test_design_system_visual_matrix.py:69: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_visual_matrix" name="test_shell_gallery_controls_remain_reachable[comfortable-light-size1]" time="3.838"><failure message="assert (796, 596) == (1366, 768)&#10;  &#10;  At index 0 diff: 796 != 1366&#10;  Use -v to get more diff">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-KwBHyU')
+size = (1366, 768), theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, density):
+        assert QFontDatabase().families(), "Visual evidence requires real fonts"
+        gallery = build_gallery(theme, density)
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(route_id="gallery", module_id="gallery",
+                                          title="Componentes JUANIS", view_factory_id="gallery"))
+        factories = ViewFactoryRegistry()
+        factories.register("gallery", lambda: gallery)
+        router = DesktopRouter(route_registry=registry, view_factory_registry=factories,
+                               initial_context=make_context())
+        settings = QSettings(str(ui_tmp_path / "navigation.ini"), QSettings.IniFormat)
+        sidebar = GlobalSidebar(settings=settings, settings_key="visual")
+        sidebar.set_items((SidebarItemViewModel("gallery", "gallery", "Componentes", "settings", "", 0, None, True),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("gallery")
+        window.show()
+        # Resize after show to emulate each viewport independently of the actual
+        # offscreen plugin's synthetic monitor; dialog screen bounds have own tests.
+        window.resize(*size)
+        settle(app)
+&gt;       assert (window.width(), window.height()) == size
+E       assert (796, 596) == (1366, 768)
+E         
+E         At index 0 diff: 796 != 1366
+E         Use -v to get more diff
+
+tests\ui\test_design_system_visual_matrix.py:69: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_visual_matrix" name="test_shell_gallery_controls_remain_reachable[comfortable-light-size2]" time="3.909"><failure message="assert (796, 596) == (1440, 900)&#10;  &#10;  At index 0 diff: 796 != 1440&#10;  Use -v to get more diff">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-WyUTyW')
+size = (1440, 900), theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, density):
+        assert QFontDatabase().families(), "Visual evidence requires real fonts"
+        gallery = build_gallery(theme, density)
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(route_id="gallery", module_id="gallery",
+                                          title="Componentes JUANIS", view_factory_id="gallery"))
+        factories = ViewFactoryRegistry()
+        factories.register("gallery", lambda: gallery)
+        router = DesktopRouter(route_registry=registry, view_factory_registry=factories,
+                               initial_context=make_context())
+        settings = QSettings(str(ui_tmp_path / "navigation.ini"), QSettings.IniFormat)
+        sidebar = GlobalSidebar(settings=settings, settings_key="visual")
+        sidebar.set_items((SidebarItemViewModel("gallery", "gallery", "Componentes", "settings", "", 0, None, True),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("gallery")
+        window.show()
+        # Resize after show to emulate each viewport independently of the actual
+        # offscreen plugin's synthetic monitor; dialog screen bounds have own tests.
+        window.resize(*size)
+        settle(app)
+&gt;       assert (window.width(), window.height()) == size
+E       assert (796, 596) == (1440, 900)
+E         
+E         At index 0 diff: 796 != 1440
+E         Use -v to get more diff
+
+tests\ui\test_design_system_visual_matrix.py:69: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_visual_matrix" name="test_shell_gallery_controls_remain_reachable[comfortable-light-size3]" time="15.960"><failure message="assert (796, 596) == (1600, 900)&#10;  &#10;  At index 0 diff: 796 != 1600&#10;  Use -v to get more diff">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-ZwNCOB')
+size = (1600, 900), theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, density):
+        assert QFontDatabase().families(), "Visual evidence requires real fonts"
+        gallery = build_gallery(theme, density)
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(route_id="gallery", module_id="gallery",
+                                          title="Componentes JUANIS", view_factory_id="gallery"))
+        factories = ViewFactoryRegistry()
+        factories.register("gallery", lambda: gallery)
+        router = DesktopRouter(route_registry=registry, view_factory_registry=factories,
+                               initial_context=make_context())
+        settings = QSettings(str(ui_tmp_path / "navigation.ini"), QSettings.IniFormat)
+        sidebar = GlobalSidebar(settings=settings, settings_key="visual")
+        sidebar.set_items((SidebarItemViewModel("gallery", "gallery", "Componentes", "settings", "", 0, None, True),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("gallery")
+        window.show()
+        # Resize after show to emulate each viewport independently of the actual
+        # offscreen plugin's synthetic monitor; dialog screen bounds have own tests.
+        window.resize(*size)
+        settle(app)
+&gt;       assert (window.width(), window.height()) == size
+E       assert (796, 596) == (1600, 900)
+E         
+E         At index 0 diff: 796 != 1600
+E         Use -v to get more diff
+
+tests\ui\test_design_system_visual_matrix.py:69: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_visual_matrix" name="test_shell_gallery_controls_remain_reachable[comfortable-light-size4]" time="7.710"><failure message="assert (796, 596) == (1920, 1080)&#10;  &#10;  At index 0 diff: 796 != 1920&#10;  Use -v to get more diff">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-BBUnia')
+size = (1920, 1080), theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, density):
+        assert QFontDatabase().families(), "Visual evidence requires real fonts"
+        gallery = build_gallery(theme, density)
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(route_id="gallery", module_id="gallery",
+                                          title="Componentes JUANIS", view_factory_id="gallery"))
+        factories = ViewFactoryRegistry()
+        factories.register("gallery", lambda: gallery)
+        router = DesktopRouter(route_registry=registry, view_factory_registry=factories,
+                               initial_context=make_context())
+        settings = QSettings(str(ui_tmp_path / "navigation.ini"), QSettings.IniFormat)
+        sidebar = GlobalSidebar(settings=settings, settings_key="visual")
+        sidebar.set_items((SidebarItemViewModel("gallery", "gallery", "Componentes", "settings", "", 0, None, True),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("gallery")
+        window.show()
+        # Resize after show to emulate each viewport independently of the actual
+        # offscreen plugin's synthetic monitor; dialog screen bounds have own tests.
+        window.resize(*size)
+        settle(app)
+&gt;       assert (window.width(), window.height()) == size
+E       assert (796, 596) == (1920, 1080)
+E         
+E         At index 0 diff: 796 != 1920
+E         Use -v to get more diff
+
+tests\ui\test_design_system_visual_matrix.py:69: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_visual_matrix" name="test_shell_gallery_controls_remain_reachable[comfortable-dark-size0]" time="11.378"><failure message="assert (796, 596) == (1280, 720)&#10;  &#10;  At index 0 diff: 796 != 1280&#10;  Use -v to get more diff">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-FtgtjA')
+size = (1280, 720), theme = 'dark', density = 'comfortable'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, density):
+        assert QFontDatabase().families(), "Visual evidence requires real fonts"
+        gallery = build_gallery(theme, density)
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(route_id="gallery", module_id="gallery",
+                                          title="Componentes JUANIS", view_factory_id="gallery"))
+        factories = ViewFactoryRegistry()
+        factories.register("gallery", lambda: gallery)
+        router = DesktopRouter(route_registry=registry, view_factory_registry=factories,
+                               initial_context=make_context())
+        settings = QSettings(str(ui_tmp_path / "navigation.ini"), QSettings.IniFormat)
+        sidebar = GlobalSidebar(settings=settings, settings_key="visual")
+        sidebar.set_items((SidebarItemViewModel("gallery", "gallery", "Componentes", "settings", "", 0, None, True),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("gallery")
+        window.show()
+        # Resize after show to emulate each viewport independently of the actual
+        # offscreen plugin's synthetic monitor; dialog screen bounds have own tests.
+        window.resize(*size)
+        settle(app)
+&gt;       assert (window.width(), window.height()) == size
+E       assert (796, 596) == (1280, 720)
+E         
+E         At index 0 diff: 796 != 1280
+E         Use -v to get more diff
+
+tests\ui\test_design_system_visual_matrix.py:69: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_visual_matrix" name="test_shell_gallery_controls_remain_reachable[comfortable-dark-size1]" time="16.894"><failure message="assert (796, 596) == (1366, 768)&#10;  &#10;  At index 0 diff: 796 != 1366&#10;  Use -v to get more diff">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-ovZSRI')
+size = (1366, 768), theme = 'dark', density = 'comfortable'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, density):
+        assert QFontDatabase().families(), "Visual evidence requires real fonts"
+        gallery = build_gallery(theme, density)
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(route_id="gallery", module_id="gallery",
+                                          title="Componentes JUANIS", view_factory_id="gallery"))
+        factories = ViewFactoryRegistry()
+        factories.register("gallery", lambda: gallery)
+        router = DesktopRouter(route_registry=registry, view_factory_registry=factories,
+                               initial_context=make_context())
+        settings = QSettings(str(ui_tmp_path / "navigation.ini"), QSettings.IniFormat)
+        sidebar = GlobalSidebar(settings=settings, settings_key="visual")
+        sidebar.set_items((SidebarItemViewModel("gallery", "gallery", "Componentes", "settings", "", 0, None, True),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("gallery")
+        window.show()
+        # Resize after show to emulate each viewport independently of the actual
+        # offscreen plugin's synthetic monitor; dialog screen bounds have own tests.
+        window.resize(*size)
+        settle(app)
+&gt;       assert (window.width(), window.height()) == size
+E       assert (796, 596) == (1366, 768)
+E         
+E         At index 0 diff: 796 != 1366
+E         Use -v to get more diff
+
+tests\ui\test_design_system_visual_matrix.py:69: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_visual_matrix" name="test_shell_gallery_controls_remain_reachable[comfortable-dark-size2]" time="8.108"><failure message="assert (796, 596) == (1440, 900)&#10;  &#10;  At index 0 diff: 796 != 1440&#10;  Use -v to get more diff">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-MAsgEx')
+size = (1440, 900), theme = 'dark', density = 'comfortable'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, density):
+        assert QFontDatabase().families(), "Visual evidence requires real fonts"
+        gallery = build_gallery(theme, density)
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(route_id="gallery", module_id="gallery",
+                                          title="Componentes JUANIS", view_factory_id="gallery"))
+        factories = ViewFactoryRegistry()
+        factories.register("gallery", lambda: gallery)
+        router = DesktopRouter(route_registry=registry, view_factory_registry=factories,
+                               initial_context=make_context())
+        settings = QSettings(str(ui_tmp_path / "navigation.ini"), QSettings.IniFormat)
+        sidebar = GlobalSidebar(settings=settings, settings_key="visual")
+        sidebar.set_items((SidebarItemViewModel("gallery", "gallery", "Componentes", "settings", "", 0, None, True),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("gallery")
+        window.show()
+        # Resize after show to emulate each viewport independently of the actual
+        # offscreen plugin's synthetic monitor; dialog screen bounds have own tests.
+        window.resize(*size)
+        settle(app)
+&gt;       assert (window.width(), window.height()) == size
+E       assert (796, 596) == (1440, 900)
+E         
+E         At index 0 diff: 796 != 1440
+E         Use -v to get more diff
+
+tests\ui\test_design_system_visual_matrix.py:69: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_visual_matrix" name="test_shell_gallery_controls_remain_reachable[comfortable-dark-size3]" time="10.917"><failure message="assert (796, 596) == (1600, 900)&#10;  &#10;  At index 0 diff: 796 != 1600&#10;  Use -v to get more diff">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-jKlWZy')
+size = (1600, 900), theme = 'dark', density = 'comfortable'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, density):
+        assert QFontDatabase().families(), "Visual evidence requires real fonts"
+        gallery = build_gallery(theme, density)
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(route_id="gallery", module_id="gallery",
+                                          title="Componentes JUANIS", view_factory_id="gallery"))
+        factories = ViewFactoryRegistry()
+        factories.register("gallery", lambda: gallery)
+        router = DesktopRouter(route_registry=registry, view_factory_registry=factories,
+                               initial_context=make_context())
+        settings = QSettings(str(ui_tmp_path / "navigation.ini"), QSettings.IniFormat)
+        sidebar = GlobalSidebar(settings=settings, settings_key="visual")
+        sidebar.set_items((SidebarItemViewModel("gallery", "gallery", "Componentes", "settings", "", 0, None, True),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("gallery")
+        window.show()
+        # Resize after show to emulate each viewport independently of the actual
+        # offscreen plugin's synthetic monitor; dialog screen bounds have own tests.
+        window.resize(*size)
+        settle(app)
+&gt;       assert (window.width(), window.height()) == size
+E       assert (796, 596) == (1600, 900)
+E         
+E         At index 0 diff: 796 != 1600
+E         Use -v to get more diff
+
+tests\ui\test_design_system_visual_matrix.py:69: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_visual_matrix" name="test_shell_gallery_controls_remain_reachable[comfortable-dark-size4]" time="2.132"><failure message="assert (796, 596) == (1920, 1080)&#10;  &#10;  At index 0 diff: 796 != 1920&#10;  Use -v to get more diff">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-MmYMju')
+size = (1920, 1080), theme = 'dark', density = 'comfortable'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, density):
+        assert QFontDatabase().families(), "Visual evidence requires real fonts"
+        gallery = build_gallery(theme, density)
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(route_id="gallery", module_id="gallery",
+                                          title="Componentes JUANIS", view_factory_id="gallery"))
+        factories = ViewFactoryRegistry()
+        factories.register("gallery", lambda: gallery)
+        router = DesktopRouter(route_registry=registry, view_factory_registry=factories,
+                               initial_context=make_context())
+        settings = QSettings(str(ui_tmp_path / "navigation.ini"), QSettings.IniFormat)
+        sidebar = GlobalSidebar(settings=settings, settings_key="visual")
+        sidebar.set_items((SidebarItemViewModel("gallery", "gallery", "Componentes", "settings", "", 0, None, True),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("gallery")
+        window.show()
+        # Resize after show to emulate each viewport independently of the actual
+        # offscreen plugin's synthetic monitor; dialog screen bounds have own tests.
+        window.resize(*size)
+        settle(app)
+&gt;       assert (window.width(), window.height()) == size
+E       assert (796, 596) == (1920, 1080)
+E         
+E         At index 0 diff: 796 != 1920
+E         Use -v to get more diff
+
+tests\ui\test_design_system_visual_matrix.py:69: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_visual_matrix" name="test_shell_gallery_controls_remain_reachable[touch-light-size0]" time="5.099"><failure message="assert (796, 596) == (1280, 720)&#10;  &#10;  At index 0 diff: 796 != 1280&#10;  Use -v to get more diff">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-mMWxdK')
+size = (1280, 720), theme = 'light', density = 'touch'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, density):
+        assert QFontDatabase().families(), "Visual evidence requires real fonts"
+        gallery = build_gallery(theme, density)
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(route_id="gallery", module_id="gallery",
+                                          title="Componentes JUANIS", view_factory_id="gallery"))
+        factories = ViewFactoryRegistry()
+        factories.register("gallery", lambda: gallery)
+        router = DesktopRouter(route_registry=registry, view_factory_registry=factories,
+                               initial_context=make_context())
+        settings = QSettings(str(ui_tmp_path / "navigation.ini"), QSettings.IniFormat)
+        sidebar = GlobalSidebar(settings=settings, settings_key="visual")
+        sidebar.set_items((SidebarItemViewModel("gallery", "gallery", "Componentes", "settings", "", 0, None, True),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("gallery")
+        window.show()
+        # Resize after show to emulate each viewport independently of the actual
+        # offscreen plugin's synthetic monitor; dialog screen bounds have own tests.
+        window.resize(*size)
+        settle(app)
+&gt;       assert (window.width(), window.height()) == size
+E       assert (796, 596) == (1280, 720)
+E         
+E         At index 0 diff: 796 != 1280
+E         Use -v to get more diff
+
+tests\ui\test_design_system_visual_matrix.py:69: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_visual_matrix" name="test_shell_gallery_controls_remain_reachable[touch-light-size1]" time="3.852"><failure message="assert (796, 596) == (1366, 768)&#10;  &#10;  At index 0 diff: 796 != 1366&#10;  Use -v to get more diff">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-oDWsXe')
+size = (1366, 768), theme = 'light', density = 'touch'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, density):
+        assert QFontDatabase().families(), "Visual evidence requires real fonts"
+        gallery = build_gallery(theme, density)
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(route_id="gallery", module_id="gallery",
+                                          title="Componentes JUANIS", view_factory_id="gallery"))
+        factories = ViewFactoryRegistry()
+        factories.register("gallery", lambda: gallery)
+        router = DesktopRouter(route_registry=registry, view_factory_registry=factories,
+                               initial_context=make_context())
+        settings = QSettings(str(ui_tmp_path / "navigation.ini"), QSettings.IniFormat)
+        sidebar = GlobalSidebar(settings=settings, settings_key="visual")
+        sidebar.set_items((SidebarItemViewModel("gallery", "gallery", "Componentes", "settings", "", 0, None, True),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("gallery")
+        window.show()
+        # Resize after show to emulate each viewport independently of the actual
+        # offscreen plugin's synthetic monitor; dialog screen bounds have own tests.
+        window.resize(*size)
+        settle(app)
+&gt;       assert (window.width(), window.height()) == size
+E       assert (796, 596) == (1366, 768)
+E         
+E         At index 0 diff: 796 != 1366
+E         Use -v to get more diff
+
+tests\ui\test_design_system_visual_matrix.py:69: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_visual_matrix" name="test_shell_gallery_controls_remain_reachable[touch-light-size2]" time="4.799"><failure message="assert (796, 596) == (1440, 900)&#10;  &#10;  At index 0 diff: 796 != 1440&#10;  Use -v to get more diff">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-EPaUfR')
+size = (1440, 900), theme = 'light', density = 'touch'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, density):
+        assert QFontDatabase().families(), "Visual evidence requires real fonts"
+        gallery = build_gallery(theme, density)
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(route_id="gallery", module_id="gallery",
+                                          title="Componentes JUANIS", view_factory_id="gallery"))
+        factories = ViewFactoryRegistry()
+        factories.register("gallery", lambda: gallery)
+        router = DesktopRouter(route_registry=registry, view_factory_registry=factories,
+                               initial_context=make_context())
+        settings = QSettings(str(ui_tmp_path / "navigation.ini"), QSettings.IniFormat)
+        sidebar = GlobalSidebar(settings=settings, settings_key="visual")
+        sidebar.set_items((SidebarItemViewModel("gallery", "gallery", "Componentes", "settings", "", 0, None, True),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("gallery")
+        window.show()
+        # Resize after show to emulate each viewport independently of the actual
+        # offscreen plugin's synthetic monitor; dialog screen bounds have own tests.
+        window.resize(*size)
+        settle(app)
+&gt;       assert (window.width(), window.height()) == size
+E       assert (796, 596) == (1440, 900)
+E         
+E         At index 0 diff: 796 != 1440
+E         Use -v to get more diff
+
+tests\ui\test_design_system_visual_matrix.py:69: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_visual_matrix" name="test_shell_gallery_controls_remain_reachable[touch-light-size3]" time="5.148"><failure message="assert (796, 596) == (1600, 900)&#10;  &#10;  At index 0 diff: 796 != 1600&#10;  Use -v to get more diff">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-vVEYqT')
+size = (1600, 900), theme = 'light', density = 'touch'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, density):
+        assert QFontDatabase().families(), "Visual evidence requires real fonts"
+        gallery = build_gallery(theme, density)
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(route_id="gallery", module_id="gallery",
+                                          title="Componentes JUANIS", view_factory_id="gallery"))
+        factories = ViewFactoryRegistry()
+        factories.register("gallery", lambda: gallery)
+        router = DesktopRouter(route_registry=registry, view_factory_registry=factories,
+                               initial_context=make_context())
+        settings = QSettings(str(ui_tmp_path / "navigation.ini"), QSettings.IniFormat)
+        sidebar = GlobalSidebar(settings=settings, settings_key="visual")
+        sidebar.set_items((SidebarItemViewModel("gallery", "gallery", "Componentes", "settings", "", 0, None, True),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("gallery")
+        window.show()
+        # Resize after show to emulate each viewport independently of the actual
+        # offscreen plugin's synthetic monitor; dialog screen bounds have own tests.
+        window.resize(*size)
+        settle(app)
+&gt;       assert (window.width(), window.height()) == size
+E       assert (796, 596) == (1600, 900)
+E         
+E         At index 0 diff: 796 != 1600
+E         Use -v to get more diff
+
+tests\ui\test_design_system_visual_matrix.py:69: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_visual_matrix" name="test_shell_gallery_controls_remain_reachable[touch-light-size4]" time="5.801"><failure message="assert (796, 596) == (1920, 1080)&#10;  &#10;  At index 0 diff: 796 != 1920&#10;  Use -v to get more diff">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-bxTBMq')
+size = (1920, 1080), theme = 'light', density = 'touch'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, density):
+        assert QFontDatabase().families(), "Visual evidence requires real fonts"
+        gallery = build_gallery(theme, density)
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(route_id="gallery", module_id="gallery",
+                                          title="Componentes JUANIS", view_factory_id="gallery"))
+        factories = ViewFactoryRegistry()
+        factories.register("gallery", lambda: gallery)
+        router = DesktopRouter(route_registry=registry, view_factory_registry=factories,
+                               initial_context=make_context())
+        settings = QSettings(str(ui_tmp_path / "navigation.ini"), QSettings.IniFormat)
+        sidebar = GlobalSidebar(settings=settings, settings_key="visual")
+        sidebar.set_items((SidebarItemViewModel("gallery", "gallery", "Componentes", "settings", "", 0, None, True),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("gallery")
+        window.show()
+        # Resize after show to emulate each viewport independently of the actual
+        # offscreen plugin's synthetic monitor; dialog screen bounds have own tests.
+        window.resize(*size)
+        settle(app)
+&gt;       assert (window.width(), window.height()) == size
+E       assert (796, 596) == (1920, 1080)
+E         
+E         At index 0 diff: 796 != 1920
+E         Use -v to get more diff
+
+tests\ui\test_design_system_visual_matrix.py:69: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_visual_matrix" name="test_shell_gallery_controls_remain_reachable[touch-dark-size0]" time="9.623"><failure message="assert (796, 596) == (1280, 720)&#10;  &#10;  At index 0 diff: 796 != 1280&#10;  Use -v to get more diff">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-IgWbLo')
+size = (1280, 720), theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, density):
+        assert QFontDatabase().families(), "Visual evidence requires real fonts"
+        gallery = build_gallery(theme, density)
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(route_id="gallery", module_id="gallery",
+                                          title="Componentes JUANIS", view_factory_id="gallery"))
+        factories = ViewFactoryRegistry()
+        factories.register("gallery", lambda: gallery)
+        router = DesktopRouter(route_registry=registry, view_factory_registry=factories,
+                               initial_context=make_context())
+        settings = QSettings(str(ui_tmp_path / "navigation.ini"), QSettings.IniFormat)
+        sidebar = GlobalSidebar(settings=settings, settings_key="visual")
+        sidebar.set_items((SidebarItemViewModel("gallery", "gallery", "Componentes", "settings", "", 0, None, True),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("gallery")
+        window.show()
+        # Resize after show to emulate each viewport independently of the actual
+        # offscreen plugin's synthetic monitor; dialog screen bounds have own tests.
+        window.resize(*size)
+        settle(app)
+&gt;       assert (window.width(), window.height()) == size
+E       assert (796, 596) == (1280, 720)
+E         
+E         At index 0 diff: 796 != 1280
+E         Use -v to get more diff
+
+tests\ui\test_design_system_visual_matrix.py:69: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_visual_matrix" name="test_shell_gallery_controls_remain_reachable[touch-dark-size1]" time="7.330"><failure message="assert (796, 596) == (1366, 768)&#10;  &#10;  At index 0 diff: 796 != 1366&#10;  Use -v to get more diff">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-WmhpMu')
+size = (1366, 768), theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, density):
+        assert QFontDatabase().families(), "Visual evidence requires real fonts"
+        gallery = build_gallery(theme, density)
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(route_id="gallery", module_id="gallery",
+                                          title="Componentes JUANIS", view_factory_id="gallery"))
+        factories = ViewFactoryRegistry()
+        factories.register("gallery", lambda: gallery)
+        router = DesktopRouter(route_registry=registry, view_factory_registry=factories,
+                               initial_context=make_context())
+        settings = QSettings(str(ui_tmp_path / "navigation.ini"), QSettings.IniFormat)
+        sidebar = GlobalSidebar(settings=settings, settings_key="visual")
+        sidebar.set_items((SidebarItemViewModel("gallery", "gallery", "Componentes", "settings", "", 0, None, True),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("gallery")
+        window.show()
+        # Resize after show to emulate each viewport independently of the actual
+        # offscreen plugin's synthetic monitor; dialog screen bounds have own tests.
+        window.resize(*size)
+        settle(app)
+&gt;       assert (window.width(), window.height()) == size
+E       assert (796, 596) == (1366, 768)
+E         
+E         At index 0 diff: 796 != 1366
+E         Use -v to get more diff
+
+tests\ui\test_design_system_visual_matrix.py:69: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_visual_matrix" name="test_shell_gallery_controls_remain_reachable[touch-dark-size2]" time="10.316"><failure message="assert (796, 596) == (1440, 900)&#10;  &#10;  At index 0 diff: 796 != 1440&#10;  Use -v to get more diff">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-DrBGbg')
+size = (1440, 900), theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, density):
+        assert QFontDatabase().families(), "Visual evidence requires real fonts"
+        gallery = build_gallery(theme, density)
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(route_id="gallery", module_id="gallery",
+                                          title="Componentes JUANIS", view_factory_id="gallery"))
+        factories = ViewFactoryRegistry()
+        factories.register("gallery", lambda: gallery)
+        router = DesktopRouter(route_registry=registry, view_factory_registry=factories,
+                               initial_context=make_context())
+        settings = QSettings(str(ui_tmp_path / "navigation.ini"), QSettings.IniFormat)
+        sidebar = GlobalSidebar(settings=settings, settings_key="visual")
+        sidebar.set_items((SidebarItemViewModel("gallery", "gallery", "Componentes", "settings", "", 0, None, True),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("gallery")
+        window.show()
+        # Resize after show to emulate each viewport independently of the actual
+        # offscreen plugin's synthetic monitor; dialog screen bounds have own tests.
+        window.resize(*size)
+        settle(app)
+&gt;       assert (window.width(), window.height()) == size
+E       assert (796, 596) == (1440, 900)
+E         
+E         At index 0 diff: 796 != 1440
+E         Use -v to get more diff
+
+tests\ui\test_design_system_visual_matrix.py:69: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_visual_matrix" name="test_shell_gallery_controls_remain_reachable[touch-dark-size3]" time="21.278"><failure message="assert (796, 596) == (1600, 900)&#10;  &#10;  At index 0 diff: 796 != 1600&#10;  Use -v to get more diff">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-QmAgSQ')
+size = (1600, 900), theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, density):
+        assert QFontDatabase().families(), "Visual evidence requires real fonts"
+        gallery = build_gallery(theme, density)
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(route_id="gallery", module_id="gallery",
+                                          title="Componentes JUANIS", view_factory_id="gallery"))
+        factories = ViewFactoryRegistry()
+        factories.register("gallery", lambda: gallery)
+        router = DesktopRouter(route_registry=registry, view_factory_registry=factories,
+                               initial_context=make_context())
+        settings = QSettings(str(ui_tmp_path / "navigation.ini"), QSettings.IniFormat)
+        sidebar = GlobalSidebar(settings=settings, settings_key="visual")
+        sidebar.set_items((SidebarItemViewModel("gallery", "gallery", "Componentes", "settings", "", 0, None, True),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("gallery")
+        window.show()
+        # Resize after show to emulate each viewport independently of the actual
+        # offscreen plugin's synthetic monitor; dialog screen bounds have own tests.
+        window.resize(*size)
+        settle(app)
+&gt;       assert (window.width(), window.height()) == size
+E       assert (796, 596) == (1600, 900)
+E         
+E         At index 0 diff: 796 != 1600
+E         Use -v to get more diff
+
+tests\ui\test_design_system_visual_matrix.py:69: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_visual_matrix" name="test_shell_gallery_controls_remain_reachable[touch-dark-size4]" time="13.873"><failure message="assert (796, 596) == (1920, 1080)&#10;  &#10;  At index 0 diff: 796 != 1920&#10;  Use -v to get more diff">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-JCgWnZ')
+size = (1920, 1080), theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_shell_gallery_controls_remain_reachable(app, ui_tmp_path, size, theme, density):
+        assert QFontDatabase().families(), "Visual evidence requires real fonts"
+        gallery = build_gallery(theme, density)
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(route_id="gallery", module_id="gallery",
+                                          title="Componentes JUANIS", view_factory_id="gallery"))
+        factories = ViewFactoryRegistry()
+        factories.register("gallery", lambda: gallery)
+        router = DesktopRouter(route_registry=registry, view_factory_registry=factories,
+                               initial_context=make_context())
+        settings = QSettings(str(ui_tmp_path / "navigation.ini"), QSettings.IniFormat)
+        sidebar = GlobalSidebar(settings=settings, settings_key="visual")
+        sidebar.set_items((SidebarItemViewModel("gallery", "gallery", "Componentes", "settings", "", 0, None, True),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("gallery")
+        window.show()
+        # Resize after show to emulate each viewport independently of the actual
+        # offscreen plugin's synthetic monitor; dialog screen bounds have own tests.
+        window.resize(*size)
+        settle(app)
+&gt;       assert (window.width(), window.height()) == size
+E       assert (796, 596) == (1920, 1080)
+E         
+E         At index 0 diff: 796 != 1920
+E         Use -v to get more diff
+
+tests\ui\test_design_system_visual_matrix.py:69: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_navigation_visuals" name="test_navigation_authentication_and_keyboard_visuals[comfortable-light-size0]" time="13.279"><failure message="assert 796 == 1280&#10; +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6B283230&gt;()&#10; +    where &lt;built-in method width of QSize object at 0x0000021C6B283230&gt; = PyQt5.QtCore.QSize(796, 596).width&#10; +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6C4984D0&gt;()&#10; +        where &lt;built-in method size of StandardWindow object at 0x0000021C6C4984D0&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6C4984D0&gt;.size">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-frkVRi')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6B3A1940&gt;
+size = (1280, 720), theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density):
+        app = qt_font_resources
+        ThemeManager.instance().apply(app, theme, density=density)
+        artifacts = Path(os.environ.get("SPJ_UI_VISUAL_ARTIFACTS", str(ui_tmp_path)))
+        label = f"{theme}-{density}-{size[0]}x{size[1]}"
+        summary = SimpleNamespace(get_summary=lambda: SimpleNamespace(company_name="JUANIS", branch_name="Sucursal Centro"))
+        login = LoginWindow(
+            authenticate_use_case=None, begin_recovery_use_case=None,
+            complete_recovery_use_case=None, installation_summary_query=summary,
+        )
+        monkeypatch.setattr(login, "available_geometry", lambda: QRect(0, 0, *size))
+        login.show()
+        settle(app)
+        assert login.available_geometry().contains(login.frameGeometry())
+        assert login.viewport.viewport().rect().contains(QRect(
+            login._login_btn.mapTo(login.viewport.viewport(), QPoint()), login._login_btn.size()))
+        save(login, artifacts, label + "-login")
+        login.close()
+        login.deleteLater()
+    
+        window = StandardWindow()
+        body = QWidget()
+        root = QVBoxLayout(body)
+        top_bar = TopBar()
+        top_bar.set_context(make_context(user_name="Ana Ruiz"))
+        root.addWidget(top_bar)
+        row = QHBoxLayout()
+        root.addLayout(row, 1)
+        nav = SideNav()
+        nav.add_group("Tesorería", Icons.FINANCE)
+        nav.add_section("Cuentas y transferencias", Icons.TRANSFERS)
+        nav.add_section("Conciliación bancaria", Icons.FINANCE)
+        nav.add_group("Cobranza", Icons.CUSTOMERS)
+        nav.add_section("Clientes", Icons.CUSTOMERS)
+        nav.select(1)
+        row.addWidget(nav)
+        tabs = Tabs()
+        row.addWidget(tabs, 1)
+        dashboard = DashboardPage(title="Resumen de tesorería", subtitle="Información de la sucursal seleccionada")
+        dashboard.context_bar.set_context({"Sucursal": "Centro", "Periodo": "Actual"})
+        dashboard.kpis.set_cards([KPIDTO("balance", "Saldo disponible", "$12,450.00", icon=Icons.CASH)])
+        dashboard.grid.add_full_width(QLabel("Sin movimientos pendientes de conciliación"))
+        tabs.addTab(dashboard, "Resumen")
+        form = FormPage(title="Datos de consulta")
+        first = StandardLineEdit(placeholder="Referencia", keyboard_enabled=False)
+        form.add_content(first)
+        for index in range(24):
+            form.add_content(StandardLineEdit(placeholder=f"Campo {index + 1}", keyboard_enabled=False))
+        action = PrimaryButton("Consultar")
+        form.add_action(action)
+        tabs.addTab(form, "Consulta")
+        window.setCentralWidget(body)
+        window.show()
+        window.resize(*size)
+        settle(app)
+&gt;       assert window.size().width() == size[0]
+E       assert 796 == 1280
+E        +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6B283230&gt;()
+E        +    where &lt;built-in method width of QSize object at 0x0000021C6B283230&gt; = PyQt5.QtCore.QSize(796, 596).width
+E        +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6C4984D0&gt;()
+E        +        where &lt;built-in method size of StandardWindow object at 0x0000021C6C4984D0&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6C4984D0&gt;.size
+
+tests\ui\test_design_system_navigation_visuals.py:83: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_navigation_visuals" name="test_navigation_authentication_and_keyboard_visuals[comfortable-light-size1]" time="2.527"><failure message="assert 796 == 1366&#10; +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6B3D2AC0&gt;()&#10; +    where &lt;built-in method width of QSize object at 0x0000021C6B3D2AC0&gt; = PyQt5.QtCore.QSize(796, 596).width&#10; +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6C475520&gt;()&#10; +        where &lt;built-in method size of StandardWindow object at 0x0000021C6C475520&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6C475520&gt;.size">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-NmLDjn')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6AFFB490&gt;
+size = (1366, 768), theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density):
+        app = qt_font_resources
+        ThemeManager.instance().apply(app, theme, density=density)
+        artifacts = Path(os.environ.get("SPJ_UI_VISUAL_ARTIFACTS", str(ui_tmp_path)))
+        label = f"{theme}-{density}-{size[0]}x{size[1]}"
+        summary = SimpleNamespace(get_summary=lambda: SimpleNamespace(company_name="JUANIS", branch_name="Sucursal Centro"))
+        login = LoginWindow(
+            authenticate_use_case=None, begin_recovery_use_case=None,
+            complete_recovery_use_case=None, installation_summary_query=summary,
+        )
+        monkeypatch.setattr(login, "available_geometry", lambda: QRect(0, 0, *size))
+        login.show()
+        settle(app)
+        assert login.available_geometry().contains(login.frameGeometry())
+        assert login.viewport.viewport().rect().contains(QRect(
+            login._login_btn.mapTo(login.viewport.viewport(), QPoint()), login._login_btn.size()))
+        save(login, artifacts, label + "-login")
+        login.close()
+        login.deleteLater()
+    
+        window = StandardWindow()
+        body = QWidget()
+        root = QVBoxLayout(body)
+        top_bar = TopBar()
+        top_bar.set_context(make_context(user_name="Ana Ruiz"))
+        root.addWidget(top_bar)
+        row = QHBoxLayout()
+        root.addLayout(row, 1)
+        nav = SideNav()
+        nav.add_group("Tesorería", Icons.FINANCE)
+        nav.add_section("Cuentas y transferencias", Icons.TRANSFERS)
+        nav.add_section("Conciliación bancaria", Icons.FINANCE)
+        nav.add_group("Cobranza", Icons.CUSTOMERS)
+        nav.add_section("Clientes", Icons.CUSTOMERS)
+        nav.select(1)
+        row.addWidget(nav)
+        tabs = Tabs()
+        row.addWidget(tabs, 1)
+        dashboard = DashboardPage(title="Resumen de tesorería", subtitle="Información de la sucursal seleccionada")
+        dashboard.context_bar.set_context({"Sucursal": "Centro", "Periodo": "Actual"})
+        dashboard.kpis.set_cards([KPIDTO("balance", "Saldo disponible", "$12,450.00", icon=Icons.CASH)])
+        dashboard.grid.add_full_width(QLabel("Sin movimientos pendientes de conciliación"))
+        tabs.addTab(dashboard, "Resumen")
+        form = FormPage(title="Datos de consulta")
+        first = StandardLineEdit(placeholder="Referencia", keyboard_enabled=False)
+        form.add_content(first)
+        for index in range(24):
+            form.add_content(StandardLineEdit(placeholder=f"Campo {index + 1}", keyboard_enabled=False))
+        action = PrimaryButton("Consultar")
+        form.add_action(action)
+        tabs.addTab(form, "Consulta")
+        window.setCentralWidget(body)
+        window.show()
+        window.resize(*size)
+        settle(app)
+&gt;       assert window.size().width() == size[0]
+E       assert 796 == 1366
+E        +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6B3D2AC0&gt;()
+E        +    where &lt;built-in method width of QSize object at 0x0000021C6B3D2AC0&gt; = PyQt5.QtCore.QSize(796, 596).width
+E        +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6C475520&gt;()
+E        +        where &lt;built-in method size of StandardWindow object at 0x0000021C6C475520&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6C475520&gt;.size
+
+tests\ui\test_design_system_navigation_visuals.py:83: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_navigation_visuals" name="test_navigation_authentication_and_keyboard_visuals[comfortable-light-size2]" time="3.201"><failure message="assert 796 == 1440&#10; +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6B3D0C90&gt;()&#10; +    where &lt;built-in method width of QSize object at 0x0000021C6B3D0C90&gt; = PyQt5.QtCore.QSize(796, 596).width&#10; +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6C454EF0&gt;()&#10; +        where &lt;built-in method size of StandardWindow object at 0x0000021C6C454EF0&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6C454EF0&gt;.size">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-OJzDjx')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6B222690&gt;
+size = (1440, 900), theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density):
+        app = qt_font_resources
+        ThemeManager.instance().apply(app, theme, density=density)
+        artifacts = Path(os.environ.get("SPJ_UI_VISUAL_ARTIFACTS", str(ui_tmp_path)))
+        label = f"{theme}-{density}-{size[0]}x{size[1]}"
+        summary = SimpleNamespace(get_summary=lambda: SimpleNamespace(company_name="JUANIS", branch_name="Sucursal Centro"))
+        login = LoginWindow(
+            authenticate_use_case=None, begin_recovery_use_case=None,
+            complete_recovery_use_case=None, installation_summary_query=summary,
+        )
+        monkeypatch.setattr(login, "available_geometry", lambda: QRect(0, 0, *size))
+        login.show()
+        settle(app)
+        assert login.available_geometry().contains(login.frameGeometry())
+        assert login.viewport.viewport().rect().contains(QRect(
+            login._login_btn.mapTo(login.viewport.viewport(), QPoint()), login._login_btn.size()))
+        save(login, artifacts, label + "-login")
+        login.close()
+        login.deleteLater()
+    
+        window = StandardWindow()
+        body = QWidget()
+        root = QVBoxLayout(body)
+        top_bar = TopBar()
+        top_bar.set_context(make_context(user_name="Ana Ruiz"))
+        root.addWidget(top_bar)
+        row = QHBoxLayout()
+        root.addLayout(row, 1)
+        nav = SideNav()
+        nav.add_group("Tesorería", Icons.FINANCE)
+        nav.add_section("Cuentas y transferencias", Icons.TRANSFERS)
+        nav.add_section("Conciliación bancaria", Icons.FINANCE)
+        nav.add_group("Cobranza", Icons.CUSTOMERS)
+        nav.add_section("Clientes", Icons.CUSTOMERS)
+        nav.select(1)
+        row.addWidget(nav)
+        tabs = Tabs()
+        row.addWidget(tabs, 1)
+        dashboard = DashboardPage(title="Resumen de tesorería", subtitle="Información de la sucursal seleccionada")
+        dashboard.context_bar.set_context({"Sucursal": "Centro", "Periodo": "Actual"})
+        dashboard.kpis.set_cards([KPIDTO("balance", "Saldo disponible", "$12,450.00", icon=Icons.CASH)])
+        dashboard.grid.add_full_width(QLabel("Sin movimientos pendientes de conciliación"))
+        tabs.addTab(dashboard, "Resumen")
+        form = FormPage(title="Datos de consulta")
+        first = StandardLineEdit(placeholder="Referencia", keyboard_enabled=False)
+        form.add_content(first)
+        for index in range(24):
+            form.add_content(StandardLineEdit(placeholder=f"Campo {index + 1}", keyboard_enabled=False))
+        action = PrimaryButton("Consultar")
+        form.add_action(action)
+        tabs.addTab(form, "Consulta")
+        window.setCentralWidget(body)
+        window.show()
+        window.resize(*size)
+        settle(app)
+&gt;       assert window.size().width() == size[0]
+E       assert 796 == 1440
+E        +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6B3D0C90&gt;()
+E        +    where &lt;built-in method width of QSize object at 0x0000021C6B3D0C90&gt; = PyQt5.QtCore.QSize(796, 596).width
+E        +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6C454EF0&gt;()
+E        +        where &lt;built-in method size of StandardWindow object at 0x0000021C6C454EF0&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6C454EF0&gt;.size
+
+tests\ui\test_design_system_navigation_visuals.py:83: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_navigation_visuals" name="test_navigation_authentication_and_keyboard_visuals[comfortable-light-size3]" time="1.924"><failure message="assert 796 == 1600&#10; +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6B3D0280&gt;()&#10; +    where &lt;built-in method width of QSize object at 0x0000021C6B3D0280&gt; = PyQt5.QtCore.QSize(796, 596).width&#10; +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6C451370&gt;()&#10; +        where &lt;built-in method size of StandardWindow object at 0x0000021C6C451370&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6C451370&gt;.size">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-pSRLJK')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6B22AE00&gt;
+size = (1600, 900), theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density):
+        app = qt_font_resources
+        ThemeManager.instance().apply(app, theme, density=density)
+        artifacts = Path(os.environ.get("SPJ_UI_VISUAL_ARTIFACTS", str(ui_tmp_path)))
+        label = f"{theme}-{density}-{size[0]}x{size[1]}"
+        summary = SimpleNamespace(get_summary=lambda: SimpleNamespace(company_name="JUANIS", branch_name="Sucursal Centro"))
+        login = LoginWindow(
+            authenticate_use_case=None, begin_recovery_use_case=None,
+            complete_recovery_use_case=None, installation_summary_query=summary,
+        )
+        monkeypatch.setattr(login, "available_geometry", lambda: QRect(0, 0, *size))
+        login.show()
+        settle(app)
+        assert login.available_geometry().contains(login.frameGeometry())
+        assert login.viewport.viewport().rect().contains(QRect(
+            login._login_btn.mapTo(login.viewport.viewport(), QPoint()), login._login_btn.size()))
+        save(login, artifacts, label + "-login")
+        login.close()
+        login.deleteLater()
+    
+        window = StandardWindow()
+        body = QWidget()
+        root = QVBoxLayout(body)
+        top_bar = TopBar()
+        top_bar.set_context(make_context(user_name="Ana Ruiz"))
+        root.addWidget(top_bar)
+        row = QHBoxLayout()
+        root.addLayout(row, 1)
+        nav = SideNav()
+        nav.add_group("Tesorería", Icons.FINANCE)
+        nav.add_section("Cuentas y transferencias", Icons.TRANSFERS)
+        nav.add_section("Conciliación bancaria", Icons.FINANCE)
+        nav.add_group("Cobranza", Icons.CUSTOMERS)
+        nav.add_section("Clientes", Icons.CUSTOMERS)
+        nav.select(1)
+        row.addWidget(nav)
+        tabs = Tabs()
+        row.addWidget(tabs, 1)
+        dashboard = DashboardPage(title="Resumen de tesorería", subtitle="Información de la sucursal seleccionada")
+        dashboard.context_bar.set_context({"Sucursal": "Centro", "Periodo": "Actual"})
+        dashboard.kpis.set_cards([KPIDTO("balance", "Saldo disponible", "$12,450.00", icon=Icons.CASH)])
+        dashboard.grid.add_full_width(QLabel("Sin movimientos pendientes de conciliación"))
+        tabs.addTab(dashboard, "Resumen")
+        form = FormPage(title="Datos de consulta")
+        first = StandardLineEdit(placeholder="Referencia", keyboard_enabled=False)
+        form.add_content(first)
+        for index in range(24):
+            form.add_content(StandardLineEdit(placeholder=f"Campo {index + 1}", keyboard_enabled=False))
+        action = PrimaryButton("Consultar")
+        form.add_action(action)
+        tabs.addTab(form, "Consulta")
+        window.setCentralWidget(body)
+        window.show()
+        window.resize(*size)
+        settle(app)
+&gt;       assert window.size().width() == size[0]
+E       assert 796 == 1600
+E        +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6B3D0280&gt;()
+E        +    where &lt;built-in method width of QSize object at 0x0000021C6B3D0280&gt; = PyQt5.QtCore.QSize(796, 596).width
+E        +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6C451370&gt;()
+E        +        where &lt;built-in method size of StandardWindow object at 0x0000021C6C451370&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6C451370&gt;.size
+
+tests\ui\test_design_system_navigation_visuals.py:83: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_navigation_visuals" name="test_navigation_authentication_and_keyboard_visuals[comfortable-light-size4]" time="2.099"><failure message="assert 796 == 1920&#10; +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6B3D2350&gt;()&#10; +    where &lt;built-in method width of QSize object at 0x0000021C6B3D2350&gt; = PyQt5.QtCore.QSize(796, 596).width&#10; +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6C427800&gt;()&#10; +        where &lt;built-in method size of StandardWindow object at 0x0000021C6C427800&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6C427800&gt;.size">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-dCRpIY')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6B22B020&gt;
+size = (1920, 1080), theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density):
+        app = qt_font_resources
+        ThemeManager.instance().apply(app, theme, density=density)
+        artifacts = Path(os.environ.get("SPJ_UI_VISUAL_ARTIFACTS", str(ui_tmp_path)))
+        label = f"{theme}-{density}-{size[0]}x{size[1]}"
+        summary = SimpleNamespace(get_summary=lambda: SimpleNamespace(company_name="JUANIS", branch_name="Sucursal Centro"))
+        login = LoginWindow(
+            authenticate_use_case=None, begin_recovery_use_case=None,
+            complete_recovery_use_case=None, installation_summary_query=summary,
+        )
+        monkeypatch.setattr(login, "available_geometry", lambda: QRect(0, 0, *size))
+        login.show()
+        settle(app)
+        assert login.available_geometry().contains(login.frameGeometry())
+        assert login.viewport.viewport().rect().contains(QRect(
+            login._login_btn.mapTo(login.viewport.viewport(), QPoint()), login._login_btn.size()))
+        save(login, artifacts, label + "-login")
+        login.close()
+        login.deleteLater()
+    
+        window = StandardWindow()
+        body = QWidget()
+        root = QVBoxLayout(body)
+        top_bar = TopBar()
+        top_bar.set_context(make_context(user_name="Ana Ruiz"))
+        root.addWidget(top_bar)
+        row = QHBoxLayout()
+        root.addLayout(row, 1)
+        nav = SideNav()
+        nav.add_group("Tesorería", Icons.FINANCE)
+        nav.add_section("Cuentas y transferencias", Icons.TRANSFERS)
+        nav.add_section("Conciliación bancaria", Icons.FINANCE)
+        nav.add_group("Cobranza", Icons.CUSTOMERS)
+        nav.add_section("Clientes", Icons.CUSTOMERS)
+        nav.select(1)
+        row.addWidget(nav)
+        tabs = Tabs()
+        row.addWidget(tabs, 1)
+        dashboard = DashboardPage(title="Resumen de tesorería", subtitle="Información de la sucursal seleccionada")
+        dashboard.context_bar.set_context({"Sucursal": "Centro", "Periodo": "Actual"})
+        dashboard.kpis.set_cards([KPIDTO("balance", "Saldo disponible", "$12,450.00", icon=Icons.CASH)])
+        dashboard.grid.add_full_width(QLabel("Sin movimientos pendientes de conciliación"))
+        tabs.addTab(dashboard, "Resumen")
+        form = FormPage(title="Datos de consulta")
+        first = StandardLineEdit(placeholder="Referencia", keyboard_enabled=False)
+        form.add_content(first)
+        for index in range(24):
+            form.add_content(StandardLineEdit(placeholder=f"Campo {index + 1}", keyboard_enabled=False))
+        action = PrimaryButton("Consultar")
+        form.add_action(action)
+        tabs.addTab(form, "Consulta")
+        window.setCentralWidget(body)
+        window.show()
+        window.resize(*size)
+        settle(app)
+&gt;       assert window.size().width() == size[0]
+E       assert 796 == 1920
+E        +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6B3D2350&gt;()
+E        +    where &lt;built-in method width of QSize object at 0x0000021C6B3D2350&gt; = PyQt5.QtCore.QSize(796, 596).width
+E        +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6C427800&gt;()
+E        +        where &lt;built-in method size of StandardWindow object at 0x0000021C6C427800&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6C427800&gt;.size
+
+tests\ui\test_design_system_navigation_visuals.py:83: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_navigation_visuals" name="test_navigation_authentication_and_keyboard_visuals[comfortable-dark-size0]" time="7.925"><failure message="assert 796 == 1280&#10; +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6B2823C0&gt;()&#10; +    where &lt;built-in method width of QSize object at 0x0000021C6B2823C0&gt; = PyQt5.QtCore.QSize(796, 596).width&#10; +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B288CB0&gt;()&#10; +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B288CB0&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B288CB0&gt;.size">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-LdFMqh')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6C3FDD50&gt;
+size = (1280, 720), theme = 'dark', density = 'comfortable'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density):
+        app = qt_font_resources
+        ThemeManager.instance().apply(app, theme, density=density)
+        artifacts = Path(os.environ.get("SPJ_UI_VISUAL_ARTIFACTS", str(ui_tmp_path)))
+        label = f"{theme}-{density}-{size[0]}x{size[1]}"
+        summary = SimpleNamespace(get_summary=lambda: SimpleNamespace(company_name="JUANIS", branch_name="Sucursal Centro"))
+        login = LoginWindow(
+            authenticate_use_case=None, begin_recovery_use_case=None,
+            complete_recovery_use_case=None, installation_summary_query=summary,
+        )
+        monkeypatch.setattr(login, "available_geometry", lambda: QRect(0, 0, *size))
+        login.show()
+        settle(app)
+        assert login.available_geometry().contains(login.frameGeometry())
+        assert login.viewport.viewport().rect().contains(QRect(
+            login._login_btn.mapTo(login.viewport.viewport(), QPoint()), login._login_btn.size()))
+        save(login, artifacts, label + "-login")
+        login.close()
+        login.deleteLater()
+    
+        window = StandardWindow()
+        body = QWidget()
+        root = QVBoxLayout(body)
+        top_bar = TopBar()
+        top_bar.set_context(make_context(user_name="Ana Ruiz"))
+        root.addWidget(top_bar)
+        row = QHBoxLayout()
+        root.addLayout(row, 1)
+        nav = SideNav()
+        nav.add_group("Tesorería", Icons.FINANCE)
+        nav.add_section("Cuentas y transferencias", Icons.TRANSFERS)
+        nav.add_section("Conciliación bancaria", Icons.FINANCE)
+        nav.add_group("Cobranza", Icons.CUSTOMERS)
+        nav.add_section("Clientes", Icons.CUSTOMERS)
+        nav.select(1)
+        row.addWidget(nav)
+        tabs = Tabs()
+        row.addWidget(tabs, 1)
+        dashboard = DashboardPage(title="Resumen de tesorería", subtitle="Información de la sucursal seleccionada")
+        dashboard.context_bar.set_context({"Sucursal": "Centro", "Periodo": "Actual"})
+        dashboard.kpis.set_cards([KPIDTO("balance", "Saldo disponible", "$12,450.00", icon=Icons.CASH)])
+        dashboard.grid.add_full_width(QLabel("Sin movimientos pendientes de conciliación"))
+        tabs.addTab(dashboard, "Resumen")
+        form = FormPage(title="Datos de consulta")
+        first = StandardLineEdit(placeholder="Referencia", keyboard_enabled=False)
+        form.add_content(first)
+        for index in range(24):
+            form.add_content(StandardLineEdit(placeholder=f"Campo {index + 1}", keyboard_enabled=False))
+        action = PrimaryButton("Consultar")
+        form.add_action(action)
+        tabs.addTab(form, "Consulta")
+        window.setCentralWidget(body)
+        window.show()
+        window.resize(*size)
+        settle(app)
+&gt;       assert window.size().width() == size[0]
+E       assert 796 == 1280
+E        +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6B2823C0&gt;()
+E        +    where &lt;built-in method width of QSize object at 0x0000021C6B2823C0&gt; = PyQt5.QtCore.QSize(796, 596).width
+E        +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B288CB0&gt;()
+E        +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B288CB0&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B288CB0&gt;.size
+
+tests\ui\test_design_system_navigation_visuals.py:83: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_navigation_visuals" name="test_navigation_authentication_and_keyboard_visuals[comfortable-dark-size1]" time="3.030"><failure message="assert 796 == 1366&#10; +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6B283770&gt;()&#10; +    where &lt;built-in method width of QSize object at 0x0000021C6B283770&gt; = PyQt5.QtCore.QSize(796, 596).width&#10; +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B2CC5F0&gt;()&#10; +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B2CC5F0&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B2CC5F0&gt;.size">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-Kgmuyy')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6C3FD250&gt;
+size = (1366, 768), theme = 'dark', density = 'comfortable'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density):
+        app = qt_font_resources
+        ThemeManager.instance().apply(app, theme, density=density)
+        artifacts = Path(os.environ.get("SPJ_UI_VISUAL_ARTIFACTS", str(ui_tmp_path)))
+        label = f"{theme}-{density}-{size[0]}x{size[1]}"
+        summary = SimpleNamespace(get_summary=lambda: SimpleNamespace(company_name="JUANIS", branch_name="Sucursal Centro"))
+        login = LoginWindow(
+            authenticate_use_case=None, begin_recovery_use_case=None,
+            complete_recovery_use_case=None, installation_summary_query=summary,
+        )
+        monkeypatch.setattr(login, "available_geometry", lambda: QRect(0, 0, *size))
+        login.show()
+        settle(app)
+        assert login.available_geometry().contains(login.frameGeometry())
+        assert login.viewport.viewport().rect().contains(QRect(
+            login._login_btn.mapTo(login.viewport.viewport(), QPoint()), login._login_btn.size()))
+        save(login, artifacts, label + "-login")
+        login.close()
+        login.deleteLater()
+    
+        window = StandardWindow()
+        body = QWidget()
+        root = QVBoxLayout(body)
+        top_bar = TopBar()
+        top_bar.set_context(make_context(user_name="Ana Ruiz"))
+        root.addWidget(top_bar)
+        row = QHBoxLayout()
+        root.addLayout(row, 1)
+        nav = SideNav()
+        nav.add_group("Tesorería", Icons.FINANCE)
+        nav.add_section("Cuentas y transferencias", Icons.TRANSFERS)
+        nav.add_section("Conciliación bancaria", Icons.FINANCE)
+        nav.add_group("Cobranza", Icons.CUSTOMERS)
+        nav.add_section("Clientes", Icons.CUSTOMERS)
+        nav.select(1)
+        row.addWidget(nav)
+        tabs = Tabs()
+        row.addWidget(tabs, 1)
+        dashboard = DashboardPage(title="Resumen de tesorería", subtitle="Información de la sucursal seleccionada")
+        dashboard.context_bar.set_context({"Sucursal": "Centro", "Periodo": "Actual"})
+        dashboard.kpis.set_cards([KPIDTO("balance", "Saldo disponible", "$12,450.00", icon=Icons.CASH)])
+        dashboard.grid.add_full_width(QLabel("Sin movimientos pendientes de conciliación"))
+        tabs.addTab(dashboard, "Resumen")
+        form = FormPage(title="Datos de consulta")
+        first = StandardLineEdit(placeholder="Referencia", keyboard_enabled=False)
+        form.add_content(first)
+        for index in range(24):
+            form.add_content(StandardLineEdit(placeholder=f"Campo {index + 1}", keyboard_enabled=False))
+        action = PrimaryButton("Consultar")
+        form.add_action(action)
+        tabs.addTab(form, "Consulta")
+        window.setCentralWidget(body)
+        window.show()
+        window.resize(*size)
+        settle(app)
+&gt;       assert window.size().width() == size[0]
+E       assert 796 == 1366
+E        +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6B283770&gt;()
+E        +    where &lt;built-in method width of QSize object at 0x0000021C6B283770&gt; = PyQt5.QtCore.QSize(796, 596).width
+E        +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B2CC5F0&gt;()
+E        +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B2CC5F0&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B2CC5F0&gt;.size
+
+tests\ui\test_design_system_navigation_visuals.py:83: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_navigation_visuals" name="test_navigation_authentication_and_keyboard_visuals[comfortable-dark-size2]" time="4.081"><failure message="assert 796 == 1440&#10; +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6B282B30&gt;()&#10; +    where &lt;built-in method width of QSize object at 0x0000021C6B282B30&gt; = PyQt5.QtCore.QSize(796, 596).width&#10; +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B3EDEB0&gt;()&#10; +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B3EDEB0&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B3EDEB0&gt;.size">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-ucabos')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6B3B5C70&gt;
+size = (1440, 900), theme = 'dark', density = 'comfortable'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density):
+        app = qt_font_resources
+        ThemeManager.instance().apply(app, theme, density=density)
+        artifacts = Path(os.environ.get("SPJ_UI_VISUAL_ARTIFACTS", str(ui_tmp_path)))
+        label = f"{theme}-{density}-{size[0]}x{size[1]}"
+        summary = SimpleNamespace(get_summary=lambda: SimpleNamespace(company_name="JUANIS", branch_name="Sucursal Centro"))
+        login = LoginWindow(
+            authenticate_use_case=None, begin_recovery_use_case=None,
+            complete_recovery_use_case=None, installation_summary_query=summary,
+        )
+        monkeypatch.setattr(login, "available_geometry", lambda: QRect(0, 0, *size))
+        login.show()
+        settle(app)
+        assert login.available_geometry().contains(login.frameGeometry())
+        assert login.viewport.viewport().rect().contains(QRect(
+            login._login_btn.mapTo(login.viewport.viewport(), QPoint()), login._login_btn.size()))
+        save(login, artifacts, label + "-login")
+        login.close()
+        login.deleteLater()
+    
+        window = StandardWindow()
+        body = QWidget()
+        root = QVBoxLayout(body)
+        top_bar = TopBar()
+        top_bar.set_context(make_context(user_name="Ana Ruiz"))
+        root.addWidget(top_bar)
+        row = QHBoxLayout()
+        root.addLayout(row, 1)
+        nav = SideNav()
+        nav.add_group("Tesorería", Icons.FINANCE)
+        nav.add_section("Cuentas y transferencias", Icons.TRANSFERS)
+        nav.add_section("Conciliación bancaria", Icons.FINANCE)
+        nav.add_group("Cobranza", Icons.CUSTOMERS)
+        nav.add_section("Clientes", Icons.CUSTOMERS)
+        nav.select(1)
+        row.addWidget(nav)
+        tabs = Tabs()
+        row.addWidget(tabs, 1)
+        dashboard = DashboardPage(title="Resumen de tesorería", subtitle="Información de la sucursal seleccionada")
+        dashboard.context_bar.set_context({"Sucursal": "Centro", "Periodo": "Actual"})
+        dashboard.kpis.set_cards([KPIDTO("balance", "Saldo disponible", "$12,450.00", icon=Icons.CASH)])
+        dashboard.grid.add_full_width(QLabel("Sin movimientos pendientes de conciliación"))
+        tabs.addTab(dashboard, "Resumen")
+        form = FormPage(title="Datos de consulta")
+        first = StandardLineEdit(placeholder="Referencia", keyboard_enabled=False)
+        form.add_content(first)
+        for index in range(24):
+            form.add_content(StandardLineEdit(placeholder=f"Campo {index + 1}", keyboard_enabled=False))
+        action = PrimaryButton("Consultar")
+        form.add_action(action)
+        tabs.addTab(form, "Consulta")
+        window.setCentralWidget(body)
+        window.show()
+        window.resize(*size)
+        settle(app)
+&gt;       assert window.size().width() == size[0]
+E       assert 796 == 1440
+E        +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6B282B30&gt;()
+E        +    where &lt;built-in method width of QSize object at 0x0000021C6B282B30&gt; = PyQt5.QtCore.QSize(796, 596).width
+E        +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B3EDEB0&gt;()
+E        +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B3EDEB0&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B3EDEB0&gt;.size
+
+tests\ui\test_design_system_navigation_visuals.py:83: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_navigation_visuals" name="test_navigation_authentication_and_keyboard_visuals[comfortable-dark-size3]" time="6.689"><failure message="assert 796 == 1600&#10; +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C47E970&gt;()&#10; +    where &lt;built-in method width of QSize object at 0x0000021C6C47E970&gt; = PyQt5.QtCore.QSize(796, 596).width&#10; +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B378290&gt;()&#10; +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B378290&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B378290&gt;.size">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-etzKIR')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6B3B48C0&gt;
+size = (1600, 900), theme = 'dark', density = 'comfortable'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density):
+        app = qt_font_resources
+        ThemeManager.instance().apply(app, theme, density=density)
+        artifacts = Path(os.environ.get("SPJ_UI_VISUAL_ARTIFACTS", str(ui_tmp_path)))
+        label = f"{theme}-{density}-{size[0]}x{size[1]}"
+        summary = SimpleNamespace(get_summary=lambda: SimpleNamespace(company_name="JUANIS", branch_name="Sucursal Centro"))
+        login = LoginWindow(
+            authenticate_use_case=None, begin_recovery_use_case=None,
+            complete_recovery_use_case=None, installation_summary_query=summary,
+        )
+        monkeypatch.setattr(login, "available_geometry", lambda: QRect(0, 0, *size))
+        login.show()
+        settle(app)
+        assert login.available_geometry().contains(login.frameGeometry())
+        assert login.viewport.viewport().rect().contains(QRect(
+            login._login_btn.mapTo(login.viewport.viewport(), QPoint()), login._login_btn.size()))
+        save(login, artifacts, label + "-login")
+        login.close()
+        login.deleteLater()
+    
+        window = StandardWindow()
+        body = QWidget()
+        root = QVBoxLayout(body)
+        top_bar = TopBar()
+        top_bar.set_context(make_context(user_name="Ana Ruiz"))
+        root.addWidget(top_bar)
+        row = QHBoxLayout()
+        root.addLayout(row, 1)
+        nav = SideNav()
+        nav.add_group("Tesorería", Icons.FINANCE)
+        nav.add_section("Cuentas y transferencias", Icons.TRANSFERS)
+        nav.add_section("Conciliación bancaria", Icons.FINANCE)
+        nav.add_group("Cobranza", Icons.CUSTOMERS)
+        nav.add_section("Clientes", Icons.CUSTOMERS)
+        nav.select(1)
+        row.addWidget(nav)
+        tabs = Tabs()
+        row.addWidget(tabs, 1)
+        dashboard = DashboardPage(title="Resumen de tesorería", subtitle="Información de la sucursal seleccionada")
+        dashboard.context_bar.set_context({"Sucursal": "Centro", "Periodo": "Actual"})
+        dashboard.kpis.set_cards([KPIDTO("balance", "Saldo disponible", "$12,450.00", icon=Icons.CASH)])
+        dashboard.grid.add_full_width(QLabel("Sin movimientos pendientes de conciliación"))
+        tabs.addTab(dashboard, "Resumen")
+        form = FormPage(title="Datos de consulta")
+        first = StandardLineEdit(placeholder="Referencia", keyboard_enabled=False)
+        form.add_content(first)
+        for index in range(24):
+            form.add_content(StandardLineEdit(placeholder=f"Campo {index + 1}", keyboard_enabled=False))
+        action = PrimaryButton("Consultar")
+        form.add_action(action)
+        tabs.addTab(form, "Consulta")
+        window.setCentralWidget(body)
+        window.show()
+        window.resize(*size)
+        settle(app)
+&gt;       assert window.size().width() == size[0]
+E       assert 796 == 1600
+E        +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C47E970&gt;()
+E        +    where &lt;built-in method width of QSize object at 0x0000021C6C47E970&gt; = PyQt5.QtCore.QSize(796, 596).width
+E        +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B378290&gt;()
+E        +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B378290&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B378290&gt;.size
+
+tests\ui\test_design_system_navigation_visuals.py:83: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_navigation_visuals" name="test_navigation_authentication_and_keyboard_visuals[comfortable-dark-size4]" time="4.789"><failure message="assert 796 == 1920&#10; +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C47F2A0&gt;()&#10; +    where &lt;built-in method width of QSize object at 0x0000021C6C47F2A0&gt; = PyQt5.QtCore.QSize(796, 596).width&#10; +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B3DAF90&gt;()&#10; +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B3DAF90&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B3DAF90&gt;.size">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-wdFlXh')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6B371EF0&gt;
+size = (1920, 1080), theme = 'dark', density = 'comfortable'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density):
+        app = qt_font_resources
+        ThemeManager.instance().apply(app, theme, density=density)
+        artifacts = Path(os.environ.get("SPJ_UI_VISUAL_ARTIFACTS", str(ui_tmp_path)))
+        label = f"{theme}-{density}-{size[0]}x{size[1]}"
+        summary = SimpleNamespace(get_summary=lambda: SimpleNamespace(company_name="JUANIS", branch_name="Sucursal Centro"))
+        login = LoginWindow(
+            authenticate_use_case=None, begin_recovery_use_case=None,
+            complete_recovery_use_case=None, installation_summary_query=summary,
+        )
+        monkeypatch.setattr(login, "available_geometry", lambda: QRect(0, 0, *size))
+        login.show()
+        settle(app)
+        assert login.available_geometry().contains(login.frameGeometry())
+        assert login.viewport.viewport().rect().contains(QRect(
+            login._login_btn.mapTo(login.viewport.viewport(), QPoint()), login._login_btn.size()))
+        save(login, artifacts, label + "-login")
+        login.close()
+        login.deleteLater()
+    
+        window = StandardWindow()
+        body = QWidget()
+        root = QVBoxLayout(body)
+        top_bar = TopBar()
+        top_bar.set_context(make_context(user_name="Ana Ruiz"))
+        root.addWidget(top_bar)
+        row = QHBoxLayout()
+        root.addLayout(row, 1)
+        nav = SideNav()
+        nav.add_group("Tesorería", Icons.FINANCE)
+        nav.add_section("Cuentas y transferencias", Icons.TRANSFERS)
+        nav.add_section("Conciliación bancaria", Icons.FINANCE)
+        nav.add_group("Cobranza", Icons.CUSTOMERS)
+        nav.add_section("Clientes", Icons.CUSTOMERS)
+        nav.select(1)
+        row.addWidget(nav)
+        tabs = Tabs()
+        row.addWidget(tabs, 1)
+        dashboard = DashboardPage(title="Resumen de tesorería", subtitle="Información de la sucursal seleccionada")
+        dashboard.context_bar.set_context({"Sucursal": "Centro", "Periodo": "Actual"})
+        dashboard.kpis.set_cards([KPIDTO("balance", "Saldo disponible", "$12,450.00", icon=Icons.CASH)])
+        dashboard.grid.add_full_width(QLabel("Sin movimientos pendientes de conciliación"))
+        tabs.addTab(dashboard, "Resumen")
+        form = FormPage(title="Datos de consulta")
+        first = StandardLineEdit(placeholder="Referencia", keyboard_enabled=False)
+        form.add_content(first)
+        for index in range(24):
+            form.add_content(StandardLineEdit(placeholder=f"Campo {index + 1}", keyboard_enabled=False))
+        action = PrimaryButton("Consultar")
+        form.add_action(action)
+        tabs.addTab(form, "Consulta")
+        window.setCentralWidget(body)
+        window.show()
+        window.resize(*size)
+        settle(app)
+&gt;       assert window.size().width() == size[0]
+E       assert 796 == 1920
+E        +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C47F2A0&gt;()
+E        +    where &lt;built-in method width of QSize object at 0x0000021C6C47F2A0&gt; = PyQt5.QtCore.QSize(796, 596).width
+E        +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B3DAF90&gt;()
+E        +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B3DAF90&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B3DAF90&gt;.size
+
+tests\ui\test_design_system_navigation_visuals.py:83: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_navigation_visuals" name="test_navigation_authentication_and_keyboard_visuals[touch-light-size0]" time="7.328"><failure message="assert 796 == 1280&#10; +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C47F930&gt;()&#10; +    where &lt;built-in method width of QSize object at 0x0000021C6C47F930&gt; = PyQt5.QtCore.QSize(796, 596).width&#10; +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6C490CB0&gt;()&#10; +        where &lt;built-in method size of StandardWindow object at 0x0000021C6C490CB0&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6C490CB0&gt;.size">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-IJApdh')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6B373150&gt;
+size = (1280, 720), theme = 'light', density = 'touch'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density):
+        app = qt_font_resources
+        ThemeManager.instance().apply(app, theme, density=density)
+        artifacts = Path(os.environ.get("SPJ_UI_VISUAL_ARTIFACTS", str(ui_tmp_path)))
+        label = f"{theme}-{density}-{size[0]}x{size[1]}"
+        summary = SimpleNamespace(get_summary=lambda: SimpleNamespace(company_name="JUANIS", branch_name="Sucursal Centro"))
+        login = LoginWindow(
+            authenticate_use_case=None, begin_recovery_use_case=None,
+            complete_recovery_use_case=None, installation_summary_query=summary,
+        )
+        monkeypatch.setattr(login, "available_geometry", lambda: QRect(0, 0, *size))
+        login.show()
+        settle(app)
+        assert login.available_geometry().contains(login.frameGeometry())
+        assert login.viewport.viewport().rect().contains(QRect(
+            login._login_btn.mapTo(login.viewport.viewport(), QPoint()), login._login_btn.size()))
+        save(login, artifacts, label + "-login")
+        login.close()
+        login.deleteLater()
+    
+        window = StandardWindow()
+        body = QWidget()
+        root = QVBoxLayout(body)
+        top_bar = TopBar()
+        top_bar.set_context(make_context(user_name="Ana Ruiz"))
+        root.addWidget(top_bar)
+        row = QHBoxLayout()
+        root.addLayout(row, 1)
+        nav = SideNav()
+        nav.add_group("Tesorería", Icons.FINANCE)
+        nav.add_section("Cuentas y transferencias", Icons.TRANSFERS)
+        nav.add_section("Conciliación bancaria", Icons.FINANCE)
+        nav.add_group("Cobranza", Icons.CUSTOMERS)
+        nav.add_section("Clientes", Icons.CUSTOMERS)
+        nav.select(1)
+        row.addWidget(nav)
+        tabs = Tabs()
+        row.addWidget(tabs, 1)
+        dashboard = DashboardPage(title="Resumen de tesorería", subtitle="Información de la sucursal seleccionada")
+        dashboard.context_bar.set_context({"Sucursal": "Centro", "Periodo": "Actual"})
+        dashboard.kpis.set_cards([KPIDTO("balance", "Saldo disponible", "$12,450.00", icon=Icons.CASH)])
+        dashboard.grid.add_full_width(QLabel("Sin movimientos pendientes de conciliación"))
+        tabs.addTab(dashboard, "Resumen")
+        form = FormPage(title="Datos de consulta")
+        first = StandardLineEdit(placeholder="Referencia", keyboard_enabled=False)
+        form.add_content(first)
+        for index in range(24):
+            form.add_content(StandardLineEdit(placeholder=f"Campo {index + 1}", keyboard_enabled=False))
+        action = PrimaryButton("Consultar")
+        form.add_action(action)
+        tabs.addTab(form, "Consulta")
+        window.setCentralWidget(body)
+        window.show()
+        window.resize(*size)
+        settle(app)
+&gt;       assert window.size().width() == size[0]
+E       assert 796 == 1280
+E        +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C47F930&gt;()
+E        +    where &lt;built-in method width of QSize object at 0x0000021C6C47F930&gt; = PyQt5.QtCore.QSize(796, 596).width
+E        +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6C490CB0&gt;()
+E        +        where &lt;built-in method size of StandardWindow object at 0x0000021C6C490CB0&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6C490CB0&gt;.size
+
+tests\ui\test_design_system_navigation_visuals.py:83: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_navigation_visuals" name="test_navigation_authentication_and_keyboard_visuals[touch-light-size1]" time="3.011"><failure message="assert 796 == 1366&#10; +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C47E580&gt;()&#10; +    where &lt;built-in method width of QSize object at 0x0000021C6C47E580&gt; = PyQt5.QtCore.QSize(796, 596).width&#10; +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B343530&gt;()&#10; +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B343530&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B343530&gt;.size">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-JxLvKE')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6AAF3790&gt;
+size = (1366, 768), theme = 'light', density = 'touch'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density):
+        app = qt_font_resources
+        ThemeManager.instance().apply(app, theme, density=density)
+        artifacts = Path(os.environ.get("SPJ_UI_VISUAL_ARTIFACTS", str(ui_tmp_path)))
+        label = f"{theme}-{density}-{size[0]}x{size[1]}"
+        summary = SimpleNamespace(get_summary=lambda: SimpleNamespace(company_name="JUANIS", branch_name="Sucursal Centro"))
+        login = LoginWindow(
+            authenticate_use_case=None, begin_recovery_use_case=None,
+            complete_recovery_use_case=None, installation_summary_query=summary,
+        )
+        monkeypatch.setattr(login, "available_geometry", lambda: QRect(0, 0, *size))
+        login.show()
+        settle(app)
+        assert login.available_geometry().contains(login.frameGeometry())
+        assert login.viewport.viewport().rect().contains(QRect(
+            login._login_btn.mapTo(login.viewport.viewport(), QPoint()), login._login_btn.size()))
+        save(login, artifacts, label + "-login")
+        login.close()
+        login.deleteLater()
+    
+        window = StandardWindow()
+        body = QWidget()
+        root = QVBoxLayout(body)
+        top_bar = TopBar()
+        top_bar.set_context(make_context(user_name="Ana Ruiz"))
+        root.addWidget(top_bar)
+        row = QHBoxLayout()
+        root.addLayout(row, 1)
+        nav = SideNav()
+        nav.add_group("Tesorería", Icons.FINANCE)
+        nav.add_section("Cuentas y transferencias", Icons.TRANSFERS)
+        nav.add_section("Conciliación bancaria", Icons.FINANCE)
+        nav.add_group("Cobranza", Icons.CUSTOMERS)
+        nav.add_section("Clientes", Icons.CUSTOMERS)
+        nav.select(1)
+        row.addWidget(nav)
+        tabs = Tabs()
+        row.addWidget(tabs, 1)
+        dashboard = DashboardPage(title="Resumen de tesorería", subtitle="Información de la sucursal seleccionada")
+        dashboard.context_bar.set_context({"Sucursal": "Centro", "Periodo": "Actual"})
+        dashboard.kpis.set_cards([KPIDTO("balance", "Saldo disponible", "$12,450.00", icon=Icons.CASH)])
+        dashboard.grid.add_full_width(QLabel("Sin movimientos pendientes de conciliación"))
+        tabs.addTab(dashboard, "Resumen")
+        form = FormPage(title="Datos de consulta")
+        first = StandardLineEdit(placeholder="Referencia", keyboard_enabled=False)
+        form.add_content(first)
+        for index in range(24):
+            form.add_content(StandardLineEdit(placeholder=f"Campo {index + 1}", keyboard_enabled=False))
+        action = PrimaryButton("Consultar")
+        form.add_action(action)
+        tabs.addTab(form, "Consulta")
+        window.setCentralWidget(body)
+        window.show()
+        window.resize(*size)
+        settle(app)
+&gt;       assert window.size().width() == size[0]
+E       assert 796 == 1366
+E        +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C47E580&gt;()
+E        +    where &lt;built-in method width of QSize object at 0x0000021C6C47E580&gt; = PyQt5.QtCore.QSize(796, 596).width
+E        +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B343530&gt;()
+E        +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B343530&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B343530&gt;.size
+
+tests\ui\test_design_system_navigation_visuals.py:83: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_navigation_visuals" name="test_navigation_authentication_and_keyboard_visuals[touch-light-size2]" time="7.412"><failure message="assert 796 == 1440&#10; +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C47F150&gt;()&#10; +    where &lt;built-in method width of QSize object at 0x0000021C6C47F150&gt; = PyQt5.QtCore.QSize(796, 596).width&#10; +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B3AC170&gt;()&#10; +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B3AC170&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B3AC170&gt;.size">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-OkCwca')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6B246390&gt;
+size = (1440, 900), theme = 'light', density = 'touch'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density):
+        app = qt_font_resources
+        ThemeManager.instance().apply(app, theme, density=density)
+        artifacts = Path(os.environ.get("SPJ_UI_VISUAL_ARTIFACTS", str(ui_tmp_path)))
+        label = f"{theme}-{density}-{size[0]}x{size[1]}"
+        summary = SimpleNamespace(get_summary=lambda: SimpleNamespace(company_name="JUANIS", branch_name="Sucursal Centro"))
+        login = LoginWindow(
+            authenticate_use_case=None, begin_recovery_use_case=None,
+            complete_recovery_use_case=None, installation_summary_query=summary,
+        )
+        monkeypatch.setattr(login, "available_geometry", lambda: QRect(0, 0, *size))
+        login.show()
+        settle(app)
+        assert login.available_geometry().contains(login.frameGeometry())
+        assert login.viewport.viewport().rect().contains(QRect(
+            login._login_btn.mapTo(login.viewport.viewport(), QPoint()), login._login_btn.size()))
+        save(login, artifacts, label + "-login")
+        login.close()
+        login.deleteLater()
+    
+        window = StandardWindow()
+        body = QWidget()
+        root = QVBoxLayout(body)
+        top_bar = TopBar()
+        top_bar.set_context(make_context(user_name="Ana Ruiz"))
+        root.addWidget(top_bar)
+        row = QHBoxLayout()
+        root.addLayout(row, 1)
+        nav = SideNav()
+        nav.add_group("Tesorería", Icons.FINANCE)
+        nav.add_section("Cuentas y transferencias", Icons.TRANSFERS)
+        nav.add_section("Conciliación bancaria", Icons.FINANCE)
+        nav.add_group("Cobranza", Icons.CUSTOMERS)
+        nav.add_section("Clientes", Icons.CUSTOMERS)
+        nav.select(1)
+        row.addWidget(nav)
+        tabs = Tabs()
+        row.addWidget(tabs, 1)
+        dashboard = DashboardPage(title="Resumen de tesorería", subtitle="Información de la sucursal seleccionada")
+        dashboard.context_bar.set_context({"Sucursal": "Centro", "Periodo": "Actual"})
+        dashboard.kpis.set_cards([KPIDTO("balance", "Saldo disponible", "$12,450.00", icon=Icons.CASH)])
+        dashboard.grid.add_full_width(QLabel("Sin movimientos pendientes de conciliación"))
+        tabs.addTab(dashboard, "Resumen")
+        form = FormPage(title="Datos de consulta")
+        first = StandardLineEdit(placeholder="Referencia", keyboard_enabled=False)
+        form.add_content(first)
+        for index in range(24):
+            form.add_content(StandardLineEdit(placeholder=f"Campo {index + 1}", keyboard_enabled=False))
+        action = PrimaryButton("Consultar")
+        form.add_action(action)
+        tabs.addTab(form, "Consulta")
+        window.setCentralWidget(body)
+        window.show()
+        window.resize(*size)
+        settle(app)
+&gt;       assert window.size().width() == size[0]
+E       assert 796 == 1440
+E        +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C47F150&gt;()
+E        +    where &lt;built-in method width of QSize object at 0x0000021C6C47F150&gt; = PyQt5.QtCore.QSize(796, 596).width
+E        +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B3AC170&gt;()
+E        +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B3AC170&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B3AC170&gt;.size
+
+tests\ui\test_design_system_navigation_visuals.py:83: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_navigation_visuals" name="test_navigation_authentication_and_keyboard_visuals[touch-light-size3]" time="3.671"><failure message="assert 796 == 1600&#10; +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C47F930&gt;()&#10; +    where &lt;built-in method width of QSize object at 0x0000021C6C47F930&gt; = PyQt5.QtCore.QSize(796, 596).width&#10; +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B3AD9A0&gt;()&#10; +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B3AD9A0&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B3AD9A0&gt;.size">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-HVZBVa')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6B247F50&gt;
+size = (1600, 900), theme = 'light', density = 'touch'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density):
+        app = qt_font_resources
+        ThemeManager.instance().apply(app, theme, density=density)
+        artifacts = Path(os.environ.get("SPJ_UI_VISUAL_ARTIFACTS", str(ui_tmp_path)))
+        label = f"{theme}-{density}-{size[0]}x{size[1]}"
+        summary = SimpleNamespace(get_summary=lambda: SimpleNamespace(company_name="JUANIS", branch_name="Sucursal Centro"))
+        login = LoginWindow(
+            authenticate_use_case=None, begin_recovery_use_case=None,
+            complete_recovery_use_case=None, installation_summary_query=summary,
+        )
+        monkeypatch.setattr(login, "available_geometry", lambda: QRect(0, 0, *size))
+        login.show()
+        settle(app)
+        assert login.available_geometry().contains(login.frameGeometry())
+        assert login.viewport.viewport().rect().contains(QRect(
+            login._login_btn.mapTo(login.viewport.viewport(), QPoint()), login._login_btn.size()))
+        save(login, artifacts, label + "-login")
+        login.close()
+        login.deleteLater()
+    
+        window = StandardWindow()
+        body = QWidget()
+        root = QVBoxLayout(body)
+        top_bar = TopBar()
+        top_bar.set_context(make_context(user_name="Ana Ruiz"))
+        root.addWidget(top_bar)
+        row = QHBoxLayout()
+        root.addLayout(row, 1)
+        nav = SideNav()
+        nav.add_group("Tesorería", Icons.FINANCE)
+        nav.add_section("Cuentas y transferencias", Icons.TRANSFERS)
+        nav.add_section("Conciliación bancaria", Icons.FINANCE)
+        nav.add_group("Cobranza", Icons.CUSTOMERS)
+        nav.add_section("Clientes", Icons.CUSTOMERS)
+        nav.select(1)
+        row.addWidget(nav)
+        tabs = Tabs()
+        row.addWidget(tabs, 1)
+        dashboard = DashboardPage(title="Resumen de tesorería", subtitle="Información de la sucursal seleccionada")
+        dashboard.context_bar.set_context({"Sucursal": "Centro", "Periodo": "Actual"})
+        dashboard.kpis.set_cards([KPIDTO("balance", "Saldo disponible", "$12,450.00", icon=Icons.CASH)])
+        dashboard.grid.add_full_width(QLabel("Sin movimientos pendientes de conciliación"))
+        tabs.addTab(dashboard, "Resumen")
+        form = FormPage(title="Datos de consulta")
+        first = StandardLineEdit(placeholder="Referencia", keyboard_enabled=False)
+        form.add_content(first)
+        for index in range(24):
+            form.add_content(StandardLineEdit(placeholder=f"Campo {index + 1}", keyboard_enabled=False))
+        action = PrimaryButton("Consultar")
+        form.add_action(action)
+        tabs.addTab(form, "Consulta")
+        window.setCentralWidget(body)
+        window.show()
+        window.resize(*size)
+        settle(app)
+&gt;       assert window.size().width() == size[0]
+E       assert 796 == 1600
+E        +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C47F930&gt;()
+E        +    where &lt;built-in method width of QSize object at 0x0000021C6C47F930&gt; = PyQt5.QtCore.QSize(796, 596).width
+E        +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B3AD9A0&gt;()
+E        +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B3AD9A0&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B3AD9A0&gt;.size
+
+tests\ui\test_design_system_navigation_visuals.py:83: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_navigation_visuals" name="test_navigation_authentication_and_keyboard_visuals[touch-light-size4]" time="3.098"><failure message="assert 796 == 1920&#10; +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C47ED60&gt;()&#10; +    where &lt;built-in method width of QSize object at 0x0000021C6C47ED60&gt; = PyQt5.QtCore.QSize(796, 596).width&#10; +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B35AC30&gt;()&#10; +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B35AC30&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B35AC30&gt;.size">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-KFmZDh')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6C48BE30&gt;
+size = (1920, 1080), theme = 'light', density = 'touch'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density):
+        app = qt_font_resources
+        ThemeManager.instance().apply(app, theme, density=density)
+        artifacts = Path(os.environ.get("SPJ_UI_VISUAL_ARTIFACTS", str(ui_tmp_path)))
+        label = f"{theme}-{density}-{size[0]}x{size[1]}"
+        summary = SimpleNamespace(get_summary=lambda: SimpleNamespace(company_name="JUANIS", branch_name="Sucursal Centro"))
+        login = LoginWindow(
+            authenticate_use_case=None, begin_recovery_use_case=None,
+            complete_recovery_use_case=None, installation_summary_query=summary,
+        )
+        monkeypatch.setattr(login, "available_geometry", lambda: QRect(0, 0, *size))
+        login.show()
+        settle(app)
+        assert login.available_geometry().contains(login.frameGeometry())
+        assert login.viewport.viewport().rect().contains(QRect(
+            login._login_btn.mapTo(login.viewport.viewport(), QPoint()), login._login_btn.size()))
+        save(login, artifacts, label + "-login")
+        login.close()
+        login.deleteLater()
+    
+        window = StandardWindow()
+        body = QWidget()
+        root = QVBoxLayout(body)
+        top_bar = TopBar()
+        top_bar.set_context(make_context(user_name="Ana Ruiz"))
+        root.addWidget(top_bar)
+        row = QHBoxLayout()
+        root.addLayout(row, 1)
+        nav = SideNav()
+        nav.add_group("Tesorería", Icons.FINANCE)
+        nav.add_section("Cuentas y transferencias", Icons.TRANSFERS)
+        nav.add_section("Conciliación bancaria", Icons.FINANCE)
+        nav.add_group("Cobranza", Icons.CUSTOMERS)
+        nav.add_section("Clientes", Icons.CUSTOMERS)
+        nav.select(1)
+        row.addWidget(nav)
+        tabs = Tabs()
+        row.addWidget(tabs, 1)
+        dashboard = DashboardPage(title="Resumen de tesorería", subtitle="Información de la sucursal seleccionada")
+        dashboard.context_bar.set_context({"Sucursal": "Centro", "Periodo": "Actual"})
+        dashboard.kpis.set_cards([KPIDTO("balance", "Saldo disponible", "$12,450.00", icon=Icons.CASH)])
+        dashboard.grid.add_full_width(QLabel("Sin movimientos pendientes de conciliación"))
+        tabs.addTab(dashboard, "Resumen")
+        form = FormPage(title="Datos de consulta")
+        first = StandardLineEdit(placeholder="Referencia", keyboard_enabled=False)
+        form.add_content(first)
+        for index in range(24):
+            form.add_content(StandardLineEdit(placeholder=f"Campo {index + 1}", keyboard_enabled=False))
+        action = PrimaryButton("Consultar")
+        form.add_action(action)
+        tabs.addTab(form, "Consulta")
+        window.setCentralWidget(body)
+        window.show()
+        window.resize(*size)
+        settle(app)
+&gt;       assert window.size().width() == size[0]
+E       assert 796 == 1920
+E        +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C47ED60&gt;()
+E        +    where &lt;built-in method width of QSize object at 0x0000021C6C47ED60&gt; = PyQt5.QtCore.QSize(796, 596).width
+E        +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B35AC30&gt;()
+E        +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B35AC30&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B35AC30&gt;.size
+
+tests\ui\test_design_system_navigation_visuals.py:83: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_navigation_visuals" name="test_navigation_authentication_and_keyboard_visuals[touch-dark-size0]" time="3.237"><failure message="assert 796 == 1280&#10; +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C47F5B0&gt;()&#10; +    where &lt;built-in method width of QSize object at 0x0000021C6C47F5B0&gt; = PyQt5.QtCore.QSize(796, 596).width&#10; +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B379880&gt;()&#10; +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B379880&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B379880&gt;.size">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-LlOFTs')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6C4D0470&gt;
+size = (1280, 720), theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density):
+        app = qt_font_resources
+        ThemeManager.instance().apply(app, theme, density=density)
+        artifacts = Path(os.environ.get("SPJ_UI_VISUAL_ARTIFACTS", str(ui_tmp_path)))
+        label = f"{theme}-{density}-{size[0]}x{size[1]}"
+        summary = SimpleNamespace(get_summary=lambda: SimpleNamespace(company_name="JUANIS", branch_name="Sucursal Centro"))
+        login = LoginWindow(
+            authenticate_use_case=None, begin_recovery_use_case=None,
+            complete_recovery_use_case=None, installation_summary_query=summary,
+        )
+        monkeypatch.setattr(login, "available_geometry", lambda: QRect(0, 0, *size))
+        login.show()
+        settle(app)
+        assert login.available_geometry().contains(login.frameGeometry())
+        assert login.viewport.viewport().rect().contains(QRect(
+            login._login_btn.mapTo(login.viewport.viewport(), QPoint()), login._login_btn.size()))
+        save(login, artifacts, label + "-login")
+        login.close()
+        login.deleteLater()
+    
+        window = StandardWindow()
+        body = QWidget()
+        root = QVBoxLayout(body)
+        top_bar = TopBar()
+        top_bar.set_context(make_context(user_name="Ana Ruiz"))
+        root.addWidget(top_bar)
+        row = QHBoxLayout()
+        root.addLayout(row, 1)
+        nav = SideNav()
+        nav.add_group("Tesorería", Icons.FINANCE)
+        nav.add_section("Cuentas y transferencias", Icons.TRANSFERS)
+        nav.add_section("Conciliación bancaria", Icons.FINANCE)
+        nav.add_group("Cobranza", Icons.CUSTOMERS)
+        nav.add_section("Clientes", Icons.CUSTOMERS)
+        nav.select(1)
+        row.addWidget(nav)
+        tabs = Tabs()
+        row.addWidget(tabs, 1)
+        dashboard = DashboardPage(title="Resumen de tesorería", subtitle="Información de la sucursal seleccionada")
+        dashboard.context_bar.set_context({"Sucursal": "Centro", "Periodo": "Actual"})
+        dashboard.kpis.set_cards([KPIDTO("balance", "Saldo disponible", "$12,450.00", icon=Icons.CASH)])
+        dashboard.grid.add_full_width(QLabel("Sin movimientos pendientes de conciliación"))
+        tabs.addTab(dashboard, "Resumen")
+        form = FormPage(title="Datos de consulta")
+        first = StandardLineEdit(placeholder="Referencia", keyboard_enabled=False)
+        form.add_content(first)
+        for index in range(24):
+            form.add_content(StandardLineEdit(placeholder=f"Campo {index + 1}", keyboard_enabled=False))
+        action = PrimaryButton("Consultar")
+        form.add_action(action)
+        tabs.addTab(form, "Consulta")
+        window.setCentralWidget(body)
+        window.show()
+        window.resize(*size)
+        settle(app)
+&gt;       assert window.size().width() == size[0]
+E       assert 796 == 1280
+E        +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C47F5B0&gt;()
+E        +    where &lt;built-in method width of QSize object at 0x0000021C6C47F5B0&gt; = PyQt5.QtCore.QSize(796, 596).width
+E        +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B379880&gt;()
+E        +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B379880&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B379880&gt;.size
+
+tests\ui\test_design_system_navigation_visuals.py:83: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_navigation_visuals" name="test_navigation_authentication_and_keyboard_visuals[touch-dark-size1]" time="2.459"><failure message="assert 796 == 1366&#10; +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6B3D0210&gt;()&#10; +    where &lt;built-in method width of QSize object at 0x0000021C6B3D0210&gt; = PyQt5.QtCore.QSize(796, 596).width&#10; +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B2CC320&gt;()&#10; +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B2CC320&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B2CC320&gt;.size">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-TKJdcl')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6B33F110&gt;
+size = (1366, 768), theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density):
+        app = qt_font_resources
+        ThemeManager.instance().apply(app, theme, density=density)
+        artifacts = Path(os.environ.get("SPJ_UI_VISUAL_ARTIFACTS", str(ui_tmp_path)))
+        label = f"{theme}-{density}-{size[0]}x{size[1]}"
+        summary = SimpleNamespace(get_summary=lambda: SimpleNamespace(company_name="JUANIS", branch_name="Sucursal Centro"))
+        login = LoginWindow(
+            authenticate_use_case=None, begin_recovery_use_case=None,
+            complete_recovery_use_case=None, installation_summary_query=summary,
+        )
+        monkeypatch.setattr(login, "available_geometry", lambda: QRect(0, 0, *size))
+        login.show()
+        settle(app)
+        assert login.available_geometry().contains(login.frameGeometry())
+        assert login.viewport.viewport().rect().contains(QRect(
+            login._login_btn.mapTo(login.viewport.viewport(), QPoint()), login._login_btn.size()))
+        save(login, artifacts, label + "-login")
+        login.close()
+        login.deleteLater()
+    
+        window = StandardWindow()
+        body = QWidget()
+        root = QVBoxLayout(body)
+        top_bar = TopBar()
+        top_bar.set_context(make_context(user_name="Ana Ruiz"))
+        root.addWidget(top_bar)
+        row = QHBoxLayout()
+        root.addLayout(row, 1)
+        nav = SideNav()
+        nav.add_group("Tesorería", Icons.FINANCE)
+        nav.add_section("Cuentas y transferencias", Icons.TRANSFERS)
+        nav.add_section("Conciliación bancaria", Icons.FINANCE)
+        nav.add_group("Cobranza", Icons.CUSTOMERS)
+        nav.add_section("Clientes", Icons.CUSTOMERS)
+        nav.select(1)
+        row.addWidget(nav)
+        tabs = Tabs()
+        row.addWidget(tabs, 1)
+        dashboard = DashboardPage(title="Resumen de tesorería", subtitle="Información de la sucursal seleccionada")
+        dashboard.context_bar.set_context({"Sucursal": "Centro", "Periodo": "Actual"})
+        dashboard.kpis.set_cards([KPIDTO("balance", "Saldo disponible", "$12,450.00", icon=Icons.CASH)])
+        dashboard.grid.add_full_width(QLabel("Sin movimientos pendientes de conciliación"))
+        tabs.addTab(dashboard, "Resumen")
+        form = FormPage(title="Datos de consulta")
+        first = StandardLineEdit(placeholder="Referencia", keyboard_enabled=False)
+        form.add_content(first)
+        for index in range(24):
+            form.add_content(StandardLineEdit(placeholder=f"Campo {index + 1}", keyboard_enabled=False))
+        action = PrimaryButton("Consultar")
+        form.add_action(action)
+        tabs.addTab(form, "Consulta")
+        window.setCentralWidget(body)
+        window.show()
+        window.resize(*size)
+        settle(app)
+&gt;       assert window.size().width() == size[0]
+E       assert 796 == 1366
+E        +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6B3D0210&gt;()
+E        +    where &lt;built-in method width of QSize object at 0x0000021C6B3D0210&gt; = PyQt5.QtCore.QSize(796, 596).width
+E        +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B2CC320&gt;()
+E        +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B2CC320&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B2CC320&gt;.size
+
+tests\ui\test_design_system_navigation_visuals.py:83: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_navigation_visuals" name="test_navigation_authentication_and_keyboard_visuals[touch-dark-size2]" time="3.739"><failure message="assert 796 == 1440&#10; +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C47E580&gt;()&#10; +    where &lt;built-in method width of QSize object at 0x0000021C6C47E580&gt; = PyQt5.QtCore.QSize(796, 596).width&#10; +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6C416720&gt;()&#10; +        where &lt;built-in method size of StandardWindow object at 0x0000021C6C416720&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6C416720&gt;.size">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-MHTcgT')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6B33E710&gt;
+size = (1440, 900), theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density):
+        app = qt_font_resources
+        ThemeManager.instance().apply(app, theme, density=density)
+        artifacts = Path(os.environ.get("SPJ_UI_VISUAL_ARTIFACTS", str(ui_tmp_path)))
+        label = f"{theme}-{density}-{size[0]}x{size[1]}"
+        summary = SimpleNamespace(get_summary=lambda: SimpleNamespace(company_name="JUANIS", branch_name="Sucursal Centro"))
+        login = LoginWindow(
+            authenticate_use_case=None, begin_recovery_use_case=None,
+            complete_recovery_use_case=None, installation_summary_query=summary,
+        )
+        monkeypatch.setattr(login, "available_geometry", lambda: QRect(0, 0, *size))
+        login.show()
+        settle(app)
+        assert login.available_geometry().contains(login.frameGeometry())
+        assert login.viewport.viewport().rect().contains(QRect(
+            login._login_btn.mapTo(login.viewport.viewport(), QPoint()), login._login_btn.size()))
+        save(login, artifacts, label + "-login")
+        login.close()
+        login.deleteLater()
+    
+        window = StandardWindow()
+        body = QWidget()
+        root = QVBoxLayout(body)
+        top_bar = TopBar()
+        top_bar.set_context(make_context(user_name="Ana Ruiz"))
+        root.addWidget(top_bar)
+        row = QHBoxLayout()
+        root.addLayout(row, 1)
+        nav = SideNav()
+        nav.add_group("Tesorería", Icons.FINANCE)
+        nav.add_section("Cuentas y transferencias", Icons.TRANSFERS)
+        nav.add_section("Conciliación bancaria", Icons.FINANCE)
+        nav.add_group("Cobranza", Icons.CUSTOMERS)
+        nav.add_section("Clientes", Icons.CUSTOMERS)
+        nav.select(1)
+        row.addWidget(nav)
+        tabs = Tabs()
+        row.addWidget(tabs, 1)
+        dashboard = DashboardPage(title="Resumen de tesorería", subtitle="Información de la sucursal seleccionada")
+        dashboard.context_bar.set_context({"Sucursal": "Centro", "Periodo": "Actual"})
+        dashboard.kpis.set_cards([KPIDTO("balance", "Saldo disponible", "$12,450.00", icon=Icons.CASH)])
+        dashboard.grid.add_full_width(QLabel("Sin movimientos pendientes de conciliación"))
+        tabs.addTab(dashboard, "Resumen")
+        form = FormPage(title="Datos de consulta")
+        first = StandardLineEdit(placeholder="Referencia", keyboard_enabled=False)
+        form.add_content(first)
+        for index in range(24):
+            form.add_content(StandardLineEdit(placeholder=f"Campo {index + 1}", keyboard_enabled=False))
+        action = PrimaryButton("Consultar")
+        form.add_action(action)
+        tabs.addTab(form, "Consulta")
+        window.setCentralWidget(body)
+        window.show()
+        window.resize(*size)
+        settle(app)
+&gt;       assert window.size().width() == size[0]
+E       assert 796 == 1440
+E        +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C47E580&gt;()
+E        +    where &lt;built-in method width of QSize object at 0x0000021C6C47E580&gt; = PyQt5.QtCore.QSize(796, 596).width
+E        +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6C416720&gt;()
+E        +        where &lt;built-in method size of StandardWindow object at 0x0000021C6C416720&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6C416720&gt;.size
+
+tests\ui\test_design_system_navigation_visuals.py:83: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_navigation_visuals" name="test_navigation_authentication_and_keyboard_visuals[touch-dark-size3]" time="3.670"><failure message="assert 796 == 1600&#10; +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C4A6200&gt;()&#10; +    where &lt;built-in method width of QSize object at 0x0000021C6C4A6200&gt; = PyQt5.QtCore.QSize(796, 596).width&#10; +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B3D9AC0&gt;()&#10; +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B3D9AC0&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B3D9AC0&gt;.size">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-VXMSiT')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6C42D1C0&gt;
+size = (1600, 900), theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density):
+        app = qt_font_resources
+        ThemeManager.instance().apply(app, theme, density=density)
+        artifacts = Path(os.environ.get("SPJ_UI_VISUAL_ARTIFACTS", str(ui_tmp_path)))
+        label = f"{theme}-{density}-{size[0]}x{size[1]}"
+        summary = SimpleNamespace(get_summary=lambda: SimpleNamespace(company_name="JUANIS", branch_name="Sucursal Centro"))
+        login = LoginWindow(
+            authenticate_use_case=None, begin_recovery_use_case=None,
+            complete_recovery_use_case=None, installation_summary_query=summary,
+        )
+        monkeypatch.setattr(login, "available_geometry", lambda: QRect(0, 0, *size))
+        login.show()
+        settle(app)
+        assert login.available_geometry().contains(login.frameGeometry())
+        assert login.viewport.viewport().rect().contains(QRect(
+            login._login_btn.mapTo(login.viewport.viewport(), QPoint()), login._login_btn.size()))
+        save(login, artifacts, label + "-login")
+        login.close()
+        login.deleteLater()
+    
+        window = StandardWindow()
+        body = QWidget()
+        root = QVBoxLayout(body)
+        top_bar = TopBar()
+        top_bar.set_context(make_context(user_name="Ana Ruiz"))
+        root.addWidget(top_bar)
+        row = QHBoxLayout()
+        root.addLayout(row, 1)
+        nav = SideNav()
+        nav.add_group("Tesorería", Icons.FINANCE)
+        nav.add_section("Cuentas y transferencias", Icons.TRANSFERS)
+        nav.add_section("Conciliación bancaria", Icons.FINANCE)
+        nav.add_group("Cobranza", Icons.CUSTOMERS)
+        nav.add_section("Clientes", Icons.CUSTOMERS)
+        nav.select(1)
+        row.addWidget(nav)
+        tabs = Tabs()
+        row.addWidget(tabs, 1)
+        dashboard = DashboardPage(title="Resumen de tesorería", subtitle="Información de la sucursal seleccionada")
+        dashboard.context_bar.set_context({"Sucursal": "Centro", "Periodo": "Actual"})
+        dashboard.kpis.set_cards([KPIDTO("balance", "Saldo disponible", "$12,450.00", icon=Icons.CASH)])
+        dashboard.grid.add_full_width(QLabel("Sin movimientos pendientes de conciliación"))
+        tabs.addTab(dashboard, "Resumen")
+        form = FormPage(title="Datos de consulta")
+        first = StandardLineEdit(placeholder="Referencia", keyboard_enabled=False)
+        form.add_content(first)
+        for index in range(24):
+            form.add_content(StandardLineEdit(placeholder=f"Campo {index + 1}", keyboard_enabled=False))
+        action = PrimaryButton("Consultar")
+        form.add_action(action)
+        tabs.addTab(form, "Consulta")
+        window.setCentralWidget(body)
+        window.show()
+        window.resize(*size)
+        settle(app)
+&gt;       assert window.size().width() == size[0]
+E       assert 796 == 1600
+E        +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C4A6200&gt;()
+E        +    where &lt;built-in method width of QSize object at 0x0000021C6C4A6200&gt; = PyQt5.QtCore.QSize(796, 596).width
+E        +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6B3D9AC0&gt;()
+E        +        where &lt;built-in method size of StandardWindow object at 0x0000021C6B3D9AC0&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6B3D9AC0&gt;.size
+
+tests\ui\test_design_system_navigation_visuals.py:83: AssertionError</failure></testcase><testcase classname="tests.ui.test_design_system_navigation_visuals" name="test_navigation_authentication_and_keyboard_visuals[touch-dark-size4]" time="3.448"><failure message="assert 796 == 1920&#10; +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C4A6BA0&gt;()&#10; +    where &lt;built-in method width of QSize object at 0x0000021C6C4A6BA0&gt; = PyQt5.QtCore.QSize(796, 596).width&#10; +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6C427DA0&gt;()&#10; +        where &lt;built-in method size of StandardWindow object at 0x0000021C6C427DA0&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6C427DA0&gt;.size">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-WAmMqJ')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6B3C2AD0&gt;
+size = (1920, 1080), theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density):
+        app = qt_font_resources
+        ThemeManager.instance().apply(app, theme, density=density)
+        artifacts = Path(os.environ.get("SPJ_UI_VISUAL_ARTIFACTS", str(ui_tmp_path)))
+        label = f"{theme}-{density}-{size[0]}x{size[1]}"
+        summary = SimpleNamespace(get_summary=lambda: SimpleNamespace(company_name="JUANIS", branch_name="Sucursal Centro"))
+        login = LoginWindow(
+            authenticate_use_case=None, begin_recovery_use_case=None,
+            complete_recovery_use_case=None, installation_summary_query=summary,
+        )
+        monkeypatch.setattr(login, "available_geometry", lambda: QRect(0, 0, *size))
+        login.show()
+        settle(app)
+        assert login.available_geometry().contains(login.frameGeometry())
+        assert login.viewport.viewport().rect().contains(QRect(
+            login._login_btn.mapTo(login.viewport.viewport(), QPoint()), login._login_btn.size()))
+        save(login, artifacts, label + "-login")
+        login.close()
+        login.deleteLater()
+    
+        window = StandardWindow()
+        body = QWidget()
+        root = QVBoxLayout(body)
+        top_bar = TopBar()
+        top_bar.set_context(make_context(user_name="Ana Ruiz"))
+        root.addWidget(top_bar)
+        row = QHBoxLayout()
+        root.addLayout(row, 1)
+        nav = SideNav()
+        nav.add_group("Tesorería", Icons.FINANCE)
+        nav.add_section("Cuentas y transferencias", Icons.TRANSFERS)
+        nav.add_section("Conciliación bancaria", Icons.FINANCE)
+        nav.add_group("Cobranza", Icons.CUSTOMERS)
+        nav.add_section("Clientes", Icons.CUSTOMERS)
+        nav.select(1)
+        row.addWidget(nav)
+        tabs = Tabs()
+        row.addWidget(tabs, 1)
+        dashboard = DashboardPage(title="Resumen de tesorería", subtitle="Información de la sucursal seleccionada")
+        dashboard.context_bar.set_context({"Sucursal": "Centro", "Periodo": "Actual"})
+        dashboard.kpis.set_cards([KPIDTO("balance", "Saldo disponible", "$12,450.00", icon=Icons.CASH)])
+        dashboard.grid.add_full_width(QLabel("Sin movimientos pendientes de conciliación"))
+        tabs.addTab(dashboard, "Resumen")
+        form = FormPage(title="Datos de consulta")
+        first = StandardLineEdit(placeholder="Referencia", keyboard_enabled=False)
+        form.add_content(first)
+        for index in range(24):
+            form.add_content(StandardLineEdit(placeholder=f"Campo {index + 1}", keyboard_enabled=False))
+        action = PrimaryButton("Consultar")
+        form.add_action(action)
+        tabs.addTab(form, "Consulta")
+        window.setCentralWidget(body)
+        window.show()
+        window.resize(*size)
+        settle(app)
+&gt;       assert window.size().width() == size[0]
+E       assert 796 == 1920
+E        +  where 796 = &lt;built-in method width of QSize object at 0x0000021C6C4A6BA0&gt;()
+E        +    where &lt;built-in method width of QSize object at 0x0000021C6C4A6BA0&gt; = PyQt5.QtCore.QSize(796, 596).width
+E        +      where PyQt5.QtCore.QSize(796, 596) = &lt;built-in method size of StandardWindow object at 0x0000021C6C427DA0&gt;()
+E        +        where &lt;built-in method size of StandardWindow object at 0x0000021C6C427DA0&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x0000021C6C427DA0&gt;.size
+
+tests\ui\test_design_system_navigation_visuals.py:83: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_profiles_visuals" name="test_density_profiles_preserve_live_page_at_supported_sizes[light-size0]" time="4.026"><failure message="assert (796, 596) == (1280, 720)&#10;  &#10;  At index 0 diff: 796 != 1280&#10;  Use -v to get more diff">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-cdWtDL')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6C412DD0&gt;
+size = (1280, 720), theme = 'light'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ("light", "dark"))
+    def test_density_profiles_preserve_live_page_at_supported_sizes(
+        qt_font_resources, ui_tmp_path, monkeypatch, size, theme,
+    ):
+        app = qt_font_resources
+        settings_path = str(ui_tmp_path / "density.ini")
+        settings = QSettings(settings_path, QSettings.IniFormat)
+        manager = ThemeManager(settings)
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density="comfortable")
+        presenter = MagicMock()
+        presenter.load_page.return_value = SimpleNamespace(
+            columns=(SimpleNamespace(title="Tema", kind="text"),),
+            rows=(SimpleNamespace(entity_id=_THEME_ID, cells=("JUANIS",)),),
+            empty_message="No hay temas registrados.",
+        )
+        presenter.list_themes.return_value = (SimpleNamespace(entity_id=_THEME_ID, name="JUANIS"),)
+        presenter.list_design_tokens_for_theme.return_value = ()
+        presenter.list_density_profiles.return_value = ()
+        presenter.list_appearance_preferences.return_value = ()
+        page = AparienciaPage(presenter)
+        page.ensure_loaded()
+        # Finish the legitimate search before tracking density-only activity.
+        page.search.set_debounce_ms(0)
+        page.search.setText("JUANIS")
+        page.table.selectRow(0)
+        selected_table = page.table
+        calls_before_density = list(presenter.mock_calls)
+    
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(
+            route_id="appearance", module_id="configuracion", title="Apariencia",
+            view_factory_id="appearance",
+        ))
+        factories = ViewFactoryRegistry()
+        factories.register("appearance", lambda: page)
+        router = DesktopRouter(
+            route_registry=registry, view_factory_registry=factories, initial_context=make_context(),
+        )
+        sidebar = GlobalSidebar(settings=settings, settings_key="density-visual")
+        sidebar.set_items((SidebarItemViewModel(
+            "configuracion", "appearance", "Configuración", "settings", "", 0, None, True,
+        ),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("appearance")
+        try:
+            window.show()
+            window.resize(*size)
+            _settle(app)
+            selector = page.density_selector
+            assert tuple((selector.itemData(i), selector.itemText(i)) for i in range(selector.count())) == _PROFILES
+    
+            for density in ("comfortable", "touch", "compact"):
+                _select_density_with_mouse(app, selector, density)
+                metrics = density_metrics(density)
+&gt;               assert (window.width(), window.height()) == size
+E               assert (796, 596) == (1280, 720)
+E                 
+E                 At index 0 diff: 796 != 1280
+E                 Use -v to get more diff
+
+tests\ui\test_density_profiles_visuals.py:117: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_profiles_visuals" name="test_density_profiles_preserve_live_page_at_supported_sizes[light-size1]" time="3.600"><failure message="assert (796, 596) == (1366, 768)&#10;  &#10;  At index 0 diff: 796 != 1366&#10;  Use -v to get more diff">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-hTXocu')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6C4A4980&gt;
+size = (1366, 768), theme = 'light'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ("light", "dark"))
+    def test_density_profiles_preserve_live_page_at_supported_sizes(
+        qt_font_resources, ui_tmp_path, monkeypatch, size, theme,
+    ):
+        app = qt_font_resources
+        settings_path = str(ui_tmp_path / "density.ini")
+        settings = QSettings(settings_path, QSettings.IniFormat)
+        manager = ThemeManager(settings)
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density="comfortable")
+        presenter = MagicMock()
+        presenter.load_page.return_value = SimpleNamespace(
+            columns=(SimpleNamespace(title="Tema", kind="text"),),
+            rows=(SimpleNamespace(entity_id=_THEME_ID, cells=("JUANIS",)),),
+            empty_message="No hay temas registrados.",
+        )
+        presenter.list_themes.return_value = (SimpleNamespace(entity_id=_THEME_ID, name="JUANIS"),)
+        presenter.list_design_tokens_for_theme.return_value = ()
+        presenter.list_density_profiles.return_value = ()
+        presenter.list_appearance_preferences.return_value = ()
+        page = AparienciaPage(presenter)
+        page.ensure_loaded()
+        # Finish the legitimate search before tracking density-only activity.
+        page.search.set_debounce_ms(0)
+        page.search.setText("JUANIS")
+        page.table.selectRow(0)
+        selected_table = page.table
+        calls_before_density = list(presenter.mock_calls)
+    
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(
+            route_id="appearance", module_id="configuracion", title="Apariencia",
+            view_factory_id="appearance",
+        ))
+        factories = ViewFactoryRegistry()
+        factories.register("appearance", lambda: page)
+        router = DesktopRouter(
+            route_registry=registry, view_factory_registry=factories, initial_context=make_context(),
+        )
+        sidebar = GlobalSidebar(settings=settings, settings_key="density-visual")
+        sidebar.set_items((SidebarItemViewModel(
+            "configuracion", "appearance", "Configuración", "settings", "", 0, None, True,
+        ),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("appearance")
+        try:
+            window.show()
+            window.resize(*size)
+            _settle(app)
+            selector = page.density_selector
+            assert tuple((selector.itemData(i), selector.itemText(i)) for i in range(selector.count())) == _PROFILES
+    
+            for density in ("comfortable", "touch", "compact"):
+                _select_density_with_mouse(app, selector, density)
+                metrics = density_metrics(density)
+&gt;               assert (window.width(), window.height()) == size
+E               assert (796, 596) == (1366, 768)
+E                 
+E                 At index 0 diff: 796 != 1366
+E                 Use -v to get more diff
+
+tests\ui\test_density_profiles_visuals.py:117: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_profiles_visuals" name="test_density_profiles_preserve_live_page_at_supported_sizes[light-size2]" time="3.971"><failure message="assert (796, 596) == (1440, 900)&#10;  &#10;  At index 0 diff: 796 != 1440&#10;  Use -v to get more diff">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-GRjvQF')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6C4A7230&gt;
+size = (1440, 900), theme = 'light'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ("light", "dark"))
+    def test_density_profiles_preserve_live_page_at_supported_sizes(
+        qt_font_resources, ui_tmp_path, monkeypatch, size, theme,
+    ):
+        app = qt_font_resources
+        settings_path = str(ui_tmp_path / "density.ini")
+        settings = QSettings(settings_path, QSettings.IniFormat)
+        manager = ThemeManager(settings)
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density="comfortable")
+        presenter = MagicMock()
+        presenter.load_page.return_value = SimpleNamespace(
+            columns=(SimpleNamespace(title="Tema", kind="text"),),
+            rows=(SimpleNamespace(entity_id=_THEME_ID, cells=("JUANIS",)),),
+            empty_message="No hay temas registrados.",
+        )
+        presenter.list_themes.return_value = (SimpleNamespace(entity_id=_THEME_ID, name="JUANIS"),)
+        presenter.list_design_tokens_for_theme.return_value = ()
+        presenter.list_density_profiles.return_value = ()
+        presenter.list_appearance_preferences.return_value = ()
+        page = AparienciaPage(presenter)
+        page.ensure_loaded()
+        # Finish the legitimate search before tracking density-only activity.
+        page.search.set_debounce_ms(0)
+        page.search.setText("JUANIS")
+        page.table.selectRow(0)
+        selected_table = page.table
+        calls_before_density = list(presenter.mock_calls)
+    
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(
+            route_id="appearance", module_id="configuracion", title="Apariencia",
+            view_factory_id="appearance",
+        ))
+        factories = ViewFactoryRegistry()
+        factories.register("appearance", lambda: page)
+        router = DesktopRouter(
+            route_registry=registry, view_factory_registry=factories, initial_context=make_context(),
+        )
+        sidebar = GlobalSidebar(settings=settings, settings_key="density-visual")
+        sidebar.set_items((SidebarItemViewModel(
+            "configuracion", "appearance", "Configuración", "settings", "", 0, None, True,
+        ),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("appearance")
+        try:
+            window.show()
+            window.resize(*size)
+            _settle(app)
+            selector = page.density_selector
+            assert tuple((selector.itemData(i), selector.itemText(i)) for i in range(selector.count())) == _PROFILES
+    
+            for density in ("comfortable", "touch", "compact"):
+                _select_density_with_mouse(app, selector, density)
+                metrics = density_metrics(density)
+&gt;               assert (window.width(), window.height()) == size
+E               assert (796, 596) == (1440, 900)
+E                 
+E                 At index 0 diff: 796 != 1440
+E                 Use -v to get more diff
+
+tests\ui\test_density_profiles_visuals.py:117: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_profiles_visuals" name="test_density_profiles_preserve_live_page_at_supported_sizes[light-size3]" time="3.393"><failure message="assert (796, 596) == (1600, 900)&#10;  &#10;  At index 0 diff: 796 != 1600&#10;  Use -v to get more diff">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-cuwsKf')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6C4A7850&gt;
+size = (1600, 900), theme = 'light'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ("light", "dark"))
+    def test_density_profiles_preserve_live_page_at_supported_sizes(
+        qt_font_resources, ui_tmp_path, monkeypatch, size, theme,
+    ):
+        app = qt_font_resources
+        settings_path = str(ui_tmp_path / "density.ini")
+        settings = QSettings(settings_path, QSettings.IniFormat)
+        manager = ThemeManager(settings)
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density="comfortable")
+        presenter = MagicMock()
+        presenter.load_page.return_value = SimpleNamespace(
+            columns=(SimpleNamespace(title="Tema", kind="text"),),
+            rows=(SimpleNamespace(entity_id=_THEME_ID, cells=("JUANIS",)),),
+            empty_message="No hay temas registrados.",
+        )
+        presenter.list_themes.return_value = (SimpleNamespace(entity_id=_THEME_ID, name="JUANIS"),)
+        presenter.list_design_tokens_for_theme.return_value = ()
+        presenter.list_density_profiles.return_value = ()
+        presenter.list_appearance_preferences.return_value = ()
+        page = AparienciaPage(presenter)
+        page.ensure_loaded()
+        # Finish the legitimate search before tracking density-only activity.
+        page.search.set_debounce_ms(0)
+        page.search.setText("JUANIS")
+        page.table.selectRow(0)
+        selected_table = page.table
+        calls_before_density = list(presenter.mock_calls)
+    
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(
+            route_id="appearance", module_id="configuracion", title="Apariencia",
+            view_factory_id="appearance",
+        ))
+        factories = ViewFactoryRegistry()
+        factories.register("appearance", lambda: page)
+        router = DesktopRouter(
+            route_registry=registry, view_factory_registry=factories, initial_context=make_context(),
+        )
+        sidebar = GlobalSidebar(settings=settings, settings_key="density-visual")
+        sidebar.set_items((SidebarItemViewModel(
+            "configuracion", "appearance", "Configuración", "settings", "", 0, None, True,
+        ),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("appearance")
+        try:
+            window.show()
+            window.resize(*size)
+            _settle(app)
+            selector = page.density_selector
+            assert tuple((selector.itemData(i), selector.itemText(i)) for i in range(selector.count())) == _PROFILES
+    
+            for density in ("comfortable", "touch", "compact"):
+                _select_density_with_mouse(app, selector, density)
+                metrics = density_metrics(density)
+&gt;               assert (window.width(), window.height()) == size
+E               assert (796, 596) == (1600, 900)
+E                 
+E                 At index 0 diff: 796 != 1600
+E                 Use -v to get more diff
+
+tests\ui\test_density_profiles_visuals.py:117: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_profiles_visuals" name="test_density_profiles_preserve_live_page_at_supported_sizes[light-size4]" time="4.747"><failure message="assert (796, 596) == (1920, 1080)&#10;  &#10;  At index 0 diff: 796 != 1920&#10;  Use -v to get more diff">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-MZXtIY')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6C4FF230&gt;
+size = (1920, 1080), theme = 'light'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ("light", "dark"))
+    def test_density_profiles_preserve_live_page_at_supported_sizes(
+        qt_font_resources, ui_tmp_path, monkeypatch, size, theme,
+    ):
+        app = qt_font_resources
+        settings_path = str(ui_tmp_path / "density.ini")
+        settings = QSettings(settings_path, QSettings.IniFormat)
+        manager = ThemeManager(settings)
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density="comfortable")
+        presenter = MagicMock()
+        presenter.load_page.return_value = SimpleNamespace(
+            columns=(SimpleNamespace(title="Tema", kind="text"),),
+            rows=(SimpleNamespace(entity_id=_THEME_ID, cells=("JUANIS",)),),
+            empty_message="No hay temas registrados.",
+        )
+        presenter.list_themes.return_value = (SimpleNamespace(entity_id=_THEME_ID, name="JUANIS"),)
+        presenter.list_design_tokens_for_theme.return_value = ()
+        presenter.list_density_profiles.return_value = ()
+        presenter.list_appearance_preferences.return_value = ()
+        page = AparienciaPage(presenter)
+        page.ensure_loaded()
+        # Finish the legitimate search before tracking density-only activity.
+        page.search.set_debounce_ms(0)
+        page.search.setText("JUANIS")
+        page.table.selectRow(0)
+        selected_table = page.table
+        calls_before_density = list(presenter.mock_calls)
+    
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(
+            route_id="appearance", module_id="configuracion", title="Apariencia",
+            view_factory_id="appearance",
+        ))
+        factories = ViewFactoryRegistry()
+        factories.register("appearance", lambda: page)
+        router = DesktopRouter(
+            route_registry=registry, view_factory_registry=factories, initial_context=make_context(),
+        )
+        sidebar = GlobalSidebar(settings=settings, settings_key="density-visual")
+        sidebar.set_items((SidebarItemViewModel(
+            "configuracion", "appearance", "Configuración", "settings", "", 0, None, True,
+        ),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("appearance")
+        try:
+            window.show()
+            window.resize(*size)
+            _settle(app)
+            selector = page.density_selector
+            assert tuple((selector.itemData(i), selector.itemText(i)) for i in range(selector.count())) == _PROFILES
+    
+            for density in ("comfortable", "touch", "compact"):
+                _select_density_with_mouse(app, selector, density)
+                metrics = density_metrics(density)
+&gt;               assert (window.width(), window.height()) == size
+E               assert (796, 596) == (1920, 1080)
+E                 
+E                 At index 0 diff: 796 != 1920
+E                 Use -v to get more diff
+
+tests\ui\test_density_profiles_visuals.py:117: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_profiles_visuals" name="test_density_profiles_preserve_live_page_at_supported_sizes[dark-size0]" time="7.861"><failure message="assert (796, 596) == (1280, 720)&#10;  &#10;  At index 0 diff: 796 != 1280&#10;  Use -v to get more diff">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-QehpXG')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6C4FF770&gt;
+size = (1280, 720), theme = 'dark'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ("light", "dark"))
+    def test_density_profiles_preserve_live_page_at_supported_sizes(
+        qt_font_resources, ui_tmp_path, monkeypatch, size, theme,
+    ):
+        app = qt_font_resources
+        settings_path = str(ui_tmp_path / "density.ini")
+        settings = QSettings(settings_path, QSettings.IniFormat)
+        manager = ThemeManager(settings)
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density="comfortable")
+        presenter = MagicMock()
+        presenter.load_page.return_value = SimpleNamespace(
+            columns=(SimpleNamespace(title="Tema", kind="text"),),
+            rows=(SimpleNamespace(entity_id=_THEME_ID, cells=("JUANIS",)),),
+            empty_message="No hay temas registrados.",
+        )
+        presenter.list_themes.return_value = (SimpleNamespace(entity_id=_THEME_ID, name="JUANIS"),)
+        presenter.list_design_tokens_for_theme.return_value = ()
+        presenter.list_density_profiles.return_value = ()
+        presenter.list_appearance_preferences.return_value = ()
+        page = AparienciaPage(presenter)
+        page.ensure_loaded()
+        # Finish the legitimate search before tracking density-only activity.
+        page.search.set_debounce_ms(0)
+        page.search.setText("JUANIS")
+        page.table.selectRow(0)
+        selected_table = page.table
+        calls_before_density = list(presenter.mock_calls)
+    
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(
+            route_id="appearance", module_id="configuracion", title="Apariencia",
+            view_factory_id="appearance",
+        ))
+        factories = ViewFactoryRegistry()
+        factories.register("appearance", lambda: page)
+        router = DesktopRouter(
+            route_registry=registry, view_factory_registry=factories, initial_context=make_context(),
+        )
+        sidebar = GlobalSidebar(settings=settings, settings_key="density-visual")
+        sidebar.set_items((SidebarItemViewModel(
+            "configuracion", "appearance", "Configuración", "settings", "", 0, None, True,
+        ),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("appearance")
+        try:
+            window.show()
+            window.resize(*size)
+            _settle(app)
+            selector = page.density_selector
+            assert tuple((selector.itemData(i), selector.itemText(i)) for i in range(selector.count())) == _PROFILES
+    
+            for density in ("comfortable", "touch", "compact"):
+                _select_density_with_mouse(app, selector, density)
+                metrics = density_metrics(density)
+&gt;               assert (window.width(), window.height()) == size
+E               assert (796, 596) == (1280, 720)
+E                 
+E                 At index 0 diff: 796 != 1280
+E                 Use -v to get more diff
+
+tests\ui\test_density_profiles_visuals.py:117: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_profiles_visuals" name="test_density_profiles_preserve_live_page_at_supported_sizes[dark-size1]" time="2.946"><failure message="assert (796, 596) == (1366, 768)&#10;  &#10;  At index 0 diff: 796 != 1366&#10;  Use -v to get more diff">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-zmYDRf')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6C4FEB30&gt;
+size = (1366, 768), theme = 'dark'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ("light", "dark"))
+    def test_density_profiles_preserve_live_page_at_supported_sizes(
+        qt_font_resources, ui_tmp_path, monkeypatch, size, theme,
+    ):
+        app = qt_font_resources
+        settings_path = str(ui_tmp_path / "density.ini")
+        settings = QSettings(settings_path, QSettings.IniFormat)
+        manager = ThemeManager(settings)
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density="comfortable")
+        presenter = MagicMock()
+        presenter.load_page.return_value = SimpleNamespace(
+            columns=(SimpleNamespace(title="Tema", kind="text"),),
+            rows=(SimpleNamespace(entity_id=_THEME_ID, cells=("JUANIS",)),),
+            empty_message="No hay temas registrados.",
+        )
+        presenter.list_themes.return_value = (SimpleNamespace(entity_id=_THEME_ID, name="JUANIS"),)
+        presenter.list_design_tokens_for_theme.return_value = ()
+        presenter.list_density_profiles.return_value = ()
+        presenter.list_appearance_preferences.return_value = ()
+        page = AparienciaPage(presenter)
+        page.ensure_loaded()
+        # Finish the legitimate search before tracking density-only activity.
+        page.search.set_debounce_ms(0)
+        page.search.setText("JUANIS")
+        page.table.selectRow(0)
+        selected_table = page.table
+        calls_before_density = list(presenter.mock_calls)
+    
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(
+            route_id="appearance", module_id="configuracion", title="Apariencia",
+            view_factory_id="appearance",
+        ))
+        factories = ViewFactoryRegistry()
+        factories.register("appearance", lambda: page)
+        router = DesktopRouter(
+            route_registry=registry, view_factory_registry=factories, initial_context=make_context(),
+        )
+        sidebar = GlobalSidebar(settings=settings, settings_key="density-visual")
+        sidebar.set_items((SidebarItemViewModel(
+            "configuracion", "appearance", "Configuración", "settings", "", 0, None, True,
+        ),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("appearance")
+        try:
+            window.show()
+            window.resize(*size)
+            _settle(app)
+            selector = page.density_selector
+            assert tuple((selector.itemData(i), selector.itemText(i)) for i in range(selector.count())) == _PROFILES
+    
+            for density in ("comfortable", "touch", "compact"):
+                _select_density_with_mouse(app, selector, density)
+                metrics = density_metrics(density)
+&gt;               assert (window.width(), window.height()) == size
+E               assert (796, 596) == (1366, 768)
+E                 
+E                 At index 0 diff: 796 != 1366
+E                 Use -v to get more diff
+
+tests\ui\test_density_profiles_visuals.py:117: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_profiles_visuals" name="test_density_profiles_preserve_live_page_at_supported_sizes[dark-size2]" time="2.160"><failure message="assert (796, 596) == (1440, 900)&#10;  &#10;  At index 0 diff: 796 != 1440&#10;  Use -v to get more diff">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-nCjPfE')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6C4A7A80&gt;
+size = (1440, 900), theme = 'dark'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ("light", "dark"))
+    def test_density_profiles_preserve_live_page_at_supported_sizes(
+        qt_font_resources, ui_tmp_path, monkeypatch, size, theme,
+    ):
+        app = qt_font_resources
+        settings_path = str(ui_tmp_path / "density.ini")
+        settings = QSettings(settings_path, QSettings.IniFormat)
+        manager = ThemeManager(settings)
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density="comfortable")
+        presenter = MagicMock()
+        presenter.load_page.return_value = SimpleNamespace(
+            columns=(SimpleNamespace(title="Tema", kind="text"),),
+            rows=(SimpleNamespace(entity_id=_THEME_ID, cells=("JUANIS",)),),
+            empty_message="No hay temas registrados.",
+        )
+        presenter.list_themes.return_value = (SimpleNamespace(entity_id=_THEME_ID, name="JUANIS"),)
+        presenter.list_design_tokens_for_theme.return_value = ()
+        presenter.list_density_profiles.return_value = ()
+        presenter.list_appearance_preferences.return_value = ()
+        page = AparienciaPage(presenter)
+        page.ensure_loaded()
+        # Finish the legitimate search before tracking density-only activity.
+        page.search.set_debounce_ms(0)
+        page.search.setText("JUANIS")
+        page.table.selectRow(0)
+        selected_table = page.table
+        calls_before_density = list(presenter.mock_calls)
+    
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(
+            route_id="appearance", module_id="configuracion", title="Apariencia",
+            view_factory_id="appearance",
+        ))
+        factories = ViewFactoryRegistry()
+        factories.register("appearance", lambda: page)
+        router = DesktopRouter(
+            route_registry=registry, view_factory_registry=factories, initial_context=make_context(),
+        )
+        sidebar = GlobalSidebar(settings=settings, settings_key="density-visual")
+        sidebar.set_items((SidebarItemViewModel(
+            "configuracion", "appearance", "Configuración", "settings", "", 0, None, True,
+        ),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("appearance")
+        try:
+            window.show()
+            window.resize(*size)
+            _settle(app)
+            selector = page.density_selector
+            assert tuple((selector.itemData(i), selector.itemText(i)) for i in range(selector.count())) == _PROFILES
+    
+            for density in ("comfortable", "touch", "compact"):
+                _select_density_with_mouse(app, selector, density)
+                metrics = density_metrics(density)
+&gt;               assert (window.width(), window.height()) == size
+E               assert (796, 596) == (1440, 900)
+E                 
+E                 At index 0 diff: 796 != 1440
+E                 Use -v to get more diff
+
+tests\ui\test_density_profiles_visuals.py:117: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_profiles_visuals" name="test_density_profiles_preserve_live_page_at_supported_sizes[dark-size3]" time="2.812"><failure message="assert (796, 596) == (1600, 900)&#10;  &#10;  At index 0 diff: 796 != 1600&#10;  Use -v to get more diff">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-wfqxjX')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6C47D470&gt;
+size = (1600, 900), theme = 'dark'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ("light", "dark"))
+    def test_density_profiles_preserve_live_page_at_supported_sizes(
+        qt_font_resources, ui_tmp_path, monkeypatch, size, theme,
+    ):
+        app = qt_font_resources
+        settings_path = str(ui_tmp_path / "density.ini")
+        settings = QSettings(settings_path, QSettings.IniFormat)
+        manager = ThemeManager(settings)
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density="comfortable")
+        presenter = MagicMock()
+        presenter.load_page.return_value = SimpleNamespace(
+            columns=(SimpleNamespace(title="Tema", kind="text"),),
+            rows=(SimpleNamespace(entity_id=_THEME_ID, cells=("JUANIS",)),),
+            empty_message="No hay temas registrados.",
+        )
+        presenter.list_themes.return_value = (SimpleNamespace(entity_id=_THEME_ID, name="JUANIS"),)
+        presenter.list_design_tokens_for_theme.return_value = ()
+        presenter.list_density_profiles.return_value = ()
+        presenter.list_appearance_preferences.return_value = ()
+        page = AparienciaPage(presenter)
+        page.ensure_loaded()
+        # Finish the legitimate search before tracking density-only activity.
+        page.search.set_debounce_ms(0)
+        page.search.setText("JUANIS")
+        page.table.selectRow(0)
+        selected_table = page.table
+        calls_before_density = list(presenter.mock_calls)
+    
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(
+            route_id="appearance", module_id="configuracion", title="Apariencia",
+            view_factory_id="appearance",
+        ))
+        factories = ViewFactoryRegistry()
+        factories.register("appearance", lambda: page)
+        router = DesktopRouter(
+            route_registry=registry, view_factory_registry=factories, initial_context=make_context(),
+        )
+        sidebar = GlobalSidebar(settings=settings, settings_key="density-visual")
+        sidebar.set_items((SidebarItemViewModel(
+            "configuracion", "appearance", "Configuración", "settings", "", 0, None, True,
+        ),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("appearance")
+        try:
+            window.show()
+            window.resize(*size)
+            _settle(app)
+            selector = page.density_selector
+            assert tuple((selector.itemData(i), selector.itemText(i)) for i in range(selector.count())) == _PROFILES
+    
+            for density in ("comfortable", "touch", "compact"):
+                _select_density_with_mouse(app, selector, density)
+                metrics = density_metrics(density)
+&gt;               assert (window.width(), window.height()) == size
+E               assert (796, 596) == (1600, 900)
+E                 
+E                 At index 0 diff: 796 != 1600
+E                 Use -v to get more diff
+
+tests\ui\test_density_profiles_visuals.py:117: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_profiles_visuals" name="test_density_profiles_preserve_live_page_at_supported_sizes[dark-size4]" time="3.679"><failure message="assert (796, 596) == (1920, 1080)&#10;  &#10;  At index 0 diff: 796 != 1920&#10;  Use -v to get more diff">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000021C6B288320&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-aTkfDZ')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021C6C525940&gt;
+size = (1920, 1080), theme = 'dark'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ("light", "dark"))
+    def test_density_profiles_preserve_live_page_at_supported_sizes(
+        qt_font_resources, ui_tmp_path, monkeypatch, size, theme,
+    ):
+        app = qt_font_resources
+        settings_path = str(ui_tmp_path / "density.ini")
+        settings = QSettings(settings_path, QSettings.IniFormat)
+        manager = ThemeManager(settings)
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density="comfortable")
+        presenter = MagicMock()
+        presenter.load_page.return_value = SimpleNamespace(
+            columns=(SimpleNamespace(title="Tema", kind="text"),),
+            rows=(SimpleNamespace(entity_id=_THEME_ID, cells=("JUANIS",)),),
+            empty_message="No hay temas registrados.",
+        )
+        presenter.list_themes.return_value = (SimpleNamespace(entity_id=_THEME_ID, name="JUANIS"),)
+        presenter.list_design_tokens_for_theme.return_value = ()
+        presenter.list_density_profiles.return_value = ()
+        presenter.list_appearance_preferences.return_value = ()
+        page = AparienciaPage(presenter)
+        page.ensure_loaded()
+        # Finish the legitimate search before tracking density-only activity.
+        page.search.set_debounce_ms(0)
+        page.search.setText("JUANIS")
+        page.table.selectRow(0)
+        selected_table = page.table
+        calls_before_density = list(presenter.mock_calls)
+    
+        registry = RouteRegistry()
+        registry.register(RouteDefinition(
+            route_id="appearance", module_id="configuracion", title="Apariencia",
+            view_factory_id="appearance",
+        ))
+        factories = ViewFactoryRegistry()
+        factories.register("appearance", lambda: page)
+        router = DesktopRouter(
+            route_registry=registry, view_factory_registry=factories, initial_context=make_context(),
+        )
+        sidebar = GlobalSidebar(settings=settings, settings_key="density-visual")
+        sidebar.set_items((SidebarItemViewModel(
+            "configuracion", "appearance", "Configuración", "settings", "", 0, None, True,
+        ),))
+        window = ApplicationWindow(router=router, sidebar=sidebar)
+        window.navigate("appearance")
+        try:
+            window.show()
+            window.resize(*size)
+            _settle(app)
+            selector = page.density_selector
+            assert tuple((selector.itemData(i), selector.itemText(i)) for i in range(selector.count())) == _PROFILES
+    
+            for density in ("comfortable", "touch", "compact"):
+                _select_density_with_mouse(app, selector, density)
+                metrics = density_metrics(density)
+&gt;               assert (window.width(), window.height()) == size
+E               assert (796, 596) == (1920, 1080)
+E                 
+E                 At index 0 diff: 796 != 1920
+E                 Use -v to get more diff
+
+tests\ui\test_density_profiles_visuals.py:117: AssertionError</failure></testcase></testsuite></testsuites>

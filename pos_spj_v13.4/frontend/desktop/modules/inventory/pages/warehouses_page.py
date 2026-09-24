@@ -81,6 +81,7 @@ class WarehousesPage(QWidget):
             ColumnSpec("Nombre", "text"),
             ColumnSpec("Tipo", "text"),
             ColumnSpec("Estado", "status"),
+            ColumnSpec("Usos", "text"),
         ])
         self._table.cellDoubleClicked.connect(self._on_double_click)
         layout.addWidget(self._table)
@@ -131,7 +132,7 @@ class WarehousesPage(QWidget):
             ok, message, _ = self._presenter.create_warehouse(
                 code=code, name=name, warehouse_type=dlg.warehouse_type(),
                 temperature_profile=dlg.temperature_profile(), capacity=dlg.capacity(),
-                capacity_uom=dlg.capacity_uom())
+                capacity_uom=dlg.capacity_uom(), purposes=dlg.purposes())
         finally:
             self.create_button.setEnabled(True)
         (QMessageBox.information if ok else QMessageBox.warning)(
@@ -157,7 +158,7 @@ class WarehousesPage(QWidget):
         ok, message, _ = self._presenter.update_warehouse(
             warehouse_id=wid, name=name, warehouse_type=dlg.warehouse_type(),
             temperature_profile=dlg.temperature_profile(), capacity=dlg.capacity(),
-            capacity_uom=dlg.capacity_uom())
+            capacity_uom=dlg.capacity_uom(), purposes=dlg.purposes())
         (QMessageBox.information if ok else QMessageBox.warning)(
             self, "Almacenes", message)
         if ok:

@@ -34,6 +34,7 @@ from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs import (
     SupplierBlockDialog,
     SupplierFormDialog,
+    SupplierReasonDialog,
 )
 from frontend.desktop.themes.tokens import Spacing
 
@@ -101,11 +102,25 @@ class SupplierListPage(QWidget):
         actions.setSpacing(Spacing.SM)
         view_btn = create_secondary_button(self, "Ver ficha")
         view_btn.clicked.connect(self._open_selected)
+        # El ciclo de vida comercial completo. Antes esta barra sólo ofrecía
+        # Aprobar y Bloquear: enviar a aprobación, activar, suspender y dar de
+        # baja existían en el dominio pero no había por dónde ejecutarlas, así
+        # que un proveedor sólo podía avanzar o bloquearse, nunca reactivarse
+        # ni darse de baja.
+        submit_btn = create_secondary_button(self, "Enviar a aprobación")
+        submit_btn.clicked.connect(self._submit)
         approve_btn = create_success_button(self, "Aprobar")
         approve_btn.clicked.connect(self._approve)
+        activate_btn = create_success_button(self, "Activar")
+        activate_btn.clicked.connect(self._activate)
+        suspend_btn = create_secondary_button(self, "Suspender")
+        suspend_btn.clicked.connect(self._suspend)
+        deactivate_btn = create_danger_button(self, "Dar de baja")
+        deactivate_btn.clicked.connect(self._deactivate)
         block_btn = create_danger_button(self, "Bloquear")
         block_btn.clicked.connect(self._block)
-        for btn in (view_btn, approve_btn, block_btn):
+        for btn in (view_btn, submit_btn, approve_btn, activate_btn,
+                    suspend_btn, deactivate_btn, block_btn):
             actions.addWidget(btn)
         actions.addStretch(1)
         self._prev = create_secondary_button(self, "Anterior")
@@ -134,7 +149,16 @@ class SupplierListPage(QWidget):
                 status=self._status.current_id(), page=self._page)
             self._total = model.total
             self._table.load_rows(model.rows, row_ids=model.row_ids)
-            self._stack.setCurrentWidget(self._table if model.rows else self._empty)
+            if model.rows:
+                self._stack.setCurrentWidget(self._table)
+            else:
+                # El motivo se pide SÓLO cuando hace falta: es una consulta más
+                # y no tiene sentido pagarla en el camino normal.
+                self._empty.message_label.setText(
+                    self._presenter.suppliers_empty_reason(
+                        search=self._search.text().strip(),
+                        status=self._status.current_id()))
+                self._stack.setCurrentWidget(self._empty)
             self._page_label.setText(self._page_text())
             self._loaded = True
         except Exception as exc:  # surface, never swallow
@@ -200,6 +224,46 @@ class SupplierListPage(QWidget):
             self._notify(False, "Selecciona un proveedor.")
             return
         ok, msg, _ = self._presenter.approve(supplier_id)
+        self._notify(ok, msg)
+
+    def _submit(self) -> None:
+        supplier_id = self._selected_id()
+        if not supplier_id:
+            self._notify(False, "Selecciona un proveedor.")
+            return
+        ok, msg, _ = self._presenter.submit_for_approval(supplier_id)
+        self._notify(ok, msg)
+
+    def _activate(self) -> None:
+        """Activa o reactiva (suspendido, bloqueado o dado de baja)."""
+        supplier_id = self._selected_id()
+        if not supplier_id:
+            self._notify(False, "Selecciona un proveedor.")
+            return
+        ok, msg, _ = self._presenter.activate(supplier_id)
+        self._notify(ok, msg)
+
+    def _suspend(self) -> None:
+        self._with_reason("suspend", title="Suspender proveedor",
+                          ok_text="Suspender")
+
+    def _deactivate(self) -> None:
+        self._with_reason("deactivate", title="Dar de baja al proveedor",
+                          ok_text="Dar de baja")
+
+    def _with_reason(self, action: str, *, title: str, ok_text: str) -> None:
+        """Suspender y dar de baja EXIGEN motivo: una baja sin causa registrada
+        es indistinguible de un error de captura cuando alguien la revisa
+        después."""
+        supplier_id = self._selected_id()
+        if not supplier_id:
+            self._notify(False, "Selecciona un proveedor.")
+            return
+        dialog = SupplierReasonDialog(self, title=title)
+        if not dialog.exec_():
+            return
+        operation = getattr(self._presenter, action)
+        ok, msg, _ = operation(supplier_id, dialog.reason())
         self._notify(ok, msg)
 
     def _block(self) -> None:

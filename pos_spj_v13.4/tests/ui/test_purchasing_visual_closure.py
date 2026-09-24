@@ -42,6 +42,22 @@ class _DirectPresenter:
     def session_destination(self):
         return "Sucursal Centro · Almacén Principal"
 
+    # La pantalla pide estos dos desde que (2026-09-17) el buscador de proveedores
+    # explica por qué sale vacío y (2026-09-18) sólo se ofrecen las fuentes de
+    # pago que Finanzas sabe asentar. El doble tiene que seguir la interfaz real.
+    def supplier_search_reason(self, _search=""):
+        return None
+
+    def payment_source_options(self):
+        return [("BANK_TRANSFER", "Transferencia bancaria")]
+
+    def capabilities(self):
+        # Ya lo pedía la pantalla antes de esos cambios; el doble no lo tenía,
+        # así que este caso fallaba sin llegar a medir el recorte.
+        from types import SimpleNamespace
+        return SimpleNamespace(direct_confirm=True, direct_create=True,
+                               direct_authorize=True, direct_reverse=True)
+
 
 class _OriginPresenter:
     def origin_documents(self, _search=""):

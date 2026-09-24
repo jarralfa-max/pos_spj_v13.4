@@ -1,18 +1,19 @@
 """SellableAvailabilityQueryService — direct + reconstructible availability
 (ERP integration master prompt §15-19, Fase 7).
 
-ATP = direct stock + stock reconstructible from a reversible recipe's parts
-(§17). Composes two already-canonical reads —
+ATP = direct stock + stock reconstructible from the parts of the product's
+reversible CUTTING SCHEME (§17; la fuente es el esquema de corte desde el
+2026-09-19, decisión del usuario). Composes two already-canonical reads —
 `InventoryAvailabilityQueryService` (direct, per product) and
-`RecipeRepository.reversible_active_version_for_product` (is this product's
-recipe eligible, and what does it need) — plus the pure
+`CuttingSchemeRepository.reversible_active_version_for_input` (is this product's
+despiece eligible, and what does it need) — plus the pure
 `ReverseRecipeExplosionService` bottleneck calculation. Never writes
 anything; the actual reconstruction (reserving parts, consuming them,
 producing the base product) is `ReconstructBaseProductUseCase`'s job.
 
 Conservative by design, same discipline as every other cross-context
-resolution built this session: any ambiguity (no eligible recipe, more
-than one, wrong recipe_type, `reverse_reconstruction_allowed=False`)
+resolution built this session: any ambiguity (no eligible despiece, more
+than one, `reverse_reconstruction_allowed=False`)
 resolves to `reconstructible = 0`, never a guess.
 """
 
@@ -28,8 +29,8 @@ from backend.domain.products.exceptions import InvalidRecipeError
 from backend.domain.products.services.reverse_recipe_explosion_service import (
     ReverseRecipeExplosionService,
 )
-from backend.infrastructure.db.repositories.products.recipe_repository import (
-    RecipeRepository,
+from backend.infrastructure.db.repositories.products.cutting_scheme_repository import (
+    CuttingSchemeRepository,
 )
 
 _Z = Decimal("0")
@@ -43,17 +44,17 @@ class SellableAvailability:
     reconstructible: Decimal = _Z
     reserved: Decimal = _Z
     available_to_promise: Decimal = _Z
-    #: the reversible recipe version that made reconstruction possible, or
+    #: the reversible cutting-scheme version that made reconstruction possible, or
     #: None when reconstructible == 0 (nothing eligible, or genuinely 0
     #: reconstructible units from what's on hand).
-    recipe_version_id: str | None = None
+    cutting_scheme_version_id: str | None = None
 
 
 class SellableAvailabilityQueryService:
     def __init__(self, connection) -> None:
         self._connection = connection
         self._inventory = InventoryAvailabilityQueryService(connection)
-        self._recipes = RecipeRepository(connection)
+        self._cutting = CuttingSchemeRepository(connection)
         self._explosion = ReverseRecipeExplosionService()
 
     def get_sellable_availability(
@@ -63,8 +64,8 @@ class SellableAvailabilityQueryService:
             product_id=product_id, branch_id=branch_id, warehouse_id=warehouse_id)
 
         reconstructible = _Z
-        recipe_version_id = None
-        version = self._recipes.reversible_active_version_for_product(product_id)
+        cutting_scheme_version_id = None
+        version = self._cutting.reversible_active_version_for_input(product_id)
         if version is not None:
             available_by_part = {
                 output.product_id: self._inventory.get_availability(
@@ -78,11 +79,11 @@ class SellableAvailabilityQueryService:
             except InvalidRecipeError:
                 reconstructible = _Z
             if reconstructible > 0:
-                recipe_version_id = version.id
+                cutting_scheme_version_id = version.id
 
         available_to_promise = direct_dto.available + reconstructible
         return SellableAvailability(
             product_id=product_id, branch_id=branch_id,
             direct=direct_dto.available, reconstructible=reconstructible,
             reserved=direct_dto.reserved, available_to_promise=available_to_promise,
-            recipe_version_id=recipe_version_id)
+            cutting_scheme_version_id=cutting_scheme_version_id)

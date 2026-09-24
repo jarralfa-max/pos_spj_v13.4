@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="14" time="12.659" timestamp="2026-09-22T01:33:18.770906+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_brand_official_assets" name="test_required_official_artwork_is_visible_and_keeps_proportions[1.0-logo_horizontal_light]" time="0.630" /><testcase classname="tests.ui.test_brand_official_assets" name="test_required_official_artwork_is_visible_and_keeps_proportions[1.0-logo_horizontal_dark]" time="0.404" /><testcase classname="tests.ui.test_brand_official_assets" name="test_required_official_artwork_is_visible_and_keeps_proportions[1.0-isotype_light]" time="0.980" /><testcase classname="tests.ui.test_brand_official_assets" name="test_required_official_artwork_is_visible_and_keeps_proportions[1.0-isotype_dark]" time="0.867" /><testcase classname="tests.ui.test_brand_official_assets" name="test_required_official_artwork_is_visible_and_keeps_proportions[1.0-app_icon]" time="1.117" /><testcase classname="tests.ui.test_brand_official_assets" name="test_required_official_artwork_is_visible_and_keeps_proportions[1.0-window_icon]" time="0.019"><failure message="AssertionError: window_icon.svg decodes but renders completely transparent&#10;assert False&#10; +  where False = _has_visible_pixels(&lt;PyQt5.QtGui.QPixmap object at 0x000001A96D72EEB0&gt;)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A96D6D35C0&gt;
+name = 'window_icon', ratio = 1.0
+
+    @pytest.mark.parametrize("name", REQUIRED_ASSETS)
+    @pytest.mark.parametrize("ratio", [1.0, 2.0])
+    def test_required_official_artwork_is_visible_and_keeps_proportions(qt_font_resources, name, ratio):
+        path = BrandAssetProvider.asset_path(name, paths=OFFICIAL_PATHS)
+        assert path is not None, f"Missing supplied official artwork: {name}"
+        if path.suffix == ".svg":
+            renderer = QSvgRenderer(str(path))
+            assert renderer.isValid(), f"Qt cannot decode {path.name}"
+            original_size = renderer.defaultSize()
+        else:
+            original = QImage(str(path))
+            assert not original.isNull(), f"Qt cannot decode {path.name}"
+            original_size = original.size()
+        assert not original_size.isEmpty()
+    
+        bounds = QSize(180, 72) if name.startswith("logo_horizontal") else QSize(40, 40)
+        pixmap = BrandAssetProvider.pixmap(name, bounds, paths=OFFICIAL_PATHS, device_pixel_ratio=ratio)
+        assert not pixmap.isNull(), f"Qt cannot render {path.name}"
+&gt;       assert _has_visible_pixels(pixmap), f"{path.name} decodes but renders completely transparent"
+E       AssertionError: window_icon.svg decodes but renders completely transparent
+E       assert False
+E        +  where False = _has_visible_pixels(&lt;PyQt5.QtGui.QPixmap object at 0x000001A96D72EEB0&gt;)
+
+tests\ui\test_brand_official_assets.py:53: AssertionError</failure></testcase><testcase classname="tests.ui.test_brand_official_assets" name="test_required_official_artwork_is_visible_and_keeps_proportions[2.0-logo_horizontal_light]" time="0.804" /><testcase classname="tests.ui.test_brand_official_assets" name="test_required_official_artwork_is_visible_and_keeps_proportions[2.0-logo_horizontal_dark]" time="0.473" /><testcase classname="tests.ui.test_brand_official_assets" name="test_required_official_artwork_is_visible_and_keeps_proportions[2.0-isotype_light]" time="1.298" /><testcase classname="tests.ui.test_brand_official_assets" name="test_required_official_artwork_is_visible_and_keeps_proportions[2.0-isotype_dark]" time="1.507" /><testcase classname="tests.ui.test_brand_official_assets" name="test_required_official_artwork_is_visible_and_keeps_proportions[2.0-app_icon]" time="1.482" /><testcase classname="tests.ui.test_brand_official_assets" name="test_required_official_artwork_is_visible_and_keeps_proportions[2.0-window_icon]" time="0.007"><failure message="AssertionError: window_icon.svg decodes but renders completely transparent&#10;assert False&#10; +  where False = _has_visible_pixels(&lt;PyQt5.QtGui.QPixmap object at 0x000001A96D72FD90&gt;)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A96D6D35C0&gt;
+name = 'window_icon', ratio = 2.0
+
+    @pytest.mark.parametrize("name", REQUIRED_ASSETS)
+    @pytest.mark.parametrize("ratio", [1.0, 2.0])
+    def test_required_official_artwork_is_visible_and_keeps_proportions(qt_font_resources, name, ratio):
+        path = BrandAssetProvider.asset_path(name, paths=OFFICIAL_PATHS)
+        assert path is not None, f"Missing supplied official artwork: {name}"
+        if path.suffix == ".svg":
+            renderer = QSvgRenderer(str(path))
+            assert renderer.isValid(), f"Qt cannot decode {path.name}"
+            original_size = renderer.defaultSize()
+        else:
+            original = QImage(str(path))
+            assert not original.isNull(), f"Qt cannot decode {path.name}"
+            original_size = original.size()
+        assert not original_size.isEmpty()
+    
+        bounds = QSize(180, 72) if name.startswith("logo_horizontal") else QSize(40, 40)
+        pixmap = BrandAssetProvider.pixmap(name, bounds, paths=OFFICIAL_PATHS, device_pixel_ratio=ratio)
+        assert not pixmap.isNull(), f"Qt cannot render {path.name}"
+&gt;       assert _has_visible_pixels(pixmap), f"{path.name} decodes but renders completely transparent"
+E       AssertionError: window_icon.svg decodes but renders completely transparent
+E       assert False
+E        +  where False = _has_visible_pixels(&lt;PyQt5.QtGui.QPixmap object at 0x000001A96D72FD90&gt;)
+
+tests\ui\test_brand_official_assets.py:53: AssertionError</failure></testcase><testcase classname="tests.ui.test_brand_official_assets" name="test_supplied_official_icons_have_visible_pixels[app_icon]" time="0.984" /><testcase classname="tests.ui.test_brand_official_assets" name="test_supplied_official_icons_have_visible_pixels[window_icon]" time="0.016"><failure message="AssertionError: Official window_icon is invisible in a window title bar&#10;assert False&#10; +  where False = _has_visible_pixels(&lt;PyQt5.QtGui.QPixmap object at 0x000001A96D72F7E0&gt;)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001A96D6D35C0&gt;
+method_name = 'window_icon'
+
+    @pytest.mark.parametrize("method_name", ["app_icon", "window_icon"])
+    def test_supplied_official_icons_have_visible_pixels(qt_font_resources, method_name):
+        icon = getattr(BrandAssetProvider, method_name)(paths=OFFICIAL_PATHS)
+        assert not icon.isNull()
+        pixmap = icon.pixmap(32, 32)
+&gt;       assert _has_visible_pixels(pixmap), f"Official {method_name} is invisible in a window title bar"
+E       AssertionError: Official window_icon is invisible in a window title bar
+E       assert False
+E        +  where False = _has_visible_pixels(&lt;PyQt5.QtGui.QPixmap object at 0x000001A96D72F7E0&gt;)
+
+tests\ui\test_brand_official_assets.py:67: AssertionError</failure></testcase></testsuite></testsuites>

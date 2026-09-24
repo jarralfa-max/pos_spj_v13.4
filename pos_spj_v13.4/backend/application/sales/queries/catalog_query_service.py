@@ -92,7 +92,37 @@ class SalesCatalogQueryService:
         cursor = self._conn.execute(query, params)
         columns = [col[0] for col in cursor.description]
         rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
-        return tuple(self._to_dto(row) for row in rows)
+        armables = self._reconstructible(rows, branch_id)
+        return tuple(self._to_dto(row, armables.get(row["product_id"])) for row in rows)
+
+    def _reconstructible(self, rows: list[dict], branch_id: str) -> dict:
+        """ATP (§17, Fase 7): cuánto se puede ARMAR de cada producto con las
+        partes en existencia, según su despiece reversible. Sólo para los
+        productos que tienen uno (una consulta); para los demás no se calcula
+        nada. Es un diagnóstico de vitrina: si la infraestructura de despiece no
+        existe en esta base, el catálogo sigue mostrando la existencia directa.
+        """
+        try:
+            from backend.application.inventory.queries.sellable_availability_query_service import (
+                SellableAvailabilityQueryService,
+            )
+            from backend.infrastructure.db.repositories.products.cutting_scheme_repository import (
+                CuttingSchemeRepository,
+            )
+            reversibles = CuttingSchemeRepository(self._conn).reversible_input_product_ids()
+            if not reversibles:
+                return {}
+            atp = SellableAvailabilityQueryService(self._conn)
+            return {
+                row["product_id"]: atp.get_sellable_availability(
+                    product_id=row["product_id"], branch_id=branch_id).reconstructible
+                for row in rows if row["product_id"] in reversibles
+            }
+        except Exception:
+            import logging
+            logging.getLogger("spj.sales.catalog").exception(
+                "ATP reconstruible no disponible; se muestra sólo existencia directa")
+            return {}
 
     def find_by_code(self, *, branch_id: str, code: str) -> ProductCatalogEntryDTO | None:
         """POS-12/§17: exact SKU-or-barcode resolution for a scanned code —
@@ -104,7 +134,10 @@ class SalesCatalogQueryService:
         cursor = self._conn.execute(query, [branch_id, code, code])
         columns = [col[0] for col in cursor.description]
         row = cursor.fetchone()
-        return None if row is None else self._to_dto(dict(zip(columns, row)))
+        if row is None:
+            return None
+        fila = dict(zip(columns, row))
+        return self._to_dto(fila, self._reconstructible([fila], branch_id).get(fila["product_id"]))
 
     def get_categories(self) -> tuple[str, ...]:
         rows = self._conn.execute(
@@ -113,20 +146,25 @@ class SalesCatalogQueryService:
         return tuple(row[0] for row in rows)
 
     @staticmethod
-    def _to_dto(row: dict) -> ProductCatalogEntryDTO:
-        available_quantity = to_decimal(row["available_quantity"])
+    def _to_dto(row: dict, reconstructible=None) -> ProductCatalogEntryDTO:
+        armable = Decimal(str(reconstructible or 0))
+        available_quantity = to_decimal(row["available_quantity"]) + armable
         minimum_quantity = to_decimal(row["minimum_quantity"])
         state = ProductAvailabilityPolicy.classify(available_quantity, minimum_quantity)
         sellable = ProductAvailabilityPolicy.is_sellable(
             state, is_composite=bool(row["is_composite"]))
         warnings: list[str] = []
-        if state.value in ("CRITICAL_STOCK", "OUT_OF_STOCK"):
+        if state.value == "OUT_OF_STOCK":
+            warnings.append("Sin existencia: vender requiere autorización al cobrar")
+        elif state.value == "CRITICAL_STOCK":
             warnings.append(f"Existencia baja: {available_quantity} disponible(s)")
+        if armable > 0:
+            warnings.append(f"{armable} se arman con partes en existencia")
         return ProductCatalogEntryDTO(
             product_id=row["product_id"], name=row["name"], sku=row["sku"] or "",
             barcode=row["barcode"] or None, unit=row["unit"] or "",
             effective_price=to_decimal(row["effective_price"]),
             stock_state=state.value, available_quantity=available_quantity,
             image_reference=row["image_reference"] or None, sellable=sellable,
-            warnings=tuple(warnings),
+            warnings=tuple(warnings), reconstructible_quantity=armable,
         )

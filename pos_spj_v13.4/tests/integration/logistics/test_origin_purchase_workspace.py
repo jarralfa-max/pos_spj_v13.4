@@ -13,6 +13,7 @@ from backend.domain.logistics.enums import ContainerCategory, ContainerOwnerType
 from backend.domain.logistics.qr_identity import PermanentContainerQrService
 from backend.infrastructure.db.schema.procurement_schema import create_procurement_schema
 from backend.infrastructure.db.repositories.logistics_repository import LogisticsRepository
+from tests.integration._supplier_cutover import apply_supplier_cutover
 
 
 class Allow:
@@ -38,6 +39,7 @@ def _connection():
 def test_document_to_tree_differences_seal_dispatch_and_mobile_handoff():
     connection = _connection()
     connection.execute("INSERT INTO proveedores VALUES ('supplier','Proveedor Norte',1)")
+    apply_supplier_cutover(connection)
     connection.execute(
         "INSERT INTO purchase_orders(id,document_number,supplier_id,branch_id,warehouse_id,status,total,"
         "created_by_user_id,operation_id,created_at,updated_at) VALUES "
@@ -84,6 +86,7 @@ def test_document_to_tree_differences_seal_dispatch_and_mobile_handoff():
 def test_overage_or_cost_variance_is_blocking_authorization():
     connection = _connection()
     connection.execute("INSERT INTO proveedores VALUES ('supplier','Proveedor Norte',1)")
+    apply_supplier_cutover(connection)
     connection.execute(
         "INSERT INTO purchase_orders(id,document_number,supplier_id,branch_id,warehouse_id,status,total,"
         "created_by_user_id,operation_id,created_at,updated_at) VALUES "

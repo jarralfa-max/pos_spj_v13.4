@@ -65,6 +65,38 @@ def _nature_subtotals(lines) -> dict[str, str]:
     return {nature: str(amount) for nature, amount in totals.items()}
 
 
+def _eligibility_problem(dp, *, product_catalog=None,
+                         warehouse_directory=None) -> tuple[str, str] | None:
+    """`(código, mensaje)` si la compra no se puede registrar tal como está.
+
+    Medido el 2026-09-18 sobre una copia de la base real: la compra rápida se
+    creaba Y CONFIRMABA con un producto EN REVISIÓN (no activo) y con el almacén
+    de OTRA sucursal, y la mercancía entraba al inventario igual. Se valida al
+    crear y OTRA VEZ al confirmar: entre el borrador y la confirmación el
+    producto puede haberse retirado o el almacén desactivado.
+
+    Los puertos son opcionales para las pruebas aisladas; la composición real
+    (`direct_purchase_routes.py`) los inyecta siempre.
+    """
+    if warehouse_directory is not None:
+        admitidos = {wid for wid, _ in warehouse_directory.active_for_branch(dp.branch_id)}
+        if dp.warehouse_id not in admitidos:
+            return ("WAREHOUSE_NOT_IN_BRANCH",
+                    "El almacén no pertenece a la sucursal de la compra o no admite "
+                    "recepción de compras")
+    if product_catalog is not None:
+        for line in dp.lines:
+            nombre = line.description or line.product_id
+            opcion = product_catalog.resolve(line.product_id)
+            if opcion is None:
+                return ("PRODUCT_NOT_ACTIVE",
+                        f"El producto {nombre} no está activo; no se puede comprar")
+            if not opcion.purchasable:
+                return ("PRODUCT_NOT_PURCHASABLE",
+                        f"El producto {nombre} no está habilitado para compra")
+    return None
+
+
 class _BaseDirectPurchaseUseCase:
     def __init__(self, authorization: PurchaseAuthorizationPolicy | None = None) -> None:
         self._auth = authorization or PurchaseAuthorizationPolicy()
@@ -86,9 +118,12 @@ class CreateDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
     a second user can authorize it in place before confirmation.
     """
 
-    def __init__(self, authorization=None, supplier_directory=None) -> None:
+    def __init__(self, authorization=None, supplier_directory=None, *,
+                 product_catalog=None, warehouse_directory=None) -> None:
         super().__init__(authorization)
         self._supplier_directory = supplier_directory
+        self._product_catalog = product_catalog
+        self._warehouse_directory = warehouse_directory
         self._limits = UserPurchaseLimitPolicy()
         self._supplier = SupplierEligibilityPolicy()
 
@@ -137,6 +172,12 @@ class CreateDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
                 if not dp.lines:
                     return ProcurementResult.fail("La compra requiere al menos una línea",
                                                   "EMPTY", operation_id=operation_id)
+                problema = _eligibility_problem(
+                    dp, product_catalog=self._product_catalog,
+                    warehouse_directory=self._warehouse_directory)
+                if problema is not None:
+                    return ProcurementResult.fail(problema[1], problema[0],
+                                                  operation_id=operation_id)
             except (ProcurementDomainError, ValueError) as exc:
                 return ProcurementResult.fail(str(exc), "VALIDATION", operation_id=operation_id)
 
@@ -241,9 +282,17 @@ class ConfirmDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
     only; it then requests the financial treatment (immediate payment from an
     authorized source — never POS cash — or a supplier-credit payable)."""
 
-    def __init__(self, authorization=None) -> None:
+    def __init__(self, authorization=None, *, supplier_directory=None,
+                 product_catalog=None, warehouse_directory=None,
+                 payment_booking=None) -> None:
         super().__init__(authorization)
         self._payment = ImmediatePaymentPolicy()
+        self._supplier_directory = supplier_directory
+        self._product_catalog = product_catalog
+        self._warehouse_directory = warehouse_directory
+        #: `PaymentSourceBookingPort`. Sin él, un pago de contado que Finanzas
+        #: no sabe asentar se confirmaba igual: el dinero salía sin asiento.
+        self._payment_booking = payment_booking
 
     def execute(self, connection, *, actor_user_id: str, direct_purchase_id: str,
                 operation_id: str, payment_source: str | None = None,
@@ -273,6 +322,29 @@ class ConfirmDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
                 except ProcurementDomainError as exc:
                     return ProcurementResult.fail(str(exc), "INVALID_PAYMENT_SOURCE",
                                                   operation_id=operation_id)
+                # Y además tiene que poder ASENTARSE. Antes esto sólo lo sabía
+                # el puente contable, después de confirmar: registraba una
+                # advertencia y la compra quedaba pagada sin asiento (§11).
+                if self._payment_booking is not None:
+                    problema = self._payment_booking.booking_problem(source, dp.branch_id)
+                    if problema:
+                        return ProcurementResult.fail(
+                            f"No se puede confirmar el pago de contado: {problema}.",
+                            "PAYMENT_NOT_BOOKABLE", operation_id=operation_id)
+            # Revalidar: el proveedor pudo bloquearse, o el producto retirarse,
+            # desde que se capturó el borrador.
+            if self._supplier_directory is not None:
+                try:
+                    self._supplier_directory.require_eligible(dp.supplier_id)
+                except ProcurementDomainError as exc:
+                    return ProcurementResult.fail(str(exc), "SUPPLIER_NOT_ELIGIBLE",
+                                                  operation_id=operation_id)
+            problema_compra = _eligibility_problem(
+                dp, product_catalog=self._product_catalog,
+                warehouse_directory=self._warehouse_directory)
+            if problema_compra is not None:
+                return ProcurementResult.fail(problema_compra[1], problema_compra[0],
+                                              operation_id=operation_id)
             try:
                 dp.confirm()
             except ProcurementDomainError as exc:

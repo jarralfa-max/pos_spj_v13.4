@@ -22,6 +22,10 @@ class CuttingScheme:
     id: str = field(default_factory=new_uuid)
     cut_level: CutLevel = CutLevel.PRIMARY
     active: bool = True
+    #: §16 — ¿se puede armar el producto de entrada con sus partes cuando no
+    #: hay existencia directa? Por omisión NO: no todo despiece se revierte
+    #: (la carne molida nunca vuelve a ser un corte entero).
+    reverse_reconstruction_allowed: bool = False
 
     def __post_init__(self) -> None:
         if not self.input_product_id:

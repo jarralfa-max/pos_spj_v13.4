@@ -178,6 +178,13 @@ class SaleCompletedHandler(FinanceEventHandler):
             raise FinanceDomainError(
                 f"Venta a crédito {folio} sin customer_id; la CxC no puede omitirse"
             )
+        # El POS ya registra el documento y la CxC al cobrar a crédito
+        # (`SalesCreditClient.register`, que además alimenta el límite de
+        # crédito). Crearla otra vez aquí duplicaría la deuda del cliente; este
+        # manejador sólo aporta el ASIENTO, que aquélla no hace (Fase 6).
+        if any(doc.document_type is FinancialDocumentType.SALES_INVOICE
+               for doc in uow.financial_documents.find_by_source("sales", sale_id)):
+            return
         document = FinancialDocument.create(
             FinancialDocumentType.SALES_INVOICE, folio, entry_date, credit_amount,
             "sales", sale_id, new_uuid(),

@@ -20,6 +20,7 @@ from frontend.desktop.themes.theme_manager import ThemeManager
 from frontend.desktop.themes.tokens import ResponsiveBreakpoints, density_metrics
 from tests.ui.shell.conftest import make_context
 from tests.ui.test_design_system_visual_matrix import save, settle
+from tests.ui.test_standard_window_geometry import DesktopScreen
 
 
 @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
@@ -46,6 +47,8 @@ def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tm
     login.deleteLater()
 
     window = StandardWindow()
+    screen = DesktopScreen(QRect(0, 0, *size))
+    monkeypatch.setattr(window, "screen", lambda: screen)
     body = QWidget()
     root = QVBoxLayout(body)
     top_bar = TopBar()
@@ -80,7 +83,7 @@ def test_navigation_authentication_and_keyboard_visuals(qt_font_resources, ui_tm
     window.show()
     window.resize(*size)
     settle(app)
-    assert window.size().width() == size[0]
+    assert screen.availableGeometry().contains(window.frameGeometry())
     assert tabs.tabBar().tabSizeHint(0).height() >= density_metrics(density).tab_height
     save(window, artifacts, label + "-module-expanded")
     nav.toggle_group(0)

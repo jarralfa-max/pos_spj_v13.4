@@ -90,7 +90,9 @@ class EmpresaPage(ConfiguracionWorkspacePage):
 
     def _on_edit_company(self) -> None:
         company = self._presenter.get_company_profile()
-        dlg = CompanyProfileDialog(self, profile=company)
+        dlg = CompanyProfileDialog(
+            self, profile=company,
+            address_search_service=self._presenter.address_search_service())
         if dlg.exec_() != QDialog.Accepted:
             return
         values = dlg.values()
@@ -153,7 +155,9 @@ class EmpresaPage(ConfiguracionWorkspacePage):
                 "No hay sucursales sin perfil de gobierno registrado — todas ya lo tienen.",
             )
             return
-        dlg = BranchProfileCreateDialog(self, branch_options=branches)
+        dlg = BranchProfileCreateDialog(
+            self, branch_options=branches,
+            address_search_service=self._presenter.address_search_service())
         if dlg.exec_() != QDialog.Accepted:
             return
         values = dlg.values()
@@ -173,7 +177,9 @@ class EmpresaPage(ConfiguracionWorkspacePage):
         if profile is None:
             QMessageBox.warning(self, "Sucursales", "La sucursal ya no existe.")
             return
-        dlg = BranchProfileEditDialog(self, profile=profile)
+        dlg = BranchProfileEditDialog(
+            self, profile=profile,
+            address_search_service=self._presenter.address_search_service())
         if dlg.exec_() != QDialog.Accepted:
             return
         values = dlg.values()

@@ -1,0 +1,37 @@
+{
+  "app_icon.png": {
+    "sha256": "0ada83b88566cfce0366e6644ea1b7d05646fca1c8177f490cc1057c16dc4869",
+    "size": 2489922,
+    "mtime_ns": 1790027047581623000
+  },
+  "isotype_dark.png": {
+    "sha256": "bc4dcf6a57cf50818a30e3a5afdb08de5b362a68187ae44c3d292d66e80d39f1",
+    "size": 2296106,
+    "mtime_ns": 1790026976955436200
+  },
+  "isotype_light.png": {
+    "sha256": "dae52992d3c5f7351c9bca6986296d6c810535f28e39d786294e57f153d401b9",
+    "size": 2891100,
+    "mtime_ns": 1790026924829459900
+  },
+  "logo_horizontal_dark.png": {
+    "sha256": "99a92663d3dedec33fa3ee7480007e9c3079511bde058f268b1905cce6869056",
+    "size": 1410717,
+    "mtime_ns": 1790026802311067800
+  },
+  "logo_horizontal_light.png": {
+    "sha256": "831b8597f6bab9268bff75ecfd318a62911d223a8ec47a72d325d7b3807619e3",
+    "size": 1712534,
+    "mtime_ns": 1790026879555859100
+  },
+  "logo_vertical.svg": {
+    "sha256": "397c9a0cc12fd13792e40060dd50fa44e3e950bde331df78eb65bf28490748ba",
+    "size": 942322,
+    "mtime_ns": 1790025960226663300
+  },
+  "window_icon.svg": {
+    "sha256": "8f61257108c8371996f40b3c8e0724eda93864ed7f69ae3a5c6959649e6d3dca",
+    "size": 108216,
+    "mtime_ns": 1790025961469501700
+  }
+}

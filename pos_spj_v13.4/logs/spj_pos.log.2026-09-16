@@ -1,0 +1,125 @@
+2026-09-16 07:12:00,281 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-09-16 07:12:48,905 frontend.desktop.components.icons WARNING Unknown icon identifier '💵'; using file symbol
+2026-09-16 07:12:48,948 frontend.desktop.components.icons WARNING Unknown icon identifier '💵'; using file symbol
+2026-09-16 07:12:48,950 frontend.desktop.components.icons WARNING Unknown icon identifier '🧮'; using file symbol
+2026-09-16 07:12:48,953 frontend.desktop.components.icons WARNING Unknown icon identifier '🧮'; using file symbol
+2026-09-16 07:12:48,956 frontend.desktop.components.icons WARNING Unknown icon identifier '🧾'; using file symbol
+2026-09-16 07:12:48,960 frontend.desktop.components.icons WARNING Unknown icon identifier '🧾'; using file symbol
+2026-09-16 07:12:51,448 frontend.desktop.components.icons WARNING Unknown icon identifier '📦'; using file symbol
+2026-09-16 07:12:52,406 frontend.desktop.components.icons WARNING Unknown icon identifier '📦'; using file symbol
+2026-09-16 07:12:52,408 frontend.desktop.components.icons WARNING Unknown icon identifier '🔄'; using file symbol
+2026-09-16 07:12:52,424 frontend.desktop.components.icons WARNING Unknown icon identifier '🔄'; using file symbol
+2026-09-16 07:12:52,426 frontend.desktop.components.icons WARNING Unknown icon identifier '🗑️'; using file symbol
+2026-09-16 07:12:52,590 frontend.desktop.components.icons WARNING Unknown icon identifier '🗑️'; using file symbol
+2026-09-16 07:12:54,041 frontend.desktop.components.icons WARNING Unknown icon identifier '🗑️'; using file symbol
+2026-09-16 07:12:54,046 frontend.desktop.components.icons WARNING Unknown icon identifier '🗑️'; using file symbol
+2026-09-16 07:12:54,048 frontend.desktop.components.icons WARNING Unknown icon identifier '📊'; using file symbol
+2026-09-16 07:12:54,053 frontend.desktop.components.icons WARNING Unknown icon identifier '📊'; using file symbol
+2026-09-16 07:12:58,310 frontend.desktop.components.icons WARNING Unknown icon identifier '🏷️'; using file symbol
+2026-09-16 07:12:58,314 frontend.desktop.components.icons WARNING Unknown icon identifier '🏷️'; using file symbol
+2026-09-16 07:12:58,317 frontend.desktop.components.icons WARNING Unknown icon identifier '📈'; using file symbol
+2026-09-16 07:12:58,320 frontend.desktop.components.icons WARNING Unknown icon identifier '📈'; using file symbol
+2026-09-16 07:12:58,322 frontend.desktop.components.icons WARNING Unknown icon identifier '％'; using file symbol
+2026-09-16 07:12:58,328 frontend.desktop.components.icons WARNING Unknown icon identifier '％'; using file symbol
+2026-09-16 07:12:58,331 frontend.desktop.components.icons WARNING Unknown icon identifier '🗂️'; using file symbol
+2026-09-16 07:12:58,335 frontend.desktop.components.icons WARNING Unknown icon identifier '🗂️'; using file symbol
+2026-09-16 07:12:58,937 frontend.desktop.components.icons WARNING Unknown icon identifier '🏬'; using file symbol
+2026-09-16 07:12:58,941 frontend.desktop.components.icons WARNING Unknown icon identifier '🏬'; using file symbol
+2026-09-16 07:12:58,946 frontend.desktop.components.icons WARNING Unknown icon identifier '💰'; using file symbol
+2026-09-16 07:12:58,949 frontend.desktop.components.icons WARNING Unknown icon identifier '💰'; using file symbol
+2026-09-16 07:12:58,952 frontend.desktop.components.icons WARNING Unknown icon identifier '🥇'; using file symbol
+2026-09-16 07:12:58,958 frontend.desktop.components.icons WARNING Unknown icon identifier '🥇'; using file symbol
+2026-09-16 07:12:58,961 frontend.desktop.components.icons WARNING Unknown icon identifier '⚖️'; using file symbol
+2026-09-16 07:12:58,965 frontend.desktop.components.icons WARNING Unknown icon identifier '⚖️'; using file symbol
+2026-09-16 07:13:00,011 frontend.desktop.components.icons WARNING Unknown icon identifier '💵'; using file symbol
+2026-09-16 07:13:00,017 frontend.desktop.components.icons WARNING Unknown icon identifier '💵'; using file symbol
+2026-09-16 07:13:00,025 frontend.desktop.components.icons WARNING Unknown icon identifier '🪙'; using file symbol
+2026-09-16 07:13:00,029 frontend.desktop.components.icons WARNING Unknown icon identifier '🪙'; using file symbol
+2026-09-16 07:13:00,034 frontend.desktop.components.icons WARNING Unknown icon identifier '📊'; using file symbol
+2026-09-16 07:13:00,038 frontend.desktop.components.icons WARNING Unknown icon identifier '📊'; using file symbol
+2026-09-16 07:13:00,041 frontend.desktop.components.icons WARNING Unknown icon identifier '💸'; using file symbol
+2026-09-16 07:13:00,045 frontend.desktop.components.icons WARNING Unknown icon identifier '💸'; using file symbol
+2026-09-16 07:13:00,049 frontend.desktop.components.icons WARNING Unknown icon identifier '👥'; using file symbol
+2026-09-16 07:13:00,054 frontend.desktop.components.icons WARNING Unknown icon identifier '👥'; using file symbol
+2026-09-16 07:13:00,057 frontend.desktop.components.icons WARNING Unknown icon identifier '🚚'; using file symbol
+2026-09-16 07:13:00,061 frontend.desktop.components.icons WARNING Unknown icon identifier '🚚'; using file symbol
+2026-09-16 07:13:09,209 frontend.desktop.components.icons WARNING Unknown icon identifier '💵'; using file symbol
+2026-09-16 07:13:09,211 frontend.desktop.components.icons WARNING Unknown icon identifier '🧮'; using file symbol
+2026-09-16 07:13:09,213 frontend.desktop.components.icons WARNING Unknown icon identifier '🧾'; using file symbol
+2026-09-16 07:16:09,938 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-16 08:01:34,555 SPJ.Boot INFO =======================================================
+2026-09-16 08:01:34,556 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-16 08:01:34,557 SPJ.Boot INFO =======================================================
+2026-09-16 08:01:38,992 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-16 08:01:42,009 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-16 08:01:42,010 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-16 08:01:42,784 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-09-16 08:01:42,785 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-09-16 08:01:43,371 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-09-16 08:01:43,372 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-09-16 08:01:43,372 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-09-16 08:04:09,398 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-16 08:06:57,684 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-16 08:42:13,311 SPJ.Boot INFO =======================================================
+2026-09-16 08:42:13,313 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-16 08:42:13,314 SPJ.Boot INFO =======================================================
+2026-09-16 08:42:20,281 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-16 08:42:25,932 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-16 08:42:25,933 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-16 08:42:28,077 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-09-16 08:42:28,082 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-09-16 08:42:29,961 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-09-16 08:42:29,962 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-09-16 08:42:29,962 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-09-16 08:43:51,196 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-16 08:47:05,783 spj.products.presenter ERROR Acción de ciclo de vida activate falló
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\products\presenter.py", line 88, in _run_lifecycle
+    result = self._lifecycle_factory()[action].execute(
+        product_id=product_id, user_id=user_id or "")
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\use_cases\product_lifecycle_use_cases.py", line 74, in execute
+    self._check_extra(row, user_id)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\use_cases\product_lifecycle_use_cases.py", line 118, in _check_extra
+    self._auth.ensure_segregation(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        actor_user_id=user_id, creator_user_id=row.get("created_by"),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        approval_permission=ProductPermissions.APPROVE)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\authorization\policy.py", line 117, in ensure_segregation
+    raise SegregationOfDutiesError(
+        "Quien creó el registro no puede aprobarlo ni activarlo "
+        f"({approval_permission}): se requiere un segundo usuario")
+backend.domain.products.exceptions.SegregationOfDutiesError: Quien creó el registro no puede aprobarlo ni activarlo (PRODUCTOS.aprobar): se requiere un segundo usuario
+2026-09-16 08:57:43,453 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-16 21:06:00,893 SPJ.Boot INFO =======================================================
+2026-09-16 21:06:00,917 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-16 21:06:00,918 SPJ.Boot INFO =======================================================
+2026-09-16 21:06:38,984 spj.migrations.259 INFO 259: price_list.created_by_user_id asegurada.
+2026-09-16 21:06:39,004 spj.migrations INFO Migración 259 ejecutada.
+2026-09-16 21:06:39,007 spj.migrations INFO Migraciones completadas: 1 ejecutadas.
+2026-09-16 21:07:09,621 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-16 21:07:09,673 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-16 21:07:18,134 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-09-16 21:07:18,135 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-09-16 21:07:21,321 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-09-16 21:07:21,322 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-09-16 21:07:21,323 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-09-16 21:09:43,008 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-16 21:10:02,344 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-09-16 21:13:11,745 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-16 21:13:27,046 SPJ.Boot INFO =======================================================
+2026-09-16 21:13:27,049 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-16 21:13:27,049 SPJ.Boot INFO =======================================================
+2026-09-16 21:13:34,471 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-16 21:13:35,185 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-16 21:13:35,186 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-16 21:13:38,861 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-09-16 21:13:38,863 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-09-16 21:13:41,399 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-09-16 21:13:41,415 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-09-16 21:13:41,417 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-09-16 21:14:16,084 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-16 21:14:40,529 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-09-16 21:16:04,214 SPJ.Boot INFO Sistema cerrado. Código: 0

@@ -83,6 +83,7 @@ class SalesPosWorkspace(QWidget):
         self.checkout.cancel_requested.connect(self._on_cancel_requested)
         self.checkout.reprint_requested.connect(self._on_reprint_requested)
         self.checkout.invoice_requested.connect(self._on_invoice_requested)
+        self.checkout.discount_requested.connect(self.open_discount_dialog)
         self._splitter.addWidget(self.checkout)
 
         self.checkout.customer.quick_create_button().clicked.connect(
@@ -131,6 +132,7 @@ class SalesPosWorkspace(QWidget):
             "F10": self.checkout.actions.return_requested.emit,
             "F11": self.checkout.actions.invoice_requested.emit,
             "F12": self.checkout.actions.reprint_requested.emit,
+            "F5": self.checkout.actions.discount_requested.emit,
         }
         self._shortcuts = [
             QShortcut(QKeySequence(key), self, activated=handler)
@@ -258,6 +260,12 @@ class SalesPosWorkspace(QWidget):
             return
         sale = self._presenter.get_sale(self._sale_id)
         if sale is None:
+            return
+        # Fase 6: sin turno de caja no se cobra. Se avisa ANTES de abrir el
+        # cobro: una vez registrados los pagos, la venta no vuelve al carrito.
+        problema = self._presenter.open_shift_problem()
+        if problema:
+            QMessageBox.warning(self, "Turno de caja", problema)
             return
         dialog = PaymentDialog(self._presenter, sale_id=self._sale_id, total_due=sale.total, parent=self)
         if dialog.exec_() and dialog.completed:

@@ -46,3 +46,17 @@ class CuttingVersionTransitionCommand:
         missing = [f for f in ("operation_id", "version_id") if not getattr(self, f)]
         if missing:
             raise ValueError(f"Faltan campos requeridos: {', '.join(missing)}")
+
+
+@dataclass(frozen=True)
+class SetCuttingReverseReconstructionCommand:
+    """§16: habilitar/deshabilitar armar el producto de entrada con sus partes."""
+    operation_id: str
+    scheme_id: str
+    allowed: bool
+    user_id: str | None = None
+
+    def validate(self) -> None:
+        missing = [f for f in ("operation_id", "scheme_id") if not getattr(self, f)]
+        if missing:
+            raise ValueError(f"Faltan campos requeridos: {', '.join(missing)}")

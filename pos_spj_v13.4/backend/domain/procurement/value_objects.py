@@ -29,6 +29,9 @@ class Money:
     def is_negative(self) -> bool:
         return self.amount < 0
 
+    def is_positive(self) -> bool:
+        return self.amount > 0
+
     def add(self, other: "Money") -> "Money":
         return Money(self.amount + other.amount, self.currency_code)
 

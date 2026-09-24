@@ -26,8 +26,11 @@ CÓMO SE CONSTRUYE — dos fuentes, y ninguna es una lista copiada a mano:
 
 DEUDA CONOCIDA, declarada y no disimulada:
 
-- Cuatro contextos (`losses`, `pricing`, `suppliers`, `transfers`) todavía usan
-  códigos PLANOS estilo `TRANSFERS_APPROVE`, sin el formato `MODULO.accion`.
+- TRES contextos (`losses`, `suppliers`, `transfers`) todavía usan códigos
+  PLANOS estilo `TRANSFERS_APPROVE`, sin el formato `MODULO.accion`.
+  (`pricing` salió de esta lista el 2026-09-16: migró a `PRECIOS.<accion>` y
+  ahora sus acciones SÍ son otorgables desde la matriz. No dejó nada inerte
+  porque `PRECIOS` nunca estuvo sembrado en `rol_permisos`.)
   No se pueden derivar y NO se traducen aquí: inventarles un módulo sería
   fabricar vocabulario. Quedan fuera del catálogo y listados en
   `FLAT_CODE_CONTEXTS`. Mientras tanto sus acciones no son otorgables desde la
@@ -62,6 +65,7 @@ _CONTEXT_PERMISSION_MODULES = (
     "backend.application.loyalty_cards.permissions",
     "backend.application.meat_processing.permissions",
     "backend.application.orders_delivery.permissions",
+    "backend.application.pricing.permissions",
     "backend.application.procurement.permissions",
     "backend.application.products.permissions",
     "backend.application.sales.permissions",
@@ -73,7 +77,6 @@ _CONTEXT_PERMISSION_MODULES = (
 #: usa para comprobar que la lista no crece.
 FLAT_CODE_CONTEXTS = (
     "backend.application.losses.permissions",
-    "backend.application.pricing.permissions",
     "backend.application.suppliers.permissions",
     "backend.application.transfers.permissions",
 )

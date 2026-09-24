@@ -89,12 +89,13 @@ class LossRegistrationQueryRepository:
     def __init__(self, connection) -> None:
         self._db = connection
 
-    def search_products(self, query: str, limit: int = 20):
-        term = f"%{query.strip()}%"
-        return self._db.execute(
-            "SELECT id,name,COALESCE(sku,'') FROM products "
-            "WHERE active=1 AND (name LIKE ? OR sku LIKE ?) ORDER BY name LIMIT ?",
-            (term, term, limit)).fetchall()
+    # `search_products` vivía aquí con SQL propio e INVÁLIDO: consultaba
+    # `products.active` y `products.sku`, columnas que el maestro canónico no
+    # tiene (usa `lifecycle_status` y `code`). Reventaba con OperationalError en
+    # cada búsqueda del formulario de merma. Se eliminó en vez de repararse: la
+    # búsqueda de productos es un contrato compartido
+    # (`ProductSearchQuery` + preset `SearchWasteEligibleProductsQueryService`),
+    # y Merma lo recibe inyectado en su composición como cualquier otro módulo.
 
     def search_lots(self, product_id: str, query: str, limit: int = 20):
         term = f"%{query.strip()}%"

@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="3.245" timestamp="2026-09-21T19:34:29.838012-06:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_brand_asset_provider" name="test_svg2_embedded_image_is_visible_without_rewriting_original[pixmap]" time="0.184"><failure message="AssertionError: assert &lt;PyQt5.QtGui.QColor object at 0x0000022860668DE0&gt; == &lt;PyQt5.QtGui.QColor object at 0x0000022860669160&gt;&#10; +  where &lt;PyQt5.QtGui.QColor object at 0x0000022860668DE0&gt; = &lt;built-in method pixelColor of QImage object at 0x00000228606692B0&gt;((32 // 2), (8 // 2))&#10; +    where &lt;built-in method pixelColor of QImage object at 0x00000228606692B0&gt; = &lt;PyQt5.QtGui.QImage object at 0x00000228606692B0&gt;.pixelColor&#10; +    and   32 = &lt;built-in method width of QImage object at 0x00000228606692B0&gt;()&#10; +      where &lt;built-in method width of QImage object at 0x00000228606692B0&gt; = &lt;PyQt5.QtGui.QImage object at 0x00000228606692B0&gt;.width&#10; +    and   8 = &lt;built-in method height of QImage object at 0x00000228606692B0&gt;()&#10; +      where &lt;built-in method height of QImage object at 0x00000228606692B0&gt; = &lt;PyQt5.QtGui.QImage object at 0x00000228606692B0&gt;.height&#10; +  and   &lt;PyQt5.QtGui.QColor object at 0x0000022860669160&gt; = QColor('#4060A0')">assets = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-OHmFxv/assets/branding')
+consumer = 'pixmap'
+
+    @pytest.mark.parametrize("consumer", ["pixmap", "window", "application"])
+    def test_svg2_embedded_image_is_visible_without_rewriting_original(assets, consumer):
+        import base64
+    
+        source = png(assets, "isotype_light")
+        name = "app_icon" if consumer == "application" else "window_icon"
+        data = base64.b64encode(source.read_bytes()).decode("ascii")
+        original = (
+            '&lt;svg xmlns="http://www.w3.org/2000/svg" width="400" height="100" viewBox="0 0 400 100"&gt;'
+            f'&lt;image width="400" height="100" href="data:image/png;base64,{data}"/&gt;&lt;/svg&gt;'
+        ).encode("utf-8")
+        path = assets / f"{name}.svg"
+        path.write_bytes(original)
+        for size in (32, 256):
+            if consumer == "pixmap":
+                image = BrandAssetProvider.pixmap(name, QSize(size, size)).toImage()
+            else:
+                icon = BrandAssetProvider.app_icon() if consumer == "application" else BrandAssetProvider.window_icon()
+                image = icon.pixmap(size, size).toImage()
+            assert not image.isNull()
+&gt;           assert image.pixelColor(image.width() // 2, image.height() // 2) == QColor("#4060A0")
+E           AssertionError: assert &lt;PyQt5.QtGui.QColor object at 0x0000022860668DE0&gt; == &lt;PyQt5.QtGui.QColor object at 0x0000022860669160&gt;
+E            +  where &lt;PyQt5.QtGui.QColor object at 0x0000022860668DE0&gt; = &lt;built-in method pixelColor of QImage object at 0x00000228606692B0&gt;((32 // 2), (8 // 2))
+E            +    where &lt;built-in method pixelColor of QImage object at 0x00000228606692B0&gt; = &lt;PyQt5.QtGui.QImage object at 0x00000228606692B0&gt;.pixelColor
+E            +    and   32 = &lt;built-in method width of QImage object at 0x00000228606692B0&gt;()
+E            +      where &lt;built-in method width of QImage object at 0x00000228606692B0&gt; = &lt;PyQt5.QtGui.QImage object at 0x00000228606692B0&gt;.width
+E            +    and   8 = &lt;built-in method height of QImage object at 0x00000228606692B0&gt;()
+E            +      where &lt;built-in method height of QImage object at 0x00000228606692B0&gt; = &lt;PyQt5.QtGui.QImage object at 0x00000228606692B0&gt;.height
+E            +  and   &lt;PyQt5.QtGui.QColor object at 0x0000022860669160&gt; = QColor('#4060A0')
+
+tests\ui\test_brand_asset_provider.py:101: AssertionError</failure></testcase><testcase classname="tests.ui.test_brand_asset_provider" name="test_svg2_embedded_image_is_visible_without_rewriting_original[window]" time="0.520"><failure message="AssertionError: assert &lt;PyQt5.QtGui.QColor object at 0x0000022860669080&gt; == &lt;PyQt5.QtGui.QColor object at 0x000002286066ADD0&gt;&#10; +  where &lt;PyQt5.QtGui.QColor object at 0x0000022860669080&gt; = &lt;built-in method pixelColor of QImage object at 0x000002286066BE00&gt;((32 // 2), (8 // 2))&#10; +    where &lt;built-in method pixelColor of QImage object at 0x000002286066BE00&gt; = &lt;PyQt5.QtGui.QImage object at 0x000002286066BE00&gt;.pixelColor&#10; +    and   32 = &lt;built-in method width of QImage object at 0x000002286066BE00&gt;()&#10; +      where &lt;built-in method width of QImage object at 0x000002286066BE00&gt; = &lt;PyQt5.QtGui.QImage object at 0x000002286066BE00&gt;.width&#10; +    and   8 = &lt;built-in method height of QImage object at 0x000002286066BE00&gt;()&#10; +      where &lt;built-in method height of QImage object at 0x000002286066BE00&gt; = &lt;PyQt5.QtGui.QImage object at 0x000002286066BE00&gt;.height&#10; +  and   &lt;PyQt5.QtGui.QColor object at 0x000002286066ADD0&gt; = QColor('#4060A0')">assets = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-PwQHvT/assets/branding')
+consumer = 'window'
+
+    @pytest.mark.parametrize("consumer", ["pixmap", "window", "application"])
+    def test_svg2_embedded_image_is_visible_without_rewriting_original(assets, consumer):
+        import base64
+    
+        source = png(assets, "isotype_light")
+        name = "app_icon" if consumer == "application" else "window_icon"
+        data = base64.b64encode(source.read_bytes()).decode("ascii")
+        original = (
+            '&lt;svg xmlns="http://www.w3.org/2000/svg" width="400" height="100" viewBox="0 0 400 100"&gt;'
+            f'&lt;image width="400" height="100" href="data:image/png;base64,{data}"/&gt;&lt;/svg&gt;'
+        ).encode("utf-8")
+        path = assets / f"{name}.svg"
+        path.write_bytes(original)
+        for size in (32, 256):
+            if consumer == "pixmap":
+                image = BrandAssetProvider.pixmap(name, QSize(size, size)).toImage()
+            else:
+                icon = BrandAssetProvider.app_icon() if consumer == "application" else BrandAssetProvider.window_icon()
+                image = icon.pixmap(size, size).toImage()
+            assert not image.isNull()
+&gt;           assert image.pixelColor(image.width() // 2, image.height() // 2) == QColor("#4060A0")
+E           AssertionError: assert &lt;PyQt5.QtGui.QColor object at 0x0000022860669080&gt; == &lt;PyQt5.QtGui.QColor object at 0x000002286066ADD0&gt;
+E            +  where &lt;PyQt5.QtGui.QColor object at 0x0000022860669080&gt; = &lt;built-in method pixelColor of QImage object at 0x000002286066BE00&gt;((32 // 2), (8 // 2))
+E            +    where &lt;built-in method pixelColor of QImage object at 0x000002286066BE00&gt; = &lt;PyQt5.QtGui.QImage object at 0x000002286066BE00&gt;.pixelColor
+E            +    and   32 = &lt;built-in method width of QImage object at 0x000002286066BE00&gt;()
+E            +      where &lt;built-in method width of QImage object at 0x000002286066BE00&gt; = &lt;PyQt5.QtGui.QImage object at 0x000002286066BE00&gt;.width
+E            +    and   8 = &lt;built-in method height of QImage object at 0x000002286066BE00&gt;()
+E            +      where &lt;built-in method height of QImage object at 0x000002286066BE00&gt; = &lt;PyQt5.QtGui.QImage object at 0x000002286066BE00&gt;.height
+E            +  and   &lt;PyQt5.QtGui.QColor object at 0x000002286066ADD0&gt; = QColor('#4060A0')
+
+tests\ui\test_brand_asset_provider.py:101: AssertionError</failure></testcase><testcase classname="tests.ui.test_brand_asset_provider" name="test_svg2_embedded_image_is_visible_without_rewriting_original[application]" time="0.064"><failure message="AssertionError: assert &lt;PyQt5.QtGui.QColor object at 0x000002286066AE40&gt; == &lt;PyQt5.QtGui.QColor object at 0x000002286066AAC0&gt;&#10; +  where &lt;PyQt5.QtGui.QColor object at 0x000002286066AE40&gt; = &lt;built-in method pixelColor of QImage object at 0x000002286066A820&gt;((32 // 2), (8 // 2))&#10; +    where &lt;built-in method pixelColor of QImage object at 0x000002286066A820&gt; = &lt;PyQt5.QtGui.QImage object at 0x000002286066A820&gt;.pixelColor&#10; +    and   32 = &lt;built-in method width of QImage object at 0x000002286066A820&gt;()&#10; +      where &lt;built-in method width of QImage object at 0x000002286066A820&gt; = &lt;PyQt5.QtGui.QImage object at 0x000002286066A820&gt;.width&#10; +    and   8 = &lt;built-in method height of QImage object at 0x000002286066A820&gt;()&#10; +      where &lt;built-in method height of QImage object at 0x000002286066A820&gt; = &lt;PyQt5.QtGui.QImage object at 0x000002286066A820&gt;.height&#10; +  and   &lt;PyQt5.QtGui.QColor object at 0x000002286066AAC0&gt; = QColor('#4060A0')">assets = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-izqyHt/assets/branding')
+consumer = 'application'
+
+    @pytest.mark.parametrize("consumer", ["pixmap", "window", "application"])
+    def test_svg2_embedded_image_is_visible_without_rewriting_original(assets, consumer):
+        import base64
+    
+        source = png(assets, "isotype_light")
+        name = "app_icon" if consumer == "application" else "window_icon"
+        data = base64.b64encode(source.read_bytes()).decode("ascii")
+        original = (
+            '&lt;svg xmlns="http://www.w3.org/2000/svg" width="400" height="100" viewBox="0 0 400 100"&gt;'
+            f'&lt;image width="400" height="100" href="data:image/png;base64,{data}"/&gt;&lt;/svg&gt;'
+        ).encode("utf-8")
+        path = assets / f"{name}.svg"
+        path.write_bytes(original)
+        for size in (32, 256):
+            if consumer == "pixmap":
+                image = BrandAssetProvider.pixmap(name, QSize(size, size)).toImage()
+            else:
+                icon = BrandAssetProvider.app_icon() if consumer == "application" else BrandAssetProvider.window_icon()
+                image = icon.pixmap(size, size).toImage()
+            assert not image.isNull()
+&gt;           assert image.pixelColor(image.width() // 2, image.height() // 2) == QColor("#4060A0")
+E           AssertionError: assert &lt;PyQt5.QtGui.QColor object at 0x000002286066AE40&gt; == &lt;PyQt5.QtGui.QColor object at 0x000002286066AAC0&gt;
+E            +  where &lt;PyQt5.QtGui.QColor object at 0x000002286066AE40&gt; = &lt;built-in method pixelColor of QImage object at 0x000002286066A820&gt;((32 // 2), (8 // 2))
+E            +    where &lt;built-in method pixelColor of QImage object at 0x000002286066A820&gt; = &lt;PyQt5.QtGui.QImage object at 0x000002286066A820&gt;.pixelColor
+E            +    and   32 = &lt;built-in method width of QImage object at 0x000002286066A820&gt;()
+E            +      where &lt;built-in method width of QImage object at 0x000002286066A820&gt; = &lt;PyQt5.QtGui.QImage object at 0x000002286066A820&gt;.width
+E            +    and   8 = &lt;built-in method height of QImage object at 0x000002286066A820&gt;()
+E            +      where &lt;built-in method height of QImage object at 0x000002286066A820&gt; = &lt;PyQt5.QtGui.QImage object at 0x000002286066A820&gt;.height
+E            +  and   &lt;PyQt5.QtGui.QColor object at 0x000002286066AAC0&gt; = QColor('#4060A0')
+
+tests\ui\test_brand_asset_provider.py:101: AssertionError</failure></testcase></testsuite></testsuites>

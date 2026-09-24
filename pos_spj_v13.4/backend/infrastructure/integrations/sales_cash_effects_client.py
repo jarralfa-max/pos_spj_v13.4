@@ -46,6 +46,16 @@ class SalesCashEffectsClient:
     def __init__(self) -> None:
         self._service = CashSalesIntegrationService()
 
+    def require_open_shift(self, connection, *, branch_id: str, cashier_user_id: str) -> str:
+        """El turno abierto del cajero en la sucursal, o `CashInvalidStateError`.
+
+        Se consulta ANTES de completar la venta (Fase 6, decisión del usuario:
+        exigir turno abierto). Antes sólo lo pedía el efecto de caja, que corre
+        DESPUÉS del commit: la venta quedaba completada y el efectivo fuera de
+        todo corte, con un aviso en el log y nada más."""
+        return self._service.require_open_shift(
+            connection, branch_id=branch_id, cashier_user_id=cashier_user_id)
+
     def record_completed_sale(
         self, connection, *, sale_id: str, branch_id: str, cashier_user_id: str,
         operation_id: str, payments: list, change: Decimal = Decimal("0"),

@@ -49,9 +49,11 @@ class TestProductAvailabilityPolicy:
             Decimal("100"), Decimal("5"), sellable_override=False)
         assert state is ProductStockState.NOT_SELLABLE
 
-    def test_simple_product_out_of_stock_is_not_sellable(self):
+    def test_simple_product_out_of_stock_can_be_added_the_checkout_asks_authorization(self):
+        """Fase 7 (2026-09-19): agotado ya no bloquea el carrito — el control
+        es la autorización en caliente del COBRO (decisión de la Fase 6)."""
         assert ProductAvailabilityPolicy.is_sellable(
-            ProductStockState.OUT_OF_STOCK, is_composite=False) is False
+            ProductStockState.OUT_OF_STOCK, is_composite=False) is True
 
     def test_composite_product_out_of_stock_is_still_sellable(self):
         """A bundle/recipe product is composed from components at checkout —
@@ -123,7 +125,8 @@ class TestSalesCatalogQueryService:
         assert entry.stock_state == "OUT_OF_STOCK"  # not the legacy service's hardcoded "ok"
         assert entry.effective_price == Decimal("120.50")
         assert isinstance(entry.effective_price, Decimal)
-        assert entry.sellable is False
+        assert entry.sellable is True
+        assert "requiere autorización" in entry.warnings[0]
 
     def test_composite_product_out_of_stock_is_sellable(self, conn):
         branch = new_uuid()

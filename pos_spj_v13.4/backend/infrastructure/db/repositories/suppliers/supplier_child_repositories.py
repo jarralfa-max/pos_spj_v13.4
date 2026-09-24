@@ -31,14 +31,16 @@ def _d(value) -> date | None:
 
 
 class SupplierContactRepository(SupplierRepositoryBase):
-    _COLS = ("id, supplier_id, name, contact_type, role, phone_e164, email, is_primary,"
+    _COLS = ("id, supplier_id, name, contact_type, role, phone_e164, whatsapp_e164,"
+             " email, is_primary,"
              " receives_purchase_orders, receives_payment_receipts,"
              " receives_notifications, active")
 
     def save(self, c: SupplierContact) -> None:
         self._execute(
-            f"INSERT INTO supplier_contacts ({self._COLS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            f"INSERT INTO supplier_contacts ({self._COLS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (c.id, c.supplier_id, c.name, c.contact_type.value, c.role, c.phone_e164,
+             c.whatsapp_e164,
              c.email, int(c.is_primary), int(c.receives_purchase_orders),
              int(c.receives_payment_receipts), int(c.receives_notifications), int(c.active)))
 
@@ -52,7 +54,8 @@ class SupplierContactRepository(SupplierRepositoryBase):
         return SupplierContact(
             id=r["id"], supplier_id=r["supplier_id"], name=r["name"],
             contact_type=ContactType(r["contact_type"]), role=r["role"],
-            phone_e164=r["phone_e164"], email=r["email"], is_primary=bool(r["is_primary"]),
+            phone_e164=r["phone_e164"], whatsapp_e164=r["whatsapp_e164"],
+            email=r["email"], is_primary=bool(r["is_primary"]),
             receives_purchase_orders=bool(r["receives_purchase_orders"]),
             receives_payment_receipts=bool(r["receives_payment_receipts"]),
             receives_notifications=bool(r["receives_notifications"]), active=bool(r["active"]))
@@ -135,13 +138,15 @@ class SupplierCommercialTermsRepository(SupplierRepositoryBase):
             " credit_days, credit_limit, advance_required, advance_percentage,"
             " prompt_payment_discount, min_order_amount, quantity_tolerance, price_tolerance,"
             " lead_time_days, delivery_days, receiving_window_start, receiving_window_end,"
-            " accepts_returns, return_window_days) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " accepts_returns, return_window_days, is_credit, preferred_payment_method)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (t.id, t.supplier_id, t.currency_code, t.price_list, pt.credit_days,
              pt.credit_limit.to_string(), int(pt.advance_required), str(pt.advance_percentage),
              str(pt.prompt_payment_discount), pt.min_order_amount.to_string(),
              str(pt.quantity_tolerance), str(pt.price_tolerance), t.lead_time_days,
              t.delivery_days, t.receiving_window_start, t.receiving_window_end,
-             int(t.accepts_returns), t.return_window_days))
+             int(t.accepts_returns), t.return_window_days, int(bool(pt.is_credit)),
+             pt.preferred_payment_method.value if pt.preferred_payment_method else None))
 
     def get_by_supplier(self, supplier_id: str) -> SupplierCommercialTerms | None:
         r = self._query_one(
@@ -155,7 +160,9 @@ class SupplierCommercialTermsRepository(SupplierRepositoryBase):
             prompt_payment_discount=Decimal(r["prompt_payment_discount"]),
             min_order_amount=Money(Decimal(r["min_order_amount"]), r["currency_code"]),
             quantity_tolerance=Decimal(r["quantity_tolerance"]),
-            price_tolerance=Decimal(r["price_tolerance"]))
+            price_tolerance=Decimal(r["price_tolerance"]),
+            is_credit=bool(r["is_credit"]),
+            preferred_payment_method=r["preferred_payment_method"] or None)
         return SupplierCommercialTerms(
             id=r["id"], supplier_id=r["supplier_id"], payment_terms=pt,
             price_list=r["price_list"], lead_time_days=r["lead_time_days"],

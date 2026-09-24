@@ -5,14 +5,14 @@ from __future__ import annotations
 import os
 import sys
 
-from PyQt5.QtCore import QEvent, QObject, QSettings, Qt
-from PyQt5.QtWidgets import QAbstractSpinBox, QAction, QGridLayout, QLineEdit, QPushButton
+from PyQt5.QtCore import QEvent, QMargins, QObject, QPoint, QSettings, Qt
+from PyQt5.QtWidgets import QAbstractSpinBox, QAction, QGridLayout, QLineEdit, QPushButton, QToolButton, QWidget
 
-from frontend.desktop.components.buttons import create_secondary_button
+from frontend.desktop.components.buttons import IconButton, create_secondary_button
 from frontend.desktop.components.dialogs import StandardDialog
 from frontend.desktop.components.icons import IconProvider, Icons
 from frontend.desktop.themes.theme_manager import ThemeManager
-from frontend.desktop.themes.tokens import density_metrics
+from frontend.desktop.themes.tokens import Borders, density_metrics
 
 INPUT_MODES = ("text", "integer", "decimal", "money", "weight", "phone", "email")
 KEYBOARD_MODES = ("auto_open", "icon_only", "disabled")
@@ -123,6 +123,9 @@ class KeyboardAwareInput(QObject):
         stored = self._settings.value(self._settings_key, "icon_only")
         self.mode = "icon_only"
         self.keyboard = None
+        self._active = True
+        self._base_text_margins = target.textMargins()
+        self._applied_text_margins = target.textMargins()
         self.action = QAction(target)
         self.action.setObjectName("virtualKeyboardAction")
         icon_name = Icons.NUMERIC_KEYPAD if input_mode in _NUMERIC_MODES else Icons.KEYBOARD
@@ -131,7 +134,18 @@ class KeyboardAwareInput(QObject):
         self.action.setToolTip(label)
         self.action.setText(label)
         self.action.triggered.connect(self.open)
-        target.addAction(self.action, QLineEdit.TrailingPosition)
+        # Qt5 sizes native line-edit actions from the small icon metric, even
+        # when the global density is touch. Keep the public QAction contract,
+        # and give its canonical button an independently sized hit area.
+        QWidget.addAction(target, self.action)
+        parent = target.parentWidget()
+        self._control = parent if isinstance(parent, QAbstractSpinBox) else target
+        self.button = IconButton(icon_name, label, self._control)
+        self.button.setFocusPolicy(Qt.NoFocus)
+        self.button.clicked.connect(self.action.trigger)
+        self.action.changed.connect(self._layout_button)
+        self.action.destroyed.connect(self._detach)
+        self.destroyed.connect(self.button.deleteLater)
         target.setProperty("virtualKeyboard", "numeric" if input_mode in _NUMERIC_MODES else "text")
         target.setProperty("keyboardInputMode", input_mode)
         target.installEventFilter(self)
@@ -140,9 +154,56 @@ class KeyboardAwareInput(QObject):
         self._density_changed()
 
     def _density_changed(self, _density=None):
-        parent = self.target.parentWidget()
-        control = parent if isinstance(parent, QAbstractSpinBox) else self.target
-        control.setMinimumHeight(density_metrics().input_height)
+        if self._active:
+            self._control.setMinimumHeight(density_metrics().input_height)
+            self.button.setFixedSize(density_metrics().icon_button_size, density_metrics().icon_button_size)
+            self._layout_button()
+
+    def _layout_button(self):
+        if not self._active:
+            return
+        visible = self.action.isVisible()
+        self.button.setVisible(visible)
+        self.button.setEnabled(self.action.isEnabled() and not self.target.isReadOnly())
+        margins = self.target.textMargins()
+        if margins != self._applied_text_margins:
+            self._base_text_margins = QMargins(margins)
+        margins = QMargins(self._base_text_margins)
+        rtl = self.target.layoutDirection() == Qt.RightToLeft
+        size = density_metrics().icon_button_size
+        if visible:
+            if rtl:
+                margins.setLeft(margins.left() + size)
+            else:
+                margins.setRight(margins.right() + size)
+        self._applied_text_margins = margins
+        if self.target.textMargins() != margins:
+            self.target.setTextMargins(margins)
+        # Keep native clear/other trailing actions outside this button. Qt
+        # still reserves their own text space; we reserve only our own width.
+        inset = Borders.WIDTH_THIN if self.target.hasFrame() else 0
+        edge = inset if rtl else self.target.width() - inset
+        for sibling in self.target.findChildren(QToolButton, options=Qt.FindDirectChildrenOnly):
+            if not sibling.isVisibleTo(self.target):
+                continue
+            geometry = sibling.geometry()
+            if rtl and geometry.center().x() < self.target.rect().center().x():
+                edge = max(edge, geometry.right() + 1)
+            elif not rtl and geometry.center().x() > self.target.rect().center().x():
+                edge = min(edge, geometry.left())
+        point = self.target.mapTo(self._control, QPoint(edge if rtl else edge - size,
+                                                       (self.target.height() - size) // 2))
+        self.button.move(point)
+        self.button.raise_()
+
+    def _detach(self):
+        if not self._active:
+            return
+        self._active = False
+        self.button.hide()
+        self.target.setTextMargins(self._base_text_margins)
+        if self.keyboard is not None:
+            self.keyboard.hide()
 
     def set_mode(self, mode: str, *, persist=True):
         if mode not in KEYBOARD_MODES:
@@ -156,7 +217,7 @@ class KeyboardAwareInput(QObject):
             self._settings.setValue(self._settings_key, mode)
 
     def open(self):
-        if (self.mode == "disabled" or self.hardware_source or
+        if (not self._active or self.mode == "disabled" or self.hardware_source or
                 self.target.property("hardwareInput") in ("scanner", "scale", "keyboard") or
                 not self.target.isEnabled() or self.target.isReadOnly()):
             return
@@ -165,7 +226,14 @@ class KeyboardAwareInput(QObject):
         self.keyboard.show()
 
     def eventFilter(self, watched, event):
-        if event.type() == QEvent.MouseButtonRelease and self.mode == "auto_open":
+        if not self._active:
+            return False
+        if event.type() == QEvent.ActionRemoved and event.action() == self.action:
+            self._detach()
+        elif event.type() in (QEvent.Resize, QEvent.Show, QEvent.Paint, QEvent.StyleChange,
+                              QEvent.LayoutDirectionChange, QEvent.ReadOnlyChange):
+            self._layout_button()
+        elif event.type() == QEvent.MouseButtonRelease and self.mode == "auto_open":
             self.open()
         elif event.type() == QEvent.FocusOut and self.keyboard is not None:
             self.keyboard.hide()
@@ -190,11 +258,25 @@ def open_virtual_keyboard(*, numeric: bool = False) -> bool:
     return False
 
 
+def _deleted(obj) -> bool:
+    try:
+        from PyQt5 import sip
+        return sip.isdeleted(obj)
+    except Exception:
+        return False
+
+
 def attach_virtual_keyboard_action(line_edit: QLineEdit, *, numeric: bool = False,
                                   input_mode: str | None = None) -> QAction:
     """Attach a trailing action to a QLineEdit without duplicating OSK logic."""
 
     controller = getattr(line_edit, "_keyboard_controller", None)
+    if controller is not None and _deleted(controller):
+        # Envoltorio de Python cuyo objeto C++ ya no existe: Qt reutilizó la
+        # dirección de un campo destruido y sip devolvió el envoltorio viejo con
+        # su atributo. Tocarlo reventaba ("wrapped C/C++ object ... has been
+        # deleted") al construir cualquier diálogo con campos de captura.
+        controller = None
     if controller is not None and controller.action in line_edit.actions():
         return controller.action
     if controller is not None:

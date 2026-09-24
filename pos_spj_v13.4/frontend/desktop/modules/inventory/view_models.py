@@ -291,6 +291,21 @@ def availability_breakdown_table(explain: dict) -> TableViewModel:
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 
 
+#: Usos del almacén, abreviados para la lista (Fase 10). Sin esto no había
+#: forma de ver desde qué almacén vende, compra o produce la sucursal.
+_WAREHOUSE_PURPOSES_ES = (
+    ("allow_sales_allocation", "Venta"),
+    ("allow_purchase_receipt", "Compra"),
+    ("allow_production", "Producción"),
+    ("allow_quarantine", "Cuarentena"),
+)
+
+
+def warehouse_purposes_es(row: dict) -> str:
+    usos = [etiqueta for campo, etiqueta in _WAREHOUSE_PURPOSES_ES if row.get(campo)]
+    return ", ".join(usos) if usos else "—"
+
+
 def warehouses_table(rows: list[dict]) -> TableViewModel:
     out, ids = [], []
     for r in rows:
@@ -300,6 +315,7 @@ def warehouses_table(rows: list[dict]) -> TableViewModel:
             str(r.get("name") or "—"),
             warehouse_type_es(r.get("warehouse_type")),
             warehouse_status_es(r.get("status")),
+            warehouse_purposes_es(r),
         ])
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 

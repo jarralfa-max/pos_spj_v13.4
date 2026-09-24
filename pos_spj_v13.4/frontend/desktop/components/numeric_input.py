@@ -24,3 +24,22 @@ class NumericInput(QDoubleSpinBox):
 
     def decimal_value(self) -> Decimal:
         return Decimal(str(self.value()))
+
+    def set_decimal_value(self, value: Decimal | str | None) -> None:
+        """Precarga el campo para EDITAR un valor existente.
+
+        El `float` intermedio no introduce una imprecisión nueva: `QDoubleSpinBox`
+        ya guarda el número como `float` y `decimal_value()` existe justo para
+        convertirlo de vuelta al leerlo. Lo que no debe hacerse es aritmética de
+        dinero sobre esto — para eso está `Money`, que rechaza `float` por diseño.
+
+        `None` deja el campo en cero, que es el estado inicial de todo campo
+        numérico de captura.
+        """
+        if value is None or value == "":
+            self.setValue(0)
+            return
+        try:
+            self.setValue(float(Decimal(str(value))))
+        except (ArithmeticError, ValueError):
+            self.setValue(0)

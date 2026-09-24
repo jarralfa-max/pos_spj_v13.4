@@ -25,6 +25,7 @@ from frontend.desktop.components import (
     create_success_button,
 )
 from frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs import (
+    SupplierAddressDialog,
     SupplierBankAccountDialog,
     SupplierContactDialog,
     SupplierEvaluationDialog,
@@ -84,9 +85,21 @@ class SupplierDetailDialog(QDialog):
 
         self._contacts_table = StandardTable([
             ColumnSpec("Nombre"), ColumnSpec("Área", "status"), ColumnSpec("Cargo"),
-            ColumnSpec("Teléfono", "text"), ColumnSpec("Correo"), ColumnSpec("Principal", "status")])
+            ColumnSpec("Teléfono", "text"), ColumnSpec("WhatsApp", "text"),
+            ColumnSpec("Correo"), ColumnSpec("Principal", "status")])
         self._tabs.addTab(self._section(self._contacts_table, "Agregar contacto",
                                         self._add_contact), "Contactos")
+
+        # Domicilios va JUNTO a Contactos, no al final: pertenece al mismo grupo
+        # de identificación del proveedor. `AddSupplierAddressUseCase` y
+        # `SupplierAddressDialog` ya existían — lo que faltaba era esta pestaña
+        # y la consulta de lectura, sin la cual una dirección se guardaba y no
+        # se podía volver a ver nunca.
+        self._addresses_table = StandardTable([
+            ColumnSpec("Tipo", "status"), ColumnSpec("Calle y número"),
+            ColumnSpec("Municipio"), ColumnSpec("Estado"), ColumnSpec("C.P.", "text")])
+        self._tabs.addTab(self._section(self._addresses_table, "Agregar domicilio",
+                                        self._add_address), "Domicilios")
 
         self._bank_table = StandardTable([
             ColumnSpec("Banco"), ColumnSpec("Titular"), ColumnSpec("CLABE", "text"),
@@ -161,13 +174,19 @@ class SupplierDetailDialog(QDialog):
         if index in self._loaded_tabs:
             return
         self._loaded_tabs.add(index)
+        # Insertar Domicilios en la posición 2 CORRE todos los índices
+        # posteriores. Los seis sitios afectados —estos cargadores y los cuatro
+        # `_notify(..., N)` de las mutaciones— se actualizaron juntos y a
+        # propósito: un índice desfasado aquí no falla, sólo refresca la tabla
+        # equivocada, que es el peor modo de error posible.
         loaders = {
             1: lambda: self._fill(self._contacts_table, self._presenter.contacts(self._supplier_id)),
-            2: lambda: self._fill(self._bank_table, self._presenter.bank_accounts(self._supplier_id)),
-            3: self._load_terms,
-            4: lambda: self._fill(self._products_table, self._presenter.products(self._supplier_id)),
-            5: lambda: self._fill(self._docs_table, self._presenter.documents(self._supplier_id)),
-            6: self._load_risk,
+            2: lambda: self._fill(self._addresses_table, self._presenter.addresses(self._supplier_id)),
+            3: lambda: self._fill(self._bank_table, self._presenter.bank_accounts(self._supplier_id)),
+            4: self._load_terms,
+            5: lambda: self._fill(self._products_table, self._presenter.products(self._supplier_id)),
+            6: lambda: self._fill(self._docs_table, self._presenter.documents(self._supplier_id)),
+            7: self._load_risk,
         }
         loader = loaders.get(index)
         if loader:
@@ -177,7 +196,9 @@ class SupplierDetailDialog(QDialog):
         table.load_rows(model.rows, row_ids=model.row_ids)
 
     def _load_terms(self) -> None:
-        self._terms_label.setText("Edita las condiciones comerciales con el botón inferior.")
+        # Antes era un texto FIJO: las condiciones se guardaban y nunca se
+        # mostraban. Ahora se leen de la base.
+        self._terms_label.setText(self._presenter.terms_summary(self._supplier_id))
 
     def _load_risk(self) -> None:
         risk = self._presenter.risk(self._supplier_id)
@@ -202,12 +223,22 @@ class SupplierDetailDialog(QDialog):
                 supplier_id=self._supplier_id, **dialog.values())
             self._notify(ok, msg, 1)
 
+    def _add_address(self) -> None:
+        dialog = SupplierAddressDialog(
+            self, search_service=self._presenter.address_search_service())
+        if dialog.exec_():
+            ok, msg, _ = self._presenter.add_address(
+                supplier_id=self._supplier_id, **dialog.values())
+            self._notify(ok, msg, 2)
+
+    # Los índices de abajo subieron en uno al insertar Domicilios en la
+    # posición 2 (banco 2→3, condiciones 3→4, evaluación 6→7).
     def _add_bank(self) -> None:
         dialog = SupplierBankAccountDialog(self)
         if dialog.exec_():
             ok, msg, _ = self._presenter.add_bank_account(
                 supplier_id=self._supplier_id, **dialog.values())
-            self._notify(ok, msg, 2)
+            self._notify(ok, msg, 3)
 
     def _verify_bank(self) -> None:
         account_id = self._bank_table.selected_row_id()
@@ -215,18 +246,18 @@ class SupplierDetailDialog(QDialog):
             self._notify(False, "Selecciona una cuenta bancaria.")
             return
         ok, msg, _ = self._presenter.verify_bank_account(account_id)
-        self._notify(ok, msg, 2)
+        self._notify(ok, msg, 3)
 
     def _edit_terms(self) -> None:
         dialog = SupplierTermsDialog(self)
         if dialog.exec_():
             ok, msg, _ = self._presenter.update_terms(
                 supplier_id=self._supplier_id, **dialog.values())
-            self._notify(ok, msg, 3)
+            self._notify(ok, msg, 4)
 
     def _evaluate(self) -> None:
         dialog = SupplierEvaluationDialog(self)
         if dialog.exec_():
             ok, msg, _ = self._presenter.evaluate(
                 supplier_id=self._supplier_id, **dialog.values())
-            self._notify(ok, msg, 6)
+            self._notify(ok, msg, 7)

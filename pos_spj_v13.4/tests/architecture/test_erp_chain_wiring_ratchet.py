@@ -40,6 +40,10 @@ arreglan distinto:
    `customer_id` y `folio`, mientras la carga canónica de ventas trae
    `entity_id` y poco más. Conectarlo sin alinear el contrato haría fallar cada
    cobro con "SALE_COMPLETED sin sale_id".
+   **CERRADO 2026-09-18 (Fase 6)**: el cobro publica totales, pagos y costo;
+   `backend/application/sales/integrations/finance_translator.py` los traduce
+   al contrato de Finanzas y `wiring.py` (`wire_sales` + `dispatch_sales_outbox`)
+   los entrega. La prueba del final fija ese contrato.
 
 LO QUE SÍ FUNCIONA, Y POR QUÉ IMPORTA NO ROMPERLO
 --------------------------------------------------
@@ -101,7 +105,6 @@ DARK_HANDLERS = frozenset({
     "PayrollPaidHandler",
     "ProductionCompletedHandler",
     "PurchaseReceivedHandler",
-    "SaleCompletedHandler",                  # contrato desalineado, ver arriba
     "SaleReversedHandler",
     "WasteRegisteredHandler",
 })
@@ -213,22 +216,36 @@ def test_wiring_functions_that_nobody_calls_are_declared():
         "Ya tienen llamador; quítalas de UNCALLED_WIRING:\n  " + "\n  ".join(ya_llamadas))
 
 
-def test_the_sales_outbox_still_has_no_dispatcher():
-    """Fija el eslabón 3 de la cadena, que es el más caro de descubrir tarde.
+def test_the_sales_outbox_reaches_finance_with_the_aligned_contract():
+    """Eslabón 3, cerrado en la Fase 6. Lo que la prueba anterior pedía comprobar
+    el día que existiera despachador: que lo que llega a `SaleCompletedHandler`
+    traiga `sale_id`, `settlements`, `customer_id` y `folio`, no sólo
+    `entity_id`. Se comprueba sobre la carga REAL que arma el cobro."""
+    from decimal import Decimal
+    from types import SimpleNamespace
 
-    `sales_outbox` recibe `SALE_COMPLETED` dentro de la transacción de la venta
-    y NADIE lo lee. Cuando alguien escriba `dispatch_sales_outbox`, esta prueba
-    empezará a fallar y le obligará a comprobar además el contrato: el
-    manejador de Finanzas pide `sale_id`/`settlements`/`customer_id`/`folio` y
-    la carga canónica de ventas trae `entity_id`.
-    """
-    despachadores = [
-        p for p in (APP_ROOT / "backend").rglob("*outbox_dispatcher*.py")
-        if "__pycache__" not in p.parts
-    ]
-    de_ventas = [p for p in despachadores if "sales" in p.name]
-    assert not de_ventas, (
-        "Hay despachador de la bandeja de ventas: comprueba que la carga de "
-        "`SALE_COMPLETED` traiga `sale_id`, `settlements`, `customer_id` y "
-        "`folio` antes de suscribir `SaleCompletedHandler`, y retira esta "
-        "prueba.")
+    from backend.application.sales.integrations.finance_translator import (
+        sale_completed_to_finance,
+    )
+    from backend.application.sales.integrations.wiring import dispatch_sales_outbox, wire_sales
+    from backend.application.sales.use_cases.checkout_use_cases import _completed_payload
+
+    linea = SimpleNamespace(product_id="p1", quantity=SimpleNamespace(value=Decimal("2")))
+    venta = SimpleNamespace(
+        id="01a0b7c9-0000-7000-8000-00000000abcd", sale_number=None, customer_id="c1",
+        currency_code="MXN", lines=[linea], total_paid=Decimal("200"),
+        payments=[SimpleNamespace(method="CASH", amount=Decimal("200"))],
+        totals=SimpleNamespace(gross_subtotal=Decimal("200"), discount_total=Decimal("0"),
+                               promotion_total=Decimal("0"), coupon_total=Decimal("0"),
+                               loyalty_total=Decimal("0"), tax_total=Decimal("0"),
+                               rounding_adjustment=Decimal("0"), total=Decimal("200")))
+    carga = _completed_payload(venta, {"p1": Decimal("50")}, [], "RESERVED",
+                               authorizer_user_id=None, reason=None)
+    finanzas = sale_completed_to_finance({"event_id": "e", "operation_id": "o",
+                                          "branch_id": "b", "timestamp": "2026-09-18",
+                                          "entity_id": venta.id, "payload": carga})
+
+    for campo in ("sale_id", "settlements", "customer_id", "folio", "net_total",
+                  "cogs_total", "occurred_at"):
+        assert finanzas.get(campo) not in (None, "", []), campo
+    assert callable(wire_sales) and callable(dispatch_sales_outbox)

@@ -22,13 +22,15 @@ class AddCartLineDialog(FormDialog):
     """Capture one cart line. A weight/poultry line uses 3-decimal quantity in Kg
     and lets the buyer set a conversion factor to inventory units."""
 
-    def __init__(self, parent=None, *, product_provider=None, cost_variance=None) -> None:
+    def __init__(self, parent=None, *, product_provider=None, cost_variance=None,
+                 empty_reason_provider=None) -> None:
         super().__init__(parent, title="Agregar producto")
         self._provider = product_provider or (lambda _q: [])
         self._cost_variance = cost_variance or (lambda _pid, _cost: {
             "label": "—", "is_significant": False})
         self._product = EntitySearchInput(
-            self, provider=self._provider, placeholder="Buscar producto por nombre o código")
+            self, provider=self._provider, placeholder="Buscar producto por nombre o código",
+            empty_reason_provider=empty_reason_provider)
         self._product.selected.connect(lambda _id: self._update_cost_hint())
         self._description = StandardLineEdit(self)
         self._description.setPlaceholderText("Descripción")

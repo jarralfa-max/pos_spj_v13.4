@@ -18,6 +18,7 @@ from backend.application.sales.permissions import SalesPermissions
 from backend.domain.customer_display.enums import CustomerDisplayMode, CustomerDisplaySectionCode
 from backend.infrastructure.db.schema.sales_schema import create_sales_schema
 from backend.shared.ids import new_uuid
+from tests.integration._pos_ready import open_cash_shift, stock_product
 from frontend.desktop.modules.sales_pos.composition import build_sales_pos_presenter
 from tests.integration._born_clean_db import make_db
 
@@ -27,7 +28,10 @@ class _FakeSession:
         self.user_id = new_uuid()
         self.active_branch_id = branch_id
         self.is_active = True
-        self._permissions = {p for p in vars(SalesPermissions).values() if isinstance(p, str)}
+        # Fase 6: el cobro reserva inventario con el permiso de quien cobra
+        # (lo siembra la migración 268 a cajero y gerente).
+        self._permissions = {p for p in vars(SalesPermissions).values() if isinstance(p, str)} | {
+            "INVENTARIO.reserva.crear", "INVENTARIO.reserva.liberar", "INVENTARIO.reserva.ver"}
 
     def tiene_permiso(self, code: str) -> bool:
         return code in self._permissions
@@ -76,12 +80,17 @@ class TestCustomerDisplayCutoverThroughRealComposition:
 
     def test_checkout_completion_pushes_thank_you(self, conn):
         branch_id = _existing_branch_id(conn)
-        presenter = build_sales_pos_presenter(conn, _FakeSession(branch_id))
+        session = _FakeSession(branch_id)
+        presenter = build_sales_pos_presenter(conn, session)
         gateway = _FakeGateway()
+        # Fase 6: cobrar exige turno de caja y descuenta existencia real.
+        open_cash_shift(conn, branch_id=branch_id, cashier_user_id=session.user_id)
+        bistec = new_uuid()
+        stock_product(conn, product_id=bistec, branch_id=branch_id, quantity="5")
 
         sale_id = presenter.start_sale().entity_id
         presenter.add_line(
-            sale_id=sale_id, product_id=new_uuid(), quantity=Decimal("1"),
+            sale_id=sale_id, product_id=bistec, quantity=Decimal("1"),
             unit_price=Decimal("100"), product_snapshot={"name": "Bistec"})
         presenter.begin_checkout(sale_id=sale_id)
         presenter.record_payment(sale_id=sale_id, method="CASH", amount=Decimal("100"))

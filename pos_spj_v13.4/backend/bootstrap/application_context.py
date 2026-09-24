@@ -69,6 +69,14 @@ class ApplicationContext:
     permissions: frozenset[str]
     feature_context: FeatureContext
     session_id: str
+    #: Sucursales ASIGNADAS al usuario (`usuarios_sucursales`). Añadido el
+    #: 2026-09-17: los contextos de ejecución de Inventario, Mermas y Cárnico
+    #: leen `assigned_branch_ids` de la sesión, pero NADIE lo escribía nunca, así
+    #: que el nivel "sucursales asignadas" del alcance era hueco para todos y
+    #: `VIEW_ASSIGNED_BRANCHES` no podía conceder nada.
+    #: Vacío NO significa "ninguna sucursal": significa "sin asignaciones
+    #: explícitas", y entonces manda la sucursal propia (`branch_id`).
+    assigned_branch_ids: frozenset[str] = frozenset()
     locale: str = DEFAULT_LOCALE
     timezone: str = DEFAULT_TIMEZONE
     currency: str = DEFAULT_CURRENCY
@@ -91,7 +99,13 @@ class ApplicationContext:
             workstation_id=self.workstation_id, workstation_type=self.workstation_type,
             user_id=self.user_id, user_name=self.user_name, roles=self.roles,
             permissions=permissions, feature_context=feature_context,
-            session_id=self.session_id, locale=self.locale, timezone=self.timezone,
+            session_id=self.session_id,
+            # Se propaga explícitamente: este método reconstruye el contexto
+            # campo por campo, así que un campo nuevo que no se nombre aquí se
+            # perdería EN SILENCIO justo al cambiar de sucursal — la operación
+            # donde el alcance más importa.
+            assigned_branch_ids=self.assigned_branch_ids,
+            locale=self.locale, timezone=self.timezone,
             currency=self.currency, offline_status=self.offline_status,
             created_at=self.created_at,
         )

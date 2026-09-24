@@ -15,7 +15,7 @@ class LossRegistrationPage(QWidget):
         self._product_id = ""; self._lot_id = None; self._loaded = False
         root = QVBoxLayout(self)
         root.addWidget(PageHeader(title="Registro general de pérdidas", subtitle="Captura producto, lote, magnitud, causa y evidencia.", parent=self))
-        form = QFormLayout(); self.product = ProductSearchBox(provider=presenter.search_products, parent=self)
+        form = QFormLayout(); self.product = ProductSearchBox(provider=presenter.search_products, parent=self, empty_reason_provider=getattr(presenter, "product_search_reason", None))
         self.product.selected.connect(self._select_product)
         self.lot = SearchSelector(provider=lambda q: presenter.search_lots(self._product_id, q), placeholder="Buscar lote (opcional)...", parent=self)
         self.lot.selected.connect(lambda option: setattr(self, "_lot_id", option.id))

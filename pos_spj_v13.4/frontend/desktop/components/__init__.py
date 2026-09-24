@@ -1,8 +1,8 @@
 """Reusable desktop UI components for the SPJ refactor."""
 
-from frontend.desktop.components.address_input import AddressInput, AddressSuggestion
+from frontend.desktop.components.address_input import AddressInput, SyncRunner
 from frontend.desktop.components.asset_search_box import AssetSearchBox
-from frontend.desktop.components.branch_search_box import BranchSearchBox
+from frontend.desktop.components.branch_search_box import BranchSearchBox, BranchSelector
 from frontend.desktop.components.customer_search_box import CustomerSearchBox
 from frontend.desktop.components.date_range_filter import DateRange, DateRangeFilter
 from frontend.desktop.components.driver_search_box import DriverSearchBox
@@ -110,9 +110,10 @@ __all__ = [
     "StandardComboBox", "StandardCheckBox", "StandardRadioButton",
     "Toolbar", "FilterBar", "ContextBar", "Breadcrumbs",
     "AddressInput",
-    "AddressSuggestion",
+    "SyncRunner",
     "AssetSearchBox",
     "BranchSearchBox",
+    "BranchSelector",
     "CustomerSearchBox",
     "DateRange",
     "DateRangeFilter",

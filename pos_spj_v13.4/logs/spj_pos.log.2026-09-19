@@ -1,0 +1,18 @@
+2026-09-19 09:08:43,885 SPJ.Boot INFO =======================================================
+2026-09-19 09:08:43,887 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-19 09:08:43,888 SPJ.Boot INFO =======================================================
+2026-09-19 09:08:48,428 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-19 09:08:48,819 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-19 09:08:48,820 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-19 09:08:49,634 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-09-19 09:08:50,022 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-09-19 09:08:50,592 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-09-19 09:08:50,593 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 1 subscriptions
+2026-09-19 09:08:50,594 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-09-19 09:08:50,594 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-09-19 09:09:25,072 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-19 09:10:41,764 SPJ.Boot INFO Sesión iniciada: Administrador Maestro en Principal.
+2026-09-19 09:13:17,734 SPJ.Boot INFO Sesión iniciada: Juana Rodriguez en Corregidora.
+2026-09-19 09:14:37,047 SPJ.Boot INFO Sesión iniciada: Administrador Maestro en Principal.
+2026-09-19 09:15:24,180 SPJ.Boot INFO Sesión iniciada: Juana Rodriguez en Corregidora.
+2026-09-19 09:15:49,442 SPJ.Boot INFO Sistema cerrado. Código: 0

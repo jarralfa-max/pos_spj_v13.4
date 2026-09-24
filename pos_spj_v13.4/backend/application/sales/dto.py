@@ -302,3 +302,6 @@ class ProductCatalogEntryDTO:
     image_reference: str | None
     sellable: bool
     warnings: tuple[str, ...] = field(default_factory=tuple)
+    #: Fase 7: unidades que se pueden ARMAR con las partes en existencia
+    #: (despiece reversible). Ya van sumadas en `available_quantity`.
+    reconstructible_quantity: Decimal = Decimal("0")

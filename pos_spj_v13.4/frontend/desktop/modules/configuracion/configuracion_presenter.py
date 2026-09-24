@@ -185,8 +185,13 @@ class ConfiguracionPresenter:
         save_user_uc=None, set_user_active_uc=None, save_role_uc=None,
         company_profile_service=None, set_installation_branch_uc=None,
         authorization=None, audit_log_repository=None,
+        address_search_factory=None,
     ) -> None:
         self._query_service = query_service
+        #: Fábrica del servicio estándar de direcciones. Opcional para que las
+        #: decenas de pruebas que construyen el presentador sin ella sigan igual;
+        #: las dos raíces de composición reales sí la inyectan.
+        self._address_search_factory = address_search_factory
         self._session = session_context
         self._approve_uc = approve_change_request_uc
         self._reject_uc = reject_change_request_uc
@@ -371,6 +376,20 @@ class ConfiguracionPresenter:
 
     def list_template_versions(self, template_id: str):
         return self._query_service.list_template_versions(template_id)
+
+    def address_search_service(self):
+        """Servicio de búsqueda de direcciones para los diálogos de empresa y
+        sucursal. `None` si no se inyectó o falló: el componente deja capturar
+        a mano y dice por qué no busca."""
+        if self._address_search_factory is None:
+            return None
+        try:
+            return self._address_search_factory()
+        except Exception:
+            import logging
+            logging.getLogger("spj.configuracion.presenter").exception(
+                "No se pudo preparar la búsqueda de direcciones")
+            return None
 
     def get_company_profile(self):
         return self._query_service.get_company_profile()

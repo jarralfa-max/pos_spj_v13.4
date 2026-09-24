@@ -144,28 +144,63 @@ class ProcurementImmediatePaymentBridgeHandler:
             )
 
     def _resolve_treasury_account(self, *, payment_source: str, branch_id: str | None):
-        account_type = _UNAMBIGUOUS_SOURCE_TO_ACCOUNT_TYPE.get(payment_source)
-        if account_type is None:
-            logger.warning(
-                "procurement immediate payment: payment_source=%r has no unambiguous "
-                "TreasuryAccountType mapping — skipping, refusing to guess",
-                payment_source)
-            return None
-        with FinanceUnitOfWork(self._connection) as uow:
-            candidates = [a for a in uow.treasury.list_active() if a.account_type == account_type]
-        if branch_id:
-            branch_scoped = [a for a in candidates if a.branch_id == branch_id]
-            if branch_scoped:
-                candidates = branch_scoped
-            else:
-                candidates = [a for a in candidates if a.branch_id is None]
-        if len(candidates) != 1:
-            logger.warning(
-                "procurement immediate payment: %d active %s treasury account(s) found "
-                "(branch_id=%r) — expected exactly 1, skipping",
-                len(candidates), account_type.value, branch_id)
-            return None
-        return candidates[0]
+        account, problema = resolve_purchase_treasury_account(
+            self._connection, payment_source=payment_source, branch_id=branch_id)
+        if account is None:
+            logger.warning("procurement immediate payment: %s — skipping, refusing to guess",
+                           problema)
+        return account
+
+
+def resolve_purchase_treasury_account(connection, *, payment_source: str,
+                                      branch_id: str | None):
+    """`(cuenta, None)` si el pago de contado se puede contabilizar, o
+    `(None, motivo)` si no.
+
+    ÚNICA definición de "¿esta fuente de pago tiene a dónde asentarse?". La usa
+    este puente al asentar y, desde el 2026-09-18, también la CONFIRMACIÓN de la
+    compra (vía `ProcurementPaymentSourceBookingAdapter`) y la pantalla al
+    ofrecer fuentes. Antes sólo la usaba el puente, DESPUÉS de confirmar: una
+    compra pagada de caja chica sin cuenta de caja chica se confirmaba, el dinero
+    salía, y el asiento no existía — sólo quedaba una advertencia en el registro.
+    El docstring de arriba decía que un asiento faltante es "un hueco visible";
+    no lo era.
+    """
+    account_type = _UNAMBIGUOUS_SOURCE_TO_ACCOUNT_TYPE.get(payment_source)
+    if account_type is None:
+        return None, (f"la fuente de pago {payment_source or '(vacía)'} no corresponde a "
+                      "un tipo de cuenta de tesorería sin ambigüedad")
+    with FinanceUnitOfWork(connection) as uow:
+        candidates = [a for a in uow.treasury.list_active() if a.account_type == account_type]
+    if branch_id:
+        branch_scoped = [a for a in candidates if a.branch_id == branch_id]
+        if branch_scoped:
+            candidates = branch_scoped
+        else:
+            candidates = [a for a in candidates if a.branch_id is None]
+    if len(candidates) != 1:
+        return None, (f"hay {len(candidates)} cuentas de tesorería activas de tipo "
+                      f"{account_type.value} para esta sucursal; se necesita exactamente una")
+    return candidates[0], None
+
+
+def purchase_posting_problem(connection, *, payment_source: str, branch_id: str | None,
+                             on_date: date | None = None) -> str | None:
+    """`None` si el pago de contado se puede asentar completo; si no, el motivo.
+
+    Además de la cuenta de tesorería exige el perfil contable PURCHASE vigente,
+    que el puente también necesita: sin él levanta después de haberse confirmado
+    la compra, y el efecto es el mismo que sin cuenta — dinero sin asiento.
+    """
+    _account, problema = resolve_purchase_treasury_account(
+        connection, payment_source=payment_source, branch_id=branch_id)
+    if problema:
+        return problema
+    fecha = on_date or date.today()
+    with FinanceUnitOfWork(connection) as uow:
+        if uow.posting_profiles.find_effective("PURCHASE", fecha) is None:
+            return f"no hay perfil contable de compras vigente al {fecha.isoformat()}"
+    return None
 
 
 def _issue_date(payload: dict) -> date:

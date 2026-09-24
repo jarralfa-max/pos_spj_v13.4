@@ -1,0 +1,478 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="16" skipped="0" tests="16" time="3.348" timestamp="2026-09-23T13:28:10.359658+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[light-0-StandardLineEdit]" time="0.173"><failure message="assert 22 &gt;= 42&#10; +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D2353B8830&gt;()&#10; +    where &lt;built-in method width of QToolButton object at 0x000001D2353B8830&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D2353B8830&gt;.width">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001D2353B8050&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...3B8290&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001D2353B8200&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001D2353B8320&gt;)
+factory = &lt;class 'frontend.desktop.components.text_inputs.StandardLineEdit'&gt;
+direction = 0, theme = 'light'
+
+    @pytest.mark.parametrize("factory", [StandardLineEdit, IntegerInput, MoneyInput])
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_keyboard_target_round_trip_fits_control_and_keeps_text_clear(terminal, factory, direction, theme):
+        app, manager, _, host = terminal
+        manager.apply(app, theme, density="comfortable")
+        control = factory()
+        line = control if isinstance(control, QLineEdit) else control.lineEdit()
+        control.setLayoutDirection(direction)
+        line.setClearButtonEnabled(True)
+        line.setText("123456789012345678901234567890123456789012345678901234567890")
+        line.setAlignment(Qt.AlignRight if direction == Qt.RightToLeft else Qt.AlignLeft)
+        original = line.text()
+        host.layout().addWidget(control)
+        host.resize(400, 140)
+        host.show()
+        host.activateWindow()
+        line.setFocus()
+        for density in ("comfortable", "touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            for _ in range(4):
+                app.processEvents()
+            opener = _opener(control)
+            minimum = density_metrics(density).icon_button_size
+&gt;           assert opener.width() &gt;= minimum
+E           assert 22 &gt;= 42
+E            +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D2353B8830&gt;()
+E            +    where &lt;built-in method width of QToolButton object at 0x000001D2353B8830&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D2353B8830&gt;.width
+
+tests\ui\test_keyboard_density_target.py:62: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[light-0-IntegerInput]" time="0.091"><failure message="assert 22 &gt;= 42&#10; +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D2353F6E70&gt;()&#10; +    where &lt;built-in method width of QToolButton object at 0x000001D2353F6E70&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D2353F6E70&gt;.width">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001D2353B8050&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...3B83B0&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001D2353B87A0&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001D2353F6A80&gt;)
+factory = &lt;class 'frontend.desktop.components.integer_input.IntegerInput'&gt;
+direction = 0, theme = 'light'
+
+    @pytest.mark.parametrize("factory", [StandardLineEdit, IntegerInput, MoneyInput])
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_keyboard_target_round_trip_fits_control_and_keeps_text_clear(terminal, factory, direction, theme):
+        app, manager, _, host = terminal
+        manager.apply(app, theme, density="comfortable")
+        control = factory()
+        line = control if isinstance(control, QLineEdit) else control.lineEdit()
+        control.setLayoutDirection(direction)
+        line.setClearButtonEnabled(True)
+        line.setText("123456789012345678901234567890123456789012345678901234567890")
+        line.setAlignment(Qt.AlignRight if direction == Qt.RightToLeft else Qt.AlignLeft)
+        original = line.text()
+        host.layout().addWidget(control)
+        host.resize(400, 140)
+        host.show()
+        host.activateWindow()
+        line.setFocus()
+        for density in ("comfortable", "touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            for _ in range(4):
+                app.processEvents()
+            opener = _opener(control)
+            minimum = density_metrics(density).icon_button_size
+&gt;           assert opener.width() &gt;= minimum
+E           assert 22 &gt;= 42
+E            +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D2353F6E70&gt;()
+E            +    where &lt;built-in method width of QToolButton object at 0x000001D2353F6E70&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D2353F6E70&gt;.width
+
+tests\ui\test_keyboard_density_target.py:62: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[light-0-MoneyInput]" time="0.113"><failure message="assert 22 &gt;= 42&#10; +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D2353F76E0&gt;()&#10; +    where &lt;built-in method width of QToolButton object at 0x000001D2353F76E0&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D2353F76E0&gt;.width">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001D2353B8050&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...3F7140&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001D2353F7410&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001D2353F6960&gt;)
+factory = &lt;class 'frontend.desktop.components.money_input.MoneyInput'&gt;
+direction = 0, theme = 'light'
+
+    @pytest.mark.parametrize("factory", [StandardLineEdit, IntegerInput, MoneyInput])
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_keyboard_target_round_trip_fits_control_and_keeps_text_clear(terminal, factory, direction, theme):
+        app, manager, _, host = terminal
+        manager.apply(app, theme, density="comfortable")
+        control = factory()
+        line = control if isinstance(control, QLineEdit) else control.lineEdit()
+        control.setLayoutDirection(direction)
+        line.setClearButtonEnabled(True)
+        line.setText("123456789012345678901234567890123456789012345678901234567890")
+        line.setAlignment(Qt.AlignRight if direction == Qt.RightToLeft else Qt.AlignLeft)
+        original = line.text()
+        host.layout().addWidget(control)
+        host.resize(400, 140)
+        host.show()
+        host.activateWindow()
+        line.setFocus()
+        for density in ("comfortable", "touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            for _ in range(4):
+                app.processEvents()
+            opener = _opener(control)
+            minimum = density_metrics(density).icon_button_size
+&gt;           assert opener.width() &gt;= minimum
+E           assert 22 &gt;= 42
+E            +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D2353F76E0&gt;()
+E            +    where &lt;built-in method width of QToolButton object at 0x000001D2353F76E0&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D2353F76E0&gt;.width
+
+tests\ui\test_keyboard_density_target.py:62: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[light-1-StandardLineEdit]" time="0.109"><failure message="assert 22 &gt;= 42&#10; +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D2353F7D10&gt;()&#10; +    where &lt;built-in method width of QToolButton object at 0x000001D2353F7D10&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D2353F7D10&gt;.width">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001D2353B8050&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...3F7920&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001D2353F7BF0&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001D2353F6DE0&gt;)
+factory = &lt;class 'frontend.desktop.components.text_inputs.StandardLineEdit'&gt;
+direction = 1, theme = 'light'
+
+    @pytest.mark.parametrize("factory", [StandardLineEdit, IntegerInput, MoneyInput])
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_keyboard_target_round_trip_fits_control_and_keeps_text_clear(terminal, factory, direction, theme):
+        app, manager, _, host = terminal
+        manager.apply(app, theme, density="comfortable")
+        control = factory()
+        line = control if isinstance(control, QLineEdit) else control.lineEdit()
+        control.setLayoutDirection(direction)
+        line.setClearButtonEnabled(True)
+        line.setText("123456789012345678901234567890123456789012345678901234567890")
+        line.setAlignment(Qt.AlignRight if direction == Qt.RightToLeft else Qt.AlignLeft)
+        original = line.text()
+        host.layout().addWidget(control)
+        host.resize(400, 140)
+        host.show()
+        host.activateWindow()
+        line.setFocus()
+        for density in ("comfortable", "touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            for _ in range(4):
+                app.processEvents()
+            opener = _opener(control)
+            minimum = density_metrics(density).icon_button_size
+&gt;           assert opener.width() &gt;= minimum
+E           assert 22 &gt;= 42
+E            +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D2353F7D10&gt;()
+E            +    where &lt;built-in method width of QToolButton object at 0x000001D2353F7D10&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D2353F7D10&gt;.width
+
+tests\ui\test_keyboard_density_target.py:62: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[light-1-IntegerInput]" time="0.070"><failure message="assert 22 &gt;= 42&#10; +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D23541C5F0&gt;()&#10; +    where &lt;built-in method width of QToolButton object at 0x000001D23541C5F0&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541C5F0&gt;.width">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001D2353B8050&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...3F7DA0&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001D2353F7650&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001D2353F7890&gt;)
+factory = &lt;class 'frontend.desktop.components.integer_input.IntegerInput'&gt;
+direction = 1, theme = 'light'
+
+    @pytest.mark.parametrize("factory", [StandardLineEdit, IntegerInput, MoneyInput])
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_keyboard_target_round_trip_fits_control_and_keeps_text_clear(terminal, factory, direction, theme):
+        app, manager, _, host = terminal
+        manager.apply(app, theme, density="comfortable")
+        control = factory()
+        line = control if isinstance(control, QLineEdit) else control.lineEdit()
+        control.setLayoutDirection(direction)
+        line.setClearButtonEnabled(True)
+        line.setText("123456789012345678901234567890123456789012345678901234567890")
+        line.setAlignment(Qt.AlignRight if direction == Qt.RightToLeft else Qt.AlignLeft)
+        original = line.text()
+        host.layout().addWidget(control)
+        host.resize(400, 140)
+        host.show()
+        host.activateWindow()
+        line.setFocus()
+        for density in ("comfortable", "touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            for _ in range(4):
+                app.processEvents()
+            opener = _opener(control)
+            minimum = density_metrics(density).icon_button_size
+&gt;           assert opener.width() &gt;= minimum
+E           assert 22 &gt;= 42
+E            +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D23541C5F0&gt;()
+E            +    where &lt;built-in method width of QToolButton object at 0x000001D23541C5F0&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541C5F0&gt;.width
+
+tests\ui\test_keyboard_density_target.py:62: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[light-1-MoneyInput]" time="0.073"><failure message="assert 22 &gt;= 42&#10; +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D23541CDD0&gt;()&#10; +    where &lt;built-in method width of QToolButton object at 0x000001D23541CDD0&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541CDD0&gt;.width">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001D2353B8050&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...41C8C0&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001D23541CB90&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001D23541C050&gt;)
+factory = &lt;class 'frontend.desktop.components.money_input.MoneyInput'&gt;
+direction = 1, theme = 'light'
+
+    @pytest.mark.parametrize("factory", [StandardLineEdit, IntegerInput, MoneyInput])
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_keyboard_target_round_trip_fits_control_and_keeps_text_clear(terminal, factory, direction, theme):
+        app, manager, _, host = terminal
+        manager.apply(app, theme, density="comfortable")
+        control = factory()
+        line = control if isinstance(control, QLineEdit) else control.lineEdit()
+        control.setLayoutDirection(direction)
+        line.setClearButtonEnabled(True)
+        line.setText("123456789012345678901234567890123456789012345678901234567890")
+        line.setAlignment(Qt.AlignRight if direction == Qt.RightToLeft else Qt.AlignLeft)
+        original = line.text()
+        host.layout().addWidget(control)
+        host.resize(400, 140)
+        host.show()
+        host.activateWindow()
+        line.setFocus()
+        for density in ("comfortable", "touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            for _ in range(4):
+                app.processEvents()
+            opener = _opener(control)
+            minimum = density_metrics(density).icon_button_size
+&gt;           assert opener.width() &gt;= minimum
+E           assert 22 &gt;= 42
+E            +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D23541CDD0&gt;()
+E            +    where &lt;built-in method width of QToolButton object at 0x000001D23541CDD0&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541CDD0&gt;.width
+
+tests\ui\test_keyboard_density_target.py:62: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[dark-0-StandardLineEdit]" time="0.065"><failure message="assert 22 &gt;= 42&#10; +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D23541D640&gt;()&#10; +    where &lt;built-in method width of QToolButton object at 0x000001D23541D640&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541D640&gt;.width">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001D2353B8050&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...41D400&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001D23541D1C0&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001D23541D490&gt;)
+factory = &lt;class 'frontend.desktop.components.text_inputs.StandardLineEdit'&gt;
+direction = 0, theme = 'dark'
+
+    @pytest.mark.parametrize("factory", [StandardLineEdit, IntegerInput, MoneyInput])
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_keyboard_target_round_trip_fits_control_and_keeps_text_clear(terminal, factory, direction, theme):
+        app, manager, _, host = terminal
+        manager.apply(app, theme, density="comfortable")
+        control = factory()
+        line = control if isinstance(control, QLineEdit) else control.lineEdit()
+        control.setLayoutDirection(direction)
+        line.setClearButtonEnabled(True)
+        line.setText("123456789012345678901234567890123456789012345678901234567890")
+        line.setAlignment(Qt.AlignRight if direction == Qt.RightToLeft else Qt.AlignLeft)
+        original = line.text()
+        host.layout().addWidget(control)
+        host.resize(400, 140)
+        host.show()
+        host.activateWindow()
+        line.setFocus()
+        for density in ("comfortable", "touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            for _ in range(4):
+                app.processEvents()
+            opener = _opener(control)
+            minimum = density_metrics(density).icon_button_size
+&gt;           assert opener.width() &gt;= minimum
+E           assert 22 &gt;= 42
+E            +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D23541D640&gt;()
+E            +    where &lt;built-in method width of QToolButton object at 0x000001D23541D640&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541D640&gt;.width
+
+tests\ui\test_keyboard_density_target.py:62: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[dark-0-IntegerInput]" time="0.072"><failure message="assert 22 &gt;= 42&#10; +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D23541DE20&gt;()&#10; +    where &lt;built-in method width of QToolButton object at 0x000001D23541DE20&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541DE20&gt;.width">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001D2353B8050&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...41D910&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001D23541C560&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001D23541D5B0&gt;)
+factory = &lt;class 'frontend.desktop.components.integer_input.IntegerInput'&gt;
+direction = 0, theme = 'dark'
+
+    @pytest.mark.parametrize("factory", [StandardLineEdit, IntegerInput, MoneyInput])
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_keyboard_target_round_trip_fits_control_and_keeps_text_clear(terminal, factory, direction, theme):
+        app, manager, _, host = terminal
+        manager.apply(app, theme, density="comfortable")
+        control = factory()
+        line = control if isinstance(control, QLineEdit) else control.lineEdit()
+        control.setLayoutDirection(direction)
+        line.setClearButtonEnabled(True)
+        line.setText("123456789012345678901234567890123456789012345678901234567890")
+        line.setAlignment(Qt.AlignRight if direction == Qt.RightToLeft else Qt.AlignLeft)
+        original = line.text()
+        host.layout().addWidget(control)
+        host.resize(400, 140)
+        host.show()
+        host.activateWindow()
+        line.setFocus()
+        for density in ("comfortable", "touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            for _ in range(4):
+                app.processEvents()
+            opener = _opener(control)
+            minimum = density_metrics(density).icon_button_size
+&gt;           assert opener.width() &gt;= minimum
+E           assert 22 &gt;= 42
+E            +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D23541DE20&gt;()
+E            +    where &lt;built-in method width of QToolButton object at 0x000001D23541DE20&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541DE20&gt;.width
+
+tests\ui\test_keyboard_density_target.py:62: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[dark-0-MoneyInput]" time="0.078"><failure message="assert 22 &gt;= 42&#10; +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D23541E600&gt;()&#10; +    where &lt;built-in method width of QToolButton object at 0x000001D23541E600&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541E600&gt;.width">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001D2353B8050&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...41E0F0&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001D23541E3C0&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001D23541CF80&gt;)
+factory = &lt;class 'frontend.desktop.components.money_input.MoneyInput'&gt;
+direction = 0, theme = 'dark'
+
+    @pytest.mark.parametrize("factory", [StandardLineEdit, IntegerInput, MoneyInput])
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_keyboard_target_round_trip_fits_control_and_keeps_text_clear(terminal, factory, direction, theme):
+        app, manager, _, host = terminal
+        manager.apply(app, theme, density="comfortable")
+        control = factory()
+        line = control if isinstance(control, QLineEdit) else control.lineEdit()
+        control.setLayoutDirection(direction)
+        line.setClearButtonEnabled(True)
+        line.setText("123456789012345678901234567890123456789012345678901234567890")
+        line.setAlignment(Qt.AlignRight if direction == Qt.RightToLeft else Qt.AlignLeft)
+        original = line.text()
+        host.layout().addWidget(control)
+        host.resize(400, 140)
+        host.show()
+        host.activateWindow()
+        line.setFocus()
+        for density in ("comfortable", "touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            for _ in range(4):
+                app.processEvents()
+            opener = _opener(control)
+            minimum = density_metrics(density).icon_button_size
+&gt;           assert opener.width() &gt;= minimum
+E           assert 22 &gt;= 42
+E            +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D23541E600&gt;()
+E            +    where &lt;built-in method width of QToolButton object at 0x000001D23541E600&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541E600&gt;.width
+
+tests\ui\test_keyboard_density_target.py:62: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[dark-1-StandardLineEdit]" time="0.067"><failure message="assert 22 &gt;= 42&#10; +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D23541ECC0&gt;()&#10; +    where &lt;built-in method width of QToolButton object at 0x000001D23541ECC0&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541ECC0&gt;.width">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001D2353B8050&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...41E8D0&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001D23541EBA0&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001D23541DD90&gt;)
+factory = &lt;class 'frontend.desktop.components.text_inputs.StandardLineEdit'&gt;
+direction = 1, theme = 'dark'
+
+    @pytest.mark.parametrize("factory", [StandardLineEdit, IntegerInput, MoneyInput])
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_keyboard_target_round_trip_fits_control_and_keeps_text_clear(terminal, factory, direction, theme):
+        app, manager, _, host = terminal
+        manager.apply(app, theme, density="comfortable")
+        control = factory()
+        line = control if isinstance(control, QLineEdit) else control.lineEdit()
+        control.setLayoutDirection(direction)
+        line.setClearButtonEnabled(True)
+        line.setText("123456789012345678901234567890123456789012345678901234567890")
+        line.setAlignment(Qt.AlignRight if direction == Qt.RightToLeft else Qt.AlignLeft)
+        original = line.text()
+        host.layout().addWidget(control)
+        host.resize(400, 140)
+        host.show()
+        host.activateWindow()
+        line.setFocus()
+        for density in ("comfortable", "touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            for _ in range(4):
+                app.processEvents()
+            opener = _opener(control)
+            minimum = density_metrics(density).icon_button_size
+&gt;           assert opener.width() &gt;= minimum
+E           assert 22 &gt;= 42
+E            +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D23541ECC0&gt;()
+E            +    where &lt;built-in method width of QToolButton object at 0x000001D23541ECC0&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541ECC0&gt;.width
+
+tests\ui\test_keyboard_density_target.py:62: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[dark-1-IntegerInput]" time="0.066"><failure message="assert 22 &gt;= 42&#10; +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D23541F530&gt;()&#10; +    where &lt;built-in method width of QToolButton object at 0x000001D23541F530&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541F530&gt;.width">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001D2353B8050&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...41F1D0&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001D23541EF90&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001D23541E570&gt;)
+factory = &lt;class 'frontend.desktop.components.integer_input.IntegerInput'&gt;
+direction = 1, theme = 'dark'
+
+    @pytest.mark.parametrize("factory", [StandardLineEdit, IntegerInput, MoneyInput])
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_keyboard_target_round_trip_fits_control_and_keeps_text_clear(terminal, factory, direction, theme):
+        app, manager, _, host = terminal
+        manager.apply(app, theme, density="comfortable")
+        control = factory()
+        line = control if isinstance(control, QLineEdit) else control.lineEdit()
+        control.setLayoutDirection(direction)
+        line.setClearButtonEnabled(True)
+        line.setText("123456789012345678901234567890123456789012345678901234567890")
+        line.setAlignment(Qt.AlignRight if direction == Qt.RightToLeft else Qt.AlignLeft)
+        original = line.text()
+        host.layout().addWidget(control)
+        host.resize(400, 140)
+        host.show()
+        host.activateWindow()
+        line.setFocus()
+        for density in ("comfortable", "touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            for _ in range(4):
+                app.processEvents()
+            opener = _opener(control)
+            minimum = density_metrics(density).icon_button_size
+&gt;           assert opener.width() &gt;= minimum
+E           assert 22 &gt;= 42
+E            +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D23541F530&gt;()
+E            +    where &lt;built-in method width of QToolButton object at 0x000001D23541F530&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541F530&gt;.width
+
+tests\ui\test_keyboard_density_target.py:62: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[dark-1-MoneyInput]" time="0.064"><failure message="assert 22 &gt;= 42&#10; +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D23541FDA0&gt;()&#10; +    where &lt;built-in method width of QToolButton object at 0x000001D23541FDA0&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541FDA0&gt;.width">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001D2353B8050&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...41F800&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001D23541FAD0&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001D23541E840&gt;)
+factory = &lt;class 'frontend.desktop.components.money_input.MoneyInput'&gt;
+direction = 1, theme = 'dark'
+
+    @pytest.mark.parametrize("factory", [StandardLineEdit, IntegerInput, MoneyInput])
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_keyboard_target_round_trip_fits_control_and_keeps_text_clear(terminal, factory, direction, theme):
+        app, manager, _, host = terminal
+        manager.apply(app, theme, density="comfortable")
+        control = factory()
+        line = control if isinstance(control, QLineEdit) else control.lineEdit()
+        control.setLayoutDirection(direction)
+        line.setClearButtonEnabled(True)
+        line.setText("123456789012345678901234567890123456789012345678901234567890")
+        line.setAlignment(Qt.AlignRight if direction == Qt.RightToLeft else Qt.AlignLeft)
+        original = line.text()
+        host.layout().addWidget(control)
+        host.resize(400, 140)
+        host.show()
+        host.activateWindow()
+        line.setFocus()
+        for density in ("comfortable", "touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            for _ in range(4):
+                app.processEvents()
+            opener = _opener(control)
+            minimum = density_metrics(density).icon_button_size
+&gt;           assert opener.width() &gt;= minimum
+E           assert 22 &gt;= 42
+E            +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D23541FDA0&gt;()
+E            +    where &lt;built-in method width of QToolButton object at 0x000001D23541FDA0&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541FDA0&gt;.width
+
+tests\ui\test_keyboard_density_target.py:62: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_mode_and_action_removal_restore_original_text_margins[0]" time="0.048"><failure message="assert &lt;PyQt5.QtCore.QMargins object at 0x000001D2353FEB30&gt; != &lt;PyQt5.QtCore.QMargins object at 0x000001D2353FEDD0&gt;">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001D2353B8050&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...41FE30&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001D23541F4A0&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001D23541FD10&gt;)
+direction = 0
+
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    def test_keyboard_mode_and_action_removal_restore_original_text_margins(terminal, direction):
+        app, manager, settings, host = terminal
+        line = QLineEdit()
+        line.setTextMargins(7, 3, 11, 4)
+        margins = line.textMargins()
+        line.setLayoutDirection(direction)
+        controller = KeyboardAwareInput(line, settings=settings)
+        host.layout().addWidget(line)
+        host.show()
+        for density in ("touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            app.processEvents()
+            opener = _opener(line)
+            active = line.textMargins()
+&gt;           assert active != margins
+E           assert &lt;PyQt5.QtCore.QMargins object at 0x000001D2353FEB30&gt; != &lt;PyQt5.QtCore.QMargins object at 0x000001D2353FEDD0&gt;
+
+tests\ui\test_keyboard_density_target.py:91: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_mode_and_action_removal_restore_original_text_margins[1]" time="0.056"><failure message="assert &lt;PyQt5.QtCore.QMargins object at 0x000001D2353FE270&gt; != &lt;PyQt5.QtCore.QMargins object at 0x000001D2353FED60&gt;">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001D2353B8050&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...41F800&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001D23541FA40&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001D23541FBF0&gt;)
+direction = 1
+
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    def test_keyboard_mode_and_action_removal_restore_original_text_margins(terminal, direction):
+        app, manager, settings, host = terminal
+        line = QLineEdit()
+        line.setTextMargins(7, 3, 11, 4)
+        margins = line.textMargins()
+        line.setLayoutDirection(direction)
+        controller = KeyboardAwareInput(line, settings=settings)
+        host.layout().addWidget(line)
+        host.show()
+        for density in ("touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            app.processEvents()
+            opener = _opener(line)
+            active = line.textMargins()
+&gt;           assert active != margins
+E           assert &lt;PyQt5.QtCore.QMargins object at 0x000001D2353FE270&gt; != &lt;PyQt5.QtCore.QMargins object at 0x000001D2353FED60&gt;
+
+tests\ui\test_keyboard_density_target.py:91: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_clicking_edge_of_touch_target_keeps_selection_and_existing_validator" time="0.045"><failure message="assert 22 &gt;= 48&#10; +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D23541EB10&gt;()&#10; +    where &lt;built-in method width of QToolButton object at 0x000001D23541EB10&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541EB10&gt;.width">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001D2353B8050&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...41F0B0&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001D23541EC30&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001D23541FB60&gt;)
+
+    def test_clicking_edge_of_touch_target_keeps_selection_and_existing_validator(terminal):
+        app, manager, settings, host = terminal
+        manager.set_density("touch", app=app)
+        line = QLineEdit()
+        line.setValidator(QIntValidator(0, 999, line))
+        controller = KeyboardAwareInput(line, input_mode="integer", settings=settings)
+        host.layout().addWidget(line)
+        host.show()
+        host.activateWindow()
+        line.setText("12")
+        line.setFocus()
+        line.selectAll()
+        app.processEvents()
+        opener = _opener(line)
+&gt;       assert opener.width() &gt;= 48
+E       assert 22 &gt;= 48
+E        +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D23541EB10&gt;()
+E        +    where &lt;built-in method width of QToolButton object at 0x000001D23541EB10&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541EB10&gt;.width
+
+tests\ui\test_keyboard_density_target.py:119: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_standard_input_can_remove_and_reattach_keyboard_without_duplicate_targets" time="0.042"><failure message="assert 22 &gt;= 48&#10; +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D23541E450&gt;()&#10; +    where &lt;built-in method width of QToolButton object at 0x000001D23541E450&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541E450&gt;.width&#10; +      where &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541E450&gt; = _opener(&lt;frontend.desktop.components.text_inputs.StandardLineEdit object at 0x000001D23541E330&gt;)">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001D2353B8050&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...41EBA0&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001D23541E210&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001D23541F140&gt;)
+
+    def test_standard_input_can_remove_and_reattach_keyboard_without_duplicate_targets(terminal):
+        app, manager, _, host = terminal
+        manager.set_density("touch", app=app)
+        line = StandardLineEdit(keyboard_enabled=False)
+        margins = line.textMargins()
+        host.layout().addWidget(line)
+        host.show()
+        for _ in range(3):
+            line.set_keyboard_enabled(True)
+            app.processEvents()
+&gt;           assert _opener(line).width() &gt;= 48
+E           assert 22 &gt;= 48
+E            +  where 22 = &lt;built-in method width of QToolButton object at 0x000001D23541E450&gt;()
+E            +    where &lt;built-in method width of QToolButton object at 0x000001D23541E450&gt; = &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541E450&gt;.width
+E            +      where &lt;PyQt5.QtWidgets.QToolButton object at 0x000001D23541E450&gt; = _opener(&lt;frontend.desktop.components.text_inputs.StandardLineEdit object at 0x000001D23541E330&gt;)
+
+tests\ui\test_keyboard_density_target.py:140: AssertionError</failure></testcase></testsuite></testsuites>

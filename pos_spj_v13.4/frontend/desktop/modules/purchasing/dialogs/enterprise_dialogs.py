@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from PyQt5.QtCore import QEvent, Qt
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
@@ -38,7 +39,7 @@ class _LinesEditor(QWidget):
 
     def __init__(self, parent=None, *, with_price: bool = False,
                  invoice: bool = False, product_provider=None,
-                 with_conversion: bool = False) -> None:
+                 with_conversion: bool = False, empty_reason_provider=None) -> None:
         super().__init__(parent)
         self._with_price = with_price
         self._invoice = invoice
@@ -50,7 +51,8 @@ class _LinesEditor(QWidget):
 
         row = QHBoxLayout()
         self._product = EntitySearchInput(
-            self, provider=self._provider, placeholder="Buscar producto por nombre o código")
+            self, provider=self._provider, placeholder="Buscar producto por nombre o código",
+            empty_reason_provider=empty_reason_provider)
         self._qty = DecimalInput(self, precision=3, minimum="0")
         self._qty.setPlaceholderText("Cantidad")
         self._nature = SearchableComboBox(placeholder="Naturaleza")
@@ -86,18 +88,62 @@ class _LinesEditor(QWidget):
             cols.append(ColumnSpec("Conversión", "text"))
         self._table = StandardTable(cols, self)
         layout.addWidget(self._table)
+        # "Agregar" callaba: si faltaba algo simplemente no hacía nada, y el
+        # usuario no sabía por qué su producto no aparecía. Ahora lo dice.
+        self._status = QLabel("", self)
+        self._status.setObjectName("linesEditorStatus")
+        self._status.setProperty("state", "ERROR")
+        self._status.setWordWrap(True)
+        self._status.setVisible(False)
+        layout.addWidget(self._status)
+        # Enter en cantidad/precio AGREGA la línea. Sin esto la tecla llegaba al
+        # diálogo y lo aceptaba a medio capturar.
+        self._enter_adds = [self._qty]
+        if with_price:
+            self._enter_adds.append(self._price)
+        if with_conversion:
+            self._enter_adds.append(self._conversion)
+        if invoice:
+            self._enter_adds.append(self._tax)
+        for campo in self._enter_adds:
+            campo.installEventFilter(self)
+        # Elegido el producto, lo siguiente es la cantidad.
+        self._product.selected.connect(lambda _id: self._qty.setFocus())
+
+    def eventFilter(self, obj, event) -> bool:  # noqa: N802 - API de Qt
+        if (obj in self._enter_adds and event.type() == QEvent.KeyPress
+                and event.key() in (Qt.Key_Return, Qt.Key_Enter)):
+            self._add()
+            return True
+        return super().eventFilter(obj, event)
+
+    def _problem(self, texto: str) -> None:
+        self._status.setText(texto)
+        self._status.setVisible(bool(texto))
+
+    def pending_capture(self) -> bool:
+        """¿Hay un producto elegido o una cantidad escrita sin agregar?"""
+        return bool(self._product.selected_id()) or bool(self._qty.text().strip())
 
     def _add(self) -> None:
         product = self._product.selected_id()
         qty = self._qty.decimal_value()
-        if not product or qty is None or qty <= 0:
+        if not product:
+            self._problem("Elige el producto de la lista de resultados (clic o Enter) "
+                          "antes de agregarlo.")
+            return
+        if qty is None or qty <= 0:
+            self._problem("Captura una cantidad mayor a cero.")
             return
         line = {"product_id": str(product), "product_label": self._product.selected_label(),
                 "quantity": str(qty),
                 "purchase_nature": self._nature.current_id() or "INVENTORY"}
         if self._with_price:
             price = self._price.decimal_value()
-            if price is None:
+            # Decisión del usuario (2026-09-18): el costo debe ser mayor a cero;
+            # el dominio también lo exige, esto sólo avisa antes.
+            if price is None or price <= 0:
+                self._problem("Captura un precio mayor a cero.")
                 return
             line["unit_price"] = str(price)
             line["estimated_unit_cost"] = str(price)
@@ -110,8 +156,10 @@ class _LinesEditor(QWidget):
         self._lines.append(line)
         self._table.load_rows(self._display_rows(),
                               row_ids=[str(i) for i in range(len(self._lines))])
+        self._problem("")
         self._product.clear()
         self._qty.clear()
+        self._product._search.setFocus()
         if self._with_price:
             self._price.clear()
         if self._with_conversion:
@@ -141,18 +189,50 @@ class _LinesEditor(QWidget):
                               row_ids=[str(i) for i in range(len(self._lines))])
 
 
+def _lines_problem(editor) -> str | None:
+    """Lo que impide aceptar un diálogo con líneas, o `None`."""
+    if editor.pending_capture():
+        return ("Tienes un producto capturado sin agregar: pulsa «Agregar» (o Enter en "
+                "la cantidad) o bórralo.")
+    if not editor.lines():
+        return "Agrega al menos un producto."
+    return None
+
+
+def _accept_or_warn(dialog, problema: str | None) -> bool:
+    """Valida ANTES de cerrar. La página avisaba "Agrega al menos un producto"
+    DESPUÉS de cerrarse el diálogo, con lo que se perdía todo lo capturado."""
+    if problema:
+        from PyQt5.QtWidgets import QMessageBox
+        QMessageBox.warning(dialog, dialog.windowTitle() or "Compras", problema)
+        return False
+    return True
+
+
 class RequisitionFormDialog(FormDialog):
-    def __init__(self, parent=None, *, product_provider=None) -> None:
+    def __init__(self, parent=None, *, product_provider=None,
+                 empty_reason_provider=None, branch_options=None,
+                 branch_id: str = "") -> None:
+        """La sucursal se ELIGE, no se teclea.
+
+        Era una caja de texto libre y arrancaba VACÍA: para crear una solicitud
+        había que escribir a mano el UUID de la sucursal, así que en la práctica
+        no se podía crear ninguna. `branch_options` llega ya acotado al alcance
+        del usuario desde el presentador (§20, y el mismo orden que Transferencias).
+        """
         super().__init__(parent, title="Nueva solicitud de compra")
-        self._branch = StandardLineEdit(self)
-        self._branch.setPlaceholderText("Sucursal")
+        self._branch = SearchableComboBox(placeholder="Sucursal")
+        self._branch.set_options(list(branch_options or []))
+        if branch_id:
+            self._branch.set_current_id(branch_id)
         self._type = SearchableComboBox(placeholder="Tipo de compra")
         self._type.set_options(_PURCHASE_TYPES)
         self._priority = SearchableComboBox(placeholder="Prioridad")
         self._priority.set_options(_PRIORITIES)
         self._reason = StandardLineEdit(self)
         self._reason.setPlaceholderText("Justificación")
-        self._lines = _LinesEditor(self, product_provider=product_provider)
+        self._lines = _LinesEditor(self, product_provider=product_provider,
+                                   empty_reason_provider=empty_reason_provider)
         self.form.addRow("Sucursal", self._branch)
         self.form.addRow("Tipo", self._type)
         self.form.addRow("Prioridad", self._priority)
@@ -160,8 +240,17 @@ class RequisitionFormDialog(FormDialog):
         self.form.addRow("Productos", self._lines)
         self.add_button_box(ok_text="Crear")
 
+    def problem(self) -> str | None:
+        if not self._branch.current_id():
+            return "Elige la sucursal."
+        return _lines_problem(self._lines)
+
+    def accept(self) -> None:
+        if _accept_or_warn(self, self.problem()):
+            super().accept()
+
     def values(self) -> dict:
-        return {"branch_id": self._branch.text().strip(),
+        return {"branch_id": str(self._branch.current_id() or ""),
                 "purchase_type": self._type.current_id() or "INVENTORY",
                 "priority": self._priority.current_id() or "NORMAL",
                 "business_reason": self._reason.text().strip(),
@@ -171,22 +260,36 @@ class RequisitionFormDialog(FormDialog):
 class OrderFormDialog(FormDialog):
     def __init__(self, parent=None, *, source_requisition=None,
                  branch_id: str = "", warehouse_id: str = "", supplier_provider=None,
-                 product_provider=None) -> None:
+                 product_provider=None, empty_reason_provider=None,
+                 supplier_empty_reason=None, branch_options=None,
+                 warehouse_options=None) -> None:
         """``source_requisition``, when given, is a RequisitionDetailDTO
         (frontend.../enterprise_presenter.py::requisition_detail) — never a dict."""
         super().__init__(parent, title="Nueva orden de compra")
         self._supplier = EntitySearchInput(
             self, provider=supplier_provider,
-            placeholder="Buscar proveedor por nombre o código")
-        self._branch = StandardLineEdit(self)
-        self._branch.setPlaceholderText("Sucursal")
-        self._warehouse = StandardLineEdit(self)
-        self._warehouse.setPlaceholderText("Almacén")
+            placeholder="Buscar proveedor por nombre o código",
+            empty_reason_provider=supplier_empty_reason)
+        # Sucursal y almacén se ELIGEN. Eran dos cajas de texto libre: la
+        # sucursal venía rellenada con la de la sesión y no se podía cambiar sin
+        # teclear un UUID, y el almacén arrancaba vacío pese a que
+        # `warehouse_options()` existía en el presentador desde hacía tiempo sin
+        # que nadie la llamara.
+        self._branch = SearchableComboBox(placeholder="Sucursal")
+        self._branch.set_options(list(branch_options or []))
+        self._warehouse = SearchableComboBox(placeholder="Almacén")
+        self._warehouse.set_options(list(warehouse_options or []))
         self._lines = _LinesEditor(self, with_price=True, product_provider=product_provider,
-                                   with_conversion=True)
-        self._branch.setText(
-            branch_id or str(getattr(source_requisition, "branch_id", "") or ""))
-        self._warehouse.setText(warehouse_id)
+                                   with_conversion=True,
+                                   empty_reason_provider=empty_reason_provider)
+        # La sucursal de la solicitud de origen manda sobre la de la sesión: la
+        # orden tiene que surtir a quien lo pidió.
+        preseleccion = (str(getattr(source_requisition, "branch_id", "") or "")
+                        or branch_id)
+        if preseleccion:
+            self._branch.set_current_id(preseleccion)
+        if warehouse_id:
+            self._warehouse.set_current_id(warehouse_id)
         if source_requisition is not None:
             self._lines.set_lines([{
                 "product_id": line.product_id, "quantity": line.quantity,
@@ -199,10 +302,23 @@ class OrderFormDialog(FormDialog):
         self.form.addRow("Productos", self._lines)
         self.add_button_box(ok_text="Crear")
 
+    def problem(self) -> str | None:
+        if not self._supplier.selected_id():
+            return "Elige el proveedor de la lista de resultados."
+        if not self._branch.current_id():
+            return "Elige la sucursal."
+        if not self._warehouse.current_id():
+            return "Elige el almacén que recibirá la mercancía."
+        return _lines_problem(self._lines)
+
+    def accept(self) -> None:
+        if _accept_or_warn(self, self.problem()):
+            super().accept()
+
     def values(self) -> dict:
         return {"supplier_id": self._supplier.selected_id() or "",
-                "branch_id": self._branch.text().strip(),
-                "warehouse_id": self._warehouse.text().strip(),
+                "branch_id": str(self._branch.current_id() or ""),
+                "warehouse_id": str(self._warehouse.current_id() or ""),
                 "lines": self._lines.lines()}
 
 
@@ -245,12 +361,13 @@ class QuoteCaptureDialog(FormDialog):
     suppliers actually invited to this RFQ, never a free-text/global search."""
 
     def __init__(self, parent=None, *, invited_suppliers: list[tuple[str, str]],
-                 product_provider=None) -> None:
+                 product_provider=None, empty_reason_provider=None) -> None:
         super().__init__(parent, title="Capturar cotización de proveedor")
         self._supplier = SearchableComboBox(placeholder="Proveedor invitado")
         self._supplier.set_options(invited_suppliers)
         self._lead_time = DecimalInput(self, precision=0, minimum="0")
-        self._lines = _LinesEditor(self, with_price=True, product_provider=product_provider)
+        self._lines = _LinesEditor(self, with_price=True, product_provider=product_provider,
+                                   empty_reason_provider=empty_reason_provider)
         self.form.addRow("Proveedor", self._supplier)
         self.form.addRow("Plazo de entrega (días)", self._lead_time)
         self.form.addRow("Líneas cotizadas", self._lines)
@@ -318,7 +435,8 @@ class AwardDialog(FormDialog):
 
 class InvoiceFormDialog(FormDialog):
     def __init__(self, parent=None, *, document_provider=None,
-                 document_profile=None, product_provider=None) -> None:
+                 document_profile=None, product_provider=None,
+                 empty_reason_provider=None) -> None:
         super().__init__(parent, title="Capturar factura de proveedor")
         self._profile_provider = document_profile or (lambda _id: {})
         self._profile = {}
@@ -333,7 +451,8 @@ class InvoiceFormDialog(FormDialog):
         self._uuid = StandardLineEdit(self)
         self._uuid.setPlaceholderText("UUID fiscal (opcional)")
         self._lines = _LinesEditor(self, with_price=True, invoice=True,
-                                   product_provider=product_provider)
+                                   product_provider=product_provider,
+                                   empty_reason_provider=empty_reason_provider)
         self.form.addRow("Documento", self._document)
         self.form.addRow("Proveedor", self._supplier)
         self.form.addRow("Número", self._number)

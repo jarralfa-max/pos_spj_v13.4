@@ -24,12 +24,15 @@ class CuttingSchemeRepository:
     def save_scheme(self, scheme: CuttingScheme) -> None:
         self._conn.execute(
             """INSERT INTO cutting_schemes
-               (id, input_product_id, species_id, name, cut_level, active)
-               VALUES (?,?,?,?,?,?)
+               (id, input_product_id, species_id, name, cut_level, active,
+                reverse_reconstruction_allowed)
+               VALUES (?,?,?,?,?,?,?)
                ON CONFLICT(id) DO UPDATE SET name=excluded.name,
-                 cut_level=excluded.cut_level, active=excluded.active""",
+                 cut_level=excluded.cut_level, active=excluded.active,
+                 reverse_reconstruction_allowed=excluded.reverse_reconstruction_allowed""",
             (scheme.id, scheme.input_product_id, scheme.species_id, scheme.name,
-             scheme.cut_level.value, int(scheme.active)))
+             scheme.cut_level.value, int(scheme.active),
+             int(scheme.reverse_reconstruction_allowed)))
 
     def get_scheme(self, scheme_id: str) -> CuttingScheme | None:
         row = self._conn.execute(
@@ -38,7 +41,9 @@ class CuttingSchemeRepository:
             return None
         return CuttingScheme(id=row["id"], input_product_id=row["input_product_id"],
                              species_id=row["species_id"], name=row["name"],
-                             cut_level=CutLevel(row["cut_level"]), active=bool(row["active"]))
+                             cut_level=CutLevel(row["cut_level"]), active=bool(row["active"]),
+                             reverse_reconstruction_allowed=bool(
+                                 row["reverse_reconstruction_allowed"]))
 
     def save_version(self, version: CuttingSchemeVersion) -> None:
         self._conn.execute(
@@ -97,6 +102,32 @@ class CuttingSchemeRepository:
                WHERE s.input_product_id=? AND v.status='ACTIVE'
                ORDER BY v.version_number DESC LIMIT 1""", (input_product_id,)).fetchone()
         return self.get_version(row["id"]) if row else None
+
+    def reversible_active_version_for_input(
+            self, input_product_id: str) -> CuttingSchemeVersion | None:
+        """La versión ACTIVA del único esquema ACTIVO y reversible del producto.
+
+        Cero o más de uno → None: nunca se adivina con qué despiece armar un
+        producto (misma disciplina que `_single_active_version` de Cárnico).
+        """
+        rows = self._conn.execute(
+            """SELECT v.id FROM cutting_scheme_versions v
+               JOIN cutting_schemes s ON s.id = v.cutting_scheme_id
+               WHERE s.input_product_id=? AND s.active=1
+                 AND s.reverse_reconstruction_allowed=1 AND v.status='ACTIVE'""",
+            (input_product_id,)).fetchall()
+        if len(rows) != 1:
+            return None
+        return self.get_version(rows[0]["id"])
+
+    def reversible_input_product_ids(self) -> set[str]:
+        """Productos con despiece reversible activo (para el ATP del catálogo:
+        sólo a ésos se les calcula lo reconstruible)."""
+        return {r[0] for r in self._conn.execute(
+            """SELECT DISTINCT s.input_product_id FROM cutting_schemes s
+               JOIN cutting_scheme_versions v ON v.cutting_scheme_id = s.id
+               WHERE s.active=1 AND s.reverse_reconstruction_allowed=1
+                 AND v.status='ACTIVE'""").fetchall()}
 
     def next_version_number(self, scheme_id: str) -> int:
         row = self._conn.execute(

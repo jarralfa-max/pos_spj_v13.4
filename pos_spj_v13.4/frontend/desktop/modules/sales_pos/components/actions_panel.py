@@ -34,6 +34,7 @@ class ActionsPanel(QFrame):
     return_requested = pyqtSignal()
     invoice_requested = pyqtSignal()
     reprint_requested = pyqtSignal()
+    discount_requested = pyqtSignal()
 
     def __init__(self, capabilities, parent=None) -> None:
         super().__init__(parent)
@@ -63,6 +64,15 @@ class ActionsPanel(QFrame):
         self.btn_cancelar.clicked.connect(self.cancel_requested)
         secondary.addWidget(self.btn_cancelar)
         root.addLayout(secondary)
+
+        # El descuento tenía permiso (`discount_apply`), caso de uso y diálogo,
+        # pero ningún botón ni atajo lo abría: en el mostrador no había forma
+        # de aplicar un descuento (Fase 5, 2026-09-18).
+        self.btn_descuento = create_primary_button(self, "% Descuento")
+        self.btn_descuento.setObjectName("posUtilBtn")
+        self.btn_descuento.setEnabled(capabilities.discount_apply)
+        self.btn_descuento.clicked.connect(self.discount_requested)
+        root.addWidget(self.btn_descuento)
 
         utility = QHBoxLayout()
         self.btn_devolucion = create_danger_button(self, "↩ Devolución")

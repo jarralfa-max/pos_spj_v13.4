@@ -178,18 +178,35 @@ def test_merma_uses_search_selector_public_selected_signal_only() -> None:
 
 
 def test_address_input_supports_map_suggestions_and_manual_fallback() -> None:
+    """Misma intención que antes —sugerencias de mapa y captura manual— sobre
+    la API del estándar: la búsqueda va por un servicio (aquí uno falso y un
+    ejecutor síncrono) y la captura manual son los propios campos."""
     _qt_core, components, _application = _qt_components()
-    widget = components.AddressInput(
-        provider=lambda query: [components.AddressSuggestion(label=f"Mapa {query}", latitude=19.43, longitude=-99.13)]
+    from backend.application.addresses import (
+        AddressSearchResult, AddressSearchStatus, AddressSource, StructuredAddress,
     )
 
-    widget.refresh("Centro")
-    widget._suggestions.setCurrentRow(0)
-    assert widget.value() == "Mapa Centro"
+    class _Servicio:
+        def autocomplete_available(self):
+            return True
 
-    widget._manual_toggle.setChecked(True)
-    widget._manual_text.setPlainText("Dirección manual")
-    assert widget.value() == "Dirección manual"
+        def search(self, query, *, interactive):
+            return AddressSearchResult(AddressSearchStatus.OK, suggestions=(
+                StructuredAddress(street="Centro", latitude=19.43, longitude=-99.13,
+                                  source=AddressSource.MAPBOX, label=f"Mapa {query}"),))
+
+    widget = components.AddressInput(search_service=_Servicio(),
+                                     runner=components.SyncRunner())
+    widget._search_box.setText("Centro histórico")
+    widget.search_now(interactive=True)
+    widget._on_suggestion(widget._suggestions.item(0))
+    assert widget.value().street == "Centro"
+    assert widget.value().is_geocoded
+
+    widget.field("street").setText("Dirección manual")
+    widget._on_field_edited("street")
+    assert widget.value().street == "Dirección manual"
+    assert not widget.value().is_geocoded
 
 
 def test_status_badge_and_date_range_filter_expose_standard_values() -> None:

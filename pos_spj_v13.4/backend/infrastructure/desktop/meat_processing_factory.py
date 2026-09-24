@@ -34,6 +34,20 @@ from backend.application.meat_processing.use_cases import (
     CreateProcessingOrderUseCase,
     ReleaseProcessingOrderUseCase,
 )
+from backend.application.meat_processing.use_cases.order_execution_use_cases import (
+    ExecuteProcessingOrderUseCase,
+    ProcessingOrderExecutionQueryService,
+)
+from backend.application.meat_processing.yield_settings import (
+    UpdateYieldTolerancesUseCase,
+    YieldToleranceSettingsQueryService,
+)
+from backend.application.security.authorizer_permission_checker import (
+    AuthorizerPermissionChecker,
+)
+from backend.application.security.session_branch_scope import (
+    assigned_branch_ids as _assigned_branches,
+)
 from backend.application.queries.product_query_service import ProductQueryService
 from backend.domain.meat_processing.slaughter.feature_flag import SLAUGHTER_ENABLED
 from frontend.desktop.modules.meat_processing.meat_processing_routes import (
@@ -66,6 +80,30 @@ def _build_meat_processing_wiring(connection, session_context=None):
     authorization = MeatProcessingAuthorizationPolicy(
         MeatProcessingSessionPermissionChecker(session_context))
 
+    def production_warehouse() -> tuple[str | None, str | None]:
+        """El almacén del que produce la sucursal (Fase 10): el ACTIVO marcado
+        «Producción» en Inventario → Almacenes. La sesión no trae almacén
+        (`LegacySessionAdapter.active_warehouse_id` es ""), y sin él NINGUNA
+        orden se podía crear: "Sesión sin sucursal/almacén activo"."""
+        from backend.application.logistics.warehouse_directory import (
+            WarehouseDirectoryQueryService,
+        )
+        branch = str(getattr(session_context, "active_branch_id", "") or "")
+        if not branch:
+            return None, "La sesión no tiene sucursal activa."
+        return WarehouseDirectoryQueryService(connection).resolve_for_purpose(
+            branch, "PRODUCTION")
+
+    def _production_warehouses(branch_ids, session_warehouse: str) -> frozenset[str]:
+        from backend.application.logistics.warehouse_directory import (
+            WarehouseDirectoryQueryService,
+        )
+        directorio = WarehouseDirectoryQueryService(connection)
+        almacenes = {session_warehouse} if session_warehouse else set()
+        for sucursal in branch_ids:
+            almacenes.update(directorio.warehouses_for_purpose(sucursal, "PRODUCTION"))
+        return frozenset(almacenes)
+
     def context_provider() -> MeatProcessingExecutionContext:
         actor = str(getattr(session_context, "user_id", "") or "")
         branch = str(getattr(session_context, "active_branch_id", "") or "")
@@ -79,10 +117,14 @@ def _build_meat_processing_wiring(connection, session_context=None):
         permissions = frozenset(
             code for code in getattr(session_context, "permisos", ())
             if isinstance(code, str))
+        sucursales = _assigned_branches(session_context, branch)
         return MeatProcessingExecutionContext(
             actor_user_id=actor, active_branch_id=branch,
-            assigned_branch_ids=frozenset({branch}),
-            allowed_warehouse_ids=frozenset({warehouse}),
+            assigned_branch_ids=sucursales,
+            # Los almacenes de producción de TODAS las sucursales de alcance,
+            # no sólo el de la activa: quien tiene asignada una segunda
+            # sucursal aprueba allá, y el almacén de esa orden es el de allá.
+            allowed_warehouse_ids=_production_warehouses(sucursales, warehouse),
             permissions=permissions,
         )
 
@@ -97,6 +139,25 @@ def _build_meat_processing_wiring(connection, session_context=None):
         close_uc=CloseProcessingOrderUseCase(authorization),
         session_context=session_context,
         context_provider=context_provider,
+        warehouse_provider=production_warehouse,
+        plan_query=lambda: ProcessingOrderExecutionQueryService(connection),
+        # Ejecutar la orden: consumo, salidas, costo y cierre. El AUTORIZADOR
+        # (producir sin existencia, rendimiento fuera de tolerancia) es otro
+        # usuario, así que se resuelve contra `rol_permisos`, no contra la
+        # sesión de quien opera — mismo estándar que Ventas y Precios.
+        execute_uc=ExecuteProcessingOrderUseCase(
+            authorization,
+            authorizer_authorization=MeatProcessingAuthorizationPolicy(
+                AuthorizerPermissionChecker(
+                    connection,
+                    branch_id=str(getattr(session_context, "active_branch_id", "") or "")
+                    or None)),
+            authorizer_checker=AuthorizerPermissionChecker(
+                connection,
+                branch_id=str(getattr(session_context, "active_branch_id", "") or "") or None)),
+        credentials_verifier=_authorizer_credentials(connection),
+        tolerances_query=lambda: YieldToleranceSettingsQueryService(connection),
+        tolerances_uc=UpdateYieldTolerancesUseCase(authorization),
     )
 
     branch_id = str(getattr(session_context, "active_branch_id", "") or "")
@@ -113,6 +174,12 @@ def _build_meat_processing_wiring(connection, session_context=None):
             return _record_page(connection, branch_id, page_id)
         if branch_id and page_id == "mp_weighings_consumptions":
             return _weighings_and_consumptions_page(connection, branch_id)
+        if branch_id and page_id == "mp_overview":
+            return _overview_page(connection, branch_id)
+        if branch_id and page_id == "mp_traceability":
+            return _traceability_page(connection, branch_id)
+        if branch_id and page_id == "mp_settings":
+            return _settings_page(orders_presenter)
         return build_page(page_id)
 
     return has_permission, page_builder
@@ -149,11 +216,68 @@ def _record_page(connection, branch_id: str, page_id: str):
     from frontend.desktop.modules.meat_processing.pages.meat_processing_record_page import (
         MeatProcessingRecordPage,
     )
+    if page_id == "mp_yields":
+        return _yields_page(connection, branch_id)
     nombre, vacio = _RECORD_ROUTES[page_id]
     entrada = MEAT_PROCESSING_ROUTES[page_id]
     return MeatProcessingRecordPage(
         _record_presenter(connection, branch_id, nombre), title=entrada.title,
         subtitle=entrada.tooltip, empty_message=vacio)
+
+
+def _yields_page(connection, branch_id: str):
+    """Rendimientos (Fase 10): por corte —lo que pide el §13— y por orden."""
+    from frontend.desktop.modules.meat_processing.pages.meat_processing_record_page import (
+        MeatProcessingRecordPage,
+        YieldsPage,
+    )
+    entrada = MEAT_PROCESSING_ROUTES["mp_yields"]
+    por_corte = MeatProcessingRecordPage(
+        _record_presenter(connection, branch_id, "OUTPUT_RESULTS"), title="Por corte",
+        subtitle="Esperado, real, diferencia y costo repartido de cada corte.",
+        empty_message="No hay órdenes ejecutadas.")
+    por_orden = MeatProcessingRecordPage(
+        _record_presenter(connection, branch_id, "YIELDS"), title="Por orden",
+        subtitle="Conciliación de rendimiento de la orden.",
+        empty_message="No hay conciliaciones de rendimiento.")
+    return YieldsPage(por_corte, por_orden, title=entrada.title, subtitle=entrada.tooltip)
+
+
+def _overview_page(connection, branch_id: str):
+    """Resumen: los mismos contadores del sidebar, más la foto del periodo."""
+    from frontend.desktop.modules.meat_processing.pages.meat_processing_overview_page import (
+        MeatProcessingOverviewPage,
+    )
+    from frontend.desktop.modules.meat_processing.presenters.meat_processing_overview_presenter import (
+        MeatProcessingOverviewPresenter,
+    )
+    entrada = MEAT_PROCESSING_ROUTES["mp_overview"]
+    return MeatProcessingOverviewPage(
+        MeatProcessingOverviewPresenter(connection, branch_id=branch_id),
+        title=entrada.title, subtitle=entrada.tooltip)
+
+
+def _traceability_page(connection, branch_id: str):
+    """Trazabilidad: los lotes que produjo la sucursal, con la genealogía que
+    guarda Inventario (`TraceabilityQueryService`), no un grafo propio."""
+    from frontend.desktop.modules.meat_processing.pages.meat_traceability_page import (
+        MeatTraceabilityPage,
+    )
+    from frontend.desktop.modules.meat_processing.presenters.meat_traceability_presenter import (
+        MeatTraceabilityPresenter,
+    )
+    entrada = MEAT_PROCESSING_ROUTES["mp_traceability"]
+    return MeatTraceabilityPage(
+        MeatTraceabilityPresenter(connection, branch_id=branch_id),
+        title=entrada.title, subtitle=entrada.tooltip)
+
+
+def _settings_page(presenter):
+    from frontend.desktop.modules.meat_processing.pages.meat_processing_settings_page import (
+        MeatProcessingSettingsPage,
+    )
+    entrada = MEAT_PROCESSING_ROUTES["mp_settings"]
+    return MeatProcessingSettingsPage(presenter, title=entrada.title, subtitle=entrada.tooltip)
 
 
 def _weighings_and_consumptions_page(connection, branch_id: str):
@@ -172,6 +296,17 @@ def _weighings_and_consumptions_page(connection, branch_id: str):
         empty_message="No hay consumos registrados.")
     return WeighingsAndConsumptionsPage(
         pesajes, consumos, title=entrada.title, subtitle=entrada.tooltip)
+
+
+def _authorizer_credentials(connection):
+    """Prueba usuario y clave de quien autoriza (mismo verificador que el
+    login y que el mostrador); el permiso lo revalida el caso de uso."""
+    if connection is None:
+        return None
+    from backend.security.authentication.verify_authorizer_credentials_use_case import (
+        build_authorizer_credentials_verifier,
+    )
+    return build_authorizer_credentials_verifier(connection).execute
 
 
 def _sidebar_badges(connection, session_context) -> dict[str, int]:

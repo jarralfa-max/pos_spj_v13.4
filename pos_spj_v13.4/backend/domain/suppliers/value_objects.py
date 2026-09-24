@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
-from backend.domain.suppliers.enums import PersonType, RatingGrade
+from backend.domain.suppliers.enums import PaymentMethod, PersonType, RatingGrade
 from backend.domain.suppliers.exceptions import (
     InvalidCommercialTermsError,
     InvalidSupplierCodeError,
@@ -98,10 +98,30 @@ class PaymentTerms:
     min_order_amount: Money = None  # type: ignore[assignment]
     quantity_tolerance: Decimal = Decimal("0")
     price_tolerance: Decimal = Decimal("0")
+    #: Contado (False) o crédito (True). `None` = derivarlo de `credit_days`, que
+    #: es lo que el dato ya decía implícitamente: así las condiciones capturadas
+    #: antes de que existiera la bandera siguen siendo válidas sin reescribirlas.
+    is_credit: bool | None = None
+    preferred_payment_method: PaymentMethod | None = None
 
     def __post_init__(self) -> None:
         if self.credit_days < 0:
             raise InvalidCommercialTermsError("Los días de crédito no pueden ser negativos")
+        if self.is_credit is None:
+            object.__setattr__(self, "is_credit", self.credit_days > 0)
+        elif self.is_credit and self.credit_days <= 0:
+            raise InvalidCommercialTermsError(
+                "Un proveedor a crédito necesita días de crédito mayores a cero")
+        elif not self.is_credit and self.credit_days > 0:
+            raise InvalidCommercialTermsError(
+                "Un proveedor de contado no puede tener días de crédito")
+        if self.preferred_payment_method is not None:
+            try:
+                object.__setattr__(self, "preferred_payment_method",
+                                   PaymentMethod(self.preferred_payment_method))
+            except ValueError as exc:
+                raise InvalidCommercialTermsError(
+                    f"Forma de pago no soportada: {self.preferred_payment_method}") from exc
         for name in ("advance_percentage", "prompt_payment_discount"):
             value = Decimal(str(getattr(self, name)))
             object.__setattr__(self, name, value)

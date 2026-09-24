@@ -104,7 +104,29 @@ class LegacySessionAdapter:
         )
 
     @property
+    def assigned_branch_ids(self) -> frozenset:
+        """Sucursales asignadas, el nombre que LEEN los contextos de ejecución.
+
+        `resolve_inventory_execution_context` (y sus equivalentes de Mermas y
+        Cárnico) buscan este atributo en la sesión. Antes no existía en ningún
+        objeto de sesión, así que siempre resolvían el conjunto vacío y el nivel
+        "sucursales asignadas" del alcance no podía conceder nada a nadie.
+        """
+        return frozenset(self._context.assigned_branch_ids)
+
+    @property
+    def sucursales_asignadas(self) -> frozenset:
+        """Alias en español: los contextos aceptan cualquiera de los dos
+        nombres, y el resto de esta clase expone el vocabulario en español."""
+        return self.assigned_branch_ids
+
+    @property
     def sucursales_disponibles(self) -> list:
+        # Distinto de `assigned_branch_ids`: esto pretendía ser la lista para un
+        # SELECTOR de sucursal (id + nombre), no el conjunto de alcance. Sigue
+        # vacío porque ninguna pantalla lo consume; quien necesite ofrecer
+        # sucursales debe pasar por `BranchScopeQueryService`, que las acota al
+        # usuario antes de consultar.
         return []
 
     @property

@@ -41,6 +41,10 @@ class SalesPermissions:
     SALE_CANCEL = "POS.cancelar"
     SALE_SUSPEND = "POS.venta.suspender"
     SALE_RESUME = "POS.venta.reanudar"
+    #: Autorización en caliente para cobrar sin existencia suficiente (el
+    #: inventario queda negativo y auditado). Decisión del usuario, Fase 6
+    #: (2026-09-18): el §26 lista "venta sin stock" entre las excepciones.
+    SALE_WITHOUT_STOCK = "POS.venta.sin_existencia"
 
     # ── descuentos (§61/§25) ────────────────────────────────────────────
     DISCOUNT_APPLY = "POS.descuento"

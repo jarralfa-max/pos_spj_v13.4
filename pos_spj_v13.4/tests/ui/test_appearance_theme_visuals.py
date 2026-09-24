@@ -18,6 +18,7 @@ from frontend.desktop.shell.sidebar.sidebar_item_view_model import SidebarItemVi
 from frontend.desktop.themes.theme_manager import ThemeManager
 from frontend.desktop.themes.tokens import ResponsiveBreakpoints
 from tests.ui.shell.conftest import make_context
+from tests.ui.test_standard_window_geometry import DesktopScreen, settle
 
 
 @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
@@ -49,15 +50,16 @@ def test_theme_selector_is_reachable_and_preserves_live_page(qt_font_resources, 
     sidebar = GlobalSidebar(settings=settings, settings_key="visual")
     sidebar.set_items((SidebarItemViewModel("configuracion", "appearance", "Configuración", "settings", "", 0, None, True),))
     window = ApplicationWindow(router=router, sidebar=sidebar)
+    screen = DesktopScreen(QRect(0, 0, *size))
+    monkeypatch.setattr(window, "screen", lambda: screen)
     window.navigate("appearance")
     try:
         window.show()
         window.resize(*size)
         for theme in ("light", "dark"):
             page.theme_selector.setCurrentIndex(page.theme_selector.findData(theme))
-            for _ in range(4):
-                app.processEvents()
-            assert (window.width(), window.height()) == size
+            settle(app)
+            assert screen.availableGeometry().contains(window.frameGeometry())
             assert app.property("spjTheme") == theme
             assert app.property("spjDensity") == density
             assert page.search.text() == "Referencia en captura"

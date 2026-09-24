@@ -3,8 +3,9 @@ reconstruction (ERP integration master prompt §15-19, Fase 7).
 
 `SellableAvailabilityQueryService` answers "how many could I reconstruct";
 this is what actually does it: reserves the needed parts, posts TWO
-canonical ledger movements — an `ADJUSTMENT_OUT` consuming the parts and an
-`ADJUSTMENT_IN` producing the assembled base product, real component costs
+canonical ledger movements — a `PRODUCTION_CONSUMPTION` consuming the parts and a
+`PRODUCTION_OUTPUT` producing the assembled base product (hasta el 2026-09-19
+eran ADJUSTMENT_OUT/IN), real component costs
 summed onto it (never invented, §18) — and fulfills the reservations now
 that the stock has genuinely moved. Two movements, one conceptual
 operation, exactly as the master prompt's own §15 allows: `MovementType.
@@ -44,6 +45,7 @@ from decimal import Decimal
 
 from backend.application.inventory.authorization import InventoryAuthorizationPolicy
 from backend.application.inventory.execution_context import InventoryExecutionContext
+from backend.application.inventory.permissions import InventoryPermissions
 from backend.application.inventory.result import InventoryResult
 from backend.application.inventory.use_cases.post_inventory_movement import (
     PostInventoryMovementUseCase,
@@ -59,24 +61,28 @@ from backend.domain.inventory.entities.inventory_movement import (
     InventoryMovementLine,
 )
 from backend.domain.inventory.enums import InventoryStatus, MovementType, ReservationSource
+from backend.domain.inventory.exceptions import InventoryConfigurationError
 from backend.domain.products.exceptions import ProductsDomainError
 from backend.domain.products.services.reverse_recipe_explosion_service import (
     ReverseRecipeExplosionService,
 )
-from backend.infrastructure.db.repositories.products.recipe_repository import (
-    RecipeRepository,
+from backend.infrastructure.db.repositories.products.cutting_scheme_repository import (
+    CuttingSchemeRepository,
 )
 
 logger = logging.getLogger("spj.inventory.reconstruction")
 
 
 class ReconstructBaseProductUseCase:
-    def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        # Same "never permissive by default" contract as
-        # SalesInventoryClient/every other inventory-writing client this
-        # session — a caller that forgets to inject a real checker gets a
-        # loud InventoryConfigurationError, not silent access.
-        self._auth = authorization or InventoryAuthorizationPolicy()
+    def __init__(self, authorization: InventoryAuthorizationPolicy) -> None:
+        # Obligatoria y sin valor por omisión (2026-09-19): ni permisiva
+        # (`permissive_for_tests()` concedería todo) ni vacía por omisión (la
+        # guarda `test_inventory_authorization_fail_closed` prohíbe ese patrón).
+        # Quien olvide inyectarla recibe un error inmediato y claro.
+        if authorization is None:
+            raise InventoryConfigurationError(
+                "ReconstructBaseProductUseCase requiere una política de autorización")
+        self._auth = authorization
         self._explosion = ReverseRecipeExplosionService()
 
     def execute(
@@ -89,11 +95,13 @@ class ReconstructBaseProductUseCase:
             return InventoryResult.fail("La cantidad a reconstruir debe ser positiva",
                                         "INVALID_QUANTITY", operation_id=operation_id)
 
-        recipes = RecipeRepository(connection)
-        version = recipes.reversible_active_version_for_product(product_id)
+        # Fuente: el esquema de corte (decisión del usuario, Fase 7): el mismo
+        # despiece que ejecuta Cárnico es el que se revierte.
+        version = CuttingSchemeRepository(connection).reversible_active_version_for_input(
+            product_id)
         if version is None:
             return InventoryResult.fail(
-                "El producto no tiene una receta reversible activa (§16)",
+                "El producto no tiene un despiece reversible activo (§16)",
                 "NOT_RECONSTRUCTIBLE", operation_id=operation_id)
 
         try:
@@ -151,14 +159,23 @@ class ReconstructBaseProductUseCase:
         # same operation_id PREFIX, so reading the ledger for either finds
         # the other; a retry after only the first commits is safe — the
         # first's own operation_id dedups, the second is attempted again.
+        # Transformación, no ajuste (Fase 7, 2026-09-19): con ADJUSTMENT_* cada
+        # pollo armado aparecía en los reportes de ajustes/merma como si
+        # alguien hubiera corregido existencias a mano.
         consumption = InventoryMovement.create(
-            movement_type=MovementType.ADJUSTMENT_OUT, branch_id=branch_id,
+            movement_type=MovementType.PRODUCTION_CONSUMPTION, branch_id=branch_id,
             warehouse_id=warehouse_id, source_module="inventory",
             source_document_type="RECONSTRUCTION", source_document_id=operation_id,
             operation_id=f"{operation_id}:consume", created_by_user_id=actor_user_id,
             lines=consumption_lines)
+        # Permiso: el de RESERVAR, no el de movimientos manuales (Fase 7). El
+        # armado sólo ocurre dentro de una venta y sobre un despiece que alguien
+        # con permiso de despiece aprobó y marcó; exigir al cajero
+        # `movimiento.crear_manual` hacía que un pollo armable terminara
+        # pidiendo autorización de "sin existencia".
         consumed = PostInventoryMovementUseCase(self._auth).execute(
-            connection, consumption, actor_user_id=actor_user_id, context=context)
+            connection, consumption, actor_user_id=actor_user_id, context=context,
+            permission_code=InventoryPermissions.RESERVATION_CREATE)
         if not consumed.success:
             # Nunca se sigue adelante con un consumo fallido: cumplir las
             # reservas soltaría la retención de mercancía que sigue contada.
@@ -169,7 +186,7 @@ class ReconstructBaseProductUseCase:
                 consumed.error_code or "MOVEMENT_FAILED", operation_id=operation_id)
 
         production = InventoryMovement.create(
-            movement_type=MovementType.ADJUSTMENT_IN, branch_id=branch_id,
+            movement_type=MovementType.PRODUCTION_OUTPUT, branch_id=branch_id,
             warehouse_id=warehouse_id, source_module="inventory",
             source_document_type="RECONSTRUCTION", source_document_id=operation_id,
             operation_id=f"{operation_id}:produce", created_by_user_id=actor_user_id,
@@ -178,7 +195,8 @@ class ReconstructBaseProductUseCase:
                 to_location_id=branch_id, to_status=InventoryStatus.AVAILABLE,
                 unit_cost=unit_cost_of_reconstructed, reason_code="RECONSTRUCTION")])
         posted = PostInventoryMovementUseCase(self._auth).execute(
-            connection, production, actor_user_id=actor_user_id, context=context)
+            connection, production, actor_user_id=actor_user_id, context=context,
+            permission_code=InventoryPermissions.RESERVATION_CREATE)
         if not posted.success:
             # The components are ALREADY consumed (real, committed stock
             # movement) — there is nothing to roll back here without a
@@ -192,6 +210,11 @@ class ReconstructBaseProductUseCase:
             return InventoryResult.fail(
                 posted.message or "No se pudo postear la producción reconstruida.",
                 posted.error_code or "MOVEMENT_FAILED", operation_id=operation_id)
+
+        self._project_cost(connection, product_id=product_id, quantity=quantity,
+                           unit_cost=unit_cost_of_reconstructed,
+                           operation_id=f"{operation_id}:produce",
+                           actor_user_id=actor_user_id)
 
         for idx, reservation_id in enumerate(reservation_ids):
             fulfilled = FulfillReservationUseCase(self._auth).execute(
@@ -210,10 +233,38 @@ class ReconstructBaseProductUseCase:
             "Reconstrucción completada", entity_id=posted.entity_id, operation_id=operation_id,
             product_id=product_id, quantity=str(quantity),
             unit_cost=str(unit_cost_of_reconstructed),
-            recipe_version_id=version.id,
+            cutting_scheme_version_id=version.id,
             consumption_movement_id=consumed.entity_id,
             already_processed=bool(posted.data.get("already_processed")),
             component_count=len(required))
+
+    @staticmethod
+    def _project_cost(connection, *, product_id, quantity, unit_cost, operation_id,
+                      actor_user_id) -> None:
+        """El costo de lo armado entra al costo PROMEDIO del producto.
+
+        Antes el pollo reconstruido entraba al libro con el costo de sus partes
+        pero `product_cost` no se enteraba, y el costo de venta (Fase 6) lo lee
+        de ahí: un producto que sólo se arma nunca tenía costo, y uno que
+        también se compra se vendía al costo de compra. Se usa el mismo
+        contrato con que Producción informa lo que produce
+        (`PRODUCTION_OUTPUT_COSTED` → `ProductCostProjectionHandler`), de forma
+        síncrona: el bus de inventario no se despacha. Idempotente por
+        `operation_id`. Un fallo aquí no deshace la reconstrucción ya asentada:
+        se registra y el costo queda como estaba.
+        """
+        from backend.application.pricing.event_handlers.product_cost_projection_handler import (
+            ProductCostProjectionHandler,
+        )
+        try:
+            ProductCostProjectionHandler(connection).handle({
+                "event_id": operation_id, "operation_id": operation_id,
+                "user_id": actor_user_id,
+                "lines": [{"product_id": product_id, "quantity": str(quantity),
+                           "unit_cost": str(unit_cost)}]})
+        except Exception:
+            logger.exception("reconstrucción %s: no se actualizó el costo promedio de %s",
+                             operation_id, product_id)
 
     def _release(self, connection, reservation_ids: list[str], *,
                 actor_user_id: str, operation_id: str) -> None:

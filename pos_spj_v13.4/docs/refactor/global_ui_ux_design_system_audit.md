@@ -279,3 +279,38 @@ las rutas reales. El [informe de esta corrección](module_sidebar_icons_fix.md)
 conserva resultados, capturas y el fallo previo de una prueba que aún busca
 `interfaz/menu_lateral.py`. Esta corrección no declara completado el refactor
 global ni sustituye las evidencias históricas anteriores.
+
+## Continuación — QSS global y BrandAssetProvider, 2026-09-21
+
+El [informe del punto 4](qss_global_phase_4.md) documenta la cascada de tarjetas
+y estados deshabilitados, la aplicación coherente de tema/densidad y el control
+AST de un único propietario del QSS. Su
+[visor independiente](evidence/qss_global_phase_4/index.html) conserva 220
+capturas. En el cierre se registran infracciones de overflow en
+`PricingSettingsPage` y `MeatProcessingSettingsPage`, ajenas a esta fase y fuera
+de las 159 huellas permitidas. No se amplió el baseline ni se declara una suite
+global verde.
+
+El [punto 6](brand_asset_provider_phase_6.md) verifica el proveedor de marca,
+las rutas de recursos del bundle y los consumidores existentes. El usuario
+incorporó los seis recursos de JUANIS a `assets/branding` el 2026-09-21; se
+validan con sus originales, conservando proporción, transparencia y colores.
+
+## Continuación — Density profiles, 2026-09-23
+
+El [punto 7](density_profiles_phase_7.md) incorpora el selector global de densidad
+de terminal y corrige áreas clicables, popups, tamaños con foco y retorno desde
+Táctil. Registra 483 pruebas distintas aprobadas y un fallo previo de arquitectura
+por las mismas dos páginas sin overflow. No se amplió el baseline ni se añadieron
+infracciones. Su [visor independiente](evidence/density_profiles_phase_7/index.html)
+conserva 250 capturas y hashes. El siguiente punto elegido es **8. StandardWindow**.
+
+## Continuación — StandardWindow, 2026-09-23
+
+El [punto 8](standard_window_phase_8.md) centraliza el ajuste del marco completo
+al monitor actual y la recuperación de mínimos y estados de ventana. Conserva
+tema, marca y barra de estado; también corrige la superposición de mensajes al
+abrir el shell. Las matrices modelan ahora el área disponible del escritorio.
+El [visor independiente](evidence/standard_window_phase_8/index.html) conserva
+280 capturas; el manifiesto registra 292 pruebas aprobadas y el mismo fallo
+previo de arquitectura, sin infracciones nuevas. Sigue **9. StandardDialog**.

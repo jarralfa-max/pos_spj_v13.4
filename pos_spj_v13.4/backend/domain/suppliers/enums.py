@@ -91,6 +91,19 @@ class ContactType(str, Enum):
     EMERGENCY = "EMERGENCY"
 
 
+class PaymentMethod(str, Enum):
+    """Forma de pago preferida de un proveedor.
+
+    Sólo las dos que el negocio usa (decisión del usuario, 2026-09-17). No se
+    agregan "por si acaso": cada valor extra es vocabulario que alguien tiene
+    que mantener sin que nadie lo use. TRANSFER se respalda en la CLABE y la
+    cuenta bancaria verificada que el proveedor ya registra.
+    """
+
+    TRANSFER = "TRANSFER"  # Transferencia SPEI
+    CASH = "CASH"          # Efectivo
+
+
 class AddressType(str, Enum):
     FISCAL = "FISCAL"
     BILLING = "BILLING"

@@ -1,6 +1,6 @@
 """Synthetic rectangles verify loading; these fixtures are not JUANIS artwork."""
 import pytest
-from PyQt5.QtCore import QEvent, QSize
+from PyQt5.QtCore import QEvent, QSize, Qt
 from PyQt5.QtGui import QColor, QImage
 
 from backend.shared.app_paths import AppPaths
@@ -44,6 +44,90 @@ def test_artwork_keeps_colors_and_aspect_ratio(assets, writer):
     result = BrandAssetProvider.pixmap("logo_horizontal_light", QSize(180, 72))
     assert result.size() == QSize(180, 45)
     assert result.toImage().pixelColor(90, 22).name() == "#4060a0"
+
+
+@pytest.mark.parametrize("extension", ["svg", "png", "ico"])
+def test_transparent_artwork_is_preserved_in_all_supported_formats(assets, extension):
+    """Fixture geometry tests alpha; it is not an approved logo or isotype."""
+    path = assets / f"isotype_light.{extension}"
+    if extension == "svg":
+        path.write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">'
+            '<rect x="16" y="16" width="32" height="32" fill="#4060A0"/></svg>',
+            encoding="utf-8",
+        )
+    else:
+        from PyQt5.QtGui import QPainter
+
+        image = QImage(64, 64, QImage.Format_ARGB32)
+        image.fill(Qt.transparent)
+        painter = QPainter(image)
+        painter.fillRect(16, 16, 32, 32, QColor("#4060A0"))
+        painter.end()
+        assert image.save(str(path))
+    result = BrandAssetProvider.pixmap("isotype_light", QSize(32, 32), device_pixel_ratio=2.0)
+    assert result.size() == QSize(64, 64)
+    assert result.devicePixelRatioF() == 2.0
+    assert result.toImage().pixelColor(0, 0).alpha() == 0
+    assert result.toImage().pixelColor(32, 32) == QColor("#4060A0")
+
+
+@pytest.mark.parametrize("ratio", [0, -1, float("nan"), float("inf")])
+def test_invalid_device_pixel_ratio_fails_explicitly(assets, ratio):
+    with pytest.raises(ValueError, match="pixel ratio"):
+        BrandAssetProvider.pixmap("logo_horizontal_light", QSize(180, 72), device_pixel_ratio=ratio)
+
+
+@pytest.mark.parametrize("consumer", ["pixmap", "window", "application"])
+def test_svg2_embedded_image_is_visible_without_rewriting_original(assets, consumer):
+    import base64
+
+    source = png(assets, "isotype_light")
+    name = "app_icon" if consumer == "application" else "window_icon"
+    data = base64.b64encode(source.read_bytes()).decode("ascii")
+    original = (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="100" viewBox="0 0 400 100">'
+        f'<image width="400" height="100" href="data:image/png;base64,{data}"/></svg>'
+    ).encode("utf-8")
+    path = assets / f"{name}.svg"
+    path.write_bytes(original)
+    for size in (32, 256):
+        if consumer == "pixmap":
+            image = BrandAssetProvider.pixmap(name, QSize(size, size)).toImage()
+        else:
+            icon = BrandAssetProvider.app_icon() if consumer == "application" else BrandAssetProvider.window_icon()
+            image = icon.pixmap(size, size).toImage()
+        assert not image.isNull()
+        assert image.pixelColor(image.width() // 2, image.height() // 2) == QColor("#4060A0")
+    assert path.read_bytes() == original
+
+
+@pytest.mark.parametrize("reference", ["href", "xlink:href"])
+@pytest.mark.parametrize("consumer", ["pixmap", "icon"])
+def test_svg_local_images_resolve_relative_to_the_artwork_directory(assets, reference, consumer):
+    png(assets, "isotype_light")
+    path = assets / "window_icon.svg"
+    path.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
+        'width="400" height="100">'
+        f'<image width="400" height="100" {reference}="isotype_light.png"/></svg>',
+        encoding="utf-8",
+    )
+    result = (BrandAssetProvider.pixmap("window_icon", QSize(80, 20)) if consumer == "pixmap"
+              else BrandAssetProvider.window_icon().pixmap(80, 20))
+    assert not result.isNull()
+    assert result.toImage().pixelColor(40, 10) == QColor("#4060A0")
+
+
+@pytest.mark.parametrize("consumer", ["pixmap", "icon"])
+def test_transparent_svg_does_not_hide_a_visible_sibling(assets, consumer):
+    (assets / "window_icon.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="100"/>', encoding="utf-8")
+    png(assets, "window_icon")
+    result = (BrandAssetProvider.pixmap("window_icon", QSize(80, 20)) if consumer == "pixmap"
+              else BrandAssetProvider.window_icon().pixmap(80, 20))
+    assert not result.isNull()
+    assert result.toImage().pixelColor(40, 10) == QColor("#4060A0")
 
 
 @pytest.mark.parametrize("ratio", [1.25, 1.5, 2.0, 3.0])
@@ -115,6 +199,73 @@ def test_label_rerenders_for_the_new_screen_dpi(assets, qt_font_resources, monke
         label.close()
         label.deleteLater()
         qt_font_resources.sendPostedEvents(None, QEvent.DeferredDelete)
+
+
+def test_label_restores_full_artwork_after_shrinking(assets, qt_font_resources, monkeypatch):
+    from PyQt5 import sip
+
+    svg(assets, "logo_horizontal_light")
+    label = BrandLabel()
+    monkeypatch.setattr(label, "devicePixelRatioF", lambda: 1.0)
+    try:
+        label.resize(180, 72)
+        label.show()
+        qt_font_resources.processEvents()
+        original = label.pixmap().toImage()
+        assert original.size() == QSize(180, 45)
+
+        for width in (60, 20, 180):
+            label.resize(width, 72)
+            qt_font_resources.processEvents()
+            image = label.pixmap().toImage()
+            assert image.size() == QSize(width, width // 4)
+            assert image.pixelColor(image.width() // 2, image.height() // 2) == QColor("#4060A0")
+
+        assert label.pixmap().toImage() == original
+    finally:
+        sip.delete(label)
+
+
+def test_reparented_label_follows_only_its_current_window_dpi(assets, qt_font_resources, monkeypatch):
+    from PyQt5 import sip
+    from PyQt5.QtWidgets import QWidget
+
+    svg(assets, "logo_horizontal_light")
+    first, second = QWidget(), QWidget()
+    label = BrandLabel(first)
+    screen_ratio = [1.0]
+    monkeypatch.setattr(label, "devicePixelRatioF", lambda: screen_ratio[0])
+    try:
+        for window in (first, second):
+            window.resize(300, 120)
+            window.show()
+        label.resize(180, 72)
+        label.show()
+        qt_font_resources.processEvents()
+        first_handle, second_handle = first.windowHandle(), second.windowHandle()
+        assert first_handle is not second_handle
+        assert label.pixmap().devicePixelRatioF() == 1.0
+
+        screen_ratio[0] = 2.0
+        label.setParent(second)
+        label.show()
+        qt_font_resources.processEvents()
+        assert label.pixmap().devicePixelRatioF() == 2.0
+        assert label.pixmap().size() == QSize(360, 90)
+
+        screen_ratio[0] = 3.0
+        first_handle.screenChanged.emit(first_handle.screen())
+        assert label.pixmap().devicePixelRatioF() == 2.0
+        assert label.pixmap().size() == QSize(360, 90)
+
+        second_handle.screenChanged.emit(second_handle.screen())
+        assert label.pixmap().devicePixelRatioF() == 3.0
+        assert label.pixmap().size() == QSize(540, 135)
+        assert label.pixmap().toImage().pixelColor(270, 67) == QColor("#4060A0")
+    finally:
+        sip.delete(label)
+        sip.delete(first)
+        sip.delete(second)
 
 
 def test_standard_windows_and_dialogs_use_official_window_icon(assets):

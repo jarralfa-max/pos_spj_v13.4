@@ -47,7 +47,7 @@ CONTRACTS: tuple[ComponentContract, ...] = (
     ComponentContract("TopBar", "frontend.desktop.shell.application_shell.top_bar",
                       "TopBar", "Archivo, usuario, sesión, notificaciones y configuración."),
     ComponentContract("StandardWindow", "frontend.desktop.components.standard_window",
-                      "StandardWindow", "Geometría, límites del monitor y marca."),
+                      "StandardWindow", "Marco dentro del área disponible, cambio de monitor, marca y estado."),
     ComponentContract("PageViewport", "frontend.desktop.components.page_viewport",
                       "PageViewport", "Desplazamiento y overflow bidireccional."),
     ComponentContract("WorklistPage", "frontend.desktop.components.worklist_page",

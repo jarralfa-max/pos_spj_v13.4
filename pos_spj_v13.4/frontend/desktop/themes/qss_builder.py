@@ -19,6 +19,7 @@ from frontend.desktop.themes.tokens import (
     ControlHeights,
     InputMetrics,
     Radii,
+    Spacing,
     TableMetrics,
     Typography,
     density_metrics,
@@ -42,9 +43,44 @@ def build_qss(theme: str = "light", *, density="comfortable") -> str:
         _dialogs(c),
         _forms(c),
         _interaction(c, metrics),
+        _spin_controls(c, metrics),
         _brand_swatches(),
     ]
     return "\n\n".join(parts)
+
+
+def _spin_controls(c, metrics) -> str:
+    """Draw native step affordances without platform-dependent arrow assets."""
+    def rule(parts, declarations):
+        selectors = ", ".join(f"{control}::{part}" for control in ("QSpinBox", "QDoubleSpinBox") for part in parts)
+        return f"{selectors} {{ {declarations} }}"
+
+    def arrow(direction, color):
+        if direction == "up":
+            origin, first, last = 0, 0.625, 0.875
+        else:
+            origin, first, last = 1, 0.125, 0.375
+        return (
+            f"background: qconicalgradient(cx:0.5, cy:{origin}, angle:0, "
+            f"stop:0 transparent, stop:{first - 0.001} transparent, "
+            f"stop:{first} {color}, stop:{last} {color}, "
+            f"stop:{last + 0.001} transparent, stop:1 transparent);"
+        )
+
+    return "\n".join([
+        rule(("up-button", "down-button"), (
+            f"subcontrol-origin: padding; width: {metrics.input_height // 2}px; "
+            f"background: transparent; border: none; border-left: {Borders.WIDTH_THIN}px solid {c.INPUT_BORDER};"
+        )),
+        rule(("up-button",), "subcontrol-position: top right;"),
+        rule(("down-button",), "subcontrol-position: bottom right;"),
+        rule(("up-button:hover", "down-button:hover"), f"background: {c.SURFACE_MUTED};"),
+        rule(("up-button:pressed", "down-button:pressed"), f"background: {c.SELECTION};"),
+        rule(("up-button:disabled", "down-button:disabled"), f"background: {c.DISABLED_BACKGROUND}; border-color: {c.DISABLED_BORDER};"),
+        rule(("up-arrow", "down-arrow"), f"width: {Spacing.SM}px; height: {Spacing.XS}px; border: none;"),
+        *[rule((f"{direction}-arrow",), arrow(direction, c.TEXT_PRIMARY)) for direction in ("up", "down")],
+        *[rule((f"{direction}-arrow:disabled", f"{direction}-arrow:off"), arrow(direction, c.TEXT_DISABLED)) for direction in ("up", "down")],
+    ])
 
 
 def _brand_swatches() -> str:
@@ -61,24 +97,24 @@ def _interaction(c, metrics) -> str:
     return f'''
 QPushButton, QToolButton {{
     background: {c.SURFACE}; color: {c.TEXT_PRIMARY};
-    border: 1px solid {c.BORDER_DEFAULT}; border-radius: {Radii.MD}px;
-    min-height: {metrics.button_height - 2}px; padding: 0 10px;
+    border: 2px solid {c.BORDER_DEFAULT}; border-radius: {Radii.MD}px;
+    min-height: {metrics.button_height - 4}px; padding: 0 10px;
 }}
-QPushButton[variant], QToolButton[variant] {{ min-height: {metrics.button_height - 2}px; }}
+QPushButton[variant], QToolButton[variant] {{ min-height: {metrics.button_height - 4}px; }}
 QDialog#virtualKeyboard QPushButton {{
-    min-height: {density_metrics("touch").button_height - 2}px;
-    min-width: {density_metrics("touch").icon_button_size - 22}px;
+    min-height: {density_metrics("touch").button_height - 4}px;
+    min-width: {density_metrics("touch").icon_button_size - 24}px;
 }}
 QPushButton:hover, QToolButton:hover {{ background: {c.SURFACE_MUTED}; }}
 QPushButton:pressed, QToolButton:pressed {{ background: {c.SELECTION}; }}
 QPushButton[variant="ghost"], QPushButton[variant="icon"] {{
-    background: transparent; border: 1px solid transparent; border-radius: {Radii.MD}px;
+    background: transparent; border: 2px solid transparent; border-radius: {Radii.MD}px;
 }}
 QPushButton[variant="ghost"]:hover, QPushButton[variant="icon"]:hover {{ background: {c.PRIMARY_SUBTLE}; }}
 QPushButton[variant="ghost"]:pressed, QPushButton[variant="icon"]:pressed {{ background: {c.SELECTION}; }}
 QPushButton[iconOnly="true"] {{
-    min-width: {metrics.icon_button_size - 2}px;
-    min-height: {metrics.icon_button_size - 2}px; padding: 0;
+    min-width: {metrics.icon_button_size - 4}px;
+    min-height: {metrics.icon_button_size - 4}px; padding: 0;
 }}
 QPushButton:disabled, QToolButton:disabled, QPushButton[variant="ghost"]:disabled,
 QPushButton[variant="icon"]:disabled {{
@@ -93,15 +129,17 @@ QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QTimeEdit, QDateTimeE
 QAbstractSpinBox:disabled, QTextEdit:disabled, QPlainTextEdit:disabled {{
     color: {c.TEXT_DISABLED}; background: {c.DISABLED_BACKGROUND}; border-color: {c.DISABLED_BORDER};
 }}
-QAbstractSpinBox[state="error"], QTextEdit[state="error"], QPlainTextEdit[state="error"] {{
+QAbstractSpinBox[state="error"]:enabled, QTextEdit[state="error"]:enabled, QPlainTextEdit[state="error"]:enabled {{
     border: 2px solid {c.DANGER_DEFAULT};
+    padding: {InputMetrics.PADDING_VERTICAL - 1}px {InputMetrics.PADDING_HORIZONTAL - 1}px;
 }}
-QCheckBox, QRadioButton {{ min-height: {metrics.input_height}px; spacing: 8px; }}
+QCheckBox, QRadioButton {{ min-height: {metrics.input_height - 4}px; spacing: 8px; border: 2px solid transparent; }}
 QCheckBox:focus, QRadioButton:focus {{ border: 2px solid {c.FOCUS_RING}; }}
 QTabWidget::pane {{ border: 1px solid {c.BORDER_DEFAULT}; background: {c.SURFACE}; }}
 QTabBar::tab {{
-    min-height: {metrics.tab_height - 2}px; padding: 0 16px;
+    min-height: {metrics.tab_height - 4}px; padding: 0 16px;
     color: {c.TEXT_SECONDARY}; background: {c.SURFACE_MUTED}; border: 1px solid {c.BORDER_DEFAULT};
+    border-bottom: 3px solid {c.BORDER_DEFAULT};
 }}
 QTabBar::tab:selected {{ color: {c.PRIMARY_DEFAULT}; background: {c.SURFACE}; border-bottom: 3px solid {c.PRIMARY_DEFAULT}; }}
 QTabBar::tab:hover {{ background: {c.PRIMARY_SUBTLE}; }}
@@ -143,7 +181,7 @@ def _buttons(c) -> str:
         return f"""
 QPushButton[variant="{name}"] {{
     background-color: {bg}; color: {fg};
-    border: {Borders.WIDTH_THIN}px solid {border};
+    border: {Borders.WIDTH_FOCUS}px solid {border};
     border-radius: {Radii.MD}px;
     min-height: {ControlHeights.MD}px;
     padding: 0 {InputMetrics.PADDING_HORIZONTAL + 4}px;
@@ -159,7 +197,7 @@ QPushButton[variant="{name}"]:disabled {{
     outline = f"""
 QPushButton[variant="outline"] {{
     background-color: transparent; color: {c.PRIMARY_DEFAULT};
-    border: {Borders.WIDTH_THIN}px solid {c.PRIMARY_BORDER};
+    border: {Borders.WIDTH_FOCUS}px solid {c.PRIMARY_BORDER};
     border-radius: {Radii.MD}px; min-height: {ControlHeights.MD}px;
     padding: 0 {InputMetrics.PADDING_HORIZONTAL + 4}px;
     font-weight: {Typography.WEIGHT_MEDIUM};
@@ -201,14 +239,17 @@ QDateTimeEdit, QPlainTextEdit, QTextEdit {{
 }}
 QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus,
 QDateEdit:focus, QTimeEdit:focus, QDateTimeEdit:focus, QPlainTextEdit:focus,
-QTextEdit:focus {{ border: {Borders.WIDTH_FOCUS}px solid {c.FOCUS_RING}; }}
+QTextEdit:focus {{
+    border: {Borders.WIDTH_FOCUS}px solid {c.FOCUS_RING};
+    padding: {InputMetrics.PADDING_VERTICAL - (Borders.WIDTH_FOCUS - Borders.WIDTH_THIN)}px {InputMetrics.PADDING_HORIZONTAL - (Borders.WIDTH_FOCUS - Borders.WIDTH_THIN)}px;
+}}
 QLineEdit:disabled, QComboBox:disabled {{
     background-color: {c.DISABLED_BACKGROUND}; color: {c.TEXT_DISABLED};
     border-color: {c.DISABLED_BORDER};
 }}
-QLineEdit[state="error"], QComboBox[state="error"] {{ border-color: {c.DANGER_DEFAULT}; }}
-QLineEdit[state="warning"] {{ border-color: {c.WARNING_DEFAULT}; }}
-QLineEdit[readOnly="true"] {{ background-color: {c.SURFACE_MUTED}; color: {c.TEXT_SECONDARY}; }}
+QLineEdit[state="error"]:enabled, QComboBox[state="error"]:enabled {{ border-color: {c.DANGER_DEFAULT}; }}
+QLineEdit[state="warning"]:enabled {{ border-color: {c.WARNING_DEFAULT}; }}
+QLineEdit[readOnly="true"]:enabled {{ background-color: {c.SURFACE_MUTED}; color: {c.TEXT_SECONDARY}; }}
 """.strip()
 
 
@@ -247,12 +288,12 @@ def _cards(c) -> str:
     return "\n".join([
         "/* ── cards ────────────────────────────────────────────────────────── */",
         card("QFrame#standardCard", c.SURFACE, c.BORDER_DEFAULT),
-        card('QFrame[cardVariant="section"]', c.SURFACE, c.BORDER_DEFAULT),
-        card('QFrame[cardVariant="summary"]', c.SURFACE_ELEVATED, c.BORDER_DEFAULT),
-        card('QFrame[cardVariant="info"]', c.INFO_SUBTLE, c.INFO_BORDER),
-        card('QFrame[cardVariant="alert"]', c.WARNING_SUBTLE, c.WARNING_BORDER),
-        card('QFrame[cardVariant="danger"]', c.DANGER_SUBTLE, c.DANGER_BORDER),
-        card('QFrame[cardVariant="chart"]', c.SURFACE, c.BORDER_DEFAULT),
+        card('QFrame#standardCard[cardVariant="section"], QFrame[cardVariant="section"]', c.SURFACE, c.BORDER_DEFAULT),
+        card('QFrame#standardCard[cardVariant="summary"], QFrame[cardVariant="summary"]', c.SURFACE_ELEVATED, c.BORDER_DEFAULT),
+        card('QFrame#standardCard[cardVariant="info"], QFrame[cardVariant="info"]', c.INFO_SUBTLE, c.INFO_BORDER),
+        card('QFrame#standardCard[cardVariant="alert"], QFrame[cardVariant="alert"]', c.WARNING_SUBTLE, c.WARNING_BORDER),
+        card('QFrame#standardCard[cardVariant="danger"], QFrame[cardVariant="danger"]', c.DANGER_SUBTLE, c.DANGER_BORDER),
+        card('QFrame#standardCard[cardVariant="chart"], QFrame[cardVariant="chart"]', c.SURFACE, c.BORDER_DEFAULT),
     ])
 
 
@@ -363,7 +404,7 @@ QLabel#formFieldHelper {{ color: {c.TEXT_MUTED}; font-size: {Typography.SIZE_CAP
 QLabel#formFieldError, QLabel[state="error"] {{
     color: {c.DANGER_DEFAULT}; font-size: {Typography.SIZE_CAPTION}px;
 }}
-QLineEdit#filePathField[readOnly="true"] {{
+QLineEdit#filePathField[readOnly="true"]:enabled {{
     background-color: {c.SURFACE_MUTED}; color: {c.TEXT_SECONDARY};
 }}
 QListWidget#entitySearchResults {{

@@ -56,9 +56,12 @@ _REAL_ROUTE_BUILDERS: dict[str, str] = {
 
 
 def build_page(page_id: str, connection=None, *, branch_id: str | None = None,
-                actor_user_id: str | None = None, authorization=None):
+                actor_user_id: str | None = None, authorization=None,
+                customer_lookup=None):
     """`authorization` es la `OrdersDeliveryAuthorizationPolicy` de la sesión.
-    Sin ella las páginas se construyen igual, pero toda escritura falla cerrada."""
+    Sin ella las páginas se construyen igual, pero toda escritura falla cerrada.
+    `customer_lookup` (búsqueda de clientes de la sesión) sólo lo usa "Nuevo
+    pedido"; sin él, el pedido se captura sin cliente, como antes."""
     try:
         entry = ORDERS_DELIVERY_ROUTES[page_id]
     except KeyError as exc:
@@ -66,9 +69,11 @@ def build_page(page_id: str, connection=None, *, branch_id: str | None = None,
 
     builder_name = _REAL_ROUTE_BUILDERS.get(page_id)
     if connection is not None and branch_id is not None and builder_name is not None:
+        extra = ({"customer_lookup": customer_lookup}
+                 if builder_name == "_build_new_order" else {})
         return globals()[builder_name](
             connection, page_id=page_id, branch_id=branch_id, actor_user_id=actor_user_id,
-            authorization=authorization)
+            authorization=authorization, **extra)
 
     from frontend.desktop.modules.orders_delivery.pages import OrdersDeliveryPlaceholderPage
     return OrdersDeliveryPlaceholderPage(title=entry.title, subtitle=entry.tooltip)
@@ -227,7 +232,7 @@ def _build_delivery_settings(connection, *, page_id: str, branch_id: str,
 
 
 def _build_new_order(connection, *, page_id: str, branch_id: str,
-                     actor_user_id: str | None, authorization=None):
+                     actor_user_id: str | None, authorization=None, customer_lookup=None):
     from frontend.desktop.modules.orders_delivery.pages.new_order_page import NewOrderPage
     from frontend.desktop.modules.orders_delivery.presenters.new_order_presenter import (
         NewOrderPresenter,
@@ -235,5 +240,5 @@ def _build_new_order(connection, *, page_id: str, branch_id: str,
     entrada = ORDERS_DELIVERY_ROUTES[page_id]
     presenter = NewOrderPresenter(
         connection, branch_id=branch_id, actor_user_id=actor_user_id,
-        authorization=authorization)
+        authorization=authorization, customer_lookup=customer_lookup)
     return NewOrderPage(presenter, title=entrada.title, subtitle=entrada.tooltip)

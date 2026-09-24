@@ -1,4 +1,3 @@
-from pathlib import Path
 from tests.architecture.architecture_guardrails import APP_ROOT
 
 
@@ -19,6 +18,11 @@ def test_transfers_ui_uses_canonical_components_and_routes():
     for component in ("PageHeader", "KPIBar", "StandardTable", "FormDialog",
                       "DecimalInput", "BarcodeInput", "HtmlChartView", "ChartCard"):
         assert component in source
-    assert "return None" not in Path(
-        "pos_spj_v13.4/frontend/desktop/modules/transfers/transfers_routes.py").read_text()
+    # Re-anclado a `APP_ROOT` el 2026-09-17: la ruta era un literal relativo a
+    # la raíz EXTERIOR del repositorio, así que con cwd = directorio interior
+    # —que es como corre pytest aquí y en CI— reventaba con FileNotFoundError
+    # ANTES de evaluar el assert. Esta mitad de la guardia no protegía nada.
+    assert "return None" not in (
+        APP_ROOT / "frontend/desktop/modules/transfers/transfers_routes.py"
+    ).read_text(encoding="utf-8")
     assert source.count("page_id = \"transfers_") >= 1

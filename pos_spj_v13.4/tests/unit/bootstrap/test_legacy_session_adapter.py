@@ -47,11 +47,68 @@ def test_es_gerente_matches_legacy_role_list():
     assert LegacySessionAdapter(_context(roles=("cajero",))).es_gerente is False
 
 
-def test_warehouse_and_multi_branch_fields_default_empty_not_invented():
+def test_warehouse_fields_default_empty_not_invented():
     adapter = LegacySessionAdapter(_context())
     assert adapter.active_warehouse_id == ""
     assert adapter.active_warehouse_name == ""
+    # `sucursales_disponibles` sigue vacío A PROPÓSITO: pretendía ser la lista
+    # (id + nombre) para un SELECTOR de sucursal, no el conjunto de alcance, y
+    # ninguna pantalla la consume. No confundir con `assigned_branch_ids`.
     assert adapter.sucursales_disponibles == []
+
+
+def test_assigned_branches_default_to_empty_without_assignments():
+    """Vacío significa "sin asignaciones explícitas", NO "ninguna sucursal":
+    quien no tiene filas en `usuarios_sucursales` opera en la suya."""
+    assert LegacySessionAdapter(_context()).assigned_branch_ids == frozenset()
+
+
+def test_assigned_branches_use_the_name_the_execution_contexts_read():
+    """El NOMBRE importa más que el valor.
+
+    `resolve_inventory_execution_context` —y sus equivalentes de Mermas y
+    Cárnico— buscan `assigned_branch_ids` (o el alias en español) por `getattr`.
+    Si no coincidiera, resolverían el conjunto vacío EN SILENCIO y el nivel
+    "sucursales asignadas" del alcance seguiría sin poder conceder nada a nadie,
+    que es exactamente como estuvo hasta el 2026-09-17: el atributo se leía y
+    NINGÚN objeto de sesión lo escribía.
+    """
+    adapter = LegacySessionAdapter(
+        _context(assigned_branch_ids=frozenset({"b2", "b3"})))
+    assert adapter.assigned_branch_ids == frozenset({"b2", "b3"})
+    assert adapter.sucursales_asignadas == frozenset({"b2", "b3"})
+
+
+def test_assigned_branches_reach_the_inventory_execution_context():
+    """Extremo a extremo del cableado, no sólo de la propiedad: que el dato
+    llegue y que además CONCEDA alcance sobre la sucursal asignada."""
+    from backend.application.inventory.execution_context import (
+        resolve_inventory_execution_context,
+    )
+    from backend.domain.inventory.exceptions import BranchScopeError
+
+    adapter = LegacySessionAdapter(_context(assigned_branch_ids=frozenset({"b2"})))
+    context = resolve_inventory_execution_context(adapter)
+
+    assert context.assigned_branch_ids == frozenset({"b2"})
+    context.enforce_branch("branch-1")   # la propia: siempre permitida
+    context.enforce_branch("b2")         # asignada: ahora sí concede
+    with pytest.raises(BranchScopeError):
+        context.enforce_branch("b9")     # ajena: sigue bloqueada
+
+
+def test_assigned_branches_survive_a_branch_change():
+    """`ApplicationContext.with_branch()` reconstruye el contexto campo por
+    campo, así que un campo que no se nombre allí se pierde EN SILENCIO justo
+    al cambiar de sucursal — la operación donde el alcance más importa. Vive
+    aquí, junto al resto del contrato de sesión, para que no se pierda."""
+    context = _context(assigned_branch_ids=frozenset({"b2", "b3"}))
+
+    movido = context.with_branch(
+        branch_id="b2", branch_name="Centro", permissions=frozenset(),
+        feature_context=FeatureContext())
+
+    assert movido.assigned_branch_ids == frozenset({"b2", "b3"})
 
 
 def test_permisos_passes_through_the_context_permission_set():

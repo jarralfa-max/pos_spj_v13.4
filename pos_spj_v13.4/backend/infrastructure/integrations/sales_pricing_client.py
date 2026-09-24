@@ -40,11 +40,33 @@ class SalesPricingClient:
     def __init__(self, connection) -> None:
         self._facade = PricingReadFacade(connection)
 
+    #: Canal del mostrador. Las listas de CANAL sólo rigen en su canal; antes el
+    #: motor no recibía canal y aplicaba cualquier lista de canal aquí también.
+    CHANNEL = "POS"
+
     def effective_price(
         self, product_id: str, *, branch_id: str | None = None,
         customer_id: str | None = None, quantity: Decimal | int = 1,
+        channel: str | None = None,
     ) -> Decimal | None:
         """None means the product has no price configured yet — the caller
         decides how to handle that (never silently default to 0)."""
         return self._facade.sale_price_amount(
-            product_id, branch_id=branch_id, customer_id=customer_id, quantity=quantity)
+            product_id, branch_id=branch_id, customer_id=customer_id, quantity=quantity,
+            channel=channel or self.CHANNEL)
+
+    def unit_cost(self, product_id: str, *, branch_id: str | None = None) -> Decimal | None:
+        """Costo efectivo del producto (el de Costeo) para el costo de venta.
+        None si nunca se ha costeado: el costo no se inventa."""
+        return self._facade.unit_cost(product_id, branch_id)
+
+    def minimum_price(
+        self, product_id: str, *, branch_id: str | None = None,
+        customer_id: str | None = None, quantity: Decimal | int = 1,
+        channel: str | None = None,
+    ) -> Decimal | None:
+        """Precio mínimo vigente del producto (el piso bajo el cual vender exige
+        autorización), o None si no hay mínimo configurado."""
+        return self._facade.sale_price(
+            product_id, branch_id=branch_id, customer_id=customer_id, quantity=quantity,
+            channel=channel or self.CHANNEL).min_price

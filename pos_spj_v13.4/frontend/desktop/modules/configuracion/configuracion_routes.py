@@ -179,6 +179,7 @@ def create_configuracion_view(container, parent=None):
         connection, permission_checker=session.tiene_permiso if session is not None else None)
     presenter = ConfiguracionPresenter(
         query_service, session_context=session,
+        address_search_factory=_address_search_factory(connection),
         authorization=authorization,
         audit_log_repository=ConfiguracionAuditLogRepository(connection),
         approve_change_request_uc=ApproveFeatureFlagChangeRequestUseCase(connection),
@@ -284,3 +285,15 @@ def create_configuracion_view(container, parent=None):
     badges = {"pending_flag_requests": pending_flag_requests} if pending_flag_requests else {}
 
     return ConfiguracionView(presenter, has_permission=has_permission, badges=badges, parent=parent)
+
+
+def _address_search_factory(connection):
+    """El servicio estándar de direcciones, leído de Integraciones cada vez que
+    se abre un diálogo: así un token de Mapbox recién guardado se usa sin
+    reiniciar la aplicación."""
+    def _build():
+        from backend.infrastructure.maps.address_search_factory import (
+            build_address_search_service,
+        )
+        return build_address_search_service(connection)
+    return _build

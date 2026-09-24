@@ -21,6 +21,7 @@ from backend.application.procurement.use_cases.requisition_use_cases import (
     ApprovePurchaseRequisitionUseCase, CreatePurchaseRequisitionUseCase,
     SubmitPurchaseRequisitionUseCase,
 )
+from tests.integration._supplier_cutover import apply_supplier_cutover
 
 
 class Allow:
@@ -48,14 +49,19 @@ def approved_requisition(proc_conn):
     return created.entity_id
 
 
-def test_supplier_directory_reads_only_canonical_proveedores(proc_conn):
+def test_supplier_directory_reads_the_canonical_master(proc_conn):
+    """El nombre de este caso decía "canonical proveedores" porque en su día la
+    tabla canónica ERA `proveedores`. Desde el corte SUP-6 el maestro canónico es
+    `supplier_master`, y la elegibilidad se resuelve ahí: el proveedor llega por
+    la migración 263, no por la tabla heredada."""
     proc_conn.execute("CREATE TABLE proveedores (id TEXT PRIMARY KEY, nombre TEXT, activo INTEGER)")
     proc_conn.execute("INSERT INTO proveedores VALUES ('supplier','Proveedor',1)")
+    apply_supplier_cutover(proc_conn)
     directory = SupplierDirectoryQueryService(proc_conn)
     assert directory.get_eligibility("supplier").active
     assert directory.get_eligibility("missing") is None
-    # sin la migración 178 (columnas de bloqueo), degrada al comportamiento
-    # previo en vez de fallar — nunca inventa un bloqueo que no puede leer
+    # sin columnas de bloqueo heredadas no hay bloqueo que traducir, y no se
+    # inventa ninguno
     assert not directory.get_eligibility("supplier").financially_blocked
 
 
@@ -77,6 +83,11 @@ def test_supplier_directory_reads_real_financial_block_when_migrated(proc_conn):
         " WHERE id='blocked'")
     proc_conn.execute(
         "UPDATE proveedores SET compras_habilitadas=0 WHERE id='disabled'")
+    # El corte: los bloqueos heredados se traducen a filas de `supplier_blocks`.
+    # Que las mismas afirmaciones sigan valiendo DESPUÉS de migrar es justo lo
+    # que hay que demostrar — si la 263 los perdiera, estos tres proveedores
+    # quedarían habilitados para comprar sin que nadie lo decidiera.
+    apply_supplier_cutover(proc_conn)
 
     directory = SupplierDirectoryQueryService(proc_conn)
     assert not directory.get_eligibility("ok").financially_blocked

@@ -47,6 +47,19 @@ from frontend.desktop.modules.inventory.view_models import (
 
 logger = logging.getLogger("spj.inventory.presenter")
 
+#: Usos del almacén que el dominio conoce (Fase 10). Se filtra en vez de
+#: reenviar el diccionario tal cual: la UI no decide qué campos del almacén
+#: existen, y un nombre inventado reventaría dentro del caso de uso.
+_WAREHOUSE_PURPOSES = ("allow_sales_allocation", "allow_purchase_receipt",
+                       "allow_production", "allow_quarantine")
+
+
+def _purposes(purposes: dict | None) -> dict:
+    if not purposes:
+        return {}
+    return {campo: bool(purposes[campo]) for campo in _WAREHOUSE_PURPOSES
+            if campo in purposes}
+
 
 class InventoryPresenter:
     def __init__(self, *, connection_provider, availability_service_factory,
@@ -1474,7 +1487,8 @@ class InventoryPresenter:
     def create_warehouse(self, *, code: str, name: str, warehouse_type: str,
                          branch_id: str | None = None,
                          temperature_profile: str | None = None,
-                         capacity=None, capacity_uom: str | None = None
+                         capacity=None, capacity_uom: str | None = None,
+                         purposes: dict | None = None
                          ) -> tuple[bool, str, dict]:
         """Alta de almacén (§12): la página de Almacenes no tenía forma de
         crear uno — la única vía era el script de provisión (P0-E)."""
@@ -1495,7 +1509,8 @@ class InventoryPresenter:
                 self._conn(), code=code_v, name=name_v, branch_id=branch,
                 warehouse_type=type_enum, actor_user_id=self._actor(),
                 temperature_profile=str(temperature_profile or "").strip() or None,
-                capacity=capacity, capacity_uom=str(capacity_uom or "").strip() or None)
+                capacity=capacity, capacity_uom=str(capacity_uom or "").strip() or None,
+                **_purposes(purposes))
             if result.success and self._dispatch is not None:
                 try:
                     self._dispatch()
@@ -1509,7 +1524,8 @@ class InventoryPresenter:
     def update_warehouse(self, *, warehouse_id: str, name: str | None = None,
                          warehouse_type: str | None = None,
                          temperature_profile: str | None = ...,
-                         capacity=..., capacity_uom: str | None = ...
+                         capacity=..., capacity_uom: str | None = ...,
+                         purposes: dict | None = None
                          ) -> tuple[bool, str, dict]:
         """Edita un almacén existente (§24 "Editar almacén")."""
         if self._update_warehouse_uc is None:
@@ -1534,6 +1550,7 @@ class InventoryPresenter:
         if capacity_uom is not ...:
             fields["capacity_uom"] = (str(capacity_uom).strip() or None
                                       if capacity_uom is not None else None)
+        fields.update(_purposes(purposes))
         try:
             result = self._update_warehouse_uc.execute(
                 self._conn(), warehouse_id=wid, actor_user_id=self._actor(), **fields)

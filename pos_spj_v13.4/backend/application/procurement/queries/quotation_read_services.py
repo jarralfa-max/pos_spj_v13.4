@@ -67,8 +67,8 @@ class RfqReadService(_Base):
             created_at=r["created_at"]) for r in rows]
 
     def _supplier_name(self, supplier_id: str) -> str:
-        row = self._query_one("SELECT nombre FROM proveedores WHERE id=?", (supplier_id,))
-        return str(row["nombre"]) if row else "Proveedor no disponible"
+        row = self._query_one("SELECT legal_name FROM supplier_master WHERE id=?", (supplier_id,))
+        return str(row["legal_name"]) if row else "Proveedor no disponible"
 
     def detail(self, rfq_id: str) -> RfqDetailDTO | None:
         row = self._query_one(
@@ -113,9 +113,9 @@ class RfqReadService(_Base):
         rows = self._query(
             "SELECT l.id quote_line_id, l.product_id, l.quantity, l.unit_price,"
             " l.currency_code, q.id quote_id, q.supplier_id, q.lead_time_days,"
-            " COALESCE(p.nombre, '—') AS supplier_name"
+            " COALESCE(p.legal_name, '—') AS supplier_name"
             " FROM supplier_quote_lines l JOIN supplier_quotes q ON q.id=l.quote_id"
-            " LEFT JOIN proveedores p ON p.id=q.supplier_id"
+            " LEFT JOIN (SELECT id, legal_name FROM supplier_master) p ON p.id=q.supplier_id"
             " WHERE q.rfq_id=?"
             " ORDER BY l.product_id, CAST(l.unit_price AS NUMERIC), q.lead_time_days",
             (rfq_id,))

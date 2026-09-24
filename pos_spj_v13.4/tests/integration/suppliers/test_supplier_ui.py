@@ -28,11 +28,29 @@ def app():
     return QApplication.instance() or QApplication([])
 
 
+#: Las acciones gruesas que la base concede de verdad para el módulo
+#: `PROVEEDORES`. El presentador ya no acepta operar sin sesión: desde que se
+#: cableó `SupplierSessionPermissionChecker`, construirlo sin una hace que toda
+#: operación se deniegue. Se le da una sesión real en vez de relajar el
+#: verificador, así que estas pruebas ahora atraviesan el RBAC completo.
+_GRANTED = {"PROVEEDORES.ver", "PROVEEDORES.crear", "PROVEEDORES.editar",
+            "PROVEEDORES.eliminar", "PROVEEDORES.exportar"}
+
+
+class _Session:
+    is_active = True
+    user_id = "user-1"
+    active_branch_id = "branch-1"
+
+    def tiene_permiso(self, code: str) -> bool:
+        return code in _GRANTED
+
+
 @pytest.fixture
 def presenter():
     conn = sqlite3.connect(":memory:")
     create_supplier_schema(conn)
-    yield build_supplier_presenter(conn)
+    yield build_supplier_presenter(conn, _Session())
     conn.close()
 
 
@@ -79,7 +97,7 @@ class TestListPage:
     def test_empty_state_when_no_rows(self, app):
         conn = sqlite3.connect(":memory:")
         create_supplier_schema(conn)
-        view = SuppliersView(build_supplier_presenter(conn))
+        view = SuppliersView(build_supplier_presenter(conn, _Session()))
         view.ensure_loaded()
         assert view._list._stack.currentWidget() is view._list._empty
         conn.close()
@@ -119,3 +137,62 @@ class TestFinanceIntegration:
         from frontend.desktop.modules.finance.finance_view import _NAVIGATION
         labels = [label for _s, label, _p, _icon in _NAVIGATION]
         assert "Maestro de proveedores" in labels
+
+
+# ── domicilios (SUP: la mitad de lectura que faltaba) ────────────────────────
+def test_an_address_can_be_saved_and_read_back(presenter):
+    """Hasta el 2026-09-17 esto era IMPOSIBLE, y en silencio.
+
+    `AddSupplierAddressUseCase` guardaba direcciones desde el principio y
+    `SupplierAddressRepository.list_by_supplier` sabía leerlas, pero el servicio
+    de consulta que alimenta la ficha sólo las CONTABA (`COUNT(*)` en el
+    encabezado): no exponía ningún método para listarlas. Una dirección se
+    capturaba y no se podía volver a ver nunca. Ningún test la tocaba.
+    """
+    _create(presenter)
+    sid = presenter.suppliers().row_ids[0]
+
+    ok, msg, _ = presenter.add_address(
+        supplier_id=sid, address_type="FISCAL", line="Av. Juárez 100",
+        city="Querétaro", state="Querétaro", postal_code="76000")
+    assert ok, msg
+
+    table = presenter.addresses(sid)
+    assert len(table.rows) == 1
+    assert table.rows[0][1] == "Av. Juárez 100"
+    assert table.rows[0][4] == "76000"
+
+
+def test_the_colonia_is_folded_into_the_line_not_lost(presenter):
+    """`SupplierAddress` no modela la colonia. El diálogo la antepone a la
+    línea en vez de dejarla desaparecer; esto fija esa decisión."""
+    _create(presenter)
+    sid = presenter.suppliers().row_ids[0]
+    presenter.add_address(supplier_id=sid, address_type="FISCAL",
+                          line="Av. Juárez 100, Col. Centro", city="Querétaro",
+                          state="Querétaro", postal_code="76000")
+
+    assert "Col. Centro" in presenter.addresses(sid).rows[0][1]
+
+
+def test_the_addresses_tab_shows_the_saved_address(app, presenter):
+    """Además del dato, verifica el RENUMERADO: insertar Domicilios en la
+    posición 2 corrió los índices de banco, condiciones y evaluación. Un índice
+    desfasado no falla solo — refresca la tabla equivocada."""
+    from frontend.desktop.modules.finance.suppliers.pages.supplier_detail_dialog import (
+        SupplierDetailDialog,
+    )
+
+    _create(presenter)
+    sid = presenter.suppliers().row_ids[0]
+    presenter.add_address(supplier_id=sid, address_type="FISCAL",
+                          line="Av. Juárez 100", city="Querétaro",
+                          state="Querétaro", postal_code="76000")
+
+    dialog = SupplierDetailDialog(presenter, sid)
+    for i in range(dialog._tabs.count()):
+        dialog._tabs.setCurrentIndex(i)
+
+    assert dialog._tabs.tabText(1) == "Contactos"
+    assert dialog._tabs.tabText(2) == "Domicilios"
+    assert dialog._addresses_table.rowCount() == 1

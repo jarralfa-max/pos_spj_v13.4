@@ -143,3 +143,76 @@ def history_table(rows: list[dict]) -> TableViewModel:
             str(r.get("authorized_by") or r.get("user_id") or "—"),
         ])
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
+
+
+def settings_table(summary: dict) -> TableViewModel:
+    """Configuración efectiva del módulo como `Parámetro · Valor · Nota`.
+
+    La NOTA es la parte que importa, y por eso la función no es una simple
+    plantilla: cada fila decide si lo que encontró está bien o está mal. Cero
+    listas base activas, dos monedas conviviendo o dos métodos de costeo son
+    configuraciones rotas que se ven idénticas a las correctas si sólo se
+    imprime el valor.
+    """
+    base = summary.get("base_lists") or []
+    if not base:
+        base_valor, base_nota = "Ninguna", (
+            "Sin lista base activa no hay precio de referencia: revise "
+            "Listas de precio")
+    elif len(base) == 1:
+        base_valor = f'{base[0]["code"]} · {base[0]["name"]}'
+        base_nota = "Rige cuando no aplica lista de canal ni de cliente"
+    else:
+        base_valor = ", ".join(b["code"] for b in base)
+        base_nota = "Hay más de una lista base activa: sólo debería haber una"
+
+    por_tipo = summary.get("lists_by_kind") or {}
+    tipos_valor = " · ".join(
+        f"{list_kind_es(k)}: {por_tipo.get(k, 0)}"
+        for k in ("BASE", "CHANNEL", "CUSTOMER", "PROMOTIONAL")) or "—"
+
+    monedas = summary.get("currencies") or []
+    if not monedas:
+        moneda_valor, moneda_nota = "—", "Todavía no hay precios capturados"
+    elif len(monedas) == 1:
+        moneda_valor, moneda_nota = monedas[0], "Una sola moneda en todo el módulo"
+    else:
+        moneda_valor = ", ".join(monedas)
+        moneda_nota = "Conviven varias monedas: los totales no son comparables"
+
+    metodos = summary.get("cost_methods") or []
+    if not metodos:
+        metodo_valor, metodo_nota = "—", "Todavía no hay costos capturados"
+    else:
+        metodo_valor = ", ".join(cost_method_es(m) for m in metodos)
+        metodo_nota = ("Método único de costeo" if len(metodos) == 1
+                       else "Distintos productos se costean con métodos distintos")
+
+    con_precio = int(summary.get("priced") or 0)
+    con_minimo = int(summary.get("with_minimum") or 0)
+    if not con_precio:
+        minimo_valor, minimo_nota = "—", "Todavía no hay precios capturados"
+    else:
+        minimo_valor = f"{con_minimo} de {con_precio}"
+        minimo_nota = ("Ningún precio tiene mínimo: vender bajo costo no pedirá "
+                       "autorización" if not con_minimo else
+                       "Los precios con mínimo exigen autorización para bajar de él")
+
+    por_sucursal = int(summary.get("branch_specific") or 0)
+    alcance_valor = f"{por_sucursal} precios acotados a una sucursal"
+    alcance_nota = ("Todos los precios rigen en todas las sucursales"
+                    if not por_sucursal else
+                    "El resto rige en todas las sucursales")
+
+    filas = [
+        ["Lista de precio base activa", base_valor, base_nota],
+        ["Listas por tipo", tipos_valor, "Incluye borradores e inactivas"],
+        ["Moneda", moneda_valor, moneda_nota],
+        ["Método de costeo", metodo_valor, metodo_nota],
+        ["Precios con mínimo definido", minimo_valor, minimo_nota],
+        ["Alcance por sucursal", alcance_valor, alcance_nota],
+        ["Autorizaciones en caliente registradas",
+         str(int(summary.get("hot_authorizations") or 0)),
+         "Ventas y cambios aprobados por un segundo usuario"],
+    ]
+    return TableViewModel(rows=filas, row_ids=[f[0] for f in filas], total=len(filas))

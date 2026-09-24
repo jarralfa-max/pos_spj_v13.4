@@ -15,13 +15,11 @@ from backend.application.products.authorization.policy import ProductsAuthorizat
 from backend.application.products.commands.product_recipe_commands import (
     CreateRecipeCommand,
     RecipeVersionTransitionCommand,
-    SetReverseReconstructionAllowedCommand,
 )
 from backend.application.products.use_cases.product_recipe_use_cases import (
     ActivateRecipeVersionUseCase,
     ApproveRecipeVersionUseCase,
     CreateProductRecipeUseCase,
-    SetReverseReconstructionAllowedUseCase,
     SubmitRecipeVersionUseCase,
 )
 from backend.domain.inventory.entities.inventory_balance import InventoryBalance
@@ -30,6 +28,7 @@ from backend.infrastructure.db.repositories.inventory.unit_of_work import Invent
 from backend.infrastructure.db.schema.inventory_schema import create_inventory_schema
 from backend.infrastructure.db.schema.products_schema import create_products_schema
 from backend.shared.ids import new_uuid
+from tests.integration._reversible_cutting import reversible_cutting_scheme
 
 _UNIT = "unit-kg"
 
@@ -61,34 +60,11 @@ def _stock(conn, *, product_id, branch_id, quantity, reserved="0"):
         uow.balances.upsert(bal)
 
 
-def _disassembly_recipe(conn, *, product_id, outputs, reversible=True,
-                        creator="alice", approver="bob") -> str:
-    """Create -> submit -> approve -> activate a DISASSEMBLY recipe for
-    `product_id`, with real outputs, and set its reversibility flag.
-    Returns the version_id."""
-    auth = ProductsAuthorizationPolicy(_AllowAllChecker())
-    created = CreateProductRecipeUseCase(conn, auth).execute(CreateRecipeCommand(
-        operation_id=new_uuid(), product_id=product_id, recipe_type="DISASSEMBLY",
-        name="Despiece", user_id=creator, outputs=outputs))
-    assert created.success, created.message
-    recipe_id, version_id = created.recipe_id, created.version_id
-
-    def _transition(use_case_cls, user_id):
-        result = use_case_cls(conn, auth).execute(RecipeVersionTransitionCommand(
-            operation_id=new_uuid(), version_id=version_id, user_id=user_id))
-        assert result.success, result.message
-
-    _transition(SubmitRecipeVersionUseCase, creator)
-    _transition(ApproveRecipeVersionUseCase, approver)
-    _transition(ActivateRecipeVersionUseCase, approver)
-
-    if reversible:
-        toggled = SetReverseReconstructionAllowedUseCase(conn, auth).execute(
-            SetReverseReconstructionAllowedCommand(
-                operation_id=new_uuid(), recipe_id=recipe_id, allowed=True,
-                user_id=approver))
-        assert toggled.success, toggled.message
-    return version_id
+def _despiece(conn, *, product_id, outputs, reversible=True, **_) -> str:
+    """Despiece REVERSIBLE activo (esquema de corte, la fuente desde la Fase 7
+    del 2026-09-19). Devuelve el id de la versión."""
+    return reversible_cutting_scheme(conn, product_id=product_id, outputs=outputs,
+                                     reversible=reversible)[1]
 
 
 def _chicken_outputs(breast="breast", leg="leg", wing="wing"):
@@ -110,11 +86,11 @@ class TestSellableAvailability:
         assert result.direct == Decimal("5")
         assert result.reconstructible == Decimal("0")
         assert result.available_to_promise == Decimal("5")
-        assert result.recipe_version_id is None
+        assert result.cutting_scheme_version_id is None
 
     def test_reconstructible_when_direct_stock_is_zero(self, conn):
         chicken, breast, leg, wing = new_uuid(), new_uuid(), new_uuid(), new_uuid()
-        version_id = _disassembly_recipe(
+        version_id = _despiece(
             conn, product_id=chicken, outputs=_chicken_outputs(breast, leg, wing))
         _stock(conn, product_id=breast, branch_id="b1", quantity="12")
         _stock(conn, product_id=leg, branch_id="b1", quantity="8")
@@ -126,11 +102,11 @@ class TestSellableAvailability:
         assert result.direct == Decimal("0")
         assert result.reconstructible == Decimal("3")
         assert result.available_to_promise == Decimal("3")
-        assert result.recipe_version_id == version_id
+        assert result.cutting_scheme_version_id == version_id
 
     def test_direct_and_reconstructible_combine(self, conn):
         chicken, breast, leg, wing = new_uuid(), new_uuid(), new_uuid(), new_uuid()
-        _disassembly_recipe(conn, product_id=chicken, outputs=_chicken_outputs(breast, leg, wing))
+        _despiece(conn, product_id=chicken, outputs=_chicken_outputs(breast, leg, wing))
         _stock(conn, product_id=chicken, branch_id="b1", quantity="2")
         _stock(conn, product_id=breast, branch_id="b1", quantity="12")
         _stock(conn, product_id=leg, branch_id="b1", quantity="8")
@@ -147,7 +123,7 @@ class TestSellableAvailability:
         """A part already reserved for its OWN direct sale must not also be
         counted as available for reconstruction — no double-booking."""
         chicken, breast, leg, wing = new_uuid(), new_uuid(), new_uuid(), new_uuid()
-        _disassembly_recipe(conn, product_id=chicken, outputs=_chicken_outputs(breast, leg, wing))
+        _despiece(conn, product_id=chicken, outputs=_chicken_outputs(breast, leg, wing))
         _stock(conn, product_id=breast, branch_id="b1", quantity="12")
         _stock(conn, product_id=leg, branch_id="b1", quantity="8")
         _stock(conn, product_id=wing, branch_id="b1", quantity="2", reserved="1.6")  # only 0.4 free -> 1
@@ -159,7 +135,7 @@ class TestSellableAvailability:
 
     def test_recipe_not_marked_reversible_yields_zero(self, conn):
         chicken, breast, leg, wing = new_uuid(), new_uuid(), new_uuid(), new_uuid()
-        _disassembly_recipe(conn, product_id=chicken, outputs=_chicken_outputs(breast, leg, wing),
+        _despiece(conn, product_id=chicken, outputs=_chicken_outputs(breast, leg, wing),
                             reversible=False)
         _stock(conn, product_id=breast, branch_id="b1", quantity="12")
         _stock(conn, product_id=leg, branch_id="b1", quantity="8")
@@ -169,21 +145,51 @@ class TestSellableAvailability:
             product_id=chicken, branch_id="b1")
 
         assert result.reconstructible == Decimal("0")
-        assert result.recipe_version_id is None
+        assert result.cutting_scheme_version_id is None
 
-    def test_wrong_recipe_type_never_reconstructs(self, conn):
-        """A PRODUCTION_BOM recipe (components, not outputs) must never be
-        read as if it were a reversible disassembly recipe."""
+    def test_a_disassembly_recipe_is_no_longer_a_source(self, conn):
+        """Fase 7 (decisión del usuario): la fuente es el ESQUEMA DE CORTE, el
+        despiece que ejecuta Cárnico. Una receta de Desensamble activa, con las
+        mismas salidas, ya no arma nada."""
         auth = ProductsAuthorizationPolicy(_AllowAllChecker())
-        product_id = new_uuid()
+        chicken, breast, leg, wing = new_uuid(), new_uuid(), new_uuid(), new_uuid()
         created = CreateProductRecipeUseCase(conn, auth).execute(CreateRecipeCommand(
-            operation_id=new_uuid(), product_id=product_id, recipe_type="PRODUCTION_BOM",
-            name="BOM", user_id="alice",
-            components=[{"component_product_id": new_uuid(), "quantity": "1",
-                        "unit_id": _UNIT}]))
-        assert created.success
+            operation_id=new_uuid(), product_id=chicken, recipe_type="DISASSEMBLY",
+            name="Despiece", user_id="alice", outputs=_chicken_outputs(breast, leg, wing)))
+        assert created.success, created.message
+        for caso, quien in ((SubmitRecipeVersionUseCase, "alice"),
+                            (ApproveRecipeVersionUseCase, "bob"),
+                            (ActivateRecipeVersionUseCase, "bob")):
+            assert caso(conn, auth).execute(RecipeVersionTransitionCommand(
+                operation_id=new_uuid(), version_id=created.version_id, user_id=quien)).success
+        for parte in (breast, leg, wing):
+            _stock(conn, product_id=parte, branch_id="b1", quantity="12")
 
         result = SellableAvailabilityQueryService(conn).get_sellable_availability(
-            product_id=product_id, branch_id="b1")
+            product_id=chicken, branch_id="b1")
+
+        assert result.reconstructible == Decimal("0")
+
+    def test_two_reversible_despieces_are_ambiguous_and_never_guessed(self, conn):
+        chicken, breast, leg, wing = new_uuid(), new_uuid(), new_uuid(), new_uuid()
+        _despiece(conn, product_id=chicken, outputs=_chicken_outputs(breast, leg, wing))
+        _despiece(conn, product_id=chicken, outputs=_chicken_outputs(breast, leg, wing))
+        for parte in (breast, leg, wing):
+            _stock(conn, product_id=parte, branch_id="b1", quantity="12")
+
+        result = SellableAvailabilityQueryService(conn).get_sellable_availability(
+            product_id=chicken, branch_id="b1")
+
+        assert result.reconstructible == Decimal("0")
+
+    def test_an_inactive_despiece_version_does_not_count(self, conn):
+        chicken, breast, leg, wing = new_uuid(), new_uuid(), new_uuid(), new_uuid()
+        reversible_cutting_scheme(conn, product_id=chicken, activate=False,
+                                  outputs=_chicken_outputs(breast, leg, wing))
+        for parte in (breast, leg, wing):
+            _stock(conn, product_id=parte, branch_id="b1", quantity="12")
+
+        result = SellableAvailabilityQueryService(conn).get_sellable_availability(
+            product_id=chicken, branch_id="b1")
 
         assert result.reconstructible == Decimal("0")

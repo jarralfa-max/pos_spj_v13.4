@@ -52,6 +52,36 @@ _ADDRESS_FIELDS = ("recipient_name", "recipient_phone", "street", "exterior_numb
                    "state", "references")
 
 
+def _apply_geocoding(direccion, address: dict) -> None:
+    """Coordenadas que la pantalla obtuvo del buscador de direcciones.
+
+    `OrderAddress` las guarda y el dominio tenía `mark_geocoded` desde el
+    principio, pero este caso de uso las tiraba: todo pedido con entrega nacía
+    sin coordenadas. Ahora:
+
+    * con latitud y longitud  -> GEOCODED;
+    * capturada a mano        -> MANUAL, que el dominio declara estado terminal
+      legítimo (§20: la geocodificación nunca bloquea un pedido);
+    * sin dato de origen      -> se deja como estaba (NOT_REQUESTED), para no
+      cambiar lo que hacen los llamadores que no saben de coordenadas.
+
+    Una coordenada inválida no tumba el pedido: se ignora y queda MANUAL.
+    """
+    lat, lon = address.get("latitude"), address.get("longitude")
+    if lat is not None and lon is not None:
+        try:
+            lat, lon = float(lat), float(lon)
+        except (TypeError, ValueError):
+            lat = lon = None
+        if lat is not None and -90 <= lat <= 90 and -180 <= lon <= 180:
+            direccion.mark_geocoded(latitude=lat, longitude=lon)
+            return
+        direccion.mark_manual()
+        return
+    if str(address.get("address_source") or "").upper() == "MANUAL":
+        direccion.mark_manual()
+
+
 def _enum(tipo, valor, etiqueta):
     try:
         return valor if isinstance(valor, tipo) else tipo(valor)
@@ -77,6 +107,7 @@ class CaptureOrderUseCase(_OrdersDeliveryBaseUseCase):
         fulfillment_type: FulfillmentType | str, lines: Sequence[Mapping[str, Any]],
         actor_user_id: str, operation_id: str, contact_name: str | None = None,
         contact_phone: str | None = None, address: Mapping[str, Any] | None = None,
+        customer_id: str | None = None,
     ) -> OrderResult:
         try:
             self._auth.require(actor_user_id, OrdersDeliveryPermissions.ORDER_CREATE)
@@ -102,11 +133,14 @@ class CaptureOrderUseCase(_OrdersDeliveryBaseUseCase):
                     "Pedido ya existente (idempotente)", entity_id=existente.id,
                     operation_id=operation_id, order=CustomerOrderDTO.from_entity(existente))
             try:
+                # El cliente es OPCIONAL (decisión del usuario, 2026-09-18). El
+                # campo existía en el pedido pero la captura nunca lo llenaba,
+                # así que las listas de precio por cliente jamás aplicaban aquí.
                 pedido = CustomerOrder.create(
                     branch_id=branch_id, channel=channel, order_type=OrderType.STANDARD,
                     fulfillment_type=fulfillment_type, contact_name=contact_name,
                     contact_phone=contact_phone, created_by_user_id=actor_user_id,
-                    operation_id=operation_id)
+                    operation_id=operation_id, customer_id=(customer_id or None))
                 for linea in lines:
                     pedido.add_line(self._linea(catalogo, pedido, branch_id, linea))
                 direccion = None
@@ -114,6 +148,7 @@ class CaptureOrderUseCase(_OrdersDeliveryBaseUseCase):
                     direccion = OrderAddress.create(
                         order_id=pedido.id,
                         **{campo: address.get(campo) for campo in _ADDRESS_FIELDS})
+                    _apply_geocoding(direccion, address)
                     zona = DeliveryFeePolicy.resolve_zone(
                         uow.zones.list_active_for_branch(branch_id),
                         postal_code=address.get("postal_code") or "")
@@ -151,8 +186,20 @@ class CaptureOrderUseCase(_OrdersDeliveryBaseUseCase):
             raise ProductNotAvailableForOrderError(
                 f"«{producto.name}» no tiene precio vigente en esta sucursal")
         cantidad = OrderQuantity(_cantidad(linea.get("quantity")), producto.unit_code or "PZA")
+        # Precio REAL de la línea: canal del pedido, su cliente y la cantidad,
+        # por el mismo motor que el mostrador. `producto.price` es el de vitrina.
+        precio = producto.price
+        cobrar = getattr(catalogo, "price_for", None)
+        if callable(cobrar):
+            precio = cobrar(
+                producto.product_id, branch_id=branch_id,
+                channel=getattr(pedido.channel, "value", pedido.channel),
+                customer_id=pedido.customer_id, quantity=_cantidad(linea.get("quantity")))
+            if precio is None:
+                raise ProductNotAvailableForOrderError(
+                    f"«{producto.name}» no tiene precio vigente en esta sucursal")
         return CustomerOrderLine.create(
-            order_id=pedido.id, product_id=producto.product_id, unit_price=producto.price,
+            order_id=pedido.id, product_id=producto.product_id, unit_price=precio,
             requested_quantity=None if producto.weighed else cantidad,
             requested_weight=cantidad if producto.weighed else None,
             catch_weight_enabled=producto.catch_weight_enabled or producto.weighed,

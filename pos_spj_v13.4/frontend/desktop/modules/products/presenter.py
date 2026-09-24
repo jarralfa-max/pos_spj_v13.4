@@ -11,6 +11,9 @@ from __future__ import annotations
 
 import logging
 
+from backend.application.products.queries.product_selection_query_service import (
+    ProductSearchQuery,
+)
 from frontend.desktop.modules.products.view_models import (
     KpiViewModel,
     TableViewModel,
@@ -36,6 +39,7 @@ class ProductsPresenter:
                  bundles_write_factory=None, import_read_factory=None,
                  import_write_factory=None, species_read_factory=None,
                  branch_read_factory=None, branch_write_factory=None,
+                 product_search_factory=None,
                  permission_checker=None, session_context=None) -> None:
         self._read_factory = read_service_factory
         self._write_factory = write_service_factory
@@ -65,6 +69,11 @@ class ProductsPresenter:
         self._species_read = species_read_factory
         self._branch_read = branch_read_factory
         self._branch_write = branch_write_factory
+        #: Búsqueda canónica compartida para el SELECTOR de productos. El
+        #: listado del catálogo sigue en `read_service_factory.list_catalog`:
+        #: es una lectura de tabla (necesita estado y si es cárnico), no un
+        #: buscador duplicado.
+        self._product_search = product_search_factory
         self._has_permission = permission_checker
         self._session = session_context
 
@@ -742,12 +751,19 @@ class ProductsPresenter:
     def activate_cutting_version(self, version_id: str) -> tuple[bool, str]:
         return self._run_cutting("activate", version_id=version_id)
 
+    def set_cutting_reverse_reconstruction(self, scheme_id: str,
+                                           allowed: bool) -> tuple[bool, str]:
+        """§16/Fase 7: permitir vender el producto de entrada ARMÁNDOLO con sus
+        partes cuando no hay existencia directa."""
+        return self._run_cutting("reverse", scheme_id=scheme_id, allowed=allowed)
+
     def _run_cutting(self, action: str, **kw) -> tuple[bool, str]:
         if self._cutting_write is None:
             return False, "Sin permisos de gestión de despiece"
         from backend.application.products.commands.product_cutting_commands import (
             CreateCuttingSchemeCommand,
             CuttingVersionTransitionCommand,
+            SetCuttingReverseReconstructionCommand,
             UpdateCuttingVersionCommand,
         )
         from backend.shared.ids import new_uuid
@@ -763,6 +779,10 @@ class ProductsPresenter:
                 cmd = UpdateCuttingVersionCommand(
                     operation_id=new_uuid(), version_id=kw["version_id"],
                     outputs=kw["outputs"], user_id=user_id)
+            elif action == "reverse":
+                cmd = SetCuttingReverseReconstructionCommand(
+                    operation_id=new_uuid(), scheme_id=kw["scheme_id"],
+                    allowed=bool(kw["allowed"]), user_id=user_id)
             else:
                 cmd = CuttingVersionTransitionCommand(
                     operation_id=new_uuid(), version_id=kw["version_id"],
@@ -973,12 +993,38 @@ class ProductsPresenter:
         return bool(self._has_permission(ProductPermissions.ASSORTMENT_MANAGE))
 
     def search_products_for_assignment(self, query: str | None = None) -> list[dict]:
-        """Productos para el selector de la página de sucursales/canales."""
+        """Productos para el selector de sucursales/canales y para los diálogos
+        de receta, corte y rendimiento.
+
+        Pasa por el contrato compartido de búsqueda. `active_only=False` es
+        deliberado: este selector SIEMPRE listó borradores y productos en
+        revisión —se habilitan por sucursal y se usan como componentes antes de
+        activarse— así que filtrarlos aquí sería un cambio de comportamiento
+        disfrazado de migración.
+        """
+        if self._product_search is None:
+            logger.error("Selector de productos sin búsqueda canónica inyectada")
+            return []
         try:
-            return self._read_factory().list_catalog(query=query)
+            dtos = self._product_search().search(ProductSearchQuery(
+                text=(query or "").strip() or None, active_only=False,
+                page_size=200))
         except Exception:  # pragma: no cover - defensive
             logger.exception("No se pudieron buscar productos")
             return []
+        return [{"id": d.product_id, "code": d.code, "name": d.name,
+                 "product_type": d.product_type} for d in dtos]
+
+    def product_search_reason(self, query: str | None = None) -> str | None:
+        """Por qué el selector no trae nada. Diagnóstico: nunca lanza."""
+        if self._product_search is None:
+            return None
+        try:
+            razon = self._product_search().explain_empty(ProductSearchQuery(
+                text=(query or "").strip() or None, active_only=False))
+        except Exception:
+            return None
+        return razon.message if razon is not None else None
 
     def branch_assignments(self, product_id: str) -> list[dict]:
         if self._branch_read is None:

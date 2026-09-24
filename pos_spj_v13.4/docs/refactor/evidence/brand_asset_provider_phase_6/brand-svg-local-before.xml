@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="4" time="1.786" timestamp="2026-09-21T19:39:33.979333-06:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_brand_asset_provider" name="test_svg_local_images_resolve_relative_to_the_artwork_directory[pixmap-href]" time="0.095"><failure message="assert not True&#10; +  where True = &lt;built-in method isNull of QPixmap object at 0x0000015A638C20B0&gt;()&#10; +    where &lt;built-in method isNull of QPixmap object at 0x0000015A638C20B0&gt; = &lt;PyQt5.QtGui.QPixmap object at 0x0000015A638C20B0&gt;.isNull">assets = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-MlPiXQ/assets/branding')
+reference = 'href', consumer = 'pixmap'
+
+    @pytest.mark.parametrize("reference", ["href", "xlink:href"])
+    @pytest.mark.parametrize("consumer", ["pixmap", "icon"])
+    def test_svg_local_images_resolve_relative_to_the_artwork_directory(assets, reference, consumer):
+        png(assets, "isotype_light")
+        path = assets / "window_icon.svg"
+        path.write_text(
+            '&lt;svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
+            'width="400" height="100"&gt;'
+            f'&lt;image width="400" height="100" {reference}="isotype_light.png"/&gt;&lt;/svg&gt;',
+            encoding="utf-8",
+        )
+        result = (BrandAssetProvider.pixmap("window_icon", QSize(80, 20)) if consumer == "pixmap"
+                  else BrandAssetProvider.window_icon().pixmap(80, 20))
+&gt;       assert not result.isNull()
+E       assert not True
+E        +  where True = &lt;built-in method isNull of QPixmap object at 0x0000015A638C20B0&gt;()
+E        +    where &lt;built-in method isNull of QPixmap object at 0x0000015A638C20B0&gt; = &lt;PyQt5.QtGui.QPixmap object at 0x0000015A638C20B0&gt;.isNull
+
+tests\ui\test_brand_asset_provider.py:118: AssertionError</failure></testcase><testcase classname="tests.ui.test_brand_asset_provider" name="test_svg_local_images_resolve_relative_to_the_artwork_directory[pixmap-xlink:href]" time="0.035"><failure message="assert not True&#10; +  where True = &lt;built-in method isNull of QPixmap object at 0x0000015A638C3B60&gt;()&#10; +    where &lt;built-in method isNull of QPixmap object at 0x0000015A638C3B60&gt; = &lt;PyQt5.QtGui.QPixmap object at 0x0000015A638C3B60&gt;.isNull">assets = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-YTkDyE/assets/branding')
+reference = 'xlink:href', consumer = 'pixmap'
+
+    @pytest.mark.parametrize("reference", ["href", "xlink:href"])
+    @pytest.mark.parametrize("consumer", ["pixmap", "icon"])
+    def test_svg_local_images_resolve_relative_to_the_artwork_directory(assets, reference, consumer):
+        png(assets, "isotype_light")
+        path = assets / "window_icon.svg"
+        path.write_text(
+            '&lt;svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
+            'width="400" height="100"&gt;'
+            f'&lt;image width="400" height="100" {reference}="isotype_light.png"/&gt;&lt;/svg&gt;',
+            encoding="utf-8",
+        )
+        result = (BrandAssetProvider.pixmap("window_icon", QSize(80, 20)) if consumer == "pixmap"
+                  else BrandAssetProvider.window_icon().pixmap(80, 20))
+&gt;       assert not result.isNull()
+E       assert not True
+E        +  where True = &lt;built-in method isNull of QPixmap object at 0x0000015A638C3B60&gt;()
+E        +    where &lt;built-in method isNull of QPixmap object at 0x0000015A638C3B60&gt; = &lt;PyQt5.QtGui.QPixmap object at 0x0000015A638C3B60&gt;.isNull
+
+tests\ui\test_brand_asset_provider.py:118: AssertionError</failure></testcase><testcase classname="tests.ui.test_brand_asset_provider" name="test_svg_local_images_resolve_relative_to_the_artwork_directory[icon-href]" time="0.028"><failure message="assert not True&#10; +  where True = &lt;built-in method isNull of QPixmap object at 0x0000015A638C3A10&gt;()&#10; +    where &lt;built-in method isNull of QPixmap object at 0x0000015A638C3A10&gt; = &lt;PyQt5.QtGui.QPixmap object at 0x0000015A638C3A10&gt;.isNull">assets = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-qumqBj/assets/branding')
+reference = 'href', consumer = 'icon'
+
+    @pytest.mark.parametrize("reference", ["href", "xlink:href"])
+    @pytest.mark.parametrize("consumer", ["pixmap", "icon"])
+    def test_svg_local_images_resolve_relative_to_the_artwork_directory(assets, reference, consumer):
+        png(assets, "isotype_light")
+        path = assets / "window_icon.svg"
+        path.write_text(
+            '&lt;svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
+            'width="400" height="100"&gt;'
+            f'&lt;image width="400" height="100" {reference}="isotype_light.png"/&gt;&lt;/svg&gt;',
+            encoding="utf-8",
+        )
+        result = (BrandAssetProvider.pixmap("window_icon", QSize(80, 20)) if consumer == "pixmap"
+                  else BrandAssetProvider.window_icon().pixmap(80, 20))
+&gt;       assert not result.isNull()
+E       assert not True
+E        +  where True = &lt;built-in method isNull of QPixmap object at 0x0000015A638C3A10&gt;()
+E        +    where &lt;built-in method isNull of QPixmap object at 0x0000015A638C3A10&gt; = &lt;PyQt5.QtGui.QPixmap object at 0x0000015A638C3A10&gt;.isNull
+
+tests\ui\test_brand_asset_provider.py:118: AssertionError</failure></testcase><testcase classname="tests.ui.test_brand_asset_provider" name="test_svg_local_images_resolve_relative_to_the_artwork_directory[icon-xlink:href]" time="0.023"><failure message="assert not True&#10; +  where True = &lt;built-in method isNull of QPixmap object at 0x0000015A638C3BD0&gt;()&#10; +    where &lt;built-in method isNull of QPixmap object at 0x0000015A638C3BD0&gt; = &lt;PyQt5.QtGui.QPixmap object at 0x0000015A638C3BD0&gt;.isNull">assets = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-TyhEvj/assets/branding')
+reference = 'xlink:href', consumer = 'icon'
+
+    @pytest.mark.parametrize("reference", ["href", "xlink:href"])
+    @pytest.mark.parametrize("consumer", ["pixmap", "icon"])
+    def test_svg_local_images_resolve_relative_to_the_artwork_directory(assets, reference, consumer):
+        png(assets, "isotype_light")
+        path = assets / "window_icon.svg"
+        path.write_text(
+            '&lt;svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
+            'width="400" height="100"&gt;'
+            f'&lt;image width="400" height="100" {reference}="isotype_light.png"/&gt;&lt;/svg&gt;',
+            encoding="utf-8",
+        )
+        result = (BrandAssetProvider.pixmap("window_icon", QSize(80, 20)) if consumer == "pixmap"
+                  else BrandAssetProvider.window_icon().pixmap(80, 20))
+&gt;       assert not result.isNull()
+E       assert not True
+E        +  where True = &lt;built-in method isNull of QPixmap object at 0x0000015A638C3BD0&gt;()
+E        +    where &lt;built-in method isNull of QPixmap object at 0x0000015A638C3BD0&gt; = &lt;PyQt5.QtGui.QPixmap object at 0x0000015A638C3BD0&gt;.isNull
+
+tests\ui\test_brand_asset_provider.py:118: AssertionError</failure></testcase></testsuite></testsuites>

@@ -70,6 +70,7 @@ class ProcurementPayableBridgeHandler:
             self._connection, supplier_id=supplier_id, amount=str(amount),
             currency_code=currency_code,
             document_number=document_number, issue_date=issue_date,
+            due_date=_due_date(issue_date, payload),
             branch_id=payload.get("branch_id") or None, source_module="procurement",
             source_document_id=payload.get("document_id"), operation_id=operation_id)
         self._post_recognition_entry(
@@ -121,6 +122,21 @@ class ProcurementPayableBridgeHandler:
                                  operation_id),
                 lines, currency_code=currency_code, branch_id=payload.get("branch_id") or None,
             )
+
+
+def _due_date(issue_date: date, payload: dict) -> date | None:
+    """Fecha de factura + días de crédito del proveedor (decisión del usuario,
+    2026-09-18). La cuenta por pagar nacía SIN vencimiento: no había forma de
+    saber qué deuda vencía ni cuándo. Sin días informados (evento anterior al
+    cambio), se deja sin vencimiento en vez de inventar uno."""
+    from datetime import timedelta
+    dias = payload.get("payment_term_days")
+    if dias is None or dias == "":
+        return None
+    try:
+        return issue_date + timedelta(days=max(0, int(dias)))
+    except (TypeError, ValueError):
+        return None
 
 
 def _issue_date(payload: dict) -> date:

@@ -1,0 +1,379 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="9" skipped="0" tests="16" time="4.022" timestamp="2026-09-23T13:31:06.346752+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[light-0-StandardLineEdit]" time="0.210" /><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[light-0-IntegerInput]" time="0.087"><failure message="AssertionError: assert '0' == '123456789012...8901234567890'&#10;  &#10;  - 123456789012345678901234567890123456789012345678901234567890&#10;  + 0">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001ED918D80E0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...8D8B90&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001ED918D8440&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001ED918D8320&gt;)
+factory = &lt;class 'frontend.desktop.components.integer_input.IntegerInput'&gt;
+direction = 0, theme = 'light'
+
+    @pytest.mark.parametrize("factory", [StandardLineEdit, IntegerInput, MoneyInput])
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_keyboard_target_round_trip_fits_control_and_keeps_text_clear(terminal, factory, direction, theme):
+        app, manager, _, host = terminal
+        manager.apply(app, theme, density="comfortable")
+        control = factory()
+        line = control if isinstance(control, QLineEdit) else control.lineEdit()
+        control.setLayoutDirection(direction)
+        line.setClearButtonEnabled(True)
+        line.setText("123456789012345678901234567890123456789012345678901234567890")
+        line.setAlignment(Qt.AlignRight if direction == Qt.RightToLeft else Qt.AlignLeft)
+        original = line.text()
+        host.layout().addWidget(control)
+        host.resize(400, 140)
+        host.show()
+        host.activateWindow()
+        line.setFocus()
+        for density in ("comfortable", "touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            for _ in range(4):
+                app.processEvents()
+            opener = _opener(control)
+            minimum = density_metrics(density).icon_button_size
+            assert opener.width() &gt;= minimum
+            assert opener.height() &gt;= minimum
+            assert control.rect().contains(_rect_in(opener, control))
+            assert opener.visibleRegion().boundingRect() == opener.rect()
+            assert opener.focusPolicy() == Qt.NoFocus
+            line.setCursorPosition(len(line.text()))
+            app.processEvents()
+            cursor = QRect(line.inputMethodQuery(Qt.ImCursorRectangle))
+            cursor.moveTopLeft(line.mapTo(control, cursor.topLeft()))
+            assert not cursor.intersects(_rect_in(opener, control))
+&gt;           assert line.text() == original
+E           AssertionError: assert '0' == '123456789012...8901234567890'
+E             
+E             - 123456789012345678901234567890123456789012345678901234567890
+E             + 0
+
+tests\ui\test_keyboard_density_target.py:72: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[light-0-MoneyInput]" time="0.098"><failure message="AssertionError: assert '$ 0.00' == '123456789012...8901234567890'&#10;  &#10;  - 123456789012345678901234567890123456789012345678901234567890&#10;  + $ 0.00">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001ED918D80E0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...8D85F0&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001ED918D8170&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001ED918D8EF0&gt;)
+factory = &lt;class 'frontend.desktop.components.money_input.MoneyInput'&gt;
+direction = 0, theme = 'light'
+
+    @pytest.mark.parametrize("factory", [StandardLineEdit, IntegerInput, MoneyInput])
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_keyboard_target_round_trip_fits_control_and_keeps_text_clear(terminal, factory, direction, theme):
+        app, manager, _, host = terminal
+        manager.apply(app, theme, density="comfortable")
+        control = factory()
+        line = control if isinstance(control, QLineEdit) else control.lineEdit()
+        control.setLayoutDirection(direction)
+        line.setClearButtonEnabled(True)
+        line.setText("123456789012345678901234567890123456789012345678901234567890")
+        line.setAlignment(Qt.AlignRight if direction == Qt.RightToLeft else Qt.AlignLeft)
+        original = line.text()
+        host.layout().addWidget(control)
+        host.resize(400, 140)
+        host.show()
+        host.activateWindow()
+        line.setFocus()
+        for density in ("comfortable", "touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            for _ in range(4):
+                app.processEvents()
+            opener = _opener(control)
+            minimum = density_metrics(density).icon_button_size
+            assert opener.width() &gt;= minimum
+            assert opener.height() &gt;= minimum
+            assert control.rect().contains(_rect_in(opener, control))
+            assert opener.visibleRegion().boundingRect() == opener.rect()
+            assert opener.focusPolicy() == Qt.NoFocus
+            line.setCursorPosition(len(line.text()))
+            app.processEvents()
+            cursor = QRect(line.inputMethodQuery(Qt.ImCursorRectangle))
+            cursor.moveTopLeft(line.mapTo(control, cursor.topLeft()))
+            assert not cursor.intersects(_rect_in(opener, control))
+&gt;           assert line.text() == original
+E           AssertionError: assert '$ 0.00' == '123456789012...8901234567890'
+E             
+E             - 123456789012345678901234567890123456789012345678901234567890
+E             + $ 0.00
+
+tests\ui\test_keyboard_density_target.py:72: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[light-1-StandardLineEdit]" time="0.347" /><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[light-1-IntegerInput]" time="0.098"><failure message="AssertionError: assert '0' == '123456789012...8901234567890'&#10;  &#10;  - 123456789012345678901234567890123456789012345678901234567890&#10;  + 0">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001ED918D80E0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...91FAD0&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001ED9191F0B0&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001ED9191F410&gt;)
+factory = &lt;class 'frontend.desktop.components.integer_input.IntegerInput'&gt;
+direction = 1, theme = 'light'
+
+    @pytest.mark.parametrize("factory", [StandardLineEdit, IntegerInput, MoneyInput])
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_keyboard_target_round_trip_fits_control_and_keeps_text_clear(terminal, factory, direction, theme):
+        app, manager, _, host = terminal
+        manager.apply(app, theme, density="comfortable")
+        control = factory()
+        line = control if isinstance(control, QLineEdit) else control.lineEdit()
+        control.setLayoutDirection(direction)
+        line.setClearButtonEnabled(True)
+        line.setText("123456789012345678901234567890123456789012345678901234567890")
+        line.setAlignment(Qt.AlignRight if direction == Qt.RightToLeft else Qt.AlignLeft)
+        original = line.text()
+        host.layout().addWidget(control)
+        host.resize(400, 140)
+        host.show()
+        host.activateWindow()
+        line.setFocus()
+        for density in ("comfortable", "touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            for _ in range(4):
+                app.processEvents()
+            opener = _opener(control)
+            minimum = density_metrics(density).icon_button_size
+            assert opener.width() &gt;= minimum
+            assert opener.height() &gt;= minimum
+            assert control.rect().contains(_rect_in(opener, control))
+            assert opener.visibleRegion().boundingRect() == opener.rect()
+            assert opener.focusPolicy() == Qt.NoFocus
+            line.setCursorPosition(len(line.text()))
+            app.processEvents()
+            cursor = QRect(line.inputMethodQuery(Qt.ImCursorRectangle))
+            cursor.moveTopLeft(line.mapTo(control, cursor.topLeft()))
+            assert not cursor.intersects(_rect_in(opener, control))
+&gt;           assert line.text() == original
+E           AssertionError: assert '0' == '123456789012...8901234567890'
+E             
+E             - 123456789012345678901234567890123456789012345678901234567890
+E             + 0
+
+tests\ui\test_keyboard_density_target.py:72: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[light-1-MoneyInput]" time="0.092"><failure message="AssertionError: assert '$ 0.00' == '123456789012...8901234567890'&#10;  &#10;  - 123456789012345678901234567890123456789012345678901234567890&#10;  + $ 0.00">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001ED918D80E0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...91F5C0&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001ED9191F800&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001ED9191F890&gt;)
+factory = &lt;class 'frontend.desktop.components.money_input.MoneyInput'&gt;
+direction = 1, theme = 'light'
+
+    @pytest.mark.parametrize("factory", [StandardLineEdit, IntegerInput, MoneyInput])
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_keyboard_target_round_trip_fits_control_and_keeps_text_clear(terminal, factory, direction, theme):
+        app, manager, _, host = terminal
+        manager.apply(app, theme, density="comfortable")
+        control = factory()
+        line = control if isinstance(control, QLineEdit) else control.lineEdit()
+        control.setLayoutDirection(direction)
+        line.setClearButtonEnabled(True)
+        line.setText("123456789012345678901234567890123456789012345678901234567890")
+        line.setAlignment(Qt.AlignRight if direction == Qt.RightToLeft else Qt.AlignLeft)
+        original = line.text()
+        host.layout().addWidget(control)
+        host.resize(400, 140)
+        host.show()
+        host.activateWindow()
+        line.setFocus()
+        for density in ("comfortable", "touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            for _ in range(4):
+                app.processEvents()
+            opener = _opener(control)
+            minimum = density_metrics(density).icon_button_size
+            assert opener.width() &gt;= minimum
+            assert opener.height() &gt;= minimum
+            assert control.rect().contains(_rect_in(opener, control))
+            assert opener.visibleRegion().boundingRect() == opener.rect()
+            assert opener.focusPolicy() == Qt.NoFocus
+            line.setCursorPosition(len(line.text()))
+            app.processEvents()
+            cursor = QRect(line.inputMethodQuery(Qt.ImCursorRectangle))
+            cursor.moveTopLeft(line.mapTo(control, cursor.topLeft()))
+            assert not cursor.intersects(_rect_in(opener, control))
+&gt;           assert line.text() == original
+E           AssertionError: assert '$ 0.00' == '123456789012...8901234567890'
+E             
+E             - 123456789012345678901234567890123456789012345678901234567890
+E             + $ 0.00
+
+tests\ui\test_keyboard_density_target.py:72: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[dark-0-StandardLineEdit]" time="0.215" /><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[dark-0-IntegerInput]" time="0.106"><failure message="AssertionError: assert '0' == '123456789012...8901234567890'&#10;  &#10;  - 123456789012345678901234567890123456789012345678901234567890&#10;  + 0">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001ED918D80E0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...954DD0&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001ED91954200&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001ED919543B0&gt;)
+factory = &lt;class 'frontend.desktop.components.integer_input.IntegerInput'&gt;
+direction = 0, theme = 'dark'
+
+    @pytest.mark.parametrize("factory", [StandardLineEdit, IntegerInput, MoneyInput])
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_keyboard_target_round_trip_fits_control_and_keeps_text_clear(terminal, factory, direction, theme):
+        app, manager, _, host = terminal
+        manager.apply(app, theme, density="comfortable")
+        control = factory()
+        line = control if isinstance(control, QLineEdit) else control.lineEdit()
+        control.setLayoutDirection(direction)
+        line.setClearButtonEnabled(True)
+        line.setText("123456789012345678901234567890123456789012345678901234567890")
+        line.setAlignment(Qt.AlignRight if direction == Qt.RightToLeft else Qt.AlignLeft)
+        original = line.text()
+        host.layout().addWidget(control)
+        host.resize(400, 140)
+        host.show()
+        host.activateWindow()
+        line.setFocus()
+        for density in ("comfortable", "touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            for _ in range(4):
+                app.processEvents()
+            opener = _opener(control)
+            minimum = density_metrics(density).icon_button_size
+            assert opener.width() &gt;= minimum
+            assert opener.height() &gt;= minimum
+            assert control.rect().contains(_rect_in(opener, control))
+            assert opener.visibleRegion().boundingRect() == opener.rect()
+            assert opener.focusPolicy() == Qt.NoFocus
+            line.setCursorPosition(len(line.text()))
+            app.processEvents()
+            cursor = QRect(line.inputMethodQuery(Qt.ImCursorRectangle))
+            cursor.moveTopLeft(line.mapTo(control, cursor.topLeft()))
+            assert not cursor.intersects(_rect_in(opener, control))
+&gt;           assert line.text() == original
+E           AssertionError: assert '0' == '123456789012...8901234567890'
+E             
+E             - 123456789012345678901234567890123456789012345678901234567890
+E             + 0
+
+tests\ui\test_keyboard_density_target.py:72: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[dark-0-MoneyInput]" time="0.143"><failure message="AssertionError: assert '$ 0.00' == '123456789012...8901234567890'&#10;  &#10;  - 123456789012345678901234567890123456789012345678901234567890&#10;  + $ 0.00">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001ED918D80E0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...955640&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001ED91955910&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001ED91954B90&gt;)
+factory = &lt;class 'frontend.desktop.components.money_input.MoneyInput'&gt;
+direction = 0, theme = 'dark'
+
+    @pytest.mark.parametrize("factory", [StandardLineEdit, IntegerInput, MoneyInput])
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_keyboard_target_round_trip_fits_control_and_keeps_text_clear(terminal, factory, direction, theme):
+        app, manager, _, host = terminal
+        manager.apply(app, theme, density="comfortable")
+        control = factory()
+        line = control if isinstance(control, QLineEdit) else control.lineEdit()
+        control.setLayoutDirection(direction)
+        line.setClearButtonEnabled(True)
+        line.setText("123456789012345678901234567890123456789012345678901234567890")
+        line.setAlignment(Qt.AlignRight if direction == Qt.RightToLeft else Qt.AlignLeft)
+        original = line.text()
+        host.layout().addWidget(control)
+        host.resize(400, 140)
+        host.show()
+        host.activateWindow()
+        line.setFocus()
+        for density in ("comfortable", "touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            for _ in range(4):
+                app.processEvents()
+            opener = _opener(control)
+            minimum = density_metrics(density).icon_button_size
+            assert opener.width() &gt;= minimum
+            assert opener.height() &gt;= minimum
+            assert control.rect().contains(_rect_in(opener, control))
+            assert opener.visibleRegion().boundingRect() == opener.rect()
+            assert opener.focusPolicy() == Qt.NoFocus
+            line.setCursorPosition(len(line.text()))
+            app.processEvents()
+            cursor = QRect(line.inputMethodQuery(Qt.ImCursorRectangle))
+            cursor.moveTopLeft(line.mapTo(control, cursor.topLeft()))
+            assert not cursor.intersects(_rect_in(opener, control))
+&gt;           assert line.text() == original
+E           AssertionError: assert '$ 0.00' == '123456789012...8901234567890'
+E             
+E             - 123456789012345678901234567890123456789012345678901234567890
+E             + $ 0.00
+
+tests\ui\test_keyboard_density_target.py:72: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[dark-1-StandardLineEdit]" time="0.215" /><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[dark-1-IntegerInput]" time="0.094"><failure message="AssertionError: assert '0' == '123456789012...8901234567890'&#10;  &#10;  - 123456789012345678901234567890123456789012345678901234567890&#10;  + 0">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001ED918D80E0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...955F40&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001ED91954D40&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001ED919548C0&gt;)
+factory = &lt;class 'frontend.desktop.components.integer_input.IntegerInput'&gt;
+direction = 1, theme = 'dark'
+
+    @pytest.mark.parametrize("factory", [StandardLineEdit, IntegerInput, MoneyInput])
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_keyboard_target_round_trip_fits_control_and_keeps_text_clear(terminal, factory, direction, theme):
+        app, manager, _, host = terminal
+        manager.apply(app, theme, density="comfortable")
+        control = factory()
+        line = control if isinstance(control, QLineEdit) else control.lineEdit()
+        control.setLayoutDirection(direction)
+        line.setClearButtonEnabled(True)
+        line.setText("123456789012345678901234567890123456789012345678901234567890")
+        line.setAlignment(Qt.AlignRight if direction == Qt.RightToLeft else Qt.AlignLeft)
+        original = line.text()
+        host.layout().addWidget(control)
+        host.resize(400, 140)
+        host.show()
+        host.activateWindow()
+        line.setFocus()
+        for density in ("comfortable", "touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            for _ in range(4):
+                app.processEvents()
+            opener = _opener(control)
+            minimum = density_metrics(density).icon_button_size
+            assert opener.width() &gt;= minimum
+            assert opener.height() &gt;= minimum
+            assert control.rect().contains(_rect_in(opener, control))
+            assert opener.visibleRegion().boundingRect() == opener.rect()
+            assert opener.focusPolicy() == Qt.NoFocus
+            line.setCursorPosition(len(line.text()))
+            app.processEvents()
+            cursor = QRect(line.inputMethodQuery(Qt.ImCursorRectangle))
+            cursor.moveTopLeft(line.mapTo(control, cursor.topLeft()))
+            assert not cursor.intersects(_rect_in(opener, control))
+&gt;           assert line.text() == original
+E           AssertionError: assert '0' == '123456789012...8901234567890'
+E             
+E             - 123456789012345678901234567890123456789012345678901234567890
+E             + 0
+
+tests\ui\test_keyboard_density_target.py:72: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_target_round_trip_fits_control_and_keeps_text_clear[dark-1-MoneyInput]" time="0.112"><failure message="AssertionError: assert '$ 0.00' == '123456789012...8901234567890'&#10;  &#10;  - 123456789012345678901234567890123456789012345678901234567890&#10;  + $ 0.00">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001ED918D80E0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...956A80&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001ED91955400&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001ED91956210&gt;)
+factory = &lt;class 'frontend.desktop.components.money_input.MoneyInput'&gt;
+direction = 1, theme = 'dark'
+
+    @pytest.mark.parametrize("factory", [StandardLineEdit, IntegerInput, MoneyInput])
+    @pytest.mark.parametrize("direction", [Qt.LeftToRight, Qt.RightToLeft])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_keyboard_target_round_trip_fits_control_and_keeps_text_clear(terminal, factory, direction, theme):
+        app, manager, _, host = terminal
+        manager.apply(app, theme, density="comfortable")
+        control = factory()
+        line = control if isinstance(control, QLineEdit) else control.lineEdit()
+        control.setLayoutDirection(direction)
+        line.setClearButtonEnabled(True)
+        line.setText("123456789012345678901234567890123456789012345678901234567890")
+        line.setAlignment(Qt.AlignRight if direction == Qt.RightToLeft else Qt.AlignLeft)
+        original = line.text()
+        host.layout().addWidget(control)
+        host.resize(400, 140)
+        host.show()
+        host.activateWindow()
+        line.setFocus()
+        for density in ("comfortable", "touch", "compact", "comfortable"):
+            manager.set_density(density, app=app)
+            for _ in range(4):
+                app.processEvents()
+            opener = _opener(control)
+            minimum = density_metrics(density).icon_button_size
+            assert opener.width() &gt;= minimum
+            assert opener.height() &gt;= minimum
+            assert control.rect().contains(_rect_in(opener, control))
+            assert opener.visibleRegion().boundingRect() == opener.rect()
+            assert opener.focusPolicy() == Qt.NoFocus
+            line.setCursorPosition(len(line.text()))
+            app.processEvents()
+            cursor = QRect(line.inputMethodQuery(Qt.ImCursorRectangle))
+            cursor.moveTopLeft(line.mapTo(control, cursor.topLeft()))
+            assert not cursor.intersects(_rect_in(opener, control))
+&gt;           assert line.text() == original
+E           AssertionError: assert '$ 0.00' == '123456789012...8901234567890'
+E             
+E             - 123456789012345678901234567890123456789012345678901234567890
+E             + $ 0.00
+
+tests\ui\test_keyboard_density_target.py:72: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_mode_and_action_removal_restore_original_text_margins[0]" time="0.156" /><testcase classname="tests.ui.test_keyboard_density_target" name="test_keyboard_mode_and_action_removal_restore_original_text_margins[1]" time="0.140" /><testcase classname="tests.ui.test_keyboard_density_target" name="test_clicking_edge_of_touch_target_keeps_selection_and_existing_validator" time="0.203"><failure message="assert (&lt;frontend.desktop.components.virtual_keyboard.VirtualKeyboard object at 0x000001ED91956D50&gt; is not None and False)&#10; +  where &lt;frontend.desktop.components.virtual_keyboard.VirtualKeyboard object at 0x000001ED91956D50&gt; = &lt;frontend.desktop.components.virtual_keyboard.KeyboardAwareInput object at 0x000001ED91956C30&gt;.keyboard&#10; +  and   False = &lt;built-in method isVisible of VirtualKeyboard object at 0x000001ED91956D50&gt;()&#10; +    where &lt;built-in method isVisible of VirtualKeyboard object at 0x000001ED91956D50&gt; = &lt;frontend.desktop.components.virtual_keyboard.VirtualKeyboard object at 0x000001ED91956D50&gt;.isVisible&#10; +      where &lt;frontend.desktop.components.virtual_keyboard.VirtualKeyboard object at 0x000001ED91956D50&gt; = &lt;frontend.desktop.components.virtual_keyboard.KeyboardAwareInput object at 0x000001ED91956C30&gt;.keyboard">terminal = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001ED918D80E0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...956F00&gt;, &lt;PyQt5.QtCore.QSettings object at 0x000001ED91956450&gt;, &lt;PyQt5.QtWidgets.QWidget object at 0x000001ED91956600&gt;)
+
+    def test_clicking_edge_of_touch_target_keeps_selection_and_existing_validator(terminal):
+        app, manager, settings, host = terminal
+        manager.set_density("touch", app=app)
+        line = QLineEdit()
+        line.setValidator(QIntValidator(0, 999, line))
+        controller = KeyboardAwareInput(line, input_mode="integer", settings=settings)
+        host.layout().addWidget(line)
+        host.show()
+        host.activateWindow()
+        line.setText("12")
+        line.setFocus()
+        line.selectAll()
+        app.processEvents()
+        opener = _opener(line)
+        assert opener.width() &gt;= 48
+        QTest.mouseClick(opener, Qt.LeftButton, pos=QPoint(2, opener.height() // 2))
+        app.processEvents()
+&gt;       assert controller.keyboard is not None and controller.keyboard.isVisible()
+E       assert (&lt;frontend.desktop.components.virtual_keyboard.VirtualKeyboard object at 0x000001ED91956D50&gt; is not None and False)
+E        +  where &lt;frontend.desktop.components.virtual_keyboard.VirtualKeyboard object at 0x000001ED91956D50&gt; = &lt;frontend.desktop.components.virtual_keyboard.KeyboardAwareInput object at 0x000001ED91956C30&gt;.keyboard
+E        +  and   False = &lt;built-in method isVisible of VirtualKeyboard object at 0x000001ED91956D50&gt;()
+E        +    where &lt;built-in method isVisible of VirtualKeyboard object at 0x000001ED91956D50&gt; = &lt;frontend.desktop.components.virtual_keyboard.VirtualKeyboard object at 0x000001ED91956D50&gt;.isVisible
+E        +      where &lt;frontend.desktop.components.virtual_keyboard.VirtualKeyboard object at 0x000001ED91956D50&gt; = &lt;frontend.desktop.components.virtual_keyboard.KeyboardAwareInput object at 0x000001ED91956C30&gt;.keyboard
+
+tests\ui\test_keyboard_density_target.py:122: AssertionError</failure></testcase><testcase classname="tests.ui.test_keyboard_density_target" name="test_standard_input_can_remove_and_reattach_keyboard_without_duplicate_targets" time="0.078" /></testsuite></testsuites>

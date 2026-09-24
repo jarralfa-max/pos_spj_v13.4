@@ -19,7 +19,6 @@ from backend.application.products.authorization.policy import ProductsAuthorizat
 from backend.application.products.commands.product_recipe_commands import (
     CreateRecipeCommand,
     RecipeVersionTransitionCommand,
-    SetReverseReconstructionAllowedCommand,
     UpdateDraftVersionCommand,
 )
 from backend.application.products.permissions import ProductPermissions
@@ -246,46 +245,6 @@ class ActivateRecipeVersionUseCase(_BaseRecipeUseCase):
             raise
         return RecipeResult(True, version.recipe_id, version.id,
                             "RECIPE_VERSION_ACTIVATED")
-
-
-class SetReverseReconstructionAllowedUseCase(_BaseRecipeUseCase):
-    """§16: the ONE place this flag is ever set — never inferred, never
-    defaulted True. Restricted to DISASSEMBLY/CUTTING_YIELD recipes (the
-    only types a "reconstruct the input from its outputs" reading makes
-    sense for) so the flag can never be silently meaningless on some other
-    recipe type."""
-    name = "SetReverseReconstructionAllowedUseCase"
-
-    def execute(self, command: SetReverseReconstructionAllowedCommand) -> RecipeResult:
-        command.validate()
-        self._auth.require(command.user_id or "", ProductPermissions.RECIPE_EDIT)
-        recipe = self._repo.get_recipe(command.recipe_id)
-        if recipe is None:
-            return RecipeResult(False, None, None, "La receta no existe")
-        if command.allowed and recipe.recipe_type not in _REVERSIBLE_RECIPE_TYPES:
-            return RecipeResult(
-                False, recipe.id, None,
-                f"Sólo recetas {'/'.join(t.value for t in _REVERSIBLE_RECIPE_TYPES)} "
-                "pueden habilitar reconstrucción inversa "
-                f"(ésta es {recipe.recipe_type.value})")
-        before = recipe.reverse_reconstruction_allowed
-        recipe.reverse_reconstruction_allowed = command.allowed
-        try:
-            self._repo.save_recipe(recipe)
-            record_product_audit_entry(
-                self._conn, action="RECIPE_REVERSE_RECONSTRUCTION_ALLOWED_CHANGED",
-                entity_id=recipe.id, user_id=command.user_id,
-                operation_id=command.operation_id,
-                before={"reverse_reconstruction_allowed": before},
-                after={"reverse_reconstruction_allowed": command.allowed})
-            self._conn.commit()
-        except Exception:
-            self._rollback()
-            logger.exception("set reverse reconstruction allowed failed op=%s",
-                             command.operation_id)
-            raise
-        return RecipeResult(True, recipe.id, None,
-                            "RECIPE_REVERSE_RECONSTRUCTION_ALLOWED_CHANGED")
 
 
 def _emit(conn, event_name: str, command, *, entity_id: str, extra: dict) -> None:

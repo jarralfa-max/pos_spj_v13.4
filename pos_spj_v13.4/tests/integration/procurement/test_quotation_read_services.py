@@ -14,6 +14,7 @@ from backend.application.procurement.queries.quotation_read_services import (
 from backend.application.procurement.use_cases.quotation_use_cases import (
     AwardSupplierQuoteUseCase, CaptureSupplierQuoteUseCase, CreateRfqUseCase,
 )
+from tests.integration._supplier_cutover import apply_supplier_cutover
 
 
 class Allow:
@@ -30,6 +31,7 @@ def rfq_conn(proc_conn):
     proc_conn.execute("CREATE TABLE proveedores(id TEXT PRIMARY KEY, nombre TEXT, activo INTEGER)")
     proc_conn.execute("INSERT INTO proveedores VALUES ('sup-a','Proveedor A',1)")
     proc_conn.execute("INSERT INTO proveedores VALUES ('sup-b','Proveedor B',1)")
+    apply_supplier_cutover(proc_conn)
     return proc_conn
 
 

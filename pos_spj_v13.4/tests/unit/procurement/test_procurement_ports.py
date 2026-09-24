@@ -165,11 +165,14 @@ def test_supplier_profile_adapter_composes_header_and_eligibility(supplier_conn)
     assert profile.status == "ACTIVE"
     assert profile.risk_level == "LOW" and profile.rating_grade == "A"
     assert profile.active_blocks == ("PAYMENT_BLOCK",)
-    # No `proveedores` row and no migration 178 → eligibility degrades to
-    # permissive defaults (SupplierDirectoryQueryService's own fallback),
-    # never invents a block.
-    assert profile.purchasing_enabled is True
-    assert profile.financially_blocked is False
+    # ESTE CASO AFIRMABA LO CONTRARIO, y era un fallo abierto: el mismo objeto
+    # reportaba el bloqueo vigente (`active_blocks`) y a la vez decía que se
+    # podía comprar, porque la elegibilidad se resolvía contra `proveedores` —
+    # donde este proveedor no tiene fila— y esa ausencia degradaba a permisivo.
+    # Dos fuentes de verdad en el mismo objeto, contradiciéndose. Desde el corte
+    # SUP-6 ambas salen del maestro canónico y coinciden.
+    assert profile.purchasing_enabled is False
+    assert profile.financially_blocked is True
 
 
 def test_supplier_profile_adapter_returns_none_for_missing_supplier(supplier_conn):

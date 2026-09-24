@@ -20,13 +20,11 @@ from backend.application.products.authorization.policy import ProductsAuthorizat
 from backend.application.products.commands.product_recipe_commands import (
     CreateRecipeCommand,
     RecipeVersionTransitionCommand,
-    SetReverseReconstructionAllowedCommand,
 )
 from backend.application.products.use_cases.product_recipe_use_cases import (
     ActivateRecipeVersionUseCase,
     ApproveRecipeVersionUseCase,
     CreateProductRecipeUseCase,
-    SetReverseReconstructionAllowedUseCase,
     SubmitRecipeVersionUseCase,
 )
 from backend.domain.inventory.entities.inventory_balance import InventoryBalance
@@ -39,6 +37,7 @@ from backend.infrastructure.db.schema.inventory_schema import create_inventory_s
 from backend.infrastructure.db.schema.pricing_schema import create_pricing_schema
 from backend.infrastructure.db.schema.products_schema import create_products_schema
 from backend.shared.ids import new_uuid
+from tests.integration._reversible_cutting import reversible_cutting_scheme
 
 _UNIT = "unit-kg"
 _BRANCH = "b1"
@@ -84,28 +83,11 @@ def _available(conn, product_id, branch_id=_BRANCH) -> Decimal:
         product_id=product_id, branch_id=branch_id).available
 
 
-def _disassembly_recipe(conn, *, product_id, outputs, creator="alice", approver="bob") -> str:
-    auth = ProductsAuthorizationPolicy(_AllowAllChecker())
-    created = CreateProductRecipeUseCase(conn, auth).execute(CreateRecipeCommand(
-        operation_id=new_uuid(), product_id=product_id, recipe_type="DISASSEMBLY",
-        name="Despiece", user_id=creator, outputs=outputs))
-    assert created.success, created.message
-    recipe_id, version_id = created.recipe_id, created.version_id
-
-    def _transition(use_case_cls, user_id):
-        result = use_case_cls(conn, auth).execute(RecipeVersionTransitionCommand(
-            operation_id=new_uuid(), version_id=version_id, user_id=user_id))
-        assert result.success, result.message
-
-    _transition(SubmitRecipeVersionUseCase, creator)
-    _transition(ApproveRecipeVersionUseCase, approver)
-    _transition(ActivateRecipeVersionUseCase, approver)
-
-    toggled = SetReverseReconstructionAllowedUseCase(conn, auth).execute(
-        SetReverseReconstructionAllowedCommand(
-            operation_id=new_uuid(), recipe_id=recipe_id, allowed=True, user_id=approver))
-    assert toggled.success, toggled.message
-    return version_id
+def _despiece(conn, *, product_id, outputs, reversible=True, **_) -> str:
+    """Despiece REVERSIBLE activo (esquema de corte, la fuente desde la Fase 7
+    del 2026-09-19). Devuelve el id de la versión."""
+    return reversible_cutting_scheme(conn, product_id=product_id, outputs=outputs,
+                                     reversible=reversible)[1]
 
 
 def _chicken_outputs(breast, leg, wing):
@@ -119,7 +101,7 @@ def _chicken_outputs(breast, leg, wing):
 class TestReconstructBaseProductUseCase:
     def test_reconstructs_and_consumes_the_right_components(self, conn):
         chicken, breast, leg, wing = new_uuid(), new_uuid(), new_uuid(), new_uuid()
-        _disassembly_recipe(conn, product_id=chicken, outputs=_chicken_outputs(breast, leg, wing))
+        _despiece(conn, product_id=chicken, outputs=_chicken_outputs(breast, leg, wing))
         _stock(conn, product_id=breast, quantity="12")
         _stock(conn, product_id=leg, quantity="8")
         _stock(conn, product_id=wing, quantity="4")
@@ -143,7 +125,7 @@ class TestReconstructBaseProductUseCase:
 
     def test_insufficient_component_stock_leaves_nothing_committed(self, conn):
         chicken, breast, leg, wing = new_uuid(), new_uuid(), new_uuid(), new_uuid()
-        _disassembly_recipe(conn, product_id=chicken, outputs=_chicken_outputs(breast, leg, wing))
+        _despiece(conn, product_id=chicken, outputs=_chicken_outputs(breast, leg, wing))
         _stock(conn, product_id=breast, quantity="12")
         _stock(conn, product_id=leg, quantity="8")
         _stock(conn, product_id=wing, quantity="0.1")  # not enough for even 1 chicken (needs 0.4)
@@ -164,7 +146,7 @@ class TestReconstructBaseProductUseCase:
 
     def test_missing_component_cost_fails_closed_not_invented(self, conn):
         chicken, breast, leg, wing = new_uuid(), new_uuid(), new_uuid(), new_uuid()
-        _disassembly_recipe(conn, product_id=chicken, outputs=_chicken_outputs(breast, leg, wing))
+        _despiece(conn, product_id=chicken, outputs=_chicken_outputs(breast, leg, wing))
         _stock(conn, product_id=breast, quantity="12")
         _stock(conn, product_id=leg, quantity="8")
         _stock(conn, product_id=wing, quantity="4")
@@ -191,7 +173,7 @@ class TestReconstructBaseProductUseCase:
 
     def test_idempotent_retry_does_not_double_reconstruct(self, conn):
         chicken, breast, leg, wing = new_uuid(), new_uuid(), new_uuid(), new_uuid()
-        _disassembly_recipe(conn, product_id=chicken, outputs=_chicken_outputs(breast, leg, wing))
+        _despiece(conn, product_id=chicken, outputs=_chicken_outputs(breast, leg, wing))
         _stock(conn, product_id=breast, quantity="12")
         _stock(conn, product_id=leg, quantity="8")
         _stock(conn, product_id=wing, quantity="4")

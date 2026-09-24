@@ -1,0 +1,65 @@
+2026-09-17 16:54:20,105 SPJ.Boot INFO =======================================================
+2026-09-17 16:54:20,133 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-17 16:54:20,290 SPJ.Boot INFO =======================================================
+2026-09-17 16:54:31,958 spj.migrations.260 INFO 260: 65 permisos PRECIOS concedidos; roles ausentes omitidos: ninguno
+2026-09-17 16:54:31,981 spj.migrations INFO Migración 260 ejecutada.
+2026-09-17 16:54:32,477 spj.migrations.261 INFO 261: supplier_contacts.whatsapp_e164 agregada.
+2026-09-17 16:54:32,699 spj.migrations INFO Migración 261 ejecutada.
+2026-09-17 16:54:32,879 spj.migrations.262 INFO 262: contado/crédito y forma de pago en supplier_commercial_terms.
+2026-09-17 16:54:32,970 spj.migrations INFO Migración 262 ejecutada.
+2026-09-17 16:54:33,042 spj.migrations INFO Migraciones completadas: 3 ejecutadas.
+2026-09-17 16:54:36,045 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-17 16:54:36,052 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-17 16:54:38,010 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-09-17 16:54:38,013 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-09-17 16:54:39,158 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-09-17 16:54:39,159 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-09-17 16:54:39,159 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-09-17 16:57:28,230 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-17 17:02:57,468 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-09-17 17:15:42,200 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-17 19:05:08,496 SPJ.Boot INFO =======================================================
+2026-09-17 19:05:08,498 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-17 19:05:08,499 SPJ.Boot INFO =======================================================
+2026-09-17 19:05:11,059 spj.migrations.263 INFO 263: proveedores está vacía; nada que migrar.
+2026-09-17 19:05:11,063 spj.migrations INFO Migración 263 ejecutada.
+2026-09-17 19:05:11,064 spj.migrations INFO Migraciones completadas: 1 ejecutadas.
+2026-09-17 19:05:11,560 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-17 19:05:11,564 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-17 19:05:12,264 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-09-17 19:05:12,265 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-09-17 19:05:13,186 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-09-17 19:05:13,187 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-09-17 19:05:13,188 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-09-17 19:06:00,648 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-17 19:09:43,582 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-17 23:23:11,700 SPJ.Boot INFO =======================================================
+2026-09-17 23:23:11,702 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-17 23:23:11,704 SPJ.Boot INFO =======================================================
+2026-09-17 23:23:14,717 spj.migrations.264 INFO 264: 2 integraciones de direcciones sembradas.
+2026-09-17 23:23:14,737 spj.migrations INFO Migración 264 ejecutada.
+2026-09-17 23:23:15,125 spj.migrations INFO Migraciones completadas: 1 ejecutadas.
+2026-09-17 23:23:18,474 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-17 23:23:18,474 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-17 23:23:19,245 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-09-17 23:23:19,246 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-09-17 23:23:20,082 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-09-17 23:23:20,083 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-09-17 23:23:20,083 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-09-17 23:33:42,847 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-17 23:45:31,406 SPJ.Boot INFO Sesión iniciada: Anai Pichardo en Principal.
+2026-09-17 23:46:34,976 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-17 23:48:16,573 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-17 23:54:38,515 SPJ.Boot INFO =======================================================
+2026-09-17 23:54:38,519 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-17 23:54:38,520 SPJ.Boot INFO =======================================================
+2026-09-17 23:54:41,866 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-17 23:54:42,609 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-17 23:54:42,615 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-17 23:54:43,609 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-09-17 23:54:43,640 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-09-17 23:54:44,444 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-09-17 23:54:44,446 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-09-17 23:54:44,447 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-09-17 23:55:13,425 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-17 23:56:09,133 SPJ.Boot INFO Sistema cerrado. Código: 0

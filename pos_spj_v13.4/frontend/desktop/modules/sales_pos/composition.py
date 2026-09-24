@@ -74,6 +74,49 @@ from backend.infrastructure.integrations.sales_pricing_client import SalesPricin
 from frontend.desktop.modules.sales_pos.sales_pos_presenter import SalesPosPresenter
 
 
+def _after_commit(handler, connection):
+    """Tras un cobro exitoso, entrega `sales_outbox` al bus de la aplicación
+    (Finanzas asienta la venta). Mismo patrón que Compras
+    (`direct_purchase_routes._post_commit_dispatcher`). Un fallo aquí no
+    deshace la venta: el evento queda pendiente y sale en el siguiente cobro."""
+    def run(**kwargs):
+        result = handler(**kwargs)
+        if getattr(result, "success", False):
+            try:
+                from backend.application.sales.integrations.wiring import dispatch_sales_outbox
+                from backend.shared.events.application_bus import get_bus
+                dispatch_sales_outbox(connection, get_bus())
+            except Exception:
+                import logging
+                logging.getLogger("spj.sales_pos.composition").exception(
+                    "despacho de sales_outbox fallido")
+        return result
+    return run
+
+
+def _cash_shift_problem(connection):
+    def check(*, branch_id: str, cashier_user_id: str) -> str | None:
+        from backend.domain.cash_register.exceptions import CashRegisterError
+        from backend.infrastructure.integrations.sales_cash_effects_client import (
+            SalesCashEffectsClient,
+        )
+        import sqlite3
+        try:
+            SalesCashEffectsClient().require_open_shift(
+                connection, branch_id=branch_id, cashier_user_id=cashier_user_id)
+        except (CashRegisterError, sqlite3.OperationalError):
+            return "No tienes un turno de caja abierto. Abre tu turno en Caja antes de cobrar."
+        return None
+    return check
+
+
+def _authorizer_credentials(connection):
+    from backend.security.authentication.verify_authorizer_credentials_use_case import (
+        build_authorizer_credentials_verifier,
+    )
+    return build_authorizer_credentials_verifier(connection)
+
+
 def build_sales_pos_presenter(
     connection, session_context=None, printer_service=None,
 ) -> SalesPosPresenter:
@@ -86,6 +129,15 @@ def build_sales_pos_presenter(
     # inventario cae en una politica que falla cerrada y el cobro se deniega.
     inventory_auth = InventoryAuthorizationPolicy(
         InventorySessionPermissionChecker(session_context))
+    # El AUTORIZADOR de una excepción (descuento grande, bajo el mínimo) es
+    # otro usuario: el verificador de sesión sólo responde por el cajero y lo
+    # denegaba siempre. Mismo estándar que Precios.
+    from backend.application.security.authorizer_permission_checker import (
+        AuthorizerPermissionChecker,
+    )
+    authorizer_auth = SalesAuthorizationPolicy(AuthorizerPermissionChecker(
+        connection, branch_id=getattr(session_context, "active_branch_id", None) or None))
+    pricing_client = SalesPricingClient(connection)
 
     query_services = {
         "catalog": SalesCatalogQueryService(connection),
@@ -95,7 +147,12 @@ def build_sales_pos_presenter(
         "customer_display": CustomerDisplayQueryService(connection, auth),
         "advertising": AdvertisingQueryService(connection),
         "customer_search": CustomerLookupQueryService(connection, customer_auth),
-        "pricing": SalesPricingClient(connection),
+        "pricing": pricing_client,
+        # Prueba quién autoriza con su usuario y clave (mismas reglas y
+        # bloqueo que el login); el permiso lo decide el caso de uso.
+        "authorizer_credentials": _authorizer_credentials(connection).execute,
+        # Turno de caja abierto del cajero (Fase 6: sin turno no se cobra).
+        "cash_shift": _cash_shift_problem(connection),
     }
 
     def _h(execute, **extra):
@@ -114,11 +171,17 @@ def build_sales_pos_presenter(
         "scan_loyalty_card": _h(ScanLoyaltyCardForSaleUseCase(auth).execute),
         "redeem_loyalty_points": _h(RedeemLoyaltyPointsUseCase(auth).execute),
         "scan_code": _scan_code_handler(connection, auth),
-        "apply_sale_discount": _h(ApplySaleDiscountUseCase(auth).execute),
-        "apply_line_discount": _h(ApplyLineDiscountUseCase(auth).execute),
+        "apply_sale_discount": _h(ApplySaleDiscountUseCase(
+            auth, authorizer_authorization=authorizer_auth,
+            minimum_prices=pricing_client).execute),
+        "apply_line_discount": _h(ApplyLineDiscountUseCase(
+            auth, authorizer_authorization=authorizer_auth,
+            minimum_prices=pricing_client).execute),
         "record_payment": _payment_handler(connection, auth, customer_auth),
         "begin_checkout": _h(BeginSaleCheckoutUseCase(auth).execute),
-        "checkout_sale": _h(CheckoutSaleUseCase(auth, inventory_auth).execute),
+        "checkout_sale": _after_commit(_h(CheckoutSaleUseCase(
+            auth, inventory_auth, authorizer_authorization=authorizer_auth,
+            costs=pricing_client).execute), connection),
         "suspend_sale": _h(SuspendSaleUseCase(auth, inventory_auth).execute),
         "resume_sale": _h(ResumeSaleUseCase(auth).execute),
         "cancel_sale": _h(CancelSaleUseCase(auth, inventory_auth).execute),

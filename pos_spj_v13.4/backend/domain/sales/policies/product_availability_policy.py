@@ -36,8 +36,14 @@ class ProductAvailabilityPolicy:
 
     @staticmethod
     def is_sellable(state: ProductStockState, *, is_composite: bool = False) -> bool:
-        if state is ProductStockState.NOT_SELLABLE:
-            return False
-        if state is ProductStockState.OUT_OF_STOCK and not is_composite:
-            return False
-        return True
+        """Sólo NOT_SELLABLE bloquea agregarlo al carrito.
+
+        Hasta el 2026-09-19 un producto AGOTADO no se podía ni seleccionar en la
+        cuadrícula del POS. Eso dejaba inalcanzable la decisión del usuario de la
+        Fase 6 —vender sin existencia con autorización en caliente—: el control
+        no está en el carrito sino en el COBRO, que exige la autorización
+        (`STOCK_AUTHORIZATION_REQUIRED`). `is_composite` se conserva por
+        compatibilidad de firma; ya no cambia el resultado.
+        """
+        del is_composite
+        return state is not ProductStockState.NOT_SELLABLE

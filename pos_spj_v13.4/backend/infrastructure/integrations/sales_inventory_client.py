@@ -102,7 +102,10 @@ from backend.application.inventory.use_cases.reservation_use_cases import (
 )
 from backend.domain.inventory.enums import ReservationSource
 from backend.domain.sales.entities import Sale
-from backend.domain.sales.exceptions import InventoryReservationFailedError
+from backend.domain.sales.exceptions import (
+    InventoryReservationFailedError,
+    InventoryShortageError,
+)
 from backend.infrastructure.db.repositories.inventory.reservation_repository import (
     ReservationRepository,
 )
@@ -137,6 +140,35 @@ class SalesInventoryClient:
         # por omisión: eso concedería cualquier permiso de inventario a quien
         # pasara por aquí, que es justo lo que §23 prohíbe en producción.
         self._authorization = authorization or InventoryAuthorizationPolicy()
+        self._warehouse_id: str | None = None
+
+    @property
+    def warehouse_id(self) -> str:
+        """El almacén del que vende la sucursal (Fase 6, 2026-09-18).
+
+        Antes era SIEMPRE la sucursal (`warehouse_id = branch_id`), un parche
+        documentado en `provision_default_warehouse.py` a la espera de que las
+        sucursales tuvieran almacenes reales. Ya los tienen, y Compras recibe
+        en ellos: la venta buscaba la existencia en una fila que nadie llena y
+        nunca la encontraba.
+
+        - un almacén activo de la sucursal marcado para venta → ése;
+        - varios → error claro: no se adivina de cuál descontar;
+        - ninguno → la convención anterior (la sucursal), para no romper
+          sucursales que aún no tienen almacén.
+        """
+        if self._warehouse_id is None:
+            from backend.application.logistics.warehouse_directory import (
+                WarehouseDirectoryQueryService,
+            )
+            almacenes = WarehouseDirectoryQueryService(
+                self._connection).sales_warehouses_for_branch(self._branch_id)
+            if len(almacenes) > 1:
+                raise InventoryReservationFailedError(
+                    "La sucursal tiene varios almacenes habilitados para venta; "
+                    "deja sólo uno habilitado para venta en Almacenes.")
+            self._warehouse_id = almacenes[0] if almacenes else self._branch_id
+        return self._warehouse_id
 
     # ── reservar ─────────────────────────────────────────────────────────
     def reserve_for_sale(self, sale: Sale) -> str:
@@ -156,7 +188,7 @@ class SalesInventoryClient:
                 self._connection, product_id=product_id, branch_id=self._branch_id,
                 # Este repositorio trata la sucursal como su propio almacén; es
                 # la simplificación ya establecida aquí, no una decisión nueva.
-                warehouse_id=self._branch_id,
+                warehouse_id=self.warehouse_id,
                 # La sucursal hace también de ubicación. Es la misma clave que
                 # ya usa `restore_for_return` al reponer, y tiene que serlo:
                 # reservar, descontar y devolver deben caer en LA MISMA fila de
@@ -172,11 +204,27 @@ class SalesInventoryClient:
             )
             if not result.success:
                 self._release_all(sale.id, reason="reserva incompleta")
+                disponible = self._available(product_id)
+                if result.error_code != "PERMISSION_DENIED" and disponible < cantidad:
+                    # Falta existencia: el único fallo que admite autorizar la
+                    # venta sin existencia (Fase 6).
+                    raise InventoryShortageError(
+                        f"disponible {disponible}, se venden {cantidad} "
+                        f"(producto {product_id})")
                 raise InventoryReservationFailedError(result.message)
             creadas.append(result.entity_id or "")
         if not creadas:
             raise InventoryReservationFailedError("La venta no tiene líneas que reservar.")
         return sale.id
+
+    def _available(self, product_id: str) -> Decimal:
+        try:
+            return InventoryAvailabilityQueryService(self._connection).get_availability(
+                product_id=product_id, branch_id=self._branch_id,
+                warehouse_id=self.warehouse_id).available
+        except Exception:
+            logger.exception("disponibilidad de %s no consultable", product_id)
+            return Decimal("0")
 
     @staticmethod
     def _quantities_by_product(sale: Sale) -> dict[str, Decimal]:
@@ -205,14 +253,14 @@ class SalesInventoryClient:
         never a new way to block or silently fix a sale.
         """
         availability = InventoryAvailabilityQueryService(self._connection).get_availability(
-            product_id=product_id, branch_id=self._branch_id, warehouse_id=self._branch_id)
+            product_id=product_id, branch_id=self._branch_id, warehouse_id=self.warehouse_id)
         shortfall = needed - availability.available
         if shortfall <= 0:
             return
         try:
             result = ReconstructBaseProductUseCase(self._authorization).execute(
                 self._connection, product_id=product_id, quantity=shortfall,
-                branch_id=self._branch_id, warehouse_id=self._branch_id,
+                branch_id=self._branch_id, warehouse_id=self.warehouse_id,
                 actor_user_id=self._actor_user_id,
                 operation_id=f"{sale_id}:reconstruct:{product_id}")
         except Exception:
@@ -233,7 +281,8 @@ class SalesInventoryClient:
                 sale_id, product_id, shortfall, result.error_code, result.message)
 
     # ── confirmar / liberar ──────────────────────────────────────────────
-    def confirm(self, reservation_handle: str, *, sale_id: str, folio: str) -> None:
+    def confirm(self, reservation_handle: str, *, sale_id: str, folio: str,
+                unit_costs: dict | None = None) -> None:
         """La venta se completó: la mercancía SALE del inventario.
 
         Dos pasos, en este orden y dentro de la transacción de la venta:
@@ -262,7 +311,7 @@ class SalesInventoryClient:
         if not reservations:
             return
 
-        self._post_sale_issue(reservations, sale_id=sale_id)
+        self._post_sale_issue(reservations, sale_id=sale_id, unit_costs=unit_costs)
 
         use_case = FulfillReservationUseCase(self._authorization)
         for reservation in reservations:
@@ -274,7 +323,50 @@ class SalesInventoryClient:
             if not result.success:
                 raise InventoryReservationFailedError(result.message)
 
-    def _post_sale_issue(self, reservations, *, sale_id: str) -> None:
+    def issue_without_stock(self, sale: Sale, *, unit_costs: dict | None = None) -> None:
+        """Salida AUTORIZADA sin existencia suficiente (inventario negativo).
+
+        Sólo la llama el cobro después de que otro usuario autorizó en caliente
+        vender sin existencia (decisión del usuario, Fase 6). No hay reserva que
+        cumplir: no alcanzaba para reservar. `NegativeInventoryPolicy` exige
+        `allowed` + `authorized`; ambas cosas las da esa autorización, que el
+        caso de uso de Ventas ya validó y deja auditada.
+        """
+        from backend.application.inventory.use_cases.post_inventory_movement import (
+            PostInventoryMovementUseCase,
+        )
+        from backend.domain.inventory.entities.inventory_movement import (
+            InventoryMovement,
+            InventoryMovementLine,
+        )
+        from backend.domain.inventory.enums import InventoryStatus, MovementType
+
+        costos = unit_costs or {}
+        lines = [
+            InventoryMovementLine.create(
+                product_id=product_id, quantity=cantidad, from_location_id=self._branch_id,
+                from_status=InventoryStatus.AVAILABLE, reason_code="SALE_WITHOUT_STOCK",
+                unit_cost=costos.get(product_id))
+            for product_id, cantidad in self._quantities_by_product(sale).items()
+            if cantidad > 0
+        ]
+        if not lines:
+            raise InventoryReservationFailedError("La venta no tiene líneas que descontar.")
+        movement = InventoryMovement.create(
+            movement_type=MovementType.SALE_ISSUE, branch_id=self._branch_id,
+            warehouse_id=self.warehouse_id, source_module="sales",
+            source_document_type="SALE", source_document_id=str(sale.id),
+            operation_id=f"{sale.id}:sale-issue",
+            created_by_user_id=str(self._actor_user_id), lines=lines)
+        result = PostInventoryMovementUseCase().execute(
+            self._connection, movement, actor_user_id=str(self._actor_user_id),
+            negative_allowed=True, authorized=True, owns_transaction=False)
+        if not result.success:
+            raise InventoryReservationFailedError(
+                result.message or "No se pudo descontar el inventario de la venta.")
+
+    def _post_sale_issue(self, reservations, *, sale_id: str,
+                         unit_costs: dict | None = None) -> None:
         """Registra la salida de mercancía por venta.
 
         Un solo movimiento con todas las líneas, no uno por producto: la venta
@@ -305,7 +397,10 @@ class SalesInventoryClient:
             InventoryMovementLine.create(
                 product_id=reservation.product_id, quantity=reservation.quantity,
                 from_location_id=reservation.location_id, lot_id=reservation.lot_id,
-                from_status=InventoryStatus.AVAILABLE, reason_code="SALE")
+                from_status=InventoryStatus.AVAILABLE, reason_code="SALE",
+                # El costo con que sale: el del libro de inventario, y el mismo
+                # que Finanzas asienta como costo de venta.
+                unit_cost=(unit_costs or {}).get(reservation.product_id))
             for reservation in reservations if reservation.quantity > 0
         ]
         if not lines:
@@ -313,7 +408,7 @@ class SalesInventoryClient:
 
         movement = InventoryMovement.create(
             movement_type=MovementType.SALE_ISSUE, branch_id=self._branch_id,
-            warehouse_id=self._branch_id, source_module="sales",
+            warehouse_id=self.warehouse_id, source_module="sales",
             source_document_type="SALE", source_document_id=str(sale_id),
             operation_id=f"{sale_id}:sale-issue",
             created_by_user_id=str(self._actor_user_id), lines=lines)
@@ -385,7 +480,7 @@ class SalesInventoryClient:
             to_status=InventoryStatus.AVAILABLE, reason_code=reason_code)
         movement = InventoryMovement.create(
             movement_type=MovementType.SALE_RETURN, branch_id=self._branch_id,
-            warehouse_id=self._branch_id, source_module="sales",
+            warehouse_id=self.warehouse_id, source_module="sales",
             source_document_type=source_document_type, source_document_id=str(sale_id),
             operation_id=str(operation_id), created_by_user_id=str(actor_user_id), lines=[line])
         result = PostInventoryMovementUseCase().execute(

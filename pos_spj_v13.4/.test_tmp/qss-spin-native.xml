@@ -1,0 +1,1271 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="24" skipped="0" tests="24" time="7.808" timestamp="2026-09-21T14:23:57.366246-06:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[QSpinBox-compact-light]" time="0.389"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB8AA4180&gt;
+theme = 'light', density = 'compact'
+factory = &lt;class 'PyQt5.QtWidgets.QSpinBox'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;PyQt5.QtWidgets.QSpinBox object at 0x0000024FB8663F50&gt;, subcontrol = 1
+background = '#FFFFFF', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[QSpinBox-compact-dark]" time="0.014"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB81E4E90&gt;
+theme = 'dark', density = 'compact'
+factory = &lt;class 'PyQt5.QtWidgets.QSpinBox'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;PyQt5.QtWidgets.QSpinBox object at 0x0000024FB8AD6210&gt;, subcontrol = 1
+background = '#252825', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[QSpinBox-comfortable-light]" time="0.011"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB8A96570&gt;
+theme = 'light', density = 'comfortable'
+factory = &lt;class 'PyQt5.QtWidgets.QSpinBox'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;PyQt5.QtWidgets.QSpinBox object at 0x0000024FB8AD6960&gt;, subcontrol = 1
+background = '#FFFFFF', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[QSpinBox-comfortable-dark]" time="0.147"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB866B460&gt;
+theme = 'dark', density = 'comfortable'
+factory = &lt;class 'PyQt5.QtWidgets.QSpinBox'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;PyQt5.QtWidgets.QSpinBox object at 0x0000024FB8AD7410&gt;, subcontrol = 1
+background = '#252825', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[QSpinBox-touch-light]" time="0.013"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB866BAC0&gt;
+theme = 'light', density = 'touch', factory = &lt;class 'PyQt5.QtWidgets.QSpinBox'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;PyQt5.QtWidgets.QSpinBox object at 0x0000024FB8AD7AD0&gt;, subcontrol = 1
+background = '#FFFFFF', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[QSpinBox-touch-dark]" time="0.009"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB8B18A50&gt;
+theme = 'dark', density = 'touch', factory = &lt;class 'PyQt5.QtWidgets.QSpinBox'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;PyQt5.QtWidgets.QSpinBox object at 0x0000024FB8AD7DA0&gt;, subcontrol = 1
+background = '#252825', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[QDoubleSpinBox-compact-light]" time="0.077"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB858F650&gt;
+theme = 'light', density = 'compact'
+factory = &lt;class 'PyQt5.QtWidgets.QDoubleSpinBox'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;PyQt5.QtWidgets.QDoubleSpinBox object at 0x0000024FB8AD7800&gt;
+subcontrol = 1, background = '#FFFFFF', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[QDoubleSpinBox-compact-dark]" time="0.016"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB86A1E50&gt;
+theme = 'dark', density = 'compact'
+factory = &lt;class 'PyQt5.QtWidgets.QDoubleSpinBox'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;PyQt5.QtWidgets.QDoubleSpinBox object at 0x0000024FB8AD62A0&gt;
+subcontrol = 1, background = '#252825', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[QDoubleSpinBox-comfortable-light]" time="0.013"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB86A16D0&gt;
+theme = 'light', density = 'comfortable'
+factory = &lt;class 'PyQt5.QtWidgets.QDoubleSpinBox'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;PyQt5.QtWidgets.QDoubleSpinBox object at 0x0000024FB8AFCB00&gt;
+subcontrol = 1, background = '#FFFFFF', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[QDoubleSpinBox-comfortable-dark]" time="0.052"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB8AF0590&gt;
+theme = 'dark', density = 'comfortable'
+factory = &lt;class 'PyQt5.QtWidgets.QDoubleSpinBox'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;PyQt5.QtWidgets.QDoubleSpinBox object at 0x0000024FB8AFD1C0&gt;
+subcontrol = 1, background = '#252825', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[QDoubleSpinBox-touch-light]" time="0.013"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB8AF3BD0&gt;
+theme = 'light', density = 'touch'
+factory = &lt;class 'PyQt5.QtWidgets.QDoubleSpinBox'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;PyQt5.QtWidgets.QDoubleSpinBox object at 0x0000024FB8AFD880&gt;
+subcontrol = 1, background = '#FFFFFF', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[QDoubleSpinBox-touch-dark]" time="0.014"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB8B11A50&gt;
+theme = 'dark', density = 'touch'
+factory = &lt;class 'PyQt5.QtWidgets.QDoubleSpinBox'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;PyQt5.QtWidgets.QDoubleSpinBox object at 0x0000024FB8AD7800&gt;
+subcontrol = 1, background = '#252825', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[IntegerInput-compact-light]" time="0.075"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB86A65D0&gt;
+theme = 'light', density = 'compact'
+factory = &lt;class 'frontend.desktop.components.integer_input.IntegerInput'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;frontend.desktop.components.integer_input.IntegerInput object at 0x0000024FB8AFC710&gt;
+subcontrol = 1, background = '#FFFFFF', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[IntegerInput-compact-dark]" time="0.068"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB86A5CD0&gt;
+theme = 'dark', density = 'compact'
+factory = &lt;class 'frontend.desktop.components.integer_input.IntegerInput'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;frontend.desktop.components.integer_input.IntegerInput object at 0x0000024FB8AD6600&gt;
+subcontrol = 1, background = '#252825', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[IntegerInput-comfortable-light]" time="0.015"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB8A9A150&gt;
+theme = 'light', density = 'comfortable'
+factory = &lt;class 'frontend.desktop.components.integer_input.IntegerInput'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;frontend.desktop.components.integer_input.IntegerInput object at 0x0000024FB8AFD520&gt;
+subcontrol = 1, background = '#FFFFFF', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[IntegerInput-comfortable-dark]" time="0.016"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB8A9A4C0&gt;
+theme = 'dark', density = 'comfortable'
+factory = &lt;class 'frontend.desktop.components.integer_input.IntegerInput'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;frontend.desktop.components.integer_input.IntegerInput object at 0x0000024FB8AFEB10&gt;
+subcontrol = 1, background = '#252825', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[IntegerInput-touch-light]" time="0.104"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB8B38C30&gt;
+theme = 'light', density = 'touch'
+factory = &lt;class 'frontend.desktop.components.integer_input.IntegerInput'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;frontend.desktop.components.integer_input.IntegerInput object at 0x0000024FB8AFF530&gt;
+subcontrol = 1, background = '#FFFFFF', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[IntegerInput-touch-dark]" time="0.077"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB8B391D0&gt;
+theme = 'dark', density = 'touch'
+factory = &lt;class 'frontend.desktop.components.integer_input.IntegerInput'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;frontend.desktop.components.integer_input.IntegerInput object at 0x0000024FB8AFFF50&gt;
+subcontrol = 1, background = '#252825', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[NumericInput-compact-light]" time="0.015"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB8AFFE30&gt;
+theme = 'light', density = 'compact'
+factory = &lt;class 'frontend.desktop.components.numeric_input.NumericInput'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;frontend.desktop.components.numeric_input.NumericInput object at 0x0000024FB8AFF2F0&gt;
+subcontrol = 1, background = '#FFFFFF', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[NumericInput-compact-dark]" time="0.018"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB86EE0D0&gt;
+theme = 'dark', density = 'compact'
+factory = &lt;class 'frontend.desktop.components.numeric_input.NumericInput'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;frontend.desktop.components.numeric_input.NumericInput object at 0x0000024FB8AFDD00&gt;
+subcontrol = 1, background = '#252825', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[NumericInput-comfortable-light]" time="0.016"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB86EDFD0&gt;
+theme = 'light', density = 'comfortable'
+factory = &lt;class 'frontend.desktop.components.numeric_input.NumericInput'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;frontend.desktop.components.numeric_input.NumericInput object at 0x0000024FB8AD6600&gt;
+subcontrol = 1, background = '#FFFFFF', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[NumericInput-comfortable-dark]" time="0.072"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB8B51630&gt;
+theme = 'dark', density = 'comfortable'
+factory = &lt;class 'frontend.desktop.components.numeric_input.NumericInput'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;frontend.desktop.components.numeric_input.NumericInput object at 0x0000024FB8B284D0&gt;
+subcontrol = 1, background = '#252825', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[NumericInput-touch-light]" time="0.017"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB8B50EC0&gt;
+theme = 'light', density = 'touch'
+factory = &lt;class 'frontend.desktop.components.numeric_input.NumericInput'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;frontend.desktop.components.numeric_input.NumericInput object at 0x0000024FB8B295B0&gt;
+subcontrol = 1, background = '#FFFFFF', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase><testcase classname="tests.ui.test_spin_controls_rendering" name="test_spin_arrows_render_and_step_without_changing_disabled_values[NumericInput-touch-dark]" time="0.020"><failure message="AssertionError: El control numérico debe mostrar una flecha visible.&#10;assert 0 &gt;= 8">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000024FB8663BF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024FB8AE2970&gt;
+theme = 'dark', density = 'touch'
+factory = &lt;class 'frontend.desktop.components.numeric_input.NumericInput'&gt;
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("factory", [QSpinBox, QDoubleSpinBox, IntegerInput, NumericInput])
+    def test_spin_arrows_render_and_step_without_changing_disabled_values(qt_font_resources, monkeypatch, theme, density, factory):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        colors = manager.colors()
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        spin = factory()
+        spin.setRange(0, 9)
+        spin.setValue(4)
+        other = QLineEdit()
+        layout.addWidget(spin)
+        layout.addWidget(other)
+        host.resize(280, 180)
+        try:
+            host.show()
+            other.setFocus(Qt.TabFocusReason)
+            app.processEvents()
+            assert not spin.styleSheet()
+            for subcontrol, expected in ((QStyle.SC_SpinBoxUp, 5), (QStyle.SC_SpinBoxDown, 4)):
+&gt;               _assert_arrow_visible(spin, subcontrol, colors.SURFACE, AA_UI_COMPONENT)
+
+tests\ui\test_spin_controls_rendering.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+spin = &lt;frontend.desktop.components.numeric_input.NumericInput object at 0x0000024FB8AD7E30&gt;
+subcontrol = 1, background = '#252825', minimum_contrast = 3.0
+
+    def _assert_arrow_visible(spin, subcontrol, background, minimum_contrast):
+        button = _button_rect(spin, subcontrol)
+        center = button.center()
+        indicator = QRect(center.x() - 5, center.y() - 5, 11, 11)
+        assert spin.rect().contains(button)
+        assert button.contains(indicator), "El indicador debe caber dentro del botón de incremento."
+        image = spin.grab().toImage()
+        visible_pixels = sum(
+            contrast_ratio(image.pixelColor(x, y).name(), background) &gt;= minimum_contrast
+            for x in range(indicator.left(), indicator.right() + 1)
+            for y in range(indicator.top(), indicator.bottom() + 1)
+        )
+&gt;       assert visible_pixels &gt;= 8, "El control numérico debe mostrar una flecha visible."
+E       AssertionError: El control numérico debe mostrar una flecha visible.
+E       assert 0 &gt;= 8
+
+tests\ui\test_spin_controls_rendering.py:33: AssertionError</failure></testcase></testsuite></testsuites>

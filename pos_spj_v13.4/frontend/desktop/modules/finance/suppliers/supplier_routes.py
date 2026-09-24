@@ -14,7 +14,12 @@ from backend.application.suppliers.queries import (
     SupplierPerformanceQueryService,
     SupplierRiskQueryService,
 )
+from backend.application.suppliers.authorization import SupplierAuthorizationPolicy
+from backend.application.suppliers.session_authorization import (
+    SupplierSessionPermissionChecker,
+)
 from backend.application.suppliers.use_cases.detail_use_cases import (
+    AddSupplierAddressUseCase,
     AddSupplierBankAccountUseCase,
     AddSupplierContactUseCase,
     AssignProductToSupplierUseCase,
@@ -30,6 +35,7 @@ from backend.application.suppliers.use_cases.lifecycle_use_cases import (
     ApproveSupplierUseCase,
     BlockSupplierUseCase,
     CreateSupplierUseCase,
+    DeactivateSupplierUseCase,
     RejectSupplierUseCase,
     SubmitSupplierForApprovalUseCase,
     SuspendSupplierUseCase,
@@ -53,23 +59,39 @@ def build_supplier_presenter(connection, session_context=None) -> SupplierPresen
         "performance": SupplierPerformanceQueryService(connection),
         "risk": SupplierRiskQueryService(connection),
     }
+    # RBAC real. Antes CADA caso de uso se construía sin checker, y
+    # `SupplierAuthorizationPolicy` sin checker PERMITE todo: cualquier usuario
+    # con acceso al módulo podía aprobar, bloquear o verificar cuentas
+    # bancarias. El checker traduce los códigos planos al vocabulario grueso
+    # que la base sí concede (ver su docstring) y deniega lo no mapeado.
+    authorization = SupplierAuthorizationPolicy(
+        SupplierSessionPermissionChecker(session_context))
+
     use_cases = {
-        "create": CreateSupplierUseCase(),
-        "update": UpdateSupplierUseCase(),
-        "submit": SubmitSupplierForApprovalUseCase(),
-        "approve": ApproveSupplierUseCase(),
-        "reject": RejectSupplierUseCase(),
-        "activate": ActivateSupplierUseCase(),
-        "suspend": SuspendSupplierUseCase(),
-        "block": BlockSupplierUseCase(),
-        "unblock": UnblockSupplierUseCase(),
-        "add_contact": AddSupplierContactUseCase(),
-        "add_bank": AddSupplierBankAccountUseCase(),
-        "verify_bank": VerifySupplierBankAccountUseCase(),
-        "update_terms": UpdateSupplierCommercialTermsUseCase(),
-        "assign_product": AssignProductToSupplierUseCase(),
-        "upload_document": UploadSupplierDocumentUseCase(),
-        "evaluate": EvaluateSupplierUseCase(),
+        "create": CreateSupplierUseCase(authorization),
+        "update": UpdateSupplierUseCase(authorization),
+        "submit": SubmitSupplierForApprovalUseCase(authorization),
+        "approve": ApproveSupplierUseCase(authorization),
+        "reject": RejectSupplierUseCase(authorization),
+        "activate": ActivateSupplierUseCase(authorization),
+        "suspend": SuspendSupplierUseCase(authorization),
+        # Baja y reactivación: la transición a INACTIVO existía en el dominio
+        # pero no tenía caso de uso, así que no era alcanzable desde ninguna
+        # pantalla. Reactivar usa `activate`, que ahora admite INACTIVE.
+        "deactivate": DeactivateSupplierUseCase(authorization),
+        "block": BlockSupplierUseCase(authorization),
+        "unblock": UnblockSupplierUseCase(authorization),
+        "add_contact": AddSupplierContactUseCase(authorization),
+        # `AddSupplierAddressUseCase` estaba construido y probado desde el
+        # inicio, pero nunca se cableó: la dirección del proveedor —uno de los
+        # grupos de datos del ciclo comercial— no era capturable.
+        "add_address": AddSupplierAddressUseCase(authorization),
+        "add_bank": AddSupplierBankAccountUseCase(authorization),
+        "verify_bank": VerifySupplierBankAccountUseCase(authorization),
+        "update_terms": UpdateSupplierCommercialTermsUseCase(authorization),
+        "assign_product": AssignProductToSupplierUseCase(authorization),
+        "upload_document": UploadSupplierDocumentUseCase(authorization),
+        "evaluate": EvaluateSupplierUseCase(authorization),
     }
     return SupplierPresenter(
         connection_provider=lambda: connection,

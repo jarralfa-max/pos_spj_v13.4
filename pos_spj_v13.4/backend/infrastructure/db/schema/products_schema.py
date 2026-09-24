@@ -475,6 +475,8 @@ _DDL = (
         name TEXT NOT NULL,
         cut_level TEXT NOT NULL DEFAULT 'PRIMARY',
         active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+        reverse_reconstruction_allowed INTEGER NOT NULL DEFAULT 0
+            CHECK(reverse_reconstruction_allowed IN (0,1)),
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         FOREIGN KEY (input_product_id) REFERENCES products(id),
         FOREIGN KEY (species_id) REFERENCES species(id)
@@ -835,10 +837,15 @@ def create_products_schema(conn) -> None:
         conn.execute(statement)
     for index in _INDEXES:
         conn.execute(index)
-    # recipes.reverse_reconstruction_allowed (ERP integration master prompt
-    # §16) — CREATE TABLE IF NOT EXISTS above only covers a never-before-
-    # created table; a recipes table created by an earlier run of this same
-    # function still needs the ALTER.
+    # recipes.reverse_reconstruction_allowed (§16, migración 258) — INACTIVA
+    # desde el 2026-09-19: la fuente del despiece reversible es el ESQUEMA DE
+    # CORTE (decisión del usuario, Fase 7), el mismo que ejecuta Cárnico. La
+    # columna se conserva porque la 258 ya la creó en bases reales; nadie la
+    # lee ni la escribe.
+    if not _column_exists(conn, "cutting_schemes", "reverse_reconstruction_allowed"):
+        conn.execute(
+            "ALTER TABLE cutting_schemes ADD COLUMN reverse_reconstruction_allowed "
+            "INTEGER NOT NULL DEFAULT 0")
     if not _column_exists(conn, "recipes", "reverse_reconstruction_allowed"):
         conn.execute(
             "ALTER TABLE recipes ADD COLUMN reverse_reconstruction_allowed "

@@ -71,6 +71,14 @@ COLUMNS: dict[MeatProcessingRecord, list[ColumnSpec]] = {
         ColumnSpec("Real", "numeric"), ColumnSpec("Merma", "numeric"),
         ColumnSpec("Variación", "numeric"), ColumnSpec("Tolerancia"), ColumnSpec("Estado", "status"),
     ],
+    MeatProcessingRecord.OUTPUT_RESULTS: [
+        ColumnSpec("Fecha", "date"), ColumnSpec("Corte"), ColumnSpec("Tipo"),
+        ColumnSpec("Entrada kg", "numeric"), ColumnSpec("Esperado kg", "numeric"),
+        ColumnSpec("Real kg", "numeric"), ColumnSpec("Diferencia kg", "numeric"),
+        ColumnSpec("Rendimiento", "numeric"), ColumnSpec("Variación", "numeric"),
+        ColumnSpec("Costo/kg", "numeric"), ColumnSpec("Costo total", "numeric"),
+        ColumnSpec("Lote"),
+    ],
     MeatProcessingRecord.REWORK: [
         ColumnSpec("Fecha", "date"), ColumnSpec("Producto"), ColumnSpec("Origen"),
         ColumnSpec("Cantidad", "numeric"), ColumnSpec("Peso", "numeric"), ColumnSpec("Motivo"),
@@ -129,3 +137,24 @@ class WeighingsAndConsumptionsPage(TabbedPage):
     def ensure_loaded(self) -> None:
         self.weighings.ensure_loaded()
         self.consumptions.ensure_loaded()
+
+
+class YieldsPage(TabbedPage):
+    """Rendimientos (Fase 10): por CORTE —esperado, real, diferencia, costo
+    repartido y lote, lo que pide el §13— y por ORDEN (la conciliación)."""
+
+    def __init__(self, by_output: MeatProcessingRecordPage,
+                 by_order: MeatProcessingRecordPage, *, title: str, subtitle: str,
+                 parent=None) -> None:
+        super().__init__(parent, title=title, subtitle=subtitle)
+        self.title = title
+        self.by_output = by_output
+        self.by_order = by_order
+        self.tabs.addTab(by_output, "Por corte")
+        self.tabs.addTab(by_order, "Por orden")
+        self.setAccessibleName(title)
+        self.setAccessibleDescription(subtitle)
+
+    def ensure_loaded(self) -> None:
+        self.by_output.ensure_loaded()
+        self.by_order.ensure_loaded()

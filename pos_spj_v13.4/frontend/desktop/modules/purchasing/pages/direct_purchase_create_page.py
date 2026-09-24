@@ -57,8 +57,10 @@ class DirectPurchaseCreatePage(QWidget):
         card = SectionCard(title="Captura")
         body = QVBoxLayout()
         grid = QGridLayout()
-        self._supplier = EntitySearchInput(self, provider=self._presenter.supplier_options,
-                                            placeholder="Buscar proveedor por nombre o código")
+        self._supplier = EntitySearchInput(
+            self, provider=self._presenter.supplier_options,
+            placeholder="Buscar proveedor por nombre o código",
+            empty_reason_provider=self._presenter.supplier_search_reason)
         self._supplier.selected.connect(self._supplier_selected)
         self._barcode = BarcodeInput(self)
         self._barcode.scanned.connect(self._scan)
@@ -67,7 +69,8 @@ class DirectPurchaseCreatePage(QWidget):
         self._payment = SearchableComboBox(placeholder="Condición")
         self._payment.set_options(PAYMENT_CONDITION_OPTIONS)
         self._source = SearchableComboBox(placeholder="Fuente de pago")
-        self._source.set_options(PAYMENT_SOURCE_OPTIONS)
+        # Sólo las fuentes que Finanzas sabe asentar.
+        self._source.set_options(self._presenter.payment_source_options())
         for col, (title, widget) in enumerate((("Proveedor", self._supplier),
                                                ("Escaneo", self._barcode))):
             grid.addWidget(QLabel(title), 0, col * 2)

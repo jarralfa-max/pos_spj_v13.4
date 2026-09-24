@@ -34,8 +34,19 @@ class SupplierPresenter:
 
     # helpers -----------------------------------------------------------------
     def _actor(self) -> str:
-        user_id = getattr(self._session, "user_id", None)
-        return str(user_id) if user_id else "desktop"
+        """Identidad REAL del usuario de la sesión.
+
+        Antes devolvía el literal `"desktop"` cuando la sesión no traía
+        `user_id`. Eso no sólo inventaba identidad en la auditoría (§17): hacía
+        que creador y aprobador fueran el MISMO usuario ficticio, así que
+        `SupplierApprovalPolicy` disparaba `SegregationOfDutiesError` y ningún
+        proveedor podía aprobarse nunca. Mismo criterio que Compras: sin
+        usuario autenticado se falla ruidosamente, no se inventa uno.
+        """
+        user_id = str(getattr(self._session, "user_id", "") or "").strip()
+        if not user_id:
+            raise PermissionError("Se requiere una sesión autenticada de Proveedores")
+        return user_id
 
     def _can(self, permission_code: str) -> bool:
         perms = getattr(self._session, "permissions", None)
@@ -46,6 +57,11 @@ class SupplierPresenter:
             result = self._use_cases[use_case_key].execute(
                 self._conn(), actor_user_id=self._actor(), operation_id=new_uuid(), **kwargs)
             return bool(result.success), result.message, dict(result.data)
+        except PermissionError as exc:
+            # Sesión sin usuario autenticado: es una condición accionable para
+            # quien opera ("inicia sesión"), no un "error inesperado" que sólo
+            # existe en el log y deja la pantalla sin explicación.
+            return False, str(exc), {}
         except Exception:
             logger.exception("SupplierPresenter: unexpected error in %s", use_case_key)
             return False, "Error inesperado; revise el log.", {}
@@ -79,6 +95,38 @@ class SupplierPresenter:
             ids.append(r["id"])
         return TableViewModel(rows, ids, total=int(total))
 
+    def suppliers_empty_reason(self, *, search: str = "",
+                               status: str | None = None) -> str:
+        """Por qué el listado salió vacío.
+
+        Antes el estado vacío decía siempre "No hay proveedores que coincidan",
+        que es falso cuando lo que pasa es que NINGUNO está aprobado todavía, o
+        que aún no se ha dado de alta el primero. Son tres situaciones con tres
+        acciones distintas, y la pantalla las presentaba como una sola.
+        """
+        try:
+            razon = self._queries["search"].explain_empty(query=search, status=status)
+        except Exception:
+            logger.exception("SupplierPresenter: explain_empty failed")
+            return "No hay proveedores que coincidan"
+        return razon.message if razon is not None else "No hay proveedores que coincidan"
+
+    def address_search_service(self):
+        """El servicio estándar de búsqueda de direcciones, configurado desde
+        Configuración → Integraciones. `None` si no hay conexión: el componente
+        entonces deja capturar a mano y explica por qué no busca."""
+        if self._conn is None:
+            return None
+        try:
+            from backend.infrastructure.maps.address_search_factory import (
+                build_address_search_service,
+            )
+            return build_address_search_service(self._conn())
+        except Exception:
+            logger.exception("%s: no se pudo preparar la búsqueda de direcciones",
+                             type(self).__name__)
+            return None
+
     def supplier_header(self, supplier_id: str) -> dict | None:
         header = self._queries["detail"].get_header(supplier_id)
         if header is None:
@@ -91,9 +139,18 @@ class SupplierPresenter:
         rows, ids = [], []
         for c in self._queries["detail"].contacts(supplier_id):
             rows.append([c["name"], c["contact_type"], c["role"] or "—",
-                         c["phone_e164"] or "—", c["email"] or "—",
+                         c["phone_e164"] or "—", c["whatsapp_e164"] or "—",
+                         c["email"] or "—",
                          "Sí" if c["is_primary"] else "No"])
             ids.append(c["id"])
+        return TableViewModel(rows, ids)
+
+    def addresses(self, supplier_id: str) -> TableViewModel:
+        rows, ids = [], []
+        for a in self._queries["detail"].addresses(supplier_id):
+            rows.append([a["address_type"], a["line"], a["city"] or "—",
+                         a["state"] or "—", a["postal_code"] or "—"])
+            ids.append(a["id"])
         return TableViewModel(rows, ids)
 
     def bank_accounts(self, supplier_id: str) -> TableViewModel:
@@ -126,6 +183,26 @@ class SupplierPresenter:
             ids.append(p["id"])
         return TableViewModel(rows, ids)
 
+    def terms_summary(self, supplier_id: str) -> str:
+        t = self._queries["detail"].commercial_terms(supplier_id)
+        if not t:
+            return "Sin condiciones registradas."
+        forma = {"TRANSFER": "Transferencia (SPEI)", "CASH": "Efectivo"}.get(
+            t["preferred_payment_method"] or "", "Sin definir")
+        if t["is_credit"]:
+            tipo = (f"Crédito — {t['credit_days']} días, límite "
+                    f"{money(t['credit_limit'])}")
+        else:
+            tipo = "Contado"
+        lineas = [f"Tipo de pago: {tipo}", f"Forma de pago preferida: {forma}"]
+        if t["advance_required"]:
+            lineas.append(f"Anticipo: {t['advance_percentage']}%")
+        lineas.append(f"Lead time: {t['lead_time_days']} días")
+        if t["receiving_window_start"] and t["receiving_window_end"]:
+            lineas.append(f"Ventana de recepción: {t['receiving_window_start']}"
+                          f"–{t['receiving_window_end']}")
+        return "\n".join(lineas)
+
     def risk(self, supplier_id: str) -> dict:
         dto = self._queries["risk"].assess(supplier_id)
         return {"level": dto.level, "label": risk_es(dto.level), "causes": list(dto.causes)}
@@ -150,7 +227,14 @@ class SupplierPresenter:
         return self._run("suspend", supplier_id=supplier_id, reason=reason)
 
     def activate(self, supplier_id: str) -> tuple[bool, str, dict]:
+        """Activa o REACTIVA (desde suspendido, bloqueado o dado de baja)."""
         return self._run("activate", supplier_id=supplier_id)
+
+    def deactivate(self, supplier_id: str, reason: str) -> tuple[bool, str, dict]:
+        return self._run("deactivate", supplier_id=supplier_id, reason=reason)
+
+    def add_address(self, **fields) -> tuple[bool, str, dict]:
+        return self._run("add_address", **fields)
 
     def block(self, supplier_id: str, *, block_type: str, reason: str) -> tuple[bool, str, dict]:
         return self._run("block", supplier_id=supplier_id, block_type=block_type, reason=reason)

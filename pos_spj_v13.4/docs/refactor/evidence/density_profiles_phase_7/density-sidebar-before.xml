@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="4" time="19.426" timestamp="2026-09-22T15:38:37.753568-06:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_density_side_nav_toggle" name="test_toggle_shrinks_after_touch_and_keeps_rows_reachable[False-light]" time="1.983"><failure message="assert PyQt5.QtCore.QSize(48, 48) == PyQt5.QtCore.QSize(32, 32)&#10; +  where PyQt5.QtCore.QSize(48, 48) = &lt;built-in method size of IconButton object at 0x0000016F9CE53AD0&gt;()&#10; +    where &lt;built-in method size of IconButton object at 0x0000016F9CE53AD0&gt; = &lt;frontend.desktop.components.buttons.IconButton object at 0x0000016F9CE53AD0&gt;.size&#10; +      where &lt;frontend.desktop.components.buttons.IconButton object at 0x0000016F9CE53AD0&gt; = &lt;frontend.desktop.components.side_nav.SideNav object at 0x0000016F9CE53890&gt;._toggle&#10; +  and   PyQt5.QtCore.QSize(32, 32) = QSize(32, 32)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000016F9CE53800&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000016F9CF23BB0&gt;
+theme = 'light', collapsed = False
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("collapsed", [False, True])
+    def test_toggle_shrinks_after_touch_and_keeps_rows_reachable(
+        qt_font_resources, monkeypatch, theme, collapsed,
+    ):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density="comfortable")
+        nav = SideNav()
+        nav.add_section("Productos", Icons.PRODUCTS)
+        nav.add_section("Inventario", Icons.INVENTORY)
+        nav.select(1)
+        nav.set_collapsed(collapsed)
+        nav.resize(64 if collapsed else 220, 400)
+        nav.show()
+        nav.setFocus(Qt.OtherFocusReason)
+        navigation = QSignalSpy(nav.navigated)
+        try:
+            for density in ("comfortable", "touch", "compact", "comfortable"):
+                manager.set_density(density, app=app)
+                for height in (400, 220):
+                    nav.resize(nav.width(), height)
+                    for _ in range(4):
+                        app.processEvents()
+                    size = density_metrics(density).icon_button_size
+&gt;                   assert nav._toggle.size() == QSize(size, size)
+E                   assert PyQt5.QtCore.QSize(48, 48) == PyQt5.QtCore.QSize(32, 32)
+E                    +  where PyQt5.QtCore.QSize(48, 48) = &lt;built-in method size of IconButton object at 0x0000016F9CE53AD0&gt;()
+E                    +    where &lt;built-in method size of IconButton object at 0x0000016F9CE53AD0&gt; = &lt;frontend.desktop.components.buttons.IconButton object at 0x0000016F9CE53AD0&gt;.size
+E                    +      where &lt;frontend.desktop.components.buttons.IconButton object at 0x0000016F9CE53AD0&gt; = &lt;frontend.desktop.components.side_nav.SideNav object at 0x0000016F9CE53890&gt;._toggle
+E                    +  and   PyQt5.QtCore.QSize(32, 32) = QSize(32, 32)
+
+tests\ui\test_density_side_nav_toggle.py:44: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_side_nav_toggle" name="test_toggle_shrinks_after_touch_and_keeps_rows_reachable[False-dark]" time="0.556"><failure message="assert PyQt5.QtCore.QSize(48, 48) == PyQt5.QtCore.QSize(32, 32)&#10; +  where PyQt5.QtCore.QSize(48, 48) = &lt;built-in method size of IconButton object at 0x0000016F9D401910&gt;()&#10; +    where &lt;built-in method size of IconButton object at 0x0000016F9D401910&gt; = &lt;frontend.desktop.components.buttons.IconButton object at 0x0000016F9D401910&gt;.size&#10; +      where &lt;frontend.desktop.components.buttons.IconButton object at 0x0000016F9D401910&gt; = &lt;frontend.desktop.components.side_nav.SideNav object at 0x0000016F9D401A30&gt;._toggle&#10; +  and   PyQt5.QtCore.QSize(32, 32) = QSize(32, 32)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000016F9CE53800&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000016F9CB58E90&gt;
+theme = 'dark', collapsed = False
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("collapsed", [False, True])
+    def test_toggle_shrinks_after_touch_and_keeps_rows_reachable(
+        qt_font_resources, monkeypatch, theme, collapsed,
+    ):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density="comfortable")
+        nav = SideNav()
+        nav.add_section("Productos", Icons.PRODUCTS)
+        nav.add_section("Inventario", Icons.INVENTORY)
+        nav.select(1)
+        nav.set_collapsed(collapsed)
+        nav.resize(64 if collapsed else 220, 400)
+        nav.show()
+        nav.setFocus(Qt.OtherFocusReason)
+        navigation = QSignalSpy(nav.navigated)
+        try:
+            for density in ("comfortable", "touch", "compact", "comfortable"):
+                manager.set_density(density, app=app)
+                for height in (400, 220):
+                    nav.resize(nav.width(), height)
+                    for _ in range(4):
+                        app.processEvents()
+                    size = density_metrics(density).icon_button_size
+&gt;                   assert nav._toggle.size() == QSize(size, size)
+E                   assert PyQt5.QtCore.QSize(48, 48) == PyQt5.QtCore.QSize(32, 32)
+E                    +  where PyQt5.QtCore.QSize(48, 48) = &lt;built-in method size of IconButton object at 0x0000016F9D401910&gt;()
+E                    +    where &lt;built-in method size of IconButton object at 0x0000016F9D401910&gt; = &lt;frontend.desktop.components.buttons.IconButton object at 0x0000016F9D401910&gt;.size
+E                    +      where &lt;frontend.desktop.components.buttons.IconButton object at 0x0000016F9D401910&gt; = &lt;frontend.desktop.components.side_nav.SideNav object at 0x0000016F9D401A30&gt;._toggle
+E                    +  and   PyQt5.QtCore.QSize(32, 32) = QSize(32, 32)
+
+tests\ui\test_density_side_nav_toggle.py:44: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_side_nav_toggle" name="test_toggle_shrinks_after_touch_and_keeps_rows_reachable[True-light]" time="0.710"><failure message="assert PyQt5.QtCore.QSize(48, 48) == PyQt5.QtCore.QSize(32, 32)&#10; +  where PyQt5.QtCore.QSize(48, 48) = &lt;built-in method size of IconButton object at 0x0000016F9D401FD0&gt;()&#10; +    where &lt;built-in method size of IconButton object at 0x0000016F9D401FD0&gt; = &lt;frontend.desktop.components.buttons.IconButton object at 0x0000016F9D401FD0&gt;.size&#10; +      where &lt;frontend.desktop.components.buttons.IconButton object at 0x0000016F9D401FD0&gt; = &lt;frontend.desktop.components.side_nav.SideNav object at 0x0000016F9D401D00&gt;._toggle&#10; +  and   PyQt5.QtCore.QSize(32, 32) = QSize(32, 32)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000016F9CE53800&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000016F9D39D130&gt;
+theme = 'light', collapsed = True
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("collapsed", [False, True])
+    def test_toggle_shrinks_after_touch_and_keeps_rows_reachable(
+        qt_font_resources, monkeypatch, theme, collapsed,
+    ):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density="comfortable")
+        nav = SideNav()
+        nav.add_section("Productos", Icons.PRODUCTS)
+        nav.add_section("Inventario", Icons.INVENTORY)
+        nav.select(1)
+        nav.set_collapsed(collapsed)
+        nav.resize(64 if collapsed else 220, 400)
+        nav.show()
+        nav.setFocus(Qt.OtherFocusReason)
+        navigation = QSignalSpy(nav.navigated)
+        try:
+            for density in ("comfortable", "touch", "compact", "comfortable"):
+                manager.set_density(density, app=app)
+                for height in (400, 220):
+                    nav.resize(nav.width(), height)
+                    for _ in range(4):
+                        app.processEvents()
+                    size = density_metrics(density).icon_button_size
+&gt;                   assert nav._toggle.size() == QSize(size, size)
+E                   assert PyQt5.QtCore.QSize(48, 48) == PyQt5.QtCore.QSize(32, 32)
+E                    +  where PyQt5.QtCore.QSize(48, 48) = &lt;built-in method size of IconButton object at 0x0000016F9D401FD0&gt;()
+E                    +    where &lt;built-in method size of IconButton object at 0x0000016F9D401FD0&gt; = &lt;frontend.desktop.components.buttons.IconButton object at 0x0000016F9D401FD0&gt;.size
+E                    +      where &lt;frontend.desktop.components.buttons.IconButton object at 0x0000016F9D401FD0&gt; = &lt;frontend.desktop.components.side_nav.SideNav object at 0x0000016F9D401D00&gt;._toggle
+E                    +  and   PyQt5.QtCore.QSize(32, 32) = QSize(32, 32)
+
+tests\ui\test_density_side_nav_toggle.py:44: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_side_nav_toggle" name="test_toggle_shrinks_after_touch_and_keeps_rows_reachable[True-dark]" time="0.278"><failure message="assert PyQt5.QtCore.QSize(48, 48) == PyQt5.QtCore.QSize(32, 32)&#10; +  where PyQt5.QtCore.QSize(48, 48) = &lt;built-in method size of IconButton object at 0x0000016F9D402060&gt;()&#10; +    where &lt;built-in method size of IconButton object at 0x0000016F9D402060&gt; = &lt;frontend.desktop.components.buttons.IconButton object at 0x0000016F9D402060&gt;.size&#10; +      where &lt;frontend.desktop.components.buttons.IconButton object at 0x0000016F9D402060&gt; = &lt;frontend.desktop.components.side_nav.SideNav object at 0x0000016F9CE53DA0&gt;._toggle&#10; +  and   PyQt5.QtCore.QSize(32, 32) = QSize(32, 32)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000016F9CE53800&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000016F9CF5B350&gt;
+theme = 'dark', collapsed = True
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("collapsed", [False, True])
+    def test_toggle_shrinks_after_touch_and_keeps_rows_reachable(
+        qt_font_resources, monkeypatch, theme, collapsed,
+    ):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density="comfortable")
+        nav = SideNav()
+        nav.add_section("Productos", Icons.PRODUCTS)
+        nav.add_section("Inventario", Icons.INVENTORY)
+        nav.select(1)
+        nav.set_collapsed(collapsed)
+        nav.resize(64 if collapsed else 220, 400)
+        nav.show()
+        nav.setFocus(Qt.OtherFocusReason)
+        navigation = QSignalSpy(nav.navigated)
+        try:
+            for density in ("comfortable", "touch", "compact", "comfortable"):
+                manager.set_density(density, app=app)
+                for height in (400, 220):
+                    nav.resize(nav.width(), height)
+                    for _ in range(4):
+                        app.processEvents()
+                    size = density_metrics(density).icon_button_size
+&gt;                   assert nav._toggle.size() == QSize(size, size)
+E                   assert PyQt5.QtCore.QSize(48, 48) == PyQt5.QtCore.QSize(32, 32)
+E                    +  where PyQt5.QtCore.QSize(48, 48) = &lt;built-in method size of IconButton object at 0x0000016F9D402060&gt;()
+E                    +    where &lt;built-in method size of IconButton object at 0x0000016F9D402060&gt; = &lt;frontend.desktop.components.buttons.IconButton object at 0x0000016F9D402060&gt;.size
+E                    +      where &lt;frontend.desktop.components.buttons.IconButton object at 0x0000016F9D402060&gt; = &lt;frontend.desktop.components.side_nav.SideNav object at 0x0000016F9CE53DA0&gt;._toggle
+E                    +  and   PyQt5.QtCore.QSize(32, 32) = QSize(32, 32)
+
+tests\ui\test_density_side_nav_toggle.py:44: AssertionError</failure></testcase></testsuite></testsuites>

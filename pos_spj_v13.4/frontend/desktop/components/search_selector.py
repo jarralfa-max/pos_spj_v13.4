@@ -35,9 +35,15 @@ class SearchSelector(QWidget):
     #: coincidencias). El mensaje es apto para mostrar al usuario.
     search_failed = pyqtSignal(str)
 
-    def __init__(self, parent=None, *, provider: SearchProvider | None = None, placeholder: str = "Buscar...") -> None:
+    def __init__(self, parent=None, *, provider: SearchProvider | None = None,
+                 placeholder: str = "Buscar...",
+                 empty_reason_provider: Callable[[str], str | None] | None = None) -> None:
         super().__init__(parent)
         self._provider = provider or (lambda _query: [])
+        #: Explica POR QUÉ no hubo resultados (catálogo vacío, nada habilitado
+        #: en esta sucursal, sólo borradores…). Sin él se mantiene el mensaje
+        #: genérico de siempre.
+        self._empty_reason_provider = empty_reason_provider
         self._search_box = QLineEdit(self)
         self._search_box.setPlaceholderText(placeholder)
         self._results = QListWidget(self)
@@ -57,6 +63,23 @@ class SearchSelector(QWidget):
         self._provider = provider
         self.refresh(self._search_box.text())
 
+    def set_empty_reason_provider(
+            self, provider: Callable[[str], str | None] | None) -> None:
+        self._empty_reason_provider = provider
+
+    def _empty_message(self, query: str) -> str:
+        """Cero resultados tiene causas distintas y decirlas ahorra el "está
+        roto". Es un diagnóstico: si falla, se cae al mensaje genérico — nunca
+        rompe el buscador."""
+        if self._empty_reason_provider is None:
+            return NO_RESULTS_MESSAGE
+        try:
+            reason = self._empty_reason_provider(query)
+        except Exception:
+            logger.exception("empty-reason provider failed query=%r", query)
+            return NO_RESULTS_MESSAGE
+        return reason or NO_RESULTS_MESSAGE
+
     def refresh(self, query: str | None = None) -> None:
         query_text = self._search_box.text() if query is None else query
         try:
@@ -72,7 +95,7 @@ class SearchSelector(QWidget):
             self.search_failed.emit(SEARCH_FAILED_MESSAGE)
             return
         if not self._options and query_text.strip():
-            self._add_status_row(NO_RESULTS_MESSAGE)
+            self._add_status_row(self._empty_message(query_text.strip()))
             return
         for option in self._options:
             text = option.label if not option.subtitle else f"{option.label} — {option.subtitle}"

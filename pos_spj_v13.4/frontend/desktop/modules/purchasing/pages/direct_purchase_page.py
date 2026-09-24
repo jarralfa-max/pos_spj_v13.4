@@ -99,7 +99,8 @@ class DirectPurchasePage(QWidget):
         grid.setVerticalSpacing(Spacing.SM)
         self._supplier = EntitySearchInput(
             self, provider=self._presenter.supplier_options,
-            placeholder="Buscar proveedor por nombre o código")
+            placeholder="Buscar proveedor por nombre o código",
+            empty_reason_provider=self._presenter.supplier_search_reason)
         self._supplier.selected.connect(self._on_supplier_selected)
         self._barcode = BarcodeInput(self)
         self._barcode.scanned.connect(self._on_scanned)
@@ -108,7 +109,8 @@ class DirectPurchasePage(QWidget):
         self._payment = SearchableComboBox(placeholder="Condición de pago")
         self._payment.set_options(PAYMENT_CONDITION_OPTIONS)
         self._payment_source = SearchableComboBox(placeholder="Fuente de pago")
-        self._payment_source.set_options(PAYMENT_SOURCE_OPTIONS)
+        # Sólo las fuentes que Finanzas sabe asentar.
+        self._payment_source.set_options(self._presenter.payment_source_options())
 
         grid.addWidget(QLabel("Proveedor"), 0, 0)
         grid.addWidget(self._supplier, 0, 1)
@@ -225,7 +227,12 @@ class DirectPurchasePage(QWidget):
 
     # cart --------------------------------------------------------------------
     def _add_line(self, *, prefill_product: str | None = None) -> None:
-        dialog = AddCartLineDialog(self)
+        # Cable muerto: se construía sin `product_provider`, así que el
+        # buscador de productos de Compra Directa usaba el proveedor vacío por
+        # omisión y no encontraba nada nunca, con datos o sin ellos.
+        dialog = AddCartLineDialog(
+            self, product_provider=self._presenter.product_options,
+            empty_reason_provider=self._presenter.product_search_reason)
         if prefill_product:
             dialog.prefill_product(prefill_product) if hasattr(
                 dialog, "prefill_product") else None

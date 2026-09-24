@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="3.660" timestamp="2026-09-22T21:36:26.648509+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_density_round_trip" name="test_density_round_trip_resizes_existing_controls_and_preserves_state[light]" time="1.307"><failure message="AssertionError: Compacta debe recuperar su geometría tras usar Táctil.&#10;assert (37, 35, 35, 34, 32, 32, ...) == (35, 35, 35, 34, 32, 32, ...)&#10;  &#10;  At index 0 diff: 37 != 35&#10;  Use -v to get more diff">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000269F7BAB380&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-yUkKnU')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000269F7BAF820&gt;
+theme = 'light'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_density_round_trip_resizes_existing_controls_and_preserves_state(qt_font_resources, ui_tmp_path, monkeypatch, theme):
+        app = qt_font_resources
+        settings = QSettings(str(ui_tmp_path / "density.ini"), QSettings.IniFormat)
+        manager = ThemeManager(settings)
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density="compact")
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        line = StandardLineEdit(keyboard_enabled=False)
+        line.setText("Referencia en captura")
+        line.setSelection(0, 10)
+        integer = IntegerInput()
+        integer.setValue(7)
+        combo = StandardComboBox(accessible_name="Estado de consulta")
+        combo.addItems(("Pendiente", "Confirmado"))
+        combo.setCurrentIndex(1)
+        for control in (line, integer, combo):
+            layout.addWidget(control)
+        actions = QHBoxLayout()
+        primary, icon = PrimaryButton("Consultar"), IconButton(Icons.SEARCH, "Buscar")
+        actions.addWidget(primary)
+        actions.addWidget(icon)
+        actions.addStretch()
+        layout.addLayout(actions)
+        content = QHBoxLayout()
+        nav = SideNav()
+        nav.add_section("Resumen", Icons.HOME)
+        nav.add_section("Movimientos", Icons.CASH)
+        nav.select(1)
+        content.addWidget(nav)
+        tabs = Tabs()
+        tabs.addTab(QWidget(), "Resumen")
+        table = StandardTable([ColumnSpec("Descripción"), ColumnSpec("Cantidad", "numeric")])
+        row_ids = [new_uuid(), new_uuid()]
+        table.load_rows([["Primero", "2"], ["Segundo", "7"]], row_ids=row_ids)
+        table.selectRow(1)
+        tabs.addTab(table, "Movimientos")
+        tabs.setCurrentIndex(1)
+        content.addWidget(tabs, 1)
+        layout.addLayout(content, 1)
+        host.resize(900, 650)
+        try:
+            host.show()
+            measurements = []
+            for profile in ("compact", "comfortable", "touch", "compact"):
+                manager.set_density(profile)
+                for _ in range(4):
+                    app.processEvents()
+                metrics = density_metrics(profile)
+                assert all(control.height() &gt;= metrics.input_height for control in (line, integer, combo))
+                assert primary.height() &gt;= metrics.button_height
+                assert min(icon.width(), icon.height()) &gt;= metrics.icon_button_size
+                assert table.rowHeight(1) == metrics.table_row_height
+                assert nav.visualItemRect(nav.item(1)).height() == metrics.sidebar_item_height
+                assert tabs.tabBar().tabRect(1).height() &gt;= metrics.tab_height
+                assert line.text() == "Referencia en captura" and line.selectedText() == "Referencia"
+                assert integer.value() == 7 and combo.currentIndex() == 1
+                assert table.selected_row_id() == row_ids[1]
+                assert tabs.currentIndex() == 1 and nav.currentRow() == 1
+                assert settings.value("appearance/density") == profile
+                assert app.property("spjDensity") == profile and manager.theme == theme
+                assert all(not widget.styleSheet() for widget in (line, integer, combo, primary, icon, nav, tabs, table))
+                measurements.append((line.height(), integer.height(), combo.height(), primary.height(),
+                                     icon.height(), table.rowHeight(1), tabs.tabBar().tabRect(1).height()))
+&gt;           assert measurements[-1] == measurements[0], "Compacta debe recuperar su geometría tras usar Táctil."
+E           AssertionError: Compacta debe recuperar su geometría tras usar Táctil.
+E           assert (37, 35, 35, 34, 32, 32, ...) == (35, 35, 35, 34, 32, 32, ...)
+E             
+E             At index 0 diff: 37 != 35
+E             Use -v to get more diff
+
+tests\ui\test_density_round_trip.py:85: AssertionError</failure></testcase><testcase classname="tests.ui.test_density_round_trip" name="test_density_round_trip_resizes_existing_controls_and_preserves_state[dark]" time="0.530"><failure message="AssertionError: Compacta debe recuperar su geometría tras usar Táctil.&#10;assert (37, 35, 35, 34, 32, 32, ...) == (35, 35, 35, 34, 32, 32, ...)&#10;  &#10;  At index 0 diff: 37 != 35&#10;  Use -v to get more diff">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000269F7BAB380&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-GuiILU')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000269F7834E90&gt;
+theme = 'dark'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_density_round_trip_resizes_existing_controls_and_preserves_state(qt_font_resources, ui_tmp_path, monkeypatch, theme):
+        app = qt_font_resources
+        settings = QSettings(str(ui_tmp_path / "density.ini"), QSettings.IniFormat)
+        manager = ThemeManager(settings)
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density="compact")
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        line = StandardLineEdit(keyboard_enabled=False)
+        line.setText("Referencia en captura")
+        line.setSelection(0, 10)
+        integer = IntegerInput()
+        integer.setValue(7)
+        combo = StandardComboBox(accessible_name="Estado de consulta")
+        combo.addItems(("Pendiente", "Confirmado"))
+        combo.setCurrentIndex(1)
+        for control in (line, integer, combo):
+            layout.addWidget(control)
+        actions = QHBoxLayout()
+        primary, icon = PrimaryButton("Consultar"), IconButton(Icons.SEARCH, "Buscar")
+        actions.addWidget(primary)
+        actions.addWidget(icon)
+        actions.addStretch()
+        layout.addLayout(actions)
+        content = QHBoxLayout()
+        nav = SideNav()
+        nav.add_section("Resumen", Icons.HOME)
+        nav.add_section("Movimientos", Icons.CASH)
+        nav.select(1)
+        content.addWidget(nav)
+        tabs = Tabs()
+        tabs.addTab(QWidget(), "Resumen")
+        table = StandardTable([ColumnSpec("Descripción"), ColumnSpec("Cantidad", "numeric")])
+        row_ids = [new_uuid(), new_uuid()]
+        table.load_rows([["Primero", "2"], ["Segundo", "7"]], row_ids=row_ids)
+        table.selectRow(1)
+        tabs.addTab(table, "Movimientos")
+        tabs.setCurrentIndex(1)
+        content.addWidget(tabs, 1)
+        layout.addLayout(content, 1)
+        host.resize(900, 650)
+        try:
+            host.show()
+            measurements = []
+            for profile in ("compact", "comfortable", "touch", "compact"):
+                manager.set_density(profile)
+                for _ in range(4):
+                    app.processEvents()
+                metrics = density_metrics(profile)
+                assert all(control.height() &gt;= metrics.input_height for control in (line, integer, combo))
+                assert primary.height() &gt;= metrics.button_height
+                assert min(icon.width(), icon.height()) &gt;= metrics.icon_button_size
+                assert table.rowHeight(1) == metrics.table_row_height
+                assert nav.visualItemRect(nav.item(1)).height() == metrics.sidebar_item_height
+                assert tabs.tabBar().tabRect(1).height() &gt;= metrics.tab_height
+                assert line.text() == "Referencia en captura" and line.selectedText() == "Referencia"
+                assert integer.value() == 7 and combo.currentIndex() == 1
+                assert table.selected_row_id() == row_ids[1]
+                assert tabs.currentIndex() == 1 and nav.currentRow() == 1
+                assert settings.value("appearance/density") == profile
+                assert app.property("spjDensity") == profile and manager.theme == theme
+                assert all(not widget.styleSheet() for widget in (line, integer, combo, primary, icon, nav, tabs, table))
+                measurements.append((line.height(), integer.height(), combo.height(), primary.height(),
+                                     icon.height(), table.rowHeight(1), tabs.tabBar().tabRect(1).height()))
+&gt;           assert measurements[-1] == measurements[0], "Compacta debe recuperar su geometría tras usar Táctil."
+E           AssertionError: Compacta debe recuperar su geometría tras usar Táctil.
+E           assert (37, 35, 35, 34, 32, 32, ...) == (35, 35, 35, 34, 32, 32, ...)
+E             
+E             At index 0 diff: 37 != 35
+E             Use -v to get more diff
+
+tests\ui\test_density_round_trip.py:85: AssertionError</failure></testcase></testsuite></testsuites>
