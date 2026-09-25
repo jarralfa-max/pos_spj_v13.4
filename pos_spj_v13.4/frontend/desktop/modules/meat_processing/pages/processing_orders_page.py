@@ -97,7 +97,8 @@ class ProcessingOrdersPage(QWidget):
     def _on_create(self) -> None:
         dlg = CreateProcessingOrderDialog(
             self, process_types=self._presenter.process_types(),
-            product_provider=self._presenter.product_options)
+            product_provider=self._presenter.product_options,
+            empty_reason_provider=self._presenter.product_search_reason)
         if dlg.exec_() != QDialog.Accepted:
             return
         product_id = dlg.product_id()

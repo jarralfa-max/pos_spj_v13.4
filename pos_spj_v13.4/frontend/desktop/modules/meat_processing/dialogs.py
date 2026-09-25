@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import QComboBox
 
 from frontend.desktop.components.decimal_input import DecimalInput
 from frontend.desktop.components.dialogs import FormDialog
-from frontend.desktop.components.entity_search_input import EntitySearchInput
+from frontend.desktop.components.product_search_box import ProductSearchBox
 
 
 class CreateProcessingOrderDialog(FormDialog):
@@ -17,14 +17,22 @@ class CreateProcessingOrderDialog(FormDialog):
     (búsqueda canónica — nunca un UUID tecleado a mano) y cantidad/peso
     planeados."""
 
-    def __init__(self, parent=None, *, process_types, product_provider) -> None:
+    def __init__(self, parent=None, *, process_types, product_provider,
+                 empty_reason_provider=None) -> None:
         super().__init__(parent, title="Nueva orden de procesamiento")
         self.process_type_combo = QComboBox(self)
         for code, label in process_types:
             self.process_type_combo.addItem(label, code)
-        self.product = EntitySearchInput(
-            self, provider=product_provider,
-            placeholder="Buscar producto por nombre, código o código de barras…")
+        # Búsqueda estándar de productos; qué productos ofrece depende del
+        # proceso elegido (formular busca lo que se fabrica; despiezar, empacar
+        # o acondicionar, la entrada).
+        self.product = ProductSearchBox(
+            self, provider=lambda q: product_provider(q, self.process_type()),
+            empty_reason_provider=(
+                None if empty_reason_provider is None
+                else lambda q: empty_reason_provider(q, self.process_type())))
+        self.process_type_combo.currentIndexChanged.connect(
+            lambda _i: self.product.clear())
         self.quantity = DecimalInput(self, precision=3, minimum="0")
         self.weight = DecimalInput(self, precision=3, minimum="0", suffix="kg")
         self.form.addRow("Tipo de proceso:", self.process_type_combo)
@@ -37,7 +45,8 @@ class CreateProcessingOrderDialog(FormDialog):
         return str(self.process_type_combo.currentData() or "")
 
     def product_id(self) -> str | None:
-        return self.product.selected_id()
+        opcion = self.product.selected_option()
+        return opcion.id if opcion is not None else None
 
     def planned_quantity(self):
         return self.quantity.decimal_value()

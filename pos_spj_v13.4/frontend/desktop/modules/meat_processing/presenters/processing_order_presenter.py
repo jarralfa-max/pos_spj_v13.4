@@ -38,7 +38,7 @@ _PROCESS_TYPE_ES = {
 
 
 class ProcessingOrderPresenter:
-    def __init__(self, *, connection_provider, query_factory, product_query_factory=None,
+    def __init__(self, *, connection_provider, query_factory,
                  create_uc=None, approve_uc=None, release_uc=None, close_uc=None,
                  prepare_uc=None,
                  session_context=None, context_provider=None,
@@ -47,7 +47,6 @@ class ProcessingOrderPresenter:
                  tolerances_uc=None) -> None:
         self._conn = connection_provider
         self._query_factory = query_factory
-        self._product_factory = product_query_factory
         self._create_uc = create_uc
         self._approve_uc = approve_uc
         self._release_uc = release_uc
@@ -94,16 +93,52 @@ class ProcessingOrderPresenter:
     def process_types(self) -> list[tuple[str, str]]:
         return sorted(_PROCESS_TYPE_ES.items(), key=lambda item: item[1])
 
-    def product_options(self, query: str):
-        from frontend.desktop.components.search_selector import SearchOption
-        if self._product_factory is None:
-            return []
+    def _product_search(self, query: str, process_type: str | None):
+        """La búsqueda canónica de productos (`ProductSearchQuery`) con el preset
+        que corresponde al PROCESO de la orden, en la sucursal activa:
+
+        - formulación: el producto objetivo es lo que se FABRICA → producibles;
+        - despiece, empaque, acondicionado: el objetivo es la ENTRADA →
+          insumos de producción (`SearchProductionInputsQueryService`).
+        """
+        from backend.application.products.queries.product_selection_query_service import (
+            ProductCatalogSearchQueryService,
+            ProductSearchQuery,
+            SearchProductionInputsQueryService,
+        )
+        from backend.domain.meat_processing.entities.processing_recipe_snapshot import (
+            ProcessFamily,
+            process_family,
+        )
+        from backend.domain.meat_processing.enums import ProcessType
         try:
-            results = self._product_factory(self._conn()).search_products(query)
+            familia = process_family(ProcessType(process_type)) if process_type else None
+        except ValueError:
+            familia = None
+        criterio = ProductSearchQuery(text=(query or "").strip() or None,
+                                      branch_id=self.default_branch() or None, page_size=50)
+        if familia is ProcessFamily.FORMULATION:
+            return (ProductCatalogSearchQueryService(self._conn()),
+                    criterio.restrict(producible_only=True))
+        return SearchProductionInputsQueryService(self._conn()), criterio
+
+    def product_options(self, query: str, process_type: str | None = None):
+        from frontend.desktop.components.search_selector import SearchOption
+        servicio, criterio = self._product_search(query, process_type)
+        # Un fallo de búsqueda se propaga: el selector lo muestra como fallo,
+        # no como "sin resultados" (estándar de búsqueda).
+        return [SearchOption(dto.product_id, dto.name, dto.code or "")
+                for dto in servicio.search(criterio)]
+
+    def product_search_reason(self, query: str, process_type: str | None = None):
+        """Por qué no hay productos (p. ej. no habilitados en la sucursal).
+        Diagnóstico: nunca lanza."""
+        try:
+            servicio, criterio = self._product_search(query, process_type)
+            razon = servicio.explain_empty(criterio)
         except Exception:
-            logger.exception("ProcessingOrderPresenter.product_options failed")
-            return []
-        return [SearchOption(id=r.id, label=r.label, subtitle=r.subtitle) for r in results]
+            return None
+        return razon.message if razon is not None else None
 
     def orders(self, *, branch_id: str | None = None) -> TableViewModel:
         branch = branch_id or self.default_branch()
