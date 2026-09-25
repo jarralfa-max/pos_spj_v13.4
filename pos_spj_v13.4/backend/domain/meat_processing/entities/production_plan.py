@@ -59,6 +59,12 @@ class ProductionPlan:
             raise MeatProcessingInvariantError("La línea ya pertenece al plan")
         self.lines.append(line)
 
+    def remove_line(self, line_id: str) -> None:
+        self._require_status(ProductionPlanStatus.DRAFT, ProductionPlanStatus.GENERATED)
+        if not any(existing.id == line_id for existing in self.lines):
+            raise MeatProcessingInvariantError(f"Línea no encontrada en el plan: {line_id}")
+        self.lines = [line for line in self.lines if line.id != line_id]
+
     def generate(self) -> None:
         self._require_status(ProductionPlanStatus.DRAFT)
         if not self.lines:
@@ -89,6 +95,9 @@ class ProductionPlan:
         line = next((item for item in self.lines if item.id == line_id), None)
         if line is None:
             raise MeatProcessingInvariantError(f"Línea no encontrada en el plan: {line_id}")
+        if not line.is_convertible:
+            raise MeatProcessingInvariantError(
+                "La línea no indica el proceso ni el producto objetivo de la orden")
         line.record_conversion(
             processing_order_id=processing_order_id,
             converted_quantity=converted_quantity, converted_weight=converted_weight)

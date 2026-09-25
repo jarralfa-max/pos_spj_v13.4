@@ -4,7 +4,11 @@ import pytest
 
 from backend.domain.meat_processing.entities.production_plan import ProductionPlan
 from backend.domain.meat_processing.entities.production_plan_line import ProductionPlanLine
-from backend.domain.meat_processing.enums import PlanSourceType, ProductionPlanStatus
+from backend.domain.meat_processing.enums import (
+    PlanSourceType,
+    ProcessType,
+    ProductionPlanStatus,
+)
 from backend.domain.meat_processing.exceptions import (
     MeatProcessingInvariantError,
     MeatProcessingSegregationOfDutiesError,
@@ -16,9 +20,11 @@ from backend.shared.ids import new_uuid
 # -- ProductionPlanLine -------------------------------------------------------
 
 def _line(**overrides) -> ProductionPlanLine:
+    producto = new_uuid()
     base = dict(
-        id=new_uuid(), product_id=new_uuid(), source_type=PlanSourceType.FORECAST,
+        id=new_uuid(), product_id=producto, source_type=PlanSourceType.FORECAST,
         planned_quantity=Decimal("10"), planned_weight=Decimal("100"),
+        process_type=ProcessType.CUTTING, target_product_id=new_uuid(),
     )
     base.update(overrides)
     return ProductionPlanLine(**base)
@@ -188,3 +194,26 @@ def test_plan_cancel_from_any_non_terminal_state():
     assert plan.status is ProductionPlanStatus.CANCELLED
     with pytest.raises(MeatProcessingStateTransitionError):
         plan.cancel()
+
+
+def test_a_line_that_does_not_say_how_to_be_served_cannot_be_converted():
+    plan = _plan()
+    sin_proceso = _line(process_type=None, target_product_id=None)
+    plan.add_line(sin_proceso)
+    plan.generate(); plan.submit_for_review(); plan.approve(actor_user_id=new_uuid())
+    assert not sin_proceso.is_convertible
+    with pytest.raises(MeatProcessingInvariantError):
+        plan.convert_line(sin_proceso.id, processing_order_id=new_uuid(),
+                          converted_weight=Decimal("10"))
+
+
+def test_lines_can_be_removed_only_before_review():
+    plan = _plan()
+    linea, otra = _line(), _line()
+    plan.add_line(linea); plan.add_line(otra)
+    plan.remove_line(linea.id)
+    assert [l.id for l in plan.lines] == [otra.id]
+    plan.generate(); plan.submit_for_review()
+    with pytest.raises(MeatProcessingStateTransitionError):
+        plan.remove_line(otra.id)
+

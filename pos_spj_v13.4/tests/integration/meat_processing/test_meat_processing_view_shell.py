@@ -57,7 +57,8 @@ def conn():
                       "250_meat_processing_rework_schema",
                       "251_meat_processing_genealogy_schema",
                       "252_meat_processing_resources_schema",
-                      "275_processing_order_folio"):
+                      "275_processing_order_folio",
+                      "276_meat_processing_production_plan"):
         importlib.import_module(f"migrations.standalone.{migracion}").run(c)
     # El código de la sucursal (Configuración → Empresa) da el folio de la orden.
     from backend.infrastructure.db.schema.document_output_schema import (
@@ -94,9 +95,10 @@ class TestModuleHost:
         assert isinstance(page, ProcessingOrdersPage)
 
     def test_other_routes_still_serve_the_placeholder(self, app, conn):
-        host = _host(conn, permisos=_ORDER_PERMISSIONS + ("PRODUCCION.plan.ver",))
-        host.show_route("mp_production_plan")
-        page = host._pages["mp_production_plan"]
+        # El Plan de producción ya es real (2026-09-25); Análisis sigue pendiente.
+        host = _host(conn, permisos=_ORDER_PERMISSIONS + ("PRODUCCION.analisis.ver",))
+        host.show_route("mp_analytics")
+        page = host._pages["mp_analytics"]
         assert isinstance(page, MeatProcessingPlaceholderPage)
 
     def test_full_order_lifecycle_through_the_real_page(self, app, conn):

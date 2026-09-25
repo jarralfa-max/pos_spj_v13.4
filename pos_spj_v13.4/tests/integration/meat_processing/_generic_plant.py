@@ -148,7 +148,8 @@ def build_db():
     for version in ("270_meat_processing_execution",
                     "272_meat_processing_frozen_definition_and_real_reservations",
                     "273_costing_and_quality_contexts",
-                    "275_processing_order_folio"):
+                    "275_processing_order_folio",
+                    "276_meat_processing_production_plan"):
         importlib.import_module(f"migrations.standalone.{version}").run(c)
     c.commit()
     return c

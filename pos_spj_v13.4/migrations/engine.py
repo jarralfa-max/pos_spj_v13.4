@@ -279,6 +279,7 @@ MIGRATIONS = [
     _Migration("273",  "migrations.standalone.273_costing_and_quality_contexts"),
     _Migration("274",  "migrations.standalone.274_revoke_processing_quality_decision_from_roles"),
     _Migration("275",  "migrations.standalone.275_processing_order_folio"),
+    _Migration("276",  "migrations.standalone.276_meat_processing_production_plan"),
 ]
 
 def _ensure_tracking_table(conn):

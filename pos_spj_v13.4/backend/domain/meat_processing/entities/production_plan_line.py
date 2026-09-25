@@ -12,7 +12,7 @@ from backend.domain.meat_processing.entities._validation import (
     optional_uuid,
     required_uuid,
 )
-from backend.domain.meat_processing.enums import PlanSourceType
+from backend.domain.meat_processing.enums import PlanSourceType, ProcessType
 from backend.domain.meat_processing.exceptions import MeatProcessingInvariantError
 
 
@@ -29,11 +29,20 @@ class ProductionPlanLine:
     converted_quantity: Decimal = Decimal("0")
     converted_weight: Decimal = Decimal("0")
     converted_processing_order_ids: tuple[str, ...] = ()
+    #: Cómo se atiende la demanda: el proceso de la orden que se creará y su
+    #: producto objetivo (la ENTRADA en despiece/empaque/acondicionado, lo que
+    #: se FABRICA en formulación). ``product_id`` es el producto demandado.
+    process_type: ProcessType | None = None
+    target_product_id: str | None = None
 
     def __post_init__(self) -> None:
         self.id = required_uuid(self.id, "id")
         self.product_id = required_uuid(self.product_id, "product_id")
         self.source_reference_id = optional_uuid(self.source_reference_id, "source_reference_id")
+        self.target_product_id = optional_uuid(self.target_product_id, "target_product_id")
+        if self.process_type is not None and not isinstance(self.process_type, ProcessType):
+            self.process_type = ProcessType(getattr(self.process_type, "value",
+                                                    self.process_type))
         self.converted_processing_order_ids = tuple(
             required_uuid(order_id, "processing_order_id")
             for order_id in self.converted_processing_order_ids)
@@ -52,6 +61,11 @@ class ProductionPlanLine:
             raise MeatProcessingInvariantError("La cantidad convertida no puede exceder la planeada")
         if self.converted_weight > self.planned_weight:
             raise MeatProcessingInvariantError("El peso convertido no puede exceder el planeado")
+
+    @property
+    def is_convertible(self) -> bool:
+        """Sólo se convierte en orden una línea que dice CÓMO atenderse."""
+        return self.process_type is not None and self.target_product_id is not None
 
     def record_conversion(self, *, processing_order_id: str,
                            converted_quantity: Decimal = Decimal("0"),

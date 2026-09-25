@@ -66,6 +66,17 @@ from backend.application.meat_processing.use_cases.yield_use_cases import (
     RequestLossCaseForYieldVarianceUseCase,
 )
 
+from backend.application.meat_processing.use_cases.production_plan_use_cases import (
+    AddProductionPlanLineUseCase,
+    ApproveProductionPlanUseCase,
+    CancelProductionPlanUseCase,
+    ConvertProductionPlanLineUseCase,
+    CreateProductionPlanUseCase,
+    GenerateProductionPlanUseCase,
+    RemoveProductionPlanLineUseCase,
+    SubmitProductionPlanUseCase,
+)
+
 __all__ = [
     "ApproveProcessingOrderUseCase",
     "ApproveReworkOrderUseCase",
@@ -73,6 +84,14 @@ __all__ = [
     "AssignEquipmentUseCase",
     "AssignOperatorUseCase",
     "PrepareProcessingOrderUseCase",
+    "AddProductionPlanLineUseCase",
+    "ApproveProductionPlanUseCase",
+    "CancelProductionPlanUseCase",
+    "ConvertProductionPlanLineUseCase",
+    "CreateProductionPlanUseCase",
+    "GenerateProductionPlanUseCase",
+    "RemoveProductionPlanLineUseCase",
+    "SubmitProductionPlanUseCase",
     "CaptureMaterialConsumptionUseCase",
     "CaptureProcessOutputUseCase",
     "CaptureProcessWeighingUseCase",

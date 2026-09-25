@@ -367,3 +367,24 @@ class NullQualityDecisionReadPort:
     def decision_of(self, inspection_id: str) -> dict | None:
         return None
 
+
+@dataclass(frozen=True)
+class PlanSuggestion:
+    """Una línea PROPUESTA para el plan de producción: producto y cantidad que
+    una fuente (reposición de Inventario, pronóstico de BI) cree necesarios. El
+    planeador decide cómo atenderla (proceso y producto objetivo)."""
+
+    product_id: str
+    product_name: str
+    quantity: Decimal
+    source_type: str
+    source_reference_id: str | None = None
+    detail: str = ""
+
+
+class PlanSuggestionSource(Protocol):
+    label: str
+    note: str | None
+
+    def suggestions(self, branch_id: str) -> list[PlanSuggestion]: ...
+

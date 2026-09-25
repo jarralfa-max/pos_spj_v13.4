@@ -105,6 +105,8 @@ MEAT_PROCESSING_TABLES: tuple[str, ...] = (
     "processing_recipe_snapshot_outputs",
     "material_requirement_allocations",
     "processing_execution_steps",
+    "production_plans",
+    "production_plan_lines",
 )
 
 _DDL = (
@@ -881,6 +883,57 @@ def create_meat_processing_execution_saga_schema(conn) -> None:
     for statement in _DDL_SAGA:
         conn.execute(statement)
     for index in _INDEXES_SAGA:
+        conn.execute(index)
+
+
+# ── 276: plan de producción (una sucursal, un día) ─────────────────────────
+_DDL_PLANS = (
+    """
+    CREATE TABLE IF NOT EXISTS production_plans (
+        id TEXT NOT NULL PRIMARY KEY,
+        operation_id TEXT NOT NULL UNIQUE CHECK (operation_id <> id),
+        branch_id TEXT NOT NULL,
+        planning_period TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('DRAFT','GENERATED','UNDER_REVIEW','APPROVED',
+                                              'PARTIALLY_CONVERTED','CONVERTED','CANCELLED')),
+        created_by_user_id TEXT NOT NULL,
+        approved_by_user_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (branch_id, planning_period)
+    )
+    """,
+    f"""
+    CREATE TABLE IF NOT EXISTS production_plan_lines (
+        id TEXT NOT NULL PRIMARY KEY,
+        plan_id TEXT NOT NULL REFERENCES production_plans(id),
+        sequence INTEGER NOT NULL DEFAULT 0,
+        product_id TEXT NOT NULL,
+        process_type TEXT,
+        target_product_id TEXT,
+        source_type TEXT NOT NULL,
+        source_reference_id TEXT,
+        planned_quantity TEXT NOT NULL DEFAULT '0' CHECK ({_DEC.format('planned_quantity')}),
+        planned_weight TEXT NOT NULL DEFAULT '0' CHECK ({_DEC.format('planned_weight')}),
+        required_date TEXT,
+        priority INTEGER NOT NULL DEFAULT 0,
+        converted_quantity TEXT NOT NULL DEFAULT '0',
+        converted_weight TEXT NOT NULL DEFAULT '0',
+        converted_order_ids_json TEXT NOT NULL DEFAULT '[]'
+    )
+    """,
+)
+
+_INDEXES_PLANS = (
+    "CREATE INDEX IF NOT EXISTS idx_production_plan_lines_plan ON production_plan_lines(plan_id)",
+)
+
+
+def create_meat_processing_plan_schema(conn) -> None:
+    """276 (idempotente): plan de producción por sucursal y día."""
+    for statement in _DDL_PLANS:
+        conn.execute(statement)
+    for index in _INDEXES_PLANS:
         conn.execute(index)
 
 

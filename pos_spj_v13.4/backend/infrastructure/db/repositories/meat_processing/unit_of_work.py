@@ -70,6 +70,9 @@ from backend.infrastructure.db.repositories.meat_processing.production_label_rep
 from backend.infrastructure.db.repositories.meat_processing.production_station_repository import (
     ProductionStationRepository,
 )
+from backend.infrastructure.db.repositories.meat_processing.production_plan_repository import (
+    ProductionPlanRepository,
+)
 from backend.infrastructure.db.repositories.meat_processing.recipe_snapshot_repository import (
     ProcessingRecipeSnapshotRepository,
 )
@@ -112,6 +115,7 @@ class MeatProcessingUnitOfWork:
         self.recipe_snapshots = ProcessingRecipeSnapshotRepository(connection)
         self.requirement_allocations = MaterialRequirementAllocationRepository(connection)
         self.execution_steps = ExecutionStepRepository(connection)
+        self.production_plans = ProductionPlanRepository(connection)
         self.production_areas = ProductionAreaRepository(connection)
         self.work_centers = WorkCenterRepository(connection)
         self.production_stations = ProductionStationRepository(connection)

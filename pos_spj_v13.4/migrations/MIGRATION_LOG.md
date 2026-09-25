@@ -4023,3 +4023,23 @@ Decisiones del usuario (2026-09-24) y lo hecho con ellas:
 - **Ventas ↔ Producción**: Ventas SÓLO consulta a Inventario; no hay eventos ni consultas de producción (fuera de alcance por decisión).
 - **Folio**: `OP-<código de sucursal>-00001`. El código es el de Configuración → Empresa y sucursales (`branch_profiles.code`, ahora editable); contador seguro `document_number_sequences` por prefijo, reservado en la misma transacción que la orden. **Migración 275**: perfil mínimo con código derivado del nombre (único) para sucursales sin perfil, columna `folio` con índice único, folios de órdenes existentes en orden de creación y contador alineado. Nota: al tener perfil, borrar físicamente una sucursal exige borrar antes su perfil (llave foránea); dar de baja sigue siendo desactivar.
 - **Limpieza**: borrados `_execution_fixture.py` y seis pruebas de la cadena legacy (sus reglas de negocio pasaron a `tests/integration/sales/test_sales_composite_explosion.py`); **migración 274** retira `PRODUCCION.calidad.registrar_decision` de todos los roles.
+
+## Procesamiento — búsqueda estándar en «Nueva orden» y Plan de producción (migración 276, 2026-09-25)
+
+1. **«Nueva orden» no usaba el estándar de búsqueda de productos**: usaba un
+   `EntitySearchInput` alimentado por `ProductQueryService.search_products`
+   (preset de Inventario, sin sucursal, sin explicar vacíos). Ahora usa
+   `ProductSearchBox` + `ProductSearchQuery` en la sucursal activa, con
+   `explain_empty`, y el preset depende del proceso: formulación busca lo que se
+   FABRICA (producibles); despiece/empaque/acondicionado buscan la ENTRADA
+   (`SearchProductionInputsQueryService`).
+2. **Plan de producción habilitado** (antes placeholder: el dominio existía sin
+   persistencia ni casos de uso). Decisiones del usuario: un plan por sucursal y
+   DÍA; líneas manuales, desde la reposición de Inventario (sugerencias abiertas,
+   la más reciente por producto, sólo producibles) y desde el pronóstico de BI
+   (`ProductionPlanningService` real, compuesto con el lector de ventas
+   unificadas y los repositorios de pronóstico; sin historia no sugiere);
+   convertir una línea crea la orden APROBADA por quien aprobó el plan (con
+   folio), y quien aprobó el plan no convierte (segregación). La línea guarda el
+   proceso y el producto objetivo (la entrada en despiece). **Migración 276**:
+   `production_plans` (único por sucursal y día) y `production_plan_lines`.

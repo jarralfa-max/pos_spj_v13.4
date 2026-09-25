@@ -8,8 +8,8 @@ que cada uno arme el suyo.
 Real pages: Órdenes (mp_processing_orders) and, since PASS 6, the record pages
 backed by real tables (`_RECORD_ROUTES` + Pesajes y consumos). They are built
 only when the session has an active branch: every record is branch-scoped.
-Still placeholders: Resumen, Plan de producción (the `ProductionPlan` entity has
-no persistence), Trazabilidad, Alertas, Análisis, Configuración and the 10
+Plan de producción (mp_production_plan) is real since 2026-09-25 (migración
+276). Still placeholders: Alertas, Análisis and the 10
 slaughter routes (no slaughter tables exist; `SLAUGHTER_ENABLED` is False). The sidebar's legacy "PRODUCCION" button
 (interfaz/menu_lateral.py) still launches modulos/produccion.py; this host
 is not wired into main_window.py yet — cutover only happens once page
@@ -51,7 +51,6 @@ from backend.application.security.authorizer_permission_checker import (
 from backend.application.security.session_branch_scope import (
     assigned_branch_ids as _assigned_branches,
 )
-from backend.application.queries.product_query_service import ProductQueryService
 from backend.infrastructure.integrations.meat_processing_execution_ports import (
     execution_ports_factory,
     reservation_port_factory,
@@ -150,7 +149,6 @@ def _build_meat_processing_wiring(connection, session_context=None):
     orders_presenter = ProcessingOrderPresenter(
         connection_provider=lambda: connection,
         query_factory=ProcessingOrderQueryService,
-        product_query_factory=ProductQueryService.from_connection,
         create_uc=CreateProcessingOrderUseCase(
             authorization, folio_port=ProcessingOrderFolioAdapter),
         approve_uc=ApproveProcessingOrderUseCase(authorization),
@@ -205,6 +203,9 @@ def _build_meat_processing_wiring(connection, session_context=None):
             return _traceability_page(connection, branch_id)
         if branch_id and page_id == "mp_settings":
             return _settings_page(orders_presenter)
+        if branch_id and page_id == "mp_production_plan":
+            return _production_plan_page(connection, session_context, authorization,
+                                         context_provider, production_warehouse)
         return build_page(page_id)
 
     return has_permission, page_builder
@@ -268,6 +269,55 @@ def _yields_page(connection, branch_id: str):
         subtitle="Conciliación de rendimiento de la orden.",
         empty_message="No hay conciliaciones de rendimiento.")
     return YieldsPage(por_corte, por_orden, title=entrada.title, subtitle=entrada.tooltip)
+
+
+def _production_plan_page(connection, session_context, authorization, context_provider,
+                          warehouse_provider):
+    """Plan de producción: un plan por sucursal y día; líneas manuales o
+    sugeridas (reposición de Inventario, pronóstico de BI); convertir una línea
+    crea la orden aprobada con su folio."""
+    from backend.application.meat_processing.queries.production_plan_query_service import (
+        ProductionPlanQueryService,
+    )
+    from backend.application.meat_processing.use_cases import (
+        AddProductionPlanLineUseCase,
+        ApproveProductionPlanUseCase,
+        CancelProductionPlanUseCase,
+        ConvertProductionPlanLineUseCase,
+        CreateProductionPlanUseCase,
+        GenerateProductionPlanUseCase,
+        RemoveProductionPlanLineUseCase,
+        SubmitProductionPlanUseCase,
+    )
+    from backend.infrastructure.integrations.meat_processing_plan_sources import (
+        ForecastPlanSource,
+        ReplenishmentPlanSource,
+    )
+    from frontend.desktop.modules.meat_processing.pages.production_plan_page import (
+        ProductionPlanPage,
+    )
+    from frontend.desktop.modules.meat_processing.presenters.production_plan_presenter import (
+        ProductionPlanPresenter,
+    )
+    entrada = MEAT_PROCESSING_ROUTES["mp_production_plan"]
+    presentador = ProductionPlanPresenter(
+        connection_provider=lambda: connection, session_context=session_context,
+        query_factory=ProductionPlanQueryService,
+        use_cases={
+            "create": CreateProductionPlanUseCase(authorization),
+            "add_line": AddProductionPlanLineUseCase(authorization),
+            "remove_line": RemoveProductionPlanLineUseCase(authorization),
+            "generate": GenerateProductionPlanUseCase(authorization),
+            "submit": SubmitProductionPlanUseCase(authorization),
+            "approve": ApproveProductionPlanUseCase(authorization),
+            "cancel": CancelProductionPlanUseCase(authorization),
+            "convert": ConvertProductionPlanLineUseCase(
+                authorization, folio_port=ProcessingOrderFolioAdapter),
+        },
+        suggestion_sources={"REPLENISHMENT": ReplenishmentPlanSource,
+                            "FORECAST": ForecastPlanSource},
+        warehouse_provider=warehouse_provider, context_provider=context_provider)
+    return ProductionPlanPage(presentador, title=entrada.title, subtitle=entrada.tooltip)
 
 
 def _quality_page(connection, branch_id: str, session_context):
