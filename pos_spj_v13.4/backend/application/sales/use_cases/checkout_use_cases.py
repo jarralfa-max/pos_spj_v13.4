@@ -183,25 +183,63 @@ class CheckoutSaleUseCase(_SalesBaseUseCase):
     def _unit_costs(self, connection, sale) -> tuple[dict, list[str]]:
         """Costo unitario por producto para la salida de inventario y el costo
         de venta. Un producto nunca costeado queda fuera y se informa: el costo
-        no se inventa (§18)."""
+        no se inventa (§18).
+
+        Un COMPUESTO (receta de venta o combo de Productos) cuesta lo que
+        cuestan sus componentes; si a uno le falta costo, al compuesto también.
+        Los costos de los componentes van en el mismo mapa: son los que lleva la
+        salida de inventario."""
+        from backend.application.products.queries.sales_fulfillment_query_service import (
+            CompositeDefinitionError,
+            SalesFulfillmentQueryService,
+        )
+
         costs = self._costs
         if costs is None:
             from backend.infrastructure.integrations.sales_pricing_client import (
                 SalesPricingClient,
             )
             costs = SalesPricingClient(connection)
-        costos: dict[str, Decimal] = {}
-        sin_costo: list[str] = []
-        for product_id in {line.product_id for line in sale.lines}:
+        composicion = SalesFulfillmentQueryService(connection)
+
+        def costo_de(product_id):
             try:
                 costo = costs.unit_cost(product_id, branch_id=sale.branch_id)
             except Exception:
                 logger.exception("costo de %s no disponible", product_id)
-                costo = None
-            if costo is None:
-                sin_costo.append(product_id)
+                return None
+            return None if costo is None else Decimal(str(costo))
+
+        costos: dict[str, Decimal] = {}
+        sin_costo: set[str] = set()
+        for product_id in {line.product_id for line in sale.lines}:
+            try:
+                partes = composicion.explode(product_id, Decimal("1"))
+            except CompositeDefinitionError:
+                # Composición inválida en Productos: sin costo, no inventado.
+                sin_costo.add(product_id)
+                continue
+            if set(partes) == {product_id}:
+                costo = costo_de(product_id)
+                if costo is None:
+                    sin_costo.add(product_id)
+                else:
+                    costos[product_id] = costo
+                continue
+            total = Decimal("0")
+            completo = True
+            for componente, cantidad in partes.items():
+                costo = costo_de(componente)
+                if costo is None:
+                    sin_costo.add(componente)
+                    completo = False
+                    continue
+                costos[componente] = costo
+                total += cantidad * costo
+            if completo:
+                costos[product_id] = total
             else:
-                costos[product_id] = Decimal(str(costo))
+                sin_costo.add(product_id)
         return costos, sorted(sin_costo)
 
     def _settle(self, connection, sale, *, actor_user_id, operation_id,

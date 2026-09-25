@@ -60,16 +60,14 @@ explosión de recetas depende de un `RecipeResolver` borrado. Por eso el
 descuento se hace aquí, de forma síncrona y atómica con la venta, en lugar de
 resucitar una ruta por eventos que ya no tiene ni emisor ni cableado.
 
-PRODUCTOS COMPUESTOS — LIMITACIÓN CONOCIDA, DISTINTA DE LA RECONSTRUCCIÓN DE
-ABAJO. Ni reservar ni confirmar explotan recetas de tipo PRODUCTION_BOM/FORMULA/
-etc.: se retiene y se descuenta el producto vendido, no sus componentes (vender
-un kit no consume hoy sus ingredientes). La simetría es deliberada —descontar
-componentes de algo que se retuvo como compuesto dejaría la retención puesta
-para siempre. Cerrar esto es trabajo del contexto de Productos, que ya tiene
-`RecipeExplosionService` canónico para esa dirección; cuando `reserve_for_sale`
-lo use, `confirm` lo seguirá solo, porque descuenta lo que haya reservado.
-NO confundir con la reconstrucción inversa de abajo, que es la dirección
-OPUESTA (parte → base) y una receta distinta (DISASSEMBLY/CUTTING_YIELD).
+PRODUCTOS COMPUESTOS (decisión del usuario, 2026-09-24). Un producto con
+receta de «Explosión de venta» o con combo activo en Productos se surte con sus
+COMPONENTES: se reservan, se descuentan y, al devolver, se reponen los
+componentes. La composición la resuelve Productos
+(`SalesFulfillmentQueryService`, anidados incluidos). `confirm` descuenta lo
+reservado, así que sigue a la explosión sin cambios. NO confundir con la
+reconstrucción inversa de abajo, que es la dirección OPUESTA (parte → base) y
+sale del esquema de corte.
 
 RECONSTRUCCIÓN INVERSA (§15-19, Fase 7) — `_top_up_via_reconstruction_if_short`.
 Cuando el stock directo de un producto no alcanza para la línea pero tiene una
@@ -226,17 +224,34 @@ class SalesInventoryClient:
             logger.exception("disponibilidad de %s no consultable", product_id)
             return Decimal("0")
 
-    @staticmethod
-    def _quantities_by_product(sale: Sale) -> dict[str, Decimal]:
-        """Cantidad total por producto.
+    def _composition(self):
+        from backend.application.products.queries.sales_fulfillment_query_service import (
+            SalesFulfillmentQueryService,
+        )
+        return SalesFulfillmentQueryService(self._connection)
 
-        Se agrupa porque el mismo producto puede aparecer en varias líneas
-        (dos pesadas del mismo corte) y la reserva canónica es por producto.
+    def _explode(self, product_id: str, quantity: Decimal) -> dict[str, Decimal]:
+        from backend.application.products.queries.sales_fulfillment_query_service import (
+            CompositeDefinitionError,
+        )
+        try:
+            return self._composition().explode(product_id, quantity)
+        except CompositeDefinitionError as exc:
+            raise InventoryReservationFailedError(str(exc)) from exc
+
+    def _quantities_by_product(self, sale: Sale) -> dict[str, Decimal]:
+        """Lo que SALE del inventario por la venta, por producto: un compuesto
+        se reemplaza por sus componentes (Productos define cuáles).
+
+        Se agrupa porque el mismo producto puede aparecer en varias líneas (dos
+        pesadas del mismo corte, o el mismo componente en dos combos) y la
+        reserva canónica es por producto.
         """
         totales: dict[str, Decimal] = {}
         for line in sale.lines:
-            totales[line.product_id] = (
-                totales.get(line.product_id, Decimal("0")) + line.quantity.value)
+            for product_id, cantidad in self._explode(
+                    line.product_id, line.quantity.value).items():
+                totales[product_id] = totales.get(product_id, Decimal("0")) + cantidad
         return totales
 
     def _top_up_via_reconstruction_if_short(
@@ -475,14 +490,17 @@ class SalesInventoryClient:
         )
         from backend.domain.inventory.enums import InventoryStatus, MovementType
 
-        line = InventoryMovementLine.create(
-            product_id=product_id, quantity=quantity, to_location_id=self._branch_id,
+        # Un compuesto devuelto repone sus COMPONENTES: es lo que salió.
+        lines = [InventoryMovementLine.create(
+            product_id=componente, quantity=cantidad, to_location_id=self._branch_id,
             to_status=InventoryStatus.AVAILABLE, reason_code=reason_code)
+            for componente, cantidad in self._explode(product_id, quantity).items()
+            if cantidad > 0]
         movement = InventoryMovement.create(
             movement_type=MovementType.SALE_RETURN, branch_id=self._branch_id,
             warehouse_id=self.warehouse_id, source_module="sales",
             source_document_type=source_document_type, source_document_id=str(sale_id),
-            operation_id=str(operation_id), created_by_user_id=str(actor_user_id), lines=[line])
+            operation_id=str(operation_id), created_by_user_id=str(actor_user_id), lines=lines)
         result = PostInventoryMovementUseCase().execute(
             self._connection, movement, actor_user_id=str(actor_user_id),
             owns_transaction=False)
