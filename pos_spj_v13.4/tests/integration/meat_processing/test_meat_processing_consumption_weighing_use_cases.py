@@ -34,6 +34,8 @@ def conn():
         "migrations.standalone.187_meat_processing_bounded_context_schema").run(c)
     importlib.import_module(
         "migrations.standalone.248_meat_processing_preparation_execution_schema").run(c)
+    importlib.import_module(
+        "migrations.standalone.272_meat_processing_frozen_definition_and_real_reservations").run(c)
     yield c
     c.close()
 

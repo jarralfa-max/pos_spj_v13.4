@@ -26,17 +26,23 @@ def _as_date(value) -> date | None:
 
 @dataclass(frozen=True, slots=True)
 class LotCandidate:
-    lot_id: str
+    """Un saldo elegible. `lot_id` es None para existencia sin lote (producto no
+    controlado por lote); `location_id` distingue dos saldos del mismo lote en
+    ubicaciones distintas, que son filas de saldo distintas."""
+
+    lot_id: str | None
     available_quantity: Decimal
     expiration_date: str | None = None
     received_at: str | None = None
     quality_status: LotQualityStatus = LotQualityStatus.RELEASED
+    location_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class LotAllocation:
-    lot_id: str
+    lot_id: str | None
     quantity: Decimal
+    location_id: str | None = None
 
 
 _ALLOCATABLE = {LotQualityStatus.RELEASED, LotQualityStatus.PENDING_INSPECTION}
@@ -92,7 +98,8 @@ class LotAllocationService:
             if remaining <= 0:
                 break
             take = min(c.available_quantity, remaining)
-            plan.append(LotAllocation(lot_id=c.lot_id, quantity=take))
+            plan.append(LotAllocation(lot_id=c.lot_id, quantity=take,
+                                      location_id=c.location_id))
             remaining -= take
         if remaining > 0:
             raise InsufficientInventoryError(

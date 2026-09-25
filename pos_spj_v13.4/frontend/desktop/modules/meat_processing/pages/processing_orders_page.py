@@ -1,5 +1,8 @@
-"""Órdenes page (PROC-23, §12/§13) — crear, aprobar, liberar y cerrar
-órdenes de procesamiento cárnico.
+"""Órdenes page (PROC-23, §12/§13) — crear, aprobar, preparar, liberar, ejecutar
+y cerrar órdenes de procesamiento.
+
+Preparar congela la definición de Productos y reserva los insumos en
+Inventario; sólo una orden preparada se libera.
 
 Lista las órdenes recientes de la sucursal (tipo, estado, cantidad, peso,
 creada) y permite actuar sobre la fila seleccionada. Todos los valores y
@@ -49,12 +52,17 @@ class ProcessingOrdersPage(QWidget):
         self.approve_button = create_secondary_button(text="Aprobar")
         self.approve_button.clicked.connect(self._on_approve)
         actions.addWidget(self.approve_button)
+        self.prepare_button = create_secondary_button(text="Preparar")
+        self.prepare_button.setToolTip(
+            "Congelar la definición del producto y reservar los insumos en Inventario.")
+        self.prepare_button.clicked.connect(self._on_prepare)
+        actions.addWidget(self.prepare_button)
         self.release_button = create_secondary_button(text="Liberar")
         self.release_button.clicked.connect(self._on_release)
         actions.addWidget(self.release_button)
         self.execute_button = create_primary_button(text="Ejecutar")
         self.execute_button.setToolTip(
-            "Consumir la entrada, capturar los cortes, repartir el costo y cerrar la orden.")
+            "Consumir lo reservado, capturar las salidas, pedir calidad y costeo, y cerrar.")
         self.execute_button.clicked.connect(self._on_execute)
         actions.addWidget(self.execute_button)
         self.close_button = create_danger_button(text="Cerrar")
@@ -63,6 +71,7 @@ class ProcessingOrdersPage(QWidget):
         layout.addLayout(actions)
 
         self._table = StandardTable(columns=[
+            ColumnSpec("Folio", "text"),
             ColumnSpec("Tipo", "text"),
             ColumnSpec("Estado", "status"),
             ColumnSpec("Cantidad", "text"),
@@ -117,6 +126,15 @@ class ProcessingOrdersPage(QWidget):
         if ok:
             self.refresh()
 
+    def _on_prepare(self) -> None:
+        oid = self._selected_order_id()
+        if oid is None:
+            return
+        ok, message, datos = self._presenter.prepare_order(order_id=oid)
+        aviso = QMessageBox.information if ok and datos.get("ready", True) else QMessageBox.warning
+        aviso(self, "Órdenes", message)
+        self.refresh()
+
     def _on_release(self) -> None:
         oid = self._selected_order_id()
         if oid is None:
@@ -132,9 +150,9 @@ class ProcessingOrdersPage(QWidget):
             self.refresh()
 
     def _on_execute(self) -> None:
-        """Fase 10: ejecutar la orden de punta a punta. Si falta existencia o un
-        corte sale fuera de tolerancia, se pide la autorización de otro usuario
-        y se reintenta — el caso de uso es reanudable."""
+        """Ejecutar la orden preparada. Si una salida queda fuera de tolerancia,
+        se pide la autorización de otro usuario y se reintenta: el caso de uso
+        es reanudable y no duplica lo ya hecho."""
         from frontend.desktop.modules.meat_processing.dialogs_execution import (
             ExecuteProcessingOrderDialog,
             ExecutionResultDialog,
@@ -148,27 +166,29 @@ class ProcessingOrdersPage(QWidget):
         if plan is None:
             QMessageBox.warning(self, "Órdenes", "No se pudo leer la orden.")
             return
-        if not plan.get("has_despiece"):
+        if not plan.get("has_definition"):
             QMessageBox.warning(
                 self, "Órdenes",
-                "La orden no tiene despiece capturado. Libérala con un esquema de corte "
-                "activo del producto (Productos → Despiece).")
+                "La orden no tiene su definición congelada: prepárala primero.")
+            return
+        if not any(e.get("reserved_weight") for e in plan.get("inputs") or []):
+            QMessageBox.warning(
+                self, "Órdenes",
+                "La orden no tiene insumos reservados en Inventario: prepárala primero.")
             return
         dlg = ExecuteProcessingOrderDialog(self, plan=plan)
         if dlg.exec_() != QDialog.Accepted:
             return
-
-        datos = {"order_id": oid, "input_weight": dlg.input_weight_value(),
-                 "outputs": dlg.outputs()}
-        for _ in range(3):   # a lo sumo: sin existencia y fuera de tolerancia
+        nombres = {s["product_id"]: s["product_name"] for s in plan.get("outputs") or []}
+        datos = {"order_id": oid, "inputs": dlg.inputs(), "outputs": dlg.outputs()}
+        for _ in range(2):   # a lo sumo una autorización de rendimiento
             ok, message, resultado = self._presenter.execute_order(**datos)
             if ok:
                 ExecutionResultDialog(self, results=resultado.get("results") or [],
-                                      message=message).exec_()
+                                      message=message, names=nombres).exec_()
                 self.refresh()
                 return
-            codigo = resultado.get("error_code")
-            if codigo not in ("STOCK_AUTHORIZATION_REQUIRED", "YIELD_AUTHORIZATION_REQUIRED"):
+            if resultado.get("error_code") != "YIELD_AUTHORIZATION_REQUIRED":
                 QMessageBox.warning(self, "Órdenes", message)
                 self.refresh()
                 return
@@ -177,12 +197,8 @@ class ProcessingOrdersPage(QWidget):
             if auth.exec_() != QDialog.Accepted or not auth.authorizer_user_id:
                 self.refresh()
                 return
-            if codigo == "STOCK_AUTHORIZATION_REQUIRED":
-                datos["stock_authorizer_user_id"] = auth.authorizer_user_id
-                datos["stock_reason"] = auth.reason
-            else:
-                datos["variance_authorizer_user_id"] = auth.authorizer_user_id
-                datos["variance_reason"] = auth.reason
+            datos["variance_authorizer_user_id"] = auth.authorizer_user_id
+            datos["variance_reason"] = auth.reason
         QMessageBox.warning(self, "Órdenes", "No se pudo ejecutar la orden.")
 
     def _on_close(self) -> None:

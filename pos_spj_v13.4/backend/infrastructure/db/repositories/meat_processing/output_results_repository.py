@@ -1,4 +1,8 @@
-"""Resultado por salida de una orden de procesamiento (§13, Fase 10)."""
+"""Resultado FÍSICO por salida de una orden de procesamiento (§13, Fase 10).
+
+Sólo pesos, rendimientos y lotes. El costo de cada salida es de Costos
+(`processing_cost_allocation_lines`); las columnas de costo que la tabla heredó
+de la migración 270 ya no las escribe Procesamiento ni las lee nadie."""
 
 from __future__ import annotations
 
@@ -7,9 +11,9 @@ from datetime import datetime, timezone
 from backend.shared.ids import new_uuid
 
 _COLUMNS = ("product_id", "output_type", "input_product_id", "input_weight",
-            "input_unit_cost", "expected_weight", "actual_weight", "difference_weight",
-            "expected_yield_pct", "yield_pct", "variance_pct", "unit_price",
-            "allocated_cost", "unit_cost", "input_lot_id", "output_lot_id")
+            "expected_weight", "actual_weight", "difference_weight",
+            "expected_yield_pct", "yield_pct", "variance_pct", "input_lot_id",
+            "output_lot_id")
 
 
 class ProcessingOutputResultsRepository:

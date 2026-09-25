@@ -68,8 +68,9 @@ class TestOrdersQuery:
             planned_quantity=Decimal("10"), planned_weight=Decimal("10"))
         vm = pres.orders()
         assert vm.total == 1
-        assert vm.rows[0][0] == "Corte"
-        assert vm.rows[0][1] == "Por aprobar"
+        assert vm.rows[0][0] == "Sin folio"      # este presentador no asigna folios
+        assert vm.rows[0][1] == "Corte"
+        assert vm.rows[0][2] == "Por aprobar"
 
 
 class TestCreateOrder:

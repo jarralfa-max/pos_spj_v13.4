@@ -15,7 +15,6 @@ from backend.application.meat_processing.use_cases import (
     CompleteReworkOrderUseCase,
     CreateProcessingOrderUseCase,
     CreateReworkOrderUseCase,
-    RecordQualityDecisionUseCase,
     StartReworkExecutionUseCase,
 )
 from backend.domain.meat_processing.enums import (
@@ -29,6 +28,7 @@ from backend.infrastructure.db.repositories.meat_processing.unit_of_work import 
     MeatProcessingUnitOfWork,
 )
 from backend.shared.ids import new_uuid
+from tests.integration.meat_processing._quality_fake import record_decided_by_quality
 
 
 @pytest.fixture
@@ -55,9 +55,10 @@ def blocked_output_id(conn):
         conn, order_id=created.entity_id, operation_id=new_uuid(), product_id=new_uuid(),
         output_type=OutputType.MAIN_PRODUCT, quantity=Decimal("5"), weight=Decimal("5"),
         actor_user_id=new_uuid())
-    RecordQualityDecisionUseCase().execute(
+    record_decided_by_quality(
         conn, output_id=captured.entity_id, operation_id=new_uuid(),
-        decision=OutputQualityStatus.REWORK_REQUIRED, actor_user_id=new_uuid())
+        decision=OutputQualityStatus.REWORK_REQUIRED, actor_user_id=new_uuid(),
+        quality_inspection_id=new_uuid())
     return captured.entity_id
 
 

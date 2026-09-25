@@ -275,6 +275,10 @@ MIGRATIONS = [
     _Migration("269",  "migrations.standalone.269_cutting_scheme_reverse_reconstruction"),
     _Migration("270",  "migrations.standalone.270_meat_processing_execution"),
     _Migration("271",  "migrations.standalone.271_seed_meat_processing_role_permissions"),
+    _Migration("272",  "migrations.standalone.272_meat_processing_frozen_definition_and_real_reservations"),
+    _Migration("273",  "migrations.standalone.273_costing_and_quality_contexts"),
+    _Migration("274",  "migrations.standalone.274_revoke_processing_quality_decision_from_roles"),
+    _Migration("275",  "migrations.standalone.275_processing_order_folio"),
 ]
 
 def _ensure_tracking_table(conn):

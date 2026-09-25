@@ -56,15 +56,29 @@ def conn():
                       "249_meat_processing_packaging_schema",
                       "250_meat_processing_rework_schema",
                       "251_meat_processing_genealogy_schema",
-                      "252_meat_processing_resources_schema"):
+                      "252_meat_processing_resources_schema",
+                      "275_processing_order_folio"):
         importlib.import_module(f"migrations.standalone.{migracion}").run(c)
+    # El código de la sucursal (Configuración → Empresa) da el folio de la orden.
+    from backend.infrastructure.db.schema.document_output_schema import (
+        create_document_numbering_schema,
+    )
+    from backend.infrastructure.db.schema.settings_schema import (
+        create_company_branch_profile_schema,
+    )
+    create_company_branch_profile_schema(c)
+    create_document_numbering_schema(c)
     yield c
     c.close()
 
 
 def _host(conn, *, permisos=_ORDER_PERMISSIONS):
+    branch = new_uuid()
+    conn.execute("INSERT INTO branch_profiles (id, branch_id, code, name, created_at,"
+                 " updated_at) VALUES (?,?,?,?,'x','x')",
+                 (branch, branch, f"S{branch[-4:].upper()}", "Sucursal"))
     session = _Session(
-        user_id=new_uuid(), branch_id=new_uuid(), warehouse_id=new_uuid(), permisos=permisos)
+        user_id=new_uuid(), branch_id=branch, warehouse_id=new_uuid(), permisos=permisos)
     return MeatProcessingModuleHost(_Container(conn, session))
 
 

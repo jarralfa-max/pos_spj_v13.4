@@ -32,11 +32,14 @@ from backend.application.meat_processing.use_cases import (
     ApproveProcessingOrderUseCase,
     CloseProcessingOrderUseCase,
     CreateProcessingOrderUseCase,
+    PrepareProcessingOrderUseCase,
     ReleaseProcessingOrderUseCase,
+)
+from backend.application.meat_processing.queries.processing_order_execution_query_service import (
+    ProcessingOrderExecutionQueryService,
 )
 from backend.application.meat_processing.use_cases.order_execution_use_cases import (
     ExecuteProcessingOrderUseCase,
-    ProcessingOrderExecutionQueryService,
 )
 from backend.application.meat_processing.yield_settings import (
     UpdateYieldTolerancesUseCase,
@@ -49,6 +52,13 @@ from backend.application.security.session_branch_scope import (
     assigned_branch_ids as _assigned_branches,
 )
 from backend.application.queries.product_query_service import ProductQueryService
+from backend.infrastructure.integrations.meat_processing_execution_ports import (
+    execution_ports_factory,
+    reservation_port_factory,
+)
+from backend.infrastructure.integrations.meat_processing_ports import (
+    ProcessingOrderFolioAdapter,
+)
 from backend.domain.meat_processing.slaughter.feature_flag import SLAUGHTER_ENABLED
 from frontend.desktop.modules.meat_processing.meat_processing_routes import (
     MEAT_PROCESSING_ROUTES,
@@ -60,6 +70,15 @@ from frontend.desktop.modules.meat_processing.navigation.meat_processing_sidebar
 from frontend.desktop.modules.meat_processing.meat_processing_view import MeatProcessingView
 from frontend.desktop.modules.meat_processing.pages import ProcessingOrdersPage
 from frontend.desktop.modules.meat_processing.presenters import ProcessingOrderPresenter
+
+
+def _dispatch_costing(connection) -> None:
+    """Entrega en el bus los hechos que Costos dejó en su outbox (costo por
+    salida → Precios; asiento de producción → Finanzas). Lo que no se entregue
+    queda pendiente para el siguiente despacho."""
+    from backend.application.costing.wiring import dispatch_costing_outbox
+    from backend.shared.events.application_bus import get_bus
+    dispatch_costing_outbox(connection, get_bus())
 
 
 def _build_meat_processing_wiring(connection, session_context=None):
@@ -132,21 +151,27 @@ def _build_meat_processing_wiring(connection, session_context=None):
         connection_provider=lambda: connection,
         query_factory=ProcessingOrderQueryService,
         product_query_factory=ProductQueryService.from_connection,
-        create_uc=CreateProcessingOrderUseCase(authorization),
+        create_uc=CreateProcessingOrderUseCase(
+            authorization, folio_port=ProcessingOrderFolioAdapter),
         approve_uc=ApproveProcessingOrderUseCase(authorization),
-        release_uc=ReleaseProcessingOrderUseCase(
-            authorization, recipe_snapshot_port=ProductsRecipeSnapshotAdapter(connection)),
+        # Preparar congela la definición de Productos y reserva en Inventario;
+        # liberar ya no lee Productos (§2/§5).
+        prepare_uc=PrepareProcessingOrderUseCase(
+            authorization, recipe_snapshot_port=ProductsRecipeSnapshotAdapter(connection),
+            reservation_port_factory=reservation_port_factory(connection)),
+        release_uc=ReleaseProcessingOrderUseCase(authorization),
         close_uc=CloseProcessingOrderUseCase(authorization),
         session_context=session_context,
         context_provider=context_provider,
         warehouse_provider=production_warehouse,
         plan_query=lambda: ProcessingOrderExecutionQueryService(connection),
-        # Ejecutar la orden: consumo, salidas, costo y cierre. El AUTORIZADOR
-        # (producir sin existencia, rendimiento fuera de tolerancia) es otro
-        # usuario, así que se resuelve contra `rol_permisos`, no contra la
-        # sesión de quien opera — mismo estándar que Ventas y Precios.
+        # Ejecutar la orden (orquestación reanudable): consume lo reservado,
+        # recibe salidas, pide calidad y costeo, y cierra. El AUTORIZADOR de un
+        # rendimiento fuera de tolerancia es otro usuario, así que se resuelve
+        # contra `rol_permisos`, no contra la sesión de quien opera.
         execute_uc=ExecuteProcessingOrderUseCase(
             authorization,
+            ports_factory=execution_ports_factory(dispatch_costing=_dispatch_costing),
             authorizer_authorization=MeatProcessingAuthorizationPolicy(
                 AuthorizerPermissionChecker(
                     connection,
@@ -171,7 +196,7 @@ def _build_meat_processing_wiring(connection, session_context=None):
                 "mp_preparation", "mp_active_processing", "mp_cutting",
                 "mp_derived_products", "mp_packaging_labeling", "mp_produced_lots",
                 "mp_yields", "mp_quality", "mp_rework", "mp_incidents", "mp_audit"):
-            return _record_page(connection, branch_id, page_id)
+            return _record_page(connection, branch_id, page_id, session_context)
         if branch_id and page_id == "mp_weighings_consumptions":
             return _weighings_and_consumptions_page(connection, branch_id)
         if branch_id and page_id == "mp_overview":
@@ -212,12 +237,14 @@ def _record_presenter(connection, branch_id: str, nombre: str):
         connection, branch_id=branch_id, record=MeatProcessingRecord[nombre])
 
 
-def _record_page(connection, branch_id: str, page_id: str):
+def _record_page(connection, branch_id: str, page_id: str, session_context=None):
     from frontend.desktop.modules.meat_processing.pages.meat_processing_record_page import (
         MeatProcessingRecordPage,
     )
     if page_id == "mp_yields":
         return _yields_page(connection, branch_id)
+    if page_id == "mp_quality":
+        return _quality_page(connection, branch_id, session_context)
     nombre, vacio = _RECORD_ROUTES[page_id]
     entrada = MEAT_PROCESSING_ROUTES[page_id]
     return MeatProcessingRecordPage(
@@ -241,6 +268,43 @@ def _yields_page(connection, branch_id: str):
         subtitle="Conciliación de rendimiento de la orden.",
         empty_message="No hay conciliaciones de rendimiento.")
     return YieldsPage(por_corte, por_orden, title=entrada.title, subtitle=entrada.tooltip)
+
+
+def _quality_page(connection, branch_id: str, session_context):
+    """Calidad: lo que espera inspección (decide el INSPECTOR, con el permiso de
+    Calidad de su sesión) y el registro de salidas con su estado de calidad."""
+    from backend.application.meat_processing.session_authorization import (
+        MeatProcessingSessionPermissionChecker,
+    )
+    from backend.application.quality.output_inspection import (
+        DecideOutputInspectionUseCase,
+        QualityAuthorizationPolicy,
+    )
+    from backend.application.quality.wiring import dispatch_quality_outbox
+    from backend.shared.events.application_bus import get_bus
+    from frontend.desktop.modules.meat_processing.pages.meat_processing_record_page import (
+        MeatProcessingRecordPage,
+    )
+    from frontend.desktop.modules.meat_processing.pages.quality_inspection_page import (
+        PendingInspectionsPage,
+        QualityPage,
+    )
+    from frontend.desktop.modules.meat_processing.presenters.quality_inspection_presenter import (
+        QualityInspectionPresenter,
+    )
+    entrada = MEAT_PROCESSING_ROUTES["mp_quality"]
+    presentador = QualityInspectionPresenter(
+        connection, branch_id=branch_id,
+        actor_provider=lambda: getattr(session_context, "user_id", ""),
+        decide_uc=DecideOutputInspectionUseCase(QualityAuthorizationPolicy(
+            MeatProcessingSessionPermissionChecker(session_context))),
+        dispatch=lambda conn: dispatch_quality_outbox(conn, get_bus()))
+    salidas = MeatProcessingRecordPage(
+        _record_presenter(connection, branch_id, "QUALITY"), title="Salidas",
+        subtitle="Salidas producidas y su estado de calidad.",
+        empty_message=_RECORD_ROUTES["mp_quality"][1])
+    return QualityPage(PendingInspectionsPage(presentador), salidas, title=entrada.title,
+                       subtitle=entrada.tooltip)
 
 
 def _overview_page(connection, branch_id: str):

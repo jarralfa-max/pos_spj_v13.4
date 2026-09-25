@@ -103,7 +103,6 @@ DARK_HANDLERS = frozenset({
     # Finanzas — operación
     "InventoryAdjustmentHandler",
     "PayrollPaidHandler",
-    "ProductionCompletedHandler",
     "PurchaseReceivedHandler",
     "SaleReversedHandler",
     "WasteRegisteredHandler",

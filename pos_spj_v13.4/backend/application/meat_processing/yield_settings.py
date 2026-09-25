@@ -81,3 +81,79 @@ class UpdateYieldTolerancesUseCase:
                                    (clave, str(valor)))
         connection.commit()
         return True, "Tolerancias de rendimiento guardadas"
+
+
+# ── resolución jerárquica de la tolerancia (§17) ───────────────────────────
+#: Precedencia, del más específico al más general. Cada nivel es un DATO que
+#: se configura (`configuraciones`), nunca una rama de código por especie.
+PRECEDENCE = ("PRODUCT", "PROCESS", "SPECIES", "CATEGORY", "WORK_CENTER", "AREA",
+              "PLANT", "BRANCH", "COMPANY")
+OVERRIDE_KEY = "meat_processing.yield.tolerance_pct@{scope}:{ref}"
+
+
+@dataclass(frozen=True)
+class ToleranceScope:
+    product_id: str | None = None
+    process_type: str | None = None
+    species_id: str | None = None
+    category_id: str | None = None
+    work_center_id: str | None = None
+    production_area_id: str | None = None
+    plant_id: str | None = None
+    branch_id: str | None = None
+    company_id: str | None = None
+
+    def references(self) -> list[tuple[str, str]]:
+        valores = (self.product_id, self.process_type, self.species_id, self.category_id,
+                   self.work_center_id, self.production_area_id, self.plant_id,
+                   self.branch_id, self.company_id)
+        return [(nivel, ref) for nivel, ref in zip(PRECEDENCE, valores) if ref]
+
+
+@dataclass(frozen=True)
+class ResolvedTolerance:
+    tolerances: YieldTolerances
+    source: str
+
+
+class YieldToleranceResolver:
+    """La tolerancia que aplica a una salida.
+
+    1. El perfil de rendimiento de Productos, si trae tolerancia (nivel producto).
+    2. Un ajuste por nivel, en `PRECEDENCE`.
+    3. La tolerancia global (la que ya existía).
+
+    Sólo se sustituye la tolerancia; aviso y crítico globales se ajustan para
+    que siempre se cumpla aviso ≤ tolerancia ≤ crítico.
+    """
+
+    def __init__(self, connection) -> None:
+        self._conn = connection
+        self._global = YieldToleranceSettingsQueryService(connection)
+
+    def _override(self, nivel: str, ref: str) -> Decimal | None:
+        try:
+            fila = self._conn.execute("SELECT valor FROM configuraciones WHERE clave=?",
+                                      (OVERRIDE_KEY.format(scope=nivel, ref=ref),)).fetchone()
+        except Exception:  # noqa: BLE001 — sin tabla: no hay ajustes
+            return None
+        valor = _dec(fila[0]) if fila else None
+        return valor if valor is not None and valor >= 0 else None
+
+    def resolve(self, scope: ToleranceScope, *,
+                profile_tolerance_pct: Decimal | None = None) -> ResolvedTolerance:
+        base = self._global.get()
+        tolerancia, origen = None, "GLOBAL"
+        if profile_tolerance_pct is not None and profile_tolerance_pct > 0:
+            tolerancia, origen = Decimal(str(profile_tolerance_pct)), "YIELD_PROFILE"
+        else:
+            for nivel, ref in scope.references():
+                valor = self._override(nivel, ref)
+                if valor is not None:
+                    tolerancia, origen = valor, nivel
+                    break
+        if tolerancia is None:
+            return ResolvedTolerance(base, origen)
+        return ResolvedTolerance(YieldTolerances(
+            warning_pct=min(base.warning_pct, tolerancia), tolerance_pct=tolerancia,
+            critical_pct=max(base.critical_pct, tolerancia)), origen)

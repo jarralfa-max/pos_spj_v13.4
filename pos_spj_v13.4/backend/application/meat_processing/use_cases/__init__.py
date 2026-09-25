@@ -28,12 +28,9 @@ from backend.application.meat_processing.use_cases.packaging_use_cases import (
     ReprintProductionLabelUseCase,
 )
 from backend.application.meat_processing.use_cases.preparation_use_cases import (
-    AddMaterialRequirementUseCase,
-    AllocateMaterialRequirementUseCase,
     AssignOperatorUseCase,
-    MarkProcessingOrderReadyUseCase,
+    PrepareProcessingOrderUseCase,
     ReleaseOperatorAssignmentUseCase,
-    ReserveMaterialRequirementUseCase,
 )
 from backend.application.meat_processing.use_cases.processing_order_use_cases import (
     ApproveProcessingOrderUseCase,
@@ -70,13 +67,12 @@ from backend.application.meat_processing.use_cases.yield_use_cases import (
 )
 
 __all__ = [
-    "AddMaterialRequirementUseCase",
-    "AllocateMaterialRequirementUseCase",
     "ApproveProcessingOrderUseCase",
     "ApproveReworkOrderUseCase",
     "ApproveYieldReconciliationUseCase",
     "AssignEquipmentUseCase",
     "AssignOperatorUseCase",
+    "PrepareProcessingOrderUseCase",
     "CaptureMaterialConsumptionUseCase",
     "CaptureProcessOutputUseCase",
     "CaptureProcessWeighingUseCase",
@@ -93,7 +89,6 @@ __all__ = [
     "CreateReworkOrderUseCase",
     "CreateWorkCenterUseCase",
     "ExecutePackagingUseCase",
-    "MarkProcessingOrderReadyUseCase",
     "PauseProcessExecutionUseCase",
     "PostMaterialConsumptionUseCase",
     "PostProcessOutputUseCase",
@@ -110,7 +105,6 @@ __all__ = [
     "RequestLossCaseForYieldVarianceUseCase",
     "RequestProductionAlertUseCase",
     "RequestQualityInspectionUseCase",
-    "ReserveMaterialRequirementUseCase",
     "ResolveProcessIncidentUseCase",
     "ResumeProcessExecutionUseCase",
     "RetireEquipmentUseCase",

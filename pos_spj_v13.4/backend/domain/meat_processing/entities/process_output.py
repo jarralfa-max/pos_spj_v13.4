@@ -71,6 +71,15 @@ class ProcessOutput:
             raise MeatProcessingInvariantError("Estado de calidad canónico requerido")
         self.quality_status = status
 
+    def place(self, *, lot_id: str | None, location_id: str) -> None:
+        """Lote y ubicación de destino que Inventario asignó. Una vez recibido en
+        existencia, el output no cambia de lote ni de ubicación desde aquí."""
+        if self.inventory_operation_id is not None:
+            raise MeatProcessingInvariantError(
+                "El output ya está en existencia; su lote y ubicación no se reasignan")
+        self.lot_id = optional_uuid(lot_id, "lot_id")
+        self.location_id = required_uuid(location_id, "location_id")
+
     def assign_inventory_operation(self, *, inventory_operation_id: str) -> None:
         self.inventory_operation_id = required_uuid(
             inventory_operation_id, "inventory_operation_id")

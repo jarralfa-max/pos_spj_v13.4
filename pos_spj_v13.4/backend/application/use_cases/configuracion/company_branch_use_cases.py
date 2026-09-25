@@ -21,7 +21,10 @@ from datetime import time
 
 from backend.domain.settings.entities.branch_profile import BranchProfile
 from backend.domain.settings.entities.company_profile import CompanyProfile
-from backend.domain.settings.exceptions import BranchProfileNotFoundError
+from backend.domain.settings.exceptions import (
+    BranchProfileNotFoundError,
+    ConfigurationInvalidValueError,
+)
 from backend.domain.settings.value_objects.asset_reference import AssetReference
 from backend.infrastructure.db.repositories.settings.branch_profile_repository import (
     SqliteBranchProfileRepository,
@@ -99,10 +102,19 @@ class UpdateBranchProfileUseCase:
         self, *, branch_id: str, name: str, address: str = "", phone: str = "", timezone: str = "",
         locale: str = "", opening_time: time | None = None, closing_time: time | None = None,
         operation_days: tuple[str, ...] = (), ticket_header: str = "", ticket_footer: str = "",
+        code: str | None = None,
     ) -> BranchProfile:
         profile = self._branches.get(branch_id)
         if profile is None:
             raise BranchProfileNotFoundError(f"Perfil de sucursal {branch_id} no encontrado")
+        if code is not None and code.strip().upper() != profile.code.upper():
+            otra = self._conn.execute(
+                "SELECT 1 FROM branch_profiles WHERE upper(code)=? AND branch_id<>?",
+                (code.strip().upper(), branch_id)).fetchone()
+            if otra is not None:
+                raise ConfigurationInvalidValueError(
+                    f"El código «{code.strip().upper()}» ya lo usa otra sucursal.")
+            profile.change_code(code)
         profile.update_profile(
             name=name, address=address, phone=phone or None, timezone=timezone, locale=locale,
         )

@@ -262,6 +262,12 @@ class BranchProfileCreateDialog(FormDialog, _BranchHoursFields):
 class BranchProfileEditDialog(FormDialog, _BranchHoursFields):
     def __init__(self, parent=None, *, profile=None, address_search_service=None) -> None:
         super().__init__(parent, title="Editar sucursal")
+        self.code = StandardLineEdit(self)
+        self.code.setAccessibleName("Código")
+        self.code.setToolTip("Prefijo de los folios de la sucursal (p. ej. OP-CEN-00001). "
+                             "Los folios ya emitidos no cambian.")
+        self.form.addRow("Código:", self.code)
+
         self.name = StandardLineEdit(self)
         self.name.setAccessibleName("Nombre")
         self.form.addRow("Nombre:", self.name)
@@ -295,6 +301,7 @@ class BranchProfileEditDialog(FormDialog, _BranchHoursFields):
         self.form.addRow("Pie de ticket:", self.ticket_footer)
 
         if profile is not None:
+            self.code.setText(getattr(profile, "code", "") or "")
             self.name.setText(profile.name)
             self.address.set_value(profile.address or "")
             self.phone.setText(profile.phone or "")
@@ -311,6 +318,7 @@ class BranchProfileEditDialog(FormDialog, _BranchHoursFields):
 
     def values(self) -> dict:
         return {
+            "code": self.code.text().strip(),
             "name": self.name.text().strip(), "address": self.address.value().one_line(),
             "phone": self.phone.text().strip(), "timezone": self.timezone.text().strip(),
             "locale": self.locale.text().strip(), **self._hours_values(),

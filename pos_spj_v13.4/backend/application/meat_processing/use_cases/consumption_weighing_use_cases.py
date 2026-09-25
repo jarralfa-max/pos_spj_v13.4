@@ -200,17 +200,29 @@ class PostMaterialConsumptionUseCase:
                     return MeatProcessingResult.ok(
                         "Consumo ya posteado (idempotente)", entity_id=consumption.id,
                         operation_id=operation_id, already_processed=True)
+                # §7: un insumo controlado por lote no se consume sin lote. La
+                # regla sale de la definición congelada (Productos), no de aquí.
+                snapshot = uow.recipe_snapshots.get_by_order(order.id)
+                entrada = snapshot.input_for(consumption.product_id) if snapshot else None
+                if entrada is not None and entrada.lot_controlled and not consumption.lot_id:
+                    return MeatProcessingResult.fail(
+                        "El insumo se controla por lote: el consumo necesita el lote asignado "
+                        "por Inventario.", "LOT_REQUIRED", operation_id=operation_id)
+                asignacion = uow.requirement_allocations.get_by_consumption(consumption.id)
                 inventory_operation_id = self._inventory.post_consumption(
                     operation_id=operation_id, product_id=consumption.product_id,
                     warehouse_id=consumption.warehouse_id, quantity=consumption.actual_quantity,
                     weight=consumption.actual_weight, lot_id=consumption.lot_id,
-                    location_id=consumption.location_id)
+                    location_id=consumption.location_id,
+                    reservation_id=(asignacion.inventory_reservation_id if asignacion else None))
                 if inventory_operation_id is None:
                     return MeatProcessingResult.fail(
                         "Inventario aún no confirma el movimiento",
                         "INVENTORY_INTEGRATION_PENDING", operation_id=operation_id)
                 consumption.post(inventory_operation_id=inventory_operation_id)
                 uow.consumptions.save(consumption)
+                if asignacion is not None:
+                    uow.requirement_allocations.mark_consumed(asignacion.id)
                 payload = build_meat_processing_event(
                     MeatProcessingEvents.PROCESSING_MATERIAL_CONSUMED, operation_id=operation_id,
                     entity_id=consumption.id, branch_id=order.branch_id,

@@ -31,6 +31,8 @@ def conn():
     importlib.import_module(
         "migrations.standalone.248_meat_processing_preparation_execution_schema").run(c)
     importlib.import_module(
+        "migrations.standalone.272_meat_processing_frozen_definition_and_real_reservations").run(c)
+    importlib.import_module(
         "migrations.standalone.251_meat_processing_genealogy_schema").run(c)
     yield c
     c.close()
@@ -76,11 +78,37 @@ class TestCaptureProcessOutput:
 
 
 class TestPostProcessOutput:
-    def _output_id(self, conn, order_id, output_type=OutputType.MAIN_PRODUCT):
-        return CaptureProcessOutputUseCase().execute(
+    def _output_id(self, conn, order_id, output_type=OutputType.MAIN_PRODUCT, placed=True):
+        output_id = CaptureProcessOutputUseCase().execute(
             conn, order_id=order_id, operation_id=new_uuid(), product_id=new_uuid(),
             output_type=output_type, quantity=Decimal("10"), weight=Decimal("10"),
             actor_user_id=new_uuid()).entity_id
+        if placed:
+            # Lote y ubicación los resuelve Inventario en la ejecución; aquí se
+            # fijan directamente porque lo que se prueba es el posteo.
+            with MeatProcessingUnitOfWork(conn) as uow:
+                output = uow.outputs.get(output_id)
+                output.place(lot_id=new_uuid(), location_id=new_uuid())
+                uow.outputs.save(output)
+        return output_id
+
+    def test_output_without_location_is_never_posted(self, conn, approved_order_id):
+        """Nunca se usa la sucursal como ubicación: sin ubicación resuelta por
+        Inventario, no hay entrada a existencia."""
+        output_id = self._output_id(conn, approved_order_id, placed=False)
+
+        class FakePort:
+            calls = 0
+
+            def post_output(self, **kwargs):
+                FakePort.calls += 1
+                return new_uuid()
+
+        result = PostProcessOutputUseCase(inventory_port=FakePort()).execute(
+            conn, output_id=output_id, operation_id=new_uuid(), actor_user_id=new_uuid())
+        assert not result.success
+        assert result.error_code == "LOCATION_REQUIRED"
+        assert FakePort.calls == 0
 
     def test_post_without_port_reports_pending_integration(self, conn, approved_order_id):
         output_id = self._output_id(conn, approved_order_id)

@@ -67,3 +67,14 @@ class QualityProductConfigDTO:
     quarantine_required: bool
     requires_cold_chain: bool
     minimum_remaining_for_receipt: int | None
+
+
+@dataclass(frozen=True)
+class ProcessingProductConfigDTO:
+    """What Processing freezes about a product it transforms: its classification,
+    as data (species/category), so tolerances can be overridden per species or
+    category without any species-specific code."""
+
+    product_id: str
+    species_id: str | None
+    category_id: str | None

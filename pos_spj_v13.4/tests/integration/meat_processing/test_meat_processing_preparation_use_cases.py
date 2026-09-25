@@ -1,5 +1,11 @@
-"""PROC-7 e2e: material requirements (reserve/allocate), operator assignment,
-and the materials-ready gate."""
+"""PROC-7 e2e: preparación de la orden y asignación de operadores.
+
+Preparar = congelar la definición productiva + reservar los insumos en
+Inventario (reserva REAL: lote y ubicación exactos). Las reservas reales y el
+"no READY sin reserva" se prueban en
+`test_material_requirement_creates_real_inventory_reservation.py` y
+`test_order_not_ready_without_inventory_reservation.py`; aquí, el ciclo de
+estados de la preparación y los operadores."""
 
 import importlib
 import sqlite3
@@ -8,19 +14,16 @@ from decimal import Decimal
 import pytest
 
 from backend.application.meat_processing.use_cases import (
-    AddMaterialRequirementUseCase,
-    AllocateMaterialRequirementUseCase,
     AssignOperatorUseCase,
     CreateProcessingOrderUseCase,
-    MarkProcessingOrderReadyUseCase,
     ReleaseOperatorAssignmentUseCase,
-    ReserveMaterialRequirementUseCase,
 )
 from backend.domain.meat_processing.enums import OperatorRole, ProcessingOrderStatus, ProcessType
 from backend.infrastructure.db.repositories.meat_processing.unit_of_work import (
     MeatProcessingUnitOfWork,
 )
 from backend.shared.ids import new_uuid
+from tests.integration.meat_processing._generic_plant import Planta, build_db, released_order
 
 
 @pytest.fixture
@@ -45,60 +48,6 @@ def approved_order_id(conn):
     ApproveProcessingOrderUseCase().execute(
         conn, order_id=created.entity_id, operation_id=new_uuid(), actor_user_id=new_uuid())
     return created.entity_id
-
-
-class TestMaterialRequirements:
-    def test_add_requirement_moves_order_to_materials_pending(self, conn, approved_order_id):
-        result = AddMaterialRequirementUseCase().execute(
-            conn, order_id=approved_order_id, operation_id=new_uuid(), product_id=new_uuid(),
-            required_quantity=Decimal("10"), required_weight=Decimal("100"),
-            actor_user_id=new_uuid())
-        assert result.success
-        with MeatProcessingUnitOfWork(conn) as uow:
-            order = uow.orders.get(approved_order_id)
-            assert order.status is ProcessingOrderStatus.MATERIALS_PENDING
-
-    def test_add_requirement_is_idempotent_on_operation_id(self, conn, approved_order_id):
-        op_id = new_uuid()
-        first = AddMaterialRequirementUseCase().execute(
-            conn, order_id=approved_order_id, operation_id=op_id, product_id=new_uuid(),
-            required_quantity=Decimal("1"), required_weight=Decimal("1"),
-            actor_user_id=new_uuid())
-        second = AddMaterialRequirementUseCase().execute(
-            conn, order_id=approved_order_id, operation_id=op_id, product_id=new_uuid(),
-            required_quantity=Decimal("1"), required_weight=Decimal("1"),
-            actor_user_id=new_uuid())
-        assert second.entity_id == first.entity_id
-        assert second.data["already_processed"] is True
-
-    def test_reserve_then_allocate(self, conn, approved_order_id):
-        added = AddMaterialRequirementUseCase().execute(
-            conn, order_id=approved_order_id, operation_id=new_uuid(), product_id=new_uuid(),
-            required_quantity=Decimal("10"), required_weight=Decimal("100"),
-            actor_user_id=new_uuid())
-        reserved = ReserveMaterialRequirementUseCase().execute(
-            conn, requirement_id=added.entity_id, operation_id=new_uuid(),
-            actor_user_id=new_uuid(), quantity=Decimal("10"), weight=Decimal("100"))
-        assert reserved.success
-        allocated = AllocateMaterialRequirementUseCase().execute(
-            conn, requirement_id=added.entity_id, operation_id=new_uuid(),
-            actor_user_id=new_uuid(), quantity=Decimal("10"), weight=Decimal("100"))
-        assert allocated.success
-        with MeatProcessingUnitOfWork(conn) as uow:
-            assert uow.material_requirements.get(added.entity_id).status.value == "ALLOCATED"
-
-    def test_reserve_records_outbox_event(self, conn, approved_order_id):
-        added = AddMaterialRequirementUseCase().execute(
-            conn, order_id=approved_order_id, operation_id=new_uuid(), product_id=new_uuid(),
-            required_quantity=Decimal("10"), required_weight=Decimal("100"),
-            actor_user_id=new_uuid())
-        op_id = new_uuid()
-        ReserveMaterialRequirementUseCase().execute(
-            conn, requirement_id=added.entity_id, operation_id=op_id, actor_user_id=new_uuid(),
-            quantity=Decimal("5"), weight=Decimal("50"))
-        with MeatProcessingUnitOfWork(conn) as uow:
-            pending = uow.outbox.list_pending()
-            assert any(row["operation_id"] == op_id for row in pending)
 
 
 class TestOperatorAssignment:
@@ -130,39 +79,32 @@ class TestOperatorAssignment:
         assert second.data["already_processed"] is True
 
 
-class TestMarkReady:
-    def test_blocked_while_requirement_unsatisfied(self, conn, approved_order_id):
-        AddMaterialRequirementUseCase().execute(
-            conn, order_id=approved_order_id, operation_id=new_uuid(), product_id=new_uuid(),
-            required_quantity=Decimal("10"), required_weight=Decimal("100"),
-            actor_user_id=new_uuid())
-        result = MarkProcessingOrderReadyUseCase().execute(
-            conn, order_id=approved_order_id, operation_id=new_uuid(), actor_user_id=new_uuid())
-        assert not result.success
-        assert result.error_code == "MATERIALS_NOT_READY"
+class TestPrepare:
+    def test_an_order_that_is_not_approved_cannot_be_prepared(self):
+        conn = build_db()
+        planta = Planta(conn)
+        creada = CreateProcessingOrderUseCase(planta.auth()).execute(
+            conn, operation_id=new_uuid(), branch_id=planta.branch,
+            warehouse_id=planta.warehouse, process_type=ProcessType.CUTTING,
+            target_product_id=planta.producto("Insumo"), planned_quantity=Decimal("0"),
+            planned_weight=Decimal("10"), actor_user_id=planta.operario,
+            submit_for_approval=False)
+        r = planta.preparar(creada.entity_id)
+        assert not r.success and r.error_code == "INVALID_STATE"
 
-    def test_succeeds_once_reserved(self, conn, approved_order_id):
-        added = AddMaterialRequirementUseCase().execute(
-            conn, order_id=approved_order_id, operation_id=new_uuid(), product_id=new_uuid(),
-            required_quantity=Decimal("10"), required_weight=Decimal("100"),
-            actor_user_id=new_uuid())
-        ReserveMaterialRequirementUseCase().execute(
-            conn, requirement_id=added.entity_id, operation_id=new_uuid(),
-            actor_user_id=new_uuid(), quantity=Decimal("10"), weight=Decimal("100"))
-        result = MarkProcessingOrderReadyUseCase().execute(
-            conn, order_id=approved_order_id, operation_id=new_uuid(), actor_user_id=new_uuid())
-        assert result.success
+    def test_preparing_twice_does_not_reserve_twice(self):
+        conn = build_db()
+        planta, order_id, insumo = released_order(conn, peso="40")
+        # Ya liberada: volver a preparar no aplica (no está aprobada ni lista)...
+        assert planta.preparar(order_id).error_code == "INVALID_STATE"
+        assert planta.reservado(insumo) == Decimal("40")
+
+        # ...y una orden READY es idempotente: misma reserva.
+        oid = planta.orden(ProcessType.CUTTING, insumo, "10")
+        assert planta.preparar(oid).data["ready"] is True
+        again = planta.preparar(oid)
+        assert again.success and again.data["already_processed"] is True
+        assert planta.reservado(insumo) == Decimal("50")
         with MeatProcessingUnitOfWork(conn) as uow:
-            assert uow.orders.get(approved_order_id).status is ProcessingOrderStatus.READY
-
-    def test_with_zero_requirements_is_trivially_ready(self, conn, approved_order_id):
-        result = MarkProcessingOrderReadyUseCase().execute(
-            conn, order_id=approved_order_id, operation_id=new_uuid(), actor_user_id=new_uuid())
-        assert result.success
-
-    def test_is_idempotent(self, conn, approved_order_id):
-        MarkProcessingOrderReadyUseCase().execute(
-            conn, order_id=approved_order_id, operation_id=new_uuid(), actor_user_id=new_uuid())
-        second = MarkProcessingOrderReadyUseCase().execute(
-            conn, order_id=approved_order_id, operation_id=new_uuid(), actor_user_id=new_uuid())
-        assert second.data["already_processed"] is True
+            assert uow.orders.get(oid).status is ProcessingOrderStatus.READY
+            assert len(uow.requirement_allocations.list_by_order(oid)) == 1

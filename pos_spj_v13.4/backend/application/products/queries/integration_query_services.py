@@ -11,6 +11,7 @@ from __future__ import annotations
 from backend.application.products.queries.integration_dtos import (
     InventoryProductConfigDTO,
     PosProductDTO,
+    ProcessingProductConfigDTO,
     PurchaseProductConfigDTO,
     QualityProductConfigDTO,
 )
@@ -137,3 +138,18 @@ class QualityProductConfigQueryService:
             requires_cold_chain=bool(logistics.requires_cold_chain) if logistics else False,
             minimum_remaining_for_receipt=(
                 shelf.minimum_remaining_for_receipt if shelf else None))
+
+
+class ProcessingProductConfigQueryService:
+    """Processing reads a product's classification (species/category) — data,
+    never behavior."""
+
+    def __init__(self, connection) -> None:
+        self._conn = connection
+
+    def get(self, product_id: str) -> ProcessingProductConfigDTO | None:
+        row = _product_row(self._conn, product_id)
+        if row is None:
+            return None
+        return ProcessingProductConfigDTO(
+            product_id=row["id"], species_id=row["species_id"], category_id=row["category_id"])

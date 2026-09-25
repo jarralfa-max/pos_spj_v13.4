@@ -14,7 +14,6 @@ from backend.application.meat_processing.authorization import (
 from backend.application.meat_processing.execution_context import (
     MeatProcessingExecutionContext,
 )
-from backend.application.meat_processing.ports import RecipeSnapshot
 from backend.application.meat_processing.use_cases import (
     ApproveProcessingOrderUseCase,
     CreateProcessingOrderUseCase,
@@ -25,6 +24,7 @@ from backend.infrastructure.db.repositories.meat_processing.unit_of_work import 
     MeatProcessingUnitOfWork,
 )
 from backend.shared.ids import new_uuid
+from tests.integration.meat_processing._generic_plant import build_db, released_order
 
 
 @pytest.fixture
@@ -32,6 +32,9 @@ def conn():
     c = sqlite3.connect(":memory:")
     importlib.import_module(
         "migrations.standalone.187_meat_processing_bounded_context_schema"
+    ).run(c)
+    importlib.import_module(
+        "migrations.standalone.272_meat_processing_frozen_definition_and_real_reservations"
     ).run(c)
     yield c
     c.close()
@@ -130,60 +133,35 @@ class TestApprove:
 
 
 class TestRelease:
+    """Sólo una orden PREPARADA se libera: definición congelada al preparar e
+    insumos reservados en Inventario. Liberar no vuelve a leer Productos."""
+
     def _approved_order_id(self, conn, **create_overrides):
         order_id = _create(conn, **create_overrides).entity_id
         ApproveProcessingOrderUseCase().execute(
             conn, order_id=order_id, operation_id=new_uuid(), actor_user_id=new_uuid())
         return order_id
 
-    def test_release_without_snapshot_port_leaves_version_ids_none(self, conn):
+    def test_an_approved_but_unprepared_order_is_not_released(self, conn):
         order_id = self._approved_order_id(conn)
         result = ReleaseProcessingOrderUseCase().execute(
             conn, order_id=order_id, operation_id=new_uuid(), actor_user_id=new_uuid())
-        assert result.success
+        assert not result.success
+        assert result.error_code == "ORDER_NOT_READY"
+        with MeatProcessingUnitOfWork(conn) as uow:
+            assert uow.orders.get(order_id).status is ProcessingOrderStatus.APPROVED
+
+    def test_ready_without_a_frozen_definition_is_not_released(self, conn):
+        """Datos heredados: READY sin foto congelada. No se libera a ciegas."""
+        order_id = self._approved_order_id(conn)
         with MeatProcessingUnitOfWork(conn) as uow:
             order = uow.orders.get(order_id)
-            assert order.status is ProcessingOrderStatus.RELEASED
-            assert order.recipe_version_id is None
-
-    def test_release_captures_recipe_snapshot_and_audits_it(self, conn):
-        order_id = self._approved_order_id(conn)
-        recipe_id = new_uuid()
-
-        class FakePort:
-            def resolve(self, *, target_product_id, process_type):
-                return RecipeSnapshot(
-                    recipe_version_id=recipe_id,
-                    components=({"product_id": new_uuid(), "quantity": "1"},),
-                    yield_tolerances={"warning_pct": "2"})
-
-        result = ReleaseProcessingOrderUseCase(recipe_snapshot_port=FakePort()).execute(
+            order.mark_ready()
+            uow.orders.save(order)
+        result = ReleaseProcessingOrderUseCase().execute(
             conn, order_id=order_id, operation_id=new_uuid(), actor_user_id=new_uuid())
-        assert result.success
-        with MeatProcessingUnitOfWork(conn) as uow:
-            order = uow.orders.get(order_id)
-            assert order.recipe_version_id == recipe_id
-            entries = uow.audit.list_for_entity("ProcessingOrder", order_id)
-            snapshot_entries = [e for e in entries if e["action"] == "RECIPE_SNAPSHOT_CAPTURED"]
-            assert len(snapshot_entries) == 1
-
-    def test_release_is_idempotent_and_does_not_recapture_snapshot(self, conn):
-        order_id = self._approved_order_id(conn)
-        calls = {"count": 0}
-
-        class CountingPort:
-            def resolve(self, *, target_product_id, process_type):
-                calls["count"] += 1
-                return RecipeSnapshot(recipe_version_id=new_uuid())
-
-        port = CountingPort()
-        ReleaseProcessingOrderUseCase(recipe_snapshot_port=port).execute(
-            conn, order_id=order_id, operation_id=new_uuid(), actor_user_id=new_uuid())
-        second = ReleaseProcessingOrderUseCase(recipe_snapshot_port=port).execute(
-            conn, order_id=order_id, operation_id=new_uuid(), actor_user_id=new_uuid())
-        assert second.success
-        assert second.data["already_processed"] is True
-        assert calls["count"] == 1
+        assert not result.success
+        assert result.error_code == "MASTER_DATA_MISSING"
 
     def test_release_unknown_order_fails(self, conn):
         result = ReleaseProcessingOrderUseCase().execute(
@@ -196,21 +174,28 @@ class TestRelease:
         result = ReleaseProcessingOrderUseCase().execute(
             conn, order_id=order_id, operation_id=new_uuid(), actor_user_id=new_uuid())
         assert not result.success
-        assert result.error_code == "MEAT_PROCESSING_RULE_VIOLATION"
+        assert result.error_code == "ORDER_NOT_READY"
 
 
 class TestFullLifecycle:
-    def test_create_approve_release_round_trip(self, conn):
-        creator, approver, releaser = new_uuid(), new_uuid(), new_uuid()
-        created = _create(conn, actor_user_id=creator)
-        approved = ApproveProcessingOrderUseCase().execute(
-            conn, order_id=created.entity_id, operation_id=new_uuid(), actor_user_id=approver)
-        assert approved.success
-        released = ReleaseProcessingOrderUseCase().execute(
-            conn, order_id=created.entity_id, operation_id=new_uuid(), actor_user_id=releaser)
-        assert released.success
+    def test_create_approve_prepare_release_round_trip(self):
+        conn = build_db()
+        planta, order_id, _ = released_order(conn)
         with MeatProcessingUnitOfWork(conn) as uow:
-            order = uow.orders.get(created.entity_id)
+            order = uow.orders.get(order_id)
+            snapshot = uow.recipe_snapshots.get_by_order(order_id)
             assert order.status is ProcessingOrderStatus.RELEASED
-            assert order.approved_by_user_id == approver
-            assert order.released_by_user_id == releaser
+            assert order.approved_by_user_id == planta.gerente
+            assert order.released_by_user_id == planta.operario
+            acciones = [e["action"] for e in uow.audit.list_for_entity("ProcessingOrder",
+                                                                        order_id)]
+            eventos = {r["event_name"]: r for r in uow.outbox.list_pending()}
+        assert snapshot is not None and snapshot.is_frozen
+        assert "RECIPE_SNAPSHOT_CAPTURED" in acciones and "RELEASED" in acciones
+        assert snapshot.id in eventos["PROCESSING_ORDER_RELEASED"]["payload_json"]
+
+    def test_release_is_idempotent(self):
+        conn = build_db()
+        planta, order_id, _ = released_order(conn)
+        again = planta.liberar(order_id)
+        assert again.success and again.data["already_processed"] is True

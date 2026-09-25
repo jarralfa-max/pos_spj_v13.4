@@ -108,6 +108,7 @@ def test_processing_order_closer_cannot_reverse_own_closure():
     order = _order()
     order.submit_for_approval()
     order.approve(actor_user_id=new_uuid())
+    order.mark_ready()
     order.release(actor_user_id=new_uuid())
     order.start(actor_user_id=new_uuid())
     order.complete(actor_user_id=new_uuid())
@@ -115,6 +116,18 @@ def test_processing_order_closer_cannot_reverse_own_closure():
     order.close(actor_user_id=closer)
     with pytest.raises(MeatProcessingSegregationOfDutiesError):
         order.reverse(actor_user_id=closer)
+
+
+def test_processing_order_cannot_be_released_without_being_prepared():
+    """Sólo una orden PREPARADA (insumos reservados) se libera."""
+    order = _order()
+    order.submit_for_approval()
+    order.approve(actor_user_id=new_uuid())
+    with pytest.raises(MeatProcessingStateTransitionError):
+        order.release(actor_user_id=new_uuid())
+    order.mark_materials_pending()
+    with pytest.raises(MeatProcessingStateTransitionError):
+        order.release(actor_user_id=new_uuid())
 
 
 def test_processing_order_rejects_illegal_transition():
@@ -127,6 +140,7 @@ def test_processing_order_cancel_only_from_pre_release_states():
     order = _order()
     order.submit_for_approval()
     order.approve(actor_user_id=new_uuid())
+    order.mark_ready()
     order.release(actor_user_id=new_uuid())
     order.start(actor_user_id=new_uuid())
     with pytest.raises(MeatProcessingStateTransitionError):
@@ -137,6 +151,7 @@ def test_processing_order_close_is_terminal_and_immutable_to_reopen():
     order = _order()
     order.submit_for_approval()
     order.approve(actor_user_id=new_uuid())
+    order.mark_ready()
     order.release(actor_user_id=new_uuid())
     order.start(actor_user_id=new_uuid())
     order.complete(actor_user_id=new_uuid())
@@ -365,6 +380,26 @@ def test_yield_reconciliation_variance_and_unexplained_difference():
     assert reconciliation.variance_pct == (Decimal("-2") / Decimal("90")) * Decimal("100")
     # 100 - (88 + 0 + 0 + 10) = 2
     assert reconciliation.unexplained_difference == Decimal("2")
+
+
+def test_yield_loss_is_the_shortfall_when_it_went_to_waste():
+    """Esperado 90, salió 60 y los 30 restantes a merma: la entrada está toda
+    explicada, pero se perdieron 30 kg de producto frente a lo esperado."""
+    reconciliation = _reconciliation(actual_output_weight=Decimal("60"),
+                                     waste_weight=Decimal("40"))
+    assert reconciliation.unexplained_difference == Decimal("0")
+    assert reconciliation.yield_loss_weight == Decimal("30")
+
+
+def test_yield_loss_is_the_unaccounted_input_when_it_is_larger():
+    """Esperado 90, salió 88 y nada más: faltante 2, entrada sin explicar 12."""
+    assert _reconciliation().yield_loss_weight == Decimal("12")
+
+
+def test_yielding_more_than_expected_is_not_a_loss():
+    reconciliation = _reconciliation(actual_output_weight=Decimal("95"),
+                                     waste_weight=Decimal("5"))
+    assert reconciliation.yield_loss_weight == Decimal("0")
 
 
 def test_yield_reconciliation_classification_and_approval_flow():

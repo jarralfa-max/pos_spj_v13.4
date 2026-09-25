@@ -211,6 +211,9 @@ def test_get_returns_none_when_the_anchored_branch_disappeared(company, conn, br
     """Sin el JOIN contra `sucursales` esto devolvería un id huérfano que el
     arranque trataría como una sucursal válida."""
     company.set_installation_branch(branch_id)
+    # Desaparecer del todo = también su perfil de Configuración (la 275 le da uno
+    # a toda sucursal para el código de sus folios; la llave foránea lo exige).
+    conn.execute("DELETE FROM branch_profiles WHERE branch_id=?", (branch_id,))
     conn.execute("DELETE FROM sucursales WHERE id=?", (branch_id,))
     assert company.get_installation_branch() is None
 

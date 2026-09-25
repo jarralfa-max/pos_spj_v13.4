@@ -3993,3 +3993,33 @@ que «Por corte» trajo el suyo — ese trinquete hizo su trabajo.
   recibirla en existencia. Mermas la clasifica y valúa.
 * Empaque y etiquetado siguen fuera del orquestador (pasos aparte).
 * Reproceso (`REWORK`) no se dispara automáticamente desde una variación.
+
+## Procesamiento — auditoría profunda: definición congelada, reservas reales, Calidad y Costos (migraciones 272 y 273, 2026-09-24)
+
+Hallazgos corregidos (todos medidos antes de tocar):
+
+| Hallazgo | Corrección |
+|---|---|
+| La ejecución releía el esquema de corte de Productos | `ProcessingRecipeSnapshot` se congela al PREPARAR (`processing_recipe_snapshots`, sólo INSERT); la ejecución lee sólo la foto |
+| Liberar capturaba sólo ids y liberaba sin datos maestros; se liberaba desde APPROVED | `ProcessingMasterDataRequirementPolicy` por familia (despiece → esquema de corte, formulación → receta, empaque → especificación de empaque); `release()` exige READY |
+| Reservas de papel (sin llamadores) y READY sin reserva | `PrepareProcessingOrderUseCase` reserva en Inventario (`ReserveStockForProductionUseCase`: lote y ubicación exactos, todo o nada); `material_requirement_allocations` guarda la reserva real; sin reserva no hay READY |
+| Existencia negativa autorizable | Retirado: no hay consumo sin reserva (`EXCEEDS_RESERVATION`) |
+| La ejecución liberaba calidad de sus propios outputs | Calidad propia (`quality_inspections`, segregación de funciones); Inventario retiene (QUARANTINED) y sólo Calidad libera; `RecordQualityDecisionUseCase` sólo registra una decisión que EXISTA en Calidad |
+| Costo por valor de venta relativo calculado en Procesamiento | Contexto de Costos (`JointCostAllocator`: peso, valor de venta, valor neto realizable, estándar, factor); preflight antes de mover existencia; `PRODUCTION_OUTPUT_COSTED` → Precios, `PROCESSING_COST_ALLOCATED` → Finanzas (antes sin emisor) |
+| `operation_id` armados por concatenación | UUIDv7 por paso, persistidos en `processing_execution_steps` antes de llamar a otro contexto (reanudable, idempotente) |
+| `location_id or branch_id` | `StockLocationResolver`; sin ubicación, falla claro |
+| `permissive_for_tests` por omisión en adaptadores | Concesiones declaradas por el contexto dueño (`IntegrationGrant`, mismo usuario, permisos cerrados) |
+| Mermas escritas por repositorio y con diferencia 0 | Caso de uso de Mermas; la merma es `YieldReconciliation.yield_loss_weight` |
+| Rendimiento con un solo producto sin precio no se podía costear | Con una sola salida que carga costo, se lleva el 100 % con cualquier método |
+| Trazabilidad con un solo lote padre y UUIDs en pantalla | Padres desde los consumos aplicados (muchos a muchos); lotes por código, órdenes por fecha, sucursales por nombre |
+| Nadie podía decidir calidad desde la aplicación | Calidad → «Por inspeccionar» (inspector con `CALIDAD.inspeccion.decidir`) |
+
+Migraciones:
+- **272**: esquemas de foto y de bitácora; `process_outputs` admite `NOT_REQUIRED` (reconstrucción sin perder filas); fotos reconstruidas desde las versiones capturadas; órdenes RELEASED sin reserva ni consumo vuelven a MATERIALS_PENDING.
+- **273**: esquemas de Costos y Calidad; el costo histórico que la Fase 10 dejó en `processing_output_results` pasa a `processing_cost_allocations` (sin eventos) y la tabla se reconstruye sin columnas de costo; permisos `CALIDAD.inspeccion.*` a gerente/admin/system_owner y `PRODUCCION.material.asignar` a almacén (INSERT OR IGNORE).
+
+Decisiones del usuario (2026-09-24) y lo hecho con ellas:
+- **Compuestos en Ventas**: se venden por sus COMPONENTES. `SalesFulfillmentQueryService` (Productos) resuelve receta «Explosión de venta» o combo VIRTUAL (un `STOCKED_KIT` se vende de su stock), anidados, y falla claro ante ciclos o definición doble. Ventas reserva, descuenta y, al devolver, repone componentes; el costo de venta es la suma de los componentes; Inventario promete lo que alcanza el componente más escaso.
+- **Ventas ↔ Producción**: Ventas SÓLO consulta a Inventario; no hay eventos ni consultas de producción (fuera de alcance por decisión).
+- **Folio**: `OP-<código de sucursal>-00001`. El código es el de Configuración → Empresa y sucursales (`branch_profiles.code`, ahora editable); contador seguro `document_number_sequences` por prefijo, reservado en la misma transacción que la orden. **Migración 275**: perfil mínimo con código derivado del nombre (único) para sucursales sin perfil, columna `folio` con índice único, folios de órdenes existentes en orden de creación y contador alineado. Nota: al tener perfil, borrar físicamente una sucursal exige borrar antes su perfil (llave foránea); dar de baja sigue siendo desactivar.
+- **Limpieza**: borrados `_execution_fixture.py` y seis pruebas de la cadena legacy (sus reglas de negocio pasaron a `tests/integration/sales/test_sales_composite_explosion.py`); **migración 274** retira `PRODUCCION.calidad.registrar_decision` de todos los roles.

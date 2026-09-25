@@ -19,6 +19,19 @@ from frontend.desktop.modules.meat_processing.presenters.meat_processing_record_
 )
 
 #: Movimientos del libro de Inventario, en el idioma del operador.
+#: Tipo de documento origen de un movimiento, como lo entiende quien opera.
+DOCUMENT_LABELS: dict[str, str] = {
+    "SALE": "Venta", "SALE_RETURN": "Devolución de venta", "SALE_REVERSAL": "Reverso de venta",
+    "PURCHASE": "Compra", "PURCHASE_RETURN": "Devolución a proveedor",
+    "RECETA_COMPRA": "Compra (receta)", "TRANSFER": "Transferencia",
+    "PROCESSING_ORDER": "Orden de producción", "PRODUCTION_ORDER": "Orden de producción",
+    "PRODUCTION": "Producción", "RECONSTRUCTION": "Reconstrucción",
+    "LOSS_CASE": "Merma", "EXPIRY": "Caducidad", "ADJUSTMENT": "Ajuste",
+    "REVERSAL": "Reverso", "QUARANTINE": "Cuarentena",
+    "QUARANTINE_DISPOSAL": "Baja desde cuarentena", "LOT_QUALITY": "Calidad del lote",
+    "INSPECTION": "Inspección",
+}
+
 MOVEMENT_LABELS: dict[str, str] = {
     "PURCHASE_RECEIPT": "Compra recibida", "DIRECT_PURCHASE_RECEIPT": "Compra directa",
     "SALE_ISSUE": "Venta", "SALE_RETURN": "Devolución de venta",
@@ -57,8 +70,9 @@ def _texto(valor, vacio: str = "—") -> str:
     return str(valor) if valor not in (None, "") else vacio
 
 
-def _corto(valor) -> str:
-    return str(valor)[:12] if valor else "—"
+def _codigo(valor) -> str:
+    """El código de un lote tal como lo registró Inventario; nunca su identidad."""
+    return str(valor) if valor else "Sin código"
 
 
 def _fecha(valor) -> str:
@@ -85,7 +99,7 @@ class MeatTraceabilityPresenter:
             self._branch_id, query=query or "")
         return [
             SearchOption(
-                lote.lot_id, _corto(lote.lot_id),
+                lote.lot_id, _codigo(lote.lot_code),
                 f"{_texto(lote.product_name)} · {_peso(lote.weight)} · {_fecha(lote.produced_at)}")
             for lote in lotes
         ]
@@ -106,15 +120,16 @@ class MeatTraceabilityPresenter:
         return LotTraceViewModel(
             summary=(f"{_texto(lote.product_name)} · {_peso(lote.weight)} · "
                      f"{PROCESS_TYPE_LABELS.get(lote.process_type, _texto(lote.process_type))} · "
-                     f"orden {_corto(lote.processing_order_id)}"),
+                     f"{lote.order_folio or 'orden sin folio'} · "
+                     f"producido {_fecha(lote.produced_at)}"),
             origin=(f"{destino} · {alcanzados} lote(s) alcanzado(s) · "
                     f"{len(recorrido.branches_touched)} sucursal(es)"),
             inputs=TraceTableModel(
-                rows=[[_corto(entrada.lot_id), _texto(entrada.product_name),
+                rows=[[_codigo(entrada.lot_code), _texto(entrada.product_name),
                        _peso(entrada.weight)] for entrada in recorrido.inputs],
                 row_ids=[entrada.lot_id for entrada in recorrido.inputs]),
             chained=TraceTableModel(
-                rows=[[_corto(c.processing_order_id),
+                rows=[[c.order_folio or f"Orden del {_fecha(c.order_created_at)}",
                        PROCESS_TYPE_LABELS.get(c.process_type, _texto(c.process_type)),
                        _texto(c.product_name), _peso(c.weight), _fecha(c.linked_at)]
                       for c in recorrido.chained],
@@ -122,8 +137,9 @@ class MeatTraceabilityPresenter:
             destinations=TraceTableModel(
                 rows=[[_fecha(d.occurred_at),
                        MOVEMENT_LABELS.get(d.movement_type, _texto(d.movement_type)),
-                       _texto(d.source_module), _corto(d.source_document_id),
-                       _corto(d.branch_id), _peso(d.weight)]
+                       _texto(d.source_module),
+                       DOCUMENT_LABELS.get(d.source_document_type, _texto(d.source_document_type)),
+                       _texto(d.branch_name) or "Sucursal no registrada", _peso(d.weight)]
                       for d in recorrido.destinations],
                 row_ids=[f"{d.source_document_id}-{d.occurred_at}"
                          for d in recorrido.destinations]),

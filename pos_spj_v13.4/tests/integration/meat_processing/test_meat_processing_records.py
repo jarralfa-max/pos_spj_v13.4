@@ -58,6 +58,8 @@ from backend.infrastructure.db.repositories.meat_processing.unit_of_work import 
     MeatProcessingUnitOfWork,
 )
 from backend.infrastructure.db.schema import meat_processing_schema as esquema
+from backend.infrastructure.db.schema.costing_schema import create_costing_schema
+from backend.infrastructure.db.schema.inventory_schema import create_inventory_schema
 from backend.infrastructure.db.schema.products_schema import create_products_schema
 from backend.shared.ids import new_uuid
 from frontend.desktop.modules.meat_processing.presenters.meat_processing_record_presenter import (
@@ -105,8 +107,11 @@ def conn():
                   esquema.create_meat_processing_rework_schema,
                   esquema.create_meat_processing_genealogy_schema,
                   esquema.create_meat_processing_resources_schema,
-                  esquema.create_meat_processing_output_results_schema):
+                  esquema.create_meat_processing_output_results_schema,
+                  create_costing_schema, create_inventory_schema):
         crear(c)
+    # Catálogo de usuarios (el de producción lo crea el esquema base).
+    c.execute("CREATE TABLE IF NOT EXISTS usuarios (id TEXT PRIMARY KEY, nombre TEXT)")
     c.commit()
     yield c
     c.close()
@@ -253,22 +258,19 @@ def _resultados_por_corte(s):
 
     orden = s.orden()
     filas = []
-    for tipo, esperado, real, costo in (("MAIN_PRODUCT", "3.5", "3.4", "283.33"),
-                                        ("CO_PRODUCT", "3.0", "3.0", "166.67"),
-                                        ("WASTE", "0.5", "0.5", "0")):
+    for tipo, esperado, real in (("MAIN_PRODUCT", "3.5", "3.4"), ("CO_PRODUCT", "3.0", "3.0"),
+                                 ("WASTE", "0.5", "0.5")):
         filas.append({
             "product_id": s.producto(f"Corte {tipo}"), "output_type": tipo,
             "input_product_id": new_uuid(), "input_weight": Decimal("10"),
-            "input_unit_cost": Decimal("50"), "expected_weight": Decimal(esperado),
-            "actual_weight": Decimal(real),
+            "expected_weight": Decimal(esperado), "actual_weight": Decimal(real),
             "difference_weight": Decimal(real) - Decimal(esperado),
             "expected_yield_pct": Decimal("35"), "yield_pct": Decimal("34"),
-            "variance_pct": Decimal("-2.86"), "unit_price": Decimal("120"),
-            "allocated_cost": Decimal(costo), "unit_cost": Decimal("83.33"),
-            "input_lot_id": None, "output_lot_id": None,
+            "variance_pct": Decimal("-2.86"), "input_lot_id": None, "output_lot_id": None,
         })
     ProcessingOutputResultsRepository(s.conn).replace_for_order(orden.id, filas)
     s.conn.commit()
+    return orden, filas
 
 
 def _calidad(s):
@@ -507,3 +509,46 @@ def test_a_label_that_was_never_printed_leaves_the_package_unlabeled(conn):
 
     assert _pagina(conn, R.PACKAGING, status="UNLABELED").total == 2
     assert _pagina(conn, R.PACKAGING, status="LABELED").total == 1
+
+
+def test_the_cost_per_output_comes_from_costing_not_from_processing(conn):
+    """Procesamiento guarda sólo el resultado físico; el costo de cada salida lo
+    decide Costos. Antes de costear la columna está vacía (no se inventa un 0)."""
+    from backend.infrastructure.db.repositories.costing.processing_cost_repository import (
+        ProcessingCostRepository,
+        StoredAllocationLine,
+    )
+
+    orden, filas = _resultados_por_corte(Siembra(conn, SUCURSAL))
+    antes = {f["output_type"]: f for f in _pagina(conn, R.OUTPUT_RESULTS).rows}
+    assert {f["unit_cost"] for f in antes.values()} == {None}
+
+    principal = next(f for f in filas if f["output_type"] == "MAIN_PRODUCT")
+    ProcessingCostRepository(conn).add(
+        allocation_id=new_uuid(), operation_id=new_uuid(), processing_order_id=orden.id,
+        source_module="meat_processing", branch_id=SUCURSAL, process_type="CUTTING",
+        method="RELATIVE_SALES_VALUE", currency_code="MXN", input_cost_total=Decimal("500"),
+        output_value_total=Decimal("500"), waste_value_total=Decimal("0"),
+        created_by_user_id=USUARIO, lines=[StoredAllocationLine(
+            "OUTPUT", principal["product_id"], "MAIN_PRODUCT", None, Decimal("3.4"),
+            Decimal("120"), Decimal("408"), Decimal("283.33"), Decimal("83.3324"))])
+    conn.commit()
+
+    despues = {f["output_type"]: f for f in _pagina(conn, R.OUTPUT_RESULTS).rows}
+    assert Decimal(str(despues["MAIN_PRODUCT"]["allocated_cost"])) == Decimal("283.33")
+    assert Decimal(str(despues["MAIN_PRODUCT"]["unit_cost"])) == Decimal("83.3324")
+    assert despues["CO_PRODUCT"]["unit_cost"] is None
+
+
+@pytest.mark.parametrize("record", _REGISTROS, ids=lambda r: r.value)
+def test_no_record_shows_an_identity(conn, record):
+    """Lotes por su código, usuarios por su nombre, órdenes por su fecha: ninguna
+    celda muestra un UUID, ni recortado."""
+    _sembrar(conn, record)
+    pagina = MeatProcessingRecordPresenter(conn, branch_id=SUCURSAL, record=record).rows()
+    ids = {str(v) for fila in _pagina(conn, record).rows for k, v in fila.items()
+           if v and (k == "id" or k.endswith("_id"))}
+    celdas = [str(c) for fila in pagina.rows for c in fila]
+    assert celdas
+    assert not any(i[:8] in c for i in ids for c in celdas if len(i) >= 32)
+

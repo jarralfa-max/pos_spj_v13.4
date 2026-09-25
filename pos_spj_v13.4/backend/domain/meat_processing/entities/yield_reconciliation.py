@@ -82,6 +82,15 @@ class YieldReconciliation:
                      + self.by_product_weight + self.waste_weight)
         return self.input_weight - accounted
 
+    @property
+    def yield_loss_weight(self) -> Decimal:
+        """Lo que se perdió frente a lo esperado: el faltante de la salida
+        conciliada contra su esperado, o la entrada que ninguna salida explica —
+        la mayor de las dos, para no contar dos veces el mismo kilo. Nunca
+        negativa: rendir de más no es merma."""
+        faltante = self.expected_output_weight - self.actual_output_weight
+        return max(faltante, self.unexplained_difference, Decimal("0"))
+
     def apply_classification(self, status: YieldStatus) -> None:
         if self.status is not YieldStatus.PENDING_REVIEW:
             raise MeatProcessingStateTransitionError(

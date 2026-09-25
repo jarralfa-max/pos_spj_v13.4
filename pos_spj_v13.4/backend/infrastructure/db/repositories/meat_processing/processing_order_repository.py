@@ -35,7 +35,8 @@ def _to_entity(row: dict) -> ProcessingOrder:
         released_by_user_id=row["released_by_user_id"],
         started_by_user_id=row["started_by_user_id"],
         completed_by_user_id=row["completed_by_user_id"],
-        closed_by_user_id=row["closed_by_user_id"], created_at=parse_dt(row["created_at"]))
+        closed_by_user_id=row["closed_by_user_id"], created_at=parse_dt(row["created_at"]),
+        folio=row["folio"] if "folio" in row.keys() else None)
 
 
 class ProcessingOrderRepository(MeatProcessingRepositoryBase):
@@ -47,8 +48,8 @@ class ProcessingOrderRepository(MeatProcessingRepositoryBase):
             " source_type, source_reference_id, planned_quantity, planned_weight,"
             " scheduled_start_at, scheduled_end_at, priority, status, created_by_user_id,"
             " approved_by_user_id, released_by_user_id, started_by_user_id,"
-            " completed_by_user_id, closed_by_user_id, created_at, updated_at)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+            " completed_by_user_id, closed_by_user_id, created_at, updated_at, folio)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
             " ON CONFLICT(id) DO UPDATE SET"
             " production_area_id=excluded.production_area_id,"
             " work_center_id=excluded.work_center_id,"
@@ -61,7 +62,9 @@ class ProcessingOrderRepository(MeatProcessingRepositoryBase):
             " released_by_user_id=excluded.released_by_user_id,"
             " started_by_user_id=excluded.started_by_user_id,"
             " completed_by_user_id=excluded.completed_by_user_id,"
-            " closed_by_user_id=excluded.closed_by_user_id, updated_at=excluded.updated_at",
+            " closed_by_user_id=excluded.closed_by_user_id, updated_at=excluded.updated_at,"
+            # El folio se fija al crear y nunca se reemplaza.
+            " folio=COALESCE(processing_orders.folio, excluded.folio)",
             (order.id, order.operation_id, order.branch_id, order.warehouse_id,
              order.production_area_id, order.work_center_id, enum_value(order.process_type),
              order.target_product_id, order.recipe_version_id,
@@ -71,7 +74,7 @@ class ProcessingOrderRepository(MeatProcessingRepositoryBase):
              dt_str(order.scheduled_end_at), order.priority, enum_value(order.status),
              order.created_by_user_id, order.approved_by_user_id, order.released_by_user_id,
              order.started_by_user_id, order.completed_by_user_id, order.closed_by_user_id,
-             dt_str(order.created_at), now_iso()))
+             dt_str(order.created_at), now_iso(), order.folio))
 
     def get(self, order_id: str) -> ProcessingOrder | None:
         row = self._query_one("SELECT * FROM processing_orders WHERE id=?", (order_id,))

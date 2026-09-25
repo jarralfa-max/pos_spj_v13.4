@@ -84,3 +84,11 @@ def summarize_outputs_by_type(outputs: Iterable[ProcessOutput]) -> dict[str, Dec
         "co_product_weight": co_product_weight, "by_product_weight": by_product_weight,
         "waste_weight": waste_weight,
     }
+
+
+class StepFailed(Exception):
+    """Un paso de una orquestación reanudable falló: lleva el paso y el código."""
+
+    def __init__(self, step, message, code="EXECUTION_STEP_FAILED", detail=None) -> None:
+        super().__init__(message)
+        self.step, self.message, self.code, self.detail = step, message, code, detail

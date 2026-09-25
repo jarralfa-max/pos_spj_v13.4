@@ -1,55 +1,38 @@
 """PROC-8 e2e: start → pause → resume → complete, steps, and incidents
 (including an incident that pauses the order)."""
 
-import importlib
-import sqlite3
-from decimal import Decimal
 
 import pytest
 
 from backend.application.meat_processing.use_cases import (
-    ApproveProcessingOrderUseCase,
     CompleteProcessExecutionUseCase,
     CompleteProcessStepUseCase,
-    CreateProcessingOrderUseCase,
     PauseProcessExecutionUseCase,
-    ReleaseProcessingOrderUseCase,
     ReportProcessIncidentUseCase,
     ResolveProcessIncidentUseCase,
     ResumeProcessExecutionUseCase,
     StartProcessExecutionUseCase,
     StartProcessStepUseCase,
 )
-from backend.domain.meat_processing.enums import IncidentType, ProcessingOrderStatus, ProcessType
+from backend.domain.meat_processing.enums import IncidentType, ProcessingOrderStatus
 from backend.infrastructure.db.repositories.meat_processing.unit_of_work import (
     MeatProcessingUnitOfWork,
 )
 from backend.shared.ids import new_uuid
+from tests.integration.meat_processing._generic_plant import build_db, released_order
 
 
 @pytest.fixture
 def conn():
-    c = sqlite3.connect(":memory:")
-    importlib.import_module(
-        "migrations.standalone.187_meat_processing_bounded_context_schema").run(c)
-    importlib.import_module(
-        "migrations.standalone.248_meat_processing_preparation_execution_schema").run(c)
+    c = build_db()
     yield c
     c.close()
 
 
 @pytest.fixture
 def released_order_id(conn):
-    created = CreateProcessingOrderUseCase().execute(
-        conn, operation_id=new_uuid(), branch_id=new_uuid(), warehouse_id=new_uuid(),
-        process_type=ProcessType.CUTTING, target_product_id=new_uuid(),
-        planned_quantity=Decimal("10"), planned_weight=Decimal("100"),
-        actor_user_id=new_uuid())
-    ApproveProcessingOrderUseCase().execute(
-        conn, order_id=created.entity_id, operation_id=new_uuid(), actor_user_id=new_uuid())
-    ReleaseProcessingOrderUseCase().execute(
-        conn, order_id=created.entity_id, operation_id=new_uuid(), actor_user_id=new_uuid())
-    return created.entity_id
+    # Sólo una orden preparada (definición congelada + reserva real) se libera.
+    return released_order(conn)[1]
 
 
 class TestStartPauseResumeComplete:

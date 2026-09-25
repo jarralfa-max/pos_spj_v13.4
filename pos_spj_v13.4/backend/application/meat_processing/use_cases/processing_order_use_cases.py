@@ -19,8 +19,6 @@ from backend.application.meat_processing.permissions import MeatProcessingPermis
 from backend.application.meat_processing.ports import (
     CostAllocationPort,
     NullCostAllocationPort,
-    NullRecipeSnapshotPort,
-    RecipeSnapshotPort,
 )
 from backend.application.meat_processing.result import MeatProcessingResult
 from backend.application.meat_processing.use_cases._shared import BLOCKED_QUALITY_STATUSES
@@ -41,6 +39,9 @@ from backend.domain.meat_processing.exceptions import (
     MeatProcessingInvariantError,
     MeatProcessingPermissionDeniedError,
 )
+from backend.domain.meat_processing.policies.master_data_requirement_policy import (
+    ProcessingMasterDataRequirementPolicy,
+)
 from backend.domain.meat_processing.policies.order_closing_policy import (
     OrderClosingPolicy,
     ProcessingOrderCloseChecklist,
@@ -55,8 +56,12 @@ _NON_STOCK_OUTPUT_TYPES = (OutputType.WASTE, OutputType.LOSS)
 
 
 class CreateProcessingOrderUseCase:
-    def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
+    def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None,
+                 folio_port=None) -> None:
         self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        #: `OrderFolioPort` (conexión → siguiente folio de la sucursal). Sin él la
+        #: orden se crea sin folio (pruebas de dominio); la aplicación lo conecta.
+        self._folio = folio_port
 
     def execute(
         self,
@@ -104,6 +109,16 @@ class CreateProcessingOrderUseCase:
                     source_type=source_type, source_reference_id=source_reference_id,
                     scheduled_start_at=scheduled_start_at, scheduled_end_at=scheduled_end_at,
                     priority=priority)
+                if self._folio is not None:
+                    # En la MISMA transacción que la orden: si no se guarda, el
+                    # número no se consume.
+                    folios = self._folio(connection)
+                    folio = folios.next_folio(branch_id)
+                    if not folio:
+                        return MeatProcessingResult.fail(
+                            folios.last_error or "No se pudo asignar folio a la orden.",
+                            "FOLIO_UNAVAILABLE", operation_id=operation_id)
+                    order.assign_folio(folio)
                 if submit_for_approval:
                     order.submit_for_approval()
                 uow.orders.save(order)
@@ -122,8 +137,9 @@ class CreateProcessingOrderUseCase:
         except MeatProcessingError as exc:
             return _fail(exc, operation_id)
         return MeatProcessingResult.ok(
-            "Orden creada", entity_id=order.id, operation_id=operation_id,
-            status=order.status.value)
+            f"Orden {order.folio} creada" if order.folio else "Orden creada",
+            entity_id=order.id, operation_id=operation_id, status=order.status.value,
+            folio=order.folio)
 
 
 class ApproveProcessingOrderUseCase:
@@ -177,16 +193,18 @@ class ApproveProcessingOrderUseCase:
 
 
 class ReleaseProcessingOrderUseCase:
-    """§14: captures the recipe/cutting-scheme/yield-profile snapshot exactly
-    once, immediately before release, then releases the order."""
+    """Libera una orden PREPARADA. La definición productiva ya quedó congelada
+    al preparar (`freeze_processing_definition`) y los insumos ya están
+    reservados en Inventario; aquí sólo se verifica que la foto exista y siga
+    cumpliendo lo que el proceso exige. Liberar NO vuelve a leer Productos."""
 
     def __init__(
         self,
         authorization: MeatProcessingAuthorizationPolicy | None = None,
-        recipe_snapshot_port: RecipeSnapshotPort | None = None,
+        master_data_policy: ProcessingMasterDataRequirementPolicy | None = None,
     ) -> None:
         self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
-        self._snapshot_port = recipe_snapshot_port or NullRecipeSnapshotPort()
+        self._policy = master_data_policy or ProcessingMasterDataRequirementPolicy()
 
     def execute(
         self,
@@ -214,29 +232,24 @@ class ReleaseProcessingOrderUseCase:
                     return MeatProcessingResult.ok(
                         "Orden ya liberada (idempotente)", entity_id=order.id,
                         operation_id=operation_id, already_processed=True)
-                if order.recipe_version_id is None and order.cutting_scheme_version_id is None \
-                        and order.yield_profile_version_id is None:
-                    snapshot = self._snapshot_port.resolve(
-                        target_product_id=order.target_product_id,
-                        process_type=order.process_type)
-                    if snapshot is not None:
-                        order.apply_recipe_snapshot(
-                            recipe_version_id=snapshot.recipe_version_id,
-                            cutting_scheme_version_id=snapshot.cutting_scheme_version_id,
-                            yield_profile_version_id=snapshot.yield_profile_version_id)
-                        uow.audit.record(
-                            entity_type="ProcessingOrder", entity_id=order.id,
-                            action="RECIPE_SNAPSHOT_CAPTURED", user_id=actor_user_id,
-                            operation_id=operation_id, after_json=json.dumps(
-                                snapshot.to_json_dict()),
-                            branch_id=order.branch_id, warehouse_id=order.warehouse_id,
-                            processing_order_id=order.id)
+                if order.status is not ProcessingOrderStatus.READY:
+                    return MeatProcessingResult.fail(
+                        "Prepara la orden antes de liberarla: sus insumos deben estar "
+                        "reservados en Inventario.", "ORDER_NOT_READY",
+                        operation_id=operation_id)
+                snapshot = uow.recipe_snapshots.get_by_order(order.id)
+                revision = self._policy.check(order.process_type, snapshot)
+                if snapshot is None or not revision.ok:
+                    return MeatProcessingResult.fail(
+                        revision.message() or "La orden no tiene su definición congelada.",
+                        "MASTER_DATA_MISSING", operation_id=operation_id)
                 order.release(actor_user_id=actor_user_id)
                 uow.orders.save(order)
                 payload = build_meat_processing_event(
                     MeatProcessingEvents.PROCESSING_ORDER_RELEASED, operation_id=operation_id,
                     entity_id=order.id, branch_id=order.branch_id,
-                    warehouse_id=order.warehouse_id, user_id=actor_user_id)
+                    warehouse_id=order.warehouse_id, user_id=actor_user_id,
+                    recipe_snapshot_id=snapshot.id)
                 uow.outbox.enqueue(
                     event_id=payload["event_id"],
                     event_name=MeatProcessingEvents.PROCESSING_ORDER_RELEASED,

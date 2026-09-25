@@ -87,6 +87,7 @@ STATUS_LABELS: dict[MeatProcessingRecord, dict[str, str]] = {
     },
     MeatProcessingRecord.OUTPUT_RESULTS: _OUTPUT_TYPES,
     MeatProcessingRecord.QUALITY: {
+        "NOT_REQUIRED": "Sin inspección",
         "PENDING_INSPECTION": "Por inspeccionar", "QUARANTINED": "En cuarentena",
         "RELEASED": "Liberado", "REJECTED": "Rechazado",
         "REWORK_REQUIRED": "Requiere reproceso", "CONDEMNED": "Decomisado",
@@ -114,8 +115,9 @@ def _texto(valor, vacio: str = "—") -> str:
     return str(valor) if valor not in (None, "") else vacio
 
 
-def _corto(valor) -> str:
-    return str(valor)[:8] if valor else "—"
+def _lote(codigo) -> str:
+    """El código del lote; una salida aún sin lote no tiene código."""
+    return str(codigo) if codigo else "—"
 
 
 def _fecha(valor) -> str:
@@ -182,7 +184,7 @@ def _fila_pesaje(f, estados):
 
 def _fila_consumo(f, estados):
     return [_fecha(f["created_at"]), _proceso(f["process_type"]), _texto(f["product_name"]),
-            _corto(f["lot_id"]), _numero(f["planned_weight"]), _numero(f["actual_weight"]),
+            _lote(f["lot_code"]), _numero(f["planned_weight"]), _numero(f["actual_weight"]),
             _texto(f["unit"]), estados.get(f["status"], f["status"])]
 
 
@@ -191,11 +193,11 @@ def _fila_salida(f, _estados):
     return [_fecha(f["produced_at"]), _proceso(f["process_type"]), _texto(f["product_name"]),
             _OUTPUT_TYPES.get(f["output_type"], f["output_type"]), _numero(f["quantity"]),
             _numero(f["weight"]), _texto(f["unit"]),
-            calidad.get(f["quality_status"], f["quality_status"]), _corto(f["lot_id"])]
+            calidad.get(f["quality_status"], f["quality_status"]), _lote(f["lot_code"])]
 
 
 def _fila_empaque(f, estados):
-    return [_fecha(f["packaged_at"]), _texto(f["product_name"]), _corto(f["lot_id"]),
+    return [_fecha(f["packaged_at"]), _texto(f["product_name"]), _lote(f["lot_code"]),
             _texto(f["package_quantity"]), _numero(f["net_weight"]),
             _fecha(f["expiration_date"]), str(f["labels"]), str(f["reprints"]),
             estados.get(f["status"], f["status"])]
@@ -223,7 +225,8 @@ def _fila_resultado_corte(f, estados):
             _numero(f["expected_weight"]), _numero(f["actual_weight"]),
             _numero(f["difference_weight"]), f"{_numero(f['yield_pct'])}%",
             "—" if variacion is None else f"{'+' if variacion > 0 else ''}{variacion:.2f}%",
-            _numero(f["unit_cost"]), _numero(f["allocated_cost"]), _corto(f["output_lot_id"])]
+            _numero(f["unit_cost"]), _numero(f["allocated_cost"]),
+            _lote(f["output_lot_code"])]
 
 
 def _fila_reproceso(f, estados):
@@ -241,9 +244,13 @@ def _fila_incidencia(f, estados):
 
 
 def _fila_auditoria(f, estados):
-    return [_fecha(f["occurred_at"]), _corto(f["user_id"]),
+    quien = (_texto(f["user_name"]) if f["user_name"]
+             else ("Sistema" if not f["user_id"] else "Usuario no registrado"))
+    orden = (f["order_folio"] or f"Orden del {_fecha(f['order_created_at'])}"
+             if f["order_created_at"] else "—")
+    return [_fecha(f["occurred_at"]), quien,
             estados.get(f["entity_type"], _texto(f["entity_type"])), _texto(f["action"]),
-            _corto(f["entity_id"]), _texto(f["reason"])]
+            orden, _texto(f["reason"])]
 
 
 _FORMATO = {

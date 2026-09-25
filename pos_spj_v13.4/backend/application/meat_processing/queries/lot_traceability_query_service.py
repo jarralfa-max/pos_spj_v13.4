@@ -10,7 +10,8 @@ consulta NO reimplementa esa travesía: la compone.
 
 Lo que sí es de Cárnico es el QUÉ preguntar: qué lotes produjo esta sucursal —
 `processing_output_results`, la misma tabla que alimenta Rendimientos → Por
-corte—, con qué insumo entraron y en qué orden se produjeron. Un lote que no
+corte—, en qué orden se produjeron y qué lotes CONSUMIÓ esa orden (sus consumos
+aplicados: todos los lotes de todos los insumos, no sólo el primero). Un lote que no
 salió de una orden de la sucursal no se traza aquí: devuelve `None` en vez de
 enseñar la producción de otra sucursal.
 """
@@ -32,6 +33,9 @@ class ProducedLot:
     produced_at: str
     processing_order_id: str
     process_type: str
+    #: Lo que la pantalla muestra: el código del lote, nunca su identidad.
+    lot_code: str = ""
+    order_folio: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,6 +45,7 @@ class LotInput:
     lot_id: str
     product_name: str
     weight: str
+    lot_code: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +60,7 @@ class LotDestination:
     branch_id: str
     quantity: str
     weight: str
+    branch_name: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +74,9 @@ class ChainedConsumption:
     quantity: str
     weight: str
     linked_at: str
+    #: Cuándo se creó la orden (respaldo si una orden vieja no tiene folio).
+    order_created_at: str = ""
+    order_folio: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,10 +96,11 @@ class MeatLotTrace:
 
 _PRODUCIDOS = (
     "SELECT r.output_lot_id, p.name, r.output_type, r.actual_weight, r.created_at,"
-    " r.processing_order_id, o.process_type"
+    " r.processing_order_id, o.process_type, l.lot_code, o.folio"
     " FROM processing_output_results r"
     " JOIN processing_orders o ON o.id = r.processing_order_id"
     " LEFT JOIN products p ON p.id = r.product_id"
+    " LEFT JOIN inventory_lots l ON l.id = r.output_lot_id"
     " WHERE o.branch_id = ? AND r.output_lot_id IS NOT NULL AND r.output_lot_id <> ''"
 )
 
@@ -121,7 +131,7 @@ class MeatLotTraceabilityQueryService:
         """Lotes producidos por la sucursal, el más reciente primero."""
         sql, valores = _PRODUCIDOS, [branch_id]
         if query:
-            sql += " AND (r.output_lot_id LIKE ? OR p.name LIKE ?)"
+            sql += " AND (l.lot_code LIKE ? OR p.name LIKE ?)"
             valores += [f"%{query}%"] * 2
         sql += " ORDER BY r.created_at DESC, r.id DESC LIMIT ?"
         return [_lote(fila) for fila in self._conn.execute(sql, [*valores, limit]).fetchall()]
@@ -148,7 +158,8 @@ class MeatLotTraceabilityQueryService:
                     source_document_type=_texto(evento.source_document_type),
                     source_document_id=_texto(evento.source_document_id),
                     branch_id=_texto(evento.branch_id),
-                    quantity=_texto(evento.quantity), weight=_texto(evento.weight))
+                    quantity=_texto(evento.quantity), weight=_texto(evento.weight),
+                    branch_name=self._branch_name(evento.branch_id))
                 for evento in retiro.distribution),
             affected_lots=tuple(retiro.affected_lot_ids),
             reaches_customers=retiro.reaches_customers,
@@ -174,7 +185,7 @@ class MeatLotTraceabilityQueryService:
                 continue
             vistos.add(enlace.downstream_entity_id)
             fila = self._conn.execute(
-                "SELECT c.processing_order_id, o.process_type, p.name"
+                "SELECT c.processing_order_id, o.process_type, p.name, o.created_at, o.folio"
                 " FROM material_consumptions c"
                 " JOIN processing_orders o ON o.id = c.processing_order_id"
                 " LEFT JOIN products p ON p.id = c.product_id"
@@ -184,23 +195,46 @@ class MeatLotTraceabilityQueryService:
             salida.append(ChainedConsumption(
                 processing_order_id=_texto(fila[0]), process_type=_texto(fila[1]),
                 product_name=_texto(fila[2]), quantity=_texto(enlace.quantity),
-                weight=_texto(enlace.weight), linked_at=_texto(enlace.linked_at)))
+                weight=_texto(enlace.weight), linked_at=_texto(enlace.linked_at),
+                order_created_at=_texto(fila[3]), order_folio=_texto(fila[4])))
         return salida
 
+    def _branch_name(self, branch_id) -> str:
+        """Nombre de la sucursal (catálogo de sucursales), o vacío si no está."""
+        if not branch_id:
+            return ""
+        try:
+            fila = self._conn.execute("SELECT nombre FROM sucursales WHERE id=?",
+                                      (str(branch_id),)).fetchone()
+        except Exception:  # noqa: BLE001 — base sin catálogo de sucursales
+            return ""
+        return _texto(fila[0]) if fila else ""
+
     def _entradas(self, processing_order_id: str) -> list[LotInput]:
-        filas = self._conn.execute(
-            "SELECT DISTINCT r.input_lot_id, ip.name, r.input_weight"
-            " FROM processing_output_results r"
-            " LEFT JOIN products ip ON ip.id = r.input_product_id"
-            " WHERE r.processing_order_id = ?"
-            "   AND r.input_lot_id IS NOT NULL AND r.input_lot_id <> ''"
-            " ORDER BY ip.name, r.input_lot_id", (processing_order_id,)).fetchall()
-        return [LotInput(lot_id=_texto(f[0]), product_name=_texto(f[1]), weight=_texto(f[2]))
-                for f in filas]
+        """Cada lote consumido por la orden, con lo que se consumió de él. Una
+        formulación o un consumo repartido entre lotes tiene VARIOS padres."""
+        from decimal import Decimal
+
+        pesos: dict[tuple[str, str, str], Decimal] = {}
+        for lote, nombre, peso, codigo in self._conn.execute(
+                "SELECT c.lot_id, ip.name, c.actual_weight, l.lot_code"
+                " FROM material_consumptions c"
+                " LEFT JOIN products ip ON ip.id = c.product_id"
+                " LEFT JOIN inventory_lots l ON l.id = c.lot_id"
+                " WHERE c.processing_order_id = ? AND c.status = 'POSTED'"
+                "   AND c.lot_id IS NOT NULL AND c.lot_id <> ''",
+                (processing_order_id,)).fetchall():
+            clave = (_texto(lote), _texto(nombre), _texto(codigo))
+            pesos[clave] = pesos.get(clave, Decimal("0")) + Decimal(str(peso or 0))
+        return [LotInput(lot_id=lote, product_name=nombre, weight=str(peso.normalize()),
+                         lot_code=codigo)
+                for (lote, nombre, codigo), peso in sorted(
+                    pesos.items(), key=lambda e: (e[0][1], e[0][2], e[0][0]))]
 
 
 def _lote(fila: Any) -> ProducedLot:
     return ProducedLot(
         lot_id=_texto(fila[0]), product_name=_texto(fila[1]), output_type=_texto(fila[2]),
         weight=_texto(fila[3]), produced_at=_texto(fila[4]),
-        processing_order_id=_texto(fila[5]), process_type=_texto(fila[6]))
+        processing_order_id=_texto(fila[5]), process_type=_texto(fila[6]),
+        lot_code=_texto(fila[7]), order_folio=_texto(fila[8]))

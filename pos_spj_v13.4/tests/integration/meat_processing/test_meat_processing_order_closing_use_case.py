@@ -3,14 +3,11 @@ every cross-context precondition (consumption/output/weighing/quality/yield/
 losses/inventory/costs) before closing, honestly failing on whichever is
 still Null-ported."""
 
-import importlib
-import sqlite3
 from decimal import Decimal
 
 import pytest
 
 from backend.application.meat_processing.use_cases import (
-    ApproveProcessingOrderUseCase,
     ApproveYieldReconciliationUseCase,
     CaptureMaterialConsumptionUseCase,
     CaptureProcessOutputUseCase,
@@ -21,8 +18,6 @@ from backend.application.meat_processing.use_cases import (
     PostMaterialConsumptionUseCase,
     PostProcessOutputUseCase,
     ReconcileYieldUseCase,
-    RecordQualityDecisionUseCase,
-    ReleaseProcessingOrderUseCase,
     StartProcessExecutionUseCase,
 )
 from backend.domain.meat_processing.enums import (
@@ -36,13 +31,13 @@ from backend.infrastructure.db.repositories.meat_processing.unit_of_work import 
     MeatProcessingUnitOfWork,
 )
 from backend.shared.ids import new_uuid
+from tests.integration.meat_processing._quality_fake import record_decided_by_quality
+from tests.integration.meat_processing._generic_plant import build_db, released_order
 
 
 @pytest.fixture
 def conn():
-    c = sqlite3.connect(":memory:")
-    importlib.import_module(
-        "migrations.standalone.187_meat_processing_bounded_context_schema").run(c)
+    c = build_db()
     yield c
     c.close()
 
@@ -64,19 +59,9 @@ def _completed_order(conn):
     """Drives a full order through the lifecycle up to COMPLETED, with every
     close precondition satisfiable EXCEPT costs_notified (left to the
     caller, so tests can choose whether to wire a cost port)."""
-    creator, approver = new_uuid(), new_uuid()
-    product_id = new_uuid()
-    warehouse_id = new_uuid()
-    created = CreateProcessingOrderUseCase().execute(
-        conn, operation_id=new_uuid(), branch_id=new_uuid(), warehouse_id=warehouse_id,
-        process_type=ProcessType.CUTTING, target_product_id=product_id,
-        planned_quantity=Decimal("10"), planned_weight=Decimal("10"),
-        actor_user_id=creator)
-    order_id = created.entity_id
-    ApproveProcessingOrderUseCase().execute(
-        conn, order_id=order_id, operation_id=new_uuid(), actor_user_id=approver)
-    ReleaseProcessingOrderUseCase().execute(
-        conn, order_id=order_id, operation_id=new_uuid(), actor_user_id=approver)
+    approver, inspector = new_uuid(), new_uuid()
+    planta, order_id, product_id = released_order(conn, peso="10")
+    warehouse_id = planta.warehouse
     StartProcessExecutionUseCase().execute(
         conn, order_id=order_id, operation_id=new_uuid(), actor_user_id=approver)
 
@@ -94,12 +79,18 @@ def _completed_order(conn):
         actor_user_id=approver)
 
     output = CaptureProcessOutputUseCase().execute(
-        conn, order_id=order_id, operation_id=new_uuid(), product_id=product_id,
+        conn, order_id=order_id, operation_id=new_uuid(), product_id=new_uuid(),
         output_type=OutputType.MAIN_PRODUCT, quantity=Decimal("8"), weight=Decimal("8"),
         actor_user_id=approver)
-    RecordQualityDecisionUseCase().execute(
+    # La decisión llega de Calidad (otro usuario) con su inspección.
+    assert record_decided_by_quality(
         conn, output_id=output.entity_id, operation_id=new_uuid(),
-        decision=OutputQualityStatus.RELEASED, actor_user_id=approver)
+        decision=OutputQualityStatus.RELEASED, actor_user_id=inspector,
+        quality_inspection_id=new_uuid()).success
+    with MeatProcessingUnitOfWork(conn) as uow:
+        salida = uow.outputs.get(output.entity_id)
+        salida.place(lot_id=new_uuid(), location_id=planta.ubicacion)
+        uow.outputs.save(salida)
     PostProcessOutputUseCase(inventory_port=_FakeInventoryPort()).execute(
         conn, output_id=output.entity_id, operation_id=new_uuid(), actor_user_id=approver)
 

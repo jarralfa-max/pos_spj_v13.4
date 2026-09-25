@@ -40,6 +40,7 @@ _PROCESS_TYPE_ES = {
 class ProcessingOrderPresenter:
     def __init__(self, *, connection_provider, query_factory, product_query_factory=None,
                  create_uc=None, approve_uc=None, release_uc=None, close_uc=None,
+                 prepare_uc=None,
                  session_context=None, context_provider=None,
                  event_dispatcher=None, warehouse_provider=None, plan_query=None,
                  execute_uc=None, credentials_verifier=None, tolerances_query=None,
@@ -50,6 +51,7 @@ class ProcessingOrderPresenter:
         self._create_uc = create_uc
         self._approve_uc = approve_uc
         self._release_uc = release_uc
+        self._prepare_uc = prepare_uc
         self._close_uc = close_uc
         self._session = session_context
         self._context_provider = context_provider
@@ -116,6 +118,7 @@ class ProcessingOrderPresenter:
         for order in rows:
             ids.append(order.id)
             out.append([
+                order.folio or "Sin folio",
                 _PROCESS_TYPE_ES.get(order.process_type.value, order.process_type.value),
                 ORDER_STATUS_LABELS.get(order.status.value, order.status.value),
                 str(order.planned_quantity), str(order.planned_weight),
@@ -199,6 +202,34 @@ class ProcessingOrderPresenter:
             self._approve_uc, order_id,
             unavailable_message="Aprobación de órdenes no disponible.")
 
+    def prepare_order(self, *, order_id: str) -> tuple[bool, str, dict]:
+        """Congela la definición y reserva los insumos en Inventario. Si falta
+        existencia, el mensaje dice qué falta y la orden sigue esperando."""
+        ok, mensaje, datos = self._transition(
+            self._prepare_uc, order_id,
+            unavailable_message="Preparación de órdenes no disponible.")
+        faltantes = datos.get("shortages") or []
+        if ok and faltantes:
+            nombres = self._product_names([f["product_id"] for f in faltantes])
+            detalle = "; ".join(
+                f"{nombres.get(f['product_id'], 'insumo')}: se requieren {f['required']} kg"
+                + (f", hay {f['available']} kg" if f.get("available") is not None else "")
+                for f in faltantes)
+            mensaje = f"{mensaje} {detalle}."
+        return ok, mensaje, datos
+
+    def _product_names(self, ids) -> dict[str, str]:
+        if self._plan_query is None:
+            return {}
+        try:
+            from backend.application.meat_processing.use_cases.order_execution_use_cases import (
+                _names,
+            )
+            return _names(self._conn(), ids)
+        except Exception:
+            logger.exception("nombres de producto no disponibles")
+            return {}
+
     def release_order(self, *, order_id: str) -> tuple[bool, str, dict]:
         return self._transition(
             self._release_uc, order_id,
@@ -206,7 +237,7 @@ class ProcessingOrderPresenter:
 
     # ── ejecución (Fase 10) ────────────────────────────────────────────────
     def execution_plan(self, order_id: str) -> dict | None:
-        """Entrada y salidas ESPERADAS del despiece capturado al liberar."""
+        """Insumos reservados y salidas esperadas de la definición congelada."""
         if self._plan_query is None:
             return None
         try:
@@ -215,17 +246,15 @@ class ProcessingOrderPresenter:
             logger.exception("plan de ejecución no disponible")
             return None
 
-    def execute_order(self, *, order_id: str, input_weight, outputs: list[dict],
-                      stock_authorizer_user_id=None, stock_reason=None,
+    def execute_order(self, *, order_id: str, inputs: list[dict], outputs: list[dict],
                       variance_authorizer_user_id=None,
                       variance_reason=None) -> tuple[bool, str, dict]:
         if self._execute_uc is None:
             return False, "Ejecución de órdenes no disponible.", {}
         try:
             result = self._execute_uc.execute(
-                self._conn(), order_id=order_id, input_weight=input_weight, outputs=outputs,
+                self._conn(), order_id=order_id, inputs=inputs, outputs=outputs,
                 actor_user_id=self._actor(), operation_id=new_uuid(),
-                stock_authorizer_user_id=stock_authorizer_user_id, stock_reason=stock_reason,
                 variance_authorizer_user_id=variance_authorizer_user_id,
                 variance_reason=variance_reason, context=self._context())
         except Exception:

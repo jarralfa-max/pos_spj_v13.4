@@ -1,11 +1,13 @@
-"""Fase 10 (2026-09-19) — la pantalla que ejecuta una orden de despiece.
+"""La pantalla que ejecuta una orden preparada.
 
-- La captura propone lo ESPERADO del despiece y no deja ejecutar sin pesos.
-- Si falta existencia o un corte sale fuera de tolerancia, se pide la
-  autorización de otro usuario (usuario, clave, motivo) y se REINTENTA: el
-  caso de uso es reanudable, así que reintentar continúa, no duplica.
-- Las casillas de uso de Almacenes llegan hasta el presenter (sin ellas,
-  Cárnico no tiene dónde producir).
+- La captura propone lo RESERVADO por insumo y lo ESPERADO por salida (de la
+  definición congelada) y no deja ejecutar sin pesos.
+- Si una salida queda fuera de tolerancia, se pide la autorización de otro
+  usuario (usuario, clave, motivo) y se REINTENTA: el caso de uso es
+  reanudable. Ya no existe "producir sin existencia": no hay consumo sin reserva.
+- Una orden sin definición congelada o sin reserva no abre la captura.
+- El resultado no muestra UUIDs ni costos (los asigna Costos).
+- Las casillas de uso de Almacenes llegan hasta el presenter.
 """
 from __future__ import annotations
 
@@ -20,34 +22,41 @@ import pytest
 QtWidgets = pytest.importorskip(
     "PyQt5.QtWidgets", reason="PyQt5 desktop runtime unavailable", exc_type=ImportError)
 
+INSUMO = "01a0d1b0-0000-7000-8000-000000000001"
+SALIDA = "01a0d1b0-0000-7000-8000-000000000002"
+MERMA = "01a0d1b0-0000-7000-8000-000000000003"
+
 
 @pytest.fixture(scope="module")
 def app():
     return QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
 
-def _salida(pid, tipo, esperado):
-    return SimpleNamespace(product_id=pid, output_type=tipo, product_name=pid.title(),
-                           expected_weight=Decimal(esperado), per_unit=Decimal("0"))
-
-
-PLAN = {"order_id": "o1", "status": "RELEASED", "input_product_id": "pollo",
-        "input_product_name": "Pollo entero", "planned_weight": Decimal("10"),
-        "has_despiece": True,
-        "outputs": [_salida("pechuga", "MAIN_PRODUCT", "3.5"),
-                    _salida("merma", "WASTE", "0.5")]}
+PLAN = {"order_id": "o1", "status": "RELEASED", "has_definition": True,
+        "effective_version": "esquema v2",
+        "inputs": [{"product_id": INSUMO, "product_name": "Filete de pescado entero",
+                    "reserved_weight": Decimal("10"), "lot_controlled": True,
+                    "lots": [{"lot_id": "l1", "quantity": Decimal("10")}]}],
+        "outputs": [{"product_id": SALIDA, "product_name": "Filete limpio",
+                     "output_type": "MAIN_PRODUCT", "expected_weight": Decimal("6.5"),
+                     "quality_gate": True, "goes_to_stock": True},
+                    {"product_id": MERMA, "product_name": "Espinas",
+                     "output_type": "WASTE", "expected_weight": Decimal("3.5"),
+                     "quality_gate": False, "goes_to_stock": False}],
+        "reserved_total": Decimal("10")}
 
 
 class _Presentador:
     """Presenter de mentira: registra lo que la pantalla le pide."""
 
-    def __init__(self, respuestas, *, autorizador=("gerente-id", "")):
+    def __init__(self, respuestas, *, autorizador=("gerente-id", ""), plan=PLAN):
         self.respuestas = list(respuestas)
         self.autorizador = autorizador
+        self.plan = plan
         self.llamadas = []
 
     def execution_plan(self, order_id):
-        return PLAN
+        return self.plan
 
     def execute_order(self, **kwargs):
         self.llamadas.append(kwargs)
@@ -60,28 +69,35 @@ class _Presentador:
         return SimpleNamespace(rows=[], row_ids=[])
 
 
+def _textos(tabla):
+    modelo = tabla.model()
+    return [str(modelo.index(r, c).data() or "") for r in range(modelo.rowCount())
+            for c in range(modelo.columnCount())]
+
+
 class TestCapturaDeEjecucion:
-    def test_propone_lo_esperado_del_despiece(self, app):
+    def test_propone_lo_reservado_y_lo_esperado(self, app):
         from frontend.desktop.modules.meat_processing.dialogs_execution import (
             ExecuteProcessingOrderDialog,
         )
 
         dlg = ExecuteProcessingOrderDialog(plan=PLAN)
-        assert dlg.input_weight_value() == Decimal("10")
+        assert dlg.inputs() == [{"product_id": INSUMO, "weight": Decimal("10")}]
         pesos = {o["product_id"]: o["weight"] for o in dlg.outputs()}
-        assert pesos["pechuga"] == Decimal("3.5") and pesos["merma"] == Decimal("0.5")
+        assert pesos == {SALIDA: Decimal("6.5"), MERMA: Decimal("3.5")}
 
-    def test_no_ejecuta_sin_peso_de_entrada(self, app):
+    def test_no_ejecuta_sin_peso_consumido(self, app):
         from frontend.desktop.modules.meat_processing.dialogs_execution import (
             ExecuteProcessingOrderDialog,
         )
 
         dlg = ExecuteProcessingOrderDialog(plan=PLAN)
-        dlg.input_weight.set_decimal(Decimal("0"))
+        for campo in dlg._entradas.values():
+            campo.set_decimal(Decimal("0"))
         dlg._accept_if_valid()
         assert dlg.result() != QtWidgets.QDialog.Accepted
 
-    def test_no_ejecuta_sin_peso_de_ningun_corte(self, app):
+    def test_no_ejecuta_sin_peso_de_ninguna_salida(self, app):
         from frontend.desktop.modules.meat_processing.dialogs_execution import (
             ExecuteProcessingOrderDialog,
         )
@@ -92,14 +108,40 @@ class TestCapturaDeEjecucion:
         dlg._accept_if_valid()
         assert dlg.result() != QtWidgets.QDialog.Accepted
 
+    def test_ninguna_tabla_muestra_uuids(self, app):
+        from frontend.desktop.modules.meat_processing.dialogs_execution import (
+            ExecuteProcessingOrderDialog,
+            ExecutionResultDialog,
+        )
 
-class TestAutorizacionDeProduccion:
+        captura = ExecuteProcessingOrderDialog(plan=PLAN)
+        resultado = ExecutionResultDialog(
+            message="Orden ejecutada y cerrada", names={SALIDA: "Filete limpio"},
+            results=[{"product_id": SALIDA, "expected_weight": "6.5", "actual_weight": "6.4",
+                      "difference_weight": "-0.1", "yield_pct": "64", "variance_pct": "-1.54",
+                      "output_lot_id": "01a0d1b0-0000-7000-8000-00000000000f"}])
+        for tabla in (captura.inputs_table, captura.table, resultado.table):
+            textos = _textos(tabla)
+            assert textos and not any("01a0d1b0-" in x for x in textos), textos
+
+    def test_el_resultado_no_muestra_costos(self, app):
+        from frontend.desktop.modules.meat_processing.dialogs_execution import (
+            ExecutionResultDialog,
+        )
+
+        dlg = ExecutionResultDialog(message="ok", results=[])
+        modelo = dlg.table.model()
+        encabezados = [str(modelo.headerData(c, 1)) for c in range(modelo.columnCount())]
+        assert encabezados and not any("osto" in h for h in encabezados)
+
+
+class TestAutorizacionDeRendimiento:
     def test_exige_motivo(self, app):
         from frontend.desktop.modules.meat_processing.dialogs_execution import (
             ProductionAuthorizationDialog,
         )
 
-        dlg = ProductionAuthorizationDialog(message="falta existencia",
+        dlg = ProductionAuthorizationDialog(message="fuera de tolerancia",
                                             presenter=_Presentador([]))
         dlg._authorize()
         assert dlg.authorizer_user_id is None
@@ -110,7 +152,8 @@ class TestAutorizacionDeProduccion:
         )
 
         presentador = _Presentador([], autorizador=(None, "Usuario o clave incorrectos"))
-        dlg = ProductionAuthorizationDialog(message="falta existencia", presenter=presentador)
+        dlg = ProductionAuthorizationDialog(message="fuera de tolerancia",
+                                            presenter=presentador)
         dlg._reason.setText("urge")
         dlg._authorize()
         assert dlg.authorizer_user_id is None
@@ -120,12 +163,12 @@ class TestAutorizacionDeProduccion:
             ProductionAuthorizationDialog,
         )
 
-        dlg = ProductionAuthorizationDialog(message="falta existencia",
+        dlg = ProductionAuthorizationDialog(message="fuera de tolerancia",
                                             presenter=_Presentador([]))
-        dlg._reason.setText("Pollo ya en la mesa")
+        dlg._reason.setText("Pieza con espinas de más")
         dlg._authorize()
         assert dlg.authorizer_user_id == "gerente-id"
-        assert dlg.reason == "Pollo ya en la mesa"
+        assert dlg.reason == "Pieza con espinas de más"
 
 
 class TestReintentoConAutorizacion:
@@ -137,53 +180,56 @@ class TestReintentoConAutorizacion:
         )
         from frontend.desktop.modules.meat_processing.pages import processing_orders_page as pag
 
+        self.avisos = []
         monkeypatch.setattr(ExecuteProcessingOrderDialog, "exec_",
                             lambda self: QtWidgets.QDialog.Accepted)
         monkeypatch.setattr(ExecutionResultDialog, "exec_",
                             lambda self: QtWidgets.QDialog.Accepted)
 
         def _autoriza(self):
-            self.authorizer_user_id, self.reason = "gerente-id", "Pollo ya en la mesa"
+            self.authorizer_user_id, self.reason = "gerente-id", "Pieza con espinas de más"
             return QtWidgets.QDialog.Accepted
 
         monkeypatch.setattr(ProductionAuthorizationDialog, "exec_", _autoriza)
-        monkeypatch.setattr(pag.QMessageBox, "warning", lambda *a, **k: None)
+        monkeypatch.setattr(pag.QMessageBox, "warning",
+                            lambda *a, **k: self.avisos.append(a[2]))
         monkeypatch.setattr(pag.QMessageBox, "information", lambda *a, **k: None)
         pagina = pag.ProcessingOrdersPage(presentador)
         monkeypatch.setattr(pagina, "_selected_order_id", lambda: "o1")
         return pagina
 
-    def test_sin_existencia_reintenta_con_el_autorizador(self, app, monkeypatch):
-        presentador = _Presentador([
-            (False, "falta existencia", {"error_code": "STOCK_AUTHORIZATION_REQUIRED"}),
-            (True, "Orden ejecutada y cerrada", {"results": []}),
-        ])
-        self._pagina(app, presentador, monkeypatch)._on_execute()
-        assert len(presentador.llamadas) == 2
-        segundo = presentador.llamadas[1]
-        assert segundo["stock_authorizer_user_id"] == "gerente-id"
-        assert segundo["stock_reason"] == "Pollo ya en la mesa"
-
-    def test_fuera_de_tolerancia_manda_al_autorizador_de_rendimiento(self, app, monkeypatch):
+    def test_fuera_de_tolerancia_reintenta_con_el_autorizador(self, app, monkeypatch):
         presentador = _Presentador([
             (False, "fuera de tolerancia", {"error_code": "YIELD_AUTHORIZATION_REQUIRED"}),
             (True, "Orden ejecutada y cerrada", {"results": []}),
         ])
         self._pagina(app, presentador, monkeypatch)._on_execute()
-        assert presentador.llamadas[1]["variance_authorizer_user_id"] == "gerente-id"
-        assert "stock_authorizer_user_id" not in presentador.llamadas[1]
+        assert len(presentador.llamadas) == 2
+        segundo = presentador.llamadas[1]
+        assert segundo["variance_authorizer_user_id"] == "gerente-id"
+        assert segundo["variance_reason"] == "Pieza con espinas de más"
+        assert segundo["inputs"] == [{"product_id": INSUMO, "weight": Decimal("10")}]
+        assert "stock_authorizer_user_id" not in segundo
 
     def test_otro_error_no_pide_autorizacion(self, app, monkeypatch):
         presentador = _Presentador([
-            (False, "la entrada no tiene costo", {"error_code": "MISSING_INPUT_COST"})])
+            (False, "Costos no podrá costear la orden", {"error_code": "MISSING_INPUT_COST"})])
         self._pagina(app, presentador, monkeypatch)._on_execute()
         assert len(presentador.llamadas) == 1
 
-    def test_una_orden_sin_despiece_no_abre_la_captura(self, app, monkeypatch):
-        presentador = _Presentador([])
-        presentador.execution_plan = lambda oid: {**PLAN, "has_despiece": False}
+    def test_una_orden_sin_definicion_congelada_no_abre_la_captura(self, app, monkeypatch):
+        presentador = _Presentador([], plan={**PLAN, "has_definition": False})
         self._pagina(app, presentador, monkeypatch)._on_execute()
         assert presentador.llamadas == []
+        assert "prepárala" in self.avisos[0]
+
+    def test_una_orden_sin_reserva_no_abre_la_captura(self, app, monkeypatch):
+        sin_reserva = {**PLAN, "inputs": [{**PLAN["inputs"][0],
+                                           "reserved_weight": Decimal("0"), "lots": []}]}
+        presentador = _Presentador([], plan=sin_reserva)
+        self._pagina(app, presentador, monkeypatch)._on_execute()
+        assert presentador.llamadas == []
+        assert "reservados" in self.avisos[0]
 
 
 class TestCasillasDeUsoDeAlmacenes:

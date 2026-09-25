@@ -33,9 +33,11 @@ def wire_cross_context_events(connection) -> dict:
     left out here rather than wired with a fabricated one — see
     `backend/application/logistics/wiring.py::wire_logistics`.
     """
+    from backend.application.costing.wiring import wire_costing
     from backend.application.pricing.integrations.wiring import wire_pricing
     from backend.application.procurement.integrations.wiring import wire_procurement
     from backend.application.sales.integrations.wiring import wire_sales
+    from backend.application.quality.wiring import wire_quality
 
     bus = get_bus()
     summary = {
@@ -43,6 +45,11 @@ def wire_cross_context_events(connection) -> dict:
         # Fase 6 (2026-09-18): la venta completada llega a contabilidad.
         "sales": wire_sales(bus, connection),
         "pricing": wire_pricing(bus, connection),
+        # Costos publica el costo real de lo producido (Precios ya lo escucha)
+        # y el hecho contable de la producción, que aquí se entrega a Finanzas.
+        "costing": wire_costing(bus, connection),
+        # Calidad decide sobre lo producido; Procesamiento registra la decisión.
+        "quality": wire_quality(bus, connection),
         "procurement_downstream_bridges": wire_procurement_downstream_bridges(bus, connection),
     }
     for context, result in summary.items():

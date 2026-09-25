@@ -1,13 +1,10 @@
-"""Ejecutar una orden de despiece (Fase 10, 2026-09-19).
+"""Ejecutar una orden de procesamiento — cualquier proceso, cualquier producto.
 
-Captura el peso REAL de la entrada y de cada corte —propuestos desde el
-despiece capturado al liberar— y muestra el resultado: esperado, real,
-diferencia, rendimiento y costo repartido de cada corte.
-
-Sólo captura: quien decide es `ExecuteProcessingOrderUseCase`. Si falta
-existencia de la entrada o un corte sale fuera de tolerancia, el cobro de la
-orden pide la autorización en caliente de otro usuario (usuario, clave y
-motivo), igual que el mostrador.
+Captura el peso REAL de cada insumo reservado y de cada salida. Lo esperado y
+los insumos salen de la definición congelada de la orden (no de Productos en
+vivo); lo reservado, de Inventario. La pantalla no calcula nada: sólo captura y
+muestra. Si una salida queda fuera de tolerancia, el caso de uso pide la
+autorización en caliente de otro usuario (usuario, clave y motivo).
 """
 
 from __future__ import annotations
@@ -33,47 +30,67 @@ _TIPOS = {
 }
 
 
+def _get(fila, clave, defecto=None):
+    return fila.get(clave, defecto) if isinstance(fila, dict) else getattr(fila, clave, defecto)
+
+
 class ExecuteProcessingOrderDialog(FormDialog):
     """Pesos reales de la ejecución."""
 
     def __init__(self, parent=None, *, plan: dict) -> None:
-        super().__init__(parent, title="Ejecutar orden de despiece", width=760)
+        super().__init__(parent, title="Ejecutar orden", width=780)
         self.setObjectName("meatExecuteOrderDialog")
         self._plan = plan
-        planeado = Decimal(str(plan.get("planned_weight") or 0))
+        version = QLabel(f"Definición congelada: {plan.get('effective_version') or '—'}", self)
+        version.setWordWrap(True)
+        self.form.addRow(version)
 
-        self.form.addRow("Entrada:", QLabel(str(plan.get("input_product_name") or ""), self))
-        self.input_weight = DecimalInput(self, precision=3, minimum="0", suffix="kg")
-        self.input_weight.set_decimal(planeado)
-        self.form.addRow("Peso real consumido:", self.input_weight)
+        self.inputs_table = StandardTable(columns=[
+            ColumnSpec("Insumo"), ColumnSpec("Reservado kg", "numeric"), ColumnSpec("Lotes")])
+        self.form.addRow(self.inputs_table)
+        self._entradas: dict[str, DecimalInput] = {}
+        filas = []
+        for entrada in plan.get("inputs") or []:
+            pid = _get(entrada, "product_id")
+            reservado = Decimal(str(_get(entrada, "reserved_weight") or 0))
+            lotes = [lote for lote in (_get(entrada, "lots") or []) if _get(lote, "lot_id")]
+            campo = DecimalInput(self, precision=3, minimum="0", suffix="kg")
+            campo.set_decimal(reservado)
+            self._entradas[pid] = campo
+            filas.append([_get(entrada, "product_name") or "", f"{reservado}",
+                          f"{len(lotes)} lote(s)" if lotes else "Sin lote"])
+        self.inputs_table.load_rows(filas, row_ids=list(self._entradas))
+        for entrada in plan.get("inputs") or []:
+            self.form.addRow(f"Consumido — {_get(entrada, 'product_name') or ''}:",
+                             self._entradas[_get(entrada, "product_id")])
 
         ayuda = QLabel(
-            "Captura el peso REAL de cada corte. Lo esperado viene del despiece de "
-            "Productos; la diferencia se compara contra las tolerancias de Cárnico.", self)
+            "Captura el peso REAL de cada salida. Lo esperado sale de la definición "
+            "congelada; las salidas que requieren inspección entran retenidas hasta que "
+            "Calidad las libere.", self)
         ayuda.setWordWrap(True)
         self.form.addRow(ayuda)
 
         self.table = StandardTable(columns=[
-            ColumnSpec("Corte"), ColumnSpec("Tipo"), ColumnSpec("Esperado kg", "numeric"),
-            ColumnSpec("Real kg", "numeric")])
+            ColumnSpec("Salida"), ColumnSpec("Tipo"), ColumnSpec("Esperado kg", "numeric"),
+            ColumnSpec("Calidad")])
         self.form.addRow(self.table)
-
         self._campos: dict[str, DecimalInput] = {}
         self._salidas = list(plan.get("outputs") or [])
         filas = []
         for salida in self._salidas:
+            pid = _get(salida, "product_id")
             campo = DecimalInput(self, precision=3, minimum="0", suffix="kg")
-            campo.set_decimal(salida.expected_weight)
-            self._campos[salida.product_id] = campo
-            filas.append([salida.product_name or salida.product_id,
-                          _TIPOS.get(salida.output_type, salida.output_type),
-                          f"{salida.expected_weight}", ""])
-        self.table.load_rows(filas, row_ids=[s.product_id for s in self._salidas])
-        # Los pesos se capturan en campos, no dentro de la tabla: la tabla es el
-        # plan (lo esperado) y los campos, lo real.
+            campo.set_decimal(_get(salida, "expected_weight") or Decimal("0"))
+            self._campos[pid] = campo
+            filas.append([_get(salida, "product_name") or "",
+                          _TIPOS.get(_get(salida, "output_type"), _get(salida, "output_type")),
+                          f"{_get(salida, 'expected_weight')}",
+                          "Inspección" if _get(salida, "quality_gate") else "Directa"])
+        self.table.load_rows(filas, row_ids=[_get(s, "product_id") for s in self._salidas])
         for salida in self._salidas:
-            self.form.addRow(f"Real — {salida.product_name or salida.product_id}:",
-                             self._campos[salida.product_id])
+            self.form.addRow(f"Real — {_get(salida, 'product_name') or ''}:",
+                             self._campos[_get(salida, "product_id")])
 
         self._error = QLabel("", self)
         self._error.setObjectName("textDanger")
@@ -83,27 +100,28 @@ class ExecuteProcessingOrderDialog(FormDialog):
         box.accepted.disconnect()
         box.accepted.connect(self._accept_if_valid)
 
-    def input_weight_value(self):
-        return self.input_weight.decimal_value()
+    def inputs(self) -> list[dict]:
+        return [{"product_id": pid, "weight": campo.decimal_value() or Decimal("0")}
+                for pid, campo in self._entradas.items()]
 
     def outputs(self) -> list[dict]:
         return [{"product_id": pid, "weight": campo.decimal_value() or Decimal("0")}
                 for pid, campo in self._campos.items()]
 
     def _accept_if_valid(self) -> None:
-        peso = self.input_weight_value()
-        if not peso or peso <= 0:
-            self._error.setText("Captura el peso real consumido de la entrada.")
+        if not any((c.decimal_value() or 0) > 0 for c in self._entradas.values()):
+            self._error.setText("Captura el peso real consumido.")
             return
         if not any((c.decimal_value() or 0) > 0 for c in self._campos.values()):
-            self._error.setText("Captura el peso real de al menos un corte.")
+            self._error.setText("Captura el peso real de al menos una salida.")
             return
         self.accept()
 
 
 class ProductionAuthorizationDialog(FormDialog):
-    """Autorización en caliente de producción: producir sin existencia o un
-    rendimiento fuera de tolerancia. Otro usuario, con su clave y un motivo."""
+    """Autorización en caliente de un rendimiento fuera de tolerancia: otro
+    usuario, con su clave y un motivo. Producir sin existencia ya no se
+    autoriza: sin reserva real en Inventario no hay consumo."""
 
     def __init__(self, parent=None, *, message: str, presenter) -> None:
         super().__init__(parent, title="Autorización de producción")
@@ -144,24 +162,28 @@ class ProductionAuthorizationDialog(FormDialog):
 
 
 class ExecutionResultDialog(FormDialog):
-    """Lo que dejó la ejecución, corte por corte (§13)."""
+    """Lo que dejó la ejecución, salida por salida (§13). Sin costos: los asigna
+    Costos y se consultan en Rendimientos."""
 
-    def __init__(self, parent=None, *, results: list[dict], message: str) -> None:
+    def __init__(self, parent=None, *, results: list[dict], message: str,
+                 names: dict | None = None) -> None:
         super().__init__(parent, title="Orden ejecutada", width=820)
         self.setObjectName("meatExecutionResultDialog")
+        nombres = names or {}
         resumen = QLabel(message, self)
         resumen.setWordWrap(True)
         self.form.addRow(resumen)
         self.table = StandardTable(columns=[
-            ColumnSpec("Corte"), ColumnSpec("Esperado kg", "numeric"),
+            ColumnSpec("Salida"), ColumnSpec("Esperado kg", "numeric"),
             ColumnSpec("Real kg", "numeric"), ColumnSpec("Diferencia kg", "numeric"),
-            ColumnSpec("Rendimiento"), ColumnSpec("Costo/kg", "numeric"),
-            ColumnSpec("Costo total", "numeric")])
-        self.table.load_rows(
-            [[r.get("product_id", "")[-8:], str(r.get("expected_weight", "")),
-              str(r.get("actual_weight", "")), str(r.get("difference_weight", "")),
-              f"{r.get('yield_pct', '')}%", str(r.get("unit_cost", "")),
-              str(r.get("allocated_cost", ""))] for r in results],
-            row_ids=[str(i) for i in range(len(results))])
+            ColumnSpec("Rendimiento"), ColumnSpec("Variación")])
+        filas = []
+        for r in results:
+            variacion = r.get("variance_pct")
+            filas.append([nombres.get(r.get("product_id"), ""), str(r.get("expected_weight", "")),
+                          str(r.get("actual_weight", "")), str(r.get("difference_weight", "")),
+                          f"{r.get('yield_pct', '')}%",
+                          f"{variacion}%" if variacion is not None else "—"])
+        self.table.load_rows(filas, row_ids=[str(i) for i in range(len(results))])
         self.form.addRow(self.table)
         self.add_button_box(ok_text="Cerrar")

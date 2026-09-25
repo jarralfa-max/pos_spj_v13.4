@@ -155,13 +155,15 @@ def _en(tipos) -> str:
 
 _ORDEN = " JOIN processing_orders o ON o.id = {alias}.processing_order_id"
 _PRODUCTO = " LEFT JOIN products p ON p.id = {columna}"
+#: La pantalla muestra el CÓDIGO del lote (el de Inventario), nunca su identidad.
+_CODIGO_LOTE = "(SELECT il.lot_code FROM inventory_lots il WHERE il.id = {columna})"
 _OBJETIVO = _PRODUCTO.format(columna="o.target_product_id")
 
 _SALIDAS = (
     ("id", "x.id"), ("produced_at", "x.produced_at"), ("process_type", "o.process_type"),
     ("product_name", "p.name"), ("output_type", "x.output_type"), ("quantity", "x.quantity"),
     ("weight", "x.weight"), ("unit", "x.unit"), ("quality_status", "x.quality_status"),
-    ("lot_id", "x.lot_id"),
+    ("lot_id", "x.lot_id"), ("lot_code", _CODIGO_LOTE.format(columna="x.lot_id")),
 )
 _DESDE_SALIDAS = "process_outputs x" + _ORDEN.format(alias="x")
 _PRODUCTO_SALIDAS = _PRODUCTO.format(columna="x.product_id")
@@ -210,6 +212,7 @@ _CONSULTAS: dict[MeatProcessingRecord, _Consulta] = {
         columnas=(
             ("id", "c.id"), ("created_at", "c.created_at"), ("process_type", "o.process_type"),
             ("product_name", "p.name"), ("lot_id", "c.lot_id"),
+            ("lot_code", _CODIGO_LOTE.format(columna="c.lot_id")),
             ("planned_weight", "c.planned_weight"), ("actual_weight", "c.actual_weight"),
             ("unit", "c.unit"), ("status", "c.status"), ("consumed_at", "c.consumed_at"),
         ),
@@ -235,7 +238,8 @@ _CONSULTAS: dict[MeatProcessingRecord, _Consulta] = {
     MeatProcessingRecord.PACKAGING: _Consulta(
         columnas=(
             ("id", "k.id"), ("packaged_at", "k.packaged_at"), ("product_name", "p.name"),
-            ("lot_id", "k.lot_id"), ("package_quantity", "k.package_quantity"),
+            ("lot_id", "k.lot_id"), ("lot_code", _CODIGO_LOTE.format(columna="k.lot_id")),
+            ("package_quantity", "k.package_quantity"),
             ("net_weight", "k.net_weight"), ("expiration_date", "k.expiration_date"),
             ("labels", "(SELECT COUNT(*) FROM production_labels l WHERE l.packaging_execution_id = k.id)"),
             ("reprints", "(SELECT COALESCE(SUM(l.reprint_count), 0) FROM production_labels l"
@@ -278,10 +282,18 @@ _CONSULTAS: dict[MeatProcessingRecord, _Consulta] = {
             ("output_type", "r.output_type"), ("input_weight", "r.input_weight"),
             ("expected_weight", "r.expected_weight"), ("actual_weight", "r.actual_weight"),
             ("difference_weight", "r.difference_weight"), ("yield_pct", "r.yield_pct"),
-            ("variance_pct", "r.variance_pct"), ("unit_cost", "r.unit_cost"),
-            ("allocated_cost", "r.allocated_cost"), ("output_lot_id", "r.output_lot_id"),
+            ("variance_pct", "r.variance_pct"), ("unit_cost", "cl.unit_cost"),
+            ("allocated_cost", "cl.allocated_cost"), ("output_lot_id", "r.output_lot_id"),
+            ("output_lot_code", _CODIGO_LOTE.format(columna="r.output_lot_id")),
         ),
-        desde="processing_output_results r" + _ORDEN.format(alias="r"),
+        # El costo por salida lo decide Costos: se lee de su modelo de lectura
+        # (vacío mientras la orden no se haya costeado), nunca de Procesamiento.
+        desde=("processing_output_results r" + _ORDEN.format(alias="r")
+               + " LEFT JOIN processing_cost_allocations ca"
+                 " ON ca.processing_order_id = r.processing_order_id"
+                 " LEFT JOIN processing_cost_allocation_lines cl"
+                 " ON cl.allocation_id = ca.id AND cl.line_kind = 'OUTPUT'"
+                 " AND cl.product_id = r.product_id"),
         producto=_PRODUCTO.format(columna="r.product_id"),
         sucursal="o.branch_id", estado="r.output_type", orden="r.created_at DESC, r.id DESC",
         buscar_en=("p.name",),
@@ -321,6 +333,12 @@ _CONSULTAS: dict[MeatProcessingRecord, _Consulta] = {
             ("id", "a.id"), ("occurred_at", "a.occurred_at"), ("user_id", "a.user_id"),
             ("entity_type", "a.entity_type"), ("action", "a.action"),
             ("entity_id", "a.entity_id"), ("reason", "a.reason"),
+            # Quién y sobre qué orden, como los reconoce quien opera.
+            ("user_name", "(SELECT u.nombre FROM usuarios u WHERE u.id = a.user_id)"),
+            ("order_created_at", "(SELECT oo.created_at FROM processing_orders oo"
+                                 " WHERE oo.id = a.processing_order_id)"),
+            ("order_folio", "(SELECT oo.folio FROM processing_orders oo"
+                            " WHERE oo.id = a.processing_order_id)"),
         ),
         desde="meat_processing_audit_log a",
         sucursal="a.branch_id", estado="a.entity_type", orden="a.occurred_at DESC, a.id DESC",

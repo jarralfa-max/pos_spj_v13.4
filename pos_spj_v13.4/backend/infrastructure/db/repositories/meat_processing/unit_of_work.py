@@ -18,6 +18,10 @@ from typing import Any
 from backend.infrastructure.db.repositories.meat_processing.equipment_assignment_repository import (
     EquipmentAssignmentRepository,
 )
+from backend.infrastructure.db.repositories.meat_processing.execution_saga_repositories import (
+    ExecutionStepRepository,
+    MaterialRequirementAllocationRepository,
+)
 from backend.infrastructure.db.repositories.meat_processing.material_consumption_repository import (
     MaterialConsumptionRepository,
 )
@@ -66,6 +70,9 @@ from backend.infrastructure.db.repositories.meat_processing.production_label_rep
 from backend.infrastructure.db.repositories.meat_processing.production_station_repository import (
     ProductionStationRepository,
 )
+from backend.infrastructure.db.repositories.meat_processing.recipe_snapshot_repository import (
+    ProcessingRecipeSnapshotRepository,
+)
 from backend.infrastructure.db.repositories.meat_processing.rework_order_repository import (
     ReworkOrderRepository,
 )
@@ -102,6 +109,9 @@ class MeatProcessingUnitOfWork:
         self.production_labels = ProductionLabelRepository(connection)
         self.rework_orders = ReworkOrderRepository(connection)
         self.genealogy_links = ProcessGenealogyLinkRepository(connection)
+        self.recipe_snapshots = ProcessingRecipeSnapshotRepository(connection)
+        self.requirement_allocations = MaterialRequirementAllocationRepository(connection)
+        self.execution_steps = ExecutionStepRepository(connection)
         self.production_areas = ProductionAreaRepository(connection)
         self.work_centers = WorkCenterRepository(connection)
         self.production_stations = ProductionStationRepository(connection)

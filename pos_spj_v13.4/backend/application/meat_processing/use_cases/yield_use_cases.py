@@ -199,6 +199,12 @@ class RequestLossCaseForYieldVarianceUseCase:
                     return MeatProcessingResult.ok(
                         "Ya solicitado (idempotente)", operation_id=operation_id,
                         already_processed=True)
+                if reconciliation.yield_loss_weight <= 0:
+                    # Fuera de tolerancia por rendir DE MÁS: se autoriza, pero
+                    # no hay pérdida que Mermas deba documentar.
+                    return MeatProcessingResult.ok(
+                        "Sin pérdida que documentar", operation_id=operation_id,
+                        no_loss=True)
                 operator_ids = tuple(
                     assignment.user_id for assignment
                     in uow.operator_assignments.list_active_by_order(order.id))
@@ -207,7 +213,7 @@ class RequestLossCaseForYieldVarianceUseCase:
                     product_id=order.target_product_id,
                     expected_weight=reconciliation.expected_output_weight,
                     actual_weight=reconciliation.actual_output_weight,
-                    difference_weight=reconciliation.unexplained_difference,
+                    difference_weight=reconciliation.yield_loss_weight,
                     process_type=order.process_type,
                     processing_batch_id=reconciliation.processing_batch_id,
                     operator_ids=operator_ids)

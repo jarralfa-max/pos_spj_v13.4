@@ -33,7 +33,7 @@ from backend.domain.meat_processing.entities.material_consumption import Materia
 from backend.domain.meat_processing.entities.process_genealogy_link import ProcessGenealogyLink
 from backend.domain.meat_processing.entities.process_output import ProcessOutput
 from backend.domain.meat_processing.entities.yield_reconciliation import YieldReconciliation
-from backend.domain.meat_processing.enums import OutputType
+from backend.domain.meat_processing.enums import OutputQualityStatus, OutputType
 from backend.domain.meat_processing.events import MeatProcessingEvents, build_meat_processing_event
 from backend.domain.meat_processing.exceptions import (
     MeatProcessingError,
@@ -76,13 +76,22 @@ def _capture_output(uow, *, order, operation_id: str, product_id: str, output_ty
                      quantity: Decimal, weight: Decimal, actor_user_id: str,
                      processing_batch_id: str | None = None, lot_id: str | None = None,
                      location_id: str | None = None, pieces: int | None = None,
-                     unit: str = "unit") -> ProcessOutput:
+                     unit: str = "unit",
+                     quality_status: OutputQualityStatus | None = None) -> ProcessOutput:
+    """`quality_status` inicial: PENDING_INSPECTION si el producto está sujeto a
+    inspección, NOT_REQUIRED si Productos dice que no. Nunca RELEASED: liberar
+    es de Calidad."""
+    inicial = OutputQualityStatus(quality_status or OutputQualityStatus.PENDING_INSPECTION)
+    if inicial not in (OutputQualityStatus.PENDING_INSPECTION,
+                       OutputQualityStatus.NOT_REQUIRED):
+        raise MeatProcessingError(
+            f"Un output nace pendiente de inspección o sin inspección, no {inicial.value}")
     output = ProcessOutput(
         id=new_uuid(), operation_id=operation_id, processing_order_id=order.id,
         product_id=product_id, warehouse_id=order.warehouse_id,
         captured_by_user_id=actor_user_id, output_type=output_type,
         processing_batch_id=processing_batch_id, lot_id=lot_id, location_id=location_id,
-        quantity=quantity, weight=weight, pieces=pieces, unit=unit)
+        quantity=quantity, weight=weight, pieces=pieces, unit=unit, quality_status=inicial)
     uow.outputs.save(output)
     event_name = _EVENT_BY_OUTPUT_TYPE[output_type]
     payload = build_meat_processing_event(
@@ -132,8 +141,13 @@ class CaptureProcessOutputUseCase:
 class PostProcessOutputUseCase:
     """§39: solicita a Inventario que reciba el output; nunca lo postea
     directamente. §22: un output bloqueado por calidad no puede ingresar a
-    stock (PENDING_INSPECTION sí puede — Calidad todavía no existe como
-    módulo, PROC-16; solo los estados explícitamente negativos bloquean)."""
+    stock.
+
+    Un output PENDIENTE de inspección entra RETENIDO: Inventario lo recibe en
+    estado QUARANTINED (lote en cuarentena) y aquí se registra ese mismo
+    estado, de modo que output, lote y saldo digan lo mismo. Sólo Calidad lo
+    libera. Un output que no requiere inspección (NOT_REQUIRED) entra
+    disponible."""
 
     def __init__(
         self,
@@ -169,20 +183,31 @@ class PostProcessOutputUseCase:
                     return MeatProcessingResult.fail(
                         "El output está bloqueado por calidad", "OUTPUT_QUALITY_BLOCKED",
                         operation_id=operation_id)
+                retenido = output.quality_status is OutputQualityStatus.PENDING_INSPECTION
+                if not output.location_id:
+                    return MeatProcessingResult.fail(
+                        "El output no tiene ubicación de destino resuelta por Inventario",
+                        "LOCATION_REQUIRED", operation_id=operation_id)
                 inventory_operation_id = self._inventory.post_output(
                     operation_id=operation_id, product_id=output.product_id,
                     warehouse_id=output.warehouse_id, quantity=output.quantity,
-                    weight=output.weight, lot_id=output.lot_id, location_id=output.location_id)
+                    weight=output.weight, lot_id=output.lot_id, location_id=output.location_id,
+                    quality_hold=retenido)
                 if inventory_operation_id is None:
                     return MeatProcessingResult.fail(
                         "Inventario aún no confirma la recepción",
                         "INVENTORY_INTEGRATION_PENDING", operation_id=operation_id)
                 output.assign_inventory_operation(inventory_operation_id=inventory_operation_id)
+                if retenido:
+                    # Registro de lo que Inventario hizo (retener), no una
+                    # decisión de calidad: la liberación sigue siendo de Calidad.
+                    output.mark_quality_status(OutputQualityStatus.QUARANTINED)
                 uow.outputs.save(output)
         except MeatProcessingError as exc:
             return _fail(exc, operation_id)
         return MeatProcessingResult.ok(
-            "Output posteado a inventario", entity_id=output.id, operation_id=operation_id)
+            "Output posteado a inventario", entity_id=output.id, operation_id=operation_id,
+            quality_hold=retenido)
 
 
 class RecordProcessOutputsUseCase:
@@ -243,7 +268,7 @@ class RecordProcessOutputsUseCase:
                         weight=line.get("weight", Decimal("0")), actor_user_id=actor_user_id,
                         processing_batch_id=processing_batch_id, lot_id=line.get("lot_id"),
                         location_id=line.get("location_id"), pieces=line.get("pieces"),
-                        unit=line.get("unit", "unit"))
+                        unit=line.get("unit", "unit"), quality_status=line.get("quality_status"))
                     captured_ids.append(output.id)
                     captured_outputs.append(output)
                 totals = _summarize_outputs_by_type(captured_outputs)

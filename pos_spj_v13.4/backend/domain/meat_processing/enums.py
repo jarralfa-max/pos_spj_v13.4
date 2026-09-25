@@ -103,6 +103,9 @@ class OutputQualityStatus(str, Enum):
     REJECTED = "REJECTED"
     REWORK_REQUIRED = "REWORK_REQUIRED"
     CONDEMNED = "CONDEMNED"
+    #: El producto no está sujeto a inspección (configuración de Productos):
+    #: entra disponible sin que nadie "libere" nada.
+    NOT_REQUIRED = "NOT_REQUIRED"
 
 
 class YieldStatus(str, Enum):

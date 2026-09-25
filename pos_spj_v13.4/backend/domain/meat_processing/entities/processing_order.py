@@ -47,6 +47,8 @@ class ProcessingOrder:
     completed_by_user_id: str | None = None
     closed_by_user_id: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    #: Folio humano (OP-<código de sucursal>-00001). Se asigna una vez, al crear.
+    folio: str | None = None
 
     def __post_init__(self) -> None:
         for name in ("id", "operation_id", "branch_id", "warehouse_id",
@@ -68,6 +70,14 @@ class ProcessingOrder:
             raise MeatProcessingInvariantError("Cantidad y peso planeados no pueden ser negativos")
         if self.planned_quantity == 0 and self.planned_weight == 0:
             raise MeatProcessingInvariantError("La orden requiere cantidad o peso planeado positivo")
+
+    def assign_folio(self, folio: str) -> None:
+        """El folio identifica la orden ante las personas: se asigna una sola vez."""
+        if not (folio or "").strip():
+            raise MeatProcessingInvariantError("El folio no puede estar vacío")
+        if self.folio and self.folio != folio:
+            raise MeatProcessingInvariantError("La orden ya tiene folio; no se reemplaza")
+        self.folio = folio.strip()
 
     def _require_status(self, *allowed: ProcessingOrderStatus) -> None:
         if self.status not in allowed:
@@ -119,7 +129,8 @@ class ProcessingOrder:
             yield_profile_version_id, "yield_profile_version_id")
 
     def release(self, *, actor_user_id: str) -> None:
-        self._require_status(ProcessingOrderStatus.APPROVED, ProcessingOrderStatus.READY)
+        # Sólo una orden PREPARADA (insumos reservados en Inventario) se libera.
+        self._require_status(ProcessingOrderStatus.READY)
         self.released_by_user_id = required_uuid(actor_user_id, "released_by_user_id")
         self.status = ProcessingOrderStatus.RELEASED
 

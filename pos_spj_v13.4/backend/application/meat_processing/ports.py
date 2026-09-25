@@ -2,66 +2,40 @@
 (§40: Productos owns recipe/BOM/cutting-scheme/yield-profile master data;
 Procesamiento only ever consumes a frozen snapshot of it, never mutates it).
 
-`RecipeSnapshotPort` is the contract a real Products integration will
-implement later (`ActiveRecipeQueryService`, `RecipeVersionSnapshotQueryService`,
-`ActiveYieldProfileQueryService`, `ActiveCuttingSchemeQueryService` per §40) —
-PROC-6 only defines the shape and ships a no-op default so
-`ReleaseProcessingOrderUseCase` works standalone until that integration exists.
+`RecipeSnapshotPort` resolves the FULL productive definition
+(`ProcessingRecipeSnapshot`, domain) that `ReleaseProcessingOrderUseCase`
+freezes for an order. The real implementation is
+`integrations/products_recipe_snapshot_adapter.py`. There is no permissive
+default any more: an order whose process requires master data cannot release
+without it (`ProcessingMasterDataRequirementPolicy`).
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Protocol
+from dataclasses import dataclass
+from decimal import Decimal
+from typing import Any, Callable, Protocol
 
+from backend.domain.meat_processing.entities.processing_recipe_snapshot import (
+    ProcessingRecipeSnapshot,
+)
 from backend.domain.meat_processing.enums import ProcessType
-
-
-@dataclass(frozen=True)
-class RecipeSnapshot:
-    """§14: everything that must be frozen at release time so a later active-
-    version change in Products never alters an order already in flight."""
-    recipe_version_id: str | None = None
-    cutting_scheme_version_id: str | None = None
-    yield_profile_version_id: str | None = None
-    components: tuple[dict[str, Any], ...] = ()
-    outputs: tuple[dict[str, Any], ...] = ()
-    units: dict[str, Any] = field(default_factory=dict)
-    factors: dict[str, Any] = field(default_factory=dict)
-    yield_tolerances: dict[str, Any] = field(default_factory=dict)
-    technical_parameters: dict[str, Any] = field(default_factory=dict)
-    packaging: dict[str, Any] = field(default_factory=dict)
-    quality_profile: dict[str, Any] = field(default_factory=dict)
-
-    def to_json_dict(self) -> dict[str, Any]:
-        return {
-            "recipe_version_id": self.recipe_version_id,
-            "cutting_scheme_version_id": self.cutting_scheme_version_id,
-            "yield_profile_version_id": self.yield_profile_version_id,
-            "components": list(self.components),
-            "outputs": list(self.outputs),
-            "units": self.units,
-            "factors": self.factors,
-            "yield_tolerances": self.yield_tolerances,
-            "technical_parameters": self.technical_parameters,
-            "packaging": self.packaging,
-            "quality_profile": self.quality_profile,
-        }
 
 
 class RecipeSnapshotPort(Protocol):
     def resolve(
         self, *, target_product_id: str, process_type: ProcessType
-    ) -> RecipeSnapshot | None: ...
+    ) -> ProcessingRecipeSnapshot | None: ...
 
 
 class NullRecipeSnapshotPort:
-    """Default port: no recipe integration wired yet. Orders release with an
-    empty snapshot (all version ids stay None) rather than failing — a process
-    like PACKAGING may legitimately have no recipe/cutting-scheme at all."""
+    """No Products integration: resolves nothing. The master-data policy then
+    decides — a process that needs a definition cannot release, one that needs
+    none (e.g. conditioning with no requirement configured) is told explicitly
+    that its definition could not be resolved."""
 
     def resolve(self, *, target_product_id: str, process_type: ProcessType
-                ) -> RecipeSnapshot | None:
+                ) -> ProcessingRecipeSnapshot | None:
         return None
 
 
@@ -81,6 +55,7 @@ class InventoryConsumptionPort(Protocol):
         weight: Any,
         lot_id: str | None = None,
         location_id: str | None = None,
+        reservation_id: str | None = None,
     ) -> str | None: ...
 
 
@@ -101,6 +76,7 @@ class NullInventoryConsumptionPort:
         weight: Any,
         lot_id: str | None = None,
         location_id: str | None = None,
+        reservation_id: str | None = None,
     ) -> str | None:
         return None
 
@@ -108,9 +84,16 @@ class NullInventoryConsumptionPort:
 class InventoryReceiptPort(Protocol):
     """§39/§10 (Outputs): Procesamiento nunca da de alta stock directamente —
     solicita a Inventario que reciba el output producido y guarda el
-    ``inventory_operation_id`` que Inventario devuelve. Outputs bloqueados por
-    calidad (`quality_status != RELEASED`) no deben llegar a este puerto —
-    esa decisión vive en la política de captura de outputs, no aquí."""
+    ``inventory_operation_id`` que Inventario devuelve.
+
+    `quality_hold=True`: el producto está sujeto a inspección, así que entra a
+    existencia RETENIDO (estado QUARANTINED), nunca disponible. Sólo Calidad lo
+    libera. Cada método recibe el `operation_id` exacto del paso (UUIDv7): el
+    adaptador no deriva identidades concatenando cadenas."""
+
+    def register_output_lot(
+        self, *, operation_id: str, product_id: str, lot_code: str, quality_hold: bool,
+    ) -> str | None: ...
 
     def post_output(
         self,
@@ -122,6 +105,11 @@ class InventoryReceiptPort(Protocol):
         weight: Any,
         lot_id: str | None = None,
         location_id: str | None = None,
+        quality_hold: bool = False,
+    ) -> str | None: ...
+
+    def link_lot_genealogy(
+        self, *, operation_id: str, parent_lot_id: str, child_lot_id: str, product_id: str,
     ) -> str | None: ...
 
 
@@ -130,6 +118,11 @@ class NullInventoryReceiptPort:
     than fabricating an ``inventory_operation_id`` — mirrors
     NullInventoryConsumptionPort's honesty contract."""
 
+    def register_output_lot(
+        self, *, operation_id: str, product_id: str, lot_code: str, quality_hold: bool,
+    ) -> str | None:
+        return None
+
     def post_output(
         self,
         *,
@@ -140,8 +133,61 @@ class NullInventoryReceiptPort:
         weight: Any,
         lot_id: str | None = None,
         location_id: str | None = None,
+        quality_hold: bool = False,
     ) -> str | None:
         return None
+
+    def link_lot_genealogy(
+        self, *, operation_id: str, parent_lot_id: str, child_lot_id: str, product_id: str,
+    ) -> str | None:
+        return None
+
+
+@dataclass(frozen=True)
+class ReservedStock:
+    """Un saldo que Inventario retuvo para un requerimiento: lote y ubicación
+    los eligió Inventario, no Procesamiento."""
+
+    reservation_id: str
+    lot_id: str | None
+    location_id: str | None
+    quantity: Decimal
+
+
+@dataclass(frozen=True)
+class ReservationOutcome:
+    lines: tuple[ReservedStock, ...] = ()
+    available: Decimal | None = None
+    error: str | None = None
+    error_code: str | None = None
+
+    @property
+    def ok(self) -> bool:
+        return bool(self.lines) and self.error is None
+
+
+class MaterialReservationPort(Protocol):
+    """§15/§16: la reserva de insumos vive en Inventario. Procesamiento pide y
+    guarda lo que Inventario reservó; nunca lleva una reserva paralela."""
+
+    def reserve(
+        self, *, operation_id: str, material_requirement_id: str, product_id: str,
+        branch_id: str, warehouse_id: str, quantity: Decimal, lot_required: bool,
+    ) -> ReservationOutcome: ...
+
+    def release(self, *, operation_id: str, reservation_id: str, reason: str) -> bool: ...
+
+
+class NullMaterialReservationPort:
+    """Sin Inventario integrado no hay reserva: nunca se finge una."""
+
+    def reserve(self, *, operation_id, material_requirement_id, product_id, branch_id,
+                warehouse_id, quantity, lot_required) -> ReservationOutcome:
+        return ReservationOutcome(error="Inventario no está integrado; no se puede reservar",
+                                  error_code="INVENTORY_INTEGRATION_PENDING")
+
+    def release(self, *, operation_id, reservation_id, reason) -> bool:
+        return False
 
 
 class LossCaseRequestPort(Protocol):
@@ -233,6 +279,13 @@ class CostAllocationPort(Protocol):
         self, *, operation_id: str, processing_order_id: str, process_type: ProcessType,
     ) -> str | None: ...
 
+    def preflight(self, *, processing_order_id: str, process_type: ProcessType,
+                  consumed: list[tuple[str, Decimal, str | None]],
+                  produced: list[tuple[str, str, Decimal]]) -> tuple[str, str] | None:
+        """¿Costos podrá costear estos hechos? None = sí; si no, (código, motivo).
+        Se pregunta ANTES de mover existencia. Costos decide; aquí no se calcula."""
+        ...
+
 
 class NullCostAllocationPort:
     """Default port: no Costing integration wired yet. Returns None rather
@@ -244,6 +297,9 @@ class NullCostAllocationPort:
         self, *, operation_id: str, processing_order_id: str, process_type: ProcessType,
     ) -> str | None:
         return None
+
+    def preflight(self, *, processing_order_id, process_type, consumed, produced):
+        return ("COSTING_NOT_CONNECTED", "Costos no está conectado: la orden no podría cerrarse.")
 
 
 class NotificationPort(Protocol):
@@ -279,3 +335,35 @@ class NullNotificationPort:
         branch_id: str,
     ) -> str | None:
         return None
+
+
+@dataclass
+class ExecutionPorts:
+    """Adaptadores hacia los contextos dueños, para UNA orden y UN operador."""
+
+    consumption: object
+    receipt: object
+    reservation: object
+    quality: object
+    losses: object
+    costing: object
+    #: product_id → ubicación de destino que resuelve Inventario (o excepción).
+    output_location: Callable[[str], str]
+
+
+class QualityDecisionReadPort(Protocol):
+    """Lectura de lo que CALIDAD decidió (contrato de lectura de Calidad).
+
+    `decision_of` devuelve la inspección decidida — ``subject_id``,
+    ``source_module``, ``status`` y ``decided_by_user_id`` — o None. Procesamiento
+    sólo registra en su output una decisión que exista así en Calidad."""
+
+    def decision_of(self, inspection_id: str) -> dict | None: ...
+
+
+class NullQualityDecisionReadPort:
+    """Sin Calidad conectada no hay decisión que confirmar: nunca se registra."""
+
+    def decision_of(self, inspection_id: str) -> dict | None:
+        return None
+

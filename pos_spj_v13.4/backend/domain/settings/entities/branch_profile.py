@@ -131,6 +131,19 @@ class BranchProfile:
             self.locale = locale.strip()
         self._touch()
 
+    def change_code(self, code: str) -> None:
+        """El código corto de la sucursal (prefijo de sus folios, p. ej. las
+        órdenes de producción OP-<código>-00001). Los folios ya emitidos no
+        cambian; los nuevos usan el código nuevo."""
+        limpio = (code or "").strip().upper()
+        if not limpio:
+            raise ConfigurationInvalidValueError("El código no puede quedar vacío")
+        if not limpio.replace("-", "").isalnum():
+            raise ConfigurationInvalidValueError(
+                "El código sólo admite letras y números (y guion)")
+        self.code = limpio
+        self._touch()
+
     def set_operating_hours(
         self, opening_time: time | None, closing_time: time | None,
         operation_days: tuple[str, ...] | None = None,

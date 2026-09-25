@@ -99,6 +99,12 @@ MEAT_PROCESSING_TABLES: tuple[str, ...] = (
     "equipment_assignments",
     # ── Fase 10 (270) — resultado por salida (§13) ─────────────────────────
     "processing_output_results",
+    # ── 272 — definición productiva congelada por orden ────────────────────
+    "processing_recipe_snapshots",
+    "processing_recipe_snapshot_inputs",
+    "processing_recipe_snapshot_outputs",
+    "material_requirement_allocations",
+    "processing_execution_steps",
 )
 
 _DDL = (
@@ -106,6 +112,7 @@ _DDL = (
     f"""
     CREATE TABLE IF NOT EXISTS processing_orders (
         id TEXT NOT NULL PRIMARY KEY,
+        folio TEXT,
         operation_id TEXT NOT NULL UNIQUE CHECK (operation_id <> id),
         branch_id TEXT NOT NULL,
         warehouse_id TEXT NOT NULL,
@@ -698,7 +705,9 @@ def create_meat_processing_resources_schema(conn) -> None:
 # §13: "El ERP debe registrar esperado, real, diferencia, rendimiento%, merma%,
 # costo por output, lote origen y lote destino". `yield_reconciliations`
 # concilia la ORDEN (salida principal contra lo esperado); aquí queda cada
-# salida con su costo repartido por valor de venta relativo.
+# salida con su resultado FÍSICO. El costo de cada salida es de Costos
+# (`processing_cost_allocation_lines`); la migración 273 movió allá el costo que
+# la Fase 10 guardaba aquí y quitó esas columnas.
 _DDL_OUTPUT_RESULTS = (
     f"""
     CREATE TABLE IF NOT EXISTS processing_output_results (
@@ -708,16 +717,12 @@ _DDL_OUTPUT_RESULTS = (
         output_type TEXT NOT NULL,
         input_product_id TEXT NOT NULL,
         input_weight TEXT NOT NULL CHECK ({_DEC.format('input_weight')}),
-        input_unit_cost TEXT NOT NULL DEFAULT '0',
         expected_weight TEXT NOT NULL DEFAULT '0',
         actual_weight TEXT NOT NULL DEFAULT '0',
         difference_weight TEXT NOT NULL DEFAULT '0',
         expected_yield_pct TEXT NOT NULL DEFAULT '0',
         yield_pct TEXT NOT NULL DEFAULT '0',
         variance_pct TEXT,
-        unit_price TEXT,
-        allocated_cost TEXT NOT NULL DEFAULT '0',
-        unit_cost TEXT NOT NULL DEFAULT '0',
         input_lot_id TEXT,
         output_lot_id TEXT,
         created_at TEXT NOT NULL,
@@ -737,6 +742,145 @@ def create_meat_processing_output_results_schema(conn) -> None:
     for statement in _DDL_OUTPUT_RESULTS:
         conn.execute(statement)
     for index in _INDEXES_OUTPUT_RESULTS:
+        conn.execute(index)
+
+
+# ── 272: definición productiva congelada (ProcessingRecipeSnapshot) ───────────
+# Una fila por orden, sólo INSERT: la ejecución lee de aquí y nunca vuelve a
+# Productos. Los números son TEXTO decimal, como en el resto del contexto.
+_ROLES = "'SOURCE','COMPONENT'"
+_MEASURES = "'BY_WEIGHT','BY_PIECE'"
+
+_DDL_SNAPSHOTS = (
+    f"""
+    CREATE TABLE IF NOT EXISTS processing_recipe_snapshots (
+        id TEXT NOT NULL PRIMARY KEY,
+        operation_id TEXT NOT NULL UNIQUE CHECK (operation_id <> id),
+        processing_order_id TEXT NOT NULL UNIQUE REFERENCES processing_orders(id),
+        process_type TEXT NOT NULL CHECK (process_type IN ({PROCESS_TYPES})),
+        target_product_id TEXT NOT NULL,
+        recipe_version_id TEXT,
+        cutting_scheme_version_id TEXT,
+        yield_profile_version_id TEXT,
+        packaging_spec_json TEXT NOT NULL DEFAULT '{{}}',
+        batch_output_basis TEXT NOT NULL DEFAULT '1'
+            CHECK (CAST(batch_output_basis AS NUMERIC) > 0),
+        tolerance_pct TEXT,
+        technical_parameters_json TEXT NOT NULL DEFAULT '{{}}',
+        quality_constraints_json TEXT NOT NULL DEFAULT '{{}}',
+        substitutions_json TEXT NOT NULL DEFAULT '[]',
+        effective_version TEXT NOT NULL DEFAULT '',
+        captured_by_user_id TEXT NOT NULL,
+        captured_at TEXT NOT NULL
+    )
+    """,
+    f"""
+    CREATE TABLE IF NOT EXISTS processing_recipe_snapshot_inputs (
+        id TEXT NOT NULL PRIMARY KEY,
+        snapshot_id TEXT NOT NULL REFERENCES processing_recipe_snapshots(id),
+        product_id TEXT NOT NULL,
+        role TEXT NOT NULL CHECK (role IN ({_ROLES})),
+        quantity_per_basis TEXT NOT NULL CHECK (CAST(quantity_per_basis AS NUMERIC) > 0),
+        unit_id TEXT,
+        scrap_pct TEXT NOT NULL DEFAULT '0' CHECK ({_DEC.format('scrap_pct')}),
+        sequence INTEGER NOT NULL DEFAULT 0,
+        lot_controlled INTEGER NOT NULL DEFAULT 0 CHECK (lot_controlled IN (0,1)),
+        UNIQUE (snapshot_id, product_id)
+    )
+    """,
+    f"""
+    CREATE TABLE IF NOT EXISTS processing_recipe_snapshot_outputs (
+        id TEXT NOT NULL PRIMARY KEY,
+        snapshot_id TEXT NOT NULL REFERENCES processing_recipe_snapshots(id),
+        product_id TEXT NOT NULL,
+        output_type TEXT NOT NULL CHECK (output_type IN ({OUTPUT_TYPES})),
+        measure_kind TEXT NOT NULL DEFAULT 'BY_WEIGHT' CHECK (measure_kind IN ({_MEASURES})),
+        expected_factor TEXT NOT NULL CHECK ({_DEC.format('expected_factor')}),
+        expected_yield_pct TEXT,
+        minimum_yield_pct TEXT,
+        maximum_yield_pct TEXT,
+        unit_id TEXT,
+        sequence INTEGER NOT NULL DEFAULT 0,
+        lot_controlled INTEGER NOT NULL DEFAULT 0 CHECK (lot_controlled IN (0,1)),
+        quality_gate INTEGER NOT NULL DEFAULT 0 CHECK (quality_gate IN (0,1)),
+        source TEXT NOT NULL DEFAULT '',
+        UNIQUE (snapshot_id, product_id)
+    )
+    """,
+)
+
+_INDEXES_SNAPSHOTS = (
+    "CREATE INDEX IF NOT EXISTS idx_recipe_snapshot_inputs_snapshot"
+    " ON processing_recipe_snapshot_inputs(snapshot_id)",
+    "CREATE INDEX IF NOT EXISTS idx_recipe_snapshot_outputs_snapshot"
+    " ON processing_recipe_snapshot_outputs(snapshot_id)",
+)
+
+
+def create_meat_processing_snapshot_schema(conn) -> None:
+    """272 (idempotente). La llama la migración 272 y el arranque limpio."""
+    for statement in _DDL_SNAPSHOTS:
+        conn.execute(statement)
+    for index in _INDEXES_SNAPSHOTS:
+        conn.execute(index)
+
+
+# ── 272: reservas reales por requerimiento + bitácora de la ejecución ─────────
+# Procesamiento no reserva por su cuenta: guarda la reserva que Inventario hizo,
+# con el lote y la ubicación exactos que Inventario eligió.
+_ALLOCATION_STATUSES = "'RESERVED','CONSUMED','RELEASED'"
+_STEP_STATUSES = "'PENDING','DONE','FAILED'"
+
+_DDL_SAGA = (
+    f"""
+    CREATE TABLE IF NOT EXISTS material_requirement_allocations (
+        id TEXT NOT NULL PRIMARY KEY,
+        material_requirement_id TEXT NOT NULL REFERENCES material_requirements(id),
+        processing_order_id TEXT NOT NULL REFERENCES processing_orders(id),
+        product_id TEXT NOT NULL,
+        inventory_reservation_id TEXT NOT NULL UNIQUE,
+        allocated_lot_id TEXT,
+        allocated_location_id TEXT,
+        quantity TEXT NOT NULL CHECK (CAST(quantity AS NUMERIC) > 0),
+        status TEXT NOT NULL DEFAULT 'RESERVED' CHECK (status IN ({_ALLOCATION_STATUSES})),
+        material_consumption_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    f"""
+    CREATE TABLE IF NOT EXISTS processing_execution_steps (
+        id TEXT NOT NULL PRIMARY KEY,
+        processing_order_id TEXT NOT NULL REFERENCES processing_orders(id),
+        step TEXT NOT NULL CHECK (trim(step) <> ''),
+        target_id TEXT NOT NULL,
+        operation_id TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ({_STEP_STATUSES})),
+        result_reference TEXT,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (processing_order_id, step, target_id)
+    )
+    """,
+)
+
+_INDEXES_SAGA = (
+    "CREATE INDEX IF NOT EXISTS idx_requirement_allocations_requirement"
+    " ON material_requirement_allocations(material_requirement_id)",
+    "CREATE INDEX IF NOT EXISTS idx_requirement_allocations_order"
+    " ON material_requirement_allocations(processing_order_id)",
+    "CREATE INDEX IF NOT EXISTS idx_execution_steps_order"
+    " ON processing_execution_steps(processing_order_id)",
+)
+
+
+def create_meat_processing_execution_saga_schema(conn) -> None:
+    """272 (idempotente): reservas reales por requerimiento y bitácora de pasos."""
+    for statement in _DDL_SAGA:
+        conn.execute(statement)
+    for index in _INDEXES_SAGA:
         conn.execute(index)
 
 
