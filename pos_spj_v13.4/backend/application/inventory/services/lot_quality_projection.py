@@ -21,6 +21,7 @@ from backend.domain.inventory.enums import (
 )
 from backend.application.inventory.services.movement_posting import post_movement
 from backend.infrastructure.db.repositories.inventory.base import to_decimal
+from backend.shared.ids import new_uuid
 
 # Cada estado de calidad del lote corresponde a un *bucket físico* del balance.
 PHYSICAL_BUCKET = {
@@ -62,7 +63,10 @@ def project_lot_quality_transition(uow, lot, new_status: LotQualityStatus, *,
             movement_type=mtype, branch_id=row["branch_id"],
             warehouse_id=row["warehouse_id"], source_module="inventory",
             source_document_type="LOT_QUALITY", source_document_id=lot.id,
-            operation_id=f"{base_op}:{moved}", created_by_user_id=actor_user_id,
+            # Identidad propia (UUIDv7) por movimiento; la operación que lo originó
+            # queda en la auditoría del lote (source_document_id = lote). Repetir la transición no duplica:
+            # el lote ya está en el nuevo estado y no hay nada que mover.
+            operation_id=new_uuid(), created_by_user_id=actor_user_id,
             lines=[line])
         post_movement(uow, movement, actor_user_id=actor_user_id)
         moved += 1

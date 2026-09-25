@@ -158,6 +158,12 @@ class ProductionLossRepository:
             self._db.execute("RELEASE SAVEPOINT loss7_production")
             raise
 
+    def find_case_by_operation(self, operation_id):
+        """Caso ya registrado con ese `operation_id` (idempotencia)."""
+        row = self._db.execute("SELECT id FROM loss_cases WHERE operation_id=?",
+                               (operation_id,)).fetchone()
+        return None if row is None else row[0]
+
     def yield_variance_reason(self):
         """(classification_id, reason_id) activos para variación de rendimiento,
         o None si Mermas no tiene la causa configurada."""
