@@ -41,32 +41,18 @@ from backend.application.sales.use_cases.lifecycle_use_cases import (
 )
 from backend.infrastructure.db.schema.sales_schema import create_sales_schema
 from backend.shared.ids import new_uuid
+from tests.unit._canonical_stock import (
+    allow_all_inventory,
+    create_canonical_inventory,
+    seed_available_stock,
+)
 
 
 @pytest.fixture
 def conn():
     c = sqlite3.connect(":memory:")
     create_sales_schema(c)
-    # SALES-9: SuspendSaleUseCase now reserves inventory for real (see
-    # test_sales_inventory_reservation.py) — these tables must exist for
-    # any suspend-path test in this file, same minimal hand-rolled DDL used
-    # there (not a full migration run).
-    c.execute("CREATE TABLE inventory_stock (branch_id TEXT, product_id TEXT, quantity REAL)")
-    c.execute("""
-        CREATE TABLE stock_reservas (
-            id TEXT NOT NULL PRIMARY KEY, folio TEXT UNIQUE, branch_id TEXT NOT NULL,
-            estado TEXT NOT NULL DEFAULT 'activa', payload_json TEXT NOT NULL DEFAULT '[]',
-            created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')),
-            expires_at TEXT DEFAULT (datetime('now', '+30 minutes'))
-        )
-    """)
-    c.execute("""
-        CREATE TABLE stock_reserva_detalles (
-            id TEXT NOT NULL PRIMARY KEY, reserva_id TEXT NOT NULL REFERENCES stock_reservas(id),
-            producto_id TEXT NOT NULL, cantidad REAL NOT NULL,
-            created_at TEXT DEFAULT (datetime('now'))
-        )
-    """)
+    create_canonical_inventory(c)
     c.commit()
     yield c
     c.close()
@@ -80,10 +66,8 @@ def _deny_all() -> SalesAuthorizationPolicy:
     return SalesAuthorizationPolicy(DenyAllSalesPermissionCheckerForTests())
 
 
-def _seed_stock(conn, *, branch_id: str, product_id: str, quantity: float = 999.0) -> None:
-    conn.execute("INSERT INTO inventory_stock (branch_id, product_id, quantity) VALUES (?,?,?)",
-                 (branch_id, product_id, quantity))
-    conn.commit()
+def _seed_stock(conn, *, branch_id: str, product_id: str, quantity="999") -> None:
+    seed_available_stock(conn, branch_id=branch_id, product_id=product_id, quantity=quantity)
 
 
 def _start(conn, *, auth=None, cashier=None, branch=None) -> SaleResult:
@@ -370,7 +354,7 @@ class TestCartTotals:
 class TestSuspendResumeCancel:
     def test_suspend_and_resume(self, conn):
         sale_id, cashier = _active_sale(conn)
-        suspended = SuspendSaleUseCase(_allow_all()).execute(
+        suspended = SuspendSaleUseCase(_allow_all(), allow_all_inventory()).execute(
             conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid(),
             max_suspended_sales=5)
         assert suspended.success
@@ -384,7 +368,7 @@ class TestSuspendResumeCancel:
     def test_suspend_enforces_limit(self, conn):
         sale_id, cashier = _active_sale(conn)
         workstation = new_uuid()
-        result = SuspendSaleUseCase(_allow_all()).execute(
+        result = SuspendSaleUseCase(_allow_all(), allow_all_inventory()).execute(
             conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid(),
             max_suspended_sales=5, workstation_id=workstation)
         assert result.success  # 0 currently suspended, under the limit
@@ -392,7 +376,7 @@ class TestSuspendResumeCancel:
     def test_resume_denies_cross_user_when_configured(self, conn):
         sale_id, cashier = _active_sale(conn)
         other_cashier = new_uuid()
-        SuspendSaleUseCase(_allow_all()).execute(
+        SuspendSaleUseCase(_allow_all(), allow_all_inventory()).execute(
             conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid(),
             max_suspended_sales=5)
 

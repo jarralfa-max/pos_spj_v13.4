@@ -119,13 +119,16 @@ class TestResolutionValidation:
 # ── Validar claro/oscuro ─────────────────────────────────────────────────
 
 class TestThemeValidation:
-    @pytest.mark.parametrize("theme", ["Oscuro", "Claro"])
+    @pytest.mark.parametrize("theme", ["dark", "light"])
     def test_renders_without_error_under_each_theme(self, app, theme):
-        from config import TEMAS
+        """El QSS real del sistema de diseño (el `config.TEMAS` legacy se
+        borró). Se aplica la hoja directamente, no por `ThemeManager.apply`,
+        que además PERSISTE la preferencia del usuario."""
+        from frontend.desktop.themes.qss_builder import build_qss
 
         previous = app.styleSheet()
         try:
-            app.setStyleSheet(TEMAS.get(theme, ""))
+            app.setStyleSheet(build_qss(theme))
             workspace = _build(app)
             app.processEvents()
             # Structure must survive a theme switch — the QSS never

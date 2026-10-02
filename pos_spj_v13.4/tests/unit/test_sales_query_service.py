@@ -21,31 +21,18 @@ from backend.application.sales.use_cases.lifecycle_use_cases import SuspendSaleU
 from backend.domain.sales.exceptions import SalesPermissionDeniedError
 from backend.infrastructure.db.schema.sales_schema import create_sales_schema
 from backend.shared.ids import new_uuid
+from tests.unit._canonical_stock import (
+    allow_all_inventory,
+    create_canonical_inventory,
+    seed_available_stock,
+)
 
 
 @pytest.fixture
 def conn():
     c = sqlite3.connect(":memory:")
     create_sales_schema(c)
-    # SALES-9: SuspendSaleUseCase now reserves inventory for real — these
-    # tables must exist for this file's suspend-path tests (same minimal
-    # hand-rolled DDL as test_sales_inventory_reservation.py).
-    c.execute("CREATE TABLE inventory_stock (branch_id TEXT, product_id TEXT, quantity REAL)")
-    c.execute("""
-        CREATE TABLE stock_reservas (
-            id TEXT NOT NULL PRIMARY KEY, folio TEXT UNIQUE, branch_id TEXT NOT NULL,
-            estado TEXT NOT NULL DEFAULT 'activa', payload_json TEXT NOT NULL DEFAULT '[]',
-            created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')),
-            expires_at TEXT DEFAULT (datetime('now', '+30 minutes'))
-        )
-    """)
-    c.execute("""
-        CREATE TABLE stock_reserva_detalles (
-            id TEXT NOT NULL PRIMARY KEY, reserva_id TEXT NOT NULL REFERENCES stock_reservas(id),
-            producto_id TEXT NOT NULL, cantidad REAL NOT NULL,
-            created_at TEXT DEFAULT (datetime('now'))
-        )
-    """)
+    create_canonical_inventory(c)
     c.commit()
     yield c
     c.close()
@@ -57,8 +44,7 @@ def _allow_all() -> SalesAuthorizationPolicy:
 
 def _new_sale_with_line(conn, auth, *, branch_id, cashier) -> str:
     product_id = new_uuid()
-    conn.execute("INSERT INTO inventory_stock (branch_id, product_id, quantity) VALUES (?,?,?)",
-                 (branch_id, product_id, 999.0))
+    seed_available_stock(conn, branch_id=branch_id, product_id=product_id)
     sale_id = StartSaleUseCase(auth).execute(
         conn, branch_id=branch_id, cashier_user_id=cashier,
         operation_id=new_uuid(), actor_user_id=cashier).entity_id
@@ -100,13 +86,13 @@ class TestListSuspended:
         active_id = _new_sale_with_line(conn, auth, branch_id=branch_1, cashier=cashier)
 
         suspended_id = _new_sale_with_line(conn, auth, branch_id=branch_1, cashier=cashier)
-        SuspendSaleUseCase(auth).execute(
+        SuspendSaleUseCase(auth, allow_all_inventory()).execute(
             conn, sale_id=suspended_id, actor_user_id=cashier, operation_id=new_uuid(),
             max_suspended_sales=5)
 
         # A suspended sale in a DIFFERENT branch must not leak into results.
         other_branch_id = _new_sale_with_line(conn, auth, branch_id=branch_2, cashier=cashier)
-        SuspendSaleUseCase(auth).execute(
+        SuspendSaleUseCase(auth, allow_all_inventory()).execute(
             conn, sale_id=other_branch_id, actor_user_id=cashier, operation_id=new_uuid(),
             max_suspended_sales=5)
 

@@ -498,3 +498,133 @@ class TestCancelReleasesInventoryForReal:
 
         assert result.success
         assert _available(conn, branch_id=branch_id, product_id=product_id) == Decimal("10")
+
+
+# ── Mercancía recibida CON LOTE (re-auditoría POS, 2026-10-01) ──────────────
+#
+# Compras recibe siempre con lote, aunque el producto no sea "controlado por
+# lote". La reserva de Ventas buscaba un saldo SIN lote y respondía "Sin balance
+# disponible para reservar": medido en una copia de la base real, los 23 kg de
+# Alas no se podían cobrar. Todas las pruebas de arriba siembran saldo sin lote,
+# que es justo por qué nunca lo vieron.
+
+def _seed_lot_stock(conn, *, branch_id: str, product_id: str, quantity: str,
+                    expiration_date: str | None = None) -> str:
+    from backend.domain.inventory.entities.inventory_balance import InventoryBalance
+    from backend.domain.inventory.entities.inventory_lot import InventoryLot
+    from backend.domain.inventory.enums import LotOrigin, LotQualityStatus
+
+    lot = InventoryLot.create(
+        product_id=product_id, lot_code=f"L-{new_uuid()[-6:]}", origin_type=LotOrigin.PURCHASE,
+        branch_id=branch_id, expiration_date=expiration_date,
+        quality_status=LotQualityStatus.PENDING_INSPECTION)
+    with InventoryUnitOfWork(conn) as uow:
+        uow.lots.save(lot)
+        balance = InventoryBalance.empty(
+            product_id=product_id, branch_id=branch_id, warehouse_id=branch_id,
+            inventory_status=InventoryStatus.AVAILABLE, location_id=branch_id, lot_id=lot.id)
+        balance.apply_delta(quantity=Decimal(quantity))
+        uow.balances.upsert(balance)
+    conn.commit()
+    return lot.id
+
+
+def _lot_on_hand(conn, *, branch_id: str, product_id: str, lot_id: str | None) -> Decimal:
+    with InventoryUnitOfWork(conn) as uow:
+        balance = uow.balances.get(
+            product_id=product_id, branch_id=branch_id, warehouse_id=branch_id,
+            inventory_status=InventoryStatus.AVAILABLE, location_id=branch_id, lot_id=lot_id)
+    return balance.quantity if balance else Decimal("0")
+
+
+class TestStockReceivedWithALot:
+    def test_stock_received_with_a_lot_can_be_reserved_and_sold(self, conn):
+        branch_id, product_id = new_uuid(), new_uuid()
+        lot_id = _seed_lot_stock(conn, branch_id=branch_id, product_id=product_id, quantity="23")
+        sale_id, cashier = _sale_with_line(
+            conn, branch_id=branch_id, product_id=product_id, quantity="1.25")
+        sale = SaleRepository(conn).get(sale_id)
+        client = _client(conn, branch_id=branch_id, actor=cashier)
+
+        client.confirm(client.reserve_for_sale(sale), sale_id=sale.id, folio=sale.id)
+        conn.commit()
+
+        assert _lot_on_hand(conn, branch_id=branch_id, product_id=product_id,
+                            lot_id=lot_id) == Decimal("21.75")
+        assert _statuses(conn, sale_id) == [ReservationStatus.FULFILLED]
+
+    def test_two_lots_are_consumed_first_expired_first_and_both_fulfilled(self, conn):
+        """FEFO, y dos reservas del MISMO producto: con la identidad por
+        producto, la segunda se tomaba por un reintento de la primera y su
+        retención quedaba puesta para siempre."""
+        branch_id, product_id = new_uuid(), new_uuid()
+        tardio = _seed_lot_stock(conn, branch_id=branch_id, product_id=product_id,
+                                 quantity="5", expiration_date="2099-12-31")
+        pronto = _seed_lot_stock(conn, branch_id=branch_id, product_id=product_id,
+                                 quantity="3", expiration_date="2099-01-31")
+        sale_id, cashier = _sale_with_line(
+            conn, branch_id=branch_id, product_id=product_id, quantity="4")
+        sale = SaleRepository(conn).get(sale_id)
+        client = _client(conn, branch_id=branch_id, actor=cashier)
+
+        client.confirm(client.reserve_for_sale(sale), sale_id=sale.id, folio=sale.id)
+        conn.commit()
+
+        assert _lot_on_hand(conn, branch_id=branch_id, product_id=product_id,
+                            lot_id=pronto) == Decimal("0")
+        assert _lot_on_hand(conn, branch_id=branch_id, product_id=product_id,
+                            lot_id=tardio) == Decimal("4")
+        assert _statuses(conn, sale_id) == [ReservationStatus.FULFILLED] * 2
+        assert _available(conn, branch_id=branch_id, product_id=product_id) == Decimal("0")
+
+    def test_a_shortage_is_a_shortage_even_when_stock_has_lots(self, conn):
+        """Lo que hace posible autorizar la venta sin existencia."""
+        from backend.domain.sales.exceptions import InventoryShortageError
+
+        branch_id, product_id = new_uuid(), new_uuid()
+        _seed_lot_stock(conn, branch_id=branch_id, product_id=product_id, quantity="1")
+        sale_id, cashier = _sale_with_line(
+            conn, branch_id=branch_id, product_id=product_id, quantity="5")
+        sale = SaleRepository(conn).get(sale_id)
+
+        with pytest.raises(InventoryShortageError, match="disponible 1"):
+            _client(conn, branch_id=branch_id, actor=cashier).reserve_for_sale(sale)
+
+    def test_selling_without_stock_takes_what_exists_from_its_lot(self, conn):
+        """Sólo el faltante va a negativo; antes salía TODO de un saldo sin
+        lote y la mercancía real se quedaba contada."""
+        branch_id, product_id = new_uuid(), new_uuid()
+        lot_id = _seed_lot_stock(conn, branch_id=branch_id, product_id=product_id, quantity="2")
+        sale_id, cashier = _sale_with_line(
+            conn, branch_id=branch_id, product_id=product_id, quantity="5")
+        sale = SaleRepository(conn).get(sale_id)
+
+        _client(conn, branch_id=branch_id, actor=cashier).issue_without_stock(sale)
+        conn.commit()
+
+        assert _lot_on_hand(conn, branch_id=branch_id, product_id=product_id,
+                            lot_id=lot_id) == Decimal("0")
+        assert _lot_on_hand(conn, branch_id=branch_id, product_id=product_id,
+                            lot_id=None) == Decimal("-3")
+
+    def test_a_return_goes_back_to_the_lot_it_came_from(self, conn):
+        branch_id, product_id = new_uuid(), new_uuid()
+        lot_id = _seed_lot_stock(conn, branch_id=branch_id, product_id=product_id, quantity="10")
+        sale_id, cashier = _sale_with_line(
+            conn, branch_id=branch_id, product_id=product_id, quantity="4")
+        sale = SaleRepository(conn).get(sale_id)
+        client = _client(conn, branch_id=branch_id, actor=cashier)
+        client.confirm(client.reserve_for_sale(sale), sale_id=sale.id, folio=sale.id)
+        conn.commit()
+
+        for _ in range(2):
+            client.restore_for_return(
+                product_id=product_id, quantity=Decimal("1.5"), sale_id=sale.id,
+                operation_id=new_uuid(), actor_user_id=cashier,
+                reason_code="DEVOLUCION", source_document_type="SALE_RETURN")
+        conn.commit()
+
+        assert _lot_on_hand(conn, branch_id=branch_id, product_id=product_id,
+                            lot_id=lot_id) == Decimal("9")
+        assert _lot_on_hand(conn, branch_id=branch_id, product_id=product_id,
+                            lot_id=None) == Decimal("0")

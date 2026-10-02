@@ -8,9 +8,10 @@ itself) and Counter (a lightweight badge count, matching the real legacy
 short round-trip regression for Persist/Resume so this phase's own test
 file is a complete POS-15 record, not just the two new pieces.
 
-Inventory fixtures reuse the exact hand-rolled `stock_reservas`/
-`stock_reserva_detalles`/`inventory_stock` DDL from
-`test_sales_inventory_reservation.py` (SALES-9).
+Inventory runs on the CANONICAL model (`inventory_balances` +
+`inventory_reservation`) since Ventas stopped using the legacy
+`stock_reservas`/`inventory_stock` tables; this file used to hand-roll those
+tables and broke the day they were retired (re-auditoría POS, 2026-10-01).
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ from backend.domain.sales.exceptions import SalesPermissionDeniedError
 from backend.infrastructure.db.repositories.sales.sale_repository import SaleRepository
 from backend.infrastructure.db.schema.sales_schema import create_sales_schema
 from backend.shared.ids import new_uuid
+from tests.unit._canonical_stock import allow_all_inventory, create_canonical_inventory, seed_available_stock
 
 
 def _allow_all() -> SalesAuthorizationPolicy:
@@ -47,31 +49,9 @@ def conn():
     c = sqlite3.connect(":memory:")
     c.row_factory = sqlite3.Row
     create_sales_schema(c)
-    c.execute("CREATE TABLE inventory_stock (branch_id TEXT, product_id TEXT, quantity REAL)")
-    c.execute("""
-        CREATE TABLE stock_reservas (
-            id TEXT NOT NULL PRIMARY KEY, folio TEXT UNIQUE, branch_id TEXT NOT NULL,
-            estado TEXT NOT NULL DEFAULT 'activa', payload_json TEXT NOT NULL DEFAULT '[]',
-            created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')),
-            expires_at TEXT DEFAULT (datetime('now', '+30 minutes'))
-        )
-    """)
-    c.execute("""
-        CREATE TABLE stock_reserva_detalles (
-            id TEXT NOT NULL PRIMARY KEY, reserva_id TEXT NOT NULL REFERENCES stock_reservas(id),
-            producto_id TEXT NOT NULL, cantidad REAL NOT NULL,
-            created_at TEXT DEFAULT (datetime('now'))
-        )
-    """)
-    c.commit()
+    create_canonical_inventory(c)
     yield c
     c.close()
-
-
-def _seed_stock(conn, *, branch_id: str, product_id: str, quantity: float) -> None:
-    conn.execute("INSERT INTO inventory_stock (branch_id, product_id, quantity) VALUES (?,?,?)",
-                 (branch_id, product_id, quantity))
-    conn.commit()
 
 
 def _suspend_a_sale(conn, *, branch_id=None):
@@ -81,14 +61,14 @@ def _suspend_a_sale(conn, *, branch_id=None):
     branch_id = branch_id or new_uuid()
     cashier = new_uuid()
     product_id = new_uuid()
-    _seed_stock(conn, branch_id=branch_id, product_id=product_id, quantity=10)
+    seed_available_stock(conn, branch_id=branch_id, product_id=product_id, quantity=10)
     sale_id = StartSaleUseCase(_allow_all()).execute(
         conn, branch_id=branch_id, cashier_user_id=cashier,
         operation_id=new_uuid(), actor_user_id=cashier).entity_id
     AddSaleLineUseCase(_allow_all()).execute(
         conn, sale_id=sale_id, product_id=product_id, quantity=Decimal("1"),
         unit_price=Decimal("50.00"), actor_user_id=cashier, operation_id=new_uuid())
-    result = SuspendSaleUseCase(_allow_all()).execute(
+    result = SuspendSaleUseCase(_allow_all(), allow_all_inventory()).execute(
         conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid(),
         max_suspended_sales=5)
     assert result.success, result.message
@@ -128,7 +108,7 @@ class TestExpireSuspendedSalesUseCase:
         sale_id, _cashier, _branch = _suspend_a_sale(conn)
         _backdate_suspension(conn, sale_id, hours_ago=5)
 
-        expired_count = ExpireSuspendedSalesUseCase().execute(conn, max_age_hours=4)
+        expired_count = ExpireSuspendedSalesUseCase(inventory_authorization=allow_all_inventory()).execute(conn, max_age_hours=4)
 
         assert expired_count == 1
         sale = SaleRepository(conn).get(sale_id)
@@ -140,25 +120,25 @@ class TestExpireSuspendedSalesUseCase:
         assert SaleRepository(conn).get(sale_id).inventory_reservation_id is not None
         _backdate_suspension(conn, sale_id, hours_ago=5)
 
-        ExpireSuspendedSalesUseCase().execute(conn, max_age_hours=4)
+        ExpireSuspendedSalesUseCase(inventory_authorization=allow_all_inventory()).execute(conn, max_age_hours=4)
 
         sale = SaleRepository(conn).get(sale_id)
         assert sale.status is SaleStatus.CANCELLED
         assert sale.inventory_reservation_id is None
-        reserva = conn.execute(
-            "SELECT estado FROM stock_reservas WHERE branch_id=?", (branch,)).fetchone()
-        assert reserva["estado"] != "activa"
+        estados = [row["status"] for row in conn.execute(
+            "SELECT status FROM inventory_reservation WHERE source_document_id=?", (sale_id,))]
+        assert estados and "CONFIRMED" not in estados
 
     def test_does_not_expire_recently_suspended_sales(self, conn):
         sale_id, _cashier, _branch = _suspend_a_sale(conn)
-        expired_count = ExpireSuspendedSalesUseCase().execute(conn, max_age_hours=4)
+        expired_count = ExpireSuspendedSalesUseCase(inventory_authorization=allow_all_inventory()).execute(conn, max_age_hours=4)
         assert expired_count == 0
         assert SaleRepository(conn).get(sale_id).status is SaleStatus.SUSPENDED
 
     def test_expiry_emits_cancelled_event_to_outbox(self, conn):
         sale_id, _cashier, _branch = _suspend_a_sale(conn)
         _backdate_suspension(conn, sale_id, hours_ago=10)
-        ExpireSuspendedSalesUseCase().execute(conn, max_age_hours=4)
+        ExpireSuspendedSalesUseCase(inventory_authorization=allow_all_inventory()).execute(conn, max_age_hours=4)
         event = conn.execute(
             "SELECT event_name, payload_json FROM sales_outbox"
             " WHERE event_name='SALE_CANCELLED' AND payload_json LIKE ?",
@@ -171,7 +151,7 @@ class TestExpireSuspendedSalesUseCase:
         sale_b, _c2, _b2 = _suspend_a_sale(conn)
         _backdate_suspension(conn, sale_a, hours_ago=10)
         _backdate_suspension(conn, sale_b, hours_ago=10)
-        expired_count = ExpireSuspendedSalesUseCase().execute(conn, max_age_hours=4)
+        expired_count = ExpireSuspendedSalesUseCase(inventory_authorization=allow_all_inventory()).execute(conn, max_age_hours=4)
         assert expired_count == 2
 
 

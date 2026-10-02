@@ -138,6 +138,11 @@ def build_sales_pos_presenter(
     authorizer_auth = SalesAuthorizationPolicy(AuthorizerPermissionChecker(
         connection, branch_id=getattr(session_context, "active_branch_id", None) or None))
     pricing_client = SalesPricingClient(connection)
+    # El canje de puntos es de Fidelidad y exige sus propios permisos
+    # (`GROWTH_ENGINE.puntos.canjear`), verificados contra la sesión real.
+    from backend.application.loyalty.authorization import LoyaltyAuthorizationPolicy
+    from backend.application.loyalty.session_authorization import LoyaltySessionPermissionChecker
+    loyalty_auth = LoyaltyAuthorizationPolicy(LoyaltySessionPermissionChecker(session_context))
 
     query_services = {
         "catalog": SalesCatalogQueryService(connection),
@@ -169,7 +174,8 @@ def build_sales_pos_presenter(
         "quick_create_customer": _h(
             QuickCreateCustomerForSaleUseCase(customer_auth).execute),
         "scan_loyalty_card": _h(ScanLoyaltyCardForSaleUseCase(auth).execute),
-        "redeem_loyalty_points": _h(RedeemLoyaltyPointsUseCase(auth).execute),
+        "redeem_loyalty_points": _h(RedeemLoyaltyPointsUseCase(
+            auth, loyalty_authorization=loyalty_auth).execute),
         "scan_code": _scan_code_handler(connection, auth),
         "apply_sale_discount": _h(ApplySaleDiscountUseCase(
             auth, authorizer_authorization=authorizer_auth,

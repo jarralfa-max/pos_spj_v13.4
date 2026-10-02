@@ -93,12 +93,14 @@ from backend.application.inventory.use_cases.reconstruction_use_cases import (
     ReconstructBaseProductUseCase,
 )
 from backend.application.inventory.use_cases.reservation_use_cases import (
-    CreateReservationUseCase,
     ExpireReservationsUseCase,
     FulfillReservationUseCase,
     ReleaseReservationUseCase,
 )
-from backend.domain.inventory.enums import ReservationSource
+from backend.application.inventory.use_cases.sale_reservation_use_cases import (
+    ReserveStockForSaleUseCase,
+    plan_sale_issue,
+)
 from backend.domain.sales.entities import Sale
 from backend.domain.sales.exceptions import (
     InventoryReservationFailedError,
@@ -172,48 +174,50 @@ class SalesInventoryClient:
     def reserve_for_sale(self, sale: Sale) -> str:
         """Reserva TODAS las líneas de la venta. Devuelve el asa (`sale.id`).
 
-        Si alguna línea no tiene disponibilidad, se lanza
-        `InventoryReservationFailedError` y se liberan las reservas que sí se
-        habían creado en este intento: una venta no puede quedarse reteniendo
-        la mitad de su mercancía indefinidamente.
+        Inventario elige de qué saldos sale cada producto
+        (`ReserveStockForSaleUseCase`: lote y ubicación incluidos, estrategia
+        configurada, FEFO por omisión). Antes se reservaba un único saldo
+        buscado SIN lote, y como Compras recibe siempre con lote, nada de lo
+        comprado se podía cobrar (re-auditoría POS, 2026-10-01).
+
+        Si algún producto no alcanza, se lanza `InventoryShortageError` (el
+        único fallo que admite autorizar la venta sin existencia) y se liberan
+        las reservas ya creadas en este intento: una venta no puede quedarse
+        reteniendo la mitad de su mercancía indefinidamente.
         """
-        use_case = CreateReservationUseCase(self._authorization)
-        creadas: list[str] = []
+        use_case = ReserveStockForSaleUseCase(self._authorization)
+        reservados = 0
         for product_id, cantidad in self._quantities_by_product(sale).items():
             self._top_up_via_reconstruction_if_short(
                 product_id=product_id, needed=cantidad, sale_id=sale.id)
             result = use_case.execute(
                 self._connection, product_id=product_id, branch_id=self._branch_id,
-                # Este repositorio trata la sucursal como su propio almacén; es
-                # la simplificación ya establecida aquí, no una decisión nueva.
-                warehouse_id=self.warehouse_id,
-                # La sucursal hace también de ubicación. Es la misma clave que
-                # ya usa `restore_for_return` al reponer, y tiene que serlo:
-                # reservar, descontar y devolver deben caer en LA MISMA fila de
-                # saldo, que se identifica por (producto, sucursal, almacén,
-                # estado, ubicación, lote). Con ubicaciones distintas no salta
-                # ningún error — el stock se parte en dos filas y una de ellas
-                # se queda retenida para siempre.
-                location_id=self._branch_id,
-                source=ReservationSource.SALE, source_document_id=sale.id,
-                quantity=cantidad,
+                warehouse_id=self.warehouse_id, quantity=cantidad,
+                source_document_id=sale.id,
                 operation_id=_reserve_operation_id(sale.id, product_id),
-                actor_user_id=self._actor_user_id,
-            )
+                actor_user_id=self._actor_user_id, lot_required=False)
             if not result.success:
                 self._release_all(sale.id, reason="reserva incompleta")
-                disponible = self._available(product_id)
-                if result.error_code != "PERMISSION_DENIED" and disponible < cantidad:
-                    # Falta existencia: el único fallo que admite autorizar la
-                    # venta sin existencia (Fase 6).
+                if result.error_code == "INSUFFICIENT_AVAILABILITY":
+                    disponible = result.data.get("available", Decimal("0"))
                     raise InventoryShortageError(
-                        f"disponible {disponible}, se venden {cantidad} "
-                        f"(producto {product_id})")
+                        f"{self._product_name(product_id)}: disponible {disponible}, "
+                        f"se venden {cantidad}")
                 raise InventoryReservationFailedError(result.message)
-            creadas.append(result.entity_id or "")
-        if not creadas:
+            reservados += 1
+        if not reservados:
             raise InventoryReservationFailedError("La venta no tiene líneas que reservar.")
         return sale.id
+
+    def _product_name(self, product_id: str) -> str:
+        """Para los mensajes al cajero: el nombre, no el identificador."""
+        try:
+            row = self._connection.execute(
+                "SELECT name FROM products WHERE id = ?", (product_id,)).fetchone()
+        except Exception:
+            logger.exception("nombre de %s no consultable", product_id)
+            row = None
+        return str(row[0]) if row and row[0] else product_id
 
     def _available(self, product_id: str) -> Decimal:
         try:
@@ -332,7 +336,10 @@ class SalesInventoryClient:
         for reservation in reservations:
             result = use_case.execute(
                 self._connection, reservation_id=reservation.id,
-                operation_id=f"{sale_id}:fulfill:{reservation.product_id}",
+                # Por reserva, no por producto: un producto vendido de dos
+                # lotes tiene dos reservas, y con la misma identidad la segunda
+                # se tomaría por un reintento de la primera.
+                operation_id=f"{sale_id}:fulfill:{reservation.id}",
                 actor_user_id=self._actor_user_id,
             )
             if not result.success:
@@ -357,14 +364,29 @@ class SalesInventoryClient:
         from backend.domain.inventory.enums import InventoryStatus, MovementType
 
         costos = unit_costs or {}
-        lines = [
-            InventoryMovementLine.create(
-                product_id=product_id, quantity=cantidad, from_location_id=self._branch_id,
-                from_status=InventoryStatus.AVAILABLE, reason_code="SALE_WITHOUT_STOCK",
-                unit_cost=costos.get(product_id))
-            for product_id, cantidad in self._quantities_by_product(sale).items()
-            if cantidad > 0
-        ]
+        lines = []
+        for product_id, cantidad in self._quantities_by_product(sale).items():
+            if cantidad <= 0:
+                continue
+            # Lo que SÍ hay sale de sus lotes (misma estrategia que la reserva);
+            # sólo el faltante queda en negativo, en el saldo sin lote. Antes
+            # todo salía del saldo sin lote y el lote real quedaba intacto: la
+            # mercancía vendida seguía contada.
+            rebanadas, faltante = plan_sale_issue(
+                self._connection, product_id=product_id, branch_id=self._branch_id,
+                warehouse_id=self.warehouse_id, quantity=cantidad)
+            for rebanada in rebanadas:
+                lines.append(InventoryMovementLine.create(
+                    product_id=product_id, quantity=rebanada.quantity,
+                    from_location_id=rebanada.location_id, lot_id=rebanada.lot_id,
+                    from_status=InventoryStatus.AVAILABLE, reason_code="SALE",
+                    unit_cost=costos.get(product_id)))
+            if faltante > 0:
+                lines.append(InventoryMovementLine.create(
+                    product_id=product_id, quantity=faltante,
+                    from_location_id=self._branch_id,
+                    from_status=InventoryStatus.AVAILABLE,
+                    reason_code="SALE_WITHOUT_STOCK", unit_cost=costos.get(product_id)))
         if not lines:
             raise InventoryReservationFailedError("La venta no tiene líneas que descontar.")
         movement = InventoryMovement.create(
@@ -445,7 +467,7 @@ class SalesInventoryClient:
         for reservation in self._active_reservations(reservation_handle):
             result = use_case.execute(
                 self._connection, reservation_id=reservation.id,
-                operation_id=f"{reservation_handle}:release:{reservation.product_id}",
+                operation_id=f"{reservation_handle}:release:{reservation.id}",
                 actor_user_id=self._actor_user_id, reason=reason,
             )
             if not result.success:
@@ -454,6 +476,34 @@ class SalesInventoryClient:
     def _active_reservations(self, source_document_id: str):
         return ReservationRepository(self._connection).list_active_for_source_document(
             source_document_id)
+
+    def _returnable_slices(self, sale_id: str, product_id: str):
+        """(lote, ubicación, cantidad aún devolvible) de lo que la venta sacó de
+        `product_id`, en el orden en que salió. Lo ya devuelto por devoluciones
+        anteriores de la misma venta se descuenta, lote por lote."""
+        from backend.infrastructure.db.repositories.inventory.inventory_ledger_repository import (
+            InventoryLedgerRepository,
+        )
+        ledger = InventoryLedgerRepository(self._connection)
+        salidas: dict[tuple, Decimal] = {}
+        devueltas: dict[tuple, Decimal] = {}
+        rows = self._connection.execute(
+            "SELECT id, movement_type FROM inventory_ledger WHERE source_document_id = ?"
+            " AND source_module = 'sales' ORDER BY occurred_at, id", (str(sale_id),)).fetchall()
+        for movement_id, movement_type in rows:
+            for line in ledger.get_lines(movement_id):
+                if line["product_id"] != product_id:
+                    continue
+                cantidad = Decimal(str(line["quantity"] or "0"))
+                if movement_type == "SALE_ISSUE":
+                    clave = (line["lot_id"] or None, line["from_location_id"] or self._branch_id)
+                    salidas[clave] = salidas.get(clave, Decimal("0")) + cantidad
+                elif movement_type == "SALE_RETURN":
+                    clave = (line["lot_id"] or None, line["to_location_id"] or self._branch_id)
+                    devueltas[clave] = devueltas.get(clave, Decimal("0")) + cantidad
+        return [(lot_id, location_id, libre)
+                for (lot_id, location_id), salio in salidas.items()
+                if (libre := salio - devueltas.get((lot_id, location_id), Decimal("0"))) > 0]
 
     # ── caducidad ────────────────────────────────────────────────────────
     def expire_orphaned(self) -> int:
@@ -490,12 +540,28 @@ class SalesInventoryClient:
         )
         from backend.domain.inventory.enums import InventoryStatus, MovementType
 
-        # Un compuesto devuelto repone sus COMPONENTES: es lo que salió.
-        lines = [InventoryMovementLine.create(
-            product_id=componente, quantity=cantidad, to_location_id=self._branch_id,
-            to_status=InventoryStatus.AVAILABLE, reason_code=reason_code)
-            for componente, cantidad in self._explode(product_id, quantity).items()
-            if cantidad > 0]
+        # Un compuesto devuelto repone sus COMPONENTES: es lo que salió. Y cada
+        # componente vuelve al lote y la ubicación de los que SALIÓ: reponer en
+        # un saldo sin lote partía la existencia en dos filas y perdía la
+        # trazabilidad del lote devuelto.
+        lines = []
+        for componente, cantidad in self._explode(product_id, quantity).items():
+            if cantidad <= 0:
+                continue
+            pendiente = cantidad
+            for lot_id, location_id, libre in self._returnable_slices(sale_id, componente):
+                if pendiente <= 0:
+                    break
+                tomar = min(pendiente, libre)
+                lines.append(InventoryMovementLine.create(
+                    product_id=componente, quantity=tomar, lot_id=lot_id,
+                    to_location_id=location_id,
+                    to_status=InventoryStatus.AVAILABLE, reason_code=reason_code))
+                pendiente -= tomar
+            if pendiente > 0:
+                lines.append(InventoryMovementLine.create(
+                    product_id=componente, quantity=pendiente, to_location_id=self._branch_id,
+                    to_status=InventoryStatus.AVAILABLE, reason_code=reason_code))
         movement = InventoryMovement.create(
             movement_type=MovementType.SALE_RETURN, branch_id=self._branch_id,
             warehouse_id=self.warehouse_id, source_module="sales",

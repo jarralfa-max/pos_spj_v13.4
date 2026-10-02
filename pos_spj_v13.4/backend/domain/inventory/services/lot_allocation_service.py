@@ -85,8 +85,23 @@ class LotAllocationService:
                  strategy: AllocationStrategy = AllocationStrategy.FEFO,
                  as_of: date | None = None, min_shelf_life_days: int | None = None,
                  require_released: bool = False) -> list[LotAllocation]:
+        plan, remaining = self.allocate_partial(
+            candidates, requested_quantity, strategy=strategy, as_of=as_of,
+            min_shelf_life_days=min_shelf_life_days, require_released=require_released)
+        if remaining > 0:
+            raise InsufficientInventoryError(
+                f"Lotes elegibles insuficientes: faltan {remaining}")
+        return plan
+
+    def allocate_partial(self, candidates, requested_quantity: Decimal, *,
+                         strategy: AllocationStrategy = AllocationStrategy.FEFO,
+                         as_of: date | None = None, min_shelf_life_days: int | None = None,
+                         require_released: bool = False) -> tuple[list[LotAllocation], Decimal]:
+        """Lo que los lotes elegibles SÍ cubren, y cuánto falta. Para una salida
+        ya autorizada a quedar en negativo por el faltante (venta sin
+        existencia): lo que hay sale de sus lotes, no de un saldo sin lote."""
         if requested_quantity <= 0:
-            return []
+            return [], Decimal("0")
         pool = self._sort(
             self.eligible(candidates, as_of=as_of,
                           min_shelf_life_days=min_shelf_life_days,
@@ -101,7 +116,4 @@ class LotAllocationService:
             plan.append(LotAllocation(lot_id=c.lot_id, quantity=take,
                                       location_id=c.location_id))
             remaining -= take
-        if remaining > 0:
-            raise InsufficientInventoryError(
-                f"Lotes elegibles insuficientes: faltan {remaining}")
-        return plan
+        return plan, max(remaining, Decimal("0"))

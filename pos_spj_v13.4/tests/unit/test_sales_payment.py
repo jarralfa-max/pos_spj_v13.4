@@ -1,11 +1,10 @@
 """SALES-13/POS-13 — Pago: Cash, Card, Transfer, Mixed, Credit, Mercado
 Pago, Tests.
 
-Credit tests build the REAL `cuentas_por_cobrar` schema (exact DDL from
-`migrations/m000_base_schema.py`, including its `idx_cxc_venta_unica`
-partial unique index) plus a minimal `clientes` row shaped exactly like
-`CustomerCreditService.get_customer()` reads it — same "copy the real DDL,
-don't approximate" discipline as every prior phase's hand-rolled fixtures.
+The credit-APPROVED path runs on the canonical model (Customer Credit profile
++ Finance `receivables`). The legacy `cuentas_por_cobrar`/`clientes` tables
+below are still created because the rejection paths read them through the
+credit exposure query, which also sums historical legacy debt.
 """
 
 from __future__ import annotations
@@ -221,30 +220,50 @@ class TestRecordSalePaymentUseCase:
         assert result.error_code == "CREDIT_NOT_AUTHORIZED"
 
     def test_credit_approved_records_payment_and_registers_cxc(self, conn):
+        """Sobre el modelo CANÓNICO: el crédito lo aprueba Customer Credit (un
+        perfil aprobado por otra persona) y la deuda queda en `receivables`.
+        La versión anterior sembraba columnas de `clientes` y leía
+        `cuentas_por_cobrar`, que ya nadie escribe."""
+        import importlib
+
+        from backend.application.customer_credit.use_cases.customer_credit_use_cases import (
+            ApproveCustomerCreditUseCase,
+            RequestCustomerCreditUseCase,
+            ReviewCustomerCreditUseCase,
+        )
+        from backend.infrastructure.db.schema.finance_schema import create_finance_schema
+
+        importlib.import_module(
+            "migrations.standalone.188_customer_credit_bounded_context_schema").run(conn)
+        create_finance_schema(conn)
         sale_id, cashier, branch = _sale_ready_for_checkout(conn)
         customer_id = _create_customer(conn)
         AssignCustomerToSaleUseCase(_allow_all_sales()).execute(
             conn, sale_id=sale_id, customer_id=customer_id, actor_user_id=cashier,
             operation_id=new_uuid())
-        from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
-            EnsureLegacyCustomerBridgeUseCase,
-        )
-        legacy_id = EnsureLegacyCustomerBridgeUseCase().execute(conn, customer_id=customer_id)
-        conn.execute(
-            "UPDATE clientes SET allows_credit=1, credit_limit=500, credit_balance=0 WHERE id=?",
-            (legacy_id,))
-        conn.commit()
+        credit = CustomerAuthorizationPolicy.permissive_for_tests()
+        assert RequestCustomerCreditUseCase(credit).execute(
+            conn, actor_user_id="u-vendedor", customer_id=customer_id, operation_id=new_uuid(),
+            requested_limit="500", payment_terms_days=15).success
+        assert ReviewCustomerCreditUseCase(credit).execute(
+            conn, actor_user_id="u-analista", customer_id=customer_id,
+            operation_id=new_uuid()).success
+        assert ApproveCustomerCreditUseCase(credit).execute(
+            conn, actor_user_id="u-gerente", customer_id=customer_id, operation_id=new_uuid(),
+            credit_limit="500").success
 
-        result = RecordSalePaymentUseCase(_allow_all_sales()).execute(
+        result = RecordSalePaymentUseCase(
+            _allow_all_sales(), customer_authorization=credit).execute(
             conn, sale_id=sale_id, method="CREDIT", amount=Decimal("100.00"),
             actor_user_id=cashier, operation_id=new_uuid())
-        assert result.success is True
+
+        assert result.success is True, result.message
         cxc = conn.execute(
-            "SELECT cliente_id, monto_original FROM cuentas_por_cobrar WHERE venta_id=?",
-            (sale_id,)).fetchone()
+            "SELECT customer_id, original_amount FROM receivables WHERE operation_id=?",
+            (f"{sale_id}:receivable",)).fetchone()
         assert cxc is not None
-        assert cxc["cliente_id"] == legacy_id
-        assert cxc["monto_original"] == 100.0
+        assert cxc["customer_id"] == customer_id
+        assert Decimal(str(cxc["original_amount"])) == Decimal("100.00")
 
 
 class TestCompleteSaleUseCase:

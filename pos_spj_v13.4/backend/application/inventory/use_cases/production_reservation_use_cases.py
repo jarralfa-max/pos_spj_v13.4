@@ -66,11 +66,12 @@ STRATEGY_SETTING = "production.allocation_strategy"
 DEFAULT_STRATEGY = AllocationStrategy.FEFO
 
 
-def configured_strategy(uow, *, branch_id: str, warehouse_id: str) -> AllocationStrategy:
+def configured_strategy(uow, *, branch_id: str, warehouse_id: str,
+                        setting_key: str = STRATEGY_SETTING) -> AllocationStrategy:
     """Estrategia de asignación configurada, de lo particular a lo general."""
     for scope_type, scope_id in (("WAREHOUSE", warehouse_id), ("BRANCH", branch_id),
                                  ("GLOBAL", "")):
-        valor = uow.settings.get(setting_key=STRATEGY_SETTING, scope_type=scope_type,
+        valor = uow.settings.get(setting_key=setting_key, scope_type=scope_type,
                                  scope_id=scope_id or "")
         if valor:
             return AllocationStrategy(valor)
@@ -86,6 +87,14 @@ class ProductionReservationLine:
 
 
 class ReserveStockForProductionUseCase:
+    #: Lo que distingue a cada documento que reserva por lotes. Ventas hereda
+    #: este caso de uso (`sale_reservation_use_cases.py`) cambiando sólo esto.
+    _SOURCE = ReservationSource.PRODUCTION_ORDER
+    _STRATEGY_SETTING = STRATEGY_SETTING
+    _PURPOSE = "producción"
+    #: Producción sólo consume lotes LIBERADOS por Calidad.
+    _REQUIRE_RELEASED = True
+
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
         if authorization is None:
             raise ValueError("ReserveStockForProductionUseCase requiere una política de "
@@ -113,7 +122,8 @@ class ReserveStockForProductionUseCase:
         if strategy is None:
             try:
                 strategy = configured_strategy(InventoryUnitOfWork(connection),
-                                               branch_id=branch_id, warehouse_id=warehouse_id)
+                                               branch_id=branch_id, warehouse_id=warehouse_id,
+                                               setting_key=self._STRATEGY_SETTING)
             except ValueError as exc:
                 return InventoryResult.fail(
                     f"Estrategia de asignación mal configurada: {exc}",
@@ -126,7 +136,7 @@ class ReserveStockForProductionUseCase:
         try:
             with InventoryUnitOfWork(connection) as uow:
                 previas = [r for r in uow.reservations.list_active_for_source_document(
-                    source_document_id) if r.source is ReservationSource.PRODUCTION_ORDER
+                    source_document_id) if r.source is self._SOURCE
                     and r.product_id == product_id]
                 if previas:
                     return InventoryResult.ok(
@@ -144,10 +154,10 @@ class ReserveStockForProductionUseCase:
                         (c for c in candidatos if c.lot_id in orden),
                         key=lambda c: orden[c.lot_id])
                 disponible = sum((c.available_quantity for c in self._allocator.eligible(
-                    candidatos, require_released=True)), Decimal("0"))
+                    candidatos, require_released=self._REQUIRE_RELEASED)), Decimal("0"))
                 try:
                     plan = self._allocator.allocate(candidatos, pedido, strategy=strategy,
-                                                    require_released=True)
+                                                    require_released=self._REQUIRE_RELEASED)
                 except InsufficientInventoryError:
                     return InventoryResult.fail(
                         f"Existencia elegible insuficiente: se piden {pedido}, "
@@ -165,7 +175,7 @@ class ReserveStockForProductionUseCase:
                     uow.balances.upsert(saldo)
                     reserva = InventoryReservation.create(
                         product_id=product_id, branch_id=branch_id, warehouse_id=warehouse_id,
-                        source=ReservationSource.PRODUCTION_ORDER,
+                        source=self._SOURCE,
                         source_document_id=source_document_id, operation_id=new_uuid(),
                         quantity=rebanada.quantity, weight=0,
                         status=ReservationStatus.CONFIRMED, location_id=rebanada.location_id,
@@ -176,7 +186,7 @@ class ReserveStockForProductionUseCase:
                         user_id=actor_user_id, operation_id=reserva.operation_id,
                         product_id=product_id, branch_id=branch_id, warehouse_id=warehouse_id,
                         location_id=rebanada.location_id, lot_id=rebanada.lot_id,
-                        reason=f"producción · {strategy.value}")
+                        reason=f"{self._PURPOSE} · {strategy.value}")
                     _emit(uow, InventoryEvents.INVENTORY_RESERVED,
                           operation_id=reserva.operation_id, entity_id=reserva.id,
                           product_id=product_id, branch_id=branch_id,
@@ -188,7 +198,7 @@ class ReserveStockForProductionUseCase:
         except InventoryDomainError as exc:
             return InventoryResult.fail(str(exc), "INVENTORY_RULE_VIOLATION",
                                         operation_id=operation_id)
-        return InventoryResult.ok("Existencia reservada para producción",
+        return InventoryResult.ok(f"Existencia reservada para {self._PURPOSE}",
                                   entity_id=source_document_id, operation_id=operation_id,
                                   lines=lineas)
 

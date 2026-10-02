@@ -1,29 +1,20 @@
-"""§3 al nivel de DATOS: hay DOS modelos de persistencia vivos para una venta.
+"""§3 al nivel de DATOS: hubo DOS modelos de persistencia vivos para una venta.
 
-Estado real medido leyendo el código en 2026-09-08, no supuesto:
+ESTADO AL 2026-10-01 (re-auditoría POS), medido, no supuesto: la tabla legacy
+`ventas` tiene **CERO escritores productivos**. Los 10 que había el 2026-09-08
+(la API REST, `SalesService`, `SalesReversalService`, la proyección de
+Delivery, tres repositorios y el adaptador POS) se borraron con `api/`,
+`core/`, `repositories/`, `integrations/` e `infrastructure/`. Toda venta nace
+en el agregado canónico `sales`/`sale_lines`/..., que escribe UN solo archivo
+(`backend/infrastructure/db/repositories/sales/sale_repository.py`, vía
+`SalesUnitOfWork`).
 
-* **legacy** `ventas`/`detalles_venta` (`migrations/m000_base_schema.py`).
-  Lo escriben **11 archivos productivos**: la API REST (ventas, pedidos,
-  cotizaciones, anticipos), `SalesService`, `SalesReversalService`, la
-  proyección de Delivery, tres repositorios y el adaptador POS.
-  Lo **leen 49 archivos productivos**, incluidos BI, forecasting, historial
-  de cliente, planeación de compras y los cortes de caja.
+Quedan LECTORES de `ventas` (consultas sin importadores productivos, que ya
+sólo ven datos históricos); esta prueba no los cuenta.
 
-* **canónico** `sales`/`sale_lines`/... (`migrations/standalone/198`).
-  Lo escribe **UN** archivo: `backend/infrastructure/db/repositories/sales/
-  sale_repository.py`, vía `SalesUnitOfWork`. Es donde persiste el POS que
-  el usuario usa hoy: `main.py` -> `MainWindow._conectar("POS", ...)` ->
-  `modulos/ventas_pos.py` -> `create_sales_pos_view` ->
-  `payment_dialog` -> `presenter.checkout_sale` -> `CheckoutSaleUseCase`.
-
-**No hay puente entre los dos.** Se comprobó que no existe vista, trigger ni
-proyección que copie de uno a otro, y que ningún consumidor de
-`SALE_COMPLETED` escriba una fila en `ventas` (los que hay son el handler de
-finanzas y la proyección de clientes).
-
-CONSECUENCIA, que es el hallazgo y no una interpretación: una venta cobrada
-en el POS aterriza en `sales`, y BI / forecast / historial de cliente /
-planeación de compras leen `ventas`. Se miran a dos tablas distintas.
+Historia, para no reabrir la investigación: el 2026-09-08 una venta cobrada en
+el POS aterrizaba en `sales` mientras BI / forecast / historial de cliente /
+planeación de compras leían `ventas`.
 
 Por qué esto es un ratchet y no un `assert` de corte:
 
@@ -89,20 +80,9 @@ def _writers(pattern) -> set[str]:
     return found
 
 
-# Escritores productivos de la tabla LEGACY, medidos en d4ebd548.
-# Puede ENCOGER (a medida que migren), nunca crecer.
-_LEGACY_WRITERS = frozenset({
-    "api/routers/anticipos.py",
-    "api/routers/cotizaciones.py",
-    "api/routers/pedidos.py",
-    "core/delivery/projections/sale_delivery_projection.py",
-    "core/services/sales_reversal_service.py",
-    "core/services/sales_service.py",
-    "infrastructure/persistence/sqlite_sales_repository.py",
-    "integrations/pos_adapter.py",
-    "repositories/sales_repository.py",
-    "repositories/ventas.py",
-})
+# Escritores productivos de la tabla LEGACY. Llegó a CERO el 2026-10-01 y no
+# puede volver a crecer: ninguna venta nueva puede nacer fuera de `sales`.
+_LEGACY_WRITERS: frozenset[str] = frozenset()
 
 # El lado canónico escribe por UN solo sitio, que es justo lo que §3 pide.
 # Esto no puede crecer sin una razón explícita: si aparece un segundo
@@ -149,8 +129,8 @@ def test_canonical_aggregate_has_exactly_one_write_door() -> None:
 def test_the_gap_is_an_explicit_number_not_prose() -> None:
     """La brecha, comprobada, no narrada."""
     legacy = _writers(_LEGACY_WRITE)
-    assert len(legacy) == 10, (
-        f"Los escritores de `ventas` pasaron de 10 a {len(legacy)}. Actualiza "
+    assert len(legacy) == 0, (
+        f"Los escritores de `ventas` pasaron de 0 a {len(legacy)}. Actualiza "
         "este número y el docstring de este archivo:\n  " + "\n  ".join(sorted(legacy))
     )
 
@@ -172,17 +152,21 @@ def test_no_bridge_exists_between_the_two_models() -> None:
 
 def test_the_live_pos_persists_through_the_canonical_aggregate() -> None:
     """Fija la dirección del hallazgo: el POS que el usuario usa NO escribe
-    la tabla legacy. Si esto cambia, el diagnóstico de este archivo cambia."""
+    la tabla legacy. Si esto cambia, el diagnóstico de este archivo cambia.
+
+    El POS vivo lo monta el shell canónico (`ApplicationWindow`); el
+    `interfaz/main_window.py` que esta prueba leía se borró con el shell
+    legacy."""
     checkout = (APP_ROOT / "backend/application/sales/use_cases/checkout_use_cases.py"
                 ).read_text(encoding="utf-8", errors="ignore")
     assert "SalesUnitOfWork" in checkout
-    assert "ventas" not in checkout
+    assert not _LEGACY_WRITE.search(checkout)
+    assert not re.search(r"\bFROM\s+ventas\b", checkout, re.IGNORECASE)
 
     presenter = (APP_ROOT / "frontend/desktop/modules/sales_pos/sales_pos_presenter.py"
                  ).read_text(encoding="utf-8", errors="ignore")
     assert "checkout_sale" in presenter
 
-    main_window = (APP_ROOT / "interfaz/main_window.py").read_text(
-        encoding="utf-8", errors="ignore")
-    assert "from modulos.ventas_pos import ModuloVentasPos as ModuloVentas" in main_window
-    assert 'self._conectar("POS",' in main_window
+    shell = (APP_ROOT / "frontend/desktop/shell/desktop_shell_window_composition.py"
+             ).read_text(encoding="utf-8", errors="ignore")
+    assert "frontend.desktop.modules.sales_pos.shell_registration" in shell

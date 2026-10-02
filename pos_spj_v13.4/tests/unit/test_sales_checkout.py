@@ -1,9 +1,9 @@
 """SALES-14/POS-14 — Checkout: Atomic operation, Outbox, Cash effects,
 Inventory, Loyalty, Tests.
 
-Inventory fixtures reuse the exact hand-rolled `stock_reservas`/
-`stock_reserva_detalles`/`inventory_stock` DDL already established in
-`test_sales_inventory_reservation.py` (SALES-9). Cash-effects fixtures build
+Inventory fixtures use the CANONICAL model (`tests/unit/_canonical_stock.py`);
+the legacy `stock_reservas` tables this file used to hand-roll were retired.
+Cash-effects fixtures build
 the REAL Caja bounded-context schema (`migrations.standalone.
 175_cash_register_bounded_context_schema`), same precedent as
 `test_sales_hardware.py` (SALES-12) — proving `CheckoutSaleUseCase` composes
@@ -39,8 +39,14 @@ from backend.application.sales.use_cases.payment_use_cases import RecordSalePaym
 from backend.domain.sales.enums import SaleStatus
 from backend.infrastructure.db.repositories.sales.sale_repository import SaleRepository
 from backend.infrastructure.db.schema.customers_crm_schema import create_customers_crm_schema
+from backend.infrastructure.db.schema.loyalty_schema import create_loyalty_schema
 from backend.infrastructure.db.schema.sales_schema import create_sales_schema
 from backend.shared.ids import new_uuid
+from tests.unit._canonical_stock import (
+    allow_all_inventory,
+    create_canonical_inventory,
+    seed_available_stock,
+)
 
 # Fase 6: estas pruebas usan una venta completada como PREPARACIÓN; ni el
 # turno de caja ni el descuento de inventario son su tema (los prueba
@@ -57,31 +63,19 @@ def conn():
     c = sqlite3.connect(":memory:")
     c.row_factory = sqlite3.Row
     create_sales_schema(c)
-    c.execute("CREATE TABLE inventory_stock (branch_id TEXT, product_id TEXT, quantity REAL)")
-    c.execute("""
-        CREATE TABLE stock_reservas (
-            id TEXT NOT NULL PRIMARY KEY, folio TEXT UNIQUE, branch_id TEXT NOT NULL,
-            estado TEXT NOT NULL DEFAULT 'activa', payload_json TEXT NOT NULL DEFAULT '[]',
-            created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')),
-            expires_at TEXT DEFAULT (datetime('now', '+30 minutes'))
-        )
-    """)
-    c.execute("""
-        CREATE TABLE stock_reserva_detalles (
-            id TEXT NOT NULL PRIMARY KEY, reserva_id TEXT NOT NULL REFERENCES stock_reservas(id),
-            producto_id TEXT NOT NULL, cantidad REAL NOT NULL,
-            created_at TEXT DEFAULT (datetime('now'))
-        )
-    """)
+    create_canonical_inventory(c)
     c.commit()
     yield c
     c.close()
 
 
-def _seed_stock(conn, *, branch_id: str, product_id: str, quantity: float) -> None:
-    conn.execute("INSERT INTO inventory_stock (branch_id, product_id, quantity) VALUES (?,?,?)",
-                 (branch_id, product_id, quantity))
-    conn.commit()
+def _seed_stock(conn, *, branch_id: str, product_id: str, quantity) -> None:
+    seed_available_stock(conn, branch_id=branch_id, product_id=product_id, quantity=quantity)
+
+
+def _reservation_statuses(conn, sale_id: str) -> list[str]:
+    return [row["status"] for row in conn.execute(
+        "SELECT status FROM inventory_reservation WHERE source_document_id=?", (sale_id,))]
 
 
 def _sale_ready_and_paid(conn, *, price="100.00", reserve=False, branch_id=None):
@@ -97,7 +91,7 @@ def _sale_ready_and_paid(conn, *, price="100.00", reserve=False, branch_id=None)
         conn, sale_id=sale_id, product_id=product_id, quantity=Decimal("1"),
         unit_price=Decimal(price), actor_user_id=cashier, operation_id=new_uuid())
     if reserve:
-        ReserveInventoryForSaleUseCase(_allow_all()).execute(
+        ReserveInventoryForSaleUseCase(_allow_all(), allow_all_inventory()).execute(
             conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid())
     BeginSaleCheckoutUseCase(_allow_all()).execute(
         conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid())
@@ -141,7 +135,7 @@ class TestCheckoutSaleUseCase:
         AddSaleLineUseCase(_allow_all()).execute(
             conn, sale_id=unpaid_sale_id, product_id=product_id, quantity=Decimal("1"),
             unit_price=Decimal("50.00"), actor_user_id=unpaid_cashier, operation_id=new_uuid())
-        ReserveInventoryForSaleUseCase(_allow_all()).execute(
+        ReserveInventoryForSaleUseCase(_allow_all(), allow_all_inventory()).execute(
             conn, sale_id=unpaid_sale_id, actor_user_id=unpaid_cashier, operation_id=new_uuid())
         BeginSaleCheckoutUseCase(_allow_all()).execute(
             conn, sale_id=unpaid_sale_id, actor_user_id=unpaid_cashier, operation_id=new_uuid())
@@ -150,23 +144,22 @@ class TestCheckoutSaleUseCase:
             conn, sale_id=unpaid_sale_id, actor_user_id=unpaid_cashier, operation_id=new_uuid())
         assert result.success is False
 
-        reserva = conn.execute(
-            "SELECT estado FROM stock_reservas WHERE branch_id=?", (unpaid_branch,)).fetchone()
-        assert reserva["estado"] == "activa"  # never touched — checkout never reached inventory
+        # never touched — checkout never reached inventory
+        assert _reservation_statuses(conn, unpaid_sale_id) == ["CONFIRMED"]
         sale = SaleRepository(conn).get(unpaid_sale_id)
         assert sale.status is SaleStatus.CHECKOUT_PENDING  # unchanged
 
     def test_confirms_inventory_reservation_and_completes(self, conn):
         sale_id, cashier, branch = _sale_ready_and_paid(conn, price="100.00", reserve=True)
-        result = CheckoutSaleUseCase(_allow_all()).execute(
+        result = CheckoutSaleUseCase(
+            _allow_all(), allow_all_inventory(), require_cash_shift=False).execute(
             conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid())
-        assert result.success is True
+        assert result.success is True, result.message
 
         sale = SaleRepository(conn).get(sale_id)
         assert sale.status is SaleStatus.COMPLETED
-        reserva = conn.execute(
-            "SELECT estado FROM stock_reservas WHERE branch_id=?", (branch,)).fetchone()
-        assert reserva["estado"] != "activa"  # confirmed, no longer just held
+        # confirmed and fulfilled, no longer just held
+        assert _reservation_statuses(conn, sale_id) == ["FULFILLED"]
 
     def test_completes_without_any_inventory_reservation(self, conn):
         sale_id, cashier, _branch = _sale_ready_and_paid(conn, price="100.00", reserve=False)
@@ -205,22 +198,7 @@ def cash_conn():
     c = sqlite3.connect(":memory:")
     c.row_factory = sqlite3.Row
     create_sales_schema(c)
-    c.execute("CREATE TABLE inventory_stock (branch_id TEXT, product_id TEXT, quantity REAL)")
-    c.execute("""
-        CREATE TABLE stock_reservas (
-            id TEXT NOT NULL PRIMARY KEY, folio TEXT UNIQUE, branch_id TEXT NOT NULL,
-            estado TEXT NOT NULL DEFAULT 'activa', payload_json TEXT NOT NULL DEFAULT '[]',
-            created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')),
-            expires_at TEXT DEFAULT (datetime('now', '+30 minutes'))
-        )
-    """)
-    c.execute("""
-        CREATE TABLE stock_reserva_detalles (
-            id TEXT NOT NULL PRIMARY KEY, reserva_id TEXT NOT NULL REFERENCES stock_reservas(id),
-            producto_id TEXT NOT NULL, cantidad REAL NOT NULL,
-            created_at TEXT DEFAULT (datetime('now'))
-        )
-    """)
+    create_canonical_inventory(c)
     importlib.import_module(
         "migrations.standalone.175_cash_register_bounded_context_schema"
     ).run(c)
@@ -272,21 +250,11 @@ def loyalty_conn():
     c.row_factory = sqlite3.Row
     create_sales_schema(c)
     create_customers_crm_schema(c)
-    c.execute("""
-        CREATE TABLE clientes (
-            id TEXT PRIMARY KEY, nombre TEXT NOT NULL, telefono TEXT, email TEXT,
-            codigo_qr TEXT, codigo_fidelidad TEXT, activo INTEGER DEFAULT 1, puntos INTEGER DEFAULT 0
-        )
-    """)
-    c.execute("""
-        CREATE TABLE loyalty_ledger (
-            id TEXT NOT NULL PRIMARY KEY, cliente_id TEXT NOT NULL,
-            tipo TEXT NOT NULL CHECK(tipo IN ('acumulacion','canje','reversa','ajuste')),
-            puntos INTEGER NOT NULL, monto_equiv REAL DEFAULT 0, saldo_post INTEGER DEFAULT 0,
-            referencia TEXT DEFAULT '', descripcion TEXT DEFAULT '', sucursal_id TEXT,
-            usuario TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now'))
-        )
-    """)
+    # Fidelidad canónica: cuentas + libro de transacciones. El libro legacy
+    # `loyalty_ledger` ya no tiene escritores; el saldo se siembra por la vía
+    # real (una acumulación), igual que tests/integration/loyalty/.
+    create_loyalty_schema(c)
+    c.execute("CREATE TABLE configuraciones (clave TEXT PRIMARY KEY, valor TEXT)")
     c.commit()
     yield c
     c.close()
@@ -298,12 +266,30 @@ def _create_customer(conn, *, display_name="Ana Torres") -> str:
         display_name=display_name).entity_id
 
 
-def _award_points(conn, *, legacy_customer_id: str, points: int) -> None:
-    conn.execute(
-        "INSERT INTO loyalty_ledger (id, cliente_id, tipo, puntos, saldo_post) "
-        "VALUES (?, ?, 'acumulacion', ?, ?)",
-        (new_uuid(), legacy_customer_id, points, points))
+def _award_points(conn, *, customer_id: str, points: int) -> None:
+    from backend.domain.loyalty.entities.loyalty_account import LoyaltyAccount
+    from backend.domain.loyalty.entities.loyalty_transaction import LoyaltyTransaction
+    from backend.infrastructure.db.repositories.loyalty.account_repository import (
+        LoyaltyAccountRepository,
+    )
+    from backend.infrastructure.db.repositories.loyalty.transaction_repository import (
+        LoyaltyTransactionRepository,
+    )
+
+    account = LoyaltyAccount.create(customer_id=customer_id)
+    LoyaltyAccountRepository(conn).save(account)
+    LoyaltyTransactionRepository(conn).save(LoyaltyTransaction.earn(
+        loyalty_account_id=account.id, points_amount=Decimal(points),
+        operation_id=new_uuid(), branch_id=new_uuid(), created_by_user_id=new_uuid()))
     conn.commit()
+
+
+def _redeem(**kwargs):
+    from backend.application.loyalty.authorization import LoyaltyAuthorizationPolicy
+
+    return RedeemLoyaltyPointsUseCase(
+        _allow_all(), loyalty_authorization=LoyaltyAuthorizationPolicy.permissive_for_tests(),
+        **kwargs)
 
 
 class TestRedeemLoyaltyPointsUseCase:
@@ -315,7 +301,7 @@ class TestRedeemLoyaltyPointsUseCase:
         AddSaleLineUseCase(_allow_all()).execute(
             loyalty_conn, sale_id=sale_id, product_id=new_uuid(), quantity=Decimal("1"),
             unit_price=Decimal("500.00"), actor_user_id=cashier, operation_id=new_uuid())
-        result = RedeemLoyaltyPointsUseCase(_allow_all()).execute(
+        result = _redeem().execute(
             loyalty_conn, sale_id=sale_id, points=100, actor_user_id=cashier,
             operation_id=new_uuid())
         assert result.success is False
@@ -334,7 +320,7 @@ class TestRedeemLoyaltyPointsUseCase:
             loyalty_conn, sale_id=sale_id, customer_id=customer_id, actor_user_id=cashier,
             operation_id=new_uuid())
 
-        result = RedeemLoyaltyPointsUseCase(_allow_all()).execute(
+        result = _redeem().execute(
             loyalty_conn, sale_id=sale_id, points=100, actor_user_id=cashier,
             operation_id=new_uuid())
         assert result.success is False
@@ -352,14 +338,9 @@ class TestRedeemLoyaltyPointsUseCase:
         AssignCustomerToSaleUseCase(_allow_all()).execute(
             loyalty_conn, sale_id=sale_id, customer_id=customer_id, actor_user_id=cashier,
             operation_id=new_uuid())
-        from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
-            EnsureLegacyCustomerBridgeUseCase,
-        )
-        legacy_id = EnsureLegacyCustomerBridgeUseCase().execute(loyalty_conn, customer_id=customer_id)
-        loyalty_conn.execute("UPDATE clientes SET nombre='Bridge stub' WHERE id=?", (legacy_id,))
-        _award_points(loyalty_conn, legacy_customer_id=legacy_id, points=200)
+        _award_points(loyalty_conn, customer_id=customer_id, points=200)
 
-        result = RedeemLoyaltyPointsUseCase(_allow_all()).execute(
+        result = _redeem().execute(
             loyalty_conn, sale_id=sale_id, points=100, actor_user_id=cashier,
             operation_id=new_uuid())
         assert result.success is True
@@ -382,17 +363,12 @@ class TestRedeemLoyaltyPointsUseCase:
         AssignCustomerToSaleUseCase(_allow_all()).execute(
             loyalty_conn, sale_id=sale_id, customer_id=customer_id, actor_user_id=cashier,
             operation_id=new_uuid())
-        from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
-            EnsureLegacyCustomerBridgeUseCase,
-        )
-        legacy_id = EnsureLegacyCustomerBridgeUseCase().execute(loyalty_conn, customer_id=customer_id)
-        loyalty_conn.execute("UPDATE clientes SET nombre='Bridge stub' WHERE id=?", (legacy_id,))
-        _award_points(loyalty_conn, legacy_customer_id=legacy_id, points=200)
+        _award_points(loyalty_conn, customer_id=customer_id, points=200)
 
-        first = RedeemLoyaltyPointsUseCase(_allow_all()).execute(
+        first = _redeem().execute(
             loyalty_conn, sale_id=sale_id, points=100, actor_user_id=cashier,
             operation_id=new_uuid())
-        second = RedeemLoyaltyPointsUseCase(_allow_all()).execute(
+        second = _redeem().execute(
             loyalty_conn, sale_id=sale_id, points=100, actor_user_id=cashier,
             operation_id=new_uuid())
         assert first.success is True

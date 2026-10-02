@@ -30,6 +30,15 @@ from backend.infrastructure.integrations.sales_loyalty_client import SalesLoyalt
 
 
 class RedeemLoyaltyPointsUseCase(_SalesBaseUseCase):
+    def __init__(self, authorization=None, *, loyalty_authorization=None) -> None:
+        super().__init__(authorization)
+        #: Política con la que Ventas habla con Fidelidad (dueña del canje).
+        #: Sin ella `SalesLoyaltyClient` falla cerrado — y así quedaba en el
+        #: POS: el cliente se construía sin política y NINGÚN canje podía
+        #: pasar (re-auditoría POS, 2026-10-01). Se inyecta desde la raíz de
+        #: composición con el verificador real de la sesión.
+        self._loyalty_auth = loyalty_authorization
+
     def execute(self, connection, *, sale_id: str, points: int, actor_user_id: str,
                 operation_id: str) -> SaleResult:
         try:
@@ -48,7 +57,9 @@ class RedeemLoyaltyPointsUseCase(_SalesBaseUseCase):
                         "El canje de fidelidad requiere un cliente asignado"),
                     operation_id=operation_id)
 
-            redemption = SalesLoyaltyClient(connection).redeem(
+            redemption = SalesLoyaltyClient(
+                connection, actor_branch_id=sale.branch_id,
+                authorization=self._loyalty_auth).redeem(
                 customer_id=sale.customer_id, sale_id=sale.id,
                 subtotal=sale.totals.gross_subtotal, points=points,
                 actor_user_id=actor_user_id)
