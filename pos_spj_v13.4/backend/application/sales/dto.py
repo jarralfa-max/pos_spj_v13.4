@@ -117,6 +117,16 @@ class SaleDTO:
     cancelled_at: str | None = None
     version: int = 1
 
+    def returnable_quantity(self, line_id: str) -> Decimal:
+        """Lo que aún se puede devolver de una línea: lo vendido menos lo ya
+        devuelto (el dominio rechaza devolver de más; esto es para mostrarlo)."""
+        line = next((l for l in self.lines if l.id == line_id), None)
+        if line is None or self.status in ("REVERSED", "RETURNED_FULLY"):
+            return Decimal("0")
+        devuelto = sum((r.quantity for r in self.returns if r.line_id == line_id),
+                       Decimal("0"))
+        return max(line.quantity - devuelto, Decimal("0"))
+
     @classmethod
     def from_entity(cls, sale: Sale) -> "SaleDTO":
         return cls(
@@ -200,14 +210,11 @@ class CustomerDisplayStateDTO:
 
 @dataclass(frozen=True, slots=True)
 class DeviceHealthDTO:
-    """POS-12/§49-51: what the cashier bar's device-status strip can
-    honestly report. Reads `hardware_config` directly — the one real,
-    canonical source every hardware driver in this repository already reads
-    from (`HardwareService`, `PrinterService`). `configured=False` for a
-    device type means exactly that: no row, or an inactive/empty row — not
-    a live connectivity ping this repository has no way to perform for a
-    passive serial/USB device without attempting an actual I/O operation
-    against it, which a status-strip query has no business doing."""
+    """POS-12/§49-51: lo que la barra del cajero puede reportar con
+    honestidad de cada dispositivo, desde el registro de Device Management
+    (`DeviceHealthQueryService`). `configured=False` es exactamente eso: no hay
+    un dispositivo activo de ese tipo para la sucursal (o, para la impresora,
+    falta la ruta «Ticket de venta"). No es un ping de conectividad."""
 
     device_type: str
     configured: bool
@@ -305,3 +312,8 @@ class ProductCatalogEntryDTO:
     #: Fase 7: unidades que se pueden ARMAR con las partes en existencia
     #: (despiece reversible). Ya van sumadas en `available_quantity`.
     reconstructible_quantity: Decimal = Decimal("0")
+    #: La unidad base es de PESO (`units_of_measure.dimension = 'WEIGHT'`):
+    #: agregarlo pide el peso (§19), no suma "1".
+    sold_by_weight: bool = False
+    #: Tiene precio de venta vigente; sin él no se vende (§64).
+    priced: bool = True

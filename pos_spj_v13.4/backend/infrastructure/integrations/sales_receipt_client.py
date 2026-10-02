@@ -173,6 +173,7 @@ class SalesReceiptClient:
     def print_receipt_data(
         self, receipt: SaleReceiptDataDTO, *,
         loyalty: LoyaltySummary | None = None, messages: tuple[str, ...] = (),
+        is_reprint: bool = False,
         on_success: Callable[[], None] | None = None,
         on_error: Callable[[Exception], None] | None = None,
     ) -> str:
@@ -181,9 +182,10 @@ class SalesReceiptClient:
         than requiring a fresh `SaleDTO` composition — reprinting doesn't
         need `forma_pago`/`efectivo_recibido` re-derived, they're already
         part of the original receipt data."""
-        return self._printer.print_ticket(
-            self._to_ticket_payload(receipt, loyalty=loyalty, messages=messages),
-            on_success=on_success, on_error=on_error)
+        payload = self._to_ticket_payload(receipt, loyalty=loyalty, messages=messages)
+        if is_reprint:
+            payload["reimpresion"] = True
+        return self._printer.print_ticket(payload, on_success=on_success, on_error=on_error)
 
     def get_job_status(self, job_id: str) -> PrintJobStatusDTO | None:
         """POS-17 "PrintJob": a real query against `print_job_log`

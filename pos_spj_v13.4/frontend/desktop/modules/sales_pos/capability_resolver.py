@@ -33,4 +33,8 @@ def resolve_sales_pos_capabilities(can: Callable[[str], bool]) -> SalesPosCapabi
         invoice_request=can(SalesPermissions.INVOICE_REQUEST),
         receipt_reprint=can(SalesPermissions.RECEIPT_REPRINT),
         device_diagnostics=can(SalesPermissions.DEVICE_DIAGNOSTICS_VIEW),
+        discount_custom=can(SalesPermissions.DISCOUNT_CUSTOM),
+        scale_use=can(SalesPermissions.SCALE_USE),
+        line_update=can(SalesPermissions.LINE_UPDATE),
+        line_remove=can(SalesPermissions.LINE_REMOVE),
     )

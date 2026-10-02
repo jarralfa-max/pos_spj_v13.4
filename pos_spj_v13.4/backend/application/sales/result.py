@@ -11,6 +11,11 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.domain.sales.exceptions import (
+    InvalidWeightError,
+    PaymentExceedsBalanceError,
+    PricingUnavailableError,
+    ProductNotSellableError,
+    ReceiptPrintFailedError,
     CreditNotAuthorizedError,
     DiscountNotAllowedError,
     InventoryReservationFailedError,
@@ -64,6 +69,11 @@ class SaleResult:
 
 _ERROR_CODES: tuple[tuple[type[SalesDomainError], str], ...] = (
     (SalesPermissionDeniedError, "PERMISSION_DENIED"),
+    (PricingUnavailableError, "PRICING_UNAVAILABLE"),
+    (ProductNotSellableError, "PRODUCT_NOT_SELLABLE"),
+    (InvalidWeightError, "INVALID_WEIGHT"),
+    (PaymentExceedsBalanceError, "PAYMENT_EXCEEDS_BALANCE"),
+    (ReceiptPrintFailedError, "RECEIPT_NOT_PRINTED"),
     (SalesConfigurationError, "CONFIGURATION_ERROR"),
     (SalesSegregationOfDutiesError, "SEGREGATION_OF_DUTIES"),
     (SaleNotFoundError, "NOT_FOUND"),

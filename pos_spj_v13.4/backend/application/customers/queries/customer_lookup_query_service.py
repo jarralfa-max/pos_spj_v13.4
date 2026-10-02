@@ -50,3 +50,18 @@ class CustomerLookupQueryService:
             display_name=row["display_name"], legal_name=row["legal_name"] or "",
             status=row["status"], phone_e164=row["phone_e164"], email=row["email"])
             for row in rows]
+
+    def get(self, customer_id: str, *, actor_user_id: str) -> CustomerLookupResult | None:
+        """El cliente asignado a una venta, por id (§21: "mostrar" el cliente
+        que el POS identificó). Mismo permiso y misma forma que `lookup`."""
+        self._auth.require(actor_user_id, CustomerPermissions.SEARCH)
+        if not customer_id:
+            return None
+        row = self._uow.customers.lookup_row(customer_id)
+        if row is None:
+            return None
+        return CustomerLookupResult(
+            customer_id=row["id"], code=row["customer_number"],
+            display_name=row["display_name"], legal_name=row["legal_name"] or "",
+            status=row["status"], phone_e164=row["phone_e164"], email=row["email"])
+

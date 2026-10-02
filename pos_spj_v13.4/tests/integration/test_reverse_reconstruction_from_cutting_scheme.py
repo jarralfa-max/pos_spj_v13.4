@@ -243,6 +243,9 @@ def _producto_catalogo(conn, pid, nombre):
         " base_unit_id, sellable, internal_only) VALUES (?,?,?,?,?,?,?,1,0)",
         (pid, f"C-{pid[-6:]}", nombre, nombre.lower(), "RESALE_PRODUCT", "ACTIVE", _UNIT))
     conn.commit()
+    # Con precio: sin él el catálogo lo marca no vendible (§64), y estas
+    # pruebas son sobre la EXISTENCIA, no sobre el precio.
+    _precio(conn, pid, "100")
 
 
 def test_el_catalogo_muestra_lo_armable_y_el_pollo_se_puede_vender(conn):

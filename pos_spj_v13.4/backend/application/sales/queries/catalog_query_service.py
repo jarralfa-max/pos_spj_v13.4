@@ -38,7 +38,8 @@ _BASE_QUERY = """
         p.name AS name,
         p.code AS sku,
         COALESCE(pb.barcode_value, '') AS barcode,
-        COALESCE(p.base_unit_id, '') AS unit,
+        COALESCE(u.code, p.base_unit_id, '') AS unit,
+        COALESCE(u.dimension, '') AS unit_dimension,
         COALESCE(pp.sale_price, '0') AS effective_price,
         COALESCE(pi.uri, '') AS image_reference,
         CASE WHEN COALESCE(p.bundle_allowed,0)=1 OR COALESCE(p.recipe_allowed,0)=1
@@ -50,6 +51,7 @@ _BASE_QUERY = """
         ON pp.product_id = p.id AND pp.branch_id = ''
        AND pp.price_list_id = (SELECT id FROM price_list WHERE code = 'BASE')
     LEFT JOIN product_categories pc ON pc.id = p.category_id
+    LEFT JOIN units_of_measure u ON u.id = p.base_unit_id
     LEFT JOIN inventory_replenishment_rule rr
         ON rr.product_id = p.id AND rr.branch_id = '' AND rr.warehouse_id = ''
     LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
@@ -139,6 +141,15 @@ class SalesCatalogQueryService:
         fila = dict(zip(columns, row))
         return self._to_dto(fila, self._reconstructible([fila], branch_id).get(fila["product_id"]))
 
+    def category_options(self) -> tuple[tuple[str, str], ...]:
+        """(id, nombre) de las categorías activas, para el filtro del POS.
+        `search(category_id=...)` filtra por ID: el combo mandaba el NOMBRE y
+        elegir una categoría vaciaba la cuadrícula (re-auditoría POS)."""
+        rows = self._conn.execute(
+            "SELECT id, name FROM product_categories WHERE active = 1 ORDER BY name"
+        ).fetchall()
+        return tuple((str(row[0]), str(row[1])) for row in rows)
+
     def get_categories(self) -> tuple[str, ...]:
         rows = self._conn.execute(
             "SELECT name FROM product_categories WHERE active = 1 ORDER BY name"
@@ -151,9 +162,15 @@ class SalesCatalogQueryService:
         available_quantity = to_decimal(row["available_quantity"]) + armable
         minimum_quantity = to_decimal(row["minimum_quantity"])
         state = ProductAvailabilityPolicy.classify(available_quantity, minimum_quantity)
-        sellable = ProductAvailabilityPolicy.is_sellable(
+        effective_price = to_decimal(row["effective_price"])
+        priced = effective_price > 0
+        # Sin precio no se vende (`SaleLinePolicy.ensure_priced`); se informa
+        # aquí para que la tarjeta diga POR QUÉ en vez de no hacer nada.
+        sellable = priced and ProductAvailabilityPolicy.is_sellable(
             state, is_composite=bool(row["is_composite"]))
         warnings: list[str] = []
+        if not priced:
+            warnings.append("Sin precio de venta: captúralo en Precios")
         if state.value == "OUT_OF_STOCK":
             warnings.append("Sin existencia: vender requiere autorización al cobrar")
         elif state.value == "CRITICAL_STOCK":
@@ -163,8 +180,10 @@ class SalesCatalogQueryService:
         return ProductCatalogEntryDTO(
             product_id=row["product_id"], name=row["name"], sku=row["sku"] or "",
             barcode=row["barcode"] or None, unit=row["unit"] or "",
-            effective_price=to_decimal(row["effective_price"]),
+            effective_price=effective_price,
             stock_state=state.value, available_quantity=available_quantity,
             image_reference=row["image_reference"] or None, sellable=sellable,
             warnings=tuple(warnings), reconstructible_quantity=armable,
+            sold_by_weight=(row.get("unit_dimension") or "").upper() == "WEIGHT",
+            priced=priced,
         )

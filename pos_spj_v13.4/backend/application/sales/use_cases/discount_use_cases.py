@@ -153,6 +153,33 @@ class ApplySaleDiscountUseCase(_DiscountUseCase):
             message="Descuento aplicado")
 
 
+class ApplySaleDiscountPercentUseCase(ApplySaleDiscountUseCase):
+    """Descuento por PORCENTAJE sobre el subtotal (botones 5/10/15/20 %, §25).
+    El monto lo calcula el dominio (`SaleDiscountPolicy.amount_for_percent`) y
+    sigue exactamente la misma ruta que un descuento por monto: umbral,
+    autorización en caliente, precio mínimo y evento."""
+
+    def execute(
+        self, connection, *, sale_id: str, discount_percent: Decimal, actor_user_id: str,
+        operation_id: str, authorizer_user_id: str | None = None, reason: str | None = None,
+    ) -> SaleResult:
+        from backend.domain.sales.policies.discount_policy import SaleDiscountPolicy
+
+        with SalesUnitOfWork(connection) as uow:
+            sale = uow.sales.get(sale_id)
+        if sale is None:
+            return fail_from_domain_error(
+                SaleNotFoundError(f"Venta {sale_id} no existe"), operation_id=operation_id)
+        try:
+            amount = SaleDiscountPolicy.amount_for_percent(
+                base_amount=sale.totals.gross_subtotal, percent=discount_percent)
+        except SalesDomainError as exc:
+            return fail_from_domain_error(exc, operation_id=operation_id)
+        return super().execute(
+            connection, sale_id=sale_id, discount_amount=amount, actor_user_id=actor_user_id,
+            operation_id=operation_id, authorizer_user_id=authorizer_user_id, reason=reason)
+
+
 class ApplyLineDiscountUseCase(_DiscountUseCase):
     def execute(
         self, connection, *, sale_id: str, line_id: str, discount_amount: Decimal,

@@ -49,7 +49,20 @@ from backend.infrastructure.db.repositories.sales.unit_of_work import SalesUnitO
 from backend.infrastructure.integrations.sales_cash_effects_client import SalesCashEffectsClient
 
 
-class ReturnSaleLineUseCase(_SalesBaseUseCase):
+class _ReturnBaseUseCase(_SalesBaseUseCase):
+    """El AUTORIZADOR de una devolución o un reverso es OTRO usuario. Con la
+    política de sesión (que sólo responde por el cajero en turno) se le negaba
+    siempre: en el POS ninguna devolución podía autorizarse (re-auditoría POS,
+    2026-10-01). Mismo estándar que el descuento y el cobro sin existencia: la
+    raíz de composición inyecta `AuthorizerPermissionChecker`."""
+
+    def __init__(self, authorization=None, inventory_authorization=None,
+                 customer_authorization=None, *, authorizer_authorization=None) -> None:
+        super().__init__(authorization, inventory_authorization, customer_authorization)
+        self._authorizer_auth = authorizer_authorization or self._auth
+
+
+class ReturnSaleLineUseCase(_ReturnBaseUseCase):
     def execute(
         self, connection, *, sale_id: str, line_id: str, quantity: Decimal, reason: str,
         actor_user_id: str, authorizer_user_id: str, operation_id: str,
@@ -66,7 +79,7 @@ class ReturnSaleLineUseCase(_SalesBaseUseCase):
                     SaleNotFoundError(f"Venta {sale_id} no existe"), operation_id=operation_id)
 
             try:
-                self._auth.authorize_exception(
+                self._authorizer_auth.authorize_exception(
                     authorizer_user_id=authorizer_user_id, requested_by=actor_user_id,
                     permission_code=SalesPermissions.RETURN, operation_id=operation_id,
                     reason=reason, amount=None, sale_id=sale_id)
@@ -105,7 +118,7 @@ class ReturnSaleLineUseCase(_SalesBaseUseCase):
             amount=sale_return.amount)
 
 
-class ReverseSaleUseCase(_SalesBaseUseCase):
+class ReverseSaleUseCase(_ReturnBaseUseCase):
     def execute(
         self, connection, *, sale_id: str, reason: str, actor_user_id: str,
         authorizer_user_id: str, operation_id: str,
@@ -122,7 +135,7 @@ class ReverseSaleUseCase(_SalesBaseUseCase):
                     SaleNotFoundError(f"Venta {sale_id} no existe"), operation_id=operation_id)
 
             try:
-                self._auth.authorize_exception(
+                self._authorizer_auth.authorize_exception(
                     authorizer_user_id=authorizer_user_id, requested_by=actor_user_id,
                     permission_code=SalesPermissions.REVERSE, operation_id=operation_id,
                     reason=reason, amount=sale.totals.total, sale_id=sale_id)
@@ -145,7 +158,11 @@ class ReverseSaleUseCase(_SalesBaseUseCase):
                 try:
                     inv_client.restore_for_return(
                         product_id=line.product_id, quantity=remaining, sale_id=sale.id,
-                        operation_id=operation_id, actor_user_id=actor_user_id,
+                        # Una identidad por LÍNEA: el movimiento es idempotente
+                        # por operation_id, y con la del reverso entero sólo la
+                        # primera línea regresaba al inventario.
+                        operation_id=f"{operation_id}:{line.id}",
+                        actor_user_id=actor_user_id,
                         reason_code="SALE_REVERSAL", source_document_type="SALE_REVERSAL")
                 except SalesDomainError as exc:
                     uow.rollback()

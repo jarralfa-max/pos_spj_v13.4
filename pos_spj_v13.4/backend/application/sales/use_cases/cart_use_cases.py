@@ -93,9 +93,12 @@ class AddSaleLineUseCase(_SalesBaseUseCase):
 class UpdateSaleLineQuantityUseCase(_SalesBaseUseCase):
     def execute(
         self, connection, *, sale_id: str, line_id: str, quantity: Decimal,
-        actor_user_id: str, operation_id: str, quantity_unit: str = "PZA",
+        actor_user_id: str, operation_id: str, quantity_unit: str | None = None,
         max_sellable: Decimal | None = None,
     ) -> SaleResult:
+        """`quantity_unit=None` conserva la unidad de la línea. Antes el valor
+        por omisión era "PZA" y cambiar la cantidad de una línea en KG la
+        convertía en piezas en silencio."""
         try:
             self._auth.require(actor_user_id, SalesPermissions.LINE_UPDATE)
         except SalesDomainError as exc:
@@ -106,7 +109,9 @@ class UpdateSaleLineQuantityUseCase(_SalesBaseUseCase):
                 return fail_from_domain_error(
                     SaleNotFoundError(f"Venta {sale_id} no existe"), operation_id=operation_id)
             try:
-                sale.update_line_quantity(line_id, Quantity(quantity, quantity_unit),
+                unit = quantity_unit or next(
+                    (line.quantity.unit for line in sale.lines if line.id == line_id), "PZA")
+                sale.update_line_quantity(line_id, Quantity(quantity, unit),
                                           max_sellable=max_sellable)
             except SalesDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)

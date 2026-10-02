@@ -225,6 +225,29 @@ class SaleRepository(SalesRepositoryBase):
                 " ORDER BY suspended_at", (branch_id,))
         return [self._hydrate(row) for row in rows]
 
+    #: Ventas ya cobradas: lo que se puede reimprimir, facturar o devolver.
+    _POSTED_STATUSES = ("COMPLETED", "RETURNED_PARTIALLY", "RETURNED_FULLY", "REVERSED")
+
+    def list_recent_posted(self, *, branch_id: str, limit: int = 30) -> list[Sale]:
+        """Las últimas ventas COBRADAS de la sucursal, la más reciente primero
+        (§45-48: el cajero reimprime o factura casi siempre la que acaba de
+        cobrar)."""
+        marks = ",".join("?" for _ in self._POSTED_STATUSES)
+        rows = self._query(
+            f"SELECT * FROM sales WHERE branch_id=? AND status IN ({marks})"
+            " ORDER BY completed_at DESC, id DESC LIMIT ?",
+            (branch_id, *self._POSTED_STATUSES, int(limit)))
+        return [self._hydrate(row) for row in rows]
+
+    def find_posted_by_number(self, *, branch_id: str, sale_number: str) -> Sale | None:
+        """Una venta cobrada por su folio comercial (``V-COR-000123``)."""
+        marks = ",".join("?" for _ in self._POSTED_STATUSES)
+        rows = self._query(
+            f"SELECT * FROM sales WHERE branch_id=? AND UPPER(sale_number)=UPPER(?)"
+            f" AND status IN ({marks})",
+            (branch_id, (sale_number or "").strip(), *self._POSTED_STATUSES))
+        return self._hydrate(rows[0]) if rows else None
+
     def _hydrate(self, row: dict) -> Sale:
         line_rows = self._query(
             "SELECT * FROM sale_lines WHERE sale_id=? ORDER BY created_at", (row["id"],))

@@ -31,3 +31,20 @@ class SalesPosCapabilities:
     invoice_request: bool = False
     receipt_reprint: bool = False
     device_diagnostics: bool = False
+    discount_custom: bool = False
+    scale_use: bool = False
+    line_update: bool = False
+    line_remove: bool = False
+
+
+@dataclass(frozen=True)
+class CustomerSummary:
+    """Lo que el bloque de cliente muestra (§21, §23). `points`/`tier` vienen
+    de Fidelidad; None = Fidelidad no respondió, no "cero"."""
+
+    customer_id: str
+    name: str
+    phone: str | None = None
+    points: int | None = None
+    tier: str | None = None
+

@@ -24,7 +24,12 @@ from backend.application.sales.permissions import SalesPermissions
 from backend.application.sales.result import SaleResult, fail_from_domain_error
 from backend.application.sales.use_cases._base import _SalesBaseUseCase
 from backend.domain.sales.events import SaleEvents
-from backend.domain.sales.exceptions import ReceiptNotAvailableError, SalesDomainError, SaleNotFoundError
+from backend.domain.sales.exceptions import (
+    ReceiptNotAvailableError,
+    ReceiptPrintFailedError,
+    SalesDomainError,
+    SaleNotFoundError,
+)
 from backend.infrastructure.db.repositories.sales.unit_of_work import SalesUnitOfWork
 from backend.infrastructure.integrations.sales_loyalty_client import SalesLoyaltyClient
 from backend.infrastructure.integrations.sales_marketing_client import SalesMarketingClient
@@ -48,16 +53,30 @@ def _load_receipt_data(uow, sale_id: str, *, cajero_nombre: str, cliente_nombre:
     return sale, receipt
 
 
-class ReprintReceiptUseCase(_SalesBaseUseCase):
+class _ReceiptPrintUseCase(_SalesBaseUseCase):
+    """Imprime el ticket de una venta COBRADA. La original (al cobrar) y la
+    reimpresión siguen la MISMA ruta: datos del recibo desde la venta, PrintJob
+    de Document Output, fidelidad y mensajes, y la impresora de la sucursal.
+
+    Un ticket no impreso (sin impresora configurada, apagada) vuelve como
+    `RECEIPT_NOT_PRINTED` con el motivo para el cajero; la venta no cambia.
+    """
+
+    _IS_REPRINT = False
+    _PERMISSION: str | None = None
+    _EVENT = SaleEvents.RECEIPT_REQUESTED
+    _OK_MESSAGE = "Ticket enviado a la impresora"
+
     def execute(
         self, connection, printer_service, *, sale_id: str, cajero_nombre: str,
         actor_user_id: str, operation_id: str, cliente_nombre: str = "Público General",
         reason: str = "Reimpresión de ticket",
     ) -> SaleResult:
-        try:
-            self._auth.require(actor_user_id, SalesPermissions.RECEIPT_REPRINT)
-        except SalesDomainError as exc:
-            return fail_from_domain_error(exc, operation_id=operation_id)
+        if self._PERMISSION:
+            try:
+                self._auth.require(actor_user_id, self._PERMISSION)
+            except SalesDomainError as exc:
+                return fail_from_domain_error(exc, operation_id=operation_id)
 
         with SalesUnitOfWork(connection) as uow:
             try:
@@ -68,24 +87,44 @@ class ReprintReceiptUseCase(_SalesBaseUseCase):
 
             print_job = _try_track_print_job(
                 connection, sale_id=sale.id, branch_id=sale.branch_id, actor_user_id=actor_user_id,
-                is_reprint=True, reprint_reason=reason)
+                is_reprint=self._IS_REPRINT, reprint_reason=reason if self._IS_REPRINT else None)
             loyalty = _try_peek_loyalty(connection, sale.customer_id)
             messages = _try_select_messages(
                 connection, subtotal=receipt.subtotal, total=receipt.total,
                 has_customer=sale.customer_id is not None,
                 points_balance=loyalty.points_balance if loyalty else None)
-            job_id = SalesReceiptClient(printer_service).print_receipt_data(
-                receipt, loyalty=loyalty, messages=messages,
-                on_success=_mark_job_printed(connection, print_job),
-                on_error=_mark_job_failed(connection, print_job))
-            self._emit(uow, SaleEvents.RECEIPT_REPRINT_REQUESTED, entity_id=sale.id,
+            try:
+                if printer_service is None:
+                    raise ReceiptPrintFailedError(
+                        "Esta estación no tiene servicio de impresión de tickets.")
+                job_id = SalesReceiptClient(printer_service).print_receipt_data(
+                    receipt, loyalty=loyalty, messages=messages, is_reprint=self._IS_REPRINT,
+                    on_success=_mark_job_printed(connection, print_job),
+                    on_error=_mark_job_failed(connection, print_job))
+            except SalesDomainError as exc:
+                return fail_from_domain_error(exc, operation_id=operation_id)
+            self._emit(uow, self._EVENT, entity_id=sale.id,
                        operation_id=operation_id, branch_id=sale.branch_id,
-                       actor_user_id=actor_user_id, job_id=job_id, folio=receipt.folio)
+                       actor_user_id=actor_user_id, job_id=job_id, folio=receipt.folio,
+                       **({"reason": reason} if self._IS_REPRINT else {}))
 
         raffle_tickets_printed = _try_print_raffle_tickets(connection, printer_service, sale_id=sale.id)
         return SaleResult.ok(
-            "Reimpresión enviada", entity_id=sale.id, operation_id=operation_id,
+            self._OK_MESSAGE, entity_id=sale.id, operation_id=operation_id,
             receipt=receipt, job_id=job_id, raffle_tickets_printed=raffle_tickets_printed)
+
+
+class PrintSaleReceiptUseCase(_ReceiptPrintUseCase):
+    """El ticket ORIGINAL, justo después del cobro (§38/§46: "crear solicitud
+    de ticket", nunca antes de confirmar la venta). No pide permiso propio:
+    entregar el ticket es parte de cobrar."""
+
+
+class ReprintReceiptUseCase(_ReceiptPrintUseCase):
+    _IS_REPRINT = True
+    _PERMISSION = SalesPermissions.RECEIPT_REPRINT
+    _EVENT = SaleEvents.RECEIPT_REPRINT_REQUESTED
+    _OK_MESSAGE = "Reimpresión enviada"
 
 
 def _try_track_print_job(connection, *, sale_id, branch_id, actor_user_id, is_reprint, reprint_reason):
@@ -136,6 +175,8 @@ def _try_print_raffle_tickets(connection, printer_service, *, sale_id: str) -> i
     `SalesService` path uses. Never allowed to block the receipt print —
     a bad ticket payload or lookup failure is logged and swallowed, same
     discipline as every other integration in this use case."""
+    if printer_service is None:
+        return 0
     try:
         payloads = SalesSweepstakesClient(connection).get_printable_tickets_for_sale(sale_id=sale_id)
     except Exception:  # noqa: BLE001 - audit-only integration, never break a real print

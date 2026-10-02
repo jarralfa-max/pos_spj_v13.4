@@ -42,3 +42,18 @@ class SaleQueryService:
         to hydrate every suspended `Sale`/`SaleLine` just to show a number."""
         self._auth.require(requester_user_id, SalesPermissions.VIEW)
         return self._repo.count_suspended(branch_id=branch_id, workstation_id=workstation_id)
+
+    def list_recent_posted(self, *, branch_id: str, requester_user_id: str,
+                           limit: int = 30) -> tuple[SaleDTO, ...]:
+        """Ventas cobradas recientes de la sucursal (reimprimir, facturar,
+        devolver), la más reciente primero."""
+        self._auth.require(requester_user_id, SalesPermissions.VIEW)
+        return tuple(SaleDTO.from_entity(sale) for sale in self._repo.list_recent_posted(
+            branch_id=branch_id, limit=limit))
+
+    def find_posted_by_number(self, *, branch_id: str, sale_number: str,
+                              requester_user_id: str) -> SaleDTO | None:
+        self._auth.require(requester_user_id, SalesPermissions.VIEW)
+        sale = self._repo.find_posted_by_number(branch_id=branch_id, sale_number=sale_number)
+        return None if sale is None else SaleDTO.from_entity(sale)
+

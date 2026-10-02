@@ -38,8 +38,13 @@ class SearchSelector(QWidget):
 
     def __init__(self, parent=None, *, provider: SearchProvider | None = None,
                  placeholder: str = "Buscar...",
-                 empty_reason_provider: Callable[[str], str | None] | None = None) -> None:
+                 empty_reason_provider: Callable[[str], str | None] | None = None,
+                 collapse_when_empty: bool = False) -> None:
         super().__init__(parent)
+        #: Oculta la lista mientras no tenga renglones (para paneles con poco
+        #: alto, como el cliente del POS): sin esto la lista vacía ocupa su
+        #: altura mínima aunque no haya nada que elegir.
+        self._collapse_when_empty = collapse_when_empty
         self._provider = provider or (lambda _query: [])
         #: Explica POR QUÉ no hubo resultados (catálogo vacío, nada habilitado
         #: en esta sucursal, sólo borradores…). Sin él se mantiene el mensaje
@@ -59,6 +64,11 @@ class SearchSelector(QWidget):
         self._search_box.textChanged.connect(self.refresh)
         self._search_box.returnPressed.connect(self._emit_current_selected)
         self._results.itemClicked.connect(self._emit_selected)
+        self._sync_results_visibility()
+
+    def _sync_results_visibility(self) -> None:
+        if self._collapse_when_empty:
+            self._results.setVisible(self._results.count() > 0)
 
     def set_provider(self, provider: SearchProvider) -> None:
         self._provider = provider
@@ -91,19 +101,22 @@ class SearchSelector(QWidget):
             self._options = []
             self._search_failed = True
         self._results.clear()
-        if self._search_failed:
-            self._add_status_row(SEARCH_FAILED_MESSAGE)
-            self.search_failed.emit(SEARCH_FAILED_MESSAGE)
-            return
-        if not self._options and query_text.strip():
-            self._add_status_row(self._empty_message(query_text.strip()))
-            return
-        for option in self._options:
-            text = option.label if not option.subtitle else f"{option.label} — {option.subtitle}"
-            item = QListWidgetItem(text)
-            item.setData(Qt.UserRole, option)
-            item.setData(32, option)  # legacy role kept for existing tests/callers
-            self._results.addItem(item)
+        try:
+            if self._search_failed:
+                self._add_status_row(SEARCH_FAILED_MESSAGE)
+                self.search_failed.emit(SEARCH_FAILED_MESSAGE)
+                return
+            if not self._options and query_text.strip():
+                self._add_status_row(self._empty_message(query_text.strip()))
+                return
+            for option in self._options:
+                text = option.label if not option.subtitle else f"{option.label} — {option.subtitle}"
+                item = QListWidgetItem(text)
+                item.setData(Qt.UserRole, option)
+                item.setData(32, option)  # legacy role kept for existing tests/callers
+                self._results.addItem(item)
+        finally:
+            self._sync_results_visibility()
 
     def has_search_failed(self) -> bool:
         return self._search_failed
@@ -136,6 +149,7 @@ class SearchSelector(QWidget):
     def clear_results(self) -> None:
         self._results.clear()
         self._options = []
+        self._sync_results_visibility()
 
     def set_selected_label(self, text: str) -> None:
         self.set_text_silently(text)

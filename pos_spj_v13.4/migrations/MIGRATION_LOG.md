@@ -4364,3 +4364,37 @@ outbox por su cuenta en el bus global; ahora usa el despachador del presentador.
    $/kg; al recibir se paga el PESO REAL aceptado; la factura se prellena y concilia en kg.
 6. FASE 4 verificada: Compras no tiene campos para editar unidad ni factor; el que
    manda la compra rápida se ignora (manda Productos).
+
+## Ventas/POS — re-auditoría del prompt maestro (2026-10-01/02, migración 288)
+
+Re-pegado del prompt maestro de Ventas/POS sobre un POS ya construido (SALES-0..22).
+Se midió el POS vivo contra una COPIA de la base real (capturas a 1366×768 y
+1920×1080) en vez de releer el prompt. Detalle completo:
+`docs/refactor/SALES-23_reauditoria.md`.
+
+1. **P0 — no se podía cobrar nada recibido por Compras.** La reserva de Ventas
+   buscaba un saldo SIN lote y Compras siempre recibe con lote: "Sin balance
+   disponible para reservar" y la venta atorada en cobro. `ReserveStockForSaleUseCase`
+   hereda la reserva por lotes de Producción (estrategia `sales.allocation_strategy`,
+   FEFO por omisión). Vender sin existencia autorizado saca primero de los lotes;
+   la devolución vuelve al lote del que salió; el reverso repone TODAS las líneas
+   (antes sólo la primera: misma identidad de movimiento).
+2. **Folio comercial (288).** `sales.sale_number` no lo asignaba nadie. El cobro
+   reserva `V-<código de sucursal>-000001` del contador seguro de documentos, en la
+   misma transacción; la 288 agrega el índice único parcial.
+3. **Ticket de venta.** `PrinterService` se borró con `core/` y el shell pasaba
+   `printer_service=None`: el POS no imprimía nada. `SalesTicketPrinter` rutea por
+   Document Output (`SALE_TICKET` por sucursal) y renderiza ESC/POS; el cobro pide el
+   ticket DESPUÉS de confirmar. Sin impresora configurada lo dice, no revienta.
+4. **Cables a oscuras cerrados:** autorizador de devolución/reverso (la política de
+   sesión sólo responde por el cajero), canje de puntos (cliente de Fidelidad sin
+   política), salud de dispositivos (leía `hardware_config`, tabla sin escritores).
+5. **Reglas nuevas de dominio:** sin precio no hay línea (`PricingUnavailableError`;
+   la base real no tiene ningún precio y el carrito vendía a $0); peso con gramos
+   (`WeightPolicy`); sólo el efectivo admite cambio; `CashPaymentPolicy` calcula el
+   cambio; descuento por porcentaje en el dominio.
+6. **Pantalla (layout del contrato intacto):** COBRAR dominante (salía gris), barra
+   con cajero/sucursal/caja/dispositivos/Corte Z, captura de peso, corregir/quitar
+   línea, Devolución F10, Reimprimir/Factura sobre la venta cobrada elegida,
+   Reanudar con selector, Cancelar con motivo, cambio visible, descuentos rápidos,
+   cliente asignado visible, filtro de categorías (mandaba el nombre, filtraba por id).

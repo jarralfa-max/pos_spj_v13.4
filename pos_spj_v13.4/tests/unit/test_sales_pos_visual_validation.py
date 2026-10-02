@@ -170,7 +170,8 @@ class TestKeyboardValidation:
         # tenía ni botón ni atajo.
         workspace = _build(app)
         keys = {sc.key().toString() for sc in workspace._shortcuts}
-        assert keys == {"F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"}
+        # F2 (ir a la búsqueda) se agregó en la re-auditoría POS (2026-10-01).
+        assert keys == {"F2", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"}
         workspace.close()
 
     def test_f9_key_event_triggers_the_same_handler_as_clicking_cobrar(self, app, monkeypatch):

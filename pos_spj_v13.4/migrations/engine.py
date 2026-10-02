@@ -291,6 +291,7 @@ MIGRATIONS = [
     _Migration("285",  "migrations.standalone.285_direct_purchase_fulfillment_mode"),
     _Migration("286",  "migrations.standalone.286_unit_conversion_fractional_receipt"),
     _Migration("287",  "migrations.standalone.287_purchase_order_weight_pricing"),
+    _Migration("288",  "migrations.standalone.288_sales_commercial_folio"),
 ]
 
 def _ensure_tracking_table(conn):

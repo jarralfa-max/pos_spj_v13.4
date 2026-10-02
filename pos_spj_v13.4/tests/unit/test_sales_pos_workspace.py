@@ -106,19 +106,44 @@ class TestSalesPosWorkspaceStructure:
         assert widgets_in_order.index(checkout.totals) < widgets_in_order.index(checkout.actions)
 
     def test_cobrar_button_is_the_dominant_action(self, app):
-        """Mirrors `test_pos_primary_charge_button_is_dominant.py`'s intent:
-        Cobrar is its own row, not sharing space with the secondary actions."""
-        workspace = SalesPosWorkspace(_unwired_presenter())
-        actions = workspace.checkout.actions
-        assert actions.btn_cobrar.text().startswith("💳 COBRAR")
+        """COBRAR es la ÚNICA acción primaria con énfasis dominante, en su
+        propia fila, y su atajo está escrito en el botón (§54-55).
 
-    def test_action_buttons_use_the_same_variants_as_the_legacy_contract(self, app):
+        Re-auditoría POS (2026-10-01): el sistema de diseño redujo
+        "success"/"warning" a "secondary", y COBRAR salía gris mientras
+        Reanudar/Factura/Reimprimir salían en el color primario. La prueba
+        anterior fijaba el texto con emoji ("💳 COBRAR") — un emoji como
+        icono es justo lo que §57 prohíbe; fijaba la decoración, no la
+        dominancia."""
         workspace = SalesPosWorkspace(_unwired_presenter())
         actions = workspace.checkout.actions
-        assert actions.btn_cobrar.property("variant") == "success"
-        assert actions.btn_suspender.property("variant") == "warning"
-        assert actions.btn_reanudar.property("variant") == "primary"
+        assert actions.btn_cobrar.text().startswith("COBRAR")
+        assert "(F9)" in actions.btn_cobrar.text()
+        assert actions.btn_cobrar.property("emphasis") == "dominant"
+        assert actions.btn_cobrar.property("variant") == "primary"
+        others = [b for b in workspace.checkout.findChildren(type(actions.btn_cobrar))
+                  if b is not actions.btn_cobrar]
+        assert all(b.property("variant") != "primary" for b in others)
+        assert all(b.property("emphasis") != "dominant" for b in others)
+
+    def test_action_buttons_keep_their_roles(self, app):
+        """Sólo Cancelar es destructiva; el resto de acciones son secundarias."""
+        workspace = SalesPosWorkspace(_unwired_presenter())
+        actions = workspace.checkout.actions
         assert actions.btn_cancelar.property("variant") == "danger"
+        for button in (actions.btn_suspender, actions.btn_reanudar, actions.btn_devolucion,
+                       actions.btn_factura, actions.btn_reimprimir):
+            assert button.property("variant") == "secondary"
+
+    def test_no_button_uses_an_emoji_as_icon(self, app):
+        import unicodedata
+
+        workspace = SalesPosWorkspace(_unwired_presenter())
+        from PyQt5.QtWidgets import QAbstractButton, QLabel
+        texts = [w.text() for w in workspace.findChildren(QAbstractButton)]
+        texts += [w.text() for w in workspace.findChildren(QLabel)]
+        emojis = [t for t in texts for ch in t if unicodedata.category(ch) == "So"]
+        assert emojis == []
 
     def test_capabilities_gate_action_buttons(self, app):
         workspace = SalesPosWorkspace(_unwired_presenter(all_permissions=False))

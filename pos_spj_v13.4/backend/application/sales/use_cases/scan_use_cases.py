@@ -25,7 +25,7 @@ from backend.application.sales.result import SaleResult, fail_from_domain_error
 from backend.application.sales.use_cases.cart_use_cases import AddSaleLineUseCase
 from backend.application.sales.use_cases.customer_use_cases import ScanLoyaltyCardForSaleUseCase
 from backend.domain.sales.enums import ScanContext
-from backend.domain.sales.exceptions import ScanCodeNotResolvedError
+from backend.domain.sales.exceptions import ProductNotSellableError, ScanCodeNotResolvedError
 
 
 class ScanCodeRouter:
@@ -44,11 +44,26 @@ class ScanCodeRouter:
         if context in (ScanContext.PRODUCT, ScanContext.AUTO):
             product = SalesCatalogQueryService(connection).find_by_code(branch_id=branch_id, code=code)
             if product is not None:
+                if not product.sellable:
+                    return fail_from_domain_error(
+                        ProductNotSellableError(
+                            f"{product.name}: " + ("; ".join(product.warnings)
+                                                   or "no se puede vender")),
+                        operation_id=operation_id)
+                if product.sold_by_weight:
+                    # Un producto por peso no se agrega como "1": quien escanea
+                    # captura el peso y agrega la línea con él (§19). No es un
+                    # error, es el siguiente paso; por eso viaja el producto.
+                    return SaleResult.fail(
+                        f"{product.name} se vende por peso: captura el peso.",
+                        "WEIGHT_REQUIRED", operation_id=operation_id, product=product)
                 return AddSaleLineUseCase(self._sales_auth).execute(
                     connection, sale_id=sale_id, product_id=product.product_id,
                     quantity=Decimal("1"), unit_price=product.effective_price,
                     actor_user_id=actor_user_id, operation_id=operation_id,
-                    product_snapshot={"name": product.name, "sku": product.sku})
+                    quantity_unit=product.unit or "PZA",
+                    product_snapshot={"name": product.name, "sku": product.sku,
+                                      "unit": product.unit})
             if context is ScanContext.PRODUCT:
                 return fail_from_domain_error(
                     ScanCodeNotResolvedError(f"Ningún producto coincide con {code!r}"),

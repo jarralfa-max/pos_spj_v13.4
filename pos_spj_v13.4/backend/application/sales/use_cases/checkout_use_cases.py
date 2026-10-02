@@ -71,6 +71,7 @@ from backend.domain.sales.policies.lifecycle_policies import SaleLifecyclePolicy
 from backend.domain.sales.policies.payment_policy import SalePaymentPolicy
 from backend.infrastructure.db.repositories.sales.unit_of_work import SalesUnitOfWork
 from backend.infrastructure.integrations.sales_cash_effects_client import SalesCashEffectsClient
+from backend.infrastructure.integrations.sales_folio_client import SalesFolioClient
 from backend.infrastructure.integrations.sales_sweepstakes_client import SalesSweepstakesClient
 
 logger = logging.getLogger("spj.sales.checkout")
@@ -129,6 +130,12 @@ class CheckoutSaleUseCase(_SalesBaseUseCase):
             else:
                 costos, sin_costo = self._unit_costs(connection, sale)
 
+            if not sale.sale_number:
+                # Folio comercial (§6), en la MISMA transacción: si el cobro no
+                # se confirma, el consecutivo tampoco avanza.
+                folio = SalesFolioClient(connection).next_folio(sale.branch_id)
+                if folio:
+                    sale.assign_number(folio)
             sale.complete()
             uow.sales.save(sale)
             self._emit(uow, SaleEvents.PAYMENT_CONFIRMED, entity_id=sale.id,

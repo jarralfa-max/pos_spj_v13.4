@@ -1,11 +1,14 @@
-"""CustomerPanel (POS-19) — structural equivalent of the legacy
-`group_cliente` (search/assign/quick-create/loyalty display,
-`docs/refactor/sales_pos_layout_inventory.md` §1), backed by SALES-10's real
-`SalesCustomerClient`-driven use cases instead of freehand dialog fields.
+"""CustomerPanel — el cliente de la venta (§21), entre el carrito y los totales.
 
-The real `CustomerSearchBox` component already exists (`frontend/desktop/
-components/customer_search_box.py`) — reused here rather than a bespoke
-search widget, wired to `SalesPosPresenter.search_customers()`.
+Venta de mostrador por omisión ("Público en general"); buscar y asignar con el
+buscador estándar (`CustomerSearchBox`), crear cliente rápido, quitar el
+cliente, y mostrar nivel y puntos que reporta Fidelidad (§23).
+
+Re-auditoría POS (2026-10-01): al asignar un cliente el panel seguía diciendo
+"Público en general" — nada le pasaba el cliente asignado — y la lista de
+resultados vacía ocupaba casi la mitad del panel. Ahora el panel pinta el
+`CustomerSummary` que el presentador arma (Clientes + Fidelidad) y la lista se
+oculta mientras no haya resultados.
 """
 
 from __future__ import annotations
@@ -13,12 +16,22 @@ from __future__ import annotations
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
 
-from frontend.desktop.components import CustomerSearchBox, create_secondary_button
+from frontend.desktop.components import (
+    CustomerSearchBox,
+    IconProvider,
+    Icons,
+    StatusBadge,
+    create_ghost_button,
+    create_secondary_button,
+)
 from frontend.desktop.themes.tokens import Spacing
+
+WALK_IN_LABEL = "Público en general"
 
 
 class CustomerPanel(QFrame):
     customer_selected = pyqtSignal(str)  # customer_id
+    clear_requested = pyqtSignal()
 
     def __init__(self, presenter, parent=None) -> None:
         super().__init__(parent)
@@ -29,33 +42,59 @@ class CustomerPanel(QFrame):
         root.setContentsMargins(Spacing.MD, Spacing.SM, Spacing.MD, Spacing.SM)
         root.setSpacing(Spacing.XS)
 
-        title = QLabel("Cliente", self)
+        title = QLabel("CLIENTE", self)
         title.setObjectName("posClientSectionLabel")
+        title.setProperty("role", "sectionTitle")
         root.addWidget(title)
 
-        self._search = CustomerSearchBox(self, provider=self._search_provider)
-        self._search.selected.connect(self._on_selected)
-        root.addWidget(self._search)
-
         info_row = QHBoxLayout()
-        self._display = QLabel("Público en general", self)
-        info_row.addWidget(self._display)
-        info_row.addStretch(1)
-        self._btn_quick_create = create_secondary_button(self, "+ Nuevo")
+        self._display = QLabel(WALK_IN_LABEL, self)
+        self._display.setObjectName("posClientName")
+        info_row.addWidget(self._display, stretch=1)
+        self._tier = StatusBadge("", self, status="neutral")
+        self._tier.setVisible(False)
+        info_row.addWidget(self._tier)
+        self._btn_clear = create_ghost_button(self, "Quitar", tooltip="Volver a venta de mostrador")
+        self._btn_clear.setVisible(False)
+        self._btn_clear.clicked.connect(self.clear_requested)
+        info_row.addWidget(self._btn_clear)
+        self._btn_quick_create = create_secondary_button(
+            self, "Nuevo", tooltip="Registrar un cliente con nombre y teléfono")
+        IconProvider.bind(self._btn_quick_create, Icons.ADD)
         info_row.addWidget(self._btn_quick_create)
         root.addLayout(info_row)
 
-        self._loyalty = QLabel("", self)
-        self._loyalty.setVisible(False)
-        root.addWidget(self._loyalty)
+        self._details = QLabel("", self)
+        self._details.setObjectName("posClientDetails")
+        self._details.setProperty("role", "muted")
+        self._details.setVisible(False)
+        root.addWidget(self._details)
 
-    def set_customer(self, name: str | None, *, loyalty_points: int | None = None) -> None:
-        self._display.setText(name or "Público en general")
-        if loyalty_points is not None:
-            self._loyalty.setText(f"⭐ {loyalty_points} puntos")
-            self._loyalty.setVisible(True)
-        else:
-            self._loyalty.setVisible(False)
+        self._search = CustomerSearchBox(self, provider=self._search_provider,
+                                         collapse_when_empty=True)
+        self._search.selected.connect(self._on_selected)
+        root.addWidget(self._search)
+
+    def set_customer(self, summary) -> None:
+        """`summary`: `CustomerSummary` del presentador, o None (mostrador)."""
+        if summary is None:
+            self._display.setText(WALK_IN_LABEL)
+            self._details.setVisible(False)
+            self._tier.setVisible(False)
+            self._btn_clear.setVisible(False)
+            return
+        self._display.setText(summary.name)
+        detalles = []
+        if summary.phone:
+            detalles.append(summary.phone)
+        if summary.points is not None:
+            detalles.append(f"{summary.points} puntos")
+        self._details.setText("  ·  ".join(detalles))
+        self._details.setVisible(bool(detalles))
+        self._tier.setText(summary.tier or "")
+        self._tier.setVisible(bool(summary.tier))
+        self._btn_clear.setVisible(True)
+        self._search.clear()
 
     def quick_create_button(self):
         return self._btn_quick_create

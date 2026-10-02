@@ -19,6 +19,7 @@ from backend.shared.ids import new_uuid, validate_uuidv7
 from backend.domain.sales.enums import InvoiceStatus, PaymentMethod, SaleStatus
 from backend.domain.sales.exceptions import (
     InvoiceRequestNotFoundError,
+    SaleInvalidStateError,
     SaleLineNotFoundError,
     SaleReversalNotAllowedError,
 )
@@ -243,6 +244,7 @@ class Sale:
         max_sellable: Decimal | None = None,
     ) -> SaleLine:
         SaleLinePolicy.ensure_can_add_line(self.status)
+        SaleLinePolicy.ensure_priced(unit_price)
         QuantityPolicy.ensure_valid(quantity, max_sellable=max_sellable)
         line = SaleLine.create(
             sale_id=self.id, product_id=product_id, quantity=quantity,
@@ -340,12 +342,26 @@ class Sale:
         the common single-method case; callers that want an explicit
         "awaiting payment" state call `mark_payment_pending()` themselves)."""
         SalePaymentPolicy.ensure_can_record_payment(self.status)
+        SalePaymentPolicy.ensure_amount_allowed(
+            method=method, amount=amount,
+            outstanding=self.totals.total - self.total_paid)
         payment = SalePayment.create(
             sale_id=self.id, method=method, amount=amount,
             captured_by_user_id=captured_by_user_id, reference=reference)
         self.payments.append(payment)
         self._bump_version()
         return payment
+
+    def assign_number(self, sale_number: str) -> None:
+        """El folio comercial (§6). Se asigna UNA vez, al cobrar; reasignar el
+        mismo es un reintento y no cambia nada."""
+        sale_number = (sale_number or "").strip()
+        if not sale_number:
+            raise SaleInvalidStateError("El folio de la venta no puede estar vacío")
+        if self.sale_number and self.sale_number != sale_number:
+            raise SaleInvalidStateError(
+                f"La venta ya tiene folio {self.sale_number}; no se reasigna")
+        self.sale_number = sale_number
 
     def complete(self) -> None:
         SaleLifecyclePolicy.ensure_transition(current=self.status, target=SaleStatus.COMPLETED)

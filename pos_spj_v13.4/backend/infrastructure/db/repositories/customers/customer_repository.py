@@ -189,6 +189,17 @@ class CustomerRepository(CustomerRepositoryBase):
             " ORDER BY c.display_name LIMIT ?",
             (pattern, pattern, pattern, pattern, limit))
 
+    def lookup_row(self, customer_id: str) -> dict | None:
+        """La misma fila ligera de `search_lookup`, para UN cliente: lo que el
+        punto de venta muestra del cliente asignado (nombre, teléfono)."""
+        rows = self._query(
+            "SELECT c.id, c.customer_number, c.display_name, c.legal_name, c.status,"
+            " ct.phone_e164, ct.email"
+            " FROM customers c"
+            " LEFT JOIN customer_contacts ct ON ct.customer_id=c.id AND ct.is_primary=1"
+            " WHERE c.id=? LIMIT 1", (customer_id,))
+        return rows[0] if rows else None
+
     def list_by_territory(self, territory_id: str, *, limit: int = 200, offset: int = 0) -> list[Customer]:
         rows = self._query(
             f"SELECT {_MASTER_COLS} FROM customers WHERE territory_id=?"

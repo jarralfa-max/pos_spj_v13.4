@@ -184,3 +184,27 @@ class InvoiceRequestNotFoundError(SalesDomainError):
 class InvoiceTransitionNotAllowedError(SalesDomainError):
     """POS-18: only a REQUESTED invoice can transition to ISSUED/ERROR —
     an already-resolved request is immutable history."""
+
+
+class PricingUnavailableError(SalesDomainError):
+    """El producto no tiene precio de venta vigente (§64). Una línea en $0
+    sólo podía nacer de un precio sin capturar: el carrito no la acepta."""
+
+
+class ProductNotSellableError(SalesDomainError):
+    """El catálogo marca el producto como no vendible (§64)."""
+
+
+class InvalidWeightError(SalesDomainError):
+    """Peso capturado inválido para un producto por peso (§18-19, §64)."""
+
+
+class PaymentExceedsBalanceError(SalesDomainError):
+    """Un pago que no es en efectivo supera lo que falta por cobrar (§32-33):
+    sólo el efectivo admite cambio."""
+
+
+class ReceiptPrintFailedError(SalesDomainError):
+    """El ticket no se entregó a la impresora (sin impresora configurada,
+    apagada, sin papel). La venta no cambia; el mensaje es para el cajero."""
+

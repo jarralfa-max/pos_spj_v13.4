@@ -54,6 +54,7 @@ from backend.application.sales.use_cases.customer_use_cases import (
 )
 from backend.application.sales.use_cases.discount_use_cases import (
     ApplyLineDiscountUseCase,
+    ApplySaleDiscountPercentUseCase,
     ApplySaleDiscountUseCase,
 )
 from backend.application.sales.use_cases.invoice_use_cases import RequestInvoiceUseCase
@@ -65,7 +66,10 @@ from backend.application.sales.use_cases.lifecycle_use_cases import (
 )
 from backend.application.sales.use_cases.loyalty_use_cases import RedeemLoyaltyPointsUseCase
 from backend.application.sales.use_cases.payment_use_cases import RecordSalePaymentUseCase
-from backend.application.sales.use_cases.receipt_use_cases import ReprintReceiptUseCase
+from backend.application.sales.use_cases.receipt_use_cases import (
+    PrintSaleReceiptUseCase,
+    ReprintReceiptUseCase,
+)
 from backend.application.sales.use_cases.return_use_cases import ReturnSaleLineUseCase, ReverseSaleUseCase
 from backend.application.sales.use_cases.scan_use_cases import ScanCodeRouter
 from backend.domain.sales.enums import ScanContext
@@ -110,6 +114,41 @@ def _cash_shift_problem(connection):
     return check
 
 
+def _loyalty_summary(connection):
+    from backend.infrastructure.integrations.sales_loyalty_client import SalesLoyaltyClient
+
+    return SalesLoyaltyClient(connection)
+
+
+def _cash_tender(*, total, received):
+    from backend.domain.sales.policies.payment_policy import CashPaymentPolicy
+
+    return CashPaymentPolicy.evaluate(total=total, received=received)
+
+
+def _payment_amount_check(*, method, amount, outstanding):
+    from backend.domain.sales.enums import PaymentMethod
+    from backend.domain.sales.exceptions import PaymentExceedsBalanceError
+    from backend.domain.sales.policies.payment_policy import SalePaymentPolicy
+
+    try:
+        SalePaymentPolicy.ensure_amount_allowed(
+            method=PaymentMethod(method), amount=amount, outstanding=outstanding)
+    except PaymentExceedsBalanceError as exc:
+        return str(exc)
+    return None
+
+
+def _weight_policy(weight):
+    from backend.domain.sales.exceptions import InvalidWeightError
+    from backend.domain.sales.policies.line_policies import WeightPolicy
+
+    try:
+        return WeightPolicy.ensure_valid(weight), ""
+    except InvalidWeightError as exc:
+        return None, str(exc)
+
+
 def _authorizer_credentials(connection):
     from backend.security.authentication.verify_authorizer_credentials_use_case import (
         build_authorizer_credentials_verifier,
@@ -138,6 +177,9 @@ def build_sales_pos_presenter(
     authorizer_auth = SalesAuthorizationPolicy(AuthorizerPermissionChecker(
         connection, branch_id=getattr(session_context, "active_branch_id", None) or None))
     pricing_client = SalesPricingClient(connection)
+    # El ticket sale por la impresora que Document Output asigna a la sucursal.
+    # Antes el shell pasaba `printer_service=None` y el POS no imprimía nada.
+    printer = printer_service or _sales_ticket_printer(connection, session_context)
     # El canje de puntos es de Fidelidad y exige sus propios permisos
     # (`GROWTH_ENGINE.puntos.canjear`), verificados contra la sesión real.
     from backend.application.loyalty.authorization import LoyaltyAuthorizationPolicy
@@ -152,12 +194,18 @@ def build_sales_pos_presenter(
         "customer_display": CustomerDisplayQueryService(connection, auth),
         "advertising": AdvertisingQueryService(connection),
         "customer_search": CustomerLookupQueryService(connection, customer_auth),
+        # Saldo y nivel del cliente (lectura sin efectos de Fidelidad, §23).
+        "loyalty_summary": _loyalty_summary(connection),
         "pricing": pricing_client,
         # Prueba quién autoriza con su usuario y clave (mismas reglas y
         # bloqueo que el login); el permiso lo decide el caso de uso.
         "authorizer_credentials": _authorizer_credentials(connection).execute,
         # Turno de caja abierto del cajero (Fase 6: sin turno no se cobra).
         "cash_shift": _cash_shift_problem(connection),
+        # Reglas puras del dominio que la pantalla consulta (cambio, peso).
+        "cash_tender": _cash_tender,
+        "payment_amount_check": _payment_amount_check,
+        "weight_policy": _weight_policy,
     }
 
     def _h(execute, **extra):
@@ -180,6 +228,9 @@ def build_sales_pos_presenter(
         "apply_sale_discount": _h(ApplySaleDiscountUseCase(
             auth, authorizer_authorization=authorizer_auth,
             minimum_prices=pricing_client).execute),
+        "apply_sale_discount_percent": _h(ApplySaleDiscountPercentUseCase(
+            auth, authorizer_authorization=authorizer_auth,
+            minimum_prices=pricing_client).execute),
         "apply_line_discount": _h(ApplyLineDiscountUseCase(
             auth, authorizer_authorization=authorizer_auth,
             minimum_prices=pricing_client).execute),
@@ -191,10 +242,13 @@ def build_sales_pos_presenter(
         "suspend_sale": _h(SuspendSaleUseCase(auth, inventory_auth).execute),
         "resume_sale": _h(ResumeSaleUseCase(auth).execute),
         "cancel_sale": _h(CancelSaleUseCase(auth, inventory_auth).execute),
-        "return_line": _h(ReturnSaleLineUseCase(auth, inventory_auth).execute),
-        "reverse_sale": _h(ReverseSaleUseCase(auth, inventory_auth).execute),
+        "return_line": _h(ReturnSaleLineUseCase(
+            auth, inventory_auth, authorizer_authorization=authorizer_auth).execute),
+        "reverse_sale": _h(ReverseSaleUseCase(
+            auth, inventory_auth, authorizer_authorization=authorizer_auth).execute),
         "request_invoice": _h(RequestInvoiceUseCase(auth).execute),
-        "reprint_receipt": _reprint_handler(connection, auth, printer_service),
+        "print_receipt": _receipt_handler(PrintSaleReceiptUseCase(auth), connection, printer),
+        "reprint_receipt": _receipt_handler(ReprintReceiptUseCase(auth), connection, printer),
         "push_customer_display": _customer_display_handler(connection),
         "record_ad_impression": _record_ad_impression_handler(connection),
     }
@@ -236,12 +290,19 @@ def _payment_handler(connection, auth, customer_auth):
     return handler
 
 
-def _reprint_handler(connection, auth, printer_service):
-    run = ReprintReceiptUseCase(auth).execute
+def _receipt_handler(use_case, connection, printer):
+    run = use_case.execute
 
     def handler(**kwargs):
-        return run(connection, printer_service, **kwargs)
+        return run(connection, printer, **kwargs)
     return handler
+
+
+def _sales_ticket_printer(connection, session_context):
+    from backend.infrastructure.hardware.sales_ticket_printer import SalesTicketPrinter
+
+    return SalesTicketPrinter(
+        connection, branch_id=getattr(session_context, "active_branch_id", None) or None)
 
 
 def _customer_display_handler(connection):

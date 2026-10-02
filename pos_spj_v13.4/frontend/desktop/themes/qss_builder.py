@@ -45,8 +45,32 @@ def build_qss(theme: str = "light", *, density="comfortable") -> str:
         _interaction(c, metrics),
         _spin_controls(c, metrics),
         _brand_swatches(),
+        _emphasis(c),
     ]
     return "\n\n".join(parts)
+
+
+def _emphasis(c) -> str:
+    """Énfasis reutilizables: la acción dominante de una pantalla (COBRAR en el
+    POS) y el monto principal (el TOTAL). Propiedades, no ids: cualquier módulo
+    con una acción y un monto dominantes los usa sin QSS propio."""
+    return f"""
+QPushButton[emphasis="dominant"] {{
+    min-height: {ControlHeights.MD * 2}px;
+    font-size: {Typography.SIZE_TITLE}px;
+    font-weight: {Typography.WEIGHT_BOLD};
+}}
+QLabel[role="amount"] {{
+    font-size: {Typography.SIZE_TITLE_LG}px;
+    font-weight: {Typography.WEIGHT_BOLD};
+    color: {c.TEXT_PRIMARY};
+}}
+QLabel[role="sectionTitle"] {{
+    font-size: {Typography.SIZE_BODY_SM}px;
+    font-weight: {Typography.WEIGHT_SEMIBOLD};
+    color: {c.TEXT_SECONDARY};
+}}
+""".strip()
 
 
 def _spin_controls(c, metrics) -> str:

@@ -283,3 +283,81 @@ class TestReverseSaleUseCase:
             authorizer_user_id=new_uuid(), operation_id=new_uuid())
         assert result.success is True
         assert SaleRepository(conn).get(sale_id).status is SaleStatus.REVERSED
+
+
+# ── Re-auditoría POS (2026-10-01) ─────────────────────────────────────────
+
+def _completed_two_line_sale(conn):
+    branch, cashier = new_uuid(), new_uuid()
+    uno, dos = new_uuid(), new_uuid()
+    sale_id = StartSaleUseCase(_allow_all()).execute(
+        conn, branch_id=branch, cashier_user_id=cashier,
+        operation_id=new_uuid(), actor_user_id=cashier).entity_id
+    for product_id, cantidad in ((uno, "2"), (dos, "3")):
+        AddSaleLineUseCase(_allow_all()).execute(
+            conn, sale_id=sale_id, product_id=product_id, quantity=Decimal(cantidad),
+            unit_price=Decimal("10.00"), actor_user_id=cashier, operation_id=new_uuid())
+    BeginSaleCheckoutUseCase(_allow_all()).execute(
+        conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid())
+    RecordSalePaymentUseCase(_allow_all()).execute(
+        conn, sale_id=sale_id, method="CASH", amount=Decimal("50.00"),
+        actor_user_id=cashier, operation_id=new_uuid())
+    assert CheckoutSaleUseCase(_allow_all(), **_PREP).execute(
+        conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid()).success
+    return sale_id, cashier, branch, uno, dos
+
+
+class TestReverseRestoresEveryLine:
+    def test_a_two_line_reversal_puts_both_products_back(self, conn):
+        """Con la identidad del reverso entero, el movimiento de la segunda
+        línea se tomaba por un reintento del primero y no se aplicaba."""
+        sale_id, cashier, branch, uno, dos = _completed_two_line_sale(conn)
+
+        result = ReverseSaleUseCase(_allow_all()).execute(
+            conn, sale_id=sale_id, reason="venta duplicada", actor_user_id=cashier,
+            authorizer_user_id=new_uuid(), operation_id=new_uuid())
+
+        assert result.success is True, result.message
+        disponible = InventoryAvailabilityQueryService(conn)
+        assert disponible.get_availability(product_id=uno, branch_id=branch).available == Decimal("2")
+        assert disponible.get_availability(product_id=dos, branch_id=branch).available == Decimal("3")
+
+
+class _OnlyAuthorizer:
+    """Concede a UN usuario: el autorizador. El cajero en turno no lo tiene."""
+
+    def __init__(self, user_id: str) -> None:
+        self.user_id = user_id
+
+    def has_permission(self, user_id: str, permission_code: str) -> bool:
+        return user_id == self.user_id
+
+
+class TestTheAuthorizerIsCheckedWithItsOwnPolicy:
+    def test_a_return_is_authorized_by_another_user_s_permission(self, conn):
+        """La política de sesión sólo responde por el cajero; con ella ningún
+        OTRO usuario podía autorizar una devolución."""
+        sale_id, cashier, _branch, _product, line_id = _completed_sale(conn)
+        gerente = new_uuid()
+
+        result = ReturnSaleLineUseCase(
+            _allow_all(),
+            authorizer_authorization=SalesAuthorizationPolicy(_OnlyAuthorizer(gerente)),
+        ).execute(
+            conn, sale_id=sale_id, line_id=line_id, quantity=Decimal("1"), reason="dañado",
+            actor_user_id=cashier, authorizer_user_id=gerente, operation_id=new_uuid())
+
+        assert result.success is True, result.message
+
+    def test_an_authorizer_without_the_permission_is_rejected(self, conn):
+        sale_id, cashier, _branch, _product, line_id = _completed_sale(conn)
+
+        result = ReturnSaleLineUseCase(
+            _allow_all(),
+            authorizer_authorization=SalesAuthorizationPolicy(_OnlyAuthorizer(new_uuid())),
+        ).execute(
+            conn, sale_id=sale_id, line_id=line_id, quantity=Decimal("1"), reason="dañado",
+            actor_user_id=cashier, authorizer_user_id=new_uuid(), operation_id=new_uuid())
+
+        assert result.success is False
+        assert result.error_code == "PERMISSION_DENIED"

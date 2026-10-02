@@ -44,3 +44,16 @@ class SaleDiscountPolicy:
         ):
             raise DiscountNotAllowedError(
                 f"Descuento superior a {max_unauthorized_percent}% requiere autorización")
+
+    @staticmethod
+    def amount_for_percent(*, base_amount: Decimal, percent: Decimal) -> Decimal:
+        """El importe de un descuento por porcentaje (botones rápidos §25), al
+        centavo. La pantalla manda el porcentaje; el monto lo decide aquí."""
+        if isinstance(percent, float):
+            raise DiscountNotAllowedError("El porcentaje no se captura como float")
+        percent = Decimal(str(percent))
+        if percent <= 0 or percent > 100:
+            raise DiscountNotAllowedError("El porcentaje de descuento debe estar entre 0 y 100")
+        return money(money(base_amount, allow_zero=True) * percent / Decimal("100"),
+                     allow_zero=True)
+

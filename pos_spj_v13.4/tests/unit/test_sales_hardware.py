@@ -372,55 +372,141 @@ class TestCustomerDisplayQueryService:
 
 
 # ── Device health ─────────────────────────────────────────────────────────
+#
+# Re-auditoría POS (2026-10-01): estas pruebas sembraban `hardware_config`, la
+# tabla legacy que NINGÚN código vivo escribe. El servicio lee ahora el
+# registro de Device Management (lo que Configuración → Dispositivos guarda).
 
 @pytest.fixture
 def hw_conn():
+    from backend.infrastructure.db.schema.device_management_schema import (
+        create_device_management_schema,
+        create_print_routing_schema,
+    )
     c = sqlite3.connect(":memory:")
     c.row_factory = sqlite3.Row
-    # Exact DDL from migrations/m050_hardware_config_canonical.py — copied,
-    # not approximated, same discipline as SALES-11's hand-rolled loyalty_ledger.
-    c.execute("""
-        CREATE TABLE hardware_config (
-            tipo TEXT NOT NULL PRIMARY KEY, nombre TEXT NOT NULL, driver TEXT,
-            puerto TEXT, configuraciones TEXT, activo INTEGER DEFAULT 1,
-            sucursal_id TEXT, fecha_actualizacion DATETIME DEFAULT (datetime('now'))
-        )
-    """)
+    create_device_management_schema(c)
+    create_print_routing_schema(c)
     c.commit()
     yield c
     c.close()
 
 
+def _device(conn, *, device_type: str, branch_id: str, active: bool = True):
+    from backend.domain.device_management.entities.device import Device
+    from backend.domain.device_management.entities.device_profile import DeviceProfile
+    from backend.domain.device_management.enums import ConnectionType, DeviceType
+    from backend.domain.device_management.value_objects.connection_profile import (
+        ConnectionProfile,
+    )
+    from backend.infrastructure.db.repositories.device_management.device_profile_repository import (
+        SqliteDeviceProfileRepository,
+    )
+    from backend.infrastructure.db.repositories.device_management.device_repository import (
+        SqliteDeviceRepository,
+    )
+    profile = DeviceProfile.create(
+        name=f"Perfil {device_type}", device_type=DeviceType(device_type),
+        connection_profile=ConnectionProfile.create(ConnectionType.USB))
+    SqliteDeviceProfileRepository(conn).save(profile)
+    device = Device.create(branch_id=branch_id, profile_id=profile.id,
+                           code=f"D-{new_uuid()[-6:]}", name=device_type)
+    SqliteDeviceRepository(conn).save(device)
+    if not active:
+        conn.execute("UPDATE devices SET status='INACTIVE' WHERE id=?", (device.id,))
+    conn.commit()
+    return device
+
+
 class TestDeviceHealthQueryService:
-    def test_configured_device_reports_true(self, hw_conn):
-        hw_conn.execute(
-            "INSERT INTO hardware_config (tipo, nombre, puerto, activo) "
-            "VALUES ('bascula', 'Báscula', 'COM3', 1)")
-        hw_conn.commit()
-        service = DeviceHealthQueryService(hw_conn, _allow_all_sales())
-        results = {d.device_type: d for d in service.check_all(requester_user_id=new_uuid())}
-        assert results["bascula"].configured is True
+    def _check(self, conn, branch_id):
+        service = DeviceHealthQueryService(conn, _allow_all_sales())
+        return {d.device_type: d for d in service.check_all(
+            requester_user_id=new_uuid(), branch_id=branch_id)}
 
-    def test_missing_row_reports_unconfigured(self, hw_conn):
-        service = DeviceHealthQueryService(hw_conn, _allow_all_sales())
-        results = {d.device_type: d for d in service.check_all(requester_user_id=new_uuid())}
+    def test_a_registered_scale_reports_configured(self, hw_conn):
+        branch = new_uuid()
+        _device(hw_conn, device_type="SCALE", branch_id=branch)
+        assert self._check(hw_conn, branch)["scale"].configured is True
+
+    def test_missing_devices_report_unconfigured(self, hw_conn):
+        results = self._check(hw_conn, new_uuid())
         assert results["scanner"].configured is False
-
-    def test_unbuilt_devices_are_reported_honestly_as_unconfigured(self, hw_conn):
-        service = DeviceHealthQueryService(hw_conn, _allow_all_sales())
-        results = {d.device_type: d for d in service.check_all(requester_user_id=new_uuid())}
-        assert results["terminal_pago"].configured is False
+        assert results["payment_terminal"].configured is False
         assert results["customer_display"].configured is False
 
-    def test_inactive_row_reports_false_even_with_a_port(self, hw_conn):
-        hw_conn.execute(
-            "INSERT INTO hardware_config (tipo, nombre, puerto, activo) "
-            "VALUES ('cajon', 'Cajón', 'escpos', 0)")
-        hw_conn.commit()
-        service = DeviceHealthQueryService(hw_conn, _allow_all_sales())
-        results = {d.device_type: d for d in service.check_all(requester_user_id=new_uuid())}
-        assert results["cajon"].configured is False
-        assert results["cajon"].enabled is False
+    def test_an_inactive_device_does_not_count(self, hw_conn):
+        branch = new_uuid()
+        _device(hw_conn, device_type="CASH_DRAWER", branch_id=branch, active=False)
+        assert self._check(hw_conn, branch)["cash_drawer"].configured is False
+
+    def test_another_branch_s_device_does_not_count(self, hw_conn):
+        _device(hw_conn, device_type="SCALE", branch_id=new_uuid())
+        assert self._check(hw_conn, new_uuid())["scale"].configured is False
+
+    def test_a_printer_without_a_ticket_route_is_not_ready(self, hw_conn):
+        """Sin ruta «Ticket de venta» el ticket no sale aunque la impresora exista."""
+        branch = new_uuid()
+        _device(hw_conn, device_type="THERMAL_PRINTER", branch_id=branch)
+        printer = self._check(hw_conn, branch)["printer"]
+        assert printer.configured is False
+        assert "ruta" in printer.detail
+
+    def test_a_printer_with_a_ticket_route_is_ready(self, hw_conn):
+        from backend.application.use_cases.configuracion.print_route_use_cases import (
+            CreatePrintRouteUseCase,
+        )
+        branch = new_uuid()
+        device = _device(hw_conn, device_type="THERMAL_PRINTER", branch_id=branch)
+        CreatePrintRouteUseCase(hw_conn).execute(
+            document_type="SALE_TICKET", primary_device_id=device.id)
+        assert self._check(hw_conn, branch)["printer"].configured is True
+
+
+class TestSalesTicketPrinter:
+    def _payload(self):
+        return {"folio": "V-COR-000001", "fecha": "2026-10-01T12:00:00+00:00",
+                "cajero": "Jose", "cliente": "Público General",
+                "items": [{"nombre": "Alas", "unidad": "KG", "cantidad": 1.25,
+                           "precio_unitario": 80.0, "total": 100.0}],
+                "totales": {"subtotal": 100.0, "descuento": 0, "impuestos": 0,
+                            "total_final": 100.0},
+                "pago": {"forma_pago": "CASH", "efectivo_recibido": 200.0, "cambio": 100.0}}
+
+    def test_without_a_printer_it_says_so_and_reports_the_failure(self, hw_conn):
+        from backend.domain.sales.exceptions import ReceiptPrintFailedError
+        from backend.infrastructure.hardware.sales_ticket_printer import SalesTicketPrinter
+
+        errores = []
+        with pytest.raises(ReceiptPrintFailedError, match="Dispositivos"):
+            SalesTicketPrinter(hw_conn, branch_id=new_uuid()).print_ticket(
+                self._payload(), on_error=errores.append)
+        assert len(errores) == 1
+
+    def test_a_routed_printer_receives_the_escpos_ticket(self, hw_conn, monkeypatch):
+        from backend.application.use_cases.configuracion.print_route_use_cases import (
+            CreatePrintRouteUseCase,
+        )
+        from backend.infrastructure.hardware.sales_ticket_printer import SalesTicketPrinter
+        from backend.infrastructure.printing import transport
+
+        enviados = []
+        monkeypatch.setattr(transport.PrintTransport, "send", classmethod(
+            lambda cls, data, kind, destination, baud=9600: enviados.append(data) or True))
+        branch = new_uuid()
+        device = _device(hw_conn, device_type="THERMAL_PRINTER", branch_id=branch)
+        CreatePrintRouteUseCase(hw_conn).execute(
+            document_type="SALE_TICKET", primary_device_id=device.id)
+        listo = []
+
+        SalesTicketPrinter(hw_conn, branch_id=branch).print_ticket(
+            self._payload(), on_success=lambda: listo.append(True))
+
+        assert listo == [True]
+        texto = enviados[0].decode("cp437")
+        assert "V-COR-000001" in texto
+        assert "1.25 KG" in texto
+        assert "Efectivo" in texto and "$100.00" in texto
 
     def test_requires_diagnostics_permission(self, hw_conn):
         service = DeviceHealthQueryService(

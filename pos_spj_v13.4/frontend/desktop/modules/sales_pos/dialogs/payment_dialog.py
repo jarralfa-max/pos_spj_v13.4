@@ -1,47 +1,30 @@
-"""PaymentDialog (POS-22 prerequisite) — the real payment-collection UI this
-tree was missing since SALES-19: nothing in `sales_pos/` ever called
-`SalesPosPresenter.record_payment()`/`begin_checkout()` before this, so
-"Cobrar" always failed against SALES-13/14's real `SalePaymentPolicy.
-ensure_fully_paid` gate (0 recorded < any positive total). Confirmed by
-reading `checkout_use_cases.py::CheckoutSaleUseCase` directly before writing
-this: it re-checks `ensure_fully_paid` itself, so this dialog is not
-optional plumbing, it is the only way "Cobrar" can ever legally succeed.
+"""PaymentDialog — el cobro modal (§30): total prominente, forma de pago, monto
+recibido, cambio, cancelar y confirmar.
 
-Legacy's `presentation/sales/dialogs/payment_dialog.py::DialogoPago` computes
-change/mixed-split/credit-limit validation itself, client-side, then submits
-one shot via `finalizar_venta` — exactly the "lógica de pago en la UI" POS-22
-asks to eliminate. This dialog does none of that: it only collects
-method/amount/reference per payment line locally and lets the real domain
-policies (`SalePaymentPolicy`, `CreditNotAuthorizedError` via
-`SalesCreditClient`) accept or reject each one when submitted. "Pago Mixto"
-needs no dedicated option here either — it is not a `PaymentMethod` in the
-new aggregate, it is what a sale becomes the moment a second distinct method
-is recorded (`Sale.is_mixed_payment`) — the cashier just adds two lines with
-different methods.
+Recoge líneas de pago localmente y sólo al confirmar las aplica, en este
+orden: iniciar cobro → registrar cada pago → completar. `CHECKOUT_PENDING` no
+tiene vuelta a `ACTIVE`, así que nada toca el backend antes de "Confirmar":
+cancelar aquí deja el carrito intacto. Un reintento tras un fallo (sin
+existencia, sin turno) no vuelve a iniciar el cobro ni duplica pagos.
 
-**Why nothing touches the backend until "Confirmar y cobrar" is clicked**:
-`backend/domain/sales/policies/lifecycle_policies.py`'s transition table has
-`(ACTIVE, CHECKOUT_PENDING)` and `(CHECKOUT_PENDING, CANCELLED)`, but no
-`(CHECKOUT_PENDING, ACTIVE)` — once `begin_checkout()` succeeds there is no
-way back to an editable cart short of cancelling the whole sale. Calling it
-eagerly (e.g. when this dialog opens) would strand the sale in
-CHECKOUT_PENDING the moment the cashier clicks "Cancelar" here, unlike the
-legacy dialog where Cancelar always just returns to the cart untouched. So
-`begin_checkout()` is deferred to the same moment the payment lines are
-already collected and balanced — cancelling before that point never calls
-the backend at all, matching the legacy dialog's real behavior.
+Ninguna regla de pago vive aquí:
 
-Mercado Pago intentionally has no link-generation flow here — SALES-13's own
-documented scope is that the new aggregate only records an ALREADY-CONFIRMED
-MP payment, the same shape as Card/Transfer (a real, working link-generation
-flow already exists on the legacy stack, `services/mercado_pago_service.py`,
-and rebuilding it is out of scope for this dialog). Selecting it asks for the
-MP payment/folio id as the reference field, it does not create a new charge.
+* el CAMBIO lo calcula `CashPaymentPolicy` (§32) vía el presentador — antes no
+  se mostraba en absoluto: el cajero no sabía cuánto devolver;
+* "sólo el efectivo admite cambio" es `SalePaymentPolicy.ensure_amount_allowed`
+  y se consulta ANTES de iniciar el cobro (una tarjeta por más de lo que falta
+  dejaba un "cambio" que el cobro descontaba de un efectivo inexistente);
+* los métodos visibles son los que el usuario puede cobrar; Crédito sólo con
+  cliente asignado (§36), y si su línea alcanza lo decide el caso de uso.
+
+"Pago mixto" no es un método: es lo que una venta es cuando registra dos
+métodos distintos (`Sale.is_mixed_payment`). Mercado Pago registra un pago YA
+confirmado (folio como referencia); la liga de cobro es de Pagos (§35).
 """
 
 from __future__ import annotations
 
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 from PyQt5.QtWidgets import (
     QComboBox, QDialog, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMessageBox, QVBoxLayout,
@@ -51,11 +34,11 @@ from frontend.desktop.components import (
     MoneyInput,
     StandardLineEdit,
     create_danger_button,
+    create_primary_button,
     create_secondary_button,
-    create_success_button,
 )
 
-_METHOD_LABELS = {
+METHOD_LABELS = {
     "CASH": "Efectivo",
     "CARD": "Tarjeta",
     "TRANSFER": "Transferencia",
@@ -65,60 +48,66 @@ _METHOD_LABELS = {
 
 
 class PaymentDialog(QDialog):
-    def __init__(self, presenter, *, sale_id: str, total_due: Decimal, parent=None) -> None:
+    def __init__(self, presenter, *, sale_id: str, total_due: Decimal,
+                 has_customer: bool = False, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("posPaymentDialog")
         self.setWindowTitle("Cobrar")
         self.setModal(True)
         self._presenter = presenter
         self._sale_id = sale_id
-        self._total_due = total_due
+        self._total_due = Decimal(str(total_due))
         self._lines: list[tuple[str, Decimal, str | None]] = []
         self.completed = False
-        #: Avance del cobro ya aplicado al backend. Reintentar tras un fallo
-        #: (sin existencia, sin turno) NO debe iniciar otra vez el cobro ni
-        #: registrar dos veces los pagos que ya entraron.
+        self.change = Decimal("0")
+        #: Avance ya aplicado al backend (ver docstring del módulo).
         self._checkout_started = False
         self._recorded = 0
 
         root = QVBoxLayout(self)
 
-        self._lbl_total = QLabel(f"Total a pagar: ${total_due:.2f}")
+        self._lbl_total = QLabel(f"Total a pagar: ${self._total_due:,.2f}")
         self._lbl_total.setObjectName("posPaymentTotal")
+        self._lbl_total.setProperty("role", "amount")
         root.addWidget(self._lbl_total)
 
         self._lbl_remaining = QLabel(self)
+        self._lbl_remaining.setObjectName("posPaymentRemaining")
         root.addWidget(self._lbl_remaining)
+        self._lbl_change = QLabel(self)
+        self._lbl_change.setObjectName("posPaymentChange")
+        self._lbl_change.setProperty("role", "amount")
+        root.addWidget(self._lbl_change)
 
         add_row = QHBoxLayout()
         self._method = QComboBox(self)
-        for code, label in _METHOD_LABELS.items():
-            self._method.addItem(label, code)
+        self._method.setObjectName("posPaymentMethod")
+        for code in presenter.payment_methods(has_customer=has_customer):
+            self._method.addItem(METHOD_LABELS.get(code, code), code)
         add_row.addWidget(self._method)
 
         self._amount = MoneyInput(self)
+        self._amount.setObjectName("posPaymentAmount")
         add_row.addWidget(self._amount)
 
         self._reference = StandardLineEdit(self, placeholder="Referencia (opcional)")
         add_row.addWidget(self._reference)
 
-        self._btn_add = create_secondary_button(self, "+ Agregar pago")
+        self._btn_add = create_secondary_button(self, "Agregar pago")
         self._btn_add.clicked.connect(self._add_line)
         add_row.addWidget(self._btn_add)
         root.addLayout(add_row)
 
-        self._mp_hint = QLabel(
-            "Mercado Pago: registra un pago ya confirmado (folio/id como referencia). "
-            "No genera un nuevo link de cobro aquí.")
-        self._mp_hint.setObjectName("posPaymentMpHint")
-        self._mp_hint.setWordWrap(True)
-        self._mp_hint.setVisible(False)
-        root.addWidget(self._mp_hint)
+        self._hint = QLabel("", self)
+        self._hint.setObjectName("posPaymentHint")
+        self._hint.setWordWrap(True)
+        self._hint.setVisible(False)
+        root.addWidget(self._hint)
 
         self._list = QListWidget(self)
         root.addWidget(self._list, stretch=1)
 
-        self._btn_remove = create_danger_button(self, "Quitar seleccionado")
+        self._btn_remove = create_danger_button(self, "Quitar pago seleccionado")
         self._btn_remove.clicked.connect(self._remove_selected)
         root.addWidget(self._btn_remove)
 
@@ -127,45 +116,77 @@ class PaymentDialog(QDialog):
         btn_cancel.clicked.connect(self.reject)
         actions.addWidget(btn_cancel)
 
-        self._btn_confirm = create_success_button(self, "💰 Confirmar y cobrar")
+        self._btn_confirm = create_primary_button(self, "Confirmar y cobrar")
+        self._btn_confirm.setObjectName("posPaymentConfirm")
+        self._btn_confirm.setProperty("emphasis", "dominant")
         self._btn_confirm.clicked.connect(self._confirm)
-        actions.addWidget(self._btn_confirm)
+        actions.addWidget(self._btn_confirm, stretch=1)
         root.addLayout(actions)
 
         self._method.currentIndexChanged.connect(self._on_method_changed)
         self._on_method_changed()
         self._refresh_remaining()
 
-    # ── local, non-persisted payment lines ────────────────────────────────
+    # ── líneas de pago locales (no persistidas hasta confirmar) ──────────
+    def set_amount(self, amount: Decimal) -> None:
+        self._amount.set_decimal_value(amount)
+
+    def select_method(self, code: str) -> None:
+        index = self._method.findData(code)
+        if index >= 0:
+            self._method.setCurrentIndex(index)
+
+    def _recorded_total(self) -> Decimal:
+        return sum((amount for _, amount, _ in self._lines), Decimal("0"))
+
+    def _remaining(self) -> Decimal:
+        return self._total_due - self._recorded_total()
 
     def _on_method_changed(self) -> None:
         method = self._method.currentData()
         remaining = self._remaining()
-        self._amount.setValue(float(remaining) if remaining > 0 else 0.0)
+        self._amount.set_decimal_value(remaining if remaining > 0 else Decimal("0"))
         self._reference.setText("")
-        self._mp_hint.setVisible(method == "MERCADO_PAGO")
+        if method == "MERCADO_PAGO":
+            self._show_hint("Mercado Pago: registra un pago ya confirmado (folio como "
+                            "referencia). La liga de cobro no se genera aquí.")
+        elif method == "CREDIT":
+            self._show_hint("Crédito: se valida la línea del cliente al confirmar.")
+        else:
+            self._hint.setVisible(False)
 
-    def _remaining(self) -> Decimal:
-        recorded = sum((amount for _, amount, _ in self._lines), Decimal("0"))
-        return self._total_due - recorded
+    def _show_hint(self, text: str) -> None:
+        self._hint.setText(text)
+        self._hint.setVisible(True)
 
     def _refresh_remaining(self) -> None:
         remaining = self._remaining()
         shown = remaining if remaining > 0 else Decimal("0")
-        self._lbl_remaining.setText(f"Restante: ${shown:.2f}")
+        self._lbl_remaining.setText(f"Restante: ${shown:,.2f}")
+        tender = self._presenter.cash_tender(total=self._total_due, received=self._recorded_total())
+        has_cash = any(method == "CASH" for method, _, _ in self._lines)
+        self.change = tender.change if (tender is not None and has_cash) else Decimal("0")
+        self._lbl_change.setText(f"Cambio: ${self.change:,.2f}")
+        self._lbl_change.setVisible(self.change > 0)
         self._btn_confirm.setEnabled(remaining <= 0 and bool(self._lines))
 
     def _add_line(self) -> None:
-        try:
-            amount = Decimal(str(self._amount.value() or "0"))
-        except (InvalidOperation, TypeError):
-            return
+        amount = self._amount.decimal_value()
         if amount <= 0:
+            self._show_hint("Captura un monto mayor a cero.")
             return
         method = self._method.currentData()
+        if method is None:
+            self._show_hint("No tienes permiso para cobrar con ningún método.")
+            return
+        problema = self._presenter.payment_amount_problem(
+            method=method, amount=amount, outstanding=self._remaining())
+        if problema:
+            self._show_hint(problema)
+            return
         reference = self._reference.value() or None
         self._lines.append((method, amount, reference))
-        label = f"{_METHOD_LABELS[method]}: ${amount:.2f}"
+        label = f"{METHOD_LABELS.get(method, method)}: ${amount:,.2f}"
         if reference:
             label += f" ({reference})"
         self._list.addItem(QListWidgetItem(label))
@@ -176,12 +197,14 @@ class PaymentDialog(QDialog):
         row = self._list.currentRow()
         if row < 0:
             return
+        if row < self._recorded:
+            self._show_hint("Ese pago ya quedó registrado en la venta; no se puede quitar aquí.")
+            return
         self._list.takeItem(row)
         del self._lines[row]
         self._refresh_remaining()
 
-    # ── real submission, only on confirm — see module docstring for why ───
-
+    # ── aplicación real, sólo al confirmar ───────────────────────────────
     def _confirm(self) -> None:
         self._btn_confirm.setEnabled(False)
 
@@ -201,8 +224,8 @@ class PaymentDialog(QDialog):
                 QMessageBox.warning(
                     self, "Pago no registrado",
                     f"{result.message}\n\nLos pagos ya registrados quedan aplicados a la venta; "
-                    "puede reintentar el pago restante o cancelar la venta completa desde "
-                    "\"Cancelar\" en la pantalla principal.")
+                    "puedes corregir el pago restante o cancelar la venta completa desde "
+                    "«Cancelar» en la pantalla principal.")
                 self._btn_confirm.setEnabled(True)
                 return
             self._recorded += 1

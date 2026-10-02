@@ -6,5 +6,7 @@ from frontend.desktop.components.search_selector import SearchProvider, SearchSe
 
 
 class CustomerSearchBox(SearchSelector):
-    def __init__(self, parent=None, *, provider: SearchProvider | None = None) -> None:
-        super().__init__(parent, provider=provider, placeholder="Buscar cliente...")
+    def __init__(self, parent=None, *, provider: SearchProvider | None = None,
+                 collapse_when_empty: bool = False) -> None:
+        super().__init__(parent, provider=provider, placeholder="Buscar cliente...",
+                         collapse_when_empty=collapse_when_empty)

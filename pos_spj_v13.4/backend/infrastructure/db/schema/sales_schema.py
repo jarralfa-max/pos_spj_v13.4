@@ -170,6 +170,10 @@ _DDL = (
 
 _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_sales_branch_status ON sales(branch_id, status)",
+    # Folio comercial único (re-auditoría POS 2026-10-01; migración 288 lo
+    # agrega a las bases existentes).
+    "CREATE UNIQUE INDEX IF NOT EXISTS ux_sales_sale_number ON sales(sale_number)"
+    " WHERE sale_number IS NOT NULL",
     "CREATE INDEX IF NOT EXISTS idx_sales_cashier ON sales(cashier_user_id)",
     "CREATE INDEX IF NOT EXISTS idx_sales_customer ON sales(customer_id)",
     "CREATE INDEX IF NOT EXISTS idx_sales_workstation_status ON sales(workstation_id, status)",
