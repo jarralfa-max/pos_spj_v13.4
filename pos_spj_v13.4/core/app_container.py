@@ -11,7 +11,6 @@ from repositories.recetas import RecetaRepository as RecipeRepository
 from repositories.finance_repository import FinanceRepository
 from infrastructure.persistence.sqlite_sales_repository import SQLiteSalesRepository
 from repositories.purchase_repository import PurchaseRepository
-from repositories.caja import CajaRepository
 from repositories.productos import ProductoRepository
 # Si tienes estos, descoméntalos; si no, coméntalos para que no den error:
 from repositories.promotion_repository import PromotionRepository
@@ -109,7 +108,6 @@ class AppContainer:
         self.finance_repo = FinanceRepository(self.db)
         self.sales_repo = SQLiteSalesRepository(self.db)
         self.purchase_repo = PurchaseRepository(self.db)
-        self.caja_repo = CajaRepository(self.db)
 
         # Lecturas de Finanzas (KPIs/listados) — instancia única para toda la
         # UI de finanzas: nada de construir FinanceReadRepository inline.
@@ -194,7 +192,6 @@ class AppContainer:
             self.caja_service = CajaApplicationService(
                 db=self.db,
                 finance_service=self.finance_service,
-                caja_repo=self.caja_repo,
             )
         except Exception as _caja_svc_err:
             self.caja_service = None
@@ -1073,10 +1070,8 @@ class AppContainer:
             "mantenimiento_semanal", _mantenimiento_semanal, intervalo_seg=86400)
 
         # ── Auto-cierre de turno a medianoche ─────────────────────────────
-        # D1 paso 2c: cierra los turnos abiertos canónicos (turnos_caja) por la
-        # ruta canónica de corte Z (GenerateZCutUseCase → finance_service), que
-        # registra cierres_caja y postea el asiento de diferencia. Antes usaba
-        # CierreCajaService sobre turno_actual (tracker legacy vacío en prod → no-op).
+        # Cierra los turnos abiertos (turnos_caja) por la ruta canónica de corte Z
+        # (GenerateZCutUseCase), que registra cierres_caja y el asiento de diferencia.
         def _auto_cierre_turno():
             from datetime import datetime
             ahora = datetime.now()

@@ -284,7 +284,7 @@ def wire_all(container: "AppContainer") -> None:
     # migración 083: trazabilidad financiera end-to-end (priority=20, post-commit)
     _wire_financial_trace_handlers(bus, container)
 
-    # Remediación A: bridge CAJA_*→CASH_* + audit de caja (antes sin consumidores)
+    # Caja: auditoría del canal canónico CASH_* + consolidación del corte a capital
     _wire_cash_events(bus, container)
 
     logger.info("EventBus wiring completado — %d eventos activos",
@@ -292,15 +292,16 @@ def wire_all(container: "AppContainer") -> None:
 
 
 def _wire_cash_events(bus, container) -> None:
-    """Bridge legacy CAJA_* → canónico CASH_* + audit handler de caja.
+    """Consumidores del canal canónico de caja (CASH_*).
 
-    DEEP_AUDIT B2: los dos vocabularios de eventos de caja no tenían un solo
-    suscriptor. El bridge unifica ambos en el canal canónico CASH_* y el audit
-    handler deja trazabilidad. El asiento de diferencia NO se registra aquí
-    (ya lo hace CajaApplicationService.generar_corte_z / CierreCajaService).
+    CashRegisterApplicationService es el único emisor (con operation_id); no
+    hay vocabulario paralelo ni bridge. El asiento de diferencia NO se registra
+    aquí (ya lo hace CajaApplicationService.generar_corte_z).
     """
-    from core.events.cash_event_bridge import register_cash_event_bridge
-    register_cash_event_bridge(bus, container)
+    db = getattr(container, "db", None)
+    if db is not None:
+        from core.events.handlers.cash_audit_handler import register_cash_audit
+        register_cash_audit(bus, db)
 
     # Bug 10: el corte Z consolida el efectivo del turno en capital/tesorería.
     treasury = getattr(container, "treasury_service", None)

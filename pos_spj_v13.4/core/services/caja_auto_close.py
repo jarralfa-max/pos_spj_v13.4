@@ -1,13 +1,10 @@
 # core/services/caja_auto_close.py
 """Auto-cierre de turnos de caja abiertos (medianoche) por la ruta canónica.
 
-Remediación D1 paso 2c. Antes el scheduler cerraba turnos vía CierreCajaService
-consultando `turno_actual`, un tracker legacy que en producción nadie abre (su
-único escritor, CierreCajaService.abrir_turno, no se llama) → el auto-cierre era
-un no-op. Los turnos reales viven en `turnos_caja` (abiertos por la UI vía
-OpenCashShiftUseCase). Este helper los cierra por la ruta canónica de corte Z
-(GenerateZCutUseCase → finance_service.generar_corte_z), que desde 2b registra
-`cierres_caja` y postea el asiento de diferencia.
+Cierra los turnos abiertos de `turnos_caja` con GenerateZCutUseCase
+(→ CashRegisterApplicationService → CajaApplicationService.generar_corte_z),
+que registra `cierres_caja`, postea el asiento de diferencia y emite el
+evento canónico CASH_Z_CUT_GENERATED.
 
 Es un cierre "a ciegas" (efectivo_fisico=0): sólo formaliza el cierre del turno
 para que el día siguiente arranque limpio; la diferencia resultante refleja el

@@ -94,7 +94,7 @@ def test_register_movement_emits_event(ctx):
                           movement_type="RETIRO", amount=100.0, concept="pago proveedor"))
     assert res.success
     assert any(e[0] == "CASH_MOVEMENT_RECORDED" for e in events)
-    row = svc._fin.db.execute("SELECT turno_id FROM movimientos_caja").fetchone()
+    row = svc._caja.db.execute("SELECT turno_id FROM movimientos_caja").fetchone()
     assert uuid.UUID(row["turno_id"])  # FK is the shift UUID
 
 

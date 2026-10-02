@@ -72,7 +72,7 @@ def test_no_lastrowid_as_identity():
     - finance/: full double-entry rewrite pending
     - rrhh/: HR payroll rewrite pending
     - outbox.py: uses rowid for ordered delivery queue, not entity identity
-    - caja_application_service.py, cierre_caja_service.py: cash session rewrite pending
+    - caja_application_service.py: cash session rewrite pending
     - cotizacion_service.py, happy_hour_service.py, anticipo_service.py: auxiliary
     - pedido_wa.py, compras_inventariables_engine.py: legacy WA/purchases pending
     """
@@ -84,7 +84,6 @@ def test_no_lastrowid_as_identity():
         "rrhh/",
         "outbox.py",
         "caja_application_service.py",
-        "cierre_caja_service.py",
         "cotizacion_service.py",
         "happy_hour_service.py",
         "anticipo_service.py",

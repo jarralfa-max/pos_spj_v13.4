@@ -5,7 +5,6 @@ Tests para servicios core sin cobertura previa:
   - AuditService
   - AlertasService
   - AuthService
-  - CierreCajaService
   - ForecastEngine
   - ComprasInventariablesEngine
   - ClienteRepository
@@ -203,60 +202,6 @@ class TestAlertasService:
             "SELECT COUNT(*) FROM alertas_log WHERE mensaje LIKE '%Pollo%'"
         ).fetchone()[0]
         assert row == 0, "Pollo tiene stock suficiente — sin alerta"
-
-
-# ════════════════════════════════════════════════════════════════════════════
-# CierreCajaService
-# ════════════════════════════════════════════════════════════════════════════
-class TestCierreCajaService:
-
-    def _svc(self, db):
-        from core.services.cierre_caja_service import CierreCajaService
-        return CierreCajaService(conn=db, sucursal_id=1, usuario="cajero_test")
-
-    def test_abrir_turno(self, db):
-        svc = self._svc(db)
-        result = svc.abrir_turno(fondo_inicial=500.0, turno="Mañana")
-        assert result is not None
-        assert float(result.get("fondo_inicial", 0)) == 500.0
-
-    def test_turno_activo_despues_abrir(self, db):
-        svc = self._svc(db)
-        svc.abrir_turno(fondo_inicial=300.0)
-        turno = svc.turno_activo()
-        assert turno is not None
-
-    def test_corte_x_sin_ventas(self, db):
-        svc = self._svc(db)
-        svc.abrir_turno(fondo_inicial=500.0)
-        result = svc.corte_x()
-        assert "total_ventas" in result
-        assert float(result["total_ventas"]) == 0.0
-
-    def test_corte_z_cierra_turno(self, db):
-        svc = self._svc(db)
-        svc.abrir_turno(fondo_inicial=500.0)
-        result = svc.corte_z(efectivo_contado=500.0, comentarios="test")
-        assert "total_ventas" in result
-        # After corte Z, turno should be closed
-        turno = svc.turno_activo()
-        assert turno is None
-
-    def test_corte_z_calcula_diferencia(self, db):
-        svc = self._svc(db)
-        svc.abrir_turno(fondo_inicial=500.0)
-        result = svc.corte_z(efectivo_contado=450.0)
-        # Diferencia = contado - esperado. Con 0 ventas, esperado=500 → diff=-50
-        assert "diferencia" in result
-        assert abs(float(result["diferencia"]) - (-50.0)) < 0.01
-
-    def test_get_historial_devuelve_lista(self, db):
-        svc = self._svc(db)
-        svc.abrir_turno()
-        svc.corte_z(efectivo_contado=500.0)
-        hist = svc.get_historial()
-        assert isinstance(hist, list)
-        assert len(hist) >= 1
 
 
 # ════════════════════════════════════════════════════════════════════════════

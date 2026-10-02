@@ -68,7 +68,7 @@ def _build_services(conn):
     from core.services.finance.capital_service import CapitalService
 
     je = JournalEntryService(db=conn, gl_service=None)
-    tm = TreasuryMovementService(db=conn, treasury_service=None)
+    tm = TreasuryMovementService(db=conn)
     cap = CapitalService(db=conn, journal_service=je, treasury_service=tm)
     return cap, conn
 

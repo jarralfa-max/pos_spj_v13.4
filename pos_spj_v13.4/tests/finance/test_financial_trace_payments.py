@@ -47,7 +47,7 @@ def _make_services(conn):
     from core.services.finance.financial_trace_service import FinancialTraceService
 
     je = JournalEntryService(db=conn, gl_service=None)
-    tm = TreasuryMovementService(db=conn, treasury_service=None)
+    tm = TreasuryMovementService(db=conn)
     ts = FinancialTraceService(db=conn, journal_service=je, treasury_service=tm)
     return ts
 

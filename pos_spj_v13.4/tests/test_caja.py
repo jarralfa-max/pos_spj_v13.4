@@ -105,7 +105,7 @@ def db():
 def svc(db):
     """Instancia CajaApplicationService con BD en memoria."""
     from application.services.caja_application_service import CajaApplicationService
-    return CajaApplicationService(db=db, finance_service=None, caja_repo=None)
+    return CajaApplicationService(db=db, finance_service=None)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -114,7 +114,7 @@ def _insertar_venta(db, sucursal_id=1, cajero="test_cajero", total=100.0,
                     forma_pago="Efectivo", estado="completada"):
     db.execute(
         "INSERT INTO ventas (sucursal_id, cajero, usuario, total, forma_pago, estado, fecha) "
-        "VALUES (?,?,?,?,?,?,datetime('now'))",
+        "VALUES (?,?,?,?,?,?,datetime('now','localtime'))",
         (sucursal_id, cajero, cajero, total, forma_pago, estado)
     )
     db.commit()
@@ -307,69 +307,66 @@ def test_historial_vacio_sin_cortes(svc):
     assert historial == []
 
 
-# ── Tests: eventos ────────────────────────────────────────────────────────────
+# ── Tests: eventos (canal canónico único) ─────────────────────────────────────
 
-def test_evento_corte_z_generado(svc, db):
-    """CAJA_CORTE_Z_GENERADO debe publicarse al ejecutar corte."""
-    eventos_capturados = []
-
-    try:
-        from core.events.event_bus import get_bus, CAJA_CORTE_Z_GENERADO
-        get_bus().subscribe(
-            CAJA_CORTE_Z_GENERADO,
-            lambda p: eventos_capturados.append(p),
-            label="test_corte_z"
-        )
-    except Exception:
-        pytest.skip("EventBus no disponible")
-
-    tid = svc.abrir_turno(1, "cajero18", 100.0)
-    svc.generar_corte_z(tid, 1, "cajero18", 100.0)
-
-    assert len(eventos_capturados) >= 1
-    assert eventos_capturados[0].get('turno_id') == tid
+def _cash_register(svc):
+    """Emisor canónico sobre la implementación única; captura lo publicado."""
+    from backend.application.services.cash_register_application_service import (
+        CashRegisterApplicationService,
+    )
+    eventos = []
+    reg = CashRegisterApplicationService(
+        svc, publisher=lambda evt, payload: eventos.append((evt, payload))
+    )
+    return reg, eventos
 
 
-def test_evento_diferencia_detectada_cuando_hay_diferencia(svc, db):
-    """CAJA_DIFERENCIA_DETECTADA debe publicarse cuando diferencia != 0."""
-    eventos_capturados = []
+def _cmd(cls, **kw):
+    import uuid as _uuid
+    return cls(operation_id=str(_uuid.uuid4()), **kw)
 
-    try:
-        from core.events.event_bus import get_bus, CAJA_DIFERENCIA_DETECTADA
-        get_bus().subscribe(
-            CAJA_DIFERENCIA_DETECTADA,
-            lambda p: eventos_capturados.append(p),
-            label="test_dif"
-        )
-    except Exception:
-        pytest.skip("EventBus no disponible")
 
-    tid = svc.abrir_turno(1, "cajero19", 100.0)
+def test_cada_operacion_emite_un_solo_evento_canonico(svc, db):
+    """Una operación = un evento CASH_* (sin vocabulario CAJA_* duplicado)."""
+    from backend.application.commands.cash_register_commands import (
+        GenerateZCutCommand, OpenCashShiftCommand, RegisterCashMovementCommand,
+    )
+    reg, eventos = _cash_register(svc)
+    base = dict(branch_id="1", user_name="cajero18")
+    reg.open_shift(_cmd(OpenCashShiftCommand, opening_amount=100.0, **base))
+    reg.register_movement(_cmd(RegisterCashMovementCommand, movement_type="INGRESO",
+                               amount=20.0, concept="cambio", **base))
+    reg.generate_z_cut(_cmd(GenerateZCutCommand, payload={"efectivo_fisico": 120.0}, **base))
+    tipos = [e for e, _ in eventos]
+    assert tipos.count("CASH_SHIFT_OPENED") == 1
+    assert tipos.count("CASH_MOVEMENT_RECORDED") == 1
+    assert tipos.count("CASH_Z_CUT_GENERATED") == 1
+    assert "CASH_DIFFERENCE_DETECTED" not in tipos  # cuadrado: 100 + 20
+    corte = next(p for e, p in eventos if e == "CASH_Z_CUT_GENERATED")
+    assert corte["cut_id"] and corte["operation_id"] and corte["user"] == "cajero18"
+
+
+def test_diferencia_emite_evento_canonico_con_monto(svc, db):
+    from backend.application.commands.cash_register_commands import (
+        GenerateZCutCommand, OpenCashShiftCommand,
+    )
+    reg, eventos = _cash_register(svc)
+    base = dict(branch_id="1", user_name="cajero19")
+    reg.open_shift(_cmd(OpenCashShiftCommand, opening_amount=100.0, **base))
     _insertar_venta(db, cajero="cajero19", total=200.0, forma_pago="Efectivo")
-    svc.generar_corte_z(tid, 1, "cajero19", 250.0)  # diferencia = -50
+    reg.generate_z_cut(_cmd(GenerateZCutCommand, payload={"efectivo_fisico": 250.0}, **base))
+    difs = [p for e, p in eventos if e == "CASH_DIFFERENCE_DETECTED"]
+    assert len(difs) == 1
+    assert abs(difs[0]["diferencia"] + 50.0) < 0.01
 
-    assert len(eventos_capturados) >= 1
-    assert abs(eventos_capturados[0].get('diferencia', 0) + 50.0) < 0.01
 
-
-def test_no_evento_diferencia_cuando_cuadrado(svc, db):
-    """CAJA_DIFERENCIA_DETECTADA NO debe publicarse cuando caja cuadra."""
-    eventos_capturados = []
-
-    try:
-        from core.events.event_bus import get_bus, CAJA_DIFERENCIA_DETECTADA
-        get_bus().subscribe(
-            CAJA_DIFERENCIA_DETECTADA,
-            lambda p: eventos_capturados.append(p),
-            label="test_no_dif"
-        )
-    except Exception:
-        pytest.skip("EventBus no disponible")
-
-    tid = svc.abrir_turno(1, "cajero20", 100.0)
-    svc.generar_corte_z(tid, 1, "cajero20", 100.0)  # cuadrado
-
-    assert len(eventos_capturados) == 0
+def test_servicio_de_caja_no_publica_eventos():
+    """La emisión vive SOLO en CashRegisterApplicationService."""
+    src = open(os.path.join(os.path.dirname(__file__), "..", "application",
+                            "services", "caja_application_service.py"),
+               encoding="utf-8").read()
+    assert "publish(" not in src
+    assert "CAJA_" not in src
 
 
 # ── Tests: UI no contiene self.container.db.execute ──────────────────────────

@@ -1,16 +1,22 @@
 # application/services/caja_application_service.py
 """
-CajaApplicationService — Fuente única de verdad para operaciones de caja.
+CajaApplicationService — ÚNICA implementación de turnos, movimientos y corte Z.
 
-Ruta canónica: UI → CajaApplicationService → DB
+Ruta canónica de mutación:
+    UI → use case (Open/RegisterMovement/GenerateZCut)
+       → CashRegisterApplicationService (emite CASH_* con operation_id)
+       → CajaApplicationService (reglas + persistencia)
+
+Este servicio NO publica eventos: la emisión vive en un solo lugar
+(CashRegisterApplicationService) para que cada operación produzca exactamente
+un evento canónico. Las lecturas (KPIs, historial, arqueo) se consumen directo.
 """
 from __future__ import annotations
-from backend.shared.ids import new_uuid
 
 import logging
-import uuid
-from datetime import datetime
 from typing import Dict, List, Optional
+
+from backend.shared.ids import new_uuid
 
 logger = logging.getLogger("spj.application.caja")
 
@@ -28,30 +34,12 @@ class TurnoCerradoError(ValueError):
 
 
 class CajaApplicationService:
-    """
-    Orquesta operaciones de caja: turnos, movimientos, corte Z.
-    Depende de: db, finance_service (para asientos contables y registrar_movimiento_manual).
-    """
+    """Reglas y persistencia de caja. Depende de db y, opcionalmente, de
+    finance_service para el asiento contable de diferencias del corte Z."""
 
-    def __init__(self, db, finance_service=None, caja_repo=None):
+    def __init__(self, db, finance_service=None):
         self.db = db
         self._finance = finance_service
-        self._caja_repo = caja_repo
-
-    def _get_bus(self):
-        try:
-            from core.events.event_bus import get_bus
-            return get_bus()
-        except Exception:
-            return None
-
-    def _publish(self, event_type: str, payload: dict) -> None:
-        bus = self._get_bus()
-        if bus:
-            try:
-                bus.publish(event_type, payload)
-            except Exception as e:
-                logger.debug("event publish %s: %s", event_type, e)
 
     # ── Estado ────────────────────────────────────────────────────────────────
 
@@ -98,12 +86,6 @@ class CajaApplicationService:
             pass
         logger.info("Turno abierto id=%s cajero=%s fondo=%.2f", turno_id, usuario, fondo_inicial)
 
-        self._publish("CAJA_TURNO_ABIERTO", {
-            "turno_id": turno_id,
-            "sucursal_id": sucursal_id,
-            "usuario": usuario,
-            "fondo_inicial": fondo_inicial,
-        })
         return turno_id
 
     # ── Movimientos manuales ──────────────────────────────────────────────────
@@ -144,15 +126,6 @@ class CajaApplicationService:
             self.db.commit()
         except Exception:
             pass
-
-        self._publish("CAJA_MOVIMIENTO", {
-            "turno_id": turno_id,
-            "sucursal_id": sucursal_id,
-            "usuario": usuario,
-            "tipo": tipo,
-            "monto": monto,
-            "concepto": concepto,
-        })
 
     # ── Movimientos del turno ─────────────────────────────────────────────────
 
@@ -589,34 +562,8 @@ class CajaApplicationService:
             "ventas_totales": round(total_ventas, 2),
         }
 
-        # 9. Publicar eventos de dominio
-        self._publish("CAJA_CORTE_Z_GENERADO", {
-            "cierre_id": cierre_id,
-            "turno_id": turno_id,
-            "sucursal_id": sucursal_id,
-            "usuario": usuario,
-            "total_ventas": resultado["total_ventas"],
-            "diferencia": diferencia,
-        })
-        if abs(diferencia) >= 0.01:
-            self._publish("CAJA_DIFERENCIA_DETECTADA", {
-                "cierre_id": cierre_id,
-                "turno_id": turno_id,
-                "sucursal_id": sucursal_id,
-                "usuario": usuario,
-                "diferencia": diferencia,
-                "esperado": esperado,
-                "contado": efectivo_fisico,
-            })
-        self._publish("CAJA_TURNO_CERRADO", {
-            "turno_id": turno_id,
-            "sucursal_id": sucursal_id,
-            "usuario": usuario,
-            "cierre_id": cierre_id,
-        })
-
         logger.info(
-            "Corte Z generado #%d — ventas=%d total=%.2f diff=%.2f",
+            "Corte Z generado %s — ventas=%d total=%.2f diff=%.2f",
             cierre_id, num_ventas, total_ventas, diferencia,
         )
         return resultado

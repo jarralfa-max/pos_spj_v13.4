@@ -431,3 +431,27 @@ lotes/movimientos_lote con `id` UUIDv7 (sin columna `uuid` ni randomblob);
   (la API legacy `get_stock_sucursal` no existe); botones FX registran el
   atajo real con `setShortcut` (solo pintaban el badge); `cfdi_service`
   importa `new_uuid`.
+
+### Lote 7 — Caja: una sola emisión de eventos y eliminación de ledgers paralelos
+
+- **Doble emisión de eventos (regresión del lote 6, corregida)**: al delegar
+  CashRegisterApplicationService en CajaApplicationService, cada operación
+  publicaba CAJA_* (re-emitido como CASH_* por `cash_event_bridge`) Y CASH_*
+  directo. CajaApplicationService ya no publica; el único emisor es
+  CashRegisterApplicationService (con operation_id). Eliminados el bridge y
+  las constantes CAJA_* del EventBus (sin emisores ni suscriptores restantes).
+- **Auditoría de caja nunca escribía**: el handler hacía `INSERT OR IGNORE
+  INTO audit_logs` sin `id` (TEXT NOT NULL) → fila descartada en silencio. El
+  test previo lo ocultaba con una tabla sintética INTEGER AUTOINCREMENT.
+  Nuevo `core/events/handlers/cash_audit_handler.py` acuña UUIDv7 y loguea
+  fallos (sin OR IGNORE).
+- **Eliminados** `core/services/cierre_caja_service.py` (scheduler legacy sobre
+  `turno_actual`; sin callers de producción y sus tests ya fallaban) y
+  `repositories/caja.py` (CajaRepository: tercer ledger `caja_operations`,
+  construido e inyectado pero nunca invocado). El contrato del asiento de
+  diferencia del corte Z se migró a la ruta canónica (Prioridad 0).
+- **Tesorería sin escritura dual**: TreasuryMovementService ya no replica a
+  treasury_ledger (`_fallback_ts`) ni desvía a la tabla legacy si falla;
+  identidades UUID `str` y sin default `branch_id=1`.
+- **CashCutCapitalHandler** confirma (commit) su propia unidad de trabajo:
+  register_inflow no hace commit y el handler corre post-commit.

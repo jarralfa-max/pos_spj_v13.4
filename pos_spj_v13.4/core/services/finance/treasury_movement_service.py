@@ -2,8 +2,8 @@
 """
 TreasuryMovementService — movimientos reales de dinero idempotentes.
 
-Opera sobre la tabla `treasury_movements` (migración 083).
-Coexiste con TreasuryService / treasury_ledger (legacy) — no los reemplaza.
+Opera sobre la tabla `treasury_movements` (migración 083) — fuente única de
+movimientos de dinero confirmados. Sin escritura dual a treasury_ledger.
 
 Tipos:
   inflow  — dinero entrante confirmado (venta contado, cobro CxC, MercadoPago webhook)
@@ -46,10 +46,9 @@ def _account_for_payment(payment_method: str) -> str:
 class TreasuryMovementService:
     """Movimientos de tesorería confirmados e idempotentes."""
 
-    def __init__(self, db, treasury_service=None):
+    def __init__(self, db):
         from core.db.connection import wrap
         self._db = wrap(db)
-        self._ts = treasury_service  # TreasuryService legacy para dual-write
 
     # ── Entradas ──────────────────────────────────────────────────────────────
 
@@ -59,13 +58,13 @@ class TreasuryMovementService:
         amount: float,
         payment_method: str,
         source_module: str,
-        source_id: Optional[int] = None,
+        source_id: Optional[str] = None,
         source_folio: str = "",
-        financial_document_id: Optional[int] = None,
-        branch_id: int = 1,
+        financial_document_id: Optional[str] = None,
+        branch_id: str = "",
         user: str = "sistema",
         metadata: Optional[dict] = None,
-    ) -> int:
+    ) -> str:
         """
         Registra entrada de dinero confirmada.
 
@@ -93,13 +92,13 @@ class TreasuryMovementService:
         amount: float,
         payment_method: str,
         source_module: str,
-        source_id: Optional[int] = None,
+        source_id: Optional[str] = None,
         source_folio: str = "",
-        financial_document_id: Optional[int] = None,
-        branch_id: int = 1,
+        financial_document_id: Optional[str] = None,
+        branch_id: str = "",
         user: str = "sistema",
         metadata: Optional[dict] = None,
-    ) -> int:
+    ) -> str:
         """
         Registra salida de dinero confirmada (pago, gasto, nómina, activo).
 
@@ -122,7 +121,7 @@ class TreasuryMovementService:
 
     # ── Estado ────────────────────────────────────────────────────────────────
 
-    def confirm_movement(self, movement_id: int) -> bool:
+    def confirm_movement(self, movement_id: str) -> bool:
         """Marca un movimiento como confirmed."""
         try:
             self._db.execute(
@@ -134,7 +133,7 @@ class TreasuryMovementService:
             logger.warning("confirm_movement id=%s: %s", movement_id, exc)
             return False
 
-    def cancel_movement(self, movement_id: int, reason: str = "") -> bool:
+    def cancel_movement(self, movement_id: str, reason: str = "") -> bool:
         """Marca un movimiento como cancelled."""
         try:
             self._db.execute(
@@ -167,19 +166,22 @@ class TreasuryMovementService:
         amount: float,
         payment_method: str,
         source_module: str,
-        source_id: Optional[int],
+        source_id: Optional[str],
         source_folio: str,
-        financial_document_id: Optional[int],
-        branch_id: int,
+        financial_document_id: Optional[str],
+        branch_id: str,
         user: str,
         metadata: Optional[dict],
-    ) -> int:
+    ) -> str:
+        """Inserta el movimiento (idempotente por operation_id). Devuelve su id
+        UUIDv7, o "" si se rechaza/falla (el fallo queda en log, nunca se
+        desvía a otra tabla)."""
         if not operation_id:
             logger.warning("treasury_movement: operation_id vacío — rechazado")
-            return 0
+            return ""
         if amount <= 0:
             logger.warning("treasury_movement op=%s: amount=%.2f inválido", operation_id, amount)
-            return 0
+            return ""
 
         try:
             existing = self._db.fetchone(
@@ -187,14 +189,8 @@ class TreasuryMovementService:
             )
             if existing:
                 logger.debug("treasury_movements: op_id=%s ya existe", operation_id)
-                return existing["id"]  # UUIDv7 (sin cast)
-        except Exception as exc:
-            logger.debug("treasury_movements no disponible: %s", exc)
-            return self._fallback_ts(movement_type, amount, payment_method,
-                                     source_module, source_folio, branch_id, user)
+                return str(existing["id"])
 
-        account = _account_for_payment(payment_method)
-        try:
             from backend.shared.ids import new_uuid
             movement_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
             self._db.execute(
@@ -205,43 +201,16 @@ class TreasuryMovementService:
                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     movement_id,
-                    movement_type, direction, float(amount), payment_method, account,
+                    movement_type, direction, float(amount), payment_method,
+                    _account_for_payment(payment_method),
                     "confirmed",
                     source_module, source_id, source_folio,
                     financial_document_id,
-                    branch_id, user, operation_id,
+                    str(branch_id or ""), user, operation_id,
                     json.dumps(metadata or {}, ensure_ascii=False, default=str),
                 ),
             )
+            return movement_id
         except Exception as exc:
-            logger.warning("treasury_movements INSERT op=%s: %s", operation_id, exc)
-            movement_id = 0
-
-        # Dual-write legacy (no-fatal)
-        self._fallback_ts(movement_type, amount, payment_method,
-                          source_module, source_folio, branch_id, user)
-
-        return movement_id
-
-    def _fallback_ts(
-        self, movement_type, amount, payment_method, source_module,
-        source_folio, branch_id, user
-    ) -> int:
-        if not self._ts:
-            return 0
-        try:
-            tipo = "ingreso" if movement_type == "inflow" else "egreso"
-            categoria = f"{source_module}_trazabilidad"
-            method = getattr(self._ts, "registrar_movimiento", None)
-            if method:
-                method(
-                    tipo=tipo,
-                    categoria=categoria,
-                    concepto=source_folio or source_module,
-                    monto=float(amount),
-                    sucursal_id=branch_id,
-                    usuario=user,
-                )
-        except Exception as exc:
-            logger.debug("TreasuryService fallback error: %s", exc)
-        return 0
+            logger.warning("treasury_movements op=%s: %s", operation_id, exc)
+            return ""

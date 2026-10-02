@@ -7,7 +7,7 @@ Covers the six critical fixes applied:
   2. CreditSaleFinanceHandler — CxC + GL inside SAVEPOINT for credit sales
   3. SaleCancelledFinanceHandler — GL reversal on sale cancellation
   4. CustomerCreditService.register_credit_sale — GL asiento before commit
-  5. CierreCajaService.corte_z — asiento for cash discrepancies
+  5. CajaApplicationService.generar_corte_z — asiento for cash discrepancies
   6. AnticipoCotizacionService.registrar_anticipo_pagado — asiento for advance payments
 """
 from __future__ import annotations
@@ -411,35 +411,43 @@ class TestCustomerCreditServiceAtomicity(unittest.TestCase):
         assert float(row["saldo_pendiente"]) == 750.0
 
 
-# ── 5. CierreCajaService corte Z discrepancy asiento ─────────────────────────
+# ── 5. Corte Z (ruta canónica única) — asiento por diferencia de caja ─────────
 
-class TestCierreCajaDiscrepancyAsiento(unittest.TestCase):
+class TestCorteZDiscrepancyAsiento(unittest.TestCase):
+    """Contrato de negocio: toda diferencia del corte Z se asienta (debe=haber).
+
+    Ruta única: CajaApplicationService.generar_corte_z.
+    """
 
     def setUp(self):
-        self.db = _memory_db()
-        # Open a shift
+        from tests.integration._born_clean_db import make_db
+        from backend.shared.ids import new_uuid
+        from application.services.caja_application_service import CajaApplicationService
+
+        self.db = make_db()
+        self.fs = _mock_finance()
+        self.suc = new_uuid()
+        self.svc = CajaApplicationService(self.db, finance_service=self.fs)
+        self.turno_id = self.svc.abrir_turno(self.suc, "cajero1", 100.0)
+        # Venta en efectivo dentro del turno (hora local, como el POS real)
         self.db.execute(
-            "INSERT INTO turno_actual (sucursal_id, usuario, turno, fondo_inicial, "
-            "fecha_apertura, abierto) VALUES (1,'cajero1','Mañana',100,datetime('now'),1)"
-        )
-        # Add a completed cash sale
-        self.db.execute(
-            "INSERT INTO ventas (folio,total,estado,sucursal_id,forma_pago,fecha) "
-            "VALUES ('V001',500,'completada',1,'Efectivo',datetime('now'))"
+            "INSERT INTO ventas (id, folio, total, estado, sucursal_id, forma_pago, fecha)"
+            " VALUES (?, 'V001', 500, 'completada', ?, 'Efectivo',"
+            " datetime('now','localtime'))",
+            (new_uuid(), self.suc),
         )
         self.db.commit()
-        self.fs = _mock_finance()
 
-    def _svc(self):
-        from core.services.cierre_caja_service import CierreCajaService
-        return CierreCajaService(conn=self.db, sucursal_id=1,
-                                  usuario="cajero1", finance_service=self.fs)
+    def _corte(self, contado: float) -> dict:
+        return self.svc.generar_corte_z(
+            turno_id=self.turno_id, sucursal_id=self.suc,
+            usuario="cajero1", efectivo_fisico=contado,
+        )
 
     def test_surplus_posts_asiento(self):
-        """Efectivo_contado > expected → sobrante → asiento debe=caja haber=diferencias."""
-        svc = self._svc()
-        # Expected: 500 (ventas) + 100 (fondo) = 600; countado 650 → +50 surplus
-        result = svc.corte_z(efectivo_contado=650.0)
+        """Contado > esperado → sobrante → asiento debe=caja haber=diferencias."""
+        # Esperado: 500 (ventas) + 100 (fondo) = 600; contado 650 → +50
+        result = self._corte(650.0)
         assert result["diferencia"] == approx(50.0, abs=0.01)
         self.fs.registrar_asiento.assert_called_once()
         kwargs = self.fs.registrar_asiento.call_args.kwargs
@@ -449,9 +457,8 @@ class TestCierreCajaDiscrepancyAsiento(unittest.TestCase):
         assert kwargs["evento"] == "CORTE_Z"
 
     def test_shortage_posts_asiento(self):
-        """Efectivo_contado < expected → faltante → asiento debe=diferencias haber=caja."""
-        svc = self._svc()
-        result = svc.corte_z(efectivo_contado=580.0)
+        """Contado < esperado → faltante → asiento debe=diferencias haber=caja."""
+        result = self._corte(580.0)
         assert result["diferencia"] == approx(-20.0, abs=0.01)
         kwargs = self.fs.registrar_asiento.call_args.kwargs
         assert kwargs["debe"] == "999-diferencias-caja"
@@ -459,17 +466,18 @@ class TestCierreCajaDiscrepancyAsiento(unittest.TestCase):
         assert kwargs["monto"] == approx(20.0, abs=0.01)
 
     def test_zero_difference_skips_asiento(self):
-        """Exact cash count produces no asiento."""
-        svc = self._svc()
-        result = svc.corte_z(efectivo_contado=600.0)
+        """Conteo exacto no produce asiento."""
+        result = self._corte(600.0)
         assert result["diferencia"] == approx(0.0, abs=0.01)
         self.fs.registrar_asiento.assert_not_called()
 
     def test_corte_z_without_finance_service_does_not_crash(self):
-        from core.services.cierre_caja_service import CierreCajaService
-        svc = CierreCajaService(conn=self.db, sucursal_id=1, usuario="cajero1")
-        result = svc.corte_z(efectivo_contado=620.0)
-        # Should complete without error even if no finance_service
+        from application.services.caja_application_service import CajaApplicationService
+        svc = CajaApplicationService(self.db)
+        result = svc.generar_corte_z(
+            turno_id=self.turno_id, sucursal_id=self.suc,
+            usuario="cajero1", efectivo_fisico=620.0,
+        )
         assert "cierre_id" in result
 
 

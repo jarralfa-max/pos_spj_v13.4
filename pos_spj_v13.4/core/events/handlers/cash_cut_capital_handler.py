@@ -79,6 +79,11 @@ class CashCutCapitalHandler:
                     "efectivo_contado": payload.get("efectivo_contado"),
                 },
             )
+            # Handler post-commit = su propia unidad de trabajo: register_inflow
+            # no hace commit (el caller decide), así que lo confirma aquí.
+            db = getattr(self._treasury, "db", None)
+            if db is not None:
+                db.commit()
             logger.info(
                 "Corte Z consolidado a capital: corte=%s monto=%.2f", cut_ref, monto
             )

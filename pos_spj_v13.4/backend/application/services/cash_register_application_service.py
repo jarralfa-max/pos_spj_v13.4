@@ -30,8 +30,8 @@ Publisher = Callable[[str, dict], Any]
 
 
 class CashRegisterApplicationService:
-    def __init__(self, finance_service, publisher: Publisher | None = None) -> None:
-        self._fin = finance_service
+    def __init__(self, caja_service, publisher: Publisher | None = None) -> None:
+        self._caja = caja_service
         self._publish: Publisher = publisher or (lambda *_: None)
 
     # ── helpers ───────────────────────────────────────────────────────────────
@@ -40,12 +40,12 @@ class CashRegisterApplicationService:
         return cmd.user_name or cmd.user_id or "sistema"
 
     def _open_shift_id(self, cmd) -> str | None:
-        estado = self._fin.get_estado_turno(cmd.branch_id, self._user(cmd))
+        estado = self._caja.get_estado_turno(cmd.branch_id, self._user(cmd))
         return estado["id"] if estado else None
 
     # ── use case handlers ─────────────────────────────────────────────────────
     def open_shift(self, command: OpenCashShiftCommand) -> UseCaseResult:
-        shift_id = self._fin.abrir_turno(
+        shift_id = self._caja.abrir_turno(
             sucursal_id=command.branch_id,
             usuario=self._user(command),
             fondo_inicial=float(command.opening_amount or 0.0),
@@ -67,7 +67,7 @@ class CashRegisterApplicationService:
         if not shift_id:
             return UseCaseResult(success=False, operation_id=command.operation_id,
                                  message="No hay turno de caja abierto")
-        self._fin.registrar_movimiento_manual(
+        self._caja.registrar_movimiento_manual(
             turno_id=shift_id, sucursal_id=command.branch_id, usuario=self._user(command),
             tipo=command.movement_type, monto=float(command.amount or 0.0),
             concepto=command.concept,
@@ -79,6 +79,7 @@ class CashRegisterApplicationService:
             "movement_type": command.movement_type,
             "amount": float(command.amount or 0.0),
             "concept": command.concept,
+            "user": self._user(command),
         })
         return UseCaseResult(
             success=True, operation_id=command.operation_id, entity_id=str(shift_id),
@@ -91,22 +92,27 @@ class CashRegisterApplicationService:
             return UseCaseResult(success=False, operation_id=command.operation_id,
                                  message="No hay turno de caja abierto")
         efectivo_fisico = float((command.payload or {}).get("efectivo_fisico", 0.0))
-        corte = self._fin.generar_corte_z(
+        corte = self._caja.generar_corte_z(
             turno_id=shift_id, sucursal_id=command.branch_id,
             usuario=self._user(command), efectivo_fisico=efectivo_fisico,
         )
         diferencia = float((corte or {}).get("diferencia", 0.0))
+        cut_id = str((corte or {}).get("cierre_id") or "")
         self._publish(EventName.CASH_Z_CUT_GENERATED.value, {
+            **(corte or {}),
             "operation_id": command.operation_id,
             "shift_id": shift_id,
+            "cut_id": cut_id,
             "branch_id": command.branch_id,
-            **(corte or {}),
+            "user": self._user(command),
         })
         if abs(diferencia) > 0.009:
             self._publish(EventName.CASH_DIFFERENCE_DETECTED.value, {
                 "operation_id": command.operation_id,
                 "shift_id": shift_id,
+                "cut_id": cut_id,
                 "branch_id": command.branch_id,
+                "user": self._user(command),
                 "diferencia": diferencia,
             })
         return UseCaseResult(

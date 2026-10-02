@@ -80,7 +80,7 @@ def _make_services(conn):
 
     je = JournalEntryService(db=conn, gl_service=None)
     fd = FinancialDocumentService(db=conn)
-    tm = TreasuryMovementService(db=conn, treasury_service=None)
+    tm = TreasuryMovementService(db=conn)
     mnt = MaintenanceFinanceService(db=conn, journal_service=je,
                                     document_service=fd, treasury_service=tm)
     return mnt
